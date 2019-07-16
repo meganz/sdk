@@ -392,6 +392,7 @@ typedef void (WINAPI *pFPDF_RenderPageBitmap) (FPDF_BITMAP bitmap, FPDF_PAGE pag
                                                int size_x, int size_y, int rotate, int flags);
 typedef void (WINAPI *pFPDFBitmap_Destroy) (FPDF_BITMAP bitmap);
 
+std::mutex pdfiumMutex;
 pFPDF_InitLibraryWithConfig FPDF_InitLibraryWithConfig;
 pFPDF_DestroyLibrary FPDF_DestroyLibrary;
 pFPDF_LoadDocument FPDF_LoadDocument;
@@ -408,6 +409,7 @@ pFPDF_RenderPageBitmap FPDF_RenderPageBitmap;
 pFPDFBitmap_Destroy FPDFBitmap_Destroy;
 
 bool pdfiumLoadedOk = false;
+bool pdfiumLoadAttempted = false;
 #endif
 
 /*GfxProc implementation*/
@@ -423,35 +425,52 @@ GfxProcQT::GfxProcQT()
 
 #ifdef HAVE_PDFIUM
 #ifdef _WIN32
-    HINSTANCE pdfiumDLL = NULL;
-    WCHAR systemPath[MAX_PATH];
-    UINT len = GetSystemDirectory(systemPath, MAX_PATH);
-    pdfiumDLL = LoadLibrary(L"pdfium.DLL"); //TODO: .exe path?
-
-    if (pdfiumDLL)
+#pragma warning (disable: 4996 4191)
+    if (!pdfiumLoadAttempted)
     {
-        FPDF_InitLibraryWithConfig = (pFPDF_InitLibraryWithConfig)::GetProcAddress(pdfiumDLL, "_FPDF_InitLibraryWithConfig@4");
-        FPDF_DestroyLibrary = (pFPDF_DestroyLibrary)::GetProcAddress(pdfiumDLL, "_FPDF_DestroyLibrary@0");
-        FPDF_LoadDocument = (pFPDF_LoadDocument)::GetProcAddress(pdfiumDLL, "_FPDF_LoadDocument@8");
-        FPDF_GetLastError = (pFPDF_GetLastError)::GetProcAddress(pdfiumDLL, "_FPDF_GetLastError@0");
-        FPDF_LoadMemDocument = (pFPDF_LoadMemDocument)::GetProcAddress(pdfiumDLL, "_FPDF_LoadMemDocument@12");
-        FPDF_GetPageCount = (pFPDF_GetPageCount)::GetProcAddress(pdfiumDLL, "_FPDF_GetPageCount@4");
-        FPDF_LoadPage = (pFPDF_LoadPage)::GetProcAddress(pdfiumDLL, "_FPDF_LoadPage@8");
-        FPDF_GetPageWidth = (pFPDF_GetPageWidth)::GetProcAddress(pdfiumDLL, "_FPDF_GetPageWidth@4");
-        FPDF_GetPageHeight = (pFPDF_GetPageHeight)::GetProcAddress(pdfiumDLL, "_FPDF_GetPageHeight@4");
-        FPDFBitmap_CreateEx = (pFPDFBitmap_CreateEx)::GetProcAddress(pdfiumDLL, "_FPDFBitmap_CreateEx@20");
-        FPDF_ClosePage = (pFPDF_ClosePage)::GetProcAddress(pdfiumDLL, "_FPDF_ClosePage@4");
-        FPDF_CloseDocument = (pFPDF_CloseDocument)::GetProcAddress(pdfiumDLL, "_FPDF_CloseDocument@4");
-        FPDF_RenderPageBitmap = (pFPDF_RenderPageBitmap)::GetProcAddress(pdfiumDLL, "_FPDF_RenderPageBitmap@32");
-        FPDFBitmap_Destroy = (pFPDFBitmap_Destroy)::GetProcAddress(pdfiumDLL, "_FPDFBitmap_Destroy@4");
+        std::lock_guard g(pdfiumMutex);
+        if (!pdfiumLoadAttempted)
+        {
+            pdfiumLoadAttempted = true;
+            OSVERSIONINFOEX osvi;
+            ZeroMemory(&osvi, sizeof(OSVERSIONINFOEX));
+            osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEX);
+            if (GetVersionEx((OSVERSIONINFO*)&osvi) && osvi.dwMajorVersion >= 6)  // vista/server2008 or beyond for InitOnceExecuteOnce which pdfium uses.
+            {
+                HINSTANCE pdfiumDLL = NULL;
+                WCHAR systemPath[MAX_PATH];
+                GetSystemDirectory(systemPath, MAX_PATH);
+                pdfiumDLL = LoadLibrary(L"pdfium.DLL"); //TODO: .exe path?
 
-        if (!FPDF_InitLibraryWithConfig || !FPDF_DestroyLibrary )//TODO: add all checks
-        {
-            FreeLibrary(pdfiumDLL);
-        }
-        else
-        {
-            pdfiumLoadedOk = true;
+                if (pdfiumDLL)
+                {
+                    bool anyfailed = false;
+                    anyfailed = anyfailed || !(FPDF_InitLibraryWithConfig = (pFPDF_InitLibraryWithConfig)::GetProcAddress(pdfiumDLL, "_FPDF_InitLibraryWithConfig@4"));
+                    anyfailed = anyfailed || !(FPDF_DestroyLibrary = (pFPDF_DestroyLibrary)::GetProcAddress(pdfiumDLL, "_FPDF_DestroyLibrary@0"));
+                    anyfailed = anyfailed || !(FPDF_LoadDocument = (pFPDF_LoadDocument)::GetProcAddress(pdfiumDLL, "_FPDF_LoadDocument@8"));
+                    anyfailed = anyfailed || !(FPDF_GetLastError = (pFPDF_GetLastError)::GetProcAddress(pdfiumDLL, "_FPDF_GetLastError@0"));
+                    anyfailed = anyfailed || !(FPDF_LoadMemDocument = (pFPDF_LoadMemDocument)::GetProcAddress(pdfiumDLL, "_FPDF_LoadMemDocument@12"));
+                    anyfailed = anyfailed || !(FPDF_GetPageCount = (pFPDF_GetPageCount)::GetProcAddress(pdfiumDLL, "_FPDF_GetPageCount@4"));
+                    anyfailed = anyfailed || !(FPDF_LoadPage = (pFPDF_LoadPage)::GetProcAddress(pdfiumDLL, "_FPDF_LoadPage@8"));
+                    anyfailed = anyfailed || !(FPDF_GetPageWidth = (pFPDF_GetPageWidth)::GetProcAddress(pdfiumDLL, "_FPDF_GetPageWidth@4"));
+                    anyfailed = anyfailed || !(FPDF_GetPageHeight = (pFPDF_GetPageHeight)::GetProcAddress(pdfiumDLL, "_FPDF_GetPageHeight@4"));
+                    anyfailed = anyfailed || !(FPDFBitmap_CreateEx = (pFPDFBitmap_CreateEx)::GetProcAddress(pdfiumDLL, "_FPDFBitmap_CreateEx@20"));
+                    anyfailed = anyfailed || !(FPDF_ClosePage = (pFPDF_ClosePage)::GetProcAddress(pdfiumDLL, "_FPDF_ClosePage@4"));
+                    anyfailed = anyfailed || !(FPDF_CloseDocument = (pFPDF_CloseDocument)::GetProcAddress(pdfiumDLL, "_FPDF_CloseDocument@4"));
+                    anyfailed = anyfailed || !(FPDF_RenderPageBitmap = (pFPDF_RenderPageBitmap)::GetProcAddress(pdfiumDLL, "_FPDF_RenderPageBitmap@32"));
+                    anyfailed = anyfailed || !(FPDFBitmap_Destroy = (pFPDFBitmap_Destroy)::GetProcAddress(pdfiumDLL, "_FPDFBitmap_Destroy@4"));
+
+                    if (anyfailed)
+                    {
+                        LOG_err << "Pdfium failed to load";
+                        FreeLibrary(pdfiumDLL);
+                    }
+                    else
+                    {
+                        pdfiumLoadedOk = true;
+                    }
+                }
+            }
         }
     }
 #endif
@@ -1130,7 +1149,7 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
     // Find first video stream type
     AVStream *videoStream = NULL;
     int videoStreamIdx = 0;
-    for (int i = 0; i < formatContext->nb_streams; i++)
+    for (unsigned i = 0; i < formatContext->nb_streams; i++)
     {
         if (formatContext->streams[i]->codec && formatContext->streams[i]->codec->codec_type == AVMEDIA_TYPE_VIDEO)
         {
@@ -1410,8 +1429,9 @@ const char *GfxProcQT::supportedvideoformats()
 {
 #ifdef HAVE_FFMPEG
     return supportedformatsFfmpeg();
-#endif
+#else
     return NULL;
+#endif
 }
 
 } // namespace
