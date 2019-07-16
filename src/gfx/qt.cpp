@@ -428,7 +428,7 @@ GfxProcQT::GfxProcQT()
 #pragma warning (disable: 4996 4191)
     if (!pdfiumLoadAttempted)
     {
-        std::lock_guard g(pdfiumMutex);
+        std::lock_guard<std::mutex> g(pdfiumMutex);
         if (!pdfiumLoadAttempted)
         {
             pdfiumLoadAttempted = true;
@@ -468,6 +468,7 @@ GfxProcQT::GfxProcQT()
                     else
                     {
                         pdfiumLoadedOk = true;
+                        LOG_info << "Pdfium loaded";
                     }
                 }
             }
