@@ -438,9 +438,7 @@ GfxProcQT::GfxProcQT()
             if (GetVersionEx((OSVERSIONINFO*)&osvi) && osvi.dwMajorVersion >= 6)  // vista/server2008 or beyond for InitOnceExecuteOnce which pdfium uses.
             {
                 HINSTANCE pdfiumDLL = NULL;
-                WCHAR systemPath[MAX_PATH];
-                GetSystemDirectory(systemPath, MAX_PATH);
-                pdfiumDLL = LoadLibrary(L"pdfium.DLL"); //TODO: .exe path?
+                pdfiumDLL = LoadLibrary(L"pdfium.DLL");
 
                 if (pdfiumDLL)
                 {
