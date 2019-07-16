@@ -34,11 +34,7 @@ public:
     MegaClient* client;
 
     // sync-wide directory notification provider
-#if __cplusplus >= 201100L
     std::unique_ptr<DirNotify> dirnotify;
-#else
-    std::auto_ptr<DirNotify> dirnotify;
-#endif
 
     // root of local filesystem tree, holding the sync's root folder
     LocalNode localroot;
@@ -116,6 +112,9 @@ public:
 
     // original filesystem fingerprint
     fsfp_t fsfp;
+
+    // does the filesystem have stable IDs? (FAT does not)
+    bool fsstableids;
 
     // Error that causes a cancellation
     error errorcode;

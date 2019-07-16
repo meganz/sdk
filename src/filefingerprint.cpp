@@ -65,11 +65,6 @@ bool operator==(const FileFingerprint& lhs, const FileFingerprint& rhs)
     return !memcmp(lhs.crc, rhs.crc, sizeof lhs.crc);
 }
 
-FileFingerprint::FileFingerprint(FileAccess* fa, const bool ignoremtime)
-{
-    genfingerprint(fa, ignoremtime);
-}
-
 bool FileFingerprint::serialize(string *d)
 {
     d->append((const char*)&size, sizeof(size));

@@ -1744,7 +1744,7 @@ void PosixDirNotify::delnotify(LocalNode* l)
 #endif
 }
 
-fsfp_t PosixDirNotify::fsfingerprint()
+fsfp_t PosixDirNotify::fsfingerprint() const
 {
     struct statfs statfsbuf;
 
@@ -1752,6 +1752,19 @@ fsfp_t PosixDirNotify::fsfingerprint()
     if (statfs(localbasepath.c_str(), &statfsbuf)) return 0;
 
     return *(fsfp_t*)&statfsbuf.f_fsid + 1;
+}
+
+bool PosixDirNotify::fsstableids() const
+{
+    struct statfs statfsbuf;
+
+    if (statfs(localbasepath.c_str(), &statfsbuf))
+    {
+        return true;
+    }
+
+    return statfsbuf.f_type != 0x4d44 // FAT
+        && statfsbuf.f_type != 0x65735546; // FUSE
 }
 
 FileAccess* PosixFileSystemAccess::newfileaccess()

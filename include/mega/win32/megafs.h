@@ -104,13 +104,14 @@ struct MEGA_API WinDirNotify : public DirNotify
     DWORD dwBytes;
     OVERLAPPED overlapped;
 
-    void addnotify(LocalNode*, string*);
+    void addnotify(LocalNode*, string*) override;
 
     static VOID CALLBACK completion(DWORD dwErrorCode, DWORD dwBytes, LPOVERLAPPED lpOverlapped);
     void process(DWORD wNumberOfBytesTransfered);
     void readchanges();
 
-    fsfp_t fsfingerprint();
+    fsfp_t fsfingerprint() const override;
+    bool fsstableids() const override;
 
     WinDirNotify(string*, string*);
     ~WinDirNotify();

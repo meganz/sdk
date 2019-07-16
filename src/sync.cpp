@@ -92,6 +92,8 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
         fsfp = dirnotify->fsfingerprint();
     }
 
+    fsstableids = dirnotify->fsstableids();
+
     localroot.init(this, FOLDERNODE, NULL, crootpath);
     localroot.setnode(remotenode);
 
@@ -685,6 +687,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
 
                     if (fa->type == FILENODE)
                     {
+                        FileFingerprint ffp_fa;
                         // has the file been overwritten or changed since the last scan?
                         // or did the size or mtime change?
                         if (fa->fsidvalid)
@@ -693,10 +696,10 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                             // (FIXME: handle type changes)
                             if (l->fsid != fa->fsid)
                             {
-                                if (*l == FileFingerprint{fa})
+                                if (!l->sync->fsstableids && ffp_fa.genfingerprint(fa) && *l == ffp_fa)
                                 {
-                                    // If the fingerprint is the same it is the same file and only
-                                    // its fsid changed (e.g. common on fat filesystems).
+                                    // On a filesystem with unstable IDs (e.g. FAT) we need to verify
+                                    // the fingerprint and only continue if they're different.
                                     l->setfsid(fa->fsid);
                                     statecacheadd(l);
                                     delete fa;
@@ -776,7 +779,15 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
 
                             m_off_t dsize = l->size > 0 ? l->size : 0;
 
-                            if (l->genfingerprint(fa) && l->size >= 0)
+                            if (ffp_fa.isvalid)
+                            {
+                                static_cast<FileFingerprint&>(*l) = ffp_fa;
+                            }
+                            else
+                            {
+                                l->genfingerprint(fa);
+                            }
+                            if (l->isvalid && l->size >= 0)
                             {
                                 localbytes -= dsize - l->size;
                             }

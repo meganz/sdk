@@ -43,7 +43,6 @@ struct MEGA_API FileFingerprint : public Cachable
     int unserializefingerprint(string* d);
 
     FileFingerprint() = default;
-    explicit FileFingerprint(FileAccess* fa, bool ignoremtime = false);
 
     virtual bool serialize(string* d);
     static FileFingerprint* unserialize(string* d);

@@ -1238,7 +1238,7 @@ void WinDirNotify::addnotify(LocalNode* l, string*)
 #endif
 }
 
-fsfp_t WinDirNotify::fsfingerprint()
+fsfp_t WinDirNotify::fsfingerprint() const
 {
 #ifdef WINDOWS_PHONE
 	FILE_ID_INFO fi = { 0 };
@@ -1257,6 +1257,12 @@ fsfp_t WinDirNotify::fsfingerprint()
 #else
     return fi.dwVolumeSerialNumber + 1;
 #endif
+}
+
+bool WinDirNotify::fsstableids() const
+{
+    // TODO implement!
+    return true;
 }
 
 VOID CALLBACK WinDirNotify::completion(DWORD dwErrorCode, DWORD dwBytes, LPOVERLAPPED lpOverlapped)

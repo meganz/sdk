@@ -174,10 +174,11 @@ class MEGA_API PosixDirNotify : public DirNotify
 public:
     PosixFileSystemAccess* fsaccess;
 
-    void addnotify(LocalNode*, string*);
-    void delnotify(LocalNode*);
+    void addnotify(LocalNode*, string*) override;
+    void delnotify(LocalNode*) override;
 
-    fsfp_t fsfingerprint();
+    fsfp_t fsfingerprint() const override;
+    bool fsstableids() const override;
 
     PosixDirNotify(string*, string*);
 };
