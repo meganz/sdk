@@ -14330,7 +14330,6 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
         // must be converted into Base64 strings to avoid problems
         MegaStringMap *stringMap = new MegaStringMapPrivate(tlv->getMap(), true);
         request->setMegaStringMap(stringMap);
-
         switch (request->getParamType())
         {
             // prepare request params to know if a warning should show or not
@@ -14387,15 +14386,15 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
                 const char *uh = request->getText();
                 if (uh)
                 {
+                    request->setMegaStringMap(NULL);
                     const char *buf = stringMap->get(uh);
-                    request->setName(buf);
                     if (!buf)
                     {
                         e = API_ENOENT;
+                        break;
                     }
 
-                    // Clean MegaStringMap from request
-                    request->setMegaStringMap(NULL);
+                    request->setName(buf);
                 }
                 break;
             }
@@ -14407,7 +14406,6 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
     }
 
     fireOnRequestFinish(request, MegaError(e));
-    return;
 }
 
 #ifdef DEBUG
