@@ -406,7 +406,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
         MegaHandle getPublicHandle() override;
         MegaNode* getPublicNode() override;
         char *getPublicLink(bool includeKey = true) override;
-        int64_t getPublicLinkCreationTime();
+        virtual int64_t getPublicLinkCreationTime() override;
         bool isFile() override;
         bool isFolder() override;
         bool isRemoved() override;
@@ -2627,7 +2627,7 @@ protected:
         void cancelsignup_result(error) override;
 
         // check the reason of being blocked
-        void whyamiblocked_result(error) override;
+        void whyamiblocked_result(int) override;
 
         // contact link management
         void contactlinkcreate_result(error, handle) override;
@@ -2854,7 +2854,7 @@ protected:
         void http_result(error, int, byte *, int) override;
 
         // notify about a business account status change
-        virtual void notify_business_status(BizStatus status);
+        virtual void notify_business_status(BizStatus status) override;
 
         // notify about a finished timer
         void timer_result(error) override;

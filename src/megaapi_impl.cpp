@@ -14397,7 +14397,7 @@ void MegaApiImpl::cancelsignup_result(error e)
     fireOnRequestFinish(request, MegaError(e));
 }
 
-void MegaApiImpl::whyamiblocked_result(error code)
+void MegaApiImpl::whyamiblocked_result(int code)
 {
     if (requestMap.find(client->restag) == requestMap.end())
     {

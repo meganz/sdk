@@ -55,7 +55,7 @@ struct MEGA_API MegaApp
     virtual void cancelsignup_result(error) { }
 
     // check the reason of being blocked result
-    virtual void whyamiblocked_result(error) { }
+    virtual void whyamiblocked_result(int) { }
 
     // account creation
     virtual void sendsignuplink_result(error) { }
