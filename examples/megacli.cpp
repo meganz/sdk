@@ -1231,9 +1231,19 @@ void DemoApp::getua_result(TLVstore *tlv, attr_t type)
 
             cout << "\t" << key << "\t" << buf << endl;
 
-            if (type == ATTR_AUTHRING)
+            if (valuelen)
             {
-                cout << "\t\tAuthring data: " << endl;
+                switch (type)
+                {
+                case ATTR_AUTHRING:
+                    cout << "\t\tAuthring data: " << endl;
+                    break;
+                case ATTR_AUTHRSA:
+                    cout << "\t\tAuthentication RSA: " << endl;
+                    break;
+                default:
+                    break;
+                }
 
                 handle uh;
                 byte keyFingerprint[20];
@@ -1241,7 +1251,7 @@ void DemoApp::getua_result(TLVstore *tlv, attr_t type)
                 size_t recordSize = 29;
 
                 const char* ptr = value.data();
-                const char* end = ptr + valuelen;
+                const char* end = ptr + valuelen + 1;
                 while (ptr + recordSize < end)
                 {
                     memcpy(&uh, ptr, sizeof(uh));
@@ -1251,9 +1261,10 @@ void DemoApp::getua_result(TLVstore *tlv, attr_t type)
                     memcpy(&authLevel, ptr, sizeof(authLevel));
                     ptr += sizeof(authLevel);
 
-                    cout << "uh: " << Base64Str<USER_HANDLE>(uh) << " Fingerprint: " << Base64Str<sizeof(keyFingerprint)>(keyFingerprint) << " Auth: " << authLevel << endl;
+                    cout << "\tUserhandle: " << Base64Str<MegaClient::USERHANDLE>(uh) << endl;
+                    cout << "\tFingerprint: " << Base64Str<sizeof(keyFingerprint)>(keyFingerprint) << endl;
+                    cout << "\tTrust level: " << char(authLevel+48) << endl;
                 }
-
             }
 
             delete [] buf;
