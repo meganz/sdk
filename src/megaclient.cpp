@@ -5266,9 +5266,22 @@ void MegaClient::sc_userattr()
                             {
                                 u->invalidateattr(type);
 #ifdef ENABLE_CHAT
-                                if (type == ATTR_KEYRING)
+                                switch(type)
                                 {
-                                    resetKeyring();
+                                    case ATTR_KEYRING:
+                                    {
+                                        resetKeyring();
+                                        break;
+                                    }
+                                    case ATTR_AUTHRING:     // fall-through
+                                    case ATTR_AUTHCU255:    // fall-through
+                                    case ATTR_AUTHRSA:
+                                    {
+                                        getua(u, type, 0);
+                                        break;
+                                    }
+                                    default:
+                                        break;
                                 }
 #endif
                             }
@@ -10742,6 +10755,9 @@ void MegaClient::fetchkeys()
     getua(u, ATTR_KEYRING, 0);        // private Cu25519 & private Ed25519
     getua(u, ATTR_ED25519_PUBK, 0);
     getua(u, ATTR_CU25519_PUBK, 0);
+    getua(u, ATTR_AUTHRING, 0);
+    getua(u, ATTR_AUTHCU255, 0);
+    getua(u, ATTR_AUTHRSA, 0);
     getua(u, ATTR_SIG_CU255_PUBK, 0);
     getua(u, ATTR_SIG_RSA_PUBK, 0);   // it triggers MegaClient::initializekeys() --> must be the latest
 }
