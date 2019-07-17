@@ -2500,6 +2500,33 @@ void exec_treecompare(autocomplete::ACState& s);
 void exec_querytransferquota(autocomplete::ACState& s);
 
 
+void exec_showattributes(autocomplete::ACState& s)
+{
+    if (const Node* n = nodeFromRemotePath(s.words[1].s))
+    {
+        for (auto pair : n->attrs.map)
+        {
+            char namebuf[10]{};
+            AttrMap::nameid2string(pair.first, namebuf);
+            if (pair.first == 'c')
+            {
+                FileFingerprint f;
+                f.unserializefingerprint(&pair.second);
+                cout << namebuf << ": " << pair.second << " (fingerprint: size " << f.size << " mtime " << f.mtime
+                    << " crc " << std::hex << f.crc[0] << " " << f.crc[1] << " " << f.crc[2] << " " << f.crc[3] << std::dec << ")"
+
+                    << " (node fingerprint: size " << n->size << " mtime " << n->mtime
+                    << " crc " << std::hex << n->crc[0] << " " << n->crc[1] << " " << n->crc[2] << " " << n->crc[3] << std::dec << ")" << endl;
+            }
+            else
+            {
+                cout << namebuf << ": " << pair.second << endl;
+            }
+        }
+    }
+}
+
+
 autocomplete::ACN autocompleteSyntax()
 {
     using namespace autocomplete;
@@ -2582,7 +2609,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_symlink, sequence(text("symlink")));
     p->Add(exec_version, sequence(text("version")));
     p->Add(exec_debug, sequence(text("debug")));
-#ifdef WIN32
+#if defined(WIN32) && defined(NO_READLINE)
     p->Add(exec_clear, sequence(text("clear")));
     p->Add(exec_codepage, sequence(text("codepage"), opt(sequence(wholenumber(65001), opt(wholenumber(65001))))));
     p->Add(exec_log, sequence(text("log"), either(text("utf8"), text("utf16"), text("codepage")), localFSFile()));
@@ -2630,6 +2657,8 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_querytransferquota, sequence(text("querytransferquota"), param("filesize")));
     p->Add(exec_getcloudstorageused, sequence(text("getcloudstorageused")));
     p->Add(exec_getuserquota, sequence(text("getuserquota"), repeat(either(flag("-storage"), flag("-transfer"), flag("-pro")))));
+
+    p->Add(exec_showattributes, sequence(text("showattributes"), remoteFSPath(client, &cwd)));
 
     return autocompleteTemplate = std::move(p);
 }
