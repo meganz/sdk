@@ -1184,7 +1184,7 @@ void DemoApp::getua_result(error e)
     cout << "User attribute retrieval failed (" << errorstring(e) << ")" << endl;
 }
 
-void DemoApp::getua_result(byte* data, unsigned l, attr_t)
+void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
 {
 #ifdef ENABLE_CHAT
     if (client->fetchingkeys)
@@ -1236,16 +1236,21 @@ void DemoApp::getua_result(TLVstore *tlv, attr_t type)
                 switch (type)
                 {
                 case ATTR_AUTHRING:
-                    cout << "\t\tAuthring data: " << endl;
+                    cout << "Authentication Ed25519: " << endl;
                     break;
                 case ATTR_AUTHRSA:
-                    cout << "\t\tAuthentication RSA: " << endl;
+                    cout << "Authentication RSA: " << endl;
+                    break;
+                case ATTR_AUTHCU255:
+                    cout << "Authentication Cu25519: " << endl;
                     break;
                 default:
                     break;
                 }
 
                 handle uh;
+                User *user = nullptr;
+                string email;
                 byte keyFingerprint[20];
                 byte authLevel;
                 size_t recordSize = 29;
@@ -1256,14 +1261,17 @@ void DemoApp::getua_result(TLVstore *tlv, attr_t type)
                 {
                     memcpy(&uh, ptr, sizeof(uh));
                     ptr += sizeof(uh);
+                    user = client->finduser(uh);
+                    email = user ? user->email : "not a contact";
                     memcpy(keyFingerprint, ptr, sizeof(keyFingerprint));
                     ptr += sizeof(keyFingerprint);
                     memcpy(&authLevel, ptr, sizeof(authLevel));
                     ptr += sizeof(authLevel);
 
-                    cout << "\tUserhandle: " << Base64Str<MegaClient::USERHANDLE>(uh) << endl;
-                    cout << "\tFingerprint: " << Base64Str<sizeof(keyFingerprint)>(keyFingerprint) << endl;
-                    cout << "\tTrust level: " << char(authLevel+48) << endl;
+                    cout << "\tUserhandle: \t" << Base64Str<MegaClient::USERHANDLE>(uh) << endl;
+                    cout << "\tEmail:      \t" << email << endl;
+                    cout << "\tFingerprint:\t" << Base64Str<sizeof(keyFingerprint)>(keyFingerprint) << endl;
+                    cout << "\tAuth. level: \t" << char(authLevel+48) << endl;
                 }
             }
 

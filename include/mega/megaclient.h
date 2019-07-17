@@ -342,6 +342,9 @@ public:
     // load cryptographic keys: RSA, Ed25519, Cu25519 and their signatures
     void fetchkeys();    
     void initializekeys();
+
+    // calculate the fingerprint of keys (most significant 160bits of SHA256)
+    void computeFingerprint(const string &key, byte *fingerprint);
 #endif
 
     // retrieve user details

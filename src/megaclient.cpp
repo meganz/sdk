@@ -10974,6 +10974,18 @@ void MegaClient::initializekeys()
         return;
     }
 }
+
+void MegaClient::computeFingerprint(const string &key, byte *fingerprint)
+{
+    HashSHA256 hash;
+    hash.add((const byte *)key.data(), key.size());
+
+    string buf;
+    hash.get(&buf);
+
+    memcpy(fingerprint, buf.data(), 20);
+}
+
 #endif  // ENABLE_CHAT
 
 void MegaClient::purgenodesusersabortsc()
