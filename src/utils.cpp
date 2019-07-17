@@ -1237,8 +1237,14 @@ TLVstore * TLVstore::containerToTLVrecords(const string *data)
         pos = data->find('\0', offset);
         typelen = pos - offset;
 
+        if (pos == string::npos)
+        {
+            LOG_warn << "Invalid record in the TLV";
+            return tlv;
+        }
+
         // if no valid TLV record in the container, but remaining bytes...
-        if ( (pos == data->npos) || (offset + typelen + 3 > datalen) )
+        if (offset + typelen + 3 > datalen)
         {
             delete tlv;
             return NULL;
