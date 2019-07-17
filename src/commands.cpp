@@ -3018,6 +3018,119 @@ void CommandGetUA::procresult()
                             {
                                 client->initializekeys(); // we have now all the required data
                             }
+
+                            if (u->userhandle != client->me)
+                            {
+                                if (at == ATTR_ED25519_PUBK)
+                                {
+                                    User *ownUser = client->finduser(client->me);
+                                    assert(ownUser->isattrvalid(ATTR_AUTHRING));
+                                    if (ownUser->isattrvalid(ATTR_AUTHRING))
+                                    {
+                                        // compute key's fingerprint
+                                        byte keyFingerprint[20];
+                                        client->computeFingerprint(value, keyFingerprint);
+                                        byte authLevel = 0xFF;
+                                        // TODO: create an enumeration for authentication levels
+                                        bool authLevelChanged = false;
+
+                                        const string *buf = ownUser->getattr(ATTR_AUTHRING);
+                                        TLVstore *authring = TLVstore::containerToTLVrecords(buf);
+                                        if (authring)
+                                        {
+                                            string data;
+                                            if (authring->find("")) // key is an empty string, but may not be there if authring was reset
+                                            {
+                                                data = authring->get("");
+                                                const char *ptr = data.data();
+                                                const char *end = ptr + data.size() + 1;
+                                                unsigned recordSize = 29;
+
+                                                // check if user's key is already tracked in authring
+                                                bool keyTracked = false;
+                                                byte authFingerprint[20];
+
+                                                while (ptr + recordSize < end)
+                                                {
+                                                    handle uh;
+                                                    memcpy(&uh, ptr, sizeof(uh));
+                                                    ptr += sizeof(uh);
+
+                                                    if (uh == u->userhandle)
+                                                    {
+                                                        memcpy(authFingerprint, ptr, sizeof(authFingerprint));
+                                                        ptr += sizeof(authFingerprint);
+
+                                                        memcpy(&authLevel, ptr, sizeof(authLevel));
+                                                        ptr += sizeof(authLevel);
+
+                                                        keyTracked = true;
+                                                        break;
+                                                    }
+                                                    else
+                                                    {
+                                                        ptr += sizeof(authFingerprint) + sizeof(authLevel);
+                                                    }
+                                                }
+
+                                                // is key tracked in authring?
+                                                if (keyTracked)
+                                                {
+                                                    // does fingerprint match tracked fingerprint?
+                                                    if (memcmp(keyFingerprint, authFingerprint, sizeof(buf)) != 0)
+                                                    {
+                                                        LOG_info << "Authentication of Ed25519 public key of user " << u->email << " succesful (auth. level: " << authLevel+48 << ")";
+                                                    }
+                                                    else
+                                                    {
+                                                        LOG_err << "Authentication of Ed25519 public key of user " << u->email << " failed";
+                                                        // TODO: notify the app through an event (and maybe send an event to stats)
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    // track key as "seen"
+                                                    authLevel = 0;
+                                                    authLevelChanged = true;
+                                                }
+                                            }
+                                            else
+                                            {
+                                                authLevel = 0;
+                                                authLevelChanged = true;
+                                            }
+
+                                            if (authLevelChanged)
+                                            {
+                                                assert(authLevel != 0xff);
+                                                LOG_info << "Tracking Ed25519 public key of user " << u->email << " as seen";
+
+                                                data.append((char *)&u->userhandle, sizeof(u->userhandle));
+                                                data.append((char *)keyFingerprint, sizeof(keyFingerprint));
+                                                data.append((char *)&authLevel, sizeof(authLevel));
+
+                                                // tracking has changed --> persist authring
+                                                authring->set("", data);
+                                                string *newAuthring = authring->tlvRecordsToContainer(client->rng, &client->key);
+                                                string buf(newAuthring->data(), newAuthring->size());
+                                                client->putua(ATTR_AUTHRING, (const byte *)buf.data(), buf.size(), 0);
+                                                delete newAuthring;
+                                            }
+                                            delete authring;
+                                        }
+                                        else
+                                        {
+                                            LOG_err << "Cannot decode TLV of authring";
+                                        }
+                                    }
+                                }
+                                else if (at == ATTR_CU25519_PUBK)
+                                {
+
+                                }
+                                // TODO: authenticate also RSA pubk, which is not a user attribute
+                                // that can be filtered here
+                            }
 #endif
                             break;
 
