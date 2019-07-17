@@ -47,7 +47,7 @@ bool GfxProcExternal::isgfx(string* name)
 
     string ext(*name,p);
 
-    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+    tolower_string(ext);
 
     char* ptr =
             strstr((char*) ".jpg.png.bmp.tif.tiff.jpeg.cut.dds.exr.g3.gif.hdr.ico.iff.ilbm"

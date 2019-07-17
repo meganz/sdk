@@ -351,11 +351,16 @@ extern struct tm* m_localtime(m_time_t, struct tm *dt);
 extern struct tm* m_gmtime(m_time_t, struct tm *dt);
 extern m_time_t m_mktime(struct tm*);
 extern int m_clock_getmonotonictime(struct timespec *t);
+// Similar behaviour to mktime but it receives a struct tm with a date in UTC and return mktime in UTC
+extern m_time_t m_mktime_UTC(const struct tm *src);
 
 std::string rfc1123_datetime( time_t time );
 std::string webdavurlescape(const std::string &value);
 std::string escapewebdavchar(const char c);
 std::string webdavnameescape(const std::string &value);
+
+void tolower_string(std::string& str);
+
 
 struct CacheableWriter
 {
@@ -370,6 +375,7 @@ struct CacheableWriter
     void serializehandle(handle field);
     void serializebool(bool field);
     void serializebyte(byte field);
+    void serializedouble(double field);
     void serializechunkmacs(const chunkmac_map& m);
 
     // Each class that might get extended should store expansion flags at the end
@@ -391,6 +397,7 @@ struct CacheableReader
     bool unserializei64(int64_t& s);
     bool unserializeu32(uint32_t& s);
     bool unserializebyte(byte& s);
+    bool unserializedouble(double& s);
     bool unserializehandle(handle& s);
     bool unserializebool(bool& s);
     bool unserializechunkmacs(chunkmac_map& m);

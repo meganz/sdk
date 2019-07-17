@@ -148,6 +148,30 @@ nameid JSON::getnameid(const char* ptr) const
     return id;
 }
 
+std::string JSON::getname()
+{
+    const char* ptr = pos;
+    string name;
+
+    if (*ptr == ',' || *ptr == ':')
+    {
+        ptr++;
+    }
+
+    if (*ptr++ == '"')
+    {
+        while (*ptr && *ptr != '"')
+        {
+            name += *ptr;
+            ptr++;
+        }
+
+        pos = ptr + 2;
+    }
+
+    return name;
+}
+
 // pos points to [,]"name":...
 // returns nameid and repositons pos after :
 // no unescaping supported
@@ -187,7 +211,7 @@ bool JSON::is(const char* value)
         return false;
     }
 
-    int t = strlen(value);
+    size_t t = strlen(value);
 
     if (memcmp(pos + 1, value, t) || pos[t + 1] != '"')
     {
@@ -239,7 +263,7 @@ bool JSON::storebinary(string* dst)
         }
 
         dst->resize((ptr - pos - 1) / 4 * 3 + 3);
-        dst->resize(Base64::atob(pos + 1, (byte*)dst->data(), dst->size()));
+        dst->resize(Base64::atob(pos + 1, (byte*)dst->data(), int(dst->size())));
 
         // skip string
         storeobject();
@@ -498,7 +522,7 @@ void JSON::unescape(string* s)
                     break;
 
                 case 'u':
-                    c = (MegaClient::hexval((*s)[i + 4]) << 4) | MegaClient::hexval((*s)[i + 5]);
+                    c = static_cast<char>((MegaClient::hexval((*s)[i + 4]) << 4) | MegaClient::hexval((*s)[i + 5]));
                     l = 6;
                     break;
 

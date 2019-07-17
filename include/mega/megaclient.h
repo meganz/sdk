@@ -182,6 +182,7 @@ class MEGA_API MegaClient
 public:
     // own identity
     handle me;
+    string uid;
 
     // root nodes (files, incoming, rubbish)
     handle rootnodes[3];
@@ -247,6 +248,7 @@ public:
     // ephemeral session support
     void createephemeral();
     void resumeephemeral(handle, const byte*, int = 0);
+    void cancelsignup();
 
     // full account confirmation/creation support
     void sendsignuplink(const char*, const char*, const byte*);
@@ -289,6 +291,9 @@ public:
     // check if logged in
     sessiontype_t loggedin();
 
+    // check if logged in a folder link
+    bool loggedinfolderlink();
+
     // check the reason of being blocked
     void whyamiblocked();
 
@@ -306,6 +311,9 @@ public:
     // Kill session id
     void killsession(handle session);
     void killallsessions();
+
+    // extract public handle and key from folder link
+    error parsefolderlink(const char* folderlink, handle &h, byte *key);
 
     // set folder link: node, key
     error folderaccess(const char*folderlink);
@@ -557,6 +565,9 @@ public:
     // change the storage status
     bool setstoragestatus(storagestatus_t);
 
+    // get info about a folder link
+    void getpubliclinkinfo(handle h);
+
 #ifdef ENABLE_CHAT
 
     // create a new chat with multiple users and different privileges
@@ -676,6 +687,12 @@ public:
     // timestamp until the bandwidth is overquota in deciseconds, related to Waiter::ds
     m_time_t overquotauntil;
 
+    // timestamp when a business account will enter into Grace Period
+    m_time_t mBizGracePeriodTs;
+
+    // timestamp when a business account will finally expire
+    m_time_t mBizExpirationTs;
+
     // storage status
     storagestatus_t ststatus;
 
@@ -722,6 +739,7 @@ private:
     // server-client command trigger connection
     HttpReq* pendingsc;
     BackoffTimer btsc;
+    bool stopsc = false;
 
     // badhost report
     HttpReq* badhostcs;
@@ -810,6 +828,7 @@ private:
 #endif
     void sc_uac();
     void sc_la();
+    void sc_ub();
 
     void init();
 
@@ -937,6 +956,9 @@ public:
     // session key to protect local storage
     string sessionkey;
 
+    // key protecting non-shareable GPS coordinates in nodes
+    string unshareablekey;
+
     // application key
     char appkey[16];
 
@@ -1003,7 +1025,10 @@ public:
     transferslot_list::iterator slotit;
 
     // FileFingerprint to node mapping
-    fingerprint_set fingerprints;
+    Fingerprints mFingerprints;
+
+    // send updates to app when the storage size changes
+    int64_t mNotifiedSumSize = 0;
 
     // asymmetric to symmetric key rewriting
     handle_vector nodekeyrewrite;
@@ -1072,6 +1097,7 @@ public:
     Node* nodebyhandle(handle);
     Node* nodebyfingerprint(FileFingerprint*);
     node_vector *nodesbyfingerprint(FileFingerprint* fingerprint);
+    void nodesbyoriginalfingerprint(const char* fingerprint, Node* parent, node_vector *nv);
 
     // get up to "maxcount" nodes, not older than "since", ordered by creation time
     node_vector getRecentNodes(unsigned maxcount, m_time_t since, bool includerubbishbin);
@@ -1442,14 +1468,11 @@ public:
     // the SDK is trying to log out
     int loggingout;
 
-    // true if the account is a business account
-    bool business;
-
     // true if the account is a master business account, false if it's a sub-user account
-    bool businessMaster;
+    BizMode mBizMode;
 
     // -1: expired, 0: inactive (no business subscription), 1: active, 2: grace-period
-    int businessStatus;
+    BizStatus mBizStatus;
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
     ~MegaClient();

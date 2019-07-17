@@ -22,6 +22,12 @@
 #include "mega.h"
 #include "gtest/gtest.h"
 
+#include "megaapi.h"
+#include <memory>
+#include <thread>
+#include <atomic>
+using namespace std;
+
 using namespace mega;
 using ::testing::InitGoogleTest;
 using ::testing::Test;
@@ -43,7 +49,7 @@ TEST(Serialize64, serialize)
 {
     uint64_t in = 0xDEADBEEF;
     uint64_t out;
-    byte buf[sizeof in];
+    ::mega::byte buf[sizeof in];
 
     Serialize64::serialize(buf, in);
     ASSERT_GT(Serialize64::unserialize(buf, sizeof buf, &out), 0);
@@ -54,6 +60,31 @@ size_t checksize(size_t& n, size_t added)
 {
     n += added;
     return n;
+}
+
+TEST(MegaApi, getMimeType)
+{
+
+    vector<thread> threads;
+
+    atomic<int> successCount{ 0 };
+
+    // 100 threads was enough to reliably crash the old non-thread-safe version
+    for (int i = 0; i < 100; ++i)
+    {
+        threads.emplace_back(thread([&successCount]() {
+            if (::mega::MegaApi::getMimeType("nosuch") == nullptr) ++successCount;
+            if (::mega::MegaApi::getMimeType(nullptr) == nullptr) ++successCount;
+            if (::mega::MegaApi::getMimeType("323") == string("text/h323")) ++successCount;
+            if (::mega::MegaApi::getMimeType(".323") == string("text/h323")) ++successCount;
+            if (::mega::MegaApi::getMimeType("zip") == string("application/x-zip-compressed")) ++successCount;
+            if (::mega::MegaApi::getMimeType(".zip") == string("application/x-zip-compressed")) ++successCount;
+        }));
+    }
+
+    for (auto& t : threads) t.join();
+
+    ASSERT_EQ(successCount, 600);
 }
 
 TEST(Cacheable, CacheableReaderWriter)
@@ -185,13 +216,13 @@ TEST(Cacheable, CacheableReaderWriter)
     MediaProperties mp2(mps);
     ASSERT_EQ(mps, mp2.serialize());
     ASSERT_EQ(mp2.shortformat, 1);
-    ASSERT_EQ(mp2.width, 2);
-    ASSERT_EQ(mp2.height, 3);
-    ASSERT_EQ(mp2.fps, 4);
-    ASSERT_EQ(mp2.playtime, 5);
-    ASSERT_EQ(mp2.containerid, 6);
-    ASSERT_EQ(mp2.videocodecid, 7);
-    ASSERT_EQ(mp2.audiocodecid, 8);
+    ASSERT_EQ(mp2.width, 2u);
+    ASSERT_EQ(mp2.height, 3u);
+    ASSERT_EQ(mp2.fps, 4u);
+    ASSERT_EQ(mp2.playtime, 5u);
+    ASSERT_EQ(mp2.containerid, 6u);
+    ASSERT_EQ(mp2.videocodecid, 7u);
+    ASSERT_EQ(mp2.audiocodecid, 8u);
     ASSERT_EQ(mp2.is_VFR, true);
     ASSERT_EQ(mp2.no_audio, false);
 }

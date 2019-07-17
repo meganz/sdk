@@ -63,7 +63,10 @@ CONFIG += c++11
     QMAKE_CXXFLAGS += -std=c++11
 
     unix:!macx {
-        LIBS += -lstdc++fs
+        GCC_VERSION = $$system("g++ -dumpversion")
+        !lessThan(GCC_VERSION, 5) {
+            LIBS += -lstdc++fs
+        }
     }
 }
 
@@ -208,7 +211,9 @@ CONFIG(USE_PDFIUM) {
     else {#win/mac
         DEFINES += HAVE_PDFIUM
         INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pdfium
-        LIBS += -lpdfium
+        macx {
+            LIBS += -lpdfium
+        }
     }
 }
 

@@ -100,7 +100,7 @@ public:
     bool setmtimelocal(string *, m_time_t);
     bool chdirlocal(string*) const;
     size_t lastpartlocal(string*) const;
-    bool getextension(string*, char*, int) const;
+    bool getextension(string*, char*, size_t) const;
     bool expanselocalpath(string *path, string *absolutepath);
 
     void addevents(Waiter*, int);

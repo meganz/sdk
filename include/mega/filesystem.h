@@ -294,7 +294,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     virtual size_t lastpartlocal(string*) const = 0;
 
     // obtain lowercased extension
-    virtual bool getextension(string*, char*, int) const = 0;
+    virtual bool getextension(string*, char*, size_t) const = 0;
 
     // check if synchronization is supported for a specific path
     virtual bool issyncsupported(string*, bool* = NULL) { return true; }

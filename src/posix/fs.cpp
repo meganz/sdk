@@ -458,7 +458,7 @@ bool PosixFileAccess::fopen(string* f, bool read, bool write)
     }
 #endif
 
-    mode_t mode;
+    mode_t mode = 0;
     if (write)
     {
         mode = umask(0);
@@ -1123,7 +1123,7 @@ void PosixFileSystemAccess::emptydirlocal(string* name, dev_t basedev)
     dirent* d;
     int removed;
     struct stat statbuf;
-    int t;
+    size_t t;
 
     if (!basedev)
     {
@@ -1314,7 +1314,7 @@ size_t PosixFileSystemAccess::lastpartlocal(string* localname) const
 }
 
 // return lowercased ASCII file extension, including the . separator
-bool PosixFileSystemAccess::getextension(string* filename, char* extension, int size) const
+bool PosixFileSystemAccess::getextension(string* filename, char* extension, size_t size) const
 {
     const char* ptr = filename->data() + filename->size();
     char c;
