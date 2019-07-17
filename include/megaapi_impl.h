@@ -379,7 +379,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
         int getType() override;
         const char* getName() override;
         const char* getFingerprint() override;
-        virtual const char* getOriginalFingerprint() override;
+        const char* getOriginalFingerprint() override;
         bool hasCustomAttrs() override;
         MegaStringList *getCustomAttrNames() override;
         const char *getCustomAttr(const char* attrName) override;
@@ -406,7 +406,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
         MegaHandle getPublicHandle() override;
         MegaNode* getPublicNode() override;
         char *getPublicLink(bool includeKey = true) override;
-        virtual int64_t getPublicLinkCreationTime() override;
+        int64_t getPublicLinkCreationTime() override;
         bool isFile() override;
         bool isFolder() override;
         bool isRemoved() override;
@@ -815,7 +815,7 @@ public:
     bool isValid() const;
 
     virtual ~MegaPushNotificationSettingsPrivate();
-    virtual MegaPushNotificationSettings *copy() const override;
+    MegaPushNotificationSettings *copy() const override;
 
 private:
     m_time_t mGlobalDND = -1;        // defaults to -1 if not defined
@@ -1165,9 +1165,9 @@ public:
     virtual ~MegaEventPrivate();
     MegaEvent *copy() override;
 
-    virtual int getType() const override;
-    virtual const char *getText() const override;
-    virtual int64_t getNumber() const override;
+    int getType() const override;
+    const char *getText() const override;
+    int64_t getNumber() const override;
 
     void setText(const char* text);
     void setNumber(int64_t number);
@@ -1496,11 +1496,11 @@ class MegaNodeListPrivate : public MegaNodeList
         MegaNodeListPrivate(Node** newlist, int size);
         MegaNodeListPrivate(const MegaNodeListPrivate *nodeList, bool copyChildren = false);
         virtual ~MegaNodeListPrivate();
-        virtual MegaNodeList *copy() const override;
-        virtual MegaNode* get(int i) const override;
-        virtual int size() const override;
+        MegaNodeList *copy() const override;
+        MegaNode* get(int i) const override;
+        int size() const override;
 
-        virtual void addNode(MegaNode* node) override;
+        void addNode(MegaNode* node) override;
 	
 	protected:
 		MegaNode** list;
