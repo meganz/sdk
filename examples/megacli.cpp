@@ -2502,7 +2502,7 @@ void exec_querytransferquota(autocomplete::ACState& s);
 
 void exec_showattributes(autocomplete::ACState& s)
 {
-    if (Node* n = nodeFromRemotePath(s.words[1].s))
+    if (const Node* n = nodeFromRemotePath(s.words[1].s))
     {
         for (auto pair : n->attrs.map)
         {
@@ -2516,9 +2516,7 @@ void exec_showattributes(autocomplete::ACState& s)
                     << " crc " << std::hex << f.crc[0] << " " << f.crc[1] << " " << f.crc[2] << " " << f.crc[3] << std::dec << ")"
 
                     << " (node fingerprint: size " << n->size << " mtime " << n->mtime
-                    << " crc " << std::hex << n->crc[0] << " " << n->crc[1] << " " << n->crc[2] << " " << n->crc[3] << std::dec << ")"
-
-                    << endl;
+                    << " crc " << std::hex << n->crc[0] << " " << n->crc[1] << " " << n->crc[2] << " " << n->crc[3] << std::dec << ")" << endl;
             }
             else
             {
