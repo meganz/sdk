@@ -8076,7 +8076,6 @@ class MegaApi
          */
         bool checkPassword(const char *password);
 
-#ifdef ENABLE_CHAT
         /**
          * @brief Returns the fingerprint of the signing key of the currently open account
          *
@@ -8089,7 +8088,6 @@ class MegaApi
          * @return Fingerprint of the signing key of the current account
          */
         char* getMyFingerprint();
-#endif
 
         /**
          * @brief Set the active log level
@@ -9869,6 +9867,7 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void isGeolocationEnabled(MegaRequestListener *listener = NULL);
+#endif
 
         /**
          * @brief Set My Chat Files target folder.
@@ -9923,7 +9922,6 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getCameraUploadsFolder(MegaRequestListener *listener = NULL);
-#endif
 
         /**
          * @brief Get push notification settings

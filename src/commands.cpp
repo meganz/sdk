@@ -2648,7 +2648,6 @@ void CommandPutMultipleUAVer::procresult()
             u->setattr(type, &it->second, &version);
             u->setTag(tag ? tag : -1);
 
-#ifdef ENABLE_CHAT
             if (type == ATTR_KEYRING)
             {
                 TLVstore *tlvRecords = TLVstore::containerToTLVrecords(&attrs[type], &client->key);
@@ -2697,7 +2696,6 @@ void CommandPutMultipleUAVer::procresult()
                     LOG_warn << "Failed to decrypt keyring after putua";
                 }
             }
-#endif
         }
     }
 
@@ -2877,12 +2875,11 @@ void CommandGetUA::procresult()
             return;
         }
 
-#ifdef  ENABLE_CHAT
         if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me && e != API_EBLOCKED)
         {
             client->initializekeys(); // we have now all the required data
         }
-#endif
+
         // if the attr does not exist, initialize it
         if (at == ATTR_DISABLE_VERSIONS && e == API_ENOENT)
         {
@@ -2924,12 +2921,10 @@ void CommandGetUA::procresult()
                     if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
                     {
                         client->app->getua_result(API_EINTERNAL);
-#ifdef ENABLE_CHAT
                         if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
                         {
                             client->initializekeys(); // we have now all the required data
                         }
-#endif
                         return;
                     }
                     buf.assign(ptr, (end-ptr));
@@ -2940,12 +2935,10 @@ void CommandGetUA::procresult()
                     if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
                     {
                         client->app->getua_result(API_EINTERNAL);
-#ifdef ENABLE_CHAT
                         if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
                         {
                             client->initializekeys(); // we have now all the required data
                         }
-#endif
                         return;
                     }
                     version.assign(ptr, (end-ptr));
@@ -3013,7 +3006,7 @@ void CommandGetUA::procresult()
 
                             u->setattr(at, &value, &version);
                             client->app->getua_result((byte*) value.data(), unsigned(value.size()), at);
-#ifdef  ENABLE_CHAT
+
                             if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
                             {
                                 client->initializekeys(); // we have now all the required data
@@ -3131,7 +3124,6 @@ void CommandGetUA::procresult()
                                 // TODO: authenticate also RSA pubk, which is not a user attribute
                                 // that can be filtered here
                             }
-#endif
                             break;
 
                         case '#':   // protected
@@ -3188,12 +3180,10 @@ void CommandGetUA::procresult()
                     {
                         LOG_err << "Error in CommandGetUA. Parse error";
                         client->app->getua_result(API_EINTERNAL);
-#ifdef  ENABLE_CHAT
                         if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
                         {
                             client->initializekeys(); // we have now all the required data
                         }
-#endif
                         return;
                     }
             }
@@ -3223,12 +3213,11 @@ void CommandDelUA::procresult()
             attr_t at = User::string2attr(an.c_str());
             u->removeattr(at);
 
-#ifdef ENABLE_CHAT
             if (at == ATTR_KEYRING)
             {
                 client->resetKeyring();
             }
-#endif
+
             client->notifyuser(u);
         }
 
@@ -3494,13 +3483,11 @@ void CommandPubKeyRequest::procresult()
                         client->mapuser(uh, u->email.c_str());
                     }
 
-    #ifdef ENABLE_CHAT
                     if (client->fetchingkeys && u->userhandle == client->me && len_pubk)
                     {
                         client->pubk.setkey(AsymmCipher::PUBKEY, pubkbuf, len_pubk);
                         return;
                     }
-    #endif
 
                     if (len_pubk && !u->pubk.setkey(AsymmCipher::PUBKEY, pubkbuf, len_pubk))
                     {

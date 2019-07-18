@@ -2458,6 +2458,7 @@ void MegaApi::isGeolocationEnabled(MegaRequestListener *listener)
 {
     pImpl->isGeolocationEnabled(listener);
 }
+#endif
 
 void MegaApi::setCameraUploadsFolder(MegaHandle nodehandle, MegaRequestListener *listener)
 {
@@ -2478,7 +2479,6 @@ void MegaApi::getMyChatFilesFolder(MegaRequestListener *listener)
 {
     pImpl->getMyChatFilesFolder(listener);
 }
-#endif
 
 void MegaApi::getRubbishBinAutopurgePeriod(MegaRequestListener *listener)
 {

@@ -221,7 +221,6 @@ User* User::unserialize(MegaClient* client, string* d)
         }
     }
 
-#ifdef ENABLE_CHAT
     const string *av = (u->isattrvalid(ATTR_KEYRING)) ? u->getattr(ATTR_KEYRING) : NULL;
     if (av)
     {
@@ -265,7 +264,6 @@ User* User::unserialize(MegaClient* client, string* d)
             LOG_warn << "Failed to decrypt keyring from cache";
         }
     }
-#endif
 
     if ((ptr < end) && !u->pubk.setkey(AsymmCipher::PUBKEY, (byte*)ptr, int(end - ptr)))
     {

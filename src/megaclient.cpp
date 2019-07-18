@@ -1118,11 +1118,9 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     ststatus = STORAGE_GREEN;
     looprequested = false;
 
-#ifdef ENABLE_CHAT
     fetchingkeys = false;
     signkey = NULL;
     chatkey = NULL;
-#endif
 
     init();
 
@@ -3658,9 +3656,7 @@ void MegaClient::locallogout()
     pendingfa.clear();
 
     // erase keys & session ID
-#ifdef ENABLE_CHAT
     resetKeyring();
-#endif
 
     key.setkey(SymmCipher::zeroiv);
     asymkey.resetkey();
@@ -3684,9 +3680,7 @@ void MegaClient::locallogout()
     totalLocalNodes = 0;
 #endif
 
-#ifdef ENABLE_CHAT
     fetchingkeys = false;
-#endif
 }
 
 void MegaClient::removecaches()
@@ -5241,12 +5235,10 @@ void MegaClient::sc_userattr()
                     {
                         attr_t type = User::string2attr(itua->c_str());
                         u->invalidateattr(type);
-#ifdef ENABLE_CHAT
                         if (type == ATTR_KEYRING)
                         {
                             resetKeyring();
                         }
-#endif
                     }
                     u->setTag(0);
                     notifyuser(u);
@@ -5265,7 +5257,6 @@ void MegaClient::sc_userattr()
                             if (*cacheduav != *ituav)
                             {
                                 u->invalidateattr(type);
-#ifdef ENABLE_CHAT
                                 switch(type)
                                 {
                                     case ATTR_KEYRING:
@@ -5283,7 +5274,6 @@ void MegaClient::sc_userattr()
                                     default:
                                         break;
                                 }
-#endif
                             }
                             else
                             {
@@ -8403,7 +8393,6 @@ void MegaClient::procsr(JSON* j)
     j->leavearray();
 }
 
-#ifdef ENABLE_CHAT
 void MegaClient::clearKeys()
 {
     User *u = finduser(me);
@@ -8425,7 +8414,6 @@ void MegaClient::resetKeyring()
     delete chatkey;
     chatkey = NULL;
 }
-#endif
 
 // process node tree (bottom up)
 void MegaClient::proctree(Node* n, TreeProc* tp, bool skipinshares, bool skipversions)
@@ -8821,11 +8809,7 @@ void MegaClient::getua(User* u, const attr_t at, int ctag)
         const string *cachedav = u->getattr(at);
         int tag = (ctag != -1) ? ctag : reqtag;
 
-#ifdef ENABLE_CHAT
         if (!fetchingkeys && cachedav && u->isattrvalid(at))
-#else
-        if (cachedav && u->isattrvalid(at))
-#endif
         {
             if (User::scope(at) == '*') // private attribute, TLV encoding
             {
@@ -10709,12 +10693,10 @@ void MegaClient::fetchnodes(bool nocache)
 
         if (!loggedinfolderlink())
         {
-#ifdef ENABLE_CHAT
             if (loggedin() == FULLACCOUNT)
             {
                 fetchkeys();
             }
-#endif
             if (!k.size())
             {
                 getuserdata();
@@ -10738,7 +10720,6 @@ void MegaClient::fetchnodes(bool nocache)
     }
 }
 
-#ifdef ENABLE_CHAT
 void MegaClient::fetchkeys()
 {
     fetchingkeys = true;
@@ -11001,8 +10982,6 @@ void MegaClient::computeFingerprint(const string &key, byte *fingerprint)
 
     memcpy(fingerprint, buf.data(), 20);
 }
-
-#endif  // ENABLE_CHAT
 
 void MegaClient::purgenodesusersabortsc()
 {

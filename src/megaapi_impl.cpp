@@ -5141,7 +5141,6 @@ bool MegaApiImpl::checkPassword(const char *password)
     return result;
 }
 
-#ifdef ENABLE_CHAT
 char *MegaApiImpl::getMyFingerprint()
 {
     sdkMutex.lock();
@@ -5160,7 +5159,6 @@ char *MegaApiImpl::getMyFingerprint()
     sdkMutex.unlock();
     return result;
 }
-#endif
 
 void MegaApiImpl::setLogLevel(int logLevel)
 {
@@ -9643,6 +9641,41 @@ void MegaApiImpl::setRichLinkWarningCounterValue(int value, MegaRequestListener 
     delete stringMap;
 }
 
+void MegaApiImpl::enableGeolocation(MegaRequestListener *listener)
+{
+    MegaStringMap *stringMap = new MegaStringMapPrivate();
+    string base64value;
+    Base64::btoa("1", base64value);
+    stringMap->set("v", base64value.c_str());
+    setUserAttribute(MegaApi::USER_ATTR_GEOLOCATION, stringMap, listener);
+    delete stringMap;
+}
+
+void MegaApiImpl::isGeolocationEnabled(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_GEOLOCATION);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+bool MegaApiImpl::isChatNotifiable(MegaHandle chatid)
+{
+    if (mPushSettings)
+    {
+        if (mPushSettings->isChatAlwaysNotifyEnabled(chatid))
+        {
+            return true;
+        }
+
+        return (!mPushSettings->isChatDndEnabled(chatid) && isGlobalNotifiable() && mPushSettings->isChatsEnabled());
+    }
+
+    return true;
+}
+
+#endif
+
 void MegaApiImpl::getCameraUploadsFolder(MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
@@ -9678,41 +9711,6 @@ void MegaApiImpl::setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListene
     setUserAttribute(MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER, stringMap, listener);
     delete stringMap;
 }
-
-void MegaApiImpl::enableGeolocation(MegaRequestListener *listener)
-{
-    MegaStringMap *stringMap = new MegaStringMapPrivate();
-    string base64value;
-    Base64::btoa("1", base64value);
-    stringMap->set("v", base64value.c_str());
-    setUserAttribute(MegaApi::USER_ATTR_GEOLOCATION, stringMap, listener);
-    delete stringMap;
-}
-
-void MegaApiImpl::isGeolocationEnabled(MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
-    request->setParamType(MegaApi::USER_ATTR_GEOLOCATION);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-bool MegaApiImpl::isChatNotifiable(MegaHandle chatid)
-{
-    if (mPushSettings)
-    {
-        if (mPushSettings->isChatAlwaysNotifyEnabled(chatid))
-        {
-            return true;
-        }
-
-        return (!mPushSettings->isChatDndEnabled(chatid) && isGlobalNotifiable() && mPushSettings->isChatsEnabled());
-    }
-
-    return true;
-}
-
-#endif
 
 void MegaApiImpl::getPushNotificationSettings(MegaRequestListener *listener)
 {
@@ -13976,13 +13974,11 @@ void MegaApiImpl::putua_result(error e)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_SET_ATTR_USER)) return;
 
-#ifdef ENABLE_CHAT
     if (e && client->fetchingkeys)
     {
         client->clearKeys();
         client->resetKeyring();
     }
-#endif
 
     // if user just set the preferred language... change the GET param to the new language
     if (request->getParamType() == MegaApi::USER_ATTR_LANGUAGE && e == API_OK)

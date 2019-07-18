@@ -22,8 +22,6 @@
 
 #include "mega.h"
 
-#ifdef ENABLE_CHAT
-
 namespace mega
 {
 
@@ -223,4 +221,3 @@ int ECDH::decrypt(unsigned char *msg, const unsigned char *encmsg,
 
 } // namespace
 
-#endif  // ENABLE_CHAT

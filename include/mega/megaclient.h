@@ -338,14 +338,14 @@ public:
     // fetchnodes stats
     FetchNodesStats fnstats;
 
-#ifdef ENABLE_CHAT
     // load cryptographic keys: RSA, Ed25519, Cu25519 and their signatures
-    void fetchkeys();    
+    void fetchkeys();
+
+    // check existence and integrity of keys, initialize if missing
     void initializekeys();
 
     // calculate the fingerprint of keys (most significant 160bits of SHA256)
     void computeFingerprint(const string &key, byte *fingerprint);
-#endif
 
     // retrieve user details
     void getaccountdetails(AccountDetails*, bool, bool, bool, bool, bool, bool, int source = -1);
@@ -1316,7 +1316,6 @@ public:
     // account access (full account): RSA private key
     AsymmCipher asymkey;
 
-#ifdef ENABLE_CHAT
     // RSA public key
     AsymmCipher pubk;
 
@@ -1334,7 +1333,6 @@ public:
 
     // delete chatkey and signing key
     void resetKeyring();
-#endif
 
     // binary session ID
     string sid;

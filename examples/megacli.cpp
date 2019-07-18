@@ -1174,24 +1174,20 @@ void DemoApp::putua_result(error e)
 
 void DemoApp::getua_result(error e)
 {
-#ifdef ENABLE_CHAT
     if (client->fetchingkeys)
     {
         return;
     }
-#endif
 
     cout << "User attribute retrieval failed (" << errorstring(e) << ")" << endl;
 }
 
 void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
 {
-#ifdef ENABLE_CHAT
     if (client->fetchingkeys)
     {
         return;
     }
-#endif
 
     cout << "Received " << l << " byte(s) of user attribute: ";
     fwrite(data, 1, l, stdout);
@@ -1200,12 +1196,10 @@ void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
 
 void DemoApp::getua_result(TLVstore *tlv, attr_t type)
 {
-#ifdef ENABLE_CHAT
     if (client->fetchingkeys)
     {
         return;
     }
-#endif
 
     if (!tlv)
     {
@@ -4915,12 +4909,10 @@ void exec_whoami(autocomplete::ACState& s)
         if ((u = client->finduser(client->me)))
         {
             cout << "Account e-mail: " << u->email << endl;
-#ifdef ENABLE_CHAT
             if (client->signkey)
             {
                 cout << "Fingerprint: " << client->signkey->genFingerprintHex() << endl;
             }
-#endif
         }
 
         bool storage = s.extractflag("-storage");
