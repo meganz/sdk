@@ -14296,8 +14296,8 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
                 // If the user alias doesn't exists or has been changed, update the TLV container
                 if (alias)
                 {
-                    rcvAlias = tlv->find(key) ? tlv->get(key).c_str() : NULL;
-                    if (rcvAlias && strcmp(alias, rcvAlias) == 0)
+                    std::string rcvAlias = tlv->find(key) ? tlv->get(key) : string();
+                    if (rcvAlias.size() && rcvAlias.compare(alias) == 0)
                     {
                         continue;
                     }
