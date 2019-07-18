@@ -210,7 +210,7 @@ using namespace mega;
 
 - (NSArray<MEGAStringList *> *)megaStringTableArray {
     MegaStringTable *table = self.megaRequest ? self.megaRequest->getMegaStringTable() : nil;
-    NSMutableArray<MEGAStringList *> *array = NSMutableArray.alloc.init;
+    NSMutableArray<MEGAStringList *> *array = [NSMutableArray arrayWithCapacity:table->size()];
     for (int i = 0; i < table->size(); i++) {
         [array addObject:[[MEGAStringList alloc] initWithMegaStringList:(MegaStringList *)table->get(i) cMemoryOwn:YES]];
     }
