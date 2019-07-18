@@ -6139,11 +6139,12 @@ void DemoApp::cancelsignup_result(error)
     signupname.clear();
 }
 
-void DemoApp::whyamiblocked_result(error code)
+void DemoApp::whyamiblocked_result(int code)
 {
     if (code < 0)
     {
-        cout << "Why am I blocked failed: " << errorstring(code) << endl;
+        error e = (error) code;
+        cout << "Why am I blocked failed: " << errorstring(e) << endl;
     }
     else if (code == 0)
     {
