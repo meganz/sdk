@@ -40,7 +40,7 @@ public:
     static const int PUBLIC_KEY_LENGTH = crypto_sign_PUBLICKEYBYTES;
 
     // TLV key to access to the corresponding value in the TLV records
-    static const string TLV_KEY;
+    static const std::string TLV_KEY;
     bool initializationOK;
 
     EdDSA(PrnGen &rng, unsigned char* keySeed = NULL);
@@ -87,7 +87,7 @@ public:
 
     void signKey(const unsigned char* key, const unsigned long long keyLength, std::string *sigBuf, uint64_t ts = 0);
     bool verifyKey(const unsigned char* pubk, const unsigned long long pubkLen,
-                   string *sig, const unsigned char* singingPubKey = NULL);
+                   std::string *sig, const unsigned char* singingPubKey = NULL);
 
 private:
     static const int PRIVATE_KEY_LENGTH = crypto_sign_SECRETKEYBYTES;
@@ -106,7 +106,7 @@ public:
     static const int PUBLIC_KEY_LENGTH = crypto_box_PUBLICKEYBYTES;
 
     // TLV key to access to the corresponding value in the TLV records
-    static const string TLV_KEY;
+    static const std::string TLV_KEY;
     bool initializationOK;
 
     unsigned char privKey[PRIVATE_KEY_LENGTH];
