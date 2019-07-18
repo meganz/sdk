@@ -14314,15 +14314,15 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
                 // serialize and encrypt the TLV container
                 string *container = tlv->tlvRecordsToContainer(client->rng, &client->key);
                 assert(type == request->getParamType());
-                client->putua(type, (byte *)container->data(), unsigned(container->size()));
+                client->putua(type, (byte *)container->data(), unsigned(container->size()), client->restag);
                 delete container;
             }
             else
             {
                 LOG_debug << "Aliases not changed, already up to date";
+                fireOnRequestFinish(request, MegaError(e));
             }
 
-            fireOnRequestFinish(request, MegaError(e));
             return;
         }
 
