@@ -347,6 +347,9 @@ public:
     // calculate the fingerprint of keys (most significant 160bits of SHA256)
     void computeFingerprint(const string &key, byte *fingerprint);
 
+    // track a key in the authring for a given user
+    void trackKey(attr_t type, handle uh, string &key);
+
     // retrieve user details
     void getaccountdetails(AccountDetails*, bool, bool, bool, bool, bool, bool, int source = -1);
 

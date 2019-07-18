@@ -4911,7 +4911,7 @@ void exec_whoami(autocomplete::ACState& s)
             cout << "Account e-mail: " << u->email << endl;
             if (client->signkey)
             {
-                cout << "Fingerprint: " << client->signkey->genFingerprintHex() << endl;
+                cout << "Ed25519 fingerprint: " << client->signkey->genFingerprintHex() << endl;
             }
         }
 

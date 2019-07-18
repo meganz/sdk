@@ -10983,6 +10983,129 @@ void MegaClient::computeFingerprint(const string &key, byte *fingerprint)
     memcpy(fingerprint, buf.data(), 20);
 }
 
+void MegaClient::trackKey(attr_t type, handle uh, std::string &key)
+{
+    User *ownUser = finduser(me);
+    User *user = finduser(uh);
+
+    const string *buf = nullptr;    // stores the corresponding authring (byte array, not owned)
+    if (type == ATTR_ED25519_PUBK)
+    {
+        assert(ownUser->isattrvalid(ATTR_AUTHRING));
+        if (!ownUser->isattrvalid(ATTR_AUTHRING))
+        {
+            LOG_warn << "Authring not available to track Ed25519 key for user " << user->uid;
+            return;
+        }
+
+        buf = ownUser->getattr(ATTR_AUTHRING);
+    }
+    else if (type == ATTR_CU25519_PUBK)
+    {
+        assert(ownUser->isattrvalid(ATTR_AUTHCU255));
+        if (!ownUser->isattrvalid(ATTR_AUTHCU255))
+        {
+            LOG_warn << "Authring not available to track Cu25519 key for user " << user->uid;
+            return;
+        }
+
+        buf = ownUser->getattr(ATTR_AUTHCU255);
+    }
+    else
+    {
+        LOG_err << "Attempt to track an unknown type of key: " << type;
+        assert(false);
+        return;
+    }
+
+    std::unique_ptr<TLVstore> authring(TLVstore::containerToTLVrecords(buf));
+    if (!authring)
+    {
+        LOG_err << "Cannot decode TLV of authring";
+        return;
+    }
+
+    // compute key's fingerprint
+    byte keyFingerprint[20];
+    computeFingerprint(key, keyFingerprint);
+    byte authLevel = AUTH_METHOD_UNKNOWN;
+
+    string authType = "";
+    string authValue;
+    if (authring->find(authType))  // key is an empty string, but may not be there if authring was reset
+    {
+        authValue = authring->get(authType);
+
+        // check if user's key is already being tracked in the authring
+        bool keyTracked = false;
+        byte authFingerprint[20];
+
+        const char *ptr = authValue.data();
+        const char *end = ptr + authValue.size();
+        unsigned recordSize = 29;   // <handle.8> <fingerprint.20> <authLevel.1>
+        while (ptr + recordSize <= end)
+        {
+            handle userhandle;
+            memcpy(&userhandle, ptr, sizeof(userhandle));
+            ptr += sizeof(userhandle);
+
+            if (userhandle == uh)
+            {
+                memcpy(authFingerprint, ptr, sizeof(authFingerprint));
+                ptr += sizeof(authFingerprint);
+
+                memcpy(&authLevel, ptr, sizeof(authLevel));
+                ptr += sizeof(authLevel);
+
+                keyTracked = true;
+                break;
+            }
+
+            // if different user, skip next 21 bytes
+            ptr += sizeof(authFingerprint) + sizeof(authLevel);
+        }
+
+        // is key tracked in authring?
+        if (keyTracked)
+        {
+            // does fingerprint match tracked fingerprint?
+            if (memcmp(keyFingerprint, authFingerprint, sizeof(keyFingerprint)) == 0)
+            {
+                LOG_info << "Authentication of Ed25519 public key of user " << user->uid << " succesful (auth. level: " << authLevel+48 << ")";
+
+                // if signed key type
+                if (type == ATTR_CU25519_PUBK && authLevel != AUTH_METHOD_SIGNATURE)
+                {
+                    // load public signing key and key signature
+                    getua(user, ATTR_SIG_CU255_PUBK);
+                    getua(user, ATTR_CU25519_PUBK); // in getua_result(), we check signature actually matches
+                }
+            }
+            else
+            {
+                LOG_err << "Authentication of Ed25519 public key of user " << user->uid << " failed";
+            }
+
+            return;
+        }
+        LOG_warn << "Key not tracked in the authring yet for user " << user->uid;
+    }
+
+    LOG_info << "Tracking public key of user " << user->uid << " as seen";
+
+    // track key as "seen" (user's key not tracked yet, or authring was reset)
+    authLevel = AUTH_METHOD_SEEN;
+
+    authValue.append((char *)&uh, sizeof(uh));
+    authValue.append((char *)keyFingerprint, sizeof(keyFingerprint));
+    authValue.append((char *)&authLevel, sizeof(authLevel));
+
+    // tracking has changed --> persist authring
+    authring->set(authType, authValue);
+    std::unique_ptr<string> newAuthring(authring->tlvRecordsToContainer(rng, &this->key));
+    putua(ATTR_AUTHRING, (const byte *)newAuthring->data(), newAuthring->size(), 0);
+}
+
 void MegaClient::purgenodesusersabortsc()
 {
     app->clearing();
