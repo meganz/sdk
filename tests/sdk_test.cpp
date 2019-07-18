@@ -3331,13 +3331,9 @@ namespace mega
 *
 */
 
-
+#ifdef DEBUG
 TEST_F(SdkTest, SdkTestCloudraidTransfers)
 {
-#ifndef DEBUG
-    megaApi[0]->log(MegaApi::LOG_LEVEL_DEBUG, "SdkTestCloudraidTransfers can't be run in a release build as it requires the debug hooks to adjust raid parameters");
-#else
-
     megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Cloudraid transfers___");
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
@@ -3443,8 +3439,8 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
     }
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
-#endif
 }
+#endif
 
 
 /**
@@ -3454,13 +3450,9 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
 *
 */
 
-
+#ifdef DEBUG
 TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
 {
-#ifndef DEBUG
-    megaApi[0]->log(MegaApi::LOG_LEVEL_DEBUG, "SdkTestCloudraidTransfers can't be run in a release build as it requires the debug hooks to adjust raid parameters");
-#else
-
     megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Cloudraid transfers___");
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
@@ -3501,8 +3493,8 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
 
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
-#endif
 }
+#endif
 
 
 /**
@@ -3512,12 +3504,9 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
 *
 */
 
+#ifdef DEBUG
 TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
 {
-#ifndef DEBUG
-    megaApi[0]->log(MegaApi::LOG_LEVEL_DEBUG, "SdkTestCloudraidTransfers can't be run in a release build as it requires the debug hooks to adjust raid parameters");
-#else
-
     megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Cloudraid transfers___");
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
@@ -3554,8 +3543,8 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
         ASSERT_LT(DebugTestHook::countdownToTimeout, 0);
     }
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
-#endif
 }
+#endif
 
 
 
@@ -3566,12 +3555,9 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
 * 
 */
 
+#ifdef DEBUG
 TEST_F(SdkTest, SdkTestOverquotaNonCloudraid)
 {
-#ifndef DEBUG
-    megaApi[0]->log(MegaApi::LOG_LEVEL_DEBUG, "SdkTestCloudraidTransfers can't be run in a release build as it requires the debug hooks to adjust raid parameters");
-#else
-
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
     // make a file to download, and upload so we can pull it down
@@ -3628,8 +3614,8 @@ TEST_F(SdkTest, SdkTestOverquotaNonCloudraid)
     ASSERT_LT(DebugTestHook::countdownToOverquota, originalcount);  // there should have been more http activity after the wait
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
-#endif
 }
+#endif
 
 
 /**
@@ -3639,11 +3625,9 @@ TEST_F(SdkTest, SdkTestOverquotaNonCloudraid)
 *
 */
 
+#ifdef DEBUG
 TEST_F(SdkTest, SdkTestOverquotaCloudraid)
 {
-#ifndef DEBUG
-    megaApi[0]->log(MegaApi::LOG_LEVEL_DEBUG, "SdkTestCloudraidTransfers can't be run in a release build as it requires the debug hooks to adjust raid parameters");
-#else
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
     ASSERT_NO_FATAL_FAILURE(importPublicLink(0, "https://mega.nz/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", megaApi[0]->getRootNode()));
@@ -3693,8 +3677,8 @@ TEST_F(SdkTest, SdkTestOverquotaCloudraid)
     ASSERT_LT(DebugTestHook::countdownToOverquota, originalcount);  // there should have been more http activity after the wait
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
-#endif
 }
+#endif
 
 
 struct CheckStreamedFile_MegaTransferListener : public MegaTransferListener
@@ -3754,7 +3738,7 @@ struct CheckStreamedFile_MegaTransferListener : public MegaTransferListener
     void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) override
     {
     }
-    void onTransferTemporaryError(MegaApi *api, MegaTransfer */*transfer*/, MegaError* error) override
+    void onTransferTemporaryError(MegaApi *api, MegaTransfer * /*transfer*/, MegaError* error) override
     {
         ostringstream msg;
         msg << "onTransferTemporaryError: " << (error ? error->getErrorString() : "NULL") << endl;
