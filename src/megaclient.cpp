@@ -10983,22 +10983,29 @@ void MegaClient::computeFingerprint(const string &key, byte *fingerprint)
     memcpy(fingerprint, buf.data(), 20);
 }
 
-void MegaClient::trackKey(attr_t keyType, handle uh, std::string &pubKey)
+void MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
 {
     User *ownUser = finduser(me);
     User *user = finduser(uh);
 
     // select the type of authring of the type of key
     attr_t authringType;
+    bool signedKey;
     if (keyType == ATTR_ED25519_PUBK)
     {
         authringType = ATTR_AUTHRING;
+        signedKey = false;
     }
     else if (keyType == ATTR_CU25519_PUBK)
     {
         authringType = ATTR_AUTHCU255;
+        signedKey = true;
     }
-    // TODO: add support for virtual attr_t --> public RSA key
+    else if (keyType == ATTR_UNKNOWN)   // RSA is not a user-attribute actually
+    {
+        authringType = ATTR_AUTHRSA;
+        signedKey = true;
+    }
     else
     {
         LOG_err << "Attempt to track an unknown type of key: " << keyType;
@@ -11006,7 +11013,7 @@ void MegaClient::trackKey(attr_t keyType, handle uh, std::string &pubKey)
         return;
     }
 
-    // retrieve authring from cache in TLVstore format
+    // retrieve authring from cache (must be cached, it's refetched automatically upon changes)
     assert(ownUser->isattrvalid(authringType));
     if (!ownUser->isattrvalid(authringType))
     {
@@ -11026,7 +11033,6 @@ void MegaClient::trackKey(attr_t keyType, handle uh, std::string &pubKey)
 
     byte authLevel = AUTH_METHOD_UNKNOWN;
     bool authLevelChanged = false;
-    bool isSignedType = (keyType != ATTR_ED25519_PUBK);
     bool fingerprintMatch = false;
 
     string authType = "";
@@ -11072,7 +11078,7 @@ void MegaClient::trackKey(attr_t keyType, handle uh, std::string &pubKey)
 
             if (!fingerprintMatch)
             {
-                if (!isSignedType)
+                if (!signedKey)
                 {
                     LOG_err << "Authentication of public key of user " << user->uid << " failed";
 
@@ -11112,7 +11118,7 @@ void MegaClient::trackKey(attr_t keyType, handle uh, std::string &pubKey)
         putua(authringType, (const byte *)newAuthring->data(), newAuthring->size(), 0);
     }
 
-    if (isSignedType)
+    if (signedKey)
     {
         if (authLevel != AUTH_METHOD_SIGNATURE || !fingerprintMatch)
         {

@@ -4216,6 +4216,12 @@ void exec_getua(autocomplete::ACState& s)
         }
     }
 
+    if (s.words[1].s == "pubk")
+    {
+        client->getpubkey(u->uid.c_str());
+        return;
+    }
+
     client->getua(u, User::string2attr(s.words[1].s.c_str()));
 }
 
