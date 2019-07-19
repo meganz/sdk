@@ -2994,7 +2994,9 @@ TEST_F(SdkTest, SdkTestChat)
     contactRequestUpdated[1] = false;
     ASSERT_NO_FATAL_FAILURE( inviteContact(email[1], message, MegaContactRequest::INVITE_ACTION_ADD) );
     ASSERT_TRUE( waitForResponse(&contactRequestUpdated[1]) )   // at the target side (auxiliar account)
-            << "Contact request update not received after " << maxTimeout << " seconds";
+            << "Contact request update not received after " << maxTimeout << " seconds";    
+    // if there were too many invitations within a short period of time, the invitation can be rejected by
+    // the API with `API_EOVERQUOTA = -17` as counter spamming meassure (+500 invites in the last 50 days)
 
     // --- Accept a contact invitation ---
 
@@ -3329,13 +3331,9 @@ namespace mega
 *
 */
 
-
+#ifdef DEBUG
 TEST_F(SdkTest, SdkTestCloudraidTransfers)
 {
-#ifndef DEBUG
-    cout << "SdkTestCloudraidTransfers can't be run in a release build as it requires the debug hooks to adjust raid parameters" << endl;
-#else
-
     megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Cloudraid transfers___");
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
@@ -3367,7 +3365,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
     // smaller chunk sizes so we can get plenty of pauses
     #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
     globalMegaTestHooks.onSetIsRaid = ::mega::DebugTestHook::onSetIsRaid_morechunks;
-    #endif
+#endif
 
     // plain cloudraid download
     {
@@ -3441,8 +3439,8 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
     }
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
-#endif
 }
+#endif
 
 
 /**
@@ -3452,13 +3450,9 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
 *
 */
 
-
+#ifdef DEBUG
 TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
 {
-#ifndef DEBUG
-    cout << "SdkTestCloudraidTransferWithConnectionFailures can't be run in a release build as it requires the debug hooks to adjust raid parameters" << endl;
-#else
-
     megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Cloudraid transfers___");
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
@@ -3499,8 +3493,8 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
 
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
-#endif
 }
+#endif
 
 
 /**
@@ -3510,12 +3504,9 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
 *
 */
 
+#ifdef DEBUG
 TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
 {
-#ifndef DEBUG
-    cout << "SdkTestCloudraidTransferWithSingleChannelTimeouts can't be run in a release build as it requires the debug hooks to adjust raid parameters" << endl;
-#else
-
     megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Cloudraid transfers___");
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
@@ -3552,8 +3543,8 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
         ASSERT_LT(DebugTestHook::countdownToTimeout, 0);
     }
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
-#endif
 }
+#endif
 
 
 
@@ -3564,12 +3555,9 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
 * 
 */
 
+#ifdef DEBUG
 TEST_F(SdkTest, SdkTestOverquotaNonCloudraid)
 {
-#ifndef DEBUG
-    cout << "SdkTestOverquotaNonCloudraid can't be run in a release build as it requires the debug hooks to adjust raid parameters" << endl;
-#else
-
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
     // make a file to download, and upload so we can pull it down
@@ -3626,8 +3614,8 @@ TEST_F(SdkTest, SdkTestOverquotaNonCloudraid)
     ASSERT_LT(DebugTestHook::countdownToOverquota, originalcount);  // there should have been more http activity after the wait
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
-#endif
 }
+#endif
 
 
 /**
@@ -3637,11 +3625,9 @@ TEST_F(SdkTest, SdkTestOverquotaNonCloudraid)
 *
 */
 
+#ifdef DEBUG
 TEST_F(SdkTest, SdkTestOverquotaCloudraid)
 {
-#ifndef DEBUG
-    cout << "SdkTestOverquotaCloudraid can't be run in a release build as it requires the debug hooks to adjust raid parameters" << endl;
-#else
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
     ASSERT_NO_FATAL_FAILURE(importPublicLink(0, "https://mega.nz/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", megaApi[0]->getRootNode()));
@@ -3691,8 +3677,8 @@ TEST_F(SdkTest, SdkTestOverquotaCloudraid)
     ASSERT_LT(DebugTestHook::countdownToOverquota, originalcount);  // there should have been more http activity after the wait
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
-#endif
 }
+#endif
 
 
 struct CheckStreamedFile_MegaTransferListener : public MegaTransferListener
@@ -3732,10 +3718,10 @@ struct CheckStreamedFile_MegaTransferListener : public MegaTransferListener
         delete[] receiveBuf;
     }
 
-    void onTransferStart(MegaApi *api, MegaTransfer *transfer) /*override*/
+    void onTransferStart(MegaApi *api, MegaTransfer *transfer) override
     {
     }
-    void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* error) /*override*/
+    void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* error) override
     {
         if (error && error->getErrorCode() != API_OK)
         {
@@ -3749,14 +3735,16 @@ struct CheckStreamedFile_MegaTransferListener : public MegaTransferListener
             completedSuccessfully = true;
         }
     }
-    void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) /*override*/
+    void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) override
     {
     }
-    void onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* error) /*override*/
+    void onTransferTemporaryError(MegaApi *api, MegaTransfer * /*transfer*/, MegaError* error) override
     {
-        cout << "onTransferTemporaryError: " << (error?error->getErrorString():"NULL") << endl;
+        ostringstream msg;
+        msg << "onTransferTemporaryError: " << (error ? error->getErrorString() : "NULL") << endl;
+        api->log(MegaApi::LOG_LEVEL_ERROR, msg.str().c_str());
     }
-    bool onTransferData(MegaApi *api, MegaTransfer *transfer, char *buffer, size_t size) /*override*/
+    bool onTransferData(MegaApi *api, MegaTransfer *transfer, char *buffer, size_t size) override
     {
         assert(receiveBufPos + size <= reserved);
         memcpy(receiveBuf + receiveBufPos, buffer, size);
@@ -3935,7 +3923,9 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
 
     ASSERT_TRUE(randomRunsDone > (g_runningInCI ? 10 : 100));
 
-    cout << "Streaming test downloaded " << randomRunsDone << " samples of the file from random places and sizes, " << randomRunsBytes << " bytes total" << endl;
+    ostringstream msg;
+    msg << "Streaming test downloaded " << randomRunsDone << " samples of the file from random places and sizes, " << randomRunsBytes << " bytes total" << endl;
+    megaApi[0]->log(MegaApi::LOG_LEVEL_DEBUG, msg.str().c_str());
 
     delete nimported;
     delete nonRaidNode;
@@ -3989,14 +3979,17 @@ TEST_F(SdkTest, SdkRecentsTest)
 
     MegaRecentActionBucketList* buckets = megaApi[0]->getRecentActions(1, 10);
 
+    ostringstream logMsg;
     for (int i = 0; i < buckets->size(); ++i)
     {
-        cout << "bucket " << i << endl;
+        logMsg << "bucket " << to_string(i) << endl;
+        megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, logMsg.str().c_str());
         auto bucket = buckets->get(i);
         for (int j = 0; j < buckets->get(i)->getNodes()->size(); ++j)
         {
             auto node = bucket->getNodes()->get(j);
-            cout << node->getName() << " " << node->getCreationTime() << " " << bucket->getTimestamp() << " " << bucket->getParentHandle() << " " << bucket->isUpdate() << " " << bucket->isMedia() << endl;
+            logMsg << node->getName() << " " << node->getCreationTime() << " " << bucket->getTimestamp() << " " << bucket->getParentHandle() << " " << bucket->isUpdate() << " " << bucket->isMedia() << endl;
+            megaApi[0]->log(MegaApi::LOG_LEVEL_DEBUG, logMsg.str().c_str());
         }
     }
 
