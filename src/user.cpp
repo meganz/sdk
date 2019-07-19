@@ -731,9 +731,6 @@ int User::needversioning(attr_t at)
         case ATTR_GEOLOCATION:
         case ATTR_MY_CHAT_FILES_FOLDER:
         case ATTR_PUSH_SETTINGS:
-        case ATTR_AUTHRING:
-        case ATTR_AUTHRSA:
-        case ATTR_AUTHCU255:
             return 0;
 
         case ATTR_LAST_INT:
@@ -742,6 +739,9 @@ int User::needversioning(attr_t at)
         case ATTR_SIG_RSA_PUBK:
         case ATTR_SIG_CU255_PUBK:
         case ATTR_KEYRING:
+        case ATTR_AUTHRING:
+        case ATTR_AUTHRSA:
+        case ATTR_AUTHCU255:
         case ATTR_CONTACT_LINK_VERIFICATION:
             return 1;
 
