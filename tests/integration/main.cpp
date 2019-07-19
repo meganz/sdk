@@ -3,30 +3,49 @@
 #include "test.h"
 #include <stdio.h>
 
-bool g_runningInCI = false;
+bool gRunningInCI = false;
+bool gTestingInvalidArgs = false;
 
 using namespace mega;
 using namespace std;
 
 namespace {
 
-class MegaLogger : public ::mega::Logger {
+class MegaLogger : public ::mega::Logger
+{
 public:
-    virtual void log(const char *time, int loglevel, const char *source, const char *message)
+    void log(const char* time, int loglevel, const char* source, const char* message)
     {
-#ifdef _WIN32
-        OutputDebugStringA(message);
-        OutputDebugStringA("\r\n");
-#else
-        if (loglevel >= SimpleLogger::logCurrentLevel)
+        std::ostringstream os;
+        os << "[" << time << "] " << SimpleLogger::toStr(static_cast<LogLevel>(loglevel)) << ": " << message << " (" << source << ")" << std::endl;
+        if (loglevel <= SimpleLogger::logCurrentLevel)
         {
-            std::cout << "[" << time << "] " << SimpleLogger::toStr(static_cast<LogLevel>(loglevel)) << ": " << message << " (" << source << ")" << std::endl;
-        }
+            if (gRunningInCI)
+            {
+                if (!mLogFile.is_open())
+                {
+                    mLogFile.open("test_integration.log");
+                }
+                mLogFile << os.str();
+            }
+            else
+            {
+#ifdef _WIN32
+                OutputDebugStringA(os.str().c_str());
+#else
+                std::cout << os.str();
 #endif
+                if (!gTestingInvalidArgs)
+                {
+                    ASSERT_NE(loglevel, logError) << os.str();
+                }
+            }
+        }
     }
-};
 
-MegaLogger gMegaLogger;
+private:
+    std::ofstream mLogFile;
+};
 
 } // anonymous
 
@@ -44,22 +63,19 @@ int main (int argc, char *argv[])
     {
         if (string(*it) == "--CI")
         {
-            g_runningInCI = true;
+            gRunningInCI = true;
             myargv.erase(it);
             argc -= 1;
             break;
         }
     }
 
-    remove("SDK.log");
-    remove("synctests.log");
+    MegaLogger megaLogger;
 
-#ifdef _WIN32
-    SimpleLogger::setLogLevel(logDebug);  // warning and stronger to console; info and weaker to VS output window
-#endif
-    SimpleLogger::setOutputClass(&gMegaLogger);
+    SimpleLogger::setLogLevel(logDebug);
+    SimpleLogger::setOutputClass(&megaLogger);
 
-#if defined(WIN32) && defined(NO_READLINE)
+#if defined(_WIN32) && defined(NO_READLINE)
     WinConsole* wc = new CONSOLE_CLASS;
     wc->setShellConsole();
 #endif

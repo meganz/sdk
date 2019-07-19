@@ -41,7 +41,7 @@ namespace fs = std::experimental::filesystem;
 #endif
 #endif
 
-#ifdef WIN32
+#ifdef _WIN32
 DWORD ThreadId()
 {
     return GetCurrentThreadId();
@@ -127,7 +127,7 @@ void WaitMillisec(unsigned n)
 
 enum { USERALERT_ARRIVAL_MILLISEC = 1000 };
 
-#ifdef WIN32
+#ifdef _WIN32
 #include "mega/autocomplete.h"
 #include <filesystem>
 #define getcwd _getcwd
@@ -152,20 +152,16 @@ void SdkTest::SetUp()
         pwd[0].assign(buf);
     ASSERT_LT((size_t)0, pwd[0].length()) << "Set your password at the environment variable $MEGA_PWD";
 
-    testingInvalidArgs = false;
+    gTestingInvalidArgs = false;
 
     if (megaApi[0] == NULL)
     {
-        logger = new MegaLoggerSDK("SDK.log");
-        MegaApi::addLoggerObject(logger);
-
         megaApi[0] = new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str());
 
         megaApi[0]->setLoggingName("0");
-        megaApi[0]->setLogLevel(MegaApi::LOG_LEVEL_DEBUG);
         megaApi[0]->addListener(this);
 
-        megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___ Initializing test (SetUp()) ___");
+        LOG_info << "___ Initializing test (SetUp()) ___";
 
         ASSERT_NO_FATAL_FAILURE( login(0) );
         ASSERT_NO_FATAL_FAILURE( fetchnodes(0) );
@@ -176,7 +172,7 @@ void SdkTest::TearDown()
 {
     // do some cleanup
 
-    testingInvalidArgs = false;
+    gTestingInvalidArgs = false;
 
     deleteFile(UPFILE);
     deleteFile(DOWNFILE);
@@ -187,7 +183,7 @@ void SdkTest::TearDown()
 
     if (megaApi[0])
     {        
-        megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___ Cleaning up test (TearDown()) ___");
+        LOG_info << "___ Cleaning up test (TearDown()) ___";
 
         // Remove nodes in Cloud & Rubbish
         purgeTree(megaApi[0]->getRootNode());
@@ -210,9 +206,6 @@ void SdkTest::TearDown()
         }
 
         releaseMegaApi(0);
-
-        MegaApi::removeLoggerObject(logger);
-        delete logger;
     }
 }
 
@@ -963,32 +956,6 @@ void SdkTest::getCountryCallingCodes(const int timeout)
     ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Get country calling codes failed (error: " << lastError[0] << ")";
 }
 
-MegaLoggerSDK::MegaLoggerSDK(const char *filename)
-{
-    sdklog.open(filename, ios::out | ios::app);
-}
-
-MegaLoggerSDK::~MegaLoggerSDK()
-{
-    sdklog.close();
-}
-
-void MegaLoggerSDK::log(const char *time, int loglevel, const char *source, const char *message)
-{
-    sdklog << "[" << time << "] " << SimpleLogger::toStr((LogLevel)loglevel) << ": ";
-    sdklog << message << " (" << source << ")" << endl;
-
-    bool errorLevel = ((loglevel == logError) && !testingInvalidArgs);
-    ASSERT_FALSE(errorLevel) << "Test aborted due to an SDK error: " << message << " (" << source << ")";
-
-#ifdef _WIN32
-    std::ostringstream s;
-    s << "[" << time << "] " << SimpleLogger::toStr((LogLevel)loglevel) << ": ";
-    s << message << " (" << source << ")" << endl;
-    OutputDebugStringA(s.str().c_str());
-#endif
-}
-
 void SdkTest::setUserAttribute(int type, string value, int timeout)
 {
     requestFlags[0][MegaRequest::TYPE_SET_ATTR_USER] = false;
@@ -1044,7 +1011,7 @@ TEST_F(SdkTest, DISABLED_SdkTestCreateAccount)
     string pwd = "pwd";
     string email2 = "other-user@domain.com";
 
-    megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Create account___");
+    LOG_info << "___TEST Create account___";
 
     // Create an ephemeral session internally and send a confirmation link to email
     requestFlags[0][MegaRequest::TYPE_CREATE_ACCOUNT] = false;
@@ -1095,7 +1062,7 @@ bool veryclose(double a, double b)
  */
 TEST_F(SdkTest, SdkTestNodeAttributes)
 {
-    megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Node attributes___");
+    LOG_info << "___TEST Node attributes___";
 
     MegaNode *rootnode = megaApi[0]->getRootNode();
 
@@ -1114,14 +1081,14 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
 
     // ___ Set invalid duration of a node ___
 
-    testingInvalidArgs = true;
+    gTestingInvalidArgs = true;
 
     requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE] = false;
     megaApi[0]->setNodeDuration(n1, -14);
     waitForResponse(&requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE]);
     ASSERT_EQ(MegaError::API_EARGS, lastError[0]) << "Unexpected error setting invalid node duration (error: " << lastError[0] << ")";
 
-    testingInvalidArgs = false;
+    gTestingInvalidArgs = false;
 
 
     // ___ Set duration of a node ___
@@ -1150,7 +1117,7 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
 
     // ___ Set invalid coordinates of a node (out of range) ___
 
-    testingInvalidArgs = true;
+    gTestingInvalidArgs = true;
 
     requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE] = false;
     megaApi[0]->setNodeCoordinates(n1, -1523421.8719987255814, +6349.54);
@@ -1173,7 +1140,7 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     waitForResponse(&requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE]);
     ASSERT_EQ(MegaError::API_EARGS, lastError[0]) << "Unexpected error trying to reset only one coordinate (error: " << lastError[0] << ")";
 
-    testingInvalidArgs = false;
+    gTestingInvalidArgs = false;
 
 
     // ___ Set coordinates of a node ___
@@ -1352,7 +1319,7 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
  */
 TEST_F(SdkTest, SdkTestResumeSession)
 {
-    megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Resume session___");
+    LOG_info << "___TEST Resume session___";
 
     char *session = dumpSession();
 
@@ -1382,7 +1349,7 @@ TEST_F(SdkTest, SdkTestResumeSession)
  */
 TEST_F(SdkTest, SdkTestNodeOperations)
 {
-    megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Node operations___");
+    LOG_info <<  "___TEST Node operations___";
 
     // --- Create a new folder ---
 
@@ -1515,10 +1482,10 @@ TEST_F(SdkTest, SdkTestNodeOperations)
  */
 TEST_F(SdkTest, SdkTestTransfers)
 {
-    megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Transfers___");
+    LOG_info << "___TEST Transfers___";
 
     
-    megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, cwd());
+    LOG_info << cwd();
 
     MegaNode *rootnode = megaApi[0]->getRootNode();
     string filename1 = UPFILE;
@@ -1688,7 +1655,7 @@ TEST_F(SdkTest, SdkTestTransfers)
  */
 TEST_F(SdkTest, SdkTestContacts)
 {
-    megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Contacts___");
+    LOG_info << "___TEST Contacts___";
 
     ASSERT_NO_FATAL_FAILURE( getMegaApiAux() );    // login + fetchnodes
 
@@ -2048,7 +2015,7 @@ bool SdkTest::checkAlert(int apiIndex, const string& title, handle h, int n)
 
 TEST_F(SdkTest, SdkTestShares)
 {
-    megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Shares___");
+    LOG_info << "___TEST Shares___";
 
     MegaShareList *sl;
     MegaShare *s;
@@ -2361,7 +2328,7 @@ TEST_F(SdkTest, SdkTestShares)
 * Run various tests confirming the console autocomplete will work as expected
 *
 */
-#ifdef WIN32
+#ifdef _WIN32
 
 bool cmp(const autocomplete::CompletionState& c, std::vector<std::string>& s)
 {
@@ -3022,7 +2989,7 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
  */
 TEST_F(SdkTest, SdkTestChat)
 {
-    megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Chat___");
+    LOG_info << "___TEST Chat___";
 
     ASSERT_NO_FATAL_FAILURE( getMegaApiAux() );    // login + fetchnodes    
 
@@ -3165,7 +3132,7 @@ public:
 
 TEST_F(SdkTest, SdkTestFingerprint)
 {
-    megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST fingerprint stream/file___");
+    LOG_info << "___TEST fingerprint stream/file___";
 
     int filesizes[] = { 10, 100, 1000, 10000, 100000, 10000000 };
     string expected[] = {
@@ -3264,7 +3231,7 @@ namespace mega
             unsigned oldvalue = tbm->raidLinesPerChunk;
             tbm->raidLinesPerChunk /= 4;
             LOG_info << "adjusted raidlinesPerChunk from " << oldvalue << " to " << tbm->raidLinesPerChunk;
-        };
+        }
 
         static bool  onHttpReqPost509(HttpReq* req)
         {
@@ -3280,7 +3247,7 @@ namespace mega
                 }
             }
             return false;
-        };
+        }
 
         static bool  onHttpReqPost404Or403(HttpReq* req)
         {
@@ -3302,7 +3269,7 @@ namespace mega
                 }
             }
             return false;
-        };
+        }
 
 
         static bool  onHttpReqPostTimeout(HttpReq* req)
@@ -3318,13 +3285,13 @@ namespace mega
                 }
             }
             return false;
-        };
+        }
 
         static void onSetIsRaid(::mega::RaidBufferManager* tbm)
         {
             isRaid = tbm->isRaid();
             isRaidKnown = true;
-        };
+        }
 
         static bool resetForTests()
         {
@@ -3345,7 +3312,7 @@ namespace mega
         static void onSetIsRaid_smallchunks10(::mega::RaidBufferManager* tbm)
         {
             tbm->raidLinesPerChunk = 10;
-        };
+        }
 
     };
 
@@ -3356,7 +3323,7 @@ namespace mega
     int DebugTestHook::countdownTo403 = 10;
     int DebugTestHook::countdownToTimeout = 15;
 
-};
+}
 
 
 /**
@@ -3375,7 +3342,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
     cout << "SdkTestCloudraidTransfers can't be run in a release build as it requires the debug hooks to adjust raid parameters" << endl;
 #else
 
-    megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Cloudraid transfers___");
+    LOG_info << "___TEST Cloudraid transfers___";
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
@@ -3498,7 +3465,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
     cout << "SdkTestCloudraidTransferWithConnectionFailures can't be run in a release build as it requires the debug hooks to adjust raid parameters" << endl;
 #else
 
-    megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Cloudraid transfers___");
+    LOG_info << "___TEST Cloudraid transfers___";
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
@@ -3555,7 +3522,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
     cout << "SdkTestCloudraidTransferWithSingleChannelTimeouts can't be run in a release build as it requires the debug hooks to adjust raid parameters" << endl;
 #else
 
-    megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Cloudraid transfers___");
+    LOG_info << "___TEST Cloudraid transfers___";
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
@@ -3891,7 +3858,7 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
     compareDecryptedFile.read((char*)compareDecryptedData, filesize);
 
     m_time_t starttime = m_time();
-    int seconds_to_test_for = g_runningInCI ? 60 : 60 * 10;
+    int seconds_to_test_for = gRunningInCI ? 60 : 60 * 10;
 
     // ok loop for 10 minutes
     srand(unsigned(starttime));
@@ -3972,7 +3939,7 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
 
     }
 
-    ASSERT_TRUE(randomRunsDone > (g_runningInCI ? 10 : 100));
+    ASSERT_TRUE(randomRunsDone > (gRunningInCI ? 10 : 100));
 
     cout << "Streaming test downloaded " << randomRunsDone << " samples of the file from random places and sizes, " << randomRunsBytes << " bytes total" << endl;
 
@@ -3987,7 +3954,7 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
 
 TEST_F(SdkTest, SdkRecentsTest)
 {
-    megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST SdkRecentsTest___");
+    LOG_info << "___TEST SdkRecentsTest___";
 
     MegaNode *rootnode = megaApi[0]->getRootNode();
 
@@ -4047,6 +4014,8 @@ TEST_F(SdkTest, SdkRecentsTest)
 // TODO: Enable this test when API command (smslc) becomes available in production
 TEST_F(SdkTest, DISABLED_SdkGetCountryCallingCodes)
 {
+    LOG_info << "___TEST SdkGetCountryCallingCodes___";
+
     getCountryCallingCodes();
     ASSERT_NE(nullptr, stringListMap);
     ASSERT_GT(stringListMap->size(), 0);
@@ -4064,6 +4033,8 @@ TEST_F(SdkTest, DISABLED_SdkGetCountryCallingCodes)
 // TODO: Enable this test when API command (usabd) becomes available in production
 TEST_F(SdkTest, DISABLED_SdkGetRegisteredContacts)
 {
+    LOG_info << "___TEST SdkGetRegisteredContacts___";
+
     const std::string js1 = "+0000000010";
     const std::string js2 = "+0000000011";
     const std::map<std::string, std::string> contacts{
