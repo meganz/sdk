@@ -10983,42 +10983,37 @@ void MegaClient::computeFingerprint(const string &key, byte *fingerprint)
     memcpy(fingerprint, buf.data(), 20);
 }
 
-void MegaClient::trackKey(attr_t type, handle uh, std::string &key)
+void MegaClient::trackKey(attr_t keyType, handle uh, std::string &pubKey)
 {
     User *ownUser = finduser(me);
     User *user = finduser(uh);
 
-    const string *buf = nullptr;    // stores the corresponding authring (byte array, not owned)
-    if (type == ATTR_ED25519_PUBK)
+    // select the type of authring of the type of key
+    attr_t authringType;
+    if (keyType == ATTR_ED25519_PUBK)
     {
-        assert(ownUser->isattrvalid(ATTR_AUTHRING));
-        if (!ownUser->isattrvalid(ATTR_AUTHRING))
-        {
-            LOG_warn << "Authring not available to track Ed25519 key for user " << user->uid;
-            return;
-        }
-
-        buf = ownUser->getattr(ATTR_AUTHRING);
+        authringType = ATTR_AUTHRING;
     }
-    else if (type == ATTR_CU25519_PUBK)
+    else if (keyType == ATTR_CU25519_PUBK)
     {
-        assert(ownUser->isattrvalid(ATTR_AUTHCU255));
-        if (!ownUser->isattrvalid(ATTR_AUTHCU255))
-        {
-            LOG_warn << "Authring not available to track Cu25519 key for user " << user->uid;
-            return;
-        }
-
-        buf = ownUser->getattr(ATTR_AUTHCU255);
+        authringType = ATTR_AUTHCU255;
     }
+    // TODO: add support for virtual attr_t --> public RSA key
     else
     {
-        LOG_err << "Attempt to track an unknown type of key: " << type;
+        LOG_err << "Attempt to track an unknown type of key: " << keyType;
         assert(false);
         return;
     }
 
-    std::unique_ptr<TLVstore> authring(TLVstore::containerToTLVrecords(buf, &this->key));
+    // retrieve authring from cache in TLVstore format
+    assert(ownUser->isattrvalid(authringType));
+    if (!ownUser->isattrvalid(authringType))
+    {
+        LOG_warn << "Authring not available to track public key for user " << user->uid;
+        return;
+    }
+    std::unique_ptr<TLVstore> authring(TLVstore::containerToTLVrecords(ownUser->getattr(authringType), &key));
     if (!authring)
     {
         LOG_err << "Cannot decode TLV of authring";
@@ -11027,11 +11022,11 @@ void MegaClient::trackKey(attr_t type, handle uh, std::string &key)
 
     // compute key's fingerprint
     byte keyFingerprint[20];
-    computeFingerprint(key, keyFingerprint);
+    computeFingerprint(pubKey, keyFingerprint);
 
     byte authLevel = AUTH_METHOD_UNKNOWN;
     bool authLevelChanged = false;
-    bool isSignedType = (type != ATTR_ED25519_PUBK);
+    bool isSignedType = (keyType != ATTR_ED25519_PUBK);
     bool fingerprintMatch = false;
 
     string authType = "";
@@ -11113,8 +11108,8 @@ void MegaClient::trackKey(attr_t type, handle uh, std::string &key)
 
         // tracking has changed --> persist authring
         authring->set(authType, authValue);
-        std::unique_ptr<string> newAuthring(authring->tlvRecordsToContainer(rng, &this->key));
-        putua(ATTR_AUTHRING, (const byte *)newAuthring->data(), newAuthring->size(), 0);
+        std::unique_ptr<string> newAuthring(authring->tlvRecordsToContainer(rng, &key));
+        putua(authringType, (const byte *)newAuthring->data(), newAuthring->size(), 0);
     }
 
     if (isSignedType)
