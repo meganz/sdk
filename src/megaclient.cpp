@@ -11018,7 +11018,7 @@ void MegaClient::trackKey(attr_t type, handle uh, std::string &key)
         return;
     }
 
-    std::unique_ptr<TLVstore> authring(TLVstore::containerToTLVrecords(buf));
+    std::unique_ptr<TLVstore> authring(TLVstore::containerToTLVrecords(buf, &this->key));
     if (!authring)
     {
         LOG_err << "Cannot decode TLV of authring";
