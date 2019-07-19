@@ -11028,7 +11028,11 @@ void MegaClient::trackKey(attr_t type, handle uh, std::string &key)
     // compute key's fingerprint
     byte keyFingerprint[20];
     computeFingerprint(key, keyFingerprint);
+
     byte authLevel = AUTH_METHOD_UNKNOWN;
+    bool authLevelChanged = false;
+    bool isSignedType = (type != ATTR_ED25519_PUBK);
+    bool fingerprintMatch = false;
 
     string authType = "";
     string authValue;
@@ -11069,41 +11073,59 @@ void MegaClient::trackKey(attr_t type, handle uh, std::string &key)
         if (keyTracked)
         {
             // does fingerprint match tracked fingerprint?
-            if (memcmp(keyFingerprint, authFingerprint, sizeof(keyFingerprint)) == 0)
-            {
-                LOG_info << "Authentication of Ed25519 public key of user " << user->uid << " succesful (auth. level: " << authLevel+48 << ")";
+            fingerprintMatch = memcmp(keyFingerprint, authFingerprint, sizeof(keyFingerprint)) == 0;
 
-                // if signed key type
-                if (type == ATTR_CU25519_PUBK && authLevel != AUTH_METHOD_SIGNATURE)
+            if (!fingerprintMatch)
+            {
+                if (!isSignedType)
                 {
-                    // load public signing key and key signature
-                    getua(user, ATTR_SIG_CU255_PUBK);
-                    getua(user, ATTR_CU25519_PUBK); // in getua_result(), we check signature actually matches
+                    LOG_err << "Authentication of public key of user " << user->uid << " failed";
+
+                    return;
                 }
             }
             else
             {
-                LOG_err << "Authentication of Ed25519 public key of user " << user->uid << " failed";
+                LOG_info << "Authentication of public key of user " << user->uid << " succesful (auth. level: " << char(authLevel+48) << ")";
             }
-
-            return;
         }
-        LOG_warn << "Key not tracked in the authring yet for user " << user->uid;
+        else
+        {
+            // track key as "seen" (user's key not tracked yet)
+            authLevel = AUTH_METHOD_SEEN;
+            authLevelChanged = true;
+        }
+    }
+    else
+    {
+        // track key as "seen" (authring was reset)
+        authLevel = AUTH_METHOD_SEEN;
+        authLevelChanged = true;
     }
 
-    LOG_info << "Tracking public key of user " << user->uid << " as seen";
+    if (authLevelChanged)
+    {
+        LOG_debug << "Adding/updating authring with public key of user " << user->uid << ". Auth level: " << char(authLevel+48);
 
-    // track key as "seen" (user's key not tracked yet, or authring was reset)
-    authLevel = AUTH_METHOD_SEEN;
+        authValue.append((char *)&uh, sizeof(uh));
+        authValue.append((char *)keyFingerprint, sizeof(keyFingerprint));
+        authValue.append((char *)&authLevel, sizeof(authLevel));
 
-    authValue.append((char *)&uh, sizeof(uh));
-    authValue.append((char *)keyFingerprint, sizeof(keyFingerprint));
-    authValue.append((char *)&authLevel, sizeof(authLevel));
+        // tracking has changed --> persist authring
+        authring->set(authType, authValue);
+        std::unique_ptr<string> newAuthring(authring->tlvRecordsToContainer(rng, &this->key));
+        putua(ATTR_AUTHRING, (const byte *)newAuthring->data(), newAuthring->size(), 0);
+    }
 
-    // tracking has changed --> persist authring
-    authring->set(authType, authValue);
-    std::unique_ptr<string> newAuthring(authring->tlvRecordsToContainer(rng, &this->key));
-    putua(ATTR_AUTHRING, (const byte *)newAuthring->data(), newAuthring->size(), 0);
+    if (isSignedType)
+    {
+        if (authLevel != AUTH_METHOD_SIGNATURE || !fingerprintMatch)
+        {
+            // load public signing key and key signature
+            getua(user, ATTR_SIG_CU255_PUBK);
+            getua(user, ATTR_CU25519_PUBK); // in getua_result(), we check signature actually matches
+        }
+    }
 }
 
 void MegaClient::purgenodesusersabortsc()
