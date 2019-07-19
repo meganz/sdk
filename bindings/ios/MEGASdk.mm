@@ -2169,11 +2169,14 @@ using namespace mega;
 - (void)getRegisteredContacts:(NSArray<NSDictionary *> *)contacts delegate:(id<MEGARequestDelegate>)delegate {
     MegaStringMap *stringMapContacts = MegaStringMap::createInstance();
     for (NSDictionary *contact in contacts) {
-        NSString *key = contact.allKeys[0];
-        NSString *value = contact.allValues[0];
+        NSString *key = contact.allKeys.firstObject;
+        NSString *value = contact.allValues.firstObject;
         stringMapContacts->set(key.UTF8String, value.UTF8String);
     }
+    
     self.megaApi->getRegisteredContacts(stringMapContacts, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+
+    delete stringMapContacts;    
 }
 
 - (void)getCountryCallingCodesWithDelegate:(id<MEGARequestDelegate>)delegate {
