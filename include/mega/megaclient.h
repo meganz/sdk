@@ -347,8 +347,11 @@ public:
     // calculate the fingerprint of keys (most significant 160bits of SHA256)
     void computeFingerprint(const string &key, byte *fingerprint);
 
-    // track a key in the authring for a given user
+    // track a public key in the authring for a given user
     void trackKey(attr_t keyType, handle uh, const std::string &key);
+
+    // track signature of public key in the authring for a given user
+    void trackSignature(attr_t signatureType, handle uh, const std::string &signature);
 
     // retrieve user details
     void getaccountdetails(AccountDetails*, bool, bool, bool, bool, bool, bool, int source = -1);

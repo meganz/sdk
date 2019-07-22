@@ -10991,23 +10991,27 @@ void MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
     // select the type of authring of the type of key
     attr_t authringType;
     bool signedKey;
-    string pubKeyTypeStr;
+    string pubKeyTypeStr;   // for logging purposes
+    attr_t signatureType;
     if (keyType == ATTR_ED25519_PUBK)
     {
         authringType = ATTR_AUTHRING;
         signedKey = false;
+        signatureType = ATTR_UNKNOWN;   // there is no signature of signing key
         pubKeyTypeStr = "Ed25519";
     }
     else if (keyType == ATTR_CU25519_PUBK)
     {
         authringType = ATTR_AUTHCU255;
         signedKey = true;
+        signatureType = ATTR_SIG_CU255_PUBK;
         pubKeyTypeStr = "Cu25519";
     }
     else if (keyType == ATTR_UNKNOWN)   // RSA is not a user-attribute actually
     {
         authringType = ATTR_AUTHRSA;
         signedKey = true;
+        signatureType = ATTR_SIG_RSA_PUBK;
         pubKeyTypeStr = "RSA";
     }
     else
@@ -11128,9 +11132,121 @@ void MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
         if (authLevel != AUTH_METHOD_SIGNATURE || !fingerprintMatch)
         {
             // load public signing key and key signature
-            getua(user, ATTR_SIG_CU255_PUBK);
-            getua(user, ATTR_CU25519_PUBK); // in getua_result(), we check signature actually matches
+            getua(user, ATTR_ED25519_PUBK);
+            getua(user, signatureType); // in getua_result(), we check signature actually matches
         }
+    }
+}
+
+void MegaClient::trackSignature(attr_t signatureType, handle uh, const std::string &signature)
+{
+    User *user = finduser(uh);
+
+    // select the type of authring for the type of key
+    attr_t authringType;
+    const string *pubKey;
+    string pubKeyTypeStr;   // for logging purposes
+    string pubKeyBuf;
+    if (signatureType == ATTR_SIG_CU255_PUBK)
+    {
+        authringType = ATTR_AUTHCU255;
+        pubKeyTypeStr = "Cu25519";
+
+        // retrieve public key whose signature wants to be verified, from cache
+        assert(user->isattrvalid(ATTR_CU25519_PUBK));
+        if (!user->isattrvalid(ATTR_CU25519_PUBK))
+        {
+            LOG_warn << "Cannot verify signature of " << pubKeyTypeStr << " public key for user " << user->uid << ": key is not available";
+            return;
+        }
+        pubKey = user->getattr(ATTR_CU25519_PUBK);
+    }
+    else if (signatureType == ATTR_SIG_RSA_PUBK)
+    {
+        authringType = ATTR_AUTHRSA;
+        pubKeyTypeStr = "RSA";
+
+        user->pubk.serializekeyforjs(pubKeyBuf);
+        pubKey = &pubKeyBuf;
+    }
+    else
+    {
+        LOG_err << "Attempt to track an unknown type of signature: " << signatureType;
+        assert(false);
+        return;
+    }
+
+    // retrieve signing key from cache
+    assert(user->isattrvalid(ATTR_ED25519_PUBK));
+    if (!user->isattrvalid(ATTR_ED25519_PUBK))
+    {
+        LOG_warn << "Signing key (Ed25519) not available to verify signature of " << pubKeyTypeStr << " public key for user " << user->uid;
+        return;
+    }
+    const string *signingPubKey = user->getattr(ATTR_ED25519_PUBK);
+
+    // check signature for the public key
+    bool signatureVerified = EdDSA::verifyKey((unsigned char*) pubKey->data(), pubKey->size(), (string*)&signature, (unsigned char*) signingPubKey->data());
+    if (signatureVerified)
+    {
+        LOG_debug << "Signature of " << pubKeyTypeStr << " public key for user " << user->uid << " verified";
+
+        // update authring to `signature verified`
+
+        // retrieve authring from cache (must be cached, it's refetched automatically upon changes)
+        User *ownUser = finduser(me);
+        assert(ownUser->isattrvalid(authringType));
+        if (!ownUser->isattrvalid(authringType))
+        {
+            LOG_warn << "Authring not available to track signature of " << pubKeyTypeStr << " public key for user " << user->uid;
+            return;
+        }
+        std::unique_ptr<TLVstore> authring(TLVstore::containerToTLVrecords(ownUser->getattr(authringType), &key));
+        if (!authring)
+        {
+            LOG_err << "Cannot decode TLV of authring tracking " << pubKeyTypeStr << " keys";
+            return;
+        }
+
+        string authType = "";
+        string authValue;
+        if (authring->find(authType))  // key is an empty string, but may not be there if authring was reset
+        {
+            authValue = authring->get(authType);
+
+            const char *ptr = authValue.data();
+            const char *end = ptr + authValue.size();
+            unsigned recordSize = 29;   // <handle.8> <fingerprint.20> <authLevel.1>
+            while (ptr + recordSize <= end)
+            {
+                handle userhandle;
+                memcpy(&userhandle, ptr, sizeof(userhandle));
+                ptr += sizeof(userhandle);
+
+                if (userhandle == uh)
+                {
+                    ptr += 20;  // skip key's fingerprint, already checked in MegaClient::trackKey()
+
+                    // update the auth level
+                    byte authLevel = AUTH_METHOD_SIGNATURE;
+                    authValue.replace(end-ptr, sizeof(authLevel), (const char*) &authLevel, sizeof(authLevel));
+
+                    // and finally update the related authring
+                    authring->set(authType, authValue);
+                    std::unique_ptr<string> newAuthring(authring->tlvRecordsToContainer(rng, &key));
+                    putua(authringType, (const byte *)newAuthring->data(), newAuthring->size(), 0);
+
+                    return;
+                }
+
+                // if different user, skip next 21 bytes
+                ptr += 21;
+            }
+        }
+    }
+    else
+    {
+        LOG_err << "Failed to verify signature of " << pubKeyTypeStr << " public key for user " << user->uid;
     }
 }
 

@@ -3012,10 +3012,16 @@ void CommandGetUA::procresult()
                                 client->initializekeys(); // we have now all the required data
                             }
 
-                            if (u->userhandle != client->me
-                                    && (at == ATTR_ED25519_PUBK || at == ATTR_CU25519_PUBK))
+                            if (u->userhandle != client->me)
                             {
-                                client->trackKey(at, u->userhandle, value);
+                                if (at == ATTR_ED25519_PUBK || at == ATTR_CU25519_PUBK)
+                                {
+                                    client->trackKey(at, u->userhandle, value);
+                                }
+                                else if (at == ATTR_SIG_CU255_PUBK || at == ATTR_SIG_RSA_PUBK)
+                                {
+                                    client->trackSignature(at, u->userhandle, value);
+                                }
                             }
                             break;
 
