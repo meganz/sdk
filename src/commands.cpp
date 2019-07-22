@@ -3386,7 +3386,13 @@ void CommandPubKeyRequest::procresult()
                     {
                         len_pubk = 0;
                     }
-                    client->trackKey(ATTR_UNKNOWN, u->userhandle, string((char*)pubkbuf, len_pubk));
+
+                    if (u->userhandle != client->me && len_pubk && u->pubk.isvalid())
+                    {
+                        string pubkstr;
+                        u->pubk.serializekeyforjs(pubkstr);
+                        client->trackKey(ATTR_UNKNOWN, u->userhandle, pubkstr);
+                    }
                     finished = true;
                     break;
 

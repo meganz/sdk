@@ -10991,20 +10991,24 @@ void MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
     // select the type of authring of the type of key
     attr_t authringType;
     bool signedKey;
+    string pubKeyTypeStr;
     if (keyType == ATTR_ED25519_PUBK)
     {
         authringType = ATTR_AUTHRING;
         signedKey = false;
+        pubKeyTypeStr = "Ed25519";
     }
     else if (keyType == ATTR_CU25519_PUBK)
     {
         authringType = ATTR_AUTHCU255;
         signedKey = true;
+        pubKeyTypeStr = "Cu25519";
     }
     else if (keyType == ATTR_UNKNOWN)   // RSA is not a user-attribute actually
     {
         authringType = ATTR_AUTHRSA;
         signedKey = true;
+        pubKeyTypeStr = "RSA";
     }
     else
     {
@@ -11017,13 +11021,13 @@ void MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
     assert(ownUser->isattrvalid(authringType));
     if (!ownUser->isattrvalid(authringType))
     {
-        LOG_warn << "Authring not available to track public key for user " << user->uid;
+        LOG_warn << "Authring not available to track " << pubKeyTypeStr << " public key for user " << user->uid;
         return;
     }
     std::unique_ptr<TLVstore> authring(TLVstore::containerToTLVrecords(ownUser->getattr(authringType), &key));
     if (!authring)
     {
-        LOG_err << "Cannot decode TLV of authring";
+        LOG_err << "Cannot decode TLV of authring tracking " << pubKeyTypeStr << " keys";
         return;
     }
 
@@ -11080,14 +11084,15 @@ void MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
             {
                 if (!signedKey)
                 {
-                    LOG_err << "Authentication of public key of user " << user->uid << " failed";
+                    LOG_err << "Authentication of " << pubKeyTypeStr << " public key for user " << user->uid << " failed";
+
 
                     return;
                 }
             }
             else
             {
-                LOG_info << "Authentication of public key of user " << user->uid << " succesful (auth. level: " << char(authLevel+48) << ")";
+                LOG_info << "Authentication of " << pubKeyTypeStr << " public key for user " << user->uid << " succesful (auth. level: " << char(authLevel+48) << ")";
             }
         }
         else
@@ -11106,7 +11111,7 @@ void MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
 
     if (authLevelChanged)
     {
-        LOG_debug << "Adding/updating authring with public key of user " << user->uid << ". Auth level: " << char(authLevel+48);
+        LOG_debug << "Adding/updating authring with " << pubKeyTypeStr << " public key for user " << user->uid << ". Auth level: " << char(authLevel+48);
 
         authValue.append((char *)&uh, sizeof(uh));
         authValue.append((char *)keyFingerprint, sizeof(keyFingerprint));
