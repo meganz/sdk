@@ -354,26 +354,29 @@ void Transfer::failed(error e, dstime timeleft)
         client->reqtag = creqtag;
     }
 
-    if (e != API_EOVERQUOTA)
+    if (e != API_EBUSINESSPASTDUE)
     {
-        bt.backoff();
-        state = TRANSFERSTATE_RETRYING;
-        client->app->transfer_failed(this, e, timeleft);
-        client->looprequested = true;
-    }
-    else
-    {
-        bt.backoff(timeleft ? timeleft : NEVER);
-        client->activateoverquota(timeleft);
-        if (!slot)
+        if (e != API_EOVERQUOTA)
         {
+            bt.backoff();
+            state = TRANSFERSTATE_RETRYING;
             client->app->transfer_failed(this, e, timeleft);
+            client->looprequested = true;
+        }
+        else
+        {
+            bt.backoff(timeleft ? timeleft : NEVER);
+            client->activateoverquota(timeleft);
+            if (!slot)
+            {
+                client->app->transfer_failed(this, e, timeleft);
+            }
         }
     }
 
     for (file_list::iterator it = files.begin(); it != files.end(); it++)
     {
-        if ( (*it)->failed(e)
+        if ( ((*it)->failed(e) && (e != API_EBUSINESSPASTDUE))
                 || (e == API_ENOENT // putnodes returned -9, file-storage server unavailable
                     && type == PUT
                     && tempurls.empty()
@@ -1238,7 +1241,7 @@ bool DirectReadSlot::processAnyOutputPieces()
         dr->drn->client->httpio->updatedownloadspeed(len);
         continueDirectRead = dr->drn->client->app->pread_data(outputPiece->buf.datastart(), len, pos, speed, meanSpeed, dr->appdata);
 
-        dr->drbuf.bufferWriteCompleted(0);
+        dr->drbuf.bufferWriteCompleted(0, true);
 
         if (continueDirectRead)
         {

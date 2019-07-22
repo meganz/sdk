@@ -100,7 +100,10 @@ typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
     MEGAUserAttributeRubbishTime             = 19, // private - byte array
     MEGAUserAttributeLastPSA                 = 20, // private - char array
     MEGAUserAttributeStorageState            = 21, // private - char array
-    MEGAUserAttributeGeolocation             = 22 // private - char array
+    MEGAUserAttributeGeolocation             = 22, // private - byte array
+    MEGAUserAttributeCameraUploadsFolder     = 23, // private - byte array
+    MEGAUserAttributeMyChatFilesFolder       = 24, // private - byte array
+    MEGAUserAttributePushSettings            = 25 // private - char array
 };
 
 typedef NS_ENUM(NSInteger, MEGANodeAttribute) {
@@ -160,6 +163,13 @@ typedef NS_ENUM(NSUInteger, StorageState) {
     StorageStateOrange = 1,
     StorageStateRed = 2,
     StorageStateChange = 3
+};
+
+typedef NS_ENUM(NSInteger, BusinessStatus) {
+    BusinessStatusExpired = -1,
+    BusinessStatusInactive = 0, // no business subscription
+    BusinessStatusActive = 1,
+    BusinessStatusGracePeriod = 2
 };
 
 /**
@@ -320,6 +330,43 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * YES if enabled, NO otherwise.
  */
 @property (readonly, nonatomic, getter=isAchievementsEnabled) BOOL achievementsEnabled;
+
+#pragma mark - Business
+
+/**
+ * @brief Returns YES if it's a business account, otherwise NO.
+ */
+@property (readonly, nonatomic, getter=isBusinessAccount) BOOL businessAccount;
+
+/**
+ * @brief Returns YES if it's a master account, NO if it's a sub-user account.
+ *
+ * When a business account is not active, some user actions will be blocked. In result, the API
+ * will return the error code MEGAErrorTypeApiEBusinessPastDue. Some examples of requests
+ * that may fail with this error are:
+ *  - [MEGASdk startDownload]
+ *  - [MEGASdk startUpload]
+ *  - [MEGASdk copyNode]
+ *  - [MEGASdk shareNode]
+ *  - [MEGASdk cleanRubbishBin]
+ *
+ */
+@property (readonly, nonatomic, getter=isMasterBusinessAccount) BOOL masterBusinessAccount;
+
+/**
+ * @brief Returns YES if it is an active business account, otherwise NO.
+ */
+@property (readonly, nonatomic, getter=isBusinessAccountActive) BOOL businessAccountActive;
+
+/**
+ * @brief Get the status of a business account.
+ * @return Returns the business account status, possible values:
+ *      BusinessStatusExpired = -1
+ *      BusinessStatusInactive = 0
+ *      BusinessStatusActive = 1
+ *      BusinessStatusGracePeriod = 2
+ */
+@property (readonly, nonatomic) BusinessStatus businessStatus;
 
 #ifdef ENABLE_CHAT
 
@@ -772,6 +819,9 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * If this request succeeds, a change-email link will be sent to the specified email address.
  * If no user is logged in, you will get the error code MEGAErrorTypeApiEAccess in onRequestFinish().
  *
+ * If the MEGA account is a sub-user business account, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEMasterOnly.
+ *
  * @param email The new email to be associated to the account.
  * @param pin Pin code for multi-factor authentication
  * @param delegate MEGARequestDelegate to track this request
@@ -789,6 +839,9 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * If this request succeeds, a change-email link will be sent to the specified email address.
  * If no user is logged in, you will get the error code MEGAErrorTypeApiEAccess in onRequestFinish().
  *
+ * If the MEGA account is a sub-user business account, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEMasterOnly.
+ *
  * @param email The new email to be associated to the account.
  * @param pin Pin code for multi-factor authentication
  */
@@ -804,6 +857,9 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  *
  * Valid data in the MEGARequest object received on all callbacks:
  * - [MEGARequest text] - Returns the pin code for multi-factor authentication
+ *
+ * If the MEGA account is a sub-user business account, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEMasterOnly.
  *
  * @see [MEGASdk confirmCancelAccountWithLink:password:]
  *
@@ -822,6 +878,9 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  *
  * Valid data in the MEGARequest object received on all callbacks:
  * - [MEGARequest text] - Returns the pin code for multi-factor authentication
+ *
+ * If the MEGA account is a sub-user business account, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEMasterOnly.
  *
  * @see [MEGASdk confirmCancelAccountWithLink:password:]
  *
@@ -1198,8 +1257,10 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * Until the user successfully confirms the signup link sent to the provided email address,
  * you can resume the ephemeral session in order to change the email address, resend the
  * signup link (@see [MEGASdk sendSignupLinkWithEmail:name:password:delegate:]) and also
- * to receive notifications in case the user confirms the account using another client 
- * ([MEGAGlobalDelegate onAccountUpdate:] or [MEGADelegate onAccountUpdate:]).
+ * to receive notifications in case the user confirms the account using another client
+ * ([MEGAGlobalDelegate onAccountUpdate:] or [MEGADelegate onAccountUpdate:]).It is also possible
+ * to cancel the registration process by [MEGASdk cancelCreateAccount:delegate:], which invalidates
+ * the signup link associated to the ephemeral session (the session will be still valid).
  *
  * The associated request type with this request is MEGARequestTypeCreateAccount.
  * Valid data in the MEGARequest object received on callbacks:
@@ -1224,7 +1285,9 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * you can resume the ephemeral session in order to change the email address, resend the
  * signup link (@see [MEGASdk sendSignupLinkWithEmail:name:password:delegate:]) and also
  * to receive notifications in case the user confirms the account using another client
- * ([MEGAGlobalDelegate onAccountUpdate:] or [MEGADelegate onAccountUpdate:]).
+ * ([MEGAGlobalDelegate onAccountUpdate:] or [MEGADelegate onAccountUpdate:]).It is also possible
+ * to cancel the registration process by [MEGASdk cancelCreateAccount:delegate:], which invalidates
+ * the signup link associated to the ephemeral session (the session will be still valid).
  *
  * The associated request type with this request is MEGARequestTypeCreateAccount.
  * Valid data in the MEGARequest object received on callbacks:
@@ -1237,6 +1300,33 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * @param sessionId Session id valid for the ephemeral account (@see [MEGASdk createAccountWithEmail:password:firstname:lastname:])
  */
 - (void)resumeCreateAccountWithSessionId:(NSString *)sessionId;
+
+/**
+ * @brief Cancel a registration process
+ *
+ * If a signup link has been generated during registration process, call this function
+ * to invalidate it. The ephemeral session will not be invalidated, only the signup link.
+ *
+ * The associated request type with this request is MEGARequestTypeCreateAccount.
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the value 2
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)cancelCreateAccountWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Cancel a registration process
+ *
+ * If a signup link has been generated during registration process, call this function
+ * to invalidate it. The ephemeral session will not be invalidated, only the signup link.
+ *
+ * The associated request type with this request is MEGARequestTypeCreateAccount.
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the value 2
+ *
+ */
+- (void)cancelCreateAccount;
 
 /**
  * @brief Sends the confirmation email for a new account
@@ -1532,6 +1622,9 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * If this request succeed, a cancellation link will be sent to the email address of the user.
  * If no user is logged in, you will get the error code MEGAErrorTypeApiEAccess in onRequestFinish.
  *
+ * If the MEGA account is a sub-user business account, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEMasterOnly.
+ *
  * @see [MEGASdk confirmCancelAccountWithLink:password:]
  *
  * @param delegate Delegate to track this request
@@ -1545,6 +1638,9 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  *
  * If this request succeed, a cancellation link will be sent to the email address of the user.
  * If no user is logged in, you will get the error code MEGAErrorTypeApiEAccess in onRequestFinish.
+ *
+ * If the MEGA account is a sub-user business account, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEMasterOnly.
  *
  * @see [MEGASdk confirmCancelAccountWithLink:password:]
  *
@@ -1636,6 +1732,9 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  *
  * If this request succeed, a change-email link will be sent to the specified email address.
  * If no user is logged in, you will get the error code MEGAErrorTypeApiEAccess in onRequestFinish.
+ *
+ * If the MEGA account is a sub-user business account, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEMasterOnly.
  *
  * @param email The new email to be associated to the account.
  * @param delegate Delegate to track this request
@@ -1987,6 +2086,9 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest nodeHandle] - Handle of the new folder
  *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEBusinessPastDue.
+ *
  * @param name Name of the new folder.
  * @param parent Parent folder.
  * @param delegate Delegate to track this request.
@@ -2005,6 +2107,9 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest nodeHandle] - Handle of the new folder
  *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEBusinessPastDue.
+ *
  * @param name Name of the new folder.
  * @param parent Parent folder.
  */
@@ -2017,6 +2122,9 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest nodeHandle] - Returns the handle of the node to move
  * - [MEGARequest parentHandle] - Returns the handle of the new parent for the node
+ *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEBusinessPastDue.
  *
  * @param node Node to move.
  * @param newParent New parent for the node.
@@ -2032,6 +2140,9 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * - [MEGARequest nodeHandle] - Returns the handle of the node to move
  * - [MEGARequest parentHandle] - Returns the handle of the new parent for the node
  *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEBusinessPastDue.
+ *
  * @param node Node to move.
  * @param newParent New parent for the node.
  */
@@ -2045,6 +2156,9 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * - [MEGARequest nodeHandle] - Returns the handle of the node to move
  * - [MEGARequest parentHandle] - Returns the handle of the new parent for the node
  * - [MEGARequest publicNode] - Returns the node to copy (if it is a public node)
+ *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEBusinessPastDue.
  *
  * @param node Node to copy.
  * @param newParent New parent for the node.
@@ -2060,6 +2174,9 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * - [MEGARequest nodeHandle] - Returns the handle of the node to move
  * - [MEGARequest parentHandle] - Returns the handle of the new parent for the node
  * - [MEGARequest publicNode] - Returns the node to copy (if it is a public node)
+ *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEBusinessPastDue.
  *
  * @param node Node to copy.
  * @param newParent New parent for the node.
@@ -2079,6 +2196,9 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest nodeHandle] - Handle of the new node
+ *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEBusinessPastDue.
  *
  * @param node Node to copy
  * @param newParent Parent for the new node
@@ -2105,6 +2225,9 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest nodeHandle] - Handle of the new node
  *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEBusinessPastDue.
+ *
  * @param node Node to copy
  * @param newParent Parent for the new node
  * @param newName Name for the new node
@@ -2122,6 +2245,9 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * - [MEGARequest nodeHandle] - Returns the handle of the node to rename
  * - [MEGARequest name] - Returns the new name for the node
  *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEBusinessPastDue.
+ *
  * @param node Node to modify.
  * @param newName New name for the node.
  * @param delegate Delegate to track this request.
@@ -2135,6 +2261,9 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest nodeHandle] - Returns the handle of the node to rename
  * - [MEGARequest name] - Returns the new name for the node
+ *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEBusinessPastDue.
  *
  * @param node Node to modify.
  * @param newName New name for the node.
@@ -2154,6 +2283,9 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * - [MEGARequest nodeHandle] - Returns the handle of the node to rename
  * - [MEGARequest flag] - Returns NO because previous versions won't be preserved
  *
+ * If the MEGA account is a sub-user business account, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEMasterOnly.
+ *
  * @param node Node to remove.
  * @param delegate Delegate to track this request.
  */
@@ -2171,6 +2303,9 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest nodeHandle] - Returns the handle of the node to rename
  * - [MEGARequest flag] - Returns NO because previous versions won't be preserved
+ *
+ * If the MEGA account is a sub-user business account, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEMasterOnly.
  *
  * @param node Node to remove.
  */
@@ -2212,6 +2347,9 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * - [MEGARequest nodeHandle] - Returns the handle of the node to remove
  * - [MEGARequest flag] - Returns YES because previous versions will be preserved
  *
+ * If the MEGA account is a sub-user business account, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEMasterOnly.
+ *
  * @param node Node to remove
  * @param delegate MEGARequestDelegate to track this request
  */
@@ -2230,6 +2368,9 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * - [MEGARequest nodeHandle] - Returns the handle of the node to remove
  * - [MEGARequest flag] - Returns YES because previous versions will be preserved
  *
+ * If the MEGA account is a sub-user business account, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEMasterOnly.
+ *
  * @param node Node to remove
  */
 - (void)removeVersionNode:(MEGANode *)node;
@@ -2245,6 +2386,9 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * The associated request type with this request is MEGARequestTypeRestore
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest nodeHandle] - Returns the handle of the node to restore
+ *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEBusinessPastDue.
  *
  * @param node Node with the version to restore
  * @param delegate MEGARequestDelegate to track this request
@@ -2263,6 +2407,9 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest nodeHandle] - Returns the handle of the node to restore
  *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEBusinessPastDue.
+ *
  * @param node Node with the version to restore
  */
 - (void)restoreVersionNode:(MEGANode *)node;
@@ -2276,6 +2423,9 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * The associated request type with this request is MEGARequestTypeCleanRubbishBin. This
  * request returns MEGAErrorTypeApiENoent if the Rubbish bin is already empty.
  *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEBusinessPastDue.
+ *
  * @param delegate MEGARequestDelegate to track this request
  */
 - (void)cleanRubbishBinWithDelegate:(id<MEGARequestDelegate>)delegate;
@@ -2288,6 +2438,9 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  *
  * The associated request type with this request is MEGARequestTypeCleanRubbishBin. This
  * request returns MEGAErrorTypeApiENoent if the Rubbish bin is already empty.
+ *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEBusinessPastDue.
  *
  */
 - (void)cleanRubbishBin;
@@ -2305,6 +2458,9 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * - [MEGARequest nodeHandle] - Returns the handle of the folder to share
  * - [MEGARequest email] - Returns the email of the user that receives the shared folder
  * - [MEGARequest access] - Returns the access that is granted to the user
+ *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEBusinessPastDue.
  *
  * @param node The folder to share. It must be a non-root folder.
  * @param user User that receives the shared folder.
@@ -2334,6 +2490,9 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * - [MEGARequest email] - Returns the email of the user that receives the shared folder
  * - [MEGARequest access] - Returns the access that is granted to the user
  *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEBusinessPastDue.
+ *
  * @param node The folder to share. It must be a non-root folder.
  * @param user User that receives the shared folder.
  * @param level Permissions that are granted to the user.
@@ -2360,6 +2519,9 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * - [MEGARequest nodeHandle] - Returns the handle of the folder to share
  * - [MEGARequest email] - Returns the email of the user that receives the shared folder
  * - [MEGARequest access] - Returns the access that is granted to the user
+ *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEBusinessPastDue.
  *
  * @param node The folder to share. It must be a non-root folder
  * @param email Email of the user that receives the shared folder. If it doesn't have a MEGA account, the folder will be shared anyway
@@ -2391,6 +2553,9 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * - [MEGARequest email] - Returns the email of the user that receives the shared folder
  * - [MEGARequest access] - Returns the access that is granted to the user
  *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEBusinessPastDue.
+ *
  * @param node The folder to share. It must be a non-root folder
  * @param email Email of the user that receives the shared folder. If it doesn't have a MEGA account, the folder will be shared anyway
  * and the user will be invited to register an account.
@@ -2420,6 +2585,9 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest nodeHandle] - Handle of the new node in the account
  *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEBusinessPastDue.
+ *
  * @param megaFileLink Public link to a file in MEGA.
  * @param parent Parent folder for the imported file.
  * @param delegate Delegate to track this request.
@@ -2433,6 +2601,9 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest link] - Returns the public link to the file
  * - [MEGARequest parentHandle] - Returns the folder that receives the imported file
+ *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEBusinessPastDue.
  *
  * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
@@ -2524,6 +2695,9 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest link] - Returns the public link to the file
  *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEBusinessPastDue.
+ *
  * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest publicNode] - Public MEGANode corresponding to the public link
@@ -2541,6 +2715,9 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * The associated request type with this request is MEGARequestTypeGetPublicNode.
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest link] - Returns the public link to the file
+ *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEBusinessPastDue.
  *
  * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
@@ -2563,6 +2740,9 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * - [MEGARequest numDetails] - Returns the longitude, scaled to integer in the range of [0, 2^24]
  * - [MEGARequest transferTag] - Returns the latitude, scaled to integer in the range of [0, 2^24)
  *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEBusinessPastDue.
+ *
  * @param node MEGANode that will receive the information.
  * @param latitude Latitude in signed decimal degrees notation.
  * @param longitude Longitude in signed decimal degrees notation.
@@ -2582,6 +2762,9 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * - [MEGARequest paramType] - Returns MEGANodeAttributeCoordinates
  * - [MEGARequest numDetails] - Returns the longitude, scaled to integer in the range of [0, 2^24]
  * - [MEGARequest transferTag] - Returns the latitude, scaled to integer in the range of [0, 2^24)
+ *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEBusinessPastDue.
  *
  * @param node MEGANode that will receive the information.
  * @param latitude Latitude in signed decimal degrees notation.
@@ -2625,6 +2808,9 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest link] - Public link
  *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEBusinessPastDue.
+ *
  * @param node MEGANode to get the public link.
  * @param delegate Delegate to track this request.
  */
@@ -2642,6 +2828,9 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest link] - Public link
  *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEBusinessPastDue.
+ *
  * @param node MEGANode to get the public link.
  */
 - (void)exportNode:(MEGANode *)node;
@@ -2657,6 +2846,9 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest link] - Public link
+ *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEBusinessPastDue.
  *
  * @param node MEGANode to get the public link.
  * @param expireTime NSDate until the public link will be valid
@@ -2676,6 +2868,9 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest link] - Public link
  *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEBusinessPastDue.
+ *
  * @param node MEGANode to get the public link.
  * @param expireTime NSDate until the public link will be valid
  */
@@ -2689,6 +2884,9 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * - [MEGARequest nodeHandle] - Returns the handle of the node
  * - [MEGARequest access] - Returns NO
  *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEBusinessPastDue.
+ *
  * @param node MEGANode to stop sharing.
  * @param delegate Delegate to track this request.
  */
@@ -2701,6 +2899,9 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest nodeHandle] - Returns the handle of the node
  * - [MEGARequest access] - Returns NO
+ *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEBusinessPastDue.
  *
  * @param node MEGANode to stop sharing.
  */
@@ -3379,6 +3580,10 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * MEGAUserAttributeRubbishTime = 19
  * Set the number of days for rubbish-bin cleaning scheduler (private, non-encrypted)
  *
+ * If the MEGA account is a sub-user business account, and the value of the parameter
+ * type is equal to MEGAUserAttributeFirstname or MEGAUserAttributeLastname
+ * be called with the error code MEGAErrorTypeApiEMasterOnly.
+ *
  * @param value New attribute value
  */
 - (void)setUserAttributeType:(MEGAUserAttribute)type value:(NSString *)value;
@@ -3401,6 +3606,10 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * Set the lastname of the user
  * MEGAUserAttributeRubbishTime = 19
  * Set the number of days for rubbish-bin cleaning scheduler (private, non-encrypted)
+ *
+ * If the MEGA account is a sub-user business account, and the value of the parameter
+ * type is equal to MEGAUserAttributeFirstname or MEGAUserAttributeLastname
+ * be called with the error code MEGAErrorTypeApiEMasterOnly.
  *
  * @param value New attribute value
  * @param delegate MEGARequestDelegate to track this request
@@ -4013,6 +4222,108 @@ typedef NS_ENUM(NSUInteger, StorageState) {
 - (void)isGeolocationEnabled;
 
 /**
+ * @brief Set My Chat Files target folder.
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeMyChatFilesFolder
+ *
+ * @param handle Handle of the node to be used as target folder
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)setMyChatFilesFolderWithHandle:(uint64_t)handle delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Set My Chat Files target folder.
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeMyChatFilesFolder
+ *
+ * @param handle Handle of the node to be used as target folder
+ */
+- (void)setMyChatFilesFolderWithHandle:(uint64_t)handle;
+
+/**
+ * @brief Gets My chat files target folder.
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeMyChatFilesFolder
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node where My Chat Files are stored
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getMyChatFilesFolderWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Gets My chat files target folder.
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeMyChatFilesFolder
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node where My Chat Files are stored
+ */
+- (void)getMyChatFilesFolder;
+
+/**
+ * @brief Set Camera Uploads target folder.
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeCameraUploadsFolder
+ *
+ * @param handle Handle of the node to be used as target folder
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)setCameraUploadsFolderWithHandle:(uint64_t)handle delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Set Camera Uploads target folder.
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeCameraUploadsFolder
+ *
+ * @param handle Handle of the node to be used as target folder
+ */
+- (void)setCameraUploadsFolderWithHandle:(uint64_t)handle;
+
+/**
+ * @brief Gets Camera Uploads target folder.
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeCameraUploadsFolder
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node where Camera Uploads files are stored
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getCameraUploadsFolderWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Gets Camera Uploads target folder.
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeCameraUploadsFolder
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node where Camera Uploads files are stored
+ */
+- (void)getCameraUploadsFolder;
+
+/**
  * @brief Get the number of days for rubbish-bin cleaning scheduler
  *
  * The associated request type with this request is MEGARequestTypeGetAttrUser
@@ -4503,9 +4814,13 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  *
  */
 - (MEGATransfer *)transferByTag:(NSInteger)transferTag;
-
 /**
  * @brief Upload a file.
+ *
+ * If the status of the business account is expired, onTransferFinish will be called with the error
+ * code MEGAErrorTypeApiEBusinessPastDue. In this case, apps should show a warning message similar to
+ * "Your business account is overdue, please contact your administrator."
+ *
  * @param localPath Local path of the file.
  * @param parent Node for the file in the MEGA account.
  * @param delegate Delegate to track this transfer.
@@ -4514,6 +4829,11 @@ typedef NS_ENUM(NSUInteger, StorageState) {
 
 /**
  * @brief Upload a file.
+ *
+ * If the status of the business account is expired, onTransferFinish will be called with the error
+ * code MEGAErrorTypeApiEBusinessPastDue. In this case, apps should show a warning message similar to
+ * "Your business account is overdue, please contact your administrator."
+ *
  * @param localPath Local path of the file.
  * @param parent Node for the file in the MEGA account.
  */
@@ -4521,6 +4841,11 @@ typedef NS_ENUM(NSUInteger, StorageState) {
 
 /**
  * @brief Upload a file with a custom name.
+ *
+ * If the status of the business account is expired, onTransferFinish will be called with the error
+ * code MEGAErrorTypeApiEBusinessPastDue. In this case, apps should show a warning message similar to
+ * "Your business account is overdue, please contact your administrator."
+ *
  * @param localPath Local path of the file.
  * @param parent Parent node for the file in the MEGA account.
  * @param filename Custom file name for the file in MEGA.
@@ -4530,6 +4855,11 @@ typedef NS_ENUM(NSUInteger, StorageState) {
 
 /**
  * @brief Upload a file with a custom name.
+ *
+ * If the status of the business account is expired, onTransferFinish will be called with the error
+ * code MEGAErrorTypeApiEBusinessPastDue. In this case, apps should show a warning message similar to
+ * "Your business account is overdue, please contact your administrator."
+ *
  * @param localPath Local path of the file.
  * @param parent Parent node for the file in the MEGA account.
  * @param filename Custom file name for the file in MEGA.
@@ -4538,6 +4868,11 @@ typedef NS_ENUM(NSUInteger, StorageState) {
 
 /**
  * @brief Upload a file with a custom name.
+ *
+ * If the status of the business account is expired, onTransferFinish will be called with the error
+ * code MEGAErrorTypeApiEBusinessPastDue. In this case, apps should show a warning message similar to
+ * "Your business account is overdue, please contact your administrator."
+ *
  * @param localPath Local path of the file.
  * @param parent Parent node for the file in the MEGA account.
  * @param appData Custom app data to save in the MEGATransfer object
@@ -4548,6 +4883,11 @@ typedef NS_ENUM(NSUInteger, StorageState) {
 
 /**
  * @brief Upload a file with a custom name.
+ *
+ * If the status of the business account is expired, onTransferFinish will be called with the error
+ * code MEGAErrorTypeApiEBusinessPastDue. In this case, apps should show a warning message similar to
+ * "Your business account is overdue, please contact your administrator."
+ *
  * @param localPath Local path of the file.
  * @param parent Parent node for the file in the MEGA account.
  * @param appData Custom app data to save in the MEGATransfer object
@@ -4557,6 +4897,11 @@ typedef NS_ENUM(NSUInteger, StorageState) {
 
 /**
  * @brief Upload a file or a folder, saving custom app data during the transfer
+ *
+ * If the status of the business account is expired, onTransferFinish will be called with the error
+ * code MEGAErrorTypeApiEBusinessPastDue. In this case, apps should show a warning message similar to
+ * "Your business account is overdue, please contact your administrator."
+ *
  * @param localPath Local path of the file or folder
  * @param parent Parent node for the file or folder in the MEGA account
  * @param appData Custom app data to save in the MEGATransfer object
@@ -4571,6 +4916,11 @@ typedef NS_ENUM(NSUInteger, StorageState) {
 
 /**
  * @brief Upload a file or a folder, saving custom app data during the transfer
+ *
+ * If the status of the business account is expired, onTransferFinish will be called with the error
+ * code MEGAErrorTypeApiEBusinessPastDue. In this case, apps should show a warning message similar to
+ * "Your business account is overdue, please contact your administrator."
+ *
  * @param localPath Local path of the file or folder
  * @param parent Parent node for the file or folder in the MEGA account
  * @param appData Custom app data to save in the MEGATransfer object
@@ -4584,6 +4934,11 @@ typedef NS_ENUM(NSUInteger, StorageState) {
 
 /**
  * @brief Upload a file or a folder, putting the transfer on top of the upload queue
+ *
+ * If the status of the business account is expired, onTransferFinish will be called with the error
+ * code MEGAErrorTypeApiEBusinessPastDue. In this case, apps should show a warning message similar to
+ * "Your business account is overdue, please contact your administrator."
+ *
  * @param localPath Local path of the file or folder
  * @param parent Parent node for the file or folder in the MEGA account
  * @param appData Custom app data to save in the MEGATransfer object
@@ -4598,6 +4953,11 @@ typedef NS_ENUM(NSUInteger, StorageState) {
 
 /**
  * @brief Upload a file or a folder, putting the transfer on top of the upload queue
+ *
+ * If the status of the business account is expired, onTransferFinish will be called with the error
+ * code MEGAErrorTypeApiEBusinessPastDue. In this case, apps should show a warning message similar to
+ * "Your business account is overdue, please contact your administrator."
+ *
  * @param localPath Local path of the file or folder
  * @param parent Parent node for the file or folder in the MEGA account
  * @param appData Custom app data to save in the MEGATransfer object
@@ -4612,6 +4972,11 @@ typedef NS_ENUM(NSUInteger, StorageState) {
 
 /**
  * @brief Download a file from MEGA.
+ *
+ * If the status of the business account is expired, onTransferFinish will be called with the error
+ * code MEGAErrorTypeApiEBusinessPastDue. In this case, apps should show a warning message similar to
+ * "Your business account is overdue, please contact your administrator."
+ *
  * @param node MEGANode that identifies the file.
  * @param localPath Destination path for the file.
  * If this path is a local folder, it must end with a '\' or '/' character and the file name
@@ -4624,6 +4989,11 @@ typedef NS_ENUM(NSUInteger, StorageState) {
 
 /**
  * @brief Download a file from MEGA.
+ *
+ * If the status of the business account is expired, onTransferFinish will be called with the error
+ * code MEGAErrorTypeApiEBusinessPastDue. In this case, apps should show a warning message similar to
+ * "Your business account is overdue, please contact your administrator."
+ *
  * @param node MEGANode that identifies the file.
  * @param localPath Destination path for the file.
  * If this path is a local folder, it must end with a '\' or '/' character and the file name
@@ -4634,6 +5004,11 @@ typedef NS_ENUM(NSUInteger, StorageState) {
 
 /**
  * @brief Download a file from MEGA.
+ *
+ * If the status of the business account is expired, onTransferFinish will be called with the error
+ * code MEGAErrorTypeApiEBusinessPastDue. In this case, apps should show a warning message similar to
+ * "Your business account is overdue, please contact your administrator."
+ *
  * @param node MEGANode that identifies the file.
  * @param localPath Destination path for the file.
  * If this path is a local folder, it must end with a '\' or '/' character and the file name
@@ -4649,6 +5024,11 @@ typedef NS_ENUM(NSUInteger, StorageState) {
 
 /**
  * @brief Download a file from MEGA.
+ *
+ * If the status of the business account is expired, onTransferFinish will be called with the error
+ * code MEGAErrorTypeApiEBusinessPastDue. In this case, apps should show a warning message similar to
+ * "Your business account is overdue, please contact your administrator."
+ *
  * @param node MEGANode that identifies the file.
  * @param localPath Destination path for the file.
  * If this path is a local folder, it must end with a '\' or '/' character and the file name
@@ -4663,6 +5043,11 @@ typedef NS_ENUM(NSUInteger, StorageState) {
 
 /**
  * @brief Download a file or a folder from MEGA, putting the transfer on top of the download queue.
+ *
+ * If the status of the business account is expired, onTransferFinish will be called with the error
+ * code MEGAErrorTypeApiEBusinessPastDue. In this case, apps should show a warning message similar to
+ * "Your business account is overdue, please contact your administrator."
+ *
  * @param node MEGANode that identifies the file.
  * @param localPath Destination path for the file.
  * If this path is a local folder, it must end with a '\' or '/' character and the file name
@@ -4678,6 +5063,11 @@ typedef NS_ENUM(NSUInteger, StorageState) {
 
 /**
  * @brief Download a file or a folder from MEGA, putting the transfer on top of the download queue.
+ *
+ * If the status of the business account is expired, onTransferFinish will be called with the error
+ * code MEGAErrorTypeApiEBusinessPastDue. In this case, apps should show a warning message similar to
+ * "Your business account is overdue, please contact your administrator."
+ *
  * @param node MEGANode that identifies the file.
  * @param localPath Destination path for the file.
  * If this path is a local folder, it must end with a '\' or '/' character and the file name
@@ -4691,13 +5081,17 @@ typedef NS_ENUM(NSUInteger, StorageState) {
 - (void)startDownloadTopPriorityWithNode:(MEGANode *)node localPath:(NSString *)localPath appData:(NSString *)appData;
 
 /**
- * @brief Start an streaming download
+ * @brief Start an streaming download for a file in MEGA
  *
  * Streaming downloads don't save the downloaded data into a local file. It is provided 
  * in the callback [MEGATransferDelegate onTransferData:transfer:]. Only the MEGATransferDelegate
  * passed to this function will receive [MEGATransferDelegate onTransferData:transfer:] callbacks.
  * MEGATransferDelegate objects registered with [MEGASdk addMEGATransferDelegate:] won't 
  * receive them for performance reasons.
+ *
+ * If the status of the business account is expired, onTransferFinish will be called with the error
+ * code MEGAErrorTypeApiEBusinessPastDue. In this case, apps should show a warning message similar to
+ * "Your business account is overdue, please contact your administrator."
  *
  * @param node MEGANode that identifies the file (public nodes aren't supported yet)
  * @param startPos First byte to download from the file
@@ -4707,13 +5101,17 @@ typedef NS_ENUM(NSUInteger, StorageState) {
 - (void)startStreamingNode:(MEGANode *)node startPos:(NSNumber *)startPos size:(NSNumber *)size delegate:(id<MEGATransferDelegate>)delegate;
 
 /**
- * @brief Start an streaming download
+ * @brief Start an streaming download for a file in MEGA
  *
  * Streaming downloads don't save the downloaded data into a local file. It is provided
  * in the callback [MEGATransferDelegate onTransferData:transfer:]. Only the MEGATransferDelegate
  * passed to this function will receive [MEGATransferDelegate onTransferData:transfer:] callbacks.
  * MEGATransferDelegate objects registered with [MEGASdk addMEGATransferDelegate:] won't
  * receive them for performance reasons.
+ *
+ * If the status of the business account is expired, onTransferFinish will be called with the error
+ * code MEGAErrorTypeApiEBusinessPastDue. In this case, apps should show a warning message similar to
+ * "Your business account is overdue, please contact your administrator."
  *
  * @param node MEGANode that identifies the file (public nodes aren't supported yet)
  * @param startPos First byte to download from the file

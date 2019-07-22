@@ -2360,6 +2360,25 @@ void exec_treecompare(autocomplete::ACState& s)
 }
 #endif
 
+void exec_getcloudstorageused(autocomplete::ACState& s)
+{
+    cout << client->mFingerprints.getSumSizes() << endl;
+}
+
+void exec_getuserquota(autocomplete::ACState& s)
+{
+    bool storage = s.extractflag("-storage");
+    bool transfer = s.extractflag("-transfer");
+    bool pro = s.extractflag("-pro");
+
+    if (!storage && !transfer && !pro)
+    {
+        storage = transfer = pro = true;
+    }    
+
+    client->getaccountdetails(new AccountDetails, storage, transfer, pro, false, false, false, -1);
+}
+
 void exec_querytransferquota(autocomplete::ACState& ac)
 {
     client->querytransferquota(atoll(ac.words[1].s.c_str()));
@@ -2388,6 +2407,7 @@ void exec_apiurl(autocomplete::ACState& s);
 void exec_login(autocomplete::ACState& s);
 void exec_begin(autocomplete::ACState& s);
 void exec_signup(autocomplete::ACState& s);
+void exec_cancelsignup(autocomplete::ACState& s);
 void exec_confirm(autocomplete::ACState& s);
 void exec_session(autocomplete::ACState& s);
 void exec_mount(autocomplete::ACState& s);
@@ -2489,6 +2509,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_login, sequence(text("login"), either(sequence(param("email"), opt(param("password"))), exportedLink(false, true), param("session"), sequence(text("autoresume"), opt(param("id"))))));
     p->Add(exec_begin, sequence(text("begin"), opt(param("ephemeralhandle#ephemeralpw"))));
     p->Add(exec_signup, sequence(text("signup"), opt(sequence(param("email"), either(param("name"), param("confirmationlink"))))));
+    p->Add(exec_cancelsignup, sequence(text("cancelsignup")));
     p->Add(exec_confirm, sequence(text("confirm")));
     p->Add(exec_session, sequence(text("session"), opt(sequence(text("autoresume"), opt(param("id"))))));
     p->Add(exec_mount, sequence(text("mount")));
@@ -2607,6 +2628,8 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_treecompare, sequence(text("treecompare"), localFSPath(), remoteFSPath(client, &cwd)));
 #endif
     p->Add(exec_querytransferquota, sequence(text("querytransferquota"), param("filesize")));
+    p->Add(exec_getcloudstorageused, sequence(text("getcloudstorageused")));
+    p->Add(exec_getuserquota, sequence(text("getuserquota"), repeat(either(flag("-storage"), flag("-transfer"), flag("-pro")))));
 
     return autocompleteTemplate = std::move(p);
 }
@@ -4830,6 +4853,11 @@ void exec_signup(autocomplete::ACState& s)
     }
 }
 
+void exec_cancelsignup(autocomplete::ACState& s)
+{
+    client->cancelsignup();
+}
+
 void exec_whoami(autocomplete::ACState& s)
 {
     if (client->loggedin() == NOTLOGGEDIN)
@@ -6103,12 +6131,19 @@ void DemoApp::ephemeral_result(handle uh, const byte* pw)
     client->fetchnodes();
 }
 
-void DemoApp::whyamiblocked_result(int code)
+void DemoApp::cancelsignup_result(error)
+{
+    cout << "Singup link canceled. Start again!" << endl;
+    signupcode.clear();
+    signupemail.clear();
+    signupname.clear();
+}
+
+void DemoApp::whyamiblocked_result(error code)
 {
     if (code < 0)
     {
-        error e = (error) code;
-        cout << "Why am I blocked failed: " << errorstring(e) << endl;
+        cout << "Why am I blocked failed: " << errorstring(code) << endl;
     }
     else if (code == 0)
     {
@@ -6647,13 +6682,13 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
 
     if (storage)
     {
-        cout << "\tAvailable storage: " << ad->storage_max << " byte(s)" << endl;
+        cout << "\tAvailable storage: " << ad->storage_max << " byte(s)  used:  " << ad->storage_used << " available: " << (ad->storage_max - ad->storage_used) << endl;
 
         for (unsigned i = 0; i < sizeof rootnodenames/sizeof *rootnodenames; i++)
         {
             NodeStorage* ns = &ad->storage[client->rootnodes[i]];
 
-            cout << "\t\tIn " << rootnodenames[i] << ": " << ns->bytes << " byte(s) in " << ns->files << " file(s) and " << ns->folders << " folder(s)" << endl;            
+            cout << "\t\tIn " << rootnodenames[i] << ": " << ns->bytes << " byte(s) in " << ns->files << " file(s) and " << ns->folders << " folder(s)" << endl;
             cout << "\t\tUsed storage by versions: " << ns->version_bytes << " byte(s) in " << ns->version_files << " file(s)" << endl;
         }
     }
