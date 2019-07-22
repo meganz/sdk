@@ -152,7 +152,7 @@ void EdDSA::signKey(const unsigned char *key, const unsigned long long keyLength
     result->append((const char*)sigBuf, crypto_sign_BYTES);
 }
 
-bool EdDSA::verifyKey(const unsigned char *pubk, const unsigned long long pubkLen, string *sig, const unsigned char* signingPubKey)
+bool EdDSA::verifyKey(const unsigned char *pubk, const unsigned long long pubkLen, const string *sig, const unsigned char* signingPubKey)
 {
     if (sig->size() < 72)
     {
@@ -169,8 +169,7 @@ bool EdDSA::verifyKey(const unsigned char *pubk, const unsigned long long pubkLe
     string signature = sig->substr(8);
 
     return verify((unsigned char*) message.data(), message.length(),
-                  (unsigned char*) signature.data(),
-                  signingPubKey ? signingPubKey : pubKey);
+                  (unsigned char*) signature.data(), signingPubKey);
 }
 
 const std::string ECDH::TLV_KEY= "prCu255";

@@ -10827,7 +10827,7 @@ void MegaClient::initializekeys()
 
         // Verify signatures for Cu25519
         if (!sigCu255.size() ||
-                !signkey->verifyKey((unsigned char*) puCu255.data(),
+                !EdDSA::verifyKey((unsigned char*) puCu255.data(),
                                     puCu255.size(),
                                     &sigCu255,
                                     (unsigned char*) puEd255.data()))
@@ -10865,7 +10865,7 @@ void MegaClient::initializekeys()
             resetKeyring();
             return;
         }
-        if (!signkey->verifyKey((unsigned char*) pubkstr.data(),
+        if (!EdDSA::verifyKey((unsigned char*) pubkstr.data(),
                                     pubkstr.size(),
                                     &sigPubk,
                                     (unsigned char*) puEd255.data()))
