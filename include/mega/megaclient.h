@@ -341,16 +341,16 @@ public:
     // load cryptographic keys: RSA, Ed25519, Cu25519 and their signatures
     void fetchkeys();
 
-    // check existence and integrity of keys, initialize if missing
+    // check existence and integrity of keys and signatures, initialize if missing
     void initializekeys();
 
-    // calculate the fingerprint of keys (most significant 160bits of SHA256)
+    // calculate the fingerprint of public keys (most significant 160bits of SHA256)
     void computeFingerprint(const string &key, byte *fingerprint);
 
     // track a public key in the authring for a given user
     void trackKey(attr_t keyType, handle uh, const std::string &key);
 
-    // track signature of public key in the authring for a given user
+    // track the signature of a public key in the authring for a given user
     void trackSignature(attr_t signatureType, handle uh, const std::string &signature);
 
     // retrieve user details

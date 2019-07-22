@@ -11113,7 +11113,16 @@ void MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
         authLevelChanged = true;
     }
 
-    if (authLevelChanged)
+    if (signedKey)
+    {
+        if (authLevel != AUTH_METHOD_SIGNATURE || !fingerprintMatch)
+        {
+            // load public signing key and key signature
+            getua(user, ATTR_ED25519_PUBK);
+            getua(user, signatureType); // in getua_result(), we check signature actually matches
+        }
+    }
+    else if (authLevelChanged)
     {
         LOG_debug << "Adding/updating authring with " << pubKeyTypeStr << " public key for user " << user->uid << ". Auth level: " << char(authLevel+48);
 
@@ -11125,16 +11134,6 @@ void MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
         authring->set(authType, authValue);
         std::unique_ptr<string> newAuthring(authring->tlvRecordsToContainer(rng, &key));
         putua(authringType, (const byte *)newAuthring->data(), newAuthring->size(), 0);
-    }
-
-    if (signedKey)
-    {
-        if (authLevel != AUTH_METHOD_SIGNATURE || !fingerprintMatch)
-        {
-            // load public signing key and key signature
-            getua(user, ATTR_ED25519_PUBK);
-            getua(user, signatureType); // in getua_result(), we check signature actually matches
-        }
     }
 }
 
@@ -11189,7 +11188,7 @@ void MegaClient::trackSignature(attr_t signatureType, handle uh, const std::stri
     bool signatureVerified = EdDSA::verifyKey((unsigned char*) pubKey->data(), pubKey->size(), (string*)&signature, (unsigned char*) signingPubKey->data());
     if (signatureVerified)
     {
-        LOG_debug << "Signature of " << pubKeyTypeStr << " public key for user " << user->uid << " verified";
+        LOG_info << "Signature of " << pubKeyTypeStr << " public key for user " << user->uid << " verified";
 
         // update authring to `signature verified`
 
@@ -11207,6 +11206,9 @@ void MegaClient::trackSignature(attr_t signatureType, handle uh, const std::stri
             LOG_err << "Cannot decode TLV of authring tracking " << pubKeyTypeStr << " keys";
             return;
         }
+
+        byte authLevel = AUTH_METHOD_UNKNOWN;
+        bool keyTracked = false;
 
         string authType = "";
         string authValue;
@@ -11227,8 +11229,59 @@ void MegaClient::trackSignature(attr_t signatureType, handle uh, const std::stri
                 {
                     ptr += 20;  // skip key's fingerprint, already checked in MegaClient::trackKey()
 
-                    // update the auth level
-                    byte authLevel = AUTH_METHOD_SIGNATURE;
+                    memcpy(&authLevel, ptr, sizeof(authLevel));
+                    if (authLevel == AUTH_METHOD_SIGNATURE)
+                    {
+                        LOG_info << pubKeyTypeStr << " public key is already authenticated as signature verified for user " << user->uid;
+                        return;
+                    }
+                    else
+                    {
+                        assert(authLevel == AUTH_METHOD_SEEN);  // should not happen, but still legit
+                        LOG_warn << "Updating authentication of " << pubKeyTypeStr << " public key for user " << user->uid << " to signature verified, currently authenticated as seen";
+
+                        // update the authentication method
+                        authLevel = AUTH_METHOD_SIGNATURE;
+                        authValue.replace(end-ptr, sizeof(authLevel), (const char*) &authLevel, sizeof(authLevel));
+
+                        keyTracked = true;
+                        break;
+                    }
+                }
+
+                // if different user, skip next 21 bytes
+                ptr += 21;
+            }
+
+            if (!keyTracked)
+            {
+                LOG_info << "Adding authring with " << pubKeyTypeStr << " public key as signature verified for user " << user->uid;
+
+                // compute key's fingerprint
+                byte keyFingerprint[20];
+                computeFingerprint(*pubKey, keyFingerprint);
+                authLevel = AUTH_METHOD_SIGNATURE;
+
+                // update authring's attribute
+                authValue.append((char *)&uh, sizeof(uh));
+                authValue.append((char *)keyFingerprint, sizeof(keyFingerprint));
+                authValue.append((char *)&authLevel, sizeof(authLevel));
+            }
+
+            // and finally update the related authring
+            authring->set(authType, authValue);
+            std::unique_ptr<string> newAuthring(authring->tlvRecordsToContainer(rng, &key));
+            putua(authringType, (const byte *)newAuthring->data(), newAuthring->size(), 0);
+        }
+    }
+    else
+    {
+        LOG_err << "Failed to verify signature of " << pubKeyTypeStr << " public key for user " << user->uid;
+
+        // TODO: notify the app through an event (and maybe send an event to stats)
+        // --> "Authentication error"
+    }
+}
                     authValue.replace(end-ptr, sizeof(authLevel), (const char*) &authLevel, sizeof(authLevel));
 
                     // and finally update the related authring
