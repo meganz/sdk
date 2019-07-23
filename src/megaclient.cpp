@@ -1036,6 +1036,7 @@ void MegaClient::init()
     btsc.reset();
     btpfa.reset();
     btbadhost.reset();
+    btsuntilexpiration.backoff(NEVER);
 
     abortlockrequest();
 
@@ -1194,7 +1195,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     h->setmaxdownloadspeed(0);
     h->setmaxuploadspeed(0);
 
-    btsuntilexpiration.backoff(NEVER);
 }
 
 MegaClient::~MegaClient()
