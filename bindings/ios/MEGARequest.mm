@@ -191,7 +191,7 @@ using namespace mega;
     NSMutableDictionary *dict = [NSMutableDictionary dictionaryWithCapacity:map->size()];
     MegaStringList *keyList = map->getKeys();
     for (int i = 0; i < keyList->size(); i++) {
-        const char *key = MegaApi::strdup(keyList->get(i));
+        const char *key = keyList->get(i);
         dict[@(key)] = [[MEGAStringList alloc] initWithMegaStringList:(MegaStringList *)map->get(key)->copy() cMemoryOwn:YES];
     }
     
