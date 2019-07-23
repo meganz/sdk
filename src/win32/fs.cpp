@@ -1261,7 +1261,9 @@ fsfp_t WinDirNotify::fsfingerprint() const
 
 bool WinDirNotify::fsstableids() const
 {
-#ifndef WINDOWS_PHONE
+#ifdef WINDOWS_PHONE
+#error "Not implemented"
+#endif
     TCHAR volume[MAX_PATH + 1];
     if (GetVolumePathNameW((LPCWSTR)localbasepath.data(), volume, MAX_PATH + 1))
     {
@@ -1273,9 +1275,6 @@ bool WinDirNotify::fsstableids() const
                 && wcsicmp(fs, L"exFAT");
         }
     }
-#else
-#error "Not implemented"
-#endif
     return true;
 }
 
