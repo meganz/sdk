@@ -1455,7 +1455,7 @@ void LocalNode::setfsid(handle newfsid)
 
     fsid = newfsid;
 
-    pair<handlelocalnode_map::iterator, bool> r = sync->client->fsidnode.insert(pair<handle, LocalNode*>(fsid, this));
+    pair<handlelocalnode_map::iterator, bool> r = sync->client->fsidnode.insert(std::make_pair(fsid, this));
 
     fsid_it = r.first;
 

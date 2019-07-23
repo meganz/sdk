@@ -687,86 +687,65 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
 
                     if (fa->type == FILENODE)
                     {
-                        FileFingerprint ffp_fa;
-                        // has the file been overwritten or changed since the last scan?
-                        // or did the size or mtime change?
-                        if (fa->fsidvalid)
-                        {
-                            // if fsid has changed, the file was overwritten
-                            // (FIXME: handle type changes)
-                            if (l->fsid != fa->fsid)
-                            {
-                                if (!l->sync->fsstableids && ffp_fa.genfingerprint(fa) && *l == ffp_fa)
-                                {
-                                    // On a filesystem with unstable IDs (e.g. FAT) we need to verify
-                                    // the fingerprint and only continue if they're different.
-                                    l->setfsid(fa->fsid);
-                                    statecacheadd(l);
-                                    delete fa;
-                                    return l;
-                                }
-
-                                handlelocalnode_map::iterator it;
 #ifdef _WIN32
-                                const char *colon;
+                        const char *colon;
 #endif
-                                fsfp_t fp1, fp2;
+                        fsfp_t fp1, fp2;
 
-                                // was the file overwritten by moving an existing file over it?
-                                if ((it = client->fsidnode.find(fa->fsid)) != client->fsidnode.end()
-                                        && (l->sync == it->second->sync
-                                            || ((fp1 = l->sync->dirnotify->fsfingerprint())
-                                                && (fp2 = it->second->sync->dirnotify->fsfingerprint())
-                                                && (fp1 == fp2)
-                                            #ifdef _WIN32
-                                                // only consider fsid matches between different syncs for local drives with the
-                                                // same drive letter, to prevent problems with cloned Volume IDs
-                                                && (colon = strstr(parent->sync->localroot.name.c_str(), ":"))
-                                                && !memcmp(parent->sync->localroot.name.c_str(),
-                                                       it->second->sync->localroot.name.c_str(),
-                                                       colon - parent->sync->localroot.name.c_str())
-                                            #endif
-                                                )
-                                            )
+                        // was the file overwritten by moving an existing file over it?
+                        LocalNode* lcached;
+                        if ((lcached = l->sync->getcachedlocalnode(*fa))
+                                && (l->sync == lcached->sync
+                                    || ((fp1 = l->sync->dirnotify->fsfingerprint())
+                                        && (fp2 = lcached->sync->dirnotify->fsfingerprint())
+                                        && (fp1 == fp2)
+                                    #ifdef _WIN32
+                                        // only consider fsid matches between different syncs for local drives with the
+                                        // same drive letter, to prevent problems with cloned Volume IDs
+                                        && (colon = strstr(parent->sync->localroot.name.c_str(), ":"))
+                                        && !memcmp(parent->sync->localroot.name.c_str(),
+                                               lcached->sync->localroot.name.c_str(),
+                                               colon - parent->sync->localroot.name.c_str())
+                                    #endif
+                                        )
                                     )
-                                {
-                                    // catch the not so unlikely case of a false fsid match due to
-                                    // e.g. a file deletion/creation cycle that reuses the same inode
-                                    if (it->second->mtime != fa->mtime || it->second->size != fa->size)
-                                    {
-                                        l->mtime = -1;  // trigger change detection
-                                        delete it->second;   // delete old LocalNode
-                                    }
-                                    else
-                                    {
-                                        LOG_debug << "File move/overwrite detected";
-
-                                        // delete existing LocalNode...
-                                        delete l;
-
-                                        // ...move remote node out of the way...
-                                        client->execsyncdeletions();
-
-                                        // ...and atomically replace with moved one
-                                        client->app->syncupdate_local_move(this, it->second, path.c_str());
-
-                                        // (in case of a move, this synchronously updates l->parent and l->node->parent)
-                                        it->second->setnameparent(parent, localname ? localpath : &tmppath);
-
-                                        // mark as seen / undo possible deletion
-                                        it->second->setnotseen(0);
-
-                                        statecacheadd(it->second);
-
-                                        delete fa;
-                                        return it->second;
-                                    }
-                                }
-                                else
-                                {
-                                    l->mtime = -1;  // trigger change detection
-                                }
+                            )
+                        {
+                            // catch the not so unlikely case of a false fsid match due to
+                            // e.g. a file deletion/creation cycle that reuses the same inode
+                            if (lcached->mtime != fa->mtime || lcached->size != fa->size)
+                            {
+                                l->mtime = -1;  // trigger change detection
+                                delete lcached;   // delete old LocalNode
                             }
+                            else
+                            {
+                                LOG_debug << "File move/overwrite detected";
+
+                                // delete existing LocalNode...
+                                delete l;
+
+                                // ...move remote node out of the way...
+                                client->execsyncdeletions();
+
+                                // ...and atomically replace with moved one
+                                client->app->syncupdate_local_move(this, lcached, path.c_str());
+
+                                // (in case of a move, this synchronously updates l->parent and l->node->parent)
+                                lcached->setnameparent(parent, localname ? localpath : &tmppath);
+
+                                // mark as seen / undo possible deletion
+                                lcached->setnotseen(0);
+
+                                statecacheadd(lcached);
+
+                                delete fa;
+                                return lcached;
+                            }
+                        }
+                        else
+                        {
+                            l->mtime = -1;  // trigger change detection
                         }
 
                         // no fsid change detected or overwrite with unknown file:
@@ -776,18 +755,9 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                             {
                                 l->setfsid(fa->fsid);
                             }
-
                             m_off_t dsize = l->size > 0 ? l->size : 0;
 
-                            if (ffp_fa.isvalid)
-                            {
-                                static_cast<FileFingerprint&>(*l) = ffp_fa;
-                            }
-                            else
-                            {
-                                l->genfingerprint(fa);
-                            }
-                            if (l->isvalid && l->size >= 0)
+                            if (l->genfingerprint(fa) && l->size >= 0)
                             {
                                 localbytes -= dsize - l->size;
                             }
@@ -837,17 +807,17 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
             if (!l)
             {
                 // rename or move of existing node?
-                handlelocalnode_map::iterator it;
 #ifdef _WIN32
                 const char *colon;
 #endif
                 fsfp_t fp1, fp2;
-                if (fa->fsidvalid && (it = client->fsidnode.find(fa->fsid)) != client->fsidnode.end()
+                LocalNode* lcached;
+                if ((lcached = getcachedlocalnode(*fa))
                     // additional checks to prevent wrong fsid matches
-                    && it->second->type == fa->type
+                    && lcached->type == fa->type
                     && (!parent
-                        || (it->second->sync == parent->sync)
-                        || ((fp1 = it->second->sync->dirnotify->fsfingerprint())
+                        || (lcached->sync == parent->sync)
+                        || ((fp1 = lcached->sync->dirnotify->fsfingerprint())
                             && (fp2 = parent->sync->dirnotify->fsfingerprint())
                             && (fp1 == fp2)
                         #ifdef _WIN32
@@ -855,15 +825,15 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                             // same drive letter, to prevent problems with cloned Volume IDs
                             && (colon = strstr(parent->sync->localroot.name.c_str(), ":"))
                             && !memcmp(parent->sync->localroot.name.c_str(),
-                                   it->second->sync->localroot.name.c_str(),
+                                   lcached->sync->localroot.name.c_str(),
                                    colon - parent->sync->localroot.name.c_str())
                         #endif
                             )
                        )
-                    && ((it->second->type != FILENODE && !wejustcreatedthisfolder)
-                        || (it->second->mtime == fa->mtime && it->second->size == fa->size)))
+                    && ((lcached->type != FILENODE && !wejustcreatedthisfolder)
+                        || (lcached->mtime == fa->mtime && lcached->size == fa->size)))
                 {
-                    LOG_debug << client->clientname << "Move detected by fsid in checkpath. Type: " << it->second->type << " new path: " << path << " old localnode: " << it->second->localnodedisplaypath(*client->fsaccess);
+                    LOG_debug << client->clientname << "Move detected by fsid in checkpath. Type: " << lcached->type << " new path: " << path << " old localnode: " << lcached->localnodedisplaypath(*client->fsaccess);
 
                     if (fa->type == FILENODE && backoffds)
                     {
@@ -882,7 +852,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                             {
                                 string local;
                                 bool waitforupdate = false;
-                                it->second->getlocalpath(&local, true);
+                                lcached->getlocalpath(&local, true);
                                 FileAccess *prevfa = client->fsaccess->newfileaccess();
                                 bool exists = prevfa->fopen(&local);
                                 if (exists)
@@ -975,19 +945,19 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                         }
                     }
 
-                    client->app->syncupdate_local_move(this, it->second, path.c_str());
+                    client->app->syncupdate_local_move(this, lcached, path.c_str());
 
                     // (in case of a move, this synchronously updates l->parent
                     // and l->node->parent)
-                    it->second->setnameparent(parent, localname ? localpath : &tmppath);
+                    lcached->setnameparent(parent, localname ? localpath : &tmppath);
 
                     // make sure that active PUTs receive their updated filenames
                     client->updateputs();
 
-                    statecacheadd(it->second);
+                    statecacheadd(lcached);
 
                     // unmark possible deletion
-                    it->second->setnotseen(0);
+                    lcached->setnotseen(0);
 
                     // immediately scan folder to detect deviations from cached state
                     if (fullscan)
@@ -1297,5 +1267,56 @@ bool Sync::movetolocaldebris(string* localpath)
 
     return false;
 }
+
+LocalNode* Sync::getcachedlocalnode(FileAccess& fa)
+{
+    LocalNode* lcached{};
+    if (fsstableids)
+    {
+        if (fa.fsidvalid)
+        {
+            auto it = client->fsidnode.find(fa.fsid);
+            if (it != client->fsidnode.end())
+            {
+                lcached = it->second;
+            }
+        }
+    }
+    else
+    {
+        FileFingerprint ffp_fa;
+        if (ffp_fa.genfingerprint(&fa))
+        {
+            localnodebyfingerprint(lcached, localroot, ffp_fa);
+        }
+    }
+    return lcached;
+}
+
+void Sync::localnodebyfingerprint(LocalNode*& node, LocalNode& l, const FileFingerprint& ffp)
+{
+    if (l.type == FILENODE)
+    {
+        if (l.isvalid)
+        {
+            if (l == ffp)
+            {
+                node = &l;
+                return;
+            }
+        }
+        else
+        {
+            LOG_err << "LocalNode fingerprint not valid when used for lookup";
+            assert(false);
+        }
+    }
+
+    for (auto it = l.children.begin(); it != l.children.end(); ++it)
+    {
+        localnodebyfingerprint(node, *it->second, ffp);
+    }
+}
+
 } // namespace
 #endif

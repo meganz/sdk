@@ -11379,6 +11379,7 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
                 e = API_OK;
                 sync->initializing = false;
                 LOG_debug << "Initial scan finished. New / modified files: " << sync->dirnotify->notifyq[DirNotify::DIREVENTS].size();
+                sync->fsstableids = true; // We assume that fs IDs do not change after a sync was set up
             }
             else
             {

@@ -129,7 +129,10 @@ public:
     m_off_t updatedfilesize;
     m_time_t updatedfilets;
     m_time_t updatedfileinitialts;
-    
+
+    // returns a local node matching the given file access (either via fs ID or fingerprint)
+    LocalNode* getcachedlocalnode(FileAccess& fa);
+
     Sync(MegaClient*, string*, const char*, string*, Node*, fsfp_t, bool, int, void*);
     ~Sync();
 
@@ -142,6 +145,9 @@ public:
 protected :
     bool readstatecache();
 
+private:
+    // populates `node` with the first local node in the current tree that has the fingerprint `ffp`
+    void localnodebyfingerprint(LocalNode*& node, LocalNode& root, const FileFingerprint& ffp);
 };
 } // namespace
 
