@@ -4949,7 +4949,7 @@ void exec_whoami(autocomplete::ACState& s)
 void exec_verifycredentials(autocomplete::ACState& s)
 {
     User* u = nullptr;
-    if (s.words.size() == 2)
+    if (s.words.size() == 2 && s.words[1].s == "show")
     {
         u = client->finduser(client->me);
     }

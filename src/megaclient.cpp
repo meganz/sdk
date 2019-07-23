@@ -11242,7 +11242,7 @@ void MegaClient::trackSignature(attr_t signatureType, handle uh, const std::stri
 
                         // update the authentication method
                         authLevel = AUTH_METHOD_SIGNATURE;
-                        authValue.replace(end-ptr, sizeof(authLevel), (const char*) &authLevel, sizeof(authLevel));
+                        authValue.replace(ptr-authValue.data(), sizeof(authLevel), (const char*) &authLevel, sizeof(authLevel));
 
                         keyTracked = true;
                         break;
@@ -11282,24 +11282,74 @@ void MegaClient::trackSignature(attr_t signatureType, handle uh, const std::stri
         // --> "Authentication error"
     }
 }
-                    authValue.replace(end-ptr, sizeof(authLevel), (const char*) &authLevel, sizeof(authLevel));
+
+void MegaClient::setVerifiedKey(handle uh)
+{
+    User *user = finduser(uh);
+    User *ownUser = finduser(me);
+    attr_t authringType = ATTR_AUTHRING;
+
+    // update the authentication level in the authring
+    assert(ownUser->isattrvalid(authringType));
+    if (!ownUser->isattrvalid(authringType))
+    {
+        LOG_warn << "Authring not available to add fingerprint comparision of Ed25519 public key for user " << user->uid;
+        return;
+    }
+    std::unique_ptr<TLVstore> authring(TLVstore::containerToTLVrecords(ownUser->getattr(authringType), &key));
+    if (!authring)
+    {
+        LOG_err << "Cannot decode TLV of authring to add fingerprint comparision of Ed25519 public key for user " << user->uid;
+        return;
+    }
+
+    string authType = "";
+    string authValue;
+    if (authring->find(authType))  // key is an empty string, but may not be there if authring was reset
+    {
+        authValue = authring->get(authType);
+
+        const char *ptr = authValue.data();
+        const char *end = ptr + authValue.size();
+        unsigned recordSize = 29;   // <handle.8> <fingerprint.20> <authLevel.1>
+        while (ptr + recordSize <= end)
+        {
+            handle userhandle;
+            memcpy(&userhandle, ptr, sizeof(userhandle));
+            ptr += sizeof(userhandle);
+
+            if (userhandle == uh)
+            {
+                ptr += 20;  // skip key's fingerprint, already checked in MegaClient::trackKey()
+
+                byte authLevel = AUTH_METHOD_UNKNOWN;
+                memcpy(&authLevel, ptr, sizeof(authLevel));
+                if (authLevel == AUTH_METHOD_FINGERPRINT)
+                {
+                    LOG_info << "Ed25519 public key is already authenticated by fingerprint comparision for user " << user->uid;
+                    return;
+                }
+                else
+                {
+                    assert(authLevel == AUTH_METHOD_SEEN);  // should not happen, but still legit
+                    LOG_warn << "Updating authentication method of Ed25519 public key for user " << user->uid << " to signature verified, currently authenticated as seen";
+
+                    // update the authentication method
+                    authLevel = AUTH_METHOD_FINGERPRINT;
+                    authValue.replace(ptr-authValue.data(), sizeof(authLevel), (const char*) &authLevel, sizeof(authLevel));
 
                     // and finally update the related authring
                     authring->set(authType, authValue);
                     std::unique_ptr<string> newAuthring(authring->tlvRecordsToContainer(rng, &key));
                     putua(authringType, (const byte *)newAuthring->data(), newAuthring->size(), 0);
-
-                    return;
                 }
 
-                // if different user, skip next 21 bytes
-                ptr += 21;
+                return;
             }
+
+            // if different user, skip next 21 bytes
+            ptr += 21;
         }
-    }
-    else
-    {
-        LOG_err << "Failed to verify signature of " << pubKeyTypeStr << " public key for user " << user->uid;
     }
 }
 

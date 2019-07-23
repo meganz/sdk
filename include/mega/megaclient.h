@@ -353,6 +353,9 @@ public:
     // track the signature of a public key in the authring for a given user
     void trackSignature(attr_t signatureType, handle uh, const std::string &signature);
 
+    // set the Ed25519 public key as verified for a given user(done by user manually by comparing hash of keys)
+    void setVerifiedKey(handle uh);
+
     // retrieve user details
     void getaccountdetails(AccountDetails*, bool, bool, bool, bool, bool, bool, int source = -1);
 
