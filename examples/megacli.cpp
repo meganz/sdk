@@ -1192,6 +1192,14 @@ void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
     cout << "Received " << l << " byte(s) of user attribute: ";
     fwrite(data, 1, l, stdout);
     cout << endl;
+
+    if (type == ATTR_ED25519_PUBK)
+    {
+        byte fingerprint[20];
+        client->computeFingerprint(string((const char*)data, l), fingerprint);
+        string fp((const char *)fingerprint, 20);
+        cout << "Credentials: " << Utils::stringToHex(fp) << endl;
+    }
 }
 
 void DemoApp::getua_result(TLVstore *tlv, attr_t type)
@@ -2488,6 +2496,7 @@ void exec_recentnodes(autocomplete::ACState& s);
 void exec_putbps(autocomplete::ACState& s);
 void exec_killsession(autocomplete::ACState& s);
 void exec_whoami(autocomplete::ACState& s);
+void exec_verifycredentials(autocomplete::ACState& s);
 void exec_passwd(autocomplete::ACState& s);
 void exec_reset(autocomplete::ACState& s);
 void exec_recover(autocomplete::ACState& s);
@@ -2607,6 +2616,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_putbps, sequence(text("putbps"), opt(either(wholenumber(100000), text("auto"), text("none")))));
     p->Add(exec_killsession, sequence(text("killsession"), opt(either(text("all"), param("sessionid")))));
     p->Add(exec_whoami, sequence(text("whoami"), repeat(either(flag("-storage"), flag("-transfer"), flag("-pro"), flag("-transactions"), flag("-purchases"), flag("-sessions")))));
+    p->Add(exec_verifycredentials, sequence(text("credentials"), either(text("show"), text("verify")), opt(contactEmail(client))));
     p->Add(exec_passwd, sequence(text("passwd")));
     p->Add(exec_reset, sequence(text("reset"), contactEmail(client), opt(text("mk"))));
     p->Add(exec_recover, sequence(text("recover"), param("recoverylink")));
@@ -4933,6 +4943,51 @@ void exec_whoami(autocomplete::ACState& s)
         cout << "Retrieving account status..." << endl;
 
         client->getaccountdetails(&account, all || storage, all || transfer, all || pro, all || transactions, all || purchases, all || sessions);
+    }
+}
+
+void exec_verifycredentials(autocomplete::ACState& s)
+{
+    User* u = nullptr;
+    if (s.words.size() == 2)
+    {
+        u = client->finduser(client->me);
+    }
+    else if (s.words.size() == 3)
+    {
+        u = client->finduser(s.words[2].s.c_str());
+    }
+    else
+    {
+        cout << "      credentials show|verify [email]" << endl;
+        return;
+    }
+
+    if (!u)
+    {
+        cout << "Invalid user" << endl;
+        return;
+    }
+
+    if (s.words[1].s == "show")
+    {
+        if (u && u->isattrvalid(ATTR_ED25519_PUBK))
+        {
+            const string *pubKey = u->getattr(ATTR_ED25519_PUBK);
+            byte fingerprint[20];
+            client->computeFingerprint(*pubKey, fingerprint);
+            string fp((const char *)fingerprint, 20);
+            cout << "Credentials: " << Utils::stringToHex(fp) << endl;
+        }
+        else
+        {
+            cout << "Fetching singing key... " << endl;
+            client->getua(u->uid.c_str(), ATTR_ED25519_PUBK);
+        }
+    }
+    else if (s.words[1].s == "verify")
+    {
+        client->setVerifiedKey(u->userhandle);
     }
 }
 

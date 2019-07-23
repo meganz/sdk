@@ -341,6 +341,9 @@ public:
      * @return True if success, false if the byte 'src' is not a valid UTF-8 string
      */
     static bool utf8toUnicode(const uint8_t *src, unsigned srclen, string *result);
+
+    static std::string stringToHex(const std::string& input);
+    static std::string hexToString(const std::string& input);
 };
 
 // for pre-c++11 where this version is not defined yet.  
