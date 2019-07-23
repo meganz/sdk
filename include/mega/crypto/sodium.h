@@ -71,18 +71,6 @@ public:
     static int verify(const unsigned char* msg, unsigned long long msglen,
                       const unsigned char* sig, const unsigned char* pubKey);
 
-    /**
-     * @brief Generates the fingerprint of the public key.
-     * @return The 20 bytes corresponding to the fingerprint. 40 bytes for hex format.
-     */
-    byte *genFingerprint(bool hexFormat = false);
-
-    /**
-     * @brief Generates the fingerprint of the public key in hexadecimal format.
-     * @return The fingerprint in hexadecimal format.
-     */
-    char *genFingerprintHex();
-
     void signKey(const unsigned char* key, const unsigned long long keyLength, std::string *sigBuf, uint64_t ts = 0);
     static bool verifyKey(const unsigned char* pubk, const unsigned long long pubkLen,
                    const std::string *sig, const unsigned char* singingPubKey);

@@ -86,44 +86,6 @@ int EdDSA::verify(const unsigned char* msg, unsigned long long msglen,
     return !crypto_sign_verify_detached(sig, msg, msglen, pubKey);
 }
 
-byte *EdDSA::genFingerprint(bool hexFormat)
-{
-    HashSHA256 hash;
-    string binaryhash;
-    hash.add((byte*)&pubKey, PUBLIC_KEY_LENGTH);
-    hash.get(&binaryhash);
-
-    size_t size = hexFormat ? 40 : 20;
-
-    byte *result = new byte[size];
-    memcpy(result, binaryhash.substr(0, size).data(), size);
-
-    return result;
-}
-
-char *EdDSA::genFingerprintHex()
-{
-    byte *fp = genFingerprint(true);
-
-    static const char hexchars[] = "0123456789ABCDEF";
-    ostringstream oss;
-    string fpHex;
-    for (size_t i = 0; i < 40; ++i)
-    {
-        oss.put(hexchars[(fp[i] >> 4) & 0x0F]);
-        oss.put(hexchars[fp[i] & 0x0F]);
-    }
-    fpHex = oss.str();
-
-    delete fp;
-
-    char *result = new char[40 + 1];
-    strncpy(result, fpHex.c_str(), 40);
-    result[40] = '\0';
-
-    return result;
-}
-
 void EdDSA::signKey(const unsigned char *key, const unsigned long long keyLength, string *result, uint64_t ts)
 {
     if (!ts)

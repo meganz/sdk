@@ -244,23 +244,6 @@ TEST(Crypto, Ed25519_Signing)
     sigRSAbin.resize(Base64::atob(sigRSAstr.data(), (byte *) sigRSAbin.data(), sigRSAbin.size()));
 
 
-    // ____ Check Ed25519 fingerprint generation ____
-
-    byte *fpEd255bin = signkey.genFingerprint();
-    string buf;
-    buf.resize(20 * 4 / 3 + 4);
-    buf.resize(Base64::btoa(fpEd255bin, 20, (char *) buf.data()));
-    delete fpEd255bin;
-
-    ASSERT_STREQ(fpEd255str.c_str(), buf.c_str()) << "Binary Ed25519 fingerprints don't match.";
-
-    char *fpEd255char = signkey.genFingerprintHex();
-    bool fpOK = !strncmp(fpEd255char, fpEd255hex.c_str(), 40);
-    delete fpEd255char;
-
-    ASSERT_TRUE(fpOK) << "Hex Ed25519 fingerprints don't match.";
-
-
     // ____ Check signature of RSA public key ____
 
     string sigPubk;
