@@ -8090,6 +8090,23 @@ class MegaApi
         char* getMyFingerprint();
 
         /**
+         * Returns the fingerprint of the signing key of the currently open account
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns MegaApi::USER_ATTR_ED25519_PUBLIC_KEY
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getText - Returns the fingerprint in hexadecimal format
+         *
+         * @param email_or_handle Email or user handle (Base64 encoded) to get the fingerprint
+         * @param listener MegaRequestListener to track this request
+         * @return Fingerprint of the signing key of the current account
+         */
+        const char* getUserFingerprint(const char *email_or_handle, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Set the active log level
          *
          * This function sets the log level of the logging system. Any log listener registered by

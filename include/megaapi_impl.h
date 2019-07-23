@@ -1977,6 +1977,7 @@ class MegaApiImpl : public MegaApp
         int getBusinessStatus();
         bool checkPassword(const char *password);
         char* getMyFingerprint();
+        const char* getUserFingerprint(const char *email_or_handle, MegaRequestListener *listener = NULL);
         static void setLogLevel(int logLevel);
         static void addLoggerClass(MegaLogger *megaLogger);
         static void removeLoggerClass(MegaLogger *megaLogger);

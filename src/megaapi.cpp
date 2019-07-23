@@ -1699,12 +1699,15 @@ bool MegaApi::checkPassword(const char *password)
     return pImpl->checkPassword(password);
 }
 
-#ifdef ENABLE_CHAT
 char *MegaApi::getMyFingerprint()
 {
     return pImpl->getMyFingerprint();
 }
-#endif
+
+const char *MegaApi::getUserFingerprint(const char *email_or_handle, MegaRequestListener *listener)
+{
+    pImpl->getUserFingerprint(email_or_handle, listener);
+}
 
 void MegaApi::setLogLevel(int logLevel)
 {

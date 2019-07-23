@@ -5153,11 +5153,28 @@ char *MegaApiImpl::getMyFingerprint()
     char *result = NULL;
     if (client->signkey)
     {
-        result = client->signkey->genFingerprintHex();
+        byte fingerprint[20];
+        client->computeFingerprint(client->signkey->pubKey, fingerprint);
+        result = MegaApi::strdup(Utils::stringToHex((const char*)fingerprint));
     }
 
     sdkMutex.unlock();
     return result;
+}
+
+const char *MegaApiImpl::getUserFingerprint(const char *email_or_handle, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
+
+    request->setParamType(type);
+    request->setFlag(true);
+    if(email_or_handle)
+    {
+        request->setEmail(email_or_handle);
+    }
+
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 void MegaApiImpl::setLogLevel(int logLevel)
@@ -14206,7 +14223,16 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
         break;
 
         // byte arrays with possible nulls in the middle --> to Base64
-        case MegaApi::USER_ATTR_ED25519_PUBLIC_KEY:
+        case MegaApi::USER_ATTR_ED25519_PUBLIC_KEY: // fall-through
+        {
+            if (request->getFlag()) // asking for the fingerprint
+            {
+                byte fingerprint[20];
+                client->computeFingerprint(string((const char*)data, l), fingerprint);
+                string fp((const char *)fingerprint, 20);
+                request->setText(Utils::stringToHex(fp).c_str());
+            }
+        }
         case MegaApi::USER_ATTR_CU25519_PUBLIC_KEY:
         case MegaApi::USER_ATTR_SIG_RSA_PUBLIC_KEY:
         case MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY:
