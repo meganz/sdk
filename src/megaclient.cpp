@@ -1052,7 +1052,7 @@ void MegaClient::init()
 }
 
 MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, DbAccess* d, GfxProc* g, const char* k, const char* u)
-    : useralerts(*this), btugexpiration(rng), btcs(rng), btbadhost(rng), btworkinglock(rng), btsc(rng), btpfa(rng)
+    : useralerts(*this), btugexpiration(rng), btcs(rng), btbadhost(rng), btworkinglock(rng), btsc(rng), btpfa(rng), btsuntilexpiration(rng)
 #ifdef ENABLE_SYNC
     ,syncfslockretrybt(rng), syncdownbt(rng), syncnaglebt(rng), syncextrabt(rng), syncscanbt(rng)
 #endif
@@ -1193,6 +1193,8 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     h->setuseragent(&useragent);
     h->setmaxdownloadspeed(0);
     h->setmaxuploadspeed(0);
+
+    btsuntilexpiration.backoff(NEVER);
 }
 
 MegaClient::~MegaClient()
@@ -1281,6 +1283,13 @@ void MegaClient::exec()
             LOG_debug << "Cached user data expired";
             getuserdata();
             fetchtimezone();
+        }
+
+        if (btsuntilexpiration.armed())
+        {
+            LOG_debug << "Cached uq expired, after expiration date passed";
+            app->account_updated();
+            btsuntilexpiration.backoff(NEVER);
         }
 
         if (pendinghttp.size())
@@ -10716,6 +10725,9 @@ void MegaClient::fetchnodes(bool nocache)
         if (!loggedinfolderlink())
         {
             reqs.add(new CommandGetUA(this, uid.c_str(), ATTR_DISABLE_VERSIONS, NULL, 0));
+
+            static AccountDetails ad_useless;
+            reqs.add(new CommandGetUserQuota(this, &ad_useless, false, false, true, 99));
         }
     }
 

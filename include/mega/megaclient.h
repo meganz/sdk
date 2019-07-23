@@ -729,6 +729,9 @@ public:
     // backoff for the expiration of cached user data
     BackoffTimer btugexpiration;
 
+    // backoff for the expiration of pro account
+    BackoffTimer btsuntilexpiration;
+
 private:
     BackoffTimer btcs;
     BackoffTimer btbadhost;

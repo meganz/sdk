@@ -4011,9 +4011,14 @@ void CommandGetUserQuota::procresult()
                 break;
 
             case MAKENAMEID6('s', 'u', 'n', 't', 'i', 'l'):
+            {
                 // expiry of last active Pro plan (may be different from current one)
                 details->pro_until = client->json.getint();
-                break;
+                m_time_t now = m_time(nullptr);
+                dstime diff = (details->pro_until - now) * 10;
+                client->btsuntilexpiration.backoff(diff);
+            }
+            break;
 
             case MAKENAMEID7('b', 'a', 'l', 'a', 'n', 'c', 'e'):
                 // account balances
