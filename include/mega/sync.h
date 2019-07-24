@@ -84,6 +84,16 @@ public:
     // look up LocalNode relative to localroot
     LocalNode* localnodebypath(LocalNode*, string*, LocalNode** = NULL, string* = NULL);
 
+    // Returns true for a path that can be scanned (.debris is not one of those).
+    bool isscannable(const string& localpath);
+
+    // Invalidates the fs IDs of all local nodes in the current local node tree
+    void invalidatefsids();
+
+    // Assigns fs IDs to those local nodes that match the fingerprint retrieved from disk.
+    // All unmatched local nodes have their fs ID invalidated.
+    bool assignfsids();
+
     // scan items in specified path and add as children of the specified
     // LocalNode
     bool scan(string*, FileAccess*);
@@ -130,9 +140,6 @@ public:
     m_time_t updatedfilets;
     m_time_t updatedfileinitialts;
 
-    // returns a local node matching the given file access (either via fs ID or fingerprint)
-    LocalNode* getcachedlocalnode(FileAccess& fa);
-
     Sync(MegaClient*, string*, const char*, string*, Node*, fsfp_t, bool, int, void*);
     ~Sync();
 
@@ -146,8 +153,21 @@ protected :
     bool readstatecache();
 
 private:
-    // populates `node` with the first local node in the current tree that has the fingerprint `ffp`
-    void localnodebyfingerprint(LocalNode*& node, LocalNode& root, const FileFingerprint& ffp);
+    // Invalidates the fs IDs of all local nodes below `root`.
+    void invalidatefsids(LocalNode& root);
+
+    // Recursively iterates through the filesystem tree starting at `rootpath` and assigns
+    // fs IDs to those local nodes that match the fingerprint retrieved from disk.
+    // `fa` denotes the FileAccess object used to open `rootpath`.
+    void assignfsids(bool& success, string& rootpath, std::unique_ptr<FileAccess> fa,
+                     const std::multiset<FileFingerprint*, FileFingerprintCmp>& nodes);
+
+    // Assigns fs ID to the local node that matches `fa`'s fingerprint.
+    bool assignfsid(FileAccess& fa, const std::string& path,
+                    const std::multiset<FileFingerprint*, FileFingerprintCmp>& nodes);
+
+    // Inserts all local nodes that correspond to files into `nodes`.
+    void collectfilenodes(std::multiset<FileFingerprint*, FileFingerprintCmp>& nodes, LocalNode& root);
 };
 } // namespace
 

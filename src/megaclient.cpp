@@ -11373,13 +11373,24 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
             Sync* sync = new Sync(this, rootpath, debris, localdebris, remotenode, fsfp, inshare, tag, appData);
             sync->isnetwork = isnetwork;
 
+            if (!sync->fsstableids)
+            {
+                // Ensures that unmatched nodes (local nodes that don't have a fingerprint that's
+                // the same as a file on disk) have invalid IDs.
+                sync->invalidatefsids();
+
+                if (!sync->assignfsids())
+                {
+                    LOG_warn << "Assigning fs IDs failed for filesystem with unstable IDs";
+                }
+            }
+
             if (sync->scan(rootpath, fa))
             {
                 syncsup = false;
                 e = API_OK;
                 sync->initializing = false;
                 LOG_debug << "Initial scan finished. New / modified files: " << sync->dirnotify->notifyq[DirNotify::DIREVENTS].size();
-                sync->fsstableids = true; // We assume that fs IDs do not change after a sync was set up
             }
             else
             {
