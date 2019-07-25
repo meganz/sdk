@@ -91,7 +91,6 @@ public:
     void invalidatefsids();
 
     // Assigns fs IDs to those local nodes that match the fingerprint retrieved from disk.
-    // All unmatched local nodes have their fs ID invalidated.
     bool assignfsids();
 
     // scan items in specified path and add as children of the specified
