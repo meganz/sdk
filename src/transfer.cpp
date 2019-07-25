@@ -1241,7 +1241,7 @@ bool DirectReadSlot::processAnyOutputPieces()
         dr->drn->client->httpio->updatedownloadspeed(len);
         continueDirectRead = dr->drn->client->app->pread_data(outputPiece->buf.datastart(), len, pos, speed, meanSpeed, dr->appdata);
 
-        dr->drbuf.bufferWriteCompleted(0);
+        dr->drbuf.bufferWriteCompleted(0, true);
 
         if (continueDirectRead)
         {

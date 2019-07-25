@@ -2402,6 +2402,33 @@ void exec_quit(ac::ACState&)
     quit_flag = true;
 }
 
+void exec_showattributes(autocomplete::ACState& s)
+{
+    if (const Node* n = nodeFromRemotePath(s.words[1].s))
+    {
+        for (auto pair : n->attrs.map)
+        {
+            char namebuf[10]{};
+            AttrMap::nameid2string(pair.first, namebuf);
+            if (pair.first == 'c')
+            {
+                FileFingerprint f;
+                f.unserializefingerprint(&pair.second);
+                cout << namebuf << ": " << pair.second << " (fingerprint: size " << f.size << " mtime " << f.mtime
+                    << " crc " << std::hex << f.crc[0] << " " << f.crc[1] << " " << f.crc[2] << " " << f.crc[3] << std::dec << ")"
+
+                    << " (node fingerprint: size " << n->size << " mtime " << n->mtime
+                    << " crc " << std::hex << n->crc[0] << " " << n->crc[1] << " " << n->crc[2] << " " << n->crc[3] << std::dec << ")" << endl;
+            }
+            else
+            {
+                cout << namebuf << ": " << pair.second << endl;
+            }
+        }
+    }
+}
+
+
 autocomplete::ACN autocompleteSyntax()
 {
     using namespace autocomplete;
@@ -2410,7 +2437,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_apiurl, sequence(text("apiurl"), opt(sequence(param("url"), opt(param("disablepkp"))))));
     p->Add(exec_login, sequence(text("login"), either(sequence(param("email"), opt(param("password"))), exportedLink(false, true), param("session"), sequence(text("autoresume"), opt(param("id"))))));
     p->Add(exec_begin, sequence(text("begin"), opt(param("ephemeralhandle#ephemeralpw"))));
-    p->Add(exec_signup, sequence(text("signup"), opt(sequence(param("email"), either(param("name"), param("confirmationlink"))))));
+    p->Add(exec_signup, sequence(text("signup"), either(sequence(param("email"), param("name")), param("confirmationlink"))));
     p->Add(exec_cancelsignup, sequence(text("cancelsignup")));
     p->Add(exec_confirm, sequence(text("confirm")));
     p->Add(exec_session, sequence(text("session"), opt(sequence(text("autoresume"), opt(param("id"))))));
@@ -2486,7 +2513,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_symlink, sequence(text("symlink")));
     p->Add(exec_version, sequence(text("version")));
     p->Add(exec_debug, sequence(text("debug")));
-#ifdef WIN32
+#if defined(WIN32) && defined(NO_READLINE)
     p->Add(exec_clear, sequence(text("clear")));
     p->Add(exec_codepage, sequence(text("codepage"), opt(sequence(wholenumber(65001), opt(wholenumber(65001))))));
     p->Add(exec_log, sequence(text("log"), either(text("utf8"), text("utf16"), text("codepage")), localFSFile()));
@@ -2534,6 +2561,8 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_querytransferquota, sequence(text("querytransferquota"), param("filesize")));
     p->Add(exec_getcloudstorageused, sequence(text("getcloudstorageused")));
     p->Add(exec_getuserquota, sequence(text("getuserquota"), repeat(either(flag("-storage"), flag("-transfer"), flag("-pro")))));
+
+    p->Add(exec_showattributes, sequence(text("showattributes"), remoteFSPath(client, &cwd)));
 
     return autocompleteTemplate = std::move(p);
 }
@@ -6066,11 +6095,12 @@ void DemoApp::cancelsignup_result(error)
     signupname.clear();
 }
 
-void DemoApp::whyamiblocked_result(error code)
+void DemoApp::whyamiblocked_result(int code)
 {
     if (code < 0)
     {
-        cout << "Why am I blocked failed: " << errorstring(code) << endl;
+        error e = (error) code;
+        cout << "Why am I blocked failed: " << errorstring(e) << endl;
     }
     else if (code == 0)
     {

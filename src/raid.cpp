@@ -308,7 +308,7 @@ RaidBufferManager::FilePiece* RaidBufferManager::getAsyncOutputBufferPointer(uns
 }
 
 
-void RaidBufferManager::bufferWriteCompleted(unsigned connectionNum)
+void RaidBufferManager::bufferWriteCompleted(unsigned connectionNum, bool success)
 {
     std::map<unsigned, FilePiece*>::iterator aob = asyncoutputbuffers.find(connectionNum);
     if (aob != asyncoutputbuffers.end())
@@ -316,7 +316,10 @@ void RaidBufferManager::bufferWriteCompleted(unsigned connectionNum)
         assert(aob->second);
         if (aob->second)
         {
-            bufferWriteCompletedAction(*aob->second);
+            if (success)
+            {
+                bufferWriteCompletedAction(*aob->second);
+            }
 
             delete aob->second;
             aob->second = NULL;
