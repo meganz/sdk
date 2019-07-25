@@ -1423,25 +1423,27 @@ bool Sync::assignfsid(FileAccess& fa, const std::string& path,
         return false;
     }
 
+    const auto nodeRange = nodes.equal_range(&ffp);
+    if (std::distance(nodeRange.first, nodeRange.second) == 0)
+    {
+        return true;
+    }
+
     // We're assigning `fa.fsid` to the node that matches the `path` passed in.
     // If there's no match we simply assign to the first node in range.
-    const auto nodeRange = nodes.equal_range(&ffp);
-    bool fsIdAssigned = false;
-    for (auto node = nodeRange.first; node != nodeRange.second; ++node)
+    auto localNode = static_cast<LocalNode*>(*nodeRange.first);
+    for (auto nodeIt = nodeRange.first; nodeIt != nodeRange.second; ++nodeIt)
     {
+        const auto node = static_cast<LocalNode*>(*nodeIt);
         std::string nodePath;
-        static_cast<LocalNode*>(*node)->getlocalpath(&nodePath);
+        node->getlocalpath(&nodePath);
         if (nodePath == path)
         {
-            static_cast<LocalNode*>(*node)->setfsid(fa.fsid);
-            fsIdAssigned = true;
+            localNode = node;
             break;
         }
     }
-    if (!fsIdAssigned)
-    {
-        static_cast<LocalNode*>(*nodeRange.first)->setfsid(fa.fsid);
-    }
+    localNode->setfsid(fa.fsid);
 
     return true;
 }
