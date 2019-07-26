@@ -1116,7 +1116,7 @@ string * TLVstore::tlvRecordsToContainer()
     return result;
 }
 
-string TLVstore::get(string type)
+std::string TLVstore::get(string type) const
 {
     return tlv.at(type);
 }
@@ -1136,7 +1136,7 @@ vector<string> *TLVstore::getKeys() const
     return keys;
 }
 
-bool TLVstore::find(string type)
+bool TLVstore::find(string type) const
 {
     return (tlv.find(type) != tlv.end());
 }

@@ -2875,9 +2875,19 @@ void CommandGetUA::procresult()
             return;
         }
 
-        if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me && e != API_EBLOCKED)
+        if (u->userhandle == client->me && e != API_EBLOCKED)
         {
-            client->initializekeys(); // we have now all the required data
+            if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK)
+            {
+                client->initializekeys(); // we have now all the required data
+            }
+
+            if (e == API_ENOENT
+                    && (at == ATTR_AUTHRING || at == ATTR_AUTHCU255 || at == ATTR_AUTHRSA))
+            {
+                // authring not created yet, will do it upon retrieval of public keys
+                client->mAuthRing[AuthRing::attrToAuthringType(at)].setInitialized(true);
+            }
         }
 
         // if the attr does not exist, initialize it
@@ -2998,6 +3008,12 @@ void CommandGetUA::procresult()
                             u->setattr(at, tlvString, &version);
                             delete tlvString;
                             client->app->getua_result(tlvRecords, at);
+
+                            if (at == ATTR_AUTHRING || at == ATTR_AUTHCU255 || at == ATTR_AUTHRSA)
+                            {
+                                client->mAuthRing[AuthRing::attrToAuthringType(at)].set(*tlvRecords);
+                            }
+
                             delete tlvRecords;
                         }
                             break;
@@ -3115,6 +3131,12 @@ void CommandDelUA::procresult()
             if (at == ATTR_KEYRING)
             {
                 client->resetKeyring();
+            }
+            else if (at == ATTR_AUTHRING || at == ATTR_AUTHCU255 || at == ATTR_AUTHRSA)
+            {
+                client->mAuthRing[AuthRing::attrToAuthringType(at)].reset();
+                client->mAuthRing[AuthRing::attrToAuthringType(at)].setInitialized(true);
+                client->getua(u, at, 0);
             }
 
             client->notifyuser(u);

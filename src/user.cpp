@@ -1209,4 +1209,258 @@ void User::set(visibility_t v, m_time_t ct)
     show = v;
     ctime = ct;
 }
+
+AuthRing::AuthRing(AuthRingType type) : mType(type)
+{
+
+}
+
+void AuthRing::set(const TLVstore &authring)
+{
+    string authType = "";
+    string authValue;
+    if (authring.find(authType))  // key is an empty string, but may not be there if authring was reset
+    {
+        authValue = authring.get(authType);
+
+        handle userhandle;
+        byte authFingerprint[20];
+        byte authMethod = AUTH_METHOD_UNKNOWN;
+
+        const char *ptr = authValue.data();
+        const char *end = ptr + authValue.size();
+        unsigned recordSize = 29;   // <handle.8> <fingerprint.20> <authLevel.1>
+        while (ptr + recordSize <= end)
+        {
+            memcpy(&userhandle, ptr, sizeof(userhandle));
+            ptr += sizeof(userhandle);
+
+            memcpy(authFingerprint, ptr, sizeof(authFingerprint));
+            ptr += sizeof(authFingerprint);
+
+            memcpy(&authMethod, ptr, sizeof(authMethod));
+            ptr += sizeof(authMethod);
+
+            mFingerprint[userhandle] = string((const char*) authFingerprint, sizeof(authFingerprint));
+            mAuthMethod[userhandle] = static_cast<AuthMethod>(authMethod);
+        }
+    }
+
+    setInitialized(true);
+}
+
+std::string* AuthRing::serialize(PrnGen &rng, SymmCipher &key) const
+{
+    string buf;
+
+    map<handle, string>::const_iterator itFingerprint;
+    map<handle, AuthMethod>::const_iterator itAuthMethod;
+    for (itFingerprint = mFingerprint.begin(), itAuthMethod = mAuthMethod.begin();
+         itFingerprint != mFingerprint.end() && itAuthMethod != mAuthMethod.end();
+         itFingerprint++, itAuthMethod++)
+    {
+        buf.append((const char *)&itFingerprint->first, sizeof(handle));
+        buf.append(itFingerprint->second);
+        buf.append((const char *)&itAuthMethod->second, 1);
+    }
+
+    TLVstore tlv;
+    tlv.set("", buf);
+
+    return tlv.tlvRecordsToContainer(rng, &key);
+}
+
+void AuthRing::setInitialized(bool value)
+{
+    mInitialized = value;
+}
+
+bool AuthRing::isInitialized() const
+{
+    return mInitialized;
+}
+
+void AuthRing::reset()
+{
+    mFingerprint.clear();
+    mAuthMethod.clear();
+    setInitialized(false);
+}
+
+bool AuthRing::isTracked(handle uh) const
+{
+    return mAuthMethod.find(uh) != mAuthMethod.end();
+}
+
+AuthMethod AuthRing::getAuthMethod(handle uh) const
+{
+    AuthMethod authMethod = AUTH_METHOD_UNKNOWN;
+    auto it = mAuthMethod.find(uh);
+    if (it != mAuthMethod.end())
+    {
+        authMethod = it->second;
+    }
+    return authMethod;
+}
+
+std::string AuthRing::getFingerprint(handle uh) const
+{
+    string fingerprint;
+    auto it = mFingerprint.find(uh);
+    if (it != mFingerprint.end())
+    {
+        fingerprint = it->second;
+    }
+    return fingerprint;
+}
+
+vector<handle> AuthRing::getTrackedUsers() const
+{
+    vector<handle> users;
+    for (auto &it : mFingerprint)
+    {
+        users.push_back(it.first);
+    }
+    return users;
+}
+
+void AuthRing::add(handle uh, std::string fingerprint, AuthMethod authMethod)
+{
+    mFingerprint[uh] = fingerprint;
+    mAuthMethod[uh] = authMethod;
+}
+
+void AuthRing::update(handle uh, AuthMethod authMethod)
+{
+    mAuthMethod.at(uh) = authMethod;
+}
+
+bool AuthRing::remove(handle uh)
+{
+    return mFingerprint.erase(uh) + mAuthMethod.erase(uh);
+}
+
+AuthRingType AuthRing::attrToAuthringType(attr_t at)
+{
+    if (at == ATTR_AUTHRING || at == ATTR_ED25519_PUBK)
+    {
+        return AUTHRING_TYPE_ED255;
+    }
+    else if (at == ATTR_AUTHCU255 || at == ATTR_CU25519_PUBK || at == ATTR_SIG_CU255_PUBK)
+    {
+        return AUTHRING_TYPE_CU255;
+    }
+    else if (at == ATTR_AUTHRSA || at == ATTR_UNKNOWN || at == ATTR_SIG_RSA_PUBK)   // ATTR_UNKNOWN -> pubk is not a user attribute
+    {
+        return AUTHRING_TYPE_RSA;
+    }
+
+    assert(false);
+    return AUTHRING_TYPE_UNKNOWN;
+}
+
+attr_t AuthRing::authringTypeToSignatureType(AuthRingType type)
+{
+    if (type == AUTHRING_TYPE_CU255)
+    {
+        return ATTR_SIG_CU255_PUBK;
+    }
+    else if (type == AUTHRING_TYPE_RSA)
+    {
+        return ATTR_SIG_RSA_PUBK;
+    }
+
+    assert(false);
+    return ATTR_UNKNOWN;
+}
+
+std::string AuthRing::authMethodToStr(AuthMethod authMethod)
+{
+    if (authMethod == AUTH_METHOD_SEEN)
+    {
+        return "seen";
+    }
+    else if (authMethod == AUTH_METHOD_FINGERPRINT)
+    {
+        return "fingerpring comparison";
+    }
+    else if (authMethod == AUTH_METHOD_SIGNATURE)
+    {
+        return "signature verified";
+    }
+
+    return "unknown";
+}
+
+std::string AuthRing::authringTypeToStr(AuthRingType authringType)
+{
+    if (authringType == AUTHRING_TYPE_CU255)
+    {
+        return "Authring Cu25519";
+    }
+    else if (authringType == AUTHRING_TYPE_RSA)
+    {
+        return "Authring RSA";
+    }
+    else if (authringType == AUTHRING_TYPE_ED255)
+    {
+        return "Authring Ed25519";
+    }
+
+    return "";
+}
+
+attr_t AuthRing::authringTypeToAttr(AuthRingType type)
+{
+    if (type == AUTHRING_TYPE_CU255)
+    {
+        return ATTR_AUTHCU255;
+    }
+    else if (type == AUTHRING_TYPE_RSA)
+    {
+        return ATTR_AUTHRSA;
+    }
+    else if (type == AUTHRING_TYPE_ED255)
+    {
+        return ATTR_AUTHRING;
+    }
+
+    assert(false);
+    return ATTR_UNKNOWN;
+}
+
+std::string AuthRing::fingerprint(const std::string &pubKey, bool hexadecimal)
+{
+    HashSHA256 hash;
+    hash.add((const byte *)pubKey.data(), pubKey.size());
+
+    string result;
+    hash.get(&result);
+    result.erase(20);   // keep only the most significant 160 bits
+
+    if (hexadecimal)
+    {
+        return Utils::stringToHex(result);
+    }
+
+    return result;
+}
+
+bool AuthRing::isSignedKey()
+{
+    return !(mType == AUTHRING_TYPE_ED255);
+}
+
+bool AuthRing::isCredentialsVerified(handle uh)
+{
+    if (isSignedKey())
+    {
+        return getAuthMethod(uh) == AUTH_METHOD_SIGNATURE;
+    }
+    else
+    {
+        return getAuthMethod(uh) == AUTH_METHOD_FINGERPRINT;
+    }
+}
+
 } // namespace

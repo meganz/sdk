@@ -542,7 +542,19 @@ typedef vector<recentaction> recentactions_vector;
 typedef enum { BIZ_STATUS_UNKNOWN = -2, BIZ_STATUS_EXPIRED = -1, BIZ_STATUS_INACTIVE = 0, BIZ_STATUS_ACTIVE = 1, BIZ_STATUS_GRACE_PERIOD = 2 } BizStatus;
 typedef enum { BIZ_MODE_UNKNOWN = -1, BIZ_MODE_SUBUSER = 0, BIZ_MODE_MASTER = 1 } BizMode;
 
-typedef enum { AUTH_METHOD_SEEN = 0, AUTH_METHOD_FINGERPRINT = 1, AUTH_METHOD_SIGNATURE = 2, AUTH_METHOD_UNKNOWN = 0XFF } AuthMethod;
+typedef enum {
+    AUTHRING_TYPE_UNKNOWN    = -1,
+    AUTHRING_TYPE_ED255      = 0,
+    AUTHRING_TYPE_CU255      = 1,
+    AUTHRING_TYPE_RSA        = 2,
+} AuthRingType;
+
+typedef enum {
+    AUTH_METHOD_UNKNOWN     = -1,
+    AUTH_METHOD_SEEN        = 0,
+    AUTH_METHOD_FINGERPRINT = 1,    // used only for AUTHRING_ED255
+    AUTH_METHOD_SIGNATURE   = 2,    // used only for signed keys (RSA and Cu25519)
+} AuthMethod;
 
 } // namespace
 

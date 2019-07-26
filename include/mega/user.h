@@ -144,6 +144,72 @@ public:
 
     User(const char* = NULL);
 };
+
+class AuthRing
+{
+public:
+    AuthRing(AuthRingType type);
+
+    // set/update the current authring
+    void set(const TLVstore &authring);
+    void setInitialized(bool value);
+    bool isInitialized() const;
+
+    // clears up the existing authring
+    void reset();
+
+    // return the authring as tlv container, ready to set as user's attribute
+    std::string *serialize(PrnGen &rng, SymmCipher &key) const;
+
+    // false if uh is not tracked in the authring
+    bool isTracked(handle uh) const;
+
+    // true for Cu25519 and RSA, false for Ed25519
+    bool isSignedKey();
+
+    // true if key is tracked and authentication method is fingerprint/signature-verified
+    bool isCredentialsVerified(handle uh);
+
+    // returns AUTH_METHOD_UNKNOWN if no authentication is found for the given user
+    AuthMethod getAuthMethod(handle uh) const;
+
+    // returns the fingerprint of the public key for a given user, or empty string if user is not found
+    string getFingerprint(handle uh) const;
+
+    vector<handle> getTrackedUsers() const;
+
+    // return true if authring has changed (data can be pubKey or keySignature depending on authMethod)
+    void add(handle uh, string fingerprint, AuthMethod authMethod);
+
+    // assumes the key is already tracked for uh (otherwise, it will throw)
+    void update(handle uh, AuthMethod authMethod);
+
+    // return false if uh was not tracked
+    bool remove(handle uh);
+
+    // returns most significant 160 bits from SHA256, whether in binary or hexadecimal
+    static string fingerprint(const string &pubKey, bool hexadecimal = false);
+
+    // returns the authring type for a given attribute type associated to a public key, signature or authring
+    static AuthRingType attrToAuthringType(attr_t at);
+
+    // returns the attribute type associated to the corresponding authring for a given authring type
+    static attr_t authringTypeToAttr(AuthRingType type);
+
+    // returns the attribute type associated to the corresponding signature for a given authring type
+    static attr_t authringTypeToSignatureType(AuthRingType type);
+
+    static string authMethodToStr(AuthMethod authMethod);
+    static string authringTypeToStr(AuthRingType authringType);
+
+private:
+    AuthRingType mType;
+    bool mInitialized = false;
+
+    map<handle, string> mFingerprint;
+    map<handle, AuthMethod> mAuthMethod;
+};
+
 } // namespace
 
 #endif

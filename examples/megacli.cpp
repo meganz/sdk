@@ -1195,10 +1195,7 @@ void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
 
     if (type == ATTR_ED25519_PUBK)
     {
-        byte fingerprint[20];
-        client->computeFingerprint(string((const char*)data, l), fingerprint);
-        string fp((const char *)fingerprint, 20);
-        cout << "Credentials: " << Utils::stringToHex(fp) << endl;
+        cout << "Credentials: " << AuthRing::fingerprint(string((const char*)data, l), true) << endl;
     }
 }
 
@@ -1232,51 +1229,6 @@ void DemoApp::getua_result(TLVstore *tlv, attr_t type)
             Base64::btoa((const byte *) value.data(), valuelen, buf);
 
             cout << "\t" << key << "\t" << buf << endl;
-
-            if (valuelen)
-            {
-                switch (type)
-                {
-                case ATTR_AUTHRING:
-                    cout << "Authentication Ed25519: " << endl;
-                    break;
-                case ATTR_AUTHRSA:
-                    cout << "Authentication RSA: " << endl;
-                    break;
-                case ATTR_AUTHCU255:
-                    cout << "Authentication Cu25519: " << endl;
-                    break;
-                default:
-                    break;
-                }
-
-                handle uh;
-                User *user = nullptr;
-                string email;
-                byte keyFingerprint[20];
-                byte authLevel;
-                size_t recordSize = 29;
-
-                const char* ptr = value.data();
-                const char* end = ptr + valuelen + 1;
-                while (ptr + recordSize < end)
-                {
-                    memcpy(&uh, ptr, sizeof(uh));
-                    ptr += sizeof(uh);
-                    user = client->finduser(uh);
-                    email = user ? user->email : "not a contact";
-                    memcpy(keyFingerprint, ptr, sizeof(keyFingerprint));
-                    ptr += sizeof(keyFingerprint);
-                    memcpy(&authLevel, ptr, sizeof(authLevel));
-                    ptr += sizeof(authLevel);
-
-                    cout << "\tUserhandle: \t" << Base64Str<MegaClient::USERHANDLE>(uh) << endl;
-                    cout << "\tEmail:      \t" << email << endl;
-                    cout << "\tFingerprint:\t" << Base64Str<sizeof(keyFingerprint)>(keyFingerprint) << endl;
-                    cout << "\tAuth. level: \t" << char(authLevel+48) << endl;
-                }
-            }
-
             delete [] buf;
         }
         delete keys;
@@ -2547,6 +2499,25 @@ void exec_treecompare(autocomplete::ACState& s);
 void exec_querytransferquota(autocomplete::ACState& s);
 
 
+void printAuthringInformation(AuthRingType type, handle userhandle)
+{
+    AuthRing &authring = client->mAuthRing[type];
+    cout << AuthRing::authringTypeToStr(type) << ": " << endl;
+    for (auto &uh : authring.getTrackedUsers())
+    {
+        if (uh == userhandle || ISUNDEF(userhandle))    // no user was typed --> show authring for all users
+        {
+            User *user = client->finduser(uh);
+            string email = user ? user->email : "not a contact";
+
+            cout << "\tUserhandle: \t" << Base64Str<MegaClient::USERHANDLE>(uh) << endl;
+            cout << "\tEmail:      \t" << email << endl;
+            cout << "\tFingerprint:\t" << Utils::stringToHex(authring.getFingerprint(uh)) << endl;
+            cout << "\tAuth. level: \t" << AuthRing::authMethodToStr(authring.getAuthMethod(uh)) << endl;
+        }
+    }
+}
+
 autocomplete::ACN autocompleteSyntax()
 {
     using namespace autocomplete;
@@ -2616,7 +2587,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_putbps, sequence(text("putbps"), opt(either(wholenumber(100000), text("auto"), text("none")))));
     p->Add(exec_killsession, sequence(text("killsession"), opt(either(text("all"), param("sessionid")))));
     p->Add(exec_whoami, sequence(text("whoami"), repeat(either(flag("-storage"), flag("-transfer"), flag("-pro"), flag("-transactions"), flag("-purchases"), flag("-sessions")))));
-    p->Add(exec_verifycredentials, sequence(text("credentials"), either(text("show"), text("verify")), opt(contactEmail(client))));
+    p->Add(exec_verifycredentials, sequence(text("credentials"), either(text("show"), text("status"), text("verify"), text("reset")), opt(contactEmail(client))));
     p->Add(exec_passwd, sequence(text("passwd")));
     p->Add(exec_reset, sequence(text("reset"), contactEmail(client), opt(text("mk"))));
     p->Add(exec_recover, sequence(text("recover"), param("recoverylink")));
@@ -4927,7 +4898,8 @@ void exec_whoami(autocomplete::ACState& s)
             cout << "Account e-mail: " << u->email << endl;
             if (client->signkey)
             {
-                cout << "Ed25519 fingerprint: " << client->signkey->genFingerprintHex() << endl;
+                string pubKey((const char *)client->signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH);
+                cout << "Credentials: " << AuthRing::fingerprint(pubKey, true) << endl;
             }
         }
 
@@ -4949,7 +4921,7 @@ void exec_whoami(autocomplete::ACState& s)
 void exec_verifycredentials(autocomplete::ACState& s)
 {
     User* u = nullptr;
-    if (s.words.size() == 2 && s.words[1].s == "show")
+    if (s.words.size() == 2 && (s.words[1].s == "show" || s.words[1].s == "status"))
     {
         u = client->finduser(client->me);
     }
@@ -4959,7 +4931,7 @@ void exec_verifycredentials(autocomplete::ACState& s)
     }
     else
     {
-        cout << "      credentials show|verify [email]" << endl;
+        cout << "      credentials show|status|verify [email]" << endl;
         return;
     }
 
@@ -4971,13 +4943,9 @@ void exec_verifycredentials(autocomplete::ACState& s)
 
     if (s.words[1].s == "show")
     {
-        if (u && u->isattrvalid(ATTR_ED25519_PUBK))
+        if (u->isattrvalid(ATTR_ED25519_PUBK))
         {
-            const string *pubKey = u->getattr(ATTR_ED25519_PUBK);
-            byte fingerprint[20];
-            client->computeFingerprint(*pubKey, fingerprint);
-            string fp((const char *)fingerprint, 20);
-            cout << "Credentials: " << Utils::stringToHex(fp) << endl;
+            cout << "Credentials: " << AuthRing::fingerprint(*u->getattr(ATTR_ED25519_PUBK), true) << endl;
         }
         else
         {
@@ -4985,9 +4953,30 @@ void exec_verifycredentials(autocomplete::ACState& s)
             client->getua(u->uid.c_str(), ATTR_ED25519_PUBK);
         }
     }
+    else if (s.words[1].s == "status")
+    {
+        handle uh = s.words.size() == 3 ? u->userhandle : UNDEF;
+        printAuthringInformation(AUTHRING_TYPE_ED255, uh);
+        printAuthringInformation(AUTHRING_TYPE_CU255, uh);
+        printAuthringInformation(AUTHRING_TYPE_RSA, uh);
+    }
     else if (s.words[1].s == "verify")
     {
-        client->setVerifiedKey(u->userhandle);
+        error e;
+        if ((e = client->verifyCredentials(u->userhandle)))
+        {
+            cout << "Verification failed. Error: " << errorstring(e) << endl;
+            return;
+        }
+    }
+    else if (s.words[1].s == "reset")
+    {
+        error e;
+        if ((e = client->resetCredentials(u->userhandle)))
+        {
+            cout << "Reset verification failed. Error: " << errorstring(e) << endl;
+            return;
+        }
     }
 }
 

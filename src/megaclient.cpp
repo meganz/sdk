@@ -1121,6 +1121,9 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     fetchingkeys = false;
     signkey = NULL;
     chatkey = NULL;
+    mAuthRing[AUTHRING_TYPE_ED255].reset();
+    mAuthRing[AUTHRING_TYPE_CU255].reset();
+    mAuthRing[AUTHRING_TYPE_RSA].reset();
 
     init();
 
@@ -5268,6 +5271,7 @@ void MegaClient::sc_userattr()
                                     case ATTR_AUTHCU255:    // fall-through
                                     case ATTR_AUTHRSA:
                                     {
+                                        mAuthRing[AuthRing::attrToAuthringType(type)].setInitialized(false);
                                         getua(u, type, 0);
                                         break;
                                     }
@@ -10972,385 +10976,304 @@ void MegaClient::initializekeys()
     }
 }
 
-void MegaClient::computeFingerprint(const string &key, byte *fingerprint)
+error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
 {
-    HashSHA256 hash;
-    hash.add((const byte *)key.data(), key.size());
-
-    string buf;
-    hash.get(&buf);
-
-    memcpy(fingerprint, buf.data(), 20);
-}
-
-void MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
-{
-    User *ownUser = finduser(me);
     User *user = finduser(uh);
-
-    // select the type of authring of the type of key
-    attr_t authringType;
-    bool signedKey;
-    string pubKeyTypeStr;   // for logging purposes
-    attr_t signatureType;
-    if (keyType == ATTR_ED25519_PUBK)
+    if (!user)
     {
-        authringType = ATTR_AUTHRING;
-        signedKey = false;
-        signatureType = ATTR_UNKNOWN;   // there is no signature of signing key
-        pubKeyTypeStr = "Ed25519";
-    }
-    else if (keyType == ATTR_CU25519_PUBK)
-    {
-        authringType = ATTR_AUTHCU255;
-        signedKey = true;
-        signatureType = ATTR_SIG_CU255_PUBK;
-        pubKeyTypeStr = "Cu25519";
-    }
-    else if (keyType == ATTR_UNKNOWN)   // RSA is not a user-attribute actually
-    {
-        authringType = ATTR_AUTHRSA;
-        signedKey = true;
-        signatureType = ATTR_SIG_RSA_PUBK;
-        pubKeyTypeStr = "RSA";
-    }
-    else
-    {
-        LOG_err << "Attempt to track an unknown type of key: " << keyType;
+        LOG_err << "Attempt to track a key for an unknown user " << Base64Str<MegaClient::USERHANDLE>(uh) << ": " << User::attr2string(keyType);
         assert(false);
-        return;
+        return API_EARGS;
+    }
+    const char *uid = user->uid.c_str();
+    AuthRingType authringType = AuthRing::attrToAuthringType(keyType);
+    if (authringType == AUTHRING_TYPE_UNKNOWN)
+    {
+        LOG_err << "Attempt to track an unknown type of key for user " << uid << ": " << User::attr2string(keyType);
+        assert(false);
+        return API_EARGS;
     }
 
-    // retrieve authring from cache (must be cached, it's refetched automatically upon changes)
-    assert(ownUser->isattrvalid(authringType));
-    if (!ownUser->isattrvalid(authringType))
+    AuthRing &authring = mAuthRing[authringType];
+    if (!authring.isInitialized())
     {
-        LOG_warn << "Authring not available to track " << pubKeyTypeStr << " public key for user " << user->uid;
-        return;
-    }
-    std::unique_ptr<TLVstore> authring(TLVstore::containerToTLVrecords(ownUser->getattr(authringType), &key));
-    if (!authring)
-    {
-        LOG_err << "Cannot decode TLV of authring tracking " << pubKeyTypeStr << " keys";
-        return;
+        LOG_warn << "Failed to track public key in " << AuthRing::authringTypeToStr(authringType) << " for user " << uid << ": authring not available";
+        // TODO: after testing, if not hit, remove assertion below
+        assert(false);
+        return API_ETEMPUNAVAIL;
     }
 
     // compute key's fingerprint
-    byte keyFingerprint[20];
-    computeFingerprint(pubKey, keyFingerprint);
-
-    byte authLevel = AUTH_METHOD_UNKNOWN;
-    bool authLevelChanged = false;
+    string keyFingerprint = AuthRing::fingerprint(pubKey);
     bool fingerprintMatch = false;
 
-    string authType = "";
-    string authValue;
-    if (authring->find(authType))  // key is an empty string, but may not be there if authring was reset
+    // check if user's key is already being tracked in the authring
+    bool keyTracked = authring.isTracked(uh);
+    if (keyTracked)
     {
-        authValue = authring->get(authType);
-
-        // check if user's key is already being tracked in the authring
-        bool keyTracked = false;
-        byte authFingerprint[20];
-
-        const char *ptr = authValue.data();
-        const char *end = ptr + authValue.size();
-        unsigned recordSize = 29;   // <handle.8> <fingerprint.20> <authLevel.1>
-        while (ptr + recordSize <= end)
+        fingerprintMatch = (keyFingerprint == authring.getFingerprint(uh));
+        if (!fingerprintMatch)
         {
-            handle userhandle;
-            memcpy(&userhandle, ptr, sizeof(userhandle));
-            ptr += sizeof(userhandle);
-
-            if (userhandle == uh)
+            if (!authring.isSignedKey())
             {
-                memcpy(authFingerprint, ptr, sizeof(authFingerprint));
-                ptr += sizeof(authFingerprint);
+                LOG_err << "Failed to track public key in " << AuthRing::authringTypeToStr(authringType) << " for user " << uid << ": fingerprint mismatch";
 
-                memcpy(&authLevel, ptr, sizeof(authLevel));
-                ptr += sizeof(authLevel);
+                // TODO: notify the app through an event (and maybe send an event to stats)
+                // --> "Key has been modified"
 
-                keyTracked = true;
-                break;
+                return API_EKEY;
             }
-
-            // if different user, skip next 21 bytes
-            ptr += sizeof(authFingerprint) + sizeof(authLevel);
-        }
-
-        // is key tracked in authring?
-        if (keyTracked)
-        {
-            // does fingerprint match tracked fingerprint?
-            fingerprintMatch = memcmp(keyFingerprint, authFingerprint, sizeof(keyFingerprint)) == 0;
-
-            if (!fingerprintMatch)
-            {
-                if (!signedKey)
-                {
-                    LOG_err << "Authentication of " << pubKeyTypeStr << " public key for user " << user->uid << " failed";
-
-
-                    return;
-                }
-            }
-            else
-            {
-                LOG_info << "Authentication of " << pubKeyTypeStr << " public key for user " << user->uid << " succesful (auth. level: " << char(authLevel+48) << ")";
-            }
+            //else --> verify signature, despite fingerprint does not match (it will be checked again later)
         }
         else
         {
-            // track key as "seen" (user's key not tracked yet)
-            authLevel = AUTH_METHOD_SEEN;
-            authLevelChanged = true;
+            LOG_debug << "Authentication of public key in " << AuthRing::authringTypeToStr(authringType) << " for user " << uid << " was successful. Auth method: " << AuthRing::authMethodToStr(authring.getAuthMethod(uh));
         }
     }
-    else
-    {
-        // track key as "seen" (authring was reset)
-        authLevel = AUTH_METHOD_SEEN;
-        authLevelChanged = true;
-    }
 
-    if (signedKey)
+    if (authring.isSignedKey())
     {
-        if (authLevel != AUTH_METHOD_SIGNATURE || !fingerprintMatch)
+        if (authring.getAuthMethod(uh) != AUTH_METHOD_SIGNATURE || !fingerprintMatch)
         {
             // load public signing key and key signature
-            getua(user, ATTR_ED25519_PUBK);
-            getua(user, signatureType); // in getua_result(), we check signature actually matches
+            getua(user, ATTR_ED25519_PUBK, 0);
+
+            attr_t attrType = AuthRing::authringTypeToSignatureType(authringType);
+            getua(user, attrType, 0); // in getua_result(), we check signature actually matches
         }
     }
-    else if (authLevelChanged)
+    else if (!keyTracked)
     {
-        LOG_debug << "Adding/updating authring with " << pubKeyTypeStr << " public key for user " << user->uid << ". Auth level: " << char(authLevel+48);
-
-        authValue.append((char *)&uh, sizeof(uh));
-        authValue.append((char *)keyFingerprint, sizeof(keyFingerprint));
-        authValue.append((char *)&authLevel, sizeof(authLevel));
+        LOG_debug << "Adding public key to " << AuthRing::authringTypeToStr(authringType) << " as seen for user " << uid;
 
         // tracking has changed --> persist authring
-        authring->set(authType, authValue);
-        std::unique_ptr<string> newAuthring(authring->tlvRecordsToContainer(rng, &key));
-        putua(authringType, (const byte *)newAuthring->data(), newAuthring->size(), 0);
+        authring.add(uh, keyFingerprint, AUTH_METHOD_SEEN);
+
+        std::unique_ptr<string> newAuthring(authring.serialize(rng, key));
+        attr_t attrType = AuthRing::authringTypeToAttr(authringType);
+        putua(attrType, (const byte *)newAuthring->data(), newAuthring->size(), 0);
     }
+
+    return API_OK;
 }
 
-void MegaClient::trackSignature(attr_t signatureType, handle uh, const std::string &signature)
+error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::string &signature)
 {
     User *user = finduser(uh);
+    if (!user)
+    {
+        LOG_err << "Attempt to track a key for an unknown user " << Base64Str<MegaClient::USERHANDLE>(uh) << ": " << User::attr2string(signatureType);
+        assert(false);
+        return API_EARGS;
+    }
+    const char *uid = user->uid.c_str();
+    AuthRingType authringType = AuthRing::attrToAuthringType(signatureType);
+    if (authringType == AUTHRING_TYPE_UNKNOWN)
+    {
+        LOG_err << "Attempt to track an unknown type of signature for user " << uid << ": " << User::attr2string(signatureType);
+        assert(false);
+        return API_EARGS;
+    }
 
-    // select the type of authring for the type of key
-    attr_t authringType;
+    AuthRing &authring = mAuthRing[authringType];
+    if (!authring.isInitialized())
+    {
+        LOG_warn << "Failed to track public key in " << AuthRing::authringTypeToStr(authringType) << " for user " << uid << ": authring not available";
+        // TODO: after testing, if not hit, remove assertion below
+        assert(false);
+        return API_ETEMPUNAVAIL;
+    }
+
     const string *pubKey;
-    string pubKeyTypeStr;   // for logging purposes
-    string pubKeyBuf;
+    string pubKeyBuf;   // for RSA, need to serialize the key
     if (signatureType == ATTR_SIG_CU255_PUBK)
     {
-        authringType = ATTR_AUTHCU255;
-        pubKeyTypeStr = "Cu25519";
-
         // retrieve public key whose signature wants to be verified, from cache
-        assert(user->isattrvalid(ATTR_CU25519_PUBK));
-        if (!user->isattrvalid(ATTR_CU25519_PUBK))
+        assert(user && user->isattrvalid(ATTR_CU25519_PUBK));
+        if (!user || !user->isattrvalid(ATTR_CU25519_PUBK))
         {
-            LOG_warn << "Cannot verify signature of " << pubKeyTypeStr << " public key for user " << user->uid << ": key is not available";
-            return;
+            LOG_warn << "Failed to verify signature " << User::attr2string(signatureType) << " for user " << uid << ": CU25519 public key is not available";
+            assert(false);
+            return API_EINTERNAL;
         }
         pubKey = user->getattr(ATTR_CU25519_PUBK);
     }
     else if (signatureType == ATTR_SIG_RSA_PUBK)
     {
-        authringType = ATTR_AUTHRSA;
-        pubKeyTypeStr = "RSA";
-
+        if (!user->pubk.isvalid())
+        {
+            LOG_warn << "Failed to verify signature " << User::attr2string(signatureType) << " for user " << uid << ": RSA public key is not available";
+            assert(false);
+            return API_EINTERNAL;
+        }
         user->pubk.serializekeyforjs(pubKeyBuf);
         pubKey = &pubKeyBuf;
     }
     else
     {
-        LOG_err << "Attempt to track an unknown type of signature: " << signatureType;
+        LOG_err << "Attempt to track an unknown type of signature: " <<  User::attr2string(signatureType);
         assert(false);
-        return;
+        return API_EINTERNAL;
     }
 
     // retrieve signing key from cache
     assert(user->isattrvalid(ATTR_ED25519_PUBK));
     if (!user->isattrvalid(ATTR_ED25519_PUBK))
     {
-        LOG_warn << "Signing key (Ed25519) not available to verify signature of " << pubKeyTypeStr << " public key for user " << user->uid;
-        return;
+        LOG_warn << "Failed to verify signature " << User::attr2string(signatureType) << " for user " << uid << ": signing public key is not available";
+        assert(false);
+        return API_ETEMPUNAVAIL;
     }
     const string *signingPubKey = user->getattr(ATTR_ED25519_PUBK);
+
+    // compute key's fingerprint
+    string keyFingerprint = AuthRing::fingerprint(*pubKey);
+    bool fingerprintMatch = false;
+    bool keyTracked = authring.isTracked(uh);
 
     // check signature for the public key
     bool signatureVerified = EdDSA::verifyKey((unsigned char*) pubKey->data(), pubKey->size(), (string*)&signature, (unsigned char*) signingPubKey->data());
     if (signatureVerified)
     {
-        LOG_info << "Signature of " << pubKeyTypeStr << " public key for user " << user->uid << " verified";
+        LOG_debug << "Signature " << User::attr2string(signatureType) << " succesfully verified for user " << user->uid;
 
-        // update authring to `signature verified`
-
-        // retrieve authring from cache (must be cached, it's refetched automatically upon changes)
-        User *ownUser = finduser(me);
-        assert(ownUser->isattrvalid(authringType));
-        if (!ownUser->isattrvalid(authringType))
+        // check if user's key is already being tracked in the authring
+        if (keyTracked)
         {
-            LOG_warn << "Authring not available to track signature of " << pubKeyTypeStr << " public key for user " << user->uid;
-            return;
-        }
-        std::unique_ptr<TLVstore> authring(TLVstore::containerToTLVrecords(ownUser->getattr(authringType), &key));
-        if (!authring)
-        {
-            LOG_err << "Cannot decode TLV of authring tracking " << pubKeyTypeStr << " keys";
-            return;
-        }
-
-        byte authLevel = AUTH_METHOD_UNKNOWN;
-        bool keyTracked = false;
-
-        string authType = "";
-        string authValue;
-        if (authring->find(authType))  // key is an empty string, but may not be there if authring was reset
-        {
-            authValue = authring->get(authType);
-
-            const char *ptr = authValue.data();
-            const char *end = ptr + authValue.size();
-            unsigned recordSize = 29;   // <handle.8> <fingerprint.20> <authLevel.1>
-            while (ptr + recordSize <= end)
+            fingerprintMatch = (keyFingerprint == authring.getFingerprint(uh));
+            if (!fingerprintMatch)
             {
-                handle userhandle;
-                memcpy(&userhandle, ptr, sizeof(userhandle));
-                ptr += sizeof(userhandle);
+                LOG_err << "Failed to track signature of public key in " << AuthRing::authringTypeToStr(authringType) << " for user " << uid << ": fingerprint mismatch";
 
-                if (userhandle == uh)
+                if (authring.isSignedKey()) // for unsigned keys, already notified in trackKey()
                 {
-                    ptr += 20;  // skip key's fingerprint, already checked in MegaClient::trackKey()
-
-                    memcpy(&authLevel, ptr, sizeof(authLevel));
-                    if (authLevel == AUTH_METHOD_SIGNATURE)
-                    {
-                        LOG_info << pubKeyTypeStr << " public key is already authenticated as signature verified for user " << user->uid;
-                        return;
-                    }
-                    else
-                    {
-                        assert(authLevel == AUTH_METHOD_SEEN);  // should not happen, but still legit
-                        LOG_warn << "Updating authentication of " << pubKeyTypeStr << " public key for user " << user->uid << " to signature verified, currently authenticated as seen";
-
-                        // update the authentication method
-                        authLevel = AUTH_METHOD_SIGNATURE;
-                        authValue.replace(ptr-authValue.data(), sizeof(authLevel), (const char*) &authLevel, sizeof(authLevel));
-
-                        keyTracked = true;
-                        break;
-                    }
+                    // TODO: notify the app through an event (and maybe send an event to stats)
+                    // --> "Key has been modified"
                 }
 
-                // if different user, skip next 21 bytes
-                ptr += 21;
+                return API_EKEY;
             }
-
-            if (!keyTracked)
+            else
             {
-                LOG_info << "Adding authring with " << pubKeyTypeStr << " public key as signature verified for user " << user->uid;
+                assert(authring.getAuthMethod(uh) != AUTH_METHOD_SIGNATURE);
+                LOG_warn << "Updating authentication method for user " << uid << " to signature verified, currently authenticated as seen";
 
-                // compute key's fingerprint
-                byte keyFingerprint[20];
-                computeFingerprint(*pubKey, keyFingerprint);
-                authLevel = AUTH_METHOD_SIGNATURE;
-
-                // update authring's attribute
-                authValue.append((char *)&uh, sizeof(uh));
-                authValue.append((char *)keyFingerprint, sizeof(keyFingerprint));
-                authValue.append((char *)&authLevel, sizeof(authLevel));
+                authring.update(uh, AUTH_METHOD_SIGNATURE);
             }
-
-            // and finally update the related authring
-            authring->set(authType, authValue);
-            std::unique_ptr<string> newAuthring(authring->tlvRecordsToContainer(rng, &key));
-            putua(authringType, (const byte *)newAuthring->data(), newAuthring->size(), 0);
         }
+        else
+        {
+            LOG_debug << "Adding public key to " << AuthRing::authringTypeToStr(authringType) << " as signature verified for user " << uid;
+
+            authring.add(uh, keyFingerprint, AUTH_METHOD_SIGNATURE);
+        }
+
+        std::unique_ptr<string> newAuthring(authring.serialize(rng, key));
+        attr_t attrType = AuthRing::authringTypeToAttr(authringType);
+        putua(attrType, (const byte *)newAuthring->data(), newAuthring->size(), 0);
     }
     else
     {
-        LOG_err << "Failed to verify signature of " << pubKeyTypeStr << " public key for user " << user->uid;
+        LOG_err << "Failed to verify signature of public key in " << AuthRing::authringTypeToStr(authringType) << " for user " << uid << ": signature mismatch";
 
         // TODO: notify the app through an event (and maybe send an event to stats)
-        // --> "Authentication error"
+        // --> "Signature does not match"
+
+        return API_EKEY;
     }
+
+    return API_OK;
 }
 
-void MegaClient::setVerifiedKey(handle uh)
+error MegaClient::verifyCredentials(handle uh)
 {
-    User *user = finduser(uh);
-    User *ownUser = finduser(me);
-    attr_t authringType = ATTR_AUTHRING;
-
-    // update the authentication level in the authring
-    assert(ownUser->isattrvalid(authringType));
-    if (!ownUser->isattrvalid(authringType))
+    Base64Str<MegaClient::USERHANDLE> uid(uh);
+    AuthRing &authring = mAuthRing[AUTHRING_TYPE_ED255];
+    if (!authring.isInitialized())
     {
-        LOG_warn << "Authring not available to add fingerprint comparision of Ed25519 public key for user " << user->uid;
-        return;
-    }
-    std::unique_ptr<TLVstore> authring(TLVstore::containerToTLVrecords(ownUser->getattr(authringType), &key));
-    if (!authring)
-    {
-        LOG_err << "Cannot decode TLV of authring to add fingerprint comparision of Ed25519 public key for user " << user->uid;
-        return;
+        LOG_warn << "Failed to track public key for user " << uid << ": authring not available";
+        // TODO: after testing, if not hit, remove assertion below
+        assert(false);
+        return API_ETEMPUNAVAIL;
     }
 
-    string authType = "";
-    string authValue;
-    if (authring->find(authType))  // key is an empty string, but may not be there if authring was reset
+    if (!authring.isTracked(uh))
     {
-        authValue = authring->get(authType);
-
-        const char *ptr = authValue.data();
-        const char *end = ptr + authValue.size();
-        unsigned recordSize = 29;   // <handle.8> <fingerprint.20> <authLevel.1>
-        while (ptr + recordSize <= end)
-        {
-            handle userhandle;
-            memcpy(&userhandle, ptr, sizeof(userhandle));
-            ptr += sizeof(userhandle);
-
-            if (userhandle == uh)
-            {
-                ptr += 20;  // skip key's fingerprint, already checked in MegaClient::trackKey()
-
-                byte authLevel = AUTH_METHOD_UNKNOWN;
-                memcpy(&authLevel, ptr, sizeof(authLevel));
-                if (authLevel == AUTH_METHOD_FINGERPRINT)
-                {
-                    LOG_info << "Ed25519 public key is already authenticated by fingerprint comparision for user " << user->uid;
-                    return;
-                }
-                else
-                {
-                    assert(authLevel == AUTH_METHOD_SEEN);  // should not happen, but still legit
-                    LOG_warn << "Updating authentication method of Ed25519 public key for user " << user->uid << " to signature verified, currently authenticated as seen";
-
-                    // update the authentication method
-                    authLevel = AUTH_METHOD_FINGERPRINT;
-                    authValue.replace(ptr-authValue.data(), sizeof(authLevel), (const char*) &authLevel, sizeof(authLevel));
-
-                    // and finally update the related authring
-                    authring->set(authType, authValue);
-                    std::unique_ptr<string> newAuthring(authring->tlvRecordsToContainer(rng, &key));
-                    putua(authringType, (const byte *)newAuthring->data(), newAuthring->size(), 0);
-                }
-
-                return;
-            }
-
-            // if different user, skip next 21 bytes
-            ptr += 21;
-        }
+        LOG_err << "Failed to verify credentials for user " << uid << ": key is not tracked yet";
+        return API_ENOENT;
     }
+    AuthMethod authMethod = authring.getAuthMethod(uh);
+    if (authMethod == AUTH_METHOD_FINGERPRINT)
+    {
+        LOG_err << "Failed to verify credentials for user " << uid << ": already verified";
+        return API_EEXIST;
+    }
+    else if (authMethod != AUTH_METHOD_SEEN)
+    {
+        LOG_err << "Failed to verify credentials for user " << uid << ": key is not tracked as seen";
+        return API_EACCESS;
+    }
+
+    LOG_debug << "Updating authentication method of Ed25519 public key for user " << uid << " from seen to signature verified";
+
+    authring.update(uh, AUTH_METHOD_FINGERPRINT);
+
+    std::unique_ptr<string> newAuthring(authring.serialize(rng, key));
+    putua(ATTR_AUTHRING, (const byte *)newAuthring->data(), newAuthring->size(), 0);
+
+    return API_OK;
+}
+
+error MegaClient::resetCredentials(handle uh)
+{
+    Base64Str<MegaClient::USERHANDLE> uid(uh);
+    if (!mAuthRing[AUTHRING_TYPE_ED255].isInitialized()
+            || !mAuthRing[AUTHRING_TYPE_RSA].isInitialized()
+            || !mAuthRing[AUTHRING_TYPE_CU255].isInitialized())
+    {
+        LOG_warn << "Failed to reset credentials for user " << uid << ": authring/s not available";
+        // TODO: after testing, if not hit, remove assertion below
+        assert(false);
+        return API_ETEMPUNAVAIL;
+    }
+
+    // store all required changes into user attributes
+    userattr_map attrs;
+
+    if (mAuthRing[AUTHRING_TYPE_ED255].isTracked(uh))
+    {
+        mAuthRing[AUTHRING_TYPE_ED255].remove(uh);
+        attrs[ATTR_AUTHRING] = *mAuthRing[AUTHRING_TYPE_ED255].serialize(rng, key);
+    }
+    if (mAuthRing[AUTHRING_TYPE_RSA].isTracked(uh))
+    {
+        mAuthRing[AUTHRING_TYPE_RSA].remove(uh);
+        attrs[ATTR_AUTHRSA] = *mAuthRing[AUTHRING_TYPE_RSA].serialize(rng, key);
+    }
+    if (mAuthRing[AUTHRING_TYPE_CU255].isTracked(uh))
+    {
+        mAuthRing[AUTHRING_TYPE_CU255].remove(uh);
+        attrs[ATTR_AUTHCU255] = *mAuthRing[AUTHRING_TYPE_CU255].serialize(rng, key);
+    }
+
+    if (attrs.size())
+    {
+        assert(attrs.size());
+        LOG_debug << "Removing credentials for user " << uid << "...";
+        putua(&attrs, 0);
+    }
+    else
+    {
+        LOG_warn << "Failed to reset credentials for user " << uid << ": keys not tracked yet";
+        return API_ENOENT;
+    }
+
+    return API_OK;
+}
+
+bool MegaClient::isCredentialsVerified(handle uh)
+{
+    return mAuthRing[AUTHRING_TYPE_ED255].isCredentialsVerified(uh);
 }
 
 void MegaClient::purgenodesusersabortsc()

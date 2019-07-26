@@ -37,6 +37,7 @@
 #include "pendingcontactrequest.h"
 #include "mediafileattribute.h"
 #include "useralerts.h"
+#include "user.h"
 
 namespace mega {
 
@@ -344,17 +345,20 @@ public:
     // check existence and integrity of keys and signatures, initialize if missing
     void initializekeys();
 
-    // calculate the fingerprint of public keys (most significant 160bits of SHA256)
-    void computeFingerprint(const string &key, byte *fingerprint);
-
     // track a public key in the authring for a given user
-    void trackKey(attr_t keyType, handle uh, const std::string &key);
+    error trackKey(attr_t keyType, handle uh, const std::string &key);
 
     // track the signature of a public key in the authring for a given user
-    void trackSignature(attr_t signatureType, handle uh, const std::string &signature);
+    error trackSignature(attr_t signatureType, handle uh, const std::string &signature);
 
-    // set the Ed25519 public key as verified for a given user(done by user manually by comparing hash of keys)
-    void setVerifiedKey(handle uh);
+    // set the Ed25519 public key as verified for a given user in the authring (done by user manually by comparing hash of keys)
+    error verifyCredentials(handle uh);
+
+    // reset the tracking of public keys in the authrings for a given user
+    error resetCredentials(handle uh);
+
+    // check credentials are verified for a given user
+    bool isCredentialsVerified(handle uh);
 
     // retrieve user details
     void getaccountdetails(AccountDetails*, bool, bool, bool, bool, bool, bool, int source = -1);
@@ -1333,6 +1337,8 @@ public:
 
     // ECDH key (x25519 private key).
     ECDH *chatkey;
+
+    AuthRing mAuthRing[3] = { AuthRing(AUTHRING_TYPE_ED255), AuthRing(AUTHRING_TYPE_CU255), AuthRing(AUTHRING_TYPE_RSA) };
 
     // actual state of keys
     bool fetchingkeys;
