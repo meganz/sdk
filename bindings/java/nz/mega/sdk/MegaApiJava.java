@@ -8467,6 +8467,7 @@ public class MegaApiJava {
      */
     public void getUserEmail(long handle, nz.mega.sdk.MegaRequestListenerInterface listener) {
         megaApi.getUserEmail(handle, createDelegateRequestListener(listener));
+    }
 
     /**
      * @brief Cancel a registration process
