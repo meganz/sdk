@@ -11114,8 +11114,6 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
     if (!authring.isInitialized())
     {
         LOG_warn << "Failed to track public key in " << AuthRing::authringTypeToStr(authringType) << " for user " << uid << ": authring not available";
-        // TODO: after testing, if not hit, remove assertion below
-        assert(false);
         return API_ETEMPUNAVAIL;
     }
 

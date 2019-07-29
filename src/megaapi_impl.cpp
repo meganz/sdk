@@ -5142,7 +5142,7 @@ bool MegaApiImpl::checkPassword(const char *password)
     return result;
 }
 
-char *MegaApiImpl::getMyFingerprint()
+char *MegaApiImpl::getMyCredentials()
 {
     SdkMutexGuard g(sdkMutex);
     if (ISUNDEF(client->me))
@@ -5159,7 +5159,7 @@ char *MegaApiImpl::getMyFingerprint()
     return result.size() ? MegaApi::strdup(result.c_str()) : nullptr;
 }
 
-void MegaApiImpl::getUserFingerprint(MegaUser *user, MegaRequestListener *listener)
+void MegaApiImpl::getUserCredentials(MegaUser *user, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
 
@@ -14263,7 +14263,7 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
             if (request->getFlag()) // asking for the fingerprint
             {
                 string fingerprint = AuthRing::fingerprint(string((const char*)data, len), true);
-                request->setText(fingerprint.c_str());
+                request->setPassword(fingerprint.c_str());
             }
             break;
         }

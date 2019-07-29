@@ -8077,7 +8077,7 @@ class MegaApi
         bool checkPassword(const char *password);
 
         /**
-         * @brief Returns the fingerprint of the signing key of the currently open account
+         * @brief Returns the credentials of the currently open account
          *
          * If the MegaApi object isn't logged in or there's no signing key available,
          * this function returns NULL
@@ -8087,10 +8087,10 @@ class MegaApi
          *
          * @return Fingerprint of the signing key of the current account
          */
-        char* getMyFingerprint();
+        char* getMyCredentials();
 
         /**
-         * Returns the fingerprint of the signing key of the currently open account
+         * Returns the credentials of a given user
          *
          * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
          * Valid data in the MegaRequest object received on callbacks:
@@ -8099,12 +8099,12 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getText - Returns the fingerprint in hexadecimal format
+         * - MegaRequest::getPassword - Returns the credentials in hexadecimal format
          *
          * @param user MegaUser of the contact (see MegaApi::getContact) to get the fingerprint
          * @param listener MegaRequestListener to track this request
          */
-        void getUserFingerprint(MegaUser *user, MegaRequestListener *listener = NULL);
+        void getUserCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Checks if credentials are verified for the given user

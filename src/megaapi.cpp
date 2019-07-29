@@ -1699,14 +1699,14 @@ bool MegaApi::checkPassword(const char *password)
     return pImpl->checkPassword(password);
 }
 
-char *MegaApi::getMyFingerprint()
+char *MegaApi::getMyCredentials()
 {
-    return pImpl->getMyFingerprint();
+    return pImpl->getMyCredentials();
 }
 
-void MegaApi::getUserFingerprint(MegaUser *user, MegaRequestListener *listener)
+void MegaApi::getUserCredentials(MegaUser *user, MegaRequestListener *listener)
 {
-    pImpl->getUserFingerprint(user, listener);
+    pImpl->getUserCredentials(user, listener);
 }
 
 bool MegaApi::areCredentialsVerified(MegaUser *user)

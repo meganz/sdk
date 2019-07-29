@@ -1976,8 +1976,8 @@ class MegaApiImpl : public MegaApp
         bool isBusinessAccountActive();
         int getBusinessStatus();
         bool checkPassword(const char *password);
-        char* getMyFingerprint();
-        void getUserFingerprint(MegaUser *user, MegaRequestListener *listener = NULL);
+        char* getMyCredentials();
+        void getUserCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
         bool areCredentialsVerified(MegaUser *user);
         void verifyCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
         void resetCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
