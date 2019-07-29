@@ -22,7 +22,6 @@
 #include "mega.h"
 #include "megacli.h"
 #include <fstream>
-#include <mega/autocomplete.h>
 
 #define USE_VARARGS
 #define PREFER_STDARG
@@ -36,7 +35,7 @@
     #include <filesystem>
     namespace fs = std::filesystem;
     #define USE_FILESYSTEM
-#elif !defined(__MINGW32__) && !defined(__ANDROID__) && ( (__cplusplus >= 201100L) || (defined(_MSC_VER) && _MSC_VER >= 1600) ) && (!defined(__GNUC__) || (__GNUC__*100+__GNUC_MINOR__) >= 503)
+#elif !defined(__MINGW32__) && !defined(__ANDROID__) && (!defined(__GNUC__) || (__GNUC__*100+__GNUC_MINOR__) >= 503)
 #define USE_FILESYSTEM
 #ifdef WIN32
     #include <filesystem>
@@ -47,13 +46,13 @@
 #endif
 #endif
 
+#include <regex>
+
 #ifdef USE_FREEIMAGE
 #include "mega/gfx/freeimage.h"
 #endif
 
-#ifdef HAVE_AUTOCOMPLETE
-    namespace ac = ::mega::autocomplete;
-#endif
+namespace ac = ::mega::autocomplete;
 
 #include <iomanip>
 
@@ -100,6 +99,9 @@ static int ets = 0;
 
 // import welcome pdf at account creation
 static bool pdf_to_import = false;
+
+// public link information
+static string publiclink;
 
 // local console
 Console* console;
@@ -276,15 +278,10 @@ void DemoApp::transfer_update(Transfer* /*t*/)
     // (this is handled in the prompt logic)
 }
 
-void DemoApp::transfer_failed(Transfer* t, error e)
+void DemoApp::transfer_failed(Transfer* t, error e, dstime)
 {
     displaytransferdetails(t, "failed (");
     cout << errorstring(e) << ")" << endl;
-}
-
-void DemoApp::transfer_limit(Transfer *t)
-{
-    displaytransferdetails(t, "bandwidth limit reached\n");
 }
 
 void DemoApp::transfer_complete(Transfer* t)
@@ -774,7 +771,7 @@ void DemoApp::chatlinkclose_result(error e)
     }
 }
 
-void DemoApp::chatlinkurl_result(handle chatid, int shard, string *url, string *ct, m_time_t ts, error e)
+void DemoApp::chatlinkurl_result(handle chatid, int shard, string *url, string *ct, int, m_time_t ts, error e)
 {
     if (e)
     {
@@ -1146,6 +1143,10 @@ void DemoApp::putfa_result(handle, fatype, error e)
     }
 }
 
+void DemoApp::putfa_result(handle, fatype, const char*)
+{
+}
+
 void DemoApp::removecontact_result(error e)
 {
     if (e)
@@ -1356,7 +1357,7 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
     const char* bptr = ptr;
     int remote = 0;
     int folderlink = 0;
-    Node* n;
+    Node* n = nullptr;
     Node* nn;
 
     // split path by / or :
@@ -1610,7 +1611,7 @@ void TreeProcListOutShares::proc(MegaClient*, Node* n)
 
 bool handles_on = false;
 
-static void dumptree(Node* n, int recurse, int depth = 0, const char* title = NULL)
+static void dumptree(Node* n, bool recurse, int depth = 0, const char* title = NULL)
 {
     if (depth)
     {
@@ -1845,7 +1846,7 @@ public:
     }
 
     // determine node tree size (nn = NULL) or write node tree to new nodes array
-    void proc(MegaClient* client, Node* n)
+    void proc(MegaClient* mc, Node* n)
     {
         if (nn)
         {
@@ -1867,7 +1868,7 @@ public:
             else
             {
                 byte buf[FOLDERNODEKEYLENGTH];
-                client->rng.genblock(buf, sizeof buf);
+                mc->rng.genblock(buf, sizeof buf);
                 t->nodekey.assign((char*) buf, FOLDERNODEKEYLENGTH);
             }
 
@@ -1885,7 +1886,7 @@ public:
 
             t->attrstring = new string;
             tattrs.getjson(&attrstring);
-            client->makeattr(&key, t->attrstring, attrstring.c_str());
+            mc->makeattr(&key, t->attrstring, attrstring.c_str());
         }
         else
         {
@@ -2067,6 +2068,7 @@ static byte newpwkey[SymmCipher::KEYLENGTH];
 static string newpassword;
 
 // readline callback - exit if EOF, add to history unless password
+#if !defined(WIN32) || !defined(NO_READLINE)
 static void store_line(char* l)
 {
     if (!l)
@@ -2084,13 +2086,14 @@ static void store_line(char* l)
 
     line = l;
 }
+#endif
 
 class FileFindCommand : public Command
 {
 public:
     struct Stack : public std::deque<handle>
     {
-        int filesLeft = 0;
+        size_t filesLeft = 0;
         set<string> servers;
     };
         
@@ -2222,7 +2225,6 @@ void getDepthFirstFileHandles(Node* n, deque<handle>& q)
     }
 }
 
-#ifdef HAVE_AUTOCOMPLETE
 void exec_find(autocomplete::ACState& s)
 {
     if (s.words[1].s == "raided")
@@ -2247,7 +2249,6 @@ void exec_find(autocomplete::ACState& s)
         }
     }
 }
-#endif
 
 bool typematchesnodetype(nodetype_t pathtype, nodetype_t nodetype)
 {
@@ -2311,8 +2312,8 @@ bool recursiveCompare(Node* mn, fs::path p)
     else
     {
         cout << "Extra content detected between " << mn->displaypath() << " and " << p.u8string() << endl;
-        for (auto& m : ms) cout << "Extra remote: " << m.first << endl;
-        for (auto& p : ps) cout << "Extra local: " << p.second << endl;
+        for (auto& mi : ms) cout << "Extra remote: " << mi.first << endl;
+        for (auto& pi : ps) cout << "Extra local: " << pi.second << endl;
         return false;
     };
 }
@@ -2346,9 +2347,7 @@ fs::path pathFromLocalPath(const string& s, bool mustexist)
     }
     return p;
 }
-#endif
 
-#ifdef HAVE_AUTOCOMPLETE
 void exec_treecompare(autocomplete::ACState& s)
 {
     fs::path p = pathFromLocalPath(s.words[1].s, true);
@@ -2358,146 +2357,187 @@ void exec_treecompare(autocomplete::ACState& s)
         recursiveCompare(n, p);
     }
 }
+#endif
+
+void exec_getcloudstorageused(autocomplete::ACState& s)
+{
+    cout << client->mFingerprints.getSumSizes() << endl;
+}
+
+void exec_getuserquota(autocomplete::ACState& s)
+{
+    bool storage = s.extractflag("-storage");
+    bool transfer = s.extractflag("-transfer");
+    bool pro = s.extractflag("-pro");
+
+    if (!storage && !transfer && !pro)
+    {
+        storage = transfer = pro = true;
+    }    
+
+    client->getaccountdetails(new AccountDetails, storage, transfer, pro, false, false, false, -1);
+}
 
 void exec_querytransferquota(autocomplete::ACState& ac)
 {
     client->querytransferquota(atoll(ac.words[1].s.c_str()));
 }
-#endif
 
 void DemoApp::querytransferquota_result(int n)
 {
     cout << "querytransferquota_result: " << n << endl;
 }
 
-#ifdef HAVE_AUTOCOMPLETE
 autocomplete::ACN autocompleteTemplate;
+
+void exec_help(ac::ACState&)
+{
+    cout << *autocompleteTemplate << flush;
+}
+
+bool quit_flag = false;
+
+void exec_quit(ac::ACState&)
+{
+    quit_flag = true;
+}
 
 autocomplete::ACN autocompleteSyntax()
 {
     using namespace autocomplete;
     std::unique_ptr<Either> p(new Either("      "));
 
-    p->Add(sequence(text("apiurl"), opt(sequence(param("url"), opt(param("disablepkp"))))));
-    // which is clearer in the help output - one line or 3?
-    p->Add(sequence(text("login"), either(sequence(param("email"), opt(param("password"))), exportedLink(false, true), param("session"), sequence(text("autoresume"), opt(param("id"))))));
-    //p->Add(sequence(text("login"), param("email"), opt(param("password"))));
-    //p->Add(sequence(text("login"), exportedLink(false, true)));
-    //p->Add(sequence(text("login"), param("session")));
-    p->Add(sequence(text("begin"), opt(param("ephemeralhandle#ephemeralpw"))));
-    p->Add(sequence(text("signup"), opt(sequence(param("email"), either(param("name"), param("confirmationlink"))))));
-    p->Add(sequence(text("confirm")));
-    p->Add(sequence(text("session"), opt(sequence(text("autoresume"), opt(param("id"))))));
-    p->Add(sequence(text("mount")));
-    p->Add(sequence(text("ls"), opt(flag("-R")), opt(remoteFSFolder(client, &cwd))));
-    p->Add(sequence(text("cd"), opt(remoteFSFolder(client, &cwd))));
-    p->Add(sequence(text("pwd")));
-    p->Add(sequence(text("lcd"), opt(localFSFolder())));
+    p->Add(exec_apiurl, sequence(text("apiurl"), opt(sequence(param("url"), opt(param("disablepkp"))))));
+    p->Add(exec_login, sequence(text("login"), either(sequence(param("email"), opt(param("password"))), exportedLink(false, true), param("session"), sequence(text("autoresume"), opt(param("id"))))));
+    p->Add(exec_begin, sequence(text("begin"), opt(param("ephemeralhandle#ephemeralpw"))));
+    p->Add(exec_signup, sequence(text("signup"), opt(sequence(param("email"), either(param("name"), param("confirmationlink"))))));
+    p->Add(exec_cancelsignup, sequence(text("cancelsignup")));
+    p->Add(exec_confirm, sequence(text("confirm")));
+    p->Add(exec_session, sequence(text("session"), opt(sequence(text("autoresume"), opt(param("id"))))));
+    p->Add(exec_mount, sequence(text("mount")));
+    p->Add(exec_ls, sequence(text("ls"), opt(flag("-R")), opt(remoteFSFolder(client, &cwd))));
+    p->Add(exec_cd, sequence(text("cd"), opt(remoteFSFolder(client, &cwd))));
+    p->Add(exec_pwd, sequence(text("pwd")));
+    p->Add(exec_lcd, sequence(text("lcd"), opt(localFSFolder())));
 #ifdef USE_FILESYSTEM
-    p->Add(sequence(text("lls"), opt(flag("-R")), opt(localFSFolder())));
-    p->Add(sequence(text("lpwd")));
-    p->Add(sequence(text("lmkdir"), localFSFolder()));
+    p->Add(exec_lls, sequence(text("lls"), opt(flag("-R")), opt(localFSFolder())));
+    p->Add(exec_lpwd, sequence(text("lpwd")));
+    p->Add(exec_lmkdir, sequence(text("lmkdir"), localFSFolder()));
 #endif
-    p->Add(sequence(text("import"), exportedLink(true, false)));
-    p->Add(sequence(text("open"), exportedLink(false, true)));
-    p->Add(sequence(text("put"), localFSPath("localpattern"), opt(either(remoteFSPath(client, &cwd, "dst"),param("dstemail")))));
-    p->Add(sequence(text("putq"), opt(param("cancelslot"))));
+    p->Add(exec_import, sequence(text("import"), exportedLink(true, false)));
+    p->Add(exec_folderlinkinfo, sequence(text("folderlink"), opt(param("link"))));
+    p->Add(exec_open, sequence(text("open"), exportedLink(false, true)));
+    p->Add(exec_put, sequence(text("put"), localFSPath("localpattern"), opt(either(remoteFSPath(client, &cwd, "dst"),param("dstemail")))));
+    p->Add(exec_putq, sequence(text("putq"), opt(param("cancelslot"))));
 #ifdef USE_FILESYSTEM
-    p->Add(sequence(text("get"), opt(sequence(flag("-r"), opt(flag("-foldersonly")))), remoteFSPath(client, &cwd), opt(sequence(param("offset"), opt(param("length"))))));
+    p->Add(exec_get, sequence(text("get"), opt(sequence(flag("-r"), opt(flag("-foldersonly")))), remoteFSPath(client, &cwd), opt(sequence(param("offset"), opt(param("length"))))));
 #else
-    p->Add(sequence(text("get"), remoteFSPath(client, &cwd), opt(sequence(param("offset"), opt(param("length"))))));
+    p->Add(exec_get, sequence(text("get"), remoteFSPath(client, &cwd), opt(sequence(param("offset"), opt(param("length"))))));
 #endif
-    p->Add(sequence(text("get"), exportedLink(true, false), opt(sequence(param("offset"), opt(param("length"))))));
-    p->Add(sequence(text("getq"), opt(param("cancelslot"))));
-    p->Add(sequence(text("pause"), opt(either(text("get"), text("put"))), opt(text("hard")), opt(text("status"))));
-    p->Add(sequence(text("getfa"), wholenumber(1), opt(remoteFSPath(client, &cwd)), opt(text("cancel"))));
-    p->Add(sequence(text("mediainfo"), either(sequence(text("calc"), localFSFile()), sequence(text("show"), remoteFSFile(client, &cwd)))));
-    p->Add(sequence(text("mkdir"), remoteFSFolder(client, &cwd)));
-    p->Add(sequence(text("rm"), remoteFSPath(client, &cwd)));
-    p->Add(sequence(text("mv"), remoteFSPath(client, &cwd, "src"), remoteFSPath(client, &cwd, "dst")));
-    p->Add(sequence(text("cp"), remoteFSPath(client, &cwd, "src"), either(remoteFSPath(client, &cwd, "dst"), param("dstemail"))));
-    p->Add(sequence(text("du"), remoteFSPath(client, &cwd)));
+    p->Add(exec_get, sequence(text("get"), flag("-re"), param("regularexpression")));
+    p->Add(exec_get, sequence(text("get"), exportedLink(true, false), opt(sequence(param("offset"), opt(param("length"))))));
+    p->Add(exec_getq, sequence(text("getq"), opt(param("cancelslot"))));
+    p->Add(exec_pause, sequence(text("pause"), either(text("status"), sequence(opt(either(text("get"), text("put"))), opt(text("hard"))))));
+    p->Add(exec_getfa, sequence(text("getfa"), wholenumber(1), opt(remoteFSPath(client, &cwd)), opt(text("cancel"))));
+#ifdef USE_MEDIAINFO
+    p->Add(exec_mediainfo, sequence(text("mediainfo"), either(sequence(text("calc"), localFSFile()), sequence(text("show"), remoteFSFile(client, &cwd)))));
+#endif
+    p->Add(exec_smsverify, sequence(text("smsverify"), either(sequence(text("send"), param("phonenumber"), opt(param("reverifywhitelisted"))), sequence(text("code"), param("verificationcode")))));
+    p->Add(exec_verifiedphonenumber, sequence(text("verifiedphone")));
+    p->Add(exec_mkdir, sequence(text("mkdir"), remoteFSFolder(client, &cwd)));
+    p->Add(exec_rm, sequence(text("rm"), remoteFSPath(client, &cwd)));
+    p->Add(exec_mv, sequence(text("mv"), remoteFSPath(client, &cwd, "src"), remoteFSPath(client, &cwd, "dst")));
+    p->Add(exec_cp, sequence(text("cp"), remoteFSPath(client, &cwd, "src"), either(remoteFSPath(client, &cwd, "dst"), param("dstemail"))));
+    p->Add(exec_du, sequence(text("du"), remoteFSPath(client, &cwd)));
 #ifdef ENABLE_SYNC
-    p->Add(sequence(text("sync"), opt(sequence(localFSPath(), either(remoteFSPath(client, &cwd, "dst"), param("cancelslot"))))));
+    p->Add(exec_sync, sequence(text("sync"), opt(sequence(localFSPath(), either(remoteFSPath(client, &cwd, "dst"), param("cancelslot"))))));
 #endif
-    p->Add(sequence(text("export"), remoteFSPath(client, &cwd), opt(either(param("expiretime"), text("del")))));
-    p->Add(sequence(text("share"), opt(sequence(remoteFSPath(client, &cwd), opt(sequence(contactEmail(client), opt(either(text("r"), text("rw"), text("full"))), opt(param("origemail"))))))));
-    p->Add(sequence(text("invite"), param("dstemail"), opt(either(param("origemail"), text("del"), text("rmd")))));
-    p->Add(sequence(text("ipc"), param("handle"), either(text("a"), text("d"), text("i")))); 
-    p->Add(sequence(text("showpcr")));
-    p->Add(sequence(text("users"), opt(sequence(contactEmail(client), text("del")))));
-    p->Add(sequence(text("getua"), param("attrname"), opt(contactEmail(client))));
-    p->Add(sequence(text("putua"), param("attrname"), opt(either(text("del"), sequence(text("set"), param("string")), sequence(text("load"), localFSFile())))));
-#ifdef DEBUG
-    p->Add(sequence(text("delua"), param("attrname")));
-#endif
-    p->Add(sequence(text("alerts"), opt(either(text("new"), text("old"), wholenumber(10), text("notify"), text("seen")))));
-    p->Add(sequence(text("recentactions"), param("hours"), param("maxcount")));
-    p->Add(sequence(text("recentnodes"), param("hours"), param("maxcount")));
+    p->Add(exec_export, sequence(text("export"), remoteFSPath(client, &cwd), opt(either(param("expiretime"), text("del")))));
+    p->Add(exec_share, sequence(text("share"), opt(sequence(remoteFSPath(client, &cwd), opt(sequence(contactEmail(client), opt(either(text("r"), text("rw"), text("full"))), opt(param("origemail"))))))));
+    p->Add(exec_invite, sequence(text("invite"), param("dstemail"), opt(either(param("origemail"), text("del"), text("rmd")))));
 
-    p->Add(sequence(text("putbps"), opt(either(wholenumber(100000), text("auto"), text("none")))));
-    p->Add(sequence(text("killsession"), opt(either(text("all"), param("sessionid")))));
-    p->Add(sequence(text("whoami"), repeat(either(flag("-storage"), flag("-transfer"), flag("-pro"), flag("-transactions"), flag("-purchases"), flag("-sessions")))));
-    p->Add(sequence(text("passwd")));
-    p->Add(sequence(text("reset"), contactEmail(client), opt(text("mk"))));
-    p->Add(sequence(text("recover"), param("recoverylink")));
-    p->Add(sequence(text("cancel"), opt(param("cancellink"))));
-    p->Add(sequence(text("email"), opt(either(param("newemail"), param("emaillink")))));
-    p->Add(sequence(text("retry")));
-    p->Add(sequence(text("recon")));
-    p->Add(sequence(text("reload"), opt(text("nocache"))));
-    p->Add(sequence(text("logout")));
-    p->Add(sequence(text("locallogout")));
-    p->Add(sequence(text("symlink")));
-    p->Add(sequence(text("version")));
-    p->Add(sequence(text("debug")));
+    p->Add(exec_clink, sequence(text("clink"), either(text("renew"), sequence(text("query"), param("handle")), sequence(text("del"), opt(param("handle"))))));
+
+    p->Add(exec_ipc, sequence(text("ipc"), param("handle"), either(text("a"), text("d"), text("i")))); 
+    p->Add(exec_showpcr, sequence(text("showpcr")));
+    p->Add(exec_users, sequence(text("users"), opt(sequence(contactEmail(client), text("del")))));
+    p->Add(exec_getua, sequence(text("getua"), param("attrname"), opt(contactEmail(client))));
+    p->Add(exec_putua, sequence(text("putua"), param("attrname"), opt(either(text("del"), sequence(text("set"), param("string")), sequence(text("load"), localFSFile())))));
+#ifdef DEBUG
+    p->Add(exec_delua, sequence(text("delua"), param("attrname")));
+#endif
+    p->Add(exec_alerts, sequence(text("alerts"), opt(either(text("new"), text("old"), wholenumber(10), text("notify"), text("seen")))));
+    p->Add(exec_recentactions, sequence(text("recentactions"), param("hours"), param("maxcount")));
+    p->Add(exec_recentnodes, sequence(text("recentnodes"), param("hours"), param("maxcount")));
+
+    p->Add(exec_putbps, sequence(text("putbps"), opt(either(wholenumber(100000), text("auto"), text("none")))));
+    p->Add(exec_killsession, sequence(text("killsession"), opt(either(text("all"), param("sessionid")))));
+    p->Add(exec_whoami, sequence(text("whoami"), repeat(either(flag("-storage"), flag("-transfer"), flag("-pro"), flag("-transactions"), flag("-purchases"), flag("-sessions")))));
+    p->Add(exec_passwd, sequence(text("passwd")));
+    p->Add(exec_reset, sequence(text("reset"), contactEmail(client), opt(text("mk"))));
+    p->Add(exec_recover, sequence(text("recover"), param("recoverylink")));
+    p->Add(exec_cancel, sequence(text("cancel"), opt(param("cancellink"))));
+    p->Add(exec_email, sequence(text("email"), opt(either(param("newemail"), param("emaillink")))));
+    p->Add(exec_retry, sequence(text("retry")));
+    p->Add(exec_recon, sequence(text("recon")));
+    p->Add(exec_reload, sequence(text("reload"), opt(text("nocache"))));
+    p->Add(exec_logout, sequence(text("logout")));
+    p->Add(exec_locallogout, sequence(text("locallogout")));
+    p->Add(exec_symlink, sequence(text("symlink")));
+    p->Add(exec_version, sequence(text("version")));
+    p->Add(exec_debug, sequence(text("debug")));
 #ifdef WIN32
-    p->Add(sequence(text("clear")));
-    p->Add(sequence(text("codepage"), opt(sequence(wholenumber(65001), opt(wholenumber(65001))))));
-    p->Add(sequence(text("log"), either(text("utf8"), text("utf16"), text("codepage")), localFSFile()));
+    p->Add(exec_clear, sequence(text("clear")));
+    p->Add(exec_codepage, sequence(text("codepage"), opt(sequence(wholenumber(65001), opt(wholenumber(65001))))));
+    p->Add(exec_log, sequence(text("log"), either(text("utf8"), text("utf16"), text("codepage")), localFSFile()));
 #endif
-    p->Add(sequence(text("test")));
+    p->Add(exec_test, sequence(text("test")));
 #ifdef ENABLE_CHAT
-    p->Add(sequence(text("chats")));
-    p->Add(sequence(text("chatc"), param("group"), repeat(opt(sequence(contactEmail(client), either(text("ro"), text("sta"), text("mod")))))));
-    p->Add(sequence(text("chati"), param("chatid"), contactEmail(client), either(text("ro"), text("sta"), text("mod"))));
-    p->Add(sequence(text("chatr"), param("chatid"), opt(contactEmail(client))));
-    p->Add(sequence(text("chatu"), param("chatid")));
-    p->Add(sequence(text("chatup"), param("chatid"), param("userhandle"), either(text("ro"), text("sta"), text("mod"))));
-    p->Add(sequence(text("chatpu")));
-    p->Add(sequence(text("chatga"), param("chatid"), param("nodehandle"), param("uid")));
-    p->Add(sequence(text("chatra"), param("chatid"), param("nodehandle"), param("uid")));
-    p->Add(sequence(text("chatst"), param("chatid"), param("title64")));
+    p->Add(exec_chats, sequence(text("chats")));
+    p->Add(exec_chatc, sequence(text("chatc"), param("group"), repeat(opt(sequence(contactEmail(client), either(text("ro"), text("sta"), text("mod")))))));
+    p->Add(exec_chati, sequence(text("chati"), param("chatid"), contactEmail(client), either(text("ro"), text("sta"), text("mod"))));
+    p->Add(exec_chatcp, sequence(text("chatcp"), param("mownkey"), opt(sequence(text("t"), param("title64"))), repeat(sequence(contactEmail(client), either(text("ro"), text("sta"), text("mod"))))));
+    p->Add(exec_chatr, sequence(text("chatr"), param("chatid"), opt(contactEmail(client))));
+    p->Add(exec_chatu, sequence(text("chatu"), param("chatid")));
+    p->Add(exec_chatup, sequence(text("chatup"), param("chatid"), param("userhandle"), either(text("ro"), text("sta"), text("mod"))));
+    p->Add(exec_chatpu, sequence(text("chatpu")));
+    p->Add(exec_chatga, sequence(text("chatga"), param("chatid"), param("nodehandle"), param("uid")));
+    p->Add(exec_chatra, sequence(text("chatra"), param("chatid"), param("nodehandle"), param("uid")));
+    p->Add(exec_chatst, sequence(text("chatst"), param("chatid"), param("title64")));
+    p->Add(exec_chata, sequence(text("chata"), param("chatid"), param("archive")));
+    p->Add(exec_chatl, sequence(text("chatl"), param("chatid"), either(text("del"), text("query"))));
+    p->Add(exec_chatsm, sequence(text("chatsm"), param("chatid"), opt(param("title64"))));
+    p->Add(exec_chatlu, sequence(text("chatlu"), param("publichandle")));
+    p->Add(exec_chatlj, sequence(text("chatlj"), param("publichandle"), param("unifiedkey")));
 #endif
-    p->Add(sequence(text("enabletransferresumption"), opt(either(text("on"), text("off")))));
-    p->Add(sequence(text("setmaxdownloadspeed"), opt(wholenumber(10000))));
-    p->Add(sequence(text("setmaxuploadspeed"), opt(wholenumber(10000))));
-    p->Add(sequence(text("handles"), opt(either(text("on"), text("off")))));
-    p->Add(sequence(text("httpsonly"), opt(either(text("on"), text("off")))));
-    p->Add(sequence(text("autocomplete"), opt(either(text("unix"), text("dos")))));
-    p->Add(sequence(text("history")));
-    p->Add(sequence(text("quit")));
+    p->Add(exec_enabletransferresumption, sequence(text("enabletransferresumption"), opt(either(text("on"), text("off")))));
+    p->Add(exec_setmaxdownloadspeed, sequence(text("setmaxdownloadspeed"), opt(wholenumber(10000))));
+    p->Add(exec_setmaxuploadspeed, sequence(text("setmaxuploadspeed"), opt(wholenumber(10000))));
+    p->Add(exec_handles, sequence(text("handles"), opt(either(text("on"), text("off")))));
+    p->Add(exec_httpsonly, sequence(text("httpsonly"), opt(either(text("on"), text("off")))));
+
+    p->Add(exec_mfac, sequence(text("mfac")));
+    p->Add(exec_mfae, sequence(text("mfae")));
+    p->Add(exec_mfad, sequence(text("mfad"), param("pin")));
+
+#if defined(WIN32) && defined(NO_READLINE)
+    p->Add(exec_autocomplete, sequence(text("autocomplete"), opt(either(text("unix"), text("dos")))));
+    p->Add(exec_history, sequence(text("history")));
+#endif
+    p->Add(exec_help, either(text("help"), text("h"), text("?")));
+    p->Add(exec_quit, either(text("quit"), text("q"), text("exit")));
 
     p->Add(exec_find, sequence(text("find"), text("raided")));
+#ifdef USE_FILESYSTEM
     p->Add(exec_treecompare, sequence(text("treecompare"), localFSPath(), remoteFSPath(client, &cwd)));
+#endif
     p->Add(exec_querytransferquota, sequence(text("querytransferquota"), param("filesize")));
+    p->Add(exec_getcloudstorageused, sequence(text("getcloudstorageused")));
+    p->Add(exec_getuserquota, sequence(text("getuserquota"), repeat(either(flag("-storage"), flag("-transfer"), flag("-pro")))));
 
     return autocompleteTemplate = std::move(p);
 }
-#endif
 
-bool extractparam(const std::string& p, vector<string>& words)
-{
-    for (unsigned i = 1; i < words.size(); ++i)
-    {
-        if (!words[i].empty() && words[i][0] == '-' && !words[i].compare(1, string::npos, p))
-        {
-            words.erase(words.begin() + i);
-            return true;
-        }
-    }
-    return false;
-}
 
 #ifdef USE_FILESYSTEM
 bool recursiveget(fs::path&& localpath, Node* n, bool folders, unsigned& queued)
@@ -2540,6 +2580,36 @@ bool recursiveget(fs::path&& localpath, Node* n, bool folders, unsigned& queued)
 }
 #endif
 
+bool regexget(const string& expression, Node* n, unsigned& queued)
+{
+    try
+    {
+        std::regex re(expression);
+
+        if (n->type == FOLDERNODE || n->type == ROOTNODE)
+        {
+            for (node_list::iterator it = n->children.begin(); it != n->children.end(); it++)
+            {
+                if ((*it)->type == FILENODE)
+                {
+                    if (regex_search(string((*it)->displayname()), re))
+                    {
+                        auto f = new AppFileGet(n);
+                        f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
+                        client->startxfer(GET, f);
+                        queued += 1;
+                    }
+                }
+            }
+        }
+    }
+    catch (std::exception& e)
+    {
+        cout << "ERROR: " << e.what() << endl;
+        return false;
+    }
+    return true;
+}
 
 struct Login
 {
@@ -2555,24 +2625,24 @@ struct Login
         *this = Login();
     }
 
-    void login(MegaClient* client)
+    void login(MegaClient* mc)
     {
-        byte pwkey[SymmCipher::KEYLENGTH];
+        byte keybuf[SymmCipher::KEYLENGTH];
 
         if (version == 1)
         {
-            if (error e = client->pw_key(password.c_str(), pwkey))
+            if (error e = mc->pw_key(password.c_str(), keybuf))
             {
                 cout << "Login error: " << e << endl;
             }
             else
             {
-                client->login(email.c_str(), pwkey, (!pin.empty()) ? pin.c_str() : NULL);
+                mc->login(email.c_str(), keybuf, (!pin.empty()) ? pin.c_str() : NULL);
             }
         }
         else if (version == 2 && !salt.empty())
         {
-            client->login2(email.c_str(), password.c_str(), &salt, (!pin.empty()) ? pin.c_str() : NULL);
+            mc->login2(email.c_str(), password.c_str(), &salt, (!pin.empty()) ? pin.c_str() : NULL);
         }
         else
         {
@@ -2591,3560 +2661,3011 @@ static void process_line(char* l)
 {
     switch (prompt)
     {
-        case LOGINTFA:
-                if (strlen(l) > 1)
-                {
-                    login.pin = l;
-                    login.login(client);
-                }
-                else
-                {
-                    cout << endl << "The pin length is invalid, please try to login again." << endl;
-                }
+    case LOGINTFA:
+        if (strlen(l) > 1)
+        {
+            login.pin = l;
+            login.login(client);
+        }
+        else
+        {
+            cout << endl << "The pin length is invalid, please try to login again." << endl;
+        }
 
-                setprompt(COMMAND);
-                return;
+        setprompt(COMMAND);
+        return;
 
-        case SETTFA:
-                client->multifactorauthsetup(l);
-                setprompt(COMMAND);
-                return;
+    case SETTFA:
+        client->multifactorauthsetup(l);
+        setprompt(COMMAND);
+        return;
 
-        case LOGINPASSWORD:
+    case LOGINPASSWORD:
 
-            if (signupcode.size())
+        if (signupcode.size())
+        {
+            // verify correctness of supplied signup password
+            client->pw_key(l, pwkey);
+            SymmCipher pwcipher(pwkey);
+            pwcipher.ecb_decrypt(signuppwchallenge);
+
+            if (MemAccess::get<int64_t>((const char*)signuppwchallenge + 4))
             {
-                // verify correctness of supplied signup password
-                client->pw_key(l, pwkey);
-                SymmCipher pwcipher(pwkey);
-                pwcipher.ecb_decrypt(signuppwchallenge);
-
-                if (MemAccess::get<int64_t>((const char*)signuppwchallenge + 4))
-                {
-                    cout << endl << "Incorrect password, please try again." << endl;
-                }
-                else
-                {
-                    client->confirmsignuplink((const byte*) signupcode.data(), unsigned(signupcode.size()),
-                                              MegaClient::stringhash64(&signupemail, &pwcipher));
-                }
-
-                signupcode.clear();
-            }
-            else if (recoverycode.size())   // cancelling account --> check password
-            {
-                client->pw_key(l, pwkey);
-                client->validatepwd(pwkey);
-            }
-            else if (changecode.size())     // changing email --> check password to avoid creating an invalid hash
-            {
-                client->pw_key(l, pwkey);
-                client->validatepwd(pwkey);
+                cout << endl << "Incorrect password, please try again." << endl;
             }
             else
             {
-                login.password = l;
-                login.login(client);
-                cout << endl << "Logging in..." << endl;
+                client->confirmsignuplink((const byte*)signupcode.data(), unsigned(signupcode.size()),
+                    MegaClient::stringhash64(&signupemail, &pwcipher));
             }
 
+            signupcode.clear();
+        }
+        else if (recoverycode.size())   // cancelling account --> check password
+        {
+            client->pw_key(l, pwkey);
+            client->validatepwd(pwkey);
+        }
+        else if (changecode.size())     // changing email --> check password to avoid creating an invalid hash
+        {
+            client->pw_key(l, pwkey);
+            client->validatepwd(pwkey);
+        }
+        else
+        {
+            login.password = l;
+            login.login(client);
+            cout << endl << "Logging in..." << endl;
+        }
+
+        setprompt(COMMAND);
+        return;
+
+    case OLDPASSWORD:
+        client->pw_key(l, pwkeybuf);
+
+        if (!memcmp(pwkeybuf, pwkey, sizeof pwkey))
+        {
+            cout << endl;
+            setprompt(NEWPASSWORD);
+        }
+        else
+        {
+            cout << endl << "Bad password, please try again" << endl;
             setprompt(COMMAND);
-            return;
+        }
+        return;
 
-        case OLDPASSWORD:
-            client->pw_key(l, pwkeybuf);
+    case NEWPASSWORD:
+        newpassword = l;
+        client->pw_key(l, newpwkey);
 
-            if (!memcmp(pwkeybuf, pwkey, sizeof pwkey))
+        cout << endl;
+        setprompt(PASSWORDCONFIRM);
+        return;
+
+    case PASSWORDCONFIRM:
+        client->pw_key(l, pwkeybuf);
+
+        if (memcmp(pwkeybuf, newpwkey, sizeof pwkeybuf))
+        {
+            cout << endl << "Mismatch, please try again" << endl;
+        }
+        else
+        {
+            error e;
+
+            if (signupemail.size())
             {
+                client->sendsignuplink(signupemail.c_str(), signupname.c_str(), newpwkey);
+            }
+            else if (recoveryemail.size() && recoverycode.size())
+            {
+                cout << endl << "Resetting password..." << endl;
+
+                if (hasMasterKey)
+                {
+                    client->confirmrecoverylink(recoverycode.c_str(), recoveryemail.c_str(), newpassword.c_str(), masterkey);
+                }
+                else
+                {
+                    client->confirmrecoverylink(recoverycode.c_str(), recoveryemail.c_str(), newpassword.c_str(), NULL);
+                }
+
+                recoverycode.clear();
+                recoveryemail.clear();
+                hasMasterKey = false;
+                memset(masterkey, 0, sizeof masterkey);
+            }
+            else
+            {
+                if ((e = client->changepw(newpassword.c_str())) == API_OK)
+                {
+                    memcpy(pwkey, newpwkey, sizeof pwkey);
+                    cout << endl << "Changing password..." << endl;
+                }
+                else
+                {
+                    cout << "You must be logged in to change your password." << endl;
+                }
+            }
+        }
+
+        setprompt(COMMAND);
+        signupemail.clear();
+        return;
+
+    case MASTERKEY:
+        cout << endl << "Retrieving private RSA key for checking integrity of the Master Key..." << endl;
+
+        Base64::atob(l, masterkey, sizeof masterkey);
+        client->getprivatekey(recoverycode.c_str());
+        return;
+
+    case COMMAND:
+        try
+        {
+            std::string consoleOutput;
+            ac::autoExec(string(l), string::npos, autocompleteTemplate, false, consoleOutput, true); // todo: pass correct unixCompletions flag
+            if (!consoleOutput.empty())
+            {
+                cout << consoleOutput << flush;
+            }
+        }
+        catch (std::exception& e)
+        {
+            cout << "Command failed: " << e.what() << endl;
+        }
+        return;
+    }
+}
+
+void exec_ls(autocomplete::ACState& s)
+{
+    Node* n;
+    bool recursive = s.extractflag("-R");
+
+    if (s.words.size() > 1)
+    {
+        n = nodebypath(s.words[1].s.c_str());
+    }
+    else
+    {
+        n = client->nodebyhandle(cwd);
+    }
+
+    if (n)
+    {
+        dumptree(n, recursive);
+    }
+}
+
+void exec_cd(autocomplete::ACState& s)
+{
+    if (s.words.size() > 1)
+    {
+        if (Node* n = nodebypath(s.words[1].s.c_str()))
+        {
+            if (n->type == FILENODE)
+            {
+                cout << s.words[1].s << ": Not a directory" << endl;
+            }
+            else
+            {
+                cwd = n->nodehandle;
+            }
+        }
+        else
+        {
+            cout << s.words[1].s << ": No such file or directory" << endl;
+        }
+    }
+    else
+    {
+        cwd = client->rootnodes[0];
+    }
+}
+
+void exec_rm(autocomplete::ACState& s)
+{
+    if (s.words.size() > 1)
+    {
+        if (Node* n = nodebypath(s.words[1].s.c_str()))
+        {
+            if (client->checkaccess(n, FULL))
+            {
+                error e = client->unlink(n);
+
+                if (e)
+                {
+                    cout << s.words[1].s << ": Deletion failed (" << errorstring(e) << ")" << endl;
+                }
+            }
+            else
+            {
+                cout << s.words[1].s << ": Access denied" << endl;
+            }
+        }
+        else
+        {
+            cout << s.words[1].s << ": No such file or directory" << endl;
+        }
+    }
+}
+
+void exec_mv(autocomplete::ACState& s)
+{
+    Node *n, *tn;
+    string newname;
+
+    if (s.words.size() > 2)
+    {
+        // source node must exist
+        if ((n = nodebypath(s.words[1].s.c_str())))
+        {
+            // we have four situations:
+            // 1. target path does not exist - fail
+            // 2. target node exists and is folder - move
+            // 3. target node exists and is file - delete and rename (unless same)
+            // 4. target path exists, but filename does not - rename
+            if ((tn = nodebypath(s.words[2].s.c_str(), NULL, &newname)))
+            {
+                error e;
+
+                if (newname.size())
+                {
+                    if (tn->type == FILENODE)
+                    {
+                        cout << s.words[2].s << ": Not a directory" << endl;
+
+                        return;
+                    }
+                    else
+                    {
+                        if ((e = client->checkmove(n, tn)) == API_OK)
+                        {
+                            if (!client->checkaccess(n, RDWR))
+                            {
+                                cout << "Write access denied" << endl;
+
+                                return;
+                            }
+
+                            // rename
+                            client->fsaccess->normalize(&newname);
+                            n->attrs.map['n'] = newname;
+
+                            if ((e = client->setattr(n)))
+                            {
+                                cout << "Cannot rename file (" << errorstring(e) << ")" << endl;
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    if (tn->type == FILENODE)
+                    {
+                        // (there should never be any orphaned filenodes)
+                        if (!tn->parent)
+                        {
+                            return;
+                        }
+
+                        if ((e = client->checkmove(n, tn->parent)) == API_OK)
+                        {
+                            if (!client->checkaccess(n, RDWR))
+                            {
+                                cout << "Write access denied" << endl;
+
+                                return;
+                            }
+
+                            // overwrite existing target file: rename source...
+                            n->attrs.map['n'] = tn->attrs.map['n'];
+                            e = client->setattr(n);
+
+                            if (e)
+                            {
+                                cout << "Rename failed (" << errorstring(e) << ")" << endl;
+                            }
+
+                            if (n != tn)
+                            {
+                                // ...delete target...
+                                e = client->unlink(tn);
+
+                                if (e)
+                                {
+                                    cout << "Remove failed (" << errorstring(e) << ")" << endl;
+                                }
+                            }
+                        }
+
+                        // ...and set target to original target's parent
+                        tn = tn->parent;
+                    }
+                    else
+                    {
+                        e = client->checkmove(n, tn);
+                    }
+                }
+
+                if (n->parent != tn)
+                {
+                    if (e == API_OK)
+                    {
+                        e = client->rename(n, tn);
+
+                        if (e)
+                        {
+                            cout << "Move failed (" << errorstring(e) << ")" << endl;
+                        }
+                    }
+                    else
+                    {
+                        cout << "Move not permitted - try copy" << endl;
+                    }
+                }
+            }
+            else
+            {
+                cout << s.words[2].s << ": No such directory" << endl;
+            }
+        }
+        else
+        {
+            cout << s.words[1].s << ": No such file or directory" << endl;
+        }
+    }
+}
+
+
+void exec_cp(autocomplete::ACState& s)
+{
+    Node *n, *tn;
+    string targetuser;
+    string newname;
+    error e;
+
+    if (s.words.size() > 2)
+    {
+        if ((n = nodebypath(s.words[1].s.c_str())))
+        {
+            if ((tn = nodebypath(s.words[2].s.c_str(), &targetuser, &newname)))
+            {
+                if (!client->checkaccess(tn, RDWR))
+                {
+                    cout << "Write access denied" << endl;
+
+                    return;
+                }
+
+                if (tn->type == FILENODE)
+                {
+                    if (n->type == FILENODE)
+                    {
+                        // overwrite target if source and taret are files
+
+                        // (there should never be any orphaned filenodes)
+                        if (!tn->parent)
+                        {
+                            return;
+                        }
+
+                        // ...delete target...
+                        e = client->unlink(tn);
+
+                        if (e)
+                        {
+                            cout << "Cannot delete existing file (" << errorstring(e) << ")"
+                                << endl;
+                        }
+
+                        // ...and set target to original target's parent
+                        tn = tn->parent;
+                    }
+                    else
+                    {
+                        cout << "Cannot overwrite file with folder" << endl;
+                        return;
+                    }
+                }
+            }
+
+            TreeProcCopy_mcli tc;
+            unsigned nc;
+            handle ovhandle = UNDEF;
+
+            if (!n->nodekey.size())
+            {
+                cout << "Cannot copy a node without key" << endl;
+                return;
+            }
+
+            if (n->attrstring)
+            {
+                n->applykey();
+                n->setattr();
+                if (n->attrstring)
+                {
+                    cout << "Cannot copy undecryptable node" << endl;
+                    return;
+                }
+            }
+
+            string sname;
+            if (newname.size())
+            {
+                sname = newname;
+                client->fsaccess->normalize(&sname);
+            }
+            else
+            {
+                attr_map::iterator it = n->attrs.map.find('n');
+                if (it != n->attrs.map.end())
+                {
+                    sname = it->second;
+                }
+            }
+
+            if (!client->versions_disabled && tn && n->type == FILENODE)
+            {
+                Node *ovn = client->childnodebyname(tn, sname.c_str(), true);
+                if (ovn)
+                {
+                    if (n->isvalid && ovn->isvalid && *(FileFingerprint*)n == *(FileFingerprint*)ovn)
+                    {
+                        cout << "Skipping identical node" << endl;
+                        return;
+                    }
+
+                    ovhandle = ovn->nodehandle;
+                }
+            }
+
+            // determine number of nodes to be copied
+            client->proctree(n, &tc, false, ovhandle != UNDEF);
+
+            tc.allocnodes();
+            nc = tc.nc;
+
+            // build new nodes array
+            client->proctree(n, &tc, false, ovhandle != UNDEF);
+
+            // if specified target is a filename, use it
+            if (newname.size())
+            {
+                SymmCipher key;
+                string attrstring;
+
+                // copy source attributes and rename
+                AttrMap attrs;
+
+                attrs.map = n->attrs.map;
+                attrs.map['n'] = sname;
+
+                key.setkey((const byte*)tc.nn->nodekey.data(), tc.nn->type);
+
+                // JSON-encode object and encrypt attribute string
+                attrs.getjson(&attrstring);
+                tc.nn->attrstring = new string;
+                client->makeattr(&key, tc.nn->attrstring, attrstring.c_str());
+            }
+
+            // tree root: no parent
+            tc.nn->parenthandle = UNDEF;
+            tc.nn->ovhandle = ovhandle;
+
+            if (tn)
+            {
+                // add the new nodes
+                client->putnodes(tn->nodehandle, tc.nn, nc);
+
+                // free in putnodes_result()
+                tc.nn = NULL;
+            }
+            else
+            {
+                if (targetuser.size())
+                {
+                    cout << "Attempting to drop into user " << targetuser << "'s inbox..." << endl;
+
+                    client->putnodes(targetuser.c_str(), tc.nn, nc);
+
+                    // free in putnodes_result()
+                    tc.nn = NULL;
+                }
+                else
+                {
+                    cout << s.words[2].s << ": No such file or directory" << endl;
+                }
+            }
+        }
+        else
+        {
+            cout << s.words[1].s << ": No such file or directory" << endl;
+        }
+    }
+}
+
+void exec_du(autocomplete::ACState& s)
+{
+    Node *n;
+    TreeProcDU du;
+
+    if (s.words.size() > 1)
+    {
+        if (!(n = nodebypath(s.words[1].s.c_str())))
+        {
+            cout << s.words[1].s << ": No such file or directory" << endl;
+
+            return;
+        }
+    }
+    else
+    {
+        n = client->nodebyhandle(cwd);
+    }
+
+    if (n)
+    {
+        client->proctree(n, &du);
+
+        cout << "Total storage used: " << (du.numbytes / 1048576) << " MB" << endl;
+        cout << "Total # of files: " << du.numfiles << endl;
+        cout << "Total # of folders: " << du.numfolders << endl;
+    }
+}
+
+void exec_get(autocomplete::ACState& s)
+{
+    Node *n;
+    string regularexpression;
+    if (s.extractflag("-r"))
+    {
+#ifdef USE_FILESYSTEM
+        // recursive get.  create local folder structure first, then queue transfer of all files 
+        bool foldersonly = s.extractflag("-foldersonly");
+
+        if (!(n = nodebypath(s.words[1].s.c_str())))
+        {
+            cout << s.words[1].s << ": No such folder (or file)" << endl;
+        }
+        else if (n->type != FOLDERNODE && n->type != ROOTNODE)
+        {
+            cout << s.words[1].s << ": not a folder" << endl;
+        }
+        else
+        {
+            unsigned queued = 0;
+            cout << "creating folders: " << endl;
+            if (recursiveget(fs::current_path(), n, true, queued))
+            {
+                if (!foldersonly)
+                {
+                    cout << "queueing files..." << endl;
+                    bool alldone = recursiveget(fs::current_path(), n, false, queued);
+                    cout << "queued " << queued << " files for download" << (!alldone ? " before failure" : "") << endl;
+                }
+            }
+        }
+#else
+        cout << "Sorry, -r not supported yet" << endl;
+#endif
+    }
+    else if (s.extractflagparam("-re", regularexpression))
+    {
+        if (!(n = nodebypath(".")))
+        {
+            cout << ": No current folder" << endl;
+        }
+        else if (n->type != FOLDERNODE && n->type != ROOTNODE)
+        {
+            cout << ": not in a folder" << endl;
+        }
+        else
+        {
+            unsigned queued = 0;
+            if (regexget(regularexpression, n, queued))
+            {
+                cout << "queued " << queued << " files for download" << endl;
+            }
+        }
+    }
+    else
+    {
+        if (client->openfilelink(s.words[1].s.c_str(), 0) == API_OK)
+        {
+            cout << "Checking link..." << endl;
+            return;
+        }
+
+        n = nodebypath(s.words[1].s.c_str());
+
+        if (n)
+        {
+            if (s.words.size() > 2)
+            {
+                // read file slice
+                if (s.words.size() == 5)
+                {
+                    pread_file = new ofstream(s.words[4].s.c_str(), std::ios_base::binary);
+                    pread_file_end = atol(s.words[2].s.c_str()) + atol(s.words[3].s.c_str());
+                }
+
+                client->pread(n, atol(s.words[2].s.c_str()), (s.words.size() > 3) ? atol(s.words[3].s.c_str()) : 0, NULL);
+            }
+            else
+            {
+                AppFile* f;
+
+                // queue specified file...
+                if (n->type == FILENODE)
+                {
+                    f = new AppFileGet(n);
+
+                    string::size_type index = s.words[1].s.find(":");
+                    // node from public folder link
+                    if (index != string::npos && s.words[1].s.substr(0, index).find("@") == string::npos)
+                    {
+                        handle h = clientFolder->getrootpublicfolder();
+                        char *pubauth = new char[12];
+                        Base64::btoa((byte*)&h, MegaClient::NODEHANDLE, pubauth);
+                        f->pubauth = pubauth;
+                        f->hprivate = true;
+                        f->hforeign = true;
+                        memcpy(f->filekey, n->nodekey.data(), FILENODEKEYLENGTH);
+                    }
+
+                    f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
+                    client->startxfer(GET, f);
+                }
+                else
+                {
+                    // ...or all files in the specified folder (non-recursive)
+                    for (node_list::iterator it = n->children.begin(); it != n->children.end(); it++)
+                    {
+                        if ((*it)->type == FILENODE)
+                        {
+                            f = new AppFileGet(*it);
+                            f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
+                            client->startxfer(GET, f);
+                        }
+                    }
+                }
+            }
+        }
+        else
+        {
+            cout << s.words[1].s << ": No such file or folder" << endl;
+        }
+    }
+}
+
+void exec_put(autocomplete::ACState& s)
+{
+    AppFile* f;
+    handle target = cwd;
+    string targetuser;
+    string newname;
+    int total = 0;
+    string localname;
+    string name;
+    nodetype_t type;
+    Node* n = NULL;
+
+    if (s.words.size() > 2)
+    {
+        if ((n = nodebypath(s.words[2].s.c_str(), &targetuser, &newname)))
+        {
+            target = n->nodehandle;
+        }
+    }
+    else    // target is current path
+    {
+        n = client->nodebyhandle(target);
+    }
+
+    if (client->loggedin() == NOTLOGGEDIN && !targetuser.size())
+    {
+        cout << "Not logged in." << endl;
+
+        return;
+    }
+
+    client->fsaccess->path2local(&s.words[1].s, &localname);
+
+    DirAccess* da = client->fsaccess->newdiraccess();
+
+    if (da->dopen(&localname, NULL, true))
+    {
+        while (da->dnext(NULL, &localname, true, &type))
+        {
+            client->fsaccess->local2path(&localname, &name);
+            cout << "Queueing " << name << "..." << endl;
+
+            if (type == FILENODE)
+            {
+                FileAccess *fa = client->fsaccess->newfileaccess();
+                if (fa->fopen(&name, true, false))
+                {
+                    FileFingerprint fp;
+                    fp.genfingerprint(fa);
+
+                    Node *previousNode = client->childnodebyname(n, name.c_str(), true);
+                    if (previousNode && previousNode->type == type)
+                    {
+                        if (fp.isvalid && previousNode->isvalid && fp == *((FileFingerprint *)previousNode))
+                        {
+                            cout << "Identical file already exist. Skipping transfer of " << name << endl;
+                            delete fa;
+                            continue;
+                        }
+                    }
+                }
+                delete fa;
+
+                f = new AppFilePut(&localname, target, targetuser.c_str());
+                f->appxfer_it = appxferq[PUT].insert(appxferq[PUT].end(), f);
+                client->startxfer(PUT, f);
+                total++;
+            }
+        }
+    }
+
+    delete da;
+
+    cout << "Queued " << total << " file(s) for upload, " << appxferq[PUT].size()
+        << " file(s) in queue" << endl;
+}
+
+void exec_pwd(autocomplete::ACState& s)
+{
+    string path;
+
+    nodepath(cwd, &path);
+
+    cout << path << endl;
+}
+
+void exec_lcd(autocomplete::ACState& s)
+{
+    string localpath;
+
+    client->fsaccess->path2local(&s.words[1].s, &localpath);
+
+    if (!client->fsaccess->chdirlocal(&localpath))
+    {
+        cout << s.words[1].s << ": Failed" << endl;
+    }
+}
+
+#ifdef USE_FILESYSTEM
+void exec_lls(autocomplete::ACState& s)
+{
+    bool recursive = s.extractflag("-R");
+    fs::path ls_folder = s.words.size() > 1 ? fs::u8path(s.words[1].s) : fs::current_path();
+    std::error_code ec;
+    auto status = fs::status(ls_folder, ec);
+    (void)status;
+    if (ec)
+    {
+        cerr << ec.message() << endl;
+    }
+    else if (!fs::exists(ls_folder))
+    {
+        cerr << "not found" << endl;
+    }
+    else
+    {
+        local_dumptree(ls_folder, recursive);
+    }
+}
+#endif
+
+void exec_ipc(autocomplete::ACState& s)
+{
+    // incoming pending contact action
+    handle phandle;
+    if (s.words.size() == 3 && Base64::atob(s.words[1].s.c_str(), (byte*) &phandle, sizeof phandle) == sizeof phandle)
+    {
+        ipcactions_t action;
+        if (s.words[2].s == "a")
+        {
+            action = IPCA_ACCEPT;
+        }
+        else if (s.words[2].s == "d")
+        {
+            action = IPCA_DENY;
+        }
+        else if (s.words[2].s == "i")
+        {
+            action = IPCA_IGNORE;
+        }
+        else
+        {
+            return;
+        }
+        client->updatepcr(phandle, action);
+    }
+}
+
+#if defined(WIN32) && defined(NO_READLINE)
+void exec_log(autocomplete::ACState& s)
+{
+    if (s.words.size() == 1)
+    {
+        // close log
+        static_cast<WinConsole*>(console)->log("", WinConsole::no_log);
+        cout << "log closed" << endl;
+    }
+    else if (s.words.size() == 3)
+    {
+        // open log
+        WinConsole::logstyle style = WinConsole::no_log;
+        if (s.words[1].s == "utf8")
+        {
+            style = WinConsole::utf8_log;
+        }
+        else if (s.words[1].s == "utf16")
+        {
+            style = WinConsole::utf16_log;
+        }
+        else if (s.words[1].s == "codepage")
+        {
+            style = WinConsole::codepage_log;
+        }
+        else
+        {
+            cout << "unknown log style" << endl;
+        }
+        if (!static_cast<WinConsole*>(console)->log(s.words[2].s, style))
+        {
+            cout << "failed to open log file" << endl;
+        }
+    }
+}
+#endif
+
+void exec_putq(autocomplete::ACState& s)
+{
+    xferq(PUT, s.words.size() > 1 ? atoi(s.words[1].s.c_str()) : -1);
+}
+
+void exec_getq(autocomplete::ACState& s)
+{
+    xferq(GET, s.words.size() > 1 ? atoi(s.words[1].s.c_str()) : -1);
+}
+
+void exec_open(autocomplete::ACState& s)
+{
+    if (strstr(s.words[1].s.c_str(), "#F!"))  // folder link indicator
+    {
+        if (!clientFolder)
+        {
+            using namespace mega;
+            // create a new MegaClient with a different MegaApp to process callbacks
+            // from the client logged into a folder. Reuse the waiter and httpio
+            clientFolder = new MegaClient(new DemoAppFolder, client->waiter,
+                                            client->httpio, new FSACCESS_CLASS,
+                #ifdef DBACCESS_CLASS
+                                            new DBACCESS_CLASS,
+                #else
+                                            NULL,
+                #endif
+                #ifdef GFX_CLASS
+                                            new GFX_CLASS,
+                #else
+                                            NULL,
+                #endif
+                                            "Gk8DyQBS",
+                                            "megacli_folder/" TOSTRING(MEGA_MAJOR_VERSION)
+                                            "." TOSTRING(MEGA_MINOR_VERSION)
+                                            "." TOSTRING(MEGA_MICRO_VERSION));
+        }
+        else
+        {
+            clientFolder->logout();
+        }
+
+        return clientFolder->app->login_result(clientFolder->folderaccess(s.words[1].s.c_str()));
+    }
+    else
+    {
+        cout << "Invalid folder link." << endl;
+    }
+}
+
+#ifdef ENABLE_SYNC
+void exec_sync(autocomplete::ACState& s)
+{
+    if (s.words.size() == 3)
+    {
+        Node* n = nodebypath(s.words[2].s.c_str());
+
+        if (client->checkaccess(n, FULL))
+        {
+            string localname;
+
+            client->fsaccess->path2local(&s.words[1].s, &localname);
+
+            if (!n)
+            {
+                cout << s.words[2].s << ": Not found." << endl;
+            }
+            else if (n->type == FILENODE)
+            {
+                cout << s.words[2].s << ": Remote sync root must be folder." << endl;
+            }
+            else
+            {
+                error e = client->addsync(&localname, DEBRISFOLDER, NULL, n);
+
+                if (e)
+                {
+                    cout << "Sync could not be added: " << errorstring(e) << endl;
+                }
+            }
+        }
+        else
+        {
+            cout << s.words[2].s << ": Syncing requires full access to path." << endl;
+        }
+    }
+    else if (s.words.size() == 2)
+    {
+        int i = 0, cancel = atoi(s.words[1].s.c_str());
+
+        for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
+        {
+            if ((*it)->state > SYNC_CANCELED && i++ == cancel)
+            {
+                client->delsync(*it);
+
+                cout << "Sync " << cancel << " deactivated and removed." << endl;
+                break;
+            }
+        }
+    }
+    else if (s.words.size() == 1)
+    {
+        if (client->syncs.size())
+        {
+            int i = 0;
+            string remotepath, localpath;
+
+            for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
+            {
+                if ((*it)->state > SYNC_CANCELED)
+                {
+                    static const char* syncstatenames[] =
+                    { "Initial scan, please wait", "Active", "Failed" };
+
+                    if ((*it)->localroot.node)
+                    {
+                        nodepath((*it)->localroot.node->nodehandle, &remotepath);
+                        client->fsaccess->local2path(&(*it)->localroot.localname, &localpath);
+
+                        cout << i++ << ": " << localpath << " to " << remotepath << " - "
+                                << syncstatenames[(*it)->state] << ", " << (*it)->localbytes
+                                << " byte(s) in " << (*it)->localnodes[FILENODE] << " file(s) and "
+                                << (*it)->localnodes[FOLDERNODE] << " folder(s)" << endl;
+                    }
+                }
+            }
+        }
+        else
+        {
+            cout << "No syncs active at this time." << endl;
+        }
+    }
+}
+#endif
+
+#ifdef USE_FILESYSTEM
+void exec_lpwd(autocomplete::ACState& s)
+{
+    cout << fs::current_path().u8string() << endl;
+}
+#endif
+
+
+void exec_test(autocomplete::ACState& s)
+{
+}
+
+void exec_mfad(autocomplete::ACState& s)
+{
+    client->multifactorauthdisable(s.words[1].s.c_str());
+}
+
+void exec_mfac(autocomplete::ACState& s)
+{
+    client->multifactorauthcheck(login.email.c_str());
+}
+
+void exec_mfae(autocomplete::ACState& s)
+{
+    client->multifactorauthsetup();
+}
+
+void exec_login(autocomplete::ACState& s)
+{
+    if (client->loggedin() == NOTLOGGEDIN)
+    {
+        if (s.words.size() > 1)
+        {
+            if ((s.words.size() == 2 || s.words.size() == 3) && s.words[1].s == "autoresume")
+            {
+                string filename = "megacli_autoresume_session" + (s.words.size() == 3 ? "_" + s.words[2].s : "");
+                ifstream file(filename.c_str());
+                string session;
+                file >> session;
+                if (file.is_open() && session.size())
+                {
+                    byte sessionraw[64];
+                    if (session.size() < sizeof sessionraw * 4 / 3)
+                    {
+                        int size = Base64::atob(session.c_str(), sessionraw, sizeof sessionraw);
+
+                        cout << "Resuming session..." << endl;
+                        return client->login(sessionraw, size);
+                    }
+                }
+                cout << "Failed to get a valid session id from file " << filename << endl;
+            }
+            else if (strchr(s.words[1].s.c_str(), '@'))
+            {
+                login.reset();
+                login.email = s.words[1].s;
+
+                // full account login
+                if (s.words.size() > 2)
+                {
+                    login.password = s.words[2].s;
+                    cout << "Initiated login attempt..." << endl;
+                }
+                client->prelogin(login.email.c_str());
+            }
+            else
+            {
+                const char* ptr;
+                if ((ptr = strchr(s.words[1].s.c_str(), '#')))  // folder link indicator
+                {
+                    return client->app->login_result(client->folderaccess(s.words[1].s.c_str()));
+                }
+                else
+                {
+                    byte session[64];
+                    int size;
+
+                    if (s.words[1].s.size() < sizeof session * 4 / 3)
+                    {
+                        size = Base64::atob(s.words[1].s.c_str(), session, sizeof session);
+
+                        cout << "Resuming session..." << endl;
+
+                        return client->login(session, size);
+                    }
+                }
+
+                cout << "Invalid argument. Please specify a valid e-mail address, "
+                    << "a folder link containing the folder key "
+                    << "or a valid session." << endl;
+            }
+        }
+        else
+        {
+            cout << "      login email [password]" << endl
+                << "      login exportedfolderurl#key" << endl
+                << "      login session" << endl;
+        }
+    }
+    else
+    {
+        cout << "Already logged in. Please log out first." << endl;
+    }
+}
+
+void exec_begin(autocomplete::ACState& s)
+{
+    if (s.words.size() == 1)
+    {
+        cout << "Creating ephemeral session..." << endl;
+        pdf_to_import = true;
+        client->createephemeral();
+    }
+    else if (s.words.size() == 2)
+    {
+        handle uh;
+        byte pw[SymmCipher::KEYLENGTH];
+
+        if (Base64::atob(s.words[1].s.c_str(), (byte*) &uh, MegaClient::USERHANDLE) == sizeof uh && Base64::atob(
+            s.words[1].s.c_str() + 12, pw, sizeof pw) == sizeof pw)
+        {
+            client->resumeephemeral(uh, pw);
+        }
+        else
+        {
+            cout << "Malformed ephemeral session identifier." << endl;
+        }
+    }
+}
+
+void exec_mount(autocomplete::ACState& s)
+{
+    listtrees();
+}
+
+void exec_share(autocomplete::ACState& s)
+{
+    switch (s.words.size())
+    {
+    case 1:		// list all shares (incoming and outgoing)
+    {
+        TreeProcListOutShares listoutshares;
+        Node* n;
+
+        cout << "Shared folders:" << endl;
+
+        for (unsigned i = 0; i < sizeof client->rootnodes / sizeof *client->rootnodes; i++)
+        {
+            if ((n = client->nodebyhandle(client->rootnodes[i])))
+            {
+                client->proctree(n, &listoutshares);
+            }
+        }
+
+        for (user_map::iterator uit = client->users.begin();
+            uit != client->users.end(); uit++)
+        {
+            User* u = &uit->second;
+            Node* n;
+
+            if (u->show == VISIBLE && u->sharing.size())
+            {
+                cout << "From " << u->email << ":" << endl;
+
+                for (handle_set::iterator sit = u->sharing.begin();
+                    sit != u->sharing.end(); sit++)
+                {
+                    if ((n = client->nodebyhandle(*sit)))
+                    {
+                        cout << "\t" << n->displayname() << " ("
+                            << getAccessLevelStr(n->inshare->access) << ")" << endl;
+                    }
+                }
+            }
+        }
+    }
+    break;
+
+    case 2:	    // list all outgoing shares on this path
+    case 3:	    // remove outgoing share to specified e-mail address
+    case 4:	    // add outgoing share to specified e-mail address
+    case 5:     // user specified a personal representation to appear as for the invitation
+        if (Node* n = nodebypath(s.words[1].s.c_str()))
+        {
+            if (s.words.size() == 2)
+            {
+                listnodeshares(n);
+            }
+            else
+            {
+                accesslevel_t a = ACCESS_UNKNOWN;
+                const char* personal_representation = NULL;
+                if (s.words.size() > 3)
+                {
+                    if (s.words[3].s == "r" || s.words[3].s == "ro")
+                    {
+                        a = RDONLY;
+                    }
+                    else if (s.words[3].s == "rw")
+                    {
+                        a = RDWR;
+                    }
+                    else if (s.words[3].s == "full")
+                    {
+                        a = FULL;
+                    }
+                    else
+                    {
+                        cout << "Access level must be one of r, rw or full" << endl;
+
+                        return;
+                    }
+
+                    if (s.words.size() > 4)
+                    {
+                        personal_representation = s.words[4].s.c_str();
+                    }
+                }
+
+                client->setshare(n, s.words[2].s.c_str(), a, personal_representation);
+            }
+        }
+        else
+        {
+            cout << s.words[1].s << ": No such directory" << endl;
+        }
+        break;
+    }
+}
+
+void exec_users(autocomplete::ACState& s)
+{
+    if (s.words.size() == 1)
+    {
+        for (user_map::iterator it = client->users.begin(); it != client->users.end(); it++)
+        {
+            if (it->second.email.size())
+            {
+                cout << "\t" << it->second.email;
+
+                if (it->second.userhandle == client->me)
+                {
+                    cout << ", session user";
+                }
+                else if (it->second.show == VISIBLE)
+                {
+                    cout << ", visible";
+                }
+                else if (it->second.show == HIDDEN)
+                {
+                    cout << ", hidden";
+                }
+                else if (it->second.show == INACTIVE)
+                {
+                    cout << ", inactive";
+                }
+                else if (it->second.show == BLOCKED)
+                {
+                    cout << ", blocked";
+                }
+                else
+                {
+                    cout << ", unknown visibility (" << it->second.show << ")";
+                }
+
+                if (it->second.sharing.size())
+                {
+                    cout << ", sharing " << it->second.sharing.size() << " folder(s)";
+                }
+
+                if (it->second.pubk.isvalid())
+                {
+                    cout << ", public key cached";
+                }
+
+                cout << endl;
+            }
+        }
+    }
+    else if (s.words.size() == 3 && s.words[2].s == "del")
+    {
+        client->removecontact(s.words[1].s.c_str(), HIDDEN);
+    }
+}
+
+void exec_mkdir(autocomplete::ACState& s)
+{
+    if (s.words.size() > 1)
+    {
+        string newname;
+
+        if (Node* n = nodebypath(s.words[1].s.c_str(), NULL, &newname))
+        {
+            if (!client->checkaccess(n, RDWR))
+            {
+                cout << "Write access denied" << endl;
+
+                return;
+            }
+
+            if (newname.size())
+            {
+                SymmCipher key;
+                string attrstring;
+                byte buf[FOLDERNODEKEYLENGTH];
+                NewNode* newnode = new NewNode[1];
+
+                // set up new node as folder node
+                newnode->source = NEW_NODE;
+                newnode->type = FOLDERNODE;
+                newnode->nodehandle = 0;
+                newnode->parenthandle = UNDEF;
+
+                // generate fresh random key for this folder node
+                client->rng.genblock(buf, FOLDERNODEKEYLENGTH);
+                newnode->nodekey.assign((char*)buf, FOLDERNODEKEYLENGTH);
+                key.setkey(buf);
+
+                // generate fresh attribute object with the folder name
+                AttrMap attrs;
+
+                client->fsaccess->normalize(&newname);
+                attrs.map['n'] = newname;
+
+                // JSON-encode object and encrypt attribute string
+                attrs.getjson(&attrstring);
+                newnode->attrstring = new string;
+                client->makeattr(&key, newnode->attrstring, attrstring.c_str());
+
+                // add the newly generated folder node
+                client->putnodes(n->nodehandle, newnode, 1);
+            }
+            else
+            {
+                cout << s.words[1].s << ": Path already exists" << endl;
+            }
+        }
+        else
+        {
+            cout << s.words[1].s << ": Target path not found" << endl;
+        }
+    }
+}
+
+void exec_getfa(autocomplete::ACState& s)
+{
+    Node* n;
+    int cancel = s.words.size() > 2 && s.words.back().s == "cancel";
+
+    if (s.words.size() < 3)
+    {
+        n = client->nodebyhandle(cwd);
+    }
+    else if (!(n = nodebypath(s.words[2].s.c_str())))
+    {
+        cout << s.words[2].s << ": Path not found" << endl;
+    }
+
+    if (n)
+    {
+        int c = 0;
+        fatype type;
+
+        type = fatype(atoi(s.words[1].s.c_str()));
+
+        if (n->type == FILENODE)
+        {
+            if (n->hasfileattribute(type))
+            {
+                client->getfa(n->nodehandle, &n->fileattrstring, &n->nodekey, type, cancel);
+                c++;
+            }
+        }
+        else
+        {
+            for (node_list::iterator it = n->children.begin(); it != n->children.end(); it++)
+            {
+                if ((*it)->type == FILENODE && (*it)->hasfileattribute(type))
+                {
+                    client->getfa((*it)->nodehandle, &(*it)->fileattrstring, &(*it)->nodekey, type, cancel);
+                    c++;
+                }
+            }
+        }
+
+        cout << (cancel ? "Canceling " : "Fetching ") << c << " file attribute(s) of type " << type << "..." << endl;
+    }
+}
+
+void exec_getua(autocomplete::ACState& s)
+{
+    User* u = NULL;
+
+    if (s.words.size() == 3)
+    {
+        // get other user's attribute
+        if (!(u = client->finduser(s.words[2].s.c_str())))
+        {
+            cout << "Retrieving user attribute for unknown user: " << s.words[2].s << endl;
+            client->getua(s.words[2].s.c_str(), User::string2attr(s.words[1].s.c_str()));
+            return;
+        }
+    }
+    else if (s.words.size() != 2)
+    {
+        cout << "      getua attrname [email]" << endl;
+        return;
+    }
+
+    if (!u)
+    {
+        // get logged in user's attribute
+        if (!(u = client->ownuser()))
+        {
+            cout << "Must be logged in to query own attributes." << endl;
+            return;
+        }
+    }
+
+    client->getua(u, User::string2attr(s.words[1].s.c_str()));
+}
+
+void exec_putua(autocomplete::ACState& s)
+{
+    attr_t attrtype = User::string2attr(s.words[1].s.c_str());
+    if (attrtype == ATTR_UNKNOWN)
+    {
+        cout << "Attribute not recognized" << endl;
+        return;
+    }
+
+    if (s.words.size() == 2)
+    {
+        // delete attribute
+        client->putua(attrtype);
+
+        return;
+    }
+    else if (s.words.size() == 3)
+    {
+        if (s.words[2].s == "del")
+        {
+            client->putua(attrtype);
+
+            return;
+        }
+    }
+    else if (s.words.size() == 4)
+    {
+        if (s.words[2].s == "set")
+        {
+            client->putua(attrtype, (const byte*)s.words[3].s.c_str(), unsigned(s.words[3].s.size()));
+
+            return;
+        }
+        else if (s.words[2].s == "set64")
+        {
+            int len = int(s.words[3].s.size() * 3 / 4 + 3);
+            byte *value = new byte[len];
+            int valuelen = Base64::atob(s.words[3].s.data(), value, len);
+            client->putua(attrtype, value, valuelen);
+            delete [] value;
+            return;
+        }
+        else if (s.words[2].s == "load")
+        {
+            string data, localpath;
+
+            client->fsaccess->path2local(&s.words[3].s, &localpath);
+
+            if (loadfile(&localpath, &data))
+            {
+                client->putua(attrtype, (const byte*) data.data(), unsigned(data.size()));
+            }
+            else
+            {
+                cout << "Cannot read " << s.words[3].s << endl;
+            }
+
+            return;
+        }
+    }
+}
+
+#ifdef DEBUG
+void exec_delua(autocomplete::ACState& s)
+{
+    client->delua(s.words[1].s.c_str());
+}
+#endif
+
+void exec_pause(autocomplete::ACState& s)
+{
+    bool getarg = false, putarg = false, hardarg = false, statusarg = false;
+
+    for (size_t i = s.words.size(); --i; )
+    {
+        if (s.words[i].s == "get")
+        {
+            getarg = true;
+        }
+        if (s.words[i].s == "put")
+        {
+            putarg = true;
+        }
+        if (s.words[i].s == "hard")
+        {
+            hardarg = true;
+        }
+        if (s.words[i].s == "status")
+        {
+            statusarg = true;
+        }
+    }
+
+    if (statusarg)
+    {
+        if (!hardarg && !getarg && !putarg)
+        {
+            if (!client->xferpaused[GET] && !client->xferpaused[PUT])
+            {
+                cout << "Transfers not paused at the moment." << endl;
+            }
+            else
+            {
+                if (client->xferpaused[GET])
+                {
+                    cout << "GETs currently paused." << endl;
+                }
+                if (client->xferpaused[PUT])
+                {
+                    cout << "PUTs currently paused." << endl;
+                }
+            }
+        }
+        return;
+    }
+
+    if (!getarg && !putarg)
+    {
+        getarg = true;
+        putarg = true;
+    }
+
+    if (getarg)
+    {
+        client->pausexfers(GET, client->xferpaused[GET] ^= true, hardarg);
+        if (client->xferpaused[GET])
+        {
+            cout << "GET transfers paused. Resume using the same command." << endl;
+        }
+        else
+        {
+            cout << "GET transfers unpaused." << endl;
+        }
+    }
+
+    if (putarg)
+    {
+        client->pausexfers(PUT, client->xferpaused[PUT] ^= true, hardarg);
+        if (client->xferpaused[PUT])
+        {
+            cout << "PUT transfers paused. Resume using the same command." << endl;
+        }
+        else
+        {
+            cout << "PUT transfers unpaused." << endl;
+        }
+    }
+}
+
+void exec_debug(autocomplete::ACState& s)
+{
+    cout << "Debug mode " << (client->toggledebug() ? "on" : "off") << endl;
+}
+
+#if defined(WIN32) && defined(NO_READLINE)
+void exec_clear(autocomplete::ACState& s)
+{
+    static_cast<WinConsole*>(console)->clearScreen();
+}
+#endif
+
+void exec_retry(autocomplete::ACState& s)
+{
+    if (client->abortbackoff())
+    {
+        cout << "Retrying..." << endl;
+    }
+    else
+    {
+        cout << "No failed request pending." << endl;
+    }
+}
+
+void exec_recon(autocomplete::ACState& s)
+{
+    cout << "Closing all open network connections..." << endl;
+
+    client->disconnect();
+}
+
+void exec_email(autocomplete::ACState& s)
+{
+    if (s.words.size() == 1)
+    {
+        User *u = client->finduser(client->me);
+        if (u)
+        {
+            cout << "Your current email address is " << u->email << endl;
+        }
+        else
+        {
+            cout << "Please, login first" << endl;
+        }
+    }
+    else if (s.words.size() == 2)
+    {
+        if (s.words[1].s.find("@") != string::npos)    // get change email link
+        {
+            client->getemaillink(s.words[1].s.c_str());
+        }
+        else    // confirm change email link
+        {
+            string link = s.words[1].s;
+
+            size_t pos = link.find("#verify");
+            if (pos == link.npos)
+            {
+                cout << "Invalid email change link." << endl;
+                return;
+            }
+
+            changecode.assign(link.substr(pos + strlen("#verify")));
+            client->queryrecoverylink(changecode.c_str());
+        }
+    }
+}
+
+#ifdef ENABLE_CHAT
+void exec_chatc(autocomplete::ACState& s)
+{
+    size_t wordscount = s.words.size();
+    if (wordscount < 2 || wordscount == 3)
+    {
+        cout << "Invalid syntax to create chatroom" << endl;
+        cout << "      chatc group [email ro|sta|mod]* " << endl;
+        return;
+    }
+
+    int group = atoi(s.words[1].s.c_str());
+    if (group != 0 && group != 1)
+    {
+        cout << "Invalid syntax to create chatroom" << endl;
+        cout << "      chatc group [email ro|sta|mod]* " << endl;
+        return;
+    }
+
+    unsigned parseoffset = 2;
+    if (((wordscount - parseoffset) % 2) == 0)
+    {
+        if (!group && (wordscount - parseoffset) != 2)
+        {
+            cout << "Peer to peer chats must have only one peer" << endl;
+            return;
+        }
+
+        userpriv_vector *userpriv = new userpriv_vector;
+
+        unsigned numUsers = 0;
+        while ((numUsers + 1) * 2 + parseoffset <= wordscount)
+        {
+            string email = s.words[numUsers * 2 + parseoffset].s;
+            User *u = client->finduser(email.c_str(), 0);
+            if (!u)
+            {
+                cout << "User not found: " << email << endl;
+                delete userpriv;
+                return;
+            }
+
+            string privstr = s.words[numUsers * 2 + parseoffset + 1].s;
+            privilege_t priv;
+            if (!group) // 1:1 chats enforce peer to be moderator
+            {
+                priv = PRIV_MODERATOR;
+            }
+            else
+            {
+                if (privstr == "ro")
+                {
+                    priv = PRIV_RO;
+                }
+                else if (privstr == "sta")
+                {
+                    priv = PRIV_STANDARD;
+                }
+                else if (privstr == "mod")
+                {
+                    priv = PRIV_MODERATOR;
+                }
+                else
+                {
+                    cout << "Unknown privilege for " << email << endl;
+                    delete userpriv;
+                    return;
+                }
+            }
+
+            userpriv->push_back(userpriv_pair(u->userhandle, priv));
+            numUsers++;
+        }
+
+        client->createChat(group, false, userpriv);
+        delete userpriv;
+    }
+}
+
+void exec_chati(autocomplete::ACState& s)
+{
+    if (s.words.size() >= 4 && s.words.size() <= 7)
+    {
+        handle chatid;
+        Base64::atob(s.words[1].s.c_str(), (byte*)&chatid, MegaClient::CHATHANDLE);
+
+        string email = s.words[2].s;
+        User *u = client->finduser(email.c_str(), 0);
+        if (!u)
+        {
+            cout << "User not found: " << email << endl;
+            return;
+        }
+
+        string privstr = s.words[3].s;
+        privilege_t priv;
+        if (privstr == "ro")
+        {
+            priv = PRIV_RO;
+        }
+        else if (privstr == "sta")
+        {
+            priv = PRIV_STANDARD;
+        }
+        else if (privstr == "mod")
+        {
+            priv = PRIV_MODERATOR;
+        }
+        else
+        {
+            cout << "Unknown privilege for " << email << endl;
+            return;
+        }
+
+        string title;
+        string unifiedKey;
+        if (s.words.size() == 5)
+        {
+            unifiedKey = s.words[4].s;
+        }
+        else if (s.words.size() >= 6 && s.words[4].s == "t")
+        {
+            title = s.words[5].s;
+            if (s.words.size() == 7)
+            {
+                unifiedKey = s.words[6].s;
+            }
+        }
+        const char *t = !title.empty() ? title.c_str() : NULL;
+        const char *uk = !unifiedKey.empty() ? unifiedKey.c_str() : NULL;
+
+        client->inviteToChat(chatid, u->userhandle, priv, uk, t);
+        return;
+    }
+}
+
+void exec_chatr(autocomplete::ACState& s)
+{
+    if (s.words.size() > 1 && s.words.size() < 4)
+    {
+        handle chatid;
+        Base64::atob(s.words[1].s.c_str(), (byte*)&chatid, MegaClient::CHATHANDLE);
+
+        if (s.words.size() == 2)
+        {
+            client->removeFromChat(chatid, client->me);
+            return;
+        }
+        else if (s.words.size() == 3)
+        {
+            string email = s.words[2].s;
+            User *u = client->finduser(email.c_str(), 0);
+            if (!u)
+            {
+                cout << "User not found: " << email << endl;
+                return;
+            }
+
+            client->removeFromChat(chatid, u->userhandle);
+            return;
+        }
+    }
+}
+
+void exec_chatu(autocomplete::ACState& s)
+{
+    handle chatid;
+    Base64::atob(s.words[1].s.c_str(), (byte*)&chatid, MegaClient::CHATHANDLE);
+
+    client->getUrlChat(chatid);
+}
+
+void exec_chata(autocomplete::ACState& s)
+{
+    handle chatid;
+    Base64::atob(s.words[1].s.c_str(), (byte*)&chatid, MegaClient::CHATHANDLE);
+    bool archive = (s.words[2].s == "1");
+    if (!archive && (s.words[2].s != "0"))
+    {
+        cout << "Use 1 or 0 to archive/unarchive chats" << endl;
+        return;
+    }
+
+    client->archiveChat(chatid, archive);
+}
+
+void exec_chats(autocomplete::ACState& s)
+{
+    if (s.words.size() == 1)
+    {
+        textchat_map::iterator it;
+        for (it = client->chats.begin(); it != client->chats.end(); it++)
+        {
+            DemoApp::printChatInformation(it->second);
+        }
+        return;
+    }
+    if (s.words.size() == 2)
+    {
+        handle chatid;
+        Base64::atob(s.words[1].s.c_str(), (byte*)&chatid, MegaClient::CHATHANDLE);
+
+        textchat_map::iterator it = client->chats.find(chatid);
+        if (it == client->chats.end())
+        {
+            cout << "Chatid " << s.words[1].s.c_str() << " not found" << endl;
+            return;
+        }
+
+        DemoApp::printChatInformation(it->second);
+        return;
+    }
+}
+
+void exec_chatl(autocomplete::ACState& s)
+{
+    handle chatid;
+    Base64::atob(s.words[1].s.c_str(), (byte*) &chatid, MegaClient::CHATHANDLE);
+    bool delflag = (s.words.size() == 3 && s.words[2].s == "del");
+    bool createifmissing = s.words.size() == 2 || (s.words.size() == 3 && s.words[2].s != "query");
+
+    client->chatlink(chatid, delflag, createifmissing);
+}
+#endif
+
+void exec_reset(autocomplete::ACState& s)
+{
+    if (client->loggedin() != NOTLOGGEDIN)
+    {
+        cout << "You're logged in. Please, logout first." << endl;
+    }
+    else if (s.words.size() == 2 ||
+        (s.words.size() == 3 && (hasMasterKey = (s.words[2].s == "mk"))))
+    {
+        recoveryemail = s.words[1].s;
+        client->getrecoverylink(recoveryemail.c_str(), hasMasterKey);
+    }
+    else
+    {
+        cout << "      reset email [mk]" << endl;
+    }
+}
+
+void exec_clink(autocomplete::ACState& s)
+{
+    bool renew = false;
+    if (s.words.size() == 1 || (s.words.size() == 2 && (renew = s.words[1].s == "renew")))
+    {
+        client->contactlinkcreate(renew);
+    }
+    else if ((s.words.size() == 3) && (s.words[1].s == "query"))
+    {
+        handle clink = UNDEF;
+        Base64::atob(s.words[2].s.c_str(), (byte*)&clink, MegaClient::CONTACTLINKHANDLE);
+
+        client->contactlinkquery(clink);
+
+    }
+    else if (((s.words.size() == 3) || (s.words.size() == 2)) && (s.words[1].s == "del"))
+    {
+        handle clink = UNDEF;
+
+        if (s.words.size() == 3)
+        {
+            Base64::atob(s.words[2].s.c_str(), (byte*)&clink, MegaClient::CONTACTLINKHANDLE);
+        }
+
+        client->contactlinkdelete(clink);
+    }
+}
+
+void exec_apiurl(autocomplete::ACState& s)
+{
+    if (s.words.size() == 1)
+    {
+        cout << "Current APIURL = " << MegaClient::APIURL << endl;
+        cout << "Current disablepkp = " << (MegaClient::disablepkp ? "true" : "false") << endl;
+    }
+    else if (client->loggedin() != NOTLOGGEDIN)
+    {
+        cout << "You must not be logged in, to change APIURL" << endl;
+    }
+    else if (s.words.size() == 3 || s.words.size() == 2)
+    {
+        if (s.words[1].s.size() < 8 || s.words[1].s.substr(0, 8) != "https://")
+        {
+            s.words[1].s = "https://" + s.words[1].s;
+        }
+        if (s.words[1].s.empty() || s.words[1].s[s.words[1].s.size() - 1] != '/')
+        {
+            s.words[1].s += '/';
+        }
+        MegaClient::APIURL = s.words[1].s;
+        if (s.words.size() == 3)
+        {
+            MegaClient::disablepkp = s.words[2].s == "true";
+        }
+    }
+}
+
+void exec_passwd(autocomplete::ACState& s)
+{
+    if (client->loggedin() != NOTLOGGEDIN)
+    {
+        setprompt(NEWPASSWORD);
+    }
+    else
+    {
+        cout << "Not logged in." << endl;
+    }
+}
+
+void exec_putbps(autocomplete::ACState& s)
+{
+    if (s.words.size() > 1)
+    {
+        if (s.words[1].s == "auto")
+        {
+            client->putmbpscap = -1;
+        }
+        else if (s.words[1].s == "none")
+        {
+            client->putmbpscap = 0;
+        }
+        else
+        {
+            int t = atoi(s.words[1].s.c_str());
+
+            if (t > 0)
+            {
+                client->putmbpscap = t;
+            }
+            else
+            {
+                cout << "      putbps [limit|auto|none]" << endl;
+                return;
+            }
+        }
+    }
+
+    cout << "Upload speed limit set to ";
+
+    if (client->putmbpscap < 0)
+    {
+        cout << "AUTO (approx. 90% of your available bandwidth)" << endl;
+    }
+    else if (!client->putmbpscap)
+    {
+        cout << "NONE" << endl;
+    }
+    else
+    {
+        cout << client->putmbpscap << " byte(s)/second" << endl;
+    }
+}
+
+void exec_invite(autocomplete::ACState& s)
+{
+    if (client->loggedin() != FULLACCOUNT)
+    {
+        cout << "Not logged in." << endl;
+    }
+    else
+    {
+        if (client->ownuser()->email.compare(s.words[1].s))
+        {
+            int delflag = s.words.size() == 3 && s.words[2].s == "del";
+            int rmd = s.words.size() == 3 && s.words[2].s == "rmd";
+            int clink = s.words.size() == 4 && s.words[2].s == "clink";
+            if (s.words.size() == 2 || s.words.size() == 3 || s.words.size() == 4)
+            {
+                if (delflag || rmd)
+                {
+                    client->setpcr(s.words[1].s.c_str(), delflag ? OPCA_DELETE : OPCA_REMIND);
+                }
+                else
+                {
+                    handle contactLink = UNDEF;
+                    if (clink)
+                    {
+                        Base64::atob(s.words[3].s.c_str(), (byte*)&contactLink, MegaClient::CONTACTLINKHANDLE);
+                    }
+
+                    // Original email is not required, but can be used if this account has multiple email addresses associated,
+                    // to have the invite come from a specific email
+                    client->setpcr(s.words[1].s.c_str(), OPCA_ADD, "Invite from MEGAcli", s.words.size() == 3 ? s.words[2].s.c_str() : NULL, contactLink);
+                }
+            }
+            else
+            {
+                cout << "      invite dstemail [origemail|del|rmd|clink <link>]" << endl;
+            }
+        }
+        else
+        {
+            cout << "Cannot send invitation to your own user" << endl;
+        }
+    }
+}
+
+void exec_signup(autocomplete::ACState& s)
+{
+    if (s.words.size() == 2)
+    {
+        const char* ptr = s.words[1].s.c_str();
+        const char* tptr;
+
+        if ((tptr = strstr(ptr, "#confirm")))
+        {
+            ptr = tptr + 8;
+        }
+
+        unsigned len = unsigned((s.words[1].s.size() - (ptr - s.words[1].s.c_str())) * 3 / 4 + 4);
+
+        byte* c = new byte[len];
+        len = Base64::atob(ptr, c, len);
+        // we first just query the supplied signup link,
+        // then collect and verify the password,
+        // then confirm the account
+        client->querysignuplink(c, len);
+        delete[] c;
+    }
+    else if (s.words.size() == 3)
+    {
+        switch (client->loggedin())
+        {
+        case FULLACCOUNT:
+            cout << "Already logged in." << endl;
+            break;
+
+        case CONFIRMEDACCOUNT:
+            cout << "Current account already confirmed." << endl;
+            break;
+
+        case EPHEMERALACCOUNT:
+            if (s.words[1].s.find('@') + 1 && s.words[1].s.find('.') + 1)
+            {
+                signupemail = s.words[1].s;
+                signupname = s.words[2].s;
+
                 cout << endl;
                 setprompt(NEWPASSWORD);
             }
             else
             {
-                cout << endl << "Bad password, please try again" << endl;
-                setprompt(COMMAND);
+                cout << "Please enter a valid e-mail address." << endl;
             }
-            return;
+            break;
 
-        case NEWPASSWORD:
-            newpassword = l;
-            client->pw_key(l, newpwkey);
+        case NOTLOGGEDIN:
+            cout << "Please use the begin command to commence or resume the ephemeral session to be upgraded." << endl;
+        }
+    }
+}
 
-            cout << endl;
-            setprompt(PASSWORDCONFIRM);
-            return;
+void exec_cancelsignup(autocomplete::ACState& s)
+{
+    client->cancelsignup();
+}
 
-        case PASSWORDCONFIRM:
-            client->pw_key(l, pwkeybuf);
+void exec_whoami(autocomplete::ACState& s)
+{
+    if (client->loggedin() == NOTLOGGEDIN)
+    {
+        cout << "Not logged in." << endl;
+    }
+    else
+    {
+        User* u;
 
-            if (memcmp(pwkeybuf, newpwkey, sizeof pwkeybuf))
+        if ((u = client->finduser(client->me)))
+        {
+            cout << "Account e-mail: " << u->email << endl;
+#ifdef ENABLE_CHAT
+            if (client->signkey)
             {
-                cout << endl << "Mismatch, please try again" << endl;
+                cout << "Fingerprint: " << client->signkey->genFingerprintHex() << endl;
+            }
+#endif
+        }
+
+        bool storage = s.extractflag("-storage");
+        bool transfer = s.extractflag("-transfer");
+        bool pro = s.extractflag("-pro");
+        bool transactions = s.extractflag("-transactions");
+        bool purchases = s.extractflag("-purchases");
+        bool sessions = s.extractflag("-sessions");
+
+        bool all = !storage && !transfer && !pro && !transactions && !purchases && !sessions;
+
+        cout << "Retrieving account status..." << endl;
+
+        client->getaccountdetails(&account, all || storage, all || transfer, all || pro, all || transactions, all || purchases, all || sessions);
+    }
+}
+
+void exec_export(autocomplete::ACState& s)
+{
+    hlink = UNDEF;
+    del = ets = 0;
+
+    Node* n;
+    int deltmp = 0;
+    int etstmp = 0;
+
+    if ((n = nodebypath(s.words[1].s.c_str())))
+    {
+        if (s.words.size() > 2)
+        {
+            deltmp = (s.words[2].s == "del");
+            if (!deltmp)
+            {
+                etstmp = atoi(s.words[2].s.c_str());
+            }
+        }
+
+
+        cout << "Exporting..." << endl;
+
+        error e;
+        if ((e = client->exportnode(n, deltmp, etstmp)))
+        {
+            cout << s.words[1].s << ": Export rejected (" << errorstring(e) << ")" << endl;
+        }
+        else
+        {
+            hlink = n->nodehandle;
+            ets = etstmp;
+            del = deltmp;
+        }
+    }
+    else
+    {
+        cout << s.words[1].s << ": Not found" << endl;
+    }
+}
+
+void exec_import(autocomplete::ACState& s)
+{
+    if (client->openfilelink(s.words[1].s.c_str(), 1) == API_OK)
+    {
+        cout << "Opening link..." << endl;
+    }
+    else
+    {
+        cout << "Malformed link. Format: Exported URL or fileid#filekey" << endl;
+    }
+}
+
+void exec_folderlinkinfo(autocomplete::ACState& s)
+{
+    publiclink = s.words[1].s;
+
+    handle ph = UNDEF;
+    byte folderkey[SymmCipher::KEYLENGTH];
+    if (client->parsefolderlink(publiclink.c_str(), ph, folderkey) == API_OK)
+    {
+        cout << "Loading public folder link info..." << endl;
+        client->getpubliclinkinfo(ph);
+    }
+    else
+    {
+        cout << "Malformed link: " << publiclink << endl;
+    }
+}
+
+void exec_reload(autocomplete::ACState& s)
+{
+    cout << "Reloading account..." << endl;
+
+    bool nocache = false;
+    if (s.words.size() == 2 && s.words[1].s == "nocache")
+    {
+        nocache = true;
+    }
+
+    cwd = UNDEF;
+    client->cachedscsn = UNDEF;
+    client->fetchnodes(nocache);
+}
+
+void exec_logout(autocomplete::ACState& s)
+{
+    cout << "Logging off..." << endl;
+
+    cwd = UNDEF;
+    client->logout();
+
+    if (clientFolder)
+    {
+        clientFolder->logout();
+        delete clientFolder;
+        clientFolder = NULL;
+    }
+}
+
+#ifdef ENABLE_CHAT
+void exec_chatga(autocomplete::ACState& s)
+{
+    handle chatid;
+    Base64::atob(s.words[1].s.c_str(), (byte*) &chatid, MegaClient::CHATHANDLE);
+
+    handle nodehandle;
+    Base64::atob(s.words[2].s.c_str(), (byte*) &nodehandle, MegaClient::NODEHANDLE);
+
+    const char *uid = s.words[3].s.c_str();
+
+    client->grantAccessInChat(chatid, nodehandle, uid);
+}
+
+void exec_chatra(autocomplete::ACState& s)
+{
+    handle chatid;
+    Base64::atob(s.words[1].s.c_str(), (byte*)&chatid, MegaClient::CHATHANDLE);
+
+    handle nodehandle;
+    Base64::atob(s.words[2].s.c_str(), (byte*)&nodehandle, MegaClient::NODEHANDLE);
+
+    const char *uid = s.words[3].s.c_str();
+
+    client->removeAccessInChat(chatid, nodehandle, uid);
+}
+
+void exec_chatst(autocomplete::ACState& s)
+{
+    handle chatid;
+    Base64::atob(s.words[1].s.c_str(), (byte*)&chatid, MegaClient::CHATHANDLE);
+
+    if (s.words.size() == 2)  // empty title / remove title
+    {
+        client->setChatTitle(chatid, "");
+    }
+    else if (s.words.size() == 3)
+    {
+        client->setChatTitle(chatid, s.words[2].s.c_str());
+    }
+}
+
+void exec_chatpu(autocomplete::ACState& s)
+{
+    client->getChatPresenceUrl();
+}
+
+void exec_chatup(autocomplete::ACState& s)
+{
+    handle chatid;
+    Base64::atob(s.words[1].s.c_str(), (byte*)&chatid, MegaClient::CHATHANDLE);
+
+    handle uh;
+    Base64::atob(s.words[2].s.c_str(), (byte*)&uh, MegaClient::USERHANDLE);
+
+    string privstr = s.words[3].s;
+    privilege_t priv;
+    if (privstr == "ro")
+    {
+        priv = PRIV_RO;
+    }
+    else if (privstr == "sta")
+    {
+        priv = PRIV_STANDARD;
+    }
+    else if (privstr == "mod")
+    {
+        priv = PRIV_MODERATOR;
+    }
+    else
+    {
+        cout << "Unknown privilege for " << s.words[2].s << endl;
+        return;
+    }
+
+    client->updateChatPermissions(chatid, uh, priv);
+}
+
+void exec_chatlu(autocomplete::ACState& s)
+{
+    handle publichandle = 0;
+    Base64::atob(s.words[1].s.c_str(), (byte*)&publichandle, MegaClient::CHATLINKHANDLE);
+
+    client->chatlinkurl(publichandle);
+}
+
+void exec_chatsm(autocomplete::ACState& s)
+{
+    handle chatid;
+    Base64::atob(s.words[1].s.c_str(), (byte*)&chatid, MegaClient::CHATHANDLE);
+
+    const char *title = (s.words.size() == 3) ? s.words[2].s.c_str() : NULL;
+    client->chatlinkclose(chatid, title);
+}
+
+void exec_chatlj(autocomplete::ACState& s)
+{
+    handle publichandle = 0;
+    Base64::atob(s.words[1].s.c_str(), (byte*)&publichandle, MegaClient::CHATLINKHANDLE);
+
+    client->chatlinkjoin(publichandle, s.words[2].s.c_str());
+}
+
+void exec_chatcp(autocomplete::ACState& s)
+{
+    size_t wordscount = s.words.size();
+    userpriv_vector *userpriv = new userpriv_vector;
+    string_map *userkeymap = new string_map;
+    string mownkey = s.words[1].s;
+    unsigned parseoffset = 2;
+    const char *title = NULL;
+
+    if (wordscount >= 4)
+    {
+        if (s.words[2].s == "t")
+        {
+            if (s.words[3].s.empty())
+            {
+                cout << "Title cannot be set to empty string" << endl;
+                delete userpriv;
+                delete userkeymap;
+                return;
+            }
+            title = s.words[3].s.c_str();
+            parseoffset = 4;
+        }
+
+        if (((wordscount - parseoffset) % 3) != 0)
+        {
+            cout << "Invalid syntax to create chatroom" << endl;
+            cout << "      chatcp mownkey [t title64] [email ro|sta|mod unifiedkey]* " << endl;
+            delete userpriv;
+            delete userkeymap;
+            return;
+        }
+
+        unsigned numUsers = 0;
+        while ((numUsers + 1) * 3 + parseoffset <= wordscount)
+        {
+            string email = s.words[numUsers * 3 + parseoffset].s;
+            User *u = client->finduser(email.c_str(), 0);
+            if (!u)
+            {
+                cout << "User not found: " << email << endl;
+                delete userpriv;
+                delete userkeymap;
+                return;
+            }
+
+            string privstr = s.words[numUsers * 3 + parseoffset + 1].s;
+            privilege_t priv;
+            if (privstr == "ro")
+            {
+                priv = PRIV_RO;
+            }
+            else if (privstr == "sta")
+            {
+                priv = PRIV_STANDARD;
+            }
+            else if (privstr == "mod")
+            {
+                priv = PRIV_MODERATOR;
             }
             else
             {
-                error e;
-
-                if (signupemail.size())
-                {
-                    client->sendsignuplink(signupemail.c_str(), signupname.c_str(), newpwkey);
-                }
-                else if (recoveryemail.size() && recoverycode.size())
-                {
-                    cout << endl << "Resetting password..." << endl;
-
-                    if (hasMasterKey)
-                    {
-                        client->confirmrecoverylink(recoverycode.c_str(), recoveryemail.c_str(), newpassword.c_str(), masterkey);
-                    }
-                    else
-                    {
-                        client->confirmrecoverylink(recoverycode.c_str(), recoveryemail.c_str(), newpassword.c_str(), NULL);
-                    }
-
-                    recoverycode.clear();
-                    recoveryemail.clear();
-                    hasMasterKey = false;
-                    memset(masterkey, 0, sizeof masterkey);
-                }
-                else
-                {
-                    if ((e = client->changepw(newpassword.c_str())) == API_OK)
-                    {
-                        memcpy(pwkey, newpwkey, sizeof pwkey);
-                        cout << endl << "Changing password..." << endl;
-                    }
-                    else
-                    {
-                        cout << "You must be logged in to change your password." << endl;
-                    }
-                }
+                cout << "Unknown privilege for " << email << endl;
+                delete userpriv;
+                delete userkeymap;
+                return;
             }
+            userpriv->push_back(userpriv_pair(u->userhandle, priv));
+            string unifiedkey = s.words[numUsers * 3 + parseoffset + 2].s;
+            char uhB64[12];
+            Base64::btoa((byte *)&u->userhandle, MegaClient::USERHANDLE, uhB64);
+            uhB64[11] = '\0';
+            userkeymap->insert(std::pair<string, string>(uhB64, unifiedkey));
+            numUsers++;
+        }
+    }
+    char ownHandleB64[12];
+    Base64::btoa((byte *)&client->me, MegaClient::USERHANDLE, ownHandleB64);
+    ownHandleB64[11] = '\0';
+    userkeymap->insert(std::pair<string, string>(ownHandleB64, mownkey));
+    client->createChat(true, true, userpriv, userkeymap, title);
+    delete userpriv;
+    delete userkeymap;
+}
+#endif
 
-            setprompt(COMMAND);
-            signupemail.clear();
+void exec_cancel(autocomplete::ACState& s)
+{
+    if (client->loggedin() != FULLACCOUNT)
+    {
+        cout << "Please, login into your account first." << endl;
+        return;
+    }
+
+    if (s.words.size() == 1)  // get link
+    {
+        User *u = client->finduser(client->me);
+        if (!u)
+        {
+            cout << "Error retrieving logged user." << endl;
             return;
+        }
+        client->getcancellink(u->email.c_str());
+    }
+    else if (s.words.size() == 2) // link confirmation
+    {
+        string link = s.words[1].s;
 
-        case MASTERKEY:
-            cout << endl << "Retrieving private RSA key for checking integrity of the Master Key..." << endl;
-
-            Base64::atob(l, masterkey, sizeof masterkey);
-            client->getprivatekey(recoverycode.c_str());
+        size_t pos = link.find("#cancel");
+        if (pos == link.npos)
+        {
+            cout << "Invalid cancellation link." << endl;
             return;
+        }
 
-        case COMMAND:
-            if (!l || !strcmp(l, "q") || !strcmp(l, "quit") || !strcmp(l, "exit"))
+        recoverycode.assign(link.substr(pos + strlen("#cancel")));
+        setprompt(LOGINPASSWORD);
+    }
+}
+
+void exec_alerts(autocomplete::ACState& s)
+{
+    bool shownew = false, showold = false;
+    size_t showN = 0; 
+    if (s.words.size() == 1)
+    {
+        shownew = showold = true;
+    }
+    else if (s.words.size() == 2)
+    {
+        if (s.words[1].s == "seen")
+        {
+            client->useralerts.acknowledgeAll();
+            return;
+        }
+        else if (s.words[1].s == "notify")
+        {
+            notifyAlerts = !notifyAlerts;
+            cout << "notification of alerts is now " << (notifyAlerts ? "on" : "off") << endl;
+            return;
+        }
+        else if (s.words[1].s == "old")
+        {
+            showold = true;
+        }
+        else if (s.words[1].s == "new")
+        {
+            shownew = true;
+        }
+        else if (s.words[1].s == "test_reminder")
+        {
+            client->useralerts.add(new UserAlert::PaymentReminder(time(NULL) - 86000*3 /2, client->useralerts.nextId()));
+        }
+        else if (s.words[1].s == "test_payment")
+        {
+            client->useralerts.add(new UserAlert::Payment(true, 1, time(NULL) + 86000 * 1, client->useralerts.nextId()));
+        }
+        else if (atoi(s.words[1].s.c_str()) > 0)
+        {
+            showN = atoi(s.words[1].s.c_str());
+        }
+    }
+    if (showold || shownew || showN > 0)
+    {
+        UserAlerts::Alerts::const_iterator i = client->useralerts.alerts.begin();
+        if (showN)
+        {
+            size_t n = 0;
+            for (UserAlerts::Alerts::const_reverse_iterator i = client->useralerts.alerts.rbegin(); i != client->useralerts.alerts.rend(); ++i, ++n)
             {
-                store_line(NULL);
+                showN += ((*i)->relevant || n >= showN) ? 0 : 1;
             }
+        }
 
-            vector<string> words;
-
-#if defined(WIN32) && defined(NO_READLINE) && defined(HAVE_AUTOCOMPLETE)
-            using namespace ::mega::autocomplete;
-
-            string consoleOutput;
-            if (autoExec(line, strlen(line), autocompleteTemplate, false, consoleOutput, false))
+        size_t n = client->useralerts.alerts.size();
+        for (; i != client->useralerts.alerts.end(); ++i)
+        {
+            if ((*i)->relevant)
             {
-                if (!consoleOutput.empty())
+                if (--n < showN || (shownew && !(*i)->seen) || (showold && (*i)->seen))
                 {
-                    cout << consoleOutput << endl;
-                }
-                return;
-            }
-
-            ACState acs = prepACState(l, strlen(l), static_cast<WinConsole*>(console)->getAutocompleteStyle());
-            for (unsigned i = 0; i < acs.words.size(); ++i)
-            {
-                // any quotes or partial quoting are stripped out already
-                words.push_back(acs.words[i].s);
-            }
-            if (!words.empty() && words.back().empty())
-            {
-                words.erase(words.end() - 1);  // trailing spaces case
-            }
-
-#else
-            char* ptr = l;
-            char* wptr;
-
-            // split line into words with quoting and escaping
-            for (;;)
-            {
-                // skip leading blank space
-                while (*ptr > 0 && *ptr <= ' ')
-                {
-                    ptr++;
-                }
-
-                if (!*ptr)
-                {
-                    break;
-                }
-
-                // quoted arg / regular arg
-                if (*ptr == '"')
-                {
-                    ptr++;
-                    wptr = ptr;
-                    words.push_back(string());
-
-                    for (;;)
-                    {
-                        if (*ptr == '"' || *ptr == '\\' || !*ptr)
-                        {
-                            words[words.size() - 1].append(wptr, ptr - wptr);
-
-                            if (!*ptr || *ptr++ == '"')
-                            {
-                                break;
-                            }
-
-                            wptr = ptr - 1;
-                        }
-                        else
-                        {
-                            ptr++;
-                        }
-                    }
-                }
-                else
-                {
-                    wptr = ptr;
-
-                    while ((unsigned char) *ptr > ' ')
-                    {
-                        ptr++;
-                    }
-
-                    words.push_back(string(wptr, ptr - wptr));
+                    printAlert(**i);
                 }
             }
+        }
+    }
+}
+
+#ifdef USE_FILESYSTEM
+void exec_lmkdir(autocomplete::ACState& s)
+{
+    std::error_code ec;
+    if (!fs::create_directory(s.words[1].s.c_str(), ec))
+    {
+        cerr << "Create directory failed: " << ec.message() << endl;
+    }
+}
 #endif
 
-            if (!words.size())
+
+void exec_confirm(autocomplete::ACState& s)
+{
+    if (signupemail.size() && signupcode.size())
+    {
+        cout << "Please type " << signupemail << "'s password to confirm the signup." << endl;
+        setprompt(LOGINPASSWORD);
+    }
+}
+
+void exec_recover(autocomplete::ACState& s)
+{
+    if (client->loggedin() != NOTLOGGEDIN)
+    {
+        cout << "You're logged in. Please, logout first." << endl;
+    }
+    else if (s.words.size() == 2)
+    {
+        string link = s.words[1].s;
+
+        size_t pos = link.find("#recover");
+        if (pos == link.npos)
+        {
+            cout << "Invalid recovery link." << endl;
+        }
+
+        recoverycode.assign(link.substr(pos + strlen("#recover")));
+        client->queryrecoverylink(recoverycode.c_str());
+    }
+}
+
+void exec_session(autocomplete::ACState& s)
+{
+    byte session[64];
+    int size;
+
+    size = client->dumpsession(session, sizeof session);
+
+    if (size > 0)
+    {
+        Base64Str<sizeof session> buf(session, size);
+
+        if ((s.words.size() == 2 || s.words.size() == 3) && s.words[1].s == "autoresume")
+        {
+            string filename = "megacli_autoresume_session" + (s.words.size() == 3 ? "_" + s.words[2].s : "");
+            ofstream file(filename.c_str());
+            if (file.fail() || !file.is_open())
             {
-                return;
+                cout << "could not open file: " << filename << endl;
             }
-
-            Node* n;
-
-            if (words[0] == "?" || words[0] == "h" || words[0] == "help")
+            else
             {
-#if defined(WIN32) && defined(NO_READLINE) && defined(HAVE_AUTOCOMPLETE)
-                std::ostringstream s;
-                s << *autocompleteTemplate;
-                cout << s.str() << flush;
-#else
-                cout << "      login email [password]" << endl;
-                cout << "      login exportedfolderurl#key" << endl;
-                cout << "      login session" << endl;
-                cout << "      begin [ephemeralhandle#ephemeralpw]" << endl;
-                cout << "      signup [email name|confirmationlink]" << endl;
-                cout << "      confirm" << endl;
-                cout << "      session" << endl;
-                cout << "      mount" << endl;
-                cout << "      ls [-R] [remotepath]" << endl;
-                cout << "      cd [remotepath]" << endl;
-                cout << "      pwd" << endl;
-                cout << "      lcd [localpath]" << endl;
-#ifdef USE_FILESYSTEM
-                cout << "      lls [-R] [localpath]" << endl;
-                cout << "      lpwd" << endl;
-                cout << "      lmkdir localpath" << endl;
-#endif
-                cout << "      import exportedfilelink#key" << endl;
-                cout << "      open exportedfolderlink#key" << endl;
-                cout << "      put localpattern [dstremotepath|dstemail:]" << endl;
-                cout << "      putq [cancelslot]" << endl;
-                cout << "      get remotepath [offset [length]]" << endl;
-                cout << "      get exportedfilelink#key [offset [length]]" << endl;
-                cout << "      getq [cancelslot]" << endl;
-                cout << "      pause [get|put] [hard] [status]" << endl;
-                cout << "      getfa type [path] [cancel]" << endl;
-                cout << "      mkdir remotepath" << endl;
-                cout << "      rm remotepath" << endl;
-                cout << "      mv srcremotepath dstremotepath" << endl;
-                cout << "      cp srcremotepath dstremotepath|dstemail:" << endl;
-#ifdef ENABLE_SYNC
-                cout << "      sync [localpath dstremotepath|cancelslot]" << endl;
-#endif
-                cout << "      export remotepath [expireTime|del]" << endl;
-                cout << "      share [remotepath [dstemail [r|rw|full] [origemail]]]" << endl;
-                cout << "      invite dstemail [origemail|del|rmd|clink <link>]" << endl;
-                cout << "      clink [renew|query handle|del [handle]]" << endl;
-                cout << "      ipc handle a|d|i" << endl;
-                cout << "      showpcr" << endl;
-                cout << "      users [email del]" << endl;
-                cout << "      getua attrname [email]" << endl;
-                cout << "      putua attrname [del|set string|load file]" << endl;
-#ifdef DEBUG
-                cout << "      delua attrname" << endl;
-#endif
-#ifdef USE_MEDIAINFO
-                cout << "      mediainfo(calc localfile | show remotefile)" << endl;
-#endif
-                cout << "      putbps [limit|auto|none]" << endl;
-                cout << "      killsession [all|sessionid]" << endl;
-                cout << "      whoami" << endl;
-                cout << "      passwd" << endl;
-                cout << "      reset email [mk]" << endl;   // reset password w/wo masterkey
-                cout << "      recover recoverylink" << endl;
-                cout << "      cancel [cancellink]" << endl;
-                cout << "      email [newemail|emaillink]" << endl;
-                cout << "      retry" << endl;
-                cout << "      recon" << endl;
-                cout << "      reload [nocache]" << endl;
-                cout << "      logout" << endl;
-                cout << "      locallogout" << endl;
-                cout << "      symlink" << endl;
-                cout << "      version" << endl;
-                cout << "      debug" << endl;
-#if defined(WIN32) && defined(NO_READLINE)
-                cout << "      clear" << endl;
-#endif
-                cout << "      test" << endl;
-#ifdef ENABLE_CHAT
-                cout << "      chats [chatid]" << endl;
-                cout << "      chatc group [email ro|sta|mod]*" << endl;    // group can be 1 or 0
-                cout << "      chati chatid email ro|sta|mod [t title] [unifiedkey]" << endl;
-                cout << "      chatcp mownkey [t title64] [email ro|sta|mod unifiedkey]* " << endl;
-                cout << "      chatr chatid [email]" << endl;
-                cout << "      chatu chatid" << endl;
-                cout << "      chatup chatid userhandle ro|sta|mod" << endl;
-                cout << "      chatpu" << endl;
-                cout << "      chatga chatid nodehandle uid" << endl;
-                cout << "      chatra chatid nodehandle uid" << endl;
-                cout << "      chatst chatid title64" << endl;
-                cout << "      chata chatid archive" << endl;   // archive can be 1 or 0
-                cout << "      chatl chatid [del|query]" << endl;     // get public handle
-                cout << "      chatsm chatid [title64]" << endl;          // set private mode
-                cout << "      chatlu publichandle" << endl;    // get chat-link URL
-                cout << "      chatlj publichandle unifiedkey" << endl;    // join chat-link
-#endif
-                cout << "      httpsonly on | off" << endl;
-                cout << "      mfac" << endl;
-                cout << "      mfae" << endl;
-                cout << "      mfad pin" << endl;
-                cout << "      recentnodes hours maxcount" << endl;
-                cout << "      recentactions hours maxcount" << endl;
-                cout << "      quit" << endl;
-#endif
-                return;
+                file << buf;
+                cout << "Your (secret) session is saved in file '" << filename << "'" << endl;
             }
-
-            switch (words[0].size())
-            {
-                case 2:
-                    if (words[0] == "ls")
-                    {
-                        int recursive = words.size() > 1 && words[1] == "-R";
-
-                        if ((int) words.size() > recursive + 1)
-                        {
-                            n = nodebypath(words[recursive + 1].c_str());
-                        }
-                        else
-                        {
-                            n = client->nodebyhandle(cwd);
-                        }
-
-                        if (n)
-                        {
-                            dumptree(n, recursive);
-                        }
-
-                        return;
-                    }
-                    else if (words[0] == "cd")
-                    {
-                        if (words.size() > 1)
-                        {
-                            if ((n = nodebypath(words[1].c_str())))
-                            {
-                                if (n->type == FILENODE)
-                                {
-                                    cout << words[1] << ": Not a directory" << endl;
-                                }
-                                else
-                                {
-                                    cwd = n->nodehandle;
-                                }
-                            }
-                            else
-                            {
-                                cout << words[1] << ": No such file or directory" << endl;
-                            }
-                        }
-                        else
-                        {
-                            cwd = client->rootnodes[0];
-                        }
-
-                        return;
-                    }
-                    else if (words[0] == "rm")
-                    {
-                        if (words.size() > 1)
-                        {
-                            if ((n = nodebypath(words[1].c_str())))
-                            {
-                                if (client->checkaccess(n, FULL))
-                                {
-                                    error e = client->unlink(n);
-
-                                    if (e)
-                                    {
-                                        cout << words[1] << ": Deletion failed (" << errorstring(e) << ")" << endl;
-                                    }
-                                }
-                                else
-                                {
-                                    cout << words[1] << ": Access denied" << endl;
-                                }
-                            }
-                            else
-                            {
-                                cout << words[1] << ": No such file or directory" << endl;
-                            }
-                        }
-                        else
-                        {
-                            cout << "      rm remotepath" << endl;
-                        }
-
-                        return;
-                    }
-                    else if (words[0] == "mv")
-                    {
-                        Node* tn;
-                        string newname;
-
-                        if (words.size() > 2)
-                        {
-                            // source node must exist
-                            if ((n = nodebypath(words[1].c_str())))
-                            {
-                                // we have four situations:
-                                // 1. target path does not exist - fail
-                                // 2. target node exists and is folder - move
-                                // 3. target node exists and is file - delete and rename (unless same)
-                                // 4. target path exists, but filename does not - rename
-                                if ((tn = nodebypath(words[2].c_str(), NULL, &newname)))
-                                {
-                                    error e;
-
-                                    if (newname.size())
-                                    {
-                                        if (tn->type == FILENODE)
-                                        {
-                                            cout << words[2] << ": Not a directory" << endl;
-
-                                            return;
-                                        }
-                                        else
-                                        {
-                                            if ((e = client->checkmove(n, tn)) == API_OK)
-                                            {
-                                                if (!client->checkaccess(n, RDWR))
-                                                {
-                                                    cout << "Write access denied" << endl;
-
-                                                    return;
-                                                }
-
-                                                // rename
-                                                client->fsaccess->normalize(&newname);
-                                                n->attrs.map['n'] = newname;
-
-                                                if ((e = client->setattr(n)))
-                                                {
-                                                    cout << "Cannot rename file (" << errorstring(e) << ")" << endl;
-                                                }
-                                            }
-                                        }
-                                    }
-                                    else
-                                    {
-                                        if (tn->type == FILENODE)
-                                        {
-                                            // (there should never be any orphaned filenodes)
-                                            if (!tn->parent)
-                                            {
-                                                return;
-                                            }
-
-                                            if ((e = client->checkmove(n, tn->parent)) == API_OK)
-                                            {
-                                                if (!client->checkaccess(n, RDWR))
-                                                {
-                                                    cout << "Write access denied" << endl;
-
-                                                    return;
-                                                }
-
-                                                // overwrite existing target file: rename source...
-                                                n->attrs.map['n'] = tn->attrs.map['n'];
-                                                e = client->setattr(n);
-
-                                                if (e)
-                                                {
-                                                    cout << "Rename failed (" << errorstring(e) << ")" << endl;
-                                                }
-
-                                                if (n != tn)
-                                                {
-                                                    // ...delete target...
-                                                    e = client->unlink(tn);
-
-                                                    if (e)
-                                                    {
-                                                        cout << "Remove failed (" << errorstring(e) << ")" << endl;
-                                                    }
-                                                }
-                                            }
-
-                                            // ...and set target to original target's parent
-                                            tn = tn->parent;
-                                        }
-                                        else
-                                        {
-                                            e = client->checkmove(n, tn);
-                                        }
-                                    }
-
-                                    if (n->parent != tn)
-                                    {
-                                        if (e == API_OK)
-                                        {
-                                            e = client->rename(n, tn);
-
-                                            if (e)
-                                            {
-                                                cout << "Move failed (" << errorstring(e) << ")" << endl;
-                                            }
-                                        }
-                                        else
-                                        {
-                                            cout << "Move not permitted - try copy" << endl;
-                                        }
-                                    }
-                                }
-                                else
-                                {
-                                    cout << words[2] << ": No such directory" << endl;
-                                }
-                            }
-                            else
-                            {
-                                cout << words[1] << ": No such file or directory" << endl;
-                            }
-                        }
-                        else
-                        {
-                            cout << "      mv srcremotepath dstremotepath" << endl;
-                        }
-
-                        return;
-                    }
-                    else if (words[0] == "cp")
-                    {
-                        Node* tn;
-                        string targetuser;
-                        string newname;
-                        error e;
-
-                        if (words.size() > 2)
-                        {
-                            if ((n = nodebypath(words[1].c_str())))
-                            {
-                                if ((tn = nodebypath(words[2].c_str(), &targetuser, &newname)))
-                                {
-                                    if (!client->checkaccess(tn, RDWR))
-                                    {
-                                        cout << "Write access denied" << endl;
-
-                                        return;
-                                    }
-
-                                    if (tn->type == FILENODE)
-                                    {
-                                        if (n->type == FILENODE)
-                                        {
-                                            // overwrite target if source and taret are files
-
-                                            // (there should never be any orphaned filenodes)
-                                            if (!tn->parent)
-                                            {
-                                                return;
-                                            }
-
-                                            // ...delete target...
-                                            e = client->unlink(tn);
-
-                                            if (e)
-                                            {
-                                                cout << "Cannot delete existing file (" << errorstring(e) << ")"
-                                                     << endl;
-                                            }
-
-                                            // ...and set target to original target's parent
-                                            tn = tn->parent;
-                                        }
-                                        else
-                                        {
-                                            cout << "Cannot overwrite file with folder" << endl;
-                                            return;
-                                        }
-                                    }
-                                }
-
-                                TreeProcCopy_mcli tc;
-                                unsigned nc;
-                                handle ovhandle = UNDEF;
-
-                                if (!n->nodekey.size())
-                                {
-                                    cout << "Cannot copy a node without key" << endl;
-                                    return;
-                                }
-
-                                if (n->attrstring)
-                                {
-                                    n->applykey();
-                                    n->setattr();
-                                    if (n->attrstring)
-                                    {
-                                        cout << "Cannot copy undecryptable node" << endl;
-                                        return;
-                                    }
-                                }
-
-                                string sname;
-                                if (newname.size())
-                                {
-                                    sname = newname;
-                                    client->fsaccess->normalize(&sname);
-                                }
-                                else
-                                {
-                                    attr_map::iterator it = n->attrs.map.find('n');
-                                    if (it != n->attrs.map.end())
-                                    {
-                                        sname = it->second;
-                                    }
-                                }
-
-                                if (!client->versions_disabled && tn && n->type == FILENODE)
-                                {
-                                    Node *ovn = client->childnodebyname(tn, sname.c_str(), true);
-                                    if (ovn)
-                                    {
-                                        if (n->isvalid && ovn->isvalid && *(FileFingerprint*)n == *(FileFingerprint*)ovn)
-                                        {
-                                            cout << "Skipping identical node" << endl;
-                                            return;
-                                        }
-
-                                        ovhandle = ovn->nodehandle;
-                                    }
-                                }
-
-                                // determine number of nodes to be copied
-                                client->proctree(n, &tc, false, ovhandle != UNDEF);
-
-                                tc.allocnodes();
-                                nc = tc.nc;
-
-                                // build new nodes array
-                                client->proctree(n, &tc, false, ovhandle != UNDEF);
-
-                                // if specified target is a filename, use it
-                                if (newname.size())
-                                {
-                                    SymmCipher key;
-                                    string attrstring;
-
-                                    // copy source attributes and rename
-                                    AttrMap attrs;
-
-                                    attrs.map = n->attrs.map;
-                                    attrs.map['n'] = sname;
-
-                                    key.setkey((const byte*) tc.nn->nodekey.data(), tc.nn->type);
-
-                                    // JSON-encode object and encrypt attribute string
-                                    attrs.getjson(&attrstring);
-                                    tc.nn->attrstring = new string;
-                                    client->makeattr(&key, tc.nn->attrstring, attrstring.c_str());
-                                }
-
-                                // tree root: no parent
-                                tc.nn->parenthandle = UNDEF;
-                                tc.nn->ovhandle = ovhandle;
-
-                                if (tn)
-                                {
-                                    // add the new nodes
-                                    client->putnodes(tn->nodehandle, tc.nn, nc);
-
-                                    // free in putnodes_result()
-                                    tc.nn = NULL;
-                                }
-                                else
-                                {
-                                    if (targetuser.size())
-                                    {
-                                        cout << "Attempting to drop into user " << targetuser << "'s inbox..." << endl;
-
-                                        client->putnodes(targetuser.c_str(), tc.nn, nc);
-
-                                        // free in putnodes_result()
-                                        tc.nn = NULL;
-                                    }
-                                    else
-                                    {
-                                        cout << words[2] << ": No such file or directory" << endl;
-                                    }
-                                }
-                            }
-                            else
-                            {
-                                cout << words[1] << ": No such file or directory" << endl;
-                            }
-                        }
-                        else
-                        {
-                            cout << "      cp srcremotepath dstremotepath|dstemail:" << endl;
-                        }
-
-                        return;
-                    }
-                    else if (words[0] == "du")
-                    {
-                        TreeProcDU du;
-
-                        if (words.size() > 1)
-                        {
-                            if (!(n = nodebypath(words[1].c_str())))
-                            {
-                                cout << words[1] << ": No such file or directory" << endl;
-
-                                return;
-                            }
-                        }
-                        else
-                        {
-                            n = client->nodebyhandle(cwd);
-                        }
-
-                        if (n)
-                        {
-                            client->proctree(n, &du);
-
-                            cout << "Total storage used: " << (du.numbytes / 1048576) << " MB" << endl;
-                            cout << "Total # of files: " << du.numfiles << endl;
-                            cout << "Total # of folders: " << du.numfolders << endl;
-                        }
-
-                        return;
-                    }
-                    break;
-
-                case 3:
-                    if (words[0] == "get")
-                    {
-                        bool reportsyntax = false;
-                        if (extractparam("r", words))
-                        {
-#ifdef USE_FILESYSTEM
-                            // recursive get.  create local folder structure first, then queue transfer of all files 
-                            bool foldersonly = extractparam("foldersonly", words);
-
-                            if (words.size() == 2)
-                            {
-                                if (!(n = nodebypath(words[1].c_str())))
-                                {
-                                    cout << words[1] << ": No such folder (or file)" << endl;
-                                }
-                                else if (n->type != FOLDERNODE && n->type != ROOTNODE)
-                                {
-                                    cout << words[1] << ": not a folder" << endl;
-                                }
-                                else
-                                {
-                                    unsigned queued = 0;
-                                    cout << "creating folders: " << endl;
-                                    if (recursiveget(fs::current_path(), n, true, queued))
-                                    {
-                                        if (!foldersonly)
-                                        {
-                                            cout << "queueing files..." << endl;
-                                            bool alldone = recursiveget(fs::current_path(), n, false, queued);
-                                            cout << "queued " << queued << " files for download" << (!alldone ? " before failure" : "") << endl;
-                                        }
-                                    }
-                                }
-                            }
-                            else
-                            {
-                                reportsyntax = true;
-                            }
-#else
-                            cout << "Sorry, -r not supported yet" << endl;
-#endif
-                        }
-                        else if (words.size() > 1)
-                        {
-                            if (client->openfilelink(words[1].c_str(), 0) == API_OK)
-                            {
-                                cout << "Checking link..." << endl;
-                                return;
-                            }
-
-                            n = nodebypath(words[1].c_str());
-
-                            if (n)
-                            {
-                                if (words.size() > 5)
-                                {
-                                    reportsyntax = true;
-                                }
-                                if (words.size() > 2)
-                                {
-                                    // read file slice
-                                    if (words.size() == 5)
-                                    {
-                                        pread_file = new ofstream(words[4].c_str(), std::ios_base::binary);
-                                        pread_file_end = atol(words[2].c_str()) + atol(words[3].c_str());
-                                    }
-
-                                    client->pread(n, atol(words[2].c_str()), (words.size() > 3) ? atol(words[3].c_str()) : 0, NULL);
-                                }
-                                else
-                                {
-                                    AppFile* f;
-
-                                    // queue specified file...
-                                    if (n->type == FILENODE)
-                                    {
-                                        f = new AppFileGet(n);
-
-                                        string::size_type index = words[1].find(":");
-                                        // node from public folder link
-                                        if (index != string::npos && words[1].substr(0, index).find("@") == string::npos)
-                                        {
-                                            handle h = clientFolder->getrootpublicfolder();
-                                            char *pubauth = new char[12];
-                                            Base64::btoa((byte*) &h, MegaClient::NODEHANDLE, pubauth);
-                                            f->pubauth = pubauth;
-                                            f->hprivate = true;
-                                            f->hforeign = true;
-                                            memcpy(f->filekey, n->nodekey.data(), FILENODEKEYLENGTH);
-                                        }
-
-                                        f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
-                                        client->startxfer(GET, f);
-                                    }
-                                    else
-                                    {
-                                        // ...or all files in the specified folder (non-recursive)
-                                        for (node_list::iterator it = n->children.begin(); it != n->children.end(); it++)
-                                        {
-                                            if ((*it)->type == FILENODE)
-                                            {
-                                                f = new AppFileGet(*it);
-                                                f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
-                                                client->startxfer(GET, f);
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            else
-                            {
-                                cout << words[1] << ": No such file or folder" << endl;
-                            }
-                        }
-                        else
-                        {
-                            reportsyntax = true;
-                        }
-                        if (reportsyntax)
-                        {
-                            cout << "      get [-r] remotepath [offset [length]]" << endl << "      get exportedfilelink#key [offset [length]]" << endl;
-                        }
-                        return;
-                    }
-                    else if (words[0] == "put")
-                    {
-                        if (words.size() > 1)
-                        {
-                            AppFile* f;
-                            handle target = cwd;
-                            string targetuser;
-                            string newname;
-                            int total = 0;
-                            string localname;
-                            string name;
-                            nodetype_t type;
-                            Node* n = NULL;
-
-                            if (words.size() > 2)
-                            {
-                                if ((n = nodebypath(words[2].c_str(), &targetuser, &newname)))
-                                {
-                                    target = n->nodehandle;
-                                }
-                            }
-                            else    // target is current path
-                            {
-                                n = client->nodebyhandle(target);
-                            }
-
-                            if (client->loggedin() == NOTLOGGEDIN && !targetuser.size())
-                            {
-                                cout << "Not logged in." << endl;
-
-                                return;
-                            }
-
-                            client->fsaccess->path2local(&words[1], &localname);
-
-                            DirAccess* da = client->fsaccess->newdiraccess();
-
-                            if (da->dopen(&localname, NULL, true))
-                            {
-                                while (da->dnext(NULL, &localname, true, &type))
-                                {
-                                    client->fsaccess->local2path(&localname, &name);
-                                    cout << "Queueing " << name << "..." << endl;
-
-                                    if (type == FILENODE)
-                                    {
-                                        FileAccess *fa = client->fsaccess->newfileaccess();
-                                        if (fa->fopen(&name, true, false))
-                                        {
-                                            FileFingerprint fp;
-                                            fp.genfingerprint(fa);
-
-                                            Node *previousNode = client->childnodebyname(n, name.c_str(), true);
-                                            if (previousNode && previousNode->type == type)
-                                            {
-                                                if (fp.isvalid && previousNode->isvalid && fp == *((FileFingerprint *)previousNode))
-                                                {
-                                                    cout << "Identical file already exist. Skipping transfer of " << name << endl;
-                                                    delete fa;
-                                                    continue;
-                                                }
-                                            }
-                                        }
-                                        delete fa;
-
-                                        f = new AppFilePut(&localname, target, targetuser.c_str());
-                                        f->appxfer_it = appxferq[PUT].insert(appxferq[PUT].end(), f);
-                                        client->startxfer(PUT, f);
-                                        total++;
-                                    }
-                                }
-                            }
-
-                            delete da;
-
-                            cout << "Queued " << total << " file(s) for upload, " << appxferq[PUT].size()
-                                 << " file(s) in queue" << endl;
-                        }
-                        else
-                        {
-                            cout << "      put localpattern [dstremotepath|dstemail:]" << endl;
-                        }
-
-                        return;
-                    }
-                    else if (words[0] == "pwd")
-                    {
-                        string path;
-
-                        nodepath(cwd, &path);
-
-                        cout << path << endl;
-
-                        return;
-                    }
-                    else if (words[0] == "lcd")
-                    {
-                        if (words.size() > 1)
-                        {
-                            string localpath;
-
-                            client->fsaccess->path2local(&words[1], &localpath);
-
-                            if (!client->fsaccess->chdirlocal(&localpath))
-                            {
-                                cout << words[1] << ": Failed" << endl;
-                            }
-                        }
-                        else
-                        {
-                            cout << "      lcd [localpath]" << endl;
-                        }
-
-                        return;
-                    }
-#ifdef USE_FILESYSTEM
-                    else if (words[0] == "lls") // local ls
-                    {
-                        unsigned recursive = words.size() > 1 && words[1] == "-R";
-                        try
-                        {
-                            fs::path ls_folder = words.size() > recursive + 1 ? fs::u8path(words[recursive + 1]) : fs::current_path();
-                            std::error_code ec;
-                            auto s = fs::status(ls_folder, ec);
-                            if (ec)
-                            {
-                                cerr << ec.message() << endl;
-                            }
-                            else if (!fs::exists(ls_folder))
-                            {
-                                cerr << "not found" << endl;
-                            }
-                            else
-                            {
-                                local_dumptree(ls_folder, recursive);
-                            }
-                        }
-                        catch (std::exception& e)
-                        {
-                            cerr << "ERROR: " << e.what() << endl;
-                        }
-                        return;
-                    }
-#endif
-                    else if (words[0] == "ipc")
-                    {
-                        // incoming pending contact action
-                        handle phandle;
-                        if (words.size() == 3 && Base64::atob(words[1].c_str(), (byte*) &phandle, sizeof phandle) == sizeof phandle)
-                        {
-                            ipcactions_t action;
-                            if (words[2] == "a")
-                            {
-                                action = IPCA_ACCEPT;
-                            }
-                            else if (words[2] == "d")
-                            {
-                                action = IPCA_DENY;
-                            }
-                            else if (words[2] == "i")
-                            {
-                                action = IPCA_IGNORE;
-                            }
-                            else
-                            {
-                                cout << "      ipc handle a|d|i" << endl;
-                                return;
-                            }
-
-                            client->updatepcr(phandle, action);
-                        }
-                        else
-                        {
-                            cout << "      ipc handle a|d|i" << endl;
-                        }
-                        return;
-                    }
-#if defined(WIN32) && defined(NO_READLINE)
-                    else if (words[0] == "log")
-                    {
-                        if (words.size() == 1)
-                        {
-                            // close log
-                            static_cast<WinConsole*>(console)->log("", WinConsole::no_log);
-                            cout << "log closed" << endl;
-                        }
-                        else if (words.size() == 3)
-                        {
-                            // open log
-                            WinConsole::logstyle style = WinConsole::no_log;
-                            if (words[1] == "utf8")
-                            {
-                                style = WinConsole::utf8_log;
-                            }
-                            else if (words[1] == "utf16")
-                            {
-                                style = WinConsole::utf16_log;
-                            }
-                            else if (words[1] == "codepage")
-                            {
-                                style = WinConsole::codepage_log;
-                            }
-                            else
-                            {
-                                cout << "unknown log style" << endl;
-                            }
-                            if (!static_cast<WinConsole*>(console)->log(words[2], style))
-                            {
-                                cout << "failed to open log file" << endl;
-                            }
-                        }
-                        else
-                        {
-                            cout << "      log [utf8|utf16|codepage localfile]" << endl;
-                        }
-                        return;
-                    }
-#endif
-                    break;
-
-                case 4:
-                    if (words[0] == "putq")
-                    {
-                        xferq(PUT, words.size() > 1 ? atoi(words[1].c_str()) : -1);
-                        return;
-                    }
-                    else if (words[0] == "getq")
-                    {
-                        xferq(GET, words.size() > 1 ? atoi(words[1].c_str()) : -1);
-                        return;
-                    }
-                    else if (words[0] == "open")
-                    {
-                        if (words.size() > 1)
-                        {
-                            if (strstr(words[1].c_str(), "#F!"))  // folder link indicator
-                            {
-                                if (!clientFolder)
-                                {
-                                    using namespace mega;
-                                    // create a new MegaClient with a different MegaApp to process callbacks
-                                    // from the client logged into a folder. Reuse the waiter and httpio
-                                    clientFolder = new MegaClient(new DemoAppFolder, client->waiter,
-                                                                    client->httpio, new FSACCESS_CLASS,
-                                        #ifdef DBACCESS_CLASS
-                                                                    new DBACCESS_CLASS,
-                                        #else
-                                                                    NULL,
-                                        #endif
-                                        #ifdef GFX_CLASS
-                                                                    new GFX_CLASS,
-                                        #else
-                                                                    NULL,
-                                        #endif
-                                                                    "Gk8DyQBS",
-                                                                    "megacli_folder/" TOSTRING(MEGA_MAJOR_VERSION)
-                                                                    "." TOSTRING(MEGA_MINOR_VERSION)
-                                                                    "." TOSTRING(MEGA_MICRO_VERSION));
-                                }
-                                else
-                                {
-                                    clientFolder->logout();
-                                }
-
-                                return clientFolder->app->login_result(clientFolder->folderaccess(words[1].c_str()));
-                            }
-                            else
-                            {
-                                cout << "Invalid folder link." << endl;
-                            }
-                        }
-                        else
-                        {
-                             cout << "      open exportedfolderlink#key" << endl;
-                        }
-                        return;
-                    }
-#ifdef ENABLE_SYNC
-                    else if (words[0] == "sync")
-                    {
-                        if (words.size() == 3)
-                        {
-                            Node* n = nodebypath(words[2].c_str());
-
-                            if (client->checkaccess(n, FULL))
-                            {
-                                string localname;
-
-                                client->fsaccess->path2local(&words[1], &localname);
-
-                                if (!n)
-                                {
-                                    cout << words[2] << ": Not found." << endl;
-                                }
-                                else if (n->type == FILENODE)
-                                {
-                                    cout << words[2] << ": Remote sync root must be folder." << endl;
-                                }
-                                else
-                                {
-                                    error e = client->addsync(&localname, DEBRISFOLDER, NULL, n);
-
-                                    if (e)
-                                    {
-                                        cout << "Sync could not be added: " << errorstring(e) << endl;
-                                    }
-                                }
-                            }
-                            else
-                            {
-                                cout << words[2] << ": Syncing requires full access to path." << endl;
-                            }
-                        }
-                        else if (words.size() == 2)
-                        {
-                            int i = 0, cancel = atoi(words[1].c_str());
-
-                            for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
-                            {
-                                if ((*it)->state > SYNC_CANCELED && i++ == cancel)
-                                {
-                                    client->delsync(*it);
-
-                                    cout << "Sync " << cancel << " deactivated and removed." << endl;
-                                    break;
-                                }
-                            }
-                        }
-                        else if (words.size() == 1)
-                        {
-                            if (client->syncs.size())
-                            {
-                                int i = 0;
-                                string remotepath, localpath;
-
-                                for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
-                                {
-                                    if ((*it)->state > SYNC_CANCELED)
-                                    {
-                                        static const char* syncstatenames[] =
-                                        { "Initial scan, please wait", "Active", "Failed" };
-
-                                        if ((*it)->localroot.node)
-                                        {
-                                            nodepath((*it)->localroot.node->nodehandle, &remotepath);
-                                            client->fsaccess->local2path(&(*it)->localroot.localname, &localpath);
-
-                                            cout << i++ << ": " << localpath << " to " << remotepath << " - "
-                                                 << syncstatenames[(*it)->state] << ", " << (*it)->localbytes
-                                                 << " byte(s) in " << (*it)->localnodes[FILENODE] << " file(s) and "
-                                                 << (*it)->localnodes[FOLDERNODE] << " folder(s)" << endl;
-                                        }
-                                    }
-                                }
-                            }
-                            else
-                            {
-                                cout << "No syncs active at this time." << endl;
-                            }
-                        }
-                        else
-                        {
-                            cout << "      sync [localpath dstremotepath|cancelslot]" << endl;
-                        }
-
-                        return;
-                    }
-#endif
-#ifdef USE_FILESYSTEM
-                    else if (words[0] == "lpwd") // local pwd
-                    {
-                        cout << fs::current_path().u8string() << endl;
-                        return;
-                    }
-#endif
-                    else if (words[0] == "test")
-                    {
-                    }
-
-                    else if (words[0] == "mfad")
-                    {
-                        if (words.size() == 2)
-                        {
-                            client->multifactorauthdisable(words[1].c_str());
-                        }
-                        else
-                        {
-                            cout << "      mfad pin" << endl;
-                        }
-                        return;
-                    }
-                    else if (words[0] == "mfac")
-                    {
-                        if (words.size() == 1)
-                        {
-                            client->multifactorauthcheck(login.email.c_str());
-                        }
-                        else
-                        {
-                            cout << "      mfac" << endl;
-                        }
-                        return;
-                    }
-                    else if (words[0] == "mfae")
-                    {
-                        if (words.size() == 1)
-                        {
-                            client->multifactorauthsetup();
-                        }
-                        else
-                        {
-                            cout << "      mfae" << endl;
-                        }
-                        return;
-                    }
-                    break;
-                case 5:
-                    if (words[0] == "login")
-                    {
-                        if (client->loggedin() == NOTLOGGEDIN)
-                        {
-                            if (words.size() > 1)
-                            {
-                                if ((words.size() == 2 || words.size() == 3) && words[1] == "autoresume")
-                                {
-                                    string filename = "megacli_autoresume_session" + (words.size() == 3 ? "_" + words[2] : "");
-                                    ifstream file(filename.c_str());
-                                    string session;
-                                    file >> session;
-                                    if (file.is_open() && session.size())
-                                    {
-                                        byte sessionraw[64];
-                                        if (session.size() < sizeof sessionraw * 4 / 3)
-                                        {
-                                            int size = Base64::atob(session.c_str(), sessionraw, sizeof sessionraw);
-
-                                            cout << "Resuming session..." << endl;
-                                            return client->login(sessionraw, size);
-                                        }
-                                    }
-                                    cout << "Failed to get a valid session id from file " << filename << endl;
-                                }
-                                else if (strchr(words[1].c_str(), '@'))
-                                {
-                                    login.reset();
-                                    login.email = words[1];
-
-                                    // full account login
-                                    if (words.size() > 2)
-                                    {
-                                        login.password = words[2];
-                                        cout << "Initiated login attempt..." << endl;
-                                    }
-                                    client->prelogin(login.email.c_str());
-                                }
-                                else
-                                {
-                                    const char* ptr;
-                                    if ((ptr = strchr(words[1].c_str(), '#')))  // folder link indicator
-                                    {
-                                        return client->app->login_result(client->folderaccess(words[1].c_str()));
-                                    }
-                                    else
-                                    {
-                                        byte session[64];
-                                        int size;
-
-                                        if (words[1].size() < sizeof session * 4 / 3)
-                                        {
-                                            size = Base64::atob(words[1].c_str(), session, sizeof session);
-
-                                            cout << "Resuming session..." << endl;
-
-                                            return client->login(session, size);
-                                        }
-                                    }
-
-                                    cout << "Invalid argument. Please specify a valid e-mail address, "
-                                         << "a folder link containing the folder key "
-                                         << "or a valid session." << endl;
-                                }
-                            }
-                            else
-                            {
-                                cout << "      login email [password]" << endl
-                                     << "      login exportedfolderurl#key" << endl
-                                     << "      login session" << endl;
-                            }
-                        }
-                        else
-                        {
-                            cout << "Already logged in. Please log out first." << endl;
-                        }
-
-                        return;
-                    }
-                    else if (words[0] == "begin")
-                    {
-                        if (words.size() == 1)
-                        {
-                            cout << "Creating ephemeral session..." << endl;
-                            pdf_to_import = true;
-                            client->createephemeral();
-                        }
-                        else if (words.size() == 2)
-                        {
-                            handle uh;
-                            byte pw[SymmCipher::KEYLENGTH];
-
-                            if (Base64::atob(words[1].c_str(), (byte*) &uh, MegaClient::USERHANDLE) == sizeof uh && Base64::atob(
-                                    words[1].c_str() + 12, pw, sizeof pw) == sizeof pw)
-                            {
-                                client->resumeephemeral(uh, pw);
-                            }
-                            else
-                            {
-                                cout << "Malformed ephemeral session identifier." << endl;
-                            }
-                        }
-                        else
-                        {
-                            cout << "      begin [ephemeralhandle#ephemeralpw]" << endl;
-                        }
-
-                        return;
-                    }
-                    else if (words[0] == "mount")
-                    {
-                        listtrees();
-                        return;
-                    }
-                    else if (words[0] == "share")
-                    {
-                        switch (words.size())
-                        {
-                            case 1:		// list all shares (incoming and outgoing)
-                                {
-                                    TreeProcListOutShares listoutshares;
-                                    Node* n;
-
-                                    cout << "Shared folders:" << endl;
-
-                                    for (unsigned i = 0; i < sizeof client->rootnodes / sizeof *client->rootnodes; i++)
-                                    {
-                                        if ((n = client->nodebyhandle(client->rootnodes[i])))
-                                        {
-                                            client->proctree(n, &listoutshares);
-                                        }
-                                    }
-
-                                    for (user_map::iterator uit = client->users.begin();
-                                         uit != client->users.end(); uit++)
-                                    {
-                                        User* u = &uit->second;
-                                        Node* n;
-
-                                        if (u->show == VISIBLE && u->sharing.size())
-                                        {
-                                            cout << "From " << u->email << ":" << endl;
-
-                                            for (handle_set::iterator sit = u->sharing.begin();
-                                                 sit != u->sharing.end(); sit++)
-                                            {
-                                                if ((n = client->nodebyhandle(*sit)))
-                                                {
-                                                    cout << "\t" << n->displayname() << " ("
-                                                         << getAccessLevelStr(n->inshare->access) << ")" << endl;
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                                break;
-
-                            case 2:	    // list all outgoing shares on this path
-                            case 3:	    // remove outgoing share to specified e-mail address
-                            case 4:	    // add outgoing share to specified e-mail address
-                            case 5:     // user specified a personal representation to appear as for the invitation
-                                if ((n = nodebypath(words[1].c_str())))
-                                {
-                                    if (words.size() == 2)
-                                    {
-                                        listnodeshares(n);
-                                    }
-                                    else
-                                    {
-                                        accesslevel_t a = ACCESS_UNKNOWN;
-                                        const char* personal_representation = NULL;
-                                        if (words.size() > 3)
-                                        {
-                                            if (words[3] == "r" || words[3] == "ro")
-                                            {
-                                                a = RDONLY;
-                                            }
-                                            else if (words[3] == "rw")
-                                            {
-                                                a = RDWR;
-                                            }
-                                            else if (words[3] == "full")
-                                            {
-                                                a = FULL;
-                                            }
-                                            else
-                                            {
-                                                cout << "Access level must be one of r, rw or full" << endl;
-
-                                                return;
-                                            }
-
-                                            if (words.size() > 4)
-                                            {
-                                                personal_representation = words[4].c_str();
-                                            }
-                                        }
-
-                                        client->setshare(n, words[2].c_str(), a, personal_representation);
-                                    }
-                                }
-                                else
-                                {
-                                    cout << words[1] << ": No such directory" << endl;
-                                }
-
-                                break;
-
-                            default:
-                                cout << "      share [remotepath [dstemail [r|rw|full] [origemail]]]" << endl;
-                        }
-
-                        return;
-                    }
-                    else if (words[0] == "users")
-                    {
-                        if (words.size() == 1)
-                        {
-                            for (user_map::iterator it = client->users.begin(); it != client->users.end(); it++)
-                            {
-                                if (it->second.email.size())
-                                {
-                                    cout << "\t" << it->second.email;
-
-                                    if (it->second.userhandle == client->me)
-                                    {
-                                        cout << ", session user";
-                                    }
-                                    else if (it->second.show == VISIBLE)
-                                    {
-                                        cout << ", visible";
-                                    }
-                                    else if (it->second.show == HIDDEN)
-                                    {
-                                        cout << ", hidden";
-                                    }
-                                    else if (it->second.show == INACTIVE)
-                                    {
-                                        cout << ", inactive";
-                                    }
-                                    else if (it->second.show == BLOCKED)
-                                    {
-                                        cout << ", blocked";
-                                    }
-                                    else
-                                    {
-                                        cout << ", unknown visibility (" << it->second.show << ")";
-                                    }
-
-                                    if (it->second.sharing.size())
-                                    {
-                                        cout << ", sharing " << it->second.sharing.size() << " folder(s)";
-                                    }
-
-                                    if (it->second.pubk.isvalid())
-                                    {
-                                        cout << ", public key cached";
-                                    }
-
-                                    cout << endl;
-                                }
-                            }
-                        }
-                        else if (words.size() == 3 && words[2] == "del")
-                        {
-                            client->removecontact(words[1].c_str(), HIDDEN);
-                        }
-                        else
-                        {
-                            cout << "      users [email del]" << endl;
-                        }
-
-                        return;
-                    }
-                    else if (words[0] == "mkdir")
-                    {
-                        if (words.size() > 1)
-                        {
-                            string newname;
-
-                            if ((n = nodebypath(words[1].c_str(), NULL, &newname)))
-                            {
-                                if (!client->checkaccess(n, RDWR))
-                                {
-                                    cout << "Write access denied" << endl;
-
-                                    return;
-                                }
-
-                                if (newname.size())
-                                {
-                                    SymmCipher key;
-                                    string attrstring;
-                                    byte buf[FOLDERNODEKEYLENGTH];
-                                    NewNode* newnode = new NewNode[1];
-
-                                    // set up new node as folder node
-                                    newnode->source = NEW_NODE;
-                                    newnode->type = FOLDERNODE;
-                                    newnode->nodehandle = 0;
-                                    newnode->parenthandle = UNDEF;
-
-                                    // generate fresh random key for this folder node
-                                    client->rng.genblock(buf, FOLDERNODEKEYLENGTH);
-                                    newnode->nodekey.assign((char*) buf, FOLDERNODEKEYLENGTH);
-                                    key.setkey(buf);
-
-                                    // generate fresh attribute object with the folder name
-                                    AttrMap attrs;
-
-                                    client->fsaccess->normalize(&newname);
-                                    attrs.map['n'] = newname;
-
-                                    // JSON-encode object and encrypt attribute string
-                                    attrs.getjson(&attrstring);
-                                    newnode->attrstring = new string;
-                                    client->makeattr(&key, newnode->attrstring, attrstring.c_str());
-
-                                    // add the newly generated folder node
-                                    client->putnodes(n->nodehandle, newnode, 1);
-                                }
-                                else
-                                {
-                                    cout << words[1] << ": Path already exists" << endl;
-                                }
-                            }
-                            else
-                            {
-                                cout << words[1] << ": Target path not found" << endl;
-                            }
-                        }
-                        else
-                        {
-                            cout << "      mkdir remotepath" << endl;
-                        }
-
-                        return;
-                    }
-                    else if (words[0] == "getfa")
-                    {
-                        if (words.size() > 1)
-                        {
-                            Node* n;
-                            int cancel = words.size() > 2 && words[words.size() - 1] == "cancel";
-
-                            if (words.size() < 3)
-                            {
-                                n = client->nodebyhandle(cwd);
-                            }
-                            else if (!(n = nodebypath(words[2].c_str())))
-                            {
-                                cout << words[2] << ": Path not found" << endl;
-                            }
-
-                            if (n)
-                            {
-                                int c = 0;
-                                fatype type;
-
-                                type = fatype(atoi(words[1].c_str()));
-
-                                if (n->type == FILENODE)
-                                {
-                                    if (n->hasfileattribute(type))
-                                    {
-                                        client->getfa(n->nodehandle, &n->fileattrstring, &n->nodekey, type, cancel);
-                                        c++;
-                                    }
-                                }
-                                else
-                                {
-                                    for (node_list::iterator it = n->children.begin(); it != n->children.end(); it++)
-                                    {
-                                        if ((*it)->type == FILENODE && (*it)->hasfileattribute(type))
-                                        {
-                                            client->getfa((*it)->nodehandle, &(*it)->fileattrstring, &(*it)->nodekey, type, cancel);
-                                            c++;
-                                        }
-                                    }
-                                }
-
-                                cout << (cancel ? "Canceling " : "Fetching ") << c << " file attribute(s) of type " << type << "..." << endl;
-                            }
-                        }
-                        else
-                        {
-                            cout << "      getfa type [path] [cancel]" << endl;
-                        }
-
-                        return;
-                    }
-                    else if (words[0] == "getua")
-                    {
-                        User* u = NULL;
-
-                        if (words.size() == 3)
-                        {
-                            // get other user's attribute
-                            if (!(u = client->finduser(words[2].c_str())))
-                            {
-                                cout << "Retrieving user attribute for unknown user: " << words[2] << endl;
-                                client->getua(words[2].c_str(), User::string2attr(words[1].c_str()));
-                                return;
-                            }
-                        }
-                        else if (words.size() != 2)
-                        {
-                            cout << "      getua attrname [email]" << endl;
-                            return;
-                        }
-
-                        if (!u)
-                        {
-                            // get logged in user's attribute
-                            if (!(u = client->ownuser()))
-                            {
-                                cout << "Must be logged in to query own attributes." << endl;
-                                return;
-                            }
-                        }
-
-                        client->getua(u, User::string2attr(words[1].c_str()));
-
-                        return;
-                    }
-                    else if (words[0] == "putua")
-                    {
-                        if (words.size() >= 2)
-                        {
-                            attr_t attrtype = User::string2attr(words[1].c_str());
-                            if (attrtype == ATTR_UNKNOWN)
-                            {
-                                cout << "Attribute not recognized" << endl;
-                                return;
-                            }
-
-                            if (words.size() == 2)
-                            {
-                                // delete attribute
-                                client->putua(attrtype);
-
-                                return;
-                            }
-                            else if (words.size() == 3)
-                            {
-                                if (words[2] == "del")
-                                {
-                                    client->putua(attrtype);
-
-                                    return;
-                                }
-                            }
-                            else if (words.size() == 4)
-                            {
-                                if (words[2] == "set")
-                                {
-                                    client->putua(attrtype, (const byte*) words[3].c_str(), unsigned(words[3].size()));
-
-                                    return;
-                                }
-                                else if (words[2] == "set64")
-                                {
-                                    int len = int(words[3].size() * 3 / 4 + 3);
-                                    byte *value = new byte[len];
-                                    int valuelen = Base64::atob(words[3].data(), value, len);
-                                    client->putua(attrtype, value, valuelen);
-                                    delete [] value;
-                                    return;
-                                }
-                                else if (words[2] == "load")
-                                {
-                                    string data, localpath;
-
-                                    client->fsaccess->path2local(&words[3], &localpath);
-
-                                    if (loadfile(&localpath, &data))
-                                    {
-                                        client->putua(attrtype, (const byte*) data.data(), unsigned(data.size()));
-                                    }
-                                    else
-                                    {
-                                        cout << "Cannot read " << words[3] << endl;
-                                    }
-
-                                    return;
-                                }
-                            }
-                        }
-
-                        cout << "      putua attrname [del|set string|load file]" << endl;
-
-                        return;
-                    }
-#ifdef DEBUG
-                    else if (words[0] == "delua")
-                    {
-                        if (words.size() == 2)
-                        {
-                            client->delua(words[1].c_str());
-                            return;
-                        }
-
-                        cout << "      delua attrname" << endl;
-
-                        return;
-                    }
-#endif
-                    else if (words[0] == "pause")
-                    {
-                        bool getarg = false, putarg = false, hardarg = false, statusarg = false;
-
-                        for (size_t i = words.size(); --i; )
-                        {
-                            if (words[i] == "get")
-                            {
-                                getarg = true;
-                            }
-                            if (words[i] == "put")
-                            {
-                                putarg = true;
-                            }
-                            if (words[i] == "hard")
-                            {
-                                hardarg = true;
-                            }
-                            if (words[i] == "status")
-                            {
-                                statusarg = true;
-                            }
-                        }
-
-                        if (statusarg)
-                        {
-                            if (!hardarg && !getarg && !putarg)
-                            {
-                                if (!client->xferpaused[GET] && !client->xferpaused[PUT])
-                                {
-                                    cout << "Transfers not paused at the moment." << endl;
-                                }
-                                else
-                                {
-                                    if (client->xferpaused[GET])
-                                    {
-                                        cout << "GETs currently paused." << endl;
-                                    }
-                                    if (client->xferpaused[PUT])
-                                    {
-                                        cout << "PUTs currently paused." << endl;
-                                    }
-                                }
-                            }
-                            else
-                            {
-                                cout << "      pause [get|put] [hard] [status]" << endl;
-                            }
-
-                            return;
-                        }
-
-                        if (!getarg && !putarg)
-                        {
-                            getarg = true;
-                            putarg = true;
-                        }
-
-                        if (getarg)
-                        {
-                            client->pausexfers(GET, client->xferpaused[GET] ^= true, hardarg);
-                            if (client->xferpaused[GET])
-                            {
-                                cout << "GET transfers paused. Resume using the same command." << endl;
-                            }
-                            else
-                            {
-                                cout << "GET transfers unpaused." << endl;
-                            }
-                        }
-
-                        if (putarg)
-                        {
-                            client->pausexfers(PUT, client->xferpaused[PUT] ^= true, hardarg);
-                            if (client->xferpaused[PUT])
-                            {
-                                cout << "PUT transfers paused. Resume using the same command." << endl;
-                            }
-                            else
-                            {
-                                cout << "PUT transfers unpaused." << endl;
-                            }
-                        }
-
-                        return;
-                    }
-                    else if (words[0] == "debug")
-                    {
-                        cout << "Debug mode " << (client->toggledebug() ? "on" : "off") << endl;
-
-                        return;
-                    }
-#if defined(WIN32) && defined(NO_READLINE)
-                    else if (words[0] == "clear")
-                    {
-                        static_cast<WinConsole*>(console)->clearScreen();
-                        return;
-                    }
-#endif
-                    else if (words[0] == "retry")
-                    {
-                        if (client->abortbackoff())
-                        {
-                            cout << "Retrying..." << endl;
-                        }
-                        else
-                        {
-                            cout << "No failed request pending." << endl;
-                        }
-
-                        return;
-                    }
-                    else if (words[0] == "recon")
-                    {
-                        cout << "Closing all open network connections..." << endl;
-
-                        client->disconnect();
-
-                        return;
-                    }
-                    else if (words[0] == "email")
-                    {
-                        if (words.size() == 1)
-                        {
-                            User *u = client->finduser(client->me);
-                            if (u)
-                            {
-                                cout << "Your current email address is " << u->email << endl;
-                            }
-                            else
-                            {
-                                cout << "Please, login first" << endl;
-                            }
-                        }
-                        else if (words.size() == 2)
-                        {
-                            if (words[1].find("@") != words[1].npos)    // get change email link
-                            {
-                                client->getemaillink(words[1].c_str());
-                            }
-                            else    // confirm change email link
-                            {
-                                string link = words[1];
-
-                                size_t pos = link.find("#verify");
-                                if (pos == link.npos)
-                                {
-                                    cout << "Invalid email change link." << endl;
-                                    return;
-                                }
-
-                                changecode.assign(link.substr(pos+strlen("#verify")));
-                                client->queryrecoverylink(changecode.c_str());
-                            }
-                        }
-                        else
-                        {
-                            cout << "      email [newemail|emaillink]" << endl;
-                        }
-
-                        return;
-                    }
-#ifdef ENABLE_CHAT
-                    else if (words[0] == "chatc")
-                    {
-                        size_t wordscount = words.size();
-                        if (wordscount < 2 || wordscount == 3)
-                        {
-                            cout << "Invalid syntax to create chatroom" << endl;
-                            cout << "      chatc group [email ro|sta|mod]* " << endl;
-                            return;
-                        }
-
-                        int group = atoi(words[1].c_str());
-                        if (group != 0 && group != 1)
-                        {
-                            cout << "Invalid syntax to create chatroom" << endl;
-                            cout << "      chatc group [email ro|sta|mod]* " << endl;
-                            return;
-                        }
-
-                        unsigned parseoffset = 2;
-                        if (((wordscount - parseoffset) % 2) == 0)
-                        {
-                            if (!group && (wordscount - parseoffset) != 2)
-                            {
-                                cout << "Peer to peer chats must have only one peer" << endl;
-                                return;
-                            }
-
-                            userpriv_vector *userpriv = new userpriv_vector;
-
-                            unsigned numUsers = 0;
-                            while ((numUsers+1)*2 + parseoffset <= wordscount)
-                            {
-                                string email = words[numUsers*2 + parseoffset];
-                                User *u = client->finduser(email.c_str(), 0);
-                                if (!u)
-                                {
-                                    cout << "User not found: " << email << endl;
-                                    delete userpriv;
-                                    return;
-                                }
-
-                                string privstr = words[numUsers*2 + parseoffset + 1];
-                                privilege_t priv;
-                                if (!group) // 1:1 chats enforce peer to be moderator
-                                {
-                                    priv = PRIV_MODERATOR;
-                                }
-                                else
-                                {
-                                    if (privstr ==  "ro")
-                                    {
-                                        priv = PRIV_RO;
-                                    }
-                                    else if (privstr == "sta")
-                                    {
-                                        priv = PRIV_STANDARD;
-                                    }
-                                    else if (privstr == "mod")
-                                    {
-                                        priv = PRIV_MODERATOR;
-                                    }
-                                    else
-                                    {
-                                        cout << "Unknown privilege for " << email << endl;
-                                        delete userpriv;
-                                        return;
-                                    }
-                                }
-
-                                userpriv->push_back(userpriv_pair(u->userhandle, priv));
-                                numUsers++;
-                            }
-
-                            client->createChat(group, false, userpriv);
-                            delete userpriv;
-                            return;
-                        }
-                        else
-                        {
-                            cout << "Invalid syntax to create chatroom" << endl;
-                            cout << "      chatc group [email ro|sta|mod]* " << endl;
-                            return;
-                        }
-                    }
-                    else if (words[0] == "chati")
-                    {
-                        if (words.size() >= 4 && words.size() <= 7)
-                        {
-                            handle chatid;
-                            Base64::atob(words[1].c_str(), (byte*) &chatid, MegaClient::CHATHANDLE);
-
-                            string email = words[2];
-                            User *u = client->finduser(email.c_str(), 0);
-                            if (!u)
-                            {
-                                cout << "User not found: " << email << endl;
-                                return;
-                            }
-
-                            string privstr = words[3];
-                            privilege_t priv;
-                            if (privstr ==  "ro")
-                            {
-                                priv = PRIV_RO;
-                            }
-                            else if (privstr == "sta")
-                            {
-                                priv = PRIV_STANDARD;
-                            }
-                            else if (privstr == "mod")
-                            {
-                                priv = PRIV_MODERATOR;
-                            }
-                            else
-                            {
-                                cout << "Unknown privilege for " << email << endl;
-                                return;
-                            }
-
-                            string title;
-                            string unifiedKey;
-                            if (words.size() == 5)
-                            {
-                                unifiedKey = words[4];
-                            }
-                            else if (words.size() >= 6 && words[4] == "t")
-                            {
-                                title = words[5];
-                                if (words.size() == 7)
-                                {
-                                    unifiedKey = words[6];
-                                }
-                            }
-                            const char *t = !title.empty() ? title.c_str() : NULL;
-                            const char *uk = !unifiedKey.empty() ? unifiedKey.c_str() : NULL;
-
-                            client->inviteToChat(chatid, u->userhandle, priv, uk, t);
-                            return;
-                        }
-                        else
-                        {
-                            cout << "Invalid syntax to invite new peer" << endl;
-                            cout << "       chati chatid email ro|sta|mod [t title64] [unifiedkey]" << endl;
-                            return;
-
-                        }
-                    }
-                    else if (words[0] == "chatr")
-                    {
-                        if (words.size() > 1 && words.size() < 4)
-                        {
-                            handle chatid;
-                            Base64::atob(words[1].c_str(), (byte*) &chatid, MegaClient::CHATHANDLE);
-
-                            if (words.size() == 2)
-                            {
-                                client->removeFromChat(chatid, client->me);
-                                return;
-                            }
-                            else if (words.size() == 3)
-                            {
-                                string email = words[2];
-                                User *u = client->finduser(email.c_str(), 0);
-                                if (!u)
-                                {
-                                    cout << "User not found: " << email << endl;
-                                    return;
-                                }
-
-                                client->removeFromChat(chatid, u->userhandle);
-                                return;
-                            }
-                        }
-                        else
-                        {
-                            cout << "Invalid syntax to leave chat / remove peer" << endl;
-                            cout << "       chatr chatid [email]" << endl;
-                            return;
-                        }
-
-                    }
-                    else if (words[0] == "chatu")
-                    {
-                        if (words.size() == 2)
-                        {
-                            handle chatid;
-                            Base64::atob(words[1].c_str(), (byte*) &chatid, MegaClient::CHATHANDLE);
-
-                            client->getUrlChat(chatid);
-                            return;
-                        }
-                        else
-                        {
-                            cout << "Invalid syntax to get chatd URL" << endl;
-                            cout << "      chatu chatid" << endl;
-                            return;
-                        }
-                    }
-                    else if (words[0] == "chata")
-                    {
-                        if (words.size() == 3)
-                        {
-                            handle chatid;
-                            Base64::atob(words[1].c_str(), (byte*) &chatid, MegaClient::CHATHANDLE);
-                            bool archive = (words[2] == "1");
-                            if (!archive && (words[2] != "0"))
-                            {
-                                cout << "Use 1 or 0 to archive/unarchive chats" << endl;
-                                return;
-                            }
-
-                            client->archiveChat(chatid, archive);
-                            return;
-                        }
-                        else
-                        {
-                            cout << "Invalid syntax to archive chat" << endl;
-                            cout << "      chata chatid archive" << endl;
-                            return;
-                        }
-                    }
-                    else if (words[0] == "chats")
-                    {
-                        if (words.size() == 1)
-                        {
-                            textchat_map::iterator it;
-                            for (it = client->chats.begin(); it != client->chats.end(); it++)
-                            {
-                                DemoApp::printChatInformation(it->second);
-                            }
-                            return;
-                        }
-                        if (words.size() == 2)
-                        {
-                            handle chatid;
-                            Base64::atob(words[1].c_str(), (byte*) &chatid, MegaClient::CHATHANDLE);
-
-                            textchat_map::iterator it = client->chats.find(chatid);
-                            if (it == client->chats.end())
-                            {
-                                cout << "Chatid " << words[1].c_str() << " not found" << endl;
-                                return;
-                            }
-
-                            DemoApp::printChatInformation(it->second);
-                            return;
-                        }
-                        else
-                        {
-                            cout << "Invalid syntax to list chatrooms" << endl;
-                            cout << "      chats" << endl;
-                            return;
-                        }
-                    }
-                    else if (words[0] == "chatl")
-                    {
-                        if (words.size() == 2 || words.size() == 3)
-                        {
-                            handle chatid;
-                            Base64::atob(words[1].c_str(), (byte*) &chatid, MegaClient::CHATHANDLE);
-                            bool del = (words.size() == 3 && words[2] == "del");
-                            bool createifmissing = words.size() == 2 || (words.size() == 3 && words[2] != "query");
-
-                            client->chatlink(chatid, del, createifmissing);
-                            return;
-                        }
-                        else
-                        {
-                            cout << "Invalid syntax for chat link" << endl;
-                            cout << "      chatl chatid [del|query]" << endl;
-                            return;
-                        }
-                    }
-#endif
-                    else if (words[0] == "reset")
-                    {
-                        if (client->loggedin() != NOTLOGGEDIN)
-                        {
-                            cout << "You're logged in. Please, logout first." << endl;
-                        }
-                        else if (words.size() == 2 ||
-                            (words.size() == 3 && (hasMasterKey = (words[2] == "mk"))))
-                        {
-                            recoveryemail = words[1];
-                            client->getrecoverylink(recoveryemail.c_str(), hasMasterKey);
-                        }
-                        else
-                        {
-                            cout << "      reset email [mk]" << endl;
-                        }
-                        return;
-                    }                    
-                    else if (words[0] == "clink")
-                    {
-                        bool renew = false;
-                        if (words.size() == 1 || (words.size() == 2 && (renew = words[1] == "renew")))
-                        {
-                            client->contactlinkcreate(renew);
-                        }
-                        else if ((words.size() == 3) && (words[1] == "query"))
-                        {
-                            handle clink = UNDEF;
-                            Base64::atob(words[2].c_str(), (byte*) &clink, MegaClient::CONTACTLINKHANDLE);
-
-                            client->contactlinkquery(clink);
-
-                        }
-                        else if (((words.size() == 3) || (words.size() == 2)) && (words[1] == "del"))
-                        {
-                            handle clink = UNDEF;
-
-                            if (words.size() == 3)
-                            {
-                                Base64::atob(words[2].c_str(), (byte*) &clink, MegaClient::CONTACTLINKHANDLE);
-                            }
-
-                            client->contactlinkdelete(clink);
-                        }
-                        else
-                        {
-                            cout << "      clink [renew|query handle|del [handle]]" << endl;
-                        }
-                        return;
-                    }
-
-                    break;
-
-                case 6:
-                    if (words[0] == "apiurl")
-                    {
-                        if (words.size() == 1)
-                        {
-                            cout << "Current APIURL = " << MegaClient::APIURL << endl;
-                            cout << "Current disablepkp = " << (MegaClient::disablepkp ? "true" : "false") << endl;
-                        }
-                        else if (client->loggedin() != NOTLOGGEDIN)
-                        {
-                            cout << "You must not be logged in, to change APIURL" << endl;
-                        }
-                        else if (words.size() == 3 || words.size() == 2)
-                        {
-                            if (words[1].size() < 8 || words[1].substr(0, 8) != "https://")
-                            {
-                                words[1] = "https://" + words[1];
-                            }
-                            if (words[1].empty() || words[1][words[1].size() - 1] != '/')
-                            {
-                                words[1] += '/';
-                            }
-                            MegaClient::APIURL = words[1];
-                            if (words.size() == 3)
-                            {
-                                MegaClient::disablepkp = words[2] == "true";
-                            }
-                        }
-                        else
-                        {
-                            cout << "apiurl [<url> [true|false]]" << endl;
-                        }
-                        return;
-                    }
-                    else if (words[0] == "passwd")
-                    {
-                        if (client->loggedin() != NOTLOGGEDIN)
-                        {
-                            setprompt(NEWPASSWORD);
-                        }
-                        else
-                        {
-                            cout << "Not logged in." << endl;
-                        }
-
-                        return;
-                    }
-                    else if (words[0] == "putbps")
-                    {
-                        if (words.size() > 1)
-                        {
-                            if (words[1] == "auto")
-                            {
-                                client->putmbpscap = -1;
-                            }
-                            else if (words[1] == "none")
-                            {
-                                client->putmbpscap = 0;
-                            }
-                            else
-                            {
-                                int t = atoi(words[1].c_str());
-
-                                if (t > 0)
-                                {
-                                    client->putmbpscap = t;
-                                }
-                                else
-                                {
-                                    cout << "      putbps [limit|auto|none]" << endl;
-                                    return;
-                                }
-                            }
-                        }
-
-                        cout << "Upload speed limit set to ";
-
-                        if (client->putmbpscap < 0)
-                        {
-                            cout << "AUTO (approx. 90% of your available bandwidth)" << endl;
-                        }
-                        else if (!client->putmbpscap)
-                        {
-                            cout << "NONE" << endl;
-                        }
-                        else
-                        {
-                            cout << client->putmbpscap << " byte(s)/second" << endl;
-                        }
-
-                        return;
-                    }
-                    else if (words[0] == "invite")
-                    {
-                        if (client->loggedin() != FULLACCOUNT)
-                        {
-                            cout << "Not logged in." << endl;
-                        }
-                        else if (words.size() > 1)
-                        {
-                            if (client->ownuser()->email.compare(words[1]))
-                            {
-                                int del = words.size() == 3 && words[2] == "del";
-                                int rmd = words.size() == 3 && words[2] == "rmd";
-                                int clink = words.size() == 4 && words[2] == "clink";
-                                if (words.size() == 2 || words.size() == 3 || words.size() == 4)
-                                {
-                                    if (del || rmd)
-                                    {
-                                        client->setpcr(words[1].c_str(), del ? OPCA_DELETE : OPCA_REMIND);
-                                    }
-                                    else
-                                    {
-                                        handle contactLink = UNDEF;
-                                        if (clink)
-                                        {
-                                            Base64::atob(words[3].c_str(), (byte*) &contactLink, MegaClient::CONTACTLINKHANDLE);
-                                        }
-
-                                        // Original email is not required, but can be used if this account has multiple email addresses associated,
-                                        // to have the invite come from a specific email
-                                        client->setpcr(words[1].c_str(), OPCA_ADD, "Invite from MEGAcli", words.size() == 3 ? words[2].c_str() : NULL, contactLink);
-                                    }
-                                }
-                                else
-                                {
-                                    cout << "      invite dstemail [origemail|del|rmd|clink <link>]" << endl;
-                                }
-                            }
-                            else
-                            {
-                                cout << "Cannot send invitation to your own user" << endl;
-                            }
-                        }
-                        else
-                        {
-                            cout << "      invite dstemail [origemail|del|rmd]" << endl;
-                        }
-
-                        return;
-                    }
-                    else if (words[0] == "signup")
-                    {
-                        if (words.size() == 2)
-                        {
-                            const char* ptr = words[1].c_str();
-                            const char* tptr;
-
-                            if ((tptr = strstr(ptr, "#confirm")))
-                            {
-                                ptr = tptr + 8;
-                            }
-
-                            unsigned len = unsigned((words[1].size() - (ptr - words[1].c_str())) * 3 / 4 + 4);
-
-                            byte* c = new byte[len];
-                            len = Base64::atob(ptr, c, len);
-                            // we first just query the supplied signup link,
-                            // then collect and verify the password,
-                            // then confirm the account
-                            client->querysignuplink(c, len);
-                            delete[] c;
-                        }
-                        else if (words.size() == 3)
-                        {
-                            switch (client->loggedin())
-                            {
-                                case FULLACCOUNT:
-                                    cout << "Already logged in." << endl;
-                                    break;
-
-                                case CONFIRMEDACCOUNT:
-                                    cout << "Current account already confirmed." << endl;
-                                    break;
-
-                                case EPHEMERALACCOUNT:
-                                    if (words[1].find('@') + 1 && words[1].find('.') + 1)
-                                    {
-                                        signupemail = words[1];
-                                        signupname = words[2];
-
-                                        cout << endl;
-                                        setprompt(NEWPASSWORD);
-                                    }
-                                    else
-                                    {
-                                        cout << "Please enter a valid e-mail address." << endl;
-                                    }
-                                    break;
-
-                                case NOTLOGGEDIN:
-                                    cout << "Please use the begin command to commence or resume the ephemeral session to be upgraded." << endl;
-                            }
-                        }
-
-                        return;
-                    }
-                    else if (words[0] == "whoami")
-                    {
-                        if (client->loggedin() == NOTLOGGEDIN)
-                        {
-                            cout << "Not logged in." << endl;
-                        }
-                        else
-                        {
-                            User* u;
-
-                            if ((u = client->finduser(client->me)))
-                            {
-                                cout << "Account e-mail: " << u->email << endl;
-#ifdef ENABLE_CHAT
-                                if (client->signkey)
-                                {
-                                    cout << "Fingerprint: " << client->signkey->genFingerprintHex() << endl;
-                                }
-#endif
-                            }
-
-                            bool storage = extractparam("storage", words);
-                            bool transfer = extractparam("transfer", words);
-                            bool pro = extractparam("pro", words);
-                            bool transactions = extractparam("transactions", words);
-                            bool purchases = extractparam("purchases", words);
-                            bool sessions = extractparam("sessions", words);
-
-                            bool all = !storage && !transfer && !pro && !transactions && !purchases && !sessions;
-
-                            cout << "Retrieving account status..." << endl;
-
-                            client->getaccountdetails(&account, all || storage, all || transfer, all || pro, all || transactions, all || purchases, all || sessions);
-                        }
-
-                        return;
-                    }
-                    else if (words[0] == "export")
-                    {
-                        if (words.size() > 1)
-                        {
-                            hlink = UNDEF;
-                            del = ets = 0;
-
-                            Node* n;
-                            int deltmp = 0;
-                            int etstmp = 0;
-
-                            if ((n = nodebypath(words[1].c_str())))
-                            {
-                                if (words.size() > 2)
-                                {
-                                    deltmp = (words[2] == "del");
-                                    if (!deltmp)
-                                    {
-                                        etstmp = atoi(words[2].c_str());
-                                    }
-                                }
-
-
-                                cout << "Exporting..." << endl;
-
-                                error e;
-                                if ((e = client->exportnode(n, deltmp, etstmp)))
-                                {
-                                    cout << words[1] << ": Export rejected (" << errorstring(e) << ")" << endl;
-                                }
-                                else
-                                {
-                                    hlink = n->nodehandle;
-                                    ets = etstmp;
-                                    del = deltmp;
-                                }
-                            }
-                            else
-                            {
-                                cout << words[1] << ": Not found" << endl;
-                            }
-                        }
-                        else
-                        {
-                            cout << "      export remotepath [expireTime|del]" << endl;
-                        }
-
-                        return;
-                    }
-                    else if (words[0] == "import")
-                    {
-                        if (words.size() > 1)
-                        {
-                            if (client->openfilelink(words[1].c_str(), 1) == API_OK)
-                            {
-                                cout << "Opening link..." << endl;
-                            }
-                            else
-                            {
-                                cout << "Malformed link. Format: Exported URL or fileid#filekey" << endl;
-                            }
-                        }
-                        else
-                        {
-                            cout << "      import exportedfilelink#key" << endl;
-                        }
-
-                        return;
-                    }
-                    else if (words[0] == "reload")
-                    {
-                        cout << "Reloading account..." << endl;
-
-                        bool nocache = false;
-                        if (words.size() == 2 && words[1] == "nocache")
-                        {
-                            nocache = true;
-                        }
-
-                        cwd = UNDEF;
-                        client->cachedscsn = UNDEF;
-                        client->fetchnodes(nocache);
-
-                        return;
-                    }
-                    else if (words[0] == "logout")
-                    {
-                        cout << "Logging off..." << endl;
-
-                        cwd = UNDEF;
-                        client->logout();
-
-                        if (clientFolder)
-                        {
-                            clientFolder->logout();
-                            delete clientFolder;
-                            clientFolder = NULL;
-                        }
-
-                        return;
-                    }
-#ifdef ENABLE_CHAT
-                    else if (words[0] == "chatga")
-                    {
-                        if (words.size() == 4)
-                        {
-                            handle chatid;
-                            Base64::atob(words[1].c_str(), (byte*) &chatid, MegaClient::CHATHANDLE);
-
-                            handle nodehandle;
-                            Base64::atob(words[2].c_str(), (byte*) &nodehandle, MegaClient::NODEHANDLE);
-
-                            const char *uid = words[3].c_str();
-
-                            client->grantAccessInChat(chatid, nodehandle, uid);
-                            return;
-                        }
-                        else
-                        {
-                            cout << "Invalid syntax to grant access to a user/node" << endl;
-                            cout << "       chatga chatid nodehandle uid" << endl;
-                            return;
-                        }
-
-                    }
-                    else if (words[0] == "chatra")
-                    {
-                        if (words.size() == 4)
-                        {
-                            handle chatid;
-                            Base64::atob(words[1].c_str(), (byte*) &chatid, MegaClient::CHATHANDLE);
-
-                            handle nodehandle;
-                            Base64::atob(words[2].c_str(), (byte*) &nodehandle, MegaClient::NODEHANDLE);
-
-                            const char *uid = words[3].c_str();
-
-                            client->removeAccessInChat(chatid, nodehandle, uid);
-                            return;
-                        }
-                        else
-                        {
-                            cout << "Invalid syntax to revoke access to a user/node" << endl;
-                            cout << "       chatra chatid nodehandle uid" << endl;
-                            return;
-                        }
-                    }
-                    else if (words[0] == "chatst")
-                    {
-                        if (words.size() == 2 || words.size() == 3)
-                        {
-                            handle chatid;
-                            Base64::atob(words[1].c_str(), (byte*) &chatid, MegaClient::CHATHANDLE);
-
-                            if (words.size() == 2)  // empty title / remove title
-                            {
-                                client->setChatTitle(chatid, "");
-                            }
-                            else if (words.size() == 3)
-                            {
-                                client->setChatTitle(chatid, words[2].c_str());
-                            }
-                            return;
-                        }
-                        else
-                        {
-                            cout << "Invalid syntax to set chat title" << endl;
-                            cout << "       chatst chatid title64" << endl;
-                            return;
-                        }
-                    }
-                    else if (words[0] == "chatpu")
-                    {
-                        if (words.size() == 1)
-                        {
-                            client->getChatPresenceUrl();
-                            return;
-                        }
-                        else
-                        {
-                            cout << "Invalid syntax to get presence URL" << endl;
-                            cout << "       chatpu" << endl;
-                            return;
-                        }
-                    }
-                    else if (words[0] == "chatup")
-                    {
-                        if (words.size() == 4)
-                        {
-                            handle chatid;
-                            Base64::atob(words[1].c_str(), (byte*) &chatid, MegaClient::CHATHANDLE);
-
-                            handle uh;
-                            Base64::atob(words[2].c_str(), (byte*) &uh, MegaClient::USERHANDLE);
-
-                            string privstr = words[3];
-                            privilege_t priv;
-                            if (privstr ==  "ro")
-                            {
-                                priv = PRIV_RO;
-                            }
-                            else if (privstr == "sta")
-                            {
-                                priv = PRIV_STANDARD;
-                            }
-                            else if (privstr == "mod")
-                            {
-                                priv = PRIV_MODERATOR;
-                            }
-                            else
-                            {
-                                cout << "Unknown privilege for " << words[2] << endl;
-                                return;
-                            }
-
-                            client->updateChatPermissions(chatid, uh, priv);
-                            return;
-                        }
-                        else
-                        {
-                            cout << "Invalid syntax to update privileges" << endl;
-                            cout << "       chatpu chatid userhandle ro|sta|mod" << endl;
-                            return;
-
-                        }
-                    }
-                    else if (words[0] == "chatlu")
-                    {
-                        if (words.size() == 2)
-                        {
-                            handle publichandle = 0;
-                            Base64::atob(words[1].c_str(), (byte*) &publichandle, MegaClient::CHATLINKHANDLE);
-
-                            client->chatlinkurl(publichandle);
-                            return;
-                        }
-                        else
-                        {
-                            cout << "Invalid syntax to get URL to connect to openchat" << endl;
-                            cout << "       chatlu publichandle" << endl;
-                            return;
-                        }
-                    }
-                    else if (words[0] == "chatsm")
-                    {
-                        if (words.size() == 2 || words.size() == 3)
-                        {
-                            handle chatid;
-                            Base64::atob(words[1].c_str(), (byte*) &chatid, MegaClient::CHATHANDLE);
-
-                            const char *title = (words.size() == 3) ? words[2].c_str() : NULL;
-                            client->chatlinkclose(chatid, title);
-                            return;
-                        }
-                        else
-                        {
-                            cout << "Invalid syntax to set private/close mode" << endl;
-                            cout << "       chatsm chatid [title64]" << endl;
-                            return;
-                        }
-                    }
-                    else if (words[0] == "chatlj")
-                    {
-                        if (words.size() == 3)
-                        {
-                            handle publichandle = 0;
-                            Base64::atob(words[1].c_str(), (byte*) &publichandle, MegaClient::CHATLINKHANDLE);
-
-                            client->chatlinkjoin(publichandle, words[2].c_str());
-                            return;
-                        }
-                        else
-                        {
-                            cout << "Invalid syntax to join an openchat" << endl;
-                            cout << "      chatlj publichandle unifiedkey" << endl;
-                            return;
-                        }
-                    }
-                    else if (words[0] == "chatcp")
-                    {
-                        size_t wordscount = words.size();
-                        if (wordscount < 2 || wordscount == 3)
-                        {
-                            cout << "Invalid syntax to create chatroom" << endl;
-                            cout << "      chatcp mownkey [t title64] [email ro|sta|mod unifiedkey]* " << endl;
-                            return;
-                        }
-
-                        userpriv_vector *userpriv = new userpriv_vector;
-                        string_map *userkeymap = new string_map;
-                        string mownkey = words[1];
-                        unsigned parseoffset = 2;
-                        const char *title = NULL;
-
-                        if (wordscount >= 4)
-                        {
-                            if (words[2] == "t")
-                            {
-                                if (words[3].empty())
-                                {
-                                    cout << "Title cannot be set to empty string" << endl;
-                                    delete userpriv;
-                                    delete userkeymap;
-                                    return;
-                                }
-                                title =  words[3].c_str();
-                                parseoffset = 4;
-                            }
-
-                            if (((wordscount - parseoffset) % 3) != 0)
-                            {
-                                cout << "Invalid syntax to create chatroom" << endl;
-                                cout << "      chatcp mownkey [t title64] [email ro|sta|mod unifiedkey]* " << endl;
-                                delete userpriv;
-                                delete userkeymap;
-                                return;
-                            }
-
-                            unsigned numUsers = 0;
-                            while ((numUsers+1)*3 + parseoffset <= wordscount)
-                            {
-                                string email = words[numUsers*3 + parseoffset];
-                                User *u = client->finduser(email.c_str(), 0);
-                                if (!u)
-                                {
-                                    cout << "User not found: " << email << endl;
-                                    delete userpriv;
-                                    delete userkeymap;
-                                    return;
-                                }
-
-                                string privstr = words[numUsers*3 + parseoffset + 1];
-                                privilege_t priv;
-                                if (privstr ==  "ro")
-                                {
-                                    priv = PRIV_RO;
-                                }
-                                else if (privstr == "sta")
-                                {
-                                    priv = PRIV_STANDARD;
-                                }
-                                else if (privstr == "mod")
-                                {
-                                    priv = PRIV_MODERATOR;
-                                }
-                                else
-                                {
-                                    cout << "Unknown privilege for " << email << endl;
-                                    delete userpriv;
-                                    delete userkeymap;
-                                    return;
-                                }
-                                userpriv->push_back(userpriv_pair(u->userhandle, priv));
-                                string unifiedkey = words[numUsers*3 + parseoffset + 2];
-                                char uhB64[12];
-                                Base64::btoa((byte *)&u->userhandle, MegaClient::USERHANDLE, uhB64);
-                                uhB64[11] = '\0';
-                                userkeymap->insert(std::pair<string, string>(uhB64, unifiedkey));
-                                numUsers++;
-                            }
-                        }
-                        char ownHandleB64[12];
-                        Base64::btoa((byte *)&client->me, MegaClient::USERHANDLE, ownHandleB64);
-                        ownHandleB64[11] = '\0';
-                        userkeymap->insert(std::pair<string, string>(ownHandleB64, mownkey));
-                        client->createChat(true, true, userpriv, userkeymap, title);
-                        delete userpriv;
-                        delete userkeymap;
-                        return;
-                    }
-#endif
-                    else if (words[0] == "cancel")
-                    {
-                        if (client->loggedin() != FULLACCOUNT)
-                        {
-                            cout << "Please, login into your account first." << endl;
-                            return;
-                        }
-
-                        if (words.size() == 1)  // get link
-                        {
-                            User *u = client->finduser(client->me);
-                            if (!u)
-                            {
-                                cout << "Error retrieving logged user." << endl;
-                                return;
-                            }
-                            client->getcancellink(u->email.c_str());
-                        }
-                        else if (words.size() == 2) // link confirmation
-                        {
-                            string link = words[1];
-
-                            size_t pos = link.find("#cancel");
-                            if (pos == link.npos)
-                            {
-                                cout << "Invalid cancellation link." << endl;
-                                return;
-                            }
-
-                            recoverycode.assign(link.substr(pos+strlen("#cancel")));
-                            setprompt(LOGINPASSWORD);
-                        }
-                        else
-                        {
-                            cout << "       cancel [link]" << endl;
-                        }
-                        return;
-                    }
-                    else if (words[0] == "alerts")
-                    {
-                        bool shownew = false, showold = false;
-                        size_t showN = 0; 
-                        if (words.size() == 1)
-                        {
-                            shownew = showold = true;
-                        }
-                        else if (words.size() == 2)
-                        {
-                            if (words[1] == "seen")
-                            {
-                                client->useralerts.acknowledgeAll();
-                                return;
-                            }
-                            else if (words[1] == "notify")
-                            {
-                                notifyAlerts = !notifyAlerts;
-                                cout << "notification of alerts is now " << (notifyAlerts ? "on" : "off") << endl;
-                                return;
-                            }
-                            else if (words[1] == "old")
-                            {
-                                showold = true;
-                            }
-                            else if (words[1] == "new")
-                            {
-                                shownew = true;
-                            }
-                            else if (words[1] == "test_reminder")
-                            {
-                                client->useralerts.add(new UserAlert::PaymentReminder(time(NULL) - 86000*3 /2, client->useralerts.nextId()));
-                            }
-                            else if (words[1] == "test_payment")
-                            {
-                                client->useralerts.add(new UserAlert::Payment(true, 1, time(NULL) + 86000 * 1, client->useralerts.nextId()));
-                            }
-                            else if (atoi(words[1].c_str()) > 0)
-                            {
-                                showN = atoi(words[1].c_str());
-                            }
-                        }
-                        if (showold || shownew || showN > 0)
-                        {
-                            UserAlerts::Alerts::const_iterator i = client->useralerts.alerts.begin();
-                            if (showN)
-                            {
-                                size_t n = 0;
-                                for (UserAlerts::Alerts::const_reverse_iterator i = client->useralerts.alerts.rbegin(); i != client->useralerts.alerts.rend(); ++i, ++n)
-                                {
-                                    showN += ((*i)->relevant || n >= showN) ? 0 : 1;
-                                }
-                            }
-
-                            size_t n = client->useralerts.alerts.size();
-                            for (; i != client->useralerts.alerts.end(); ++i)
-                            {
-                                if ((*i)->relevant)
-                                {
-                                    if (--n < showN || (shownew && !(*i)->seen) || (showold && (*i)->seen))
-                                    {
-                                        printAlert(**i);
-                                    }
-                                }
-                            }
-                        }
-                        else
-                        {
-                            cout << "       alerts [new|old|N|notify|seen]" << endl;
-                        }
-                        return;
-                    }
-#ifdef USE_FILESYSTEM
-                    else if (words[0] == "lmkdir")
-                    {
-                        if (words.size() > 1)
-                        {
-                            std::error_code ec;
-                            if (!fs::create_directory(words[1].c_str(), ec))
-                            {
-                                cerr << "Create directory failed: " << ec.message() << endl;
-                            }
-                        }
-                        else
-                        {
-                            cout << "      lmkdir localpath" << endl;
-                        }
-                        return;
-                    }
-#endif
-                    break;
-
-
-                case 7:
-                    if (words[0] == "confirm")
-                    {
-                        if (signupemail.size() && signupcode.size())
-                        {
-                            cout << "Please type " << signupemail << "'s password to confirm the signup." << endl;
-                            setprompt(LOGINPASSWORD);
-                        }
-                        else
-                        {
-                            cout << "No signup confirmation pending." << endl;
-                        }
-
-                        return;
-                    }
-                    else if (words[0] == "recover")
-                    {
-                        if (client->loggedin() != NOTLOGGEDIN)
-                        {
-                            cout << "You're logged in. Please, logout first." << endl;
-                        }
-                        else if (words.size() == 2)
-                        {
-                            string link = words[1];
-
-                            size_t pos = link.find("#recover");
-                            if (pos == link.npos)
-                            {
-                                cout << "Invalid recovery link." << endl;
-                            }
-
-                            recoverycode.assign(link.substr(pos+strlen("#recover")));
-                            client->queryrecoverylink(recoverycode.c_str());
-                        }
-                        else
-                        {
-                            cout << "      recover recoverylink" << endl;
-                        }
-                        return;
-                    }
-                    else if (words[0] == "session")
-                    {
-                        byte session[64];
-                        int size;
-
-                        size = client->dumpsession(session, sizeof session);
-
-                        if (size > 0)
-                        {
-                            Base64Str<sizeof session> buf(session, size);
-
-                            if ((words.size() == 2 || words.size() == 3) && words[1] == "autoresume")
-                            {
-                                string filename = "megacli_autoresume_session" + (words.size() == 3 ? "_" + words[2] : "");
-                                ofstream file(filename.c_str());
-                                if (file.fail() || !file.is_open())
-                                {
-                                    cout << "could not open file: " << filename << endl;
-                                }
-                                else
-                                {
-                                    file << buf;
-                                    cout << "Your (secret) session is saved in file '" << filename << "'" << endl;
-                                }
-                            }
-                            else
-                            {
-                                cout << "Your (secret) session is: " << buf << endl;
-                            }
-                        }
-                        else if (!size)
-                        {
-                            cout << "Not logged in." << endl;
-                        }
-                        else
-                        {
-                            cout << "Internal error." << endl;
-                        }
-
-                        return;
-                    }
-                    else if (words[0] == "symlink")
-                    {
-                        if (client->followsymlinks ^= true)
-                        {
-                            cout << "Now following symlinks. Please ensure that sync does not see any filesystem item twice!" << endl;
-                        }
-                        else
-                        {
-                            cout << "No longer following symlinks." << endl;
-                        }
-
-                        return;
-                    }
-                    else if (words[0] == "version")
-                    {
-                        cout << "MEGA SDK version: " << MEGA_MAJOR_VERSION << "." << MEGA_MINOR_VERSION << "." << MEGA_MICRO_VERSION << endl;
-
-                        cout << "Features enabled:" << endl;
+        }
+        else
+        {
+            cout << "Your (secret) session is: " << buf << endl;
+        }
+    }
+    else if (!size)
+    {
+        cout << "Not logged in." << endl;
+    }
+    else
+    {
+        cout << "Internal error." << endl;
+    }
+}
+
+void exec_symlink(autocomplete::ACState& s)
+{
+    if (client->followsymlinks ^= true)
+    {
+        cout << "Now following symlinks. Please ensure that sync does not see any filesystem item twice!" << endl;
+    }
+    else
+    {
+        cout << "No longer following symlinks." << endl;
+    }
+}
+
+void exec_version(autocomplete::ACState& s)
+{
+    cout << "MEGA SDK version: " << MEGA_MAJOR_VERSION << "." << MEGA_MINOR_VERSION << "." << MEGA_MICRO_VERSION << endl;
+
+    cout << "Features enabled:" << endl;
 
 #ifdef USE_CRYPTOPP
-                        cout << "* CryptoPP" << endl;
+    cout << "* CryptoPP" << endl;
 #endif
 
 #ifdef USE_SQLITE
-                        cout << "* SQLite" << endl;
+    cout << "* SQLite" << endl;
 #endif
 
 #ifdef USE_BDB
-                        cout << "* Berkeley DB" << endl;
+    cout << "* Berkeley DB" << endl;
 #endif
 
 #ifdef USE_INOTIFY
-                        cout << "* inotify" << endl;
+    cout << "* inotify" << endl;
 #endif
 
 #ifdef HAVE_FDOPENDIR
-                        cout << "* fdopendir" << endl;
+    cout << "* fdopendir" << endl;
 #endif
 
 #ifdef HAVE_SENDFILE
-                        cout << "* sendfile" << endl;
+    cout << "* sendfile" << endl;
 #endif
 
 #ifdef _LARGE_FILES
-                        cout << "* _LARGE_FILES" << endl;
+    cout << "* _LARGE_FILES" << endl;
 #endif
 
 #ifdef USE_FREEIMAGE
-                        cout << "* FreeImage" << endl;
+    cout << "* FreeImage" << endl;
 #endif
 
 #ifdef ENABLE_SYNC
-                        cout << "* sync subsystem" << endl;
+    cout << "* sync subsystem" << endl;
 #endif
 
 #ifdef USE_MEDIAINFO
-                        cout << "* MediaInfo" << endl;
+    cout << "* MediaInfo" << endl;
 #endif
 
-                        cwd = UNDEF;
+    cwd = UNDEF;
+}
 
-                        return;
-                    } 
-                    else if (words[0] == "showpcr")
-                    {
-                        string outgoing = "";
-                        string incoming = "";
-                        for (handlepcr_map::iterator it = client->pcrindex.begin(); it != client->pcrindex.end(); it++)
-                        {
-                            if (it->second->isoutgoing)
-                            {
-                                ostringstream os;
-                                os << setw(34) << it->second->targetemail;
+void exec_showpcr(autocomplete::ACState& s)
+{
+    string outgoing = "";
+    string incoming = "";
+    for (handlepcr_map::iterator it = client->pcrindex.begin(); it != client->pcrindex.end(); it++)
+    {
+        if (it->second->isoutgoing)
+        {
+            ostringstream os;
+            os << setw(34) << it->second->targetemail;
 
-                                os << "\t(id: ";
-                                os << Base64Str<MegaClient::PCRHANDLE>(it->second->id);
-                                
-                                os << ", ts: ";
-                                
-                                os << it->second->ts;                                
+            os << "\t(id: ";
+            os << Base64Str<MegaClient::PCRHANDLE>(it->second->id);
 
-                                outgoing.append(os.str());
-                                outgoing.append(")\n");
-                            }
-                            else
-                            {
-                                ostringstream os;
-                                os << setw(34) << it->second->originatoremail;
+            os << ", ts: ";
 
-                                os << "\t(id: ";
-                                os << Base64Str<MegaClient::PCRHANDLE>(it->second->id);
-                                
-                                os << ", ts: ";
-                                
-                                os << it->second->ts;                                
+            os << it->second->ts;
 
-                                incoming.append(os.str());
-                                incoming.append(")\n");
-                            }
-                        }
-                        cout << "Incoming PCRs:" << endl << incoming << endl;
-                        cout << "Outgoing PCRs:" << endl << outgoing << endl;
-                        return;
-                    }
+            outgoing.append(os.str());
+            outgoing.append(")\n");
+        }
+        else
+        {
+            ostringstream os;
+            os << setw(34) << it->second->originatoremail;
+
+            os << "\t(id: ";
+            os << Base64Str<MegaClient::PCRHANDLE>(it->second->id);
+
+            os << ", ts: ";
+
+            os << it->second->ts;
+
+            incoming.append(os.str());
+            incoming.append(")\n");
+        }
+    }
+    cout << "Incoming PCRs:" << endl << incoming << endl;
+    cout << "Outgoing PCRs:" << endl << outgoing << endl;
+}
+
 #if defined(WIN32) && defined(NO_READLINE)
-                    else if (words[0] == "history")
-                    {
-                        static_cast<WinConsole*>(console)->outputHistory();
-                        return;
-                    }
-                    else if (words[0] == "handles")
-                    {
-                        if (words.size() == 2)
-                        {
-                            if (words[1] == "on")
-                            {
-                                handles_on = true;
-                            }
-                            else if (words[1] == "off")
-                            {
-                                handles_on = false;
-                            }
-                            else
-                            {
-                                cout << "invalid handles setting" << endl;
-                            }
-                        }
-                        else
-                        {
-                            cout << "      handles on|off " << endl;
-                        }
-                        return;
-                    }
+void exec_history(autocomplete::ACState& s)
+{
+    static_cast<WinConsole*>(console)->outputHistory();
+}
 #endif
-                    break;
 
-                case 8:
+void exec_handles(autocomplete::ACState& s)
+{
+    if (s.words.size() == 2)
+    {
+        if (s.words[1].s == "on")
+        {
+            handles_on = true;
+        }
+        else if (s.words[1].s == "off")
+        {
+            handles_on = false;
+        }
+        else
+        {
+            cout << "invalid handles setting" << endl;
+        }
+    }
+    else
+    {
+        cout << "      handles on|off " << endl;
+    }
+}
+
+
 #if defined(WIN32) && defined(NO_READLINE)
-                    if (words[0] == "codepage")
-                    {
-                        WinConsole* wc = static_cast<WinConsole*>(console);
-                        if (words.size() == 1)
-                        {
-                            UINT cp1, cp2;
-                            wc->getShellCodepages(cp1, cp2);
-                            cout << "Current codepage is " << cp1;
-                            if (cp2 != cp1)
-                            {
-                                cout << " with failover to codepage " << cp2 << " for any absent glyphs";
-                            }
-                            cout << endl;
-                            for (int i = 32; i < 256; ++i)
-                            {
-                                string theCharUtf8 = WinConsole::toUtf8String(WinConsole::toUtf16String(string(1, (char)i), cp1));
-                                cout << "  dec/" << i << " hex/" << hex << i << dec << ": '" << theCharUtf8 << "'";
-                                if (i % 4 == 3)
-                                {
-                                    cout << endl;
-                                }
-                            }
-                        }
-                        else if (words.size() == 2 && atoi(words[1].c_str()) != 0)
-                        {
-                            if (!wc->setShellConsole(atoi(words[1].c_str()), atoi(words[1].c_str())))
-                            {
-                                cout << "Code page change failed - unicode selected" << endl;
-                            }
-                        }
-                        else if (words.size() == 3 && atoi(words[1].c_str()) != 0 && atoi(words[2].c_str()) != 0)
-                        {
-                            if (!wc->setShellConsole(atoi(words[1].c_str()), atoi(words[2].c_str())))
-                            {
-                                cout << "Code page change failed - unicode selected" << endl;
-                            }
-                        }
-                        else
-                        {
-                            cout << "      codepage [N [N]]" << endl;
-                        }
-                        return;
-                    }
-#endif
-                    break;
-
-                case 9:
-                    if (words[0] == "httpsonly")
-                    {
-                        if (words.size() == 1)
-                        {
-                            cout << "httpsonly: " << (client->usehttps ? "on" : "off") << endl;
-                        }
-                        else if (words.size() == 2)
-                        {
-                            if (words[1] == "on")
-                            {
-                                client->usehttps = true;
-                            }
-                            else if (words[1] == "off")
-                            {
-                                client->usehttps = false;
-                            }
-                            else
-                            {
-                                cout << "invalid setting" << endl;
-                            }
-                        }
-                        else
-                        {
-                            cout << "      httpsonly on|off" << endl;
-                        }
-                        return;
-                    }
-#ifdef USE_MEDIAINFO
-                    else if (words[0] == "mediainfo")
-                    {
-                        if (client->mediaFileInfo.mediaCodecsFailed)
-                        {
-                            cout << "Sorry, mediainfo lookups could not be retrieved." << endl;
-                            return;
-                        }
-                        else if (!client->mediaFileInfo.mediaCodecsReceived)
-                        {
-                            client->mediaFileInfo.requestCodecMappingsOneTime(client, NULL);
-                            cout << "Mediainfo lookups requested" << endl;
-                        }
-
-                        if (words.size() == 3 && words[1] == "calc")
-                        {
-                            MediaProperties mp;
-                            string localFilename;
-                            client->fsaccess->path2local(&words[2], &localFilename);
-
-                            char ext[8];
-                            if (client->fsaccess->getextension(&localFilename, ext, sizeof(ext)) && MediaProperties::isMediaFilenameExt(ext))
-                            {
-                                mp.extractMediaPropertyFileAttributes(localFilename, client->fsaccess);
-                                cout << showMediaInfo(mp, client->mediaFileInfo, false) << endl;
-                            }
-                            else
-                            {
-                                cout << "Filename extension is not suitable for mediainfo analysis." << endl;
-                            }
-                        }
-                        else if (words.size() == 3 && words[1] == "show")
-                        {
-                            if ((n = nodebypath(words[2].c_str())))
-                            {
-                                switch (n->type)
-                                {
-                                case FILENODE:
-                                    cout << showMediaInfo(n, client->mediaFileInfo, false) << endl;
-                                    break;
-
-                                case FOLDERNODE:
-                                case ROOTNODE:
-                                case INCOMINGNODE:
-                                case RUBBISHNODE:
-                                    for (node_list::iterator m = n->children.begin(); m != n->children.end(); ++m)
-                                    {
-                                        if ((*m)->type == FILENODE && (*m)->hasfileattribute(fa_media))
-                                        {
-                                            cout << (*m)->displayname() << "   " << showMediaInfo(*m, client->mediaFileInfo, true) << endl;
-                                        }
-                                    }
-                                    break;
-                                case TYPE_UNKNOWN: break;
-                                }
-                            }
-                            else
-                            {
-                                cout << "remote file not found: " << words[2] << endl;
-                            }
-                        }
-                        else
-                        {
-                            cout << "mediainfo (calc localfile|show remotefile)" << endl;  
-                        }
-                        return;
-                    }
-#endif
-                    break;
-
-                case 11:                    
-                    if (words[0] == "killsession")
-                    {
-                        if (words.size() == 2)
-                        {
-                            if (words[1] == "all")
-                            {
-                                // Kill all sessions (except current)
-                                client->killallsessions();
-                            }
-                            else
-                            {
-                                handle sessionid;
-                                if (Base64::atob(words[1].c_str(), (byte*) &sessionid, sizeof sessionid) == sizeof sessionid)
-                                {                                    
-                                    client->killsession(sessionid);
-                                }
-                                else
-                                {
-                                    cout << "invalid session id provided" << endl;
-                                }                         
-                            }
-                        }
-                        else
-                        {
-                            cout << "      killsession [all|sessionid] " << endl;
-                        }
-                        return;
-                    }
-                    else if (words[0] == "locallogout")
-                    {
-                        cout << "Logging off locally..." << endl;
-
-                        cwd = UNDEF;
-                        client->locallogout();
-
-                        return;
-                    }
-                    else if (words[0] == "recentnodes")
-                    {
-                        if (words.size() == 3)
-                        {
-                            node_vector nv = client->getRecentNodes(atoi(words[2].c_str()), m_time() - 60 * 60 * atoi(words[1].c_str()), false);
-                            for (unsigned i = 0; i < nv.size(); ++i)
-                            {
-                                cout << nv[i]->displaypath() << endl;
-                            }
-                        }
-                        else
-                        {
-                            cout << "      recentnodes hours maxcount" << endl;
-                        }
-                        return;
-                    }
-                    break;
-
-                case 12:
-#if defined(WIN32) && defined(NO_READLINE)
-                    if (words[0] == "autocomplete")
-                    {
-                        if (words.size() == 2)
-                        {
-                            if (words[1] == "unix")
-                            {
-                                static_cast<WinConsole*>(console)->setAutocompleteStyle(true);
-                            }
-                            else if (words[1] == "dos")
-                            {
-                                static_cast<WinConsole*>(console)->setAutocompleteStyle(false);
-                            }
-                            else
-                            {
-                                cout << "invalid autocomplete style" << endl;
-                            }
-                        }
-                        else
-                        {
-                            cout << "      autocomplete [unix|dos] " << endl;
-                        }
-                        return;
-                    }
-#endif
-                    break;
-
-                case 13:
-                    if (words[0] == "recentactions")
-                    {
-                        if (words.size() == 3)
-                        {
-                            recentactions_vector nvv = client->getRecentActions(atoi(words[2].c_str()), m_time() - 60 * 60 * atoi(words[1].c_str()));
-                            for (unsigned i = 0; i < nvv.size(); ++i)
-                            {
-                                if (i != 0)
-                                {
-                                    cout << "---" << endl;
-                                }
-                                cout << displayTime(nvv[i].time) << " " << displayUser(nvv[i].user, client) << " " << (nvv[i].updated ? "updated" : "uploaded") << " " << (nvv[i].media ? "media" : "files") << endl;
-                                for (unsigned j = 0; j < nvv[i].nodes.size(); ++j)
-                                {
-                                    cout << nvv[i].nodes[j]->displaypath() << "  (" << displayTime(nvv[i].nodes[j]->ctime) << ")" << endl;
-                                }
-                            }
-                        }
-                        else
-                        {
-                            cout << "      recentactions hours maxcount" << endl;
-                        }
-                        return;
-                    }
-                    break;
-
-                case 17:
-                    if (words[0] == "setmaxuploadspeed")
-                    {
-                        if (words.size() > 1)
-                        {
-                            bool done = client->setmaxuploadspeed(atoi(words[1].c_str()));
-                            cout << (done ? "Success. " : "Failed. ");
-                        }
-                        cout << "Max Upload Speed: " << client->getmaxuploadspeed() << endl;
-                        return;
-                    }
-                    break;
-
-                case 19:
-                    if (words[0] == "setmaxdownloadspeed")
-                    {
-                        if (words.size() > 1)
-                        {
-                            bool done = client->setmaxdownloadspeed(atoi(words[1].c_str()));
-                            cout << (done ? "Success. " : "Failed. ");
-                        }
-                        cout << "Max Download Speed: " << client->getmaxdownloadspeed() << endl;
-                        return;
-                    }
-                    break;
-
-                case 24:
-                    if (words[0] == "enabletransferresumption")
-                    {
-                        if (words.size() > 1 && words[1] == "off")
-                        {
-                            client->disabletransferresumption(NULL);
-                            cout << "transfer resumption disabled" << endl;
-                        }
-                        else
-                        {
-                            client->enabletransferresumption(NULL);
-                            cout << "transfer resumption enabled" << endl;
-                        }
-                        return;
-                    }
-                    break;
+void exec_codepage(autocomplete::ACState& s)
+{
+    WinConsole* wc = static_cast<WinConsole*>(console);
+    if (s.words.size() == 1)
+    {
+        UINT cp1, cp2;
+        wc->getShellCodepages(cp1, cp2);
+        cout << "Current codepage is " << cp1;
+        if (cp2 != cp1)
+        {
+            cout << " with failover to codepage " << cp2 << " for any absent glyphs";
+        }
+        cout << endl;
+        for (int i = 32; i < 256; ++i)
+        {
+            string theCharUtf8 = WinConsole::toUtf8String(WinConsole::toUtf16String(string(1, (char)i), cp1));
+            cout << "  dec/" << i << " hex/" << hex << i << dec << ": '" << theCharUtf8 << "'";
+            if (i % 4 == 3)
+            {
+                cout << endl;
             }
+        }
+    }
+    else if (s.words.size() == 2 && atoi(s.words[1].s.c_str()) != 0)
+    {
+        if (!wc->setShellConsole(atoi(s.words[1].s.c_str()), atoi(s.words[1].s.c_str())))
+        {
+            cout << "Code page change failed - unicode selected" << endl;
+        }
+    }
+    else if (s.words.size() == 3 && atoi(s.words[1].s.c_str()) != 0 && atoi(s.words[2].s.c_str()) != 0)
+    {
+        if (!wc->setShellConsole(atoi(s.words[1].s.c_str()), atoi(s.words[2].s.c_str())))
+        {
+            cout << "Code page change failed - unicode selected" << endl;
+        }
+    }
+}
+#endif
 
-            cout << "?Invalid command: " << l << endl;
+void exec_httpsonly(autocomplete::ACState& s)
+{
+    if (s.words.size() == 1)
+    {
+        cout << "httpsonly: " << (client->usehttps ? "on" : "off") << endl;
+    }
+    else if (s.words.size() == 2)
+    {
+        if (s.words[1].s == "on")
+        {
+            client->usehttps = true;
+        }
+        else if (s.words[1].s == "off")
+        {
+            client->usehttps = false;
+        }
+        else
+        {
+            cout << "invalid setting" << endl;
+        }
+    }
+}
+
+#ifdef USE_MEDIAINFO
+void exec_mediainfo(autocomplete::ACState& s)
+{
+    if (client->mediaFileInfo.mediaCodecsFailed)
+    {
+        cout << "Sorry, mediainfo lookups could not be retrieved." << endl;
+        return;
+    }
+    else if (!client->mediaFileInfo.mediaCodecsReceived)
+    {
+        client->mediaFileInfo.requestCodecMappingsOneTime(client, NULL);
+        cout << "Mediainfo lookups requested" << endl;
+    }
+
+    if (s.words.size() == 3 && s.words[1].s == "calc")
+    {
+        MediaProperties mp;
+        string localFilename;
+        client->fsaccess->path2local(&s.words[2].s, &localFilename);
+
+        char ext[8];
+        if (client->fsaccess->getextension(&localFilename, ext, sizeof(ext)) && MediaProperties::isMediaFilenameExt(ext))
+        {
+            mp.extractMediaPropertyFileAttributes(localFilename, client->fsaccess);
+                                uint32_t dummykey[4] = { 1, 2, 3, 4 };  // check encode/decode
+                                string attrs = mp.convertMediaPropertyFileAttributes(dummykey, client->mediaFileInfo);
+                                MediaProperties dmp = MediaProperties::decodeMediaPropertiesAttributes(":" + attrs, dummykey);
+                                cout << showMediaInfo(dmp, client->mediaFileInfo, false) << endl;
+        }
+        else
+        {
+            cout << "Filename extension is not suitable for mediainfo analysis." << endl;
+        }
+    }
+    else if (s.words.size() == 3 && s.words[1].s == "show")
+    {
+        if (Node *n = nodebypath(s.words[2].s.c_str()))
+        {
+            switch (n->type)
+            {
+            case FILENODE:
+                cout << showMediaInfo(n, client->mediaFileInfo, false) << endl;
+                break;
+
+            case FOLDERNODE:
+            case ROOTNODE:
+            case INCOMINGNODE:
+            case RUBBISHNODE:
+                for (node_list::iterator m = n->children.begin(); m != n->children.end(); ++m)
+                {
+                    if ((*m)->type == FILENODE && (*m)->hasfileattribute(fa_media))
+                    {
+                        cout << (*m)->displayname() << "   " << showMediaInfo(*m, client->mediaFileInfo, true) << endl;
+                    }
+                }
+                break;
+            case TYPE_UNKNOWN: break;
+            }
+        }
+        else
+        {
+            cout << "remote file not found: " << s.words[2].s << endl;
+        }
+    }
+}
+#endif
+
+void exec_smsverify(autocomplete::ACState& s)
+{
+    if (s.words[1].s == "send")
+    {
+        bool reverifywhitelisted = (s.words.size() == 4 && s.words[3].s == "reverifywhitelisted");
+        if (client->smsverificationsend(s.words[2].s, reverifywhitelisted) != API_OK)
+        {
+            cout << "phonenumber is invalid" << endl;
+        }
+    }
+    else if (s.words[1].s == "code")
+    {
+        if (client->smsverificationcheck(s.words[2].s) != API_OK)
+        {
+            cout << "verificationcode is invalid" << endl;
+        }
+    }
+}
+
+void exec_verifiedphonenumber(autocomplete::ACState& s)
+{
+    cout << "Verified phone number: " << client->mSmsVerifiedPhone << endl;
+}
+
+void exec_killsession(autocomplete::ACState& s)
+{
+    if (s.words[1].s == "all")
+    {
+        // Kill all sessions (except current)
+        client->killallsessions();
+    }
+    else
+    {
+        handle sessionid;
+        if (Base64::atob(s.words[1].s.c_str(), (byte*)&sessionid, sizeof sessionid) == sizeof sessionid)
+        {
+            client->killsession(sessionid);
+        }
+        else
+        {
+            cout << "invalid session id provided" << endl;
+        }
+    }
+}
+
+void exec_locallogout(autocomplete::ACState& s)
+{
+    cout << "Logging off locally..." << endl;
+
+    cwd = UNDEF;
+    client->locallogout();
+}
+
+void exec_recentnodes(autocomplete::ACState& s)
+{
+    if (s.words.size() == 3)
+    {
+        node_vector nv = client->getRecentNodes(atoi(s.words[2].s.c_str()), m_time() - 60 * 60 * atoi(s.words[1].s.c_str()), false);
+        for (unsigned i = 0; i < nv.size(); ++i)
+        {
+            cout << nv[i]->displaypath() << endl;
+        }
+    }
+}
+
+#if defined(WIN32) && defined(NO_READLINE)
+void exec_autocomplete(autocomplete::ACState& s)
+{
+    if (s.words[1].s == "unix")
+    {
+        static_cast<WinConsole*>(console)->setAutocompleteStyle(true);
+    }
+    else if (s.words[1].s == "dos")
+    {
+        static_cast<WinConsole*>(console)->setAutocompleteStyle(false);
+    }
+    else
+    {
+        cout << "invalid autocomplete style" << endl;
+    }
+}
+#endif
+
+void exec_recentactions(autocomplete::ACState& s)
+{
+    recentactions_vector nvv = client->getRecentActions(atoi(s.words[2].s.c_str()), m_time() - 60 * 60 * atoi(s.words[1].s.c_str()));
+    for (unsigned i = 0; i < nvv.size(); ++i)
+    {
+        if (i != 0)
+        {
+            cout << "---" << endl;
+        }
+        cout << displayTime(nvv[i].time) << " " << displayUser(nvv[i].user, client) << " " << (nvv[i].updated ? "updated" : "uploaded") << " " << (nvv[i].media ? "media" : "files") << endl;
+        for (unsigned j = 0; j < nvv[i].nodes.size(); ++j)
+        {
+            cout << nvv[i].nodes[j]->displaypath() << "  (" << displayTime(nvv[i].nodes[j]->ctime) << ")" << endl;
+        }
+    }
+}
+
+void exec_setmaxuploadspeed(autocomplete::ACState& s)
+{
+    if (s.words.size() > 1)
+    {
+        bool done = client->setmaxuploadspeed(atoi(s.words[1].s.c_str()));
+        cout << (done ? "Success. " : "Failed. ");
+    }
+    cout << "Max Upload Speed: " << client->getmaxuploadspeed() << endl;
+}
+
+void exec_setmaxdownloadspeed(autocomplete::ACState& s)
+{
+    if (s.words.size() > 1)
+    {
+        bool done = client->setmaxdownloadspeed(atoi(s.words[1].s.c_str()));
+        cout << (done ? "Success. " : "Failed. ");
+    }
+    cout << "Max Download Speed: " << client->getmaxdownloadspeed() << endl;
+}
+
+void exec_enabletransferresumption(autocomplete::ACState& s)
+{
+    if (s.words.size() > 1 && s.words[1].s == "off")
+    {
+        client->disabletransferresumption(NULL);
+        cout << "transfer resumption disabled" << endl;
+    }
+    else
+    {
+        client->enabletransferresumption(NULL);
+        cout << "transfer resumption enabled" << endl;
     }
 }
 
@@ -6431,7 +5952,7 @@ void DemoApp::getprivatekey_result(error e,  const byte *privk, const size_t len
 
         byte privkbuf[AsymmCipher::MAXKEYLENGTH * 2];
         memcpy(privkbuf, privk, len_privk);
-        key.ecb_decrypt(privkbuf, unsigned(len_privk));
+        key.ecb_decrypt(privkbuf, len_privk);
 
         AsymmCipher uk;
         if (!uk.setkey(AsymmCipher::PRIVKEY, privkbuf, unsigned(len_privk)))
@@ -6537,12 +6058,19 @@ void DemoApp::ephemeral_result(handle uh, const byte* pw)
     client->fetchnodes();
 }
 
-void DemoApp::whyamiblocked_result(int code)
+void DemoApp::cancelsignup_result(error)
+{
+    cout << "Singup link canceled. Start again!" << endl;
+    signupcode.clear();
+    signupemail.clear();
+    signupname.clear();
+}
+
+void DemoApp::whyamiblocked_result(error code)
 {
     if (code < 0)
     {
-        error e = (error) code;
-        cout << "Why am I blocked failed: " << errorstring(e) << endl;
+        cout << "Why am I blocked failed: " << errorstring(code) << endl;
     }
     else if (code == 0)
     {
@@ -6560,13 +6088,20 @@ void DemoApp::whyamiblocked_result(int code)
         {
             reason = "Your account has been suspended due to multiple breaches of Mega's Terms of Service. Please check your email inbox.";
         }
+        else if (code == 500)
+        {
+            reason = "Your account has been blocked, pending verification via SMS.";
+        }
         //else if (code == 300) --> default reason
 
 
         cout << "Reason: " << reason << endl;
-        cout << "Logging out..." << endl;
 
-        client->locallogout();
+        if (code != 500)
+        {
+            cout << "Logging out..." << endl;
+            client->locallogout();
+        }
     }
 }
 
@@ -6672,7 +6207,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
     SymmCipher nodeKey;
     nodeKey.setkey(key, FILENODE);
 
-    byte *buf = Node::decryptattr(&nodeKey,attrstring.c_str(), int(attrstring.size()));
+    byte *buf = Node::decryptattr(&nodeKey,attrstring.c_str(), attrstring.size());
     if (!buf)
     {
         cout << "The file won't be imported, the provided key is invalid." << endl;
@@ -6760,6 +6295,71 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
     delete [] buf;
 }
 
+void DemoApp::folderlinkinfo_result(error e, handle owner, handle /*ph*/, string *attr, string* k, m_off_t currentSize, uint32_t numFiles, uint32_t numFolders, m_off_t versionsSize, uint32_t numVersions)
+{
+    if (e != API_OK)
+    {
+        cout << "Retrieval of public folder link information failed: " << e << endl;
+        return;
+    }
+
+    handle ph;
+    byte folderkey[SymmCipher::KEYLENGTH];
+    error eaux = client->parsefolderlink(publiclink.c_str(), ph, folderkey);
+    assert(eaux == API_OK);
+
+    // Decrypt nodekey with the key of the folder link
+    SymmCipher cipher;
+    cipher.setkey(folderkey);
+    const char *nodekeystr = k->data() + 9;    // skip the userhandle(8) and the `:`
+    byte nodekey[FOLDERNODEKEYLENGTH];
+    if (client->decryptkey(nodekeystr, nodekey, sizeof(nodekey), &cipher, 0, UNDEF))
+    {
+        // Decrypt node attributes with the nodekey
+        cipher.setkey(nodekey);
+        byte* buf = Node::decryptattr(&cipher, attr->c_str(), attr->size());
+        if (buf)
+        {
+            AttrMap attrs;
+            string fileName;
+            string fingerprint;
+            FileFingerprint ffp;
+            m_time_t mtime = 0;
+            Node::parseattr(buf, attrs, currentSize, mtime, fileName, fingerprint, ffp);
+
+            // Normalize node name to UTF-8 string
+            attr_map::iterator it = attrs.map.find('n');
+            if (it != attrs.map.end() && !it->second.empty())
+            {
+                client->fsaccess->normalize(&(it->second));
+                fileName = it->second.c_str();
+            }
+
+            std::string ownerStr, ownerBin((const char *)&owner, sizeof(owner));
+            Base64::btoa(ownerBin, ownerStr);
+
+            cout << "Folder link information:" << publiclink << endl;
+            cout << "\tFolder name: " << fileName << endl;
+            cout << "\tOwner: " << ownerStr << endl;
+            cout << "\tNum files: " << numFiles << endl;
+            cout << "\tNum folders: " << numFolders - 1 << endl;
+            cout << "\tNum versions: " << numVersions << endl;
+
+            delete [] buf;
+        }
+        else
+        {
+            cout << "folderlink: error decrypting node attributes with decrypted nodekey" << endl;
+        }
+    }
+    else
+    {
+        cout << "folderlink: error decrypting nodekey with folder link key";
+    }
+
+    publiclink.clear();
+}
+
 void DemoApp::checkfile_result(handle /*h*/, error e)
 {
     cout << "Link check failed: " << errorstring(e) << endl;
@@ -6818,7 +6418,7 @@ bool DemoApp::pread_data(byte* data, m_off_t len, m_off_t pos, m_off_t, m_off_t,
     return true;
 }
 
-dstime DemoApp::pread_failure(error e, int retry, void* /*appdata*/)
+dstime DemoApp::pread_failure(error e, int retry, void* /*appdata*/, dstime)
 {
     if (retry < 5)
     {
@@ -6913,7 +6513,7 @@ void DemoApp::notify_confirmation(const char *email)
     }
 }
 
-void DemoApp::enumeratequotaitems_result(handle, unsigned, unsigned, unsigned, unsigned, unsigned, const char*)
+void DemoApp::enumeratequotaitems_result(handle, unsigned, unsigned, unsigned, unsigned, unsigned, const char*, const char*, const char*, const char*)
 {
     // FIXME: implement
 }
@@ -6928,12 +6528,7 @@ void DemoApp::additem_result(error)
     // FIXME: implement
 }
 
-void DemoApp::checkout_result(error)
-{
-    // FIXME: implement
-}
-
-void DemoApp::checkout_result(const char*)
+void DemoApp::checkout_result(const char*, error)
 {
     // FIXME: implement
 }
@@ -6958,6 +6553,7 @@ void DemoApp::getwelcomepdf_result(handle ph, string *k, error e)
     }
 }
 
+#ifdef ENABLE_CHAT
 void DemoApp::richlinkrequest_result(string *json, error e)
 {
     if (!e)
@@ -6970,6 +6566,7 @@ void DemoApp::richlinkrequest_result(string *json, error e)
 
     }
 }
+#endif
 
 void DemoApp::contactlinkcreate_result(error e, handle h)
 {
@@ -7019,13 +6616,13 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
 
     if (storage)
     {
-        cout << "\tAvailable storage: " << ad->storage_max << " byte(s)" << endl;
+        cout << "\tAvailable storage: " << ad->storage_max << " byte(s)  used:  " << ad->storage_used << " available: " << (ad->storage_max - ad->storage_used) << endl;
 
         for (unsigned i = 0; i < sizeof rootnodenames/sizeof *rootnodenames; i++)
         {
             NodeStorage* ns = &ad->storage[client->rootnodes[i]];
 
-            cout << "\t\tIn " << rootnodenames[i] << ": " << ns->bytes << " byte(s) in " << ns->files << " file(s) and " << ns->folders << " folder(s)" << endl;            
+            cout << "\t\tIn " << rootnodenames[i] << ": " << ns->bytes << " byte(s) in " << ns->files << " file(s) and " << ns->folders << " folder(s)" << endl;
             cout << "\t\tUsed storage by versions: " << ns->version_bytes << " byte(s) in " << ns->version_files << " file(s)" << endl;
         }
     }
@@ -7175,6 +6772,33 @@ void DemoApp::sessions_killed(handle sessionid, error e)
     }
 }
 
+void DemoApp::smsverificationsend_result(error e)
+{
+    if (e)
+    {
+        cout << "SMS send failed: " << e << endl;
+    }
+    else
+    {
+        cout << "SMS send succeeded" << endl;
+    }
+}
+
+void DemoApp::smsverificationcheck_result(error e, string *phoneNumber)
+{
+    if (e)
+    {
+        cout << "SMS verification failed: " << e << endl;
+    }
+    else
+    {
+        cout << "SMS verification succeeded" << endl;
+        if (phoneNumber)
+        {
+            cout << "Phone number: " << *phoneNumber << ")" << endl;
+        }
+    }
+}
 
 // user attribute update notification
 void DemoApp::userattr_update(User* u, int priv, const char* n)
@@ -7184,7 +6808,6 @@ void DemoApp::userattr_update(User* u, int priv, const char* n)
 }
 
 #ifndef NO_READLINE
-#ifdef HAVE_AUTOCOMPLETE
 char* longestCommonPrefix(ac::CompletionState& acs)
 {
     string s = acs.completions[0].s;
@@ -7238,7 +6861,6 @@ char** my_rl_completion(const char */*text*/, int /*start*/, int end)
     return result;
 }
 #endif
-#endif
 
 // main loop
 void megacli()
@@ -7246,9 +6868,7 @@ void megacli()
 #ifndef NO_READLINE
     char *saved_line = NULL;
     int saved_point = 0;
-#ifdef HAVE_AUTOCOMPLETE
     rl_attempted_completion_function = my_rl_completion;
-#endif
 
     rl_save_prompt();
 
@@ -7385,6 +7005,11 @@ void megacli()
             free(line);
             line = NULL;
 
+            if (quit_flag)
+            {
+                return;
+            }
+
             if (!cerr)
             {
                 cerr.clear();
@@ -7461,10 +7086,8 @@ int main()
                             "." TOSTRING(MEGA_MINOR_VERSION)
                             "." TOSTRING(MEGA_MICRO_VERSION));
 
-#ifdef HAVE_AUTOCOMPLETE
     ac::ACN acs = autocompleteSyntax();
-#endif
-#if defined(WIN32) && defined(NO_READLINE) && defined(HAVE_AUTOCOMPLETE)
+#if defined(WIN32) && defined(NO_READLINE)
     static_cast<WinConsole*>(console)->setAutocompleteSyntax((acs));
 #endif
 

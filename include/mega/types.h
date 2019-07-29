@@ -88,6 +88,7 @@ using std::deque;
 using std::multiset;
 using std::queue;
 using std::streambuf;
+using std::tuple;
 using std::ostringstream;
 
 
@@ -169,8 +170,10 @@ struct ChunkMAC
 class chunkmac_map : public map<m_off_t, ChunkMAC>
 {
 public:
+    int64_t macsmac(SymmCipher *cipher);
     void serialize(string& d) const;
     bool unserialize(const char*& ptr, const char* end);
+    void calcprogress(m_off_t size, m_off_t& chunkpos, m_off_t& completedprogress, m_off_t* lastblockprogress = nullptr);
 };
 
 /**
@@ -381,9 +384,6 @@ typedef list<DirectReadSlot*> drs_list;
 typedef map<const string*, LocalNode*, StringCmp> localnode_map;
 typedef map<const string*, Node*, StringCmp> remotenode_map;
 
-// maps FileFingerprints to node
-typedef multiset<FileFingerprint*, FileFingerprintCmp> fingerprint_set;
-
 typedef enum { TREESTATE_NONE = 0, TREESTATE_SYNCED, TREESTATE_PENDING, TREESTATE_SYNCING } treestate_t;
 
 typedef enum { TRANSFERSTATE_NONE = 0, TRANSFERSTATE_QUEUED, TRANSFERSTATE_ACTIVE, TRANSFERSTATE_PAUSED,
@@ -438,7 +438,9 @@ typedef enum {
     ATTR_GEOLOCATION = 22,                  // private - byte array - non-versioned
     ATTR_CAMERA_UPLOADS_FOLDER = 23,        // private - byte array - non-versioned
     ATTR_MY_CHAT_FILES_FOLDER = 24,         // private - byte array - non-versioned
-    ATTR_PUSH_SETTINGS = 25                 // private - non-encripted - char array in B64 - non-versioned
+    ATTR_PUSH_SETTINGS = 25,                // private - non-encripted - char array in B64 - non-versioned
+    ATTR_UNSHAREABLE_KEY = 26               // private - char array
+
 } attr_t;
 typedef map<attr_t, string> userattr_map;
 
@@ -522,6 +524,15 @@ typedef enum { RETRY_NONE = 0, RETRY_CONNECTIVITY = 1, RETRY_SERVERS_BUSY = 2, R
 
 typedef enum { STORAGE_GREEN = 0, STORAGE_ORANGE = 1, STORAGE_RED = 2, STORAGE_CHANGE = 3 } storagestatus_t;
 
+
+enum SmsVerificationState {
+    // These values (except unknown) are delivered from the servers
+    SMS_STATE_UNKNOWN = -1,       // Flag was not received
+    SMS_STATE_NOT_ALLOWED = 0,    // No SMS allowed
+    SMS_STATE_ONLY_UNBLOCK = 1,   // Only unblock SMS allowed
+    SMS_STATE_FULL = 2            // Opt-in and unblock SMS allowed
+};
+
 typedef unsigned int achievement_class_id;
 typedef map<achievement_class_id, Achievement> achievements_map;
 
@@ -535,6 +546,34 @@ struct recentaction
     node_vector nodes;
 };
 typedef vector<recentaction> recentactions_vector;
+
+typedef enum { BIZ_STATUS_UNKNOWN = -2, BIZ_STATUS_EXPIRED = -1, BIZ_STATUS_INACTIVE = 0, BIZ_STATUS_ACTIVE = 1, BIZ_STATUS_GRACE_PERIOD = 2 } BizStatus;
+typedef enum { BIZ_MODE_UNKNOWN = -1, BIZ_MODE_SUBUSER = 0, BIZ_MODE_MASTER = 1 } BizMode;
+
 } // namespace
+
+#define MEGA_DISABLE_COPY(class_name) \
+    class_name(const class_name&) = delete; \
+    class_name& operator=(const class_name&) = delete;
+
+#define MEGA_DISABLE_MOVE(class_name) \
+    class_name(class_name&&) = delete; \
+    class_name& operator=(class_name&&) = delete;
+
+#define MEGA_DISABLE_COPY_MOVE(class_name) \
+    MEGA_DISABLE_COPY(class_name) \
+    MEGA_DISABLE_MOVE(class_name)
+
+#define MEGA_DEFAULT_COPY(class_name) \
+    class_name(const class_name&) = default; \
+    class_name& operator=(const class_name&) = default;
+
+#define MEGA_DEFAULT_MOVE(class_name) \
+    class_name(class_name&&) = default; \
+    class_name& operator=(class_name&&) = default;
+
+#define MEGA_DEFAULT_COPY_MOVE(class_name) \
+    MEGA_DEFAULT_COPY(class_name) \
+    MEGA_DEFAULT_MOVE(class_name)
 
 #endif

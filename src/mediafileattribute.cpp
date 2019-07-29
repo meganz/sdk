@@ -24,6 +24,7 @@
 #include "mega/base64.h"
 #include "mega/command.h"
 #include "mega/megaclient.h"
+#include "mega/megaapp.h"
 
 #ifdef USE_MEDIAINFO
 #include "MediaInfo/MediaInfo.h"
@@ -44,7 +45,7 @@ uint32_t GetMediaInfoVersion()
     {
         std::string s = ZenLib::Ztring(MediaInfoLib::MediaInfo::Option_Static(__T("Info_Version")).c_str()).To_Local();   // eg. __T("MediaInfoLib - v17.10")
         unsigned column = 1;
-        for (unsigned i = s.size(); i--; )
+        for (size_t i = s.size(); i--; )
         {
             if (isdigit(s[i]))
             {
@@ -73,7 +74,7 @@ MediaFileInfo::MediaFileInfo()
 
 void MediaFileInfo::requestCodecMappingsOneTime(MegaClient* client, string* ifSuitableFilename)
 {
-    if (!mediaCodecsRequested)
+    if (!mediaCodecsReceived && !mediaCodecsRequested)
     {
         if (ifSuitableFilename)
         {
@@ -117,7 +118,7 @@ unsigned MediaFileInfo::Lookup(const std::string& name, std::map<std::string, un
 
 byte MediaFileInfo::LookupShortFormat(unsigned containerid, unsigned videocodecid, unsigned audiocodecid)
 {
-    for (unsigned i = mediaCodecs.shortformats.size(); i--; )
+    for (size_t i = mediaCodecs.shortformats.size(); i--; )
     {
         // only 256 entries max, so iterating will be very quick
         MediaCodecs::shortformatrec& r = mediaCodecs.shortformats[i];
@@ -203,7 +204,7 @@ void MediaFileInfo::onCodecMappingsReceipt(MegaClient* client, int codecListVers
         mediaCodecsReceived = true;
 
         // update any download transfers we already processed
-        for (unsigned i = queuedForDownloadTranslation.size(); i--; )
+        for (size_t i = queuedForDownloadTranslation.size(); i--; )
         {
             queuedvp& q = queuedForDownloadTranslation[i];
             sendOrQueueMediaPropertiesFileAttributesForExistingFile(q.vp, q.fakey, client, q.handle);
@@ -218,9 +219,11 @@ void MediaFileInfo::onCodecMappingsReceipt(MegaClient* client, int codecListVers
         ++i;   // the call below may remove this item from the map
 
         // indicate that file attribute 8 can be retrieved now, allowing the transfer to complete
-        client->pendingfa[pair<handle, fatype>(th, fa_media)] = pair<handle, int>(0, 0);
+        client->pendingfa[pair<handle, fatype>(th, fatype(fa_media))] = pair<handle, int>(0, 0);
         client->checkfacompletion(th);
     }
+
+    client->app->mediadetection_ready();
 }
 
 unsigned MediaFileInfo::queueMediaPropertiesFileAttributesForUpload(MediaProperties& vp, uint32_t fakey[4], MegaClient* client, handle uploadHandle)
@@ -240,7 +243,7 @@ unsigned MediaFileInfo::queueMediaPropertiesFileAttributesForUpload(MediaPropert
     if (mediaCodecsReceived)
     {
         // indicate we have this attribute ready to go. Otherwise the transfer will be put on hold till we can
-        client->pendingfa[pair<handle, fatype>(uploadHandle, fa_media)] = pair<handle, int>(0, 0);
+        client->pendingfa[pair<handle, fatype>(uploadHandle, fatype(fa_media))] = pair<handle, int>(0, 0);
     }
     return 1;
 }
@@ -407,7 +410,7 @@ std::string formatfileattr(uint32_t id, byte* data, unsigned datalen, uint32_t f
 // ----------------------------------------- MediaProperties --------------------------------------------------------
 
 MediaProperties::MediaProperties()
-    : shortformat(254)
+    : shortformat(UNKNOWN_FORMAT)
     , width(0)
     , height(0)
     , fps(0)
@@ -453,6 +456,16 @@ std::string MediaProperties::serialize()
     return s;
 }
 
+bool MediaProperties::isPopulated()
+{
+    return shortformat != UNKNOWN_FORMAT;
+}
+
+bool MediaProperties::isIdentified()
+{
+    return isPopulated() && shortformat != NOT_IDENTIFIED_FORMAT;
+}
+
 bool MediaProperties::operator==(const MediaProperties& o) const
 { 
     return shortformat == o.shortformat && width == o.width && height == o.height && fps == o.fps && playtime == o.playtime &&
@@ -483,13 +496,13 @@ std::string MediaProperties::encodeMediaPropertiesAttributes(MediaProperties vp,
     // LE code below
     byte v[8];
     v[7] = vp.shortformat;
-    v[6] = vp.playtime >> 10;
-    v[5] = (vp.playtime >> 2) & 255;
-    v[4] = ((vp.playtime & 3) << 6) + (vp.fps >> 2);
-    v[3] = ((vp.fps & 3) << 6) + ((vp.height >> 9) & 63);
-    v[2] = (vp.height >> 1) & 255;
-    v[1] = ((vp.width >> 8) & 127) + ((vp.height & 1) << 7);
-    v[0] = vp.width & 255;
+    v[6] = byte(vp.playtime >> 10);
+    v[5] = byte((vp.playtime >> 2) & 255);
+    v[4] = byte(((vp.playtime & 3) << 6) + (vp.fps >> 2));
+    v[3] = byte(((vp.fps & 3) << 6) + ((vp.height >> 9) & 63));
+    v[2] = byte((vp.height >> 1) & 255);
+    v[1] = byte(((vp.width >> 8) & 127) + ((vp.height & 1) << 7));
+    v[0] = byte(vp.width & 255);
 
     std::string result = formatfileattr(fa_media, v, sizeof v, fakey);
 
@@ -587,7 +600,7 @@ bool MediaFileInfo::timeToRetryMediaPropertyExtraction(const std::string& fileat
 {
     // Check if we should retry video property extraction, due to previous failure with older library
     MediaProperties vp = MediaProperties::decodeMediaPropertiesAttributes(fileattributes, fakey);
-    if (vp.shortformat == 255) 
+    if (vp.isIdentified())
     {
         if (vp.fps < MEDIA_INFO_BUILD)
         {
@@ -815,7 +828,7 @@ std::string MediaProperties::convertMediaPropertyFileAttributes(uint32_t fakey[4
             (audiocodecid && !videocodecid)))) 
     {
         LOG_warn << "mediainfo failed to extract media information for this file";
-        shortformat = 255;                                  // mediaInfo could not fully identify this file.  Maybe a later version can.
+        shortformat = NOT_IDENTIFIED_FORMAT;                // mediaInfo could not fully identify this file.  Maybe a later version can.
         fps = MEDIA_INFO_BUILD;                             // updated when we change relevant things in this executable
         width = GetMediaInfoVersion();                      // mediaInfoLib version that couldn't do it.  1710 at time of writing (ie oct 2017 tag)
         height = 0;

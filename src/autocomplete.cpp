@@ -19,13 +19,16 @@
 * program.
 */
 
-#if !defined(__MINGW32__) && !defined(__ANDROID__) && ( (__cplusplus >= 201100L) || (defined(_MSC_VER) && _MSC_VER >= 1600) ) && (!defined(__GNUC__) || (__GNUC__*100+__GNUC_MINOR__) >= 503)
-// autocomplete for clients using c++11 capabilities (and that have filesystem available - the one in experimental namespace is ok)
+// autocomplete to support platforms without readline (and complement readline where it is available)
 
 #include <mega/autocomplete.h>
 #include <mega/megaclient.h>
 #include <cassert>
 #include <algorithm>
+
+#if !defined(__MINGW32__) && !defined(__ANDROID__) && (!defined(__GNUC__) || (__GNUC__*100+__GNUC_MINOR__) >= 503)
+
+#define HAVE_FILESYSTEM
 
 #if (__cplusplus >= 201700L)
     #include <filesystem>
@@ -38,27 +41,8 @@
     #include <experimental/filesystem>
     namespace fs = std::experimental::filesystem;
 #endif
-
-template<class T>
-static T clamp(T v, T lo, T hi)
-{
-    // todo: switch to c++17 std version when we can
-    if (v < lo)
-    {
-        return lo;
-    }
-    else if (v > hi)
-    {
-        return hi;
-    }
-    else
-    {
-        return v;
-    }
-}
-
 #endif
-
+#endif
 
 namespace mega {
 namespace autocomplete {
@@ -126,6 +110,38 @@ string ACState::quoted_word::getQuoted()
     string qs = s;
     q.applyQuotes(qs);
     return qs;
+}
+
+bool ACState::extractflag(const string& flag)
+{
+    for (auto i = words.begin(); i != words.end(); ++i)
+    {
+        if (i->s == flag && !i->q.quoted)
+        {
+            words.erase(i);
+            return true;
+        }
+    }
+    return false;
+}
+
+bool ACState::extractflagparam(const string& flag, string& param)
+{
+    for (auto i = words.begin(); i != words.end(); ++i)
+    {
+        if (i->s == flag)
+        {
+            auto j = i;
+            ++j;
+            if (j != words.end())
+            {
+                param = j->s;
+                words.erase(i, ++j);
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 void ACState::addCompletion(const std::string& s, bool caseInsensitive, bool couldextend) 
@@ -311,7 +327,7 @@ bool Text::addCompletions(ACState& s)
     }
     else
     {
-        bool matches = param ? (!s.word().s.empty() && s.word().s[0] != '-') : (s.word().s == exactText);
+        bool matches = param ? (!s.word().s.empty() && (s.word().s[0] != '-' || s.word().q.quoted)) : (s.word().s == exactText);
         s.i += matches ? 1 : 0;
         return !matches;
     }
@@ -319,7 +335,7 @@ bool Text::addCompletions(ACState& s)
 
 bool Text::match(ACState& s) const
 {
-    if (s.i < s.words.size() && (param ? !s.word().s.empty() && s.word().s[0] != '-' : s.word().s == exactText))
+    if (s.i < s.words.size() && (param ? !s.word().s.empty() && (s.word().s[0] != '-' || s.word().q.quoted) : s.word().s == exactText))
     {
         s.i += 1;
         return true;
@@ -589,6 +605,7 @@ bool LocalFS::addCompletions(ACState& s)
 {
     if (s.atCursor())
     {
+#ifdef HAVE_FILESYSTEM
         fs::path searchPath = fs::u8path(s.word().s + (s.word().s.empty() || (s.word().s.back() == '\\'  || s.word().s.back() == '/' ) ? "*" : ""));
 #ifdef WIN32
         char sep = (!s.word().s.empty() && s.word().s.find('/') != string::npos ) ?'/':'\\';
@@ -625,6 +642,9 @@ bool LocalFS::addCompletions(ACState& s)
                 }
             }
         }
+#else
+// todo: implement local directory listing for any platforms without std::filsystem, if it turns out to be needed
+#endif
         return true;
     }
     else
@@ -1246,14 +1266,9 @@ void applyCompletion(CompletionState& s, bool forwards, unsigned consoleWidth, C
     }
 }
 
-ACN either(ACN n1, ACN n2, ACN n3, ACN n4, ACN n5, ACN n6, ACN n7, ACN n8)
+ACN either(ACN n1, ACN n2, ACN n3, ACN n4, ACN n5, ACN n6, ACN n7, ACN n8, ACN n9, ACN n10, ACN n11, ACN n12, ACN n13)
 {
-#if (__cplusplus < 201400L)
     auto n = std::unique_ptr<Either>(new Either());
-#else
-    auto n = std::make_unique<Either>();
-#endif
-
     n->Add(n1);
     n->Add(n2);
     n->Add(n3);
@@ -1262,7 +1277,12 @@ ACN either(ACN n1, ACN n2, ACN n3, ACN n4, ACN n5, ACN n6, ACN n7, ACN n8)
     n->Add(n6);
     n->Add(n7);
     n->Add(n8);
-    return n;
+    n->Add(n9);
+    n->Add(n10);
+    n->Add(n11);
+    n->Add(n12);
+    n->Add(n13);
+    return std::move(n);
 }
 
 static ACN sequenceBuilder(ACN n1, ACN n2)
@@ -1270,9 +1290,9 @@ static ACN sequenceBuilder(ACN n1, ACN n2)
     return n2 ? std::make_shared<Sequence>(n1, n2) : n1;
 }
 
-ACN sequence(ACN n1, ACN n2, ACN n3, ACN n4, ACN n5, ACN n6, ACN n7, ACN n8)
+ACN sequence(ACN n1, ACN n2, ACN n3, ACN n4, ACN n5, ACN n6, ACN n7, ACN n8, ACN n9, ACN n10)
 {
-    return sequenceBuilder(n1, sequenceBuilder(n2, sequenceBuilder(n3, sequenceBuilder(n4, sequenceBuilder(n5, sequenceBuilder(n6, sequenceBuilder(n7, n8)))))));
+    return sequenceBuilder(n1, sequenceBuilder(n2, sequenceBuilder(n3, sequenceBuilder(n4, sequenceBuilder(n5, sequenceBuilder(n6, sequenceBuilder(n7, sequenceBuilder(n8, sequenceBuilder(n9, n10)))))))));
 }
 
 ACN text(const std::string s)
@@ -1348,4 +1368,3 @@ ACN contactEmail(MegaClient* client)
 
 }}; //namespaces
 
-#endif

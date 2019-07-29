@@ -28,8 +28,6 @@
 #include <iostream>
 #include <fstream>
 
-extern bool g_runningInCI;
-
 using namespace mega;
 using ::testing::Test;
 
@@ -76,7 +74,7 @@ public:
     int lastError[2];
 
     // flags to monitor the completion of requests/transfers
-    bool requestFlags[2][MegaRequest::TYPE_SET_PROXY];
+    bool requestFlags[2][MegaRequest::TOTAL_OF_REQUEST_TYPES];
     bool transferFlags[2][MegaTransfer::TYPE_LOCAL_HTTP_DOWNLOAD];
 
     // relevant values received in response of requests
@@ -85,6 +83,8 @@ public:
     MegaNode *publicNode;
     string attributeValue;
     string sid;
+    std::unique_ptr<MegaStringListMap> stringListMap;
+    std::unique_ptr<MegaStringTable> stringTable;
 
     MegaContactRequest* cr[2];
 
@@ -113,27 +113,27 @@ protected:
     bool checkAlert(int apiIndex, const string& title, const string& path);
     bool checkAlert(int apiIndex, const string& title, handle h, int n);
 
-    void onRequestStart(MegaApi *api, MegaRequest *request) {}
-    void onRequestUpdate(MegaApi*api, MegaRequest *request) {}
-    void onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e);
-    void onRequestTemporaryError(MegaApi *api, MegaRequest *request, MegaError* error) {}
-    void onTransferStart(MegaApi *api, MegaTransfer *transfer) { }
-    void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* e);
-    void onTransferUpdate(MegaApi *api, MegaTransfer *transfer);
-    void onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* error) {}
-    void onUsersUpdate(MegaApi* api, MegaUserList *users);
-    void onNodesUpdate(MegaApi* api, MegaNodeList *nodes);
+    void onRequestStart(MegaApi *api, MegaRequest *request) override {}
+    void onRequestUpdate(MegaApi*api, MegaRequest *request) override {}
+    void onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e) override;
+    void onRequestTemporaryError(MegaApi *api, MegaRequest *request, MegaError* error) override {}
+    void onTransferStart(MegaApi *api, MegaTransfer *transfer) override { }
+    void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* e) override;
+    void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) override;
+    void onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* error) override {}
+    void onUsersUpdate(MegaApi* api, MegaUserList *users) override;
+    void onNodesUpdate(MegaApi* api, MegaNodeList *nodes) override;
     void onAccountUpdate(MegaApi *api);
-    void onContactRequestsUpdate(MegaApi* api, MegaContactRequestList* requests);
-    void onReloadNeeded(MegaApi *api) {}
+    void onContactRequestsUpdate(MegaApi* api, MegaContactRequestList* requests) override;
+    void onReloadNeeded(MegaApi *api) override {}
 #ifdef ENABLE_SYNC
-    void onSyncFileStateChanged(MegaApi *api, MegaSync *sync, std::string *filePath, int newState) override {}
-    void onSyncEvent(MegaApi *api, MegaSync *sync,  MegaSyncEvent *event) {}
-    void onSyncStateChanged(MegaApi *api,  MegaSync *sync) {}
-    void onGlobalSyncStateChanged(MegaApi* api) {}
+    void onSyncFileStateChanged(MegaApi *api, MegaSync *sync, string* filePath, int newState) override {}
+    void onSyncEvent(MegaApi *api, MegaSync *sync,  MegaSyncEvent *event) override {}
+    void onSyncStateChanged(MegaApi *api,  MegaSync *sync) override {}
+    void onGlobalSyncStateChanged(MegaApi* api) override {}
 #endif
 #ifdef ENABLE_CHAT
-    void onChatsUpdate(MegaApi *api, MegaTextChatList *chats);
+    void onChatsUpdate(MegaApi *api, MegaTextChatList *chats) override;
 #endif
 
 public:
@@ -147,6 +147,12 @@ public:
 
     void purgeTree(MegaNode *p);
     bool waitForResponse(bool *responseReceived, unsigned int timeout = maxTimeout);
+
+    bool synchronousCall(bool &responseFlag, std::function<void()> f, unsigned int timeout = maxTimeout);
+
+    // convenience functions - template args just make it easy to code, no need to copy all the exact argument types with listener defaults etc. To add a new one, just copy a line and change the flag and the function called.
+    template<typename ... uploadArgs> int synchronousUpload(int apiIndex, uploadArgs... args) { synchronousCall(transferFlags[apiIndex][MegaTransfer::TYPE_UPLOAD], [this, apiIndex, args...]() { megaApi[apiIndex]->startUpload(args...); }); return lastError[apiIndex]; }
+    template<typename ... uploadArgs> int synchronousCatchup(int apiIndex, uploadArgs... args) { synchronousCall(requestFlags[apiIndex][MegaRequest::TYPE_CATCHUP], [this, apiIndex, args...]() { megaApi[apiIndex]->catchup(args...); }); return lastError[apiIndex]; }
 
     void createFile(string filename, bool largeFile = true);
     size_t getFilesize(string filename);
@@ -163,14 +169,18 @@ public:
 
     void shareFolder(MegaNode *n, const char *email, int action, int timeout = maxTimeout);
 
-    void createPublicLink(MegaNode *n, m_time_t expireDate = 0, int timeout = maxTimeout);
-    void importPublicLink(string link, MegaNode *parent, int timeout = maxTimeout);
-    void getPublicNode(string link, int timeout = maxTimeout);
-    void removePublicLink(MegaNode *n, int timeout = maxTimeout);
+    void createPublicLink(unsigned apiIndex, MegaNode *n, m_time_t expireDate = 0, int timeout = maxTimeout);
+    void importPublicLink(unsigned apiIndex, string link, MegaNode *parent, int timeout = maxTimeout);
+    void getPublicNode(unsigned apiIndex, string link, int timeout = maxTimeout);
+    void removePublicLink(unsigned apiIndex, MegaNode *n, int timeout = maxTimeout);
 
     void getContactRequest(unsigned int apiIndex, bool outgoing, int expectedSize = 1);
 
     void createFolder(unsigned int apiIndex, char * name, MegaNode *n, int timeout = maxTimeout);
+
+    void getRegisteredContacts(const std::map<std::string, std::string>& contacts, int timeout = maxTimeout);
+
+    void getCountryCallingCodes(int timeout = maxTimeout);
 
 #ifdef ENABLE_CHAT
     void createChat(bool group, MegaTextChatPeerList *peers, int timeout = maxTimeout);

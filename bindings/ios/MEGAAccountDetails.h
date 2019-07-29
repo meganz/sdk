@@ -25,7 +25,8 @@ typedef NS_ENUM (NSInteger, MEGAAccountType) {
     MEGAAccountTypeProI = 1,
     MEGAAccountTypeProII = 2,
     MEGAAccountTypeProIII = 3,
-    MEGAAccountTypeLite = 4
+    MEGAAccountTypeLite = 4,
+    MEGAAccountTypeBusiness = 100
 };
 
 typedef NS_ENUM(NSInteger, MEGASubscriptionStatus) {
@@ -73,6 +74,7 @@ typedef NS_ENUM(NSInteger, MEGASubscriptionStatus) {
  * - MEGAAccountTypeProII = 2
  * - MEGAAccountTypeProIII = 3
  * - MEGAAccountTypeLite = 4
+ * - MEGAAccountTypeBusiness = 100
  */
 @property (readonly, nonatomic) MEGAAccountType type;
 

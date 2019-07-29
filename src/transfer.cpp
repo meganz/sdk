@@ -170,7 +170,7 @@ bool Transfer::serialize(string *d)
     d->append((char*)&ll, sizeof(ll));
     d->append(combinedUrls.data(), ll);
 
-    char s = state;
+    char s = static_cast<char>(state);
     d->append((const char*)&s, sizeof(s));
     d->append((const char*)&priority, sizeof(priority));
     d->append("", 1);
@@ -326,25 +326,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     }
     ptr++;
 
-    for (chunkmac_map::iterator it = t->chunkmacs.begin(); it != t->chunkmacs.end(); it++)
-    {
-        m_off_t chunkceil = ChunkedHash::chunkceil(it->first, t->size);
-
-        if (t->pos == it->first && it->second.finished)
-        {
-            t->pos = chunkceil;
-            t->progresscompleted = chunkceil;
-        }
-        else if (it->second.finished)
-        {
-            m_off_t chunksize = chunkceil - ChunkedHash::chunkfloor(it->first);
-            t->progresscompleted += chunksize;
-        }
-        else
-        {
-            t->progresscompleted += it->second.offset;
-        }
-    }
+    t->chunkmacs.calcprogress(t->size, t->pos, t->progresscompleted);
 
     transfers[type].insert(pair<FileFingerprint*, Transfer*>(t, t));
     return t;
@@ -372,26 +354,29 @@ void Transfer::failed(error e, dstime timeleft)
         client->reqtag = creqtag;
     }
 
-    if (e != API_EOVERQUOTA)
+    if (e != API_EBUSINESSPASTDUE)
     {
-        bt.backoff();
-        state = TRANSFERSTATE_RETRYING;
-        client->app->transfer_failed(this, e, timeleft);
-        client->looprequested = true;
-    }
-    else
-    {
-        bt.backoff(timeleft ? timeleft : NEVER);
-        client->activateoverquota(timeleft);
-        if (!slot)
+        if (e != API_EOVERQUOTA)
         {
+            bt.backoff();
+            state = TRANSFERSTATE_RETRYING;
             client->app->transfer_failed(this, e, timeleft);
+            client->looprequested = true;
+        }
+        else
+        {
+            bt.backoff(timeleft ? timeleft : NEVER);
+            client->activateoverquota(timeleft);
+            if (!slot)
+            {
+                client->app->transfer_failed(this, e, timeleft);
+            }
         }
     }
 
     for (file_list::iterator it = files.begin(); it != files.end(); it++)
     {
-        if ( (*it)->failed(e)
+        if ( ((*it)->failed(e) && (e != API_EBUSINESSPASTDUE))
                 || (e == API_ENOENT // putnodes returned -9, file-storage server unavailable
                     && type == PUT
                     && tempurls.empty()
@@ -529,7 +514,7 @@ void Transfer::complete()
         // verify integrity of file
         FileAccess* fa = client->fsaccess->newfileaccess();
         FileFingerprint fingerprint;
-        Node* n;
+        Node* n = nullptr;
         bool fixfingerprint = false;
         bool fixedfingerprint = false;
         bool syncxfer = false;
@@ -1256,7 +1241,7 @@ bool DirectReadSlot::processAnyOutputPieces()
         dr->drn->client->httpio->updatedownloadspeed(len);
         continueDirectRead = dr->drn->client->app->pread_data(outputPiece->buf.datastart(), len, pos, speed, meanSpeed, dr->appdata);
 
-        dr->drbuf.bufferWriteCompleted(0);
+        dr->drbuf.bufferWriteCompleted(0, true);
 
         if (continueDirectRead)
         {

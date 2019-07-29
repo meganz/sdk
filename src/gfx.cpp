@@ -194,7 +194,7 @@ int GfxProc::checkevents(Waiter *)
                 key.setkey(job->key);
                 int creqtag = client->reqtag;
                 client->reqtag = 0;
-                client->putfa(job->h, (meta_t)job->imagetypes[i], &key, job->images[i], job->flag);
+                client->putfa(job->h, job->imagetypes[i], &key, job->images[i], job->flag);
                 client->reqtag = creqtag;
             }
             else
@@ -298,7 +298,7 @@ int GfxProc::gendimensionsputfa(FileAccess* /*fa*/, string* localfilename, handl
     job->flag = checkAccess;
     memcpy(job->key, key->key, SymmCipher::KEYLENGTH);
     job->localfilename = *localfilename;
-    for (int i = sizeof dimensions/sizeof dimensions[0]; i--; )
+    for (fatype i = sizeof dimensions/sizeof dimensions[0]; i--; )
     {
         if (missing & (1 << i))
         {
@@ -368,7 +368,7 @@ bool GfxProc::savefa(string *localfilepath, int width, int height, string *local
     return true;
 }
 
-GfxProc::GfxProc() : mutex(false)
+GfxProc::GfxProc()
 {
     client = NULL;
     finished = false;
@@ -382,7 +382,7 @@ GfxProc::~GfxProc()
     thread.join();
 }
 
-GfxJobQueue::GfxJobQueue() : mutex(false)
+GfxJobQueue::GfxJobQueue()
 {
 
 }

@@ -58,12 +58,14 @@ CONFIG(USE_MEGAAPI) {
   }
 }
 
-CONFIG += c++11
 !win32 {
-    QMAKE_CXXFLAGS += -std=c++11
+    QMAKE_CXXFLAGS += -std=c++11 -Wextra -Wconversion -Wno-unused-parameter
 
     unix:!macx {
-        LIBS += -lstdc++fs
+        GCC_VERSION = $$system("g++ -dumpversion")
+        !lessThan(GCC_VERSION, 5) {
+            LIBS += -lstdc++fs
+        }
     }
 }
 

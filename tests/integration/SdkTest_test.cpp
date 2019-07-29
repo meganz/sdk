@@ -19,7 +19,8 @@
  * program.
  */
 
-#include "sdk_test.h"
+#include "test.h"
+#include "SdkTest_test.h"
 #include "mega/testhooks.h"
 #include "megaapi_impl.h"
 #include <algorithm>
@@ -30,10 +31,15 @@
 
 using namespace std;
 
-bool g_runningInCI = false;
-
 MegaFileSystemAccess fileSystemAccess;
 
+#ifdef _WIN32
+#if (__cplusplus >= 201700L)
+namespace fs = std::filesystem;
+#else
+namespace fs = std::experimental::filesystem;
+#endif
+#endif
 
 #ifdef WIN32
 DWORD ThreadId()
@@ -66,7 +72,7 @@ const char* cwd()
 bool fileexists(const std::string& fn)
 {
 #ifdef _WIN32
-    return std::experimental::filesystem::exists(fn);
+    return fs::exists(fn);
 #else
     struct stat   buffer;
     return (stat(fn.c_str(), &buffer) == 0);
@@ -98,7 +104,7 @@ std::string megaApiCacheFolder(int index)
     {
 
 #ifdef _WIN32
-        bool success = std::experimental::filesystem::create_directory(p);
+        bool success = fs::create_directory(p);
         assert(success);
 #else
         mkdir(p.c_str(), S_IRWXU);
@@ -381,6 +387,20 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         if (apiIndex == 0)
         {
             megaApi[0]->enableTransferResumption();
+        }
+        break;
+
+    case MegaRequest::TYPE_GET_REGISTERED_CONTACTS:
+        if (lastError[apiIndex] == API_OK)
+        {
+            stringTable.reset(request->getMegaStringTable()->copy());
+        }
+        break;
+
+    case MegaRequest::TYPE_GET_COUNTRY_CALLING_CODES:
+        if (lastError[apiIndex] == API_OK)
+        {
+            stringListMap.reset(request->getMegaStringListMap()->copy());
         }
         break;
 
@@ -701,6 +721,13 @@ bool SdkTest::waitForResponse(bool *responseReceived, unsigned int timeout)
     return true;    // response is received
 }
 
+bool SdkTest::synchronousCall(bool &responseFlag, std::function<void()> f, unsigned int timeout)
+{
+    responseFlag = false;
+    f();
+    return waitForResponse(&responseFlag, timeout);
+}
+
 void SdkTest::createFile(string filename, bool largeFile)
 {
     FILE *fp;
@@ -830,52 +857,52 @@ void SdkTest::shareFolder(MegaNode *n, const char *email, int action, int timeou
     ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Folder sharing failed (error: " << lastError[0] << ")" << endl << "User: " << email << " Action: " << action;
 }
 
-void SdkTest::createPublicLink(MegaNode *n, m_time_t expireDate, int timeout)
+void SdkTest::createPublicLink(unsigned apiIndex, MegaNode *n, m_time_t expireDate, int timeout)
 {
-    requestFlags[0][MegaRequest::TYPE_EXPORT] = false;
-    megaApi[0]->exportNode(n, expireDate);
+    requestFlags[apiIndex][MegaRequest::TYPE_EXPORT] = false;
+    megaApi[apiIndex]->exportNode(n, expireDate);
 
-    ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_EXPORT], timeout) )
+    ASSERT_TRUE( waitForResponse(&requestFlags[apiIndex][MegaRequest::TYPE_EXPORT], timeout) )
             << "Public link creation not finished after " << timeout  << " seconds";
     if (!expireDate)
     {
-        ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Public link creation failed (error: " << lastError[0] << ")";
+        ASSERT_EQ(MegaError::API_OK, lastError[apiIndex]) << "Public link creation failed (error: " << lastError[apiIndex] << ")";
     }
     else
     {
-        bool res = MegaError::API_OK != lastError[0];
-        ASSERT_TRUE(res) << "Public link creation with expire time on free account (" << email[0] << ") succeed, and it mustn't";
+        bool res = MegaError::API_OK != lastError[apiIndex];
+        ASSERT_TRUE(res) << "Public link creation with expire time on free account (" << email[apiIndex] << ") succeed, and it mustn't";
     }
 }
 
-void SdkTest::importPublicLink(string link, MegaNode *parent, int timeout)
+void SdkTest::importPublicLink(unsigned apiIndex, string link, MegaNode *parent, int timeout)
 {
-    requestFlags[0][MegaRequest::TYPE_IMPORT_LINK] = false;
-    megaApi[0]->importFileLink(link.data(), parent);
+    requestFlags[apiIndex][MegaRequest::TYPE_IMPORT_LINK] = false;
+    megaApi[apiIndex]->importFileLink(link.data(), parent);
 
-    ASSERT_TRUE(waitForResponse(&requestFlags[0][MegaRequest::TYPE_IMPORT_LINK], timeout) )
+    ASSERT_TRUE(waitForResponse(&requestFlags[apiIndex][MegaRequest::TYPE_IMPORT_LINK], timeout) )
             << "Public link import not finished after " << timeout  << " seconds";
-    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Public link import failed (error: " << lastError[0] << ")";
+    ASSERT_EQ(MegaError::API_OK, lastError[apiIndex]) << "Public link import failed (error: " << lastError[apiIndex] << ")";
 }
 
-void SdkTest::getPublicNode(string link, int timeout)
+void SdkTest::getPublicNode(unsigned apiIndex, string link, int timeout)
 {
-    requestFlags[1][MegaRequest::TYPE_GET_PUBLIC_NODE] = false;
-    megaApi[1]->getPublicNode(link.data());
+    requestFlags[apiIndex][MegaRequest::TYPE_GET_PUBLIC_NODE] = false;
+    megaApi[apiIndex]->getPublicNode(link.data());
 
-    ASSERT_TRUE(waitForResponse(&requestFlags[1][MegaRequest::TYPE_GET_PUBLIC_NODE], timeout) )
+    ASSERT_TRUE(waitForResponse(&requestFlags[apiIndex][MegaRequest::TYPE_GET_PUBLIC_NODE], timeout) )
             << "Public link retrieval not finished after " << timeout  << " seconds";
-    ASSERT_EQ(MegaError::API_OK, lastError[1]) << "Public link retrieval failed (error: " << lastError[1] << ")";
+    ASSERT_EQ(MegaError::API_OK, lastError[apiIndex]) << "Public link retrieval failed (error: " << lastError[apiIndex] << ")";
 }
 
-void SdkTest::removePublicLink(MegaNode *n, int timeout)
+void SdkTest::removePublicLink(unsigned apiIndex, MegaNode *n, int timeout)
 {
-    requestFlags[0][MegaRequest::TYPE_EXPORT] = false;
-    megaApi[0]->disableExport(n);
+    requestFlags[apiIndex][MegaRequest::TYPE_EXPORT] = false;
+    megaApi[apiIndex]->disableExport(n);
 
-    ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_EXPORT], timeout) )
+    ASSERT_TRUE( waitForResponse(&requestFlags[apiIndex][MegaRequest::TYPE_EXPORT], timeout) )
             << "Public link removal not finished after " << timeout  << " seconds";
-    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Public link removal failed (error: " << lastError[0] << ")";
+    ASSERT_EQ(MegaError::API_OK, lastError[apiIndex]) << "Public link removal failed (error: " << lastError[apiIndex] << ")";
 }
 
 void SdkTest::getContactRequest(unsigned int apiIndex, bool outgoing, int expectedSize)
@@ -908,6 +935,32 @@ void SdkTest::createFolder(unsigned int apiIndex, char *name, MegaNode *n, int t
     ASSERT_TRUE( waitForResponse(&requestFlags[apiIndex][MegaRequest::TYPE_CREATE_FOLDER], timeout) )
             << "Folder creation failed after " << timeout  << " seconds";
     ASSERT_EQ(MegaError::API_OK, lastError[apiIndex]) << "Cannot create a folder (error: " << lastError[apiIndex] << ")";
+}
+
+void SdkTest::getRegisteredContacts(const std::map<std::string, std::string>& contacts, const int timeout)
+{
+    auto contactsStringMap = std::unique_ptr<MegaStringMap>{MegaStringMap::createInstance()};
+    for  (const auto& pair : contacts)
+    {
+        contactsStringMap->set(pair.first.c_str(), pair.second.c_str());
+    }
+
+    requestFlags[0][MegaRequest::TYPE_GET_REGISTERED_CONTACTS] = false;
+    megaApi[0]->getRegisteredContacts(contactsStringMap.get(), this);
+
+    ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_GET_REGISTERED_CONTACTS], timeout) )
+            << "Get registered contacts not finished after " << timeout  << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Get registered contacts failed (error: " << lastError[0] << ")";
+}
+
+void SdkTest::getCountryCallingCodes(const int timeout)
+{
+    requestFlags[0][MegaRequest::TYPE_GET_COUNTRY_CALLING_CODES] = false;
+    megaApi[0]->getCountryCallingCodes(this);
+
+    ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_GET_COUNTRY_CALLING_CODES], timeout) )
+            << "Get country calling codes not finished after " << timeout  << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Get country calling codes failed (error: " << lastError[0] << ")";
 }
 
 MegaLoggerSDK::MegaLoggerSDK(const char *filename)
@@ -1021,6 +1074,18 @@ TEST_F(SdkTest, DISABLED_SdkTestCreateAccount)
     bool *flag = &accountUpdated[0]; *flag = false;
     ASSERT_TRUE( waitForResponse(flag) )
             << "Account confirmation not received after " << maxTimeout << " seconds";
+}
+
+bool veryclose(double a, double b)
+{
+    double diff = b - a;
+    double denom = fabs(a) + fabs(b);
+    if (denom == 0)
+    {
+        return diff == 0;
+    }
+    double ratio = fabs(diff / denom);
+    return ratio * 1000000 < 1;
 }
 
 /**
@@ -1205,6 +1270,79 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     n1 = megaApi[0]->getNodeByHandle(h);
     ASSERT_EQ(lat, n1->getLatitude()) << "Latitude value does not match";
     ASSERT_EQ(lon, n1->getLongitude()) << "Longitude value does not match";
+
+    
+    // ******************    also test shareable / unshareable versions: 
+    
+    // ___ set the coords  (shareable)
+    lat = -51.8719987255814;
+    lon = +179.54;
+    requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE] = false;
+    megaApi[0]->setNodeCoordinates(n1, lat, lon);
+    waitForResponse(&requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE]);
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot set node coordinates (error: " << lastError[0] << ")";
+
+    // ___ get a link to the file node
+    ASSERT_NO_FATAL_FAILURE(createPublicLink(0, n1));
+    // The created link is stored in this->link at onRequestFinish()
+    string nodelink = this->link;
+
+    // ___ log in to the other account
+    ASSERT_NO_FATAL_FAILURE(getMegaApiAux());    // login + fetchnodes
+
+    // ___ import the link
+    ASSERT_NO_FATAL_FAILURE(importPublicLink(1, nodelink, megaApi[1]->getRootNode()));
+    MegaNode *nimported = megaApi[1]->getNodeByHandle(h);
+
+    ASSERT_TRUE(veryclose(lat, nimported->getLatitude())) << "Latitude " << n1->getLatitude() << " value does not match " << lat;
+    ASSERT_TRUE(veryclose(lon, nimported->getLongitude())) << "Longitude " << n1->getLongitude() << " value does not match " << lon;
+
+    // ___ remove the imported node, for a clean next test
+    requestFlags[1][MegaRequest::TYPE_REMOVE] = false;
+    megaApi[1]->remove(nimported);
+    ASSERT_TRUE(waitForResponse(&requestFlags[1][MegaRequest::TYPE_REMOVE]))
+        << "Remove operation failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[1]) << "Cannot remove a node (error: " << lastError[1] << ")";
+
+
+    // ___ again but unshareable this time - totally separate new node - set the coords  (unshareable)
+
+    string filename2 = "a"+UPFILE;
+    createFile(filename2, false);
+    transferFlags[0][MegaTransfer::TYPE_UPLOAD] = false;
+    megaApi[0]->startUpload(filename2.data(), rootnode);
+    waitForResponse(&transferFlags[0][MegaTransfer::TYPE_UPLOAD]);
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot upload a test file (error: " << lastError[0] << ")";
+    MegaNode *n2 = megaApi[0]->getNodeByHandle(h);
+    ASSERT_NE(n2, ((void*)NULL)) << "Cannot initialize second node for scenario (error: " << lastError[0] << ")";
+
+    lat = -5 + -51.8719987255814;
+    lon = -5 + +179.54;
+    requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE] = false;
+    megaApi[0]->setUnshareableNodeCoordinates(n2, lat, lon);
+    waitForResponse(&requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE]);
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot set unshareable node coordinates (error: " << lastError[0] << ")";
+
+    // ___ confirm this user can read them
+    MegaNode* selfread = megaApi[0]->getNodeByHandle(n2->getHandle());
+    ASSERT_TRUE(veryclose(lat, selfread->getLatitude())) << "Latitude " << n2->getLatitude() << " value does not match " << lat;
+    ASSERT_TRUE(veryclose(lon, selfread->getLongitude())) << "Longitude " << n2->getLongitude() << " value does not match " << lon;
+
+    // ___ get a link to the file node
+    this->link.clear();
+    ASSERT_NO_FATAL_FAILURE(createPublicLink(0, n2));
+    // The created link is stored in this->link at onRequestFinish()
+    string nodelink2 = this->link;
+
+    // ___ import the link
+    ASSERT_NO_FATAL_FAILURE(importPublicLink(1, nodelink2, megaApi[1]->getRootNode()));
+    nimported = megaApi[1]->getNodeByHandle(h);
+
+    // ___ confirm other user cannot read them
+    lat = nimported->getLatitude();
+    lon = nimported->getLongitude();
+    ASSERT_EQ(MegaNode::INVALID_COORDINATE, lat) << "Latitude value does not match";
+    ASSERT_EQ(MegaNode::INVALID_COORDINATE, lon) << "Longitude value does not match";
 }
 
 /**
@@ -2137,7 +2275,7 @@ TEST_F(SdkTest, SdkTestShares)
 
     MegaNode *nfile1 = megaApi[0]->getNodeByHandle(hfile1);
 
-    ASSERT_NO_FATAL_FAILURE( createPublicLink(nfile1) );
+    ASSERT_NO_FATAL_FAILURE( createPublicLink(0, nfile1) );
     // The created link is stored in this->link at onRequestFinish()
 
     // Get a fresh snapshot of the node and check it's actually exported
@@ -2149,12 +2287,12 @@ TEST_F(SdkTest, SdkTestShares)
     string oldLink = link;
     link = "";
     nfile1 = megaApi[0]->getNodeByHandle(hfile1);
-    ASSERT_NO_FATAL_FAILURE( createPublicLink(nfile1) );
+    ASSERT_NO_FATAL_FAILURE( createPublicLink(0, nfile1) );
     ASSERT_STREQ(oldLink.c_str(), link.c_str()) << "Wrong public link after link update";
 
 
     // Try to update the expiration time of an existing link (only for PRO accounts are allowed, otherwise -11
-    ASSERT_NO_FATAL_FAILURE( createPublicLink(nfile1, 1577836800) );     // Wed, 01 Jan 2020 00:00:00 GMT
+    ASSERT_NO_FATAL_FAILURE( createPublicLink(0, nfile1, 1577836800) );     // Wed, 01 Jan 2020 00:00:00 GMT
     nfile1 = megaApi[0]->getNodeByHandle(hfile1);
     ASSERT_EQ(0, nfile1->getExpirationTime()) << "Expiration time successfully set, when it shouldn't";
     ASSERT_FALSE(nfile1->isExpired()) << "Public link is expired, it mustn't";
@@ -2162,7 +2300,7 @@ TEST_F(SdkTest, SdkTestShares)
 
     // --- Import a file public link ---
 
-    ASSERT_NO_FATAL_FAILURE( importPublicLink(link, rootnode) );
+    ASSERT_NO_FATAL_FAILURE( importPublicLink(0, link, rootnode) );
 
     MegaNode *nimported = megaApi[0]->getNodeByHandle(h);
 
@@ -2172,14 +2310,14 @@ TEST_F(SdkTest, SdkTestShares)
 
     // --- Get node from file public link ---
 
-    ASSERT_NO_FATAL_FAILURE( getPublicNode(link) );
+    ASSERT_NO_FATAL_FAILURE( getPublicNode(1, link) );
 
     ASSERT_TRUE(publicNode->isPublic()) << "Cannot get a node from public link";
 
 
     // --- Remove a public link ---
 
-    ASSERT_NO_FATAL_FAILURE( removePublicLink(nfile1) );
+    ASSERT_NO_FATAL_FAILURE( removePublicLink(0, nfile1) );
 
     delete nfile1;
     nfile1 = megaApi[0]->getNodeByHandle(h);
@@ -2192,7 +2330,7 @@ TEST_F(SdkTest, SdkTestShares)
 
     MegaNode *nfolder1 = megaApi[0]->getNodeByHandle(hfolder1);
 
-    ASSERT_NO_FATAL_FAILURE( createPublicLink(nfolder1) );
+    ASSERT_NO_FATAL_FAILURE( createPublicLink(0, nfolder1) );
     // The created link is stored in this->link at onRequestFinish()
 
     delete nfolder1;
@@ -2210,7 +2348,7 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_STREQ(oldLink.c_str(), nfolder1->getPublicLink()) << "Wrong public link from MegaNode";
 
     // Regenerate the same link should not trigger a new request
-    ASSERT_NO_FATAL_FAILURE( createPublicLink(nfolder1) );
+    ASSERT_NO_FATAL_FAILURE( createPublicLink(0, nfolder1) );
     ASSERT_STREQ(oldLink.c_str(), link.c_str()) << "Wrong public link after link update";
 
     delete nfolder1;
@@ -2329,22 +2467,23 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
     ACN syntax(std::move(p));
 
     error_code e;
-    std::experimental::filesystem::remove_all("test_autocomplete_files", e);
+    fs::remove_all("test_autocomplete_files", e);
 
-    std::experimental::filesystem::create_directory("test_autocomplete_files");
-    std::experimental::filesystem::current_path("test_autocomplete_files");
+    fs::create_directory("test_autocomplete_files");
+    fs::path old_cwd = fs::current_path();
+    fs::current_path("test_autocomplete_files");
 
-    std::experimental::filesystem::create_directory("dir1");
-    std::experimental::filesystem::create_directory("dir1\\sub11");
-    std::experimental::filesystem::create_directory("dir1\\sub12");
-    std::experimental::filesystem::create_directory("dir2");
-    std::experimental::filesystem::create_directory("dir2\\sub21");
-    std::experimental::filesystem::create_directory("dir2\\sub22");
-    std::experimental::filesystem::create_directory("dir2a");
-    std::experimental::filesystem::create_directory("dir2a\\dir space");
-    std::experimental::filesystem::create_directory("dir2a\\dir space\\next");
-    std::experimental::filesystem::create_directory("dir2a\\dir space2");
-    std::experimental::filesystem::create_directory("dir2a\\nospace");
+    fs::create_directory("dir1");
+    fs::create_directory("dir1\\sub11");
+    fs::create_directory("dir1\\sub12");
+    fs::create_directory("dir2");
+    fs::create_directory("dir2\\sub21");
+    fs::create_directory("dir2\\sub22");
+    fs::create_directory("dir2a");
+    fs::create_directory("dir2a\\dir space");
+    fs::create_directory("dir2a\\dir space\\next");
+    fs::create_directory("dir2a\\dir space2");
+    fs::create_directory("dir2a\\nospace");
 
     {
         auto r = autoComplete("ls -R", 5, syntax, false);
@@ -2858,6 +2997,7 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
         ASSERT_EQ(r.line, "ls \"/test_autocomplete_megafs/dir2a/dir space\"");
     }
 
+    fs::current_path(old_cwd);
 
 }
 #endif
@@ -3204,7 +3344,6 @@ namespace mega
 
         static void onSetIsRaid_smallchunks10(::mega::RaidBufferManager* tbm)
         {
-            unsigned oldvalue = tbm->raidLinesPerChunk;
             tbm->raidLinesPerChunk = 10;
         };
 
@@ -3242,7 +3381,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
 
     MegaNode *rootnode = megaApi[0]->getRootNode();
 
-    ASSERT_NO_FATAL_FAILURE(importPublicLink("https://mega.nz/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", rootnode));
+    ASSERT_NO_FATAL_FAILURE(importPublicLink(0, "https://mega.nz/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", rootnode));
     MegaHandle imported_file_handle = h;
 
     MegaNode *nimported = megaApi[0]->getNodeByHandle(imported_file_handle);
@@ -3365,7 +3504,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
 
     MegaNode *rootnode = megaApi[0]->getRootNode();
 
-    ASSERT_NO_FATAL_FAILURE(importPublicLink("https://mega.nz/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", rootnode));
+    ASSERT_NO_FATAL_FAILURE(importPublicLink(0, "https://mega.nz/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", rootnode));
     MegaHandle imported_file_handle = h;
     MegaNode *nimported = megaApi[0]->getNodeByHandle(imported_file_handle);
 
@@ -3422,7 +3561,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
 
     MegaNode *rootnode = megaApi[0]->getRootNode();
 
-    ASSERT_NO_FATAL_FAILURE(importPublicLink("https://mega.nz/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", rootnode));
+    ASSERT_NO_FATAL_FAILURE(importPublicLink(0, "https://mega.nz/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", rootnode));
     MegaHandle imported_file_handle = h;
     MegaNode *nimported = megaApi[0]->getNodeByHandle(imported_file_handle);
 
@@ -3544,7 +3683,7 @@ TEST_F(SdkTest, SdkTestOverquotaCloudraid)
 #else
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
-    ASSERT_NO_FATAL_FAILURE(importPublicLink("https://mega.nz/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", megaApi[0]->getRootNode()));
+    ASSERT_NO_FATAL_FAILURE(importPublicLink(0, "https://mega.nz/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", megaApi[0]->getRootNode()));
     MegaHandle imported_file_handle = h;
     MegaNode *nimported = megaApi[0]->getNodeByHandle(imported_file_handle);
 
@@ -3706,7 +3845,7 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
 #endif
 
     // ensure we have our standard raid test file
-    ASSERT_NO_FATAL_FAILURE(importPublicLink("https://mega.nz/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", megaApi[0]->getRootNode()));
+    ASSERT_NO_FATAL_FAILURE(importPublicLink(0, "https://mega.nz/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", megaApi[0]->getRootNode()));
     MegaHandle imported_file_handle = h;
     MegaNode *nimported = megaApi[0]->getNodeByHandle(imported_file_handle);
 
@@ -3844,5 +3983,121 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 #endif
+}
+
+TEST_F(SdkTest, SdkRecentsTest)
+{
+    megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST SdkRecentsTest___");
+
+    MegaNode *rootnode = megaApi[0]->getRootNode();
+
+    deleteFile(UPFILE);
+    deleteFile(DOWNFILE);
+
+    string filename1 = UPFILE;
+    createFile(filename1, false);
+    auto err = synchronousUpload(0, filename1.c_str(), rootnode);
+    ASSERT_EQ(MegaError::API_OK, err) << "Cannot upload a test file (error: " << err << ")";
+
+    ofstream f(filename1);
+    f << "update";
+    f.close();
+
+    err = synchronousUpload(0, filename1.c_str(), rootnode);
+    ASSERT_EQ(MegaError::API_OK, err) << "Cannot upload an updated test file (error: " << err << ")";
+
+    synchronousCatchup(0);
+
+    string filename2 = DOWNFILE;
+    createFile(filename2, false);
+    
+    err = synchronousUpload(0, filename2.c_str(), rootnode);
+    ASSERT_EQ(MegaError::API_OK, err) << "Cannot upload a test file2 (error: " << err << ")";
+
+    ofstream f2(filename2);
+    f2 << "update";
+    f2.close();
+
+    err = synchronousUpload(0, filename2.c_str(), rootnode);
+    ASSERT_EQ(MegaError::API_OK, err) << "Cannot upload an updated test file2 (error: " << err << ")";
+
+    synchronousCatchup(0);
+
+
+    MegaRecentActionBucketList* buckets = megaApi[0]->getRecentActions(1, 10);
+
+    for (int i = 0; i < buckets->size(); ++i)
+    {
+        cout << "bucket " << i << endl;
+        auto bucket = buckets->get(i);
+        for (int j = 0; j < buckets->get(i)->getNodes()->size(); ++j)
+        {
+            auto node = bucket->getNodes()->get(j);
+            cout << node->getName() << " " << node->getCreationTime() << " " << bucket->getTimestamp() << " " << bucket->getParentHandle() << " " << bucket->isUpdate() << " " << bucket->isMedia() << endl;
+        }
+    }
+
+    ASSERT_TRUE(buckets != nullptr);
+    ASSERT_TRUE(buckets->size() > 0);
+    ASSERT_TRUE(buckets->get(0)->getNodes()->size() > 1);
+    ASSERT_EQ(DOWNFILE, string(buckets->get(0)->getNodes()->get(0)->getName()));
+    ASSERT_EQ(UPFILE, string(buckets->get(0)->getNodes()->get(1)->getName()));
+}
+
+// TODO: Enable this test when API command (smslc) becomes available in production
+TEST_F(SdkTest, DISABLED_SdkGetCountryCallingCodes)
+{
+    getCountryCallingCodes();
+    ASSERT_NE(nullptr, stringListMap);
+    ASSERT_GT(stringListMap->size(), 0);
+    // sanity check a few country codes
+    const MegaStringList* const nz = stringListMap->get("NZ");
+    ASSERT_NE(nullptr, nz);
+    ASSERT_EQ(1, nz->size());
+    ASSERT_EQ(0, strcmp("64", nz->get(0)));
+    const MegaStringList* const de = stringListMap->get("DE");
+    ASSERT_NE(nullptr, de);
+    ASSERT_EQ(1, de->size());
+    ASSERT_EQ(0, strcmp("49", de->get(0)));
+}
+
+// TODO: Enable this test when API command (usabd) becomes available in production
+TEST_F(SdkTest, DISABLED_SdkGetRegisteredContacts)
+{
+    const std::string js1 = "+0000000010";
+    const std::string js2 = "+0000000011";
+    const std::map<std::string, std::string> contacts{
+        {js1, "John Smith"}, // sms verified
+        {js2, "John Smith"}, // sms verified
+        {"+640", "John Smith"}, // not sms verified
+    };
+    getRegisteredContacts(contacts);
+    ASSERT_NE(nullptr, stringTable);
+    ASSERT_EQ(2, stringTable->size());
+
+    // repacking and sorting result
+    using row_t = std::tuple<std::string, std::string, std::string>;
+    std::vector<row_t> table;
+    for (int i = 0; i < stringTable->size(); ++i)
+    {
+        const MegaStringList* const stringList = stringTable->get(i);
+        ASSERT_EQ(3, stringList->size());
+        table.emplace_back(stringList->get(0), stringList->get(1), stringList->get(2));
+    }
+
+    std::sort(table.begin(), table.end(), [](const row_t& lhs, const row_t& rhs)
+                                          {
+                                              return std::get<0>(lhs) < std::get<0>(rhs);
+                                          });
+
+    // Check johnsmith1
+    ASSERT_EQ(js1, std::get<0>(table[0])); // eud
+    ASSERT_GT(std::get<1>(table[0]).size(), 0); // id
+    ASSERT_EQ(js1, std::get<2>(table[0])); // ud
+
+    // Check johnsmith2
+    ASSERT_EQ(js2, std::get<0>(table[1])); // eud
+    ASSERT_GT(std::get<1>(table[1]).size(), 0); // id
+    ASSERT_EQ(js2, std::get<2>(table[1])); // ud
 }
 

@@ -152,6 +152,8 @@ public interface MegaGlobalListenerInterface {
      *      - MegaEvent::getNumber: code representing the reason for being blocked.
      *          200: suspension message for any type of suspension, but copyright suspension.
      *          300: suspension only for multiple copyright violations.
+     *          400: the subuser account has been disabled.
+     *          401: the subuser account has been removed.
      *
      * - MegaEvent::EVENT_STORAGE: when the status of the storage changes.
      *
@@ -174,6 +176,18 @@ public interface MegaGlobalListenerInterface {
      *     state if there is really a change.
      *
      * - MegaEvent::EVENT_NODES_CURRENT: when all external changes have been received
+     *
+     * - MegaEvent::EVENT_MEDIA_INFO_READY: when codec-mappings have been received
+     *
+     * - MegaEvent::EVENT_BUSINESS_STATUS: when the status of a business account has changed.
+     *
+     * For this event type, MegaEvent::getNumber provides the new business status.
+     *
+     * The posible values are:
+     *  - MegaApi::BUSINESS_STATUS_EXPIRED = -1
+     *  - BUSINESS_STATUS_INACTIVE = 0
+     *  - BUSINESS_STATUS_ACTIVE = 1
+     *  - BUSINESS_STATUS_GRACE_PERIOD = 2
      *
      * @param api MegaApi object connected to the account
      * @param event Details about the event

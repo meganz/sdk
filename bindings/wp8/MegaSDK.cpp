@@ -48,8 +48,7 @@ MegaSDK::MegaSDK(String^ appKey, String^ userAgent, MRandomNumberProvider ^rando
 	unsigned char randomData[REQUIRED_ENTROPY];
 	if (randomProvider != nullptr)
 		randomProvider->GenerateRandomBlock(::Platform::ArrayReference<unsigned char>(randomData, REQUIRED_ENTROPY));
-	MegaApi::addEntropy((char *)randomData, REQUIRED_ENTROPY);
-
+	
 	std::string utf8appKey;
 	if(appKey != nullptr) 
 		MegaApi::utf16ToUtf8(appKey->Data(), appKey->Length(), &utf8appKey);
@@ -61,6 +60,8 @@ MegaSDK::MegaSDK(String^ appKey, String^ userAgent, MRandomNumberProvider ^rando
 	megaApi = new MegaApi((appKey != nullptr) ? utf8appKey.c_str() : NULL, 
 		(const char *)NULL, (userAgent != nullptr) ? utf8userAgent.c_str() : NULL);
 	
+    megaApi->addEntropy((char *)randomData, REQUIRED_ENTROPY);
+
     InitializeCriticalSectionEx(&listenerMutex, 0, 0);
     InitializeCriticalSectionEx(&loggerMutex, 0, 0);
 }
@@ -75,8 +76,7 @@ MegaSDK::MegaSDK(String^ appKey, String^ userAgent, String^ basePath, MRandomNum
 	unsigned char randomData[REQUIRED_ENTROPY];
 	if (randomProvider != nullptr)
 		randomProvider->GenerateRandomBlock(::Platform::ArrayReference<unsigned char>(randomData, REQUIRED_ENTROPY));
-	MegaApi::addEntropy((char *)randomData, REQUIRED_ENTROPY);
-
+	
 	std::string utf8appKey;
 	if (appKey != nullptr)
 		MegaApi::utf16ToUtf8(appKey->Data(), appKey->Length(), &utf8appKey);
@@ -93,6 +93,8 @@ MegaSDK::MegaSDK(String^ appKey, String^ userAgent, String^ basePath, MRandomNum
 		(basePath != nullptr) ? utf8basePath.c_str() : NULL,
 		(userAgent != nullptr) ? utf8userAgent.c_str() : NULL);
 	
+    megaApi->addEntropy((char *)randomData, REQUIRED_ENTROPY);
+
     InitializeCriticalSectionEx(&listenerMutex, 0, 0);
     InitializeCriticalSectionEx(&loggerMutex, 0, 0);
 }
@@ -107,8 +109,7 @@ MegaSDK::MegaSDK(String^ appKey, String^ userAgent, String^ basePath, MRandomNum
 	unsigned char randomData[REQUIRED_ENTROPY];
 	if (randomProvider != nullptr)
 		randomProvider->GenerateRandomBlock(::Platform::ArrayReference<unsigned char>(randomData, REQUIRED_ENTROPY));
-	MegaApi::addEntropy((char *)randomData, REQUIRED_ENTROPY);
-
+	
 	std::string utf8appKey;
 	if (appKey != nullptr)
 		MegaApi::utf16ToUtf8(appKey->Data(), appKey->Length(), &utf8appKey);
@@ -130,6 +131,8 @@ MegaSDK::MegaSDK(String^ appKey, String^ userAgent, String^ basePath, MRandomNum
 		(basePath != nullptr) ? utf8basePath.c_str() : NULL,
 		(userAgent != nullptr) ? utf8userAgent.c_str() : NULL);
 	
+    megaApi->addEntropy((char *)randomData, REQUIRED_ENTROPY);
+
     InitializeCriticalSectionEx(&listenerMutex, 0, 0);
     InitializeCriticalSectionEx(&loggerMutex, 0, 0);
 }

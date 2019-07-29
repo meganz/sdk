@@ -19,8 +19,7 @@
 * program.
 */
 
-#if !defined(__MINGW32__) && !defined(__ANDROID__) && ( (__cplusplus >= 201100L) || (defined(_MSC_VER) && _MSC_VER >= 1600) ) && (!defined(__GNUC__) || (__GNUC__*100+__GNUC_MINOR__) >= 503)
-// autocomplete for clients using c++11 - so far just megacli and megaclc on windows and linux.
+// autocomplete - so far just megacli and megaclc on windows and linux.
 
 #ifndef MEGA_AUTOCOMPLETE_H
 #define MEGA_AUTOCOMPLETE_H 1
@@ -84,6 +83,9 @@ namespace autocomplete {
         const quoted_word& word() {
             return words[i];
         }
+
+        bool extractflag(const string& flag);
+        bool extractflagparam(const string& flag, string& param);
 
         ACN selectedSyntax;
     };
@@ -249,8 +251,8 @@ namespace autocomplete {
     bool autoExec(const std::string line, size_t insertPos, ACN syntax, bool unixStyle, string& consoleOutput, bool reportNoMatch);
 
     // functions to bulid command descriptions
-    ACN either(ACN n1 = nullptr, ACN n2 = nullptr, ACN n3 = nullptr, ACN n4 = nullptr, ACN n5 = nullptr, ACN n6 = nullptr, ACN n7 = nullptr, ACN n8 = nullptr);
-    ACN sequence(ACN n1 = nullptr, ACN n2 = nullptr, ACN n3 = nullptr, ACN n4 = nullptr, ACN n5 = nullptr, ACN n6 = nullptr, ACN n7 = nullptr, ACN n8 = nullptr);
+    ACN either(ACN n1 = nullptr, ACN n2 = nullptr, ACN n3 = nullptr, ACN n4 = nullptr, ACN n5 = nullptr, ACN n6 = nullptr, ACN n7 = nullptr, ACN n8 = nullptr, ACN n9 = nullptr, ACN n10 = nullptr, ACN n11 = nullptr, ACN n12 = nullptr, ACN n13 = nullptr);
+    ACN sequence(ACN n1 = nullptr, ACN n2 = nullptr, ACN n3 = nullptr, ACN n4 = nullptr, ACN n5 = nullptr, ACN n6 = nullptr, ACN n7 = nullptr, ACN n8 = nullptr, ACN n9 = nullptr, ACN n10 = nullptr);
     ACN text(const std::string s);
     ACN param(const std::string s);
     ACN flag(const std::string s);
@@ -267,5 +269,4 @@ namespace autocomplete {
     ACN contactEmail(MegaClient*);
 
 }} //namespaces
-#endif
 #endif

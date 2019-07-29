@@ -39,12 +39,7 @@ struct FaultyServers
     // This class may be shared amongst many megaclients, so thread safety is needed
     typedef map<string, m_time_t> Map;
     Map recentFails;
-    MUTEX_CLASS m;
-
-    FaultyServers()
-    {
-        m.init(false);
-    }
+    std::mutex m_mutex;
 
     string server(const string& url)
     {
@@ -63,7 +58,7 @@ struct FaultyServers
 
     void add(const string& url)
     {
-        MutexGuard g(m);
+        std::lock_guard<std::mutex> g(m_mutex);
         recentFails[server(url)] = m_time();
     }
 
@@ -78,12 +73,12 @@ struct FaultyServers
         // (unless we recently had problems with the server of one of the 6 URLs, in which case start with the other 5 right away)
         unsigned worstindex = RAIDPARTS;
 
-        MutexGuard g(m);
+        std::lock_guard<std::mutex> g(m_mutex);
         if (!recentFails.empty())
         {
             m_time_t now = m_time();
             m_time_t worsttime = now - 10 * 3600;   // 10 hours
-            for (unsigned i = urls.size(); i--; )
+            for (auto i = unsigned(urls.size()); i--; )
             {
                 Map::iterator j = recentFails.find(server(urls[i]));
                 if (j != recentFails.end() && j->second > worsttime)
@@ -313,7 +308,7 @@ RaidBufferManager::FilePiece* RaidBufferManager::getAsyncOutputBufferPointer(uns
 }
 
 
-void RaidBufferManager::bufferWriteCompleted(unsigned connectionNum)
+void RaidBufferManager::bufferWriteCompleted(unsigned connectionNum, bool success)
 {
     std::map<unsigned, FilePiece*>::iterator aob = asyncoutputbuffers.find(connectionNum);
     if (aob != asyncoutputbuffers.end())
@@ -321,7 +316,10 @@ void RaidBufferManager::bufferWriteCompleted(unsigned connectionNum)
         assert(aob->second);
         if (aob->second)
         {
-            bufferWriteCompletedAction(*aob->second);
+            if (success)
+            {
+                bufferWriteCompletedAction(*aob->second);
+            }
 
             delete aob->second;
             aob->second = NULL;

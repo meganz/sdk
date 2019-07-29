@@ -72,62 +72,45 @@ bool GfxProcCG::readbitmap(FileAccess* fa, string* name, int size) {
         }
     }
     
-    NSString *nameString = [NSString stringWithCString:name->c_str()
-                                              encoding:[NSString defaultCStringEncoding]];
+    NSString *sourcePath = [NSString stringWithCString:name->c_str() encoding:[NSString defaultCStringEncoding]];
+    NSURL *sourceURL = [NSURL fileURLWithPath:sourcePath isDirectory:NO];
+    if (sourceURL == nil) {
+        return false;
+    }
     
-    CFStringRef fileExtension = (__bridge CFStringRef) [nameString pathExtension];
-    CFStringRef fileUTI = UTTypeCreatePreferredIdentifierForTag(kUTTagClassFilenameExtension, fileExtension, NULL);
-    
-    CGDataProviderRef dataProvider = NULL;
     w = h = 0;
     
+    CFMutableDictionaryRef imageOptions = CFDictionaryCreateMutable(kCFAllocatorDefault, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+    CFDictionaryAddValue(imageOptions, kCGImageSourceShouldCache, kCFBooleanFalse);
+    
+    CFStringRef fileExtension = (__bridge CFStringRef)[sourcePath pathExtension];
+    CFStringRef fileUTI = UTTypeCreatePreferredIdentifierForTag(kUTTagClassFilenameExtension, fileExtension, NULL);
     if (UTTypeConformsTo(fileUTI, kUTTypeMovie)) {
-        NSURL *videoURL = [NSURL fileURLWithPath:nameString];
-        AVURLAsset *asset = [[AVURLAsset alloc] initWithURL:videoURL options:nil];
+        AVURLAsset *asset = [[AVURLAsset alloc] initWithURL:sourceURL options:nil];
         AVAssetImageGenerator *generator = [[AVAssetImageGenerator alloc] initWithAsset:asset];
         generator.appliesPreferredTrackTransform = TRUE;
         CMTime requestedTime = CMTimeMake(1, 60);
         CGImageRef imgRef = [generator copyCGImageAtTime:requestedTime actualTime:NULL error:NULL];
-        
-        UIImage *thumbnailImage = [[UIImage alloc] initWithCGImage:imgRef];
-        CGImageRelease(imgRef);
-        
-        NSError *error;
-        if ([UIImageJPEGRepresentation(thumbnailImage, 1) writeToFile:nameString.stringByDeletingPathExtension options:NSDataWritingFileProtectionNone error:&error]) {
-            dataProvider = CGDataProviderCreateWithFilename([nameString.stringByDeletingPathExtension UTF8String]);
-            if (![[NSFileManager defaultManager] removeItemAtPath:nameString.stringByDeletingPathExtension error:&error]) {
-                LOG_err << "removeItemAtPath failed with error: " << error.localizedDescription <<  "code: " << error.code << "domain: " << error.domain;
+        if (imgRef) {
+            NSData *imgData = UIImageJPEGRepresentation([UIImage imageWithCGImage:imgRef], 1);
+            if (imgData) {
+                imageSource = CGImageSourceCreateWithData((__bridge CFDataRef)imgData, imageOptions);
             }
-        } else {
-            LOG_err << "writeToFile failed with error: " << error.localizedDescription << "code: " << error.code << "domain: " << error.domain;
+            CGImageRelease(imgRef);
         }
     } else {
-        dataProvider = CGDataProviderCreateWithFilename(name->c_str());
+        imageSource = CGImageSourceCreateWithURL((__bridge CFURLRef)sourceURL, imageOptions);
     }
     
     if (fileUTI) {
         CFRelease(fileUTI);
     }
     
-    if (!dataProvider) {
-        return false;
-    }
-
-    CFMutableDictionaryRef imageOptions = CFDictionaryCreateMutable(kCFAllocatorDefault, 0,
-                                                                       &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
-    if (!imageOptions) {
-        CGDataProviderRelease(dataProvider);
+    if (!imageSource) {
+        CFRelease(imageOptions);
         return false;
     }
     
-    CFDictionaryAddValue(imageOptions, kCGImageSourceShouldCache, kCFBooleanFalse);
-
-    imageSource = CGImageSourceCreateWithDataProvider(dataProvider, imageOptions);
-    CGDataProviderRelease(dataProvider);
-    if (!imageSource) {
-        return false;
-    }
-
     CFDictionaryRef imageProperties = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, imageOptions);
     if (imageProperties) { // trying to get width and heigth from properties
         CFNumberRef width = (CFNumberRef)CFDictionaryGetValue(imageProperties, kCGImagePropertyPixelWidth);
@@ -143,7 +126,10 @@ bool GfxProcCG::readbitmap(FileAccess* fa, string* name, int size) {
         }
         CFRelease(imageProperties);
     }
-    CFRelease(imageOptions);
+    
+    if (imageOptions) {
+        CFRelease(imageOptions);
+    }
     
     if (!(w && h)) { // trying to get fake size from thumbnail
         CGImageRef thumbnail = createThumbnailWithMaxSize(size);

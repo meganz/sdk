@@ -22,6 +22,7 @@
 // Many of these tests are still being worked on.
 // The file uses some C++17 mainly for the very convenient std::filesystem library, though the main SDK must still build with C++11 (and prior)
 
+#include "test.h"
 #include <mega.h>
 #include "gtest/gtest.h"
 #include <stdio.h>
@@ -29,10 +30,7 @@
 #include <future>
 //#include <mega/tsthooks.h>
 #include <fstream>
-
-
-
-bool suppressfiles = false;
+#include <atomic>
 
 using namespace ::mega;
 using namespace ::std;
@@ -49,11 +47,9 @@ using namespace ::std;
 
 namespace {
 
-typedef ::mega::byte byte;
+bool suppressfiles = false;
 
-#ifdef WIN32
-WinConsole* wc = NULL;
-#endif
+typedef ::mega::byte byte;
 
 void WaitMillisec(unsigned n)
 {
@@ -802,9 +798,7 @@ struct StandardClient : public MegaApp
         }
         else
         {
-            vector<Node*> subnodes;
-            vector<Node*> results;
-            return client.childnodesbyname(n, path.c_str(), false);
+            vector<Node*> results, subnodes = client.childnodesbyname(n, path.c_str(), false);
             for (int i = subnodes.size(); i--; )
             {
                 if (subnodes[i]->type != FILENODE)
@@ -903,7 +897,7 @@ struct StandardClient : public MegaApp
             cout << "](with " << descendants << " descendants) in " << mn->path() << ", ended up with unmatched model nodes:";
             for (auto& m : ms) cout << " " << m.first;
             cout << " and unmatched remote nodes:";
-            for (auto& n : ns) cout << " " << n.first;
+            for (auto& i : ns) cout << " " << i.first;
             cout << endl;
             return false;
         };
@@ -1012,7 +1006,7 @@ struct StandardClient : public MegaApp
             cout << "](with " << descendants << " descendants) in " << mn->path() << ", ended up with unmatched model nodes:";
             for (auto& m : ms) cout << " " << m.first;
             cout << " and unmatched LocalNodes:";
-            for (auto& n : ns) cout << " " << n.first;
+            for (auto& i : ns) cout << " " << i.first;
             cout << endl;
             return false;
         };
@@ -1096,7 +1090,7 @@ struct StandardClient : public MegaApp
             cout << "](with " << descendants << " descendants) in " << mn->path() << ", ended up with unmatched model nodes:";
             for (auto& m : ms) cout << " " << m.first;
             cout << " and unmatched filesystem paths:";
-            for (auto& p : ps) cout << " " << p.second;
+            for (auto& i : ps) cout << " " << i.second;
             cout << endl;
             return false;
         };
@@ -1581,8 +1575,9 @@ bool createSpecialFiles(fs::path targetfolder, const string& prefix, int n = 1)
 }
 #endif
 
+} // anonymous
 
-GTEST_TEST(BasicSync, DelRemoteFolder)
+GTEST_TEST(Sync, BasicSync_DelRemoteFolder)
 {
     // delete a remote folder and confirm the client sending the request and another also synced both correctly update the disk
     fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
@@ -1590,8 +1585,8 @@ GTEST_TEST(BasicSync, DelRemoteFolder)
     StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
 
 
-    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1", "f", 3, 3));
-    ASSERT_TRUE(clientA2.login_fetchnodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
+    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "f", 3, 3));
+    ASSERT_TRUE(clientA2.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
     ASSERT_EQ(clientA1.basefolderhandle, clientA2.basefolderhandle);
 
     ASSERT_TRUE(clientA1.setupSync_mainthread("sync1", "f", 1));
@@ -1617,15 +1612,15 @@ GTEST_TEST(BasicSync, DelRemoteFolder)
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
 }
 
-GTEST_TEST(BasicSync, DelLocalFolder)
+GTEST_TEST(Sync, BasicSync_DelLocalFolder)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
     StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
     StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
 
-    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1", "f", 3, 3));
-    ASSERT_TRUE(clientA2.login_fetchnodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
+    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "f", 3, 3));
+    ASSERT_TRUE(clientA2.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
     ASSERT_EQ(clientA1.basefolderhandle, clientA2.basefolderhandle);
 
     // set up sync for A1, it should build matching local folders
@@ -1654,15 +1649,15 @@ GTEST_TEST(BasicSync, DelLocalFolder)
     ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
 }
 
-GTEST_TEST(BasicSync, MoveLocalFolder)
+GTEST_TEST(Sync, BasicSync_MoveLocalFolder)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
     StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
     StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
 
-    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1", "f", 3, 3));
-    ASSERT_TRUE(clientA2.login_fetchnodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
+    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "f", 3, 3));
+    ASSERT_TRUE(clientA2.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
     ASSERT_EQ(clientA1.basefolderhandle, clientA2.basefolderhandle);
 
     Model model;
@@ -1692,7 +1687,7 @@ GTEST_TEST(BasicSync, MoveLocalFolder)
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
 }
 
-GTEST_TEST(BasicSync, MoveLocalFolderBetweenSyncs)
+GTEST_TEST(Sync, BasicSync_MoveLocalFolderBetweenSyncs)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
@@ -1700,9 +1695,9 @@ GTEST_TEST(BasicSync, MoveLocalFolderBetweenSyncs)
     StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
     StandardClient clientA3(localtestroot, "clientA3");   // user 1 client 3
 
-    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1", "f", 3, 3));
-    ASSERT_TRUE(clientA2.login_fetchnodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
-    ASSERT_TRUE(clientA3.login_fetchnodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
+    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "f", 3, 3));
+    ASSERT_TRUE(clientA2.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
+    ASSERT_TRUE(clientA3.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
     ASSERT_EQ(clientA1.basefolderhandle, clientA2.basefolderhandle);
 
     // set up sync for A1 and A2, it should build matching local folders
@@ -1744,15 +1739,15 @@ GTEST_TEST(BasicSync, MoveLocalFolderBetweenSyncs)
 
 
 
-GTEST_TEST(BasicSync, AddLocalFolder)
+GTEST_TEST(Sync, BasicSync_AddLocalFolder)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
     StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
     StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
 
-    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1", "f", 3, 3));
-    ASSERT_TRUE(clientA2.login_fetchnodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
+    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "f", 3, 3));
+    ASSERT_TRUE(clientA2.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
     ASSERT_EQ(clientA1.basefolderhandle, clientA2.basefolderhandle);
 
     Model model;
@@ -1782,7 +1777,7 @@ GTEST_TEST(BasicSync, AddLocalFolder)
 }
 
 /* this one is too slow for regular testing with the current algorithm
-GTEST_TEST(BasicSync, MAX_NEWNODES1)
+GTEST_TEST(Sync, BasicSync_MAX_NEWNODES1)
 {
     // create more nodes than we can upload in one putnodes.
     // this tree is 5x5 and the algorithm ends up creating nodes one at a time so it's pretty slow (and doesn't hit MAX_NEWNODES as a result)
@@ -1790,8 +1785,8 @@ GTEST_TEST(BasicSync, MAX_NEWNODES1)
     StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
     StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
 
-    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1", "f", 3, 3));
-    ASSERT_TRUE(clientA2.login_fetchnodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
+    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "f", 3, 3));
+    ASSERT_TRUE(clientA2.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
     ASSERT_EQ(clientA1.basefolderhandle, clientA2.basefolderhandle);
 
     Model model;
@@ -1822,7 +1817,7 @@ GTEST_TEST(BasicSync, MAX_NEWNODES1)
 */
 
 /* this one is too slow for regular testing with the current algorithm
-GTEST_TEST(BasicSync, MAX_NEWNODES2)
+GTEST_TEST(Sync, BasicSync_MAX_NEWNODES2)
 {
     // create more nodes than we can upload in one putnodes.
     // this tree is 5x5 and the algorithm ends up creating nodes one at a time so it's pretty slow (and doesn't hit MAX_NEWNODES as a result)
@@ -1830,8 +1825,8 @@ GTEST_TEST(BasicSync, MAX_NEWNODES2)
     StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
     StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
 
-    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1", "f", 3, 3));
-    ASSERT_TRUE(clientA2.login_fetchnodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
+    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "f", 3, 3));
+    ASSERT_TRUE(clientA2.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
     ASSERT_EQ(clientA1.basefolderhandle, clientA2.basefolderhandle);
 
     Model model;
@@ -1861,15 +1856,15 @@ GTEST_TEST(BasicSync, MAX_NEWNODES2)
 }
 */
 
-GTEST_TEST(BasicSync, MoveExistingIntoNewLocalFolder)
+GTEST_TEST(Sync, BasicSync_MoveExistingIntoNewLocalFolder)
 {
     // historic case:  in the local filesystem, create a new folder then move an existing file/folder into it
     fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
     StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
     StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
 
-    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1", "f", 3, 3));
-    ASSERT_TRUE(clientA2.login_fetchnodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
+    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "f", 3, 3));
+    ASSERT_TRUE(clientA2.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
     ASSERT_EQ(clientA1.basefolderhandle, clientA2.basefolderhandle);
 
     Model model;
@@ -1905,15 +1900,15 @@ GTEST_TEST(BasicSync, MoveExistingIntoNewLocalFolder)
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
 }
 
-GTEST_TEST(BasicSync, DISABLED_MoveSeveralExistingIntoDeepNewLocalFolders)
+GTEST_TEST(Sync, DISABLED_BasicSync_MoveSeveralExistingIntoDeepNewLocalFolders)
 {
     // historic case:  in the local filesystem, create a new folder then move an existing file/folder into it
     fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
     StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
     StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
 
-    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1", "f", 3, 3));
-    ASSERT_TRUE(clientA2.login_fetchnodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
+    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "f", 3, 3));
+    ASSERT_TRUE(clientA2.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
     ASSERT_EQ(clientA1.basefolderhandle, clientA2.basefolderhandle);
 
     Model model;
@@ -1954,14 +1949,14 @@ GTEST_TEST(BasicSync, DISABLED_MoveSeveralExistingIntoDeepNewLocalFolders)
 }
 
 /* not expected to work yet
-GTEST_TEST(BasicSync, SyncDuplicateNames)
+GTEST_TEST(Sync, BasicSync_SyncDuplicateNames)
 {
     fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
     StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
     StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
 
-    ASSERT_TRUE(clientA1.login_reset("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
-    ASSERT_TRUE(clientA2.login_fetchnodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
+    ASSERT_TRUE(clientA1.login_reset("MEGA_EMAIL", "MEGA_PWD"));
+    ASSERT_TRUE(clientA2.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
     ASSERT_EQ(clientA1.basefolderhandle, clientA2.basefolderhandle);
 
 
@@ -1988,14 +1983,14 @@ GTEST_TEST(BasicSync, SyncDuplicateNames)
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.root.get(), 2));
 }*/
 
-GTEST_TEST(BasicSync, RemoveLocalNodeBeforeSessionResume)
+GTEST_TEST(Sync, BasicSync_RemoveLocalNodeBeforeSessionResume)
 {
     fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
     auto pclientA1 = make_unique<StandardClient>(localtestroot, "clientA1");   // user 1 client 1
     StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
 
-    ASSERT_TRUE(pclientA1->login_reset_makeremotenodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1", "f", 3, 3));
-    ASSERT_TRUE(clientA2.login_fetchnodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
+    ASSERT_TRUE(pclientA1->login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "f", 3, 3));
+    ASSERT_TRUE(clientA2.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
     ASSERT_EQ(pclientA1->basefolderhandle, clientA2.basefolderhandle);
 
     Model model;
@@ -2012,7 +2007,7 @@ GTEST_TEST(BasicSync, RemoveLocalNodeBeforeSessionResume)
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
 
     // save session
-    byte session[64];
+    ::mega::byte session[64];
     int sessionsize = pclientA1->client.dumpsession(session, sizeof session);
 
     // logout (but keep caches)
@@ -2037,7 +2032,7 @@ GTEST_TEST(BasicSync, RemoveLocalNodeBeforeSessionResume)
 }
 
 /* not expected to work yet
-GTEST_TEST(BasicSync, RemoteFolderCreationRaceSamename)
+GTEST_TEST(Sync, BasicSync_RemoteFolderCreationRaceSamename)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     // SN tagging needed for this one
@@ -2045,8 +2040,8 @@ GTEST_TEST(BasicSync, RemoteFolderCreationRaceSamename)
     StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
     StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
 
-    ASSERT_TRUE(clientA1.login_reset("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
-    ASSERT_TRUE(clientA2.login_fetchnodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
+    ASSERT_TRUE(clientA1.login_reset("MEGA_EMAIL", "MEGA_PWD"));
+    ASSERT_TRUE(clientA2.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
     ASSERT_EQ(clientA1.basefolderhandle, clientA2.basefolderhandle);
 
     // set up sync for both, it should build matching local folders (empty initially)
@@ -2071,7 +2066,7 @@ GTEST_TEST(BasicSync, RemoteFolderCreationRaceSamename)
 }*/
 
 /* not expected to work yet
-GTEST_TEST(BasicSync, LocalFolderCreationRaceSamename)
+GTEST_TEST(Sync, BasicSync_LocalFolderCreationRaceSamename)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     // SN tagging needed for this one
@@ -2079,8 +2074,8 @@ GTEST_TEST(BasicSync, LocalFolderCreationRaceSamename)
     StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
     StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
 
-    ASSERT_TRUE(clientA1.login_reset("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
-    ASSERT_TRUE(clientA2.login_fetchnodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
+    ASSERT_TRUE(clientA1.login_reset("MEGA_EMAIL", "MEGA_PWD"));
+    ASSERT_TRUE(clientA2.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
     ASSERT_EQ(clientA1.basefolderhandle, clientA2.basefolderhandle);
 
     // set up sync for both, it should build matching local folders (empty initially)
@@ -2105,14 +2100,14 @@ GTEST_TEST(BasicSync, LocalFolderCreationRaceSamename)
 }*/
 
 
-GTEST_TEST(BasicSync, ResumeSyncFromSessionAfterNonclashingLocalAndRemoteChanges )
+GTEST_TEST(Sync, BasicSync_ResumeSyncFromSessionAfterNonclashingLocalAndRemoteChanges )
 {
     fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
     unique_ptr<StandardClient> pclientA1(new StandardClient(localtestroot, "clientA1"));   // user 1 client 1
     StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
 
-    ASSERT_TRUE(pclientA1->login_reset_makeremotenodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1", "f", 3, 3));
-    ASSERT_TRUE(clientA2.login_fetchnodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
+    ASSERT_TRUE(pclientA1->login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "f", 3, 3));
+    ASSERT_TRUE(clientA2.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
     ASSERT_EQ(pclientA1->basefolderhandle, clientA2.basefolderhandle);
 
     // set up sync for A1, it should build matching local folders
@@ -2129,7 +2124,7 @@ GTEST_TEST(BasicSync, ResumeSyncFromSessionAfterNonclashingLocalAndRemoteChanges
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model2.findnode("f"), 2));
 
     cout << "********************* save session A1" << endl;
-    byte session[64];
+    ::mega::byte session[64];
     int sessionsize = pclientA1->client.dumpsession(session, sizeof session);
 
     cout << "*********************  logout A1 (but keep caches on disk)" << endl;
@@ -2174,14 +2169,14 @@ GTEST_TEST(BasicSync, ResumeSyncFromSessionAfterNonclashingLocalAndRemoteChanges
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model2.findnode("f"), 2));
 }
 
-GTEST_TEST(BasicSync, ResumeSyncFromSessionAfterClashingLocalAddRemoteDelete)
+GTEST_TEST(Sync, BasicSync_ResumeSyncFromSessionAfterClashingLocalAddRemoteDelete)
 {
     fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
     unique_ptr<StandardClient> pclientA1(new StandardClient(localtestroot, "clientA1"));   // user 1 client 1
     StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
 
-    ASSERT_TRUE(pclientA1->login_reset_makeremotenodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1", "f", 3, 3));
-    ASSERT_TRUE(clientA2.login_fetchnodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
+    ASSERT_TRUE(pclientA1->login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "f", 3, 3));
+    ASSERT_TRUE(clientA2.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
     ASSERT_EQ(pclientA1->basefolderhandle, clientA2.basefolderhandle);
 
     Model model;
@@ -2198,7 +2193,7 @@ GTEST_TEST(BasicSync, ResumeSyncFromSessionAfterClashingLocalAddRemoteDelete)
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
 
     // save session A1
-    byte session[64];
+    ::mega::byte session[64];
     int sessionsize = pclientA1->client.dumpsession(session, sizeof session);
     fs::path sync1path = pclientA1->syncSet[1].localpath;
 
@@ -2230,12 +2225,12 @@ GTEST_TEST(BasicSync, ResumeSyncFromSessionAfterClashingLocalAddRemoteDelete)
 }
 
 
-GTEST_TEST(CmdChecks, RRAttributeAfterMoveNode)
+GTEST_TEST(Sync, CmdChecks_RRAttributeAfterMoveNode)
 {
     fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
     unique_ptr<StandardClient> pclientA1(new StandardClient(localtestroot, "clientA1"));   // user 1 client 1
 
-    ASSERT_TRUE(pclientA1->login_reset_makeremotenodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1", "f", 3, 3));
+    ASSERT_TRUE(pclientA1->login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "f", 3, 3));
 
     Node* f = pclientA1->drillchildnodebyname(pclientA1->gettestbasenode(), "f");
     handle original_f_handle = f->nodehandle;
@@ -2286,15 +2281,15 @@ GTEST_TEST(CmdChecks, RRAttributeAfterMoveNode)
 
 
 #ifdef __linux__
-GTEST_TEST(BasicSync, SpecialCreateFile)
+GTEST_TEST(Sync, BasicSync_SpecialCreateFile)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
     StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
     StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
 
-    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1", "f", 2, 2));
-    ASSERT_TRUE(clientA2.login_fetchnodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
+    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "f", 2, 2));
+    ASSERT_TRUE(clientA2.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
     ASSERT_EQ(clientA1.basefolderhandle, clientA2.basefolderhandle);
 
     Model model;
@@ -2329,15 +2324,15 @@ GTEST_TEST(BasicSync, SpecialCreateFile)
 }
 #endif
 
-GTEST_TEST(BasicSync, DISABLED_moveAndDeleteLocalFile)
+GTEST_TEST(Sync, DISABLED_BasicSync_moveAndDeleteLocalFile)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
     StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
     StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
 
-    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1", "f", 1, 1));
-    ASSERT_TRUE(clientA2.login_fetchnodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
+    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "f", 1, 1));
+    ASSERT_TRUE(clientA2.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
     ASSERT_EQ(clientA1.basefolderhandle, clientA2.basefolderhandle);
 
     Model model;
@@ -2369,57 +2364,3 @@ GTEST_TEST(BasicSync, DISABLED_moveAndDeleteLocalFile)
     ASSERT_TRUE(model.removesynctrash("f"));
     ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
 }
-
-class MegaCLILogger : public ::mega::Logger {
-public:
-    virtual void log(const char *time, int loglevel, const char *source, const char *message)
-    {
-#ifdef _WIN32
-        OutputDebugStringA(message);
-        OutputDebugStringA("\r\n");
-#else
-        if (loglevel >= SimpleLogger::logCurrentLevel)
-        {
-            std::cout << "[" << time << "] " << SimpleLogger::toStr(static_cast<LogLevel>(loglevel)) << ": " << message << " (" << source << ")" << std::endl;
-        }
-#endif
-    }
-};
-
-MegaCLILogger logger;
-};  // unnamed namespace
-
-
-int main (int argc, char *argv[])
-{
-    //assert(false);
-    //MegaClient::APIURL = "https://staging.api.mega.co.nz/";
-    //MegaClient::disablepkp = true;
-    //MegaClient::APIURL = "https://api-sandbox3.developers.mega.co.nz/";
-    //MegaClient::disablepkp = true;
-
-    if (!getenv("MEGAAUTOTESTUSER1") || !getenv("MEGAAUTOTESTPWD1") || !getenv("MEGAAUTOTESTUSER2") || !getenv("MEGAAUTOTESTPWD2"))
-    {
-        cout << "please set username and password env variables for test" << endl;
-        exit(1);
-    }
-
-    remove("synctests.log");
-
-#ifdef _WIN32
-    SimpleLogger::setLogLevel(logDebug);  // warning and stronger to console; info and weaker to VS output window
-    SimpleLogger::setOutputClass(&logger);
-#else
-    SimpleLogger::setOutputClass(&logger);
-#endif
-
-#if defined(WIN32) && defined(NO_READLINE)
-    wc = new CONSOLE_CLASS;
-    wc->setShellConsole();
-#endif
-
-    ::testing::InitGoogleTest(&argc, argv);
-    auto x = RUN_ALL_TESTS();
-    return x;
-}
-

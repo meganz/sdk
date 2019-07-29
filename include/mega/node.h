@@ -64,36 +64,48 @@ struct MEGA_API NewNode : public NodeCore
 
     handle syncid;
     LocalNode* localnode;
+    string* fileattributes;  // owned here, usually NULL
 
     bool added;
 
-    NewNode()
-    {
-        syncid = UNDEF;
-        added = false;
-        source = NEW_NODE;
-        ovhandle = UNDEF;
-        uploadhandle = UNDEF;
-        localnode = NULL;
-    }
+    NewNode();
+    ~NewNode();
 };
 
 struct MEGA_API PublicLink
 {
     handle ph;
+    m_time_t cts;
     m_time_t ets;
     bool takendown;
 
-    PublicLink(handle ph, m_time_t ets, bool takendown)
-    {
-        this->ph = ph;
-        this->ets = ets;
-        this->takendown = takendown;
-    }
-
+    PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown);
     PublicLink(PublicLink *plink);
+
     bool isExpired();
 };
+
+// Container storing FileFingerprint* (Node* in practice) ordered by fingerprint.
+struct Fingerprints
+{
+    // maps FileFingerprints to node
+    using fingerprint_set = std::multiset<FileFingerprint*, FileFingerprintCmp>;
+    using iterator = fingerprint_set::iterator;
+
+    void newnode(Node* n);
+    void add(Node* n);
+    void remove(Node* n);
+    void clear();
+    m_off_t getSumSizes();
+
+    Node* nodebyfingerprint(FileFingerprint* fingerprint);
+    node_vector *nodesbyfingerprint(FileFingerprint* fingerprint);
+
+private:
+    fingerprint_set mFingerprints;
+    m_off_t mSumSizes = 0;
+};
+
 
 // filesystem node
 struct MEGA_API Node : public NodeCore, FileFingerprint
@@ -141,7 +153,10 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     static int hasfileattribute(const string *fileattrstring, fatype);
 
     // decrypt node attribute string
-    static byte* decryptattr(SymmCipher*, const char*, int);
+    static byte* decryptattr(SymmCipher*, const char*, size_t);
+
+    // parse node attributes from an incoming buffer, this function must be called after call decryptattr
+    static void parseattr(byte*, AttrMap&, m_off_t, m_time_t&, string&, string&, FileFingerprint&);
 
     // inbound share
     Share* inshare;
@@ -191,7 +206,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     node_list::iterator child_it;
 
     // own position in fingerprint set (only valid for file nodes)
-    fingerprint_set::iterator fingerprint_it;
+    Fingerprints::iterator fingerprint_it;
 
 #ifdef ENABLE_SYNC
     // related synced item or NULL
@@ -220,7 +235,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // handle of public link for the node
     PublicLink *plink;
 
-    void setpubliclink(handle, m_time_t, bool);
+    void setpubliclink(handle, m_time_t, m_time_t, bool);
 
     bool serialize(string*);
     static Node* unserialize(MegaClient*, string*, node_vector*);

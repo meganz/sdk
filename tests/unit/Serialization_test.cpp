@@ -22,15 +22,20 @@
 #include "mega.h"
 #include "gtest/gtest.h"
 
+#include "megaapi.h"
+#include <memory>
+#include <thread>
+#include <atomic>
+using namespace std;
+
 using namespace mega;
-using ::testing::InitGoogleTest;
 using ::testing::Test;
 using ::testing::TestCase;
 using ::testing::TestInfo;
 using ::testing::TestPartResult;
 using ::testing::UnitTest;
 
-TEST(JSON, storeobject)
+TEST(Serialization, JSON_storeobject)
 {
     std::string in_str("Test");
     JSON j;
@@ -39,11 +44,11 @@ TEST(JSON, storeobject)
 }
 
 // Test 64-bit int serialization/unserialization
-TEST(Serialize64, serialize)
+TEST(Serialization, Serialize64_serialize)
 {
     uint64_t in = 0xDEADBEEF;
     uint64_t out;
-    byte buf[sizeof in];
+    ::mega::byte buf[sizeof in];
 
     Serialize64::serialize(buf, in);
     ASSERT_GT(Serialize64::unserialize(buf, sizeof buf, &out), 0);
@@ -56,7 +61,7 @@ size_t checksize(size_t& n, size_t added)
     return n;
 }
 
-TEST(Cacheable, CacheableReaderWriter)
+TEST(Serialization, CacheableReaderWriter)
 {
     string writestring;
     CacheableWriter w(writestring);
@@ -185,20 +190,13 @@ TEST(Cacheable, CacheableReaderWriter)
     MediaProperties mp2(mps);
     ASSERT_EQ(mps, mp2.serialize());
     ASSERT_EQ(mp2.shortformat, 1);
-    ASSERT_EQ(mp2.width, 2);
-    ASSERT_EQ(mp2.height, 3);
-    ASSERT_EQ(mp2.fps, 4);
-    ASSERT_EQ(mp2.playtime, 5);
-    ASSERT_EQ(mp2.containerid, 6);
-    ASSERT_EQ(mp2.videocodecid, 7);
-    ASSERT_EQ(mp2.audiocodecid, 8);
+    ASSERT_EQ(mp2.width, 2u);
+    ASSERT_EQ(mp2.height, 3u);
+    ASSERT_EQ(mp2.fps, 4u);
+    ASSERT_EQ(mp2.playtime, 5u);
+    ASSERT_EQ(mp2.containerid, 6u);
+    ASSERT_EQ(mp2.videocodecid, 7u);
+    ASSERT_EQ(mp2.audiocodecid, 8u);
     ASSERT_EQ(mp2.is_VFR, true);
     ASSERT_EQ(mp2.no_audio, false);
-}
-
-
-int main (int argc, char *argv[])
-{
-    InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
 }
