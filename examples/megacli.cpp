@@ -2571,7 +2571,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_rm, sequence(text("rm"), remoteFSPath(client, &cwd)));
     p->Add(exec_mv, sequence(text("mv"), remoteFSPath(client, &cwd, "src"), remoteFSPath(client, &cwd, "dst")));
     p->Add(exec_cp, sequence(text("cp"), remoteFSPath(client, &cwd, "src"), either(remoteFSPath(client, &cwd, "dst"), param("dstemail"))));
-    p->Add(exec_du, sequence(text("du"), remoteFSPath(client, &cwd)));
+    p->Add(exec_du, sequence(text("du"), either(sequence(flag("-all"), opt(flag("-breakdown"))), remoteFSPath(client, &cwd))));
 #ifdef ENABLE_SYNC
     p->Add(exec_sync, sequence(text("sync"), opt(sequence(localFSPath(), either(remoteFSPath(client, &cwd, "dst"), param("cancelslot"))))));
 #endif
@@ -3316,6 +3316,40 @@ void exec_cp(autocomplete::ACState& s)
 
 void exec_du(autocomplete::ACState& s)
 {
+    if (s.extractflag("-all"))
+    {
+        bool breakdown = s.extractflag("-breakdown");
+        struct counters { m_off_t filecount = 0, filebytes = 0, fileversioncount = 0, fileversionbytes = 0, foldercount = 0; };
+        map<Node*, counters> values;
+        for (auto& n : client->nodes)
+        {
+            auto& c = values[breakdown ? n.second->firstancestor() : nullptr];
+            switch (n.second->type)
+            {
+                case FILENODE:
+                {
+                    bool isversion = n.second->parent && n.second->parent->type == FILENODE;
+                    (isversion ? c.fileversioncount : c.filecount) += 1;
+                    (isversion ? c.fileversionbytes : c.filebytes) += n.second->size;
+                    break;
+                }
+                case FOLDERNODE:
+                {
+                    c.foldercount += 1;
+                    break;
+                }
+            }
+        }
+        for (auto& v : values)
+        {
+            if (breakdown)  cout << v.first->nodehandle << endl;
+            cout << "files: " << v.second.filecount << " file bytes: " << v.second.filebytes << endl;
+            cout << "versions: " << v.second.fileversioncount << " version bytes: " << v.second.fileversionbytes << endl;
+            cout << "folders: " << v.second.foldercount << endl;
+        }
+        return;
+    }
+
     Node *n;
     TreeProcDU du;
 
