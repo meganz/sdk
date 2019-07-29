@@ -10982,12 +10982,13 @@ void MegaClient::initializekeys()
 void MegaClient::initializeAuthring(AuthRingType type)
 {
     attr_t at = AuthRing::authringTypeToAttr(type);
+    User *ownUser = finduser(me);
     const string *av = ownUser->getattr(at);
     if (av)
     {
         if (ownUser->isattrvalid(ATTR_AUTHRING))
         {
-            std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(av, &client->key));
+            std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(av, &key));
             if (tlvRecords)
             {
                 mAuthRing[type].set(*tlvRecords);
