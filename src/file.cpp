@@ -369,7 +369,7 @@ void File::completed(Transfer* t, LocalNode* l)
 
             bool send_put_nodes = true;
 #ifdef ENABLE_SYNC
-            if (l->sync && !l->sync->isUp())
+            if (l->sync && !l->sync->getIsUpSync())
             {
                 send_put_nodes = false;
             }

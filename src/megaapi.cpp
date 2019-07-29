@@ -5050,17 +5050,17 @@ MegaSyncDescriptor *MegaSyncDescriptor::copy() const
     return nullptr;
 }
 
-int MegaSyncDescriptor::syncType() const
+int MegaSyncDescriptor::getSyncType() const
 {
     return TYPE_DEFAULT;
 }
 
-bool MegaSyncDescriptor::syncDeletions() const
+bool MegaSyncDescriptor::getSyncDeletions() const
 {
     return false;
 }
 
-bool MegaSyncDescriptor::overwriteChanges() const
+bool MegaSyncDescriptor::getOverwriteChanges() const
 {
     return false;
 }

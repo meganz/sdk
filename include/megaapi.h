@@ -4575,17 +4575,17 @@ public:
     virtual MegaSyncDescriptor *copy() const;
 
     // Returns the type of the sync: TYPE_UP, TYPE_DOWN, or TYPE_DEFAULT
-    virtual int syncType() const;
+    virtual int getSyncType() const;
 
     // TYPE_UP: Deleted local files are deleted remotely (default: false)
     // TYPE_DOWN: Deleted remote files are deleted locally (default: false)
     // TYPE_DEFAULT: Not used
-    virtual bool syncDeletions() const;
+    virtual bool getSyncDeletions() const;
 
     // TYPE_UP: Overwrite remote changes with local changes (default: false)
     // TYPE_DOWN: Overwrite local changes with remote changes (default: false)
     // TYPE_DEFAULT: Not used
-    virtual bool overwriteChanges() const;
+    virtual bool getOverwriteChanges() const;
 };
 
 /**

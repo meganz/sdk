@@ -999,14 +999,14 @@ public:
                               bool overwriteChanges);
 
     MegaSyncDescriptor *copy() const override;
-    int syncType() const override;
-    bool syncDeletions() const override;
-    bool overwriteChanges() const override;
+    int getSyncType() const override;
+    bool getSyncDeletions() const override;
+    bool getOverwriteChanges() const override;
 
 private:
-    int m_syncType;
-    bool m_syncDeletions;
-    bool m_overwriteChanges;
+    int mSyncType;
+    bool mSyncDeletions;
+    bool mOverwriteChanges;
 };
 
 class MegaSyncPrivate : public MegaSync

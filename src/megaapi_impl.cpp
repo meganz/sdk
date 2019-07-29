@@ -7647,9 +7647,9 @@ void MegaApiImpl::resumeSync(const MegaSyncDescriptor *syncDescriptor, const cha
         sync->setRegExp(regExp);
 
         SyncDescriptor descriptor;
-        descriptor.syncType = request->getMegaSyncDescriptor()->syncType();
-        descriptor.syncDeletions = request->getMegaSyncDescriptor()->syncDeletions();
-        descriptor.overwriteChanges = request->getMegaSyncDescriptor()->overwriteChanges();
+        descriptor.mSyncType = request->getMegaSyncDescriptor()->getSyncType();
+        descriptor.mSyncDeletions = request->getMegaSyncDescriptor()->getSyncDeletions();
+        descriptor.mOverwriteChanges = request->getMegaSyncDescriptor()->getOverwriteChanges();
         e = client->addsync(descriptor, &localname, DEBRISFOLDER, NULL, node, localfp, -nextTag, sync);
         if (!e)
         {
@@ -19189,9 +19189,9 @@ void MegaApiImpl::sendPendingRequests()
             sync->setRegExp(request->getRegExp());
 
             SyncDescriptor descriptor;
-            descriptor.syncType = request->getMegaSyncDescriptor()->syncType();
-            descriptor.syncDeletions = request->getMegaSyncDescriptor()->syncDeletions();
-            descriptor.overwriteChanges = request->getMegaSyncDescriptor()->overwriteChanges();
+            descriptor.mSyncType = request->getMegaSyncDescriptor()->getSyncType();
+            descriptor.mSyncDeletions = request->getMegaSyncDescriptor()->getSyncDeletions();
+            descriptor.mOverwriteChanges = request->getMegaSyncDescriptor()->getOverwriteChanges();
             e = client->addsync(descriptor, &localname, DEBRISFOLDER, NULL, node, 0, -nextTag, sync);
             if (!e)
             {
@@ -20976,29 +20976,29 @@ void MegaPricingPrivate::addProduct(handle product, int proLevel, unsigned int g
 MegaSyncDescriptorPrivate::MegaSyncDescriptorPrivate(const int syncType,
                                                      const bool syncDeletions,
                                                      const bool overwriteChanges)
-: m_syncType{syncType}
-, m_syncDeletions{syncDeletions}
-, m_overwriteChanges{overwriteChanges}
+: mSyncType{syncType}
+, mSyncDeletions{syncDeletions}
+, mOverwriteChanges{overwriteChanges}
 {}
 
 MegaSyncDescriptor *MegaSyncDescriptorPrivate::copy() const
 {
-    return new MegaSyncDescriptorPrivate{m_syncType, m_syncDeletions, m_overwriteChanges};
+    return new MegaSyncDescriptorPrivate{mSyncType, mSyncDeletions, mOverwriteChanges};
 }
 
-int MegaSyncDescriptorPrivate::syncType() const
+int MegaSyncDescriptorPrivate::getSyncType() const
 {
-    return m_syncType;
+    return mSyncType;
 }
 
-bool MegaSyncDescriptorPrivate::syncDeletions() const
+bool MegaSyncDescriptorPrivate::getSyncDeletions() const
 {
-    return m_syncDeletions;
+    return mSyncDeletions;
 }
 
-bool MegaSyncDescriptorPrivate::overwriteChanges() const
+bool MegaSyncDescriptorPrivate::getOverwriteChanges() const
 {
-    return m_overwriteChanges;
+    return mOverwriteChanges;
 }
 
 MegaSyncPrivate::MegaSyncPrivate(const char *path, handle nodehandle, int tag)

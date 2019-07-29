@@ -37,13 +37,13 @@ struct SyncDescriptor
     };
 
     // type of the sync, defaults to bidirectional
-    int syncType = TYPE_DEFAULT;
+    int mSyncType = TYPE_DEFAULT;
 
     // whether deletions are synced (only relevant for one-way-sync)
-    bool syncDeletions = false;
+    bool mSyncDeletions = false;
 
     // whether changes are overwritten (only relevant for one-way-sync)
-    bool overwriteChanges = false;
+    bool mOverwriteChanges = false;
 };
 
 class MEGA_API Sync
@@ -60,10 +60,13 @@ public:
     std::auto_ptr<DirNotify> dirnotify;
 #endif
 
-    SyncDescriptor descriptor;
+    bool getIsUpSync() const;
 
-    bool isUp() const;
-    bool isDown() const;
+    bool getIsDownSync() const;
+
+    bool getSyncDeletions() const;
+
+    bool getOverwriteChanges() const;
 
     // root of local filesystem tree, holding the sync's root folder
     LocalNode localroot;
@@ -156,7 +159,7 @@ public:
     m_time_t updatedfilets;
     m_time_t updatedfileinitialts;
     
-    Sync(MegaClient*, string*, const char*, string*, Node*, fsfp_t, bool, int, void*);
+    Sync(MegaClient*, SyncDescriptor descriptor, string*, const char*, string*, Node*, fsfp_t, bool, int, void*);
     ~Sync();
 
     static const int SCANNING_DELAY_DS;
@@ -168,6 +171,8 @@ public:
 protected :
     bool readstatecache();
 
+private:
+    SyncDescriptor mDescriptor;
 };
 } // namespace
 

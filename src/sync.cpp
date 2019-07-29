@@ -38,8 +38,9 @@ const dstime Sync::RECENT_VERSION_INTERVAL_SECS = 10800;
 
 // new Syncs are automatically inserted into the session's syncs list
 // and a full read of the subtree is initiated
-Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
+Sync::Sync(MegaClient* cclient, SyncDescriptor descriptor, string* crootpath, const char* cdebris,
            string* clocaldebris, Node* remotenode, fsfp_t cfsfp, bool cinshare, int ctag, void *cappdata)
+: mDescriptor{std::move(descriptor)}
 {
     isnetwork = false;
     client = cclient;
@@ -219,14 +220,34 @@ bool Sync::readstatecache()
     return false;
 }
 
-bool Sync::isUp() const
+bool Sync::getIsUpSync() const
 {
-    return descriptor.syncType & SyncDescriptor::TYPE_UP;
+    return mDescriptor.mSyncType & SyncDescriptor::TYPE_UP;
 }
 
-bool Sync::isDown() const
+bool Sync::getIsDownSync() const
 {
-    return descriptor.syncType & SyncDescriptor::TYPE_DOWN;
+    return mDescriptor.mSyncType & SyncDescriptor::TYPE_DOWN;
+}
+
+bool Sync::getSyncDeletions() const
+{
+    switch (mDescriptor.mSyncType)
+    {
+        case SyncDescriptor::TYPE_UP: return mDescriptor.mSyncDeletions;
+        case SyncDescriptor::TYPE_DOWN: return mDescriptor.mSyncDeletions;
+        case SyncDescriptor::TYPE_DEFAULT: return true;
+    }
+}
+
+bool Sync::getOverwriteChanges() const
+{
+    switch (mDescriptor.mSyncType)
+    {
+        case SyncDescriptor::TYPE_UP: return mDescriptor.mOverwriteChanges;
+        case SyncDescriptor::TYPE_DOWN: return mDescriptor.mOverwriteChanges;
+        case SyncDescriptor::TYPE_DEFAULT: return false;
+    }
 }
 
 // remove LocalNode from DB cache
@@ -1225,7 +1246,7 @@ void Sync::deletemissing(LocalNode* l)
 
 bool Sync::movetolocaldebris(string* localpath)
 {
-    if (isDown() && !descriptor.syncDeletions)
+    if (!getSyncDeletions())
     {
         return true;
     }
