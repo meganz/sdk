@@ -345,6 +345,9 @@ public:
     // check existence and integrity of keys and signatures, initialize if missing
     void initializekeys();
 
+    // to be called after resumption from cache (user attributes loaded)
+    void initializeAuthring(AuthRingType type);
+
     // track a public key in the authring for a given user
     error trackKey(attr_t keyType, handle uh, const std::string &key);
 

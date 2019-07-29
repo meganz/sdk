@@ -10666,6 +10666,9 @@ void MegaClient::fetchnodes(bool nocache)
         {
             getua(ownUser, ATTR_PUSH_SETTINGS);
         }
+        initializeAuthring(AUTHRING_TYPE_ED255);
+        initializeAuthring(AUTHRING_TYPE_CU255);
+        initializeAuthring(AUTHRING_TYPE_RSA);
 
         WAIT_CLASS::bumpds();
         fnstats.timeToSyncsResumed = Waiter::ds - fnstats.startTime;
@@ -10973,6 +10976,38 @@ void MegaClient::initializekeys()
         resetKeyring();
         clearKeys();
         return;
+    }
+}
+
+void MegaClient::initializeAuthring(AuthRingType type)
+{
+    attr_t at = AuthRing::authringTypeToAttr(type);
+    User *ownUser = finduser(me);
+    const string *av = ownUser->getattr(at);
+    if (av)
+    {
+        if (ownUser->isattrvalid(ATTR_AUTHRING))
+        {
+            std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(av, &key));
+            if (tlvRecords)
+            {
+                mAuthRing[type].set(*tlvRecords);
+            }
+            else
+            {
+                LOG_err << "Failed to decrypt " << AuthRing::authringTypeToStr(type) << " from cached attribute";
+                mAuthRing[type].reset();
+            }
+        }
+        else
+        {
+            getua(ownUser, at, 0);
+            LOG_info << AuthRing::authringTypeToStr(type) << " exist but is unknown. Fetching...";
+        }
+    }
+    else
+    {
+        mAuthRing[type].reset();
     }
 }
 
