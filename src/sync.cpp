@@ -220,17 +220,17 @@ bool Sync::readstatecache()
     return false;
 }
 
-bool Sync::getIsUpSync() const
+bool Sync::isUpSync() const
 {
     return mDescriptor.mSyncType & SyncDescriptor::TYPE_UP;
 }
 
-bool Sync::getIsDownSync() const
+bool Sync::isDownSync() const
 {
     return mDescriptor.mSyncType & SyncDescriptor::TYPE_DOWN;
 }
 
-bool Sync::getSyncDeletions() const
+bool Sync::syncDeletions() const
 {
     switch (mDescriptor.mSyncType)
     {
@@ -240,7 +240,7 @@ bool Sync::getSyncDeletions() const
     }
 }
 
-bool Sync::getOverwriteChanges() const
+bool Sync::overwriteChanges() const
 {
     switch (mDescriptor.mSyncType)
     {
@@ -1246,7 +1246,7 @@ void Sync::deletemissing(LocalNode* l)
 
 bool Sync::movetolocaldebris(string* localpath)
 {
-    if (!getSyncDeletions())
+    if (!syncDeletions())
     {
         return true;
     }

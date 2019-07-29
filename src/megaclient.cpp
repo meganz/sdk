@@ -6575,9 +6575,9 @@ error MegaClient::setattr(Node* n, const char *prevname)
     const bool is_rename = prevname != NULL;
     if (n->localnode && n->localnode->sync)
     {
-        if (n->localnode->sync->getIsUpSync())
+        if (n->localnode->sync->isUpSync())
         {
-            if (is_rename && !n->localnode->sync->getSyncDeletions())
+            if (is_rename && !n->localnode->sync->syncDeletions())
             {
                 send_set_attr = false;
             }
@@ -6788,9 +6788,9 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent)
         const bool is_delete_op = syncdel == SYNCDEL_DEBRISDAY;
         if (prevParent->localnode && prevParent->localnode->sync)
         {
-            if (prevParent->localnode->sync->getIsUpSync())
+            if (prevParent->localnode->sync->isUpSync())
             {
-                if (is_delete_op && !prevParent->localnode->sync->getSyncDeletions())
+                if (is_delete_op && !prevParent->localnode->sync->syncDeletions())
                 {
                     send_move_node = false;
                 }
@@ -6829,9 +6829,9 @@ error MegaClient::unlink(Node* n, bool keepversions)
 #ifdef ENABLE_SYNC
     if (n->localnode && n->localnode->sync)
     {
-        if (n->localnode->sync->getIsUpSync())
+        if (n->localnode->sync->isUpSync())
         {
-            if (!n->localnode->sync->getSyncDeletions())
+            if (!n->localnode->sync->syncDeletions())
             {
                 send_del_node = false;
             }
@@ -11583,7 +11583,7 @@ void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, list
 // returns false if any local fs op failed transiently
 bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 {
-    if (!l->sync->getIsDownSync())
+    if (!l->sync->isDownSync())
     {
         return true;
     }
@@ -12575,7 +12575,7 @@ void MegaClient::syncupdate()
 
                 bool send_put_nodes = true;
 #ifdef ENABLE_SYNC
-                if (nn->localnode && nn->localnode->sync && !nn->localnode->sync->getIsUpSync())
+                if (nn->localnode && nn->localnode->sync && !nn->localnode->sync->isUpSync())
                 {
                     send_put_nodes = false;
                 }
@@ -12900,7 +12900,7 @@ void MegaClient::execmovetosyncdebris()
 
         bool send_put_nodes = true;
 #ifdef ENABLE_SYNC
-        if (nn->localnode && nn->localnode->sync && !nn->localnode->sync->getIsUpSync())
+        if (nn->localnode && nn->localnode->sync && !nn->localnode->sync->isUpSync())
         {
             send_put_nodes = false;
         }

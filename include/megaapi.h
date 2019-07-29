@@ -4750,12 +4750,12 @@ public:
 
     // TYPE_UP: Deleted local files are deleted remotely (default: false)
     // TYPE_DOWN: Deleted remote files are deleted locally (default: false)
-    // TYPE_DEFAULT: Not used
+    // TYPE_DEFAULT: Not used. Returned value should be ignored
     virtual bool getSyncDeletions() const;
 
     // TYPE_UP: Overwrite remote changes with local changes (default: false)
     // TYPE_DOWN: Overwrite local changes with remote changes (default: false)
-    // TYPE_DEFAULT: Not used
+    // TYPE_DEFAULT: Not used. Returned value should be ignored
     virtual bool getOverwriteChanges() const;
 };
 

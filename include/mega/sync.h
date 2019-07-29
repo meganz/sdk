@@ -60,13 +60,13 @@ public:
     std::auto_ptr<DirNotify> dirnotify;
 #endif
 
-    bool getIsUpSync() const;
+    bool isUpSync() const;
 
-    bool getIsDownSync() const;
+    bool isDownSync() const;
 
-    bool getSyncDeletions() const;
+    bool syncDeletions() const;
 
-    bool getOverwriteChanges() const;
+    bool overwriteChanges() const;
 
     // root of local filesystem tree, holding the sync's root folder
     LocalNode localroot;
