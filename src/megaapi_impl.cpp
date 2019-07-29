@@ -5150,20 +5150,20 @@ char *MegaApiImpl::getMyFingerprint()
         return NULL;
     }
 
-    char *result = NULL;
+    string result;
     if (client->signkey)
     {
-        result = AuthRing::fingerprint(client->signkey->pubKey, true);
+        result = AuthRing::fingerprint(string((const char*)client->signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH), true);
     }
 
-    return result;
+    return result.size() ? MegaApi::strdup(result.c_str()) : nullptr;
 }
 
 void MegaApiImpl::getUserFingerprint(MegaUser *user, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
 
-    request->setParamType(type);
+    request->setParamType(ATTR_ED25519_PUBK);
     request->setFlag(true);
     if(user)
     {
@@ -14248,9 +14248,10 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
         {
             if (request->getFlag()) // asking for the fingerprint
             {
-                string fingerprint = AuthRing::fingerprint(string((const char*)data, l), true);
+                string fingerprint = AuthRing::fingerprint(string((const char*)data, len), true);
                 request->setText(fingerprint.c_str());
             }
+            break;
         }
         case MegaApi::USER_ATTR_CU25519_PUBLIC_KEY:
         case MegaApi::USER_ATTR_SIG_RSA_PUBLIC_KEY:
