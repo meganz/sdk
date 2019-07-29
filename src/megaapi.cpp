@@ -1719,6 +1719,11 @@ void MegaApi::verifyCredentials(MegaUser *user, MegaRequestListener *listener)
     pImpl->verifyCredentials(user, listener);
 }
 
+void MegaApi::resetCredentials(MegaUser *user, MegaRequestListener *listener)
+{
+    pImpl->resetCredentials(user, listener);
+}
+
 void MegaApi::setLogLevel(int logLevel)
 {
     MegaApiImpl::setLogLevel(logLevel);

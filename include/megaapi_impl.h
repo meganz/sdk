@@ -1980,6 +1980,7 @@ class MegaApiImpl : public MegaApp
         void getUserFingerprint(MegaUser *user, MegaRequestListener *listener = NULL);
         bool areCredentialsVerified(MegaUser *user);
         void verifyCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
+        void resetCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
         static void setLogLevel(int logLevel);
         static void addLoggerClass(MegaLogger *megaLogger);
         static void removeLoggerClass(MegaLogger *megaLogger);

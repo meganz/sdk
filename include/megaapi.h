@@ -8117,6 +8117,10 @@ class MegaApi
         /**
          * @brief Verify credentials of a given user
          *
+         * This function allow to tag credentials of a user as verified. It should be called when the
+         * logged in user compares the fingerprint of the user (provided by an independent and secure
+         * method) with the fingerprint shown by the app (@see MegaApi::getUserFingerprint).
+         *
          * The associated request type with this request is MegaRequest::TYPE_VERIFY_CREDENTIALS
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns userhandle
@@ -8128,6 +8132,9 @@ class MegaApi
 
         /**
          * @brief Reset credentials of a given user
+         *
+         * Call this function to forget the existing authentication of keys and signatures for a given
+         * user. A full reload of the account will start the authentication process again.
          *
          * The associated request type with this request is MegaRequest::TYPE_VERIFY_CREDENTIALS
          * Valid data in the MegaRequest object received on callbacks:

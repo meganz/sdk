@@ -5193,6 +5193,20 @@ void MegaApiImpl::verifyCredentials(MegaUser *user, MegaRequestListener *listene
     waiter->notify();
 }
 
+void MegaApiImpl::resetCredentials(MegaUser *user, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_VERIFY_CREDENTIALS, listener);
+
+    if(user)
+    {
+        request->setNodeHandle(user->getHandle());
+    }
+    request->setFlag(true);
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::setLogLevel(int logLevel)
 {
     externalLogger.setLogLevel(logLevel);
