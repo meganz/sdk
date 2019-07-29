@@ -44,6 +44,10 @@ struct MEGA_API FileFingerprint : public Cachable
 
     FileFingerprint() = default;
 
+    FileFingerprint(const FileFingerprint&) = delete;
+
+    FileFingerprint& operator=(const FileFingerprint& other);
+
     virtual bool serialize(string* d);
     static FileFingerprint* unserialize(string* d);
 };

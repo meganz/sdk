@@ -360,6 +360,18 @@ int FileFingerprint::unserializefingerprint(string* d)
     return 1;
 }
 
+FileFingerprint& FileFingerprint::operator=(const FileFingerprint& other)
+{
+    if (this != &other)
+    {
+        size = other.size;
+        mtime = other.mtime;
+        memcpy(crc, other.crc, sizeof(crc));
+        isvalid = other.isvalid;
+    }
+    return *this;
+}
+
 bool FileFingerprintCmp::operator()(const FileFingerprint* a, const FileFingerprint* b) const
 {
     if (a->size < b->size)
