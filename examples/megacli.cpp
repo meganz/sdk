@@ -3338,6 +3338,7 @@ void exec_du(autocomplete::ACState& s)
                     c.foldercount += 1;
                     break;
                 }
+                default: break;
             }
         }
         for (auto& v : values)
