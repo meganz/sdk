@@ -11188,7 +11188,7 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
 error MegaClient::verifyCredentials(handle uh)
 {
     Base64Str<MegaClient::USERHANDLE> uid(uh);
-    AuthRing &authring = mAuthRing[AUTHRING_TYPE_ED255];
+    AuthRing authring = mAuthRing[AUTHRING_TYPE_ED255];
     if (!authring.isInitialized())
     {
         LOG_warn << "Failed to track public key for user " << uid << ": authring not available";
@@ -11219,7 +11219,7 @@ error MegaClient::verifyCredentials(handle uh)
     authring.update(uh, AUTH_METHOD_FINGERPRINT);
 
     std::unique_ptr<string> newAuthring(authring.serialize(rng, key));
-    putua(ATTR_AUTHRING, (const byte *)newAuthring->data(), newAuthring->size(), 0);
+    putua(ATTR_AUTHRING, (const byte *)newAuthring->data(), newAuthring->size());
 
     return API_OK;
 }
@@ -11242,25 +11242,28 @@ error MegaClient::resetCredentials(handle uh)
 
     if (mAuthRing[AUTHRING_TYPE_ED255].isTracked(uh))
     {
-        mAuthRing[AUTHRING_TYPE_ED255].remove(uh);
-        attrs[ATTR_AUTHRING] = *mAuthRing[AUTHRING_TYPE_ED255].serialize(rng, key);
+        AuthRing authring = mAuthRing[AUTHRING_TYPE_ED255];
+        authring.remove(uh);
+        attrs[ATTR_AUTHRING] = *authring.serialize(rng, key);
     }
     if (mAuthRing[AUTHRING_TYPE_RSA].isTracked(uh))
     {
-        mAuthRing[AUTHRING_TYPE_RSA].remove(uh);
-        attrs[ATTR_AUTHRSA] = *mAuthRing[AUTHRING_TYPE_RSA].serialize(rng, key);
+        AuthRing authring = mAuthRing[AUTHRING_TYPE_RSA];
+        authring.remove(uh);
+        attrs[ATTR_AUTHRSA] = *authring.serialize(rng, key);
     }
     if (mAuthRing[AUTHRING_TYPE_CU255].isTracked(uh))
     {
-        mAuthRing[AUTHRING_TYPE_CU255].remove(uh);
-        attrs[ATTR_AUTHCU255] = *mAuthRing[AUTHRING_TYPE_CU255].serialize(rng, key);
+        AuthRing authring = mAuthRing[AUTHRING_TYPE_CU255];
+        authring.remove(uh);
+        attrs[ATTR_AUTHCU255] = *authring.serialize(rng, key);
     }
 
     if (attrs.size())
     {
         assert(attrs.size());
         LOG_debug << "Removing credentials for user " << uid << "...";
-        putua(&attrs, 0);
+        putua(&attrs);
     }
     else
     {
@@ -11271,9 +11274,9 @@ error MegaClient::resetCredentials(handle uh)
     return API_OK;
 }
 
-bool MegaClient::isCredentialsVerified(handle uh)
+bool MegaClient::areCredentialsVerified(handle uh)
 {
-    return mAuthRing[AUTHRING_TYPE_ED255].isCredentialsVerified(uh);
+    return mAuthRing[AUTHRING_TYPE_ED255].areCredentialsVerified(uh);
 }
 
 void MegaClient::purgenodesusersabortsc()

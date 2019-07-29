@@ -2696,6 +2696,19 @@ void CommandPutMultipleUAVer::procresult()
                     LOG_warn << "Failed to decrypt keyring after putua";
                 }
             }
+            else if (User::isAuthring(type))
+            {
+                std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&attrs[type], &client->key));
+                if (tlvRecords)
+                {
+                    client->mAuthRing[AuthRing::attrToAuthringType(type)].set(*tlvRecords);
+                }
+                else
+                {
+                    LOG_err << "Failed to decrypt keyring after putua";
+                    client->mAuthRing[AuthRing::attrToAuthringType(type)].reset();
+                }
+            }
         }
     }
 
@@ -2768,6 +2781,20 @@ void CommandPutUAVer::procresult()
             User *u = client->ownuser();
             u->setattr(at, &av, &v);
             u->setTag(tag ? tag : -1);
+
+            if (User::isAuthring(at))
+            {
+                std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&av, &client->key));
+                if (tlvRecords)
+                {
+                    client->mAuthRing[AuthRing::attrToAuthringType(at)].set(*tlvRecords);
+                }
+                else
+                {
+                    LOG_err << "Failed to decrypt " << User::attr2string(at) << " after putua";
+                    client->mAuthRing[AuthRing::attrToAuthringType(at)].reset();
+                }
+            }
 
             client->notifyuser(u);
             client->app->putua_result(API_OK);
@@ -2882,8 +2909,7 @@ void CommandGetUA::procresult()
                 client->initializekeys(); // we have now all the required data
             }
 
-            if (e == API_ENOENT
-                    && (at == ATTR_AUTHRING || at == ATTR_AUTHCU255 || at == ATTR_AUTHRSA))
+            if (e == API_ENOENT && User::isAuthring(at))
             {
                 // authring not created yet, will do it upon retrieval of public keys
                 client->mAuthRing[AuthRing::attrToAuthringType(at)].setInitialized(true);
@@ -3009,7 +3035,7 @@ void CommandGetUA::procresult()
                             delete tlvString;
                             client->app->getua_result(tlvRecords, at);
 
-                            if (at == ATTR_AUTHRING || at == ATTR_AUTHCU255 || at == ATTR_AUTHRSA)
+                            if (User::isAuthring(at))
                             {
                                 client->mAuthRing[AuthRing::attrToAuthringType(at)].set(*tlvRecords);
                             }
@@ -3132,7 +3158,7 @@ void CommandDelUA::procresult()
             {
                 client->resetKeyring();
             }
-            else if (at == ATTR_AUTHRING || at == ATTR_AUTHCU255 || at == ATTR_AUTHRSA)
+            else if (User::isAuthring(at))
             {
                 client->mAuthRing[AuthRing::attrToAuthringType(at)].reset();
                 client->mAuthRing[AuthRing::attrToAuthringType(at)].setInitialized(true);

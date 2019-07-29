@@ -358,7 +358,7 @@ public:
     error resetCredentials(handle uh);
 
     // check credentials are verified for a given user
-    bool isCredentialsVerified(handle uh);
+    bool areCredentialsVerified(handle uh);
 
     // retrieve user details
     void getaccountdetails(AccountDetails*, bool, bool, bool, bool, bool, bool, int source = -1);

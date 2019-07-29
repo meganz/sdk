@@ -789,6 +789,11 @@ char User::scope(attr_t at)
     }
 }
 
+bool User::isAuthring(attr_t at)
+{
+    return (at == ATTR_AUTHRING || at == ATTR_AUTHCU255 || at == ATTR_AUTHRSA);
+}
+
 bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int size, string *newValue)
 {
     if (numDetails == 0)
@@ -1451,7 +1456,7 @@ bool AuthRing::isSignedKey()
     return !(mType == AUTHRING_TYPE_ED255);
 }
 
-bool AuthRing::isCredentialsVerified(handle uh)
+bool AuthRing::areCredentialsVerified(handle uh)
 {
     if (isSignedKey())
     {

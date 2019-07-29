@@ -118,6 +118,7 @@ public:
     static attr_t string2attr(const char *name);
     static int needversioning(attr_t at);
     static char scope(attr_t at);
+    static bool isAuthring(attr_t at);
 
     enum {
         PWD_LAST_SUCCESS = 0x01,
@@ -168,7 +169,7 @@ public:
     bool isSignedKey();
 
     // true if key is tracked and authentication method is fingerprint/signature-verified
-    bool isCredentialsVerified(handle uh);
+    bool areCredentialsVerified(handle uh);
 
     // returns AUTH_METHOD_UNKNOWN if no authentication is found for the given user
     AuthMethod getAuthMethod(handle uh) const;
