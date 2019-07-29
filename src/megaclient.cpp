@@ -11379,9 +11379,12 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
                 // the same as a file on disk) have invalid IDs.
                 sync->invalidatefsids();
 
-                if (!sync->assignfsids())
+                if (sync->assignfsids())
                 {
-                    LOG_warn << "Assigning fs IDs failed for filesystem with unstable IDs";
+                    LOG_info << "Successfully assigned fs IDs for filesystem with unstable IDs";
+                }
+                {
+                    LOG_warn << "Failed to assign fs IDs for filesystem with unstable IDs";
                 }
             }
 
