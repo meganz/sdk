@@ -1222,6 +1222,8 @@ AuthRing::AuthRing(AuthRingType type) : mType(type)
 
 void AuthRing::set(const TLVstore &authring)
 {
+    reset();
+
     string authType = "";
     string authValue;
     if (authring.find(authType))  // key is an empty string, but may not be there if authring was reset

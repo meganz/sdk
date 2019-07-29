@@ -11261,7 +11261,6 @@ error MegaClient::resetCredentials(handle uh)
 
     if (attrs.size())
     {
-        assert(attrs.size());
         LOG_debug << "Removing credentials for user " << uid << "...";
         putua(&attrs);
     }
