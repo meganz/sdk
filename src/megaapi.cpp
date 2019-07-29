@@ -1704,9 +1704,19 @@ char *MegaApi::getMyFingerprint()
     return pImpl->getMyFingerprint();
 }
 
-const char *MegaApi::getUserFingerprint(const char *email_or_handle, MegaRequestListener *listener)
+void MegaApi::getUserFingerprint(MegaUser *user, MegaRequestListener *listener)
 {
-    pImpl->getUserFingerprint(email_or_handle, listener);
+    pImpl->getUserFingerprint(user, listener);
+}
+
+bool MegaApi::areCredentialsVerified(MegaUser *user)
+{
+    return pImpl->areCredentialsVerified(user);
+}
+
+void MegaApi::verifyCredentials(MegaUser *user, MegaRequestListener *listener)
+{
+    pImpl->verifyCredentials(user, listener);
 }
 
 void MegaApi::setLogLevel(int logLevel)

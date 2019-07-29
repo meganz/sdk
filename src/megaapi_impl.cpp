@@ -3753,6 +3753,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_BACKGROUND_UPLOAD_URL: return "GET_BACKGROUND_UPLOAD_URL";
         case TYPE_COMPLETE_BACKGROUND_UPLOAD: return "COMPLETE_BACKGROUND_UPLOAD";
         case TYPE_GET_CLOUD_STORAGE_USED: return "GET_CLOUD_STORAGE_USED";
+        case TYPE_VERIFY_CREDENTIALS: return "VERIFY_CREDENTIALS";
     }
     return "UNKNOWN";
 }
@@ -5143,34 +5144,49 @@ bool MegaApiImpl::checkPassword(const char *password)
 
 char *MegaApiImpl::getMyFingerprint()
 {
-    sdkMutex.lock();
+    SdkMutexGuard g(sdkMutex);
     if (ISUNDEF(client->me))
     {
-        sdkMutex.unlock();
         return NULL;
     }
 
     char *result = NULL;
     if (client->signkey)
     {
-        byte fingerprint[20];
-        client->computeFingerprint(client->signkey->pubKey, fingerprint);
-        result = MegaApi::strdup(Utils::stringToHex((const char*)fingerprint));
+        result = AuthRing::fingerprint(client->signkey->pubKey, true);
     }
 
-    sdkMutex.unlock();
     return result;
 }
 
-const char *MegaApiImpl::getUserFingerprint(const char *email_or_handle, MegaRequestListener *listener)
+void MegaApiImpl::getUserFingerprint(MegaUser *user, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
 
     request->setParamType(type);
     request->setFlag(true);
-    if(email_or_handle)
+    if(user)
     {
-        request->setEmail(email_or_handle);
+        request->setEmail(user->getEmail());
+    }
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+bool MegaApiImpl::areCredentialsVerified(MegaUser *user)
+{
+    SdkMutexGuard g(sdkMutex);
+    return user ? client->areCredentialsVerified(user->getHandle()) : false;
+}
+
+void MegaApiImpl::verifyCredentials(MegaUser *user, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_VERIFY_CREDENTIALS, listener);
+
+    if(user)
+    {
+        request->setNodeHandle(user->getHandle());
     }
 
     requestQueue.push(request);
@@ -13987,9 +14003,14 @@ void MegaApiImpl::removecontact_result(error e)
 void MegaApiImpl::putua_result(error e)
 {
     MegaError megaError(e);
-    if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_SET_ATTR_USER)) return;
+    MegaRequestPrivate* request = NULL;
+    auto it = requestMap.find(client->restag);
+    if (it == requestMap.end() || !(request = it->second)
+        || (request->getType() != MegaRequest::TYPE_SET_ATTR_USER &&
+            request->getType() != MegaRequest::TYPE_VERIFY_CREDENTIALS))
+    {
+        return;
+    }
 
     if (e && client->fetchingkeys)
     {
@@ -14227,10 +14248,8 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
         {
             if (request->getFlag()) // asking for the fingerprint
             {
-                byte fingerprint[20];
-                client->computeFingerprint(string((const char*)data, l), fingerprint);
-                string fp((const char *)fingerprint, 20);
-                request->setText(Utils::stringToHex(fp).c_str());
+                string fingerprint = AuthRing::fingerprint(string((const char*)data, l), true);
+                request->setText(fingerprint.c_str());
             }
         }
         case MegaApi::USER_ATTR_CU25519_PUBLIC_KEY:
@@ -18412,7 +18431,7 @@ void MegaApiImpl::sendPendingRequests()
             string attrvalue;
 
             if (type == ATTR_KEYRING                ||
-                    type == ATTR_AUTHRING           ||
+                    User::isAuthring(type)          ||
                     type == ATTR_CU25519_PUBK       ||
                     type == ATTR_ED25519_PUBK       ||
                     type == ATTR_SIG_CU255_PUBK     ||
@@ -20761,6 +20780,20 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             client->reqs.add(new CommandPutNodes(client, parentHandle, NULL, newnode, 1, request->getTag(), PUTNODES_APP));
+            break;
+        }
+        case MegaRequest::TYPE_VERIFY_CREDENTIALS:
+        {
+            handle uh = request->getNodeHandle();
+            bool isReset = request->getFlag();
+            if (isReset)
+            {
+                e = client->resetCredentials(uh);
+            }
+            else
+            {
+                e = client->verifyCredentials(uh);
+            }
             break;
         }
         default:

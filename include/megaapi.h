@@ -2622,7 +2622,7 @@ class MegaRequest
             TYPE_CHAT_LINK_HANDLE, TYPE_CHAT_LINK_URL, TYPE_SET_PRIVATE_MODE, TYPE_AUTOJOIN_PUBLIC_CHAT,
             TYPE_CATCHUP, TYPE_PUBLIC_LINK_INFORMATION,
             TYPE_GET_BACKGROUND_UPLOAD_URL, TYPE_COMPLETE_BACKGROUND_UPLOAD,
-            TYPE_GET_CLOUD_STORAGE_USED,
+            TYPE_GET_CLOUD_STORAGE_USED, TYPE_VERIFY_CREDENTIALS,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -8095,16 +8095,49 @@ class MegaApi
          * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParamType - Returns MegaApi::USER_ATTR_ED25519_PUBLIC_KEY
+         * - MegaRequest::getFlag - Returns true
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getText - Returns the fingerprint in hexadecimal format
          *
-         * @param email_or_handle Email or user handle (Base64 encoded) to get the fingerprint
+         * @param user MegaUser of the contact (see MegaApi::getContact) to get the fingerprint
          * @param listener MegaRequestListener to track this request
-         * @return Fingerprint of the signing key of the current account
          */
-        const char* getUserFingerprint(const char *email_or_handle, MegaRequestListener *listener = NULL);
+        void getUserFingerprint(MegaUser *user, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Checks if credentials are verified for the given user
+         *
+         * @param user MegaUser of the contact whose credentiasl want to be checked
+         * @return true if verified, false otherwise
+         */
+        bool areCredentialsVerified(MegaUser *user);
+
+        /**
+         * @brief Verify credentials of a given user
+         *
+         * The associated request type with this request is MegaRequest::TYPE_VERIFY_CREDENTIALS
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns userhandle
+         *
+         * @param user MegaUser of the contact whose credentials want to be verified
+         * @param listener MegaRequestListener to track this request
+         */
+        void verifyCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Reset credentials of a given user
+         *
+         * The associated request type with this request is MegaRequest::TYPE_VERIFY_CREDENTIALS
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns userhandle
+         * - MegaRequest::getFlag - Returns true
+         *
+         * @param user MegaUser of the contact whose credentials want to be reset
+         * @param listener MegaRequestListener to track this request
+         */
+        void resetCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Set the active log level
