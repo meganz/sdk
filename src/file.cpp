@@ -367,27 +367,20 @@ void File::completed(Transfer* t, LocalNode* l)
                 newnode->ovhandle = t->client->getovhandle(t->client->nodebyhandle(th), &name);
             }
 
-            bool send_put_nodes = true;
-#ifdef ENABLE_SYNC
-            if (l->sync && !l->sync->isUpSync())
+            if (l->sync)
             {
-                send_put_nodes = false;
+                assert(l->sync->isUpSync());
             }
-            assert(send_put_nodes);
-#endif
 
-            if (send_put_nodes)
-            {
-                t->client->reqs.add(new CommandPutNodes(t->client,
-                                                        th, NULL,
-                                                        newnode, 1,
-                                                        tag,
+            t->client->reqs.add(new CommandPutNodes(t->client,
+                                                    th, NULL,
+                                                    newnode, 1,
+                                                    tag,
 #ifdef ENABLE_SYNC
-                                                        l ? PUTNODES_SYNC : PUTNODES_APP));
+                                                    l ? PUTNODES_SYNC : PUTNODES_APP));
 #else
-                                                        PUTNODES_APP));
+                                                    PUTNODES_APP));
 #endif
-            }
         }
     }
 }
