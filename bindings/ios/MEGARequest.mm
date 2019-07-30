@@ -191,7 +191,7 @@ using namespace mega;
     NSMutableDictionary *dict = [NSMutableDictionary dictionaryWithCapacity:map->size()];
     MegaStringList *keyList = map->getKeys();
     for (int i = 0; i < keyList->size(); i++) {
-        const char *key = MegaApi::strdup(keyList->get(i));
+        const char *key = keyList->get(i);
         dict[@(key)] = [[MEGAStringList alloc] initWithMegaStringList:(MegaStringList *)map->get(key)->copy() cMemoryOwn:YES];
     }
     
@@ -208,14 +208,19 @@ using namespace mega;
     return self.megaRequest ? self.megaRequest->getNumDetails() : 0;
 }
 
-- (NSArray<MEGAStringList *> *)megaStringTableArray {
-    MegaStringTable *table = self.megaRequest ? self.megaRequest->getMegaStringTable() : nil;
-    NSMutableArray<MEGAStringList *> *array = NSMutableArray.alloc.init;
+- (NSArray<NSArray <NSString *> *> *)stringTableArray {
+    MegaStringTable *table = self.megaRequest->getMegaStringTable();
+    NSMutableArray<NSArray <NSString *> *> *stringTableArray = [NSMutableArray.alloc initWithCapacity:table->size()];
     for (int i = 0; i < table->size(); i++) {
-        [array addObject:[[MEGAStringList alloc] initWithMegaStringList:(MegaStringList *)table->get(i) cMemoryOwn:YES]];
+        const MegaStringList *stringList = table->get(i);
+        NSMutableArray<NSString *> *stringsArray = [NSMutableArray.alloc initWithCapacity:stringList->size()];
+        for (int j = 0; j < stringList->size(); j++) {
+            [stringsArray addObject:[NSString stringWithUTF8String:stringList->get(j)]];
+        }
+        [stringTableArray addObject:stringsArray.copy];
     }
     
-    return array.copy;
+    return stringTableArray.copy;
 }
 
 @end

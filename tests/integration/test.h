@@ -1,2 +1,3 @@
 
-extern bool g_runningInCI;
+extern bool gRunningInCI;
+extern bool gTestingInvalidArgs;

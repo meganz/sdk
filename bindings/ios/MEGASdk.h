@@ -175,7 +175,7 @@ typedef NS_ENUM(NSInteger, AccountSuspensionType) {
     AccountSuspensionTypeNone = 0, // The account is not blocked
     AccountSuspensionTypeNonCopyright = 200, // suspension for any type of suspension, but copyright suspension
     AccountSuspensionTypeCopyright = 300, // suspension only for multiple copyright violations
-    AccountSuspensionTypeBusinessDiabled = 400, // the subuser of a business account has been disabled
+    AccountSuspensionTypeBusinessDisabled = 400, // the subuser of a business account has been disabled
     AccountSuspensionTypeBusinessRemoved = 401, // the subuser of a business account has been removed
     AccountSuspensionTypeSMSVerification = 500, // The account needs to be verified by an SMS code.
 };
@@ -7133,13 +7133,17 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
 /*
  * @brief Requests the user contacts registered in MEGA and verificated through SMS.
  *
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MegaRequest getMegaStringTable] Returns the array with registered contacts
+ *
  * The associated request type with this request is MegaRequest::TYPE_GET_REGISTERED_CONTACTS
- * Valid data in the MegaRequest object received in onRequestFinish when the error code
- * is MegaError::API_OK:
- * - [MegaRequest getMegaStringTable]
+ * On the onRequestFinish error, the error code associated to the MegaError can be:
+ * - MEGAErrorTypeApiEArgs if your contact details are invalid (malformed SMS number for example).
+ * - MEGAErrorTypeApiETooMany if the request exceeds the details limit that can be looked up per account.
+ * - MEGAErrorTypeApiOk is returned upon success.
  *
  * @param contacts An NSArray containing user contacts (NSDictionary "phoneNumber":"userName").
- * @param listener MegaRequestListener to track this request
+ * @param listener MEGARequestDelegate to track this request
  */
 - (void)getRegisteredContacts:(NSArray<NSDictionary *> *)contacts delegate:(id<MEGARequestDelegate>)delegate;
 

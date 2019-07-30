@@ -210,7 +210,9 @@ CONFIG(USE_PDFIUM) {
     else {#win/mac
         DEFINES += HAVE_PDFIUM
         INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pdfium
-        LIBS += -lpdfium
+        macx {
+            LIBS += -lpdfium
+        }
     }
 }
 
