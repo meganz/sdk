@@ -208,7 +208,7 @@ using namespace mega;
     return self.megaRequest ? self.megaRequest->getNumDetails() : 0;
 }
 
-- (NSArray<NSArray <NSString *> *> *)stringTableArray {
+- (NSArray<NSArray<NSString *> *> *)stringTableArray {
     MegaStringTable *table = self.megaRequest->getMegaStringTable();
     NSMutableArray<NSArray <NSString *> *> *stringTableArray = [NSMutableArray.alloc initWithCapacity:table->size()];
     for (int i = 0; i < table->size(); i++) {

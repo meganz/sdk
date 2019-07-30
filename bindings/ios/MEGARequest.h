@@ -497,7 +497,7 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * - [MEGASdk getRegisteredContacts:] - Obtains the user contacts registered in MEGA and verificated through SMS.
  *
  */
-@property (readonly, nonatomic) NSArray<NSArray <NSString *> *> *stringTableArray;
+@property (readonly, nonatomic) NSArray<NSArray<NSString *> *> *stringTableArray;
 
 /**
  * @brief Creates a copy of this MEGARequest object
