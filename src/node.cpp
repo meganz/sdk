@@ -172,6 +172,18 @@ Node::~Node()
         parent->children.erase(child_it);
     }
 
+    Node* fa = firstancestor();
+    handle ancestor = fa->nodehandle;
+    if (ancestor == client->rootnodes[0] || ancestor == client->rootnodes[1] || ancestor == client->rootnodes[2] || fa->inshare)
+    {
+        client->nodecounters[firstancestor()->nodehandle] -= subnodeCounts();
+    }
+
+    if (inshare)
+    {
+        client->nodecounters.erase(nodehandle);
+    }
+
     // delete child-parent associations (normally not used, as nodes are
     // deleted bottom-up)
     for (node_list::iterator it = children.begin(); it != children.end(); it++)
@@ -933,12 +945,45 @@ bool Node::applykey()
     return true;
 }
 
+node_counter Node::subnodeCounts()
+{
+    node_counter nc;
+    for (Node *child : children)
+    {
+        nc += child->subnodeCounts();
+    }
+    if (type == FILENODE)
+    {
+        nc.files += 1;
+        nc.storage += size;
+    }
+    else if (type == FOLDERNODE)
+    {
+        nc.folders += 1;
+    }
+    return nc;
+}
+
 // returns whether node was moved
 bool Node::setparent(Node* p)
 {
     if (p == parent)
     {
         return false;
+    }
+
+    node_counter nc;
+    bool gotnc = false;
+
+    Node *originalancestor = firstancestor();
+    handle oah = originalancestor->nodehandle;
+    if (oah == client->rootnodes[0] || oah == client->rootnodes[1] || oah == client->rootnodes[2] || originalancestor->inshare)
+    {
+        nc = subnodeCounts();
+        gotnc = true;
+
+        // nodes moving from cloud drive to rubbish for example.  Nodes should not move between inshares and owned nodes
+        client->nodecounters[oah] -= nc;
     }
 
     if (parent)
@@ -955,6 +1000,18 @@ bool Node::setparent(Node* p)
     if (parent)
     {
         child_it = parent->children.insert(parent->children.end(), this);
+    }
+
+    Node* newancestor = firstancestor();
+    handle nah = newancestor->nodehandle;
+    if (nah == client->rootnodes[0] || nah == client->rootnodes[1] || nah == client->rootnodes[2] || newancestor->inshare)
+    {
+        if (!gotnc)
+        {
+            nc = subnodeCounts();
+        }
+
+        client->nodecounters[nah] += nc;
     }
 
 #ifdef ENABLE_SYNC

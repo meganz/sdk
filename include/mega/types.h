@@ -332,6 +332,17 @@ typedef map<handle, Transfer*> handletransfer_map;
 // maps node handles to Node pointers
 typedef map<handle, Node*> node_map;
 
+struct node_counter
+{
+    m_off_t storage = 0;
+    size_t files = 0;
+    size_t folders = 0;
+    void operator += (const node_counter&);
+    void operator -= (const node_counter&);
+};
+
+typedef std::map<handle, node_counter> node_counters;
+
 // maps node handles to Share pointers
 typedef map<handle, struct Share*> share_map;
 

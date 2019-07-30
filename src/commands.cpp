@@ -3925,6 +3925,16 @@ void CommandGetUserQuota::procresult()
                         ns->version_bytes = client->json.getint();
                         ns->version_files = client->json.getint();
 
+#ifdef _DEBUG
+                        // verify the new local storage counters per root match server side (could fail if actionpackets are pending)
+                        auto iter = client->nodecounters.find(h);
+                        if (iter != client->nodecounters.end())
+                        {
+                            LOG_debug << client->nodebyhandle(h)->displaypath() << " " << iter->second.storage << " " << ns->bytes << " " << iter->second.files << " " << ns->files << " " << iter->second.folders << " " << ns->folders
+                                      << (iter->second.storage == ns->bytes && iter->second.files == ns->files && iter->second.folders == ns->folders ? "" : " ******************************************* mismatch *******************************************");
+                        }
+#endif 
+
                         while(client->json.storeobject());
                         client->json.leavearray();
                     }
