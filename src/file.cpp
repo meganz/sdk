@@ -373,6 +373,7 @@ void File::completed(Transfer* t, LocalNode* l)
             {
                 send_put_nodes = false;
             }
+            assert(send_put_nodes);
 #endif
 
             if (send_put_nodes)
