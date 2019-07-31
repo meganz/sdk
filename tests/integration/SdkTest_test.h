@@ -24,17 +24,16 @@
 #include "../include/megaapi.h"
 #include "../include/megaapi_impl.h"
 #include "gtest/gtest.h"
+#include "test.h"
 
 #include <iostream>
 #include <fstream>
-
-extern bool g_runningInCI;
 
 using namespace mega;
 using ::testing::Test;
 
 static const string APP_KEY     = "8QxzVRxD";
-static const string USER_AGENT  = "Unit Tests with GoogleTest framework";
+static const string USER_AGENT  = "Integration Tests with GoogleTest framework";
 
 // IMPORTANT: the main account must be empty (Cloud & Rubbish) before starting the test and it will be purged at exit.
 // Both main and auxiliar accounts shouldn't be contacts yet and shouldn't have any pending contact requests.
@@ -49,8 +48,6 @@ static const string DOWNFILE    = "file2.txt";
 static const string EMPTYFILE   = "empty-file.txt";
 static const string AVATARSRC   = "logo.png";
 static const string AVATARDST   = "deleteme.png";
-
-static bool testingInvalidArgs = false;
 
 class MegaLoggerSDK : public MegaLogger {
 
@@ -85,6 +82,8 @@ public:
     MegaNode *publicNode;
     string attributeValue;
     string sid;
+    std::unique_ptr<MegaStringListMap> stringListMap;
+    std::unique_ptr<MegaStringTable> stringTable;
 
     MegaContactRequest* cr[2];
 
@@ -177,6 +176,10 @@ public:
     void getContactRequest(unsigned int apiIndex, bool outgoing, int expectedSize = 1);
 
     void createFolder(unsigned int apiIndex, char * name, MegaNode *n, int timeout = maxTimeout);
+
+    void getRegisteredContacts(const std::map<std::string, std::string>& contacts, int timeout = maxTimeout);
+
+    void getCountryCallingCodes(int timeout = maxTimeout);
 
 #ifdef ENABLE_CHAT
     void createChat(bool group, MegaTextChatPeerList *peers, int timeout = maxTimeout);

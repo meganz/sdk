@@ -366,6 +366,16 @@ struct MEGA_API MegaApp
     // get info about a folder link
     virtual void folderlinkinfo_result(error, handle , handle, string*, string* , m_off_t, uint32_t , uint32_t , m_off_t , uint32_t) {}
 
+    // result of sms verification commands
+    virtual void smsverificationsend_result(error) { }
+    virtual void smsverificationcheck_result(error, string*) { }
+
+    // result of get registered contacts command
+    virtual void getregisteredcontacts_result(error, vector<tuple<string, string, string>>*) { }
+
+    // result of get country calling codes command
+    virtual void getcountrycallingcodes_result(error, map<string, vector<string>>*) { }
+
     virtual ~MegaApp() { }
 };
 } // namespace
