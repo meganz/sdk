@@ -1080,6 +1080,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     ssrs_enabled = false;
     nsr_enabled = false;
     aplvp_enabled = false;
+    mSmsVerificationState = SMS_STATE_UNKNOWN;
     loggingout = 0;
     cachedug = false;
     minstreamingrate = -1;
@@ -3584,6 +3585,8 @@ void MegaClient::locallogout()
     ssrs_enabled = false;
     nsr_enabled = false;
     aplvp_enabled = false;
+    mSmsVerificationState = SMS_STATE_UNKNOWN;
+    mSmsVerifiedPhone.clear();
     loggingout = 0;
     cachedug = false;
     minstreamingrate = -1;
@@ -4670,6 +4673,34 @@ bool MegaClient::setstoragestatus(storagestatus_t status)
 void MegaClient::getpubliclinkinfo(handle h)
 {
     reqs.add(new CommandFolderLinkInfo(this, h));
+}
+
+error MegaClient::smsverificationsend(const string& phoneNumber, bool reVerifyingWhitelisted)
+{
+    if (!CommandSMSVerificationSend::isPhoneNumber(phoneNumber))
+    {
+        return API_EARGS;
+    }
+
+    reqs.add(new CommandSMSVerificationSend(this, phoneNumber, reVerifyingWhitelisted));
+    if (reVerifyingWhitelisted)
+    {
+        reqs.add(new CommandGetUserData(this));
+    }
+
+    return API_OK;
+}
+
+error MegaClient::smsverificationcheck(const std::string &verificationCode)
+{
+    if (!CommandSMSVerificationCheck::isVerificationCode(verificationCode))
+    {
+        return API_EARGS;
+    }
+
+    reqs.add(new CommandSMSVerificationCheck(this, verificationCode));
+
+    return API_OK;
 }
 
 void MegaClient::dispatchmore(direction_t d)
