@@ -6794,11 +6794,13 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent)
             {
                 if (is_delete_op && !prevParent->localnode->sync->syncDeletions())
                 {
+                    LOG_debug << "not syncing deletions prevents movenode command";
                     send_move_node = false;
                 }
             }
             else
             {
+                LOG_debug << "sync type prevents movenode command";
                 send_move_node = false;
             }
         }
@@ -12427,10 +12429,17 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
         {
             ll->created = true;
 
-            // create remote folder or send file
-            LOG_debug << "Adding local file to synccreate: " << ll->name << " " << synccreate.size();
-            synccreate.push_back(ll);
-            syncactivity = true;
+            if (ll->sync->isUpSync())
+            {
+                // create remote folder or send file
+                LOG_debug << "Adding local file to synccreate: " << ll->name << " " << synccreate.size();
+                synccreate.push_back(ll);
+                syncactivity = true;
+            }
+            else
+            {
+                LOG_debug << "sync type prevents adding to synccreate";
+            }
 
             if (synccreate.size() >= MAX_NEWNODES)
             {
