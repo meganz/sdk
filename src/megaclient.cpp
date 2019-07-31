@@ -6572,17 +6572,22 @@ error MegaClient::setattr(Node* n, const char *prevname)
     notifynode(n);
 
     bool send_set_attr = true;
-#ifdef ENABLE_SYNC
+    const bool is_rename = prevname != NULL;
     if (n->localnode && n->localnode->sync)
     {
-        assert(n->localnode->sync->isUpSync());
-        const bool is_rename = prevname != NULL;
-        if (is_rename && !n->localnode->sync->syncDeletions())
+        if (n->localnode->sync->isUpSync())
+        {
+            if (is_rename && !n->localnode->sync->syncDeletions())
+            {
+                send_set_attr = false;
+            }
+        }
+        else
         {
             send_set_attr = false;
         }
     }
-#endif
+    assert(send_set_attr);
 
     if (send_set_attr)
     {
@@ -6784,8 +6789,14 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent)
         const bool is_delete_op = syncdel == SYNCDEL_DEBRISDAY;
         if (prevParent->localnode && prevParent->localnode->sync)
         {
-            assert(prevParent->localnode->sync->isUpSync());
-            if (is_delete_op && !prevParent->localnode->sync->syncDeletions())
+            if (prevParent->localnode->sync->isUpSync())
+            {
+                if (is_delete_op && !prevParent->localnode->sync->syncDeletions())
+                {
+                    send_move_node = false;
+                }
+            }
+            else
             {
                 send_move_node = false;
             }
@@ -6815,14 +6826,29 @@ error MegaClient::unlink(Node* n, bool keepversions)
 
     bool kv = (keepversions && n->type == FILENODE);
 
+    bool send_del_node = true;
 #ifdef ENABLE_SYNC
     if (n->localnode && n->localnode->sync)
     {
-        assert(n->localnode->sync->isUpSync());
+        if (n->localnode->sync->isUpSync())
+        {
+            if (!n->localnode->sync->syncDeletions())
+            {
+                send_del_node = false;
+            }
+        }
+        else
+        {
+            send_del_node = false;
+        }
     }
+    assert(send_del_node);
 #endif
 
-    reqs.add(new CommandDelNode(this, n->nodehandle, kv));
+    if (send_del_node)
+    {
+        reqs.add(new CommandDelNode(this, n->nodehandle, kv));
+    }
 
     mergenewshares(1);
 
@@ -12554,20 +12580,24 @@ void MegaClient::syncupdate()
             // add nodes unless parent node has been deleted
             if (synccreate[start]->parent->node)
             {
+                bool send_put_nodes = true;
 #ifdef ENABLE_SYNC
-                if (nn->localnode && nn->localnode->sync)
+                if (nn->localnode && nn->localnode->sync && !nn->localnode->sync->isUpSync())
                 {
-                    assert(nn->localnode->sync->isUpSync());
+                    send_put_nodes = false;
                 }
+                assert(send_put_nodes);
 #endif
 
-                syncadding++;
-
-                reqs.add(new CommandPutNodes(this,
-                                             synccreate[start]->parent->node->nodehandle,
-                                             NULL, nn, int(nnp - nn),
-                                             synccreate[start]->sync->tag,
-                                             PUTNODES_SYNC));
+                if (send_put_nodes)
+                {
+                    syncadding++;
+                    reqs.add(new CommandPutNodes(this,
+                                                 synccreate[start]->parent->node->nodehandle,
+                                                 NULL, nn, int(nnp - nn),
+                                                 synccreate[start]->sync->tag,
+                                                 PUTNODES_SYNC));
+                }
 
                 syncactivity = true;
             }
@@ -12620,19 +12650,6 @@ void MegaClient::putnodes_sync_result(error e, NewNode* nn, int nni)
 // dupes)
 void MegaClient::movetosyncdebris(Node* dn, bool unlink)
 {
-    const Sync* const sync = dn->localnode ? dn->localnode->sync : nullptr;
-    if (sync)
-    {
-        if (!sync->isUpSync())
-        {
-            return;
-        }
-        if (!sync->syncDeletions())
-        {
-            return;
-        }
-    }
-
     dn->syncdeleted = SYNCDEL_DELETED;
 
     // detach node from LocalNode
@@ -12890,16 +12907,21 @@ void MegaClient::execmovetosyncdebris()
             makeattr(&tkey, nn->attrstring, tattrstring.c_str());
         }
 
+        bool send_put_nodes = true;
 #ifdef ENABLE_SYNC
-        if (nn->localnode && nn->localnode->sync)
+        if (nn->localnode && nn->localnode->sync && !nn->localnode->sync->isUpSync())
         {
-            assert(nn->localnode->sync->isUpSync());
+            send_put_nodes = false;
         }
+        assert(send_put_nodes);
 #endif
 
-        reqs.add(new CommandPutNodes(this, tn->nodehandle, NULL, nn,
-                                     (target == SYNCDEL_DEBRIS) ? 1 : 2, -reqtag,
-                                     PUTNODES_SYNCDEBRIS));
+        if (send_put_nodes)
+        {
+            reqs.add(new CommandPutNodes(this, tn->nodehandle, NULL, nn,
+                                         (target == SYNCDEL_DEBRIS) ? 1 : 2, -reqtag,
+                                         PUTNODES_SYNCDEBRIS));
+        }
     }
 }
 
