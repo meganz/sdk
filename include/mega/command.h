@@ -574,6 +574,9 @@ public:
 class MEGA_API CommandGetUserQuota : public Command
 {
     AccountDetails* details;
+    bool mStorage;
+    bool mTransfer;
+    bool mPro;
 
 public:
     void procresult();

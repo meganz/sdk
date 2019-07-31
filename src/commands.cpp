@@ -3789,6 +3789,9 @@ void CommandGetMiscFlags::procresult()
 CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, AccountDetails* ad, bool storage, bool transfer, bool pro, int source)
 {
     details = ad;
+    mStorage = storage;
+    mTransfer = transfer;
+    mPro = pro;
 
     cmd("uq");
     if (storage)
@@ -3815,8 +3818,7 @@ void CommandGetUserQuota::procresult()
 {
     m_off_t td;
     bool got_storage = false;
-    bool got_transfer = false;
-    bool got_pro = false;
+    bool got_storage_used = false;
     int uslw = -1;
 
     if (client->json.isnumeric())
@@ -3885,7 +3887,6 @@ void CommandGetUserQuota::procresult()
 
             case MAKENAMEID3('t', 'a', 'l'):
                 details->transfer_limit = client->json.getint();
-                got_transfer = true;
                 break;
 
             case MAKENAMEID3('t', 'u', 'a'):
@@ -3907,6 +3908,7 @@ void CommandGetUserQuota::procresult()
             case MAKENAMEID5('c', 's', 't', 'r', 'g'):
                 // storage used
                 details->storage_used = client->json.getint();
+                got_storage_used = true;
                 break;
 
             case MAKENAMEID6('c', 's', 't', 'r', 'g', 'n'):
@@ -3952,7 +3954,6 @@ void CommandGetUserQuota::procresult()
             case MAKENAMEID5('m', 'x', 'f', 'e', 'r'):
                 // total transfer quota
                 details->transfer_max = client->json.getint();
-                got_transfer = true;
                 break;
 
             case MAKENAMEID8('s', 'r', 'v', 'r', 'a', 't', 'i', 'o'):
@@ -3963,7 +3964,6 @@ void CommandGetUserQuota::procresult()
             case MAKENAMEID5('u', 't', 'y', 'p', 'e'):
                 // Pro plan (0 == none)
                 details->pro_level = (int)client->json.getint();
-                got_pro = 1;
                 break;
 
             case MAKENAMEID5('s', 't', 'y', 'p', 'e'):
@@ -4045,8 +4045,9 @@ void CommandGetUserQuota::procresult()
                 break;
 
             case EOO:
+                assert(!mStorage || (got_storage && got_storage_used));
 
-                if (got_storage)
+                if (mStorage)
                 {
                     if (uslw <= 0)
                     {
@@ -4071,7 +4072,7 @@ void CommandGetUserQuota::procresult()
                     }
                 }
 
-                client->app->account_details(details, got_storage, got_transfer, got_pro, false, false, false);
+                client->app->account_details(details, mStorage, mTransfer, mPro, false, false, false);
                 return;
 
             default:
