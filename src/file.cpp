@@ -342,6 +342,8 @@ void File::completed(Transfer* t, LocalNode* l)
             {
                 th = t->client->rootnodes[0];
             }
+
+            bool send_put_nodes = true;
 #ifdef ENABLE_SYNC            
             if (l)
             {
@@ -359,22 +361,21 @@ void File::completed(Transfer* t, LocalNode* l)
                     }
                 }
 
-                t->client->syncadding++;
+                if (l->sync && !l->sync->isUpSync())
+                {
+                    send_put_nodes = false;
+                    LOG_debug << "sync type prevents putnodes command";
+                }
+                else
+                {
+                    t->client->syncadding++;
+                }
             }
 #endif
             if (!t->client->versions_disabled && ISUNDEF(newnode->ovhandle))
             {
                 newnode->ovhandle = t->client->getovhandle(t->client->nodebyhandle(th), &name);
             }
-
-            bool send_put_nodes = true;
-#ifdef ENABLE_SYNC
-            if (l->sync && !l->sync->isUpSync())
-            {
-                send_put_nodes = false;
-            }
-            assert(send_put_nodes);
-#endif
 
             if (send_put_nodes)
             {

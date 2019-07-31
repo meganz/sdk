@@ -6579,15 +6579,16 @@ error MegaClient::setattr(Node* n, const char *prevname)
         {
             if (is_rename && !n->localnode->sync->syncDeletions())
             {
+                LOG_debug << "not syncing deletions prevents setattr command";
                 send_set_attr = false;
             }
         }
         else
         {
+            LOG_debug << "sync type prevents setattr command";
             send_set_attr = false;
         }
     }
-    assert(send_set_attr);
 
     if (send_set_attr)
     {
@@ -6834,15 +6835,16 @@ error MegaClient::unlink(Node* n, bool keepversions)
         {
             if (!n->localnode->sync->syncDeletions())
             {
+                LOG_debug << "not syncing deletions prevents delnode command";
                 send_del_node = false;
             }
         }
         else
         {
+            LOG_debug << "sync type prevents delnode command";
             send_del_node = false;
         }
     }
-    assert(send_del_node);
 #endif
 
     if (send_del_node)
@@ -11587,7 +11589,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 {
     if (!l->sync->isDownSync())
     {
-        LOG_debug << "sync type prevented syncdown";
+        LOG_debug << "sync type prevents syncdown";
         return true;
     }
 
@@ -11944,12 +11946,6 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 // for creation
 bool MegaClient::syncup(LocalNode* l, dstime* nds)
 {
-    if (!l->sync->isUpSync())
-    {
-        LOG_debug << "sync type prevented syncup";
-        return true;
-    }
-
     bool insync = true;
 
     list<string> strings;
@@ -12584,9 +12580,9 @@ void MegaClient::syncupdate()
 #ifdef ENABLE_SYNC
                 if (nn->localnode && nn->localnode->sync && !nn->localnode->sync->isUpSync())
                 {
+                    LOG_debug << "sync type prevents putnodes command";
                     send_put_nodes = false;
                 }
-                assert(send_put_nodes);
 #endif
 
                 if (send_put_nodes)
@@ -12911,9 +12907,9 @@ void MegaClient::execmovetosyncdebris()
 #ifdef ENABLE_SYNC
         if (nn->localnode && nn->localnode->sync && !nn->localnode->sync->isUpSync())
         {
+            LOG_debug << "sync type prevents putnodes command";
             send_put_nodes = false;
         }
-        assert(send_put_nodes);
 #endif
 
         if (send_put_nodes)
