@@ -11383,6 +11383,7 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
                 {
                     LOG_info << "Successfully assigned fs IDs for filesystem with unstable IDs";
                 }
+                else
                 {
                     LOG_warn << "Failed to assign fs IDs for filesystem with unstable IDs";
                 }
