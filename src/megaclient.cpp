@@ -10986,7 +10986,7 @@ void MegaClient::initializeAuthring(AuthRingType type)
     const string *av = ownUser->getattr(at);
     if (av)
     {
-        if (ownUser->isattrvalid(ATTR_AUTHRING))
+        if (ownUser->isattrvalid(at))
         {
             std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(av, &key));
             if (tlvRecords)
