@@ -3926,9 +3926,10 @@ void CommandGetUserQuota::procresult()
                         ns->version_files = client->json.getint();
 
 #ifdef _DEBUG
+                        // TODO: remove this debugging block once local count is confirmed to work correctly 100%
                         // verify the new local storage counters per root match server side (could fail if actionpackets are pending)
-                        auto iter = client->nodecounters.find(h);
-                        if (iter != client->nodecounters.end())
+                        auto iter = client->mNodeCounters.find(h);
+                        if (iter != client->mNodeCounters.end())
                         {
                             LOG_debug << client->nodebyhandle(h)->displaypath() << " " << iter->second.storage << " " << ns->bytes << " " << iter->second.files << " " << ns->files << " " << iter->second.folders << " " << ns->folders << " "
                                       << iter->second.versionStorage << " " << ns->version_bytes << " " << iter->second.versions << " " << ns->version_files

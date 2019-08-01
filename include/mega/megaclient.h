@@ -191,7 +191,7 @@ public:
     node_map nodes;
 
     // keep track of user storage, inshare storage, file/folder counts per root node.
-    node_counters nodecounters;
+    NodeCounterMap mNodeCounters;
 
     // all users
     user_map users;

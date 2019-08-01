@@ -1841,7 +1841,7 @@ void tolower_string(std::string& str)
     std::transform(str.begin(), str.end(), str.begin(), [](char c) {return static_cast<char>(::tolower(c)); });
 }
 
-void node_counter::operator += (const node_counter& o)
+void NodeCounter::operator += (const NodeCounter& o)
 {
     storage += o.storage;
     versionStorage += o.versionStorage;
@@ -1850,7 +1850,7 @@ void node_counter::operator += (const node_counter& o)
     versions += o.versions;
 }
 
-void node_counter::operator -= (const node_counter& o)
+void NodeCounter::operator -= (const NodeCounter& o)
 {
     storage -= o.storage;
     versionStorage -= o.versionStorage;

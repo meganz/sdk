@@ -176,12 +176,12 @@ Node::~Node()
     handle ancestor = fa->nodehandle;
     if (ancestor == client->rootnodes[0] || ancestor == client->rootnodes[1] || ancestor == client->rootnodes[2] || fa->inshare)
     {
-        client->nodecounters[firstancestor()->nodehandle] -= subnodeCounts();
+        client->mNodeCounters[firstancestor()->nodehandle] -= subnodeCounts();
     }
 
     if (inshare)
     {
-        client->nodecounters.erase(nodehandle);
+        client->mNodeCounters.erase(nodehandle);
     }
 
     // delete child-parent associations (normally not used, as nodes are
@@ -945,9 +945,9 @@ bool Node::applykey()
     return true;
 }
 
-node_counter Node::subnodeCounts() const
+NodeCounter Node::subnodeCounts() const
 {
-    node_counter nc;
+    NodeCounter nc;
     for (Node *child : children)
     {
         nc += child->subnodeCounts();
@@ -977,7 +977,7 @@ bool Node::setparent(Node* p)
         return false;
     }
 
-    node_counter nc;
+    NodeCounter nc;
     bool gotnc = false;
 
     Node *originalancestor = firstancestor();
@@ -988,7 +988,7 @@ bool Node::setparent(Node* p)
         gotnc = true;
 
         // nodes moving from cloud drive to rubbish for example, or between inshares from the same user.
-        client->nodecounters[oah] -= nc;
+        client->mNodeCounters[oah] -= nc;
     }
 
     if (parent)
@@ -1016,7 +1016,7 @@ bool Node::setparent(Node* p)
             nc = subnodeCounts();
         }
 
-        client->nodecounters[nah] += nc;
+        client->mNodeCounters[nah] += nc;
     }
 
 #ifdef ENABLE_SYNC
