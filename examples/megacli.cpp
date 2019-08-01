@@ -2499,21 +2499,25 @@ void exec_treecompare(autocomplete::ACState& s);
 void exec_querytransferquota(autocomplete::ACState& s);
 
 
-void printAuthringInformation(AuthRingType type, handle userhandle)
+void printAuthringInformation(handle userhandle)
 {
-    AuthRing &authring = client->mAuthRing[type];
-    cout << AuthRing::authringTypeToStr(type) << ": " << endl;
-    for (auto &uh : authring.getTrackedUsers())
+    for (auto &it : client->mAuthRings)
     {
-        if (uh == userhandle || ISUNDEF(userhandle))    // no user was typed --> show authring for all users
+        AuthRing &authring = it.second;
+        attr_t at = it.first;
+        cout << User::attr2string(at) << ": " << endl;
+        for (auto &uh : authring.getTrackedUsers())
         {
-            User *user = client->finduser(uh);
-            string email = user ? user->email : "not a contact";
+            if (uh == userhandle || ISUNDEF(userhandle))    // no user was typed --> show authring for all users
+            {
+                User *user = client->finduser(uh);
+                string email = user ? user->email : "not a contact";
 
-            cout << "\tUserhandle: \t" << Base64Str<MegaClient::USERHANDLE>(uh) << endl;
-            cout << "\tEmail:      \t" << email << endl;
-            cout << "\tFingerprint:\t" << Utils::stringToHex(authring.getFingerprint(uh)) << endl;
-            cout << "\tAuth. level: \t" << AuthRing::authMethodToStr(authring.getAuthMethod(uh)) << endl;
+                cout << "\tUserhandle: \t" << Base64Str<MegaClient::USERHANDLE>(uh) << endl;
+                cout << "\tEmail:      \t" << email << endl;
+                cout << "\tFingerprint:\t" << Utils::stringToHex(authring.getFingerprint(uh)) << endl;
+                cout << "\tAuth. level: \t" << AuthRing::authMethodToStr(authring.getAuthMethod(uh)) << endl;
+            }
         }
     }
 }
@@ -4956,9 +4960,7 @@ void exec_verifycredentials(autocomplete::ACState& s)
     else if (s.words[1].s == "status")
     {
         handle uh = s.words.size() == 3 ? u->userhandle : UNDEF;
-        printAuthringInformation(AUTHRING_TYPE_ED255, uh);
-        printAuthringInformation(AUTHRING_TYPE_CU255, uh);
-        printAuthringInformation(AUTHRING_TYPE_RSA, uh);
+        printAuthringInformation(uh);
     }
     else if (s.words[1].s == "verify")
     {

@@ -543,13 +543,6 @@ typedef enum { BIZ_STATUS_UNKNOWN = -2, BIZ_STATUS_EXPIRED = -1, BIZ_STATUS_INAC
 typedef enum { BIZ_MODE_UNKNOWN = -1, BIZ_MODE_SUBUSER = 0, BIZ_MODE_MASTER = 1 } BizMode;
 
 typedef enum {
-    AUTHRING_TYPE_UNKNOWN    = -1,
-    AUTHRING_TYPE_ED255      = 0,
-    AUTHRING_TYPE_CU255      = 1,
-    AUTHRING_TYPE_RSA        = 2,
-} AuthRingType;
-
-typedef enum {
     AUTH_METHOD_UNKNOWN     = -1,
     AUTH_METHOD_SEEN        = 0,
     AUTH_METHOD_FINGERPRINT = 1,    // used only for AUTHRING_ED255

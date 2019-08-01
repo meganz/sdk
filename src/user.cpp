@@ -1215,15 +1215,9 @@ void User::set(visibility_t v, m_time_t ct)
     ctime = ct;
 }
 
-AuthRing::AuthRing(AuthRingType type) : mType(type)
+AuthRing::AuthRing(attr_t type, const TLVstore &authring)
+    : mType(type)
 {
-
-}
-
-void AuthRing::set(const TLVstore &authring)
-{
-    reset();
-
     string authType = "";
     string authValue;
     if (authring.find(authType))  // key is an empty string, but may not be there if authring was reset
@@ -1252,8 +1246,6 @@ void AuthRing::set(const TLVstore &authring)
             mAuthMethod[userhandle] = static_cast<AuthMethod>(authMethod);
         }
     }
-
-    setInitialized(true);
 }
 
 std::string* AuthRing::serialize(PrnGen &rng, SymmCipher &key) const
@@ -1275,23 +1267,6 @@ std::string* AuthRing::serialize(PrnGen &rng, SymmCipher &key) const
     tlv.set("", buf);
 
     return tlv.tlvRecordsToContainer(rng, &key);
-}
-
-void AuthRing::setInitialized(bool value)
-{
-    mInitialized = value;
-}
-
-bool AuthRing::isInitialized() const
-{
-    return mInitialized;
-}
-
-void AuthRing::reset()
-{
-    mFingerprint.clear();
-    mAuthMethod.clear();
-    setInitialized(false);
 }
 
 bool AuthRing::isTracked(handle uh) const
@@ -1347,32 +1322,47 @@ bool AuthRing::remove(handle uh)
     return mFingerprint.erase(uh) + mAuthMethod.erase(uh);
 }
 
-AuthRingType AuthRing::attrToAuthringType(attr_t at)
+attr_t AuthRing::keyTypeToAuthringType(attr_t at)
 {
-    if (at == ATTR_AUTHRING || at == ATTR_ED25519_PUBK)
+    if (at == ATTR_ED25519_PUBK)
     {
-        return AUTHRING_TYPE_ED255;
+        return ATTR_AUTHRING;
     }
-    else if (at == ATTR_AUTHCU255 || at == ATTR_CU25519_PUBK || at == ATTR_SIG_CU255_PUBK)
+    else if (at == ATTR_CU25519_PUBK)
     {
-        return AUTHRING_TYPE_CU255;
+        return ATTR_AUTHCU255;
     }
-    else if (at == ATTR_AUTHRSA || at == ATTR_UNKNOWN || at == ATTR_SIG_RSA_PUBK)   // ATTR_UNKNOWN -> pubk is not a user attribute
+    else if (at == ATTR_UNKNOWN)   // ATTR_UNKNOWN -> pubk is not a user attribute
     {
-        return AUTHRING_TYPE_RSA;
+        return ATTR_AUTHRSA;
     }
 
     assert(false);
-    return AUTHRING_TYPE_UNKNOWN;
+    return ATTR_UNKNOWN;
 }
 
-attr_t AuthRing::authringTypeToSignatureType(AuthRingType type)
+attr_t AuthRing::signatureTypeToAuthringType(attr_t at)
 {
-    if (type == AUTHRING_TYPE_CU255)
+    if (at == ATTR_SIG_CU255_PUBK)
+    {
+        return ATTR_AUTHCU255;
+    }
+    else if (at == ATTR_SIG_RSA_PUBK)
+    {
+        return ATTR_AUTHRSA;
+    }
+
+    assert(false);
+    return ATTR_UNKNOWN;
+}
+
+attr_t AuthRing::authringTypeToSignatureType(attr_t at)
+{
+    if (at == ATTR_AUTHCU255)
     {
         return ATTR_SIG_CU255_PUBK;
     }
-    else if (type == AUTHRING_TYPE_RSA)
+    else if (at == ATTR_AUTHRSA)
     {
         return ATTR_SIG_RSA_PUBK;
     }
@@ -1399,43 +1389,6 @@ std::string AuthRing::authMethodToStr(AuthMethod authMethod)
     return "unknown";
 }
 
-std::string AuthRing::authringTypeToStr(AuthRingType authringType)
-{
-    if (authringType == AUTHRING_TYPE_CU255)
-    {
-        return "Authring Cu25519";
-    }
-    else if (authringType == AUTHRING_TYPE_RSA)
-    {
-        return "Authring RSA";
-    }
-    else if (authringType == AUTHRING_TYPE_ED255)
-    {
-        return "Authring Ed25519";
-    }
-
-    return "";
-}
-
-attr_t AuthRing::authringTypeToAttr(AuthRingType type)
-{
-    if (type == AUTHRING_TYPE_CU255)
-    {
-        return ATTR_AUTHCU255;
-    }
-    else if (type == AUTHRING_TYPE_RSA)
-    {
-        return ATTR_AUTHRSA;
-    }
-    else if (type == AUTHRING_TYPE_ED255)
-    {
-        return ATTR_AUTHRING;
-    }
-
-    assert(false);
-    return ATTR_UNKNOWN;
-}
-
 std::string AuthRing::fingerprint(const std::string &pubKey, bool hexadecimal)
 {
     HashSHA256 hash;
@@ -1453,12 +1406,12 @@ std::string AuthRing::fingerprint(const std::string &pubKey, bool hexadecimal)
     return result;
 }
 
-bool AuthRing::isSignedKey()
+bool AuthRing::isSignedKey() const
 {
-    return !(mType == AUTHRING_TYPE_ED255);
+    return mType != ATTR_AUTHRING;
 }
 
-bool AuthRing::areCredentialsVerified(handle uh)
+bool AuthRing::areCredentialsVerified(handle uh) const
 {
     if (isSignedKey())
     {
