@@ -959,7 +959,7 @@ node_counter Node::subnodeCounts() const
         if (parent && parent->type == FILENODE)
         {
             nc.versions += 1;
-            nc.versionstorage += size;
+            nc.versionStorage += size;
         }
     }
     else if (type == FOLDERNODE)
