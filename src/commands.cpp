@@ -3930,8 +3930,10 @@ void CommandGetUserQuota::procresult()
                         auto iter = client->nodecounters.find(h);
                         if (iter != client->nodecounters.end())
                         {
-                            LOG_debug << client->nodebyhandle(h)->displaypath() << " " << iter->second.storage << " " << ns->bytes << " " << iter->second.files << " " << ns->files << " " << iter->second.folders << " " << ns->folders
-                                      << (iter->second.storage == ns->bytes && iter->second.files == ns->files && iter->second.folders == ns->folders ? "" : " ******************************************* mismatch *******************************************");
+                            LOG_debug << client->nodebyhandle(h)->displaypath() << " " << iter->second.storage << " " << ns->bytes << " " << iter->second.files << " " << ns->files << " " << iter->second.folders << " " << ns->folders << " "
+                                      << iter->second.versionStorage << " " << ns->version_bytes << " " << iter->second.versions << " " << ns->version_files
+                                      << (iter->second.storage == ns->bytes && iter->second.files == ns->files && iter->second.folders == ns->folders && iter->second.versionStorage == ns->version_bytes && iter->second.versions == ns->version_files 
+                                          ? "" : " ******************************************* mismatch *******************************************");
                         }
 #endif 
 

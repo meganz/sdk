@@ -1844,15 +1844,19 @@ void tolower_string(std::string& str)
 void node_counter::operator += (const node_counter& o)
 {
     storage += o.storage;
+    versionStorage += o.versionStorage;
     files += o.files;
     folders += o.folders;
+    versions += o.versions;
 }
 
 void node_counter::operator -= (const node_counter& o)
 {
     storage -= o.storage;
+    versionStorage -= o.versionStorage;
     files -= o.files;
     folders -= o.folders;
+    versions -= o.versions;
 }
 
 } // namespace

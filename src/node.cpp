@@ -945,7 +945,7 @@ bool Node::applykey()
     return true;
 }
 
-node_counter Node::subnodeCounts()
+node_counter Node::subnodeCounts() const
 {
     node_counter nc;
     for (Node *child : children)
@@ -956,6 +956,11 @@ node_counter Node::subnodeCounts()
     {
         nc.files += 1;
         nc.storage += size;
+        if (parent && parent->type == FILENODE)
+        {
+            nc.versions += 1;
+            nc.versionstorage += size;
+        }
     }
     else if (type == FOLDERNODE)
     {
@@ -982,7 +987,7 @@ bool Node::setparent(Node* p)
         nc = subnodeCounts();
         gotnc = true;
 
-        // nodes moving from cloud drive to rubbish for example.  Nodes should not move between inshares and owned nodes
+        // nodes moving from cloud drive to rubbish for example, or between inshares from the same user.
         client->nodecounters[oah] -= nc;
     }
 
