@@ -413,6 +413,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
                             {
                                 n->inshare = new Share(finduser(s->peer, 1), s->access, s->ts, NULL);
                                 n->inshare->user->sharing.insert(n->nodehandle);
+                                mNodeCounters[n->nodehandle] = n->subnodeCounts();
                             }
 
                             if (notify)
@@ -1049,6 +1050,7 @@ void MegaClient::init()
 
     mBizMode = BIZ_MODE_UNKNOWN;
     mBizStatus = BIZ_STATUS_INACTIVE;
+    mNodeCounters = NodeCounterMap();
 }
 
 MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, DbAccess* d, GfxProc* g, const char* k, const char* u)
@@ -2694,12 +2696,29 @@ void MegaClient::exec()
         httpio->updateuploadspeed();
     } while (httpio->doio() || execdirectreads() || (!pendingcs && reqs.cmdspending() && btcs.armed()) || looprequested);
 
-    int64_t storage = mFingerprints.getSumSizes();
-    if (mNotifiedSumSize != storage)
+
+    NodeCounter storagesum;
+    for (auto& nc : mNodeCounters)
     {
-        mNotifiedSumSize = storage;
-        app->storagesum_changed(storage);
+        if (nc.first == rootnodes[0] || nc.first == rootnodes[1] || nc.first == rootnodes[2])
+        {
+            storagesum += nc.second;
+        }
     }
+    if (mNotifiedSumSize != storagesum.storage)
+    {
+        mNotifiedSumSize = storagesum.storage;
+        app->storagesum_changed(mNotifiedSumSize);
+    }
+
+#ifdef _DEBUG
+    NodeCounter sum;
+    for (auto& nc : mNodeCounters)
+    {
+        sum += nc.second;
+    }
+    assert(sum.storage == mFingerprints.getSumSizes());
+#endif
 }
 
 // get next event time from all subsystems, then invoke the waiter if needed
