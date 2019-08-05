@@ -56,7 +56,7 @@ void collectfilenodes(std::multiset<FileFingerprint*, FileFingerprintCmp>& nodes
 // If there are multiple matches the node at the given preferred path is used. `fa` must be a file.
 bool assignFilesystemId(FileAccess& fa, handlelocalnode_map& fsidnodes,
                         const std::multiset<FileFingerprint*, FileFingerprintCmp>& nodes,
-                        const std::string& preferredNodePath)
+                        const std::string& preferredNodePath, const std::string& localseparator)
 {
     assert(fa.type == FILENODE);
     if (!fa.fsidvalid)
@@ -74,26 +74,30 @@ bool assignFilesystemId(FileAccess& fa, handlelocalnode_map& fsidnodes,
     }
 
     const auto nodeRange = nodes.equal_range(&ffp);
-    if (std::distance(nodeRange.first, nodeRange.second) == 0)
-    {
-        return true;
-    }
+    const auto nodeCount = std::distance(nodeRange.first, nodeRange.second);
 
-    // We're assigning `fa.fsid` to the node that matches the `preferredNodePath` passed in.
-    // If there's no match we simply assign to the first node in range.
-    auto localNode = static_cast<LocalNode*>(*nodeRange.first);
-    for (auto nodeIt = nodeRange.first; nodeIt != nodeRange.second; ++nodeIt)
+    if (nodeCount == 1)
     {
-        const auto node = static_cast<LocalNode*>(*nodeIt);
-        std::string nodePath;
-        node->getlocalpath(&nodePath);
-        if (nodePath == preferredNodePath)
-        {
-            localNode = node;
-            break;
-        }
+        static_cast<LocalNode*>(*nodeRange.first)->setfsid(fa.fsid, fsidnodes);
     }
-    localNode->setfsid(fa.fsid, fsidnodes);
+    else if (nodeCount > 1)
+    {
+        // We're assigning `fa.fsid` to the node that matches the `preferredNodePath` passed in.
+        // If there's no match we simply assign to the first node in range.
+        auto localNode = static_cast<LocalNode*>(*nodeRange.first);
+        for (auto nodeIt = nodeRange.first; nodeIt != nodeRange.second; ++nodeIt)
+        {
+            const auto node = static_cast<LocalNode*>(*nodeIt);
+            std::string nodePath;
+            node->getlocalpath(&nodePath, false, &localseparator);
+            if (nodePath == preferredNodePath)
+            {
+                localNode = node;
+                break;
+            }
+        }
+        localNode->setfsid(fa.fsid, fsidnodes);
+    }
 
     return true;
 }
@@ -147,7 +151,7 @@ void assignFilesystemIdsImpl(bool& success, string& localpath, Sync& sync, MegaA
                 {
                     if (localfa->type == FILENODE)
                     {
-                        success = assignFilesystemId(*localfa,  fsidnodes, nodes, localpath);
+                        success = assignFilesystemId(*localfa,  fsidnodes, nodes, localpath, localseparator);
                     }
                     else if (localfa->type == FOLDERNODE)
                     {

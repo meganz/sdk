@@ -316,7 +316,7 @@ struct MEGA_API LocalNode : public File
     localnode_set::iterator notseen_it;
 
     // build full local path to this node
-    void getlocalpath(string*, bool sdisable = false) const;
+    void getlocalpath(string*, bool sdisable = false, const std::string* localseparator = nullptr) const;
     void getlocalsubpath(string*) const;
     string localnodedisplaypath(FileSystemAccess& fsa) const;
 

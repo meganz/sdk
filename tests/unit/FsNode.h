@@ -11,6 +11,7 @@
 
 namespace mt {
 
+// Represents a node on the filesystem (either file or directory)
 class FsNode
 {
 public:
@@ -22,28 +23,39 @@ public:
     , mName{std::move(name)}
     {
         assert(mType == mega::FILENODE || mType == mega::FOLDERNODE);
+
         if (parent)
         {
             parent->mChildren.push_back(this);
         }
+
+        auto path = getPath();
+
         if (mType == mega::FILENODE)
         {
             mSize = nextRandomInt();
+            mContent.reserve(mSize);
             for (m_off_t i = 0; i < mSize; ++i)
             {
                 mContent.push_back(nextRandomByte());
             }
-            FileAccess fa{*this};
-            mFingerprint.genfingerprint(&fa);
+            mFileAccess->fopen(&path, true, false);
+            mFingerprint.genfingerprint(mFileAccess.get());
         }
         else
         {
+            mFileAccess->fopen(&path, true, false);
             mFingerprint.isvalid = true;
             mFingerprint.mtime = mMTime;
         }
     }
 
     MEGA_DISABLE_COPY_MOVE(FsNode)
+
+    void setFsId(const mega::handle fsId)
+    {
+        mFsId = fsId;
+    }
 
     mega::handle getFsId() const
     {
@@ -104,21 +116,30 @@ private:
     public:
         explicit FileAccess(const FsNode& fsNode)
         : mFsNode{fsNode}
+        {}
+
+        bool fopen(std::string* path, bool, bool) override
         {
-            fsidvalid = true;
-            fsid = mFsNode.getFsId();
-            size = mFsNode.getSize();
-            mtime = mFsNode.getMTime();
-            type = mFsNode.getType();
+            if (*path == mFsNode.getPath())
+            {
+                fsidvalid = true;
+                fsid = mFsNode.getFsId();
+                size = mFsNode.getSize();
+                mtime = mFsNode.getMTime();
+                type = mFsNode.getType();
+                return true;
+            }
+            else
+            {
+                return false;
+            }
         }
 
-        bool frawread(mega::byte* buffer, unsigned size, m_off_t) override
+        bool frawread(mega::byte* buffer, unsigned size, m_off_t offset) override
         {
-            for (unsigned i = 0; i < size; ++i)
-            {
-                assert(i < mFsNode.getContent().size());
-                buffer[i] = mFsNode.getContent()[i];
-            }
+            const auto& content = mFsNode.getContent();
+            assert(static_cast<unsigned>(offset) + size <= content.size());
+            std::copy(content.begin() + offset, content.begin() + offset + size, buffer);
             return true;
         }
 
@@ -126,13 +147,14 @@ private:
         const FsNode& mFsNode;
     };
 
-    mega::handle mFsId;
-    m_off_t mSize;
-    mega::m_time_t mMTime;
+    mega::handle mFsId = mega::UNDEF;
+    m_off_t mSize = -1;
+    mega::m_time_t mMTime = 0;
     std::vector<mega::byte> mContent;
     mega::FileFingerprint mFingerprint;
-    const FsNode* mParent;
-    const mega::nodetype_t mType;
+    std::unique_ptr<mega::FileAccess> mFileAccess = std::unique_ptr<mega::FileAccess>{new FileAccess{*this}};
+    const FsNode* mParent = nullptr;
+    const mega::nodetype_t mType = mega::TYPE_UNKNOWN;
     const std::string mName;
     std::vector<const FsNode*> mChildren;
 };

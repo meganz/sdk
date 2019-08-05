@@ -1571,7 +1571,7 @@ LocalNode::~LocalNode()
     }
 }
 
-void LocalNode::getlocalpath(string* path, bool sdisable) const
+void LocalNode::getlocalpath(string* path, bool sdisable, const std::string* localseparator) const
 {
     if (!sync)
     {
@@ -1597,9 +1597,9 @@ void LocalNode::getlocalpath(string* path, bool sdisable) const
             path->insert(0, l->localname);
         }
 
-        if ((l = l->parent) && sync->client)
+        if ((l = l->parent))
         {
-            path->insert(0, sync->client->fsaccess->localseparator);
+            path->insert(0, localseparator ? *localseparator : sync->client->fsaccess->localseparator);
         }
 
         if (sdisable)

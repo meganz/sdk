@@ -35,14 +35,18 @@ mega::handle nextFsId()
 std::unique_ptr<mega::Sync> makeSync(const std::string& localname, mega::handlelocalnode_map& fsidnodes)
 {
     auto sync = std::unique_ptr<mega::Sync>{new mega::Sync};
+    sync->localroot.name = localname;
     sync->localroot.localname = localname;
     sync->localroot.fsid = nextFsId();
     sync->localroot.fsid_it = fsidnodes.end();
     sync->localroot.type = mega::FOLDERNODE;
     sync->localroot.parent = nullptr;
+    sync->localroot.node = nullptr;
     sync->state = mega::SYNC_CANCELED;
     sync->client = nullptr;
     sync->localroot.sync = sync.get();
+    sync->tmpfa = nullptr;
+    sync->statecachetable = nullptr;
     return sync;
 }
 
@@ -55,8 +59,10 @@ std::unique_ptr<mega::LocalNode> makeLocalNode(mega::Sync& sync, mega::LocalNode
     l->parent = &parent;
     l->fsid = nextFsId();
     l->type = type;
-    l->name = std::move(name);
+    l->name = name;
+    l->localname = name;
     l->slocalname = nullptr;
+    l->node = nullptr;
     assert(parent.children.find(&l->name) == parent.children.end());
     parent.children[&l->name] = l.get();
     static_cast<mega::FileFingerprint&>(*l) = ffp;
