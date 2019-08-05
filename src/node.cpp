@@ -1434,7 +1434,7 @@ void LocalNode::setnotseen(int newnotseen)
 }
 
 // set fsid - assume that an existing assignment of the same fsid is no longer current and revoke
-void LocalNode::setfsid(handle newfsid)
+void LocalNode::setfsid(handle newfsid, handlelocalnode_map& fsidnodes)
 {
     if (!sync)
     {
@@ -1443,26 +1443,26 @@ void LocalNode::setfsid(handle newfsid)
         return;
     }
 
-    if (fsid_it != sync->client->fsidnode.end())
+    if (fsid_it != fsidnodes.end())
     {
         if (newfsid == fsid)
         {
             return;
         }
 
-        sync->client->fsidnode.erase(fsid_it);
+        fsidnodes.erase(fsid_it);
     }
 
     fsid = newfsid;
 
-    pair<handlelocalnode_map::iterator, bool> r = sync->client->fsidnode.insert(std::make_pair(fsid, this));
+    pair<handlelocalnode_map::iterator, bool> r = fsidnodes.insert(std::make_pair(fsid, this));
 
     fsid_it = r.first;
 
     if (!r.second)
     {
         // remove previous fsid assignment (the node is likely about to be deleted)
-        fsid_it->second->fsid_it = sync->client->fsidnode.end();
+        fsid_it->second->fsid_it = fsidnodes.end();
         fsid_it->second = this;
     }
 }
@@ -1473,6 +1473,11 @@ LocalNode::~LocalNode()
     {
         LOG_err << "LocalNode::init() was never called";
         assert(false);
+        return;
+    }
+
+    if (!sync->client)
+    {
         return;
     }
 
@@ -1511,7 +1516,7 @@ LocalNode::~LocalNode()
             }
         }
     }
-    
+
     // remove from fsidnode map, if present
     if (fsid_it != sync->client->fsidnode.end())
     {
@@ -1592,7 +1597,7 @@ void LocalNode::getlocalpath(string* path, bool sdisable) const
             path->insert(0, l->localname);
         }
 
-        if ((l = l->parent))
+        if ((l = l->parent) && sync->client)
         {
             path->insert(0, sync->client->fsaccess->localseparator);
         }

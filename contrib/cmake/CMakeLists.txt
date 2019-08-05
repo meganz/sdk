@@ -600,18 +600,34 @@ target_link_libraries(Mega PUBLIC crypt32.lib)
 endif(WIN32)
 
 #test apps
-add_executable(test_unit            ${MegaDir}/tests/unit/Commands_test.cpp
-                                    ${MegaDir}/tests/unit/Crypto_test.cpp
-                                    ${MegaDir}/tests/unit/Serialization_test.cpp
-                                    ${MegaDir}/tests/unit/main.cpp
-                                    ${MegaDir}/tests/unit/MegaApi_test.cpp
-                                    ${MegaDir}/tests/unit/PayCrypter_test.cpp)
+add_executable(test_unit
+    ${MegaDir}/tests/unit/Commands_test.cpp
+    ${MegaDir}/tests/unit/constants.h
+    ${MegaDir}/tests/unit/Crypto_test.cpp
+    ${MegaDir}/tests/unit/DefaultedDirAccess.h
+    ${MegaDir}/tests/unit/DefaultedFileAccess.h
+    ${MegaDir}/tests/unit/DefaultedFileSystemAccess.h
+    ${MegaDir}/tests/unit/main.cpp
+    ${MegaDir}/tests/unit/MegaApi_test.cpp
+    ${MegaDir}/tests/unit/FsNode.cpp
+    ${MegaDir}/tests/unit/FsNode.h
+    ${MegaDir}/tests/unit/NotImplemented.h
+    ${MegaDir}/tests/unit/PayCrypter_test.cpp
+    ${MegaDir}/tests/unit/Serialization_test.cpp
+    ${MegaDir}/tests/unit/Sync_test.cpp
+    ${MegaDir}/tests/unit/utils.cpp
+    ${MegaDir}/tests/unit/utils.h
+)
 
-add_executable(test_integration     ${MegaDir}/tests/integration/main.cpp
-                                    ${MegaDir}/tests/integration/SdkTest_test.cpp
-                                    ${MegaDir}/tests/integration/Sync_test.cpp)
+add_executable(test_integration
+    ${MegaDir}/tests/integration/main.cpp
+    ${MegaDir}/tests/integration/SdkTest_test.cpp
+    ${MegaDir}/tests/integration/Sync_test.cpp
+)
 
-add_executable(tool_purge_account   ${MegaDir}/tests/tool/purge_account.cpp)
+add_executable(tool_purge_account
+    ${MegaDir}/tests/tool/purge_account.cpp
+)
 
 target_compile_definitions(test_unit PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
 target_compile_definitions(test_integration PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)

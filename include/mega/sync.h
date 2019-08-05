@@ -26,6 +26,18 @@
 #include "megaclient.h"
 
 namespace mega {
+
+// Returns true for a path that can be synced (.debris is not one of those).
+bool isPathSyncable(const string& localpath, const string& localdebris, const string& localseparator);
+
+// Invalidates the fs IDs of all local nodes below `l` and removes them from `fsidnodes`.
+void invalidateFilesystemIds(handlelocalnode_map& fsidnodes, LocalNode& l);
+
+// Recursively iterates through the filesystem tree starting at the sync root and assigns
+// fs IDs to those local nodes that match the fingerprint retrieved from disk.
+bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, handlelocalnode_map& fsidnodes,
+                         const std::string& localdebris, const string& localseparator, bool followsymlinks);
+
 class MEGA_API Sync
 {
 public:
@@ -84,13 +96,8 @@ public:
     // look up LocalNode relative to localroot
     LocalNode* localnodebypath(LocalNode*, string*, LocalNode** = NULL, string* = NULL);
 
-    // Returns true for a path that can be scanned (.debris is not one of those).
-    bool isscannable(const string& localpath);
-
-    // Invalidates the fs IDs of all local nodes in the current local node tree
-    void invalidatefsids();
-
     // Assigns fs IDs to those local nodes that match the fingerprint retrieved from disk.
+    // The fs IDs of unmatched nodes are invalidated.
     bool assignfsids();
 
     // scan items in specified path and add as children of the specified
@@ -139,6 +146,7 @@ public:
     m_time_t updatedfilets;
     m_time_t updatedfileinitialts;
 
+    Sync() = default;
     Sync(MegaClient*, string*, const char*, string*, Node*, fsfp_t, bool, int, void*);
     ~Sync();
 
@@ -150,23 +158,6 @@ public:
 
 protected :
     bool readstatecache();
-
-private:
-    // Invalidates the fs IDs of all local nodes below `root`.
-    void invalidatefsids(LocalNode& root);
-
-    // Recursively iterates through the filesystem tree starting at `rootpath` and assigns
-    // fs IDs to those local nodes that match the fingerprint retrieved from disk.
-    // `fa` denotes the FileAccess object used to open `rootpath`.
-    void assignfsids(bool& success, string& rootpath, std::unique_ptr<FileAccess> fa,
-                     const std::multiset<FileFingerprint*, FileFingerprintCmp>& nodes);
-
-    // Assigns fs ID to the local node that matches `fa`'s fingerprint.
-    bool assignfsid(FileAccess& fa, const std::string& path,
-                    const std::multiset<FileFingerprint*, FileFingerprintCmp>& nodes);
-
-    // Inserts all local nodes that correspond to files into `nodes`.
-    void collectfilenodes(std::multiset<FileFingerprint*, FileFingerprintCmp>& nodes, LocalNode& root);
 };
 } // namespace
 

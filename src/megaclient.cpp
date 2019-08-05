@@ -11406,10 +11406,6 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
 
             if (!sync->fsstableids)
             {
-                // Ensures that unmatched nodes (local nodes that don't have a fingerprint that's
-                // the same as a file on disk) have invalid IDs.
-                sync->invalidatefsids();
-
                 if (sync->assignfsids())
                 {
                     LOG_info << "Successfully assigned fs IDs for filesystem with unstable IDs";

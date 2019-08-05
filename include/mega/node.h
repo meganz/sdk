@@ -335,7 +335,7 @@ struct MEGA_API LocalNode : public File
 
     void setnotseen(int);
 
-    void setfsid(handle);
+    void setfsid(handle newfsid, handlelocalnode_map& fsidnodes);
 
     void setnameparent(LocalNode*, string*);
 
