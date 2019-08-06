@@ -1270,11 +1270,13 @@ bool WinDirNotify::fsstableids() const
         TCHAR fs[MAX_PATH + 1];
         if (GetVolumeInformation(volume, NULL, 0, NULL, NULL, NULL, fs, MAX_PATH + 1))
         {
+            LOG_info << "Filesystem type: " << fs;
             return wcsicmp(fs, L"FAT")
                 && wcsicmp(fs, L"FAT32")
                 && wcsicmp(fs, L"exFAT");
         }
     }
+    LOG_err << "Failed to get filesystem type. Error code: " << GetLastError();
     return true;
 }
 

@@ -1760,8 +1760,11 @@ bool PosixDirNotify::fsstableids() const
 
     if (statfs(localbasepath.c_str(), &statfsbuf))
     {
+        LOG_err << "Failed to get filesystem type. Error code: " << errno;
         return true;
     }
+
+    LOG_info << "Filesystem type: " << statfsbuf.f_type;
 
 #ifdef __APPLE__
     return statfsbuf.f_type != 0x1c // FAT32
