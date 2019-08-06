@@ -33,13 +33,11 @@ void initializeLocalNode(mega::LocalNode& l, mega::Sync& sync, mega::LocalNode* 
     }
     l.sync = &sync;
     l.parent = parent;
-    l.fsid = mega::UNDEF;
-    l.fsid_it = fsidnodes.end();
     l.type = type;
     l.name = name;
     l.localname = name;
     l.slocalname = &l.localname;
-    l.node = nullptr;
+    l.fsid_it = fsidnodes.end();
     l.setfsid(nextFsId(), fsidnodes);
     if (parent)
     {
@@ -61,10 +59,6 @@ std::unique_ptr<mega::Sync> makeSync(const std::string& localname, mega::handlel
 {
     auto sync = std::unique_ptr<mega::Sync>{new mega::Sync};
     initializeLocalNode(sync->localroot, *sync, nullptr, fsidnodes,  mega::FOLDERNODE, localname, {});
-    sync->state = mega::SYNC_CANCELED;
-    sync->client = nullptr;
-    sync->tmpfa = nullptr;
-    sync->statecachetable = nullptr;
     return sync;
 }
 
