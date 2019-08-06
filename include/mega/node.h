@@ -196,6 +196,8 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     void faspec(string*);
 
+    NodeCounter subnodeCounts() const;
+
     // parent
     Node* parent;
 
