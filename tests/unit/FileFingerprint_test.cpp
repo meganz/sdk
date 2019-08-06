@@ -21,6 +21,7 @@
 
 // Note: The tests in this module are meant to be pure unit tests: Fast tests without I/O.
 
+#include <array>
 #include <memory>
 #include <numeric>
 
@@ -63,7 +64,7 @@ public:
             return false;
         }
         assert(static_cast<unsigned>(offset) + size <= mContent.size());
-        std::copy(mContent.begin() + offset, mContent.begin() + offset + size, buffer);
+        std::copy(mContent.begin() + static_cast<unsigned>(offset), mContent.begin() + static_cast<unsigned>(offset) + size, buffer);
         return true;
     }
 

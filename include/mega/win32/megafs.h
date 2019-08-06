@@ -140,7 +140,6 @@ public:
     bool fopen(string*, bool, bool, bool);
     void updatelocalname(string*) override;
     bool fread(string *, unsigned, unsigned, m_off_t);
-    bool frawread(byte *, unsigned, m_off_t);
     bool fwrite(const byte *, unsigned, m_off_t);
 
     bool sysread(byte *, unsigned, m_off_t) override;

@@ -104,8 +104,8 @@ std::uint16_t nextRandomInt()
 
 mega::byte nextRandomByte()
 {
-    std::uniform_int_distribution<mega::byte> dist{0, std::numeric_limits<mega::byte>::max()};
-    return dist(gRandomGenerator);
+    std::uniform_int_distribution<unsigned short> dist{0, std::numeric_limits<mega::byte>::max()};
+    return static_cast<mega::byte>(dist(gRandomGenerator));
 }
 
 } // mt
