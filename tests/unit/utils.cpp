@@ -24,6 +24,31 @@ void collectAllFsNodesImpl(std::map<std::string, const mt::FsNode*>& nodes, cons
     }
 }
 
+void initializeLocalNode(mega::LocalNode& l, mega::Sync& sync, mega::LocalNode* parent, mega::handlelocalnode_map& fsidnodes,
+                         mega::nodetype_t type, const std::string& name, const mega::FileFingerprint& ffp)
+{
+    if (ffp.isvalid)
+    {
+        assert(type == mega::FILENODE);
+    }
+    l.sync = &sync;
+    l.parent = parent;
+    l.fsid = mega::UNDEF;
+    l.fsid_it = fsidnodes.end();
+    l.type = type;
+    l.name = name;
+    l.localname = name;
+    l.slocalname = &l.localname;
+    l.node = nullptr;
+    l.setfsid(nextFsId(), fsidnodes);
+    if (parent)
+    {
+        assert(parent->children.find(&l.name) == parent->children.end());
+        parent->children[&l.name] = &l;
+    }
+    static_cast<mega::FileFingerprint&>(l) = ffp;
+}
+
 } // anonymous
 
 mega::handle nextFsId()
@@ -35,14 +60,7 @@ mega::handle nextFsId()
 std::unique_ptr<mega::Sync> makeSync(const std::string& localname, mega::handlelocalnode_map& fsidnodes)
 {
     auto sync = std::unique_ptr<mega::Sync>{new mega::Sync};
-    sync->localroot.name = localname;
-    sync->localroot.localname = localname;
-    sync->localroot.slocalname = &sync->localroot.localname;
-    sync->localroot.fsid = nextFsId();
-    sync->localroot.fsid_it = fsidnodes.end();
-    sync->localroot.type = mega::FOLDERNODE;
-    sync->localroot.parent = nullptr;
-    sync->localroot.node = nullptr;
+    initializeLocalNode(sync->localroot, *sync, nullptr, fsidnodes,  mega::FOLDERNODE, localname, {});
     sync->state = mega::SYNC_CANCELED;
     sync->client = nullptr;
     sync->localroot.sync = sync.get();
@@ -52,7 +70,8 @@ std::unique_ptr<mega::Sync> makeSync(const std::string& localname, mega::handlel
 }
 
 std::unique_ptr<mega::LocalNode> makeLocalNode(mega::Sync& sync, mega::LocalNode& parent,
-                                               mega::nodetype_t type, std::string name,
+                                               mega::handlelocalnode_map& fsidnodes,
+                                               mega::nodetype_t type, const std::string& name,
                                                const mega::FileFingerprint& ffp)
 {
     if (ffp.isvalid)
@@ -60,17 +79,7 @@ std::unique_ptr<mega::LocalNode> makeLocalNode(mega::Sync& sync, mega::LocalNode
         assert(type == mega::FILENODE);
     }
     auto l = std::unique_ptr<mega::LocalNode>{new mega::LocalNode};
-    l->sync = &sync;
-    l->parent = &parent;
-    l->fsid = nextFsId();
-    l->type = type;
-    l->name = name;
-    l->localname = name;
-    l->slocalname = &l->localname;
-    l->node = nullptr;
-    assert(parent.children.find(&l->name) == parent.children.end());
-    parent.children[&l->name] = l.get();
-    static_cast<mega::FileFingerprint&>(*l) = ffp;
+    initializeLocalNode(*l, sync, &parent, fsidnodes, type, name, ffp);
     return l;
 }
 
@@ -84,20 +93,6 @@ void collectAllFsNodes(std::map<std::string, const mt::FsNode*>& nodes, const mt
         for (const auto child : node.getChildren())
         {
             collectAllFsNodes(nodes, *child);
-        }
-    }
-}
-
-void collectAllLocalNodes(mega::handlelocalnode_map& nodes, mega::LocalNode& l)
-{
-    const auto result = nodes.insert(std::make_pair(l.fsid, &l));
-    assert(result.second);
-    l.fsid_it = result.first;
-    if (l.type == mega::FOLDERNODE)
-    {
-        for (auto& childPair : l.children)
-        {
-            collectAllLocalNodes(nodes, *childPair.second);
         }
     }
 }

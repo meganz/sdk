@@ -228,10 +228,8 @@ TEST(Sync, invalidateFilesystemIds)
     mega::LocalNode& d = fx.mSync->localroot;
 
     // Level 1
-    auto d_0 = mt::makeLocalNode(*fx.mSync, d, mega::FOLDERNODE, "d_0");
-    auto f_0 = mt::makeLocalNode(*fx.mSync, d, mega::FILENODE, "f_0");
-
-    mt::collectAllLocalNodes(fx.mLocalNodes, d);
+    auto d_0 = mt::makeLocalNode(*fx.mSync, d, fx.mLocalNodes, mega::FOLDERNODE, "d_0");
+    auto f_0 = mt::makeLocalNode(*fx.mSync, d, fx.mLocalNodes, mega::FILENODE, "f_0");
 
     mega::invalidateFilesystemIds(fx.mLocalNodes, d);
 
@@ -254,29 +252,27 @@ TEST(Sync, assignFilesystemIds_whenFilesystemFingerprintsMatchLocalNodes)
 
     // Level 1
     mt::FsNode d_0{&d, mega::FOLDERNODE, "d_0"};
-    auto ld_0 = mt::makeLocalNode(*fx.mSync, ld, mega::FOLDERNODE, "d_0");
+    auto ld_0 = mt::makeLocalNode(*fx.mSync, ld, fx.mLocalNodes, mega::FOLDERNODE, "d_0");
     mt::FsNode d_1{&d, mega::FOLDERNODE, "d_1"};
-    auto ld_1 = mt::makeLocalNode(*fx.mSync, ld, mega::FOLDERNODE, "d_1");
+    auto ld_1 = mt::makeLocalNode(*fx.mSync, ld, fx.mLocalNodes, mega::FOLDERNODE, "d_1");
     mt::FsNode f_2{&d, mega::FILENODE, "f_2"};
-    auto lf_2 = mt::makeLocalNode(*fx.mSync, ld, mega::FILENODE, "f_2", f_2.getFingerprint());
+    auto lf_2 = mt::makeLocalNode(*fx.mSync, ld, fx.mLocalNodes, mega::FILENODE, "f_2", f_2.getFingerprint());
 
     // Level 2
     mt::FsNode f_0_0{&d_0, mega::FILENODE, "f_0_0"};
-    auto lf_0_0 = mt::makeLocalNode(*fx.mSync, *ld_0, mega::FILENODE, "f_0_0", f_0_0.getFingerprint());
+    auto lf_0_0 = mt::makeLocalNode(*fx.mSync, *ld_0, fx.mLocalNodes, mega::FILENODE, "f_0_0", f_0_0.getFingerprint());
     mt::FsNode f_0_1{&d_0, mega::FILENODE, "f_0_1"};
-    auto lf_0_1 = mt::makeLocalNode(*fx.mSync, *ld_0, mega::FILENODE, "f_0_1", f_0_1.getFingerprint());
+    auto lf_0_1 = mt::makeLocalNode(*fx.mSync, *ld_0, fx.mLocalNodes, mega::FILENODE, "f_0_1", f_0_1.getFingerprint());
     mt::FsNode f_1_0{&d_1, mega::FILENODE, "f_1_0"};
-    auto lf_1_0 = mt::makeLocalNode(*fx.mSync, *ld_1, mega::FILENODE, "f_1_0", f_1_0.getFingerprint());
+    auto lf_1_0 = mt::makeLocalNode(*fx.mSync, *ld_1, fx.mLocalNodes, mega::FILENODE, "f_1_0", f_1_0.getFingerprint());
     mt::FsNode d_1_1{&d_1, mega::FOLDERNODE, "d_1_1"};
-    auto ld_1_1 = mt::makeLocalNode(*fx.mSync, *ld_1, mega::FOLDERNODE, "d_1_1");
+    auto ld_1_1 = mt::makeLocalNode(*fx.mSync, *ld_1, fx.mLocalNodes, mega::FOLDERNODE, "d_1_1");
 
     // Level 3
     mt::FsNode f_1_1_0{&d_1_1, mega::FILENODE, "f_1_1_0"};
-    auto lf_1_1_0 = mt::makeLocalNode(*fx.mSync, *ld_1_1, mega::FILENODE, "f_1_1_0", f_1_1_0.getFingerprint());
+    auto lf_1_1_0 = mt::makeLocalNode(*fx.mSync, *ld_1_1, fx.mLocalNodes, mega::FILENODE, "f_1_1_0", f_1_1_0.getFingerprint());
 
     mt::collectAllFsNodes(fx.mFsNodes, d);
-
-    mt::collectAllLocalNodes(fx.mLocalNodes, ld);
 
     const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, "/", true);
 
@@ -315,29 +311,27 @@ TEST(Sync, assignFilesystemIds_whenNoLocalNodesMatchFilesystemFingerprints)
 
     // Level 1
     mt::FsNode d_0{&d, mega::FOLDERNODE, "d_0"};
-    auto ld_0 = mt::makeLocalNode(*fx.mSync, ld, mega::FOLDERNODE, "d_0");
+    auto ld_0 = mt::makeLocalNode(*fx.mSync, ld, fx.mLocalNodes, mega::FOLDERNODE, "d_0");
     mt::FsNode d_1{&d, mega::FOLDERNODE, "d_1"};
-    auto ld_1 = mt::makeLocalNode(*fx.mSync, ld, mega::FOLDERNODE, "d_1");
+    auto ld_1 = mt::makeLocalNode(*fx.mSync, ld, fx.mLocalNodes, mega::FOLDERNODE, "d_1");
     mt::FsNode f_2{&d, mega::FILENODE, "f_2"};
-    auto lf_2 = mt::makeLocalNode(*fx.mSync, ld, mega::FILENODE, "f_2");
+    auto lf_2 = mt::makeLocalNode(*fx.mSync, ld, fx.mLocalNodes, mega::FILENODE, "f_2");
 
     // Level 2
     mt::FsNode f_0_0{&d_0, mega::FILENODE, "f_0_0"};
-    auto lf_0_0 = mt::makeLocalNode(*fx.mSync, *ld_0, mega::FILENODE, "f_0_0");
+    auto lf_0_0 = mt::makeLocalNode(*fx.mSync, *ld_0, fx.mLocalNodes, mega::FILENODE, "f_0_0");
     mt::FsNode f_0_1{&d_0, mega::FILENODE, "f_0_1"};
-    auto lf_0_1 = mt::makeLocalNode(*fx.mSync, *ld_0, mega::FILENODE, "f_0_1");
+    auto lf_0_1 = mt::makeLocalNode(*fx.mSync, *ld_0, fx.mLocalNodes, mega::FILENODE, "f_0_1");
     mt::FsNode f_1_0{&d_1, mega::FILENODE, "f_1_0"};
-    auto lf_1_0 = mt::makeLocalNode(*fx.mSync, *ld_1, mega::FILENODE, "f_1_0");
+    auto lf_1_0 = mt::makeLocalNode(*fx.mSync, *ld_1, fx.mLocalNodes, mega::FILENODE, "f_1_0");
     mt::FsNode d_1_1{&d_1, mega::FOLDERNODE, "d_1_1"};
-    auto ld_1_1 = mt::makeLocalNode(*fx.mSync, *ld_1, mega::FOLDERNODE, "d_1_1");
+    auto ld_1_1 = mt::makeLocalNode(*fx.mSync, *ld_1, fx.mLocalNodes, mega::FOLDERNODE, "d_1_1");
 
     // Level 3
     mt::FsNode f_1_1_0{&d_1_1, mega::FILENODE, "f_1_1_0"};
-    auto lf_1_1_0 = mt::makeLocalNode(*fx.mSync, *ld_1_1, mega::FILENODE, "f_1_1_0");
+    auto lf_1_1_0 = mt::makeLocalNode(*fx.mSync, *ld_1_1, fx.mLocalNodes, mega::FILENODE, "f_1_1_0");
 
     mt::collectAllFsNodes(fx.mFsNodes, d);
-
-    mt::collectAllLocalNodes(fx.mLocalNodes, ld);
 
     const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, "/", true);
 
@@ -364,29 +358,27 @@ TEST(Sync, assignFilesystemIds_whenTwoLocalNodesHaveSameFingerprint)
 
     // Level 1
     mt::FsNode d_0{&d, mega::FOLDERNODE, "d_0"};
-    auto ld_0 = mt::makeLocalNode(*fx.mSync, ld, mega::FOLDERNODE, "d_0");
+    auto ld_0 = mt::makeLocalNode(*fx.mSync, ld, fx.mLocalNodes, mega::FOLDERNODE, "d_0");
     mt::FsNode d_1{&d, mega::FOLDERNODE, "d_1"};
-    auto ld_1 = mt::makeLocalNode(*fx.mSync, ld, mega::FOLDERNODE, "d_1");
+    auto ld_1 = mt::makeLocalNode(*fx.mSync, ld, fx.mLocalNodes, mega::FOLDERNODE, "d_1");
     mt::FsNode f_2{&d, mega::FILENODE, "f_2"};
-    auto lf_2 = mt::makeLocalNode(*fx.mSync, ld, mega::FILENODE, "f_2", f_2.getFingerprint());
+    auto lf_2 = mt::makeLocalNode(*fx.mSync, ld, fx.mLocalNodes, mega::FILENODE, "f_2", f_2.getFingerprint());
 
     // Level 2
     mt::FsNode f_0_0{&d_0, mega::FILENODE, "f_0_0"};
-    auto lf_0_0 = mt::makeLocalNode(*fx.mSync, *ld_0, mega::FILENODE, "f_0_0", f_0_0.getFingerprint());
+    auto lf_0_0 = mt::makeLocalNode(*fx.mSync, *ld_0, fx.mLocalNodes, mega::FILENODE, "f_0_0", f_0_0.getFingerprint());
     mt::FsNode f_0_1{&d_0, mega::FILENODE, "f_0_1"};
-    auto lf_0_1 = mt::makeLocalNode(*fx.mSync, *ld_0, mega::FILENODE, "f_0_1", f_0_1.getFingerprint());
+    auto lf_0_1 = mt::makeLocalNode(*fx.mSync, *ld_0, fx.mLocalNodes, mega::FILENODE, "f_0_1", f_0_1.getFingerprint());
     mt::FsNode f_1_0{&d_1, mega::FILENODE, "f_1_0"};
-    auto lf_1_0 = mt::makeLocalNode(*fx.mSync, *ld_1, mega::FILENODE, "f_1_0", f_1_0.getFingerprint());
+    auto lf_1_0 = mt::makeLocalNode(*fx.mSync, *ld_1, fx.mLocalNodes, mega::FILENODE, "f_1_0", f_1_0.getFingerprint());
     mt::FsNode d_1_1{&d_1, mega::FOLDERNODE, "d_1_1"};
-    auto ld_1_1 = mt::makeLocalNode(*fx.mSync, *ld_1, mega::FOLDERNODE, "d_1_1");
+    auto ld_1_1 = mt::makeLocalNode(*fx.mSync, *ld_1, fx.mLocalNodes, mega::FOLDERNODE, "d_1_1");
 
     // Level 3
     mt::FsNode f_1_1_0{&d_1_1, mega::FILENODE, "f_1_1_0"};
-    auto lf_1_1_0 = mt::makeLocalNode(*fx.mSync, *ld_1_1, mega::FILENODE, "f_1_1_0", f_1_0.getFingerprint());
+    auto lf_1_1_0 = mt::makeLocalNode(*fx.mSync, *ld_1_1, fx.mLocalNodes, mega::FILENODE, "f_1_1_0", f_1_0.getFingerprint());
 
     mt::collectAllFsNodes(fx.mFsNodes, d);
-
-    mt::collectAllLocalNodes(fx.mLocalNodes, ld);
 
     const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, "/", true);
 
@@ -426,11 +418,9 @@ TEST(Sync, assignFilesystemIds_whenSomeFsIdIsNotValid)
     // Level 1
     mt::FsNode f_0{&d, mega::FILENODE, "f_0"};
     f_0.setFsId(mega::UNDEF);
-    auto lf_0 = mt::makeLocalNode(*fx.mSync, ld, mega::FILENODE, "f_0", f_0.getFingerprint());
+    auto lf_0 = mt::makeLocalNode(*fx.mSync, ld, fx.mLocalNodes, mega::FILENODE, "f_0", f_0.getFingerprint());
 
     mt::collectAllFsNodes(fx.mFsNodes, d);
-
-    mt::collectAllLocalNodes(fx.mLocalNodes, ld);
 
     const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, "/", true);
 
@@ -448,11 +438,9 @@ TEST(Sync, assignFilesystemIds_whenSomeFileCannotBeOpened)
     // Level 1
     mt::FsNode f_0{&d, mega::FILENODE, "f_0"};
     f_0.setOpenable(false);
-    auto lf_0 = mt::makeLocalNode(*fx.mSync, ld, mega::FILENODE, "f_0", f_0.getFingerprint());
+    auto lf_0 = mt::makeLocalNode(*fx.mSync, ld, fx.mLocalNodes, mega::FILENODE, "f_0", f_0.getFingerprint());
 
     mt::collectAllFsNodes(fx.mFsNodes, d);
-
-    mt::collectAllLocalNodes(fx.mLocalNodes, ld);
 
     const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, "/", true);
 
@@ -470,11 +458,9 @@ TEST(Sync, assignFilesystemIds_whenRootDirCannotBeOpened)
 
     // Level 1
     mt::FsNode f_0{&d, mega::FILENODE, "f_0"};
-    auto lf_0 = mt::makeLocalNode(*fx.mSync, ld, mega::FILENODE, "f_0", f_0.getFingerprint());
+    auto lf_0 = mt::makeLocalNode(*fx.mSync, ld, fx.mLocalNodes, mega::FILENODE, "f_0", f_0.getFingerprint());
 
     mt::collectAllFsNodes(fx.mFsNodes, d);
-
-    mt::collectAllLocalNodes(fx.mLocalNodes, ld);
 
     const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, "/", true);
 
@@ -491,14 +477,12 @@ TEST(Sync, assignFilesystemIds_whenSubDirCannotBeOpened)
 
     // Level 1
     mt::FsNode f_0{&d, mega::FILENODE, "f_0"};
-    auto lf_0 = mt::makeLocalNode(*fx.mSync, ld, mega::FILENODE, "f_0", f_0.getFingerprint());
+    auto lf_0 = mt::makeLocalNode(*fx.mSync, ld, fx.mLocalNodes, mega::FILENODE, "f_0", f_0.getFingerprint());
     mt::FsNode d_0{&d, mega::FOLDERNODE, "d_0"};
     d_0.setOpenable(false);
-    auto ld_0 = mt::makeLocalNode(*fx.mSync, ld, mega::FOLDERNODE, "d_0");
+    auto ld_0 = mt::makeLocalNode(*fx.mSync, ld, fx.mLocalNodes, mega::FOLDERNODE, "d_0");
 
     mt::collectAllFsNodes(fx.mFsNodes, d);
-
-    mt::collectAllLocalNodes(fx.mLocalNodes, ld);
 
     const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, "/", true);
 
@@ -516,11 +500,9 @@ TEST(Sync, assignFilesystemIds_whenSomeFingerprintIsNotValid)
     // Level 1
     mt::FsNode f_0{&d, mega::FILENODE, "f_0"};
     f_0.setReadable(false);
-    auto lf_0 = mt::makeLocalNode(*fx.mSync, ld, mega::FILENODE, "f_0", f_0.getFingerprint());
+    auto lf_0 = mt::makeLocalNode(*fx.mSync, ld, fx.mLocalNodes, mega::FILENODE, "f_0", f_0.getFingerprint());
 
     mt::collectAllFsNodes(fx.mFsNodes, d);
-
-    mt::collectAllLocalNodes(fx.mLocalNodes, ld);
 
     const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, "/", true);
 
@@ -538,13 +520,11 @@ TEST(Sync, assignFilesystemIds_whenPathIsNotSyncableThroughApp)
 
     // Level 1
     mt::FsNode f_0{&d, mega::FILENODE, "f_0"};
-    auto lf_0 = mt::makeLocalNode(*fx.mSync, ld, mega::FILENODE, "f_0", f_0.getFingerprint());
+    auto lf_0 = mt::makeLocalNode(*fx.mSync, ld, fx.mLocalNodes, mega::FILENODE, "f_0", f_0.getFingerprint());
     mt::FsNode f_1{&d, mega::FILENODE, "f_1"};
-    auto lf_1 = mt::makeLocalNode(*fx.mSync, ld, mega::FILENODE, "f_1", f_1.getFingerprint());
+    auto lf_1 = mt::makeLocalNode(*fx.mSync, ld, fx.mLocalNodes, mega::FILENODE, "f_1", f_1.getFingerprint());
 
     mt::collectAllFsNodes(fx.mFsNodes, d);
-
-    mt::collectAllLocalNodes(fx.mLocalNodes, ld);
 
     const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, "/", true);
 
@@ -571,17 +551,15 @@ TEST(Sync, assignFilesystemIds_whenDebrisIsPartOfFiles)
 
     // Level 1
     mt::FsNode f_0{&d, mega::FILENODE, "f_0"};
-    auto lf_0 = mt::makeLocalNode(*fx.mSync, ld, mega::FILENODE, "f_0", f_0.getFingerprint());
+    auto lf_0 = mt::makeLocalNode(*fx.mSync, ld, fx.mLocalNodes, mega::FILENODE, "f_0", f_0.getFingerprint());
     mt::FsNode d_1{&d, mega::FOLDERNODE, mt::gLocalDebris};
-    auto ld_1 = mt::makeLocalNode(*fx.mSync, ld, mega::FOLDERNODE, mt::gLocalDebris);
+    auto ld_1 = mt::makeLocalNode(*fx.mSync, ld, fx.mLocalNodes, mega::FOLDERNODE, mt::gLocalDebris);
 
     // Level 2
     mt::FsNode f_1_0{&d_1, mega::FILENODE, "f_1_0"};
-    auto lf_1_0 = mt::makeLocalNode(*fx.mSync, *ld_1, mega::FILENODE, "f_1_0", f_1_0.getFingerprint());
+    auto lf_1_0 = mt::makeLocalNode(*fx.mSync, *ld_1, fx.mLocalNodes, mega::FILENODE, "f_1_0", f_1_0.getFingerprint());
 
     mt::collectAllFsNodes(fx.mFsNodes, d);
-
-    mt::collectAllLocalNodes(fx.mLocalNodes, ld);
 
     const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, "/", true);
 

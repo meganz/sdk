@@ -636,10 +636,11 @@ add_executable(test_unit
     ${MegaDir}/tests/unit/DefaultedDirAccess.h
     ${MegaDir}/tests/unit/DefaultedFileAccess.h
     ${MegaDir}/tests/unit/DefaultedFileSystemAccess.h
-    ${MegaDir}/tests/unit/main.cpp
-    ${MegaDir}/tests/unit/MegaApi_test.cpp
+    ${MegaDir}/tests/unit/FileFingerprint_test.cpp
     ${MegaDir}/tests/unit/FsNode.cpp
     ${MegaDir}/tests/unit/FsNode.h
+    ${MegaDir}/tests/unit/main.cpp
+    ${MegaDir}/tests/unit/MegaApi_test.cpp
     ${MegaDir}/tests/unit/NotImplemented.h
     ${MegaDir}/tests/unit/PayCrypter_test.cpp
     ${MegaDir}/tests/unit/Serialization_test.cpp
