@@ -92,6 +92,26 @@ public:
         return mName;
     }
 
+    void setOpenable(const bool openable)
+    {
+        mOpenable = openable;
+    }
+
+    bool getOpenable() const
+    {
+        return mOpenable;
+    }
+
+    void setReadable(const bool readable)
+    {
+        mReadable = readable;
+    }
+
+    bool getReadable() const
+    {
+        return mReadable;
+    }
+
     std::string getPath() const
     {
         std::string path = mName;
@@ -156,6 +176,8 @@ private:
     const FsNode* mParent = nullptr;
     const mega::nodetype_t mType = mega::TYPE_UNKNOWN;
     const std::string mName;
+    bool mOpenable = true;
+    bool mReadable = true;
     std::vector<const FsNode*> mChildren;
 };
 

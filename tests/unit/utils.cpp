@@ -37,6 +37,7 @@ std::unique_ptr<mega::Sync> makeSync(const std::string& localname, mega::handlel
     auto sync = std::unique_ptr<mega::Sync>{new mega::Sync};
     sync->localroot.name = localname;
     sync->localroot.localname = localname;
+    sync->localroot.slocalname = &sync->localroot.localname;
     sync->localroot.fsid = nextFsId();
     sync->localroot.fsid_it = fsidnodes.end();
     sync->localroot.type = mega::FOLDERNODE;
@@ -54,6 +55,10 @@ std::unique_ptr<mega::LocalNode> makeLocalNode(mega::Sync& sync, mega::LocalNode
                                                mega::nodetype_t type, std::string name,
                                                const mega::FileFingerprint& ffp)
 {
+    if (ffp.isvalid)
+    {
+        assert(type == mega::FILENODE);
+    }
     auto l = std::unique_ptr<mega::LocalNode>{new mega::LocalNode};
     l->sync = &sync;
     l->parent = &parent;
@@ -61,7 +66,7 @@ std::unique_ptr<mega::LocalNode> makeLocalNode(mega::Sync& sync, mega::LocalNode
     l->type = type;
     l->name = name;
     l->localname = name;
-    l->slocalname = nullptr;
+    l->slocalname = &l->localname;
     l->node = nullptr;
     assert(parent.children.find(&l->name) == parent.children.end());
     parent.children[&l->name] = l.get();
