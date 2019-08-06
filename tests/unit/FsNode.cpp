@@ -1,5 +1,7 @@
 #include "FsNode.h"
 
+#include "utils.h"
+
 namespace mt {
 
 FsNode::FsNode(FsNode* parent, const mega::nodetype_t type, std::string name)

@@ -7,7 +7,6 @@
 #include <mega/filefingerprint.h>
 
 #include "DefaultedFileAccess.h"
-#include "utils.h"
 
 namespace mt {
 

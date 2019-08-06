@@ -1,5 +1,8 @@
 #pragma once
 
+#include <memory>
+
+#include <mega/node.h>
 #include <mega/sync.h>
 #include <mega/filefingerprint.h>
 

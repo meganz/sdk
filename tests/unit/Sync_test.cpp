@@ -25,10 +25,10 @@
 
 #include <gtest/gtest.h>
 
-#include <mega/sync.h>
-#include <mega/megaapp.h>
 #include <mega/megaclient.h>
+#include <mega/megaapp.h>
 #include <mega/types.h>
+#include <mega/sync.h>
 
 #include "constants.h"
 #include "FsNode.h"

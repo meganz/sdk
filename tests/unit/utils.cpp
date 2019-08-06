@@ -63,7 +63,6 @@ std::unique_ptr<mega::Sync> makeSync(const std::string& localname, mega::handlel
     initializeLocalNode(sync->localroot, *sync, nullptr, fsidnodes,  mega::FOLDERNODE, localname, {});
     sync->state = mega::SYNC_CANCELED;
     sync->client = nullptr;
-    sync->localroot.sync = sync.get();
     sync->tmpfa = nullptr;
     sync->statecachetable = nullptr;
     return sync;
