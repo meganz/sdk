@@ -582,6 +582,22 @@ TEST(Sync, assignFilesystemIds_whenDebrisIsPartOfFiles)
 }
 
 #ifndef _DEBUG
+TEST(Sync, assignFilesystemIds_whenRootPathIsNotAFolder_hittingAssert)
+{
+    Fixture fx{"d"};
+
+    // Level 0
+    mt::FsNode d{nullptr, mega::FILENODE, "d"};
+
+    mt::collectAllFsNodes(fx.mFsNodes, d);
+
+    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, "/", true);
+
+    ASSERT_FALSE(success);
+}
+#endif
+
+#ifndef _DEBUG
 TEST(Sync, assignFilesystemIds_whenFileTypeIsUnexpected_hittingAssert)
 {
     Fixture fx{"d"};
