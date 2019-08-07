@@ -581,7 +581,7 @@ TEST(Sync, assignFilesystemIds_whenDebrisIsPartOfFiles)
     ASSERT_TRUE(fx.iteratorsCorrect(*lf_1_0));
 }
 
-#ifndef _DEBUG
+#ifdef NDEBUG
 TEST(Sync, assignFilesystemIds_whenRootPathIsNotAFolder_hittingAssert)
 {
     Fixture fx{"d"};
@@ -597,7 +597,7 @@ TEST(Sync, assignFilesystemIds_whenRootPathIsNotAFolder_hittingAssert)
 }
 #endif
 
-#ifndef _DEBUG
+#ifdef NDEBUG
 TEST(Sync, assignFilesystemIds_whenFileTypeIsUnexpected_hittingAssert)
 {
     Fixture fx{"d"};
