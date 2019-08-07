@@ -351,7 +351,7 @@ TEST(FileFingerprint, genfingerprint_FileAccess_forSmallFile)
 {
     mega::FileFingerprint ffp;
     std::vector<mega::byte> content(100);
-    std::iota(content.begin(), content.end(), 0);
+    std::iota(content.begin(), content.end(), mega::byte{0});
     MockFileAccess fa{1, std::move(content)};
     ASSERT_TRUE(ffp.genfingerprint(&fa));
     ASSERT_EQ(100, ffp.size);
@@ -365,7 +365,7 @@ TEST(FileFingerprint, genfingerprint_FileAccess_forSmallFile_butReadFails)
 {
     mega::FileFingerprint ffp;
     std::vector<mega::byte> content(100);
-    std::iota(content.begin(), content.end(), 0);
+    std::iota(content.begin(), content.end(), mega::byte{0});
     MockFileAccess fa{1, std::move(content), true};
     ASSERT_TRUE(ffp.genfingerprint(&fa));
     ASSERT_EQ(-1, ffp.size);
@@ -379,7 +379,7 @@ TEST(FileFingerprint, genfingerprint_FileAccess_forLargeFile)
 {
     mega::FileFingerprint ffp;
     std::vector<mega::byte> content(20000);
-    std::iota(content.begin(), content.end(), 0);
+    std::iota(content.begin(), content.end(), mega::byte{0});
     MockFileAccess fa{1, std::move(content)};
     ASSERT_TRUE(ffp.genfingerprint(&fa));
     ASSERT_EQ(20000, ffp.size);
@@ -393,7 +393,7 @@ TEST(FileFingerprint, genfingerprint_FileAccess_forLargeFile_butReadFails)
 {
     mega::FileFingerprint ffp;
     std::vector<mega::byte> content(20000);
-    std::iota(content.begin(), content.end(), 0);
+    std::iota(content.begin(), content.end(), mega::byte{0});
     MockFileAccess fa{1, std::move(content), true};
     ASSERT_TRUE(ffp.genfingerprint(&fa));
     ASSERT_EQ(-1, ffp.size);
@@ -444,7 +444,7 @@ TEST(FileFingerprint, genfingerprint_InputStreamAccess_forSmallFile)
 {
     mega::FileFingerprint ffp;
     std::vector<mega::byte> content(100);
-    std::iota(content.begin(), content.end(), 0);
+    std::iota(content.begin(), content.end(), mega::byte{0});
     MockInputStreamAccess is{1, std::move(content)};
     ASSERT_TRUE(ffp.genfingerprint(&is, is.getMTime()));
     ASSERT_EQ(100, ffp.size);
@@ -458,7 +458,7 @@ TEST(FileFingerprint, genfingerprint_InputStreamAccess_forSmallFile_butReadFails
 {
     mega::FileFingerprint ffp;
     std::vector<mega::byte> content(100);
-    std::iota(content.begin(), content.end(), 0);
+    std::iota(content.begin(), content.end(), mega::byte{0});
     MockInputStreamAccess is{1, std::move(content), true};
     ASSERT_TRUE(ffp.genfingerprint(&is, is.getMTime()));
     ASSERT_EQ(-1, ffp.size);
@@ -472,7 +472,7 @@ TEST(FileFingerprint, genfingerprint_InputStreamAccess_forLargeFile)
 {
     mega::FileFingerprint ffp;
     std::vector<mega::byte> content(20000);
-    std::iota(content.begin(), content.end(), 0);
+    std::iota(content.begin(), content.end(), mega::byte{0});
     MockInputStreamAccess is{1, std::move(content)};
     ASSERT_TRUE(ffp.genfingerprint(&is, is.getMTime()));
     ASSERT_EQ(20000, ffp.size);
@@ -486,7 +486,7 @@ TEST(FileFingerprint, genfingerprint_InputStreamAccess_forLargeFile_butReadFails
 {
     mega::FileFingerprint ffp;
     std::vector<mega::byte> content(20000);
-    std::iota(content.begin(), content.end(), 0);
+    std::iota(content.begin(), content.end(), mega::byte{0});
     MockInputStreamAccess is{1, std::move(content), true};
     ASSERT_TRUE(ffp.genfingerprint(&is, is.getMTime()));
     ASSERT_EQ(-1, ffp.size);

@@ -95,7 +95,7 @@ public:
         }
         const auto& content = mCurrentFsNode->getContent();
         assert(static_cast<unsigned>(offset) + size <= content.size());
-        std::copy(content.begin() + offset, content.begin() + offset + size, buffer);
+        std::copy(content.begin() + static_cast<unsigned>(offset), content.begin() + static_cast<unsigned>(offset) + size, buffer);
         return true;
     }
 

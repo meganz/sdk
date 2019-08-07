@@ -23,7 +23,7 @@ FsNode::FsNode(FsNode* parent, const mega::nodetype_t type, std::string name)
     if (mType == mega::FILENODE)
     {
         mSize = nextRandomInt();
-        mContent.reserve(mSize);
+        mContent.reserve(static_cast<size_t>(mSize));
         for (m_off_t i = 0; i < mSize; ++i)
         {
             mContent.push_back(nextRandomByte());
@@ -64,7 +64,7 @@ bool FsNode::FileAccess::frawread(mega::byte* buffer, unsigned size, m_off_t off
 {
     const auto& content = mFsNode.getContent();
     assert(static_cast<unsigned>(offset) + size <= content.size());
-    std::copy(content.begin() + offset, content.begin() + offset + size, buffer);
+    std::copy(content.begin() + static_cast<unsigned>(offset), content.begin() + static_cast<unsigned>(offset) + size, buffer);
     return true;
 }
 

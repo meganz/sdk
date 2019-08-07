@@ -82,7 +82,7 @@ TEST(Commands, CommandGetRegisteredContacts_processResult_happyPath)
     ASSERT_EQ(API_OK, app.mLastError);
     ASSERT_NE(nullptr, app.mRegisteredContacts);
     ASSERT_EQ(expected, *app.mRegisteredContacts);
-    ASSERT_EQ(jsonLength, std::distance(jsonBegin, json.pos)); // assert json has been parsed all the way
+    ASSERT_EQ(jsonLength, static_cast<size_t>(std::distance(jsonBegin, json.pos))); // assert json has been parsed all the way
 }
 
 TEST(Commands, CommandGetRegisteredContacts_processResult_onlyOneContact)
@@ -104,7 +104,7 @@ TEST(Commands, CommandGetRegisteredContacts_processResult_onlyOneContact)
     ASSERT_EQ(API_OK, app.mLastError);
     ASSERT_NE(nullptr, app.mRegisteredContacts);
     ASSERT_EQ(expected, *app.mRegisteredContacts);
-    ASSERT_EQ(jsonLength, std::distance(jsonBegin, json.pos)); // assert json has been parsed all the way
+    ASSERT_EQ(jsonLength, static_cast<size_t>(std::distance(jsonBegin, json.pos))); // assert json has been parsed all the way
 }
 
 TEST(Commands, CommandGetRegisteredContacts_processResult_extraFieldShouldBeIgnored)
@@ -126,7 +126,7 @@ TEST(Commands, CommandGetRegisteredContacts_processResult_extraFieldShouldBeIgno
     ASSERT_EQ(API_OK, app.mLastError);
     ASSERT_NE(nullptr, app.mRegisteredContacts);
     ASSERT_EQ(expected, *app.mRegisteredContacts);
-    ASSERT_EQ(jsonLength, std::distance(jsonBegin, json.pos)); // assert json has been parsed all the way
+    ASSERT_EQ(jsonLength, static_cast<size_t>(std::distance(jsonBegin, json.pos))); // assert json has been parsed all the way
 }
 
 TEST(Commands, CommandGetRegisteredContacts_processResult_invalidResponse)
@@ -143,7 +143,7 @@ TEST(Commands, CommandGetRegisteredContacts_processResult_invalidResponse)
     ASSERT_EQ(1, app.mCallCount);
     ASSERT_EQ(API_EINTERNAL, app.mLastError);
     ASSERT_EQ(nullptr, app.mRegisteredContacts);
-    ASSERT_EQ(jsonLength, std::distance(jsonBegin, json.pos)); // assert json has been parsed all the way
+    ASSERT_EQ(jsonLength, static_cast<size_t>(std::distance(jsonBegin, json.pos))); // assert json has been parsed all the way
 }
 
 TEST(Commands, CommandGetRegisteredContacts_processResult_errorCodeReceived)
@@ -160,7 +160,7 @@ TEST(Commands, CommandGetRegisteredContacts_processResult_errorCodeReceived)
     ASSERT_EQ(1, app.mCallCount);
     ASSERT_EQ(API_EEXPIRED, app.mLastError);
     ASSERT_EQ(nullptr, app.mRegisteredContacts);
-    ASSERT_EQ(jsonLength, std::distance(jsonBegin, json.pos)); // assert json has been parsed all the way
+    ASSERT_EQ(jsonLength, static_cast<size_t>(std::distance(jsonBegin, json.pos))); // assert json has been parsed all the way
 }
 
 namespace {
@@ -212,7 +212,7 @@ TEST(Commands, CommandGetCountryCallingCodes_processResult_happyPath)
     ASSERT_EQ(API_OK, app.mLastError);
     ASSERT_NE(nullptr, app.mCountryCallingCodes);
     ASSERT_EQ(expected, *app.mCountryCallingCodes);
-    ASSERT_EQ(jsonLength, std::distance(jsonBegin, json.pos)); // assert json has been parsed all the way
+    ASSERT_EQ(jsonLength, static_cast<size_t>(std::distance(jsonBegin, json.pos))); // assert json has been parsed all the way
 }
 
 TEST(Commands, CommandGetCountryCallingCodes_processResult_onlyOneCountry)
@@ -234,7 +234,7 @@ TEST(Commands, CommandGetCountryCallingCodes_processResult_onlyOneCountry)
     ASSERT_EQ(API_OK, app.mLastError);
     ASSERT_NE(nullptr, app.mCountryCallingCodes);
     ASSERT_EQ(expected, *app.mCountryCallingCodes);
-    ASSERT_EQ(jsonLength, std::distance(jsonBegin, json.pos)); // assert json has been parsed all the way
+    ASSERT_EQ(jsonLength, static_cast<size_t>(std::distance(jsonBegin, json.pos))); // assert json has been parsed all the way
 }
 
 TEST(Commands, CommandGetCountryCallingCodes_processResult_extraFieldShouldBeIgnored)
@@ -256,7 +256,7 @@ TEST(Commands, CommandGetCountryCallingCodes_processResult_extraFieldShouldBeIgn
     ASSERT_EQ(API_OK, app.mLastError);
     ASSERT_NE(nullptr, app.mCountryCallingCodes);
     ASSERT_EQ(expected, *app.mCountryCallingCodes);
-    ASSERT_EQ(jsonLength, std::distance(jsonBegin, json.pos)); // assert json has been parsed all the way
+    ASSERT_EQ(jsonLength, static_cast<size_t>(std::distance(jsonBegin, json.pos))); // assert json has been parsed all the way
 }
 
 TEST(Commands, CommandGetCountryCallingCodes_processResult_invalidResponse)
@@ -273,7 +273,7 @@ TEST(Commands, CommandGetCountryCallingCodes_processResult_invalidResponse)
     ASSERT_EQ(1, app.mCallCount);
     ASSERT_EQ(API_EINTERNAL, app.mLastError);
     ASSERT_EQ(nullptr, app.mCountryCallingCodes);
-    ASSERT_EQ(jsonLength, std::distance(jsonBegin, json.pos)); // assert json has been parsed all the way
+    ASSERT_EQ(jsonLength, static_cast<size_t>(std::distance(jsonBegin, json.pos))); // assert json has been parsed all the way
 }
 
 TEST(Commands, CommandGetCountryCallingCodes_processResult_errorCodeReceived)
@@ -290,5 +290,5 @@ TEST(Commands, CommandGetCountryCallingCodes_processResult_errorCodeReceived)
     ASSERT_EQ(1, app.mCallCount);
     ASSERT_EQ(API_EEXPIRED, app.mLastError);
     ASSERT_EQ(nullptr, app.mCountryCallingCodes);
-    ASSERT_EQ(jsonLength, std::distance(jsonBegin, json.pos)); // assert json has been parsed all the way
+    ASSERT_EQ(jsonLength, static_cast<size_t>(std::distance(jsonBegin, json.pos))); // assert json has been parsed all the way
 }
