@@ -290,7 +290,7 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
     }
 
     fsstableids = dirnotify->fsstableids();
-    LOG_info << "Filesystem IDs are stable: " << fsstableids;
+    LOG_info << "Filesystem IDs are stable: " << std::boolalpha << fsstableids;
 
     localroot.init(this, FOLDERNODE, NULL, crootpath);
     localroot.setnode(remotenode);

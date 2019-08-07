@@ -1764,7 +1764,7 @@ bool PosixDirNotify::fsstableids() const
         return true;
     }
 
-    LOG_info << "Filesystem type: " << statfsbuf.f_type;
+    LOG_info << "Filesystem type: 0x" << std::hex << statfsbuf.f_type;
 
 #ifdef __APPLE__
     return statfsbuf.f_type != 0x1c // FAT32
