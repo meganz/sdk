@@ -580,3 +580,24 @@ TEST(Sync, assignFilesystemIds_whenDebrisIsPartOfFiles)
     ASSERT_TRUE(fx.iteratorsCorrect(*lf_0));
     ASSERT_TRUE(fx.iteratorsCorrect(*lf_1_0));
 }
+
+#ifndef _DEBUG
+TEST(Sync, assignFilesystemIds_whenFileTypeIsUnexpected_hittingAssert)
+{
+    Fixture fx{"d"};
+
+    // Level 0
+    mt::FsNode d{nullptr, mega::FOLDERNODE, "d"};
+    mega::LocalNode& ld = fx.mSync->localroot;
+
+    // Level 1
+    mt::FsNode f_0{&d, mega::TYPE_UNKNOWN, "f_0"};
+    auto lf_0 = mt::makeLocalNode(*fx.mSync, ld, fx.mLocalNodes, mega::FILENODE, "f_0", f_0.getFingerprint());
+
+    mt::collectAllFsNodes(fx.mFsNodes, d);
+
+    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, "/", true);
+
+    ASSERT_FALSE(success);
+}
+#endif
