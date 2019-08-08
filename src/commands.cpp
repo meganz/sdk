@@ -3673,16 +3673,10 @@ void CommandGetUserData::procresult()
                         || (m == BIZ_MODE_UNKNOWN))  // master flag not received or invalid
                 {
                     LOG_err << "GetUserData: invalid business status / account mode";
+                    client->app->notify_business_status(BIZ_STATUS_UNKNOWN);
                 }
                 else
                 {
-                    if (client->mBizStatus != s)
-                    {
-                        client->mBizStatus = s;
-                        client->app->notify_business_status(s);
-                    }
-                    client->mBizMode = m;
-
                     for (auto it : sts)
                     {
                         BizStatus status = it.first;
@@ -3699,6 +3693,14 @@ void CommandGetUserData::procresult()
                         {
                             LOG_warn << "Unexpected status in b.sts. Status: " << status << "ts: " << ts;
                         }
+                    }
+
+                    client->mBizMode = m;
+
+                    if (client->mBizStatus != s)
+                    {
+                        client->mBizStatus = s;
+                        client->app->notify_business_status(s);
                     }
 
                     // if current business status will expire sooner than the scheduled `ug`, update the
