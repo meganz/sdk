@@ -48,6 +48,15 @@ public:
         return mFingerprint;
     }
 
+    void assignContentFrom(const FsNode& node)
+    {
+        assert(node.getType() == mega::FILENODE);
+        mSize = node.getSize();
+        mMTime = node.getMTime();
+        mContent = node.getContent();
+        mFingerprint = node.getFingerprint();
+    }
+
     mega::nodetype_t getType() const
     {
         return mType;

@@ -581,6 +581,47 @@ TEST(Sync, assignFilesystemIds_whenDebrisIsPartOfFiles)
     ASSERT_TRUE(fx.iteratorsCorrect(*lf_1_0));
 }
 
+TEST(Sync, assignFilesystemIds_preferredPathMatchAssignsFinalFsId)
+{
+    Fixture fx{"d"};
+
+    // Level 0
+    mt::FsNode d{nullptr, mega::FOLDERNODE, "d"};
+    mega::LocalNode& ld = fx.mSync->localroot;
+
+    // Level 1
+    mt::FsNode f_0{&d, mega::FILENODE, "f_0"};
+    auto lf_0 = mt::makeLocalNode(*fx.mSync, ld, fx.mLocalNodes, mega::FILENODE, "f_0", f_0.getFingerprint());
+    mt::FsNode d_1{&d, mega::FOLDERNODE, "d_1"};
+
+    // the local node for f_1_0 is still at level 1 but the file moved to level 2 under a new folder (d_1)
+    auto lf_1 = mt::makeLocalNode(*fx.mSync, ld, fx.mLocalNodes, mega::FILENODE, "f_1_0", f_0.getFingerprint());
+
+    // Level 2
+    mt::FsNode f_1_0{&d_1, mega::FILENODE, "f_1_0"};
+    f_1_0.assignContentFrom(f_0);
+
+    mt::collectAllFsNodes(fx.mFsNodes, d);
+
+    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, "/", true);
+
+    ASSERT_TRUE(success);
+
+    // assert that directores have invalid fs IDs
+    ASSERT_EQ(mega::UNDEF, ld.fsid);
+
+    // assert that all file `LocalNode`s have same fs IDs as the corresponding `FsNode`s
+    ASSERT_EQ(f_0.getFsId(), lf_0->fsid);
+    ASSERT_EQ(f_1_0.getFsId(), lf_1->fsid);
+
+    // assert that the local node map is correct
+    constexpr std::size_t fileCount = 2;
+    ASSERT_EQ(fileCount, fx.mLocalNodes.size());
+
+    ASSERT_TRUE(fx.iteratorsCorrect(*lf_0));
+    ASSERT_TRUE(fx.iteratorsCorrect(*lf_1));
+}
+
 #ifdef NDEBUG
 TEST(Sync, assignFilesystemIds_whenRootPathIsNotAFolder_hittingAssert)
 {
