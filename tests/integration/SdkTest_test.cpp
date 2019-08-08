@@ -25,8 +25,12 @@
 #include "megaapi_impl.h"
 #include <algorithm>
 
-#ifdef _WIN32
+#ifdef WIN32
 #include <filesystem>
+namespace fs = ::std::filesystem;
+#else
+#include <experimental/filesystem>
+namespace fs = ::std::experimental::filesystem;
 #endif
 
 using namespace std;
@@ -4065,3 +4069,57 @@ TEST_F(SdkTest, DISABLED_SdkGetRegisteredContacts)
     ASSERT_EQ(js2, std::get<2>(table[1])); // ud
 }
 
+
+bool buildLocalFolders(fs::path targetfolder, const string& prefix, int n, int recurselevel, int filesperfolder)
+{
+    fs::path p = targetfolder / fs::u8path(prefix);
+    if (!fs::create_directory(p))
+        return false;
+
+    for (int i = 0; i < filesperfolder; ++i)
+    {
+        string filename = "file" + to_string(i) + "_" + prefix;
+        fs::path fp = p / fs::u8path(filename);
+#if (__cplusplus >= 201700L)
+        ofstream fs(fp/*, ios::binary*/);
+#else
+        ofstream fs(fp.u8string()/*, ios::binary*/);
+#endif
+        fs << filename;
+    }
+
+    if (recurselevel > 0)
+    {
+        for (int i = 0; i < n; ++i)
+        {
+            if (!buildLocalFolders(p, prefix + "_" + to_string(i), n, recurselevel - 1, filesperfolder))
+                return false;
+        }
+    }
+
+    return true;
+}
+
+TEST_F(SdkTest, RecursiveUploadWithLogout)
+{
+    // this one used to cause a double-delete
+
+    // make new folders (and files) in the local filesystem - approx 90 
+    fs::path p = fs::current_path() / "uploadme_mega_auto_test_sdk";
+    if (fs::exists(p))
+    {
+        fs::remove_all(p);
+    }
+    fs::create_directories(p);
+    ASSERT_TRUE(buildLocalFolders(p.u8string().c_str(), "newkid", 3, 2, 10));
+
+    // start uploading
+    megaApi[0]->startUpload(p.u8string().c_str(), megaApi[0]->getRootNode());
+    WaitMillisec(500);
+
+    // logout while the upload (which consists of many transfers) is ongoing
+    megaApi[0]->logout();
+    WaitMillisec(5000);
+
+    ASSERT_TRUE(true);
+}

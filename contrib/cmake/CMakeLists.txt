@@ -74,7 +74,7 @@ else()
 endif()
 
 if ("${MEGA_PROJECT_NAME}" STREQUAL "")
-    set(MEGA_PROJECT_NAME, "MegaSDK")
+    set(MEGA_PROJECT_NAME "MegaSDK" CACHE STRING "")
 endif()
 
 if(build_64_bit)
