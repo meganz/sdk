@@ -99,6 +99,7 @@ bool assignFilesystemId(FileAccess& fa, handlelocalnode_map& fsidnodes,
     }
 
     static_cast<LocalNode*>(*nodeRange.first)->setfsid(fa.fsid, fsidnodes);
+    nodes.erase(nodeRange.first);
 
     return true;
 }
