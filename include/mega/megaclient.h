@@ -190,6 +190,9 @@ public:
     // all nodes
     node_map nodes;
 
+    // keep track of user storage, inshare storage, file/folder counts per root node.
+    NodeCounterMap mNodeCounters;
+
     // all users
     user_map users;
 
@@ -217,6 +220,12 @@ public:
     // Account has VOIP push enabled (only for Apple)
     bool aplvp_enabled;
 
+    // 2 = Opt-in and unblock SMS allowed 1 = Only unblock SMS allowed 0 = No SMS allowed  -1 = flag was not received
+    SmsVerificationState mSmsVerificationState;
+
+    // the verified account phone number, filled in from 'ug'
+    string mSmsVerifiedPhone;
+	
     // pseudo-random number generator
     PrnGen rng;
 
@@ -567,6 +576,12 @@ public:
 
     // get info about a folder link
     void getpubliclinkinfo(handle h);
+
+    // send an sms to verificate a phone number (returns EARGS if phone number has invalid format)
+    error smsverificationsend(const string& phoneNumber, bool reVerifyingWhitelisted = false);
+
+    // check the verification code received by sms is valid (returns EARGS if provided code has invalid format)
+    error smsverificationcheck(const string& verificationCode);
 
 #ifdef ENABLE_CHAT
 

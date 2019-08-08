@@ -23,6 +23,7 @@
 #define MEGAAPI_IMPL_H
 
 #include <atomic>
+#include <memory>
 
 #include "mega.h"
 #include "mega/gfx/external.h"
@@ -379,7 +380,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
         int getType() override;
         const char* getName() override;
         const char* getFingerprint() override;
-        virtual const char* getOriginalFingerprint() override;
+        const char* getOriginalFingerprint() override;
         bool hasCustomAttrs() override;
         MegaStringList *getCustomAttrNames() override;
         const char *getCustomAttr(const char* attrName) override;
@@ -406,7 +407,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
         MegaHandle getPublicHandle() override;
         MegaNode* getPublicNode() override;
         char *getPublicLink(bool includeKey = true) override;
-        int64_t getPublicLinkCreationTime();
+        int64_t getPublicLinkCreationTime() override;
         bool isFile() override;
         bool isFolder() override;
         bool isRemoved() override;
@@ -815,7 +816,7 @@ public:
     bool isValid() const;
 
     virtual ~MegaPushNotificationSettingsPrivate();
-    virtual MegaPushNotificationSettings *copy() const override;
+    MegaPushNotificationSettings *copy() const override;
 
 private:
     m_time_t mGlobalDND = -1;        // defaults to -1 if not defined
@@ -1093,6 +1094,10 @@ class MegaRequestPrivate : public MegaRequest
 #endif
         MegaStringMap *getMegaStringMap() const override;
         void setMegaStringMap(const MegaStringMap *);
+        MegaStringListMap *getMegaStringListMap() const override;
+        void setMegaStringListMap(const MegaStringListMap *stringListMap);
+        MegaStringTable *getMegaStringTable() const override;
+        void setMegaStringTable(const MegaStringTable *stringTable);
         MegaFolderInfo *getMegaFolderInfo() const override;
         void setMegaFolderInfo(const MegaFolderInfo *);
         const MegaPushNotificationSettings *getMegaPushNotificationSettings() const override;
@@ -1152,6 +1157,8 @@ protected:
         MegaTextChatList *chatList;
 #endif
         MegaStringMap *stringMap;
+        MegaStringListMap *mStringListMap;
+        MegaStringTable *mStringTable;
         MegaFolderInfo *folderInfo;
         MegaPushNotificationSettings *settings;
         MegaBackgroundMediaUpload* backgroundMediaUpload;  // non-owned pointer
@@ -1165,9 +1172,9 @@ public:
     virtual ~MegaEventPrivate();
     MegaEvent *copy() override;
 
-    virtual int getType() const override;
-    virtual const char *getText() const override;
-    virtual int64_t getNumber() const override;
+    int getType() const override;
+    const char *getText() const override;
+    int64_t getNumber() const override;
 
     void setText(const char* text);
     void setNumber(int64_t number);
@@ -1475,17 +1482,51 @@ class MegaStringListPrivate : public MegaStringList
 {
 public:
     MegaStringListPrivate();
-    MegaStringListPrivate(char **newlist, int size);
+    MegaStringListPrivate(char **newlist, int size); // takes ownership
     virtual ~MegaStringListPrivate();
-    virtual MegaStringList *copy();
-    virtual const char* get(int i);
-    virtual int size();
-
-
+    MEGA_DISABLE_COPY_MOVE(MegaStringListPrivate)
+    MegaStringList *copy() const override;
+    const char* get(int i) const override;
+    int size() const override;
 protected:
-    MegaStringListPrivate(MegaStringListPrivate *stringList);
+    MegaStringListPrivate(const MegaStringListPrivate *stringList);
     const char** list;
     int s;
+};
+
+bool operator==(const MegaStringList& lhs, const MegaStringList& rhs);
+
+class MegaStringListMapPrivate : public MegaStringListMap
+{
+public:
+    MegaStringListMapPrivate() = default;
+    MEGA_DISABLE_COPY_MOVE(MegaStringListMapPrivate)
+    MegaStringListMap* copy() const override;
+    const MegaStringList* get(const char* key) const override;
+    MegaStringList *getKeys() const override;
+    void set(const char* key, const MegaStringList* value) override; // takes ownership of value
+    int size() const override;
+protected:
+    struct Compare
+    {
+        bool operator()(const std::unique_ptr<const char[]>& rhs,
+                        const std::unique_ptr<const char[]>& lhs) const;
+    };
+
+    map<std::unique_ptr<const char[]>, std::unique_ptr<const MegaStringList>, Compare> mMap;
+};
+
+class MegaStringTablePrivate : public MegaStringTable
+{
+public:
+    MegaStringTablePrivate() = default;
+    MEGA_DISABLE_COPY_MOVE(MegaStringTablePrivate)
+    MegaStringTable* copy() const override;
+    void append(const MegaStringList* value) override; // takes ownership of value
+    const MegaStringList* get(int i) const override;
+    int size() const override;
+protected:
+    vector<std::unique_ptr<const MegaStringList>> mTable;
 };
 
 class MegaNodeListPrivate : public MegaNodeList
@@ -1496,11 +1537,11 @@ class MegaNodeListPrivate : public MegaNodeList
         MegaNodeListPrivate(Node** newlist, int size);
         MegaNodeListPrivate(const MegaNodeListPrivate *nodeList, bool copyChildren = false);
         virtual ~MegaNodeListPrivate();
-        virtual MegaNodeList *copy() const override;
-        virtual MegaNode* get(int i) const override;
-        virtual int size() const override;
+        MegaNodeList *copy() const override;
+        MegaNode* get(int i) const override;
+        int size() const override;
 
-        virtual void addNode(MegaNode* node) override;
+        void addNode(MegaNode* node) override;
 	
 	protected:
 		MegaNode** list;
@@ -1917,6 +1958,8 @@ class MegaApiImpl : public MegaApp
 
         bool serverSideRubbishBinAutopurgeEnabled();
         bool appleVoipPushEnabled();
+        int smsAllowedState();
+        char* smsVerifiedPhoneNumber();
 
         bool multiFactorAuthAvailable();
         void multiFactorAuthCheck(const char *email, MegaRequestListener *listener = NULL);
@@ -2457,6 +2500,13 @@ class MegaApiImpl : public MegaApp
         void catchup(MegaRequestListener *listener = NULL);
         void getPublicLinkInformation(const char *megaFolderLink, MegaRequestListener *listener);
 
+        void sendSMSVerificationCode(const char* phoneNumber, MegaRequestListener *listener = NULL, bool reverifying_whitelisted = false);
+        void checkSMSVerificationCode(const char* verificationCode, MegaRequestListener *listener = NULL);
+
+        void getRegisteredContacts(const MegaStringMap* contacts, MegaRequestListener *listener = NULL);
+
+        void getCountryCallingCodes(MegaRequestListener *listener = NULL);
+
         void fireOnTransferStart(MegaTransferPrivate *transfer);
         void fireOnTransferFinish(MegaTransferPrivate *transfer, MegaError e);
         void fireOnTransferUpdate(MegaTransferPrivate *transfer);
@@ -2627,7 +2677,7 @@ protected:
         void cancelsignup_result(error) override;
 
         // check the reason of being blocked
-        void whyamiblocked_result(error) override;
+        void whyamiblocked_result(int) override;
 
         // contact link management
         void contactlinkcreate_result(error, handle) override;
@@ -2645,6 +2695,16 @@ protected:
         // keep me alive feature
         void keepmealive_result(error) override;
         void acknowledgeuseralerts_result(error) override;
+
+        // account validation by txted verification code
+        void smsverificationsend_result(error) override;
+        void smsverificationcheck_result(error, std::string *phoneNumber) override;
+
+        // get registered contacts
+        void getregisteredcontacts_result(error, vector<tuple<string, string, string>>*) override;
+
+        // get country calling codes
+        void getcountrycallingcodes_result(error, map<string, vector<string>>*) override;
 
         // get the current PSA
         void getpsa_result (error, int, string*, string*, string*, string*, string*) override;
@@ -2854,7 +2914,7 @@ protected:
         void http_result(error, int, byte *, int) override;
 
         // notify about a business account status change
-        virtual void notify_business_status(BizStatus status);
+        void notify_business_status(BizStatus status) override;
 
         // notify about a finished timer
         void timer_result(error) override;

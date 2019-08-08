@@ -1841,6 +1841,23 @@ void tolower_string(std::string& str)
     std::transform(str.begin(), str.end(), str.begin(), [](char c) {return static_cast<char>(::tolower(c)); });
 }
 
+void NodeCounter::operator += (const NodeCounter& o)
+{
+    storage += o.storage;
+    versionStorage += o.versionStorage;
+    files += o.files;
+    folders += o.folders;
+    versions += o.versions;
+}
+
+void NodeCounter::operator -= (const NodeCounter& o)
+{
+    storage -= o.storage;
+    versionStorage -= o.versionStorage;
+    files -= o.files;
+    folders -= o.folders;
+    versions -= o.versions;
+}
 
 } // namespace
 
