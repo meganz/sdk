@@ -172,11 +172,20 @@ class MegaSizeProcessor : public MegaTreeProcessor
         long long getTotalBytes();
 };
 
-class MegaFolderUploadController : public MegaRequestListener, public MegaTransferListener
+class MegaRecursiveTransferOpertaion
+{
+public:
+    virtual ~MegaRecursiveTransferOpertaion() {}
+    virtual void start() = 0;
+    virtual void cancel() = 0;
+};
+
+class MegaFolderUploadController : public MegaRequestListener, public MegaTransferListener, public MegaRecursiveTransferOpertaion
 {
 public:
     MegaFolderUploadController(MegaApiImpl *megaApi, MegaTransferPrivate *transfer);
-    void start();
+    void start() override;
+    void cancel() override;
 
 protected:
     void onFolderAvailable(MegaHandle handle);
@@ -190,6 +199,7 @@ protected:
     int recursive;
     int tag;
     int pendingTransfers;
+    std::set<MegaTransferPrivate*> subTransfers;
 
 public:
     void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e) override;
@@ -644,6 +654,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         void setFolderTransferTag(int tag);
         void setNotificationNumber(long long notificationNumber);
         void setListener(MegaTransferListener *listener);
+        void startRecursiveOperations(MegaRecursiveTransferOpertaion*);
 
         virtual int getType() const;
         virtual const char * getTransferString() const;
@@ -733,6 +744,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         MegaError lastError;
         int folderTransferTag;
         const char* appData;
+        std::unique_ptr<MegaRecursiveTransferOpertaion> recursiveOperations;
 };
 
 class MegaTransferDataPrivate : public MegaTransferData

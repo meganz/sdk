@@ -2739,6 +2739,12 @@ void MegaTransferPrivate::setListener(MegaTransferListener *listener)
     this->listener = listener;
 }
 
+void MegaTransferPrivate::startRecursiveOperations(MegaRecursiveTransferOpertaion* op)
+{
+    recursiveOperations.reset(op);
+    recursiveOperations->start();
+}
+
 void MegaTransferPrivate::setPath(const char* path)
 {
     if(this->path) delete [] this->path;
@@ -2829,6 +2835,10 @@ MegaTransferListener* MegaTransferPrivate::getListener() const
 
 MegaTransferPrivate::~MegaTransferPrivate()
 {
+    if (recursiveOperations)
+    {
+        recursiveOperations->cancel();
+    }
     delete[] path;
     delete[] parentPath;
     delete [] fileName;
@@ -7162,17 +7172,11 @@ void MegaApiImpl::abortPendingActions(error preverror)
         fireOnRequestFinish(request, preverror);
     }
 
-    deque<MegaTransferPrivate*> transfers;
-    for (auto transferPair : transferMap)
+    while (!transferMap.empty())
     {
-        if (transferPair.second)
-        {
-            transfers.push_front(transferPair.second);
-        }
-    }
-    for (auto transfer : transfers)
-    {
+        auto transfer = transferMap.begin()->second;
         transfer->setState(MegaTransfer::STATE_FAILED);
+        // this call can be recursive and remove multiple, eg with MegaFolderUploadController
         fireOnTransferFinish(transfer, preverror);
     }
 
@@ -17319,8 +17323,7 @@ void MegaApiImpl::sendPendingTransfers()
                 {
                     transferMap[nextTag] = transfer;
                     transfer->setTag(nextTag);
-                    MegaFolderUploadController *uploader = new MegaFolderUploadController(this, transfer);
-                    uploader->start();
+                    transfer->startRecursiveOperations(new MegaFolderUploadController(this, transfer));
                 }
                 break;
             }
@@ -22727,6 +22730,18 @@ void MegaFolderUploadController::start()
     }
 }
 
+void MegaFolderUploadController::cancel()
+{
+    transfer = nullptr;  // no final callback for this one since it is being destroyed now
+
+    while (!subTransfers.empty())
+    {
+        auto subTransfer = *subTransfers.begin();
+        subTransfer->setState(MegaTransfer::STATE_COMPLETED);
+        megaApi->fireOnTransferFinish(subTransfer, MegaError(API_EINCOMPLETE));
+    }
+}
+
 void MegaFolderUploadController::onFolderAvailable(MegaHandle handle)
 {
     recursive++;
@@ -22799,7 +22814,6 @@ void MegaFolderUploadController::checkCompletion()
         LOG_debug << "Folder transfer finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
         transfer->setState(MegaTransfer::STATE_COMPLETED);
         megaApi->fireOnTransferFinish(transfer, MegaError(API_OK));
-        delete this;
     }
 }
 
@@ -22824,6 +22838,7 @@ void MegaFolderUploadController::onRequestFinish(MegaApi *, MegaRequest *request
 
 void MegaFolderUploadController::onTransferStart(MegaApi *, MegaTransfer *t)
 {
+    subTransfers.insert(static_cast<MegaTransferPrivate*>(t));
     transfer->setState(t->getState());
     transfer->setPriority(t->getPriority());
     transfer->setTotalBytes(transfer->getTotalBytes() + t->getTotalBytes());
@@ -22833,26 +22848,33 @@ void MegaFolderUploadController::onTransferStart(MegaApi *, MegaTransfer *t)
 
 void MegaFolderUploadController::onTransferUpdate(MegaApi *, MegaTransfer *t)
 {
-    transfer->setState(t->getState());
-    transfer->setPriority(t->getPriority());
-    transfer->setTransferredBytes(transfer->getTransferredBytes() + t->getDeltaSize());
-    transfer->setUpdateTime(Waiter::ds);
-    transfer->setSpeed(t->getSpeed());
-    transfer->setMeanSpeed(t->getMeanSpeed());
-    megaApi->fireOnTransferUpdate(transfer);
+    if (transfer)
+    {
+        transfer->setState(t->getState());
+        transfer->setPriority(t->getPriority());
+        transfer->setTransferredBytes(transfer->getTransferredBytes() + t->getDeltaSize());
+        transfer->setUpdateTime(Waiter::ds);
+        transfer->setSpeed(t->getSpeed());
+        transfer->setMeanSpeed(t->getMeanSpeed());
+        megaApi->fireOnTransferUpdate(transfer);
+    }
 }
 
 void MegaFolderUploadController::onTransferFinish(MegaApi *, MegaTransfer *t, MegaError *)
 {
+    subTransfers.erase(static_cast<MegaTransferPrivate*>(t));
     pendingTransfers--;
-    transfer->setState(MegaTransfer::STATE_ACTIVE);
-    transfer->setPriority(t->getPriority());
-    transfer->setTransferredBytes(transfer->getTransferredBytes() + t->getDeltaSize());
-    transfer->setUpdateTime(Waiter::ds);
-    transfer->setSpeed(t->getSpeed());
-    transfer->setMeanSpeed(t->getMeanSpeed());
-    megaApi->fireOnTransferUpdate(transfer);
-    checkCompletion();
+    if (transfer)
+    {
+        transfer->setState(MegaTransfer::STATE_ACTIVE);
+        transfer->setPriority(t->getPriority());
+        transfer->setTransferredBytes(transfer->getTransferredBytes() + t->getDeltaSize());
+        transfer->setUpdateTime(Waiter::ds);
+        transfer->setSpeed(t->getSpeed());
+        transfer->setMeanSpeed(t->getMeanSpeed());
+        megaApi->fireOnTransferUpdate(transfer);
+        checkCompletion();
+    }
 }
 
 MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, int folderTransferTag, handle parenthandle, const char* filename, bool attendPastBackups, const char *speriod, int64_t period, int maxBackups)
