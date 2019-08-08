@@ -105,7 +105,8 @@ bool assignFilesystemId(FileAccess& fa, handlelocalnode_map& fsidnodes,
 
 void assignFilesystemIdsImpl(bool& success, string& localpath, Sync& sync, MegaApp& app,
                              handlelocalnode_map& fsidnodes,  FileSystemAccess& fsaccess,
-                             std::unique_ptr<FileAccess> fa, const string& localseparator, bool followsymlinks,
+                             std::unique_ptr<FileAccess> fa, const string& localdebris,
+                             const string& localseparator, bool followsymlinks,
                              std::multiset<FileFingerprint*, FileFingerprintCmp>& nodes)
 {
     if (!success)
@@ -138,28 +139,32 @@ void assignFilesystemIdsImpl(bool& success, string& localpath, Sync& sync, MegaA
         // check if this record is to be ignored
         if (app.sync_syncable(&sync, name.c_str(), &localpath))
         {
-            auto localfa = std::unique_ptr<FileAccess>{fsaccess.newfileaccess()};
-            if ((success = localfa->fopen(&localpath, true, false)))
+            // skip the sync's debris folder
+            if (isPathSyncable(localpath, localdebris, localseparator))
             {
-                if (localfa->type == FILENODE)
+                auto localfa = std::unique_ptr<FileAccess>{fsaccess.newfileaccess()};
+                if ((success = localfa->fopen(&localpath, true, false)))
                 {
-                    success = assignFilesystemId(*localfa,  fsidnodes, nodes, localpath, localseparator);
-                }
-                else if (localfa->type == FOLDERNODE)
-                {
-                    assignFilesystemIdsImpl(success, localpath, sync, app, fsidnodes, fsaccess,
-                                            std::move(localfa), localseparator, followsymlinks, nodes);
+                    if (localfa->type == FILENODE)
+                    {
+                        success = assignFilesystemId(*localfa,  fsidnodes, nodes, localpath, localseparator);
+                    }
+                    else if (localfa->type == FOLDERNODE)
+                    {
+                        assignFilesystemIdsImpl(success, localpath, sync, app, fsidnodes, fsaccess,
+                                                std::move(localfa), localdebris, localseparator, followsymlinks, nodes);
+                    }
+                    else
+                    {
+                        success = false;
+                        LOG_err << "Unexpected file type: " << localfa->type;
+                        assert(false);
+                    }
                 }
                 else
                 {
-                    success = false;
-                    LOG_err << "Unexpected file type: " << localfa->type;
-                    assert(false);
+                    LOG_warn << "Unable to open file: " << localpath;
                 }
-            }
-            else
-            {
-                LOG_warn << "Unable to open file: " << localpath;
             }
         }
         else
@@ -202,7 +207,7 @@ void invalidateFilesystemIds(handlelocalnode_map& fsidnodes, LocalNode& l)
 }
 
 bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, handlelocalnode_map& fsidnodes,
-                         const string& localseparator, const bool followsymlinks)
+                         const string& localdebris, const string& localseparator, const bool followsymlinks)
 {
     // Ensures that unmatched nodes (local nodes that don't have a fingerprint that's
     // the same as a file on disk) have invalid IDs.
@@ -219,7 +224,7 @@ bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, h
         if ((success = fa->type == FOLDERNODE))
         {
             assignFilesystemIdsImpl(success, rootpath, sync, app, fsidnodes, fsaccess,
-                                    std::move(fa), localseparator, followsymlinks, nodes);
+                                    std::move(fa), localdebris, localseparator, followsymlinks, nodes);
         }
         else
         {
@@ -621,7 +626,7 @@ LocalNode* Sync::localnodebypath(LocalNode* l, string* localpath, LocalNode** pa
 bool Sync::assignfsids()
 {
     return assignFilesystemIds(*this, *client->app, *client->fsaccess, client->fsidnode,
-                               client->fsaccess->localseparator, client->followsymlinks);
+                               localdebris, client->fsaccess->localseparator, client->followsymlinks);
 }
 
 // scan localpath, add or update child nodes, call recursively for folder nodes

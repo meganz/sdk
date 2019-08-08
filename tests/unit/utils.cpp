@@ -2,6 +2,7 @@
 
 #include <random>
 
+#include "constants.h"
 #include "FsNode.h"
 
 namespace mt {
@@ -59,6 +60,7 @@ std::unique_ptr<mega::Sync> makeSync(const std::string& localname, mega::handlel
 {
     auto sync = std::unique_ptr<mega::Sync>{new mega::Sync};
     initializeLocalNode(sync->localroot, *sync, nullptr, fsidnodes,  mega::FOLDERNODE, localname, {});
+    sync->localdebris = sync->localroot.localname + "/" + mt::gLocalDebris;
     return sync;
 }
 
