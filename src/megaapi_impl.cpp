@@ -2739,10 +2739,11 @@ void MegaTransferPrivate::setListener(MegaTransferListener *listener)
     this->listener = listener;
 }
 
-void MegaTransferPrivate::startRecursiveOperations(MegaRecursiveTransferOpertaion* op)
+void MegaTransferPrivate::startRecursiveOperation(MegaRecursiveOperation* op, MegaNode* node)
 {
-    recursiveOperations.reset(op);
-    recursiveOperations->start();
+    assert(op && !recursiveOperation);
+    recursiveOperation.reset(op);
+    recursiveOperation->start(node);
 }
 
 void MegaTransferPrivate::setPath(const char* path)
@@ -2835,9 +2836,9 @@ MegaTransferListener* MegaTransferPrivate::getListener() const
 
 MegaTransferPrivate::~MegaTransferPrivate()
 {
-    if (recursiveOperations)
+    if (recursiveOperation)
     {
-        recursiveOperations->cancel();
+        recursiveOperation->cancel();
     }
     delete[] path;
     delete[] parentPath;
@@ -7179,6 +7180,7 @@ void MegaApiImpl::abortPendingActions(error preverror)
         // this call can be recursive and remove multiple, eg with MegaFolderUploadController
         fireOnTransferFinish(transfer, preverror);
     }
+    assert(transferMap.empty());
 
     requestMap.clear();
     transferMap.clear();
@@ -17323,7 +17325,7 @@ void MegaApiImpl::sendPendingTransfers()
                 {
                     transferMap[nextTag] = transfer;
                     transfer->setTag(nextTag);
-                    transfer->startRecursiveOperations(new MegaFolderUploadController(this, transfer));
+                    transfer->startRecursiveOperation(new MegaFolderUploadController(this, transfer), nullptr);
                 }
                 break;
             }
@@ -17358,8 +17360,7 @@ void MegaApiImpl::sendPendingTransfers()
                     // Folder download
                     transferMap[nextTag] = transfer;
                     transfer->setTag(nextTag);
-                    MegaFolderDownloadController *downloader = new MegaFolderDownloadController(this, transfer);
-                    downloader->start(publicNode);
+                    transfer->startRecursiveOperation(new MegaFolderDownloadController(this, transfer), publicNode);
                     break;
                 }
 
@@ -22691,7 +22692,7 @@ MegaFolderUploadController::MegaFolderUploadController(MegaApiImpl *megaApi, Meg
     this->tag = transfer->getTag();
 }
 
-void MegaFolderUploadController::start()
+void MegaFolderUploadController::start(MegaNode*)
 {
     transfer->setFolderTransferTag(-1);
     transfer->setStartTime(Waiter::ds);
@@ -22704,7 +22705,6 @@ void MegaFolderUploadController::start()
     {
         transfer->setState(MegaTransfer::STATE_FAILED);
         megaApi->fireOnTransferFinish(transfer, MegaError(API_EARGS));
-        delete this;
     }
     else
     {
@@ -24003,7 +24003,6 @@ void MegaFolderDownloadController::start(MegaNode *node)
         {
             LOG_debug << "Folder download failed. Node not found";
             megaApi->fireOnTransferFinish(transfer, MegaError(API_ENOENT));
-            delete this;
             return;
         }
         deleteNode = true;
@@ -24051,6 +24050,19 @@ void MegaFolderDownloadController::start(MegaNode *node)
         delete node;
     }
 }
+
+void MegaFolderDownloadController::cancel()
+{
+    transfer = nullptr;  // no final callback for this one since it is being destroyed now
+
+    while (!subTransfers.empty())
+    {
+        auto subTransfer = *subTransfers.begin();
+        subTransfer->setState(MegaTransfer::STATE_COMPLETED);
+        megaApi->fireOnTransferFinish(subTransfer, MegaError(API_EINCOMPLETE));
+    }
+}
+
 
 void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, string *path)
 {
@@ -24150,12 +24162,12 @@ void MegaFolderDownloadController::checkCompletion()
         LOG_debug << "Folder download finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
         transfer->setState(MegaTransfer::STATE_COMPLETED);
         megaApi->fireOnTransferFinish(transfer, MegaError(e));
-        delete this;
     }
 }
 
 void MegaFolderDownloadController::onTransferStart(MegaApi *, MegaTransfer *t)
 {
+    subTransfers.insert(static_cast<MegaTransferPrivate*>(t));
     transfer->setState(t->getState());
     transfer->setPriority(t->getPriority());
     transfer->setTotalBytes(transfer->getTotalBytes() + t->getTotalBytes());
@@ -24165,30 +24177,37 @@ void MegaFolderDownloadController::onTransferStart(MegaApi *, MegaTransfer *t)
 
 void MegaFolderDownloadController::onTransferUpdate(MegaApi *, MegaTransfer *t)
 {
-    transfer->setState(t->getState());
-    transfer->setPriority(t->getPriority());
-    transfer->setTransferredBytes(transfer->getTransferredBytes() + t->getDeltaSize());
-    transfer->setUpdateTime(Waiter::ds);
-    transfer->setSpeed(t->getSpeed());
-    transfer->setMeanSpeed(t->getMeanSpeed());
-    megaApi->fireOnTransferUpdate(transfer);
+    if (transfer)
+    {
+        transfer->setState(t->getState());
+        transfer->setPriority(t->getPriority());
+        transfer->setTransferredBytes(transfer->getTransferredBytes() + t->getDeltaSize());
+        transfer->setUpdateTime(Waiter::ds);
+        transfer->setSpeed(t->getSpeed());
+        transfer->setMeanSpeed(t->getMeanSpeed());
+        megaApi->fireOnTransferUpdate(transfer);
+    }
 }
 
 void MegaFolderDownloadController::onTransferFinish(MegaApi *, MegaTransfer *t, MegaError *e)
 {
+    subTransfers.erase(static_cast<MegaTransferPrivate*>(t));
     pendingTransfers--;
-    transfer->setState(MegaTransfer::STATE_ACTIVE);
-    transfer->setPriority(t->getPriority());
-    transfer->setTransferredBytes(transfer->getTransferredBytes() + t->getDeltaSize());
-    transfer->setUpdateTime(Waiter::ds);
-    transfer->setSpeed(t->getSpeed());
-    transfer->setMeanSpeed(t->getMeanSpeed());
-    megaApi->fireOnTransferUpdate(transfer);
-    if (e->getErrorCode())
+    if (transfer)
     {
-        this->e = (error)e->getErrorCode();
+        transfer->setState(MegaTransfer::STATE_ACTIVE);
+        transfer->setPriority(t->getPriority());
+        transfer->setTransferredBytes(transfer->getTransferredBytes() + t->getDeltaSize());
+        transfer->setUpdateTime(Waiter::ds);
+        transfer->setSpeed(t->getSpeed());
+        transfer->setMeanSpeed(t->getMeanSpeed());
+        megaApi->fireOnTransferUpdate(transfer);
+        if (e->getErrorCode())
+        {
+            this->e = (error)e->getErrorCode();
+        }
+        checkCompletion();
     }
-    checkCompletion();
 }
 
 #ifdef HAVE_LIBUV
