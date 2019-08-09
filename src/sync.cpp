@@ -39,7 +39,7 @@ const dstime Sync::RECENT_VERSION_INTERVAL_SECS = 10800;
 namespace {
 
 // Inserts all local nodes that correspond to files into `nodes`.
-void collectfilenodes(std::multiset<FileFingerprint*, FileFingerprintCmp>& nodes, LocalNode& l)
+void collectFileNodes(std::multiset<FileFingerprint*, FileFingerprintCmp>& nodes, LocalNode& l)
 {
     if (l.type == FILENODE)
     {
@@ -48,8 +48,54 @@ void collectfilenodes(std::multiset<FileFingerprint*, FileFingerprintCmp>& nodes
     }
     for (auto& childPair : l.children)
     {
-        collectfilenodes(nodes, *childPair.second);
+        collectFileNodes(nodes, *childPair.second);
     }
+}
+
+// Collects all syncable filesystem paths in the given folder under `localpath`
+std::vector<std::string> collectAllPathsInFolder(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess,
+                                                 FileAccess& fa, string localpath, const string& localdebris,
+                                                 const string& localseparator, const bool followsymlinks)
+{
+    assert(fa.type == FOLDERNODE);
+    auto da = std::unique_ptr<DirAccess>{fsaccess.newdiraccess()};
+    if (!da->dopen(&localpath, &fa, false))
+    {
+        LOG_warn << "Unable to open directory: " << localpath;
+        return {};
+    }
+
+    std::vector<std::string> paths;
+
+    const size_t localpathSize = localpath.size();
+
+    std::string localname;
+    while (da->dnext(&localpath, &localname, followsymlinks))
+    {
+        auto name = localname;
+        fsaccess.local2name(&name);
+
+        if (localpathSize > 0)
+        {
+            localpath.append(localseparator);
+        }
+
+        localpath.append(localname);
+
+        // check if this record is to be ignored
+        if (app.sync_syncable(&sync, name.c_str(), &localpath))
+        {
+            // skip the sync's debris folder
+            if (isPathSyncable(localpath, localdebris, localseparator))
+            {
+                paths.push_back(localpath);
+            }
+        }
+
+        localpath.resize(localpathSize);
+    }
+
+    return paths;
 }
 
 // Assigns `fa`'s fs ID to the local node from `nodes` that matches `fa`'s fingerprint.
@@ -104,10 +150,9 @@ bool assignFilesystemId(FileAccess& fa, handlelocalnode_map& fsidnodes,
     return true;
 }
 
-void assignFilesystemIdsImpl(bool& success, string& localpath, Sync& sync, MegaApp& app,
-                             handlelocalnode_map& fsidnodes,  FileSystemAccess& fsaccess,
-                             std::unique_ptr<FileAccess> fa, const string& localdebris,
-                             const string& localseparator, bool followsymlinks,
+void assignFilesystemIdsImpl(bool& success, Sync& sync, MegaApp& app,
+                             handlelocalnode_map& fsidnodes, FileSystemAccess& fsaccess, string localpath,
+                             const string& localdebris, const string& localseparator, bool followsymlinks,
                              std::multiset<FileFingerprint*, FileFingerprintCmp>& nodes)
 {
     if (!success)
@@ -115,65 +160,34 @@ void assignFilesystemIdsImpl(bool& success, string& localpath, Sync& sync, MegaA
         return;
     }
 
-    auto da = std::unique_ptr<DirAccess>{fsaccess.newdiraccess()};
-    if (!(success = da->dopen(&localpath, fa.get(), false)))
+    auto fa = std::unique_ptr<FileAccess>{fsaccess.newfileaccess()};
+    if (!(success = fa->fopen(&localpath, true, false)))
     {
-        LOG_warn << "Unable to open directory: " << localpath;
+        LOG_warn << "Unable to open file: " << localpath;
         return;
     }
 
-    string localname;
-    const size_t localpathSize = localpath.size();
-
-    while (da->dnext(&localpath, &localname, followsymlinks))
+    if (fa->type == FILENODE)
     {
-        auto name = localname;
-        fsaccess.local2name(&name);
-
-        if (localpathSize > 0)
+        success = assignFilesystemId(*fa, fsidnodes, nodes, localpath, localseparator);
+    }
+    else if (fa->type == FOLDERNODE)
+    {
+        const auto paths = collectAllPathsInFolder(sync, app, fsaccess, *fa, localpath,
+                                                   localdebris, localseparator, followsymlinks);
+        fa.reset();
+        for (const auto& path : paths)
         {
-            localpath.append(localseparator);
+            assignFilesystemIdsImpl(success, sync, app, fsidnodes, fsaccess, path, localdebris,
+                                    localseparator, followsymlinks, nodes);
         }
-
-        localpath.append(localname);
-
-        // check if this record is to be ignored
-        if (app.sync_syncable(&sync, name.c_str(), &localpath))
-        {
-            // skip the sync's debris folder
-            if (isPathSyncable(localpath, localdebris, localseparator))
-            {
-                auto localfa = std::unique_ptr<FileAccess>{fsaccess.newfileaccess()};
-                if ((success = localfa->fopen(&localpath, true, false)))
-                {
-                    if (localfa->type == FILENODE)
-                    {
-                        success = assignFilesystemId(*localfa,  fsidnodes, nodes, localpath, localseparator);
-                    }
-                    else if (localfa->type == FOLDERNODE)
-                    {
-                        assignFilesystemIdsImpl(success, localpath, sync, app, fsidnodes, fsaccess,
-                                                std::move(localfa), localdebris, localseparator, followsymlinks, nodes);
-                    }
-                    else
-                    {
-                        success = false;
-                        LOG_err << "Unexpected file type: " << localfa->type;
-                        assert(false);
-                    }
-                }
-                else
-                {
-                    LOG_warn << "Unable to open file: " << localpath;
-                }
-            }
-        }
-        else
-        {
-            LOG_debug << "Excluded: " << name;
-        }
-
-        localpath.resize(localpathSize);
+    }
+    else
+    {
+        success = false;
+        LOG_err << "Unexpected file type: " << fa->type;
+        assert(false);
+        return;
     }
 }
 
@@ -210,33 +224,32 @@ void invalidateFilesystemIds(handlelocalnode_map& fsidnodes, LocalNode& l)
 bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, handlelocalnode_map& fsidnodes,
                          const string& localdebris, const string& localseparator, const bool followsymlinks)
 {
+    auto rootpath = sync.localroot.localname;
+
+    auto fa = std::unique_ptr<FileAccess>{fsaccess.newfileaccess()};
+    if (!fa->fopen(&rootpath, true, false))
+    {
+        LOG_err << "Unable to open rootpath";
+        return false;
+    }
+    if (fa->type != FOLDERNODE)
+    {
+        LOG_err << "rootpath not a folder";
+        assert(false);
+        return false;
+    }
+    fa.reset();
+
     // Ensures that unmatched nodes (local nodes that don't have a fingerprint that's
     // the same as a file on disk) have invalid IDs.
     invalidateFilesystemIds(fsidnodes, sync.localroot);
 
     std::multiset<FileFingerprint*, FileFingerprintCmp> nodes;
-    collectfilenodes(nodes, sync.localroot);
+    collectFileNodes(nodes, sync.localroot);
 
-    auto fa = std::unique_ptr<FileAccess>{fsaccess.newfileaccess()};
-    bool success;
-    auto rootpath = sync.localroot.localname;
-    if ((success = fa->fopen(&rootpath, true, false)))
-    {
-        if ((success = fa->type == FOLDERNODE))
-        {
-            assignFilesystemIdsImpl(success, rootpath, sync, app, fsidnodes, fsaccess,
-                                    std::move(fa), localdebris, localseparator, followsymlinks, nodes);
-        }
-        else
-        {
-            LOG_err << "rootpath not a folder";
-            assert(false);
-        }
-    }
-    else
-    {
-        LOG_err << "Unable to open rootpath";
-    }
+    bool success = true;
+    assignFilesystemIdsImpl(success, sync, app, fsidnodes, fsaccess, rootpath,
+                            localdebris, localseparator, followsymlinks, nodes);
     return success;
 }
 

@@ -64,6 +64,17 @@ public:
     : mFsNodes{fsNodes}
     {}
 
+    ~MockFileAccess()
+    {
+        if (mOpen)
+        {
+            --sOpenFileCount;
+        }
+        assert(sOpenFileCount == 0);
+    }
+
+    MEGA_DISABLE_COPY_MOVE(MockFileAccess)
+
     bool fopen(std::string* path, bool, bool) override
     {
         const auto fsNodePair = mFsNodes.find(*path);
@@ -79,6 +90,8 @@ public:
             size = mCurrentFsNode->getSize();
             mtime = mCurrentFsNode->getMTime();
             type = mCurrentFsNode->getType();
+            mOpen = true;
+            ++sOpenFileCount;
             return true;
         }
         else
@@ -89,6 +102,8 @@ public:
 
     bool frawread(mega::byte* buffer, unsigned size, m_off_t offset) override
     {
+        assert(mOpen);
+        assert(mCurrentFsNode);
         if (!mCurrentFsNode->getReadable())
         {
             return false;
@@ -100,9 +115,13 @@ public:
     }
 
 private:
+    static int sOpenFileCount;
+    bool mOpen = false;
     const mt::FsNode* mCurrentFsNode{};
     std::map<std::string, const mt::FsNode*>& mFsNodes;
 };
+
+int MockFileAccess::sOpenFileCount{0};
 
 class MockDirAccess : public mt::DefaultedDirAccess
 {
@@ -110,6 +129,8 @@ public:
     explicit MockDirAccess(std::map<std::string, const mt::FsNode*>& fsNodes)
     : mFsNodes{fsNodes}
     {}
+
+    MEGA_DISABLE_COPY_MOVE(MockDirAccess)
 
     bool dopen(std::string* path, mega::FileAccess* fa, bool) override
     {
