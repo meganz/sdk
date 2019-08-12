@@ -3530,6 +3530,11 @@ MegaNodeList *MegaApi::search(const char *searchString, int order)
     return pImpl->search(searchString, order);
 }
 
+void MegaApi::cancelSearch()
+{
+    pImpl->cancelSearch();
+}
+
 long long MegaApi::getSize(MegaNode *n)
 {
     return pImpl->getSize(n);

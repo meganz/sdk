@@ -13003,6 +13003,14 @@ class MegaApi
         MegaNodeList* search(const char* searchString, int order = ORDER_NONE);
 
         /**
+         * @brief Allows to cancel an ongoing search
+         *
+         * Since searches are blocking, if the user refines the search string, the current search
+         * can be discarded to not wait for the results and finish it immediately.
+         */
+        void cancelSearch();
+
+        /**
          * @brief Return a list of buckets, each bucket containing a list of recently added/modified nodes
          *
          * Each bucket contains files that were added/modified in a set, by a single user.

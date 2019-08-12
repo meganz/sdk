@@ -2303,6 +2303,7 @@ class MegaApiImpl : public MegaApp
         MegaNodeList* search(MegaNode* node, const char* searchString, bool recursive = 1, int order = MegaApi::ORDER_NONE);
         bool processMegaTree(MegaNode* node, MegaTreeProcessor* processor, bool recursive = 1);
         MegaNodeList* search(const char* searchString, int order = MegaApi::ORDER_NONE);
+        void cancelSearch();
 
         MegaNode *createForeignFileNode(MegaHandle handle, const char *key, const char *name, m_off_t size, m_off_t mtime,
                                        MegaHandle parentHandle, const char *privateauth, const char *publicauth, const char *chatauth);
@@ -2597,7 +2598,6 @@ protected:
         int ftpServerMaxOutputSize;
         int ftpServerRestrictedMode;
         set<MegaTransferListener *> ftpServerListeners;
-
 #endif
 		
         map<int, MegaBackupController *> backupsMap;
@@ -2649,6 +2649,7 @@ protected:
         MegaUserAlertList *activeUserAlerts;
         MegaContactRequestList *activeContactRequests;
         string appKey;
+        std::atomic_bool mCancelSearch = {false};
 
         MegaPushNotificationSettings *mPushSettings; // stores lastest-seen settings (to be able to filter notifications)
         MegaTimeZoneDetails *mTimezones;

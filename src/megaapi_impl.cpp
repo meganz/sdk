@@ -10428,6 +10428,7 @@ MegaNodeList *MegaApiImpl::search(const char *searchString, int order)
     }
 
     sdkMutex.lock();
+    mCancelSearch = false;
 
     node_vector result;
     Node *node;
@@ -10939,6 +10940,11 @@ bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursi
         return 0;
     }
 
+    if (mCancelSearch)
+    {
+        return 0;
+    }
+
     sdkMutex.lock();
     node = client->nodebyhandle(node->nodehandle);
     if (!node)
@@ -10963,6 +10969,11 @@ bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursi
     return result;
 }
 
+void MegaApiImpl::cancelSearch()
+{
+    mCancelSearch = true;
+}
+
 MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, bool recursive, int order)
 {
     if (!n || !searchString)
@@ -10971,6 +10982,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, bool re
     }
     
     sdkMutex.lock();
+    mCancelSearch = false;
     
     Node *node = client->nodebyhandle(n->getHandle());
     if (!node)
