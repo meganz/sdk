@@ -1872,6 +1872,10 @@ using namespace mega;
     return [[MEGANodeList alloc] initWithNodeList:self.megaApi->search((node != nil) ? [node getCPtr] : NULL, (searchString != nil) ? [searchString UTF8String] : NULL, YES) cMemoryOwn:YES];
 }
 
+- (void)cancelSearch {
+    self.megaApi->cancelSearch();
+}
+
 - (NSMutableArray *)recentActions {
     MegaRecentActionBucketList *megaRecentActionBucketList = self.megaApi->getRecentActions();
     int count = megaRecentActionBucketList->size();
