@@ -3672,8 +3672,14 @@ void CommandGetUserData::procresult()
                 if ((s < BIZ_STATUS_EXPIRED || s > BIZ_STATUS_GRACE_PERIOD)  // status not received or invalid
                         || (m == BIZ_MODE_UNKNOWN))  // master flag not received or invalid
                 {
-                    LOG_err << "GetUserData: invalid business status / account mode";
-                    client->app->notify_business_status(BIZ_STATUS_UNKNOWN);
+                    std::string err = "GetUserData: invalid business status / account mode";
+                    LOG_err << err;
+                    client->sendevent(99450, err.c_str());
+
+                    client->mBizStatus = BIZ_STATUS_EXPIRED;
+                    client->mBizMode = BIZ_MODE_SUBUSER;
+                    client->mBizExpirationTs = client->mBizGracePeriodTs = 0;
+                    client->app->notify_business_status(client->mBizStatus);
                 }
                 else
                 {
