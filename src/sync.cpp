@@ -647,6 +647,7 @@ bool Sync::assignfsids()
 // localpath must be prefixed with Sync
 bool Sync::scan(string* localpath, FileAccess* fa)
 {
+    assert(fa->type == FOLDERNODE);
     if (isPathSyncable(*localpath, localdebris, client->fsaccess->localseparator))
     {
         DirAccess* da;
@@ -1191,7 +1192,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                     it->second->setnotseen(0);
 
                     // immediately scan folder to detect deviations from cached state
-                    if (fullscan)
+                    if (fullscan && fa->type == FOLDERNODE)
                     {
                         scan(localname ? localpath : &tmppath, fa);
                     }
