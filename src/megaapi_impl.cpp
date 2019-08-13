@@ -9683,13 +9683,8 @@ void MegaApiImpl::getUserAlias(MegaHandle uh, MegaRequestListener *listener)
 void MegaApiImpl::setUserAlias(MegaHandle uh, const char *alias, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
-    MegaStringMap *stringMap = NULL;
-    if (alias)
-    {
-        stringMap = new MegaStringMapPrivate();
-        stringMap->set(Base64Str<MegaClient::USERHANDLE>(uh), alias);
-    }
-
+    MegaStringMap *stringMap = new MegaStringMapPrivate();
+    stringMap->set(Base64Str<MegaClient::USERHANDLE>(uh), alias ? alias : "");
     request->setMegaStringMap(stringMap);
     request->setParamType(MegaApi::USER_ATTR_ALIAS);
     request->setNodeHandle(uh);
@@ -14283,31 +14278,30 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
         if (request->getType() == MegaRequest::TYPE_SET_ATTR_USER)
         {
             bool modified = false;
-            const char *key, *alias, *rcvAlias;
+            const char *key, *newAlias;
             MegaStringMap *newAliasesMap = request->getMegaStringMap();
-            MegaStringList *keys = newAliasesMap->getKeys();
+            std::unique_ptr<MegaStringList> keys(newAliasesMap->getKeys());
 
-            // Iterate though the string map <uh_B64, alias>
-            for (int i=0; i < keys->size(); i++)
+            // Iterate through the string map <uh_B64, alias>   (currently alias are set one by one)
+            for (int i = 0; i < keys->size(); i++)
             {
                 key = keys->get(i);
-                alias = newAliasesMap->get(key);
+                newAlias = newAliasesMap->get(key);
 
-                // If the user alias doesn't exists or has been changed, update the TLV container
-                if (alias)
+                std::string currentAlias = tlv->find(key) ? tlv->get(key) : string();
+                if (strcmp(newAlias, currentAlias.c_str()) != 0)
                 {
-                    std::string rcvAlias = tlv->find(key) ? tlv->get(key) : string();
-                    if (rcvAlias.size() && rcvAlias.compare(alias) == 0)
+                    if (newAlias[0] != '\0')    // not empty, set new alias
                     {
-                        continue;
+                        tlv->set(key, newAlias);
                     }
+                    else    // empty, reset the current alias
+                    {
+                        tlv->reset(key);
+                    }
+                    modified = true;
                 }
-
-                tlv->set(key, alias);
-                modified = true;
             }
-
-            delete keys;
 
             if (modified)
             {
@@ -14393,7 +14387,6 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
                         e = API_ENOENT;
                         break;
                     }
-
                     request->setName(buf);
                 }
                 break;

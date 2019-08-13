@@ -6508,6 +6508,7 @@ class MegaApi
             USER_ATTR_CAMERA_UPLOADS_FOLDER = 23,// private - byte array
             USER_ATTR_MY_CHAT_FILES_FOLDER = 24, // private - byte array
             USER_ATTR_PUSH_SETTINGS = 25,        // private - char array
+            // ATTR_UNSHAREABLE_KEY = 26         // it's internal for SDK, not exposed to apps
             USER_ATTR_ALIAS = 27,                // private - byte array
         };
 
@@ -9952,16 +9953,16 @@ class MegaApi
         void getUserAlias(MegaHandle uh, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Set an alias for an user
+         * @brief Set or reset an alias for a user
          *
          * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_ALIAS
-         * - MegaRequest::getNodeHandle() - Returns the user handle in binary;
-         * - MegaRequest::getText() - Returns the user alias;
+         * - MegaRequest::getNodeHandle - Returns the user handle in binary
+         * - MegaRequest::getText - Returns the user alias
          *
          * @param uh handle of the user in binary
-         * @param alias the user alias
+         * @param alias the user alias, or null to reset the existing
          * @param listener MegaRequestListener to track this request
          */
         void setUserAlias(MegaHandle uh, const char *alias, MegaRequestListener *listener = NULL);

@@ -1146,6 +1146,11 @@ void TLVstore::set(string type, string value)
     tlv[type] = value;
 }
 
+void TLVstore::reset(std::string type)
+{
+    tlv.erase(type);
+}
+
 size_t TLVstore::size()
 {
     return tlv.size();
