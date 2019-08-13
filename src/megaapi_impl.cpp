@@ -14070,9 +14070,8 @@ void MegaApiImpl::getua_result(error e)
             }
 
             // serialize and encrypt the TLV container
-            string *container = tlv.tlvRecordsToContainer(client->rng, &client->key);
+            std::unique_ptr<string> container(tlv.tlvRecordsToContainer(client->rng, &client->key));
             client->putua(type, (byte *)container->data(), unsigned(container->size()));
-            delete container;
         }
     }
 
@@ -14306,10 +14305,9 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
             if (modified)
             {
                 // serialize and encrypt the TLV container
-                string *container = tlv->tlvRecordsToContainer(client->rng, &client->key);
+                std::unique_ptr<string> container(tlv->tlvRecordsToContainer(client->rng, &client->key));
                 assert(type == request->getParamType());
                 client->putua(type, (byte *)container->data(), unsigned(container->size()), client->restag);
-                delete container;
             }
             else
             {
@@ -14380,7 +14378,6 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
                 const char *uh = request->getText();
                 if (uh)
                 {
-                    request->setMegaStringMap(NULL);
                     const char *buf = stringMap->get(uh);
                     if (!buf)
                     {
@@ -18545,7 +18542,8 @@ void MegaApiImpl::sendPendingRequests()
                 if (type == ATTR_ALIAS)
                 {
                     // always get updated value before update it
-                    client->getua(client->uid.c_str(), type);
+                    User *ownUser = client->finduser(client->me);
+                    client->getua(ownUser, type);
                     break;
                 }
 
@@ -18567,10 +18565,8 @@ void MegaApiImpl::sendPendingRequests()
                 }
 
                 // serialize and encrypt the TLV container
-                string *container = tlv.tlvRecordsToContainer(client->rng, &client->key);
-
+                std::unique_ptr<string> container(tlv.tlvRecordsToContainer(client->rng, &client->key));
                 client->putua(type, (byte *)container->data(), unsigned(container->size()));
-                delete container;
                 break;
             }
             else if (scope == '^')
@@ -18602,9 +18598,8 @@ void MegaApiImpl::sendPendingRequests()
                     }
 
                     // always get updated value before update it
-                    const char* uh = getMyUserHandle();
-                    client->getua(uh, type);
-                    delete [] uh;
+                    User *ownUser = client->finduser(client->me);
+                    client->getua(ownUser, type);
                     break;
                 }
                 else if (type == ATTR_DISABLE_VERSIONS)
