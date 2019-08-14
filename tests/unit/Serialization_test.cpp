@@ -29,14 +29,13 @@
 using namespace std;
 
 using namespace mega;
-using ::testing::InitGoogleTest;
 using ::testing::Test;
 using ::testing::TestCase;
 using ::testing::TestInfo;
 using ::testing::TestPartResult;
 using ::testing::UnitTest;
 
-TEST(JSON, storeobject)
+TEST(Serialization, JSON_storeobject)
 {
     std::string in_str("Test");
     JSON j;
@@ -45,7 +44,7 @@ TEST(JSON, storeobject)
 }
 
 // Test 64-bit int serialization/unserialization
-TEST(Serialize64, serialize)
+TEST(Serialization, Serialize64_serialize)
 {
     uint64_t in = 0xDEADBEEF;
     uint64_t out;
@@ -62,32 +61,7 @@ size_t checksize(size_t& n, size_t added)
     return n;
 }
 
-TEST(MegaApi, getMimeType)
-{
-
-    vector<thread> threads;
-
-    atomic<int> successCount{ 0 };
-
-    // 100 threads was enough to reliably crash the old non-thread-safe version
-    for (int i = 0; i < 100; ++i)
-    {
-        threads.emplace_back(thread([&successCount]() {
-            if (::mega::MegaApi::getMimeType("nosuch") == nullptr) ++successCount;
-            if (::mega::MegaApi::getMimeType(nullptr) == nullptr) ++successCount;
-            if (::mega::MegaApi::getMimeType("323") == string("text/h323")) ++successCount;
-            if (::mega::MegaApi::getMimeType(".323") == string("text/h323")) ++successCount;
-            if (::mega::MegaApi::getMimeType("zip") == string("application/x-zip-compressed")) ++successCount;
-            if (::mega::MegaApi::getMimeType(".zip") == string("application/x-zip-compressed")) ++successCount;
-        }));
-    }
-
-    for (auto& t : threads) t.join();
-
-    ASSERT_EQ(successCount, 600);
-}
-
-TEST(Cacheable, CacheableReaderWriter)
+TEST(Serialization, CacheableReaderWriter)
 {
     string writestring;
     CacheableWriter w(writestring);
@@ -225,11 +199,4 @@ TEST(Cacheable, CacheableReaderWriter)
     ASSERT_EQ(mp2.audiocodecid, 8u);
     ASSERT_EQ(mp2.is_VFR, true);
     ASSERT_EQ(mp2.no_audio, false);
-}
-
-
-int main (int argc, char *argv[])
-{
-    InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
 }

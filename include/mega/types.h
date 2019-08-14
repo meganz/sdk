@@ -88,6 +88,7 @@ using std::deque;
 using std::multiset;
 using std::queue;
 using std::streambuf;
+using std::tuple;
 using std::ostringstream;
 
 
@@ -332,6 +333,19 @@ typedef map<handle, Transfer*> handletransfer_map;
 // maps node handles to Node pointers
 typedef map<handle, Node*> node_map;
 
+struct NodeCounter
+{
+    m_off_t storage = 0;
+    m_off_t versionStorage = 0;
+    size_t files = 0;
+    size_t folders = 0;
+    size_t versions = 0;
+    void operator += (const NodeCounter&);
+    void operator -= (const NodeCounter&);
+};
+
+typedef std::map<handle, NodeCounter> NodeCounterMap;
+
 // maps node handles to Share pointers
 typedef map<handle, struct Share*> share_map;
 
@@ -524,6 +538,15 @@ typedef enum { RETRY_NONE = 0, RETRY_CONNECTIVITY = 1, RETRY_SERVERS_BUSY = 2, R
 
 typedef enum { STORAGE_GREEN = 0, STORAGE_ORANGE = 1, STORAGE_RED = 2, STORAGE_CHANGE = 3 } storagestatus_t;
 
+
+enum SmsVerificationState {
+    // These values (except unknown) are delivered from the servers
+    SMS_STATE_UNKNOWN = -1,       // Flag was not received
+    SMS_STATE_NOT_ALLOWED = 0,    // No SMS allowed
+    SMS_STATE_ONLY_UNBLOCK = 1,   // Only unblock SMS allowed
+    SMS_STATE_FULL = 2            // Opt-in and unblock SMS allowed
+};
+
 typedef unsigned int achievement_class_id;
 typedef map<achievement_class_id, Achievement> achievements_map;
 
@@ -542,5 +565,29 @@ typedef enum { BIZ_STATUS_UNKNOWN = -2, BIZ_STATUS_EXPIRED = -1, BIZ_STATUS_INAC
 typedef enum { BIZ_MODE_UNKNOWN = -1, BIZ_MODE_SUBUSER = 0, BIZ_MODE_MASTER = 1 } BizMode;
 
 } // namespace
+
+#define MEGA_DISABLE_COPY(class_name) \
+    class_name(const class_name&) = delete; \
+    class_name& operator=(const class_name&) = delete;
+
+#define MEGA_DISABLE_MOVE(class_name) \
+    class_name(class_name&&) = delete; \
+    class_name& operator=(class_name&&) = delete;
+
+#define MEGA_DISABLE_COPY_MOVE(class_name) \
+    MEGA_DISABLE_COPY(class_name) \
+    MEGA_DISABLE_MOVE(class_name)
+
+#define MEGA_DEFAULT_COPY(class_name) \
+    class_name(const class_name&) = default; \
+    class_name& operator=(const class_name&) = default;
+
+#define MEGA_DEFAULT_MOVE(class_name) \
+    class_name(class_name&&) = default; \
+    class_name& operator=(class_name&&) = default;
+
+#define MEGA_DEFAULT_COPY_MOVE(class_name) \
+    MEGA_DEFAULT_COPY(class_name) \
+    MEGA_DEFAULT_MOVE(class_name)
 
 #endif

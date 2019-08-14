@@ -2146,7 +2146,7 @@ class MegaStringList
 public:
     virtual ~MegaStringList();
 
-    virtual MegaStringList *copy();
+    virtual MegaStringList *copy() const;
 
     /**
      * @brief Returns the string at the position i in the MegaStringList
@@ -2159,13 +2159,116 @@ public:
      * @param i Position of the string that we want to get for the list
      * @return string at the position i in the list
      */
-    virtual const char* get(int i);
+    virtual const char* get(int i) const;
 
     /**
      * @brief Returns the number of strings in the list
      * @return Number of strings in the list
      */
-    virtual int size();
+    virtual int size() const;
+};
+
+/**
+* @brief A map of strings to string lists
+*
+* A MegaStringListMap takes owership of the MegaStringList objects passed to it. It does
+* NOT take ownership of the keys passed to it but makes a local copy.
+*/
+class MegaStringListMap
+{
+public:
+    virtual ~MegaStringListMap();
+
+    static MegaStringListMap* createInstance();
+
+    virtual MegaStringListMap* copy() const;
+
+    /**
+     * @brief Returns the string list at the given key in the map
+     *
+     * The MegaStringMap retains the ownership of the returned string list. It will be only
+     * valid until the MegaStringMap is deleted.
+     *
+     * If the key is not found in the map, this function returns NULL.
+     *
+     * @param key Key to lookup in the map. Must be null-terminated
+     * @return String list at the given key in the map
+     */
+    virtual const MegaStringList* get(const char* key) const;
+
+    /**
+     * @brief Returns the list of keys in the MegaStringListMap
+     *
+     * You take the ownership of the returned value
+     *
+     * @return A MegaStringList containing the keys present in the MegaStringListMap
+     */
+    virtual MegaStringList *getKeys() const;
+
+    /**
+     * @brief Sets a value in the map for the given key.
+     *
+     * If the key already exists, the value will be overwritten by the
+     * new value.
+     *
+     * The map does not take ownership of the passed key, it makes
+     * a local copy. However, it does take ownership of the passed value.
+     *
+     * @param key The key in the map. It must be a null-terminated string.
+     * @param value The new value for the key in the map.
+     */
+    virtual void set(const char* key, const MegaStringList* value);
+
+    /**
+     * @brief Returns the number of (string, string list) pairs in the map
+     * @return Number of pairs in the map
+     */
+    virtual int size() const;
+};
+
+/**
+* @brief A list of string lists forming a table of strings.
+*
+* Each row can have a different number of columns.
+* However, ideally this class should be used as a table only.
+*
+* A MegaStringTable takes owership of the MegaStringList objects passed to it.
+*/
+class MegaStringTable
+{
+public:
+    virtual ~MegaStringTable();
+
+    static MegaStringTable *createInstance();
+
+    virtual MegaStringTable* copy() const;
+
+    /**
+     * @brief Appends a new string list to the end of the table
+     *
+     * The table takes ownership of the passed value.
+     *
+     * @param value The string list to append
+     */
+    virtual void append(const MegaStringList* value);
+
+    /**
+     * @brief Returns the string list at position i
+     *
+     * The table retains the ownership of the returned string list. It will be only valid until
+     * the table is deleted.
+     *
+     * The returned pointer is null if i is out of range.
+     *
+     * @return The string list at position i
+     */
+    virtual const MegaStringList* get(int i) const;
+
+    /**
+     * @brief Returns the number of string lists in the table
+     * @return Number of string lists in the table
+     */
+    virtual int size() const;
 };
 
 /**
@@ -2567,7 +2670,7 @@ public:
 /**
  * @brief Provides information about an asynchronous request
  *
- * Most functions in this API are asynchonous, except the ones that never require to
+ * Most functions in this API are asynchronous, except the ones that never require to
  * contact MEGA servers. Developers can use listeners (MegaListener, MegaRequestListener)
  * to track the progress of each request. MegaRequest objects are provided in callbacks sent
  * to these listeners and allow developers to know the state of the request, their parameters
@@ -2624,6 +2727,9 @@ class MegaRequest
             TYPE_CATCHUP, TYPE_PUBLIC_LINK_INFORMATION,
             TYPE_GET_BACKGROUND_UPLOAD_URL, TYPE_COMPLETE_BACKGROUND_UPLOAD,
             TYPE_GET_CLOUD_STORAGE_USED,
+            TYPE_SEND_SMS_VERIFICATIONCODE, TYPE_CHECK_SMS_VERIFICATIONCODE,
+            TYPE_GET_REGISTERED_CONTACTS,
+            TYPE_GET_COUNTRY_CALLING_CODES,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -3242,6 +3348,26 @@ class MegaRequest
          * @return String map including the key-value pairs of the attribute
          */
         virtual MegaStringMap* getMegaStringMap() const;
+
+        /**
+         * @brief Returns the string list map
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * @return String list map
+         */
+        virtual MegaStringListMap* getMegaStringListMap() const;
+
+        /**
+         * @brief Returns the string table
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * @return String table
+         */
+        virtual MegaStringTable* getMegaStringTable() const;
 
         /**
          * @brief Returns information about the contents of a folder
@@ -7053,6 +7179,27 @@ class MegaApi
         bool appleVoipPushEnabled();
 
         /**
+         * @brief Check if the opt-in or account unblocking SMS is allowed
+         *
+         * The result indicated whether the MegaApi::sendSMSVerificationCode function can be used.
+         *
+         * @return 2 = Opt-in and unblock SMS allowed.  1 = Only unblock SMS allowed.  0 = No SMS allowed
+         */
+        int smsAllowedState();
+
+        /**
+         * @brief Get the verified phone number for the account logged in
+         *
+         * Returns the phone number previously confirmed with MegaApi::sendSMSVerificationCode
+         * and MegaApi::checkSMSVerificationCode.
+         *
+         * You take the ownership of the returned value.
+         * 
+         * @return NULL if there is no verified number, otherwise a string containing that phone number.
+         */
+        char* smsVerifiedPhoneNumber();
+
+        /**
          * @brief Check if multi-factor authentication can be enabled for the current account.
          *
          * It's needed to be logged into an account and with the nodes loaded (login + fetchNodes) before
@@ -7837,6 +7984,7 @@ class MegaApi
          *     300: suspension only for multiple copyright violations.
          *     400: the subuser account has been disabled.
          *     401: the subuser account has been removed.
+         *     500: The account needs to be verified by an SMS code.
          *
          * If the error code in the MegaRequest object received in onRequestFinish
          * is MegaError::API_OK, the user is not blocked.
@@ -14943,8 +15091,8 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getMegaAchievements(MegaRequestListener *listener = NULL);
-
-        /**
+       
+       /**
          * @brief Catch up with API for pending actionpackets
          *
          * The associated request type with this request is MegaRequest::TYPE_CATCHUP
@@ -14955,6 +15103,116 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void catchup(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Send a verification code txt to the supplied phone number
+         *
+         * Sends a 6 digit code to the user's phone. The phone number is supplied in this function call.
+         * The code is sent by SMS to the user. Once the user receives it, they can type it into the app
+         * and the call MegaApi::checkSMSVerificationCode can be used to validate the user did
+         * receive the verification code, so that really is their phone number.
+         *
+         * The frequency with which this call can be used is very limited (the API allows at most
+         * two SMS mssages sent for phone number per 24 hour period), so it's important to get the
+         * number right on the first try. The result will be MegaError::API_ETEMPUNAVAIL if it has
+         * been tried too frequently.
+         *
+         * Make sure to test the result of MegaApi::smsAllowedState before calling this function.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SEND_SMS_VERIFICATIONCODE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getText - the phoneNumber as supplied to this function
+         *
+         * When the operation completes, onRequestFinish is called and the MegaError object can be:
+         * - MegaError::API_ETEMPUNAVAIL if a limit is reached.
+         * - MegaError::API_EACCESS if your account is already verified with an SMS number
+         * - MegaError::API_EEXIST if the number is already verified for some other account.
+         * - MegaError::API_EARGS if the phone number is badly formatted or invalid.
+         * - MegaError::API_OK is returned upon success.
+         *
+         * @param phoneNumber The phone number to txt the code to, supplied by the user.
+         * @param listener MegaRequestListener to track this request
+         * @param reverifying_whitelisted debug usage only.  May be removed in future.
+         */
+        void sendSMSVerificationCode(const char* phoneNumber, MegaRequestListener *listener = NULL, bool reverifying_whitelisted = false);
+ 
+        /**
+         * @brief Check a verification code that the user should have received via txt
+         *
+         * This function validates that the user received the verification code sent by MegaApi::sendSMSVerificationCode.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHECK_SMS_VERIFICATIONCODE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getText - the verificationCode as supplied to this function
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getName - the phone number that has been verified
+         *
+         * When the operation completes, onRequestFinish is called and the MegaError object can be:
+         * - MegaError::API_EEACCESS if you have reached the verification limits.
+         * - MegaError::API_EFAILED if the verification code does not match.
+         * - MegaError::API_EEXPIRED if the phone number was verified on a different account.
+         * - MegaError::API_OK is returned upon success.
+         *
+         * @param verificationCode A string supplied by the user, that they should have received via txt.
+         * @param listener MegaRequestListener to track this request
+         */
+        void checkSMSVerificationCode(const char* verificationCode, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Requests the contacts that are registered at MEGA (currently verified through SMS)
+         *
+         * The request will return any of the provided contacts that are registered at MEGA, i.e.,
+         * are verified through SMS (currently).
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_REGISTERED_CONTACTS
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getMegaStringMap - Returns the contacts that are to be checked
+         * \c contacts is a MegaStringMap from 'user detail' to the user's name. For instance:
+         * {
+         *   "+0000000010": "John Smith",
+         *   "+0000000011": "Peter Smith",
+         * }
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaStringTable - Returns the information about the contacts with three columns:
+         *  1. entry user detail (the user detail as it was provided in the request)
+         *  2. identifier (the user's identifier)
+         *  3. user detail (the normalized user detail, e.g., +00 0000 0010)
+         *
+         * There is a limit on how many unique details can be looked up per account, to prevent
+         * abuse and iterating over the phone number space to find users in Mega.
+         * An API_ETOOMANY error will be returned if you hit one of these limits.
+         * An API_EARGS error will be returned if your contact details are invalid (malformed SMS number for example)
+         *
+         * @param contacts The map of contacts to get registered contacts from
+         * @param listener MegaRequestListener to track this request
+         */
+        void getRegisteredContacts(const MegaStringMap* contacts, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Requests the currently available country calling codes
+         *
+         * The response value is stored as a MegaStringListMap mapping from two-letter country code
+         * to a list of calling codes. For instance:
+         * {
+         *   "AD": ["376"],
+         *   "AE": ["971", "13"],
+         * }
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_COUNTRY_CALLING_CODES
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaStringListMap where the keys are two-letter country codes and the
+         *   values a list of calling codes.
+         *
+         * For this command, there are currently no command specific error codes returned by the API.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getCountryCallingCodes(MegaRequestListener *listener = NULL);
 
         /**
          * @brief Retrieve basic information about a folder link
@@ -15698,7 +15956,8 @@ public:
         MEGA_ACHIEVEMENT_WELCOME            = 1,
         MEGA_ACHIEVEMENT_INVITE             = 3,
         MEGA_ACHIEVEMENT_DESKTOP_INSTALL    = 4,
-        MEGA_ACHIEVEMENT_MOBILE_INSTALL     = 5
+        MEGA_ACHIEVEMENT_MOBILE_INSTALL     = 5,
+        MEGA_ACHIEVEMENT_ADD_PHONE          = 9
     };
 
     virtual ~MegaAchievementsDetails();
@@ -15717,6 +15976,7 @@ public:
      *  - MEGA_ACHIEVEMENT_INVITE = 3
      *  - MEGA_ACHIEVEMENT_DESKTOP_INSTALL = 4
      *  - MEGA_ACHIEVEMENT_MOBILE_INSTALL = 5
+     *  - MEGA_ACHIEVEMENT_ADD_PHONE = 9
      *
      * @param class_id Id of the MEGA achievement
      * @return Storage granted by this MEGA achievement class, in bytes
@@ -15731,6 +15991,7 @@ public:
      *  - MEGA_ACHIEVEMENT_INVITE = 3
      *  - MEGA_ACHIEVEMENT_DESKTOP_INSTALL = 4
      *  - MEGA_ACHIEVEMENT_MOBILE_INSTALL = 5
+     *  - MEGA_ACHIEVEMENT_ADD_PHONE = 9
      *
      * @param class_id Id of the MEGA achievement
      * @return Transfer quota granted by this MEGA achievement class, in bytes
@@ -15745,6 +16006,7 @@ public:
      *  - MEGA_ACHIEVEMENT_INVITE = 3
      *  - MEGA_ACHIEVEMENT_DESKTOP_INSTALL = 4
      *  - MEGA_ACHIEVEMENT_MOBILE_INSTALL = 5
+     *  - MEGA_ACHIEVEMENT_ADD_PHONE = 9
      *
      * The storage and transfer quota resulting from a MEGA achievement may expire after
      * certain number of days. In example, the "Welcome" reward lasts for 30 days and afterwards

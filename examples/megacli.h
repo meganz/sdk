@@ -19,6 +19,8 @@
  * program.
  */
 
+#include "mega.h"
+
 using namespace mega;
 
 extern MegaClient* client;
@@ -87,9 +89,9 @@ struct DemoApp : public MegaApp
     FileAccess* newfile();
 
     void request_error(error) override;
-    
+
     void request_response_progress(m_off_t, m_off_t) override;
-    
+
     void prelogin_result(int version, string* email, string *salt, error e) override;
     void login_result(error) override;
     void multifactorauthdisable_result(error) override;
@@ -100,7 +102,7 @@ struct DemoApp : public MegaApp
     void ephemeral_result(handle, const byte*) override;
     void cancelsignup_result(error) override;
 
-    void whyamiblocked_result(error) override;
+    void whyamiblocked_result(int) override;
 
     void sendsignuplink_result(error) override;
     void querysignuplink_result(error) override;
@@ -249,6 +251,9 @@ struct DemoApp : public MegaApp
     void contactlinkquery_result(error, handle, string*, string*, string*, string*) override;
     void contactlinkdelete_result(error) override;
 
+    void smsverificationsend_result(error);
+    void smsverificationcheck_result(error, string*);
+
     void reload(const char*) override;
     void clearing() override;
 
@@ -264,3 +269,105 @@ struct DemoAppFolder : public DemoApp
     void users_updated(User**, int) {}
     void pcrs_updated(PendingContactRequest**, int) {}
 };
+
+#include <mega/autocomplete.h>
+
+void exec_apiurl(autocomplete::ACState& s);
+void exec_login(autocomplete::ACState& s);
+void exec_begin(autocomplete::ACState& s);
+void exec_signup(autocomplete::ACState& s);
+void exec_cancelsignup(autocomplete::ACState& s);
+void exec_confirm(autocomplete::ACState& s);
+void exec_session(autocomplete::ACState& s);
+void exec_mount(autocomplete::ACState& s);
+void exec_ls(autocomplete::ACState& s);
+void exec_cd(autocomplete::ACState& s);
+void exec_pwd(autocomplete::ACState& s);
+void exec_lcd(autocomplete::ACState& s);
+void exec_lls(autocomplete::ACState& s);
+void exec_lpwd(autocomplete::ACState& s);
+void exec_lmkdir(autocomplete::ACState& s);
+void exec_import(autocomplete::ACState& s);
+void exec_folderlinkinfo(autocomplete::ACState& s);
+void exec_open(autocomplete::ACState& s);
+void exec_put(autocomplete::ACState& s);
+void exec_putq(autocomplete::ACState& s);
+void exec_get(autocomplete::ACState& s);
+void exec_getq(autocomplete::ACState& s);
+void exec_pause(autocomplete::ACState& s);
+void exec_getfa(autocomplete::ACState& s);
+void exec_mediainfo(autocomplete::ACState& s);
+void exec_smsverify(autocomplete::ACState& s);
+void exec_verifiedphonenumber(autocomplete::ACState& s);
+void exec_mkdir(autocomplete::ACState& s);
+void exec_rm(autocomplete::ACState& s);
+void exec_mv(autocomplete::ACState& s);
+void exec_cp(autocomplete::ACState& s);
+void exec_du(autocomplete::ACState& s);
+void exec_sync(autocomplete::ACState& s);
+void exec_export(autocomplete::ACState& s);
+void exec_share(autocomplete::ACState& s);
+void exec_invite(autocomplete::ACState& s);
+void exec_clink(autocomplete::ACState& s);
+void exec_ipc(autocomplete::ACState& s);
+void exec_showpcr(autocomplete::ACState& s);
+void exec_users(autocomplete::ACState& s);
+void exec_getua(autocomplete::ACState& s);
+void exec_putua(autocomplete::ACState& s);
+void exec_delua(autocomplete::ACState& s);
+void exec_alerts(autocomplete::ACState& s);
+void exec_recentactions(autocomplete::ACState& s);
+void exec_recentnodes(autocomplete::ACState& s);
+void exec_putbps(autocomplete::ACState& s);
+void exec_killsession(autocomplete::ACState& s);
+void exec_whoami(autocomplete::ACState& s);
+void exec_passwd(autocomplete::ACState& s);
+void exec_reset(autocomplete::ACState& s);
+void exec_recover(autocomplete::ACState& s);
+void exec_cancel(autocomplete::ACState& s);
+void exec_email(autocomplete::ACState& s);
+void exec_retry(autocomplete::ACState& s);
+void exec_recon(autocomplete::ACState& s);
+void exec_reload(autocomplete::ACState& s);
+void exec_logout(autocomplete::ACState& s);
+void exec_locallogout(autocomplete::ACState& s);
+void exec_symlink(autocomplete::ACState& s);
+void exec_version(autocomplete::ACState& s);
+void exec_debug(autocomplete::ACState& s);
+void exec_clear(autocomplete::ACState& s);
+void exec_codepage(autocomplete::ACState& s);
+void exec_log(autocomplete::ACState& s);
+void exec_test(autocomplete::ACState& s);
+void exec_chats(autocomplete::ACState& s);
+void exec_chatc(autocomplete::ACState& s);
+void exec_chati(autocomplete::ACState& s);
+void exec_chatcp(autocomplete::ACState& s);
+void exec_chatr(autocomplete::ACState& s);
+void exec_chatu(autocomplete::ACState& s);
+void exec_chatup(autocomplete::ACState& s);
+void exec_chatpu(autocomplete::ACState& s);
+void exec_chatga(autocomplete::ACState& s);
+void exec_chatra(autocomplete::ACState& s);
+void exec_chatst(autocomplete::ACState& s);
+void exec_chata(autocomplete::ACState& s);
+void exec_chatl(autocomplete::ACState& s);
+void exec_chatsm(autocomplete::ACState& s);
+void exec_chatlu(autocomplete::ACState& s);
+void exec_chatlj(autocomplete::ACState& s);
+void exec_enabletransferresumption(autocomplete::ACState& s);
+void exec_setmaxdownloadspeed(autocomplete::ACState& s);
+void exec_setmaxuploadspeed(autocomplete::ACState& s);
+void exec_handles(autocomplete::ACState& s);
+void exec_httpsonly(autocomplete::ACState& s);
+void exec_mfac(autocomplete::ACState& s);
+void exec_mfae(autocomplete::ACState& s);
+void exec_mfad(autocomplete::ACState& s);
+void exec_autocomplete(autocomplete::ACState& s);
+void exec_history(autocomplete::ACState& s);
+void exec_help(autocomplete::ACState& s);
+void exec_quit(autocomplete::ACState& s);
+void exec_find(autocomplete::ACState& s);
+#ifdef USE_FILESYSTEM
+void exec_treecompare(autocomplete::ACState& s);
+void exec_querytransferquota(autocomplete::ACState& s);
+#endif
