@@ -14264,8 +14264,8 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
             {
                 string fingerprint = AuthRing::fingerprint(string((const char*)data, len), true);
                 request->setPassword(fingerprint.c_str());
+                break;
             }
-            break;
         }
         case MegaApi::USER_ATTR_CU25519_PUBLIC_KEY:
         case MegaApi::USER_ATTR_SIG_RSA_PUBLIC_KEY:
