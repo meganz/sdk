@@ -360,6 +360,19 @@ int FileFingerprint::unserializefingerprint(string* d)
     return 1;
 }
 
+size_t FileFingerprint::getHash() const
+{
+    assert(isvalid);
+    size_t value = 0;
+    hashCombine(value, size);
+    hashCombine(value, mtime);
+    forEach(crc, [&value](const int32_t val)
+                 {
+                     hashCombine(value, val);
+                 });
+    return value;
+}
+
 FileFingerprint& FileFingerprint::operator=(const FileFingerprint& other)
 {
     if (this != &other)

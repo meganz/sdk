@@ -647,6 +647,7 @@ add_executable(test_unit
     ${MegaDir}/tests/unit/Sync_test.cpp
     ${MegaDir}/tests/unit/utils.cpp
     ${MegaDir}/tests/unit/utils.h
+    ${MegaDir}/tests/unit/utils_test.cpp
 )
 
 add_executable(test_integration

@@ -1,7 +1,4 @@
 /**
- * @file tests/commands_test.cpp
- * @brief Mega SDK unit tests for commands
- *
  * (c) 2019 by Mega Limited, Wellsford, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
@@ -18,8 +15,6 @@
  * You should have received a copy of the license along with this
  * program.
  */
-
-// Note: The tests in this module are meant to be pure unit tests: Fast tests without I/O.
 
 #include <array>
 #include <memory>
@@ -494,4 +489,14 @@ TEST(FileFingerprint, genfingerprint_InputStreamAccess_forLargeFile_butReadFails
     const std::array<int32_t, 4> expected = {0, 0, 0, 0};
     ASSERT_EQ(expected, toArr(ffp.crc));
     ASSERT_EQ(false, ffp.isvalid);
+}
+
+TEST(FileFingerprint, getHash)
+{
+    mega::FileFingerprint ffp;
+    ffp.size = 1;
+    ffp.mtime = 2;
+    std::iota(ffp.crc, ffp.crc +  sizeof(ffp.crc) / sizeof(*ffp.crc), 3);
+    ffp.isvalid = true;
+    ASSERT_EQ(3005401618104503162u, ffp.getHash());
 }

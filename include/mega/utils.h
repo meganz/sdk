@@ -408,6 +408,119 @@ struct CacheableReader
     void eraseused(string& d); // must be the same string, unchanged
 };
 
+template<typename T>
+void hashCombine(size_t& seed, const T& v)
+{
+    // Taken from Boost's hash combine function
+    seed ^= std::hash<T>{}(v) + 0x9e3779b9 + (seed<<6) + (seed>>2);
+}
+
+/////// Following are a few helpers that are required for compile-time `forEach` further down
+
+template<std::size_t...>
+struct Indices
+{};
+
+template<std::size_t...>
+struct ConstructRange;
+
+template<std::size_t end, std::size_t idx, std::size_t... i>
+struct ConstructRange<end, idx, i...> : ConstructRange<end, idx + 1, i..., idx>
+{};
+
+template<std::size_t end, std::size_t... i>
+struct ConstructRange<end, end, i...>
+{
+    using type = Indices<i...>;
+};
+
+template<std::size_t b, std::size_t e>
+struct IndexRange
+{
+    using type = typename ConstructRange<e, b>::type;
+};
+
+template<size_t index, typename Container>
+struct CallAtIndex
+{
+    template<typename C, typename F>
+    void operator()(C&& container, F&& functor) const
+    {
+        std::forward<F>(functor)(std::forward<C>(container)[index]);
+    }
+};
+
+template<size_t index, typename... ValueTypes>
+struct CallAtIndex<index, std::tuple<ValueTypes...>>
+{
+    template<typename C, typename F>
+    void operator()(C&& container, F&& functor) const
+    {
+        std::forward<F>(functor)(std::get<index>(std::forward<C>(container)));
+    }
+};
+
+template<typename Container, typename Functor>
+void forEachIndex(Indices<>, Container&&, Functor&&)
+{}
+
+template<std::size_t i, std::size_t... j, typename Container, typename Functor>
+void forEachIndex(Indices<i, j...>, Container&& container, Functor&& functor)
+{
+    CallAtIndex<i, typename std::decay<Container>::type>{}(std::forward<Container>(container), std::forward<Functor>(functor));
+    forEachIndex(Indices<j...>{}, std::forward<Container>(container), std::forward<Functor>(functor));
+}
+
+/////// forEach over a std::tuple, unrolled at compile time
+
+template<typename... ValueTypes, typename Functor>
+void forEach(const std::tuple<ValueTypes...>& tup, Functor&& functor)
+{
+    constexpr auto size = std::tuple_size<std::tuple<ValueTypes...>>::value;
+    using IndexType = typename IndexRange<0, size>::type;
+    forEachIndex(IndexType{}, tup, std::forward<Functor>(functor));
+}
+
+template<typename... ValueTypes, typename Functor>
+void forEach(std::tuple<ValueTypes...>& tup, Functor&& functor)
+{
+    constexpr auto size = std::tuple_size<std::tuple<ValueTypes...>>::value;
+    using IndexType = typename IndexRange<0, size>::type;
+    forEachIndex(IndexType{}, tup, std::forward<Functor>(functor));
+}
+
+/////// forEach over a std::array, unrolled at compile time
+
+template<typename ValueType, std::size_t size, typename Functor>
+void forEach(const std::array<ValueType, size>& arr, Functor&& functor)
+{
+    using IndexType = typename IndexRange<0, size>::type;
+    forEachIndex(IndexType{}, arr, std::forward<Functor>(functor));
+}
+
+template<typename ValueType, std::size_t size, typename Functor>
+void forEach(std::array<ValueType, size>& arr, Functor&& functor)
+{
+    using IndexType = typename IndexRange<0, size>::type;
+    forEachIndex(IndexType{}, arr, std::forward<Functor>(functor));
+}
+
+/////// forEach over a C-Style array, unrolled at compile time
+
+template<typename ValueType, std::size_t size, typename Functor>
+void forEach(const ValueType (&arr)[size], Functor&& functor)
+{
+    using IndexType = typename IndexRange<0, size>::type;
+    forEachIndex(IndexType{}, arr, std::forward<Functor>(functor));
+}
+
+template<typename ValueType, std::size_t size, typename Functor>
+void forEach(ValueType (&arr)[size], Functor&& functor)
+{
+    using IndexType = typename IndexRange<0, size>::type;
+    forEachIndex(IndexType{}, arr, std::forward<Functor>(functor));
+}
+
 } // namespace
 
 #endif
