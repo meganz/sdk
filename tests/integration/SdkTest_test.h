@@ -66,9 +66,9 @@ protected:
 
 struct TransferTracker : public ::mega::MegaTransferListener
 {
-    std::atomic<bool> started = {false};
-    std::atomic<bool> finished = false;
-    std::atomic<int> result = INT_MAX;
+    std::atomic<bool> started = { false };
+    std::atomic<bool> finished = { false };
+    std::atomic<int> result = { INT_MAX };
     std::promise<int> promiseResult;
     void onTransferStart(MegaApi *api, MegaTransfer *transfer) override
     {
@@ -88,9 +88,9 @@ struct TransferTracker : public ::mega::MegaTransferListener
 
 struct RequestTracker : public ::mega::MegaRequestListener
 {
-    std::atomic<bool> started = false;
-    std::atomic<bool> finished = false;
-    std::atomic<int> result = INT_MAX;
+    std::atomic<bool> started = { false };
+    std::atomic<bool> finished = { false };
+    std::atomic<int> result = { INT_MAX };
     std::promise<int> promiseResult;
     void onRequestStart(MegaApi* api, MegaRequest *request) override
     {
