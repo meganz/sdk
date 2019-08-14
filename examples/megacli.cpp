@@ -3343,7 +3343,7 @@ void exec_du(autocomplete::ACState& s)
         }
         for (auto& v : values)
         {
-            if (breakdown)  cout << v.first->nodehandle << endl;
+            if (breakdown)  cout << Base64Str<MegaClient::NODEHANDLE>(v.first->nodehandle) << endl;
             cout << "files: " << v.second.filecount << " file bytes: " << v.second.filebytes << endl;
             cout << "versions: " << v.second.fileversioncount << " version bytes: " << v.second.fileversionbytes << endl;
             cout << "folders: " << v.second.foldercount << endl;
@@ -3372,7 +3372,7 @@ void exec_du(autocomplete::ACState& s)
     {
         client->proctree(n, &du);
 
-        cout << "Total storage used: " << (du.numbytes / 1048576) << " MB" << endl;
+        cout << "Total storage used: " << (du.numbytes / 1048576) << " MB (" << du.numbytes << ")" << endl;
         cout << "Total # of files: " << du.numfiles << endl;
         cout << "Total # of folders: " << du.numfolders << endl;
     }
