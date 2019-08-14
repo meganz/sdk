@@ -66,7 +66,7 @@ protected:
 
 struct TransferTracker : public ::mega::MegaTransferListener
 {
-    std::atomic<bool> started = false;
+    std::atomic<bool> started = {false};
     std::atomic<bool> finished = false;
     std::atomic<int> result = INT_MAX;
     std::promise<int> promiseResult;
