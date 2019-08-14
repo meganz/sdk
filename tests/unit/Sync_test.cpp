@@ -359,6 +359,7 @@ TEST(Sync, assignFilesystemIds_whenNoLocalNodesMatchFilesystemFingerprints)
     ASSERT_TRUE(success);
 
     // assert that files and directores have invalid fs IDs (no fingerprint matches)
+    ASSERT_EQ(mega::UNDEF, ld.fsid);
     ASSERT_EQ(mega::UNDEF, ld_0->fsid);
     ASSERT_EQ(mega::UNDEF, ld_1->fsid);
     ASSERT_EQ(mega::UNDEF, ld_1_1->fsid);
@@ -633,7 +634,7 @@ TEST(Sync, assignFilesystemIds_preferredPathMatchAssignsFinalFsId)
 
     ASSERT_TRUE(success);
 
-    // assert that directores have invalid fs IDs
+    // assert that directories have correct fs IDs
     ASSERT_EQ(mega::UNDEF, ld.fsid);
 
     // assert that all file `LocalNode`s have same fs IDs as the corresponding `FsNode`s
