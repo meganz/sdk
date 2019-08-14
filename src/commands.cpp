@@ -3043,11 +3043,10 @@ void CommandGetUA::procresult()
                             }
 
                             delete tlvRecords;
-                        }
                             break;
-
+                        }
                         case '+':   // public
-
+                        {
                             u->setattr(at, &value, &version);
                             client->app->getua_result((byte*) value.data(), unsigned(value.size()), at);
 
@@ -3068,15 +3067,15 @@ void CommandGetUA::procresult()
                                 }
                             }
                             break;
-
+                        }
                         case '#':   // protected
-
+                        {
                             u->setattr(at, &value, &version);
                             client->app->getua_result((byte*) value.data(), unsigned(value.size()), at);
                             break;
-
+                        }
                         case '^': // private, non-encrypted
-
+                        {
                             // store the value in cache in binary format
                             u->setattr(at, &value, &version);
                             client->app->getua_result((byte*) value.data(), unsigned(value.size()), at);
@@ -3094,8 +3093,9 @@ void CommandGetUA::procresult()
                                 }
                             }
                             break;
-
+                        }
                         default:    // legacy attributes or unknown attribute
+                        {
                             if (at != ATTR_FIRSTNAME &&           // protected
                                     at != ATTR_LASTNAME &&        // protected
                                     at != ATTR_COUNTRY  &&        // private
@@ -3111,14 +3111,16 @@ void CommandGetUA::procresult()
                             u->setattr(at, &value, &version);
                             client->app->getua_result((byte*) value.data(), unsigned(value.size()), at);
                             break;
-                    }
+                        }
+
+                    }   // switch (scope)
 
                     u->setTag(tag ? tag : -1);
                     client->notifyuser(u);
                     return;
                 }
-
                 default:
+                {
                     if (!client->json.storeobject())
                     {
                         LOG_err << "Error in CommandGetUA. Parse error";
@@ -3129,7 +3131,9 @@ void CommandGetUA::procresult()
                         }
                         return;
                     }
-            }
+                }
+
+            }   // switch (nameid)
         }
     }
 }

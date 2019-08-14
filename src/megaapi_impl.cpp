@@ -14271,13 +14271,13 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
         case MegaApi::USER_ATTR_SIG_RSA_PUBLIC_KEY:
         case MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY:
         default:
-            {
-                string str;
-                str.resize(len * 4 / 3 + 4);
-                str.resize(Base64::btoa(data, len, (char*)str.data()));
-                request->setText(str.c_str());
-            }
-            break;
+        {
+            string str;
+            str.resize(len * 4 / 3 + 4);
+            str.resize(Base64::btoa(data, len, (char*)str.data()));
+            request->setText(str.c_str());
+        }
+        break;
     }
 
     delete pushSettings;

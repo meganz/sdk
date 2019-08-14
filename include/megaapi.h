@@ -8119,7 +8119,7 @@ class MegaApi
          *
          * This function allow to tag credentials of a user as verified. It should be called when the
          * logged in user compares the fingerprint of the user (provided by an independent and secure
-         * method) with the fingerprint shown by the app (@see MegaApi::getUserFingerprint).
+         * method) with the fingerprint shown by the app (@see MegaApi::getUserCredentials).
          *
          * The associated request type with this request is MegaRequest::TYPE_VERIFY_CREDENTIALS
          * Valid data in the MegaRequest object received on callbacks:

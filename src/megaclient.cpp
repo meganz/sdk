@@ -10988,6 +10988,7 @@ void MegaClient::loadAuthrings()
                 if (tlvRecords)
                 {
                     mAuthRings.emplace(at, AuthRing(at, *tlvRecords));
+                    LOG_info << "Authring succesfully loaded: " << User::attr2string(at);
                 }
                 else
                 {
@@ -11007,12 +11008,6 @@ void MegaClient::loadAuthrings()
         }
 
         getua(ownUser, at, 0);
-    }
-
-    if (mAuthRings.size() == attrs.size())
-    {
-        LOG_info << "Authrings succesfully loaded";
-        mAuthRingsLoaded = true;
     }
 }
 
