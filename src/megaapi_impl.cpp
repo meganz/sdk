@@ -2739,10 +2739,10 @@ void MegaTransferPrivate::setListener(MegaTransferListener *listener)
     this->listener = listener;
 }
 
-void MegaTransferPrivate::startRecursiveOperation(MegaRecursiveOperation* op, MegaNode* node)
+void MegaTransferPrivate::startRecursiveOperation(unique_ptr<MegaRecursiveOperation> op, MegaNode* node)
 {
     assert(op && !recursiveOperation);
-    recursiveOperation.reset(op);
+    recursiveOperation = move(op);
     recursiveOperation->start(node);
 }
 
@@ -17325,7 +17325,7 @@ void MegaApiImpl::sendPendingTransfers()
                 {
                     transferMap[nextTag] = transfer;
                     transfer->setTag(nextTag);
-                    transfer->startRecursiveOperation(new MegaFolderUploadController(this, transfer), nullptr);
+                    transfer->startRecursiveOperation(make_unique<MegaFolderUploadController>(this, transfer), nullptr);
                 }
                 break;
             }
@@ -17360,7 +17360,7 @@ void MegaApiImpl::sendPendingTransfers()
                     // Folder download
                     transferMap[nextTag] = transfer;
                     transfer->setTag(nextTag);
-                    transfer->startRecursiveOperation(new MegaFolderDownloadController(this, transfer), publicNode);
+                    transfer->startRecursiveOperation(make_unique<MegaFolderDownloadController>(this, transfer), publicNode);
                     break;
                 }
 

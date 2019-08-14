@@ -704,7 +704,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         virtual bool serialize(string*);
         static MegaTransferPrivate* unserialize(string*);
 
-        void startRecursiveOperation(MegaRecursiveOperation*, MegaNode* node); // takes ownership of both
+        void startRecursiveOperation(unique_ptr<MegaRecursiveOperation>, MegaNode* node); // takes ownership of both
 
     protected:
         int type;
@@ -747,7 +747,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         MegaError lastError;
         int folderTransferTag;
         const char* appData;
-        std::unique_ptr<MegaRecursiveOperation> recursiveOperation;
+        unique_ptr<MegaRecursiveOperation> recursiveOperation;
 };
 
 class MegaTransferDataPrivate : public MegaTransferData
