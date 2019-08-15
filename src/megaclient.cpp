@@ -2717,7 +2717,10 @@ void MegaClient::exec()
     {
         sum += nc.second;
     }
-    assert(sum.storage == mFingerprints.getSumSizes());
+    if (sum.storage != mFingerprints.getSumSizes())
+    {
+        LOG_warn << "storage sum : " << sum.storage << " mismatch wtih fingerprint size sum: " << mFingerprints.getSumSizes();
+    }
 #endif
 }
 
@@ -4063,10 +4066,12 @@ bool MegaClient::procsc()
 #endif
 
                                 // node addition
-                                useralerts.beginNotingSharedNodes();
-                                sc_newnodes();
-                                mergenewshares(1);
-                                useralerts.convertNotedSharedNodes(true);
+                                {
+                                    useralerts.beginNotingSharedNodes();
+                                    handle actinguser = sc_newnodes();
+                                    mergenewshares(1);
+                                    useralerts.convertNotedSharedNodes(true, actinguser);
+                                }
 
 #ifdef ENABLE_SYNC
                                 if (!fetchingnodes)
@@ -4846,8 +4851,9 @@ void MegaClient::readtree(JSON* j)
 }
 
 // server-client newnodes processing
-void MegaClient::sc_newnodes()
+handle MegaClient::sc_newnodes()
 {
+    handle actinguser = UNDEF;
     for (;;)
     {
         switch (jsonsc.getnameid())
@@ -4861,12 +4867,12 @@ void MegaClient::sc_newnodes()
                 break;
 
             case EOO:
-                return;
+                return actinguser;
 
             default:
                 if (!jsonsc.storeobject())
                 {
-                    return;
+                    return actinguser;
                 }
         }
     }
@@ -6501,6 +6507,7 @@ Node* MegaClient::nodebyhandle(handle h)
 Node* MegaClient::sc_deltree()
 {
     Node* n = NULL;
+    handle actinguser = UNDEF;
 
     for (;;)
     {
@@ -6515,6 +6522,10 @@ Node* MegaClient::sc_deltree()
                 }
                 break;
 
+            case 'ou':
+                actinguser = jsonsc.gethandle(USERHANDLE);
+                break;
+
             case EOO:
                 if (n)
                 {
@@ -6526,7 +6537,7 @@ Node* MegaClient::sc_deltree()
                     proctree(n, &td);
                     reqtag = creqtag;
                     
-                    useralerts.convertNotedSharedNodes(false);
+                    useralerts.convertNotedSharedNodes(false, actinguser);
                 }
                 return n;
 
