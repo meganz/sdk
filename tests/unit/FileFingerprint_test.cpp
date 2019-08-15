@@ -498,5 +498,6 @@ TEST(FileFingerprint, getHash)
     ffp.mtime = 2;
     std::iota(ffp.crc, ffp.crc +  sizeof(ffp.crc) / sizeof(*ffp.crc), 3);
     ffp.isvalid = true;
-    ASSERT_EQ(3005401618104503162u, ffp.getHash());
+    const auto hash = ffp.getHash();
+    ASSERT_EQ(sizeof(hash) == 4 ? 2056764164u : 3005401618104503162u, hash);
 }

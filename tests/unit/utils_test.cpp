@@ -27,21 +27,21 @@ TEST(utils, hashCombine_integer)
 {
     size_t hash = 0;
     mega::hashCombine(hash, 42);
-    ASSERT_EQ(2654435811u, hash);
+    ASSERT_EQ(sizeof(hash) == 4 ? 286246808u : 2654435811u, hash);
 }
 
 TEST(utils, hashCombine_double)
 {
     size_t hash = 2654435811;
     mega::hashCombine(hash, 42.);
-    ASSERT_EQ(3535062602150868519u, hash);
+    ASSERT_EQ(sizeof(hash) == 4 ? 1814078634u : 3535062602150868519u, hash);
 }
 
 TEST(utils, hashCombine_string)
 {
     size_t hash = 3535062434184345740;
     mega::hashCombine(hash, std::string{"42"});
-    ASSERT_EQ(14653466847519894273u, hash);
+    ASSERT_EQ(sizeof(hash) == 4 ? 2424531155u : 14653466847519894273u, hash);
 }
 
 TEST(utils, forEach_tuple_const)
