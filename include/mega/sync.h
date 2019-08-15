@@ -33,6 +33,11 @@ bool isPathSyncable(const string& localpath, const string& localdebris, const st
 // Invalidates the fs IDs of all local nodes below `l` and removes them from `fsidnodes`.
 void invalidateFilesystemIds(handlelocalnode_map& fsidnodes, LocalNode& l, size_t& count);
 
+// Searching from the back, this function compares path1 and path2 character by character and
+// returns the number of consecutive character matches but only including whole node names.
+// It's assumed that the paths are normalized and separated with the given `localseparator`.
+int computeReversePathMatchScore(const string& path1, const string& path2, const string& localseparator);
+
 // Recursively iterates through the filesystem tree starting at the sync root and assigns
 // fs IDs to those local nodes that match the fingerprint retrieved from disk.
 bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, handlelocalnode_map& fsidnodes,

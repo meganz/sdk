@@ -41,9 +41,8 @@ const dstime Sync::RECENT_VERSION_INTERVAL_SECS = 10800;
 namespace {
 
 // Collects all syncable filesystem paths in the given folder under `localpath`
-set<string> collectAllPathsInFolder(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess,
-                                              string localpath, const string& localdebris,
-                                              const string& localseparator, const bool followsymlinks)
+set<string> collectAllPathsInFolder(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, string localpath,
+                                    const string& localseparator, const bool followsymlinks)
 {
     auto fa = std::unique_ptr<FileAccess>{fsaccess.newfileaccess()};
     if (!fa->fopen(&localpath, true, false))
@@ -80,11 +79,7 @@ set<string> collectAllPathsInFolder(Sync& sync, MegaApp& app, FileSystemAccess& 
         // check if this record is to be ignored
         if (app.sync_syncable(&sync, name.c_str(), &localpath))
         {
-            // skip the sync's debris folder
-            if (isPathSyncable(localpath, localdebris, localseparator))
-            {
-                paths.insert(localpath);
-            }
+            paths.insert(localpath);
         }
 
         localpath.resize(localpathSize);
@@ -254,10 +249,10 @@ void collectAllFingerprints(FingerprintMap& fingerprints, LocalNode& l)
 }
 
 // Assigns `fa`'s fs ID to the local node from `fingerprints` that matches the fingerprint.
-// If there are multiple matches the node at the given preferred path is used.
-void assignFilesystemId(FileSystemAccess& fsaccess, FileAccess& fa,
-                        handlelocalnode_map& fsidnodes, FingerprintMap& fingerprints,
-                        string preferredNodePath, const string& localseparator, const set<string>& paths = {})
+// If there are multiple matches the node that's best matching the given preferred path is used.
+void assignFilesystemId(FileSystemAccess& fsaccess, FileAccess& fa, handlelocalnode_map& fsidnodes,
+                        FingerprintMap& fingerprints, string preferredNodePath, const string& localdebris,
+                        const string& localseparator, const set<string>& paths = {})
 {
     if (!fa.fsidvalid)
     {
@@ -285,42 +280,38 @@ void assignFilesystemId(FileSystemAccess& fsaccess, FileAccess& fa,
     }
     else
     {
-        // We're assigning `fa.fsid` to the node that is the best match to `preferredNodePath`
-        auto bestNodeIt = nodeRange.first;
+        const auto inDebris = preferredNodePath.find(localdebris) != string::npos;
+
+        // We're assigning `fa.fsid` to the node that is the best match to `preferredNodePath`.
+        // If `preferredNodePath` is in debris we're only assigning to a node that's also in debris.
+        FingerprintMap::iterator bestNodeIt;
         int bestScore = -1;
 
         for (auto nodeIt = nodeRange.first; nodeIt != nodeRange.second; ++nodeIt)
         {
             string nodePath;
             nodeIt->second->getlocalpath(&nodePath, false, &localseparator);
+            assert(!nodePath.empty());
 
-            if (nodePath.empty())
+            if (inDebris && nodePath.find(localdebris) == string::npos)
             {
                 continue;
             }
 
-            const auto preferredPathEnd = static_cast<int>(preferredNodePath.size() - 1);
-            const auto pathEnd = static_cast<int>(nodePath.size() - 1);
+            const auto score = computeReversePathMatchScore(preferredNodePath, nodePath, localseparator);
 
-            int index = 0;
-            while (index <= preferredPathEnd && index <= pathEnd)
+            if (score > bestScore)
             {
-                if (preferredNodePath[preferredPathEnd - index] != nodePath[pathEnd - index])
-                {
-                    break;
-                }
-                ++index;
-            }
-
-            if (index > bestScore)
-            {
-                bestScore = index;
+                bestScore = score;
                 bestNodeIt = nodeIt;
             }
         }
 
-        bestNodeIt->second->setfsid(fsId, fsidnodes);
-        fingerprints.erase(bestNodeIt);
+        if (bestScore > -1)
+        {
+            bestNodeIt->second->setfsid(fsId, fsidnodes);
+            fingerprints.erase(bestNodeIt);
+        }
     }
 }
 
@@ -338,18 +329,17 @@ void assignFilesystemIdsImpl(bool& success, Sync& sync, MegaApp& app, handleloca
 
     if (fa->type == FILENODE)
     {
-        assignFilesystemId(fsaccess, *fa, fsidnodes, fingerprints, localpath, localseparator);
+        assignFilesystemId(fsaccess, *fa, fsidnodes, fingerprints, localpath, localdebris, localseparator);
     }
     else if (fa->type == FOLDERNODE)
     {
-        const auto paths = collectAllPathsInFolder(sync, app, fsaccess, localpath,
-                                                   localdebris, localseparator, followsymlinks);
-        assignFilesystemId(fsaccess, *fa, fsidnodes, fingerprints, localpath, localseparator, paths);
+        const auto paths = collectAllPathsInFolder(sync, app, fsaccess, localpath, localseparator, followsymlinks);
+        assignFilesystemId(fsaccess, *fa, fsidnodes, fingerprints, localpath, localdebris, localseparator, paths);
         fa.reset();
         for (const auto& path : paths)
         {
-            assignFilesystemIdsImpl(success, sync, app, fsidnodes, fsaccess, path, localdebris,
-                                    localseparator, followsymlinks, fingerprints);
+            assignFilesystemIdsImpl(success, sync, app, fsidnodes, fsaccess, path,
+                                    localdebris, localseparator, followsymlinks, fingerprints);
         }
     }
     else
@@ -388,6 +378,50 @@ void invalidateFilesystemIds(handlelocalnode_map& fsidnodes, LocalNode& l, size_
     for (auto& childPair : l.children)
     {
         invalidateFilesystemIds(fsidnodes, *childPair.second, count);
+    }
+}
+
+int computeReversePathMatchScore(const string& path1, const string& path2, const string& localseparator)
+{
+    assert(localseparator.size() == 1);
+
+    if (path1.empty() || path2.empty())
+    {
+        return 0;
+    }
+
+    const auto separator = localseparator.front();
+    const auto path1End = static_cast<int>(path1.size() - 1);
+    const auto path2End = static_cast<int>(path2.size() - 1);
+
+    int index = 0;
+    int countSinceSeparator = 0;
+    while (index <= path1End && index <= path2End)
+    {
+        const auto value1 = path1[path1End - index];
+        const auto value2 = path2[path2End - index];
+        if (value1 != value2)
+        {
+            break;
+        }
+        if (value1 == separator)
+        {
+            countSinceSeparator = 0;
+        }
+        else
+        {
+            ++countSinceSeparator;
+        }
+        ++index;
+    }
+
+    if (index > path1End && index > path2End) // we got to the beginning of both paths (full score)
+    {
+        return index;
+    }
+    else // the paths only partly match
+    {
+        return index - countSinceSeparator;
     }
 }
 
