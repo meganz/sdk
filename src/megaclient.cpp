@@ -9207,10 +9207,9 @@ void MegaClient::procsnk(JSON* j)
                 if (n && n->isbelow(sn))
                 {
                     byte keybuf[FILENODEKEYLENGTH];
-
-                    sn->sharekey->ecb_encrypt((byte*)n->nodekey.data(), keybuf, n->nodekey.size());
-
-                    reqs.add(new CommandSingleKeyCR(sh, nh, keybuf, n->nodekey.size()));
+                    size_t keysize = n->nodekey.size();
+                    sn->sharekey->ecb_encrypt((byte*)n->nodekey.data(), keybuf, keysize);
+                    reqs.add(new CommandSingleKeyCR(sh, nh, keybuf, keysize));
                 }
             }
 
@@ -9674,8 +9673,8 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
                 else
                 {
                     n->applykey();
-                    if (sn->sharekey && n->nodekey.size() ==
-                            (unsigned)((n->type == FILENODE) ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH))
+                    int keysize = int(n->nodekey.size());
+                    if (sn->sharekey && keysize == (n->type == FILENODE ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH))
                     {
                         unsigned nsi, nni;
 
@@ -9685,8 +9684,8 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
                         sprintf(buf, "\",%u,%u,\"", nsi, nni);
 
                         // generate & queue share nodekey
-                        sn->sharekey->ecb_encrypt((byte*)n->nodekey.data(), keybuf, n->nodekey.size());
-                        Base64::btoa(keybuf, int(n->nodekey.size()), strchr(buf + 7, 0));
+                        sn->sharekey->ecb_encrypt((byte*)n->nodekey.data(), keybuf, size_t(keysize));
+                        Base64::btoa(keybuf, keysize, strchr(buf + 7, 0));
                         crkeys.append(buf);
                     }
                     else
