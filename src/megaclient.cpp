@@ -11431,7 +11431,7 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
                 }
                 else
                 {
-                    LOG_warn << "Failed to assign fs IDs for filesystem with unstable IDs";
+                    LOG_warn << "Failed to assign some fs IDs for filesystem with unstable IDs";
                 }
             }
 

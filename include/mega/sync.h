@@ -31,7 +31,7 @@ namespace mega {
 bool isPathSyncable(const string& localpath, const string& localdebris, const string& localseparator);
 
 // Invalidates the fs IDs of all local nodes below `l` and removes them from `fsidnodes`.
-void invalidateFilesystemIds(handlelocalnode_map& fsidnodes, LocalNode& l);
+void invalidateFilesystemIds(handlelocalnode_map& fsidnodes, LocalNode& l, size_t& count);
 
 // Recursively iterates through the filesystem tree starting at the sync root and assigns
 // fs IDs to those local nodes that match the fingerprint retrieved from disk.

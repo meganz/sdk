@@ -247,8 +247,10 @@ TEST(Sync, invalidateFilesystemIds)
     auto d_0 = mt::makeLocalNode(*fx.mSync, d, fx.mLocalNodes, mega::FOLDERNODE, "d_0");
     auto f_0 = mt::makeLocalNode(*fx.mSync, d, fx.mLocalNodes, mega::FILENODE, "f_0");
 
-    mega::invalidateFilesystemIds(fx.mLocalNodes, d);
+    size_t count = 0;
+    mega::invalidateFilesystemIds(fx.mLocalNodes, d, count);
 
+    ASSERT_EQ(3, count);
     ASSERT_TRUE(fx.mLocalNodes.empty());
     ASSERT_EQ(fx.mLocalNodes.end(), d.fsid_it);
     ASSERT_EQ(fx.mLocalNodes.end(), d_0->fsid_it);
@@ -294,7 +296,7 @@ TEST(Sync, assignFilesystemIds_whenFilesystemFingerprintsMatchLocalNodes)
 
     ASSERT_TRUE(success);
 
-    // assert that directores have correct fs IDs
+    // assert that directories have correct fs IDs
     ASSERT_EQ(d.getFsId(), ld.fsid);
     ASSERT_EQ(d_0.getFsId(), ld_0->fsid);
     ASSERT_EQ(d_1.getFsId(), ld_1->fsid);
@@ -358,7 +360,7 @@ TEST(Sync, assignFilesystemIds_whenNoLocalNodesMatchFilesystemFingerprints)
 
     ASSERT_TRUE(success);
 
-    // assert that files and directores have invalid fs IDs (no fingerprint matches)
+    // assert that files and directories have invalid fs IDs (no fingerprint matches)
     ASSERT_EQ(mega::UNDEF, ld.fsid);
     ASSERT_EQ(mega::UNDEF, ld_0->fsid);
     ASSERT_EQ(mega::UNDEF, ld_1->fsid);
@@ -407,7 +409,7 @@ TEST(Sync, assignFilesystemIds_whenTwoLocalNodesHaveSameFingerprint)
 
     ASSERT_TRUE(success);
 
-    // assert that directores have correct fs IDs
+    // assert that directories have correct fs IDs
     ASSERT_EQ(d.getFsId(), ld.fsid);
     ASSERT_EQ(d_0.getFsId(), ld_0->fsid);
     ASSERT_EQ(d_1.getFsId(), ld_1->fsid);
@@ -452,7 +454,20 @@ TEST(Sync, assignFilesystemIds_whenSomeFsIdIsNotValid)
 
     const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, fx.mSync->localdebris, "/", true);
 
-    ASSERT_FALSE(success);
+    ASSERT_TRUE(success);
+
+    // assert that directories have correct fs IDs
+    ASSERT_EQ(d.getFsId(), ld.fsid);
+
+    // file node must have undef fs ID
+    ASSERT_EQ(mega::UNDEF, lf_0->fsid);
+
+    // assert that the local node map is correct
+    constexpr std::size_t fileCount = 1;
+    ASSERT_EQ(fileCount, fx.mLocalNodes.size());
+
+    ASSERT_TRUE(fx.iteratorsCorrect(ld));
+    ASSERT_FALSE(fx.iteratorsCorrect(*lf_0));
 }
 
 TEST(Sync, assignFilesystemIds_whenSomeFileCannotBeOpened)
@@ -514,7 +529,22 @@ TEST(Sync, assignFilesystemIds_whenSubDirCannotBeOpened)
 
     const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, fx.mSync->localdebris, "/", true);
 
-    ASSERT_FALSE(success);
+    ASSERT_TRUE(success);
+
+    // assert that directories have invalid fs IDs
+    ASSERT_EQ(mega::UNDEF, ld.fsid);
+    ASSERT_EQ(mega::UNDEF, ld_0->fsid);
+
+    // check file nodes
+    ASSERT_EQ(f_0.getFsId(), lf_0->fsid);
+
+    // assert that the local node map is correct
+    constexpr std::size_t fileCount = 1;
+    ASSERT_EQ(fileCount, fx.mLocalNodes.size());
+
+    ASSERT_FALSE(fx.iteratorsCorrect(ld));
+    ASSERT_TRUE(fx.iteratorsCorrect(*lf_0));
+    ASSERT_FALSE(fx.iteratorsCorrect(*ld_0));
 }
 
 TEST(Sync, assignFilesystemIds_whenSomeFingerprintIsNotValid)
@@ -534,7 +564,15 @@ TEST(Sync, assignFilesystemIds_whenSomeFingerprintIsNotValid)
 
     const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, fx.mSync->localdebris, "/", true);
 
-    ASSERT_FALSE(success);
+    ASSERT_TRUE(success);
+
+    // all invalid
+    ASSERT_EQ(mega::UNDEF, ld.fsid);
+    ASSERT_EQ(mega::UNDEF, lf_0->fsid);
+
+    // assert that the local node map is correct
+    constexpr std::size_t fileCount = 0;
+    ASSERT_EQ(fileCount, fx.mLocalNodes.size());
 }
 
 TEST(Sync, assignFilesystemIds_whenPathIsNotSyncableThroughApp)
@@ -591,7 +629,7 @@ TEST(Sync, assignFilesystemIds_whenDebrisIsPartOfFiles)
 
     ASSERT_TRUE(success);
 
-    // assert that directores have correct fs IDs
+    // assert that directories have correct fs IDs
     ASSERT_EQ(d.getFsId(), ld.fsid);
     ASSERT_EQ(mega::UNDEF, ld_1->fsid); // debris
 
@@ -673,8 +711,8 @@ TEST(Sync, assignFilesystemIds_whenFolderWasMoved)
 
     ASSERT_TRUE(success);
 
-    // assert that directores have correct fs IDs
-    ASSERT_EQ(d.getFsId(), ld.fsid);
+    // assert that directories have correct fs IDs
+    ASSERT_EQ(mega::UNDEF, ld.fsid);
     ASSERT_EQ(d_0_renamed.getFsId(), ld_0->fsid);
 
     // assert that all file `LocalNode`s have same fs IDs as the corresponding `FsNode`s
@@ -682,10 +720,10 @@ TEST(Sync, assignFilesystemIds_whenFolderWasMoved)
     ASSERT_EQ(f_0_1.getFsId(), lf_0_1->fsid);
 
     // assert that the local node map is correct
-    constexpr std::size_t fileCount = 4;
+    constexpr std::size_t fileCount = 3;
     ASSERT_EQ(fileCount, fx.mLocalNodes.size());
 
-    ASSERT_TRUE(fx.iteratorsCorrect(ld));
+    ASSERT_FALSE(fx.iteratorsCorrect(ld));
     ASSERT_TRUE(fx.iteratorsCorrect(*ld_0));
     ASSERT_TRUE(fx.iteratorsCorrect(*lf_0_0));
     ASSERT_TRUE(fx.iteratorsCorrect(*lf_0_1));
