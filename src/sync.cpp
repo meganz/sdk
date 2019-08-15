@@ -269,36 +269,59 @@ void assignFilesystemId(FileSystemAccess& fsaccess, FileAccess& fa,
     Fingerprint fp{fsaccess, fa, paths};
     if (!fp.getIsValid())
     {
-        LOG_err << "Invalid fingerprint: " << preferredNodePath;
         return;
     }
 
     const auto nodeRange = fingerprints.equal_range(fp);
     const auto nodeCount = std::distance(nodeRange.first, nodeRange.second);
-    if (nodeCount == 0)
+    if (nodeCount <= 0)
     {
         return;
     }
-
-    if (nodeCount > 1)
+    else if (nodeCount == 1)
     {
-        // We're assigning `fa.fsid` to the node that matches the `preferredNodePath` passed in.
-        // If there's no match we simply assign to the first node in range.
+        nodeRange.first->second->setfsid(fsId, fsidnodes);
+        fingerprints.erase(nodeRange.first);
+    }
+    else
+    {
+        // We're assigning `fa.fsid` to the node that is the best match to `preferredNodePath`
+        auto bestNodeIt = nodeRange.first;
+        int bestScore = -1;
+
         for (auto nodeIt = nodeRange.first; nodeIt != nodeRange.second; ++nodeIt)
         {
             string nodePath;
             nodeIt->second->getlocalpath(&nodePath, false, &localseparator);
-            if (nodePath == preferredNodePath)
+
+            if (nodePath.empty())
             {
-                nodeIt->second->setfsid(fsId, fsidnodes);
-                fingerprints.erase(nodeIt);
-                return;
+                continue;
+            }
+
+            const auto preferredPathEnd = static_cast<int>(preferredNodePath.size() - 1);
+            const auto pathEnd = static_cast<int>(nodePath.size() - 1);
+
+            int index = 0;
+            while (index <= preferredPathEnd && index <= pathEnd)
+            {
+                if (preferredNodePath[preferredPathEnd - index] != nodePath[pathEnd - index])
+                {
+                    break;
+                }
+                ++index;
+            }
+
+            if (index > bestScore)
+            {
+                bestScore = index;
+                bestNodeIt = nodeIt;
             }
         }
-    }
 
-    nodeRange.first->second->setfsid(fsId, fsidnodes);
-    fingerprints.erase(nodeRange.first);
+        bestNodeIt->second->setfsid(fsId, fsidnodes);
+        fingerprints.erase(bestNodeIt);
+    }
 }
 
 // Recursively assigns fs IDs
