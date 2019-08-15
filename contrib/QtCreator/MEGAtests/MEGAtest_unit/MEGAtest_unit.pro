@@ -1,3 +1,4 @@
+
 CONFIG(debug, debug|release) {
     CONFIG -= debug release
     CONFIG += debug
@@ -32,7 +33,8 @@ SOURCES += \
 ../../../../tests/unit/PayCrypter_test.cpp \
 ../../../../tests/unit/Serialization_test.cpp \
 ../../../../tests/unit/Sync_test.cpp \
-../../../../tests/unit/utils.cpp
+../../../../tests/unit/utils.cpp \
+../../../../tests/unit/utils_test.cpp
 
 HEADERS += \
 ../../../../tests/unit/constants.h \
