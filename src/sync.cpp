@@ -41,9 +41,8 @@ const dstime Sync::RECENT_VERSION_INTERVAL_SECS = 10800;
 namespace {
 
 // Collects all syncable filesystem paths in the given folder under `localpath`
-set<string> collectAllPathsInFolder(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess,
-                                              string localpath, const string& localdebris,
-                                              const string& localseparator, const bool followsymlinks)
+set<string> collectAllPathsInFolder(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, string localpath,
+                                    const string& localseparator, const bool followsymlinks)
 {
     auto fa = std::unique_ptr<FileAccess>{fsaccess.newfileaccess()};
     if (!fa->fopen(&localpath, true, false))
@@ -80,11 +79,7 @@ set<string> collectAllPathsInFolder(Sync& sync, MegaApp& app, FileSystemAccess& 
         // check if this record is to be ignored
         if (app.sync_syncable(&sync, name.c_str(), &localpath))
         {
-            // skip the sync's debris folder
-            if (isPathSyncable(localpath, localdebris, localseparator))
-            {
-                paths.insert(localpath);
-            }
+            paths.insert(localpath);
         }
 
         localpath.resize(localpathSize);
@@ -326,8 +321,8 @@ void assignFilesystemId(FileSystemAccess& fsaccess, FileAccess& fa,
 
 // Recursively assigns fs IDs
 void assignFilesystemIdsImpl(bool& success, Sync& sync, MegaApp& app, handlelocalnode_map& fsidnodes,
-                             FileSystemAccess& fsaccess, string localpath, const string& localdebris,
-                             const string& localseparator, bool followsymlinks, FingerprintMap& fingerprints)
+                             FileSystemAccess& fsaccess, string localpath, const string& localseparator,
+                             bool followsymlinks, FingerprintMap& fingerprints)
 {
     auto fa = std::unique_ptr<FileAccess>{fsaccess.newfileaccess()};
     if (!(success = fa->fopen(&localpath, true, false)))
@@ -343,12 +338,12 @@ void assignFilesystemIdsImpl(bool& success, Sync& sync, MegaApp& app, handleloca
     else if (fa->type == FOLDERNODE)
     {
         const auto paths = collectAllPathsInFolder(sync, app, fsaccess, localpath,
-                                                   localdebris, localseparator, followsymlinks);
+                                                   localseparator, followsymlinks);
         assignFilesystemId(fsaccess, *fa, fsidnodes, fingerprints, localpath, localseparator, paths);
         fa.reset();
         for (const auto& path : paths)
         {
-            assignFilesystemIdsImpl(success, sync, app, fsidnodes, fsaccess, path, localdebris,
+            assignFilesystemIdsImpl(success, sync, app, fsidnodes, fsaccess, path,
                                     localseparator, followsymlinks, fingerprints);
         }
     }
@@ -392,7 +387,7 @@ void invalidateFilesystemIds(handlelocalnode_map& fsidnodes, LocalNode& l, size_
 }
 
 bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, handlelocalnode_map& fsidnodes,
-                         const string& localdebris, const string& localseparator, const bool followsymlinks)
+                         const string& localseparator, const bool followsymlinks)
 {
     auto rootpath = sync.localroot.localname;
 
@@ -422,7 +417,7 @@ bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, h
 
     bool success = true;
     assignFilesystemIdsImpl(success, sync, app, fsidnodes, fsaccess, rootpath,
-                            localdebris, localseparator, followsymlinks, fingerprints);
+                            localseparator, followsymlinks, fingerprints);
     LOG_info << "Number of fingerprints after assignment: " << fingerprints.size();
 
     return success;
@@ -815,7 +810,7 @@ LocalNode* Sync::localnodebypath(LocalNode* l, string* localpath, LocalNode** pa
 bool Sync::assignfsids()
 {
     return assignFilesystemIds(*this, *client->app, *client->fsaccess, client->fsidnode,
-                               localdebris, client->fsaccess->localseparator, client->followsymlinks);
+                               client->fsaccess->localseparator, client->followsymlinks);
 }
 
 // scan localpath, add or update child nodes, call recursively for folder nodes

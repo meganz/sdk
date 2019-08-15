@@ -36,7 +36,7 @@ void invalidateFilesystemIds(handlelocalnode_map& fsidnodes, LocalNode& l, size_
 // Recursively iterates through the filesystem tree starting at the sync root and assigns
 // fs IDs to those local nodes that match the fingerprint retrieved from disk.
 bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, handlelocalnode_map& fsidnodes,
-                         const string& localdebris, const string& localseparator, bool followsymlinks);
+                         const string& localseparator, bool followsymlinks);
 
 class MEGA_API Sync
 {
