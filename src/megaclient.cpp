@@ -4866,6 +4866,10 @@ handle MegaClient::sc_newnodes()
                 readusers(&jsonsc, true);
                 break;
 
+            case MAKENAMEID2('o', 'u'):
+                actinguser = jsonsc.gethandle(USERHANDLE);
+                break;
+
             case EOO:
                 return actinguser;
 
@@ -6522,7 +6526,7 @@ Node* MegaClient::sc_deltree()
                 }
                 break;
 
-            case 'ou':
+            case MAKENAMEID2('o', 'u'):
                 actinguser = jsonsc.gethandle(USERHANDLE);
                 break;
 
