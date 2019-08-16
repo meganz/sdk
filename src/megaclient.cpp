@@ -4068,9 +4068,9 @@ bool MegaClient::procsc()
                                 // node addition
                                 {
                                     useralerts.beginNotingSharedNodes();
-                                    handle actinguser = sc_newnodes();
+                                    handle originatingUser = sc_newnodes();
                                     mergenewshares(1);
-                                    useralerts.convertNotedSharedNodes(true, actinguser);
+                                    useralerts.convertNotedSharedNodes(true, originatingUser);
                                 }
 
 #ifdef ENABLE_SYNC
@@ -4853,7 +4853,7 @@ void MegaClient::readtree(JSON* j)
 // server-client newnodes processing
 handle MegaClient::sc_newnodes()
 {
-    handle actinguser = UNDEF;
+    handle originatingUser = UNDEF;
     for (;;)
     {
         switch (jsonsc.getnameid())
@@ -4867,16 +4867,16 @@ handle MegaClient::sc_newnodes()
                 break;
 
             case MAKENAMEID2('o', 'u'):
-                actinguser = jsonsc.gethandle(USERHANDLE);
+                originatingUser = jsonsc.gethandle(USERHANDLE);
                 break;
 
             case EOO:
-                return actinguser;
+                return originatingUser;
 
             default:
                 if (!jsonsc.storeobject())
                 {
-                    return actinguser;
+                    return originatingUser;
                 }
         }
     }
@@ -6511,7 +6511,7 @@ Node* MegaClient::nodebyhandle(handle h)
 Node* MegaClient::sc_deltree()
 {
     Node* n = NULL;
-    handle actinguser = UNDEF;
+    handle originatingUser = UNDEF;
 
     for (;;)
     {
@@ -6527,7 +6527,7 @@ Node* MegaClient::sc_deltree()
                 break;
 
             case MAKENAMEID2('o', 'u'):
-                actinguser = jsonsc.gethandle(USERHANDLE);
+                originatingUser = jsonsc.gethandle(USERHANDLE);
                 break;
 
             case EOO:
@@ -6541,7 +6541,7 @@ Node* MegaClient::sc_deltree()
                     proctree(n, &td);
                     reqtag = creqtag;
                     
-                    useralerts.convertNotedSharedNodes(false, actinguser);
+                    useralerts.convertNotedSharedNodes(false, originatingUser);
                 }
                 return n;
 
