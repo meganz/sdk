@@ -42,7 +42,7 @@ namespace {
 
 // Collects all syncable filesystem paths in the given folder under `localpath`
 set<string> collectAllPathsInFolder(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, string localpath,
-                                    const string& localseparator, const bool followsymlinks)
+                                    const string& localdebris, const string& localseparator, const bool followsymlinks)
 {
     auto fa = std::unique_ptr<FileAccess>{fsaccess.newfileaccess()};
     if (!fa->fopen(&localpath, true, false))
@@ -79,7 +79,11 @@ set<string> collectAllPathsInFolder(Sync& sync, MegaApp& app, FileSystemAccess& 
         // check if this record is to be ignored
         if (app.sync_syncable(&sync, name.c_str(), &localpath))
         {
-            paths.insert(localpath);
+            // skip the sync's debris folder
+            if (isPathSyncable(localpath, localdebris, localseparator))
+            {
+                paths.insert(localpath);
+            }
         }
 
         localpath.resize(localpathSize);
@@ -251,7 +255,7 @@ void collectAllFingerprints(FingerprintMap& fingerprints, LocalNode& l)
 // Assigns `fa`'s fs ID to the local node from `fingerprints` that matches the fingerprint.
 // If there are multiple matches the node that's best matching the given preferred path is used.
 void assignFilesystemId(FileSystemAccess& fsaccess, FileAccess& fa, handlelocalnode_map& fsidnodes,
-                        FingerprintMap& fingerprints, string preferredNodePath, const string& localdebris,
+                        FingerprintMap& fingerprints, string preferredNodePath,
                         const string& localseparator, const set<string>& paths = {})
 {
     if (!fa.fsidvalid)
@@ -280,23 +284,15 @@ void assignFilesystemId(FileSystemAccess& fsaccess, FileAccess& fa, handlelocaln
     }
     else
     {
-        const auto inDebris = preferredNodePath.find(localdebris) != string::npos;
-
         // We're assigning `fa.fsid` to the node that is the best match to `preferredNodePath`.
         // If `preferredNodePath` is in debris we're only assigning to a node that's also in debris.
-        FingerprintMap::iterator bestNodeIt;
+        auto bestNodeIt = nodeRange.first;
         int bestScore = -1;
 
         for (auto nodeIt = nodeRange.first; nodeIt != nodeRange.second; ++nodeIt)
         {
             string nodePath;
             nodeIt->second->getlocalpath(&nodePath, false, &localseparator);
-            assert(!nodePath.empty());
-
-            if (inDebris && nodePath.find(localdebris) == string::npos)
-            {
-                continue;
-            }
 
             const auto score = computeReversePathMatchScore(preferredNodePath, nodePath, localseparator);
 
@@ -307,11 +303,8 @@ void assignFilesystemId(FileSystemAccess& fsaccess, FileAccess& fa, handlelocaln
             }
         }
 
-        if (bestScore > -1)
-        {
-            bestNodeIt->second->setfsid(fsId, fsidnodes);
-            fingerprints.erase(bestNodeIt);
-        }
+        bestNodeIt->second->setfsid(fsId, fsidnodes);
+        fingerprints.erase(bestNodeIt);
     }
 }
 
@@ -329,12 +322,12 @@ void assignFilesystemIdsImpl(bool& success, Sync& sync, MegaApp& app, handleloca
 
     if (fa->type == FILENODE)
     {
-        assignFilesystemId(fsaccess, *fa, fsidnodes, fingerprints, localpath, localdebris, localseparator);
+        assignFilesystemId(fsaccess, *fa, fsidnodes, fingerprints, localpath, localseparator);
     }
     else if (fa->type == FOLDERNODE)
     {
-        const auto paths = collectAllPathsInFolder(sync, app, fsaccess, localpath, localseparator, followsymlinks);
-        assignFilesystemId(fsaccess, *fa, fsidnodes, fingerprints, localpath, localdebris, localseparator, paths);
+        const auto paths = collectAllPathsInFolder(sync, app, fsaccess, localpath, localdebris, localseparator, followsymlinks);
+        assignFilesystemId(fsaccess, *fa, fsidnodes, fingerprints, localpath, localseparator, paths);
         fa.reset();
         for (const auto& path : paths)
         {

@@ -262,7 +262,7 @@ TEST(Sync, invalidateFilesystemIds)
 
 namespace  {
 
-void test_computeReverseMatchScore(const std::string& sep)
+void test_computeReversePathMatchScore(const std::string& sep)
 {
     ASSERT_EQ(0, mega::computeReversePathMatchScore("", "", sep));
     ASSERT_EQ(0, mega::computeReversePathMatchScore("", sep + "a", sep));
@@ -286,12 +286,12 @@ void test_computeReverseMatchScore(const std::string& sep)
 
 TEST(Sync, computeReverseMatchScore_oneByteSeparator)
 {
-    test_computeReverseMatchScore("/");
+    test_computeReversePathMatchScore("/");
 }
 
 TEST(Sync, computeReverseMatchScore_twoByteSeparator)
 {
-    test_computeReverseMatchScore("//");
+    test_computeReversePathMatchScore("//");
 }
 
 TEST(Sync, assignFilesystemIds_whenFilesystemFingerprintsMatchLocalNodes)
@@ -651,11 +651,9 @@ TEST(Sync, assignFilesystemIds_whenDebrisIsPartOfFiles)
     mt::FsNode f_0{&d, mega::FILENODE, "f_0"};
     auto lf_0 = mt::makeLocalNode(*fx.mSync, ld, fx.mLocalNodes, mega::FILENODE, "f_0", f_0.getFingerprint());
     mt::FsNode d_1{&d, mega::FOLDERNODE, mt::gLocalDebris};
-    auto ld_1 = mt::makeLocalNode(*fx.mSync, ld, fx.mLocalNodes, mega::FOLDERNODE, mt::gLocalDebris);
 
     // Level 2
     mt::FsNode f_1_0{&d_1, mega::FILENODE, "f_1_0"};
-    auto lf_1_0 = mt::makeLocalNode(*fx.mSync, *ld_1, fx.mLocalNodes, mega::FILENODE, "f_1_0", f_1_0.getFingerprint());
 
     mt::collectAllFsNodes(fx.mFsNodes, d);
 
@@ -665,20 +663,16 @@ TEST(Sync, assignFilesystemIds_whenDebrisIsPartOfFiles)
 
     // assert that directories have correct fs IDs
     ASSERT_EQ(d.getFsId(), ld.fsid);
-    ASSERT_EQ(d_1.getFsId(), ld_1->fsid);
 
     // assert that all file `LocalNode`s have same fs IDs as the corresponding `FsNode`s
     ASSERT_EQ(f_0.getFsId(), lf_0->fsid);
-    ASSERT_EQ(f_1_0.getFsId(), lf_1_0->fsid);
 
     // assert that the local node map is correct
-    constexpr std::size_t fileCount = 4;
+    constexpr std::size_t fileCount = 2;
     ASSERT_EQ(fileCount, fx.mLocalNodes.size());
 
     ASSERT_TRUE(fx.iteratorsCorrect(ld));
-    ASSERT_TRUE(fx.iteratorsCorrect(*ld_1));
     ASSERT_TRUE(fx.iteratorsCorrect(*lf_0));
-    ASSERT_TRUE(fx.iteratorsCorrect(*lf_1_0));
 }
 
 TEST(Sync, assignFilesystemIds_preferredPathMatchAssignsFinalFsId)
