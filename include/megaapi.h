@@ -12957,7 +12957,8 @@ class MegaApi
          * You take the ownership of the returned value.
          *
          * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
-         * to MegaCancelToken::setCancelFlag(true).
+         * to MegaCancelToken::setCancelFlag(true). If a valid object is passed, it must be kept alive until
+         * this method returns.
          *
          * @param node The parent node of the tree to explore
          * @param searchString Search string. The search is case-insensitive
@@ -13068,7 +13069,8 @@ class MegaApi
          *  - Incoming shares from other users
          *
          * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
-         * to MegaCancelToken::setCancelFlag(true).
+         * to MegaCancelToken::setCancelFlag(true). If a valid object is passed, it must be kept alive until
+         * this method returns.
          *
          * You take the ownership of the returned value.
          *

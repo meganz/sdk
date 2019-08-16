@@ -10428,7 +10428,7 @@ MegaNodeList *MegaApiImpl::search(const char *searchString, MegaCancelToken *can
     }
 
     sdkMutex.lock();
-    if (cancelToken->isCancelled())
+    if (cancelToken && cancelToken->isCancelled())
     {
         return new MegaNodeListPrivate();
     }
@@ -10943,14 +10943,14 @@ bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursi
         return 0;
     }
 
-    if (cancelToken->isCancelled())
+    if (cancelToken && cancelToken->isCancelled())
     {
         return 0;
     }
 
     sdkMutex.lock();
 
-    if (cancelToken->isCancelled()) // check before lock and after, in case it was cancelled while being locked
+    if (cancelToken && cancelToken->isCancelled()) // check before lock and after, in case it was cancelled while being locked
     {
         return 0;
     }
@@ -10986,7 +10986,8 @@ MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, MegaCan
     }
     
     sdkMutex.lock();
-    if (cancelToken->isCancelled())
+
+    if (cancelToken && cancelToken->isCancelled())
     {
         return new MegaNodeListPrivate();
     }
