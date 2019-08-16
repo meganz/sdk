@@ -383,19 +383,17 @@ void invalidateFilesystemIds(handlelocalnode_map& fsidnodes, LocalNode& l, size_
 
 int computeReversePathMatchScore(const string& path1, const string& path2, const string& localseparator)
 {
-    assert(localseparator.size() == 1);
-
     if (path1.empty() || path2.empty())
     {
         return 0;
     }
 
-    const auto separator = localseparator.front();
-    const auto path1End = static_cast<int>(path1.size() - 1);
-    const auto path2End = static_cast<int>(path2.size() - 1);
+    const auto path1End = path1.size() - 1;
+    const auto path2End = path2.size() - 1;
 
-    int index = 0;
-    int countSinceSeparator = 0;
+    size_t index = 0;
+    size_t separatorBias = 0;
+    string accumulated;
     while (index <= path1End && index <= path2End)
     {
         const auto value1 = path1[path1End - index];
@@ -404,24 +402,28 @@ int computeReversePathMatchScore(const string& path1, const string& path2, const
         {
             break;
         }
-        if (value1 == separator)
-        {
-            countSinceSeparator = 0;
-        }
-        else
-        {
-            ++countSinceSeparator;
-        }
+
+        accumulated.push_back(value1);
         ++index;
+
+        if (accumulated.size() >= localseparator.size())
+        {
+            const auto diffSize = accumulated.size() - localseparator.size();
+            if (std::equal(accumulated.begin() + diffSize, accumulated.end(), localseparator.begin()))
+            {
+                separatorBias += localseparator.size();
+                accumulated.clear();
+            }
+        }
     }
 
     if (index > path1End && index > path2End) // we got to the beginning of both paths (full score)
     {
-        return index;
+        return static_cast<int>(index - separatorBias);
     }
     else // the paths only partly match
     {
-        return index - countSinceSeparator;
+        return static_cast<int>(index - separatorBias - accumulated.size());
     }
 }
 

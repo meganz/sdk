@@ -260,23 +260,38 @@ TEST(Sync, invalidateFilesystemIds)
     ASSERT_EQ(mega::UNDEF, f_0->fsid);
 }
 
-TEST(Sync, computeReverseMatchScore)
+namespace  {
+
+void test_computeReverseMatchScore(const std::string& sep)
 {
-    ASSERT_EQ(0, mega::computeReversePathMatchScore("", "", "/"));
-    ASSERT_EQ(0, mega::computeReversePathMatchScore("", "/a", "/"));
-    ASSERT_EQ(0, mega::computeReversePathMatchScore("/b", "", "/"));
-    ASSERT_EQ(0, mega::computeReversePathMatchScore("a", "b", "/"));
-    ASSERT_EQ(1, mega::computeReversePathMatchScore("/", "/", "/"));
-    ASSERT_EQ(0, mega::computeReversePathMatchScore("/b", "/a", "/"));
-    ASSERT_EQ(4, mega::computeReversePathMatchScore("/a/b", "/a/b", "/"));
-    ASSERT_EQ(4, mega::computeReversePathMatchScore("/a/c/a/b", "/a/b", "/"));
-    ASSERT_EQ(4, mega::computeReversePathMatchScore("/aaa/bbbb/ccc", "/aaa/bbb/ccc", "/"));
-    ASSERT_EQ(3, mega::computeReversePathMatchScore("a/b", "a/b", "/"));
-    const std::string base = "/a/b";
-    const std::string reference = "/c12/e34";
-    ASSERT_EQ(8, mega::computeReversePathMatchScore(base + reference, base + "/a65" + reference, "/"));
-    ASSERT_EQ(8, mega::computeReversePathMatchScore(base + reference, base + "/.debris" + reference, "/"));
-    ASSERT_EQ(8, mega::computeReversePathMatchScore(base + reference, base + "/ab" + reference, "/"));
+    ASSERT_EQ(0, mega::computeReversePathMatchScore("", "", sep));
+    ASSERT_EQ(0, mega::computeReversePathMatchScore("", sep + "a", sep));
+    ASSERT_EQ(0, mega::computeReversePathMatchScore(sep + "b", "", sep));
+    ASSERT_EQ(0, mega::computeReversePathMatchScore("a", "b", sep));
+    ASSERT_EQ(0, mega::computeReversePathMatchScore(sep, sep, sep));
+    ASSERT_EQ(0, mega::computeReversePathMatchScore(sep + "b", sep + "a", sep));
+    ASSERT_EQ(0, mega::computeReversePathMatchScore(sep + "b", sep + "b" + sep, sep));
+    ASSERT_EQ(2, mega::computeReversePathMatchScore(sep + "a" + sep + "b", sep + "a" + sep + "b", sep));
+    ASSERT_EQ(2, mega::computeReversePathMatchScore(sep + "a" + sep + "c" + sep + "a" + sep + "b", sep + "a" + sep + "b", sep));
+    ASSERT_EQ(3, mega::computeReversePathMatchScore(sep + "aaa" + sep + "bbbb" + sep + "ccc", sep + "aaa" + sep + "bbb" + sep + "ccc", sep));
+    ASSERT_EQ(2, mega::computeReversePathMatchScore("a" + sep + "b", "a" + sep + "b", sep));
+    const std::string base = sep + "a" + sep + "b";
+    const std::string reference = sep + "c12" + sep + "e34";
+    ASSERT_EQ(6, mega::computeReversePathMatchScore(base + reference, base + sep + "a65" + reference, sep));
+    ASSERT_EQ(6, mega::computeReversePathMatchScore(base + reference, base + sep + ".debris" + reference, sep));
+    ASSERT_EQ(6, mega::computeReversePathMatchScore(base + reference, base + sep + "ab" + reference, sep));
+}
+
+}
+
+TEST(Sync, computeReverseMatchScore_oneByteSeparator)
+{
+    test_computeReverseMatchScore("/");
+}
+
+TEST(Sync, computeReverseMatchScore_twoByteSeparator)
+{
+    test_computeReverseMatchScore("//");
 }
 
 TEST(Sync, assignFilesystemIds_whenFilesystemFingerprintsMatchLocalNodes)

@@ -34,8 +34,8 @@ bool isPathSyncable(const string& localpath, const string& localdebris, const st
 void invalidateFilesystemIds(handlelocalnode_map& fsidnodes, LocalNode& l, size_t& count);
 
 // Searching from the back, this function compares path1 and path2 character by character and
-// returns the number of consecutive character matches but only including whole node names.
-// It's assumed that the paths are normalized and separated with the given `localseparator`.
+// returns the number of consecutive character matches (excluding separators) but only including whole node names.
+// It's assumed that the paths are normalized (e.g. not contain ..) and separated with the given `localseparator`.
 int computeReversePathMatchScore(const string& path1, const string& path2, const string& localseparator);
 
 // Recursively iterates through the filesystem tree starting at the sync root and assigns
