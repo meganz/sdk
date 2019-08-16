@@ -31318,4 +31318,19 @@ void MegaPushNotificationSettingsPrivate::enableChats(bool enable)
     mGlobalChatsDND = enable ? -1 : 0;
 }
 
+MegaCancelTokenPrivate::~MegaCancelTokenPrivate()
+{
+
+}
+
+void MegaCancelTokenPrivate::setCancelFlag(bool newValue)
+{
+    cancelFlag = newValue;
+}
+
+bool MegaCancelTokenPrivate::getCancelFlag()
+{
+    return cancelFlag;
+}
+
 }

@@ -1373,6 +1373,18 @@ private:
     AchievementsDetails details;
 };
 
+class MegaCancelTokenPrivate : public MegaCancelToken
+{
+private:
+    std::atomic_bool cancelFlag { false };
+
+public:
+    ~MegaCancelTokenPrivate() override;
+
+    void setCancelFlag(bool newValue = true) override;
+    bool getCancelFlag() override;
+};
+
 #ifdef ENABLE_CHAT
 class MegaTextChatPeerListPrivate : public MegaTextChatPeerList
 {

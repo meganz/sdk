@@ -80,6 +80,7 @@ class MegaFolderInfo;
 class MegaTimeZoneDetails;
 class MegaPushNotificationSettings;
 class MegaBackgroundMediaUpload;
+class MegaCancelToken;
 class MegaApi;
 
 class MegaSemaphore;
@@ -16141,6 +16142,36 @@ public:
      * @return The transfer achieved quota by this account as result of referrals
      */
     virtual long long currentTransferReferrals();
+};
+
+class MegaCancelToken
+{
+public:
+public:
+
+    /**
+     * @brief Creates an object which can be passed as parameter for some MegaApi methods in order to
+     * cancel the processing associated to the function. @see MegaApi::search
+     *
+     * You take ownership of the returned value.
+     *
+     * @return A pointer to an object that allows to cancel the processing of some functions.
+     */
+    static MegaCancelToken* createInstance();
+
+    virtual ~MegaCancelToken();
+
+    /**
+     * @brief Allows to set the value of the flag
+     * @param newValue True to force the cancelation of the processing. False to reset.
+     */
+    virtual void setCancelFlag(bool newValue = true);  // allows to reset also for reuse cases
+
+    /**
+     * @brief Returns the state of the flag
+     * @return The state of the flag
+     */
+    virtual bool getCancelFlag();
 };
 
 }

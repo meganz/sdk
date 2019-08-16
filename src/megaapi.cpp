@@ -6263,4 +6263,24 @@ MegaPushNotificationSettings::MegaPushNotificationSettings()
 
 }
 
+MegaCancelToken *MegaCancelToken::createInstance()
+{
+    return new MegaCancelTokenPrivate;
+}
+
+MegaCancelToken::~MegaCancelToken()
+{
+
+}
+
+void MegaCancelToken::setCancelFlag(bool)
+{
+
+}
+
+bool MegaCancelToken::getCancelFlag()
+{
+    return false;
+}
+
 }
