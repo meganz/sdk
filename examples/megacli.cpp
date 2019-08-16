@@ -4935,7 +4935,7 @@ void exec_verifycredentials(autocomplete::ACState& s)
     }
     else
     {
-        cout << "      credentials show|status|verify [email]" << endl;
+        cout << "      credentials show|status|verify|reset [email]" << endl;
         return;
     }
 
