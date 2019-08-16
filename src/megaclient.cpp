@@ -2717,7 +2717,10 @@ void MegaClient::exec()
     {
         sum += nc.second;
     }
-    assert(sum.storage == mFingerprints.getSumSizes());
+    if (sum.storage != mFingerprints.getSumSizes())
+    {
+        LOG_warn << "storage sum : " << sum.storage << " mismatch wtih fingerprint size sum: " << mFingerprints.getSumSizes();
+    }
 #endif
 }
 
@@ -4063,10 +4066,12 @@ bool MegaClient::procsc()
 #endif
 
                                 // node addition
-                                useralerts.beginNotingSharedNodes();
-                                sc_newnodes();
-                                mergenewshares(1);
-                                useralerts.convertNotedSharedNodes(true);
+                                {
+                                    useralerts.beginNotingSharedNodes();
+                                    handle originatingUser = sc_newnodes();
+                                    mergenewshares(1);
+                                    useralerts.convertNotedSharedNodes(true, originatingUser);
+                                }
 
 #ifdef ENABLE_SYNC
                                 if (!fetchingnodes)
@@ -4846,8 +4851,9 @@ void MegaClient::readtree(JSON* j)
 }
 
 // server-client newnodes processing
-void MegaClient::sc_newnodes()
+handle MegaClient::sc_newnodes()
 {
+    handle originatingUser = UNDEF;
     for (;;)
     {
         switch (jsonsc.getnameid())
@@ -4860,13 +4866,17 @@ void MegaClient::sc_newnodes()
                 readusers(&jsonsc, true);
                 break;
 
+            case MAKENAMEID2('o', 'u'):
+                originatingUser = jsonsc.gethandle(USERHANDLE);
+                break;
+
             case EOO:
-                return;
+                return originatingUser;
 
             default:
                 if (!jsonsc.storeobject())
                 {
-                    return;
+                    return originatingUser;
                 }
         }
     }
@@ -6501,6 +6511,7 @@ Node* MegaClient::nodebyhandle(handle h)
 Node* MegaClient::sc_deltree()
 {
     Node* n = NULL;
+    handle originatingUser = UNDEF;
 
     for (;;)
     {
@@ -6515,6 +6526,10 @@ Node* MegaClient::sc_deltree()
                 }
                 break;
 
+            case MAKENAMEID2('o', 'u'):
+                originatingUser = jsonsc.gethandle(USERHANDLE);
+                break;
+
             case EOO:
                 if (n)
                 {
@@ -6526,7 +6541,7 @@ Node* MegaClient::sc_deltree()
                     proctree(n, &td);
                     reqtag = creqtag;
                     
-                    useralerts.convertNotedSharedNodes(false);
+                    useralerts.convertNotedSharedNodes(false, originatingUser);
                 }
                 return n;
 
