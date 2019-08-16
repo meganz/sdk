@@ -268,8 +268,10 @@ void test_computeReversePathMatchScore(const std::string& sep)
     ASSERT_EQ(0, mega::computeReversePathMatchScore("", sep + "a", sep));
     ASSERT_EQ(0, mega::computeReversePathMatchScore(sep + "b", "", sep));
     ASSERT_EQ(0, mega::computeReversePathMatchScore("a", "b", sep));
+    ASSERT_EQ(2, mega::computeReversePathMatchScore("cc", "cc", sep));
     ASSERT_EQ(0, mega::computeReversePathMatchScore(sep, sep, sep));
     ASSERT_EQ(0, mega::computeReversePathMatchScore(sep + "b", sep + "a", sep));
+    ASSERT_EQ(2, mega::computeReversePathMatchScore(sep + "cc", sep + "cc", sep));
     ASSERT_EQ(0, mega::computeReversePathMatchScore(sep + "b", sep + "b" + sep, sep));
     ASSERT_EQ(2, mega::computeReversePathMatchScore(sep + "a" + sep + "b", sep + "a" + sep + "b", sep));
     ASSERT_EQ(2, mega::computeReversePathMatchScore(sep + "a" + sep + "c" + sep + "a" + sep + "b", sep + "a" + sep + "b", sep));
