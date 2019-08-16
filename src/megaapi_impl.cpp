@@ -17145,9 +17145,11 @@ void MegaApiImpl::sendPendingTransfers()
     error e;
     int nextTag;
 
+    sdkMutex.lock();
+    if (client->tctable) client->tctable->begin();
+
     while((transfer = transferQueue.pop()))
     {
-        sdkMutex.lock();
         e = API_OK;
         nextTag = client->nextreqtag();
         transfer->setState(MegaTransfer::STATE_QUEUED);
@@ -17596,8 +17598,10 @@ void MegaApiImpl::sendPendingTransfers()
             fireOnTransferFinish(transfer, MegaError(e));
         }
 
-        sdkMutex.unlock();
     }
+
+    if (client->tctable) client->tctable->commit();
+    sdkMutex.unlock();
 }
 
 void MegaApiImpl::removeRecursively(const char *path)

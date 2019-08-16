@@ -2081,6 +2081,12 @@ void MegaClient::exec()
         }
 
         // fill transfer slots from the queue
+
+        if (tctable)
+        {
+            tctable->begin();
+        }
+
         dispatchmore(PUT);
         dispatchmore(GET);
 
@@ -2103,6 +2109,10 @@ void MegaClient::exec()
             }
         }
 
+        if (tctable)
+        {
+            tctable->commit();
+        }
 
 #ifdef ENABLE_SYNC
         // verify filesystem fingerprints, disable deviating syncs
@@ -2717,7 +2727,7 @@ void MegaClient::exec()
     {
         sum += nc.second;
     }
-    assert(sum.storage == mFingerprints.getSumSizes());
+    //assert(sum.storage == mFingerprints.getSumSizes());
 #endif
 }
 
