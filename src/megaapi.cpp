@@ -3522,17 +3522,22 @@ char *MegaApi::base32ToBase64(const char *base32)
 
 MegaNodeList* MegaApi::search(MegaNode* n, const char* searchString, bool recursive, int order)
 {
-    return pImpl->search(n, searchString, recursive, order);
+    return pImpl->search(n, searchString, nullptr, recursive, order);
+}
+
+MegaNodeList *MegaApi::search(MegaNode *n, const char *searchString, MegaCancelToken *cancelToken, bool recursive, int order)
+{
+    return pImpl->search(n, searchString, cancelToken, recursive, order);
 }
 
 MegaNodeList *MegaApi::search(const char *searchString, int order)
 {
-    return pImpl->search(searchString, order);
+    return pImpl->search(searchString, nullptr, order);
 }
 
-void MegaApi::cancelSearch()
+MegaNodeList *MegaApi::search(const char *searchString, MegaCancelToken *cancelToken, int order)
 {
-    pImpl->cancelSearch();
+    return pImpl->search(searchString, cancelToken, order);
 }
 
 long long MegaApi::getSize(MegaNode *n)
@@ -6273,12 +6278,12 @@ MegaCancelToken::~MegaCancelToken()
 
 }
 
-void MegaCancelToken::setCancelFlag(bool)
+void MegaCancelToken::cancel(bool)
 {
 
 }
 
-bool MegaCancelToken::getCancelFlag()
+bool MegaCancelToken::isCancelled()
 {
     return false;
 }

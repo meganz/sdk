@@ -10420,7 +10420,7 @@ bool MegaApiImpl::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, boo
     return result;
 }
 
-MegaNodeList *MegaApiImpl::search(const char *searchString, int order)
+MegaNodeList *MegaApiImpl::search(const char *searchString, MegaCancelToken *cancelToken, int order)
 {
     if(!searchString)
     {
@@ -10428,7 +10428,10 @@ MegaNodeList *MegaApiImpl::search(const char *searchString, int order)
     }
 
     sdkMutex.lock();
-    mCancelSearch = false;
+    if (cancelToken->isCancelled())
+    {
+        return new MegaNodeListPrivate();
+    }
 
     node_vector result;
     Node *node;
@@ -10439,7 +10442,7 @@ MegaNodeList *MegaApiImpl::search(const char *searchString, int order)
         node = client->nodebyhandle(client->rootnodes[i]);
 
         SearchTreeProcessor searchProcessor(searchString);
-        processTree(node, &searchProcessor);
+        processTree(node, &searchProcessor, true, cancelToken);
         node_vector& vNodes = searchProcessor.getResults();
 
         result.insert(result.end(), vNodes.begin(), vNodes.end());
@@ -10452,7 +10455,7 @@ MegaNodeList *MegaApiImpl::search(const char *searchString, int order)
         node = client->nodebyhandle(shares->get(i)->getNodeHandle());
 
         SearchTreeProcessor searchProcessor(searchString);
-        processTree(node, &searchProcessor);
+        processTree(node, &searchProcessor, true, cancelToken);
         vector<Node *>& vNodes  = searchProcessor.getResults();
 
         result.insert(result.end(), vNodes.begin(), vNodes.end());
@@ -10928,7 +10931,7 @@ void MegaApiImpl::resumeActionPackets()
     sdkMutex.unlock();
 }
 
-bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursive)
+bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursive, MegaCancelTokenPrivate *cancelToken)
 {
     if (!node)
     {
@@ -10940,12 +10943,18 @@ bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursi
         return 0;
     }
 
-    if (mCancelSearch)
+    if (cancelToken->isCancelled())
     {
         return 0;
     }
 
     sdkMutex.lock();
+
+    if (cancelToken->isCancelled()) // check before lock and after, in case it was cancelled while being locked
+    {
+        return 0;
+    }
+
     node = client->nodebyhandle(node->nodehandle);
     if (!node)
     {
@@ -10957,7 +10966,7 @@ bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursi
     {
         for (node_list::iterator it = node->children.begin(); it != node->children.end(); )
         {
-            if (!processTree(*it++,processor))
+            if (!processTree(*it++, processor, recursive, cancelToken))
             {
                 sdkMutex.unlock();
                 return 0;
@@ -10969,12 +10978,7 @@ bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursi
     return result;
 }
 
-void MegaApiImpl::cancelSearch()
-{
-    mCancelSearch = true;
-}
-
-MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, bool recursive, int order)
+MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, MegaCancelToken *cancelToken, bool recursive, int order)
 {
     if (!n || !searchString)
     {
@@ -10982,7 +10986,10 @@ MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, bool re
     }
     
     sdkMutex.lock();
-    mCancelSearch = false;
+    if (cancelToken->isCancelled())
+    {
+        return new MegaNodeListPrivate();
+    }
     
     Node *node = client->nodebyhandle(n->getHandle());
     if (!node)
@@ -10994,7 +11001,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, bool re
     SearchTreeProcessor searchProcessor(searchString);
     for (node_list::iterator it = node->children.begin(); it != node->children.end(); )
     {
-        processTree(*it++, &searchProcessor, recursive);
+        processTree(*it++, &searchProcessor, recursive, cancelToken);
     }
 
     vector<Node *>& vNodes = searchProcessor.getResults();
@@ -31323,12 +31330,12 @@ MegaCancelTokenPrivate::~MegaCancelTokenPrivate()
 
 }
 
-void MegaCancelTokenPrivate::setCancelFlag(bool newValue)
+void MegaCancelTokenPrivate::cancel(bool newValue)
 {
     cancelFlag = newValue;
 }
 
-bool MegaCancelTokenPrivate::getCancelFlag()
+bool MegaCancelTokenPrivate::isCancelled()
 {
     return cancelFlag;
 }
