@@ -31336,7 +31336,7 @@ void MegaCancelTokenPrivate::cancel(bool newValue)
     cancelFlag = newValue;
 }
 
-bool MegaCancelTokenPrivate::isCancelled()
+bool MegaCancelTokenPrivate::isCancelled() const
 {
     return cancelFlag;
 }

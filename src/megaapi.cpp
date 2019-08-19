@@ -6283,7 +6283,7 @@ void MegaCancelToken::cancel(bool)
 
 }
 
-bool MegaCancelToken::isCancelled()
+bool MegaCancelToken::isCancelled() const
 {
     return false;
 }

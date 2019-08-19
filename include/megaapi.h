@@ -16275,7 +16275,7 @@ public:
      * @brief Returns the state of the flag
      * @return The state of the flag
      */
-    virtual bool isCancelled();
+    virtual bool isCancelled() const;
 };
 
 }

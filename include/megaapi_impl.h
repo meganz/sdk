@@ -1375,14 +1375,14 @@ private:
 
 class MegaCancelTokenPrivate : public MegaCancelToken
 {
-private:
-    std::atomic_bool cancelFlag { false };
-
 public:
     ~MegaCancelTokenPrivate() override;
 
     void cancel(bool newValue = true) override;
-    bool isCancelled() override;
+    bool isCancelled() const override;
+
+private:
+    std::atomic_bool cancelFlag { false };
 };
 
 #ifdef ENABLE_CHAT
