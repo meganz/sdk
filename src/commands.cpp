@@ -3723,7 +3723,7 @@ void CommandGetUserData::procresult()
                     }
                     if (auxts)
                     {
-                        dstime diff = (now - auxts) * 10;
+                        dstime diff = dstime((now - auxts) * 10);
                         dstime current = client->btugexpiration.backoffdelta();
                         if (current > diff)
                         {
