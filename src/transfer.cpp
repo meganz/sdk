@@ -481,6 +481,8 @@ void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ std::strin
 // fingerprint, notify app, notify files
 void Transfer::complete()
 {
+    CodeCounter::ScopeTimer ccst(client->performanceStats.transferComplete);
+
     state = TRANSFERSTATE_COMPLETING;
     client->app->transfer_update(this);
 

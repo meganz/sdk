@@ -88,6 +88,9 @@ public:
     void servererror(error, MegaClient*);
 
     void clear();
+
+    uint64_t csRequestsSent = 0, csRequestsCompleted = 0;
+    uint64_t csBatchesSent = 0, csBatchesReceived = 0;
 };
 
 } // namespace

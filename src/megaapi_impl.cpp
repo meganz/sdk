@@ -17146,7 +17146,10 @@ void MegaApiImpl::sendPendingTransfers()
     int nextTag;
 
     sdkMutex.lock();
-    if (client->tctable) client->tctable->begin();
+    if (client->tctable)
+    {
+        client->tctable->begin();
+    }
 
     while((transfer = transferQueue.pop()))
     {
@@ -17600,7 +17603,10 @@ void MegaApiImpl::sendPendingTransfers()
 
     }
 
-    if (client->tctable) client->tctable->commit();
+    if (client->tctable)
+    {
+        client->tctable->commit();
+    }
     sdkMutex.unlock();
 }
 

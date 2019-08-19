@@ -243,6 +243,7 @@ TransferSlot::~TransferSlot()
         }
 
         transfer->client->tslots.erase(slots_it);
+        transfer->client->performanceStats.transferFinishes += 1;
     }
 
     if (pendingcmd)
@@ -396,6 +397,8 @@ void chunkmac_map::calcprogress(m_off_t size, m_off_t& chunkpos, m_off_t& progre
 // file transfer state machine
 void TransferSlot::doio(MegaClient* client)
 {
+    CodeCounter::ScopeTimer pbt(client->performanceStats.transferslotDoio);
+
     if (!fa || (transfer->size && transfer->progresscompleted == transfer->size)
             || (transfer->type == PUT && transfer->ultoken))
     {

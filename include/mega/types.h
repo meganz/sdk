@@ -73,6 +73,7 @@ typedef unsigned char byte;
 #include "mega/crypto/sodium.h"
 
 #include <string>
+#include <chrono>
 
 namespace mega {
 
@@ -562,6 +563,69 @@ typedef vector<recentaction> recentactions_vector;
 
 typedef enum { BIZ_STATUS_UNKNOWN = -2, BIZ_STATUS_EXPIRED = -1, BIZ_STATUS_INACTIVE = 0, BIZ_STATUS_ACTIVE = 1, BIZ_STATUS_GRACE_PERIOD = 2 } BizStatus;
 typedef enum { BIZ_MODE_UNKNOWN = -1, BIZ_MODE_SUBUSER = 0, BIZ_MODE_MASTER = 1 } BizMode;
+
+namespace CodeCounter
+{
+    // Some classes that allow us to easily measure the number of times a block of code is called, and the sum of the time it takes.
+    // Only enabled if MEGA_MEASURE_CODE is turned on.
+    // Usage generally doesn't need to be protected by the macro as the classes and methods will be empty when not enabled.
+
+    using namespace std::chrono;
+
+    struct ScopeStats
+    {
+#ifdef MEGA_MEASURE_CODE
+        uint64_t count = 0;
+        uint64_t starts = 0;
+        uint64_t finishes = 0;
+        high_resolution_clock::duration timeSpent{};
+        std::string name;
+        ScopeStats(std::string s) : name(std::move(s)) {}
+
+        inline string report() { return " " + name + ": " + std::to_string(count) + " " + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(timeSpent).count()); }
+#else
+        ScopeStats(std::string s) {}
+#endif
+    };
+
+    struct DurationSum
+    {
+#ifdef MEGA_MEASURE_CODE
+        high_resolution_clock::duration sum{ 0 };
+        high_resolution_clock::time_point deltaStart;
+        bool started = false;
+        inline void start() { deltaStart = high_resolution_clock::now(); started = true; }
+        inline void stop() { if (started) sum += high_resolution_clock::now() - deltaStart; started = false; }
+        inline string report() { return std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(sum).count()); }
+#else
+        inline void start() {  }
+        inline void stop() {  }
+#endif
+    };
+
+    struct ScopeTimer
+    {
+#ifdef MEGA_MEASURE_CODE
+        ScopeStats& scope;
+        high_resolution_clock::time_point blockStart;
+
+        ScopeTimer(ScopeStats& sm) : scope(sm), blockStart(high_resolution_clock::now())
+        {
+            ++scope.starts;
+        }
+        ~ScopeTimer()
+        {
+            ++scope.count;
+            ++scope.finishes;
+            scope.timeSpent += high_resolution_clock::now() - blockStart;
+        }
+#else
+        ScopeTimer(ScopeStats& sm)
+        {
+        }
+#endif
+    };
+}
 
 } // namespace
 

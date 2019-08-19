@@ -33,7 +33,7 @@ void Request::add(Command* c)
 
 size_t Request::size() const
 {
-    return static_cast<int>(cmds.size());
+    return cmds.size();
 }
 
 void Request::get(string* req, bool& suppressSID) const
@@ -188,10 +188,13 @@ void RequestDispatcher::serverrequest(string *out, bool& suppressSID)
         nextreqs.push_back(Request());
     }
     inflightreq.get(out, suppressSID);
+    csRequestsSent += inflightreq.size();
+    csBatchesSent += 1;
 }
 
 void RequestDispatcher::requeuerequest()
 {
+    csBatchesReceived += 1;
     assert(!inflightreq.empty());
     if (!nextreqs.front().empty())
     {
@@ -202,6 +205,8 @@ void RequestDispatcher::requeuerequest()
 
 void RequestDispatcher::serverresponse(std::string&& movestring, MegaClient *client)
 {
+    csBatchesReceived += 1;
+    csRequestsCompleted += inflightreq.size();
     processing = true;
     inflightreq.serverresponse(std::move(movestring), client);
     inflightreq.process(client);

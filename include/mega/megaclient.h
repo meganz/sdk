@@ -1489,6 +1489,19 @@ public:
     // -1: expired, 0: inactive (no business subscription), 1: active, 2: grace-period
     BizStatus mBizStatus;
 
+    // Keep track of high level operation counts and times, for performance analysis
+    struct
+    {
+        CodeCounter::ScopeStats execFunction = "MegaClient_exec";
+        CodeCounter::ScopeStats transferslotDoio = "TransferSlot_doio";
+        CodeCounter::ScopeStats curlDoio = "Curl_doio";
+        CodeCounter::ScopeStats execdirectreads = "execdirectreads";
+        CodeCounter::ScopeStats transferComplete = "transfer_complete";
+        uint64_t transferStarts = 0, transferFinishes = 0;
+        CodeCounter::DurationSum csRequestWaitTime;
+        CodeCounter::DurationSum scBatchProcessingTime;
+    } performanceStats;
+
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
     ~MegaClient();
 };
