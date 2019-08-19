@@ -5200,7 +5200,8 @@ bool MegaApiImpl::isAchievementsEnabled()
 
 bool MegaApiImpl::isBusinessAccount()
 {
-    return client->mBizStatus != BIZ_STATUS_INACTIVE;
+    return client->mBizStatus != BIZ_STATUS_INACTIVE
+             && client->mBizStatus != BIZ_STATUS_UNKNOWN;
 }
 
 bool MegaApiImpl::isMasterBusinessAccount()
@@ -5234,7 +5235,10 @@ int MegaApiImpl::getBusinessStatus()
         client->app->notify_business_status(client->mBizStatus);
     }
 
-    return client->mBizStatus;
+    // Prevent return apps unknown status
+    return (client->mBizStatus == BIZ_STATUS_UNKNOWN)
+            ? BIZ_STATUS_INACTIVE
+            : client->mBizStatus;
 }
 
 bool MegaApiImpl::checkPassword(const char *password)

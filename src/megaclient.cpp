@@ -1049,7 +1049,7 @@ void MegaClient::init()
     mNotifiedSumSize = 0;
 
     mBizMode = BIZ_MODE_UNKNOWN;
-    mBizStatus = BIZ_STATUS_INACTIVE;
+    mBizStatus = BIZ_STATUS_UNKNOWN;
     mNodeCounters = NodeCounterMap();
 }
 
