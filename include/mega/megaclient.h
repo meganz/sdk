@@ -1052,7 +1052,7 @@ public:
     static const char* const EXPORTEDLINK;
 
     // minimum number of bytes in transit for upload/download pipelining
-    static const int MINPIPELINE = 65536;
+    static const int MINPIPELINE = 2*1024*1024;
 
     // default number of seconds to wait after a bandwidth overquota
     static dstime DEFAULT_BW_OVERQUOTA_BACKOFF_SECS;
