@@ -6828,10 +6828,10 @@ void MegaClient::unlinkversions()
     reqs.add(new CommandDelVersions(this));
 }
 
-// emulates the semantics of its JavaScript counterpart
+// Converts a string in UTF8 to array of int32 in the same way than Webclient converts a string in UTF16 to array of 32-bit elements
 // (returns NULL if the input is invalid UTF-8)
 // unfortunately, discards bits 8-31 of multibyte characters for backwards compatibility
-char* MegaClient::str_to_a32(const char* str, int* len)
+char* MegaClient::utf8_to_a32forjs(const char* str, int* len)
 {
     if (!str)
     {
@@ -6923,7 +6923,7 @@ error MegaClient::pw_key(const char* utf8pw, byte* key) const
     int t;
     char* pw;
 
-    if (!(pw = str_to_a32(utf8pw, &t)))
+    if (!(pw = utf8_to_a32forjs(utf8pw, &t)))
     {
         return API_EARGS;
     }

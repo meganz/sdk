@@ -863,7 +863,7 @@ private:
     void checkevent(dstime, dstime*, dstime*);
 
     // converts UTF-8 to 32-bit word array
-    static char* str_to_a32(const char*, int*);
+    static char* utf8_to_a32forjs(const char*, int*);
 
     // was the app notified of a retrying CS request?
     bool csretrying;

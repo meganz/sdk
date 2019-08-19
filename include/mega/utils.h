@@ -349,6 +349,8 @@ public:
      *
      * @param data a vector of <T> elements
      * @note this function has been initially designed to work with <T> = uint32_t or <T> = int32_t
+     * This is a valid example: <t> = uint32_t, data = [1952805748] => return_value = "test"
+     *
      * @return returns a std::string
      */
     template<typename T> std::string a32_to_str(std::vector<T> data);
@@ -359,6 +361,8 @@ public:
      *
      * @param data a std::string
      * @note this function has been initially designed to work with <T> = uint32_t or <T> = int32_t
+     * This is a valid example: <t> = uint32_t, data = "test"  => return_value = [1952805748]
+     *
      * @return returns a vector of <T> elements
      */
     template<typename T> std::vector<T> str_to_a32(std::string data);
