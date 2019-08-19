@@ -3672,17 +3672,17 @@ void CommandGetUserData::procresult()
                 if ((s < BIZ_STATUS_EXPIRED || s > BIZ_STATUS_GRACE_PERIOD)  // status not received or invalid
                         || (m == BIZ_MODE_UNKNOWN))  // master flag not received or invalid
                 {
-                    LOG_err << "GetUserData: invalid business status / account mode";
+                    std::string err = "GetUserData: invalid business status / account mode";
+                    LOG_err << err;
+                    client->sendevent(99450, err.c_str());
+
+                    client->mBizStatus = BIZ_STATUS_EXPIRED;
+                    client->mBizMode = BIZ_MODE_SUBUSER;
+                    client->mBizExpirationTs = client->mBizGracePeriodTs = 0;
+                    client->app->notify_business_status(client->mBizStatus);
                 }
                 else
                 {
-                    if (client->mBizStatus != s)
-                    {
-                        client->mBizStatus = s;
-                        client->app->notify_business_status(s);
-                    }
-                    client->mBizMode = m;
-
                     for (auto it : sts)
                     {
                         BizStatus status = it.first;
@@ -3699,6 +3699,14 @@ void CommandGetUserData::procresult()
                         {
                             LOG_warn << "Unexpected status in b.sts. Status: " << status << "ts: " << ts;
                         }
+                    }
+
+                    client->mBizMode = m;
+
+                    if (client->mBizStatus != s)
+                    {
+                        client->mBizStatus = s;
+                        client->app->notify_business_status(s);
                     }
 
                     // if current business status will expire sooner than the scheduled `ug`, update the

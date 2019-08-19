@@ -823,7 +823,7 @@ private:
     // server-client command processing
     void sc_updatenode();
     Node* sc_deltree();
-    void sc_newnodes();
+    handle sc_newnodes();
     void sc_contacts();
     void sc_keys();
     void sc_fileattr();
