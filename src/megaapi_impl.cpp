@@ -10433,6 +10433,7 @@ MegaNodeList *MegaApiImpl::search(const char *searchString, MegaCancelToken *can
     }
 
     SdkMutexGuard g(sdkMutex);
+
     if (cancelToken && cancelToken->isCancelled())
     {
         return new MegaNodeListPrivate();
@@ -10442,7 +10443,8 @@ MegaNodeList *MegaApiImpl::search(const char *searchString, MegaCancelToken *can
     Node *node;
 
     // rootnodes
-    for (unsigned int i = 0; i < (sizeof client->rootnodes / sizeof *client->rootnodes); i++)
+    for (unsigned int i = 0; i < (sizeof client->rootnodes / sizeof *client->rootnodes)
+          && !(cancelToken && cancelToken->isCancelled()); i++)
     {
         node = client->nodebyhandle(client->rootnodes[i]);
 
@@ -10455,7 +10457,7 @@ MegaNodeList *MegaApiImpl::search(const char *searchString, MegaCancelToken *can
 
     // inshares
     MegaShareList *shares = getInSharesList();
-    for (int i = 0; i < shares->size(); i++)
+    for (int i = 0; i < shares->size() && !(cancelToken && cancelToken->isCancelled()); i++)
     {
         node = client->nodebyhandle(shares->get(i)->getNodeHandle());
 
@@ -11004,7 +11006,8 @@ MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, MegaCan
     }
 
     SearchTreeProcessor searchProcessor(searchString);
-    for (node_list::iterator it = node->children.begin(); it != node->children.end(); )
+    for (node_list::iterator it = node->children.begin(); it != node->children.end()
+         && !(cancelToken && cancelToken->isCancelled()); )
     {
         processTree(*it++, &searchProcessor, recursive, cancelToken);
     }
