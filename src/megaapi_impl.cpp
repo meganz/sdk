@@ -10427,7 +10427,7 @@ MegaNodeList *MegaApiImpl::search(const char *searchString, MegaCancelToken *can
         return new MegaNodeListPrivate();
     }
 
-    sdkMutex.lock();
+    SdkMutexGuard g(sdkMutex);
     if (cancelToken && cancelToken->isCancelled())
     {
         return new MegaNodeListPrivate();
@@ -10483,8 +10483,6 @@ MegaNodeList *MegaApiImpl::search(const char *searchString, MegaCancelToken *can
     }
     MegaNodeList *nodeList = new MegaNodeListPrivate(result.data(), int(result.size()));
     
-    sdkMutex.unlock();
-
     return nodeList;
 }
 
@@ -10948,7 +10946,7 @@ bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursi
         return 0;
     }
 
-    sdkMutex.lock();
+    SdkMutexGuard g(sdkMutex);
 
     if (cancelToken && cancelToken->isCancelled()) // check before lock and after, in case it was cancelled while being locked
     {
@@ -10958,7 +10956,6 @@ bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursi
     node = client->nodebyhandle(node->nodehandle);
     if (!node)
     {
-        sdkMutex.unlock();
         return 1;
     }
 
@@ -10968,13 +10965,11 @@ bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursi
         {
             if (!processTree(*it++, processor, recursive, cancelToken))
             {
-                sdkMutex.unlock();
                 return 0;
             }
         }
     }
     bool result = processor->processNode(node);
-    sdkMutex.unlock();
     return result;
 }
 
@@ -10985,7 +10980,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, MegaCan
         return new MegaNodeListPrivate();
     }
     
-    sdkMutex.lock();
+    SdkMutexGuard g(sdkMutex);
 
     if (cancelToken && cancelToken->isCancelled())
     {
@@ -10995,7 +10990,6 @@ MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, MegaCan
     Node *node = client->nodebyhandle(n->getHandle());
     if (!node)
     {
-        sdkMutex.unlock();
         return new MegaNodeListPrivate();
     }
 
@@ -11027,7 +11021,6 @@ MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, MegaCan
     }
 
     MegaNodeList *nodeList = new MegaNodeListPrivate(vNodes.data(), int(vNodes.size()));
-    sdkMutex.unlock();
     return nodeList;
 }
 

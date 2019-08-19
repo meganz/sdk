@@ -16251,11 +16251,10 @@ public:
 class MegaCancelToken
 {
 public:
-public:
 
     /**
      * @brief Creates an object which can be passed as parameter for some MegaApi methods in order to
-     * cancel the processing associated to the function. @see MegaApi::search
+     * request the cancellation of the processing associated to the function. @see MegaApi::search
      *
      * You take ownership of the returned value.
      *
