@@ -366,10 +366,10 @@ size_t FileFingerprint::getHash() const
     size_t value = 0;
     hashCombine(value, size);
     hashCombine(value, mtime);
-    forEach(crc, [&value](const int32_t val)
-                 {
-                     hashCombine(value, val);
-                 });
+    for (const auto val : crc)
+    {
+        hashCombine(value, val);
+    }
     return value;
 }
 

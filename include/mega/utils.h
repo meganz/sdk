@@ -440,26 +440,6 @@ struct IndexRange
     using type = typename ConstructRange<e, b>::type;
 };
 
-template<size_t index, typename Container>
-struct CallAtIndex
-{
-    template<typename C, typename F>
-    void operator()(C&& container, F&& functor) const
-    {
-        std::forward<F>(functor)(std::forward<C>(container)[index]);
-    }
-};
-
-template<size_t index, typename... ValueTypes>
-struct CallAtIndex<index, std::tuple<ValueTypes...>>
-{
-    template<typename C, typename F>
-    void operator()(C&& container, F&& functor) const
-    {
-        std::forward<F>(functor)(std::get<index>(std::forward<C>(container)));
-    }
-};
-
 template<typename Container, typename Functor>
 void forEachIndex(Indices<>, Container&&, Functor&&)
 {}
@@ -467,58 +447,18 @@ void forEachIndex(Indices<>, Container&&, Functor&&)
 template<std::size_t i, std::size_t... j, typename Container, typename Functor>
 void forEachIndex(Indices<i, j...>, Container&& container, Functor&& functor)
 {
-    CallAtIndex<i, typename std::decay<Container>::type>{}(std::forward<Container>(container), std::forward<Functor>(functor));
+    std::forward<Functor>(functor)(std::get<i>(std::forward<Container>(container)));
     forEachIndex(Indices<j...>{}, std::forward<Container>(container), std::forward<Functor>(functor));
 }
 
 /////// forEach over a std::tuple, unrolled at compile time
 
-template<typename... ValueTypes, typename Functor>
-void forEach(const std::tuple<ValueTypes...>& tup, Functor&& functor)
+template<typename Tuple, typename Functor>
+void forEach(Tuple&& tup, Functor&& functor)
 {
-    constexpr auto size = std::tuple_size<std::tuple<ValueTypes...>>::value;
+    constexpr auto size = std::tuple_size<typename std::decay<Tuple>::type>::value;
     using IndexType = typename IndexRange<0, size>::type;
-    forEachIndex(IndexType{}, tup, std::forward<Functor>(functor));
-}
-
-template<typename... ValueTypes, typename Functor>
-void forEach(std::tuple<ValueTypes...>& tup, Functor&& functor)
-{
-    constexpr auto size = std::tuple_size<std::tuple<ValueTypes...>>::value;
-    using IndexType = typename IndexRange<0, size>::type;
-    forEachIndex(IndexType{}, tup, std::forward<Functor>(functor));
-}
-
-/////// forEach over a std::array, unrolled at compile time
-
-template<typename ValueType, std::size_t size, typename Functor>
-void forEach(const std::array<ValueType, size>& arr, Functor&& functor)
-{
-    using IndexType = typename IndexRange<0, size>::type;
-    forEachIndex(IndexType{}, arr, std::forward<Functor>(functor));
-}
-
-template<typename ValueType, std::size_t size, typename Functor>
-void forEach(std::array<ValueType, size>& arr, Functor&& functor)
-{
-    using IndexType = typename IndexRange<0, size>::type;
-    forEachIndex(IndexType{}, arr, std::forward<Functor>(functor));
-}
-
-/////// forEach over a C-Style array, unrolled at compile time
-
-template<typename ValueType, std::size_t size, typename Functor>
-void forEach(const ValueType (&arr)[size], Functor&& functor)
-{
-    using IndexType = typename IndexRange<0, size>::type;
-    forEachIndex(IndexType{}, arr, std::forward<Functor>(functor));
-}
-
-template<typename ValueType, std::size_t size, typename Functor>
-void forEach(ValueType (&arr)[size], Functor&& functor)
-{
-    using IndexType = typename IndexRange<0, size>::type;
-    forEachIndex(IndexType{}, arr, std::forward<Functor>(functor));
+    forEachIndex(IndexType{}, std::forward<Tuple>(tup), std::forward<Functor>(functor));
 }
 
 } // namespace

@@ -55,6 +55,17 @@ TEST(utils, forEach_tuple_const)
     ASSERT_EQ(55, sum);
 }
 
+TEST(utils, forEach_tuple_empty_const)
+{
+    std::tuple<> tup;
+    int sum = 0;
+    mega::forEach(tup, [&sum](const int val)
+                       {
+                           sum += val;
+                       });
+    ASSERT_EQ(0, sum);
+}
+
 TEST(utils, forEach_tuple_mutate)
 {
     auto tup = std::make_tuple(42, 13);
@@ -76,67 +87,58 @@ TEST(utils, forEach_tuple_temporary)
     ASSERT_EQ(55, sum);
 }
 
-TEST(utils, forEach_stdarray_const)
-{
-    const std::array<int, 2> arr = {42, 13};
-    int sum = 0;
-    mega::forEach(arr, [&sum](const int val)
-                       {
-                           sum += val;
-                       });
-    ASSERT_EQ(55, sum);
-}
-
-TEST(utils, forEach_stdarray_mutate)
-{
-    std::array<int, 2> arr = {42, 13};
-    mega::forEach(arr, [](int& val)
-                       {
-                           val *= 2;
-                       });
-    ASSERT_EQ(84, arr[0]);
-    ASSERT_EQ(26, arr[1]);
-}
-
-TEST(utils, forEach_stdarray_temporary)
+TEST(utils, forEach_tuple_empty_temporary)
 {
     int sum = 0;
-    mega::forEach(std::array<int, 2>{42, 13}, [&sum](const int val)
-                                              {
-                                                  sum += val;
-                                              });
-    ASSERT_EQ(55, sum);
+    mega::forEach(std::tuple<>{}, [&sum](const int val)
+                                  {
+                                      sum += val;
+                                  });
+    ASSERT_EQ(0, sum);
 }
 
-TEST(utils, forEach_carray_const)
+namespace {
+
+struct FunctorNotMutating
 {
-    const int arr[2] = {42, 13};
     int sum = 0;
-    mega::forEach(arr, [&sum](const int val)
-                       {
-                           sum += val;
-                       });
-    ASSERT_EQ(55, sum);
+    template<typename T>
+    void operator()(const T value)
+    {
+        sum += static_cast<int>(value);
+    }
+};
+
 }
 
-TEST(utils, forEach_carray_mutate)
+TEST(utils, forEach_tuple_differentTypes_const)
 {
-    int arr[2] = {42, 13};
-    mega::forEach(arr, [](int& val)
-                       {
-                           val *= 2;
-                       });
-    ASSERT_EQ(84, arr[0]);
-    ASSERT_EQ(26, arr[1]);
+    const auto tup = std::make_tuple(42, 13.);
+
+    FunctorNotMutating functor;
+    mega::forEach(tup, functor);
+    ASSERT_EQ(55, functor.sum);
 }
 
-TEST(utils, forEach_carray_temporary)
+namespace {
+
+struct FunctorMutating
 {
-    using Type = int[2];
-    int sum = 0;
-    mega::forEach(Type{42, 13}, [&sum](const int val)
-                                {
-                                    sum += val;
-                                });
-    ASSERT_EQ(55, sum);
+    template<typename T>
+    void operator()(T& value)
+    {
+        value *= 2;
+    }
+};
+
+}
+
+TEST(utils, forEach_tuple_differentTypes_mutate)
+{
+    auto tup = std::make_tuple(42, 13.);
+
+    FunctorMutating functor;
+    mega::forEach(tup, functor);
+    ASSERT_EQ(84, std::get<0>(tup));
+    ASSERT_EQ(26., std::get<1>(tup));
 }
