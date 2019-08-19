@@ -10427,6 +10427,11 @@ MegaNodeList *MegaApiImpl::search(const char *searchString, MegaCancelToken *can
         return new MegaNodeListPrivate();
     }
 
+    if (cancelToken && cancelToken->isCancelled())
+    {
+        return new MegaNodeListPrivate();
+    }
+
     SdkMutexGuard g(sdkMutex);
     if (cancelToken && cancelToken->isCancelled())
     {
@@ -10976,6 +10981,11 @@ bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursi
 MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, MegaCancelToken *cancelToken, bool recursive, int order)
 {
     if (!n || !searchString)
+    {
+        return new MegaNodeListPrivate();
+    }
+
+    if (cancelToken && cancelToken->isCancelled())
     {
         return new MegaNodeListPrivate();
     }
