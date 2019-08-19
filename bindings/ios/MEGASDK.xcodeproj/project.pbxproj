@@ -89,6 +89,7 @@
 		A8827A5C1F178A0D0097B5DE /* DelegateMEGATreeProcessorListener.mm in Sources */ = {isa = PBXBuildFile; fileRef = A8827A5B1F178A0D0097B5DE /* DelegateMEGATreeProcessorListener.mm */; };
 		A88722DC1FFE6A8B00E3F443 /* mediafileattribute.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A88722DB1FFE6A8A00E3F443 /* mediafileattribute.cpp */; };
 		A8A86BD51F559EDA00C214DA /* mega_zxcvbn.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A8A86BD41F559EDA00C214DA /* mega_zxcvbn.cpp */; };
+		A8FD7334230ABA400070A5E8 /* MEGACancelToken.mm in Sources */ = {isa = PBXBuildFile; fileRef = A8FD7333230ABA400070A5E8 /* MEGACancelToken.mm */; };
 		A8FD7B641E93B40E0031FC50 /* osxutils.mm in Sources */ = {isa = PBXBuildFile; fileRef = A8FD7B631E93B40E0031FC50 /* osxutils.mm */; };
 		B6657E9C225C2B6200EF8D91 /* raid.cpp in Sources */ = {isa = PBXBuildFile; fileRef = B6657E9B225C2B6200EF8D91 /* raid.cpp */; };
 		B698890D2198CCE300D0EE89 /* MEGAFileInputStream.mm in Sources */ = {isa = PBXBuildFile; fileRef = B698890B2198CCE300D0EE89 /* MEGAFileInputStream.mm */; };
@@ -306,6 +307,9 @@
 		A8A86BD31F559C0100C214DA /* mega_zxcvbn.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = mega_zxcvbn.h; sourceTree = "<group>"; };
 		A8A86BD41F559EDA00C214DA /* mega_zxcvbn.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = mega_zxcvbn.cpp; path = ../../src/mega_zxcvbn.cpp; sourceTree = "<group>"; };
 		A8EBFDD21EFAE14C00DF89DA /* MEGAEvent+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGAEvent+init.h"; sourceTree = "<group>"; };
+		A8FD7332230ABA400070A5E8 /* MEGACancelToken.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MEGACancelToken.h; sourceTree = "<group>"; };
+		A8FD7333230ABA400070A5E8 /* MEGACancelToken.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGACancelToken.mm; sourceTree = "<group>"; };
+		A8FD7335230AC42B0070A5E8 /* MEGACancelToken+init.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "MEGACancelToken+init.h"; sourceTree = "<group>"; };
 		A8FD7B611E93B3ED0031FC50 /* osxutils.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = osxutils.h; path = osx/osxutils.h; sourceTree = "<group>"; };
 		A8FD7B631E93B40E0031FC50 /* osxutils.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; name = osxutils.mm; path = ../../src/osx/osxutils.mm; sourceTree = "<group>"; };
 		B622FC762174261F00CF707C /* MEGABackgroundMediaUpload+init.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "MEGABackgroundMediaUpload+init.h"; sourceTree = "<group>"; };
@@ -495,6 +499,8 @@
 				5B1D7CE121F1E07200B0215E /* MEGARecentActionBucket.mm */,
 				B6A6CB642170125A009032C9 /* MEGABackgroundMediaUpload.h */,
 				B6A6CB652170125A009032C9 /* MEGABackgroundMediaUpload.mm */,
+				A8FD7332230ABA400070A5E8 /* MEGACancelToken.h */,
+				A8FD7333230ABA400070A5E8 /* MEGACancelToken.mm */,
 			);
 			name = bindings;
 			sourceTree = "<group>";
@@ -654,6 +660,7 @@
 				A808E4862158DAC400BDCE82 /* MEGATimeZoneDetails+init.h */,
 				5B0670CD21F5BABD00AD9F99 /* MEGARecentActionBucket+init.h */,
 				B622FC762174261F00CF707C /* MEGABackgroundMediaUpload+init.h */,
+				A8FD7335230AC42B0070A5E8 /* MEGACancelToken+init.h */,
 			);
 			path = Private;
 			sourceTree = "<group>";
@@ -805,6 +812,7 @@
 				940BEFBA19ED92C2007E7FA2 /* command.cpp in Sources */,
 				940BEFD019ED92C2007E7FA2 /* transfer.cpp in Sources */,
 				5B72A14D20D3B3FB007FE4FD /* mega_ccronexpr.cpp in Sources */,
+				A8FD7334230ABA400070A5E8 /* MEGACancelToken.mm in Sources */,
 				41AD7A7E1A1E10F900D66856 /* DelegateMEGALoggerListener.mm in Sources */,
 				41A990731A5D305700B2094A /* mega_utf8proc.cpp in Sources */,
 				A81790101EFACE6400110E91 /* MEGAHandleList.mm in Sources */,
