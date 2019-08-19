@@ -1400,6 +1400,30 @@ bool Utils::utf8toUnicode(const uint8_t *src, unsigned srclen, string *result)
     return true;
 }
 
+template<typename T>
+std::vector<T> Utils::str_to_a32(std::string data)
+{
+    std::vector<T> data32((data.size() + 3) >> 2);
+    for (int i = 0; i < data.size(); ++i)
+    {
+        data32[i >> 2] |= (data[i] & 255) << (24 - (i & 3) * 8);
+    }
+    return data32;
+}
+
+template<typename T>
+std::string Utils::a32_to_str(std::vector<T> data)
+{
+    size_t size =  data.size() * sizeof(T);
+    char result [size];
+    for (int i = 0; i < size; ++i)
+    {
+        result[i] = (data[i >> 2] >> (24 - (i & 3) * 8)) & 255;
+    }
+
+    return std::string (result, size);
+}
+
 long long abs(long long n)
 {
     // for pre-c++11 where this version is not defined yet

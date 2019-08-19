@@ -342,6 +342,26 @@ public:
      * @return True if success, false if the byte 'src' is not a valid UTF-8 string
      */
     static bool utf8toUnicode(const uint8_t *src, unsigned srclen, string *result);
+
+    /**
+     * @brief This function is analogous to a32_to_str in js version.
+     * Converts a vector of <T> elements into a std::string
+     *
+     * @param data a vector of <T> elements
+     * @note this function has been initially designed to work with <T> = uint32_t or <T> = int32_t
+     * @return returns a std::string
+     */
+    template<typename T> std::string a32_to_str(std::vector<T> data);
+
+    /**
+     * @brief This function is analogous to str_to_a32 in js version.
+     * Converts a std::string into a vector of <T> elements
+     *
+     * @param data a std::string
+     * @note this function has been initially designed to work with <T> = uint32_t or <T> = int32_t
+     * @return returns a vector of <T> elements
+     */
+    template<typename T> std::vector<T> str_to_a32(std::string data);
 };
 
 // for pre-c++11 where this version is not defined yet.  
