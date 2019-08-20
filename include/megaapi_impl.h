@@ -2381,9 +2381,7 @@ class MegaApiImpl : public MegaApp
         void pauseActionPackets();
         void resumeActionPackets();
 
-        static void sortNodes(node_vector &nodes, int order);
-        static std::vector<Node *>::iterator lowerBoundNodes(std::vector<Node *> &nodes, Node *node, int order);
-
+        static std::function<bool (Node*, Node*)>getComparatorFunction(int order);
         static bool nodeComparatorDefaultASC  (Node *i, Node *j);
         static bool nodeComparatorDefaultDESC (Node *i, Node *j);
         static bool nodeComparatorSizeASC  (Node *i, Node *j);

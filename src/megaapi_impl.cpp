@@ -10057,7 +10057,7 @@ MegaNodeList* MegaApiImpl::getInShares(MegaUser *megaUser, int order)
     MegaNodeList *nodeList;
     if (vNodes.size())
     {
-        sortNodes(vNodes, order);
+        std::sort(vNodes.begin(), vNodes.end(), getComparatorFunction(order));
         nodeList = new MegaNodeListPrivate(vNodes.data(), int(vNodes.size()));
     }
     else
@@ -10087,7 +10087,7 @@ MegaNodeList* MegaApiImpl::getInShares(int order)
         }
     }
 
-    sortNodes(nodes, order);
+    std::sort(nodes.begin(), nodes.end(), getComparatorFunction(order));
 
     MegaNodeList *nodeList = new MegaNodeListPrivate(nodes.data(), int(nodes.size()));
     sdkMutex.unlock();
@@ -10112,7 +10112,7 @@ MegaShareList* MegaApiImpl::getInSharesList(int order)
         }
     }
 
-    sortNodes(nodes, order);
+    std::sort(nodes.begin(), nodes.end(), getComparatorFunction(order));
 
     vector<Share*> shares;
     handle_vector handles;
@@ -10275,7 +10275,7 @@ MegaNodeList *MegaApiImpl::getPublicLinks(int order)
     PublicLinkProcessor linkProcessor;
     processTree(client->nodebyhandle(client->rootnodes[0]), &linkProcessor, true);
     node_vector nodes = linkProcessor.getNodes();
-    sortNodes(nodes, order);
+    std::sort(nodes.begin(), nodes.end(), getComparatorFunction(order));
     MegaNodeList *nodeList = new MegaNodeListPrivate(nodes.data(), int(nodes.size()));
 
     sdkMutex.unlock();
@@ -10505,7 +10505,7 @@ MegaNodeList *MegaApiImpl::search(const char *searchString, MegaCancelToken *can
 
     if (order && order <= MegaApi::ORDER_ALPHABETICAL_DESC)
     {
-        sortNodes(result, order);
+        std::sort(result.begin(), result.end(), getComparatorFunction(order));
     }
     MegaNodeList *nodeList = new MegaNodeListPrivate(result.data(), int(result.size()));
     
@@ -11035,7 +11035,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, MegaCan
     vector<Node *>& vNodes = searchProcessor.getResults();
     if (order && order <= MegaApi::ORDER_ALPHABETICAL_DESC)
     {
-        sortNodes(vNodes, order);
+        std::sort(vNodes.begin(), vNodes.end(), getComparatorFunction(order));
     }
 
     MegaNodeList *nodeList = new MegaNodeListPrivate(vNodes.data(), int(vNodes.size()));
@@ -16156,34 +16156,9 @@ int naturalsorting_compare (const char *i, const char *j)
     return 0;
 }
 
-void MegaApiImpl::sortNodes(node_vector &nodes, int order)
+std::function<bool (Node*, Node*)>MegaApiImpl::getComparatorFunction(int order)
 {
-    if (order == MegaApi::ORDER_NONE)
-    {
-        return;
-    }
-
-    bool (*comp)(Node*, Node*);
-    switch(order)
-    {
-        case MegaApi::ORDER_DEFAULT_ASC: comp = MegaApiImpl::nodeComparatorDefaultASC; break;
-        case MegaApi::ORDER_DEFAULT_DESC: comp = MegaApiImpl::nodeComparatorDefaultDESC; break;
-        case MegaApi::ORDER_SIZE_ASC: comp = MegaApiImpl::nodeComparatorSizeASC; break;
-        case MegaApi::ORDER_SIZE_DESC: comp = MegaApiImpl::nodeComparatorSizeDESC; break;
-        case MegaApi::ORDER_CREATION_ASC: comp = MegaApiImpl::nodeComparatorCreationASC; break;
-        case MegaApi::ORDER_CREATION_DESC: comp = MegaApiImpl::nodeComparatorCreationDESC; break;
-        case MegaApi::ORDER_MODIFICATION_ASC: comp = MegaApiImpl::nodeComparatorModificationASC; break;
-        case MegaApi::ORDER_MODIFICATION_DESC: comp = MegaApiImpl::nodeComparatorModificationDESC; break;
-        case MegaApi::ORDER_ALPHABETICAL_ASC: comp = MegaApiImpl::nodeComparatorAlphabeticalASC; break;
-        case MegaApi::ORDER_ALPHABETICAL_DESC: comp = MegaApiImpl::nodeComparatorAlphabeticalDESC; break;
-        default: comp = MegaApiImpl::nodeComparatorDefaultASC; break;
-    }
-    std::sort(nodes.begin(), nodes.end(), comp);
-}
-
-std::vector<Node *>::iterator MegaApiImpl::lowerBoundNodes(std::vector<Node *> &nodes, Node *node, int order)
-{
-    bool (*comp)(Node*, Node*);
+    std::function<bool (Node*, Node*)> comp;
     switch(order)
     {
         case MegaApi::ORDER_DEFAULT_ASC: comp = MegaApiImpl::nodeComparatorDefaultASC; break;
@@ -16199,7 +16174,7 @@ std::vector<Node *>::iterator MegaApiImpl::lowerBoundNodes(std::vector<Node *> &
         default: comp = MegaApiImpl::nodeComparatorDefaultASC; break;
     }
 
-    return std::lower_bound(nodes.begin(), nodes.end(), node, comp);
+    return comp;
 }
 
 bool MegaApiImpl::nodeComparatorDefaultASC(Node *i, Node *j)
@@ -16478,10 +16453,11 @@ MegaNodeList *MegaApiImpl::getChildren(MegaNode* p, int order)
     }
     else
     {
+        std::function<bool (Node*, Node*)> comparatorFunction = getComparatorFunction(order);
         for (node_list::iterator it = parent->children.begin(); it != parent->children.end(); )
         {
             Node *n = *it++;
-            const vector<Node *>::iterator i = lowerBoundNodes(childrenNodes, n, order);
+            const vector<Node *>::iterator i = std::lower_bound(childrenNodes.begin(), childrenNodes.end(), n, comparatorFunction);
             childrenNodes.insert(i, n);
         }
     }
@@ -16626,17 +16602,18 @@ MegaChildrenLists *MegaApiImpl::getFileFolderChildren(MegaNode *p, int order)
     }
     else
     {
+        std::function<bool (Node*, Node*)> comparatorFunction = getComparatorFunction(order);
         for (node_list::iterator it = parent->children.begin(); it != parent->children.end(); )
         {
             Node *n = *it++;
             if (n->type == FILENODE)
             {
-                const vector<Node *>::iterator i = lowerBoundNodes(files, n, order);
+                const vector<Node *>::iterator i = std::lower_bound(files.begin(), files.end(), n, comparatorFunction);
                 files.insert(i, n);
             }
             else // if (n->type == FOLDERNODE)
             {
-                const vector<Node *>::iterator i = lowerBoundNodes(folders, n, order);
+                const vector<Node *>::iterator i = std::lower_bound(folders.begin(), folders.end(), n, comparatorFunction);
                 folders.insert(i, n);
             }
         }
@@ -16716,15 +16693,16 @@ int MegaApiImpl::getIndex(MegaNode *n, int order)
         return 0;
     }
 
+    std::function<bool (Node*, Node*)> comparatorFunction = getComparatorFunction(order);
     vector<Node *> childrenNodes;
     for (node_list::iterator it = parent->children.begin(); it != parent->children.end(); )
     {
         Node *temp = *it++;
-        const vector<Node *>::iterator i = lowerBoundNodes(childrenNodes, temp, order);
+        const vector<Node *>::iterator i = std::lower_bound(childrenNodes.begin(), childrenNodes.end(), temp, comparatorFunction);
         childrenNodes.insert(i, temp);
     }
 
-    const vector<Node *>::iterator i = lowerBoundNodes(childrenNodes, node, order);
+    const vector<Node *>::iterator i = std::lower_bound(childrenNodes.begin(), childrenNodes.end(), node, comparatorFunction);
 
     sdkMutex.unlock();
     return int(i - childrenNodes.begin());
@@ -21812,7 +21790,7 @@ vector<handle> OutShareProcessor::getHandles()
 
 void OutShareProcessor::sortShares(int order)
 {
-    MegaApiImpl::sortNodes(mNodes, order);
+    std::sort(mNodes.begin(), mNodes.end(), MegaApiImpl::getComparatorFunction(order));
 }
 
 PendingOutShareProcessor::PendingOutShareProcessor()
