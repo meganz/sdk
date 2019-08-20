@@ -1821,12 +1821,12 @@ class OutShareProcessor : public TreeProcessor
         OutShareProcessor();
         virtual bool processNode(Node* node);
         virtual ~OutShareProcessor() {}
-        vector<Share *> &getShares();
-        vector<handle> &getHandles();
-
+        vector<Share *> getShares();
+        vector<handle> getHandles();
+        void sortShares(int order);
     protected:
-        vector<Share *> shares;
-        vector<handle> handles;
+        vector<Share *> mShares;
+        vector<Node *> mNodes;
 };
 
 class PendingOutShareProcessor : public TreeProcessor
@@ -2261,16 +2261,16 @@ class MegaApiImpl : public MegaApp
         MegaUser* getContact(const char* uid);
         MegaUserAlertList* getUserAlerts();
         int getNumUnreadUserAlerts();
-        MegaNodeList *getInShares(MegaUser* user);
-        MegaNodeList *getInShares();
-        MegaShareList *getInSharesList();
+        MegaNodeList *getInShares(MegaUser* user, int order);
+        MegaNodeList *getInShares(int order);
+        MegaShareList *getInSharesList(int order);
         MegaUser *getUserFromInShare(MegaNode *node);
         bool isPendingShare(MegaNode *node);
-        MegaShareList *getOutShares();
+        MegaShareList *getOutShares(int order);
         MegaShareList *getOutShares(MegaNode *node);
         MegaShareList *getPendingOutShares();
         MegaShareList *getPendingOutShares(MegaNode *megaNode);
-        MegaNodeList *getPublicLinks();
+        MegaNodeList *getPublicLinks(int order);
         MegaContactRequestList *getIncomingContactRequests();
         MegaContactRequestList *getOutgoingContactRequests();
 
@@ -2369,6 +2369,7 @@ class MegaApiImpl : public MegaApp
         void pauseActionPackets();
         void resumeActionPackets();
 
+        static void sortNodes(std::vector<Node *> &nodes, int order);
         static bool nodeComparatorDefaultASC  (Node *i, Node *j);
         static bool nodeComparatorDefaultDESC (Node *i, Node *j);
         static bool nodeComparatorSizeASC  (Node *i, Node *j);
