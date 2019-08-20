@@ -1089,9 +1089,9 @@ string * TLVstore::tlvRecordsToContainer(PrnGen &rng, SymmCipher *key, encryptio
     return result;
 }
 
-string * TLVstore::tlvRecordsToContainer()
+string* TLVstore::tlvRecordsToContainer()
 {
-    string * result = new string;
+    string *result = new string;
     size_t offset = 0;
     size_t length;
 
@@ -1292,7 +1292,7 @@ TLVstore * TLVstore::containerToTLVrecords(const string *data, SymmCipher *key)
     unsigned taglen = TLVstore::getTaglen(encSetting);
     encryptionmode_t encMode = TLVstore::getMode(encSetting);
 
-    if (encMode == AES_MODE_UNKNOWN || !ivlen || !taglen ||  data->size() <= offset+ivlen+taglen)
+    if (encMode == AES_MODE_UNKNOWN || !ivlen || !taglen ||  data->size() < offset+ivlen+taglen)
     {
         return NULL;
     }
@@ -1307,20 +1307,25 @@ TLVstore * TLVstore::containerToTLVrecords(const string *data, SymmCipher *key)
     unsigned clearTextLen = cipherTextLen - taglen;
     string clearText;
 
+    bool decrypted = false;
     if (encMode == AES_MODE_CCM)   // CCM or GCM_BROKEN (same than CCM)
     {
-        key->ccm_decrypt(&cipherText, iv, ivlen, taglen, &clearText);
+       decrypted = key->ccm_decrypt(&cipherText, iv, ivlen, taglen, &clearText);
     }
     else if (encMode == AES_MODE_GCM)  // GCM
     {
-        key->gcm_decrypt(&cipherText, iv, ivlen, taglen, &clearText);
+       decrypted = key->gcm_decrypt(&cipherText, iv, ivlen, taglen, &clearText);
     }
 
     delete [] iv;
 
-    if (clearText.empty())  // the decryption has failed (probably due to authentication)
+    if (!decrypted)  // the decryption has failed (probably due to authentication)
     {
         return NULL;
+    }
+    else if (clearText.empty()) // If decryption succeeded but attribute is empty, generate an empty TLV
+    {
+        return new TLVstore();
     }
 
     TLVstore *tlv = TLVstore::containerToTLVrecords(&clearText);
