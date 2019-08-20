@@ -11681,38 +11681,48 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 
                 ll->setnode(rit->second);
 
+                bool overwriteLocalnode = true;
+
                 if (*ll == *(FileFingerprint*)rit->second)
                 {
+                    overwriteLocalnode = false;
                     // both files are identical
                     nchildren.erase(rit);
                 }
-                // file exists on both sides - do not overwrite if local version newer or same
-                else if (ll->mtime > rit->second->mtime)
+                else if (!ll->sync->overwriteChanges())
                 {
-                    // local version is newer
-                    LOG_debug << "LocalNode is newer: " << ll->name << " LNmtime: " << ll->mtime << " Nmtime: " << rit->second->mtime;
-                    nchildren.erase(rit);
-                }
-                else if (ll->mtime == rit->second->mtime
-                         && (ll->size > rit->second->size
-                             || (ll->size == rit->second->size && memcmp(ll->crc, rit->second->crc, sizeof ll->crc) > 0)))
-
-                {
-                    if (ll->size < rit->second->size)
+                    // file exists on both sides - do not overwrite if local version newer or same
+                    if (ll->mtime > rit->second->mtime)
                     {
-                        LOG_warn << "Syncdown. Same mtime but lower size: " << ll->name
-                                 << " mtime: " << ll->mtime << " LNsize: " << ll->size << " Nsize: " << rit->second->size
-                                 << " Nhandle: " << LOG_NODEHANDLE(rit->second->nodehandle);
+                        overwriteLocalnode = false;
+                        // local version is newer
+                        LOG_debug << "LocalNode is newer: " << ll->name << " LNmtime: " << ll->mtime << " Nmtime: " << rit->second->mtime;
+                        nchildren.erase(rit);
                     }
-                    else
-                    {
-                        LOG_warn << "Syncdown. Same mtime and size, but bigger CRC: " << ll->name
-                                 << " mtime: " << ll->mtime << " size: " << ll->size << " Nhandle: " << LOG_NODEHANDLE(rit->second->nodehandle);
-                    }
+                    else if (ll->mtime == rit->second->mtime
+                             && (ll->size > rit->second->size
+                                 || (ll->size == rit->second->size && memcmp(ll->crc, rit->second->crc, sizeof ll->crc) > 0)))
 
-                    nchildren.erase(rit);
+                    {
+                        overwriteLocalnode = false;
+
+                        if (ll->size < rit->second->size)
+                        {
+                            LOG_warn << "Syncdown. Same mtime but lower size: " << ll->name
+                                     << " mtime: " << ll->mtime << " LNsize: " << ll->size << " Nsize: " << rit->second->size
+                                     << " Nhandle: " << LOG_NODEHANDLE(rit->second->nodehandle);
+                        }
+                        else
+                        {
+                            LOG_warn << "Syncdown. Same mtime and size, but bigger CRC: " << ll->name
+                                     << " mtime: " << ll->mtime << " size: " << ll->size << " Nhandle: " << LOG_NODEHANDLE(rit->second->nodehandle);
+                        }
+
+                        nchildren.erase(rit);
+                    }
                 }
-                else
+
+                if (overwriteLocalnode)
                 {
                     // means that the localnode is going to be overwritten
                     if (rit->second->localnode && rit->second->localnode->transfer)
@@ -12213,7 +12223,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
 #endif
 
                     // if this node is being fetched, but has to be upsynced
-                    if (rit->second->syncget)
+                    if (rit->second->syncget && ll->sync->isUpSync())
                     {
                         LOG_debug << "Stopping unneeded download";
                         delete rit->second->syncget;
