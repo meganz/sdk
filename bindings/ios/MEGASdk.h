@@ -350,11 +350,34 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
 
 /**
  * @brief Returns YES if it's a business account, otherwise NO.
+ *
+ * @note This function must be called only if we have received the callback
+ * [MEGAGlobalDelegate onEvent:event:] and the callback [MEGADelegate onEvent:event:]
+ * with the event type EventBusinessStatus
+ *
  */
 @property (readonly, nonatomic, getter=isBusinessAccount) BOOL businessAccount;
 
 /**
  * @brief Returns YES if it's a master account, NO if it's a sub-user account.
+ *
+ * When a business account is a sub-user, not the master, some user actions will be blocked.
+ * In result, the API will return the error code MEGAErrorTypeApiEMasterOnly. Some examples of
+ * requests that may fail with this error are:
+ *  - [MEGASdk cancelAccount]
+ *  - [MEGASdk changeEmail]
+ *  - [MEGASdk remove]
+ *  - [MEGASdk removeVersion]
+ *
+ * @note This function must be called only if we have received the callback
+ * [MEGAGlobalDelegate onEvent:event:] and the callback [MEGADelegate onEvent:event:]
+ * with the event type EventBusinessStatus
+ *
+ */
+@property (readonly, nonatomic, getter=isMasterBusinessAccount) BOOL masterBusinessAccount;
+
+/**
+ * @brief Returns YES if it is an active business account, otherwise NO.
  *
  * When a business account is not active, some user actions will be blocked. In result, the API
  * will return the error code MEGAErrorTypeApiEBusinessPastDue. Some examples of requests
@@ -365,16 +388,19 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  *  - [MEGASdk shareNode]
  *  - [MEGASdk cleanRubbishBin]
  *
- */
-@property (readonly, nonatomic, getter=isMasterBusinessAccount) BOOL masterBusinessAccount;
-
-/**
- * @brief Returns YES if it is an active business account, otherwise NO.
+ * @note This function must be called only if we have received the callback
+ * [MEGAGlobalDelegate onEvent:event:] and the callback [MEGADelegate onEvent:event:]
+ * with the event type EventBusinessStatus
  */
 @property (readonly, nonatomic, getter=isBusinessAccountActive) BOOL businessAccountActive;
 
 /**
  * @brief Get the status of a business account.
+ *
+ * @note This function must be called only if we have received the callback
+ * [MEGAGlobalDelegate onEvent:event:] and the callback [MEGADelegate onEvent:event:]
+ * with the event type EventBusinessStatus
+ *
  * @return Returns the business account status, possible values:
  *      BusinessStatusExpired = -1
  *      BusinessStatusInactive = 0
