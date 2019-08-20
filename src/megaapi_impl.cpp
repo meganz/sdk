@@ -10037,7 +10037,7 @@ MegaNodeList* MegaApiImpl::getInShares(MegaUser *megaUser, int order)
     }
 
     sdkMutex.lock();
-    vector<Node*> vNodes;
+    node_vector vNodes;
     User *user = client->finduser(megaUser->getEmail(), 0);
     if (!user)
     {
@@ -10073,7 +10073,7 @@ MegaNodeList* MegaApiImpl::getInShares(int order)
 {
     sdkMutex.lock();
 
-    vector<Node*> nodes;
+    node_vector nodes;
     for (user_map::iterator it = client->users.begin(); it != client->users.end(); it++)
     {
         Node *n;
@@ -10098,7 +10098,7 @@ MegaShareList* MegaApiImpl::getInSharesList(int order)
 {
     sdkMutex.lock();
 
-    vector<Node*> nodes;
+    node_vector nodes;
     for(user_map::iterator it = client->users.begin(); it != client->users.end(); it++)
     {
         Node *n;
@@ -16444,7 +16444,7 @@ MegaNodeList *MegaApiImpl::getChildren(MegaNode* p, int order)
         return new MegaNodeListPrivate();
     }
 
-    vector<Node *> childrenNodes;
+    node_vector childrenNodes;
 
     if(!order || order> MegaApi::ORDER_ALPHABETICAL_DESC)
     {
@@ -16457,7 +16457,7 @@ MegaNodeList *MegaApiImpl::getChildren(MegaNode* p, int order)
         for (node_list::iterator it = parent->children.begin(); it != parent->children.end(); )
         {
             Node *n = *it++;
-            const vector<Node *>::iterator i = std::lower_bound(childrenNodes.begin(), childrenNodes.end(), n, comparatorFunction);
+            const node_vector::iterator i = std::lower_bound(childrenNodes.begin(), childrenNodes.end(), n, comparatorFunction);
             childrenNodes.insert(i, n);
         }
     }
@@ -16582,8 +16582,8 @@ MegaChildrenLists *MegaApiImpl::getFileFolderChildren(MegaNode *p, int order)
         return new MegaChildrenListsPrivate();
     }
 
-    vector<Node *> files;
-    vector<Node *> folders;
+    node_vector files;
+    node_vector folders;
 
     if(!order || order> MegaApi::ORDER_ALPHABETICAL_DESC)
     {
@@ -16608,12 +16608,12 @@ MegaChildrenLists *MegaApiImpl::getFileFolderChildren(MegaNode *p, int order)
             Node *n = *it++;
             if (n->type == FILENODE)
             {
-                const vector<Node *>::iterator i = std::lower_bound(files.begin(), files.end(), n, comparatorFunction);
+                const node_vector::iterator i = std::lower_bound(files.begin(), files.end(), n, comparatorFunction);
                 files.insert(i, n);
             }
             else // if (n->type == FOLDERNODE)
             {
-                const vector<Node *>::iterator i = std::lower_bound(folders.begin(), folders.end(), n, comparatorFunction);
+                const node_vector::iterator i = std::lower_bound(folders.begin(), folders.end(), n, comparatorFunction);
                 folders.insert(i, n);
             }
         }
@@ -16694,15 +16694,15 @@ int MegaApiImpl::getIndex(MegaNode *n, int order)
     }
 
     std::function<bool (Node*, Node*)> comparatorFunction = getComparatorFunction(order);
-    vector<Node *> childrenNodes;
+    node_vector childrenNodes;
     for (node_list::iterator it = parent->children.begin(); it != parent->children.end(); )
     {
         Node *temp = *it++;
-        const vector<Node *>::iterator i = std::lower_bound(childrenNodes.begin(), childrenNodes.end(), temp, comparatorFunction);
+        const node_vector::iterator i = std::lower_bound(childrenNodes.begin(), childrenNodes.end(), temp, comparatorFunction);
         childrenNodes.insert(i, temp);
     }
 
-    const vector<Node *>::iterator i = std::lower_bound(childrenNodes.begin(), childrenNodes.end(), node, comparatorFunction);
+    const node_vector::iterator i = std::lower_bound(childrenNodes.begin(), childrenNodes.end(), node, comparatorFunction);
 
     sdkMutex.unlock();
     return int(i - childrenNodes.begin());
