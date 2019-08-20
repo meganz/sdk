@@ -12143,84 +12143,87 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                         continue;
                     }
 
-                    // skip if remote file is newer
-                    if (ll->mtime < rit->second->mtime)
+                    if (!ll->sync->overwriteChanges())
                     {
-                        LOG_debug << "LocalNode is older: " << ll->name << " LNmtime: " << ll->mtime << " Nmtime: " << rit->second->mtime;
-                        continue;
-                    }                           
-
-                    if (ll->mtime == rit->second->mtime)
-                    {
-                        if (ll->size < rit->second->size)
+                        // skip if remote file is newer
+                        if (ll->mtime < rit->second->mtime)
                         {
-                            LOG_warn << "Syncup. Same mtime but lower size: " << ll->name
-                                     << " LNmtime: " << ll->mtime << " LNsize: " << ll->size << " Nsize: " << rit->second->size
-                                     << " Nhandle: " << LOG_NODEHANDLE(rit->second->nodehandle) ;
-
+                            LOG_debug << "LocalNode is older: " << ll->name << " LNmtime: " << ll->mtime << " Nmtime: " << rit->second->mtime;
                             continue;
                         }
 
-                        if (ll->size == rit->second->size && memcmp(ll->crc, rit->second->crc, sizeof ll->crc) < 0)
+                        if (ll->mtime == rit->second->mtime)
                         {
-                            LOG_warn << "Syncup. Same mtime and size, but lower CRC: " << ll->name
-                                     << " mtime: " << ll->mtime << " size: " << ll->size << " Nhandle: " << LOG_NODEHANDLE(rit->second->nodehandle);
-
-                            continue;
-                        }
-                    }
-
-                    LOG_debug << "LocalNode change detected on syncupload: " << ll->name << " LNsize: " << ll->size << " LNmtime: " << ll->mtime
-                              << " NSize: " << rit->second->size << " Nmtime: " << rit->second->mtime << " Nhandle: " << LOG_NODEHANDLE(rit->second->nodehandle);
-
-#ifdef WIN32
-                    if(ll->size == ll->node->size && !memcmp(ll->crc, ll->node->crc, sizeof(ll->crc)))
-                    {
-                        LOG_debug << "Modification time changed only";
-                        FileAccess *f = fsaccess->newfileaccess();
-                        string lpath;
-                        ll->getlocalpath(&lpath);
-                        string stream = lpath;
-                        stream.append((const char *)(const wchar_t*)L":$CmdTcID:$DATA", 30);
-                        if (f->fopen(&stream))
-                        {
-                            LOG_warn << "COMODO detected";
-                            HKEY hKey;
-                            if (RegOpenKeyEx(HKEY_LOCAL_MACHINE,
-                                            L"SYSTEM\\CurrentControlSet\\Services\\CmdAgent\\CisConfigs\\0\\HIPS\\SBSettings",
-                                            0,
-                                            KEY_QUERY_VALUE,
-                                            &hKey ) == ERROR_SUCCESS)
+                            if (ll->size < rit->second->size)
                             {
-                                DWORD value = 0;
-                                DWORD size = sizeof(value);
-                                if (RegQueryValueEx(hKey, L"EnableSourceTracking", NULL, NULL, (LPBYTE)&value, &size) == ERROR_SUCCESS)
-                                {
-                                    if (value == 1 && fsaccess->setmtimelocal(&lpath, ll->node->mtime))
-                                    {
-                                        LOG_warn << "Fixed modification time probably changed by COMODO";
-                                        ll->mtime = ll->node->mtime;
-                                        ll->treestate(TREESTATE_SYNCED);
-                                        RegCloseKey(hKey);
-                                        delete f;
-                                        continue;
-                                    }
-                                }
-                                RegCloseKey(hKey);
+                                LOG_warn << "Syncup. Same mtime but lower size: " << ll->name
+                                         << " LNmtime: " << ll->mtime << " LNsize: " << ll->size << " Nsize: " << rit->second->size
+                                         << " Nhandle: " << LOG_NODEHANDLE(rit->second->nodehandle) ;
+
+                                continue;
+                            }
+
+                            if (ll->size == rit->second->size && memcmp(ll->crc, rit->second->crc, sizeof ll->crc) < 0)
+                            {
+                                LOG_warn << "Syncup. Same mtime and size, but lower CRC: " << ll->name
+                                         << " mtime: " << ll->mtime << " size: " << ll->size << " Nhandle: " << LOG_NODEHANDLE(rit->second->nodehandle);
+
+                                continue;
                             }
                         }
 
-                        lpath.append((const char *)(const wchar_t*)L":OECustomProperty", 34);
-                        if (f->fopen(&lpath))
-                        {
-                            LOG_warn << "Windows Search detected";
-                            delete f;
-                            continue;
-                        }
+                        LOG_debug << "LocalNode change detected on syncupload: " << ll->name << " LNsize: " << ll->size << " LNmtime: " << ll->mtime
+                                  << " NSize: " << rit->second->size << " Nmtime: " << rit->second->mtime << " Nhandle: " << LOG_NODEHANDLE(rit->second->nodehandle);
 
-                        delete f;
-                    }
+#ifdef WIN32
+                        if(ll->size == ll->node->size && !memcmp(ll->crc, ll->node->crc, sizeof(ll->crc)))
+                        {
+                            LOG_debug << "Modification time changed only";
+                            FileAccess *f = fsaccess->newfileaccess();
+                            string lpath;
+                            ll->getlocalpath(&lpath);
+                            string stream = lpath;
+                            stream.append((const char *)(const wchar_t*)L":$CmdTcID:$DATA", 30);
+                            if (f->fopen(&stream))
+                            {
+                                LOG_warn << "COMODO detected";
+                                HKEY hKey;
+                                if (RegOpenKeyEx(HKEY_LOCAL_MACHINE,
+                                                L"SYSTEM\\CurrentControlSet\\Services\\CmdAgent\\CisConfigs\\0\\HIPS\\SBSettings",
+                                                0,
+                                                KEY_QUERY_VALUE,
+                                                &hKey ) == ERROR_SUCCESS)
+                                {
+                                    DWORD value = 0;
+                                    DWORD size = sizeof(value);
+                                    if (RegQueryValueEx(hKey, L"EnableSourceTracking", NULL, NULL, (LPBYTE)&value, &size) == ERROR_SUCCESS)
+                                    {
+                                        if (value == 1 && fsaccess->setmtimelocal(&lpath, ll->node->mtime))
+                                        {
+                                            LOG_warn << "Fixed modification time probably changed by COMODO";
+                                            ll->mtime = ll->node->mtime;
+                                            ll->treestate(TREESTATE_SYNCED);
+                                            RegCloseKey(hKey);
+                                            delete f;
+                                            continue;
+                                        }
+                                    }
+                                    RegCloseKey(hKey);
+                                }
+                            }
+
+                            lpath.append((const char *)(const wchar_t*)L":OECustomProperty", 34);
+                            if (f->fopen(&lpath))
+                            {
+                                LOG_warn << "Windows Search detected";
+                                delete f;
+                                continue;
+                            }
+
+                            delete f;
+                        }
 #endif
+                    }
 
                     // if this node is being fetched, but has to be upsynced
                     if (rit->second->syncget && ll->sync->isUpSync())
