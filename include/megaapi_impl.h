@@ -1838,7 +1838,7 @@ class OutShareProcessor : public TreeProcessor
         void sortShares(int order);
     protected:
         vector<Share *> mShares;
-        vector<Node *> mNodes;
+        node_vector mNodes;
 };
 
 class PendingOutShareProcessor : public TreeProcessor
@@ -2381,7 +2381,7 @@ class MegaApiImpl : public MegaApp
         void pauseActionPackets();
         void resumeActionPackets();
 
-        static void sortNodes(std::vector<Node *> &nodes, int order);
+        static void sortNodes(node_vector &nodes, int order);
         static std::vector<Node *>::iterator lowerBoundNodes(std::vector<Node *> &nodes, Node *node, int order);
 
         static bool nodeComparatorDefaultASC  (Node *i, Node *j);

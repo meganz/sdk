@@ -10274,7 +10274,7 @@ MegaNodeList *MegaApiImpl::getPublicLinks(int order)
 
     PublicLinkProcessor linkProcessor;
     processTree(client->nodebyhandle(client->rootnodes[0]), &linkProcessor, true);
-    std::vector<Node *> nodes = linkProcessor.getNodes();
+    node_vector nodes = linkProcessor.getNodes();
     sortNodes(nodes, order);
     MegaNodeList *nodeList = new MegaNodeListPrivate(nodes.data(), int(nodes.size()));
 
@@ -16156,7 +16156,7 @@ int naturalsorting_compare (const char *i, const char *j)
     return 0;
 }
 
-void MegaApiImpl::sortNodes(std::vector<Node *> &nodes, int order)
+void MegaApiImpl::sortNodes(node_vector &nodes, int order)
 {
     if (order == MegaApi::ORDER_NONE)
     {
