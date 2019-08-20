@@ -14264,6 +14264,7 @@ void MegaApiImpl::getua_result(error e)
             // serialize and encrypt the TLV container
             std::unique_ptr<string> container(tlv.tlvRecordsToContainer(client->rng, &client->key));
             client->putua(type, (byte *)container->data(), unsigned(container->size()));
+            return;
         }
     }
 
