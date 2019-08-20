@@ -10430,25 +10430,36 @@ bool MegaApiImpl::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, boo
     return result;
 }
 
-MegaNodeList *MegaApiImpl::search(const char *searchString, int order)
+MegaNodeList *MegaApiImpl::search(const char *searchString, MegaCancelToken *cancelToken, int order)
 {
     if(!searchString)
     {
         return new MegaNodeListPrivate();
     }
 
-    sdkMutex.lock();
+    if (cancelToken && cancelToken->isCancelled())
+    {
+        return new MegaNodeListPrivate();
+    }
+
+    SdkMutexGuard g(sdkMutex);
+
+    if (cancelToken && cancelToken->isCancelled())
+    {
+        return new MegaNodeListPrivate();
+    }
 
     node_vector result;
     Node *node;
 
     // rootnodes
-    for (unsigned int i = 0; i < (sizeof client->rootnodes / sizeof *client->rootnodes); i++)
+    for (unsigned int i = 0; i < (sizeof client->rootnodes / sizeof *client->rootnodes)
+          && !(cancelToken && cancelToken->isCancelled()); i++)
     {
         node = client->nodebyhandle(client->rootnodes[i]);
 
         SearchTreeProcessor searchProcessor(searchString);
-        processTree(node, &searchProcessor);
+        processTree(node, &searchProcessor, true, cancelToken);
         node_vector& vNodes = searchProcessor.getResults();
 
         result.insert(result.end(), vNodes.begin(), vNodes.end());
@@ -10456,12 +10467,12 @@ MegaNodeList *MegaApiImpl::search(const char *searchString, int order)
 
     // inshares
     MegaShareList *shares = getInSharesList();
-    for (int i = 0; i < shares->size(); i++)
+    for (int i = 0; i < shares->size() && !(cancelToken && cancelToken->isCancelled()); i++)
     {
         node = client->nodebyhandle(shares->get(i)->getNodeHandle());
 
         SearchTreeProcessor searchProcessor(searchString);
-        processTree(node, &searchProcessor);
+        processTree(node, &searchProcessor, true, cancelToken);
         vector<Node *>& vNodes  = searchProcessor.getResults();
 
         result.insert(result.end(), vNodes.begin(), vNodes.end());
@@ -10489,8 +10500,6 @@ MegaNodeList *MegaApiImpl::search(const char *searchString, int order)
     }
     MegaNodeList *nodeList = new MegaNodeListPrivate(result.data(), int(result.size()));
     
-    sdkMutex.unlock();
-
     return nodeList;
 }
 
@@ -10937,7 +10946,7 @@ void MegaApiImpl::resumeActionPackets()
     sdkMutex.unlock();
 }
 
-bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursive)
+bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursive, MegaCancelToken *cancelToken)
 {
     if (!node)
     {
@@ -10949,11 +10958,21 @@ bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursi
         return 0;
     }
 
-    sdkMutex.lock();
+    if (cancelToken && cancelToken->isCancelled())
+    {
+        return 0;
+    }
+
+    SdkMutexGuard g(sdkMutex);
+
+    if (cancelToken && cancelToken->isCancelled()) // check before lock and after, in case it was cancelled while being locked
+    {
+        return 0;
+    }
+
     node = client->nodebyhandle(node->nodehandle);
     if (!node)
     {
-        sdkMutex.unlock();
         return 1;
     }
 
@@ -10961,38 +10980,46 @@ bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursi
     {
         for (node_list::iterator it = node->children.begin(); it != node->children.end(); )
         {
-            if (!processTree(*it++,processor))
+            if (!processTree(*it++, processor, recursive, cancelToken))
             {
-                sdkMutex.unlock();
                 return 0;
             }
         }
     }
     bool result = processor->processNode(node);
-    sdkMutex.unlock();
     return result;
 }
 
-MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, bool recursive, int order)
+MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, MegaCancelToken *cancelToken, bool recursive, int order)
 {
     if (!n || !searchString)
     {
         return new MegaNodeListPrivate();
     }
+
+    if (cancelToken && cancelToken->isCancelled())
+    {
+        return new MegaNodeListPrivate();
+    }
     
-    sdkMutex.lock();
+    SdkMutexGuard g(sdkMutex);
+
+    if (cancelToken && cancelToken->isCancelled())
+    {
+        return new MegaNodeListPrivate();
+    }
     
     Node *node = client->nodebyhandle(n->getHandle());
     if (!node)
     {
-        sdkMutex.unlock();
         return new MegaNodeListPrivate();
     }
 
     SearchTreeProcessor searchProcessor(searchString);
-    for (node_list::iterator it = node->children.begin(); it != node->children.end(); )
+    for (node_list::iterator it = node->children.begin(); it != node->children.end()
+         && !(cancelToken && cancelToken->isCancelled()); )
     {
-        processTree(*it++, &searchProcessor, recursive);
+        processTree(*it++, &searchProcessor, recursive, cancelToken);
     }
 
     vector<Node *>& vNodes = searchProcessor.getResults();
@@ -11017,7 +11044,6 @@ MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, bool re
     }
 
     MegaNodeList *nodeList = new MegaNodeListPrivate(vNodes.data(), int(vNodes.size()));
-    sdkMutex.unlock();
     return nodeList;
 }
 
@@ -31349,6 +31375,21 @@ void MegaPushNotificationSettingsPrivate::enableShares(bool enable)
 void MegaPushNotificationSettingsPrivate::enableChats(bool enable)
 {
     mGlobalChatsDND = enable ? -1 : 0;
+}
+
+MegaCancelTokenPrivate::~MegaCancelTokenPrivate()
+{
+
+}
+
+void MegaCancelTokenPrivate::cancel(bool newValue)
+{
+    cancelFlag = newValue;
+}
+
+bool MegaCancelTokenPrivate::isCancelled() const
+{
+    return cancelFlag;
 }
 
 }
