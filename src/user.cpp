@@ -571,6 +571,10 @@ string User::attr2longname(attr_t type)
     case ATTR_PUSH_SETTINGS:
         longname = "PUSH_SETTINGS";
         break;
+            
+    case ATTR_ALIAS:
+        longname = "ALIAS";
+        break;
     }
 
     return longname;
