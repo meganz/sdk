@@ -224,6 +224,9 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // location in the tounlink node_set
     // FIXME: merge todebris / tounlink
     node_set::iterator tounlink_it;
+
+    // whether this node can be synced to the local tree
+    bool syncable = true;
 #endif
 
     // source tag
@@ -248,6 +251,9 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 struct MEGA_API LocalNode : public File
 {
     class Sync* sync;
+
+    // whether this node can be synced to the remote tree
+    bool syncable = true;
 
     // parent linkage
     LocalNode* parent;
