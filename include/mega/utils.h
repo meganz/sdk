@@ -320,6 +320,12 @@ private:
      */
     void set(string type, string value);
 
+    /**
+     * @brief Removes a record from the container
+     * @param type Type for the value to be removed (without scope nor non-historic modifiers).
+     */
+    void reset(string type);
+
     size_t size();
 
     static unsigned getTaglen(int mode);

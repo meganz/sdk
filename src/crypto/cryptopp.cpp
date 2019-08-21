@@ -142,7 +142,7 @@ void SymmCipher::ccm_encrypt(const string *data, const byte *iv, unsigned ivlen,
     }
 }
 
-void SymmCipher::ccm_decrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result)
+bool SymmCipher::ccm_decrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result)
 {
     try {
         if (taglen == 16)
@@ -161,7 +161,9 @@ void SymmCipher::ccm_decrypt(const string *data, const byte *iv, unsigned ivlen,
     {
         result->clear();
         LOG_err << "Failed AES-CCM decryption: " << e.GetWhat();
+        return false;
     }
+    return true;
 }
 
 void SymmCipher::gcm_encrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result)
@@ -170,7 +172,7 @@ void SymmCipher::gcm_encrypt(const string *data, const byte *iv, unsigned ivlen,
     StringSource(*data, true, new AuthenticatedEncryptionFilter(aesgcm_e, new StringSink(*result), false, taglen));
 }
 
-void SymmCipher::gcm_decrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result)
+bool SymmCipher::gcm_decrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result)
 {
     aesgcm_d.Resynchronize(iv, ivlen);
     try {
@@ -179,7 +181,9 @@ void SymmCipher::gcm_decrypt(const string *data, const byte *iv, unsigned ivlen,
     {
         result->clear();
         LOG_err << "Failed AES-GCM decryption: " << e.GetWhat();
+        return false;
     }
+    return true;
 }
 
 void SymmCipher::serializekeyforjs(string *d)

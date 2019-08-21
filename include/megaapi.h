@@ -1204,7 +1204,8 @@ class MegaUser
             CHANGE_TYPE_GEOLOCATION                 = 0x100000,
             CHANGE_TYPE_CAMERA_UPLOADS_FOLDER       = 0x200000,
             CHANGE_TYPE_MY_CHAT_FILES_FOLDER        = 0x400000,
-            CHANGE_TYPE_PUSH_SETTINGS               = 0x800000
+            CHANGE_TYPE_PUSH_SETTINGS               = 0x800000,
+            CHANGE_TYPE_ALIAS                       = 0x1000000,
         };
 
         /**
@@ -6633,7 +6634,9 @@ class MegaApi
             USER_ATTR_GEOLOCATION = 22,          // private - byte array
             USER_ATTR_CAMERA_UPLOADS_FOLDER = 23,// private - byte array
             USER_ATTR_MY_CHAT_FILES_FOLDER = 24, // private - byte array
-            USER_ATTR_PUSH_SETTINGS = 25         // private - char array
+            USER_ATTR_PUSH_SETTINGS = 25,        // private - char array
+            // ATTR_UNSHAREABLE_KEY = 26         // it's internal for SDK, not exposed to apps
+            USER_ATTR_ALIAS = 27,                // private - byte array
         };
 
         enum {
@@ -8901,6 +8904,8 @@ class MegaApi
          * Get the target folder for Camera Uploads (private)
          * MegaApi::ATTR_MY_CHAT_FILES_FOLDER = 24
          * Get the target folder for My chat files (private)
+         * MegaApi::ATTR_ALIAS = 27
+         * Get the list of the users's aliases (private)
          * @param listener MegaRequestListener to track this request
          */
         void getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener = NULL);
@@ -9323,6 +9328,8 @@ class MegaApi
          * Set number of days for rubbish-bin cleaning scheduler (private non-encrypted)
          * MegaApi::USER_ATTR_GEOLOCATION = 22
          * Set whether the user can send geolocation messages (private)
+         * MegaApi::ATTR_ALIAS = 27
+         * Set the list of users's aliases (private)
          *
          * @param value New attribute value
          * @param listener MegaRequestListener to track this request
@@ -10091,6 +10098,41 @@ class MegaApi
          */
         void getCameraUploadsFolder(MegaRequestListener *listener = NULL);
 #endif
+
+        /**
+         * @brief Gets the alias for an user
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_ALIAS
+         * - MegaRequest::getNodeHandle - user handle in binary
+         * - MegaRequest::getText - user handle encoded in B64
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getName - user alias encoded in B64
+         *
+         * If the user alias doesn't exists the request will fail with the error code MegaError::API_ENOENT.
+         *
+         * @param uh handle of the user in binary
+         * @param listener MegaRequestListener to track this request
+         */
+        void getUserAlias(MegaHandle uh, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Set or reset an alias for a user
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_ALIAS
+         * - MegaRequest::getNodeHandle - Returns the user handle in binary
+         * - MegaRequest::getText - Returns the user alias
+         *
+         * @param uh handle of the user in binary
+         * @param alias the user alias, or null to reset the existing
+         * @param listener MegaRequestListener to track this request
+         */
+        void setUserAlias(MegaHandle uh, const char *alias, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Get push notification settings
