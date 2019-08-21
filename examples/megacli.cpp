@@ -22,7 +22,6 @@
 #include "mega.h"
 #include "megacli.h"
 #include <fstream>
-#include <mega/autocomplete.h>
 
 #define USE_VARARGS
 #define PREFER_STDARG
@@ -2401,102 +2400,31 @@ void exec_quit(ac::ACState&)
     quit_flag = true;
 }
 
-void exec_apiurl(autocomplete::ACState& s);
-void exec_login(autocomplete::ACState& s);
-void exec_begin(autocomplete::ACState& s);
-void exec_signup(autocomplete::ACState& s);
-void exec_cancelsignup(autocomplete::ACState& s);
-void exec_confirm(autocomplete::ACState& s);
-void exec_session(autocomplete::ACState& s);
-void exec_mount(autocomplete::ACState& s);
-void exec_ls(autocomplete::ACState& s);
-void exec_cd(autocomplete::ACState& s);
-void exec_pwd(autocomplete::ACState& s);
-void exec_lcd(autocomplete::ACState& s);
-void exec_lls(autocomplete::ACState& s);
-void exec_lpwd(autocomplete::ACState& s);
-void exec_lmkdir(autocomplete::ACState& s);
-void exec_import(autocomplete::ACState& s);
-void exec_folderlinkinfo(autocomplete::ACState& s);
-void exec_open(autocomplete::ACState& s);
-void exec_put(autocomplete::ACState& s);
-void exec_putq(autocomplete::ACState& s);
-void exec_get(autocomplete::ACState& s);
-void exec_getq(autocomplete::ACState& s);
-void exec_pause(autocomplete::ACState& s);
-void exec_getfa(autocomplete::ACState& s);
-void exec_mediainfo(autocomplete::ACState& s);
-void exec_mkdir(autocomplete::ACState& s);
-void exec_rm(autocomplete::ACState& s);
-void exec_mv(autocomplete::ACState& s);
-void exec_cp(autocomplete::ACState& s);
-void exec_du(autocomplete::ACState& s);
-void exec_sync(autocomplete::ACState& s);
-void exec_export(autocomplete::ACState& s);
-void exec_share(autocomplete::ACState& s);
-void exec_invite(autocomplete::ACState& s);
-void exec_clink(autocomplete::ACState& s);
-void exec_ipc(autocomplete::ACState& s);
-void exec_showpcr(autocomplete::ACState& s);
-void exec_users(autocomplete::ACState& s);
-void exec_getua(autocomplete::ACState& s);
-void exec_putua(autocomplete::ACState& s);
-void exec_delua(autocomplete::ACState& s);
-void exec_alerts(autocomplete::ACState& s);
-void exec_recentactions(autocomplete::ACState& s);
-void exec_recentnodes(autocomplete::ACState& s);
-void exec_putbps(autocomplete::ACState& s);
-void exec_killsession(autocomplete::ACState& s);
-void exec_whoami(autocomplete::ACState& s);
-void exec_verifycredentials(autocomplete::ACState& s);
-void exec_passwd(autocomplete::ACState& s);
-void exec_reset(autocomplete::ACState& s);
-void exec_recover(autocomplete::ACState& s);
-void exec_cancel(autocomplete::ACState& s);
-void exec_email(autocomplete::ACState& s);
-void exec_retry(autocomplete::ACState& s);
-void exec_recon(autocomplete::ACState& s);
-void exec_reload(autocomplete::ACState& s);
-void exec_logout(autocomplete::ACState& s);
-void exec_locallogout(autocomplete::ACState& s);
-void exec_symlink(autocomplete::ACState& s);
-void exec_version(autocomplete::ACState& s);
-void exec_debug(autocomplete::ACState& s);
-void exec_clear(autocomplete::ACState& s);
-void exec_codepage(autocomplete::ACState& s);
-void exec_log(autocomplete::ACState& s);
-void exec_test(autocomplete::ACState& s);
-void exec_chats(autocomplete::ACState& s);
-void exec_chatc(autocomplete::ACState& s);
-void exec_chati(autocomplete::ACState& s);
-void exec_chatcp(autocomplete::ACState& s);
-void exec_chatr(autocomplete::ACState& s);
-void exec_chatu(autocomplete::ACState& s);
-void exec_chatup(autocomplete::ACState& s);
-void exec_chatpu(autocomplete::ACState& s);
-void exec_chatga(autocomplete::ACState& s);
-void exec_chatra(autocomplete::ACState& s);
-void exec_chatst(autocomplete::ACState& s);
-void exec_chata(autocomplete::ACState& s);
-void exec_chatl(autocomplete::ACState& s);
-void exec_chatsm(autocomplete::ACState& s);
-void exec_chatlu(autocomplete::ACState& s);
-void exec_chatlj(autocomplete::ACState& s);
-void exec_enabletransferresumption(autocomplete::ACState& s);
-void exec_setmaxdownloadspeed(autocomplete::ACState& s);
-void exec_setmaxuploadspeed(autocomplete::ACState& s);
-void exec_handles(autocomplete::ACState& s);
-void exec_httpsonly(autocomplete::ACState& s);
-void exec_mfac(autocomplete::ACState& s);
-void exec_mfae(autocomplete::ACState& s);
-void exec_mfad(autocomplete::ACState& s);
-void exec_autocomplete(autocomplete::ACState& s);
-void exec_history(autocomplete::ACState& s);
-void exec_help(autocomplete::ACState& s);
-void exec_quit(autocomplete::ACState& s);
-void exec_find(autocomplete::ACState& s);
-void exec_treecompare(autocomplete::ACState& s);
-void exec_querytransferquota(autocomplete::ACState& s);
+void exec_showattributes(autocomplete::ACState& s)
+{
+    if (const Node* n = nodeFromRemotePath(s.words[1].s))
+    {
+        for (auto pair : n->attrs.map)
+        {
+            char namebuf[10]{};
+            AttrMap::nameid2string(pair.first, namebuf);
+            if (pair.first == 'c')
+            {
+                FileFingerprint f;
+                f.unserializefingerprint(&pair.second);
+                cout << namebuf << ": " << pair.second << " (fingerprint: size " << f.size << " mtime " << f.mtime
+                    << " crc " << std::hex << f.crc[0] << " " << f.crc[1] << " " << f.crc[2] << " " << f.crc[3] << std::dec << ")"
+
+                    << " (node fingerprint: size " << n->size << " mtime " << n->mtime
+                    << " crc " << std::hex << n->crc[0] << " " << n->crc[1] << " " << n->crc[2] << " " << n->crc[3] << std::dec << ")" << endl;
+            }
+            else
+            {
+                cout << namebuf << ": " << pair.second << endl;
+            }
+        }
+    }
+}
 
 
 void printAuthringInformation(handle userhandle)
@@ -2530,7 +2458,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_apiurl, sequence(text("apiurl"), opt(sequence(param("url"), opt(param("disablepkp"))))));
     p->Add(exec_login, sequence(text("login"), either(sequence(param("email"), opt(param("password"))), exportedLink(false, true), param("session"), sequence(text("autoresume"), opt(param("id"))))));
     p->Add(exec_begin, sequence(text("begin"), opt(param("ephemeralhandle#ephemeralpw"))));
-    p->Add(exec_signup, sequence(text("signup"), opt(sequence(param("email"), either(param("name"), param("confirmationlink"))))));
+    p->Add(exec_signup, sequence(text("signup"), either(sequence(param("email"), param("name")), param("confirmationlink"))));
     p->Add(exec_cancelsignup, sequence(text("cancelsignup")));
     p->Add(exec_confirm, sequence(text("confirm")));
     p->Add(exec_session, sequence(text("session"), opt(sequence(text("autoresume"), opt(param("id"))))));
@@ -2562,6 +2490,8 @@ autocomplete::ACN autocompleteSyntax()
 #ifdef USE_MEDIAINFO
     p->Add(exec_mediainfo, sequence(text("mediainfo"), either(sequence(text("calc"), localFSFile()), sequence(text("show"), remoteFSFile(client, &cwd)))));
 #endif
+    p->Add(exec_smsverify, sequence(text("smsverify"), either(sequence(text("send"), param("phonenumber"), opt(param("reverifywhitelisted"))), sequence(text("code"), param("verificationcode")))));
+    p->Add(exec_verifiedphonenumber, sequence(text("verifiedphone")));
     p->Add(exec_mkdir, sequence(text("mkdir"), remoteFSFolder(client, &cwd)));
     p->Add(exec_rm, sequence(text("rm"), remoteFSPath(client, &cwd)));
     p->Add(exec_mv, sequence(text("mv"), remoteFSPath(client, &cwd, "src"), remoteFSPath(client, &cwd, "dst")));
@@ -2605,7 +2535,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_symlink, sequence(text("symlink")));
     p->Add(exec_version, sequence(text("version")));
     p->Add(exec_debug, sequence(text("debug")));
-#ifdef WIN32
+#if defined(WIN32) && defined(NO_READLINE)
     p->Add(exec_clear, sequence(text("clear")));
     p->Add(exec_codepage, sequence(text("codepage"), opt(sequence(wholenumber(65001), opt(wholenumber(65001))))));
     p->Add(exec_log, sequence(text("log"), either(text("utf8"), text("utf16"), text("codepage")), localFSFile()));
@@ -2653,6 +2583,8 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_querytransferquota, sequence(text("querytransferquota"), param("filesize")));
     p->Add(exec_getcloudstorageused, sequence(text("getcloudstorageused")));
     p->Add(exec_getuserquota, sequence(text("getuserquota"), repeat(either(flag("-storage"), flag("-transfer"), flag("-pro")))));
+
+    p->Add(exec_showattributes, sequence(text("showattributes"), remoteFSPath(client, &cwd)));
 
     return autocompleteTemplate = std::move(p);
 }
@@ -3567,7 +3499,7 @@ void exec_lls(autocomplete::ACState& s)
     fs::path ls_folder = s.words.size() > 1 ? fs::u8path(s.words[1].s) : fs::current_path();
     std::error_code ec;
     auto status = fs::status(ls_folder, ec);
-    status;
+    (void)status;
     if (ec)
     {
         cerr << ec.message() << endl;
@@ -4899,7 +4831,7 @@ void exec_whoami(autocomplete::ACState& s)
 
         if ((u = client->finduser(client->me)))
         {
-            cout << "Account e-mail: " << u->email << endl;
+            cout << "Account e-mail: " << u->email << " handle: " << Base64Str<MegaClient::USERHANDLE>(client->me) << endl;
             if (client->signkey)
             {
                 string pubKey((const char *)client->signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH);
@@ -5719,6 +5651,29 @@ void exec_mediainfo(autocomplete::ACState& s)
 }
 #endif
 
+void exec_smsverify(autocomplete::ACState& s)
+{
+    if (s.words[1].s == "send")
+    {
+        bool reverifywhitelisted = (s.words.size() == 4 && s.words[3].s == "reverifywhitelisted");
+        if (client->smsverificationsend(s.words[2].s, reverifywhitelisted) != API_OK)
+        {
+            cout << "phonenumber is invalid" << endl;
+        }
+    }
+    else if (s.words[1].s == "code")
+    {
+        if (client->smsverificationcheck(s.words[2].s) != API_OK)
+        {
+            cout << "verificationcode is invalid" << endl;
+        }
+    }
+}
+
+void exec_verifiedphonenumber(autocomplete::ACState& s)
+{
+    cout << "Verified phone number: " << client->mSmsVerifiedPhone << endl;
+}
 
 void exec_killsession(autocomplete::ACState& s)
 {
@@ -6227,11 +6182,12 @@ void DemoApp::cancelsignup_result(error)
     signupname.clear();
 }
 
-void DemoApp::whyamiblocked_result(error code)
+void DemoApp::whyamiblocked_result(int code)
 {
     if (code < 0)
     {
-        cout << "Why am I blocked failed: " << errorstring(code) << endl;
+        error e = (error) code;
+        cout << "Why am I blocked failed: " << errorstring(e) << endl;
     }
     else if (code == 0)
     {
@@ -6249,13 +6205,20 @@ void DemoApp::whyamiblocked_result(error code)
         {
             reason = "Your account has been suspended due to multiple breaches of Mega's Terms of Service. Please check your email inbox.";
         }
+        else if (code == 500)
+        {
+            reason = "Your account has been blocked, pending verification via SMS.";
+        }
         //else if (code == 300) --> default reason
 
 
         cout << "Reason: " << reason << endl;
-        cout << "Logging out..." << endl;
 
-        client->locallogout();
+        if (code != 500)
+        {
+            cout << "Logging out..." << endl;
+            client->locallogout();
+        }
     }
 }
 
@@ -6926,6 +6889,33 @@ void DemoApp::sessions_killed(handle sessionid, error e)
     }
 }
 
+void DemoApp::smsverificationsend_result(error e)
+{
+    if (e)
+    {
+        cout << "SMS send failed: " << e << endl;
+    }
+    else
+    {
+        cout << "SMS send succeeded" << endl;
+    }
+}
+
+void DemoApp::smsverificationcheck_result(error e, string *phoneNumber)
+{
+    if (e)
+    {
+        cout << "SMS verification failed: " << e << endl;
+    }
+    else
+    {
+        cout << "SMS verification succeeded" << endl;
+        if (phoneNumber)
+        {
+            cout << "Phone number: " << *phoneNumber << ")" << endl;
+        }
+    }
+}
 
 // user attribute update notification
 void DemoApp::userattr_update(User* u, int priv, const char* n)

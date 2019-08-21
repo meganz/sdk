@@ -2739,6 +2739,13 @@ void MegaTransferPrivate::setListener(MegaTransferListener *listener)
     this->listener = listener;
 }
 
+void MegaTransferPrivate::startRecursiveOperation(unique_ptr<MegaRecursiveOperation> op, MegaNode* node)
+{
+    assert(op && !recursiveOperation);
+    recursiveOperation = move(op);
+    recursiveOperation->start(node);
+}
+
 void MegaTransferPrivate::setPath(const char* path)
 {
     if(this->path) delete [] this->path;
@@ -2829,6 +2836,10 @@ MegaTransferListener* MegaTransferPrivate::getListener() const
 
 MegaTransferPrivate::~MegaTransferPrivate()
 {
+    if (recursiveOperation)
+    {
+        recursiveOperation->cancel();
+    }
     delete[] path;
     delete[] parentPath;
     delete [] fileName;
@@ -3063,6 +3074,8 @@ MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
 #endif
 
     stringMap = NULL;
+    mStringListMap = NULL;
+    mStringTable = NULL;
     folderInfo = NULL;
     settings = NULL;
     backgroundMediaUpload = NULL;
@@ -3136,6 +3149,8 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
 #endif
 
     this->stringMap = request->getMegaStringMap() ? request->stringMap->copy() : NULL;
+    this->mStringListMap = request->getMegaStringListMap() ? request->mStringListMap->copy() : NULL;
+    this->mStringTable = request->getMegaStringTable() ? request->mStringTable->copy() : NULL;
     this->folderInfo = request->getMegaFolderInfo() ? request->folderInfo->copy() : NULL;
     this->settings = request->getMegaPushNotificationSettings() ? request->settings->copy() : NULL;
     this->backgroundMediaUpload = NULL;
@@ -3206,6 +3221,34 @@ void MegaRequestPrivate::setMegaStringMap(const MegaStringMap *stringMap)
     }
 
     this->stringMap = stringMap ? stringMap->copy() : NULL;
+}
+
+MegaStringListMap *MegaRequestPrivate::getMegaStringListMap() const
+{
+    return mStringListMap;
+}
+
+void MegaRequestPrivate::setMegaStringListMap(const MegaStringListMap* stringListMap)
+{
+    if (mStringListMap)
+    {
+        delete mStringListMap;
+    }
+    mStringListMap = stringListMap ? stringListMap->copy() : nullptr;
+}
+
+MegaStringTable *MegaRequestPrivate::getMegaStringTable() const
+{
+    return mStringTable;
+}
+
+void MegaRequestPrivate::setMegaStringTable(const MegaStringTable* stringTable)
+{
+    if (mStringTable)
+    {
+        delete mStringTable;
+    }
+    mStringTable = stringTable ? stringTable->copy() : nullptr;
 }
 
 MegaFolderInfo *MegaRequestPrivate::getMegaFolderInfo() const
@@ -3319,6 +3362,8 @@ MegaRequestPrivate::~MegaRequestPrivate()
     delete achievementsDetails;
     delete [] text;
     delete stringMap;
+    delete mStringListMap;
+    delete mStringTable;
     delete folderInfo;
     delete timeZoneDetails;
     delete settings;
@@ -3753,6 +3798,10 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_BACKGROUND_UPLOAD_URL: return "GET_BACKGROUND_UPLOAD_URL";
         case TYPE_COMPLETE_BACKGROUND_UPLOAD: return "COMPLETE_BACKGROUND_UPLOAD";
         case TYPE_GET_CLOUD_STORAGE_USED: return "GET_CLOUD_STORAGE_USED";
+        case TYPE_SEND_SMS_VERIFICATIONCODE: return "SEND_SMS_VERIFICATIONCODE";
+        case TYPE_CHECK_SMS_VERIFICATIONCODE: return "CHECK_SMS_VERIFICATIONCODE";
+        case TYPE_GET_REGISTERED_CONTACTS: return "GET_REGISTERED_CONTACTS";
+        case TYPE_GET_COUNTRY_CALLING_CODES: return "GET_COUNTRY_CALLING_CODES";
         case TYPE_VERIFY_CREDENTIALS: return "VERIFY_CREDENTIALS";
     }
     return "UNKNOWN";
@@ -3883,7 +3932,7 @@ MegaStringListPrivate::MegaStringListPrivate()
     s = 0;
 }
 
-MegaStringListPrivate::MegaStringListPrivate(MegaStringListPrivate *stringList)
+MegaStringListPrivate::MegaStringListPrivate(const MegaStringListPrivate *stringList)
 {
     s = stringList->size();
     if (!s)
@@ -3921,12 +3970,12 @@ MegaStringListPrivate::~MegaStringListPrivate()
     delete [] list;
 }
 
-MegaStringList *MegaStringListPrivate::copy()
+MegaStringList *MegaStringListPrivate::copy() const
 {
     return new MegaStringListPrivate(this);
 }
 
-const char *MegaStringListPrivate::get(int i)
+const char *MegaStringListPrivate::get(int i) const
 {
     if(!list || (i < 0) || (i >= s))
         return NULL;
@@ -3934,10 +3983,107 @@ const char *MegaStringListPrivate::get(int i)
     return list[i];
 }
 
-int MegaStringListPrivate::size()
+int MegaStringListPrivate::size() const
 {
     return s;
 }
+
+bool operator==(const MegaStringList& lhs, const MegaStringList& rhs)
+{
+    if (lhs.size() != rhs.size())
+    {
+        return false;
+    }
+    for (int i = 0; i < lhs.size(); ++i)
+    {
+        if (strcmp(lhs.get(i), rhs.get(i)) != 0)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+
+MegaStringListMap* MegaStringListMapPrivate::copy() const
+{
+    auto map = new MegaStringListMapPrivate;
+    for (const auto& pair : mMap)
+    {
+        map->set(pair.first.get(), pair.second->copy());
+    }
+    return map;
+}
+
+const MegaStringList* MegaStringListMapPrivate::get(const char* key) const
+{
+    auto key_ptr = std::unique_ptr<const char[]>{key};
+    auto iter = mMap.find(key_ptr);
+    key_ptr.release();
+    if (iter != mMap.end())
+    {
+        return iter->second.get();
+    }
+    return nullptr;
+}
+
+MegaStringList *MegaStringListMapPrivate::getKeys() const
+{
+    vector<char*> list;
+    for (const auto& pair : mMap)
+    {
+        list.emplace_back(MegaApi::strdup(pair.first.get()));
+    }
+    return new MegaStringListPrivate{list.data(), static_cast<int>(list.size())};
+}
+
+void MegaStringListMapPrivate::set(const char* key, const MegaStringList* value)
+{
+    std::unique_ptr<const char[]> key_ptr{MegaApi::strdup(key)};
+    mMap[std::move(key_ptr)] = std::unique_ptr<const MegaStringList>{value};
+}
+
+int MegaStringListMapPrivate::size() const
+{
+    return static_cast<int>(mMap.size());
+}
+
+bool MegaStringListMapPrivate::Compare::operator()(const std::unique_ptr<const char[]>& rhs,
+                                                   const std::unique_ptr<const char[]>& lhs) const
+{
+    return strcmp(rhs.get(), lhs.get()) < 0;
+}
+
+
+MegaStringTable* MegaStringTablePrivate::copy() const
+{
+    auto table = new MegaStringTablePrivate;
+    for (const auto& value : mTable)
+    {
+        table->append(value->copy());
+    }
+    return table;
+}
+
+void MegaStringTablePrivate::append(const MegaStringList* value)
+{
+    mTable.emplace_back(value);
+}
+
+const MegaStringList* MegaStringTablePrivate::get(int i) const
+{
+    if (i >= 0 && i < size())
+    {
+        return mTable[i].get();
+    }
+    return nullptr;
+}
+
+int MegaStringTablePrivate::size() const
+{
+    return static_cast<int>(mTable.size());
+}
+
 
 MegaNodeListPrivate::MegaNodeListPrivate()
 {
@@ -5055,7 +5201,8 @@ bool MegaApiImpl::isAchievementsEnabled()
 
 bool MegaApiImpl::isBusinessAccount()
 {
-    return client->mBizStatus != BIZ_STATUS_INACTIVE;
+    return client->mBizStatus != BIZ_STATUS_INACTIVE
+             && client->mBizStatus != BIZ_STATUS_UNKNOWN;
 }
 
 bool MegaApiImpl::isMasterBusinessAccount()
@@ -5089,7 +5236,10 @@ int MegaApiImpl::getBusinessStatus()
         client->app->notify_business_status(client->mBizStatus);
     }
 
-    return client->mBizStatus;
+    // Prevent return apps unknown status
+    return (client->mBizStatus == BIZ_STATUS_UNKNOWN)
+            ? BIZ_STATUS_INACTIVE
+            : client->mBizStatus;
 }
 
 bool MegaApiImpl::checkPassword(const char *password)
@@ -5482,6 +5632,17 @@ bool MegaApiImpl::serverSideRubbishBinAutopurgeEnabled()
 bool MegaApiImpl::appleVoipPushEnabled()
 {
     return client->aplvp_enabled;
+}
+
+int MegaApiImpl::smsAllowedState()
+{
+    return (client->mSmsVerificationState != SMS_STATE_UNKNOWN) ? client->mSmsVerificationState : 0;
+}
+
+char* MegaApiImpl::smsVerifiedPhoneNumber()
+{
+    SdkMutexGuard g(sdkMutex);
+    return client->mSmsVerifiedPhone.empty() ? NULL : MegaApi::strdup(client->mSmsVerifiedPhone.c_str());
 }
 
 bool MegaApiImpl::multiFactorAuthAvailable()
@@ -7061,19 +7222,14 @@ void MegaApiImpl::abortPendingActions(error preverror)
         fireOnRequestFinish(request, preverror);
     }
 
-    deque<MegaTransferPrivate*> transfers;
-    for (auto transferPair : transferMap)
+    while (!transferMap.empty())
     {
-        if (transferPair.second)
-        {
-            transfers.push_front(transferPair.second);
-        }
-    }
-    for (auto transfer : transfers)
-    {
+        auto transfer = transferMap.begin()->second;
         transfer->setState(MegaTransfer::STATE_FAILED);
+        // this call can be recursive and remove multiple, eg with MegaFolderUploadController
         fireOnTransferFinish(transfer, preverror);
     }
+    assert(transferMap.empty());
 
     requestMap.clear();
     transferMap.clear();
@@ -9808,6 +9964,38 @@ void MegaApiImpl::catchup(MegaRequestListener *listener)
     waiter->notify();
 }
 
+void MegaApiImpl::sendSMSVerificationCode(const char* phoneNumber, MegaRequestListener *listener, bool reverifying_whitelisted)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SEND_SMS_VERIFICATIONCODE, listener);
+    request->setText(phoneNumber);
+    request->setFlag(reverifying_whitelisted);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::checkSMSVerificationCode(const char* verificationCode, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHECK_SMS_VERIFICATIONCODE, listener);
+    request->setText(verificationCode);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::getRegisteredContacts(const MegaStringMap* contacts, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_REGISTERED_CONTACTS, listener);
+    request->setMegaStringMap(contacts);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::getCountryCallingCodes(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_COUNTRY_CALLING_CODES, listener);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::getPublicLinkInformation(const char *megaFolderLink, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_PUBLIC_LINK_INFORMATION, listener);
@@ -10287,25 +10475,36 @@ bool MegaApiImpl::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, boo
     return result;
 }
 
-MegaNodeList *MegaApiImpl::search(const char *searchString, int order)
+MegaNodeList *MegaApiImpl::search(const char *searchString, MegaCancelToken *cancelToken, int order)
 {
     if(!searchString)
     {
         return new MegaNodeListPrivate();
     }
 
-    sdkMutex.lock();
+    if (cancelToken && cancelToken->isCancelled())
+    {
+        return new MegaNodeListPrivate();
+    }
+
+    SdkMutexGuard g(sdkMutex);
+
+    if (cancelToken && cancelToken->isCancelled())
+    {
+        return new MegaNodeListPrivate();
+    }
 
     node_vector result;
     Node *node;
 
     // rootnodes
-    for (unsigned int i = 0; i < (sizeof client->rootnodes / sizeof *client->rootnodes); i++)
+    for (unsigned int i = 0; i < (sizeof client->rootnodes / sizeof *client->rootnodes)
+          && !(cancelToken && cancelToken->isCancelled()); i++)
     {
         node = client->nodebyhandle(client->rootnodes[i]);
 
         SearchTreeProcessor searchProcessor(searchString);
-        processTree(node, &searchProcessor);
+        processTree(node, &searchProcessor, true, cancelToken);
         node_vector& vNodes = searchProcessor.getResults();
 
         result.insert(result.end(), vNodes.begin(), vNodes.end());
@@ -10313,12 +10512,12 @@ MegaNodeList *MegaApiImpl::search(const char *searchString, int order)
 
     // inshares
     MegaShareList *shares = getInSharesList();
-    for (int i = 0; i < shares->size(); i++)
+    for (int i = 0; i < shares->size() && !(cancelToken && cancelToken->isCancelled()); i++)
     {
         node = client->nodebyhandle(shares->get(i)->getNodeHandle());
 
         SearchTreeProcessor searchProcessor(searchString);
-        processTree(node, &searchProcessor);
+        processTree(node, &searchProcessor, true, cancelToken);
         vector<Node *>& vNodes  = searchProcessor.getResults();
 
         result.insert(result.end(), vNodes.begin(), vNodes.end());
@@ -10346,8 +10545,6 @@ MegaNodeList *MegaApiImpl::search(const char *searchString, int order)
     }
     MegaNodeList *nodeList = new MegaNodeListPrivate(result.data(), int(result.size()));
     
-    sdkMutex.unlock();
-
     return nodeList;
 }
 
@@ -10794,7 +10991,7 @@ void MegaApiImpl::resumeActionPackets()
     sdkMutex.unlock();
 }
 
-bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursive)
+bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursive, MegaCancelToken *cancelToken)
 {
     if (!node)
     {
@@ -10806,11 +11003,21 @@ bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursi
         return 0;
     }
 
-    sdkMutex.lock();
+    if (cancelToken && cancelToken->isCancelled())
+    {
+        return 0;
+    }
+
+    SdkMutexGuard g(sdkMutex);
+
+    if (cancelToken && cancelToken->isCancelled()) // check before lock and after, in case it was cancelled while being locked
+    {
+        return 0;
+    }
+
     node = client->nodebyhandle(node->nodehandle);
     if (!node)
     {
-        sdkMutex.unlock();
         return 1;
     }
 
@@ -10818,38 +11025,46 @@ bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursi
     {
         for (node_list::iterator it = node->children.begin(); it != node->children.end(); )
         {
-            if (!processTree(*it++,processor))
+            if (!processTree(*it++, processor, recursive, cancelToken))
             {
-                sdkMutex.unlock();
                 return 0;
             }
         }
     }
     bool result = processor->processNode(node);
-    sdkMutex.unlock();
     return result;
 }
 
-MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, bool recursive, int order)
+MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, MegaCancelToken *cancelToken, bool recursive, int order)
 {
     if (!n || !searchString)
     {
         return new MegaNodeListPrivate();
     }
+
+    if (cancelToken && cancelToken->isCancelled())
+    {
+        return new MegaNodeListPrivate();
+    }
     
-    sdkMutex.lock();
+    SdkMutexGuard g(sdkMutex);
+
+    if (cancelToken && cancelToken->isCancelled())
+    {
+        return new MegaNodeListPrivate();
+    }
     
     Node *node = client->nodebyhandle(n->getHandle());
     if (!node)
     {
-        sdkMutex.unlock();
         return new MegaNodeListPrivate();
     }
 
     SearchTreeProcessor searchProcessor(searchString);
-    for (node_list::iterator it = node->children.begin(); it != node->children.end(); )
+    for (node_list::iterator it = node->children.begin(); it != node->children.end()
+         && !(cancelToken && cancelToken->isCancelled()); )
     {
-        processTree(*it++, &searchProcessor, recursive);
+        processTree(*it++, &searchProcessor, recursive, cancelToken);
     }
 
     vector<Node *>& vNodes = searchProcessor.getResults();
@@ -10874,7 +11089,6 @@ MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, bool re
     }
 
     MegaNodeList *nodeList = new MegaNodeListPrivate(vNodes.data(), int(vNodes.size()));
-    sdkMutex.unlock();
     return nodeList;
 }
 
@@ -14453,7 +14667,7 @@ void MegaApiImpl::cancelsignup_result(error e)
     fireOnRequestFinish(request, MegaError(e));
 }
 
-void MegaApiImpl::whyamiblocked_result(error code)
+void MegaApiImpl::whyamiblocked_result(int code)
 {
     if (requestMap.find(client->restag) == requestMap.end())
     {
@@ -14465,7 +14679,7 @@ void MegaApiImpl::whyamiblocked_result(error code)
         return;
     }
 
-    if (request->getFlag())
+    if (request->getFlag() && code != 500)  // don't log out if we can be unblocked via sms verification
     {
         client->removecaches();
         client->locallogout();
@@ -14501,6 +14715,10 @@ void MegaApiImpl::whyamiblocked_result(error code)
         else if (code == 401)
         {
             reason = "Your account has been removed by your administrator. You may contact your business account administrator for further details.";
+        }
+        else if (code == 500)
+        {
+            reason = "Your account has been blocked pending verification via SMS.";
         }
         //else if (code == 300) --> default reason
 
@@ -14710,6 +14928,91 @@ void MegaApiImpl::acknowledgeuseralerts_result(error e)
         MegaRequestPrivate* request = it->second;
         if (request && ((request->getType() == MegaRequest::TYPE_USERALERT_ACKNOWLEDGE)))
         {
+            fireOnRequestFinish(request, e);
+        }
+    }
+}
+
+void MegaApiImpl::smsverificationsend_result(error e)
+{
+    map<int, MegaRequestPrivate *>::iterator it = requestMap.find(client->restag);
+    if (it != requestMap.end())
+    {
+        MegaRequestPrivate* request = it->second;
+        if (request && ((request->getType() == MegaRequest::TYPE_SEND_SMS_VERIFICATIONCODE)))
+        {
+            fireOnRequestFinish(request, e);
+        }
+    }
+}
+
+void MegaApiImpl::smsverificationcheck_result(error e, string* phoneNumber)
+{
+    map<int, MegaRequestPrivate *>::iterator it = requestMap.find(client->restag);
+    if (it != requestMap.end())
+    {
+        MegaRequestPrivate* request = it->second;
+        if (request && ((request->getType() == MegaRequest::TYPE_CHECK_SMS_VERIFICATIONCODE)))
+        {
+            if (e == API_OK && phoneNumber)
+            {
+                request->setName(phoneNumber->c_str());
+            }
+            fireOnRequestFinish(request, e);
+        }
+    }
+}
+
+void MegaApiImpl::getregisteredcontacts_result(error e, vector<tuple<string, string, string>>* data)
+{
+    auto it = requestMap.find(client->restag);
+    if (it != requestMap.end())
+    {
+        MegaRequestPrivate* request = it->second;
+        if (request && ((request->getType() == MegaRequest::TYPE_GET_REGISTERED_CONTACTS)))
+        {
+            if (data)
+            {
+                auto stringTable = std::unique_ptr<MegaStringTable>{MegaStringTable::createInstance()};
+                for (const auto& row : *data)
+                {
+                    vector<char*> list;
+                    list.emplace_back(MegaApi::strdup(std::get<0>(row).c_str()));
+                    list.emplace_back(MegaApi::strdup(std::get<1>(row).c_str()));
+                    list.emplace_back(MegaApi::strdup(std::get<2>(row).c_str()));
+                    auto stringList = new MegaStringListPrivate{list.data(), static_cast<int>(list.size())};
+                    stringTable->append(stringList);
+                }
+                request->setMegaStringTable(stringTable.get());
+            }
+            fireOnRequestFinish(request, e);
+        }
+    }
+}
+
+void MegaApiImpl::getcountrycallingcodes_result(error e, map<string, vector<string>>* data)
+{
+    auto it = requestMap.find(client->restag);
+    if (it != requestMap.end())
+    {
+        MegaRequestPrivate* request = it->second;
+        if (request && ((request->getType() == MegaRequest::TYPE_GET_COUNTRY_CALLING_CODES)))
+        {
+            if (data)
+            {
+                auto stringListMap = std::unique_ptr<MegaStringListMap>{MegaStringListMap::createInstance()};
+                for (const auto& pair : *data)
+                {
+                    vector<char*> list;
+                    for (const auto& value : pair.second)
+                    {
+                        list.emplace_back(MegaApi::strdup(value.c_str()));
+                    }
+                    auto stringList = new MegaStringListPrivate{list.data(), static_cast<int>(list.size())};
+                    stringListMap->set(pair.first.c_str(), stringList);
+                }
+                request->setMegaStringListMap(stringListMap.get());
+            }
             fireOnRequestFinish(request, e);
         }
     }
@@ -17108,8 +17411,7 @@ void MegaApiImpl::sendPendingTransfers()
                 {
                     transferMap[nextTag] = transfer;
                     transfer->setTag(nextTag);
-                    MegaFolderUploadController *uploader = new MegaFolderUploadController(this, transfer);
-                    uploader->start();
+                    transfer->startRecursiveOperation(make_unique<MegaFolderUploadController>(this, transfer), nullptr);
                 }
                 break;
             }
@@ -17144,8 +17446,7 @@ void MegaApiImpl::sendPendingTransfers()
                     // Folder download
                     transferMap[nextTag] = transfer;
                     transfer->setTag(nextTag);
-                    MegaFolderDownloadController *downloader = new MegaFolderDownloadController(this, transfer);
-                    downloader->start(publicNode);
+                    transfer->startRecursiveOperation(make_unique<MegaFolderDownloadController>(this, transfer), publicNode);
                     break;
                 }
 
@@ -20811,6 +21112,52 @@ void MegaApiImpl::sendPendingRequests()
             }
             break;
         }
+        case MegaRequest::TYPE_SEND_SMS_VERIFICATIONCODE:
+        {
+            string phoneNumber = request->getText();
+            bool reverifying_whitelisted = request->getFlag();
+
+            e = client->smsverificationsend(phoneNumber, reverifying_whitelisted);
+            break;
+        }
+        case MegaRequest::TYPE_CHECK_SMS_VERIFICATIONCODE:
+        {
+            string code = request->getText();
+            e = client->smsverificationcheck(code);
+            // FIXME: if the API returned the new state and the verified phone number in
+            // the response to the code's verification, the following block can be deleted
+            if (e == API_OK)
+            {
+                client->reqs.add(new CommandGetUserData(client));
+            }
+            break;
+        }
+        case MegaRequest::TYPE_GET_REGISTERED_CONTACTS:
+        {
+            const auto contacts = request->getMegaStringMap();
+            if (contacts)
+            {
+                map<const char*, const char*> contactsMap; // non-owning
+                const auto contactsKeys = std::unique_ptr<MegaStringList>{contacts->getKeys()};
+                for (int i = 0; i < contactsKeys->size(); ++i)
+                {
+                    const auto key = contactsKeys->get(i);
+                    contactsMap[key] = contacts->get(key);
+                }
+                client->reqs.add(new CommandGetRegisteredContacts{client, contactsMap});
+            }
+            else
+            {
+                e = API_EARGS;
+                assert(false && "contacts must be valid");
+            }
+            break;
+        }
+        case MegaRequest::TYPE_GET_COUNTRY_CALLING_CODES:
+        {
+            client->reqs.add(new CommandGetCountryCallingCodes{client});
+            break;
+        }
         default:
         {
             e = API_EINTERNAL;
@@ -22445,7 +22792,7 @@ MegaFolderUploadController::MegaFolderUploadController(MegaApiImpl *megaApi, Meg
     this->tag = transfer->getTag();
 }
 
-void MegaFolderUploadController::start()
+void MegaFolderUploadController::start(MegaNode*)
 {
     transfer->setFolderTransferTag(-1);
     transfer->setStartTime(Waiter::ds);
@@ -22458,7 +22805,6 @@ void MegaFolderUploadController::start()
     {
         transfer->setState(MegaTransfer::STATE_FAILED);
         megaApi->fireOnTransferFinish(transfer, MegaError(API_EARGS));
-        delete this;
     }
     else
     {
@@ -22481,6 +22827,18 @@ void MegaFolderUploadController::start()
 
         delete child;
         delete parent;
+    }
+}
+
+void MegaFolderUploadController::cancel()
+{
+    transfer = nullptr;  // no final callback for this one since it is being destroyed now
+
+    while (!subTransfers.empty())
+    {
+        auto subTransfer = *subTransfers.begin();
+        subTransfer->setState(MegaTransfer::STATE_COMPLETED);
+        megaApi->fireOnTransferFinish(subTransfer, MegaError(API_EINCOMPLETE));
     }
 }
 
@@ -22556,7 +22914,6 @@ void MegaFolderUploadController::checkCompletion()
         LOG_debug << "Folder transfer finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
         transfer->setState(MegaTransfer::STATE_COMPLETED);
         megaApi->fireOnTransferFinish(transfer, MegaError(API_OK));
-        delete this;
     }
 }
 
@@ -22581,6 +22938,7 @@ void MegaFolderUploadController::onRequestFinish(MegaApi *, MegaRequest *request
 
 void MegaFolderUploadController::onTransferStart(MegaApi *, MegaTransfer *t)
 {
+    subTransfers.insert(static_cast<MegaTransferPrivate*>(t));
     transfer->setState(t->getState());
     transfer->setPriority(t->getPriority());
     transfer->setTotalBytes(transfer->getTotalBytes() + t->getTotalBytes());
@@ -22590,26 +22948,33 @@ void MegaFolderUploadController::onTransferStart(MegaApi *, MegaTransfer *t)
 
 void MegaFolderUploadController::onTransferUpdate(MegaApi *, MegaTransfer *t)
 {
-    transfer->setState(t->getState());
-    transfer->setPriority(t->getPriority());
-    transfer->setTransferredBytes(transfer->getTransferredBytes() + t->getDeltaSize());
-    transfer->setUpdateTime(Waiter::ds);
-    transfer->setSpeed(t->getSpeed());
-    transfer->setMeanSpeed(t->getMeanSpeed());
-    megaApi->fireOnTransferUpdate(transfer);
+    if (transfer)
+    {
+        transfer->setState(t->getState());
+        transfer->setPriority(t->getPriority());
+        transfer->setTransferredBytes(transfer->getTransferredBytes() + t->getDeltaSize());
+        transfer->setUpdateTime(Waiter::ds);
+        transfer->setSpeed(t->getSpeed());
+        transfer->setMeanSpeed(t->getMeanSpeed());
+        megaApi->fireOnTransferUpdate(transfer);
+    }
 }
 
 void MegaFolderUploadController::onTransferFinish(MegaApi *, MegaTransfer *t, MegaError *)
 {
+    subTransfers.erase(static_cast<MegaTransferPrivate*>(t));
     pendingTransfers--;
-    transfer->setState(MegaTransfer::STATE_ACTIVE);
-    transfer->setPriority(t->getPriority());
-    transfer->setTransferredBytes(transfer->getTransferredBytes() + t->getDeltaSize());
-    transfer->setUpdateTime(Waiter::ds);
-    transfer->setSpeed(t->getSpeed());
-    transfer->setMeanSpeed(t->getMeanSpeed());
-    megaApi->fireOnTransferUpdate(transfer);
-    checkCompletion();
+    if (transfer)
+    {
+        transfer->setState(MegaTransfer::STATE_ACTIVE);
+        transfer->setPriority(t->getPriority());
+        transfer->setTransferredBytes(transfer->getTransferredBytes() + t->getDeltaSize());
+        transfer->setUpdateTime(Waiter::ds);
+        transfer->setSpeed(t->getSpeed());
+        transfer->setMeanSpeed(t->getMeanSpeed());
+        megaApi->fireOnTransferUpdate(transfer);
+        checkCompletion();
+    }
 }
 
 MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, int folderTransferTag, handle parenthandle, const char* filename, bool attendPastBackups, const char *speriod, int64_t period, int maxBackups)
@@ -23738,7 +24103,6 @@ void MegaFolderDownloadController::start(MegaNode *node)
         {
             LOG_debug << "Folder download failed. Node not found";
             megaApi->fireOnTransferFinish(transfer, MegaError(API_ENOENT));
-            delete this;
             return;
         }
         deleteNode = true;
@@ -23786,6 +24150,19 @@ void MegaFolderDownloadController::start(MegaNode *node)
         delete node;
     }
 }
+
+void MegaFolderDownloadController::cancel()
+{
+    transfer = nullptr;  // no final callback for this one since it is being destroyed now
+
+    while (!subTransfers.empty())
+    {
+        auto subTransfer = *subTransfers.begin();
+        subTransfer->setState(MegaTransfer::STATE_COMPLETED);
+        megaApi->fireOnTransferFinish(subTransfer, MegaError(API_EINCOMPLETE));
+    }
+}
+
 
 void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, string *path)
 {
@@ -23885,12 +24262,12 @@ void MegaFolderDownloadController::checkCompletion()
         LOG_debug << "Folder download finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
         transfer->setState(MegaTransfer::STATE_COMPLETED);
         megaApi->fireOnTransferFinish(transfer, MegaError(e));
-        delete this;
     }
 }
 
 void MegaFolderDownloadController::onTransferStart(MegaApi *, MegaTransfer *t)
 {
+    subTransfers.insert(static_cast<MegaTransferPrivate*>(t));
     transfer->setState(t->getState());
     transfer->setPriority(t->getPriority());
     transfer->setTotalBytes(transfer->getTotalBytes() + t->getTotalBytes());
@@ -23900,30 +24277,37 @@ void MegaFolderDownloadController::onTransferStart(MegaApi *, MegaTransfer *t)
 
 void MegaFolderDownloadController::onTransferUpdate(MegaApi *, MegaTransfer *t)
 {
-    transfer->setState(t->getState());
-    transfer->setPriority(t->getPriority());
-    transfer->setTransferredBytes(transfer->getTransferredBytes() + t->getDeltaSize());
-    transfer->setUpdateTime(Waiter::ds);
-    transfer->setSpeed(t->getSpeed());
-    transfer->setMeanSpeed(t->getMeanSpeed());
-    megaApi->fireOnTransferUpdate(transfer);
+    if (transfer)
+    {
+        transfer->setState(t->getState());
+        transfer->setPriority(t->getPriority());
+        transfer->setTransferredBytes(transfer->getTransferredBytes() + t->getDeltaSize());
+        transfer->setUpdateTime(Waiter::ds);
+        transfer->setSpeed(t->getSpeed());
+        transfer->setMeanSpeed(t->getMeanSpeed());
+        megaApi->fireOnTransferUpdate(transfer);
+    }
 }
 
 void MegaFolderDownloadController::onTransferFinish(MegaApi *, MegaTransfer *t, MegaError *e)
 {
+    subTransfers.erase(static_cast<MegaTransferPrivate*>(t));
     pendingTransfers--;
-    transfer->setState(MegaTransfer::STATE_ACTIVE);
-    transfer->setPriority(t->getPriority());
-    transfer->setTransferredBytes(transfer->getTransferredBytes() + t->getDeltaSize());
-    transfer->setUpdateTime(Waiter::ds);
-    transfer->setSpeed(t->getSpeed());
-    transfer->setMeanSpeed(t->getMeanSpeed());
-    megaApi->fireOnTransferUpdate(transfer);
-    if (e->getErrorCode())
+    if (transfer)
     {
-        this->e = (error)e->getErrorCode();
+        transfer->setState(MegaTransfer::STATE_ACTIVE);
+        transfer->setPriority(t->getPriority());
+        transfer->setTransferredBytes(transfer->getTransferredBytes() + t->getDeltaSize());
+        transfer->setUpdateTime(Waiter::ds);
+        transfer->setSpeed(t->getSpeed());
+        transfer->setMeanSpeed(t->getMeanSpeed());
+        megaApi->fireOnTransferUpdate(transfer);
+        if (e->getErrorCode())
+        {
+            this->e = (error)e->getErrorCode();
+        }
+        checkCompletion();
     }
-    checkCompletion();
 }
 
 #ifdef HAVE_LIBUV
@@ -31061,6 +31445,21 @@ void MegaPushNotificationSettingsPrivate::enableShares(bool enable)
 void MegaPushNotificationSettingsPrivate::enableChats(bool enable)
 {
     mGlobalChatsDND = enable ? -1 : 0;
+}
+
+MegaCancelTokenPrivate::~MegaCancelTokenPrivate()
+{
+
+}
+
+void MegaCancelTokenPrivate::cancel(bool newValue)
+{
+    cancelFlag = newValue;
+}
+
+bool MegaCancelTokenPrivate::isCancelled() const
+{
+    return cancelFlag;
 }
 
 }

@@ -413,6 +413,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
                             {
                                 n->inshare = new Share(finduser(s->peer, 1), s->access, s->ts, NULL);
                                 n->inshare->user->sharing.insert(n->nodehandle);
+                                mNodeCounters[n->nodehandle] = n->subnodeCounts();
                             }
 
                             if (notify)
@@ -1048,7 +1049,8 @@ void MegaClient::init()
     mNotifiedSumSize = 0;
 
     mBizMode = BIZ_MODE_UNKNOWN;
-    mBizStatus = BIZ_STATUS_INACTIVE;
+    mBizStatus = BIZ_STATUS_UNKNOWN;
+    mNodeCounters = NodeCounterMap();
 }
 
 MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, DbAccess* d, GfxProc* g, const char* k, const char* u)
@@ -1080,6 +1082,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     ssrs_enabled = false;
     nsr_enabled = false;
     aplvp_enabled = false;
+    mSmsVerificationState = SMS_STATE_UNKNOWN;
     loggingout = 0;
     cachedug = false;
     minstreamingrate = -1;
@@ -2692,12 +2695,32 @@ void MegaClient::exec()
         httpio->updateuploadspeed();
     } while (httpio->doio() || execdirectreads() || (!pendingcs && reqs.cmdspending() && btcs.armed()) || looprequested);
 
-    int64_t storage = mFingerprints.getSumSizes();
-    if (mNotifiedSumSize != storage)
+
+    NodeCounter storagesum;
+    for (auto& nc : mNodeCounters)
     {
-        mNotifiedSumSize = storage;
-        app->storagesum_changed(storage);
+        if (nc.first == rootnodes[0] || nc.first == rootnodes[1] || nc.first == rootnodes[2])
+        {
+            storagesum += nc.second;
+        }
     }
+    if (mNotifiedSumSize != storagesum.storage)
+    {
+        mNotifiedSumSize = storagesum.storage;
+        app->storagesum_changed(mNotifiedSumSize);
+    }
+
+#ifdef _DEBUG
+    NodeCounter sum;
+    for (auto& nc : mNodeCounters)
+    {
+        sum += nc.second;
+    }
+    if (sum.storage != mFingerprints.getSumSizes())
+    {
+        LOG_warn << "storage sum : " << sum.storage << " mismatch wtih fingerprint size sum: " << mFingerprints.getSumSizes();
+    }
+#endif
 }
 
 // get next event time from all subsystems, then invoke the waiter if needed
@@ -3583,6 +3606,8 @@ void MegaClient::locallogout()
     ssrs_enabled = false;
     nsr_enabled = false;
     aplvp_enabled = false;
+    mSmsVerificationState = SMS_STATE_UNKNOWN;
+    mSmsVerifiedPhone.clear();
     loggingout = 0;
     cachedug = false;
     minstreamingrate = -1;
@@ -4036,10 +4061,12 @@ bool MegaClient::procsc()
 #endif
 
                                 // node addition
-                                useralerts.beginNotingSharedNodes();
-                                sc_newnodes();
-                                mergenewshares(1);
-                                useralerts.convertNotedSharedNodes(true);
+                                {
+                                    useralerts.beginNotingSharedNodes();
+                                    handle originatingUser = sc_newnodes();
+                                    mergenewshares(1);
+                                    useralerts.convertNotedSharedNodes(true, originatingUser);
+                                }
 
 #ifdef ENABLE_SYNC
                                 if (!fetchingnodes)
@@ -4667,6 +4694,34 @@ void MegaClient::getpubliclinkinfo(handle h)
     reqs.add(new CommandFolderLinkInfo(this, h));
 }
 
+error MegaClient::smsverificationsend(const string& phoneNumber, bool reVerifyingWhitelisted)
+{
+    if (!CommandSMSVerificationSend::isPhoneNumber(phoneNumber))
+    {
+        return API_EARGS;
+    }
+
+    reqs.add(new CommandSMSVerificationSend(this, phoneNumber, reVerifyingWhitelisted));
+    if (reVerifyingWhitelisted)
+    {
+        reqs.add(new CommandGetUserData(this));
+    }
+
+    return API_OK;
+}
+
+error MegaClient::smsverificationcheck(const std::string &verificationCode)
+{
+    if (!CommandSMSVerificationCheck::isVerificationCode(verificationCode))
+    {
+        return API_EARGS;
+    }
+
+    reqs.add(new CommandSMSVerificationCheck(this, verificationCode));
+
+    return API_OK;
+}
+
 void MegaClient::dispatchmore(direction_t d)
 {
     // keep pipeline full by dispatching additional queued transfers, if
@@ -4791,8 +4846,9 @@ void MegaClient::readtree(JSON* j)
 }
 
 // server-client newnodes processing
-void MegaClient::sc_newnodes()
+handle MegaClient::sc_newnodes()
 {
+    handle originatingUser = UNDEF;
     for (;;)
     {
         switch (jsonsc.getnameid())
@@ -4805,13 +4861,17 @@ void MegaClient::sc_newnodes()
                 readusers(&jsonsc, true);
                 break;
 
+            case MAKENAMEID2('o', 'u'):
+                originatingUser = jsonsc.gethandle(USERHANDLE);
+                break;
+
             case EOO:
-                return;
+                return originatingUser;
 
             default:
                 if (!jsonsc.storeobject())
                 {
-                    return;
+                    return originatingUser;
                 }
         }
     }
@@ -6456,6 +6516,7 @@ Node* MegaClient::nodebyhandle(handle h)
 Node* MegaClient::sc_deltree()
 {
     Node* n = NULL;
+    handle originatingUser = UNDEF;
 
     for (;;)
     {
@@ -6470,6 +6531,10 @@ Node* MegaClient::sc_deltree()
                 }
                 break;
 
+            case MAKENAMEID2('o', 'u'):
+                originatingUser = jsonsc.gethandle(USERHANDLE);
+                break;
+
             case EOO:
                 if (n)
                 {
@@ -6481,7 +6546,7 @@ Node* MegaClient::sc_deltree()
                     proctree(n, &td);
                     reqtag = creqtag;
                     
-                    useralerts.convertNotedSharedNodes(false);
+                    useralerts.convertNotedSharedNodes(false, originatingUser);
                 }
                 return n;
 
@@ -9156,10 +9221,9 @@ void MegaClient::procsnk(JSON* j)
                 if (n && n->isbelow(sn))
                 {
                     byte keybuf[FILENODEKEYLENGTH];
-
-                    sn->sharekey->ecb_encrypt((byte*)n->nodekey.data(), keybuf, n->nodekey.size());
-
-                    reqs.add(new CommandSingleKeyCR(sh, nh, keybuf, n->nodekey.size()));
+                    size_t keysize = n->nodekey.size();
+                    sn->sharekey->ecb_encrypt((byte*)n->nodekey.data(), keybuf, keysize);
+                    reqs.add(new CommandSingleKeyCR(sh, nh, keybuf, keysize));
                 }
             }
 
@@ -9623,8 +9687,8 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
                 else
                 {
                     n->applykey();
-                    if (sn->sharekey && n->nodekey.size() ==
-                            (unsigned)((n->type == FILENODE) ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH))
+                    int keysize = int(n->nodekey.size());
+                    if (sn->sharekey && keysize == (n->type == FILENODE ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH))
                     {
                         unsigned nsi, nni;
 
@@ -9634,8 +9698,8 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
                         sprintf(buf, "\",%u,%u,\"", nsi, nni);
 
                         // generate & queue share nodekey
-                        sn->sharekey->ecb_encrypt((byte*)n->nodekey.data(), keybuf, n->nodekey.size());
-                        Base64::btoa(keybuf, int(n->nodekey.size()), strchr(buf + 7, 0));
+                        sn->sharekey->ecb_encrypt((byte*)n->nodekey.data(), keybuf, size_t(keysize));
+                        Base64::btoa(keybuf, keysize, strchr(buf + 7, 0));
                         crkeys.append(buf);
                     }
                     else

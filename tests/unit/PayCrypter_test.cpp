@@ -24,7 +24,7 @@
 
 using namespace mega;
 
-TEST(PayCrypterTest, allFeatures)
+TEST(PayCrypter, allFeatures)
 {
     char BASE64_IV[]        = "7XS3jX8CrWh6gpZIavQamA";
     char BASE64_ENCKEY[]    = "IcfMNKnMLJNJAH-XPMDShw";

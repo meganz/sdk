@@ -58,9 +58,8 @@ CONFIG(USE_MEGAAPI) {
   }
 }
 
-CONFIG += c++11
 !win32 {
-    QMAKE_CXXFLAGS += -std=c++11
+    QMAKE_CXXFLAGS += -std=c++11 -Wextra -Wconversion -Wno-unused-parameter
 
     unix:!macx {
         GCC_VERSION = $$system("g++ -dumpversion")
@@ -211,7 +210,9 @@ CONFIG(USE_PDFIUM) {
     else {#win/mac
         DEFINES += HAVE_PDFIUM
         INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pdfium
-        LIBS += -lpdfium
+        macx {
+            LIBS += -lpdfium
+        }
     }
 }
 

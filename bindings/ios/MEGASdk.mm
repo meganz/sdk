@@ -43,6 +43,7 @@
 #import "DelegateMEGATreeProcessorListener.h"
 #import "MEGAFileInputStream.h"
 #import "MEGADataInputStream.h"
+#import "MEGACancelToken+init.h"
 
 #import <set>
 #import <pthread.h>
@@ -1058,35 +1059,35 @@ using namespace mega;
 }
 
 - (void)getUserAttributeForUser:(MEGAUser *)user type:(MEGAUserAttribute)type {
-    self.megaApi->getUserAttribute((user != nil) ? [user getCPtr] : NULL, type);
+    self.megaApi->getUserAttribute((user != nil) ? [user getCPtr] : NULL, (int)type);
 }
 
 - (void)getUserAttributeForUser:(MEGAUser *)user type:(MEGAUserAttribute)type delegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->getUserAttribute((user != nil) ? [user getCPtr] : NULL, type, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    self.megaApi->getUserAttribute((user != nil) ? [user getCPtr] : NULL, (int)type, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
 - (void)getUserAttributeForEmailOrHandle:(NSString *)emailOrHandle type:(MEGAUserAttribute)type {
-    self.megaApi->getUserAttribute((emailOrHandle != nil) ? [emailOrHandle UTF8String] : NULL, type);
+    self.megaApi->getUserAttribute((emailOrHandle != nil) ? [emailOrHandle UTF8String] : NULL, (int)type);
 }
 
 - (void)getUserAttributeForEmailOrHandle:(NSString *)emailOrHandle type:(MEGAUserAttribute)type delegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->getUserAttribute((emailOrHandle != nil) ? [emailOrHandle UTF8String] : NULL, type, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    self.megaApi->getUserAttribute((emailOrHandle != nil) ? [emailOrHandle UTF8String] : NULL, (int)type, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
 - (void)getUserAttributeType:(MEGAUserAttribute)type {
-    self.megaApi->getUserAttribute(type);
+    self.megaApi->getUserAttribute((int)type);
 }
 
 - (void)getUserAttributeType:(MEGAUserAttribute)type delegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->getUserAttribute(type, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    self.megaApi->getUserAttribute((int)type, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
 - (void)setUserAttributeType:(MEGAUserAttribute)type value:(NSString *)value {
-    self.megaApi->setUserAttribute(type, (value != nil) ? [value UTF8String] : NULL);
+    self.megaApi->setUserAttribute((int)type, (value != nil) ? [value UTF8String] : NULL);
 }
 
 - (void)setUserAttributeType:(MEGAUserAttribute)type value:(NSString *)value delegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->setUserAttribute(type, (value != nil) ? [value UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    self.megaApi->setUserAttribute((int)type, (value != nil) ? [value UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
 #pragma mark - Account management Requests
@@ -1124,19 +1125,19 @@ using namespace mega;
 }
 
 - (void)submitPurchase:(MEGAPaymentMethod)gateway receipt:(NSString *)receipt delegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->submitPurchaseReceipt(gateway, (receipt != nil) ? [receipt UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    self.megaApi->submitPurchaseReceipt((int)gateway, (receipt != nil) ? [receipt UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
 - (void)submitPurchase:(MEGAPaymentMethod)gateway receipt:(NSString *)receipt {
-    self.megaApi->submitPurchaseReceipt(gateway, (receipt != nil) ? [receipt UTF8String] : NULL);
+    self.megaApi->submitPurchaseReceipt((int)gateway, (receipt != nil) ? [receipt UTF8String] : NULL);
 }
 
 - (void)submitPurchase:(MEGAPaymentMethod)gateway receipt:(NSString *)receipt lastPublicHandle:(uint64_t)lastPublicHandle delegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->submitPurchaseReceipt(gateway, (receipt != nil) ? [receipt UTF8String] : NULL, lastPublicHandle, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    self.megaApi->submitPurchaseReceipt((int)gateway, (receipt != nil) ? [receipt UTF8String] : NULL, lastPublicHandle, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
 - (void)submitPurchase:(MEGAPaymentMethod)gateway receipt:(NSString *)receipt lastPublicHandle:(uint64_t)lastPublicHandle {
-    self.megaApi->submitPurchaseReceipt(gateway, (receipt != nil) ? [receipt UTF8String] : NULL, lastPublicHandle);
+    self.megaApi->submitPurchaseReceipt((int)gateway, (receipt != nil) ? [receipt UTF8String] : NULL, lastPublicHandle);
 }
 
 - (void)changePassword:(NSString *)oldPassword newPassword:(NSString *)newPassword delegate:(id<MEGARequestDelegate>)delegate {
@@ -1868,6 +1869,10 @@ using namespace mega;
     return [[MEGANodeList alloc] initWithNodeList:self.megaApi->search((node != nil) ? [node getCPtr] : NULL, (searchString != nil) ? [searchString UTF8String] : NULL, recursive) cMemoryOwn:YES];
 }
 
+- (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString cancelToken:(MEGACancelToken *)cancelToken recursive:(BOOL)recursive {
+    return [MEGANodeList.alloc initWithNodeList:self.megaApi->search(node ? [node getCPtr] : NULL, searchString.UTF8String, cancelToken ? [cancelToken getCPtr] : NULL, recursive) cMemoryOwn:YES];
+}
+
 - (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString {
     return [[MEGANodeList alloc] initWithNodeList:self.megaApi->search((node != nil) ? [node getCPtr] : NULL, (searchString != nil) ? [searchString UTF8String] : NULL, YES) cMemoryOwn:YES];
 }
@@ -2158,6 +2163,37 @@ using namespace mega;
 
 - (void)getPublicLinkInformationWithFolderLink:(NSString *)folderLink {
     self.megaApi->getPublicLinkInformation(folderLink.UTF8String);
+}
+
+#pragma mark - SMS
+
+- (SMSState)smsAllowedState {
+    return (SMSState)self.megaApi->smsAllowedState();
+}
+
+- (void)getRegisteredContacts:(NSArray<NSDictionary *> *)contacts delegate:(id<MEGARequestDelegate>)delegate {
+    MegaStringMap *stringMapContacts = MegaStringMap::createInstance();
+    for (NSDictionary *contact in contacts) {
+        NSString *key = contact.allKeys.firstObject;
+        NSString *value = contact.allValues.firstObject;
+        stringMapContacts->set(key.UTF8String, value.UTF8String);
+    }
+    
+    self.megaApi->getRegisteredContacts(stringMapContacts, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+
+    delete stringMapContacts;    
+}
+
+- (void)getCountryCallingCodesWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getCountryCallingCodes([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)sendSMSVerificationCodeToPhoneNumber:(NSString *)phoneNumber delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->sendSMSVerificationCode([phoneNumber UTF8String], [self createDelegateMEGARequestListener:delegate singleListener:YES], YES);
+}
+
+- (void)checkSMSVerificationCode:(NSString *)verificationCode delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->checkSMSVerificationCode([verificationCode UTF8String], [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
 #pragma mark - Debug log messages
