@@ -3672,17 +3672,17 @@ void CommandGetUserData::procresult()
                 if ((s < BIZ_STATUS_EXPIRED || s > BIZ_STATUS_GRACE_PERIOD)  // status not received or invalid
                         || (m == BIZ_MODE_UNKNOWN))  // master flag not received or invalid
                 {
-                    LOG_err << "GetUserData: invalid business status / account mode";
+                    std::string err = "GetUserData: invalid business status / account mode";
+                    LOG_err << err;
+                    client->sendevent(99450, err.c_str());
+
+                    client->mBizStatus = BIZ_STATUS_EXPIRED;
+                    client->mBizMode = BIZ_MODE_SUBUSER;
+                    client->mBizExpirationTs = client->mBizGracePeriodTs = 0;
+                    client->app->notify_business_status(client->mBizStatus);
                 }
                 else
                 {
-                    if (client->mBizStatus != s)
-                    {
-                        client->mBizStatus = s;
-                        client->app->notify_business_status(s);
-                    }
-                    client->mBizMode = m;
-
                     for (auto it : sts)
                     {
                         BizStatus status = it.first;
@@ -3701,6 +3701,14 @@ void CommandGetUserData::procresult()
                         }
                     }
 
+                    client->mBizMode = m;
+
+                    if (client->mBizStatus != s)
+                    {
+                        client->mBizStatus = s;
+                        client->app->notify_business_status(s);
+                    }
+
                     // if current business status will expire sooner than the scheduled `ug`, update the
                     // backoff to a shorter one in order to refresh the business status asap
                     m_time_t auxts = 0;
@@ -3715,7 +3723,7 @@ void CommandGetUserData::procresult()
                     }
                     if (auxts)
                     {
-                        dstime diff = (now - auxts) * 10;
+                        dstime diff = static_cast<dstime>((now - auxts) * 10);
                         dstime current = client->btugexpiration.backoffdelta();
                         if (current > diff)
                         {

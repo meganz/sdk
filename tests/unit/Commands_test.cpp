@@ -82,7 +82,7 @@ TEST(Commands, CommandGetRegisteredContacts_processResult_happyPath)
     ASSERT_EQ(API_OK, app.mLastError);
     ASSERT_NE(nullptr, app.mRegisteredContacts);
     ASSERT_EQ(expected, *app.mRegisteredContacts);
-    ASSERT_EQ(jsonLength, std::distance(jsonBegin, json.pos)); // assert json has been parsed all the way
+    ASSERT_EQ((long)jsonLength, std::distance(jsonBegin, json.pos)); // assert json has been parsed all the way
 }
 
 TEST(Commands, CommandGetRegisteredContacts_processResult_onlyOneContact)

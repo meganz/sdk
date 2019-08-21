@@ -28,6 +28,8 @@
 
 #include <iostream>
 #include <fstream>
+#include <future>
+#include <atomic>
 
 using namespace mega;
 using ::testing::Test;
@@ -60,6 +62,50 @@ private:
 
 protected:
     void log(const char *time, int loglevel, const char *source, const char *message);
+};
+
+struct TransferTracker : public ::mega::MegaTransferListener
+{
+    std::atomic<bool> started = { false };
+    std::atomic<bool> finished = { false };
+    std::atomic<int> result = { INT_MAX };
+    std::promise<int> promiseResult;
+    void onTransferStart(MegaApi *api, MegaTransfer *transfer) override
+    {
+        started = true;
+    }
+    void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* error) override
+    {
+        result = error->getErrorCode();
+        finished = true;
+        promiseResult.set_value(result);
+    }
+    int waitForResult()
+    {
+        return promiseResult.get_future().get();
+    }
+};
+
+struct RequestTracker : public ::mega::MegaRequestListener
+{
+    std::atomic<bool> started = { false };
+    std::atomic<bool> finished = { false };
+    std::atomic<int> result = { INT_MAX };
+    std::promise<int> promiseResult;
+    void onRequestStart(MegaApi* api, MegaRequest *request) override
+    {
+        started = true;
+    }
+    void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError* e) override
+    {
+        result = e->getErrorCode();
+        finished = true;
+        promiseResult.set_value(result);
+    }
+    int waitForResult()
+    {
+        return promiseResult.get_future().get();
+    }
 };
 
 // Fixture class with common code for most of tests
@@ -152,6 +198,10 @@ public:
     // convenience functions - template args just make it easy to code, no need to copy all the exact argument types with listener defaults etc. To add a new one, just copy a line and change the flag and the function called.
     template<typename ... uploadArgs> int synchronousUpload(int apiIndex, uploadArgs... args) { synchronousCall(transferFlags[apiIndex][MegaTransfer::TYPE_UPLOAD], [this, apiIndex, args...]() { megaApi[apiIndex]->startUpload(args...); }); return lastError[apiIndex]; }
     template<typename ... uploadArgs> int synchronousCatchup(int apiIndex, uploadArgs... args) { synchronousCall(requestFlags[apiIndex][MegaRequest::TYPE_CATCHUP], [this, apiIndex, args...]() { megaApi[apiIndex]->catchup(args...); }); return lastError[apiIndex]; }
+
+
+    // convenience functions - make a request and wait for the result via listener, return the result code.  To add new functions to call, just copy the line
+    template<typename ... requestArgs> int doRequestLogout(int apiIndex, requestArgs... args) { RequestTracker rt; megaApi[apiIndex]->logout(args..., &rt); return rt.waitForResult(); }
 
     void createFile(string filename, bool largeFile = true);
     size_t getFilesize(string filename);

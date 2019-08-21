@@ -4803,7 +4803,7 @@ void exec_whoami(autocomplete::ACState& s)
 
         if ((u = client->finduser(client->me)))
         {
-            cout << "Account e-mail: " << u->email << endl;
+            cout << "Account e-mail: " << u->email << " handle: " << Base64Str<MegaClient::USERHANDLE>(client->me) << endl;
 #ifdef ENABLE_CHAT
             if (client->signkey)
             {

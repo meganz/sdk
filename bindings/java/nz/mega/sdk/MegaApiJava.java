@@ -7176,6 +7176,17 @@ public class MegaApiJava {
     }
 
     /**
+     * Allows to cancel an ongoing search
+     *
+     * Since searches are blocking, if the user refines the search string, the current search
+     * can be discarded to not wait for the results and finish it immediately.
+     */
+    public void cancelSearch() {
+        megaApi.cancelSearch();
+    }
+
+
+    /**
      * Return a list of buckets, each bucket containing a list of recently added/modified nodes
      *
      * Each bucket contains files that were added/modified in a set, by a single user.
