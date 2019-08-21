@@ -144,7 +144,6 @@ public:
     bool fopen(string*, bool, bool);
     void updatelocalname(string*);
     bool fread(string *, unsigned, unsigned, m_off_t);
-    bool frawread(byte *, unsigned, m_off_t);
     bool fwrite(const byte *, unsigned, m_off_t);
 
     bool sysread(byte *, unsigned, m_off_t);
@@ -174,10 +173,11 @@ class MEGA_API PosixDirNotify : public DirNotify
 public:
     PosixFileSystemAccess* fsaccess;
 
-    void addnotify(LocalNode*, string*);
-    void delnotify(LocalNode*);
+    void addnotify(LocalNode*, string*) override;
+    void delnotify(LocalNode*) override;
 
-    fsfp_t fsfingerprint();
+    fsfp_t fsfingerprint() const override;
+    bool fsstableids() const override;
 
     PosixDirNotify(string*, string*);
 };

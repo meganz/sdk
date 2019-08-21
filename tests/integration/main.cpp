@@ -2,6 +2,7 @@
 #include "gtest/gtest.h"
 #include "test.h"
 #include <stdio.h>
+#include <fstream>
 
 bool gRunningInCI = false;
 bool gTestingInvalidArgs = false;

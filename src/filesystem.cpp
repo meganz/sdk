@@ -248,9 +248,14 @@ void DirNotify::notify(notifyqueue q, LocalNode* l, const char* localpath, size_
 }
 
 // default: no fingerprint
-fsfp_t DirNotify::fsfingerprint()
+fsfp_t DirNotify::fsfingerprint() const
 {
     return 0;
+}
+
+bool DirNotify::fsstableids() const
+{
+    return true;
 }
 
 DirNotify* FileSystemAccess::newdirnotify(string* localpath, string* ignore)

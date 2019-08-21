@@ -113,7 +113,9 @@
 /* #undef HAVE_SYS_DIR_H */
 
 /* Define to 1 if you have the <sys/inotify.h> header file. */
+#ifndef __APPLE__
 #define HAVE_SYS_INOTIFY_H 1
+#endif
 
 /* Define to 1 if you have the <sys/malloc.h> header file. */
 /* #undef HAVE_SYS_MALLOC_H */
@@ -201,7 +203,9 @@
 #define USE_DB 0
 
 /* Use inotify API */
+#ifndef __APPLE__
 #define USE_INOTIFY 1
+#endif
 
 /* Use IOS */
 /* #undef USE_IOS */

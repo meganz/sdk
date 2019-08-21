@@ -112,7 +112,7 @@ struct MEGA_API FileAccess
     bool fread(string *, unsigned, unsigned, m_off_t);
 
     // absolute position read to byte buffer
-    bool frawread(byte *, unsigned, m_off_t);
+    virtual bool frawread(byte *, unsigned, m_off_t);
 
     // non-locking ops: open/close temporary hFile
     bool openf();
@@ -203,7 +203,11 @@ struct MEGA_API DirNotify
     void notify(notifyqueue, LocalNode *, const char*, size_t, bool = false);
 
     // filesystem fingerprint
-    virtual fsfp_t fsfingerprint();
+    virtual fsfp_t fsfingerprint() const;
+
+    // Returns true if the filesystem's IDs are stable (e.g. never change between mounts).
+    // This should return false for any FAT filesystem.
+    virtual bool fsstableids() const;
 
     // ignore this
     string ignore;
@@ -248,7 +252,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     // convert MEGA-formatted filename (UTF-8) to local filesystem name; escape
     // forbidden characters using urlencode
-    void local2name(string*) const;
+    virtual void local2name(string*) const;
 
     // convert local path to MEGA format (UTF-8) with unescaping
     void name2local(string*) const;

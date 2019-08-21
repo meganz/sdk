@@ -1986,7 +1986,7 @@ GTEST_TEST(Sync, BasicSync_SyncDuplicateNames)
 GTEST_TEST(Sync, BasicSync_RemoveLocalNodeBeforeSessionResume)
 {
     fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
-    auto pclientA1 = make_unique<StandardClient>(localtestroot, "clientA1");   // user 1 client 1
+    auto pclientA1 = ::mega::make_unique<StandardClient>(localtestroot, "clientA1");   // user 1 client 1
     StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
 
     ASSERT_TRUE(pclientA1->login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "f", 3, 3));

@@ -172,6 +172,18 @@ Node::~Node()
         parent->children.erase(child_it);
     }
 
+    Node* fa = firstancestor();
+    handle ancestor = fa->nodehandle;
+    if (ancestor == client->rootnodes[0] || ancestor == client->rootnodes[1] || ancestor == client->rootnodes[2] || fa->inshare)
+    {
+        client->mNodeCounters[firstancestor()->nodehandle] -= subnodeCounts();
+    }
+
+    if (inshare)
+    {
+        client->mNodeCounters.erase(nodehandle);
+    }
+
     // delete child-parent associations (normally not used, as nodes are
     // deleted bottom-up)
     for (node_list::iterator it = children.begin(); it != children.end(); it++)
@@ -933,12 +945,50 @@ bool Node::applykey()
     return true;
 }
 
+NodeCounter Node::subnodeCounts() const
+{
+    NodeCounter nc;
+    for (Node *child : children)
+    {
+        nc += child->subnodeCounts();
+    }
+    if (type == FILENODE)
+    {
+        nc.files += 1;
+        nc.storage += size;
+        if (parent && parent->type == FILENODE)
+        {
+            nc.versions += 1;
+            nc.versionStorage += size;
+        }
+    }
+    else if (type == FOLDERNODE)
+    {
+        nc.folders += 1;
+    }
+    return nc;
+}
+
 // returns whether node was moved
 bool Node::setparent(Node* p)
 {
     if (p == parent)
     {
         return false;
+    }
+
+    NodeCounter nc;
+    bool gotnc = false;
+
+    Node *originalancestor = firstancestor();
+    handle oah = originalancestor->nodehandle;
+    if (oah == client->rootnodes[0] || oah == client->rootnodes[1] || oah == client->rootnodes[2] || originalancestor->inshare)
+    {
+        nc = subnodeCounts();
+        gotnc = true;
+
+        // nodes moving from cloud drive to rubbish for example, or between inshares from the same user.
+        client->mNodeCounters[oah] -= nc;
     }
 
     if (parent)
@@ -955,6 +1005,18 @@ bool Node::setparent(Node* p)
     if (parent)
     {
         child_it = parent->children.insert(parent->children.end(), this);
+    }
+
+    Node* newancestor = firstancestor();
+    handle nah = newancestor->nodehandle;
+    if (nah == client->rootnodes[0] || nah == client->rootnodes[1] || nah == client->rootnodes[2] || newancestor->inshare)
+    {
+        if (!gotnc)
+        {
+            nc = subnodeCounts();
+        }
+
+        client->mNodeCounters[nah] += nc;
     }
 
 #ifdef ENABLE_SYNC
@@ -1434,7 +1496,7 @@ void LocalNode::setnotseen(int newnotseen)
 }
 
 // set fsid - assume that an existing assignment of the same fsid is no longer current and revoke
-void LocalNode::setfsid(handle newfsid)
+void LocalNode::setfsid(handle newfsid, handlelocalnode_map& fsidnodes)
 {
     if (!sync)
     {
@@ -1443,26 +1505,26 @@ void LocalNode::setfsid(handle newfsid)
         return;
     }
 
-    if (fsid_it != sync->client->fsidnode.end())
+    if (fsid_it != fsidnodes.end())
     {
         if (newfsid == fsid)
         {
             return;
         }
 
-        sync->client->fsidnode.erase(fsid_it);
+        fsidnodes.erase(fsid_it);
     }
 
     fsid = newfsid;
 
-    pair<handlelocalnode_map::iterator, bool> r = sync->client->fsidnode.insert(pair<handle, LocalNode*>(fsid, this));
+    pair<handlelocalnode_map::iterator, bool> r = fsidnodes.insert(std::make_pair(fsid, this));
 
     fsid_it = r.first;
 
     if (!r.second)
     {
         // remove previous fsid assignment (the node is likely about to be deleted)
-        fsid_it->second->fsid_it = sync->client->fsidnode.end();
+        fsid_it->second->fsid_it = fsidnodes.end();
         fsid_it->second = this;
     }
 }
@@ -1473,6 +1535,11 @@ LocalNode::~LocalNode()
     {
         LOG_err << "LocalNode::init() was never called";
         assert(false);
+        return;
+    }
+
+    if (!sync->client)
+    {
         return;
     }
 
@@ -1511,7 +1578,7 @@ LocalNode::~LocalNode()
             }
         }
     }
-    
+
     // remove from fsidnode map, if present
     if (fsid_it != sync->client->fsidnode.end())
     {
@@ -1566,7 +1633,7 @@ LocalNode::~LocalNode()
     }
 }
 
-void LocalNode::getlocalpath(string* path, bool sdisable) const
+void LocalNode::getlocalpath(string* path, bool sdisable, const std::string* localseparator) const
 {
     if (!sync)
     {
@@ -1594,7 +1661,7 @@ void LocalNode::getlocalpath(string* path, bool sdisable) const
 
         if ((l = l->parent))
         {
-            path->insert(0, sync->client->fsaccess->localseparator);
+            path->insert(0, localseparator ? *localseparator : sync->client->fsaccess->localseparator);
         }
 
         if (sdisable)

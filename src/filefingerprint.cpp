@@ -25,9 +25,15 @@
 #include "mega/logging.h"
 #include "mega/utils.h"
 
+namespace {
+
+constexpr int MAXFULL = 8192;
+
+} // anonymous
+
 namespace mega {
 
-bool operator==(FileFingerprint& lhs, FileFingerprint& rhs)
+bool operator==(const FileFingerprint& lhs, const FileFingerprint& rhs)
 {
     // size differs - cannot be equal
     if (lhs.size != rhs.size)
@@ -57,15 +63,6 @@ bool operator==(FileFingerprint& lhs, FileFingerprint& rhs)
     }
 
     return !memcmp(lhs.crc, rhs.crc, sizeof lhs.crc);
-}
-
-FileFingerprint::FileFingerprint()
-{
-    // mark as invalid
-    size = -1;
-    mtime = 0;
-    isvalid = false;
-    memset(crc, 0, sizeof crc);
 }
 
 bool FileFingerprint::serialize(string *d)
@@ -105,16 +102,6 @@ FileFingerprint *FileFingerprint::unserialize(string *d)
 
     d->erase(0, ptr - d->data());
     return fp;
-}
-
-FileFingerprint& FileFingerprint::operator=(FileFingerprint& rhs)
-{
-    isvalid = rhs.isvalid;
-    size = rhs.size;
-    mtime = rhs.mtime;
-    memcpy(crc, rhs.crc, sizeof crc);
-
-    return *this;
 }
 
 bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
@@ -371,6 +358,31 @@ int FileFingerprint::unserializefingerprint(string* d)
     isvalid = true;
 
     return 1;
+}
+
+size_t FileFingerprint::getHash() const
+{
+    assert(isvalid);
+    size_t value = 0;
+    hashCombine(value, size);
+    hashCombine(value, mtime);
+    for (const auto val : crc)
+    {
+        hashCombine(value, val);
+    }
+    return value;
+}
+
+FileFingerprint& FileFingerprint::operator=(const FileFingerprint& other)
+{
+    if (this != &other)
+    {
+        size = other.size;
+        mtime = other.mtime;
+        memcpy(crc, other.crc, sizeof(crc));
+        isvalid = other.isvalid;
+    }
+    return *this;
 }
 
 bool FileFingerprintCmp::operator()(const FileFingerprint* a, const FileFingerprint* b) const

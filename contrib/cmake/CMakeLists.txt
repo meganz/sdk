@@ -74,7 +74,7 @@ else()
 endif()
 
 if ("${MEGA_PROJECT_NAME}" STREQUAL "")
-    set(MEGA_PROJECT_NAME, "MegaSDK")
+    set(MEGA_PROJECT_NAME "MegaSDK" CACHE STRING "")
 endif()
 
 if(build_64_bit)
@@ -130,7 +130,8 @@ else (USE_PREBUILT_3RDPARTY)
             include_directories( "${vcpkg_dir}/include" )
             link_directories( "${vcpkg_dir}/lib" )
         else()
-            # in this case, we are using libraries added to the linux installation
+            include_directories( "${Mega3rdPartyDir}/include" )
+            link_directories( "${Mega3rdPartyDir}/lib" )
         endif()
     ENDIF(WIN32)
 endif()
@@ -598,19 +599,66 @@ if(WIN32)
 target_link_libraries(Mega PUBLIC crypt32.lib)
 endif(WIN32)
 
+OPTION( ENABLE_CODECOVERAGE "Enable code coverage testing support" )
+
+if ( ENABLE_CODECOVERAGE )
+
+    if ( NOT CMAKE_BUILD_TYPE STREQUAL "Debug" )
+        message( WARNING "Code coverage results with an optimised (non-Debug) build may be misleading" )
+    endif ( NOT CMAKE_BUILD_TYPE STREQUAL "Debug" )
+
+    if ( NOT DEFINED CODECOV_OUTPUTFILE )
+        set( CODECOV_OUTPUTFILE cmake_coverage.output )
+    endif ( NOT DEFINED CODECOV_OUTPUTFILE )
+
+    if ( NOT DEFINED CODECOV_HTMLOUTPUTDIR )
+        set( CODECOV_HTMLOUTPUTDIR coverage_results )
+    endif ( NOT DEFINED CODECOV_HTMLOUTPUTDIR )
+
+    if ( CMAKE_COMPILER_IS_GNUCXX OR CMAKE_COMPILER_IS_GNUCXX )
+        find_program( CODECOV_GCOV gcov )
+        find_program( CODECOV_LCOV lcov )
+        find_program( CODECOV_GENHTML genhtml )
+        add_definitions( -fprofile-arcs -ftest-coverage )
+        link_libraries( gcov )
+        set( CMAKE_EXE_LINKER_FLAGS ${CMAKE_EXE_LINKER_FLAGS} --coverage )
+        add_custom_target( coverage_init ALL ${CODECOV_LCOV} --base-directory .  --directory ${CMAKE_BINARY_DIR} --output-file ${CODECOV_OUTPUTFILE} --capture --initial )
+        add_custom_target( coverage ${CODECOV_LCOV} --base-directory .  --directory ${CMAKE_BINARY_DIR} --output-file ${CODECOV_OUTPUTFILE} --capture COMMAND genhtml -o ${CODECOV_HTMLOUTPUTDIR} ${CODECOV_OUTPUTFILE} )
+endif ( CMAKE_COMPILER_IS_GNUCXX )
+
+endif (ENABLE_CODECOVERAGE )
+
 #test apps
-add_executable(test_unit            ${MegaDir}/tests/unit/Commands_test.cpp
-                                    ${MegaDir}/tests/unit/Crypto_test.cpp
-                                    ${MegaDir}/tests/unit/Serialization_test.cpp
-                                    ${MegaDir}/tests/unit/main.cpp
-                                    ${MegaDir}/tests/unit/MegaApi_test.cpp
-                                    ${MegaDir}/tests/unit/PayCrypter_test.cpp)
+add_executable(test_unit
+    ${MegaDir}/tests/unit/Commands_test.cpp
+    ${MegaDir}/tests/unit/constants.h
+    ${MegaDir}/tests/unit/Crypto_test.cpp
+    ${MegaDir}/tests/unit/DefaultedDirAccess.h
+    ${MegaDir}/tests/unit/DefaultedFileAccess.h
+    ${MegaDir}/tests/unit/DefaultedFileSystemAccess.h
+    ${MegaDir}/tests/unit/FileFingerprint_test.cpp
+    ${MegaDir}/tests/unit/FsNode.cpp
+    ${MegaDir}/tests/unit/FsNode.h
+    ${MegaDir}/tests/unit/main.cpp
+    ${MegaDir}/tests/unit/MegaApi_test.cpp
+    ${MegaDir}/tests/unit/NotImplemented.h
+    ${MegaDir}/tests/unit/PayCrypter_test.cpp
+    ${MegaDir}/tests/unit/Serialization_test.cpp
+    ${MegaDir}/tests/unit/Sync_test.cpp
+    ${MegaDir}/tests/unit/utils.cpp
+    ${MegaDir}/tests/unit/utils.h
+    ${MegaDir}/tests/unit/utils_test.cpp
+)
 
-add_executable(test_integration     ${MegaDir}/tests/integration/main.cpp
-                                    ${MegaDir}/tests/integration/SdkTest_test.cpp
-                                    ${MegaDir}/tests/integration/Sync_test.cpp)
+add_executable(test_integration
+    ${MegaDir}/tests/integration/main.cpp
+    ${MegaDir}/tests/integration/SdkTest_test.cpp
+    ${MegaDir}/tests/integration/Sync_test.cpp
+)
 
-add_executable(tool_purge_account   ${MegaDir}/tests/tool/purge_account.cpp)
+add_executable(tool_purge_account
+    ${MegaDir}/tests/tool/purge_account.cpp
+)
 
 target_compile_definitions(test_unit PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
 target_compile_definitions(test_integration PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
@@ -657,6 +705,7 @@ if (WIN32)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4458")  # identifier hides class member
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4324")  # structure was padded due to alignment specifier (common in Sodium)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4456")  # declaration hides previous local declaration
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4266")  # derived class did not override all overloads of a virtual function
     #TODO: remove some of those gradually.  also consider: /wd4503 /wd4996 /wd4702
 else()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wconversion -Wno-unused-parameter")

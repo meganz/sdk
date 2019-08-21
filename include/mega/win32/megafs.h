@@ -110,7 +110,8 @@ struct MEGA_API WinDirNotify : public DirNotify
     void process(DWORD wNumberOfBytesTransfered);
     void readchanges();
 
-    fsfp_t fsfingerprint() override;
+    fsfp_t fsfingerprint() const override;
+    bool fsstableids() const override;
 
     WinDirNotify(string*, string*);
     ~WinDirNotify();
@@ -139,7 +140,6 @@ public:
     bool fopen(string*, bool, bool, bool);
     void updatelocalname(string*) override;
     bool fread(string *, unsigned, unsigned, m_off_t);
-    bool frawread(byte *, unsigned, m_off_t);
     bool fwrite(const byte *, unsigned, m_off_t);
 
     bool sysread(byte *, unsigned, m_off_t) override;

@@ -172,11 +172,20 @@ class MegaSizeProcessor : public MegaTreeProcessor
         long long getTotalBytes();
 };
 
-class MegaFolderUploadController : public MegaRequestListener, public MegaTransferListener
+class MegaRecursiveOperation
+{
+public:
+    virtual ~MegaRecursiveOperation() = default;
+    virtual void start(MegaNode* node) = 0;
+    virtual void cancel() = 0;
+};
+
+class MegaFolderUploadController : public MegaRequestListener, public MegaTransferListener, public MegaRecursiveOperation
 {
 public:
     MegaFolderUploadController(MegaApiImpl *megaApi, MegaTransferPrivate *transfer);
-    void start();
+    void start(MegaNode* node) override;
+    void cancel() override;
 
 protected:
     void onFolderAvailable(MegaHandle handle);
@@ -190,6 +199,7 @@ protected:
     int recursive;
     int tag;
     int pendingTransfers;
+    std::set<MegaTransferPrivate*> subTransfers;
 
 public:
     void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e) override;
@@ -341,11 +351,12 @@ public:
     void setValid(bool value);
 };
 
-class MegaFolderDownloadController : public MegaTransferListener
+class MegaFolderDownloadController : public MegaTransferListener, public MegaRecursiveOperation
 {
 public:
     MegaFolderDownloadController(MegaApiImpl *megaApi, MegaTransferPrivate *transfer);
-    void start(MegaNode *node);
+    void start(MegaNode *node) override;
+    void cancel() override;
 
 protected:
     void downloadFolderNode(MegaNode *node, string *path);
@@ -359,6 +370,7 @@ protected:
     int tag;
     int pendingTransfers;
     error e;
+    std::set<MegaTransferPrivate*> subTransfers;
 
 public:
     void onTransferStart(MegaApi *, MegaTransfer *t) override;
@@ -692,6 +704,8 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         virtual bool serialize(string*);
         static MegaTransferPrivate* unserialize(string*);
 
+        void startRecursiveOperation(unique_ptr<MegaRecursiveOperation>, MegaNode* node); // takes ownership of both
+
     protected:
         int type;
         int tag;
@@ -733,6 +747,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         MegaError lastError;
         int folderTransferTag;
         const char* appData;
+        unique_ptr<MegaRecursiveOperation> recursiveOperation;
 };
 
 class MegaTransferDataPrivate : public MegaTransferData

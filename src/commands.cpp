@@ -3672,17 +3672,17 @@ void CommandGetUserData::procresult()
                 if ((s < BIZ_STATUS_EXPIRED || s > BIZ_STATUS_GRACE_PERIOD)  // status not received or invalid
                         || (m == BIZ_MODE_UNKNOWN))  // master flag not received or invalid
                 {
-                    LOG_err << "GetUserData: invalid business status / account mode";
+                    std::string err = "GetUserData: invalid business status / account mode";
+                    LOG_err << err;
+                    client->sendevent(99450, err.c_str());
+
+                    client->mBizStatus = BIZ_STATUS_EXPIRED;
+                    client->mBizMode = BIZ_MODE_SUBUSER;
+                    client->mBizExpirationTs = client->mBizGracePeriodTs = 0;
+                    client->app->notify_business_status(client->mBizStatus);
                 }
                 else
                 {
-                    if (client->mBizStatus != s)
-                    {
-                        client->mBizStatus = s;
-                        client->app->notify_business_status(s);
-                    }
-                    client->mBizMode = m;
-
                     for (auto it : sts)
                     {
                         BizStatus status = it.first;
@@ -3699,6 +3699,14 @@ void CommandGetUserData::procresult()
                         {
                             LOG_warn << "Unexpected status in b.sts. Status: " << status << "ts: " << ts;
                         }
+                    }
+
+                    client->mBizMode = m;
+
+                    if (client->mBizStatus != s)
+                    {
+                        client->mBizStatus = s;
+                        client->app->notify_business_status(s);
                     }
 
                     // if current business status will expire sooner than the scheduled `ug`, update the
@@ -3810,6 +3818,9 @@ void CommandGetMiscFlags::procresult()
 CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, AccountDetails* ad, bool storage, bool transfer, bool pro, int source)
 {
     details = ad;
+    mStorage = storage;
+    mTransfer = transfer;
+    mPro = pro;
 
     cmd("uq");
     if (storage)
@@ -3836,8 +3847,7 @@ void CommandGetUserQuota::procresult()
 {
     m_off_t td;
     bool got_storage = false;
-    bool got_transfer = false;
-    bool got_pro = false;
+    bool got_storage_used = false;
     int uslw = -1;
 
     if (client->json.isnumeric())
@@ -3906,7 +3916,6 @@ void CommandGetUserQuota::procresult()
 
             case MAKENAMEID3('t', 'a', 'l'):
                 details->transfer_limit = client->json.getint();
-                got_transfer = true;
                 break;
 
             case MAKENAMEID3('t', 'u', 'a'):
@@ -3928,6 +3937,7 @@ void CommandGetUserQuota::procresult()
             case MAKENAMEID5('c', 's', 't', 'r', 'g'):
                 // storage used
                 details->storage_used = client->json.getint();
+                got_storage_used = true;
                 break;
 
             case MAKENAMEID6('c', 's', 't', 'r', 'g', 'n'):
@@ -3945,6 +3955,19 @@ void CommandGetUserQuota::procresult()
                         ns->folders = uint32_t(client->json.getint());
                         ns->version_bytes = client->json.getint();
                         ns->version_files = client->json.getint();
+
+#ifdef _DEBUG
+                        // TODO: remove this debugging block once local count is confirmed to work correctly 100%
+                        // verify the new local storage counters per root match server side (could fail if actionpackets are pending)
+                        auto iter = client->mNodeCounters.find(h);
+                        if (iter != client->mNodeCounters.end())
+                        {
+                            LOG_debug << client->nodebyhandle(h)->displaypath() << " " << iter->second.storage << " " << ns->bytes << " " << iter->second.files << " " << ns->files << " " << iter->second.folders << " " << ns->folders << " "
+                                      << iter->second.versionStorage << " " << ns->version_bytes << " " << iter->second.versions << " " << ns->version_files
+                                      << (iter->second.storage == ns->bytes && iter->second.files == ns->files && iter->second.folders == ns->folders && iter->second.versionStorage == ns->version_bytes && iter->second.versions == ns->version_files 
+                                          ? "" : " ******************************************* mismatch *******************************************");
+                        }
+#endif 
 
                         while(client->json.storeobject());
                         client->json.leavearray();
@@ -3973,7 +3996,6 @@ void CommandGetUserQuota::procresult()
             case MAKENAMEID5('m', 'x', 'f', 'e', 'r'):
                 // total transfer quota
                 details->transfer_max = client->json.getint();
-                got_transfer = true;
                 break;
 
             case MAKENAMEID8('s', 'r', 'v', 'r', 'a', 't', 'i', 'o'):
@@ -3984,7 +4006,6 @@ void CommandGetUserQuota::procresult()
             case MAKENAMEID5('u', 't', 'y', 'p', 'e'):
                 // Pro plan (0 == none)
                 details->pro_level = (int)client->json.getint();
-                got_pro = 1;
                 break;
 
             case MAKENAMEID5('s', 't', 'y', 'p', 'e'):
@@ -4066,8 +4087,9 @@ void CommandGetUserQuota::procresult()
                 break;
 
             case EOO:
+                assert(!mStorage || (got_storage && got_storage_used));
 
-                if (got_storage)
+                if (mStorage)
                 {
                     if (uslw <= 0)
                     {
@@ -4092,7 +4114,7 @@ void CommandGetUserQuota::procresult()
                     }
                 }
 
-                client->app->account_details(details, got_storage, got_transfer, got_pro, false, false, false);
+                client->app->account_details(details, mStorage, mTransfer, mPro, false, false, false);
                 return;
 
             default:

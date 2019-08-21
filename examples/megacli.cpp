@@ -56,6 +56,11 @@ namespace ac = ::mega::autocomplete;
 
 #include <iomanip>
 
+// TODO: Remove this once OSX supports std::filesystem
+#ifdef __APPLE__
+#undef USE_FILESYSTEM
+#endif
+
 using namespace mega;
 using std::cout;
 using std::cerr;
@@ -4803,7 +4808,7 @@ void exec_whoami(autocomplete::ACState& s)
 
         if ((u = client->finduser(client->me)))
         {
-            cout << "Account e-mail: " << u->email << endl;
+            cout << "Account e-mail: " << u->email << " handle: " << Base64Str<MegaClient::USERHANDLE>(client->me) << endl;
 #ifdef ENABLE_CHAT
             if (client->signkey)
             {
