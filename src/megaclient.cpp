@@ -1125,6 +1125,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     signkey = NULL;
     chatkey = NULL;
     mAuthRings.clear();
+    mAuthRingsTemp.clear();
 
     init();
 
@@ -3978,12 +3979,15 @@ bool MegaClient::procsc()
                             memset(&(it->second->changed), 0, sizeof it->second->changed);
                         }
 
-                        // historic user alerts are not supported for public folders
-                        if (sid.size())
+                        if (!loggedinfolderlink())
                         {
+                            // historic user alerts are not supported for public folders
                             // now that we have loaded cached state, and caught up actionpackets since that state
                             // (or just fetched everything if there was no cache), our next sc request can be for useralerts
                             useralerts.begincatchup = true;
+
+                            // now that we know all contacts, fetch public keys and check authentication
+                            fetchContactsKeys();
                         }
                     }
                     app->catchup_result();
@@ -7820,6 +7824,11 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
             {
                 mapuser(uh, m);
 
+                if (uh != me && !fetchingnodes) // new user --> fetch keys
+                {
+                    fetchContactKeys(u);
+                }
+
                 if (v != VISIBILITY_UNKNOWN)
                 {
                     if (u->show != v || u->ctime != ts)
@@ -11075,6 +11084,28 @@ void MegaClient::loadAuthrings()
     }
 }
 
+void MegaClient::fetchContactsKeys()
+{
+    assert(mAuthRings.size() == 3);
+    mAuthRingsTemp = mAuthRings;
+
+    for (auto &it : users)
+    {
+        User *user = &it.second;
+        if (user->userhandle != me)
+        {
+            fetchContactKeys(user);
+        }
+    }
+}
+
+void MegaClient::fetchContactKeys(User *user)
+{
+    getua(user, ATTR_ED25519_PUBK);
+    getua(user, ATTR_CU25519_PUBK);
+    getpubkey(user->uid.c_str());
+}
+
 error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
 {
     User *user = finduser(uh);
@@ -11093,13 +11124,20 @@ error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
         return API_EARGS;
     }
 
-    auto it = mAuthRings.find(authringType);
-    if (it == mAuthRings.end())
+    // If checking authrings for all contacts (new session), accumulate updates for all contacts first
+    // in temporal authrings to put them all at once. Otherwise, update authring immediately
+    auto it = mAuthRingsTemp.find(authringType);
+    bool temporalAuthring = it != mAuthRingsTemp.end();
+    if (!temporalAuthring)
     {
-        LOG_warn << "Failed to track public key in " << User::attr2string(authringType) << " for user " << uid << ": authring not available";
-        // TODO: after testing, if not hit, remove assertion below
-        assert(false);
-        return API_ETEMPUNAVAIL;
+        it = mAuthRings.find(authringType);
+        if (it == mAuthRings.end())
+        {
+            LOG_warn << "Failed to track public key in " << User::attr2string(authringType) << " for user " << uid << ": authring not available";
+            // TODO: after testing, if not hit, remove assertion below
+            assert(false);
+            return API_ETEMPUNAVAIL;
+        }
     }
 
     AuthRing &authring = it->second;
@@ -11150,8 +11188,27 @@ error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
         // tracking has changed --> persist authring
         authring.add(uh, keyFingerprint, AUTH_METHOD_SEEN);
 
-        std::unique_ptr<string> newAuthring(authring.serialize(rng, key));
-        putua(authringType, (const byte *)newAuthring->data(), newAuthring->size(), 0);
+        // if checking authrings for all contacts, accumulate updates for all contacts first
+        bool finished = true;
+        if (temporalAuthring)
+        {
+            for (auto &it : users)
+            {
+                User *user = &it.second;
+                if (user->userhandle != me && !authring.isTracked(user->userhandle))
+                {
+                    // if only a current user is not tracked yet, update temporal authring
+                    finished = false;
+                    break;
+                }
+            }
+        }
+        if (finished)
+        {
+            std::unique_ptr<string> newAuthring(authring.serialize(rng, key));
+            putua(authringType, reinterpret_cast<const byte *>(newAuthring->data()), static_cast<unsigned>(newAuthring->size()), 0);
+            mAuthRingsTemp.erase(authringType); // if(temporalAuthring) --> do nothing
+        }
     }
 
     return API_OK;
@@ -11175,11 +11232,19 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
         return API_EARGS;
     }
 
-    auto it = mAuthRings.find(authringType);
-    if (it == mAuthRings.end())
+    // If checking authrings for all contacts (new session), accumulate updates for all contacts first
+    // in temporal authrings to put them all at once. Otherwise, update authring immediately
+    auto it = mAuthRingsTemp.find(authringType);
+    bool temporalAuthring = it != mAuthRingsTemp.end();
+    if (!temporalAuthring)
     {
-        LOG_warn << "Failed to track public key in " << User::attr2string(authringType) << " for user " << uid << ": authring not available";
-        return API_ETEMPUNAVAIL;
+        it = mAuthRings.find(authringType);
+        if (it == mAuthRings.end())
+        {
+            LOG_warn << "Failed to track signature of public key in " << User::attr2string(authringType) << " for user " << uid << ": authring not available";
+            assert(false);
+            return API_ETEMPUNAVAIL;
+        }
     }
 
     AuthRing &authring = it->second;
@@ -11268,8 +11333,27 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
             authring.add(uh, keyFingerprint, AUTH_METHOD_SIGNATURE);
         }
 
-        std::unique_ptr<string> newAuthring(authring.serialize(rng, key));
-        putua(authringType, (const byte *)newAuthring->data(), newAuthring->size(), 0);
+        // if checking authrings for all contacts, accumulate updates for all contacts first
+        bool finished = true;
+        if (temporalAuthring)
+        {
+            for (auto &it : users)
+            {
+                User *user = &it.second;
+                if (user->userhandle != me && !authring.isTracked(user->userhandle))
+                {
+                    // if only a current user is not tracked yet, update temporal authring
+                    finished = false;
+                    break;
+                }
+            }
+        }
+        if (finished)
+        {
+            std::unique_ptr<string> newAuthring(authring.serialize(rng, key));
+            putua(authringType, reinterpret_cast<const byte *>(newAuthring->data()), static_cast<unsigned>(newAuthring->size()), 0);
+            mAuthRingsTemp.erase(authringType);
+        }
     }
     else
     {
@@ -11362,7 +11446,7 @@ error MegaClient::resetCredentials(handle uh)
 
 bool MegaClient::areCredentialsVerified(handle uh)
 {
-    map<attr_t, AuthRing>::const_iterator it = mAuthRings.find(ATTR_AUTHRING);
+    AuthRingsMap::const_iterator it = mAuthRings.find(ATTR_AUTHRING);
     if (it != mAuthRings.end())
     {
         return it->second.areCredentialsVerified(uh);

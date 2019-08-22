@@ -129,6 +129,7 @@ namespace UserAlert
 {
     struct Base;
 }
+class AuthRing;
 
 #define EOO 0
 
@@ -572,6 +573,8 @@ typedef enum {
     AUTH_METHOD_FINGERPRINT = 1,    // used only for AUTHRING_ED255
     AUTH_METHOD_SIGNATURE   = 2,    // used only for signed keys (RSA and Cu25519)
 } AuthMethod;
+
+typedef std::map<attr_t, AuthRing> AuthRingsMap;
 
 // inside 'mega' namespace, since use C++11 and can't rely on C++14 yet, provide make_unique for the most common case.
 // This keeps our syntax small, while making sure the compiler ensures the object is deleted when no longer used.

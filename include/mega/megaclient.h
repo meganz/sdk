@@ -357,6 +357,10 @@ public:
     // to be called after resumption from cache (user attributes loaded)
     void loadAuthrings();
 
+    // load cryptographic keys for contacts: RSA, Ed25519, Cu25519
+    void fetchContactsKeys();
+    void fetchContactKeys(User *user);
+
     // track a public key in the authring for a given user
     error trackKey(attr_t keyType, handle uh, const std::string &key);
 
@@ -1356,10 +1360,11 @@ public:
     // ECDH key (x25519 private key).
     ECDH *chatkey;
 
-    map<attr_t, AuthRing> mAuthRings;
-
     // set when keys for every current contact have been checked
-    bool mAuthRingsLoaded = false;
+    AuthRingsMap mAuthRings;
+
+    // used during initialization to accumulate required updates to authring (to send them all atomically)
+    AuthRingsMap mAuthRingsTemp;
 
     // actual state of keys
     bool fetchingkeys;

@@ -1308,6 +1308,8 @@ vector<handle> AuthRing::getTrackedUsers() const
 
 void AuthRing::add(handle uh, std::string fingerprint, AuthMethod authMethod)
 {
+    assert(mFingerprint.find(uh) == mFingerprint.end());
+    assert(mAuthMethod.find(uh) == mAuthMethod.end());
     mFingerprint[uh] = fingerprint;
     mAuthMethod[uh] = authMethod;
 }
