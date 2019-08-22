@@ -345,7 +345,7 @@ TEST(Sync, assignFilesystemIds_whenFilesystemFingerprintsMatchLocalNodes)
 
     mt::collectAllFsNodes(fx.mFsNodes, d);
 
-    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, mt::gLocalDebris, "/", true);
+    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, "d/" + mt::gLocalDebris, "/", true);
 
     ASSERT_TRUE(success);
 
@@ -409,7 +409,7 @@ TEST(Sync, assignFilesystemIds_whenNoLocalNodesMatchFilesystemFingerprints)
 
     mt::collectAllFsNodes(fx.mFsNodes, d);
 
-    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, mt::gLocalDebris, "/", true);
+    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, "d/" + mt::gLocalDebris, "/", true);
 
     ASSERT_TRUE(success);
 
@@ -458,7 +458,7 @@ TEST(Sync, assignFilesystemIds_whenTwoLocalNodesHaveSameFingerprint)
 
     mt::collectAllFsNodes(fx.mFsNodes, d);
 
-    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, mt::gLocalDebris, "/", true);
+    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, "d/" + mt::gLocalDebris, "/", true);
 
     ASSERT_TRUE(success);
 
@@ -505,7 +505,7 @@ TEST(Sync, assignFilesystemIds_whenSomeFsIdIsNotValid)
 
     mt::collectAllFsNodes(fx.mFsNodes, d);
 
-    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, mt::gLocalDebris, "/", true);
+    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, "d/" + mt::gLocalDebris, "/", true);
 
     ASSERT_TRUE(success);
 
@@ -538,7 +538,7 @@ TEST(Sync, assignFilesystemIds_whenSomeFileCannotBeOpened)
 
     mt::collectAllFsNodes(fx.mFsNodes, d);
 
-    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, mt::gLocalDebris, "/", true);
+    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, "d/" + mt::gLocalDebris, "/", true);
 
     ASSERT_FALSE(success);
 }
@@ -558,7 +558,7 @@ TEST(Sync, assignFilesystemIds_whenRootDirCannotBeOpened)
 
     mt::collectAllFsNodes(fx.mFsNodes, d);
 
-    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, mt::gLocalDebris, "/", true);
+    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, "d/" + mt::gLocalDebris, "/", true);
 
     ASSERT_FALSE(success);
 }
@@ -580,7 +580,7 @@ TEST(Sync, assignFilesystemIds_whenSubDirCannotBeOpened)
 
     mt::collectAllFsNodes(fx.mFsNodes, d);
 
-    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, mt::gLocalDebris, "/", true);
+    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, "d/" + mt::gLocalDebris, "/", true);
 
     ASSERT_TRUE(success);
 
@@ -615,7 +615,7 @@ TEST(Sync, assignFilesystemIds_whenSomeFingerprintIsNotValid)
 
     mt::collectAllFsNodes(fx.mFsNodes, d);
 
-    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, mt::gLocalDebris, "/", true);
+    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, "d/" + mt::gLocalDebris, "/", true);
 
     ASSERT_TRUE(success);
 
@@ -644,7 +644,7 @@ TEST(Sync, assignFilesystemIds_whenPathIsNotSyncableThroughApp)
 
     mt::collectAllFsNodes(fx.mFsNodes, d);
 
-    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, mt::gLocalDebris, "/", true);
+    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, "d/" + mt::gLocalDebris, "/", true);
 
     ASSERT_TRUE(success);
 
@@ -676,7 +676,7 @@ TEST(Sync, assignFilesystemIds_whenDebrisIsPartOfFiles)
 
     mt::collectAllFsNodes(fx.mFsNodes, d);
 
-    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, mt::gLocalDebris, "/", true);
+    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, "d/" + mt::gLocalDebris, "/", true);
 
     ASSERT_TRUE(success);
 
@@ -716,7 +716,7 @@ TEST(Sync, assignFilesystemIds_preferredPathMatchAssignsFinalFsId)
 
     mt::collectAllFsNodes(fx.mFsNodes, d);
 
-    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, mt::gLocalDebris, "/", true);
+    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, "d/" + mt::gLocalDebris, "/", true);
 
     ASSERT_TRUE(success);
 
@@ -755,7 +755,7 @@ TEST(Sync, assignFilesystemIds_whenFolderWasMoved)
 
     mt::collectAllFsNodes(fx.mFsNodes, d);
 
-    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, mt::gLocalDebris, "/", true);
+    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, "d/" + mt::gLocalDebris, "/", true);
 
     ASSERT_TRUE(success);
 
@@ -787,7 +787,7 @@ TEST(Sync, assignFilesystemIds_whenRootPathIsNotAFolder_hittingAssert)
 
     mt::collectAllFsNodes(fx.mFsNodes, d);
 
-    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, mt::gLocalDebris, "/", true);
+    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, "d/" + mt::gLocalDebris, "/", true);
 
     ASSERT_FALSE(success);
 }
@@ -808,7 +808,7 @@ TEST(Sync, assignFilesystemIds_whenFileTypeIsUnexpected_hittingAssert)
 
     mt::collectAllFsNodes(fx.mFsNodes, d);
 
-    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, mt::gLocalDebris, "/", true);
+    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, "d/" + mt::gLocalDebris, "/", true);
 
     ASSERT_FALSE(success);
 }
