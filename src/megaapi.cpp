@@ -2564,6 +2564,16 @@ void MegaApi::getMyChatFilesFolder(MegaRequestListener *listener)
 }
 #endif
 
+void MegaApi::getUserAlias(MegaHandle uh, MegaRequestListener *listener)
+{
+    pImpl->getUserAlias(uh, listener);
+}
+
+void MegaApi::setUserAlias(MegaHandle uh, const char *alias, MegaRequestListener *listener)
+{
+    pImpl->setUserAlias(uh, alias);
+}
+
 void MegaApi::getRubbishBinAutopurgePeriod(MegaRequestListener *listener)
 {
     pImpl->getRubbishBinAutopurgePeriod(listener);
@@ -3522,12 +3532,22 @@ char *MegaApi::base32ToBase64(const char *base32)
 
 MegaNodeList* MegaApi::search(MegaNode* n, const char* searchString, bool recursive, int order)
 {
-    return pImpl->search(n, searchString, recursive, order);
+    return pImpl->search(n, searchString, nullptr, recursive, order);
+}
+
+MegaNodeList *MegaApi::search(MegaNode *n, const char *searchString, MegaCancelToken *cancelToken, bool recursive, int order)
+{
+    return pImpl->search(n, searchString, cancelToken, recursive, order);
 }
 
 MegaNodeList *MegaApi::search(const char *searchString, int order)
 {
-    return pImpl->search(searchString, order);
+    return pImpl->search(searchString, nullptr, order);
+}
+
+MegaNodeList *MegaApi::search(const char *searchString, MegaCancelToken *cancelToken, int order)
+{
+    return pImpl->search(searchString, cancelToken, order);
 }
 
 long long MegaApi::getSize(MegaNode *n)
@@ -6256,6 +6276,26 @@ void MegaPushNotificationSettings::enableChats(bool /*enable*/)
 MegaPushNotificationSettings::MegaPushNotificationSettings()
 {
 
+}
+
+MegaCancelToken *MegaCancelToken::createInstance()
+{
+    return new MegaCancelTokenPrivate;
+}
+
+MegaCancelToken::~MegaCancelToken()
+{
+
+}
+
+void MegaCancelToken::cancel(bool)
+{
+
+}
+
+bool MegaCancelToken::isCancelled() const
+{
+    return false;
 }
 
 }

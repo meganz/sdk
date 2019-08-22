@@ -1731,6 +1731,10 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     {
         changed |= MegaUser::CHANGE_TYPE_PUSH_SETTINGS;
     }
+    if (user->changed.alias)
+    {
+        changed |= MegaUser::CHANGE_TYPE_ALIAS;
+    }
 }
 
 MegaUserPrivate::MegaUserPrivate(MegaUser *user) : MegaUser()
@@ -5546,6 +5550,7 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_GEOLOCATION:
         case MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER:
         case MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER:
+        case MegaApi::USER_ATTR_ALIAS:
             scope = '*';
             break;
 
@@ -9835,6 +9840,29 @@ void MegaApiImpl::setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListene
     delete stringMap;
 }
 
+void MegaApiImpl::getUserAlias(MegaHandle uh, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_ALIAS);
+    request->setNodeHandle(uh);
+    request->setText(Base64Str<MegaClient::USERHANDLE>(uh));
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::setUserAlias(MegaHandle uh, const char *alias, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
+    MegaStringMap stringMap;
+    stringMap.set(Base64Str<MegaClient::USERHANDLE>(uh), alias ? alias : "");
+    request->setMegaStringMap(&stringMap);
+    request->setParamType(MegaApi::USER_ATTR_ALIAS);
+    request->setNodeHandle(uh);
+    request->setText(alias);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::enableGeolocation(MegaRequestListener *listener)
 {
     MegaStringMap *stringMap = new MegaStringMapPrivate();
@@ -10430,25 +10458,36 @@ bool MegaApiImpl::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, boo
     return result;
 }
 
-MegaNodeList *MegaApiImpl::search(const char *searchString, int order)
+MegaNodeList *MegaApiImpl::search(const char *searchString, MegaCancelToken *cancelToken, int order)
 {
     if(!searchString)
     {
         return new MegaNodeListPrivate();
     }
 
-    sdkMutex.lock();
+    if (cancelToken && cancelToken->isCancelled())
+    {
+        return new MegaNodeListPrivate();
+    }
+
+    SdkMutexGuard g(sdkMutex);
+
+    if (cancelToken && cancelToken->isCancelled())
+    {
+        return new MegaNodeListPrivate();
+    }
 
     node_vector result;
     Node *node;
 
     // rootnodes
-    for (unsigned int i = 0; i < (sizeof client->rootnodes / sizeof *client->rootnodes); i++)
+    for (unsigned int i = 0; i < (sizeof client->rootnodes / sizeof *client->rootnodes)
+          && !(cancelToken && cancelToken->isCancelled()); i++)
     {
         node = client->nodebyhandle(client->rootnodes[i]);
 
         SearchTreeProcessor searchProcessor(searchString);
-        processTree(node, &searchProcessor);
+        processTree(node, &searchProcessor, true, cancelToken);
         node_vector& vNodes = searchProcessor.getResults();
 
         result.insert(result.end(), vNodes.begin(), vNodes.end());
@@ -10456,12 +10495,12 @@ MegaNodeList *MegaApiImpl::search(const char *searchString, int order)
 
     // inshares
     MegaShareList *shares = getInSharesList();
-    for (int i = 0; i < shares->size(); i++)
+    for (int i = 0; i < shares->size() && !(cancelToken && cancelToken->isCancelled()); i++)
     {
         node = client->nodebyhandle(shares->get(i)->getNodeHandle());
 
         SearchTreeProcessor searchProcessor(searchString);
-        processTree(node, &searchProcessor);
+        processTree(node, &searchProcessor, true, cancelToken);
         vector<Node *>& vNodes  = searchProcessor.getResults();
 
         result.insert(result.end(), vNodes.begin(), vNodes.end());
@@ -10489,8 +10528,6 @@ MegaNodeList *MegaApiImpl::search(const char *searchString, int order)
     }
     MegaNodeList *nodeList = new MegaNodeListPrivate(result.data(), int(result.size()));
     
-    sdkMutex.unlock();
-
     return nodeList;
 }
 
@@ -10937,7 +10974,7 @@ void MegaApiImpl::resumeActionPackets()
     sdkMutex.unlock();
 }
 
-bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursive)
+bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursive, MegaCancelToken *cancelToken)
 {
     if (!node)
     {
@@ -10949,11 +10986,21 @@ bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursi
         return 0;
     }
 
-    sdkMutex.lock();
+    if (cancelToken && cancelToken->isCancelled())
+    {
+        return 0;
+    }
+
+    SdkMutexGuard g(sdkMutex);
+
+    if (cancelToken && cancelToken->isCancelled()) // check before lock and after, in case it was cancelled while being locked
+    {
+        return 0;
+    }
+
     node = client->nodebyhandle(node->nodehandle);
     if (!node)
     {
-        sdkMutex.unlock();
         return 1;
     }
 
@@ -10961,38 +11008,46 @@ bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursi
     {
         for (node_list::iterator it = node->children.begin(); it != node->children.end(); )
         {
-            if (!processTree(*it++,processor))
+            if (!processTree(*it++, processor, recursive, cancelToken))
             {
-                sdkMutex.unlock();
                 return 0;
             }
         }
     }
     bool result = processor->processNode(node);
-    sdkMutex.unlock();
     return result;
 }
 
-MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, bool recursive, int order)
+MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, MegaCancelToken *cancelToken, bool recursive, int order)
 {
     if (!n || !searchString)
     {
         return new MegaNodeListPrivate();
     }
+
+    if (cancelToken && cancelToken->isCancelled())
+    {
+        return new MegaNodeListPrivate();
+    }
     
-    sdkMutex.lock();
+    SdkMutexGuard g(sdkMutex);
+
+    if (cancelToken && cancelToken->isCancelled())
+    {
+        return new MegaNodeListPrivate();
+    }
     
     Node *node = client->nodebyhandle(n->getHandle());
     if (!node)
     {
-        sdkMutex.unlock();
         return new MegaNodeListPrivate();
     }
 
     SearchTreeProcessor searchProcessor(searchString);
-    for (node_list::iterator it = node->children.begin(); it != node->children.end(); )
+    for (node_list::iterator it = node->children.begin(); it != node->children.end()
+         && !(cancelToken && cancelToken->isCancelled()); )
     {
-        processTree(*it++, &searchProcessor, recursive);
+        processTree(*it++, &searchProcessor, recursive, cancelToken);
     }
 
     vector<Node *>& vNodes = searchProcessor.getResults();
@@ -11017,7 +11072,6 @@ MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, bool re
     }
 
     MegaNodeList *nodeList = new MegaNodeListPrivate(vNodes.data(), int(vNodes.size()));
-    sdkMutex.unlock();
     return nodeList;
 }
 
@@ -14184,10 +14238,10 @@ void MegaApiImpl::putua_result(error e)
 void MegaApiImpl::getua_result(error e)
 {
     MegaError megaError(e);
-    if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || ((request->getType() != MegaRequest::TYPE_GET_ATTR_USER) &&
-                    (request->getType() != MegaRequest::TYPE_SET_ATTR_USER))) return;
+    MegaRequestPrivate* request = NULL;
+    auto it = requestMap.find(client->restag);
+    if (it == requestMap.end() || !(request = it->second)
+           || (request->getType() != MegaRequest::TYPE_GET_ATTR_USER && request->getType() != MegaRequest::TYPE_SET_ATTR_USER)) return;
 
     // if attempted to get ^!prd attribute but not exists yet...
     if (e == API_ENOENT)
@@ -14225,6 +14279,27 @@ void MegaApiImpl::getua_result(error e)
             {
                 request->setFlag(true);
             }
+        }
+        else if (request->getParamType() == MegaApi::USER_ATTR_ALIAS &&
+                 request->getType() == MegaRequest::TYPE_SET_ATTR_USER)
+        {
+            // The attribute doesn't exists so we have to create it
+            MegaStringMap *stringMap = request->getMegaStringMap();
+            attr_t type = static_cast<attr_t>(request->getParamType());
+            TLVstore tlv;
+            const char *key;
+
+            std::unique_ptr<MegaStringList> keys(stringMap->getKeys());
+            for (int i = 0; i < keys->size(); i++)
+            {
+                key = keys->get(i);
+                tlv.set(key, stringMap->get(key));
+            }
+
+            // serialize and encrypt the TLV container
+            std::unique_ptr<string> container(tlv.tlvRecordsToContainer(client->rng, &client->key));
+            client->putua(type, (byte *)container->data(), unsigned(container->size()));
+            return;
         }
     }
 
@@ -14416,19 +14491,65 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
     fireOnRequestFinish(request, MegaError(e));
 }
 
-void MegaApiImpl::getua_result(TLVstore *tlv, attr_t)
+void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
 {
-    if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_GET_ATTR_USER)) return;
+    error e = API_OK;
+    MegaRequestPrivate* request = NULL;
+    auto it = requestMap.find(client->restag);
+    if (it == requestMap.end() || !(request = it->second)
+           || (request->getType() != MegaRequest::TYPE_GET_ATTR_USER
+               && request->getType() != MegaRequest::TYPE_SET_ATTR_USER)) return;
 
     if (tlv)
     {
+        if (request->getType() == MegaRequest::TYPE_SET_ATTR_USER)
+        {
+            bool modified = false;
+            const char *key, *newAlias;
+            MegaStringMap *newAliasesMap = request->getMegaStringMap();
+            std::unique_ptr<MegaStringList> keys(newAliasesMap->getKeys());
+
+            // Iterate through the string map <uh_B64, alias>   (currently alias are set one by one)
+            for (int i = 0; i < keys->size(); i++)
+            {
+                key = keys->get(i);
+                newAlias = newAliasesMap->get(key);
+
+                std::string currentAlias = tlv->find(key) ? tlv->get(key) : string();
+                if (strcmp(newAlias, currentAlias.c_str()) != 0)
+                {
+                    if (newAlias[0] != '\0')    // not empty, set new alias
+                    {
+                        tlv->set(key, newAlias);
+                    }
+                    else    // empty, reset the current alias
+                    {
+                        tlv->reset(key);
+                    }
+                    modified = true;
+                }
+            }
+
+            if (modified)
+            {
+                // serialize and encrypt the TLV container
+                std::unique_ptr<string> container(tlv->tlvRecordsToContainer(client->rng, &client->key));
+                assert(type == request->getParamType());
+                client->putua(type, (byte *)container->data(), unsigned(container->size()), client->restag);
+            }
+            else
+            {
+                LOG_debug << "Aliases not changed, already up to date";
+                fireOnRequestFinish(request, MegaError(e));
+            }
+
+            return;
+        }
+
         // TLV data usually includes byte arrays with zeros in the middle, so values
         // must be converted into Base64 strings to avoid problems
         MegaStringMap *stringMap = new MegaStringMapPrivate(tlv->getMap(), true);
         request->setMegaStringMap(stringMap);
-
         switch (request->getParamType())
         {
             // prepare request params to know if a warning should show or not
@@ -14478,14 +14599,31 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t)
                 }
                 break;
             }
+
+            case MegaApi::USER_ATTR_ALIAS:
+            {
+                // If a uh was set in the request we have to find it in the aliases map and return it
+                const char *uh = request->getText();
+                if (uh)
+                {
+                    const char *buf = stringMap->get(uh);
+                    if (!buf)
+                    {
+                        e = API_ENOENT;
+                        break;
+                    }
+                    request->setName(buf);
+                }
+                break;
+            }
+
             default:
                 break;
         }
         delete stringMap;
     }
 
-    fireOnRequestFinish(request, MegaError(API_OK));
-    return;
+    fireOnRequestFinish(request, MegaError(e));
 }
 
 #ifdef DEBUG
@@ -18602,7 +18740,7 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_GET_ATTR_USER:
         {
             const char* value = request->getFile();
-            attr_t type = attr_t(request->getParamType());
+            attr_t type = static_cast<attr_t>(request->getParamType());
             const char *email = request->getEmail();
             const char *ph = request->getSessionKey();
 
@@ -18631,7 +18769,7 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             if (attrname.empty() ||    // unknown attribute type
-                 (type == ATTR_AVATAR && !value) ) // no destination file for avatar
+                 (type == ATTR_AVATAR && !value)) // no destination file for avatar
             {
                 e = API_EARGS;
                 break;
@@ -18651,7 +18789,7 @@ void MegaApiImpl::sendPendingRequests()
         {
             const char* file = request->getFile();
             const char* value = request->getText();
-            attr_t type = attr_t(request->getParamType());
+            attr_t type = static_cast<attr_t>(request->getParamType());
             MegaStringMap *stringMap = request->getMegaStringMap();
 
             char scope = MegaApiImpl::userAttributeToScope(type);
@@ -18716,11 +18854,20 @@ void MegaApiImpl::sendPendingRequests()
                     break;
                 }
 
+                if (type == ATTR_ALIAS)
+                {
+                    // always get updated value before update it
+                    User *ownUser = client->finduser(client->me);
+                    client->getua(ownUser, type);
+                    break;
+                }
+
                 // encode the MegaStringMap as a TLV container
                 TLVstore tlv;
                 string value;
                 const char *buf, *key;
-                MegaStringList *keys = stringMap->getKeys();
+
+                std::unique_ptr<MegaStringList> keys(stringMap->getKeys());
                 for (int i=0; i < keys->size(); i++)
                 {
                     key = keys->get(i);
@@ -18729,17 +18876,12 @@ void MegaApiImpl::sendPendingRequests()
                     size_t len = strlen(buf)/4*3+3;
                     value.resize(len);
                     value.resize(Base64::atob(buf, (byte *)value.data(), int(len)));
-
                     tlv.set(key, value);
                 }
-                delete keys;
 
                 // serialize and encrypt the TLV container
-                string *container = tlv.tlvRecordsToContainer(client->rng, &client->key);
-
+                std::unique_ptr<string> container(tlv.tlvRecordsToContainer(client->rng, &client->key));
                 client->putua(type, (byte *)container->data(), unsigned(container->size()));
-                delete container;
-
                 break;
             }
             else if (scope == '^')
@@ -18771,9 +18913,8 @@ void MegaApiImpl::sendPendingRequests()
                     }
 
                     // always get updated value before update it
-                    const char* uh = getMyUserHandle();
-                    client->getua(uh, type);
-                    delete [] uh;
+                    User *ownUser = client->finduser(client->me);
+                    client->getua(ownUser, type);
                     break;
                 }
                 else if (type == ATTR_DISABLE_VERSIONS)
@@ -31349,6 +31490,21 @@ void MegaPushNotificationSettingsPrivate::enableShares(bool enable)
 void MegaPushNotificationSettingsPrivate::enableChats(bool enable)
 {
     mGlobalChatsDND = enable ? -1 : 0;
+}
+
+MegaCancelTokenPrivate::~MegaCancelTokenPrivate()
+{
+
+}
+
+void MegaCancelTokenPrivate::cancel(bool newValue)
+{
+    cancelFlag = newValue;
+}
+
+bool MegaCancelTokenPrivate::isCancelled() const
+{
+    return cancelFlag;
 }
 
 }

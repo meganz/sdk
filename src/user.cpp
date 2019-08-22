@@ -443,6 +443,10 @@ string User::attr2string(attr_t type)
             attrname = "*~usk";  // unshareable key (for encrypting attributes that should not be shared)
             break;
 
+        case ATTR_ALIAS:
+            attrname =  "*!>alias";
+            break;
+
         case ATTR_UNKNOWN:  // empty string
             break;
     }
@@ -567,6 +571,10 @@ string User::attr2longname(attr_t type)
     case ATTR_PUSH_SETTINGS:
         longname = "PUSH_SETTINGS";
         break;
+            
+    case ATTR_ALIAS:
+        longname = "ALIAS";
+        break;
     }
 
     return longname;
@@ -683,6 +691,10 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_UNSHAREABLE_KEY;
     }
+    else if (!strcmp(name, "*!>alias"))
+    {
+        return ATTR_ALIAS;
+    }
     else
     {
         return ATTR_UNKNOWN;   // attribute not recognized
@@ -719,6 +731,7 @@ int User::needversioning(attr_t at)
         case ATTR_SIG_CU255_PUBK:
         case ATTR_KEYRING:
         case ATTR_CONTACT_LINK_VERIFICATION:
+        case ATTR_ALIAS:
             return 1;
 
         case ATTR_STORAGE_STATE: //putua is forbidden for this attribute
@@ -739,6 +752,7 @@ char User::scope(attr_t at)
         case ATTR_CAMERA_UPLOADS_FOLDER:
         case ATTR_MY_CHAT_FILES_FOLDER:
         case ATTR_UNSHAREABLE_KEY:
+        case ATTR_ALIAS:
             return '*';
 
         case ATTR_AVATAR:
@@ -1142,6 +1156,10 @@ bool User::setChanged(attr_t at)
 
         case ATTR_PUSH_SETTINGS:
             changed.pushSettings = true;
+            break;
+
+        case ATTR_ALIAS:
+            changed.alias = true;
             break;
 
         default:
