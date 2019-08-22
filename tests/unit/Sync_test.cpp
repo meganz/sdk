@@ -80,6 +80,7 @@ public:
     {
         *curr_mtime = mtime;
         *curr_size = size;
+        return true;
     }
 
     bool sysopen(bool async = false) override
