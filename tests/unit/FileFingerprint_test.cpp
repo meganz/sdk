@@ -52,7 +52,19 @@ public:
 
     MEGA_DISABLE_COPY_MOVE(MockFileAccess)
 
-    bool frawread(mega::byte* buffer, const unsigned size, const m_off_t offset) override
+    bool sysstat(mega::m_time_t* curr_mtime, m_off_t* curr_size) override
+    {
+        *curr_mtime = mtime;
+        *curr_size = size;
+        return true;
+    }
+
+    bool sysopen(bool async = false) override
+    {
+        return true;
+    }
+
+    bool sysread(mega::byte* buffer, const unsigned size, const m_off_t offset) override
     {
         if (mReadFails)
         {
@@ -62,6 +74,9 @@ public:
         std::copy(mContent.begin() + static_cast<unsigned>(offset), mContent.begin() + static_cast<unsigned>(offset) + size, buffer);
         return true;
     }
+
+    void sysclose() override
+    {}
 
     bool getReadFails() const
     {

@@ -72,7 +72,19 @@ public:
 
     bool fopen(std::string* path, bool, bool) override
     {
-        const auto fsNodePair = mFsNodes.find(*path);
+        mPath = *path;
+        return sysopen();
+    }
+
+    bool sysstat(mega::m_time_t* curr_mtime, m_off_t* curr_size) override
+    {
+        *curr_mtime = mtime;
+        *curr_size = size;
+    }
+
+    bool sysopen(bool async = false) override
+    {
+        const auto fsNodePair = mFsNodes.find(mPath);
         if (fsNodePair != mFsNodes.end())
         {
             mCurrentFsNode = fsNodePair->second;
@@ -95,7 +107,7 @@ public:
         }
     }
 
-    bool frawread(mega::byte* buffer, unsigned size, m_off_t offset) override
+    bool sysread(mega::byte* buffer, unsigned size, m_off_t offset) override
     {
         assert(mOpen);
         assert(mCurrentFsNode);
@@ -109,8 +121,12 @@ public:
         return true;
     }
 
+    void sysclose() override
+    {}
+
 private:
     static int sOpenFileCount;
+    std::string mPath;
     bool mOpen = false;
     const mt::FsNode* mCurrentFsNode{};
     std::map<std::string, const mt::FsNode*>& mFsNodes;
