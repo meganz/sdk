@@ -65,23 +65,6 @@ bool operator==(const FileFingerprint& lhs, const FileFingerprint& rhs)
     return !memcmp(lhs.crc.data(), rhs.crc.data(), sizeof lhs.crc);
 }
 
-FileFingerprint::FileFingerprint(const FileFingerprint& other)
-: size{other.size}
-, mtime{other.mtime}
-, crc{other.crc}
-, isvalid{other.isvalid}
-{}
-
-FileFingerprint& FileFingerprint::operator=(const FileFingerprint& other)
-{
-    assert(this != &other);
-    size = other.size;
-    mtime = other.mtime;
-    crc = other.crc;
-    isvalid = other.isvalid;
-    return *this;
-}
-
 bool FileFingerprint::serialize(string *d)
 {
     d->append((const char*)&size, sizeof(size));
@@ -118,6 +101,23 @@ FileFingerprint *FileFingerprint::unserialize(string *d)
 
     d->erase(0, ptr - d->data());
     return fp;
+}
+
+FileFingerprint::FileFingerprint(const FileFingerprint& other)
+: size{other.size}
+, mtime{other.mtime}
+, crc{other.crc}
+, isvalid{other.isvalid}
+{}
+
+FileFingerprint& FileFingerprint::operator=(const FileFingerprint& other)
+{
+    assert(this != &other);
+    size = other.size;
+    mtime = other.mtime;
+    crc = other.crc;
+    isvalid = other.isvalid;
+    return *this;
 }
 
 bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
