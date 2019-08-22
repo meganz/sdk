@@ -41,7 +41,7 @@ public:
     }
     void local2path(std::string* local, std::string* path) const override
     {
-        *path = *local;
+        throw NotImplemented{__func__};
     }
     void tmpnamelocal(std::string*) const override
     {
