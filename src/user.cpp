@@ -1306,7 +1306,7 @@ vector<handle> AuthRing::getTrackedUsers() const
     return users;
 }
 
-void AuthRing::add(handle uh, std::string fingerprint, AuthMethod authMethod)
+void AuthRing::add(handle uh, const std::string &fingerprint, AuthMethod authMethod)
 {
     assert(mFingerprint.find(uh) == mFingerprint.end());
     assert(mAuthMethod.find(uh) == mAuthMethod.end());
@@ -1381,7 +1381,7 @@ std::string AuthRing::authMethodToStr(AuthMethod authMethod)
     }
     else if (authMethod == AUTH_METHOD_FINGERPRINT)
     {
-        return "fingerpring comparison";
+        return "fingerprint comparison";
     }
     else if (authMethod == AUTH_METHOD_SIGNATURE)
     {

@@ -1124,8 +1124,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     fetchingkeys = false;
     signkey = NULL;
     chatkey = NULL;
-    mAuthRings.clear();
-    mAuthRingsTemp.clear();
 
     init();
 
@@ -3694,6 +3692,9 @@ void MegaClient::locallogout()
     accountsalt.clear();
     sid.clear();
     k.clear();
+
+    mAuthRings.clear();
+    mAuthRingsTemp.clear();
 
     init();
 
@@ -11381,29 +11382,43 @@ error MegaClient::verifyCredentials(handle uh)
     }
 
     AuthRing authring = it->second; // copy, do not modify yet the cached authring
-    if (!authring.isTracked(uh))
-    {
-        LOG_err << "Failed to verify credentials for user " << uid << ": key is not tracked yet";
-        return API_ENOENT;
-    }
     AuthMethod authMethod = authring.getAuthMethod(uh);
-    if (authMethod == AUTH_METHOD_FINGERPRINT)
+    switch (authMethod)
     {
+    case AUTH_METHOD_SEEN:
+        LOG_debug << "Updating authentication method of Ed25519 public key for user " << uid << " from seen to signature verified";
+        authring.update(uh, AUTH_METHOD_FINGERPRINT);
+        break;
+
+    case AUTH_METHOD_FINGERPRINT:
         LOG_err << "Failed to verify credentials for user " << uid << ": already verified";
         return API_EEXIST;
-    }
-    else if (authMethod != AUTH_METHOD_SEEN)
+
+    case AUTH_METHOD_SIGNATURE:
+        LOG_err << "Failed to verify credentials for user " << uid << ": invalid authentication method";
+        return API_EINTERNAL;
+
+    case AUTH_METHOD_UNKNOWN:
     {
-        LOG_err << "Failed to verify credentials for user " << uid << ": key is not tracked as seen";
-        return API_EACCESS;
+        User *user = finduser(uh);
+        const string *pubKey = user ? user->getattr(ATTR_ED25519_PUBK) : nullptr;
+        if (pubKey)
+        {
+            string keyFingerprint = AuthRing::fingerprint(*pubKey);
+            LOG_warn << "Adding authentication method of Ed25519 public key for user " << uid << ": key is not tracked yet";
+            authring.add(uh, keyFingerprint, AUTH_METHOD_FINGERPRINT);
+        }
+        else
+        {
+            LOG_err << "Failed to verify credentials for user " << uid << ": key not tracked and not available";
+            return API_ETEMPUNAVAIL;
+        }
+        break;
     }
-
-    LOG_debug << "Updating authentication method of Ed25519 public key for user " << uid << " from seen to signature verified";
-
-    authring.update(uh, AUTH_METHOD_FINGERPRINT);
+    }
 
     std::unique_ptr<string> newAuthring(authring.serialize(rng, key));
-    putua(ATTR_AUTHRING, (const byte *)newAuthring->data(), newAuthring->size());
+    putua(ATTR_AUTHRING, reinterpret_cast<const byte *>(newAuthring->data()), static_cast<unsigned>(newAuthring->size()));
 
     return API_OK;
 }

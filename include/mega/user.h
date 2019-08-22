@@ -152,7 +152,7 @@ public:
     AuthRing(attr_t type, const TLVstore &authring);
 
     // return true if authring has changed (data can be pubKey or keySignature depending on authMethod)
-    void add(handle uh, string fingerprint, AuthMethod authMethod);
+    void add(handle uh, const std::string &fingerprint, AuthMethod authMethod);
 
     // assumes the key is already tracked for uh (otherwise, it will throw)
     void update(handle uh, AuthMethod authMethod);

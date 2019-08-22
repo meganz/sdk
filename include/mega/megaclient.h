@@ -359,6 +359,8 @@ public:
 
     // load cryptographic keys for contacts: RSA, Ed25519, Cu25519
     void fetchContactsKeys();
+
+    // fetch keys related to authrings for a given contact
     void fetchContactKeys(User *user);
 
     // track a public key in the authring for a given user
