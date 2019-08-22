@@ -245,6 +245,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     bool serialize(string*);
     static Node* unserialize(MegaClient*, string*, node_vector*);
 
+    Node() = default;
     Node(MegaClient*, vector<Node*>*, handle, handle, nodetype_t, m_off_t, handle, const char*, m_time_t);
     ~Node();
 };
@@ -254,14 +255,14 @@ struct MEGA_API LocalNode : public File
 {
     class Sync* sync = nullptr;
 
-    // whether this node can be synced to the remote tree
-    bool syncable = true;
-
     // parent linkage
     LocalNode* parent = nullptr;
 
     // stored to rebuild tree after serialization => this must not be a pointer to parent->dbid
     int32_t parent_dbid = 0;
+
+    // whether this node can be synced to the remote tree
+    bool syncable = true;
 
     // children by name
     localnode_map children;
@@ -352,7 +353,7 @@ struct MEGA_API LocalNode : public File
     void init(Sync*, nodetype_t, LocalNode*, string*);
 
     virtual bool serialize(string*);
-    static LocalNode* unserialize( Sync* sync, string* sData );
+    static LocalNode* unserialize( Sync* sync, const string* sData );
 
     ~LocalNode();
 };

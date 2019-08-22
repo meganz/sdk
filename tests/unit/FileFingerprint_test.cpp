@@ -23,21 +23,12 @@
 #include <gtest/gtest.h>
 
 #include <mega/filefingerprint.h>
+#include <mega/utils.h>
 
 #include "DefaultedFileAccess.h"
+#include "utils.h"
 
 namespace {
-
-template<size_t N>
-std::array<int32_t, N> toArr(const int32_t (&values)[N])
-{
-    std::array<int32_t, N> array;
-    for (size_t i = 0; i < N; ++i)
-    {
-        array[i] = values[i];
-    }
-    return array;
-}
 
 class MockFileAccess : public mt::DefaultedFileAccess
 {
@@ -119,7 +110,7 @@ TEST(FileFingerprint, FileFingerprintCmp_compareNotSmaller)
     mega::FileFingerprint ffp;
     ffp.size = 1;
     ffp.mtime = 2;
-    std::iota(ffp.crc, ffp.crc +  sizeof(ffp.crc) / sizeof(*ffp.crc), 3);
+    std::iota(ffp.crc, ffp.crc + mega::getSize(ffp.crc), 3);
     ffp.isvalid = true;
 
     mega::FileFingerprint copiedFfp;
@@ -189,7 +180,7 @@ TEST(FileFingerprint, defaultConstructor)
     ASSERT_EQ(-1, ffp.size);
     ASSERT_EQ(0, ffp.mtime);
     const std::array<int32_t, 4> expected = {0, 0, 0, 0};
-    ASSERT_EQ(expected, toArr(ffp.crc));
+    ASSERT_EQ(expected, mt::toArr(ffp.crc));
     ASSERT_EQ(false, ffp.isvalid);
 }
 
@@ -198,7 +189,7 @@ TEST(FileFingerprint, copyAssignment)
     mega::FileFingerprint ffp;
     ffp.size = 1;
     ffp.mtime = 2;
-    std::iota(ffp.crc, ffp.crc +  sizeof(ffp.crc) / sizeof(*ffp.crc), 3);
+    std::iota(ffp.crc, ffp.crc + mega::getSize(ffp.crc), 3);
     ffp.isvalid = true;
 
     mega::FileFingerprint copiedFfp;
@@ -206,7 +197,7 @@ TEST(FileFingerprint, copyAssignment)
 
     ASSERT_EQ(copiedFfp.size, ffp.size);
     ASSERT_EQ(copiedFfp.mtime, ffp.mtime);
-    ASSERT_EQ(toArr(copiedFfp.crc), toArr(ffp.crc));
+    ASSERT_EQ(mt::toArr(copiedFfp.crc), mt::toArr(ffp.crc));
     ASSERT_EQ(copiedFfp.isvalid, ffp.isvalid);
 }
 
@@ -215,7 +206,7 @@ TEST(FileFingerprint, comparisonOperator_compareEqual)
     mega::FileFingerprint ffp;
     ffp.size = 1;
     ffp.mtime = 2;
-    std::iota(ffp.crc, ffp.crc +  sizeof(ffp.crc) / sizeof(*ffp.crc), 3);
+    std::iota(ffp.crc, ffp.crc + mega::getSize(ffp.crc), 3);
     ffp.isvalid = true;
 
     mega::FileFingerprint copiedFfp;
@@ -280,7 +271,7 @@ TEST(FileFingerprint, serialize_unserialize)
     mega::FileFingerprint ffp;
     ffp.size = 1;
     ffp.mtime = 2;
-    std::iota(ffp.crc, ffp.crc +  sizeof(ffp.crc) / sizeof(*ffp.crc), 3);
+    std::iota(ffp.crc, ffp.crc + mega::getSize(ffp.crc), 3);
     ffp.isvalid = true;
 
     std::string data;
@@ -289,7 +280,7 @@ TEST(FileFingerprint, serialize_unserialize)
 
     ASSERT_EQ(ffp2->size, ffp.size);
     ASSERT_EQ(ffp2->mtime, ffp.mtime);
-    ASSERT_EQ(toArr(ffp2->crc), toArr(ffp.crc));
+    ASSERT_EQ(mt::toArr(ffp2->crc), mt::toArr(ffp.crc));
     ASSERT_EQ(ffp2->isvalid, ffp.isvalid);
 }
 
@@ -304,7 +295,7 @@ TEST(FileFingerprint, serializefingerprint_unserializefingerprint)
     mega::FileFingerprint ffp;
     ffp.size = 1;
     ffp.mtime = 2;
-    std::iota(ffp.crc, ffp.crc +  sizeof(ffp.crc) / sizeof(*ffp.crc), 3);
+    std::iota(ffp.crc, ffp.crc + mega::getSize(ffp.crc), 3);
     ffp.isvalid = true;
 
     std::string data;
@@ -314,7 +305,7 @@ TEST(FileFingerprint, serializefingerprint_unserializefingerprint)
 
     ASSERT_EQ(ffp2.size, -1); // it is not clear why `size` is dealed with
     ASSERT_EQ(ffp2.mtime, ffp.mtime);
-    ASSERT_EQ(toArr(ffp2.crc), toArr(ffp.crc));
+    ASSERT_EQ(mt::toArr(ffp2.crc), mt::toArr(ffp.crc));
     ASSERT_EQ(ffp2.isvalid, ffp.isvalid);
 }
 
@@ -326,7 +317,7 @@ TEST(FileFingerprint, genfingerprint_FileAccess_forTinyFile)
     ASSERT_EQ(4, ffp.size);
     ASSERT_EQ(1, ffp.mtime);
     const std::array<int32_t, 4> expected = {100992003, 0, 0, 0};
-    ASSERT_EQ(expected, toArr(ffp.crc));
+    ASSERT_EQ(expected, mt::toArr(ffp.crc));
     ASSERT_EQ(true, ffp.isvalid);
 }
 
@@ -338,7 +329,7 @@ TEST(FileFingerprint, genfingerprint_FileAccess_forTinyFile_butReadFails)
     ASSERT_EQ(-1, ffp.size);
     ASSERT_EQ(1, ffp.mtime);
     const std::array<int32_t, 4> expected = {0, 0, 0, 0};
-    ASSERT_EQ(expected, toArr(ffp.crc));
+    ASSERT_EQ(expected, mt::toArr(ffp.crc));
     ASSERT_EQ(false, ffp.isvalid);
 }
 
@@ -352,7 +343,7 @@ TEST(FileFingerprint, genfingerprint_FileAccess_forSmallFile)
     ASSERT_EQ(100, ffp.size);
     ASSERT_EQ(1, ffp.mtime);
     const std::array<int32_t, 4> expected = {215253208, 661795201, 937191950, 562141813};
-    ASSERT_EQ(expected, toArr(ffp.crc));
+    ASSERT_EQ(expected, mt::toArr(ffp.crc));
     ASSERT_EQ(true, ffp.isvalid);
 }
 
@@ -366,7 +357,7 @@ TEST(FileFingerprint, genfingerprint_FileAccess_forSmallFile_butReadFails)
     ASSERT_EQ(-1, ffp.size);
     ASSERT_EQ(1, ffp.mtime);
     const std::array<int32_t, 4> expected = {0, 0, 0, 0};
-    ASSERT_EQ(expected, toArr(ffp.crc));
+    ASSERT_EQ(expected, mt::toArr(ffp.crc));
     ASSERT_EQ(false, ffp.isvalid);
 }
 
@@ -380,7 +371,7 @@ TEST(FileFingerprint, genfingerprint_FileAccess_forLargeFile)
     ASSERT_EQ(20000, ffp.size);
     ASSERT_EQ(1, ffp.mtime);
     const std::array<int32_t, 4> expected = {-1424885571, 1204627086, 1194313128, -177560448};
-    ASSERT_EQ(expected, toArr(ffp.crc));
+    ASSERT_EQ(expected, mt::toArr(ffp.crc));
     ASSERT_EQ(true, ffp.isvalid);
 }
 
@@ -394,7 +385,7 @@ TEST(FileFingerprint, genfingerprint_FileAccess_forLargeFile_butReadFails)
     ASSERT_EQ(-1, ffp.size);
     ASSERT_EQ(1, ffp.mtime);
     const std::array<int32_t, 4> expected = {0, 0, 0, 0};
-    ASSERT_EQ(expected, toArr(ffp.crc));
+    ASSERT_EQ(expected, mt::toArr(ffp.crc));
     ASSERT_EQ(false, ffp.isvalid);
 }
 
@@ -406,7 +397,7 @@ TEST(FileFingerprint, genfingerprint_InputStreamAccess_forTinyFile)
     ASSERT_EQ(4, ffp.size);
     ASSERT_EQ(1, ffp.mtime);
     const std::array<int32_t, 4> expected = {100992003, 0, 0, 0};
-    ASSERT_EQ(expected, toArr(ffp.crc));
+    ASSERT_EQ(expected, mt::toArr(ffp.crc));
     ASSERT_EQ(true, ffp.isvalid);
 }
 
@@ -418,7 +409,7 @@ TEST(FileFingerprint, genfingerprint_InputStreamAccess_forTinyFile_butReadFails)
     ASSERT_EQ(-1, ffp.size);
     ASSERT_EQ(1, ffp.mtime);
     const std::array<int32_t, 4> expected = {0, 0, 0, 0};
-    ASSERT_EQ(expected, toArr(ffp.crc));
+    ASSERT_EQ(expected, mt::toArr(ffp.crc));
     ASSERT_EQ(false, ffp.isvalid);
 }
 
@@ -431,7 +422,7 @@ TEST(FileFingerprint, genfingerprint_InputStreamAccess_forTinyFile_butSizeNegati
     ASSERT_EQ(-1, ffp.size);
     ASSERT_EQ(1, ffp.mtime);
     const std::array<int32_t, 4> expected = {0, 0, 0, 0};
-    ASSERT_EQ(expected, toArr(ffp.crc));
+    ASSERT_EQ(expected, mt::toArr(ffp.crc));
     ASSERT_EQ(false, ffp.isvalid);
 }
 
@@ -445,7 +436,7 @@ TEST(FileFingerprint, genfingerprint_InputStreamAccess_forSmallFile)
     ASSERT_EQ(100, ffp.size);
     ASSERT_EQ(1, ffp.mtime);
     const std::array<int32_t, 4> expected = {215253208, 661795201, 937191950, 562141813};
-    ASSERT_EQ(expected, toArr(ffp.crc));
+    ASSERT_EQ(expected, mt::toArr(ffp.crc));
     ASSERT_EQ(true, ffp.isvalid);
 }
 
@@ -459,7 +450,7 @@ TEST(FileFingerprint, genfingerprint_InputStreamAccess_forSmallFile_butReadFails
     ASSERT_EQ(-1, ffp.size);
     ASSERT_EQ(1, ffp.mtime);
     const std::array<int32_t, 4> expected = {0, 0, 0, 0};
-    ASSERT_EQ(expected, toArr(ffp.crc));
+    ASSERT_EQ(expected, mt::toArr(ffp.crc));
     ASSERT_EQ(false, ffp.isvalid);
 }
 
@@ -473,7 +464,7 @@ TEST(FileFingerprint, genfingerprint_InputStreamAccess_forLargeFile)
     ASSERT_EQ(20000, ffp.size);
     ASSERT_EQ(1, ffp.mtime);
     const std::array<int32_t, 4> expected = {-1236811658, -1236811658, -1236811658, -1236811658};
-    ASSERT_EQ(expected, toArr(ffp.crc));
+    ASSERT_EQ(expected, mt::toArr(ffp.crc));
     ASSERT_EQ(true, ffp.isvalid);
 }
 
@@ -487,7 +478,7 @@ TEST(FileFingerprint, genfingerprint_InputStreamAccess_forLargeFile_butReadFails
     ASSERT_EQ(-1, ffp.size);
     ASSERT_EQ(1, ffp.mtime);
     const std::array<int32_t, 4> expected = {0, 0, 0, 0};
-    ASSERT_EQ(expected, toArr(ffp.crc));
+    ASSERT_EQ(expected, mt::toArr(ffp.crc));
     ASSERT_EQ(false, ffp.isvalid);
 }
 
@@ -496,7 +487,7 @@ TEST(FileFingerprint, getHash)
     mega::FileFingerprint ffp;
     ffp.size = 1;
     ffp.mtime = 2;
-    std::iota(ffp.crc, ffp.crc +  sizeof(ffp.crc) / sizeof(*ffp.crc), 3);
+    std::iota(ffp.crc, ffp.crc + mega::getSize(ffp.crc), 3);
     ffp.isvalid = true;
     const auto hash = ffp.getHash();
     ASSERT_EQ(sizeof(hash) == 4 ? 2056764164u : 3005401618104503162u, hash);

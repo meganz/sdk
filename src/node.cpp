@@ -125,25 +125,28 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
 
 Node::~Node()
 {
-    // abort pending direct reads
-    client->preadabort(this);
+    if (client)
+    {
+        // abort pending direct reads
+        client->preadabort(this);
 
-    // remove node's fingerprint from hash
-    client->mFingerprints.remove(this);
+        // remove node's fingerprint from hash
+        client->mFingerprints.remove(this);
 
 #ifdef ENABLE_SYNC
-    // remove from todebris node_set
-    if (todebris_it != client->todebris.end())
-    {
-        client->todebris.erase(todebris_it);
-    }
+        // remove from todebris node_set
+        if (todebris_it != client->todebris.end())
+        {
+            client->todebris.erase(todebris_it);
+        }
 
-    // remove from tounlink node_set
-    if (tounlink_it != client->tounlink.end())
-    {
-        client->tounlink.erase(tounlink_it);
-    }
+        // remove from tounlink node_set
+        if (tounlink_it != client->tounlink.end())
+        {
+            client->tounlink.erase(tounlink_it);
+        }
 #endif
+    }
 
     if (outshares)
     {
@@ -172,16 +175,19 @@ Node::~Node()
         parent->children.erase(child_it);
     }
 
-    Node* fa = firstancestor();
-    handle ancestor = fa->nodehandle;
-    if (ancestor == client->rootnodes[0] || ancestor == client->rootnodes[1] || ancestor == client->rootnodes[2] || fa->inshare)
+    if (client)
     {
-        client->mNodeCounters[firstancestor()->nodehandle] -= subnodeCounts();
-    }
+        Node* fa = firstancestor();
+        handle ancestor = fa->nodehandle;
+        if (ancestor == client->rootnodes[0] || ancestor == client->rootnodes[1] || ancestor == client->rootnodes[2] || fa->inshare)
+        {
+            client->mNodeCounters[firstancestor()->nodehandle] -= subnodeCounts();
+        }
 
-    if (inshare)
-    {
-        client->mNodeCounters.erase(nodehandle);
+        if (inshare)
+        {
+            client->mNodeCounters.erase(nodehandle);
+        }
     }
 
     // delete child-parent associations (normally not used, as nodes are
@@ -1792,7 +1798,7 @@ bool LocalNode::serialize(string* d)
     return true;
 }
 
-LocalNode* LocalNode::unserialize(Sync* sync, string* d)
+LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
 {
     if (d->size() < sizeof(m_off_t)         // type/size combo
                   + sizeof(handle)          // fsid
@@ -1858,11 +1864,17 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
         memcpy(crc, ptr, sizeof crc);
         ptr += sizeof crc;
 
-        if (Serialize64::unserialize((byte*)ptr, static_cast<int>(end - ptr), &mtime) < 0)
+        auto mtimeSize = static_cast<int>(end - ptr);
+        if ((mtimeSize = Serialize64::unserialize((byte*)ptr, mtimeSize, &mtime)) < 0)
         {
             LOG_err << "LocalNode unserialization failed - malformed fingerprint mtime";
             return NULL;
         }
+        assert(ptr + mtimeSize == end);
+    }
+    else
+    {
+        assert(ptr == end);
     }
 
     LocalNode* l = new LocalNode();
@@ -1875,22 +1887,28 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
     l->fsid = fsid;
 
     l->localname.assign(localname, localnamelen);
-    l->slocalname = NULL;
+    l->slocalname = nullptr;
     l->name.assign(localname, localnamelen);
-    sync->client->fsaccess->local2name(&l->name);
+    if (sync->client)
+    {
+        sync->client->fsaccess->local2name(&l->name);
+    }
 
     memcpy(l->crc, crc, sizeof crc);
     l->mtime = mtime;
-    l->isvalid = 1;
+    l->isvalid = true;
 
-    l->node = sync->client->nodebyhandle(h);
-    l->parent = NULL;
+    if (sync->client)
+    {
+        l->node = sync->client->nodebyhandle(h);
+    }
+    l->parent = nullptr;
     l->sync = sync;
 
     // FIXME: serialize/unserialize
     l->created = false;
     l->reported = false;
-    l->checked = h != UNDEF;
+    l->checked = h != UNDEF; // TODO: Is this a bug? h will never be UNDEF
 
     return l;
 }

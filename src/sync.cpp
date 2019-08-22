@@ -668,6 +668,8 @@ bool Sync::syncDeletions() const
         case SyncDescriptor::TYPE_DOWN: return mDescriptor.mSyncDeletions;
         case SyncDescriptor::TYPE_DEFAULT: return true;
     }
+    assert(false);
+    return true;
 }
 
 bool Sync::overwriteChanges() const
@@ -678,6 +680,8 @@ bool Sync::overwriteChanges() const
         case SyncDescriptor::TYPE_DOWN: return mDescriptor.mOverwriteChanges;
         case SyncDescriptor::TYPE_DEFAULT: return false;
     }
+    assert(false);
+    return false;
 }
 
 // remove LocalNode from DB cache

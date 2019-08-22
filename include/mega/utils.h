@@ -451,14 +451,20 @@ void forEachIndex(Indices<i, j...>, Container&& container, Functor&& functor)
     forEachIndex(Indices<j...>{}, std::forward<Container>(container), std::forward<Functor>(functor));
 }
 
-/////// forEach over a std::tuple, unrolled at compile time
-
+// forEach over a std::tuple, unrolled at compile time
 template<typename Tuple, typename Functor>
 void forEach(Tuple&& tup, Functor&& functor)
 {
     constexpr auto size = std::tuple_size<typename std::decay<Tuple>::type>::value;
     using IndexType = typename IndexRange<0, size>::type;
     forEachIndex(IndexType{}, std::forward<Tuple>(tup), std::forward<Functor>(functor));
+}
+
+// Returns the size of a C-style array
+template<typename T, std::size_t N>
+std::size_t getSize(const T (&array)[N]) noexcept
+{
+    return N;
 }
 
 } // namespace
