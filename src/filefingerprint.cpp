@@ -375,13 +375,11 @@ size_t FileFingerprint::getHash() const
 
 FileFingerprint& FileFingerprint::operator=(const FileFingerprint& other)
 {
-    if (this != &other)
-    {
-        size = other.size;
-        mtime = other.mtime;
-        memcpy(crc, other.crc, sizeof(crc));
-        isvalid = other.isvalid;
-    }
+    assert(this != &other);
+    size = other.size;
+    mtime = other.mtime;
+    memcpy(crc, other.crc, sizeof(crc));
+    isvalid = other.isvalid;
     return *this;
 }
 
