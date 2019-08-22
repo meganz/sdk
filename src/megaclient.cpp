@@ -11127,9 +11127,15 @@ error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
 
     // If checking authrings for all contacts (new session), accumulate updates for all contacts first
     // in temporal authrings to put them all at once. Otherwise, update authring immediately
+    AuthRing *authring = nullptr;
+    unique_ptr<AuthRing> aux;
     auto it = mAuthRingsTemp.find(authringType);
     bool temporalAuthring = it != mAuthRingsTemp.end();
-    if (!temporalAuthring)
+    if (temporalAuthring)
+    {
+        authring = &it->second;  // modify the temporal authring directly
+    }
+    else
     {
         it = mAuthRings.find(authringType);
         if (it == mAuthRings.end())
@@ -11139,22 +11145,22 @@ error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
             assert(false);
             return API_ETEMPUNAVAIL;
         }
+        aux = make_unique<AuthRing>(it->second);    // make a copy, once saved in API, it is updated
+        authring = aux.get();
     }
-
-    AuthRing &authring = it->second;
 
     // compute key's fingerprint
     string keyFingerprint = AuthRing::fingerprint(pubKey);
     bool fingerprintMatch = false;
 
     // check if user's key is already being tracked in the authring
-    bool keyTracked = authring.isTracked(uh);
+    bool keyTracked = authring->isTracked(uh);
     if (keyTracked)
     {
-        fingerprintMatch = (keyFingerprint == authring.getFingerprint(uh));
+        fingerprintMatch = (keyFingerprint == authring->getFingerprint(uh));
         if (!fingerprintMatch)
         {
-            if (!authring.isSignedKey())
+            if (!authring->isSignedKey())
             {
                 LOG_err << "Failed to track public key in " << User::attr2string(authringType) << " for user " << uid << ": fingerprint mismatch";
 
@@ -11167,13 +11173,13 @@ error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
         }
         else
         {
-            LOG_debug << "Authentication of public key in " << User::attr2string(authringType) << " for user " << uid << " was successful. Auth method: " << AuthRing::authMethodToStr(authring.getAuthMethod(uh));
+            LOG_debug << "Authentication of public key in " << User::attr2string(authringType) << " for user " << uid << " was successful. Auth method: " << AuthRing::authMethodToStr(authring->getAuthMethod(uh));
         }
     }
 
-    if (authring.isSignedKey())
+    if (authring->isSignedKey())
     {
-        if (authring.getAuthMethod(uh) != AUTH_METHOD_SIGNATURE || !fingerprintMatch)
+        if (authring->getAuthMethod(uh) != AUTH_METHOD_SIGNATURE || !fingerprintMatch)
         {
             // load public signing key and key signature
             getua(user, ATTR_ED25519_PUBK, 0);
@@ -11187,7 +11193,7 @@ error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
         LOG_debug << "Adding public key to " << User::attr2string(authringType) << " as seen for user " << uid;
 
         // tracking has changed --> persist authring
-        authring.add(uh, keyFingerprint, AUTH_METHOD_SEEN);
+        authring->add(uh, keyFingerprint, AUTH_METHOD_SEEN);
 
         // if checking authrings for all contacts, accumulate updates for all contacts first
         bool finished = true;
@@ -11196,7 +11202,7 @@ error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
             for (auto &it : users)
             {
                 User *user = &it.second;
-                if (user->userhandle != me && !authring.isTracked(user->userhandle))
+                if (user->userhandle != me && !authring->isTracked(user->userhandle))
                 {
                     // if only a current user is not tracked yet, update temporal authring
                     finished = false;
@@ -11206,7 +11212,7 @@ error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
         }
         if (finished)
         {
-            std::unique_ptr<string> newAuthring(authring.serialize(rng, key));
+            std::unique_ptr<string> newAuthring(authring->serialize(rng, key));
             putua(authringType, reinterpret_cast<const byte *>(newAuthring->data()), static_cast<unsigned>(newAuthring->size()), 0);
             mAuthRingsTemp.erase(authringType); // if(temporalAuthring) --> do nothing
         }
@@ -11234,10 +11240,16 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
     }
 
     // If checking authrings for all contacts (new session), accumulate updates for all contacts first
-    // in temporal authrings to put them all at once. Otherwise, update authring immediately
+    // in temporal authrings to put them all at once. Otherwise, send the update immediately
+    AuthRing *authring = nullptr;
+    unique_ptr<AuthRing> aux;
     auto it = mAuthRingsTemp.find(authringType);
     bool temporalAuthring = it != mAuthRingsTemp.end();
-    if (!temporalAuthring)
+    if (temporalAuthring)
+    {
+        authring = &it->second;  // modify the temporal authring directly
+    }
+    else
     {
         it = mAuthRings.find(authringType);
         if (it == mAuthRings.end())
@@ -11246,9 +11258,9 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
             assert(false);
             return API_ETEMPUNAVAIL;
         }
+        aux = make_unique<AuthRing>(it->second);    // make a copy, once saved in API, it is updated
+        authring = aux.get();
     }
-
-    AuthRing &authring = it->second;
 
     const string *pubKey;
     string pubKeyBuf;   // for RSA, need to serialize the key
@@ -11295,7 +11307,7 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
     // compute key's fingerprint
     string keyFingerprint = AuthRing::fingerprint(*pubKey);
     bool fingerprintMatch = false;
-    bool keyTracked = authring.isTracked(uh);
+    bool keyTracked = authring->isTracked(uh);
 
     // check signature for the public key
     bool signatureVerified = EdDSA::verifyKey((unsigned char*) pubKey->data(), pubKey->size(), (string*)&signature, (unsigned char*) signingPubKey->data());
@@ -11306,12 +11318,12 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
         // check if user's key is already being tracked in the authring
         if (keyTracked)
         {
-            fingerprintMatch = (keyFingerprint == authring.getFingerprint(uh));
+            fingerprintMatch = (keyFingerprint == authring->getFingerprint(uh));
             if (!fingerprintMatch)
             {
                 LOG_err << "Failed to track signature of public key in " << User::attr2string(authringType) << " for user " << uid << ": fingerprint mismatch";
 
-                if (authring.isSignedKey()) // for unsigned keys, already notified in trackKey()
+                if (authring->isSignedKey()) // for unsigned keys, already notified in trackKey()
                 {
                     // TODO: notify the app through an event (and maybe send an event to stats)
                     // --> "Key has been modified"
@@ -11321,17 +11333,17 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
             }
             else
             {
-                assert(authring.getAuthMethod(uh) != AUTH_METHOD_SIGNATURE);
+                assert(authring->getAuthMethod(uh) != AUTH_METHOD_SIGNATURE);
                 LOG_warn << "Updating authentication method for user " << uid << " to signature verified, currently authenticated as seen";
 
-                authring.update(uh, AUTH_METHOD_SIGNATURE);
+                authring->update(uh, AUTH_METHOD_SIGNATURE);
             }
         }
         else
         {
             LOG_debug << "Adding public key to " << User::attr2string(authringType) << " as signature verified for user " << uid;
 
-            authring.add(uh, keyFingerprint, AUTH_METHOD_SIGNATURE);
+            authring->add(uh, keyFingerprint, AUTH_METHOD_SIGNATURE);
         }
 
         // if checking authrings for all contacts, accumulate updates for all contacts first
@@ -11341,7 +11353,7 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
             for (auto &it : users)
             {
                 User *user = &it.second;
-                if (user->userhandle != me && !authring.isTracked(user->userhandle))
+                if (user->userhandle != me && !authring->isTracked(user->userhandle))
                 {
                     // if only a current user is not tracked yet, update temporal authring
                     finished = false;
@@ -11351,7 +11363,7 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
         }
         if (finished)
         {
-            std::unique_ptr<string> newAuthring(authring.serialize(rng, key));
+            std::unique_ptr<string> newAuthring(authring->serialize(rng, key));
             putua(authringType, reinterpret_cast<const byte *>(newAuthring->data()), static_cast<unsigned>(newAuthring->size()), 0);
             mAuthRingsTemp.erase(authringType);
         }
