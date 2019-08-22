@@ -1,4 +1,4 @@
-# This file enables building with cmake
+# This file enables building with cmake 
 #
 # use cases
 #  - generate a visual studio solution and projects, eg: cmake . -G "Visual Studio 15 2017"
@@ -64,13 +64,20 @@ if (ENABLE_CHAT AND NOT USE_SODIUM)
 endif()
 
 if (WIN32)
-    if("${CMAKE_GENERATOR}" MATCHES "(Win64|IA64)")
+    message(STATUS "CMAKE_GENERATOR is ${CMAKE_GENERATOR}")
+    message(STATUS "CMAKE_GENERATOR_PLATFORM is ${CMAKE_GENERATOR_PLATFORM}")
+    if ("${CMAKE_GENERATOR_PLATFORM}" MATCHES "(Win64|IA64|x64)")
         SET(build_64_bit 1)
+        message(STATUS "Building 64 bit")
     elseif(CMAKE_SIZEOF_VOID_P EQUAL 4)
         SET(build_64_bit 0)
+        message(STATUS "Building 32 bit")
+    else()
+        message(FATAL_ERROR "Can't tell if we should build 32 bit or 64 bit")
     endif()
 else()
-    set (build_64_bit 1 CACHE TYPE BOOL)
+    set (build_64_bit 1 CACHE STRING "Build for a 64 bit target")
+    message(STATUS "Building 64 bit")
 endif()
 
 if ("${MEGA_PROJECT_NAME}" STREQUAL "")

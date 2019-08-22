@@ -2562,7 +2562,6 @@ void MegaApi::getMyChatFilesFolder(MegaRequestListener *listener)
 {
     pImpl->getMyChatFilesFolder(listener);
 }
-#endif
 
 void MegaApi::getUserAlias(MegaHandle uh, MegaRequestListener *listener)
 {
@@ -2573,6 +2572,7 @@ void MegaApi::setUserAlias(MegaHandle uh, const char *alias, MegaRequestListener
 {
     pImpl->setUserAlias(uh, alias);
 }
+#endif
 
 void MegaApi::getRubbishBinAutopurgePeriod(MegaRequestListener *listener)
 {
