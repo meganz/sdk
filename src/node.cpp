@@ -740,7 +740,7 @@ void Node::setfingerprint()
         // size and client timestamp instead
         if (!isvalid)
         {
-            memcpy(crc, nodekey.data(), sizeof crc);
+            memcpy(crc.data(), nodekey.data(), sizeof crc);
             mtime = ctime;
         }
 
@@ -1788,7 +1788,7 @@ bool LocalNode::serialize(string* d)
 
     if (type == FILENODE)
     {
-        d->append((const char*)crc, sizeof crc);
+        d->append((const char*)crc.data(), sizeof crc);
 
         byte buf[sizeof mtime+1];
 
@@ -1894,7 +1894,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
         sync->client->fsaccess->local2name(&l->name);
     }
 
-    memcpy(l->crc, crc, sizeof crc);
+    memcpy(l->crc.data(), crc, sizeof crc);
     l->mtime = mtime;
     l->isvalid = true;
 

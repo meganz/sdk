@@ -19,8 +19,6 @@
  * program.
  */
 
-#include <unordered_map>
-
 #include "mega.h"
 
 #ifdef ENABLE_SYNC
@@ -92,11 +90,23 @@ set<string> collectAllPathsInFolder(Sync& sync, MegaApp& app, FileSystemAccess& 
     return paths;
 }
 
-// Combines the fingerprints of all file nodes in the given map. Returns a pair: Fingerprint, valid
-std::pair<size_t, bool> combinedFingerprint(const localnode_map& nodeMap)
+// Combines another fingerprint into `ffp`
+void hashCombineFingerprint(FileFingerprint& ffp, const FileFingerprint& other)
 {
-    size_t value = 0;
-    bool valid = false;
+    assert(other.isvalid);
+    hashCombine(ffp.size, other.size);
+    hashCombine(ffp.mtime, other.mtime);
+    for (size_t i = 0; i < other.crc.size(); ++i)
+    {
+        hashCombine(ffp.crc[i], other.crc[i]);
+    }
+    ffp.isvalid = true;
+}
+
+// Combines the fingerprints of all file nodes in the given map
+void combinedFingerprint(FileFingerprint& ffp, const localnode_map& nodeMap)
+{
+    ffp.isvalid = false;
     for (const auto& nodePair : nodeMap)
     {
         const LocalNode& node = *nodePair.second;
@@ -105,142 +115,105 @@ std::pair<size_t, bool> combinedFingerprint(const localnode_map& nodeMap)
             if (!node.isvalid)
             {
                 LOG_err << "Invalid fingerprint: " << node.localname;
-                valid = false;
+                ffp.isvalid = false;
                 break;
             }
-            hashCombine(value, node.getHash());
-            valid = true;
+            hashCombineFingerprint(ffp, node);
         }
     }
-    return {value, valid};
 }
 
-// Combines the fingerprints of all files in the given paths. Returns a pair: Fingerprint, valid
-std::pair<size_t, bool> combinedFingerprint(FileSystemAccess& fsaccess, const set<string>& paths)
+// Combines the fingerprints of all files in the given paths
+void combinedFingerprint(FileFingerprint& ffp, FileSystemAccess& fsaccess, const set<string>& paths)
 {
-    size_t value = 0;
-    bool valid = false;
+    ffp.isvalid = false;
     for (const auto& path : paths)
     {
         auto fa = std::unique_ptr<FileAccess>{fsaccess.newfileaccess()};
         if (!fa->fopen(const_cast<string*>(&path), true, false))
         {
             LOG_err << "Unable to open path: " << path;
-            valid = false;
+            ffp.isvalid = false;
             break;
         }
         if (fa->type == FILENODE)
         {
-            FileFingerprint ffp;
-            ffp.genfingerprint(fa.get());
-            if (!ffp.isvalid)
+            FileFingerprint faFfp;
+            faFfp.genfingerprint(fa.get());
+            if (!faFfp.isvalid)
             {
                 LOG_err << "Invalid fingerprint: " << path;
-                valid = false;
+                ffp.isvalid = false;
                 break;
             }
-            hashCombine(value, ffp.getHash());
-            valid = true;
+            hashCombineFingerprint(ffp, faFfp);
         }
     }
-    return {value, valid};
 }
 
-// Represents a generalized fingerprint for file or folder, either contructed from a LocalNode or a filesystem path.
-class Fingerprint
+// Computes the fingerprint of the given `node` (file or folder) and stores it in `ffp`
+void computeFingerprint(FileFingerprint& ffp, const LocalNode& node)
 {
-public:
-    explicit Fingerprint(LocalNode& node)
+    if (node.type == FILENODE)
     {
-        if (node.type == FILENODE)
+        if (!node.isvalid)
         {
-            if (!node.isvalid)
-            {
-                LOG_err << "Invalid fingerprint: " << node.localname;
-                return;
-            }
-            mHash = node.getHash();
-            mIsValid = true;
+            LOG_err << "Invalid fingerprint: " << node.localname;
+            return;
         }
-        else if (node.type == FOLDERNODE)
+        ffp = node;
+    }
+    else if (node.type == FOLDERNODE)
+    {
+        combinedFingerprint(ffp, node.children);
+    }
+    else
+    {
+        assert(false && "Invalid node type");
+    }
+}
+
+// Computes the fingerprint of the given `fa` (file or folder) and stores it in `ffp`
+void computeFingerprint(FileFingerprint& ffp, FileSystemAccess& fsaccess, FileAccess& fa, const set<string>& paths)
+{
+    if (fa.type == FILENODE)
+    {
+        assert(paths.empty());
+        ffp.genfingerprint(&fa);
+        if (!ffp.isvalid)
         {
-            const auto res = combinedFingerprint(node.children);
-            mHash = res.first;
-            mIsValid = res.second;
-        }
-        else
-        {
-            assert(false && "Invalid node type");
+            LOG_err << "Invalid fingerprint";
+            return;
         }
     }
-
-    explicit Fingerprint(FileSystemAccess& fsaccess, FileAccess& fa, const set<string>& paths)
+    else if (fa.type == FOLDERNODE)
     {
-        if (fa.type == FILENODE)
-        {
-            FileFingerprint ffp;
-            ffp.genfingerprint(&fa);
-            if (!ffp.isvalid)
-            {
-                LOG_err << "Invalid fingerprint";
-                return;
-            }
-            mHash = ffp.getHash();
-            mIsValid = true;
-        }
-        else if (fa.type == FOLDERNODE)
-        {
-            const auto res = combinedFingerprint(fsaccess, paths);
-            mHash = res.first;
-            mIsValid = res.second;
-        }
-        else
-        {
-            assert(false && "Invalid node type");
-        }
+        combinedFingerprint(ffp, fsaccess, paths);
     }
-
-    MEGA_DISABLE_COPY(Fingerprint)
-    MEGA_DEFAULT_MOVE(Fingerprint)
-
-    size_t getHash() const
+    else
     {
-        return mHash;
+        assert(false && "Invalid node type");
     }
+}
 
-    bool getIsValid() const
+struct FileFingerprintComparator
+{
+    bool operator()(const FileFingerprint& lhs, const FileFingerprint& rhs) const
     {
-        return mIsValid;
+        return FileFingerprintCmp{}(&lhs, &rhs);
     }
-
-    struct Hash
-    {
-        size_t operator()(const Fingerprint& node) const
-        {
-            assert(node.mIsValid);
-            return node.mHash;
-        }
-    };
-
-private:
-    size_t mHash = 0;
-    bool mIsValid = false;
 };
 
-bool operator==(const Fingerprint& lhs, const Fingerprint& rhs)
-{
-    return lhs.getHash() == rhs.getHash();
-}
+using FingerprintMap = std::multimap<FileFingerprint, LocalNode*, FileFingerprintComparator>;
 
-using FingerprintMap = std::unordered_multimap<Fingerprint, LocalNode*, Fingerprint::Hash>;
-
-// Collects all LocalNodes by storing them in `fingerprints`, keyed by Fingerprint
+// Collects all LocalNodes by storing them in `fingerprints`, keyed by FileFingerprint
 void collectAllFingerprints(FingerprintMap& fingerprints, LocalNode& l)
 {
-    Fingerprint fp{l};
-    if (fp.getIsValid())
+    FileFingerprint ffp;
+    computeFingerprint(ffp, l);
+    if (ffp.isvalid)
     {
-        fingerprints.insert(std::make_pair(std::move(fp), &l));
+        fingerprints.insert(std::make_pair(ffp, &l));
     }
     if (l.type == FILENODE)
     {
@@ -265,13 +238,14 @@ void assignFilesystemId(FileSystemAccess& fsaccess, FileAccess& fa, handlelocaln
     }
 
     const auto fsId = fa.fsid;
-    Fingerprint fp{fsaccess, fa, paths};
-    if (!fp.getIsValid())
+    FileFingerprint ffp;
+    computeFingerprint(ffp, fsaccess, fa, paths);
+    if (!ffp.isvalid)
     {
         return;
     }
 
-    const auto nodeRange = fingerprints.equal_range(fp);
+    const auto nodeRange = fingerprints.equal_range(ffp);
     const auto nodeCount = std::distance(nodeRange.first, nodeRange.second);
     if (nodeCount <= 0)
     {

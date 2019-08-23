@@ -1412,6 +1412,18 @@ private:
     AchievementsDetails details;
 };
 
+class MegaCancelTokenPrivate : public MegaCancelToken
+{
+public:
+    ~MegaCancelTokenPrivate() override;
+
+    void cancel(bool newValue = true) override;
+    bool isCancelled() const override;
+
+private:
+    std::atomic_bool cancelFlag { false };
+};
+
 #ifdef ENABLE_CHAT
 class MegaTextChatPeerListPrivate : public MegaTextChatPeerList
 {
@@ -2341,9 +2353,9 @@ class MegaApiImpl : public MegaApp
 
         MegaRecentActionBucketList* getRecentActions(unsigned days = 90, unsigned maxnodes = 10000);
 
-        MegaNodeList* search(MegaNode* node, const char* searchString, bool recursive = 1, int order = MegaApi::ORDER_NONE);
+        MegaNodeList* search(MegaNode* node, const char* searchString, MegaCancelToken *cancelToken, bool recursive = 1, int order = MegaApi::ORDER_NONE);
         bool processMegaTree(MegaNode* node, MegaTreeProcessor* processor, bool recursive = 1);
-        MegaNodeList* search(const char* searchString, int order = MegaApi::ORDER_NONE);
+        MegaNodeList* search(const char* searchString, MegaCancelToken *cancelToken, int order = MegaApi::ORDER_NONE);
 
         MegaNode *createForeignFileNode(MegaHandle handle, const char *key, const char *name, m_off_t size, m_off_t mtime,
                                        MegaHandle parentHandle, const char *privateauth, const char *publicauth, const char *chatauth);
@@ -2527,6 +2539,8 @@ class MegaApiImpl : public MegaApp
         void getMyChatFilesFolder(MegaRequestListener *listener = NULL);
         void setCameraUploadsFolder(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
         void getCameraUploadsFolder(MegaRequestListener *listener = NULL);
+        void getUserAlias(MegaHandle uh, MegaRequestListener *listener = NULL);
+        void setUserAlias(MegaHandle uh, const char *alias, MegaRequestListener *listener = NULL);
 #endif
 
         void getPushNotificationSettings(MegaRequestListener *listener = NULL);
@@ -2638,7 +2652,6 @@ protected:
         int ftpServerMaxOutputSize;
         int ftpServerRestrictedMode;
         set<MegaTransferListener *> ftpServerListeners;
-
 #endif
 		
         map<int, MegaBackupController *> backupsMap;
@@ -2970,8 +2983,7 @@ protected:
         Node* getNodeByFingerprintInternal(const char *fingerprint);
         Node *getNodeByFingerprintInternal(const char *fingerprint, Node *parent);
 
-        bool processTree(Node* node, TreeProcessor* processor, bool recursive = 1);
-        MegaNodeList* search(Node* node, const char* searchString, bool recursive = 1);
+        bool processTree(Node* node, TreeProcessor* processor, bool recursive = 1, MegaCancelToken* cancelToken = nullptr);
         void getNodeAttribute(MegaNode* node, int type, const char *dstFilePath, MegaRequestListener *listener = NULL);
 		    void cancelGetNodeAttribute(MegaNode *node, int type, MegaRequestListener *listener = NULL);
         void setNodeAttribute(MegaNode* node, int type, const char *srcFilePath, MegaHandle attributehandle, MegaRequestListener *listener = NULL);

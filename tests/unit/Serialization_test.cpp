@@ -205,7 +205,7 @@ void checkDeserializedLocalNode(const mega::LocalNode& dl, const mega::LocalNode
     ASSERT_EQ(ref.localname, dl.localname);
     ASSERT_EQ(nullptr, dl.slocalname);
     ASSERT_EQ(ref.name, dl.name);
-    ASSERT_EQ(mt::toArr(ref.crc), mt::toArr(dl.crc));
+    ASSERT_EQ(ref.crc, dl.crc);
     ASSERT_EQ(ref.mtime, dl.mtime);
     ASSERT_EQ(true, dl.isvalid);
     ASSERT_EQ(nullptr, dl.parent);
@@ -252,7 +252,7 @@ TEST(Serialization, LocalNode_forFile_withoutNode)
     l->parent->dbid = 13;
     l->parent_dbid = l->parent->dbid;
     l->mtime = 124124124;
-    std::iota(l->crc, l->crc + mega::getSize(l->crc), 1);
+    std::iota(l->crc.begin(), l->crc.end(), 1);
     std::string data;
     ASSERT_TRUE(l->serialize(&data));
     ASSERT_EQ(54, data.size());
@@ -270,7 +270,7 @@ TEST(Serialization, LocalNode_forFile_withoutNode_withMaxMtime)
     l->parent->dbid = 13;
     l->parent_dbid = l->parent->dbid;
     l->mtime = std::numeric_limits<decltype(l->mtime)>::max();
-    std::iota(l->crc, l->crc + mega::getSize(l->crc), 1);
+    std::iota(l->crc.begin(), l->crc.end(), 1);
     std::string data;
     ASSERT_TRUE(l->serialize(&data));
     ASSERT_EQ(58, data.size());
@@ -327,7 +327,7 @@ TEST(Serialization, LocalNode_forFile)
     l->parent->dbid = 13;
     l->parent_dbid = l->parent->dbid;
     l->mtime = 0;
-    std::iota(l->crc, l->crc + mega::getSize(l->crc), 1);
+    std::iota(l->crc.begin(), l->crc.end(), 1);
     std::string data;
     ASSERT_TRUE(l->serialize(&data));
     ASSERT_EQ(50, data.size());

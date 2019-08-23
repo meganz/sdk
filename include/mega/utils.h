@@ -22,6 +22,8 @@
 #ifndef MEGA_UTILS_H
 #define MEGA_UTILS_H 1
 
+#include <type_traits>
+
 #include "types.h"
 #include "mega/logging.h"
 
@@ -320,6 +322,12 @@ private:
      */
     void set(string type, string value);
 
+    /**
+     * @brief Removes a record from the container
+     * @param type Type for the value to be removed (without scope nor non-historic modifiers).
+     */
+    void reset(string type);
+
     size_t size();
 
     static unsigned getTaglen(int mode);
@@ -408,11 +416,12 @@ struct CacheableReader
     void eraseused(string& d); // must be the same string, unchanged
 };
 
-template<typename T>
-void hashCombine(size_t& seed, const T& v)
+template<typename T, typename U>
+void hashCombine(T& seed, const U& v)
 {
+    static_assert(std::is_integral<T>::value, "T is not integral");
     // Taken from Boost's hash combine function
-    seed ^= std::hash<T>{}(v) + 0x9e3779b9 + (seed<<6) + (seed>>2);
+    seed ^= std::hash<U>{}(v) + 0x9e3779b9 + (seed<<6) + (seed>>2);
 }
 
 /////// Following are a few helpers that are required for compile-time `forEach` further down

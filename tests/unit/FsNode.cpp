@@ -63,7 +63,20 @@ FsNode::FileAccess::FileAccess(const FsNode& fsNode)
 
 bool FsNode::FileAccess::fopen(std::string* path, bool, bool)
 {
-    if (*path == mFsNode.getPath())
+    mPath = *path;
+    return sysopen();
+}
+
+bool FsNode::FileAccess::sysstat(mega::m_time_t* curr_mtime, m_off_t* curr_size)
+{
+    *curr_mtime = mtime;
+    *curr_size = size;
+    return true;
+}
+
+bool FsNode::FileAccess::sysopen(bool async)
+{
+    if (mPath == mFsNode.getPath())
     {
         fsidvalid = true;
         fsid = mFsNode.getFsId();
@@ -78,12 +91,15 @@ bool FsNode::FileAccess::fopen(std::string* path, bool, bool)
     }
 }
 
-bool FsNode::FileAccess::frawread(mega::byte* buffer, unsigned size, m_off_t offset)
+bool FsNode::FileAccess::sysread(mega::byte* buffer, unsigned size, m_off_t offset)
 {
     const auto& content = mFsNode.getContent();
     assert(static_cast<unsigned>(offset) + size <= content.size());
     std::copy(content.begin() + static_cast<unsigned>(offset), content.begin() + static_cast<unsigned>(offset) + size, buffer);
     return true;
 }
+
+void FsNode::FileAccess::sysclose()
+{}
 
 } // mt

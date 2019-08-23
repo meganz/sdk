@@ -131,9 +131,16 @@ private:
 
         bool fopen(std::string* path, bool, bool) override;
 
-        bool frawread(mega::byte* buffer, unsigned size, m_off_t offset) override;
+        bool sysstat(mega::m_time_t* curr_mtime, m_off_t* curr_size) override;
+
+        bool sysopen(bool async = false) override;
+
+        bool sysread(mega::byte* buffer, unsigned size, m_off_t offset) override;
+
+        void sysclose() override;
 
     private:
+        std::string mPath;
         const FsNode& mFsNode;
     };
 
