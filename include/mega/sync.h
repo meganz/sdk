@@ -163,6 +163,7 @@ public:
 
 protected :
     bool readstatecache();
+
 };
 } // namespace
 
