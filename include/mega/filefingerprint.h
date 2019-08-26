@@ -31,13 +31,13 @@ namespace mega {
 // sparse file fingerprint, including size and mtime
 struct MEGA_API FileFingerprint : public Cachable
 {
-    m_off_t size{-1};
-    m_time_t mtime{};
+    m_off_t size = -1;
+    m_time_t mtime = 0;
     std::array<int32_t, 4> crc{};
 
     // if true, represents actual file data
     // if false, is constructed from node ctime/key
-    bool isvalid{};
+    bool isvalid = false;
 
     bool genfingerprint(FileAccess* fa, bool ignoremtime = false);
     bool genfingerprint(InputStreamAccess* is, m_time_t cmtime, bool ignoremtime = false);
