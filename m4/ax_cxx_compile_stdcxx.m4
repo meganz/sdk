@@ -1,3 +1,6 @@
+#
+# This file was modified from its standard GNU version.
+#
 # ===========================================================================
 #   http://www.gnu.org/software/autoconf-archive/ax_cxx_compile_stdcxx.html
 # ===========================================================================
@@ -10,7 +13,7 @@
 #
 #   Check for baseline language coverage in the compiler for the specified
 #   version of the C++ standard.  If necessary, add switches to CXX and
-#   CXXCPP to enable support.  VERSION may be '11' (for the C++11 standard)
+#   CXXCPP and OBJCXX to enable support.  VERSION may be '11' (for the C++11 standard)
 #   or '14' (for the C++14 standard).
 #
 #   The second argument, if specified, indicates whether you insist on an
@@ -91,6 +94,9 @@ AC_DEFUN([AX_CXX_COMPILE_STDCXX], [dnl
         if test -n "$CXXCPP" ; then
           CXXCPP="$CXXCPP $switch"
         fi
+        if test -n "$OBJCXX" ; then
+          OBJCXX="$OBJCXX $switch"
+        fi
         ac_success=yes
         break
       fi
@@ -116,6 +122,9 @@ AC_DEFUN([AX_CXX_COMPILE_STDCXX], [dnl
         CXX="$CXX $switch"
         if test -n "$CXXCPP" ; then
           CXXCPP="$CXXCPP $switch"
+        fi
+        if test -n "$OBJCXX" ; then
+          OBJCXX="$OBJCXX $switch"
         fi
         ac_success=yes
         break

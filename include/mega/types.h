@@ -72,6 +72,7 @@ typedef unsigned char byte;
 
 #include "mega/crypto/sodium.h"
 
+#include <memory>
 #include <string>
 
 namespace mega {
@@ -88,8 +89,9 @@ using std::deque;
 using std::multiset;
 using std::queue;
 using std::streambuf;
+using std::tuple;
 using std::ostringstream;
-
+using std::unique_ptr;
 
 // forward declaration
 struct AttrMap;
@@ -536,6 +538,15 @@ typedef enum { RETRY_NONE = 0, RETRY_CONNECTIVITY = 1, RETRY_SERVERS_BUSY = 2, R
 
 typedef enum { STORAGE_GREEN = 0, STORAGE_ORANGE = 1, STORAGE_RED = 2, STORAGE_CHANGE = 3 } storagestatus_t;
 
+
+enum SmsVerificationState {
+    // These values (except unknown) are delivered from the servers
+    SMS_STATE_UNKNOWN = -1,       // Flag was not received
+    SMS_STATE_NOT_ALLOWED = 0,    // No SMS allowed
+    SMS_STATE_ONLY_UNBLOCK = 1,   // Only unblock SMS allowed
+    SMS_STATE_FULL = 2            // Opt-in and unblock SMS allowed
+};
+
 typedef unsigned int achievement_class_id;
 typedef map<achievement_class_id, Achievement> achievements_map;
 
@@ -553,6 +564,40 @@ typedef vector<recentaction> recentactions_vector;
 typedef enum { BIZ_STATUS_UNKNOWN = -2, BIZ_STATUS_EXPIRED = -1, BIZ_STATUS_INACTIVE = 0, BIZ_STATUS_ACTIVE = 1, BIZ_STATUS_GRACE_PERIOD = 2 } BizStatus;
 typedef enum { BIZ_MODE_UNKNOWN = -1, BIZ_MODE_SUBUSER = 0, BIZ_MODE_MASTER = 1 } BizMode;
 
+// inside 'mega' namespace, since use C++11 and can't rely on C++14 yet, provide make_unique for the most common case.
+// This keeps our syntax small, while making sure the compiler ensures the object is deleted when no longer used.
+// Sometimes there will be ambiguity about std::make_unique vs mega::make_unique if cpp files "use namespace std", in which case specify ::mega::.
+// It's better that we use the same one in older and newer compilers so we detect any issues.
+template<class T, class... constructorArgs>
+unique_ptr<T> make_unique(constructorArgs&&... args)
+{
+    return (unique_ptr<T>(new T(std::forward<constructorArgs>(args)...)));
+}
+
 } // namespace
+
+#define MEGA_DISABLE_COPY(class_name) \
+    class_name(const class_name&) = delete; \
+    class_name& operator=(const class_name&) = delete;
+
+#define MEGA_DISABLE_MOVE(class_name) \
+    class_name(class_name&&) = delete; \
+    class_name& operator=(class_name&&) = delete;
+
+#define MEGA_DISABLE_COPY_MOVE(class_name) \
+    MEGA_DISABLE_COPY(class_name) \
+    MEGA_DISABLE_MOVE(class_name)
+
+#define MEGA_DEFAULT_COPY(class_name) \
+    class_name(const class_name&) = default; \
+    class_name& operator=(const class_name&) = default;
+
+#define MEGA_DEFAULT_MOVE(class_name) \
+    class_name(class_name&&) = default; \
+    class_name& operator=(class_name&&) = default;
+
+#define MEGA_DEFAULT_COPY_MOVE(class_name) \
+    MEGA_DEFAULT_COPY(class_name) \
+    MEGA_DEFAULT_MOVE(class_name)
 
 #endif

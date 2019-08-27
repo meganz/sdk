@@ -368,7 +368,7 @@ class MEGA_API EncryptBufferByChunks : public EncryptByChunks
     // specialisation for encrypting a whole contiguous buffer by chunks
     byte *chunkstart;
 
-    virtual byte* nextbuffer(unsigned bufsize) override;
+    byte* nextbuffer(unsigned bufsize) override;
 
 public:
     EncryptBufferByChunks(byte* b, SymmCipher* k, chunkmac_map* m, uint64_t iv);
