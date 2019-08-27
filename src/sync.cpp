@@ -1717,6 +1717,5 @@ bool Sync::movetolocaldebris(string* localpath)
 
     return false;
 }
-
 } // namespace
 #endif

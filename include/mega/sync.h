@@ -190,6 +190,7 @@ public:
 
 protected :
     bool readstatecache();
+
 private:
     SyncDescriptor mDescriptor;
 };

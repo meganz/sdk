@@ -71,6 +71,7 @@ bool FileFingerprint::serialize(string *d)
     d->append((const char*)&mtime, sizeof(mtime));
     d->append((const char*)crc.data(), sizeof(crc));
     d->append((const char*)&isvalid, sizeof(isvalid));
+
     return true;
 }
 

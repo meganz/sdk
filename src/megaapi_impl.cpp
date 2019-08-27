@@ -15067,10 +15067,9 @@ void MegaApiImpl::getregisteredcontacts_result(error e, vector<tuple<string, str
                 for (const auto& row : *data)
                 {
                     vector<char*> list;
-                    forEach(row, [&list](const string& value)
-                                 {
-                                     list.emplace_back(MegaApi::strdup(value.c_str()));
-                                 });
+                    list.emplace_back(MegaApi::strdup(std::get<0>(row).c_str()));
+                    list.emplace_back(MegaApi::strdup(std::get<1>(row).c_str()));
+                    list.emplace_back(MegaApi::strdup(std::get<2>(row).c_str()));
                     auto stringList = new MegaStringListPrivate{list.data(), static_cast<int>(list.size())};
                     stringTable->append(stringList);
                 }
