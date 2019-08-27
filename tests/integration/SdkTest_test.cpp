@@ -19,18 +19,21 @@
  * program.
  */
 
-#include "sdk_test.h"
+#include "test.h"
+#include "SdkTest_test.h"
 #include "mega/testhooks.h"
 #include "megaapi_impl.h"
 #include <algorithm>
 
-#ifdef _WIN32
+#ifdef WIN32
 #include <filesystem>
+namespace fs = ::std::filesystem;
+#else
+#include <experimental/filesystem>
+namespace fs = ::std::experimental::filesystem;
 #endif
 
 using namespace std;
-
-bool g_runningInCI = false;
 
 MegaFileSystemAccess fileSystemAccess;
 
@@ -42,7 +45,7 @@ namespace fs = std::experimental::filesystem;
 #endif
 #endif
 
-#ifdef WIN32
+#ifdef _WIN32
 DWORD ThreadId()
 {
     return GetCurrentThreadId();
@@ -128,7 +131,7 @@ void WaitMillisec(unsigned n)
 
 enum { USERALERT_ARRIVAL_MILLISEC = 1000 };
 
-#ifdef WIN32
+#ifdef _WIN32
 #include "mega/autocomplete.h"
 #include <filesystem>
 #define getcwd _getcwd
@@ -137,6 +140,43 @@ void usleep(int n)
     Sleep(n / 1000);
 }
 #endif
+
+// helper functions and struct/classes 
+namespace
+{
+
+    bool buildLocalFolders(fs::path targetfolder, const string& prefix, int n, int recurselevel, int filesperfolder)
+    {
+        fs::path p = targetfolder / fs::u8path(prefix);
+        if (!fs::create_directory(p))
+            return false;
+
+        for (int i = 0; i < filesperfolder; ++i)
+        {
+            string filename = "file" + to_string(i) + "_" + prefix;
+            fs::path fp = p / fs::u8path(filename);
+#if (__cplusplus >= 201700L)
+            ofstream fs(fp/*, ios::binary*/);
+#else
+            ofstream fs(fp.u8string()/*, ios::binary*/);
+#endif
+            fs << filename;
+        }
+
+        if (recurselevel > 0)
+        {
+            for (int i = 0; i < n; ++i)
+            {
+                if (!buildLocalFolders(p, prefix + "_" + to_string(i), n, recurselevel - 1, filesperfolder))
+                    return false;
+            }
+        }
+
+        return true;
+    }
+
+}
+
 
 void SdkTest::SetUp()
 {
@@ -153,20 +193,16 @@ void SdkTest::SetUp()
         pwd[0].assign(buf);
     ASSERT_LT((size_t)0, pwd[0].length()) << "Set your password at the environment variable $MEGA_PWD";
 
-    testingInvalidArgs = false;
+    gTestingInvalidArgs = false;
 
     if (megaApi[0] == NULL)
     {
-        logger = new MegaLoggerSDK("SDK.log");
-        MegaApi::addLoggerObject(logger);
-
         megaApi[0] = new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str());
 
         megaApi[0]->setLoggingName("0");
-        megaApi[0]->setLogLevel(MegaApi::LOG_LEVEL_DEBUG);
         megaApi[0]->addListener(this);
 
-        megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___ Initializing test (SetUp()) ___");
+        LOG_info << "___ Initializing test (SetUp()) ___";
 
         ASSERT_NO_FATAL_FAILURE( login(0) );
         ASSERT_NO_FATAL_FAILURE( fetchnodes(0) );
@@ -177,7 +213,7 @@ void SdkTest::TearDown()
 {
     // do some cleanup
 
-    testingInvalidArgs = false;
+    gTestingInvalidArgs = false;
 
     deleteFile(UPFILE);
     deleteFile(DOWNFILE);
@@ -188,7 +224,7 @@ void SdkTest::TearDown()
 
     if (megaApi[0])
     {        
-        megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___ Cleaning up test (TearDown()) ___");
+        LOG_info << "___ Cleaning up test (TearDown()) ___";
 
         // Remove nodes in Cloud & Rubbish
         purgeTree(megaApi[0]->getRootNode());
@@ -211,9 +247,6 @@ void SdkTest::TearDown()
         }
 
         releaseMegaApi(0);
-
-        MegaApi::removeLoggerObject(logger);
-        delete logger;
     }
 }
 
@@ -388,6 +421,20 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         if (apiIndex == 0)
         {
             megaApi[0]->enableTransferResumption();
+        }
+        break;
+
+    case MegaRequest::TYPE_GET_REGISTERED_CONTACTS:
+        if (lastError[apiIndex] == API_OK)
+        {
+            stringTable.reset(request->getMegaStringTable()->copy());
+        }
+        break;
+
+    case MegaRequest::TYPE_GET_COUNTRY_CALLING_CODES:
+        if (lastError[apiIndex] == API_OK)
+        {
+            stringListMap.reset(request->getMegaStringListMap()->copy());
         }
         break;
 
@@ -924,30 +971,30 @@ void SdkTest::createFolder(unsigned int apiIndex, char *name, MegaNode *n, int t
     ASSERT_EQ(MegaError::API_OK, lastError[apiIndex]) << "Cannot create a folder (error: " << lastError[apiIndex] << ")";
 }
 
-MegaLoggerSDK::MegaLoggerSDK(const char *filename)
+void SdkTest::getRegisteredContacts(const std::map<std::string, std::string>& contacts, const int timeout)
 {
-    sdklog.open(filename, ios::out | ios::app);
+    auto contactsStringMap = std::unique_ptr<MegaStringMap>{MegaStringMap::createInstance()};
+    for  (const auto& pair : contacts)
+    {
+        contactsStringMap->set(pair.first.c_str(), pair.second.c_str());
+    }
+
+    requestFlags[0][MegaRequest::TYPE_GET_REGISTERED_CONTACTS] = false;
+    megaApi[0]->getRegisteredContacts(contactsStringMap.get(), this);
+
+    ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_GET_REGISTERED_CONTACTS], timeout) )
+            << "Get registered contacts not finished after " << timeout  << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Get registered contacts failed (error: " << lastError[0] << ")";
 }
 
-MegaLoggerSDK::~MegaLoggerSDK()
+void SdkTest::getCountryCallingCodes(const int timeout)
 {
-    sdklog.close();
-}
+    requestFlags[0][MegaRequest::TYPE_GET_COUNTRY_CALLING_CODES] = false;
+    megaApi[0]->getCountryCallingCodes(this);
 
-void MegaLoggerSDK::log(const char *time, int loglevel, const char *source, const char *message)
-{
-    sdklog << "[" << time << "] " << SimpleLogger::toStr((LogLevel)loglevel) << ": ";
-    sdklog << message << " (" << source << ")" << endl;
-
-    bool errorLevel = ((loglevel == logError) && !testingInvalidArgs);
-    ASSERT_FALSE(errorLevel) << "Test aborted due to an SDK error: " << message << " (" << source << ")";
-
-#ifdef _WIN32
-    std::ostringstream s;
-    s << "[" << time << "] " << SimpleLogger::toStr((LogLevel)loglevel) << ": ";
-    s << message << " (" << source << ")" << endl;
-    OutputDebugStringA(s.str().c_str());
-#endif
+    ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_GET_COUNTRY_CALLING_CODES], timeout) )
+            << "Get country calling codes not finished after " << timeout  << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Get country calling codes failed (error: " << lastError[0] << ")";
 }
 
 void SdkTest::setUserAttribute(int type, string value, int timeout)
@@ -1005,7 +1052,7 @@ TEST_F(SdkTest, DISABLED_SdkTestCreateAccount)
     string pwd = "pwd";
     string email2 = "other-user@domain.com";
 
-    megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Create account___");
+    LOG_info << "___TEST Create account___";
 
     // Create an ephemeral session internally and send a confirmation link to email
     requestFlags[0][MegaRequest::TYPE_CREATE_ACCOUNT] = false;
@@ -1056,7 +1103,7 @@ bool veryclose(double a, double b)
  */
 TEST_F(SdkTest, SdkTestNodeAttributes)
 {
-    megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Node attributes___");
+    LOG_info << "___TEST Node attributes___";
 
     MegaNode *rootnode = megaApi[0]->getRootNode();
 
@@ -1075,14 +1122,14 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
 
     // ___ Set invalid duration of a node ___
 
-    testingInvalidArgs = true;
+    gTestingInvalidArgs = true;
 
     requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE] = false;
     megaApi[0]->setNodeDuration(n1, -14);
     waitForResponse(&requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE]);
     ASSERT_EQ(MegaError::API_EARGS, lastError[0]) << "Unexpected error setting invalid node duration (error: " << lastError[0] << ")";
 
-    testingInvalidArgs = false;
+    gTestingInvalidArgs = false;
 
 
     // ___ Set duration of a node ___
@@ -1111,7 +1158,7 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
 
     // ___ Set invalid coordinates of a node (out of range) ___
 
-    testingInvalidArgs = true;
+    gTestingInvalidArgs = true;
 
     requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE] = false;
     megaApi[0]->setNodeCoordinates(n1, -1523421.8719987255814, +6349.54);
@@ -1134,7 +1181,7 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     waitForResponse(&requestFlags[0][MegaRequest::TYPE_SET_ATTR_NODE]);
     ASSERT_EQ(MegaError::API_EARGS, lastError[0]) << "Unexpected error trying to reset only one coordinate (error: " << lastError[0] << ")";
 
-    testingInvalidArgs = false;
+    gTestingInvalidArgs = false;
 
 
     // ___ Set coordinates of a node ___
@@ -1313,7 +1360,7 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
  */
 TEST_F(SdkTest, SdkTestResumeSession)
 {
-    megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Resume session___");
+    LOG_info << "___TEST Resume session___";
 
     char *session = dumpSession();
 
@@ -1343,7 +1390,7 @@ TEST_F(SdkTest, SdkTestResumeSession)
  */
 TEST_F(SdkTest, SdkTestNodeOperations)
 {
-    megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Node operations___");
+    LOG_info <<  "___TEST Node operations___";
 
     // --- Create a new folder ---
 
@@ -1476,10 +1523,10 @@ TEST_F(SdkTest, SdkTestNodeOperations)
  */
 TEST_F(SdkTest, SdkTestTransfers)
 {
-    megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Transfers___");
+    LOG_info << "___TEST Transfers___";
 
     
-    megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, cwd());
+    LOG_info << cwd();
 
     MegaNode *rootnode = megaApi[0]->getRootNode();
     string filename1 = UPFILE;
@@ -1649,7 +1696,7 @@ TEST_F(SdkTest, SdkTestTransfers)
  */
 TEST_F(SdkTest, SdkTestContacts)
 {
-    megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Contacts___");
+    LOG_info << "___TEST Contacts___";
 
     ASSERT_NO_FATAL_FAILURE( getMegaApiAux() );    // login + fetchnodes
 
@@ -2009,7 +2056,7 @@ bool SdkTest::checkAlert(int apiIndex, const string& title, handle h, int n)
 
 TEST_F(SdkTest, SdkTestShares)
 {
-    megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Shares___");
+    LOG_info << "___TEST Shares___";
 
     MegaShareList *sl;
     MegaShare *s;
@@ -2322,7 +2369,7 @@ TEST_F(SdkTest, SdkTestShares)
 * Run various tests confirming the console autocomplete will work as expected
 *
 */
-#ifdef WIN32
+#ifdef _WIN32
 
 bool cmp(const autocomplete::CompletionState& c, std::vector<std::string>& s)
 {
@@ -2983,7 +3030,7 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
  */
 TEST_F(SdkTest, SdkTestChat)
 {
-    megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Chat___");
+    LOG_info << "___TEST Chat___";
 
     ASSERT_NO_FATAL_FAILURE( getMegaApiAux() );    // login + fetchnodes    
 
@@ -2994,7 +3041,9 @@ TEST_F(SdkTest, SdkTestChat)
     contactRequestUpdated[1] = false;
     ASSERT_NO_FATAL_FAILURE( inviteContact(email[1], message, MegaContactRequest::INVITE_ACTION_ADD) );
     ASSERT_TRUE( waitForResponse(&contactRequestUpdated[1]) )   // at the target side (auxiliar account)
-            << "Contact request update not received after " << maxTimeout << " seconds";
+            << "Contact request update not received after " << maxTimeout << " seconds";    
+    // if there were too many invitations within a short period of time, the invitation can be rejected by
+    // the API with `API_EOVERQUOTA = -17` as counter spamming meassure (+500 invites in the last 50 days)
 
     // --- Accept a contact invitation ---
 
@@ -3126,7 +3175,7 @@ public:
 
 TEST_F(SdkTest, SdkTestFingerprint)
 {
-    megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST fingerprint stream/file___");
+    LOG_info << "___TEST fingerprint stream/file___";
 
     int filesizes[] = { 10, 100, 1000, 10000, 100000, 10000000 };
     string expected[] = {
@@ -3225,7 +3274,7 @@ namespace mega
             unsigned oldvalue = tbm->raidLinesPerChunk;
             tbm->raidLinesPerChunk /= 4;
             LOG_info << "adjusted raidlinesPerChunk from " << oldvalue << " to " << tbm->raidLinesPerChunk;
-        };
+        }
 
         static bool  onHttpReqPost509(HttpReq* req)
         {
@@ -3241,7 +3290,7 @@ namespace mega
                 }
             }
             return false;
-        };
+        }
 
         static bool  onHttpReqPost404Or403(HttpReq* req)
         {
@@ -3263,7 +3312,7 @@ namespace mega
                 }
             }
             return false;
-        };
+        }
 
 
         static bool  onHttpReqPostTimeout(HttpReq* req)
@@ -3279,13 +3328,13 @@ namespace mega
                 }
             }
             return false;
-        };
+        }
 
         static void onSetIsRaid(::mega::RaidBufferManager* tbm)
         {
             isRaid = tbm->isRaid();
             isRaidKnown = true;
-        };
+        }
 
         static bool resetForTests()
         {
@@ -3306,7 +3355,7 @@ namespace mega
         static void onSetIsRaid_smallchunks10(::mega::RaidBufferManager* tbm)
         {
             tbm->raidLinesPerChunk = 10;
-        };
+        }
 
     };
 
@@ -3317,7 +3366,7 @@ namespace mega
     int DebugTestHook::countdownTo403 = 10;
     int DebugTestHook::countdownToTimeout = 15;
 
-};
+}
 
 
 /**
@@ -3329,14 +3378,10 @@ namespace mega
 *
 */
 
-
+#ifdef DEBUG
 TEST_F(SdkTest, SdkTestCloudraidTransfers)
 {
-#ifndef DEBUG
-    cout << "SdkTestCloudraidTransfers can't be run in a release build as it requires the debug hooks to adjust raid parameters" << endl;
-#else
-
-    megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Cloudraid transfers___");
+    LOG_info << "___TEST Cloudraid transfers___";
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
@@ -3367,7 +3412,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
     // smaller chunk sizes so we can get plenty of pauses
     #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
     globalMegaTestHooks.onSetIsRaid = ::mega::DebugTestHook::onSetIsRaid_morechunks;
-    #endif
+#endif
 
     // plain cloudraid download
     {
@@ -3441,8 +3486,8 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
     }
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
-#endif
 }
+#endif
 
 
 /**
@@ -3452,14 +3497,10 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
 *
 */
 
-
+#ifdef DEBUG
 TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
 {
-#ifndef DEBUG
-    cout << "SdkTestCloudraidTransferWithConnectionFailures can't be run in a release build as it requires the debug hooks to adjust raid parameters" << endl;
-#else
-
-    megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Cloudraid transfers___");
+    LOG_info << "___TEST Cloudraid transfers___";
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
@@ -3499,8 +3540,8 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
 
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
-#endif
 }
+#endif
 
 
 /**
@@ -3510,13 +3551,10 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
 *
 */
 
+#ifdef DEBUG
 TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
 {
-#ifndef DEBUG
-    cout << "SdkTestCloudraidTransferWithSingleChannelTimeouts can't be run in a release build as it requires the debug hooks to adjust raid parameters" << endl;
-#else
-
-    megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Cloudraid transfers___");
+    LOG_info << "___TEST Cloudraid transfers___";
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
@@ -3552,8 +3590,8 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
         ASSERT_LT(DebugTestHook::countdownToTimeout, 0);
     }
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
-#endif
 }
+#endif
 
 
 
@@ -3564,12 +3602,9 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
 * 
 */
 
+#ifdef DEBUG
 TEST_F(SdkTest, SdkTestOverquotaNonCloudraid)
 {
-#ifndef DEBUG
-    cout << "SdkTestOverquotaNonCloudraid can't be run in a release build as it requires the debug hooks to adjust raid parameters" << endl;
-#else
-
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
     // make a file to download, and upload so we can pull it down
@@ -3626,8 +3661,8 @@ TEST_F(SdkTest, SdkTestOverquotaNonCloudraid)
     ASSERT_LT(DebugTestHook::countdownToOverquota, originalcount);  // there should have been more http activity after the wait
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
-#endif
 }
+#endif
 
 
 /**
@@ -3637,11 +3672,9 @@ TEST_F(SdkTest, SdkTestOverquotaNonCloudraid)
 *
 */
 
+#ifdef DEBUG
 TEST_F(SdkTest, SdkTestOverquotaCloudraid)
 {
-#ifndef DEBUG
-    cout << "SdkTestOverquotaCloudraid can't be run in a release build as it requires the debug hooks to adjust raid parameters" << endl;
-#else
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
     ASSERT_NO_FATAL_FAILURE(importPublicLink(0, "https://mega.nz/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", megaApi[0]->getRootNode()));
@@ -3691,8 +3724,8 @@ TEST_F(SdkTest, SdkTestOverquotaCloudraid)
     ASSERT_LT(DebugTestHook::countdownToOverquota, originalcount);  // there should have been more http activity after the wait
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
-#endif
 }
+#endif
 
 
 struct CheckStreamedFile_MegaTransferListener : public MegaTransferListener
@@ -3732,10 +3765,10 @@ struct CheckStreamedFile_MegaTransferListener : public MegaTransferListener
         delete[] receiveBuf;
     }
 
-    void onTransferStart(MegaApi *api, MegaTransfer *transfer) /*override*/
+    void onTransferStart(MegaApi *api, MegaTransfer *transfer) override
     {
     }
-    void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* error) /*override*/
+    void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* error) override
     {
         if (error && error->getErrorCode() != API_OK)
         {
@@ -3749,14 +3782,16 @@ struct CheckStreamedFile_MegaTransferListener : public MegaTransferListener
             completedSuccessfully = true;
         }
     }
-    void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) /*override*/
+    void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) override
     {
     }
-    void onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* error) /*override*/
+    void onTransferTemporaryError(MegaApi *api, MegaTransfer * /*transfer*/, MegaError* error) override
     {
-        cout << "onTransferTemporaryError: " << (error?error->getErrorString():"NULL") << endl;
+        ostringstream msg;
+        msg << "onTransferTemporaryError: " << (error ? error->getErrorString() : "NULL") << endl;
+        api->log(MegaApi::LOG_LEVEL_ERROR, msg.str().c_str());
     }
-    bool onTransferData(MegaApi *api, MegaTransfer *transfer, char *buffer, size_t size) /*override*/
+    bool onTransferData(MegaApi *api, MegaTransfer *transfer, char *buffer, size_t size) override
     {
         assert(receiveBufPos + size <= reserved);
         memcpy(receiveBuf + receiveBufPos, buffer, size);
@@ -3852,7 +3887,7 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
     compareDecryptedFile.read((char*)compareDecryptedData, filesize);
 
     m_time_t starttime = m_time();
-    int seconds_to_test_for = g_runningInCI ? 60 : 60 * 10;
+    int seconds_to_test_for = gRunningInCI ? 60 : 60 * 10;
 
     // ok loop for 10 minutes
     srand(unsigned(starttime));
@@ -3933,9 +3968,11 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
 
     }
 
-    ASSERT_TRUE(randomRunsDone > (g_runningInCI ? 10 : 100));
+    ASSERT_TRUE(randomRunsDone > (gRunningInCI ? 10 : 100));
 
-    cout << "Streaming test downloaded " << randomRunsDone << " samples of the file from random places and sizes, " << randomRunsBytes << " bytes total" << endl;
+    ostringstream msg;
+    msg << "Streaming test downloaded " << randomRunsDone << " samples of the file from random places and sizes, " << randomRunsBytes << " bytes total" << endl;
+    megaApi[0]->log(MegaApi::LOG_LEVEL_DEBUG, msg.str().c_str());
 
     delete nimported;
     delete nonRaidNode;
@@ -3946,11 +3983,9 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
 #endif
 }
 
-
-
 TEST_F(SdkTest, SdkRecentsTest)
 {
-    megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST SdkRecentsTest___");
+    LOG_info << "___TEST SdkRecentsTest___";
 
     MegaNode *rootnode = megaApi[0]->getRootNode();
 
@@ -3989,14 +4024,17 @@ TEST_F(SdkTest, SdkRecentsTest)
 
     MegaRecentActionBucketList* buckets = megaApi[0]->getRecentActions(1, 10);
 
+    ostringstream logMsg;
     for (int i = 0; i < buckets->size(); ++i)
     {
-        cout << "bucket " << i << endl;
+        logMsg << "bucket " << to_string(i) << endl;
+        megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, logMsg.str().c_str());
         auto bucket = buckets->get(i);
         for (int j = 0; j < buckets->get(i)->getNodes()->size(); ++j)
         {
             auto node = bucket->getNodes()->get(j);
-            cout << node->getName() << " " << node->getCreationTime() << " " << bucket->getTimestamp() << " " << bucket->getParentHandle() << " " << bucket->isUpdate() << " " << bucket->isMedia() << endl;
+            logMsg << node->getName() << " " << node->getCreationTime() << " " << bucket->getTimestamp() << " " << bucket->getParentHandle() << " " << bucket->isUpdate() << " " << bucket->isMedia() << endl;
+            megaApi[0]->log(MegaApi::LOG_LEVEL_DEBUG, logMsg.str().c_str());
         }
     }
 
@@ -4007,3 +4045,123 @@ TEST_F(SdkTest, SdkRecentsTest)
     ASSERT_EQ(UPFILE, string(buckets->get(0)->getNodes()->get(1)->getName()));
 }
 
+// TODO: Enable this test when API command (smslc) becomes available in production
+TEST_F(SdkTest, DISABLED_SdkGetCountryCallingCodes)
+{
+    LOG_info << "___TEST SdkGetCountryCallingCodes___";
+
+    getCountryCallingCodes();
+    ASSERT_NE(nullptr, stringListMap);
+    ASSERT_GT(stringListMap->size(), 0);
+    // sanity check a few country codes
+    const MegaStringList* const nz = stringListMap->get("NZ");
+    ASSERT_NE(nullptr, nz);
+    ASSERT_EQ(1, nz->size());
+    ASSERT_EQ(0, strcmp("64", nz->get(0)));
+    const MegaStringList* const de = stringListMap->get("DE");
+    ASSERT_NE(nullptr, de);
+    ASSERT_EQ(1, de->size());
+    ASSERT_EQ(0, strcmp("49", de->get(0)));
+}
+
+// TODO: Enable this test when API command (usabd) becomes available in production
+TEST_F(SdkTest, DISABLED_SdkGetRegisteredContacts)
+{
+    LOG_info << "___TEST SdkGetRegisteredContacts___";
+
+    const std::string js1 = "+0000000010";
+    const std::string js2 = "+0000000011";
+    const std::map<std::string, std::string> contacts{
+        {js1, "John Smith"}, // sms verified
+        {js2, "John Smith"}, // sms verified
+        {"+640", "John Smith"}, // not sms verified
+    };
+    getRegisteredContacts(contacts);
+    ASSERT_NE(nullptr, stringTable);
+    ASSERT_EQ(2, stringTable->size());
+
+    // repacking and sorting result
+    using row_t = std::tuple<std::string, std::string, std::string>;
+    std::vector<row_t> table;
+    for (int i = 0; i < stringTable->size(); ++i)
+    {
+        const MegaStringList* const stringList = stringTable->get(i);
+        ASSERT_EQ(3, stringList->size());
+        table.emplace_back(stringList->get(0), stringList->get(1), stringList->get(2));
+    }
+
+    std::sort(table.begin(), table.end(), [](const row_t& lhs, const row_t& rhs)
+                                          {
+                                              return std::get<0>(lhs) < std::get<0>(rhs);
+                                          });
+
+    // Check johnsmith1
+    ASSERT_EQ(js1, std::get<0>(table[0])); // eud
+    ASSERT_GT(std::get<1>(table[0]).size(), 0u); // id
+    ASSERT_EQ(js1, std::get<2>(table[0])); // ud
+
+    // Check johnsmith2
+    ASSERT_EQ(js2, std::get<0>(table[1])); // eud
+    ASSERT_GT(std::get<1>(table[1]).size(), 0u); // id
+    ASSERT_EQ(js2, std::get<2>(table[1])); // ud
+}
+
+TEST_F(SdkTest, RecursiveUploadWithLogout)
+{
+    // this one used to cause a double-delete
+
+    // make new folders (and files) in the local filesystem - approx 90 
+    fs::path p = fs::current_path() / "uploadme_mega_auto_test_sdk";
+    if (fs::exists(p))
+    {
+        fs::remove_all(p);
+    }
+    fs::create_directories(p);
+    ASSERT_TRUE(buildLocalFolders(p.u8string().c_str(), "newkid", 3, 2, 10));
+
+    // start uploading
+    TransferTracker uploadListener;
+    megaApi[0]->startUpload(p.u8string().c_str(), megaApi[0]->getRootNode(), &uploadListener);
+    WaitMillisec(500);
+
+    // logout while the upload (which consists of many transfers) is ongoing
+    ASSERT_EQ(API_OK, doRequestLogout(0));
+    ASSERT_EQ(API_EACCESS, uploadListener.waitForResult());
+}
+
+TEST_F(SdkTest, RecursiveDownloadWithLogout)
+{
+    // this one used to cause a double-delete
+
+    // make new folders (and files) in the local filesystem - approx 130 - we must upload in order to have something to download
+    fs::path uploadpath = fs::current_path() / "uploadme_mega_auto_test_sdk";
+    fs::path downloadpath = fs::current_path() / "downloadme_mega_auto_test_sdk";
+
+    std::error_code ec;
+    fs::remove_all(uploadpath, ec);
+    fs::remove_all(downloadpath, ec);
+    ASSERT_TRUE(!fs::exists(uploadpath));
+    ASSERT_TRUE(!fs::exists(downloadpath));
+    fs::create_directories(uploadpath);
+    fs::create_directories(downloadpath);
+
+    ASSERT_TRUE(buildLocalFolders(uploadpath.u8string().c_str(), "newkid", 3, 2, 10));
+
+    // upload all of those
+    TransferTracker uploadListener, downloadListener;
+    megaApi[0]->startUpload(uploadpath.u8string().c_str(), megaApi[0]->getRootNode(), &uploadListener);
+    ASSERT_EQ(API_OK, uploadListener.waitForResult());
+
+    // ok now try the download
+    megaApi[0]->startDownload(megaApi[0]->getNodeByPath("/uploadme_mega_auto_test_sdk"), downloadpath.u8string().c_str(), &downloadListener);
+    WaitMillisec(1000);
+    ASSERT_TRUE(downloadListener.started);
+    ASSERT_TRUE(!downloadListener.finished);
+
+    // logout while the download (which consists of many transfers) is ongoing
+    ASSERT_EQ(API_OK, doRequestLogout(0));
+
+    ASSERT_EQ(API_EACCESS, downloadListener.waitForResult());
+    fs::remove_all(uploadpath, ec);
+    fs::remove_all(downloadpath, ec);
+}

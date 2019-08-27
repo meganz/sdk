@@ -7,12 +7,13 @@ CONFIG(release, debug|release) {
     CONFIG += release
 }
 
-TARGET = MEGAsdktests
+TARGET = test_unit
 TEMPLATE = app
 
 CONFIG += USE_LIBUV
 CONFIG += USE_MEGAAPI
 CONFIG += USE_MEDIAINFO
+CONFIG += USE_LIBRAW
 CONFIG += USE_FFMPEG
 CONFIG -= qt
 
@@ -20,8 +21,10 @@ LIBS += -lgtest
 
 include(../../../../bindings/qt/sdk.pri)
 
-SOURCES += ../../../../tests/sdk_test.cpp \
-           ../../../../tests/sdktests.cpp
-
-HEADERS += \
-    ../../../../tests/sdk_test.h
+SOURCES += \
+    ../../../../tests/unit/main.cpp \
+    ../../../../tests/unit/Commands_test.cpp \
+    ../../../../tests/unit/Crypto_test.cpp \
+    ../../../../tests/unit/Serialization_test.cpp \
+    ../../../../tests/unit/PayCrypter_test.cpp \
+    ../../../../tests/unit/MegaApi_test.cpp

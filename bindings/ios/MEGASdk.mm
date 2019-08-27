@@ -2160,6 +2160,37 @@ using namespace mega;
     self.megaApi->getPublicLinkInformation(folderLink.UTF8String);
 }
 
+#pragma mark - SMS
+
+- (SMSState)smsAllowedState {
+    return (SMSState)self.megaApi->smsAllowedState();
+}
+
+- (void)getRegisteredContacts:(NSArray<NSDictionary *> *)contacts delegate:(id<MEGARequestDelegate>)delegate {
+    MegaStringMap *stringMapContacts = MegaStringMap::createInstance();
+    for (NSDictionary *contact in contacts) {
+        NSString *key = contact.allKeys.firstObject;
+        NSString *value = contact.allValues.firstObject;
+        stringMapContacts->set(key.UTF8String, value.UTF8String);
+    }
+    
+    self.megaApi->getRegisteredContacts(stringMapContacts, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+
+    delete stringMapContacts;    
+}
+
+- (void)getCountryCallingCodesWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getCountryCallingCodes([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)sendSMSVerificationCodeToPhoneNumber:(NSString *)phoneNumber delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->sendSMSVerificationCode([phoneNumber UTF8String], [self createDelegateMEGARequestListener:delegate singleListener:YES], YES);
+}
+
+- (void)checkSMSVerificationCode:(NSString *)verificationCode delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->checkSMSVerificationCode([verificationCode UTF8String], [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
 #pragma mark - Debug log messages
 
 + (void)setLogLevel:(MEGALogLevel)logLevel {
