@@ -340,8 +340,9 @@ namespace {
 void checkDeserializedNode(const mega::Node& dl, const mega::Node& ref)
 {
     ASSERT_EQ(ref.type, dl.type);
-    ASSERT_EQ(ref.size < 0 ? 0 : ref.size, dl.size);
+    ASSERT_EQ(ref.size, dl.size);
     ASSERT_EQ(ref.nodehandle, dl.nodehandle);
+    ASSERT_EQ(ref.parenthandle, dl.parenthandle);
     ASSERT_EQ(ref.owner, dl.owner);
     ASSERT_EQ(ref.ctime, dl.ctime);
     ASSERT_EQ(ref.nodekey, dl.nodekey);
@@ -401,6 +402,128 @@ TEST(Serialization, Node_forFile_withoutParent_withoutShares_withoutAttrs_withou
     std::string data;
     ASSERT_TRUE(n.serialize(&data));
     ASSERT_EQ(90, data.size());
+    mega::node_vector dp;
+    auto dn = std::unique_ptr<mega::Node>{mega::Node::unserialize(nullptr, &data, &dp)};
+    checkDeserializedNode(*dn, n);
+}
+
+TEST(Serialization, Node_forFolder_withoutParent_withoutShares_withoutAttrs_withoutFileAttrString_withoutPlink)
+{
+    mega::Node n;
+    n.nodehandle = 42;
+    n.type = mega::FOLDERNODE;
+    n.size = -1;
+    n.nodekey.resize(mega::FOLDERNODEKEYLENGTH);
+    n.owner = 43;
+    n.ctime = 44;
+    n.syncable = false;
+    std::string data;
+    ASSERT_TRUE(n.serialize(&data));
+    ASSERT_EQ(71, data.size());
+    mega::node_vector dp;
+    auto dn = std::unique_ptr<mega::Node>{mega::Node::unserialize(nullptr, &data, &dp)};
+    checkDeserializedNode(*dn, n);
+}
+
+TEST(Serialization, Node_forFile_withoutShares_withoutAttrs_withoutFileAttrString_withoutPlink)
+{
+    mega::Node parent;
+    mega::Node n;
+    n.nodehandle = 42;
+    n.parenthandle = 21;
+    parent.nodehandle = n.parenthandle;
+    parent.children.push_back(&n);
+    n.child_it = parent.children.begin();
+    n.parent = &parent;
+    n.type = mega::FILENODE;
+    n.size = 12;
+    n.nodekey.resize(mega::FILENODEKEYLENGTH);
+    n.owner = 43;
+    n.ctime = 44;
+    n.syncable = false;
+    std::string data;
+    ASSERT_TRUE(n.serialize(&data));
+    ASSERT_EQ(90, data.size());
+    mega::node_vector dp;
+    auto dn = std::unique_ptr<mega::Node>{mega::Node::unserialize(nullptr, &data, &dp)};
+    checkDeserializedNode(*dn, n);
+}
+
+TEST(Serialization, Node_forFile_withoutShares_withoutFileAttrString_withoutPlink)
+{
+    mega::Node parent;
+    mega::Node n;
+    n.nodehandle = 42;
+    n.parenthandle = 21;
+    parent.nodehandle = n.parenthandle;
+    parent.children.push_back(&n);
+    n.child_it = parent.children.begin();
+    n.parent = &parent;
+    n.type = mega::FILENODE;
+    n.size = 12;
+    n.nodekey.resize(mega::FILENODEKEYLENGTH);
+    n.owner = 43;
+    n.ctime = 44;
+    n.syncable = false;
+    n.attrs.map = {
+        {101, "foo"},
+        {102, "bar"},
+    };
+    std::string data;
+    ASSERT_TRUE(n.serialize(&data));
+    ASSERT_EQ(104, data.size());
+    mega::node_vector dp;
+    auto dn = std::unique_ptr<mega::Node>{mega::Node::unserialize(nullptr, &data, &dp)};
+    checkDeserializedNode(*dn, n);
+}
+
+TEST(Serialization, Node_forFolder_withoutShares_withoutAttrs_withoutFileAttrString_withoutPlink)
+{
+    mega::Node parent;
+    mega::Node n;
+    n.nodehandle = 42;
+    n.parenthandle = 21;
+    parent.nodehandle = n.parenthandle;
+    parent.children.push_back(&n);
+    n.child_it = parent.children.begin();
+    n.parent = &parent;
+    n.type = mega::FOLDERNODE;
+    n.size = -1;
+    n.nodekey.resize(mega::FOLDERNODEKEYLENGTH);
+    n.owner = 43;
+    n.ctime = 44;
+    n.syncable = false;
+    std::string data;
+    ASSERT_TRUE(n.serialize(&data));
+    ASSERT_EQ(71, data.size());
+    mega::node_vector dp;
+    auto dn = std::unique_ptr<mega::Node>{mega::Node::unserialize(nullptr, &data, &dp)};
+    checkDeserializedNode(*dn, n);
+}
+
+TEST(Serialization, Node_forFolder_withoutShares_withoutFileAttrString_withoutPlink)
+{
+    mega::Node parent;
+    mega::Node n;
+    n.nodehandle = 42;
+    n.parenthandle = 21;
+    parent.nodehandle = n.parenthandle;
+    parent.children.push_back(&n);
+    n.child_it = parent.children.begin();
+    n.parent = &parent;
+    n.type = mega::FOLDERNODE;
+    n.size = -1;
+    n.nodekey.resize(mega::FOLDERNODEKEYLENGTH);
+    n.owner = 43;
+    n.ctime = 44;
+    n.syncable = false;
+    n.attrs.map = {
+        {101, "foo"},
+        {102, "bar"},
+    };
+    std::string data;
+    ASSERT_TRUE(n.serialize(&data));
+    ASSERT_EQ(85, data.size());
     mega::node_vector dp;
     auto dn = std::unique_ptr<mega::Node>{mega::Node::unserialize(nullptr, &data, &dp)};
     checkDeserializedNode(*dn, n);
