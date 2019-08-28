@@ -201,6 +201,69 @@ bool CacheableReader::unserializebinary(byte* data, size_t len)
     return true;
 }
 
+
+void chunkmac_map::serialize(string& d) const
+{
+    unsigned short ll = (unsigned short)size();
+    d.append((char*)&ll, sizeof(ll));
+    for (const_iterator it = begin(); it != end(); it++)
+    {
+        d.append((char*)&it->first, sizeof(it->first));
+        d.append((char*)&it->second, sizeof(it->second));
+    }
+}
+
+bool chunkmac_map::unserialize(const char*& ptr, const char* end)
+{
+    unsigned short ll;
+    if ((ptr + sizeof(ll) > end) || ptr + (ll = MemAccess::get<unsigned short>(ptr)) * (sizeof(m_off_t) + sizeof(ChunkMAC)) + sizeof(ll) > end)
+    {
+        return false;
+    }
+
+    ptr += sizeof(ll);
+
+    for (int i = 0; i < ll; i++)
+    {
+        m_off_t pos = MemAccess::get<m_off_t>(ptr);
+        ptr += sizeof(m_off_t);
+
+        memcpy(&((*this)[pos]), ptr, sizeof(ChunkMAC));
+        ptr += sizeof(ChunkMAC);
+    }
+    return true;
+}
+
+void chunkmac_map::calcprogress(m_off_t size, m_off_t& chunkpos, m_off_t& progresscompleted, m_off_t* lastblockprogress)
+{
+    chunkpos = 0;
+    progresscompleted = 0;
+
+    for (chunkmac_map::iterator it = begin(); it != end(); ++it)
+    {
+        m_off_t chunkceil = ChunkedHash::chunkceil(it->first, size);
+
+        if (chunkpos == it->first && it->second.finished)
+        {
+            chunkpos = chunkceil;
+            progresscompleted = chunkceil;
+        }
+        else if (it->second.finished)
+        {
+            m_off_t chunksize = chunkceil - ChunkedHash::chunkfloor(it->first);
+            progresscompleted += chunksize;
+        }
+        else
+        {
+            progresscompleted += it->second.offset;
+            if (lastblockprogress)
+            {
+                *lastblockprogress += it->second.offset;
+            }
+        }
+    }
+}
+
 bool CacheableReader::unserializechunkmacs(chunkmac_map& m)
 {
     if (m.unserialize(ptr, end))   // ptr is adjusted by reference
@@ -1089,9 +1152,9 @@ string * TLVstore::tlvRecordsToContainer(PrnGen &rng, SymmCipher *key, encryptio
     return result;
 }
 
-string * TLVstore::tlvRecordsToContainer()
+string* TLVstore::tlvRecordsToContainer()
 {
-    string * result = new string;
+    string *result = new string;
     size_t offset = 0;
     size_t length;
 
@@ -1144,6 +1207,11 @@ bool TLVstore::find(string type)
 void TLVstore::set(string type, string value)
 {
     tlv[type] = value;
+}
+
+void TLVstore::reset(std::string type)
+{
+    tlv.erase(type);
 }
 
 size_t TLVstore::size()
@@ -1287,7 +1355,7 @@ TLVstore * TLVstore::containerToTLVrecords(const string *data, SymmCipher *key)
     unsigned taglen = TLVstore::getTaglen(encSetting);
     encryptionmode_t encMode = TLVstore::getMode(encSetting);
 
-    if (encMode == AES_MODE_UNKNOWN || !ivlen || !taglen ||  data->size() <= offset+ivlen+taglen)
+    if (encMode == AES_MODE_UNKNOWN || !ivlen || !taglen ||  data->size() < offset+ivlen+taglen)
     {
         return NULL;
     }
@@ -1302,20 +1370,25 @@ TLVstore * TLVstore::containerToTLVrecords(const string *data, SymmCipher *key)
     unsigned clearTextLen = cipherTextLen - taglen;
     string clearText;
 
+    bool decrypted = false;
     if (encMode == AES_MODE_CCM)   // CCM or GCM_BROKEN (same than CCM)
     {
-        key->ccm_decrypt(&cipherText, iv, ivlen, taglen, &clearText);
+       decrypted = key->ccm_decrypt(&cipherText, iv, ivlen, taglen, &clearText);
     }
     else if (encMode == AES_MODE_GCM)  // GCM
     {
-        key->gcm_decrypt(&cipherText, iv, ivlen, taglen, &clearText);
+       decrypted = key->gcm_decrypt(&cipherText, iv, ivlen, taglen, &clearText);
     }
 
     delete [] iv;
 
-    if (clearText.empty())  // the decryption has failed (probably due to authentication)
+    if (!decrypted)  // the decryption has failed (probably due to authentication)
     {
         return NULL;
+    }
+    else if (clearText.empty()) // If decryption succeeded but attribute is empty, generate an empty TLV
+    {
+        return new TLVstore();
     }
 
     TLVstore *tlv = TLVstore::containerToTLVrecords(&clearText);
@@ -1841,6 +1914,23 @@ void tolower_string(std::string& str)
     std::transform(str.begin(), str.end(), str.begin(), [](char c) {return static_cast<char>(::tolower(c)); });
 }
 
+void NodeCounter::operator += (const NodeCounter& o)
+{
+    storage += o.storage;
+    versionStorage += o.versionStorage;
+    files += o.files;
+    folders += o.folders;
+    versions += o.versions;
+}
+
+void NodeCounter::operator -= (const NodeCounter& o)
+{
+    storage -= o.storage;
+    versionStorage -= o.versionStorage;
+    files -= o.files;
+    folders -= o.folders;
+    versions -= o.versions;
+}
 
 } // namespace
 

@@ -199,7 +199,7 @@ public:
      * @param taglen Length of expected authentication tag. Allowed sizes are 8 and 16 bytes.
      * @param result Decrypted data, not including the authentication tag.
      */
-    void ccm_decrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result);
+    bool ccm_decrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result);
 
     /**
      * @brief Authenticated symmetric encryption using AES in GCM mode.
@@ -230,7 +230,7 @@ public:
      * @param taglen Length of expected authentication tag. Allowed sizes are 8 and 16 bytes.
      * @param result Decrypted data, not including the authentication tag.
      */
-    void gcm_decrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result);
+    bool gcm_decrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result);
 
     /**
      * @brief Serialize key for compatibility with the webclient

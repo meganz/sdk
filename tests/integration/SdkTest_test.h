@@ -24,17 +24,18 @@
 #include "../include/megaapi.h"
 #include "../include/megaapi_impl.h"
 #include "gtest/gtest.h"
+#include "test.h"
 
 #include <iostream>
 #include <fstream>
-
-extern bool g_runningInCI;
+#include <future>
+#include <atomic>
 
 using namespace mega;
 using ::testing::Test;
 
 static const string APP_KEY     = "8QxzVRxD";
-static const string USER_AGENT  = "Unit Tests with GoogleTest framework";
+static const string USER_AGENT  = "Integration Tests with GoogleTest framework";
 
 // IMPORTANT: the main account must be empty (Cloud & Rubbish) before starting the test and it will be purged at exit.
 // Both main and auxiliar accounts shouldn't be contacts yet and shouldn't have any pending contact requests.
@@ -50,8 +51,6 @@ static const string EMPTYFILE   = "empty-file.txt";
 static const string AVATARSRC   = "logo.png";
 static const string AVATARDST   = "deleteme.png";
 
-static bool testingInvalidArgs = false;
-
 class MegaLoggerSDK : public MegaLogger {
 
 public:
@@ -63,6 +62,50 @@ private:
 
 protected:
     void log(const char *time, int loglevel, const char *source, const char *message);
+};
+
+struct TransferTracker : public ::mega::MegaTransferListener
+{
+    std::atomic<bool> started = { false };
+    std::atomic<bool> finished = { false };
+    std::atomic<int> result = { INT_MAX };
+    std::promise<int> promiseResult;
+    void onTransferStart(MegaApi *api, MegaTransfer *transfer) override
+    {
+        started = true;
+    }
+    void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* error) override
+    {
+        result = error->getErrorCode();
+        finished = true;
+        promiseResult.set_value(result);
+    }
+    int waitForResult()
+    {
+        return promiseResult.get_future().get();
+    }
+};
+
+struct RequestTracker : public ::mega::MegaRequestListener
+{
+    std::atomic<bool> started = { false };
+    std::atomic<bool> finished = { false };
+    std::atomic<int> result = { INT_MAX };
+    std::promise<int> promiseResult;
+    void onRequestStart(MegaApi* api, MegaRequest *request) override
+    {
+        started = true;
+    }
+    void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError* e) override
+    {
+        result = e->getErrorCode();
+        finished = true;
+        promiseResult.set_value(result);
+    }
+    int waitForResult()
+    {
+        return promiseResult.get_future().get();
+    }
 };
 
 // Fixture class with common code for most of tests
@@ -85,6 +128,8 @@ public:
     MegaNode *publicNode;
     string attributeValue;
     string sid;
+    std::unique_ptr<MegaStringListMap> stringListMap;
+    std::unique_ptr<MegaStringTable> stringTable;
 
     MegaContactRequest* cr[2];
 
@@ -154,6 +199,10 @@ public:
     template<typename ... uploadArgs> int synchronousUpload(int apiIndex, uploadArgs... args) { synchronousCall(transferFlags[apiIndex][MegaTransfer::TYPE_UPLOAD], [this, apiIndex, args...]() { megaApi[apiIndex]->startUpload(args...); }); return lastError[apiIndex]; }
     template<typename ... uploadArgs> int synchronousCatchup(int apiIndex, uploadArgs... args) { synchronousCall(requestFlags[apiIndex][MegaRequest::TYPE_CATCHUP], [this, apiIndex, args...]() { megaApi[apiIndex]->catchup(args...); }); return lastError[apiIndex]; }
 
+
+    // convenience functions - make a request and wait for the result via listener, return the result code.  To add new functions to call, just copy the line
+    template<typename ... requestArgs> int doRequestLogout(int apiIndex, requestArgs... args) { RequestTracker rt; megaApi[apiIndex]->logout(args..., &rt); return rt.waitForResult(); }
+
     void createFile(string filename, bool largeFile = true);
     size_t getFilesize(string filename);
     void deleteFile(string filename);
@@ -177,6 +226,10 @@ public:
     void getContactRequest(unsigned int apiIndex, bool outgoing, int expectedSize = 1);
 
     void createFolder(unsigned int apiIndex, char * name, MegaNode *n, int timeout = maxTimeout);
+
+    void getRegisteredContacts(const std::map<std::string, std::string>& contacts, int timeout = maxTimeout);
+
+    void getCountryCallingCodes(int timeout = maxTimeout);
 
 #ifdef ENABLE_CHAT
     void createChat(bool group, MegaTextChatPeerList *peers, int timeout = maxTimeout);

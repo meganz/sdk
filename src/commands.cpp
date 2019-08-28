@@ -3459,6 +3459,9 @@ void CommandGetUserData::procresult()
     bool nsre = false;
     bool aplvp = false;
 
+    int  smsve = -1;
+    string smsv;
+
     bool b = false;
     BizMode m = BIZ_MODE_UNKNOWN;
     BizStatus s = BIZ_STATUS_UNKNOWN;
@@ -3526,6 +3529,9 @@ void CommandGetUserData::procresult()
                         break;
                     case MAKENAMEID5('a', 'p', 'l', 'v', 'p'):   // apple VOIP push enabled
                         aplvp = bool(client->json.getint());
+                        break;
+                    case MAKENAMEID5('s', 'm', 's', 'v', 'e'):   // 2 = Opt-in and unblock SMS allowed 1 = Only unblock SMS allowed 0 = No SMS allowed
+                        smsve = int(client->json.getint());
                         break;
                     case EOO:
                         endobject = true;
@@ -3620,6 +3626,14 @@ void CommandGetUserData::procresult()
             }
             break;
 
+        case MAKENAMEID4('s', 'm', 's', 'v'):
+            if (!client->json.storeobject(&smsv))
+            {
+                LOG_err << "Invalid verified phone number (smsv)";
+                assert(false);
+            }
+            break;
+
         case EOO:
             if (v)
             {
@@ -3636,7 +3650,11 @@ void CommandGetUserData::procresult()
             client->ssrs_enabled = ssrs;
             client->nsr_enabled = nsre;
             client->aplvp_enabled = aplvp;
-            client->k = k;            
+
+            client->mSmsVerificationState = SmsVerificationState(smsve);
+            client->mSmsVerifiedPhone = smsv;
+
+            client->k = k;
 
             if (len_privk)
             {
@@ -3654,17 +3672,17 @@ void CommandGetUserData::procresult()
                 if ((s < BIZ_STATUS_EXPIRED || s > BIZ_STATUS_GRACE_PERIOD)  // status not received or invalid
                         || (m == BIZ_MODE_UNKNOWN))  // master flag not received or invalid
                 {
-                    LOG_err << "GetUserData: invalid business status / account mode";
+                    std::string err = "GetUserData: invalid business status / account mode";
+                    LOG_err << err;
+                    client->sendevent(99450, err.c_str());
+
+                    client->mBizStatus = BIZ_STATUS_EXPIRED;
+                    client->mBizMode = BIZ_MODE_SUBUSER;
+                    client->mBizExpirationTs = client->mBizGracePeriodTs = 0;
+                    client->app->notify_business_status(client->mBizStatus);
                 }
                 else
                 {
-                    if (client->mBizStatus != s)
-                    {
-                        client->mBizStatus = s;
-                        client->app->notify_business_status(s);
-                    }
-                    client->mBizMode = m;
-
                     for (auto it : sts)
                     {
                         BizStatus status = it.first;
@@ -3683,6 +3701,14 @@ void CommandGetUserData::procresult()
                         }
                     }
 
+                    client->mBizMode = m;
+
+                    if (client->mBizStatus != s)
+                    {
+                        client->mBizStatus = s;
+                        client->app->notify_business_status(s);
+                    }
+
                     // if current business status will expire sooner than the scheduled `ug`, update the
                     // backoff to a shorter one in order to refresh the business status asap
                     m_time_t auxts = 0;
@@ -3697,7 +3723,7 @@ void CommandGetUserData::procresult()
                     }
                     if (auxts)
                     {
-                        dstime diff = (now - auxts) * 10;
+                        dstime diff = static_cast<dstime>((now - auxts) * 10);
                         dstime current = client->btugexpiration.backoffdelta();
                         if (current > diff)
                         {
@@ -3736,7 +3762,7 @@ CommandGetMiscFlags::CommandGetMiscFlags(MegaClient *client)
 {
     cmd("gmf");
 
-    // this command can get these flags even when the account is blocked (if it's in a batch by itself)
+    // this one can get the smsve flag when the account is blocked (if it's in a batch by itself)
     batchSeparately = true;  
     suppressSID = true;
 
@@ -3773,6 +3799,9 @@ void CommandGetMiscFlags::procresult()
         case MAKENAMEID5('a', 'p', 'l', 'v', 'p'):   // apple VOIP push enabled
             client->aplvp_enabled = bool(client->json.getint());
             break;
+        case MAKENAMEID5('s', 'm', 's', 'v', 'e'):   // 2 = Opt-in and unblock SMS allowed 1 = Only unblock SMS allowed 0 = No SMS allowed
+            client->mSmsVerificationState = SmsVerificationState(client->json.getint());
+            break;
         case EOO:
             endobject = true;
             break;
@@ -3789,6 +3818,9 @@ void CommandGetMiscFlags::procresult()
 CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, AccountDetails* ad, bool storage, bool transfer, bool pro, int source)
 {
     details = ad;
+    mStorage = storage;
+    mTransfer = transfer;
+    mPro = pro;
 
     cmd("uq");
     if (storage)
@@ -3815,8 +3847,7 @@ void CommandGetUserQuota::procresult()
 {
     m_off_t td;
     bool got_storage = false;
-    bool got_transfer = false;
-    bool got_pro = false;
+    bool got_storage_used = false;
     int uslw = -1;
 
     if (client->json.isnumeric())
@@ -3885,7 +3916,6 @@ void CommandGetUserQuota::procresult()
 
             case MAKENAMEID3('t', 'a', 'l'):
                 details->transfer_limit = client->json.getint();
-                got_transfer = true;
                 break;
 
             case MAKENAMEID3('t', 'u', 'a'):
@@ -3907,6 +3937,7 @@ void CommandGetUserQuota::procresult()
             case MAKENAMEID5('c', 's', 't', 'r', 'g'):
                 // storage used
                 details->storage_used = client->json.getint();
+                got_storage_used = true;
                 break;
 
             case MAKENAMEID6('c', 's', 't', 'r', 'g', 'n'):
@@ -3924,6 +3955,19 @@ void CommandGetUserQuota::procresult()
                         ns->folders = uint32_t(client->json.getint());
                         ns->version_bytes = client->json.getint();
                         ns->version_files = client->json.getint();
+
+#ifdef _DEBUG
+                        // TODO: remove this debugging block once local count is confirmed to work correctly 100%
+                        // verify the new local storage counters per root match server side (could fail if actionpackets are pending)
+                        auto iter = client->mNodeCounters.find(h);
+                        if (iter != client->mNodeCounters.end())
+                        {
+                            LOG_debug << client->nodebyhandle(h)->displaypath() << " " << iter->second.storage << " " << ns->bytes << " " << iter->second.files << " " << ns->files << " " << iter->second.folders << " " << ns->folders << " "
+                                      << iter->second.versionStorage << " " << ns->version_bytes << " " << iter->second.versions << " " << ns->version_files
+                                      << (iter->second.storage == ns->bytes && iter->second.files == ns->files && iter->second.folders == ns->folders && iter->second.versionStorage == ns->version_bytes && iter->second.versions == ns->version_files 
+                                          ? "" : " ******************************************* mismatch *******************************************");
+                        }
+#endif 
 
                         while(client->json.storeobject());
                         client->json.leavearray();
@@ -3952,7 +3996,6 @@ void CommandGetUserQuota::procresult()
             case MAKENAMEID5('m', 'x', 'f', 'e', 'r'):
                 // total transfer quota
                 details->transfer_max = client->json.getint();
-                got_transfer = true;
                 break;
 
             case MAKENAMEID8('s', 'r', 'v', 'r', 'a', 't', 'i', 'o'):
@@ -3963,7 +4006,6 @@ void CommandGetUserQuota::procresult()
             case MAKENAMEID5('u', 't', 'y', 'p', 'e'):
                 // Pro plan (0 == none)
                 details->pro_level = (int)client->json.getint();
-                got_pro = 1;
                 break;
 
             case MAKENAMEID5('s', 't', 'y', 'p', 'e'):
@@ -4045,8 +4087,9 @@ void CommandGetUserQuota::procresult()
                 break;
 
             case EOO:
+                assert(!mStorage || (got_storage && got_storage_used));
 
-                if (got_storage)
+                if (mStorage)
                 {
                     if (uslw <= 0)
                     {
@@ -4071,7 +4114,7 @@ void CommandGetUserQuota::procresult()
                     }
                 }
 
-                client->app->account_details(details, got_storage, got_transfer, got_pro, false, false, false);
+                client->app->account_details(details, mStorage, mTransfer, mPro, false, false, false);
                 return;
 
             default:
@@ -4506,7 +4549,7 @@ void CommandWhyAmIblocked::procresult()
 {
     if (client->json.isnumeric())
     {
-        return client->app->whyamiblocked_result(error(client->json.getint()));
+        return client->app->whyamiblocked_result(int(client->json.getint()));
     }
 
     client->json.storeobject();
@@ -7201,6 +7244,271 @@ void CommandSetLastAcknowledged::procresult()
     {
         client->json.storeobject();
         client->app->acknowledgeuseralerts_result(API_EINTERNAL);
+    }
+}
+
+CommandSMSVerificationSend::CommandSMSVerificationSend(MegaClient* client, const string& phoneNumber, bool reVerifyingWhitelisted)
+{
+    cmd("smss");
+    batchSeparately = true;  // don't let any other commands that might get batched with it cause the whole batch to fail
+
+    assert(isPhoneNumber(phoneNumber));
+    arg("n", phoneNumber.c_str());
+
+    if (reVerifyingWhitelisted)
+    {
+        arg("to", 1);   // test override
+    }
+
+    tag = client->reqtag;
+}
+
+bool CommandSMSVerificationSend::isPhoneNumber(const string& s)
+{
+    for (auto i = s.size(); i--; )
+    {
+        if (!(isdigit(s[i]) || (i == 0 && s[i] == '+')))
+        {
+            return false;
+        }
+    }
+    return s.size() > 6;
+}
+
+void CommandSMSVerificationSend::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->smsverificationsend_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->smsverificationsend_result(API_EINTERNAL);
+    }
+}
+
+CommandSMSVerificationCheck::CommandSMSVerificationCheck(MegaClient* client, const string& verificationcode)
+{
+    cmd("smsv");
+    batchSeparately = true;  // don't let any other commands that might get batched with it cause the whole batch to fail
+
+    if (isVerificationCode(verificationcode))
+    {
+        arg("c", verificationcode.c_str());
+    }
+
+    tag = client->reqtag;
+}
+
+bool CommandSMSVerificationCheck::isVerificationCode(const string& s)
+{
+    for (const char c : s)
+    {
+        if (!isdigit(c))
+        {
+            return false;
+        }
+    }
+    return s.size() == 6;
+}
+
+void CommandSMSVerificationCheck::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        return client->app->smsverificationcheck_result(static_cast<error>(client->json.getint()), nullptr);
+    }
+
+    string phoneNumber;
+    if (!client->json.storeobject(&phoneNumber))
+    {
+        return client->app->smsverificationcheck_result(API_EINTERNAL, nullptr);
+    }
+
+    assert(CommandSMSVerificationSend::isPhoneNumber(phoneNumber));
+    client->mSmsVerifiedPhone = phoneNumber;
+    client->app->smsverificationcheck_result(API_OK, &phoneNumber);
+}
+
+CommandGetRegisteredContacts::CommandGetRegisteredContacts(MegaClient* client, const map<const char*, const char*>& contacts)
+{
+    cmd("usabd");
+
+    beginobject("e");
+    for (const auto& pair : contacts)
+    {
+        arg(pair.first, pair.second);
+    }
+    endobject();
+
+    tag = client->reqtag;
+}
+
+void CommandGetRegisteredContacts::procresult()
+{
+    processResult(*client->app, client->json);
+}
+
+void CommandGetRegisteredContacts::processResult(MegaApp& app, JSON& json)
+{
+    if (json.isnumeric())
+    {
+        app.getregisteredcontacts_result(static_cast<error>(json.getint()), nullptr);
+        return;
+    }
+
+    vector<tuple<string, string, string>> registeredContacts;
+
+    string entryUserDetail;
+    string id;
+    string userDetail;
+
+    bool success = true;
+    while (json.enterobject())
+    {
+        bool exit = false;
+        while (!exit)
+        {
+            switch (json.getnameid())
+            {
+                case MAKENAMEID3('e', 'u', 'd'):
+                {
+                    json.storeobject(&entryUserDetail);
+                    break;
+                }
+                case MAKENAMEID2('i', 'd'):
+                {
+                    json.storeobject(&id);
+                    break;
+                }
+                case MAKENAMEID2('u', 'd'):
+                {
+                    json.storeobject(&userDetail);
+                    break;
+                }
+                case EOO:
+                {
+                    if (entryUserDetail.empty() || id.empty() || userDetail.empty())
+                    {
+                        LOG_err << "Missing or empty field when parsing 'get registered contacts' response";
+                        success = false;
+                    }
+                    else
+                    {
+                        registeredContacts.emplace_back(make_tuple(move(entryUserDetail), move(id), move(userDetail)));
+                    }
+                    exit = true;
+                    break;
+                }
+                default:
+                {
+                    if (!json.storeobject())
+                    {
+                        LOG_err << "Failed to parse 'get registered contacts' response";
+                        app.getregisteredcontacts_result(API_EINTERNAL, nullptr);
+                        return;
+                    }
+                }
+            }
+        }
+        json.leaveobject();
+    }
+    if (success)
+    {
+        app.getregisteredcontacts_result(API_OK, &registeredContacts);
+    }
+    else
+    {
+        app.getregisteredcontacts_result(API_EINTERNAL, nullptr);
+    }
+}
+
+CommandGetCountryCallingCodes::CommandGetCountryCallingCodes(MegaClient* client)
+{
+    cmd("smslc");
+
+    tag = client->reqtag;
+}
+
+void CommandGetCountryCallingCodes::procresult()
+{
+    processResult(*client->app, client->json);
+}
+
+void CommandGetCountryCallingCodes::processResult(MegaApp& app, JSON& json)
+{
+    if (json.isnumeric())
+    {
+        app.getcountrycallingcodes_result(static_cast<error>(json.getint()), nullptr);
+        return;
+    }
+
+    map<string, vector<string>> countryCallingCodes;
+
+    string countryCode;
+    vector<string> callingCodes;
+
+    bool success = true;
+    while (json.enterobject())
+    {
+        bool exit = false;
+        while (!exit)
+        {
+            switch (json.getnameid())
+            {
+                case MAKENAMEID2('c', 'c'):
+                {
+                    json.storeobject(&countryCode);
+                    break;
+                }
+                case MAKENAMEID1('l'):
+                {
+                    if (json.enterarray())
+                    {
+                        std::string code;
+                        while (json.storeobject(&code))
+                        {
+                            callingCodes.emplace_back(move(code));
+                        }
+                        json.leavearray();
+                    }
+                    break;
+                }
+                case EOO:
+                {
+                    if (countryCode.empty() || callingCodes.empty())
+                    {
+                        LOG_err << "Missing or empty fields when parsing 'get country calling codes' response";
+                        success = false;
+                    }
+                    else
+                    {
+                        countryCallingCodes.emplace(make_pair(move(countryCode), move(callingCodes)));
+                    }
+                    exit = true;
+                    break;
+                }
+                default:
+                {
+                    if (!json.storeobject())
+                    {
+                        LOG_err << "Failed to parse 'get country calling codes' response";
+                        app.getcountrycallingcodes_result(API_EINTERNAL, nullptr);
+                        return;
+                    }
+                }
+            }
+        }
+        json.leaveobject();
+    }
+    if (success)
+    {
+        app.getcountrycallingcodes_result(API_OK, &countryCallingCodes);
+    }
+    else
+    {
+        app.getcountrycallingcodes_result(API_EINTERNAL, nullptr);
     }
 }
 

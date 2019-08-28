@@ -1,4 +1,4 @@
-# This file enables building with cmake on windows
+# This file enables building with cmake 
 #
 # use cases
 #  - generate a visual studio solution and projects, eg: cmake . -G "Visual Studio 15 2017"
@@ -13,6 +13,7 @@
 # check the ./build3rdParty.cmd script in this folder for how to (relatively) easily build the dependencies, typically in a 3rdParty folder outside of the SDK repo.
 
 cmake_minimum_required(VERSION 3.7.2)
+project(MegaSDK)
 
 #indicate which dependent libraries to use in the build
 set (USE_CRYPTOPP 1 CACHE STRING "")
@@ -63,17 +64,24 @@ if (ENABLE_CHAT AND NOT USE_SODIUM)
 endif()
 
 if (WIN32)
-    if("${CMAKE_GENERATOR}" MATCHES "(Win64|IA64)")
+    message(STATUS "CMAKE_GENERATOR is ${CMAKE_GENERATOR}")
+    message(STATUS "CMAKE_GENERATOR_PLATFORM is ${CMAKE_GENERATOR_PLATFORM}")
+    if ("${CMAKE_GENERATOR_PLATFORM}" MATCHES "(Win64|IA64|x64)")
         SET(build_64_bit 1)
+        message(STATUS "Building 64 bit")
     elseif(CMAKE_SIZEOF_VOID_P EQUAL 4)
         SET(build_64_bit 0)
+        message(STATUS "Building 32 bit")
+    else()
+        message(FATAL_ERROR "Can't tell if we should build 32 bit or 64 bit")
     endif()
 else()
-    set (build_64_bit 1 CACHE TYPE BOOL)
+    set (build_64_bit 1 CACHE STRING "Build for a 64 bit target")
+    message(STATUS "Building 64 bit")
 endif()
 
 if ("${MEGA_PROJECT_NAME}" STREQUAL "")
-    set(MEGA_PROJECT_NAME, "MegaSDK")
+    set(MEGA_PROJECT_NAME "MegaSDK" CACHE STRING "")
 endif()
 
 if(build_64_bit)
@@ -417,6 +425,96 @@ SET(Mega_DbFiles ${MegaDir}/src/db/sqlite.cpp ${MegaDir}/src/db/sqlite.cpp )
 SET(Mega_GfxFiles ${MegaDir}/src/gfx/external.cpp ${MegaDir}/src/gfx/freeimage.cpp ) 
 
 add_library(Mega STATIC
+            ${MegaDir}/include/megaapi.h
+            ${MegaDir}/include/megaapi_impl.h
+            ${MegaDir}/include/mega/osx/osxutils.h
+            ${MegaDir}/include/mega/transferslot.h
+            ${MegaDir}/include/mega/thread/qtthread.h
+            ${MegaDir}/include/mega/thread/win32thread.h
+            ${MegaDir}/include/mega/thread/cppthread.h
+            ${MegaDir}/include/mega/thread/posixthread.h
+            ${MegaDir}/include/mega/thread/libuvthread.h
+            ${MegaDir}/include/mega/command.h
+            ${MegaDir}/include/mega/config.h
+            ${MegaDir}/include/mega/thread.h
+            ${MegaDir}/include/mega/json.h
+            ${MegaDir}/include/mega/base64.h
+            ${MegaDir}/include/mega/wp8/megafs.h
+            ${MegaDir}/include/mega/wp8/meganet.h
+            ${MegaDir}/include/mega/wp8/megaconsolewaiter.h
+            ${MegaDir}/include/mega/wp8/megasys.h
+            ${MegaDir}/include/mega/wp8/megaconsole.h
+            ${MegaDir}/include/mega/wp8/megawaiter.h
+            ${MegaDir}/include/mega/mega_utf8proc.h
+            ${MegaDir}/include/mega/gfx.h
+            ${MegaDir}/include/mega/proxy.h
+            ${MegaDir}/include/mega/crypto/sodium.h
+            ${MegaDir}/include/mega/crypto/cryptopp.h
+            ${MegaDir}/include/mega/http.h
+            ${MegaDir}/include/mega/useralerts.h
+            ${MegaDir}/include/mega/pendingcontactrequest.h
+            ${MegaDir}/include/mega/megaapp.h
+            ${MegaDir}/include/mega/wincurl/megafs.h
+            ${MegaDir}/include/mega/wincurl/meganet.h
+            ${MegaDir}/include/mega/wincurl/megaconsolewaiter.h
+            ${MegaDir}/include/mega/wincurl/megaconsole.h
+            ${MegaDir}/include/mega/wincurl/megawaiter.h
+            ${MegaDir}/include/mega/console.h
+            ${MegaDir}/include/mega/user.h
+            ${MegaDir}/include/mega/mega_evt_queue.h
+            ${MegaDir}/include/mega/mega_evt_tls.h
+            ${MegaDir}/include/mega/db.h
+            ${MegaDir}/include/mega/megaclient.h
+            ${MegaDir}/include/mega/autocomplete.h
+            ${MegaDir}/include/mega/serialize64.h
+            ${MegaDir}/include/mega/posix/megafs.h
+            ${MegaDir}/include/mega/posix/meganet.h
+            ${MegaDir}/include/mega/posix/megaconsolewaiter.h
+            ${MegaDir}/include/mega/posix/megasys.h
+            ${MegaDir}/include/mega/posix/megaconsole.h
+            ${MegaDir}/include/mega/posix/megawaiter.h
+            ${MegaDir}/include/mega/mega_ccronexpr.h
+            ${MegaDir}/include/mega/testhooks.h
+            ${MegaDir}/include/mega/share.h
+            ${MegaDir}/include/mega/win32/megafs.h
+            ${MegaDir}/include/mega/win32/meganet.h
+            ${MegaDir}/include/mega/win32/megaconsolewaiter.h
+            ${MegaDir}/include/mega/win32/megasys.h
+            ${MegaDir}/include/mega/win32/megaconsole.h
+            ${MegaDir}/include/mega/win32/megawaiter.h
+            ${MegaDir}/include/mega/mega_dict-src.h
+            ${MegaDir}/include/mega/gfx/GfxProcCG.h
+            ${MegaDir}/include/mega/gfx/qt.h
+            ${MegaDir}/include/mega/gfx/freeimage.h
+            ${MegaDir}/include/mega/gfx/external.h
+            ${MegaDir}/include/mega/pubkeyaction.h
+            ${MegaDir}/include/mega/mega_http_parser.h
+            ${MegaDir}/include/mega/waiter.h
+            ${MegaDir}/include/mega/db/sqlite.h
+            ${MegaDir}/include/mega/db/bdb.h
+            ${MegaDir}/include/mega/types.h
+            ${MegaDir}/include/mega/filefingerprint.h
+            ${MegaDir}/include/mega/filesystem.h
+            ${MegaDir}/include/mega/backofftimer.h
+            ${MegaDir}/include/mega/raid.h
+            ${MegaDir}/include/mega/logging.h
+            ${MegaDir}/include/mega/file.h
+            ${MegaDir}/include/mega/sync.h
+            ${MegaDir}/include/mega/utils.h
+            ${MegaDir}/include/mega/account.h
+            ${MegaDir}/include/mega/transfer.h
+            ${MegaDir}/include/mega/config-android.h
+            ${MegaDir}/include/mega/treeproc.h
+            ${MegaDir}/include/mega/attrmap.h
+            ${MegaDir}/include/mega/sharenodekeys.h
+            ${MegaDir}/include/mega/request.h
+            ${MegaDir}/include/mega/mega_zxcvbn.h
+            ${MegaDir}/include/mega/fileattributefetch.h
+            ${MegaDir}/include/mega/version.h
+            ${MegaDir}/include/mega/node.h
+            ${MegaDir}/include/mega/mediafileattribute.h
+            ${MegaDir}/include/mega/mega_glob.h
+            ${MegaDir}/include/mega.h
             ${MegaDir}/src/attrmap.cpp 
             ${MegaDir}/src/autocomplete.cpp 
             ${MegaDir}/src/backofftimer.cpp 
@@ -508,22 +606,32 @@ target_link_libraries(Mega PUBLIC crypt32.lib)
 endif(WIN32)
 
 #test apps
-add_executable(test_sdk             ${MegaDir}/tests/sdk_test.cpp 
-                                    ${MegaDir}/tests/sdktests.cpp)
-add_executable(test_misc            ${MegaDir}/tests/tests.cpp 
-                                    ${MegaDir}/tests/paycrypt_test.cpp 
-                                    ${MegaDir}/tests/crypto_test.cpp)
-add_executable(test_purge_account   ${MegaDir}/tests/purge_account.cpp)
-add_executable(test_sync            ${MegaDir}/tests/synctests.cpp)
+add_executable(test_unit            ${MegaDir}/tests/unit/Commands_test.cpp
+                                    ${MegaDir}/tests/unit/Crypto_test.cpp
+                                    ${MegaDir}/tests/unit/Serialization_test.cpp
+                                    ${MegaDir}/tests/unit/main.cpp
+                                    ${MegaDir}/tests/unit/MegaApi_test.cpp
+                                    ${MegaDir}/tests/unit/PayCrypter_test.cpp)
 
-target_compile_definitions(test_sdk PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
-target_compile_definitions(test_misc PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
-target_compile_definitions(test_purge_account PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
-target_compile_definitions(test_sync PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
-target_link_libraries(test_sdk gtest Mega )
-target_link_libraries(test_misc gtest Mega )
-target_link_libraries(test_purge_account gtest Mega )
-target_link_libraries(test_sync gtest Mega )
+add_executable(test_integration     ${MegaDir}/tests/integration/main.cpp
+                                    ${MegaDir}/tests/integration/SdkTest_test.cpp
+                                    ${MegaDir}/tests/integration/Sync_test.cpp)
+
+add_executable(tool_purge_account   ${MegaDir}/tests/tool/purge_account.cpp)
+
+target_compile_definitions(test_unit PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
+target_compile_definitions(test_integration PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
+target_compile_definitions(tool_purge_account PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
+target_link_libraries(test_unit gtest Mega )
+target_link_libraries(test_integration gtest Mega )
+target_link_libraries(tool_purge_account gtest Mega )
+
+if(WIN32)
+add_executable(tool_tcprelay "${MegaDir}/tests/tool/tcprelay/main.cpp" "${MegaDir}/tests/tool/tcprelay/tcprelay.cpp")
+target_include_directories(tool_tcprelay PUBLIC "${Mega3rdPartyDir}/../asio-1.10.6/include")
+target_compile_definitions(tool_tcprelay PUBLIC -DASIO_STANDALONE -D_WIN32_WINNT=0x0A00)
+target_link_libraries(tool_tcprelay Mega Dnsapi.lib)
+endif(WIN32)
 
 #test apps need this file or tests fail
 configure_file("${MegaDir}/logo.png" logo.png COPYONLY)
@@ -542,14 +650,6 @@ target_link_libraries(megasimplesync Mega )
 if(WIN32)
 add_executable(testmega "${MegaDir}/examples/win32/testmega/main.cpp")
 target_link_libraries(testmega Mega )
-endif(WIN32)
-
-if(WIN32)
-
-add_executable(tcprelay "${MegaDir}/tests/tcprelay/main.cpp" "${MegaDir}/tests/tcprelay/tcprelay.cpp")
-target_include_directories(tcprelay PUBLIC "${Mega3rdPartyDir}/../asio-1.10.6/include")
-target_compile_definitions(tcprelay PUBLIC -DASIO_STANDALONE -D_WIN32_WINNT=0x0A00)
-target_link_libraries(tcprelay Mega Dnsapi.lib)
 endif(WIN32)
 
 #enable_testing()

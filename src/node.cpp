@@ -172,6 +172,18 @@ Node::~Node()
         parent->children.erase(child_it);
     }
 
+    Node* fa = firstancestor();
+    handle ancestor = fa->nodehandle;
+    if (ancestor == client->rootnodes[0] || ancestor == client->rootnodes[1] || ancestor == client->rootnodes[2] || fa->inshare)
+    {
+        client->mNodeCounters[firstancestor()->nodehandle] -= subnodeCounts();
+    }
+
+    if (inshare)
+    {
+        client->mNodeCounters.erase(nodehandle);
+    }
+
     // delete child-parent associations (normally not used, as nodes are
     // deleted bottom-up)
     for (node_list::iterator it = children.begin(); it != children.end(); it++)
@@ -257,6 +269,7 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
         ph = UNDEF;
     }
 
+    u = 0;
     memcpy((char*)&u, ptr, MegaClient::USERHANDLE);
     ptr += MegaClient::USERHANDLE;
 
@@ -382,7 +395,8 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
             return NULL;
         }
 
-        handle ph = MemAccess::get<handle>(ptr);
+        handle ph = 0;
+        memcpy((char*)&ph, ptr, MegaClient::NODEHANDLE);
         ptr += MegaClient::NODEHANDLE;
         m_time_t ets = MemAccess::get<m_time_t>(ptr);
         ptr += sizeof(ets);
@@ -933,12 +947,50 @@ bool Node::applykey()
     return true;
 }
 
+NodeCounter Node::subnodeCounts() const
+{
+    NodeCounter nc;
+    for (Node *child : children)
+    {
+        nc += child->subnodeCounts();
+    }
+    if (type == FILENODE)
+    {
+        nc.files += 1;
+        nc.storage += size;
+        if (parent && parent->type == FILENODE)
+        {
+            nc.versions += 1;
+            nc.versionStorage += size;
+        }
+    }
+    else if (type == FOLDERNODE)
+    {
+        nc.folders += 1;
+    }
+    return nc;
+}
+
 // returns whether node was moved
 bool Node::setparent(Node* p)
 {
     if (p == parent)
     {
         return false;
+    }
+
+    NodeCounter nc;
+    bool gotnc = false;
+
+    Node *originalancestor = firstancestor();
+    handle oah = originalancestor->nodehandle;
+    if (oah == client->rootnodes[0] || oah == client->rootnodes[1] || oah == client->rootnodes[2] || originalancestor->inshare)
+    {
+        nc = subnodeCounts();
+        gotnc = true;
+
+        // nodes moving from cloud drive to rubbish for example, or between inshares from the same user.
+        client->mNodeCounters[oah] -= nc;
     }
 
     if (parent)
@@ -955,6 +1007,18 @@ bool Node::setparent(Node* p)
     if (parent)
     {
         child_it = parent->children.insert(parent->children.end(), this);
+    }
+
+    Node* newancestor = firstancestor();
+    handle nah = newancestor->nodehandle;
+    if (nah == client->rootnodes[0] || nah == client->rootnodes[1] || nah == client->rootnodes[2] || newancestor->inshare)
+    {
+        if (!gotnc)
+        {
+            nc = subnodeCounts();
+        }
+
+        client->mNodeCounters[nah] += nc;
     }
 
 #ifdef ENABLE_SYNC
