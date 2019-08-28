@@ -394,7 +394,8 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
             return NULL;
         }
 
-        handle ph = MemAccess::get<handle>(ptr);
+        handle ph;
+        memcpy((char*)&ph, ptr, MegaClient::NODEHANDLE);
         ptr += MegaClient::NODEHANDLE;
         m_time_t ets = MemAccess::get<m_time_t>(ptr);
         ptr += sizeof(ets);
