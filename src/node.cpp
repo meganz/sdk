@@ -390,10 +390,13 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     // the updated version of utf8proc doesn't provide
     // exactly the same output as the previous one that
     // we were using
-    attr_map::iterator it = n->attrs.map.find('n');
-    if (it != n->attrs.map.end())
+    if (client)
     {
-        client->fsaccess->normalize(&(it->second));
+        attr_map::iterator it = n->attrs.map.find('n');
+        if (it != n->attrs.map.end())
+        {
+            client->fsaccess->normalize(&(it->second));
+        }
     }
 
     PublicLink *plink = NULL;
@@ -405,7 +408,8 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
             return NULL;
         }
 
-        handle ph = MemAccess::get<handle>(ptr);
+        handle ph;
+        memcpy((char*)&ph, ptr, MegaClient::NODEHANDLE);
         ptr += MegaClient::NODEHANDLE;
         m_time_t ets = MemAccess::get<m_time_t>(ptr);
         ptr += sizeof(ets);
