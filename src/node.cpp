@@ -326,7 +326,10 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     hasLinkCreationTs = MemAccess::get<char>(ptr);
     ptr += sizeof(hasLinkCreationTs);
 
-    for (i = 6; i--;)
+    const bool syncable = MemAccess::get<bool>(ptr);
+    ptr += sizeof(syncable);
+
+    for (i = 5; i--;)
     {
         if (ptr + (unsigned char)*ptr < end)
         {
@@ -358,6 +361,8 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     }
 
     n = new Node(client, dp, h, ph, t, s, u, fa, ts);
+
+    n->syncable = syncable;
 
     if (k)
     {
@@ -418,7 +423,10 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     }
     n->plink = plink;
 
-    n->setfingerprint();
+    if (n->client)
+    {
+        n->setfingerprint();
+    }
 
     if (ptr == end)
     {
@@ -438,6 +446,11 @@ bool Node::serialize(string* d)
     if (attrstring)
     {
         LOG_warn << "Trying to serialize an encrypted node";
+
+        if (!client)
+        {
+            return false;
+        }
 
         //Last attempt to decrypt the node
         applykey();
@@ -505,7 +518,7 @@ bool Node::serialize(string* d)
 
     if (type == FILENODE)
     {
-        ll = (short)fileattrstring.size() + 1;
+        ll = static_cast<unsigned short>(fileattrstring.size() + 1);
         d->append((char*)&ll, sizeof ll);
         d->append(fileattrstring.c_str(), ll);
     }
@@ -516,7 +529,9 @@ bool Node::serialize(string* d)
     char hasLinkCreationTs = plink ? 1 : 0;
     d->append((char*)&hasLinkCreationTs, 1);
 
-    d->append("\0\0\0\0\0", 6);
+    d->append((char*)&syncable, sizeof(syncable));
+
+    d->append("\0\0\0\0", 5); // Use these bytes for extensions
 
     if (inshare)
     {
@@ -527,11 +542,11 @@ bool Node::serialize(string* d)
         numshares = 0;
         if (outshares)
         {
-            numshares += (short)outshares->size();
+            numshares += static_cast<short>(outshares->size());
         }
         if (pendingshares)
         {
-            numshares += (short)pendingshares->size();
+            numshares += static_cast<short>(pendingshares->size());
         }
     }
 

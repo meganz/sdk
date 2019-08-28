@@ -1,4 +1,4 @@
-/**
+﻿/**
  * (c) 2019 by Mega Limited, Wellsford, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
@@ -333,4 +333,75 @@ TEST(Serialization, LocalNode_forFile)
     ASSERT_EQ(50, data.size());
     auto dl = std::unique_ptr<mega::LocalNode>{mega::LocalNode::unserialize(sync.get(), &data)};
     checkDeserializedLocalNode(*dl, *l);
+}
+
+namespace {
+
+void checkDeserializedNode(const mega::Node& dl, const mega::Node& ref)
+{
+    ASSERT_EQ(ref.type, dl.type);
+    ASSERT_EQ(ref.size < 0 ? 0 : ref.size, dl.size);
+    ASSERT_EQ(ref.nodehandle, dl.nodehandle);
+    ASSERT_EQ(ref.owner, dl.owner);
+    ASSERT_EQ(ref.ctime, dl.ctime);
+    ASSERT_EQ(ref.nodekey, dl.nodekey);
+    ASSERT_EQ(ref.fileattrstring, dl.fileattrstring);
+    // TODO: deal with plink
+    // TODO: deal with shares
+    ASSERT_EQ(ref.attrs.map, dl.attrs.map);
+    ASSERT_EQ(ref.syncable, dl.syncable);
+}
+
+}
+
+TEST(Serialization, Node_whenNodeIsEncrypted)
+{
+    mega::Node n;
+    n.attrstring = new std::string; // owned by Node
+    std::string data;
+    ASSERT_FALSE(n.serialize(&data));
+}
+
+TEST(Serialization, Node_whenTypeIsUnsupported)
+{
+    mega::Node n;
+    n.nodekey.append("123");
+    std::string data;
+    ASSERT_FALSE(n.serialize(&data));
+}
+
+TEST(Serialization, Node_forFile_whenNodeKeyIsWrong)
+{
+    mega::Node n;
+    n.type = mega::FILENODE;
+    n.nodekey.append("123");
+    std::string data;
+    ASSERT_FALSE(n.serialize(&data));
+}
+
+TEST(Serialization, Node_forFolder_whenNodeKeyIsWrong)
+{
+    mega::Node n;
+    n.type = mega::FILENODE;
+    n.nodekey.append("123");
+    std::string data;
+    ASSERT_FALSE(n.serialize(&data));
+}
+
+TEST(Serialization, Node_forFile_withoutParent_withoutShares_withoutAttrs_withoutFileAttrString_withoutPlink)
+{
+    mega::Node n;
+    n.nodehandle = 42;
+    n.type = mega::FILENODE;
+    n.size = 12;
+    n.nodekey.resize(mega::FILENODEKEYLENGTH);
+    n.owner = 43;
+    n.ctime = 44;
+    n.syncable = false;
+    std::string data;
+    ASSERT_TRUE(n.serialize(&data));
+    ASSERT_EQ(90, data.size());
+    mega::node_vector dp;
+    auto dn = std::unique_ptr<mega::Node>{mega::Node::unserialize(nullptr, &data, &dp)};
+    checkDeserializedNode(*dn, n);
 }
