@@ -879,19 +879,29 @@ char *MegaNodePrivate::getPublicLink(bool includeKey)
         return NULL;
     }
 
-    string strlink = "https://mega.nz/#";
-    strlink += (type ? "F" : "");
+    string strlink = "https://mega.nz/";
+    string nodeType;
+    if (MegaClient::newLinkFormat)
+    {
+        nodeType = (type ? "file/" : "folder/");
+    }
+    else
+    {
+        nodeType = (type ? "#!" : "#F!");
+    }
+
+    strlink += nodeType;
 
     char *base64ph = new char[12];
     Base64::btoa((byte*)&(plink->ph), MegaClient::NODEHANDLE, base64ph);
-    strlink += "!";
     strlink += base64ph;
+    strlink += (MegaClient::newLinkFormat ? "#" : "");
     delete [] base64ph;
 
     if (includeKey)
     {
         char *base64k = getBase64Key();
-        strlink += "!";
+        strlink += (MegaClient::newLinkFormat ? "" : "!");
         strlink += base64k;
         delete [] base64k;
     }

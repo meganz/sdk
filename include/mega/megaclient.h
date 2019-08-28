@@ -229,6 +229,9 @@ public:
     // pseudo-random number generator
     PrnGen rng;
 
+    // Use new format to generate Mega links
+    static bool newLinkFormat;
+
 #ifdef ENABLE_CHAT
     // all chats
     textchat_map chats;

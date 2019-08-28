@@ -3463,6 +3463,7 @@ void CommandGetUserData::procresult()
     string smsv;
 
     bool b = false;
+    bool newLinkFormat = false;
     BizMode m = BIZ_MODE_UNKNOWN;
     BizStatus s = BIZ_STATUS_UNKNOWN;
     std::vector<std::pair<BizStatus, m_time_t>> sts;
@@ -3634,6 +3635,10 @@ void CommandGetUserData::procresult()
             }
             break;
 
+        case MAKENAMEID4('n', 'l', 'f', 'e'):
+            newLinkFormat = client->json.getbool();
+            break;
+
         case EOO:
             if (v)
             {
@@ -3653,6 +3658,8 @@ void CommandGetUserData::procresult()
 
             client->mSmsVerificationState = SmsVerificationState(smsve);
             client->mSmsVerifiedPhone = smsv;
+
+            MegaClient::newLinkFormat = newLinkFormat;
 
             client->k = k;
 
