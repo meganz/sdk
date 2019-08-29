@@ -5647,7 +5647,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  *
  * @return List with all child MEGANode objects.
  */
-- (nullable MEGANodeList *)childrenForParent:(MEGANode *)parent order:(NSInteger)order;
+- (MEGANodeList *)childrenForParent:(MEGANode *)parent order:(NSInteger)order;
 
 /**
  * @brief Get all children of a MEGANode.
@@ -5659,7 +5659,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  *
  * @return List with all child MEGANode objects.
  */
-- (nullable MEGANodeList *)childrenForParent:(MEGANode *)parent;
+- (MEGANodeList *)childrenForParent:(MEGANode *)parent;
 
 /**
  * @brief Get the child node with the provided name.
@@ -5762,7 +5762,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  *
  * @return Lists with files and folders child MegaNode objects
  */
-- (nullable MEGAChildrenLists *)fileFolderChildrenForParent:(MEGANode *)parent order:(NSInteger)order;
+- (MEGAChildrenLists *)fileFolderChildrenForParent:(MEGANode *)parent order:(NSInteger)order;
 
 /**
  * @brief Get file and folder children of a MEGANode separatedly
@@ -5774,7 +5774,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  *
  * @return Lists with files and folders child MegaNode objects
  */
-- (nullable MEGAChildrenLists *)fileFolderChildrenForParent:(MEGANode *)parent;
+- (MEGAChildrenLists *)fileFolderChildrenForParent:(MEGANode *)parent;
 
 /**
  * @brief Get the parent node of a MEGANode.
