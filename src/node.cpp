@@ -1778,6 +1778,13 @@ void LocalNode::completed(Transfer* t, LocalNode*)
     File::completed(t, this);
 }
 
+namespace {
+
+// Need this to read old caches that don't have extension bytes
+constexpr m_off_t LOCALNODE_EXTENSION_BYTES_FLAG = -1000; // any large negative number will do
+
+}
+
 // serialize/unserialize the following LocalNode properties:
 // - type/size
 // - fsid
@@ -1787,6 +1794,8 @@ void LocalNode::completed(Transfer* t, LocalNode*)
 // - fingerprint crc/mtime (filenodes only)
 bool LocalNode::serialize(string* d)
 {
+    d->append((const char*)&LOCALNODE_EXTENSION_BYTES_FLAG, sizeof(LOCALNODE_EXTENSION_BYTES_FLAG));
+
     m_off_t s = type ? -type : size;
 
     d->append((const char*)&s, sizeof s);
@@ -1805,6 +1814,10 @@ bool LocalNode::serialize(string* d)
 
     d->append((char*)&ll, sizeof ll);
     d->append(localname.data(), ll);
+
+    d->append((char*)&syncable, sizeof(syncable));
+
+    d->append("\0\0\0\0\0\0", 7); // Use these bytes for extensions
 
     if (type == FILENODE)
     {
@@ -1836,6 +1849,13 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     nodetype_t type;
     m_off_t size = MemAccess::get<m_off_t>(ptr);
     ptr += sizeof(m_off_t);
+
+    const bool hasExtensionBytes = size == LOCALNODE_EXTENSION_BYTES_FLAG;
+    if (hasExtensionBytes)
+    {
+        size = MemAccess::get<m_off_t>(ptr);
+        ptr += sizeof(m_off_t);
+    }
 
     if (size < 0 && size >= -FOLDERNODE)
     {
@@ -1869,6 +1889,22 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
 
     const char* localname = ptr;
     ptr += localnamelen;
+
+    bool syncable = true;
+    if (hasExtensionBytes)
+    {
+        syncable = MemAccess::get<bool>(ptr);
+        ptr += sizeof(syncable);
+
+        for (int i = 7; i--;)
+        {
+            if (ptr + (unsigned char)*ptr < end)
+            {
+                ptr += (unsigned char)*ptr + 1;
+            }
+        }
+    }
+
     uint64_t mtime = 0;
     int32_t crc[4];
     memset(crc, 0, sizeof crc);
@@ -1924,6 +1960,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     }
     l->parent = nullptr;
     l->sync = sync;
+    l->syncable = syncable;
 
     // FIXME: serialize/unserialize
     l->created = false;
