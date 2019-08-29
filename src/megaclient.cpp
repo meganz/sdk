@@ -83,8 +83,6 @@ dstime MegaClient::USER_DATA_EXPIRATION_BACKOFF_SECS = 86400; // 1 day
 // stats id
 char* MegaClient::statsid = NULL;
 
-bool MegaClient::newLinkFormat = false;
-
 // decrypt key (symmetric or asymmetric), rewrite asymmetric to symmetric key
 bool MegaClient::decryptkey(const char* sk, byte* tk, int tl, SymmCipher* sc, int type, handle node)
 {

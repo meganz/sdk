@@ -104,6 +104,7 @@ MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64
     this->outShares = false;
     this->inShare = false;
     this->plink = NULL;
+    this->mNewLinkFormat = false;
     this->sharekey = NULL;
     this->foreign = isForeign;
     this->children = NULL;
@@ -207,6 +208,7 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     {
         this->plink = NULL;
     }
+    this->mNewLinkFormat = np->isNewLinkFormat();
 
     if (node->hasCustomAttrs())
     {
@@ -453,6 +455,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     this->outShares = (node->outshares) ? (node->outshares->size() > 1 || node->outshares->begin()->second->user) : false;
     this->inShare = (node->inshare != NULL) && !node->parent;
     this->plink = node->plink ? new PublicLink(node->plink) : NULL;
+    this->mNewLinkFormat = node->client->mNewLinkFormat;
     if (plink && type == FOLDERNODE && node->sharekey)
     {
         char key[FOLDERNODEKEYLENGTH*4/3+3];
@@ -881,7 +884,7 @@ char *MegaNodePrivate::getPublicLink(bool includeKey)
 
     string strlink = "https://mega.nz/";
     string nodeType;
-    if (MegaClient::newLinkFormat)
+    if (mNewLinkFormat)
     {
         nodeType = (type ? "file/" : "folder/");
     }
@@ -895,13 +898,13 @@ char *MegaNodePrivate::getPublicLink(bool includeKey)
     char *base64ph = new char[12];
     Base64::btoa((byte*)&(plink->ph), MegaClient::NODEHANDLE, base64ph);
     strlink += base64ph;
-    strlink += (MegaClient::newLinkFormat ? "#" : "");
+    strlink += (mNewLinkFormat ? "#" : "");
     delete [] base64ph;
 
     if (includeKey)
     {
         char *base64k = getBase64Key();
-        strlink += (MegaClient::newLinkFormat ? "" : "!");
+        strlink += (mNewLinkFormat ? "" : "!");
         strlink += base64k;
         delete [] base64k;
     }
@@ -912,6 +915,11 @@ char *MegaNodePrivate::getPublicLink(bool includeKey)
 int64_t MegaNodePrivate::getPublicLinkCreationTime()
 {
     return plink ? plink->cts : -1;
+}
+
+bool MegaNodePrivate::isNewLinkFormat()
+{
+    return mNewLinkFormat;
 }
 
 bool MegaNodePrivate::isFile()

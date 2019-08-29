@@ -3659,7 +3659,7 @@ void CommandGetUserData::procresult()
             client->mSmsVerificationState = SmsVerificationState(smsve);
             client->mSmsVerifiedPhone = smsv;
 
-            MegaClient::newLinkFormat = newLinkFormat;
+            client->mNewLinkFormat = newLinkFormat;
 
             client->k = k;
 

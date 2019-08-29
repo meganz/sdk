@@ -230,7 +230,7 @@ public:
     PrnGen rng;
 
     // Use new format to generate Mega links
-    static bool newLinkFormat;
+    bool mNewLinkFormat = false;
 
 #ifdef ENABLE_CHAT
     // all chats
