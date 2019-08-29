@@ -3534,6 +3534,9 @@ void CommandGetUserData::procresult()
                     case MAKENAMEID5('s', 'm', 's', 'v', 'e'):   // 2 = Opt-in and unblock SMS allowed 1 = Only unblock SMS allowed 0 = No SMS allowed
                         smsve = int(client->json.getint());
                         break;
+                    case MAKENAMEID4('n', 'l', 'f', 'e'):
+                        newLinkFormat = static_cast<bool>(client->json.getint());
+                        break;
                     case EOO:
                         endobject = true;
                         break;
@@ -3633,10 +3636,6 @@ void CommandGetUserData::procresult()
                 LOG_err << "Invalid verified phone number (smsv)";
                 assert(false);
             }
-            break;
-
-        case MAKENAMEID4('n', 'l', 'f', 'e'):
-            newLinkFormat = client->json.getbool();
             break;
 
         case EOO:
