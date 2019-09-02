@@ -76,6 +76,7 @@ struct MEGA_API User : public Cachable
         bool cameraUploadsFolder : 1;   // target folder for Camera Uploads
         bool myChatFilesFolder : 1;   // target folder for my chat files
         bool pushSettings : 1;  // push notification settings
+        bool alias : 1; // user's aliases
     } changed;
 
     // user's public key

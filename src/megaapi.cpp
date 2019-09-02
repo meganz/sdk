@@ -2582,6 +2582,16 @@ void MegaApi::getMyChatFilesFolder(MegaRequestListener *listener)
     pImpl->getMyChatFilesFolder(listener);
 }
 
+void MegaApi::getUserAlias(MegaHandle uh, MegaRequestListener *listener)
+{
+    pImpl->getUserAlias(uh, listener);
+}
+
+void MegaApi::setUserAlias(MegaHandle uh, const char *alias, MegaRequestListener *listener)
+{
+    pImpl->setUserAlias(uh, alias);
+}
+
 void MegaApi::getRubbishBinAutopurgePeriod(MegaRequestListener *listener)
 {
     pImpl->getRubbishBinAutopurgePeriod(listener);
@@ -3253,19 +3263,19 @@ int MegaApi::getNumUnreadUserAlerts()
     return pImpl->getNumUnreadUserAlerts();
 }
 
-MegaNodeList* MegaApi::getInShares(MegaUser *megaUser)
+MegaNodeList* MegaApi::getInShares(MegaUser *megaUser, int order)
 {
-    return pImpl->getInShares(megaUser);
+    return pImpl->getInShares(megaUser, order);
 }
 
-MegaNodeList* MegaApi::getInShares()
+MegaNodeList* MegaApi::getInShares(int order)
 {
-    return pImpl->getInShares();
+    return pImpl->getInShares(order);
 }
 
-MegaShareList* MegaApi::getInSharesList()
+MegaShareList* MegaApi::getInSharesList(int order)
 {
-    return pImpl->getInSharesList();
+    return pImpl->getInSharesList(order);
 }
 
 MegaUser *MegaApi::getUserFromInShare(MegaNode *node)
@@ -3308,9 +3318,9 @@ bool MegaApi::isPendingShare(MegaNode *node)
     return pImpl->isPendingShare(node);
 }
 
-MegaShareList *MegaApi::getOutShares()
+MegaShareList *MegaApi::getOutShares(int order)
 {
-    return pImpl->getOutShares();
+    return pImpl->getOutShares(order);
 }
 
 MegaShareList* MegaApi::getOutShares(MegaNode *megaNode)
@@ -3328,9 +3338,9 @@ MegaShareList *MegaApi::getPendingOutShares(MegaNode *node)
     return pImpl->getPendingOutShares(node);
 }
 
-MegaNodeList *MegaApi::getPublicLinks()
+MegaNodeList *MegaApi::getPublicLinks(int order)
 {
-    return pImpl->getPublicLinks();
+    return pImpl->getPublicLinks(order);
 }
 
 MegaContactRequestList *MegaApi::getIncomingContactRequests()

@@ -1204,7 +1204,8 @@ class MegaUser
             CHANGE_TYPE_GEOLOCATION                 = 0x100000,
             CHANGE_TYPE_CAMERA_UPLOADS_FOLDER       = 0x200000,
             CHANGE_TYPE_MY_CHAT_FILES_FOLDER        = 0x400000,
-            CHANGE_TYPE_PUSH_SETTINGS               = 0x800000
+            CHANGE_TYPE_PUSH_SETTINGS               = 0x800000,
+            CHANGE_TYPE_ALIAS                       = 0x1000000,
         };
 
         /**
@@ -6633,7 +6634,9 @@ class MegaApi
             USER_ATTR_GEOLOCATION = 22,          // private - byte array
             USER_ATTR_CAMERA_UPLOADS_FOLDER = 23,// private - byte array
             USER_ATTR_MY_CHAT_FILES_FOLDER = 24, // private - byte array
-            USER_ATTR_PUSH_SETTINGS = 25         // private - char array
+            USER_ATTR_PUSH_SETTINGS = 25,        // private - char array
+            // ATTR_UNSHAREABLE_KEY = 26         // it's internal for SDK, not exposed to apps
+            USER_ATTR_ALIAS = 27,                // private - byte array
         };
 
         enum {
@@ -8956,6 +8959,8 @@ class MegaApi
          * Get the target folder for Camera Uploads (private)
          * MegaApi::ATTR_MY_CHAT_FILES_FOLDER = 24
          * Get the target folder for My chat files (private)
+         * MegaApi::ATTR_ALIAS = 27
+         * Get the list of the users's aliases (private)
          * @param listener MegaRequestListener to track this request
          */
         void getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener = NULL);
@@ -9378,6 +9383,8 @@ class MegaApi
          * Set number of days for rubbish-bin cleaning scheduler (private non-encrypted)
          * MegaApi::USER_ATTR_GEOLOCATION = 22
          * Set whether the user can send geolocation messages (private)
+         * MegaApi::ATTR_ALIAS = 27
+         * Set the list of users's aliases (private)
          *
          * @param value New attribute value
          * @param listener MegaRequestListener to track this request
@@ -10146,6 +10153,41 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getCameraUploadsFolder(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Gets the alias for an user
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_ALIAS
+         * - MegaRequest::getNodeHandle - user handle in binary
+         * - MegaRequest::getText - user handle encoded in B64
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getName - user alias encoded in B64
+         *
+         * If the user alias doesn't exists the request will fail with the error code MegaError::API_ENOENT.
+         *
+         * @param uh handle of the user in binary
+         * @param listener MegaRequestListener to track this request
+         */
+        void getUserAlias(MegaHandle uh, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Set or reset an alias for a user
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_ALIAS
+         * - MegaRequest::getNodeHandle - Returns the user handle in binary
+         * - MegaRequest::getText - Returns the user alias
+         *
+         * @param uh handle of the user in binary
+         * @param alias the user alias, or null to reset the existing
+         * @param listener MegaRequestListener to track this request
+         */
+        void setUserAlias(MegaHandle uh, const char *alias, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Get push notification settings
@@ -12424,30 +12466,42 @@ class MegaApi
         /**
          * @brief Get a list with all inbound sharings from one MegaUser
          *
+         * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
+         * MegaApi::ORDER_DEFAULT_DESC
+         *
          * You take the ownership of the returned value
          *
          * @param user MegaUser sharing folders with this account
+         * @param order Sorting order to use
          * @return List of MegaNode objects that this user is sharing with this account
          */
-        MegaNodeList *getInShares(MegaUser* user);
+        MegaNodeList *getInShares(MegaUser* user, int order = ORDER_NONE);
 
         /**
          * @brief Get a list with all inboud sharings
          *
+         * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
+         * MegaApi::ORDER_DEFAULT_DESC
+         *
          * You take the ownership of the returned value
          *
+         * @param order Sorting order to use
          * @return List of MegaNode objects that other users are sharing with this account
          */
-        MegaNodeList *getInShares();
+        MegaNodeList *getInShares(int order = ORDER_NONE);
 
         /**
          * @brief Get a list with all active inboud sharings
          *
+         * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
+         * MegaApi::ORDER_DEFAULT_DESC
+         *
          * You take the ownership of the returned value
          *
+         * @param order Sorting order to use
          * @return List of MegaShare objects that other users are sharing with this account
          */
-        MegaShareList *getInSharesList();
+        MegaShareList *getInSharesList(int order = ORDER_NONE);
 
         /**
          * @brief Get the user relative to an incoming share
@@ -12515,16 +12569,20 @@ class MegaApi
         bool isPendingShare(MegaNode *node);
 
         /**
-         * @brief Get a list with all active outbound sharings
+         * @brief Get a list with all active and pending outbound sharings
+         *
+         * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
+         * MegaApi::ORDER_DEFAULT_DESC
          *
          * You take the ownership of the returned value
          *
+         * @param order Sorting order to use
          * @return List of MegaShare objects
          */
-        MegaShareList *getOutShares();
+        MegaShareList *getOutShares(int order = ORDER_NONE);
 
         /**
-         * @brief Get a list with the active outbound sharings for a MegaNode
+         * @brief Get a list with the active and pending outbound sharings for a MegaNode
          *
          * If the node doesn't exist in the account, this function returns an empty list.
          *
@@ -12541,6 +12599,7 @@ class MegaApi
          * You take the ownership of the returned value
          *
          * @return List of MegaShare objects
+         * @deprecated Use MegaNode::getOutShares instead of this function
          */
         MegaShareList *getPendingOutShares();
 
@@ -12549,6 +12608,7 @@ class MegaApi
          *
          * You take the ownership of the returned value
          *
+         * @deprecated Use MegaNode::getOutShares instead of this function
          * @return List of MegaShare objects
          */
         MegaShareList *getPendingOutShares(MegaNode *node);
@@ -12556,11 +12616,15 @@ class MegaApi
         /**
          * @brief Get a list with all public links
          *
+         * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
+         * MegaApi::ORDER_DEFAULT_DESC
+         *
          * You take the ownership of the returned value
          *
+         * @param order Sorting order to use
          * @return List of MegaNode objects that are shared with everyone via public link
          */
-        MegaNodeList *getPublicLinks();
+        MegaNodeList *getPublicLinks(int order = ORDER_NONE);
 
         /**
          * @brief Get a list with all incoming contact requests
