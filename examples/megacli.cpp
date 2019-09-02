@@ -3569,7 +3569,7 @@ void exec_getq(autocomplete::ACState& s)
 
 void exec_open(autocomplete::ACState& s)
 {
-    if (strstr(s.words[1].s.c_str(), "#F!"))  // folder link indicator
+    if (strstr(s.words[1].s.c_str(), "#F!") || strstr(s.words[1].s.c_str(), "folder/"))  // folder link indicator
     {
         if (!clientFolder)
         {

@@ -26450,10 +26450,8 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         }
         else
         {
-            string link = "https://mega.nz/#!";
-            link.append(httpctx->nodehandle);
-            link.append("!");
-            link.append(httpctx->nodekey);
+            handle h = MegaApi::base64ToHandle(httpctx->nodehandle.c_str());
+            string link = MegaClient::getPublicLink(httpctx->megaApi->getMegaClient()->mNewLinkFormat, nodetype_t::FILENODE, h, httpctx->nodekey.c_str());
             LOG_debug << "Getting public link: " << link;
             httpctx->megaApi->getPublicNode(link.c_str(), httpctx);
             httpctx->transfer = new MegaTransferPrivate(MegaTransfer::TYPE_LOCAL_TCP_DOWNLOAD);
