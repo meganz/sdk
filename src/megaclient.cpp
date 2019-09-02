@@ -1211,6 +1211,35 @@ MegaClient::~MegaClient()
     delete dbaccess;
 }
 
+std::string &MegaClient::getPublicLink(bool newLinkFormat, int type, handle ph, const char *key)
+{
+    string strlink = "https://mega.nz/";
+    string nodeType;
+    if (newLinkFormat)
+    {
+        nodeType = (type ? "file/" : "folder/");
+    }
+    else
+    {
+        nodeType = (type ? "#!" : "#F!");
+    }
+
+    strlink += nodeType;
+
+    char *base64ph = new char[12];
+    Base64::btoa((byte*)&(ph), MegaClient::NODEHANDLE, base64ph);
+    strlink += base64ph;
+    strlink += (newLinkFormat ? "#" : "");
+    delete [] base64ph;
+
+    if (key)
+    {
+        strlink += (newLinkFormat ? "" : "!");
+        strlink += key;
+    }
+
+}
+
 // nonblocking state machine executing all operations currently in progress
 void MegaClient::exec()
 {

@@ -882,32 +882,9 @@ char *MegaNodePrivate::getPublicLink(bool includeKey)
         return NULL;
     }
 
-    string strlink = "https://mega.nz/";
-    string nodeType;
-    if (mNewLinkFormat)
-    {
-        nodeType = (type ? "file/" : "folder/");
-    }
-    else
-    {
-        nodeType = (type ? "#!" : "#F!");
-    }
-
-    strlink += nodeType;
-
-    char *base64ph = new char[12];
-    Base64::btoa((byte*)&(plink->ph), MegaClient::NODEHANDLE, base64ph);
-    strlink += base64ph;
-    strlink += (mNewLinkFormat ? "#" : "");
-    delete [] base64ph;
-
-    if (includeKey)
-    {
-        char *base64k = getBase64Key();
-        strlink += (mNewLinkFormat ? "" : "!");
-        strlink += base64k;
-        delete [] base64k;
-    }
+    char *base64k = getBase64Key();
+    string strlink = MegaClient::getPublicLink(mNewLinkFormat, type, plink->ph, (includeKey ? base64k : nullptr));
+    delete [] base64k;
 
     return MegaApi::strdup(strlink.c_str());
 }
