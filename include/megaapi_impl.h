@@ -172,11 +172,20 @@ class MegaSizeProcessor : public MegaTreeProcessor
         long long getTotalBytes();
 };
 
-class MegaFolderUploadController : public MegaRequestListener, public MegaTransferListener
+class MegaRecursiveOperation
+{
+public:
+    virtual ~MegaRecursiveOperation() = default;
+    virtual void start(MegaNode* node) = 0;
+    virtual void cancel() = 0;
+};
+
+class MegaFolderUploadController : public MegaRequestListener, public MegaTransferListener, public MegaRecursiveOperation
 {
 public:
     MegaFolderUploadController(MegaApiImpl *megaApi, MegaTransferPrivate *transfer);
-    void start();
+    void start(MegaNode* node) override;
+    void cancel() override;
 
 protected:
     void onFolderAvailable(MegaHandle handle);
@@ -190,6 +199,7 @@ protected:
     int recursive;
     int tag;
     int pendingTransfers;
+    std::set<MegaTransferPrivate*> subTransfers;
 
 public:
     void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e) override;
@@ -341,11 +351,12 @@ public:
     void setValid(bool value);
 };
 
-class MegaFolderDownloadController : public MegaTransferListener
+class MegaFolderDownloadController : public MegaTransferListener, public MegaRecursiveOperation
 {
 public:
     MegaFolderDownloadController(MegaApiImpl *megaApi, MegaTransferPrivate *transfer);
-    void start(MegaNode *node);
+    void start(MegaNode *node) override;
+    void cancel() override;
 
 protected:
     void downloadFolderNode(MegaNode *node, string *path);
@@ -359,6 +370,7 @@ protected:
     int tag;
     int pendingTransfers;
     error e;
+    std::set<MegaTransferPrivate*> subTransfers;
 
 public:
     void onTransferStart(MegaApi *, MegaTransfer *t) override;
@@ -692,6 +704,8 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         virtual bool serialize(string*);
         static MegaTransferPrivate* unserialize(string*);
 
+        void startRecursiveOperation(unique_ptr<MegaRecursiveOperation>, MegaNode* node); // takes ownership of both
+
     protected:
         int type;
         int tag;
@@ -733,6 +747,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         MegaError lastError;
         int folderTransferTag;
         const char* appData;
+        unique_ptr<MegaRecursiveOperation> recursiveOperation;
 };
 
 class MegaTransferDataPrivate : public MegaTransferData
@@ -1373,6 +1388,18 @@ private:
     AchievementsDetails details;
 };
 
+class MegaCancelTokenPrivate : public MegaCancelToken
+{
+public:
+    ~MegaCancelTokenPrivate() override;
+
+    void cancel(bool newValue = true) override;
+    bool isCancelled() const override;
+
+private:
+    std::atomic_bool cancelFlag { false };
+};
+
 #ifdef ENABLE_CHAT
 class MegaTextChatPeerListPrivate : public MegaTextChatPeerList
 {
@@ -1806,12 +1833,12 @@ class OutShareProcessor : public TreeProcessor
         OutShareProcessor();
         virtual bool processNode(Node* node);
         virtual ~OutShareProcessor() {}
-        vector<Share *> &getShares();
-        vector<handle> &getHandles();
-
+        vector<Share *> getShares();
+        vector<handle> getHandles();
+        void sortShares(int order);
     protected:
-        vector<Share *> shares;
-        vector<handle> handles;
+        vector<Share *> mShares;
+        node_vector mNodes;
 };
 
 class PendingOutShareProcessor : public TreeProcessor
@@ -2246,16 +2273,16 @@ class MegaApiImpl : public MegaApp
         MegaUser* getContact(const char* uid);
         MegaUserAlertList* getUserAlerts();
         int getNumUnreadUserAlerts();
-        MegaNodeList *getInShares(MegaUser* user);
-        MegaNodeList *getInShares();
-        MegaShareList *getInSharesList();
+        MegaNodeList *getInShares(MegaUser* user, int order);
+        MegaNodeList *getInShares(int order);
+        MegaShareList *getInSharesList(int order);
         MegaUser *getUserFromInShare(MegaNode *node);
         bool isPendingShare(MegaNode *node);
-        MegaShareList *getOutShares();
+        MegaShareList *getOutShares(int order);
         MegaShareList *getOutShares(MegaNode *node);
         MegaShareList *getPendingOutShares();
         MegaShareList *getPendingOutShares(MegaNode *megaNode);
-        MegaNodeList *getPublicLinks();
+        MegaNodeList *getPublicLinks(int order);
         MegaContactRequestList *getIncomingContactRequests();
         MegaContactRequestList *getOutgoingContactRequests();
 
@@ -2300,9 +2327,9 @@ class MegaApiImpl : public MegaApp
 
         MegaRecentActionBucketList* getRecentActions(unsigned days = 90, unsigned maxnodes = 10000);
 
-        MegaNodeList* search(MegaNode* node, const char* searchString, bool recursive = 1, int order = MegaApi::ORDER_NONE);
+        MegaNodeList* search(MegaNode* node, const char* searchString, MegaCancelToken *cancelToken, bool recursive = 1, int order = MegaApi::ORDER_NONE);
         bool processMegaTree(MegaNode* node, MegaTreeProcessor* processor, bool recursive = 1);
-        MegaNodeList* search(const char* searchString, int order = MegaApi::ORDER_NONE);
+        MegaNodeList* search(const char* searchString, MegaCancelToken *cancelToken, int order = MegaApi::ORDER_NONE);
 
         MegaNode *createForeignFileNode(MegaHandle handle, const char *key, const char *name, m_off_t size, m_off_t mtime,
                                        MegaHandle parentHandle, const char *privateauth, const char *publicauth, const char *chatauth);
@@ -2354,6 +2381,7 @@ class MegaApiImpl : public MegaApp
         void pauseActionPackets();
         void resumeActionPackets();
 
+        static std::function<bool (Node*, Node*)>getComparatorFunction(int order);
         static bool nodeComparatorDefaultASC  (Node *i, Node *j);
         static bool nodeComparatorDefaultDESC (Node *i, Node *j);
         static bool nodeComparatorSizeASC  (Node *i, Node *j);
@@ -2486,6 +2514,8 @@ class MegaApiImpl : public MegaApp
         void getMyChatFilesFolder(MegaRequestListener *listener = NULL);
         void setCameraUploadsFolder(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
         void getCameraUploadsFolder(MegaRequestListener *listener = NULL);
+        void getUserAlias(MegaHandle uh, MegaRequestListener *listener = NULL);
+        void setUserAlias(MegaHandle uh, const char *alias, MegaRequestListener *listener = NULL);
 #endif
 
         void getPushNotificationSettings(MegaRequestListener *listener = NULL);
@@ -2597,7 +2627,6 @@ protected:
         int ftpServerMaxOutputSize;
         int ftpServerRestrictedMode;
         set<MegaTransferListener *> ftpServerListeners;
-
 #endif
 		
         map<int, MegaBackupController *> backupsMap;
@@ -2929,8 +2958,7 @@ protected:
         Node* getNodeByFingerprintInternal(const char *fingerprint);
         Node *getNodeByFingerprintInternal(const char *fingerprint, Node *parent);
 
-        bool processTree(Node* node, TreeProcessor* processor, bool recursive = 1);
-        MegaNodeList* search(Node* node, const char* searchString, bool recursive = 1);
+        bool processTree(Node* node, TreeProcessor* processor, bool recursive = 1, MegaCancelToken* cancelToken = nullptr);
         void getNodeAttribute(MegaNode* node, int type, const char *dstFilePath, MegaRequestListener *listener = NULL);
 		    void cancelGetNodeAttribute(MegaNode *node, int type, MegaRequestListener *listener = NULL);
         void setNodeAttribute(MegaNode* node, int type, const char *srcFilePath, MegaHandle attributehandle, MegaRequestListener *listener = NULL);

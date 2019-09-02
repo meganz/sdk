@@ -25,8 +25,12 @@
 #include "megaapi_impl.h"
 #include <algorithm>
 
-#ifdef _WIN32
+#ifdef WIN32
 #include <filesystem>
+namespace fs = ::std::filesystem;
+#else
+#include <experimental/filesystem>
+namespace fs = ::std::experimental::filesystem;
 #endif
 
 using namespace std;
@@ -136,6 +140,43 @@ void usleep(int n)
     Sleep(n / 1000);
 }
 #endif
+
+// helper functions and struct/classes 
+namespace
+{
+
+    bool buildLocalFolders(fs::path targetfolder, const string& prefix, int n, int recurselevel, int filesperfolder)
+    {
+        fs::path p = targetfolder / fs::u8path(prefix);
+        if (!fs::create_directory(p))
+            return false;
+
+        for (int i = 0; i < filesperfolder; ++i)
+        {
+            string filename = "file" + to_string(i) + "_" + prefix;
+            fs::path fp = p / fs::u8path(filename);
+#if (__cplusplus >= 201700L)
+            ofstream fs(fp/*, ios::binary*/);
+#else
+            ofstream fs(fp.u8string()/*, ios::binary*/);
+#endif
+            fs << filename;
+        }
+
+        if (recurselevel > 0)
+        {
+            for (int i = 0; i < n; ++i)
+            {
+                if (!buildLocalFolders(p, prefix + "_" + to_string(i), n, recurselevel - 1, filesperfolder))
+                    return false;
+            }
+        }
+
+        return true;
+    }
+
+}
+
 
 void SdkTest::SetUp()
 {
@@ -4056,12 +4097,71 @@ TEST_F(SdkTest, DISABLED_SdkGetRegisteredContacts)
 
     // Check johnsmith1
     ASSERT_EQ(js1, std::get<0>(table[0])); // eud
-    ASSERT_GT(std::get<1>(table[0]).size(), 0); // id
+    ASSERT_GT(std::get<1>(table[0]).size(), 0u); // id
     ASSERT_EQ(js1, std::get<2>(table[0])); // ud
 
     // Check johnsmith2
     ASSERT_EQ(js2, std::get<0>(table[1])); // eud
-    ASSERT_GT(std::get<1>(table[1]).size(), 0); // id
+    ASSERT_GT(std::get<1>(table[1]).size(), 0u); // id
     ASSERT_EQ(js2, std::get<2>(table[1])); // ud
 }
 
+TEST_F(SdkTest, RecursiveUploadWithLogout)
+{
+    // this one used to cause a double-delete
+
+    // make new folders (and files) in the local filesystem - approx 90 
+    fs::path p = fs::current_path() / "uploadme_mega_auto_test_sdk";
+    if (fs::exists(p))
+    {
+        fs::remove_all(p);
+    }
+    fs::create_directories(p);
+    ASSERT_TRUE(buildLocalFolders(p.u8string().c_str(), "newkid", 3, 2, 10));
+
+    // start uploading
+    TransferTracker uploadListener;
+    megaApi[0]->startUpload(p.u8string().c_str(), megaApi[0]->getRootNode(), &uploadListener);
+    WaitMillisec(500);
+
+    // logout while the upload (which consists of many transfers) is ongoing
+    ASSERT_EQ(API_OK, doRequestLogout(0));
+    ASSERT_EQ(API_EACCESS, uploadListener.waitForResult());
+}
+
+TEST_F(SdkTest, RecursiveDownloadWithLogout)
+{
+    // this one used to cause a double-delete
+
+    // make new folders (and files) in the local filesystem - approx 130 - we must upload in order to have something to download
+    fs::path uploadpath = fs::current_path() / "uploadme_mega_auto_test_sdk";
+    fs::path downloadpath = fs::current_path() / "downloadme_mega_auto_test_sdk";
+
+    std::error_code ec;
+    fs::remove_all(uploadpath, ec);
+    fs::remove_all(downloadpath, ec);
+    ASSERT_TRUE(!fs::exists(uploadpath));
+    ASSERT_TRUE(!fs::exists(downloadpath));
+    fs::create_directories(uploadpath);
+    fs::create_directories(downloadpath);
+
+    ASSERT_TRUE(buildLocalFolders(uploadpath.u8string().c_str(), "newkid", 3, 2, 10));
+
+    // upload all of those
+    TransferTracker uploadListener, downloadListener;
+    megaApi[0]->startUpload(uploadpath.u8string().c_str(), megaApi[0]->getRootNode(), &uploadListener);
+    ASSERT_EQ(API_OK, uploadListener.waitForResult());
+
+    // ok now try the download
+    megaApi[0]->startDownload(megaApi[0]->getNodeByPath("/uploadme_mega_auto_test_sdk"), downloadpath.u8string().c_str(), &downloadListener);
+    WaitMillisec(1000);
+    ASSERT_TRUE(downloadListener.started);
+    ASSERT_TRUE(!downloadListener.finished);
+
+    // logout while the download (which consists of many transfers) is ongoing
+    ASSERT_EQ(API_OK, doRequestLogout(0));
+
+    ASSERT_EQ(API_EACCESS, downloadListener.waitForResult());
+    fs::remove_all(uploadpath, ec);
+    fs::remove_all(downloadpath, ec);
+}

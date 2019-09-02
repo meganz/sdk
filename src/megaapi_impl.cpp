@@ -1731,6 +1731,10 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     {
         changed |= MegaUser::CHANGE_TYPE_PUSH_SETTINGS;
     }
+    if (user->changed.alias)
+    {
+        changed |= MegaUser::CHANGE_TYPE_ALIAS;
+    }
 }
 
 MegaUserPrivate::MegaUserPrivate(MegaUser *user) : MegaUser()
@@ -2739,6 +2743,13 @@ void MegaTransferPrivate::setListener(MegaTransferListener *listener)
     this->listener = listener;
 }
 
+void MegaTransferPrivate::startRecursiveOperation(unique_ptr<MegaRecursiveOperation> op, MegaNode* node)
+{
+    assert(op && !recursiveOperation);
+    recursiveOperation = move(op);
+    recursiveOperation->start(node);
+}
+
 void MegaTransferPrivate::setPath(const char* path)
 {
     if(this->path) delete [] this->path;
@@ -2829,6 +2840,10 @@ MegaTransferListener* MegaTransferPrivate::getListener() const
 
 MegaTransferPrivate::~MegaTransferPrivate()
 {
+    if (recursiveOperation)
+    {
+        recursiveOperation->cancel();
+    }
     delete[] path;
     delete[] parentPath;
     delete [] fileName;
@@ -5189,7 +5204,8 @@ bool MegaApiImpl::isAchievementsEnabled()
 
 bool MegaApiImpl::isBusinessAccount()
 {
-    return client->mBizStatus != BIZ_STATUS_INACTIVE;
+    return client->mBizStatus != BIZ_STATUS_INACTIVE
+             && client->mBizStatus != BIZ_STATUS_UNKNOWN;
 }
 
 bool MegaApiImpl::isMasterBusinessAccount()
@@ -5223,7 +5239,10 @@ int MegaApiImpl::getBusinessStatus()
         client->app->notify_business_status(client->mBizStatus);
     }
 
-    return client->mBizStatus;
+    // Prevent return apps unknown status
+    return (client->mBizStatus == BIZ_STATUS_UNKNOWN)
+            ? BIZ_STATUS_INACTIVE
+            : client->mBizStatus;
 }
 
 bool MegaApiImpl::checkPassword(const char *password)
@@ -5531,6 +5550,7 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_GEOLOCATION:
         case MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER:
         case MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER:
+        case MegaApi::USER_ATTR_ALIAS:
             scope = '*';
             break;
 
@@ -7162,19 +7182,14 @@ void MegaApiImpl::abortPendingActions(error preverror)
         fireOnRequestFinish(request, preverror);
     }
 
-    deque<MegaTransferPrivate*> transfers;
-    for (auto transferPair : transferMap)
+    while (!transferMap.empty())
     {
-        if (transferPair.second)
-        {
-            transfers.push_front(transferPair.second);
-        }
-    }
-    for (auto transfer : transfers)
-    {
+        auto transfer = transferMap.begin()->second;
         transfer->setState(MegaTransfer::STATE_FAILED);
+        // this call can be recursive and remove multiple, eg with MegaFolderUploadController
         fireOnTransferFinish(transfer, preverror);
     }
+    assert(transferMap.empty());
 
     requestMap.clear();
     transferMap.clear();
@@ -9825,6 +9840,29 @@ void MegaApiImpl::setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListene
     delete stringMap;
 }
 
+void MegaApiImpl::getUserAlias(MegaHandle uh, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_ALIAS);
+    request->setNodeHandle(uh);
+    request->setText(Base64Str<MegaClient::USERHANDLE>(uh));
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::setUserAlias(MegaHandle uh, const char *alias, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
+    MegaStringMap stringMap;
+    stringMap.set(Base64Str<MegaClient::USERHANDLE>(uh), alias ? alias : "");
+    request->setMegaStringMap(&stringMap);
+    request->setParamType(MegaApi::USER_ATTR_ALIAS);
+    request->setNodeHandle(uh);
+    request->setText(alias);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::enableGeolocation(MegaRequestListener *listener)
 {
     MegaStringMap *stringMap = new MegaStringMapPrivate();
@@ -10019,7 +10057,7 @@ int MegaApiImpl::getNumUnreadUserAlerts()
     return result;
 }
 
-MegaNodeList* MegaApiImpl::getInShares(MegaUser *megaUser)
+MegaNodeList* MegaApiImpl::getInShares(MegaUser *megaUser, int order)
 {
     if (!megaUser)
     {
@@ -10027,7 +10065,7 @@ MegaNodeList* MegaApiImpl::getInShares(MegaUser *megaUser)
     }
 
     sdkMutex.lock();
-    vector<Node*> vNodes;
+    node_vector vNodes;
     User *user = client->finduser(megaUser->getEmail(), 0);
     if (!user)
     {
@@ -10047,6 +10085,7 @@ MegaNodeList* MegaApiImpl::getInShares(MegaUser *megaUser)
     MegaNodeList *nodeList;
     if (vNodes.size())
     {
+        std::sort(vNodes.begin(), vNodes.end(), getComparatorFunction(order));
         nodeList = new MegaNodeListPrivate(vNodes.data(), int(vNodes.size()));
     }
     else
@@ -10058,11 +10097,11 @@ MegaNodeList* MegaApiImpl::getInShares(MegaUser *megaUser)
     return nodeList;
 }
 
-MegaNodeList* MegaApiImpl::getInShares()
+MegaNodeList* MegaApiImpl::getInShares(int order)
 {
     sdkMutex.lock();
 
-    vector<Node*> vNodes;
+    node_vector nodes;
     for (user_map::iterator it = client->users.begin(); it != client->users.end(); it++)
     {
         Node *n;
@@ -10071,23 +10110,23 @@ MegaNodeList* MegaApiImpl::getInShares()
         {
             if ((n = client->nodebyhandle(*sit)) && !n->parent)
             {
-                vNodes.push_back(n);
+                nodes.push_back(n);
             }
         }
     }
 
-    MegaNodeList *nodeList = new MegaNodeListPrivate(vNodes.data(), int(vNodes.size()));
+    std::sort(nodes.begin(), nodes.end(), getComparatorFunction(order));
+
+    MegaNodeList *nodeList = new MegaNodeListPrivate(nodes.data(), int(nodes.size()));
     sdkMutex.unlock();
     return nodeList;
 }
 
-MegaShareList* MegaApiImpl::getInSharesList()
+MegaShareList* MegaApiImpl::getInSharesList(int order)
 {
     sdkMutex.lock();
 
-    vector<Share*> vShares;
-    handle_vector vHandles;
-
+    node_vector nodes;
     for(user_map::iterator it = client->users.begin(); it != client->users.end(); it++)
     {
         Node *n;
@@ -10096,13 +10135,22 @@ MegaShareList* MegaApiImpl::getInSharesList()
         {
             if ((n = client->nodebyhandle(*sit)) && !n->parent)
             {
-                vShares.push_back(n->inshare);
-                vHandles.push_back(n->nodehandle);
+                nodes.push_back(n);
             }
         }
     }
 
-    MegaShareList *shareList = new MegaShareListPrivate(vShares.data(), vHandles.data(), int(vShares.size()));
+    std::sort(nodes.begin(), nodes.end(), getComparatorFunction(order));
+
+    vector<Share*> shares;
+    handle_vector handles;
+    for (Node *node : nodes)
+    {
+        shares.push_back(node->inshare);
+        handles.push_back(node->nodehandle);
+    }
+
+    MegaShareList *shareList = new MegaShareListPrivate(shares.data(), handles.data(), int(shares.size()));
     sdkMutex.unlock();
     return shareList;
 }
@@ -10147,12 +10195,13 @@ bool MegaApiImpl::isPendingShare(MegaNode *megaNode)
     return result;
 }
 
-MegaShareList *MegaApiImpl::getOutShares()
+MegaShareList *MegaApiImpl::getOutShares(int order)
 {
     sdkMutex.lock();
 
     OutShareProcessor shareProcessor;
     processTree(client->nodebyhandle(client->rootnodes[0]), &shareProcessor, true);
+    shareProcessor.sortShares(order);
     MegaShareList *shareList = new MegaShareListPrivate(shareProcessor.getShares().data(), shareProcessor.getHandles().data(), int(shareProcessor.getShares().size()));
 
     sdkMutex.unlock();
@@ -10171,7 +10220,7 @@ MegaShareList* MegaApiImpl::getOutShares(MegaNode *megaNode)
         return new MegaShareListPrivate();
     }
 
-    if(!node->outshares)
+    if(!node->outshares && !node->pendingshares)
     {
         sdkMutex.unlock();
         return new MegaShareListPrivate();
@@ -10180,12 +10229,24 @@ MegaShareList* MegaApiImpl::getOutShares(MegaNode *megaNode)
     vector<Share*> vShares;
     vector<handle> vHandles;
 
-    for (share_map::iterator it = node->outshares->begin(); it != node->outshares->end(); it++)
+    if (node->outshares)
     {
-        Share *share = it->second;
-        if (share->user)
+        for (share_map::iterator it = node->outshares->begin(); it != node->outshares->end(); it++)
         {
-            vShares.push_back(share);
+            Share *share = it->second;
+            if (share->user)
+            {
+                vShares.push_back(share);
+                vHandles.push_back(node->nodehandle);
+            }
+        }
+    }
+
+    if (node->pendingshares)
+    {
+        for (share_map::iterator it = node->pendingshares->begin(); it != node->pendingshares->end(); it++)
+        {
+            vShares.push_back(it->second);
             vHandles.push_back(node->nodehandle);
         }
     }
@@ -10224,7 +10285,6 @@ MegaShareList *MegaApiImpl::getPendingOutShares(MegaNode *megaNode)
 
     vector<Share*> vShares;
     vector<handle> vHandles;
-
     for (share_map::iterator it = node->pendingshares->begin(); it != node->pendingshares->end(); it++)
     {
         vShares.push_back(it->second);
@@ -10236,13 +10296,15 @@ MegaShareList *MegaApiImpl::getPendingOutShares(MegaNode *megaNode)
     return shareList;
 }
 
-MegaNodeList *MegaApiImpl::getPublicLinks()
+MegaNodeList *MegaApiImpl::getPublicLinks(int order)
 {
     sdkMutex.lock();
 
     PublicLinkProcessor linkProcessor;
     processTree(client->nodebyhandle(client->rootnodes[0]), &linkProcessor, true);
-    MegaNodeList *nodeList = new MegaNodeListPrivate(linkProcessor.getNodes().data(), int(linkProcessor.getNodes().size()));
+    node_vector nodes = linkProcessor.getNodes();
+    std::sort(nodes.begin(), nodes.end(), getComparatorFunction(order));
+    MegaNodeList *nodeList = new MegaNodeListPrivate(nodes.data(), int(nodes.size()));
 
     sdkMutex.unlock();
     return nodeList;
@@ -10420,38 +10482,49 @@ bool MegaApiImpl::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, boo
     return result;
 }
 
-MegaNodeList *MegaApiImpl::search(const char *searchString, int order)
+MegaNodeList *MegaApiImpl::search(const char *searchString, MegaCancelToken *cancelToken, int order)
 {
     if(!searchString)
     {
         return new MegaNodeListPrivate();
     }
 
-    sdkMutex.lock();
+    if (cancelToken && cancelToken->isCancelled())
+    {
+        return new MegaNodeListPrivate();
+    }
+
+    SdkMutexGuard g(sdkMutex);
+
+    if (cancelToken && cancelToken->isCancelled())
+    {
+        return new MegaNodeListPrivate();
+    }
 
     node_vector result;
     Node *node;
 
     // rootnodes
-    for (unsigned int i = 0; i < (sizeof client->rootnodes / sizeof *client->rootnodes); i++)
+    for (unsigned int i = 0; i < (sizeof client->rootnodes / sizeof *client->rootnodes)
+          && !(cancelToken && cancelToken->isCancelled()); i++)
     {
         node = client->nodebyhandle(client->rootnodes[i]);
 
         SearchTreeProcessor searchProcessor(searchString);
-        processTree(node, &searchProcessor);
+        processTree(node, &searchProcessor, true, cancelToken);
         node_vector& vNodes = searchProcessor.getResults();
 
         result.insert(result.end(), vNodes.begin(), vNodes.end());
     }
 
     // inshares
-    MegaShareList *shares = getInSharesList();
-    for (int i = 0; i < shares->size(); i++)
+    MegaShareList *shares = getInSharesList(MegaApi::ORDER_NONE);
+    for (int i = 0; i < shares->size() && !(cancelToken && cancelToken->isCancelled()); i++)
     {
         node = client->nodebyhandle(shares->get(i)->getNodeHandle());
 
         SearchTreeProcessor searchProcessor(searchString);
-        processTree(node, &searchProcessor);
+        processTree(node, &searchProcessor, true, cancelToken);
         vector<Node *>& vNodes  = searchProcessor.getResults();
 
         result.insert(result.end(), vNodes.begin(), vNodes.end());
@@ -10460,27 +10533,10 @@ MegaNodeList *MegaApiImpl::search(const char *searchString, int order)
 
     if (order && order <= MegaApi::ORDER_ALPHABETICAL_DESC)
     {
-        bool (*comp)(Node*, Node*);
-        switch(order)
-        {
-        case MegaApi::ORDER_DEFAULT_ASC: comp = MegaApiImpl::nodeComparatorDefaultASC; break;
-        case MegaApi::ORDER_DEFAULT_DESC: comp = MegaApiImpl::nodeComparatorDefaultDESC; break;
-        case MegaApi::ORDER_SIZE_ASC: comp = MegaApiImpl::nodeComparatorSizeASC; break;
-        case MegaApi::ORDER_SIZE_DESC: comp = MegaApiImpl::nodeComparatorSizeDESC; break;
-        case MegaApi::ORDER_CREATION_ASC: comp = MegaApiImpl::nodeComparatorCreationASC; break;
-        case MegaApi::ORDER_CREATION_DESC: comp = MegaApiImpl::nodeComparatorCreationDESC; break;
-        case MegaApi::ORDER_MODIFICATION_ASC: comp = MegaApiImpl::nodeComparatorModificationASC; break;
-        case MegaApi::ORDER_MODIFICATION_DESC: comp = MegaApiImpl::nodeComparatorModificationDESC; break;
-        case MegaApi::ORDER_ALPHABETICAL_ASC: comp = MegaApiImpl::nodeComparatorAlphabeticalASC; break;
-        case MegaApi::ORDER_ALPHABETICAL_DESC: comp = MegaApiImpl::nodeComparatorAlphabeticalDESC; break;
-        default: comp = MegaApiImpl::nodeComparatorDefaultASC; break;
-        }
-        std::sort(result.begin(), result.end(), comp);
+        std::sort(result.begin(), result.end(), getComparatorFunction(order));
     }
     MegaNodeList *nodeList = new MegaNodeListPrivate(result.data(), int(result.size()));
     
-    sdkMutex.unlock();
-
     return nodeList;
 }
 
@@ -10927,7 +10983,7 @@ void MegaApiImpl::resumeActionPackets()
     sdkMutex.unlock();
 }
 
-bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursive)
+bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursive, MegaCancelToken *cancelToken)
 {
     if (!node)
     {
@@ -10939,11 +10995,21 @@ bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursi
         return 0;
     }
 
-    sdkMutex.lock();
+    if (cancelToken && cancelToken->isCancelled())
+    {
+        return 0;
+    }
+
+    SdkMutexGuard g(sdkMutex);
+
+    if (cancelToken && cancelToken->isCancelled()) // check before lock and after, in case it was cancelled while being locked
+    {
+        return 0;
+    }
+
     node = client->nodebyhandle(node->nodehandle);
     if (!node)
     {
-        sdkMutex.unlock();
         return 1;
     }
 
@@ -10951,63 +11017,56 @@ bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursi
     {
         for (node_list::iterator it = node->children.begin(); it != node->children.end(); )
         {
-            if (!processTree(*it++,processor))
+            if (!processTree(*it++, processor, recursive, cancelToken))
             {
-                sdkMutex.unlock();
                 return 0;
             }
         }
     }
+
     bool result = processor->processNode(node);
-    sdkMutex.unlock();
     return result;
 }
 
-MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, bool recursive, int order)
+MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, MegaCancelToken *cancelToken, bool recursive, int order)
 {
     if (!n || !searchString)
     {
         return new MegaNodeListPrivate();
     }
+
+    if (cancelToken && cancelToken->isCancelled())
+    {
+        return new MegaNodeListPrivate();
+    }
     
-    sdkMutex.lock();
+    SdkMutexGuard g(sdkMutex);
+
+    if (cancelToken && cancelToken->isCancelled())
+    {
+        return new MegaNodeListPrivate();
+    }
     
     Node *node = client->nodebyhandle(n->getHandle());
     if (!node)
     {
-        sdkMutex.unlock();
         return new MegaNodeListPrivate();
     }
 
     SearchTreeProcessor searchProcessor(searchString);
-    for (node_list::iterator it = node->children.begin(); it != node->children.end(); )
+    for (node_list::iterator it = node->children.begin(); it != node->children.end()
+         && !(cancelToken && cancelToken->isCancelled()); )
     {
-        processTree(*it++, &searchProcessor, recursive);
+        processTree(*it++, &searchProcessor, recursive, cancelToken);
     }
 
     vector<Node *>& vNodes = searchProcessor.getResults();
     if (order && order <= MegaApi::ORDER_ALPHABETICAL_DESC)
     {
-        bool (*comp)(Node*, Node*);
-        switch(order)
-        {
-        case MegaApi::ORDER_DEFAULT_ASC: comp = MegaApiImpl::nodeComparatorDefaultASC; break;
-        case MegaApi::ORDER_DEFAULT_DESC: comp = MegaApiImpl::nodeComparatorDefaultDESC; break;
-        case MegaApi::ORDER_SIZE_ASC: comp = MegaApiImpl::nodeComparatorSizeASC; break;
-        case MegaApi::ORDER_SIZE_DESC: comp = MegaApiImpl::nodeComparatorSizeDESC; break;
-        case MegaApi::ORDER_CREATION_ASC: comp = MegaApiImpl::nodeComparatorCreationASC; break;
-        case MegaApi::ORDER_CREATION_DESC: comp = MegaApiImpl::nodeComparatorCreationDESC; break;
-        case MegaApi::ORDER_MODIFICATION_ASC: comp = MegaApiImpl::nodeComparatorModificationASC; break;
-        case MegaApi::ORDER_MODIFICATION_DESC: comp = MegaApiImpl::nodeComparatorModificationDESC; break;
-        case MegaApi::ORDER_ALPHABETICAL_ASC: comp = MegaApiImpl::nodeComparatorAlphabeticalASC; break;
-        case MegaApi::ORDER_ALPHABETICAL_DESC: comp = MegaApiImpl::nodeComparatorAlphabeticalDESC; break;
-        default: comp = MegaApiImpl::nodeComparatorDefaultASC; break;
-        }
-        std::sort(vNodes.begin(), vNodes.end(), comp);
+        std::sort(vNodes.begin(), vNodes.end(), getComparatorFunction(order));
     }
 
     MegaNodeList *nodeList = new MegaNodeListPrivate(vNodes.data(), int(vNodes.size()));
-    sdkMutex.unlock();
     return nodeList;
 }
 
@@ -14174,10 +14233,10 @@ void MegaApiImpl::putua_result(error e)
 void MegaApiImpl::getua_result(error e)
 {
     MegaError megaError(e);
-    if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || ((request->getType() != MegaRequest::TYPE_GET_ATTR_USER) &&
-                    (request->getType() != MegaRequest::TYPE_SET_ATTR_USER))) return;
+    MegaRequestPrivate* request = NULL;
+    auto it = requestMap.find(client->restag);
+    if (it == requestMap.end() || !(request = it->second)
+           || (request->getType() != MegaRequest::TYPE_GET_ATTR_USER && request->getType() != MegaRequest::TYPE_SET_ATTR_USER)) return;
 
     // if attempted to get ^!prd attribute but not exists yet...
     if (e == API_ENOENT)
@@ -14215,6 +14274,27 @@ void MegaApiImpl::getua_result(error e)
             {
                 request->setFlag(true);
             }
+        }
+        else if (request->getParamType() == MegaApi::USER_ATTR_ALIAS &&
+                 request->getType() == MegaRequest::TYPE_SET_ATTR_USER)
+        {
+            // The attribute doesn't exists so we have to create it
+            MegaStringMap *stringMap = request->getMegaStringMap();
+            attr_t type = static_cast<attr_t>(request->getParamType());
+            TLVstore tlv;
+            const char *key;
+
+            std::unique_ptr<MegaStringList> keys(stringMap->getKeys());
+            for (int i = 0; i < keys->size(); i++)
+            {
+                key = keys->get(i);
+                tlv.set(key, stringMap->get(key));
+            }
+
+            // serialize and encrypt the TLV container
+            std::unique_ptr<string> container(tlv.tlvRecordsToContainer(client->rng, &client->key));
+            client->putua(type, (byte *)container->data(), unsigned(container->size()));
+            return;
         }
     }
 
@@ -14406,19 +14486,65 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
     fireOnRequestFinish(request, MegaError(e));
 }
 
-void MegaApiImpl::getua_result(TLVstore *tlv, attr_t)
+void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
 {
-    if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_GET_ATTR_USER)) return;
+    error e = API_OK;
+    MegaRequestPrivate* request = NULL;
+    auto it = requestMap.find(client->restag);
+    if (it == requestMap.end() || !(request = it->second)
+           || (request->getType() != MegaRequest::TYPE_GET_ATTR_USER
+               && request->getType() != MegaRequest::TYPE_SET_ATTR_USER)) return;
 
     if (tlv)
     {
+        if (request->getType() == MegaRequest::TYPE_SET_ATTR_USER)
+        {
+            bool modified = false;
+            const char *key, *newAlias;
+            MegaStringMap *newAliasesMap = request->getMegaStringMap();
+            std::unique_ptr<MegaStringList> keys(newAliasesMap->getKeys());
+
+            // Iterate through the string map <uh_B64, alias>   (currently alias are set one by one)
+            for (int i = 0; i < keys->size(); i++)
+            {
+                key = keys->get(i);
+                newAlias = newAliasesMap->get(key);
+
+                std::string currentAlias = tlv->find(key) ? tlv->get(key) : string();
+                if (strcmp(newAlias, currentAlias.c_str()) != 0)
+                {
+                    if (newAlias[0] != '\0')    // not empty, set new alias
+                    {
+                        tlv->set(key, newAlias);
+                    }
+                    else    // empty, reset the current alias
+                    {
+                        tlv->reset(key);
+                    }
+                    modified = true;
+                }
+            }
+
+            if (modified)
+            {
+                // serialize and encrypt the TLV container
+                std::unique_ptr<string> container(tlv->tlvRecordsToContainer(client->rng, &client->key));
+                assert(type == request->getParamType());
+                client->putua(type, (byte *)container->data(), unsigned(container->size()), client->restag);
+            }
+            else
+            {
+                LOG_debug << "Aliases not changed, already up to date";
+                fireOnRequestFinish(request, MegaError(e));
+            }
+
+            return;
+        }
+
         // TLV data usually includes byte arrays with zeros in the middle, so values
         // must be converted into Base64 strings to avoid problems
         MegaStringMap *stringMap = new MegaStringMapPrivate(tlv->getMap(), true);
         request->setMegaStringMap(stringMap);
-
         switch (request->getParamType())
         {
             // prepare request params to know if a warning should show or not
@@ -14468,14 +14594,31 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t)
                 }
                 break;
             }
+
+            case MegaApi::USER_ATTR_ALIAS:
+            {
+                // If a uh was set in the request we have to find it in the aliases map and return it
+                const char *uh = request->getText();
+                if (uh)
+                {
+                    const char *buf = stringMap->get(uh);
+                    if (!buf)
+                    {
+                        e = API_ENOENT;
+                        break;
+                    }
+                    request->setName(buf);
+                }
+                break;
+            }
+
             default:
                 break;
         }
         delete stringMap;
     }
 
-    fireOnRequestFinish(request, MegaError(API_OK));
-    return;
+    fireOnRequestFinish(request, MegaError(e));
 }
 
 #ifdef DEBUG
@@ -16125,6 +16268,27 @@ int naturalsorting_compare (const char *i, const char *j)
     return 0;
 }
 
+std::function<bool (Node*, Node*)>MegaApiImpl::getComparatorFunction(int order)
+{
+    std::function<bool (Node*, Node*)> comp;
+    switch(order)
+    {
+        case MegaApi::ORDER_DEFAULT_ASC: comp = MegaApiImpl::nodeComparatorDefaultASC; break;
+        case MegaApi::ORDER_DEFAULT_DESC: comp = MegaApiImpl::nodeComparatorDefaultDESC; break;
+        case MegaApi::ORDER_SIZE_ASC: comp = MegaApiImpl::nodeComparatorSizeASC; break;
+        case MegaApi::ORDER_SIZE_DESC: comp = MegaApiImpl::nodeComparatorSizeDESC; break;
+        case MegaApi::ORDER_CREATION_ASC: comp = MegaApiImpl::nodeComparatorCreationASC; break;
+        case MegaApi::ORDER_CREATION_DESC: comp = MegaApiImpl::nodeComparatorCreationDESC; break;
+        case MegaApi::ORDER_MODIFICATION_ASC: comp = MegaApiImpl::nodeComparatorModificationASC; break;
+        case MegaApi::ORDER_MODIFICATION_DESC: comp = MegaApiImpl::nodeComparatorModificationDESC; break;
+        case MegaApi::ORDER_ALPHABETICAL_ASC: comp = MegaApiImpl::nodeComparatorAlphabeticalASC; break;
+        case MegaApi::ORDER_ALPHABETICAL_DESC: comp = MegaApiImpl::nodeComparatorAlphabeticalDESC; break;
+        default: comp = MegaApiImpl::nodeComparatorDefaultASC; break;
+    }
+
+    return comp;
+}
+
 bool MegaApiImpl::nodeComparatorDefaultASC(Node *i, Node *j)
 {
     if (i->type < j->type)
@@ -16392,7 +16556,7 @@ MegaNodeList *MegaApiImpl::getChildren(MegaNode* p, int order)
         return new MegaNodeListPrivate();
     }
 
-    vector<Node *> childrenNodes;
+    node_vector childrenNodes;
 
     if(!order || order> MegaApi::ORDER_ALPHABETICAL_DESC)
     {
@@ -16401,27 +16565,11 @@ MegaNodeList *MegaApiImpl::getChildren(MegaNode* p, int order)
     }
     else
     {
-        bool (*comp)(Node*, Node*);
-        switch(order)
-        {
-        case MegaApi::ORDER_DEFAULT_ASC: comp = MegaApiImpl::nodeComparatorDefaultASC; break;
-        case MegaApi::ORDER_DEFAULT_DESC: comp = MegaApiImpl::nodeComparatorDefaultDESC; break;
-        case MegaApi::ORDER_SIZE_ASC: comp = MegaApiImpl::nodeComparatorSizeASC; break;
-        case MegaApi::ORDER_SIZE_DESC: comp = MegaApiImpl::nodeComparatorSizeDESC; break;
-        case MegaApi::ORDER_CREATION_ASC: comp = MegaApiImpl::nodeComparatorCreationASC; break;
-        case MegaApi::ORDER_CREATION_DESC: comp = MegaApiImpl::nodeComparatorCreationDESC; break;
-        case MegaApi::ORDER_MODIFICATION_ASC: comp = MegaApiImpl::nodeComparatorModificationASC; break;
-        case MegaApi::ORDER_MODIFICATION_DESC: comp = MegaApiImpl::nodeComparatorModificationDESC; break;
-        case MegaApi::ORDER_ALPHABETICAL_ASC: comp = MegaApiImpl::nodeComparatorAlphabeticalASC; break;
-        case MegaApi::ORDER_ALPHABETICAL_DESC: comp = MegaApiImpl::nodeComparatorAlphabeticalDESC; break;
-        default: comp = MegaApiImpl::nodeComparatorDefaultASC; break;
-        }
-
+        std::function<bool (Node*, Node*)> comparatorFunction = getComparatorFunction(order);
         for (node_list::iterator it = parent->children.begin(); it != parent->children.end(); )
         {
             Node *n = *it++;
-            vector<Node *>::iterator i = std::lower_bound(childrenNodes.begin(),
-                    childrenNodes.end(), n, comp);
+            const node_vector::iterator i = std::lower_bound(childrenNodes.begin(), childrenNodes.end(), n, comparatorFunction);
             childrenNodes.insert(i, n);
         }
     }
@@ -16546,8 +16694,8 @@ MegaChildrenLists *MegaApiImpl::getFileFolderChildren(MegaNode *p, int order)
         return new MegaChildrenListsPrivate();
     }
 
-    vector<Node *> files;
-    vector<Node *> folders;
+    node_vector files;
+    node_vector folders;
 
     if(!order || order> MegaApi::ORDER_ALPHABETICAL_DESC)
     {
@@ -16566,33 +16714,18 @@ MegaChildrenLists *MegaApiImpl::getFileFolderChildren(MegaNode *p, int order)
     }
     else
     {
-        bool (*comp)(Node*, Node*);
-        switch(order)
-        {
-        case MegaApi::ORDER_DEFAULT_ASC: comp = MegaApiImpl::nodeComparatorDefaultASC; break;
-        case MegaApi::ORDER_DEFAULT_DESC: comp = MegaApiImpl::nodeComparatorDefaultDESC; break;
-        case MegaApi::ORDER_SIZE_ASC: comp = MegaApiImpl::nodeComparatorSizeASC; break;
-        case MegaApi::ORDER_SIZE_DESC: comp = MegaApiImpl::nodeComparatorSizeDESC; break;
-        case MegaApi::ORDER_CREATION_ASC: comp = MegaApiImpl::nodeComparatorCreationASC; break;
-        case MegaApi::ORDER_CREATION_DESC: comp = MegaApiImpl::nodeComparatorCreationDESC; break;
-        case MegaApi::ORDER_MODIFICATION_ASC: comp = MegaApiImpl::nodeComparatorModificationASC; break;
-        case MegaApi::ORDER_MODIFICATION_DESC: comp = MegaApiImpl::nodeComparatorModificationDESC; break;
-        case MegaApi::ORDER_ALPHABETICAL_ASC: comp = MegaApiImpl::nodeComparatorAlphabeticalASC; break;
-        case MegaApi::ORDER_ALPHABETICAL_DESC: comp = MegaApiImpl::nodeComparatorAlphabeticalDESC; break;
-        default: comp = MegaApiImpl::nodeComparatorDefaultASC; break;
-        }
-
+        std::function<bool (Node*, Node*)> comparatorFunction = getComparatorFunction(order);
         for (node_list::iterator it = parent->children.begin(); it != parent->children.end(); )
         {
             Node *n = *it++;
             if (n->type == FILENODE)
             {
-                vector<Node *>::iterator i = std::lower_bound(files.begin(), files.end(), n, comp);
+                const node_vector::iterator i = std::lower_bound(files.begin(), files.end(), n, comparatorFunction);
                 files.insert(i, n);
             }
             else // if (n->type == FOLDERNODE)
             {
-                vector<Node *>::iterator i = std::lower_bound(folders.begin(), folders.end(), n, comp);
+                const node_vector::iterator i = std::lower_bound(folders.begin(), folders.end(), n, comparatorFunction);
                 folders.insert(i, n);
             }
         }
@@ -16672,33 +16805,16 @@ int MegaApiImpl::getIndex(MegaNode *n, int order)
         return 0;
     }
 
-    bool (*comp)(Node*, Node*);
-    switch(order)
-    {
-        case MegaApi::ORDER_DEFAULT_ASC: comp = MegaApiImpl::nodeComparatorDefaultASC; break;
-        case MegaApi::ORDER_DEFAULT_DESC: comp = MegaApiImpl::nodeComparatorDefaultDESC; break;
-        case MegaApi::ORDER_SIZE_ASC: comp = MegaApiImpl::nodeComparatorSizeASC; break;
-        case MegaApi::ORDER_SIZE_DESC: comp = MegaApiImpl::nodeComparatorSizeDESC; break;
-        case MegaApi::ORDER_CREATION_ASC: comp = MegaApiImpl::nodeComparatorCreationASC; break;
-        case MegaApi::ORDER_CREATION_DESC: comp = MegaApiImpl::nodeComparatorCreationDESC; break;
-        case MegaApi::ORDER_MODIFICATION_ASC: comp = MegaApiImpl::nodeComparatorModificationASC; break;
-        case MegaApi::ORDER_MODIFICATION_DESC: comp = MegaApiImpl::nodeComparatorModificationDESC; break;
-        case MegaApi::ORDER_ALPHABETICAL_ASC: comp = MegaApiImpl::nodeComparatorAlphabeticalASC; break;
-        case MegaApi::ORDER_ALPHABETICAL_DESC: comp = MegaApiImpl::nodeComparatorAlphabeticalDESC; break;
-        default: comp = MegaApiImpl::nodeComparatorDefaultASC; break;
-    }
-
-    vector<Node *> childrenNodes;
+    std::function<bool (Node*, Node*)> comparatorFunction = getComparatorFunction(order);
+    node_vector childrenNodes;
     for (node_list::iterator it = parent->children.begin(); it != parent->children.end(); )
     {
         Node *temp = *it++;
-        vector<Node *>::iterator i = std::lower_bound(childrenNodes.begin(),
-                childrenNodes.end(), temp, comp);
+        const node_vector::iterator i = std::lower_bound(childrenNodes.begin(), childrenNodes.end(), temp, comparatorFunction);
         childrenNodes.insert(i, temp);
     }
 
-    vector<Node *>::iterator i = std::lower_bound(childrenNodes.begin(),
-            childrenNodes.end(), node, comp);
+    const node_vector::iterator i = std::lower_bound(childrenNodes.begin(), childrenNodes.end(), node, comparatorFunction);
 
     sdkMutex.unlock();
     return int(i - childrenNodes.begin());
@@ -17319,8 +17435,7 @@ void MegaApiImpl::sendPendingTransfers()
                 {
                     transferMap[nextTag] = transfer;
                     transfer->setTag(nextTag);
-                    MegaFolderUploadController *uploader = new MegaFolderUploadController(this, transfer);
-                    uploader->start();
+                    transfer->startRecursiveOperation(make_unique<MegaFolderUploadController>(this, transfer), nullptr);
                 }
                 break;
             }
@@ -17355,8 +17470,7 @@ void MegaApiImpl::sendPendingTransfers()
                     // Folder download
                     transferMap[nextTag] = transfer;
                     transfer->setTag(nextTag);
-                    MegaFolderDownloadController *downloader = new MegaFolderDownloadController(this, transfer);
-                    downloader->start(publicNode);
+                    transfer->startRecursiveOperation(make_unique<MegaFolderDownloadController>(this, transfer), publicNode);
                     break;
                 }
 
@@ -18594,7 +18708,7 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_GET_ATTR_USER:
         {
             const char* value = request->getFile();
-            attr_t type = attr_t(request->getParamType());
+            attr_t type = static_cast<attr_t>(request->getParamType());
             const char *email = request->getEmail();
             const char *ph = request->getSessionKey();
 
@@ -18623,7 +18737,7 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             if (attrname.empty() ||    // unknown attribute type
-                 (type == ATTR_AVATAR && !value) ) // no destination file for avatar
+                 (type == ATTR_AVATAR && !value)) // no destination file for avatar
             {
                 e = API_EARGS;
                 break;
@@ -18643,7 +18757,7 @@ void MegaApiImpl::sendPendingRequests()
         {
             const char* file = request->getFile();
             const char* value = request->getText();
-            attr_t type = attr_t(request->getParamType());
+            attr_t type = static_cast<attr_t>(request->getParamType());
             MegaStringMap *stringMap = request->getMegaStringMap();
 
             char scope = MegaApiImpl::userAttributeToScope(type);
@@ -18708,11 +18822,20 @@ void MegaApiImpl::sendPendingRequests()
                     break;
                 }
 
+                if (type == ATTR_ALIAS)
+                {
+                    // always get updated value before update it
+                    User *ownUser = client->finduser(client->me);
+                    client->getua(ownUser, type);
+                    break;
+                }
+
                 // encode the MegaStringMap as a TLV container
                 TLVstore tlv;
                 string value;
                 const char *buf, *key;
-                MegaStringList *keys = stringMap->getKeys();
+
+                std::unique_ptr<MegaStringList> keys(stringMap->getKeys());
                 for (int i=0; i < keys->size(); i++)
                 {
                     key = keys->get(i);
@@ -18721,17 +18844,12 @@ void MegaApiImpl::sendPendingRequests()
                     size_t len = strlen(buf)/4*3+3;
                     value.resize(len);
                     value.resize(Base64::atob(buf, (byte *)value.data(), int(len)));
-
                     tlv.set(key, value);
                 }
-                delete keys;
 
                 // serialize and encrypt the TLV container
-                string *container = tlv.tlvRecordsToContainer(client->rng, &client->key);
-
+                std::unique_ptr<string> container(tlv.tlvRecordsToContainer(client->rng, &client->key));
                 client->putua(type, (byte *)container->data(), unsigned(container->size()));
-                delete container;
-
                 break;
             }
             else if (scope == '^')
@@ -18763,9 +18881,8 @@ void MegaApiImpl::sendPendingRequests()
                     }
 
                     // always get updated value before update it
-                    const char* uh = getMyUserHandle();
-                    client->getua(uh, type);
-                    delete [] uh;
+                    User *ownUser = client->finduser(client->me);
+                    client->getua(ownUser, type);
                     break;
                 }
                 else if (type == ATTR_DISABLE_VERSIONS)
@@ -21741,32 +21858,54 @@ OutShareProcessor::OutShareProcessor()
 
 bool OutShareProcessor::processNode(Node *node)
 {
-    if(!node->outshares)
+    if (node->outshares)
     {
-        return true;
+        for (share_map::iterator it = node->outshares->begin(); it != node->outshares->end(); it++)
+        {
+            Share *share = it->second;
+            if (share->user) // public links have no user
+            {
+                mShares.push_back(share);
+                mNodes.push_back(node);
+            }
+        }
     }
 
-    for (share_map::iterator it = node->outshares->begin(); it != node->outshares->end(); it++)
+    if (node->pendingshares)
     {
-        Share *share = it->second;
-        if (share->user) // public links have no user
+        for (share_map::iterator it = node->pendingshares->begin(); it != node->pendingshares->end(); it++)
         {
-            shares.push_back(share);
-            handles.push_back(node->nodehandle);
+            Share *share = it->second;
+            if (share->user) // public links have no user
+            {
+                mShares.push_back(share);
+                mNodes.push_back(node);
+            }
         }
     }
 
     return true;
 }
 
-vector<Share *> &OutShareProcessor::getShares()
+vector<Share *> OutShareProcessor::getShares()
 {
-    return shares;
+    return mShares;
 }
 
-vector<handle> &OutShareProcessor::getHandles()
+vector<handle> OutShareProcessor::getHandles()
 {
+    vector<handle> handles;
+    for (Node *node: mNodes)
+    {
+        handles.push_back(node->nodehandle);
+    }
+
     return handles;
+}
+
+void OutShareProcessor::sortShares(int order)
+{
+    std::sort(mNodes.begin(), mNodes.end(), MegaApiImpl::getComparatorFunction(order));
 }
 
 PendingOutShareProcessor::PendingOutShareProcessor()
@@ -22688,7 +22827,7 @@ MegaFolderUploadController::MegaFolderUploadController(MegaApiImpl *megaApi, Meg
     this->tag = transfer->getTag();
 }
 
-void MegaFolderUploadController::start()
+void MegaFolderUploadController::start(MegaNode*)
 {
     transfer->setFolderTransferTag(-1);
     transfer->setStartTime(Waiter::ds);
@@ -22701,7 +22840,6 @@ void MegaFolderUploadController::start()
     {
         transfer->setState(MegaTransfer::STATE_FAILED);
         megaApi->fireOnTransferFinish(transfer, MegaError(API_EARGS));
-        delete this;
     }
     else
     {
@@ -22724,6 +22862,18 @@ void MegaFolderUploadController::start()
 
         delete child;
         delete parent;
+    }
+}
+
+void MegaFolderUploadController::cancel()
+{
+    transfer = nullptr;  // no final callback for this one since it is being destroyed now
+
+    while (!subTransfers.empty())
+    {
+        auto subTransfer = *subTransfers.begin();
+        subTransfer->setState(MegaTransfer::STATE_COMPLETED);
+        megaApi->fireOnTransferFinish(subTransfer, MegaError(API_EINCOMPLETE));
     }
 }
 
@@ -22799,7 +22949,6 @@ void MegaFolderUploadController::checkCompletion()
         LOG_debug << "Folder transfer finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
         transfer->setState(MegaTransfer::STATE_COMPLETED);
         megaApi->fireOnTransferFinish(transfer, MegaError(API_OK));
-        delete this;
     }
 }
 
@@ -22824,6 +22973,7 @@ void MegaFolderUploadController::onRequestFinish(MegaApi *, MegaRequest *request
 
 void MegaFolderUploadController::onTransferStart(MegaApi *, MegaTransfer *t)
 {
+    subTransfers.insert(static_cast<MegaTransferPrivate*>(t));
     transfer->setState(t->getState());
     transfer->setPriority(t->getPriority());
     transfer->setTotalBytes(transfer->getTotalBytes() + t->getTotalBytes());
@@ -22833,26 +22983,33 @@ void MegaFolderUploadController::onTransferStart(MegaApi *, MegaTransfer *t)
 
 void MegaFolderUploadController::onTransferUpdate(MegaApi *, MegaTransfer *t)
 {
-    transfer->setState(t->getState());
-    transfer->setPriority(t->getPriority());
-    transfer->setTransferredBytes(transfer->getTransferredBytes() + t->getDeltaSize());
-    transfer->setUpdateTime(Waiter::ds);
-    transfer->setSpeed(t->getSpeed());
-    transfer->setMeanSpeed(t->getMeanSpeed());
-    megaApi->fireOnTransferUpdate(transfer);
+    if (transfer)
+    {
+        transfer->setState(t->getState());
+        transfer->setPriority(t->getPriority());
+        transfer->setTransferredBytes(transfer->getTransferredBytes() + t->getDeltaSize());
+        transfer->setUpdateTime(Waiter::ds);
+        transfer->setSpeed(t->getSpeed());
+        transfer->setMeanSpeed(t->getMeanSpeed());
+        megaApi->fireOnTransferUpdate(transfer);
+    }
 }
 
 void MegaFolderUploadController::onTransferFinish(MegaApi *, MegaTransfer *t, MegaError *)
 {
+    subTransfers.erase(static_cast<MegaTransferPrivate*>(t));
     pendingTransfers--;
-    transfer->setState(MegaTransfer::STATE_ACTIVE);
-    transfer->setPriority(t->getPriority());
-    transfer->setTransferredBytes(transfer->getTransferredBytes() + t->getDeltaSize());
-    transfer->setUpdateTime(Waiter::ds);
-    transfer->setSpeed(t->getSpeed());
-    transfer->setMeanSpeed(t->getMeanSpeed());
-    megaApi->fireOnTransferUpdate(transfer);
-    checkCompletion();
+    if (transfer)
+    {
+        transfer->setState(MegaTransfer::STATE_ACTIVE);
+        transfer->setPriority(t->getPriority());
+        transfer->setTransferredBytes(transfer->getTransferredBytes() + t->getDeltaSize());
+        transfer->setUpdateTime(Waiter::ds);
+        transfer->setSpeed(t->getSpeed());
+        transfer->setMeanSpeed(t->getMeanSpeed());
+        megaApi->fireOnTransferUpdate(transfer);
+        checkCompletion();
+    }
 }
 
 MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, int folderTransferTag, handle parenthandle, const char* filename, bool attendPastBackups, const char *speriod, int64_t period, int maxBackups)
@@ -23981,7 +24138,6 @@ void MegaFolderDownloadController::start(MegaNode *node)
         {
             LOG_debug << "Folder download failed. Node not found";
             megaApi->fireOnTransferFinish(transfer, MegaError(API_ENOENT));
-            delete this;
             return;
         }
         deleteNode = true;
@@ -24029,6 +24185,19 @@ void MegaFolderDownloadController::start(MegaNode *node)
         delete node;
     }
 }
+
+void MegaFolderDownloadController::cancel()
+{
+    transfer = nullptr;  // no final callback for this one since it is being destroyed now
+
+    while (!subTransfers.empty())
+    {
+        auto subTransfer = *subTransfers.begin();
+        subTransfer->setState(MegaTransfer::STATE_COMPLETED);
+        megaApi->fireOnTransferFinish(subTransfer, MegaError(API_EINCOMPLETE));
+    }
+}
+
 
 void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, string *path)
 {
@@ -24128,12 +24297,12 @@ void MegaFolderDownloadController::checkCompletion()
         LOG_debug << "Folder download finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
         transfer->setState(MegaTransfer::STATE_COMPLETED);
         megaApi->fireOnTransferFinish(transfer, MegaError(e));
-        delete this;
     }
 }
 
 void MegaFolderDownloadController::onTransferStart(MegaApi *, MegaTransfer *t)
 {
+    subTransfers.insert(static_cast<MegaTransferPrivate*>(t));
     transfer->setState(t->getState());
     transfer->setPriority(t->getPriority());
     transfer->setTotalBytes(transfer->getTotalBytes() + t->getTotalBytes());
@@ -24143,30 +24312,37 @@ void MegaFolderDownloadController::onTransferStart(MegaApi *, MegaTransfer *t)
 
 void MegaFolderDownloadController::onTransferUpdate(MegaApi *, MegaTransfer *t)
 {
-    transfer->setState(t->getState());
-    transfer->setPriority(t->getPriority());
-    transfer->setTransferredBytes(transfer->getTransferredBytes() + t->getDeltaSize());
-    transfer->setUpdateTime(Waiter::ds);
-    transfer->setSpeed(t->getSpeed());
-    transfer->setMeanSpeed(t->getMeanSpeed());
-    megaApi->fireOnTransferUpdate(transfer);
+    if (transfer)
+    {
+        transfer->setState(t->getState());
+        transfer->setPriority(t->getPriority());
+        transfer->setTransferredBytes(transfer->getTransferredBytes() + t->getDeltaSize());
+        transfer->setUpdateTime(Waiter::ds);
+        transfer->setSpeed(t->getSpeed());
+        transfer->setMeanSpeed(t->getMeanSpeed());
+        megaApi->fireOnTransferUpdate(transfer);
+    }
 }
 
 void MegaFolderDownloadController::onTransferFinish(MegaApi *, MegaTransfer *t, MegaError *e)
 {
+    subTransfers.erase(static_cast<MegaTransferPrivate*>(t));
     pendingTransfers--;
-    transfer->setState(MegaTransfer::STATE_ACTIVE);
-    transfer->setPriority(t->getPriority());
-    transfer->setTransferredBytes(transfer->getTransferredBytes() + t->getDeltaSize());
-    transfer->setUpdateTime(Waiter::ds);
-    transfer->setSpeed(t->getSpeed());
-    transfer->setMeanSpeed(t->getMeanSpeed());
-    megaApi->fireOnTransferUpdate(transfer);
-    if (e->getErrorCode())
+    if (transfer)
     {
-        this->e = (error)e->getErrorCode();
+        transfer->setState(MegaTransfer::STATE_ACTIVE);
+        transfer->setPriority(t->getPriority());
+        transfer->setTransferredBytes(transfer->getTransferredBytes() + t->getDeltaSize());
+        transfer->setUpdateTime(Waiter::ds);
+        transfer->setSpeed(t->getSpeed());
+        transfer->setMeanSpeed(t->getMeanSpeed());
+        megaApi->fireOnTransferUpdate(transfer);
+        if (e->getErrorCode())
+        {
+            this->e = (error)e->getErrorCode();
+        }
+        checkCompletion();
     }
-    checkCompletion();
 }
 
 #ifdef HAVE_LIBUV
@@ -31304,6 +31480,21 @@ void MegaPushNotificationSettingsPrivate::enableShares(bool enable)
 void MegaPushNotificationSettingsPrivate::enableChats(bool enable)
 {
     mGlobalChatsDND = enable ? -1 : 0;
+}
+
+MegaCancelTokenPrivate::~MegaCancelTokenPrivate()
+{
+
+}
+
+void MegaCancelTokenPrivate::cancel(bool newValue)
+{
+    cancelFlag = newValue;
+}
+
+bool MegaCancelTokenPrivate::isCancelled() const
+{
+    return cancelFlag;
 }
 
 }
