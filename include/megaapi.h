@@ -12411,30 +12411,42 @@ class MegaApi
         /**
          * @brief Get a list with all inbound sharings from one MegaUser
          *
+         * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
+         * MegaApi::ORDER_DEFAULT_DESC
+         *
          * You take the ownership of the returned value
          *
          * @param user MegaUser sharing folders with this account
+         * @param order Sorting order to use
          * @return List of MegaNode objects that this user is sharing with this account
          */
-        MegaNodeList *getInShares(MegaUser* user);
+        MegaNodeList *getInShares(MegaUser* user, int order = ORDER_NONE);
 
         /**
          * @brief Get a list with all inboud sharings
          *
+         * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
+         * MegaApi::ORDER_DEFAULT_DESC
+         *
          * You take the ownership of the returned value
          *
+         * @param order Sorting order to use
          * @return List of MegaNode objects that other users are sharing with this account
          */
-        MegaNodeList *getInShares();
+        MegaNodeList *getInShares(int order = ORDER_NONE);
 
         /**
          * @brief Get a list with all active inboud sharings
          *
+         * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
+         * MegaApi::ORDER_DEFAULT_DESC
+         *
          * You take the ownership of the returned value
          *
+         * @param order Sorting order to use
          * @return List of MegaShare objects that other users are sharing with this account
          */
-        MegaShareList *getInSharesList();
+        MegaShareList *getInSharesList(int order = ORDER_NONE);
 
         /**
          * @brief Get the user relative to an incoming share
@@ -12502,16 +12514,20 @@ class MegaApi
         bool isPendingShare(MegaNode *node);
 
         /**
-         * @brief Get a list with all active outbound sharings
+         * @brief Get a list with all active and pending outbound sharings
+         *
+         * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
+         * MegaApi::ORDER_DEFAULT_DESC
          *
          * You take the ownership of the returned value
          *
+         * @param order Sorting order to use
          * @return List of MegaShare objects
          */
-        MegaShareList *getOutShares();
+        MegaShareList *getOutShares(int order = ORDER_NONE);
 
         /**
-         * @brief Get a list with the active outbound sharings for a MegaNode
+         * @brief Get a list with the active and pending outbound sharings for a MegaNode
          *
          * If the node doesn't exist in the account, this function returns an empty list.
          *
@@ -12528,6 +12544,7 @@ class MegaApi
          * You take the ownership of the returned value
          *
          * @return List of MegaShare objects
+         * @deprecated Use MegaNode::getOutShares instead of this function
          */
         MegaShareList *getPendingOutShares();
 
@@ -12536,6 +12553,7 @@ class MegaApi
          *
          * You take the ownership of the returned value
          *
+         * @deprecated Use MegaNode::getOutShares instead of this function
          * @return List of MegaShare objects
          */
         MegaShareList *getPendingOutShares(MegaNode *node);
@@ -12543,11 +12561,15 @@ class MegaApi
         /**
          * @brief Get a list with all public links
          *
+         * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
+         * MegaApi::ORDER_DEFAULT_DESC
+         *
          * You take the ownership of the returned value
          *
+         * @param order Sorting order to use
          * @return List of MegaNode objects that are shared with everyone via public link
          */
-        MegaNodeList *getPublicLinks();
+        MegaNodeList *getPublicLinks(int order = ORDER_NONE);
 
         /**
          * @brief Get a list with all incoming contact requests
