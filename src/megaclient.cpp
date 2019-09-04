@@ -1217,11 +1217,11 @@ std::string MegaClient::getPublicLink(bool newLinkFormat, int type, handle ph, c
     string nodeType;
     if (newLinkFormat)
     {
-        nodeType = (type ? "file/" : "folder/");
+        nodeType = ((type == nodetype_t::FILENODE) ? "file/" : "folder/");
     }
     else
     {
-        nodeType = (type ? "#!" : "#F!");
+        nodeType = ((type == nodetype_t::FILENODE) ? "#!" : "#F!");
     }
 
     strlink += nodeType;
