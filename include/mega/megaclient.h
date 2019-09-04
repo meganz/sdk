@@ -229,6 +229,11 @@ public:
     // pseudo-random number generator
     PrnGen rng;
 
+    // Use new format to generate Mega links
+    bool mNewLinkFormat = false;
+
+    static string getPublicLink(bool newLinkFormat, nodetype_t type, handle ph, const char *key);
+
 #ifdef ENABLE_CHAT
     // all chats
     textchat_map chats;

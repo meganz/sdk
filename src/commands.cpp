@@ -3463,6 +3463,7 @@ void CommandGetUserData::procresult()
     string smsv;
 
     bool b = false;
+    bool newLinkFormat = false;
     BizMode m = BIZ_MODE_UNKNOWN;
     BizStatus s = BIZ_STATUS_UNKNOWN;
     std::vector<std::pair<BizStatus, m_time_t>> sts;
@@ -3532,6 +3533,9 @@ void CommandGetUserData::procresult()
                         break;
                     case MAKENAMEID5('s', 'm', 's', 'v', 'e'):   // 2 = Opt-in and unblock SMS allowed 1 = Only unblock SMS allowed 0 = No SMS allowed
                         smsve = int(client->json.getint());
+                        break;
+                    case MAKENAMEID4('n', 'l', 'f', 'e'):
+                        newLinkFormat = static_cast<bool>(client->json.getint());
                         break;
                     case EOO:
                         endobject = true;
@@ -3653,6 +3657,8 @@ void CommandGetUserData::procresult()
 
             client->mSmsVerificationState = SmsVerificationState(smsve);
             client->mSmsVerifiedPhone = smsv;
+
+            client->mNewLinkFormat = newLinkFormat;
 
             client->k = k;
 

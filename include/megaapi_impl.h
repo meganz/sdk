@@ -420,6 +420,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
         MegaNode* getPublicNode() override;
         char *getPublicLink(bool includeKey = true) override;
         int64_t getPublicLinkCreationTime() override;
+        bool isNewLinkFormat();
         bool isFile() override;
         bool isFolder() override;
         bool isRemoved() override;
@@ -490,6 +491,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
             bool foreign : 1;
         };
         PublicLink *plink;
+        bool mNewLinkFormat;
         std::string *sharekey;   // for plinks of folders
         int duration;
         int width;
