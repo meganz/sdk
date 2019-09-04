@@ -363,7 +363,7 @@ std::string webdavnameescape(const std::string &value);
 void tolower_string(std::string& str);
 
 #ifdef __APPLE__
-    int macOSmajorVersion();
+int macOSmajorVersion();
 #endif
 
 struct CacheableWriter

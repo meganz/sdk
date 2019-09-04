@@ -882,7 +882,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                                 break;
                             }
 
-                            paths[i] += ((*it)->fsEventsPath.size() ? (*it)->fsEventsPath.size() : (*it)->localroot.localname.size()) + 1;
+                            paths[i] += rsize + 1;
                             pathsync[i] = *it;
                             break;
                         }
