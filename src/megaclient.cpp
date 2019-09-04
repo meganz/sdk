@@ -1211,17 +1211,17 @@ MegaClient::~MegaClient()
     delete dbaccess;
 }
 
-std::string MegaClient::getPublicLink(bool newLinkFormat, int type, handle ph, const char *key)
+std::string MegaClient::getPublicLink(bool newLinkFormat, nodetype_t type, handle ph, const char *key)
 {
     string strlink = "https://mega.nz/";
     string nodeType;
     if (newLinkFormat)
     {
-        nodeType = ((type == nodetype_t::FILENODE) ? "file/" : "folder/");
+        nodeType = (type == nodetype_t::FOLDERNODE ?  "folder/" : "file/");
     }
     else
     {
-        nodeType = ((type == nodetype_t::FILENODE) ? "#!" : "#F!");
+        nodeType = (type == nodetype_t::FOLDERNODE ? "#F!" : "#!");
     }
 
     strlink += nodeType;
