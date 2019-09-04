@@ -863,11 +863,11 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
 
                 for (it = client->syncs.begin(); it != client->syncs.end(); it++)
                 {
-                    int rsize = (*it)->fsEventsPath.size() ? (*it)->fsEventsPath.size() : (*it)->localroot.localname.size();
+                    int rsize = (*it)->mFsEventsPath.size() ? (*it)->mFsEventsPath.size() : (*it)->localroot.localname.size();
                     int isize = (*it)->dirnotify->ignore.size();
 
                     if (psize >= rsize
-                      && !memcmp((*it)->fsEventsPath.size() ? (*it)->fsEventsPath.c_str() : (*it)->localroot.localname.c_str(), path, rsize)    // prefix match
+                      && !memcmp((*it)->mFsEventsPath.size() ? (*it)->mFsEventsPath.c_str() : (*it)->localroot.localname.c_str(), path, rsize)    // prefix match
                       && (!path[rsize] || path[rsize] == '/')               // at end: end of path or path separator
                       && (psize <= (rsize + isize)                          // not ignored
                           || (path[rsize + isize + 1] && path[rsize + isize + 1] != '/')

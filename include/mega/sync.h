@@ -46,7 +46,7 @@ public:
     // Path used to normalize sync locaroot name when using prefix /System/Volumes/Data needed by fsevents, due to notification paths
     // are served with such prefix from macOS catalina +
 #ifdef __APPLE__
-    string fsEventsPath;
+    string mFsEventsPath;
 #endif
     // current state
     syncstate_t state;

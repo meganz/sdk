@@ -105,7 +105,7 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
         if (fd == -1)
         {
             LOG_debug << "Unable to open path using fseventspath.";
-            this->fsEventsPath = *crootpath;
+            mFsEventsPath = *crootpath;
         }
         else
         {
@@ -113,12 +113,12 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
             if (fcntl(fd, F_GETPATH, buf) < 0)
             {
                 LOG_debug << "Using standard paths to detect filesystem notifications.";
-                this->fsEventsPath = *crootpath;
+                mFsEventsPath = *crootpath;
             }
             else
             {
                 LOG_debug << "Using fsevents paths to detect filesystem notifications.";
-                this->fsEventsPath = supercrootpath;
+                mFsEventsPath = supercrootpath;
             }
             close(fd);
         }
