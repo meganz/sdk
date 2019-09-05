@@ -189,7 +189,7 @@ protected:
     int pendingTransfers;
     std::set<MegaTransferPrivate*> subTransfers;
     int mIncompleteTransfers = { 0 };
-    int mLastError;
+    int mLastError = { API_OK };
 };
 
 class MegaFolderUploadController : public MegaRequestListener, public MegaTransferListener, public MegaRecursiveOperation

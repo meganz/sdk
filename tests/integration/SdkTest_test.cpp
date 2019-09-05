@@ -4130,12 +4130,12 @@ TEST_F(SdkTest, RecursiveUploadWithLogout)
     // start uploading
     TransferTracker uploadListener;
     megaApi[0]->startUpload(p.u8string().c_str(), megaApi[0]->getRootNode(), &uploadListener);
-    int transferTag = uploadListener.waitForStart();
-    megaApi[0]->pauseTransferByTag(transferTag, true);  // pause it, so it doesn't complete before the logout is requested
+    WaitMillisec(500);
 
     // logout while the upload (which consists of many transfers) is ongoing
     ASSERT_EQ(API_OK, doRequestLogout(0));
-    ASSERT_EQ(API_EINCOMPLETE, uploadListener.waitForResult());
+    int result = uploadListener.waitForResult();
+    ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
 }
 
 TEST_F(SdkTest, RecursiveDownloadWithLogout)
@@ -4165,13 +4165,16 @@ TEST_F(SdkTest, RecursiveDownloadWithLogout)
 
     // ok now try the download
     megaApi[0]->startDownload(megaApi[0]->getNodeByPath("/uploadme_mega_auto_test_sdk"), downloadpath.u8string().c_str(), &downloadListener);
-    int transferTag = downloadListener.waitForStart();
-    megaApi[0]->pauseTransferByTag(transferTag, true);  // pause it, so it doesn't complete before the logout is requested
+    WaitMillisec(1000);
+    ASSERT_TRUE(downloadListener.started);
+    ASSERT_TRUE(!downloadListener.finished);
 
     // logout while the download (which consists of many transfers) is ongoing
+
     ASSERT_EQ(API_OK, doRequestLogout(0));
 
-    ASSERT_EQ(API_EACCESS, downloadListener.waitForResult());
+    int result = downloadListener.waitForResult();
+    ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
     fs::remove_all(uploadpath, ec);
     fs::remove_all(downloadpath, ec);
 }

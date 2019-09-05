@@ -66,19 +66,19 @@ protected:
 
 struct TransferTracker : public ::mega::MegaTransferListener
 {
-    std::promise<int> promiseStart;     // returns the assigned transfer tag
-    std::promise<int> promiseResult;    // returns the resulting error code
+    std::atomic<bool> started = { false };
+    std::atomic<bool> finished = { false };
+    std::atomic<int> result = { INT_MAX };
+    std::promise<int> promiseResult;
     void onTransferStart(MegaApi *api, MegaTransfer *transfer) override
     {
-        promiseStart.set_value(transfer->getTag());
+        started = true;
     }
     void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* error) override
     {
-        promiseResult.set_value(error->getErrorCode());
-    }
-    int waitForStart()
-    {
-        return promiseStart.get_future().get();
+        result = error->getErrorCode();
+        finished = true;
+        promiseResult.set_value(result);
     }
     int waitForResult()
     {
