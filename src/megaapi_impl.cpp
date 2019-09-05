@@ -24120,7 +24120,6 @@ MegaFolderDownloadController::MegaFolderDownloadController(MegaApiImpl *megaApi,
     this->recursive = 0;
     this->pendingTransfers = 0;
     this->tag = transfer->getTag();
-    this->mLastError = API_OK;
 }
 
 void MegaFolderDownloadController::start(MegaNode *node)
