@@ -1217,11 +1217,11 @@ std::string MegaClient::getPublicLink(bool newLinkFormat, nodetype_t type, handl
     string nodeType;
     if (newLinkFormat)
     {
-        nodeType = (type == nodetype_t::FOLDERNODE ?  "folder/" : "file/");
+        nodeType = (type == FOLDERNODE ?  "folder/" : "file/");
     }
     else
     {
-        nodeType = (type == nodetype_t::FOLDERNODE ? "#F!" : "#!");
+        nodeType = (type == FOLDERNODE ? "#F!" : "#!");
     }
 
     strlink += nodeType;
@@ -10016,19 +10016,8 @@ error MegaClient::decryptlink(const char *link, const char *pwd, string* decrypt
             key[i] = encKey[i] ^ derivedKey[i];
         }
 
-        // generate plain link
-        char phStr[9];
-        char keyStr[FILENODEKEYLENGTH*4/3+3];
-
-        Base64::btoa((byte*) &ph, MegaClient::NODEHANDLE, phStr);
-        Base64::btoa(key, int(encKeyLen), keyStr);
-
-        decryptedLink->clear();
-        decryptedLink->append("https://mega.nz/#");
-        decryptedLink->append(isFolder ? "F!" : "!");
-        decryptedLink->append(phStr);
-        decryptedLink->append("!");
-        decryptedLink->append(keyStr);
+        Base64Str<FILENODEKEYLENGTH> keyStr(key);
+        decryptedLink->assign(MegaClient::getPublicLink(mNewLinkFormat, isFolder ? FOLDERNODE : FILENODE, ph, keyStr));
     }
 
     return API_OK;
