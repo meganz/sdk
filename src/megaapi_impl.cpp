@@ -14731,6 +14731,34 @@ void MegaApiImpl::catchup_result()
     }
 }
 
+void MegaApiImpl::key_modified(handle userhandle, attr_t attribute)
+{
+    MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_KEY_MODIFIED);
+    switch (attribute)
+    {
+    case ATTR_CU25519_PUBK:
+        event->setNumber(0);
+        break;
+    case ATTR_ED25519_PUBK:
+        event->setNumber(1);
+        break;
+    case ATTR_UNKNOWN: // used internally for RSA
+        event->setNumber(2);
+        break;
+    case ATTR_SIG_CU255_PUBK:
+        event->setNumber(3);
+        break;
+    case ATTR_SIG_RSA_PUBK:
+        event->setNumber(4);
+        break;
+    default:
+        event->setNumber(-1);
+        break;
+    }
+    event->setHandle(userhandle);
+    fireOnEvent(event);
+}
+
 void MegaApiImpl::ephemeral_result(error e)
 {
     MegaError megaError(e);
@@ -30546,6 +30574,16 @@ void MegaEventPrivate::setText(const char *text)
 void MegaEventPrivate::setNumber(int64_t number)
 {
     this->number = number;
+}
+
+MegaHandle MegaEventPrivate::getHandle() const
+{
+    return mHandle;
+}
+
+void MegaEventPrivate::setHandle(const MegaHandle &handle)
+{
+    mHandle = handle;
 }
 
 MegaHandleListPrivate::MegaHandleListPrivate()

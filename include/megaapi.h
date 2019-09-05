@@ -3433,6 +3433,7 @@ public:
         EVENT_MEDIA_INFO_READY          = 7,
         EVENT_STORAGE_SUM_CHANGED       = 8,
         EVENT_BUSINESS_STATUS           = 9,
+        EVENT_KEY_MODIFIED              = 10,
     };
 
     virtual ~MegaEvent();
@@ -3474,6 +3475,12 @@ public:
      * @return Number relative to this event
      */
     virtual int64_t getNumber() const;
+
+    /**
+     * @brief Returns the handle relative to this event
+     * @return Handle relative to this event
+     */
+    virtual MegaHandle getHandle() const;
 };
 
 /**
@@ -5916,10 +5923,22 @@ class MegaGlobalListener
          * For this event type, MegaEvent::getNumber provides the new business status.
          *
          * The posible values are:
-         *  - MegaApi::BUSINESS_STATUS_EXPIRED = -1
+         *  - BUSINESS_STATUS_EXPIRED = -1
          *  - BUSINESS_STATUS_INACTIVE = 0
          *  - BUSINESS_STATUS_ACTIVE = 1
          *  - BUSINESS_STATUS_GRACE_PERIOD = 2
+         *
+         * - MegaEvent::EVENT_KEY_MODIFIED: when the key of a user has changed.
+         *
+         * For this event type, MegaEvent::getHandle provides the handle of the user whose key has been modified.
+         * For this event type, MegaEvent::getNumber provides type of key that has been modified.
+         *
+         * The posible values are:
+         *  - Public chat key (Cu25519)     = 0
+         *  - Public signing key (Ed25519)  = 1
+         *  - Public RSA key                = 2
+         *  - Signature of chat key         = 3
+         *  - Signature of RSA key          = 4
          *
          * @param api MegaApi object connected to the account
          * @param event Details about the event
@@ -6388,10 +6407,22 @@ class MegaListener
          * For this event type, MegaEvent::getNumber provides the new business status.
          *
          * The posible values are:
-         *  - MegaApi::BUSINESS_STATUS_EXPIRED = -1
+         *  - BUSINESS_STATUS_EXPIRED = -1
          *  - BUSINESS_STATUS_INACTIVE = 0
          *  - BUSINESS_STATUS_ACTIVE = 1
          *  - BUSINESS_STATUS_GRACE_PERIOD = 2
+         *
+         * - MegaEvent::EVENT_KEY_MODIFIED: when the key of a user has changed.
+         *
+         * For this event type, MegaEvent::getHandle provides the handle of the user whose key has been modified.
+         * For this event type, MegaEvent::getNumber provides type of key that has been modified.
+         *
+         * The posible values are:
+         *  - Public chat key (Cu25519)     = 0
+         *  - Public signing key (Ed25519)  = 1
+         *  - Public RSA key                = 2
+         *  - Signature of chat key         = 3
+         *  - Signature of RSA key          = 4
          *
          * @param api MegaApi object connected to the account
          * @param event Details about the event

@@ -11141,7 +11141,6 @@ error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
         if (it == mAuthRings.end())
         {
             LOG_warn << "Failed to track public key in " << User::attr2string(authringType) << " for user " << uid << ": authring not available";
-            // TODO: after testing, if not hit, remove assertion below
             assert(false);
             return API_ETEMPUNAVAIL;
         }
@@ -11164,8 +11163,8 @@ error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
             {
                 LOG_err << "Failed to track public key in " << User::attr2string(authringType) << " for user " << uid << ": fingerprint mismatch";
 
-                // TODO: notify the app through an event (and maybe send an event to stats)
-                // --> "Key has been modified"
+                app->key_modified(uh, keyType);
+                sendevent(99451, "Key modification detected");
 
                 return API_EKEY;
             }
@@ -11327,6 +11326,9 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
                 {
                     // TODO: notify the app through an event (and maybe send an event to stats)
                     // --> "Key has been modified"
+
+                    app->key_modified(uh, signatureType == ATTR_SIG_CU255_PUBK ? ATTR_CU25519_PUBK : ATTR_UNKNOWN);
+                    sendevent(99451, "Key modification detected");
                 }
 
                 return API_EKEY;
@@ -11372,8 +11374,8 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
     {
         LOG_err << "Failed to verify signature of public key in " << User::attr2string(authringType) << " for user " << uid << ": signature mismatch";
 
-        // TODO: notify the app through an event (and maybe send an event to stats)
-        // --> "Signature does not match"
+        app->key_modified(uh, signatureType);
+        sendevent(99452, "Signature mismatch for public key");
 
         return API_EKEY;
     }
@@ -11388,7 +11390,6 @@ error MegaClient::verifyCredentials(handle uh)
     if (it == mAuthRings.end())
     {
         LOG_warn << "Failed to track public key for user " << uid << ": authring not available";
-        // TODO: after testing, if not hit, remove assertion below
         assert(false);
         return API_ETEMPUNAVAIL;
     }

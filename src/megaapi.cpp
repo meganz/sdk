@@ -5921,6 +5921,11 @@ int64_t MegaEvent::getNumber() const
     return 0;
 }
 
+MegaHandle MegaEvent::getHandle() const
+{
+    return INVALID_HANDLE;
+}
+
 MegaHandleList *MegaHandleList::createInstance()
 {
     return new MegaHandleListPrivate();

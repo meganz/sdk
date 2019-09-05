@@ -1189,15 +1189,18 @@ public:
 
     int getType() const override;
     const char *getText() const override;
-    int64_t getNumber() const override;
+    int64_t getNumber() const override;    
+    MegaHandle getHandle() const override;
 
     void setText(const char* text);
     void setNumber(int64_t number);
+    void setHandle(const MegaHandle &handle);
 
 protected:
     int type;
     const char* text;
     int64_t number;
+    MegaHandle mHandle;
 };
 
 class MegaAccountBalancePrivate : public MegaAccountBalance
@@ -2771,6 +2774,7 @@ protected:
 
         void nodes_current() override;
         void catchup_result() override;
+        void key_modified(handle, attr_t) override;
 
         void fetchnodes_result(error) override;
         void putnodes_result(error, targettype_t, NewNode*) override;
