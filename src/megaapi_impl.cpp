@@ -22943,7 +22943,7 @@ void MegaFolderUploadController::checkCompletion()
     {
         LOG_debug << "Folder transfer finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
         transfer->setState(MegaTransfer::STATE_COMPLETED);
-        megaApi->fireOnTransferFinish(transfer, MegaError(API_OK));
+        megaApi->fireOnTransferFinish(transfer, !mIncompleteTransfers ? MegaError(API_OK) : MegaError(API_EINCOMPLETE));
     }
 }
 
@@ -22961,6 +22961,7 @@ void MegaFolderUploadController::onRequestFinish(MegaApi *, MegaRequest *request
         else
         {
             pendingFolders.pop_front();
+            mIncompleteTransfers++;
             checkCompletion();
         }
     }
@@ -22990,7 +22991,7 @@ void MegaFolderUploadController::onTransferUpdate(MegaApi *, MegaTransfer *t)
     }
 }
 
-void MegaFolderUploadController::onTransferFinish(MegaApi *, MegaTransfer *t, MegaError *)
+void MegaFolderUploadController::onTransferFinish(MegaApi *, MegaTransfer *t, MegaError *e)
 {
     subTransfers.erase(static_cast<MegaTransferPrivate*>(t));
     pendingTransfers--;
@@ -23003,6 +23004,10 @@ void MegaFolderUploadController::onTransferFinish(MegaApi *, MegaTransfer *t, Me
         transfer->setSpeed(t->getSpeed());
         transfer->setMeanSpeed(t->getMeanSpeed());
         megaApi->fireOnTransferUpdate(transfer);
+        if (e->getErrorCode() != API_OK)
+        {
+            mIncompleteTransfers++;
+        }
         checkCompletion();
     }
 }

@@ -199,6 +199,7 @@ protected:
     int recursive;
     int tag;
     int pendingTransfers;
+    int mIncompleteTransfers = 0;
     std::set<MegaTransferPrivate*> subTransfers;
 
 public:
