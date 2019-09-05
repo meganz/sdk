@@ -22943,6 +22943,7 @@ void MegaFolderUploadController::checkCompletion()
     {
         LOG_debug << "Folder transfer finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
         transfer->setState(MegaTransfer::STATE_COMPLETED);
+        transfer->setLastError(mLastError);
         megaApi->fireOnTransferFinish(transfer, !mIncompleteTransfers ? MegaError(API_OK) : MegaError(API_EINCOMPLETE));
     }
 }
@@ -24117,7 +24118,7 @@ MegaFolderDownloadController::MegaFolderDownloadController(MegaApiImpl *megaApi,
     this->recursive = 0;
     this->pendingTransfers = 0;
     this->tag = transfer->getTag();
-    this->e = API_OK;
+    this->mLastError = API_OK;
 }
 
 void MegaFolderDownloadController::start(MegaNode *node)
@@ -24214,7 +24215,8 @@ void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, string *pa
             LOG_err << "Unable to create folder: " << *path;
 
             recursive--;
-            e = API_EWRITE;
+            mLastError = API_EWRITE;
+            mIncompleteTransfers++;
             checkCompletion();
             return;
         }
@@ -24229,7 +24231,8 @@ void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, string *pa
         LOG_err << "Local file detected where there should be a folder: " << *path;
 
         recursive--;
-        e = API_EEXIST;
+        mLastError = API_EEXIST;
+        mIncompleteTransfers++;
         checkCompletion();
         return;
     }
@@ -24252,7 +24255,8 @@ void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, string *pa
     {
         LOG_err << "Child nodes not found: " << *path;
         recursive--;
-        e = API_ENOENT;
+        mLastError = API_ENOENT;
+        mIncompleteTransfers++;
         checkCompletion();
         return;
     }
@@ -24296,7 +24300,8 @@ void MegaFolderDownloadController::checkCompletion()
     {
         LOG_debug << "Folder download finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
         transfer->setState(MegaTransfer::STATE_COMPLETED);
-        megaApi->fireOnTransferFinish(transfer, MegaError(e));
+        transfer->setLastError(mLastError);
+        megaApi->fireOnTransferFinish(transfer, !mIncompleteTransfers ? MegaError(API_OK) : MegaError(API_EINCOMPLETE));
     }
 }
 
@@ -24339,7 +24344,7 @@ void MegaFolderDownloadController::onTransferFinish(MegaApi *, MegaTransfer *t, 
         megaApi->fireOnTransferUpdate(transfer);
         if (e->getErrorCode())
         {
-            this->e = (error)e->getErrorCode();
+            this->mLastError = (error)e->getErrorCode();
         }
         checkCompletion();
     }

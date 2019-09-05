@@ -178,6 +178,18 @@ public:
     virtual ~MegaRecursiveOperation() = default;
     virtual void start(MegaNode* node) = 0;
     virtual void cancel() = 0;
+
+protected:
+    MegaApiImpl *megaApi;
+    MegaClient *client;
+    MegaTransferPrivate *transfer;
+    MegaTransferListener *listener;
+    int recursive;
+    int tag;
+    int pendingTransfers;
+    std::set<MegaTransferPrivate*> subTransfers;
+    int mIncompleteTransfers = { 0 };
+    int mLastError;
 };
 
 class MegaFolderUploadController : public MegaRequestListener, public MegaTransferListener, public MegaRecursiveOperation
@@ -192,15 +204,6 @@ protected:
     void checkCompletion();
 
     std::list<std::string> pendingFolders;
-    MegaApiImpl *megaApi;
-    MegaClient *client;
-    MegaTransferPrivate *transfer;
-    MegaTransferListener *listener;
-    int recursive;
-    int tag;
-    int pendingTransfers;
-    int mIncompleteTransfers = 0;
-    std::set<MegaTransferPrivate*> subTransfers;
 
 public:
     void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e) override;
@@ -370,7 +373,6 @@ protected:
     int recursive;
     int tag;
     int pendingTransfers;
-    error e;
     std::set<MegaTransferPrivate*> subTransfers;
 
 public:
