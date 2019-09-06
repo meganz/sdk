@@ -177,7 +177,7 @@ class MegaRecursiveOperation
 public:
     virtual ~MegaRecursiveOperation() = default;
     virtual void start(MegaNode* node) = 0;
-    virtual void cancel() = 0;
+    void cancel();
 
 protected:
     MegaApiImpl *megaApi;
@@ -188,6 +188,7 @@ protected:
     int tag;
     int pendingTransfers;
     std::set<MegaTransferPrivate*> subTransfers;
+    std::set<MegaCancelToken*> queueCancellers;
     int mIncompleteTransfers = { 0 };
     int mLastError = { API_OK };
 };
@@ -197,7 +198,6 @@ class MegaFolderUploadController : public MegaRequestListener, public MegaTransf
 public:
     MegaFolderUploadController(MegaApiImpl *megaApi, MegaTransferPrivate *transfer);
     void start(MegaNode* node) override;
-    void cancel() override;
 
 protected:
     void onFolderAvailable(MegaHandle handle);
@@ -360,20 +360,10 @@ class MegaFolderDownloadController : public MegaTransferListener, public MegaRec
 public:
     MegaFolderDownloadController(MegaApiImpl *megaApi, MegaTransferPrivate *transfer);
     void start(MegaNode *node) override;
-    void cancel() override;
 
 protected:
     void downloadFolderNode(MegaNode *node, string *path);
     void checkCompletion();
-
-    MegaApiImpl *megaApi;
-    MegaClient *client;
-    MegaTransferPrivate *transfer;
-    MegaTransferListener *listener;
-    int recursive;
-    int tag;
-    int pendingTransfers;
-    std::set<MegaTransferPrivate*> subTransfers;
 
 public:
     void onTransferStart(MegaApi *, MegaTransfer *t) override;
@@ -711,6 +701,11 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
 
         void startRecursiveOperation(unique_ptr<MegaRecursiveOperation>, MegaNode* node); // takes ownership of both
 
+        // Only used for recursive operations so far, and only cancel if the transfer has not been taken off the queue yet.
+        void setCancelToken(std::unique_ptr<MegaCancelToken>);
+        MegaCancelToken* getCancelToken();
+
+
     protected:
         int type;
         int tag;
@@ -753,6 +748,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         int folderTransferTag;
         const char* appData;
         unique_ptr<MegaRecursiveOperation> recursiveOperation;
+        std::unique_ptr<MegaCancelToken> cancelToken;
 };
 
 class MegaTransferDataPrivate : public MegaTransferData
@@ -2160,9 +2156,9 @@ class MegaApiImpl : public MegaApp
         void startUpload(const char* localPath, MegaNode *parent, MegaTransferListener *listener=NULL);
         void startUpload(const char* localPath, MegaNode *parent, int64_t mtime, MegaTransferListener *listener=NULL);
         void startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener = NULL);
-        void startUpload(bool startFirst, const char* localPath, MegaNode* parent, const char* fileName, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, MegaTransferListener *listener);
+        void startUpload(bool startFirst, const char* localPath, MegaNode* parent, const char* fileName, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, MegaTransferListener *listener, std::unique_ptr<MegaCancelToken> canceller = nullptr);
         void startDownload(MegaNode* node, const char* localPath, MegaTransferListener *listener = NULL);
-        void startDownload(bool startFirst, MegaNode *node, const char* target, int folderTransferTag, const char *appData, MegaTransferListener *listener);
+        void startDownload(bool startFirst, MegaNode *node, const char* target, int folderTransferTag, const char *appData, MegaTransferListener *listener, std::unique_ptr<MegaCancelToken> canceller = nullptr);
         void startStreaming(MegaNode* node, m_off_t startPos, m_off_t size, MegaTransferListener *listener);
         void setStreamingMinimumRate(int bytesPerSecond);
         void retryTransfer(MegaTransfer *transfer, MegaTransferListener *listener = NULL);
