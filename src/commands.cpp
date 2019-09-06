@@ -324,6 +324,15 @@ CommandPutFile::CommandPutFile(MegaClient* client, TransferSlot* ctslot, int ms)
     arg("v", 2);
     arg("s", tslot->fa->size);
     arg("ms", ms);
+
+    for (auto &file : tslot->transfer->files)
+    {
+        if (!ISUNDEF(file->h))
+        {
+            arg("t", (byte*)&file->h, MegaClient::NODEHANDLE);
+            break;
+        }
+    }
 }
 
 void CommandPutFile::cancel()
