@@ -7189,6 +7189,12 @@ void MegaApiImpl::abortPendingActions(error preverror)
     requestMap.clear();
     transferMap.clear();
 
+    MegaTransferPrivate *transfer;
+    while ((transfer = transferQueue.pop()))
+    {
+        delete transfer;
+    }
+
     resetTotalDownloads();
     resetTotalUploads();
 }
