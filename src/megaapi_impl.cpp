@@ -104,6 +104,7 @@ MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64
     this->outShares = false;
     this->inShare = false;
     this->plink = NULL;
+    this->mNewLinkFormat = false;
     this->sharekey = NULL;
     this->foreign = isForeign;
     this->children = NULL;
@@ -207,6 +208,7 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     {
         this->plink = NULL;
     }
+    this->mNewLinkFormat = np->isNewLinkFormat();
 
     if (node->hasCustomAttrs())
     {
@@ -453,6 +455,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     this->outShares = (node->outshares) ? (node->outshares->size() > 1 || node->outshares->begin()->second->user) : false;
     this->inShare = (node->inshare != NULL) && !node->parent;
     this->plink = node->plink ? new PublicLink(node->plink) : NULL;
+    this->mNewLinkFormat = node->client->mNewLinkFormat;
     if (plink && type == FOLDERNODE && node->sharekey)
     {
         char key[FOLDERNODEKEYLENGTH*4/3+3];
@@ -879,22 +882,9 @@ char *MegaNodePrivate::getPublicLink(bool includeKey)
         return NULL;
     }
 
-    string strlink = "https://mega.nz/#";
-    strlink += (type ? "F" : "");
-
-    char *base64ph = new char[12];
-    Base64::btoa((byte*)&(plink->ph), MegaClient::NODEHANDLE, base64ph);
-    strlink += "!";
-    strlink += base64ph;
-    delete [] base64ph;
-
-    if (includeKey)
-    {
-        char *base64k = getBase64Key();
-        strlink += "!";
-        strlink += base64k;
-        delete [] base64k;
-    }
+    char *base64k = getBase64Key();
+    string strlink = MegaClient::getPublicLink(mNewLinkFormat, static_cast<nodetype_t>(type), plink->ph, (includeKey ? base64k : nullptr));
+    delete [] base64k;
 
     return MegaApi::strdup(strlink.c_str());
 }
@@ -902,6 +892,11 @@ char *MegaNodePrivate::getPublicLink(bool includeKey)
 int64_t MegaNodePrivate::getPublicLinkCreationTime()
 {
     return plink ? plink->cts : -1;
+}
+
+bool MegaNodePrivate::isNewLinkFormat()
+{
+    return mNewLinkFormat;
 }
 
 bool MegaNodePrivate::isFile()
@@ -26445,10 +26440,8 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         }
         else
         {
-            string link = "https://mega.nz/#!";
-            link.append(httpctx->nodehandle);
-            link.append("!");
-            link.append(httpctx->nodekey);
+            handle h = MegaApi::base64ToHandle(httpctx->nodehandle.c_str());
+            string link = MegaClient::getPublicLink(httpctx->megaApi->getMegaClient()->mNewLinkFormat, nodetype_t::FILENODE, h, httpctx->nodekey.c_str());
             LOG_debug << "Getting public link: " << link;
             httpctx->megaApi->getPublicNode(link.c_str(), httpctx);
             httpctx->transfer = new MegaTransferPrivate(MegaTransfer::TYPE_LOCAL_TCP_DOWNLOAD);

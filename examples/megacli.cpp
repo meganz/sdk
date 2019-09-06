@@ -3569,7 +3569,7 @@ void exec_getq(autocomplete::ACState& s)
 
 void exec_open(autocomplete::ACState& s)
 {
-    if (strstr(s.words[1].s.c_str(), "#F!"))  // folder link indicator
+    if (strstr(s.words[1].s.c_str(), "#F!") || strstr(s.words[1].s.c_str(), "folder/"))  // folder link indicator
     {
         if (!clientFolder)
         {
@@ -6179,15 +6179,8 @@ void DemoApp::exportnode_result(handle h, handle ph)
             return;
         }
 
-        cout << "https://mega.co.nz/#" << (n->type ? "F" : "") << "!" << Base64Str<MegaClient::NODEHANDLE>(ph) << "!";
-        if (n->type == FILENODE)
-        {
-            cout << Base64Str<FILENODEKEYLENGTH>((const byte*)n->nodekey.data()) << endl;
-        }
-        else
-        {
-            cout << Base64Str<FOLDERNODEKEYLENGTH>(n->sharekey->key) << endl;
-        }
+        const char *key = (n->type == FILENODE) ? Base64Str<FILENODEKEYLENGTH>((const byte*)n->nodekey.data()) : Base64Str<FOLDERNODEKEYLENGTH>(n->sharekey->key);
+        cout << MegaClient::getPublicLink(client->mNewLinkFormat, n->type, ph, key) << endl;
     }
     else
     {

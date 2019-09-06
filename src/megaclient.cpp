@@ -1211,6 +1211,34 @@ MegaClient::~MegaClient()
     delete dbaccess;
 }
 
+std::string MegaClient::getPublicLink(bool newLinkFormat, nodetype_t type, handle ph, const char *key)
+{
+    string strlink = "https://mega.nz/";
+    string nodeType;
+    if (newLinkFormat)
+    {
+        nodeType = (type == FOLDERNODE ?  "folder/" : "file/");
+    }
+    else
+    {
+        nodeType = (type == FOLDERNODE ? "#F!" : "#!");
+    }
+
+    strlink += nodeType;
+
+    Base64Str<MegaClient::NODEHANDLE> base64ph(ph);
+    strlink += base64ph;
+    strlink += (newLinkFormat ? "#" : "");
+
+    if (key)
+    {
+        strlink += (newLinkFormat ? "" : "!");
+        strlink += key;
+    }
+
+    return strlink;
+}
+
 // nonblocking state machine executing all operations currently in progress
 void MegaClient::exec()
 {
@@ -7837,29 +7865,39 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
 
 error MegaClient::parsefolderlink(const char *folderlink, handle &h, byte *key)
 {
-    // structure of public folder links: https://mega.nz/#F!<handle>!<key>
+    // structure of public folder links: https://mega.nz/#F!<handle>!<key> or https://mega.nz/folder/<handle>#<key>
 
     const char* ptr;
-    if (!((ptr = strstr(folderlink, "#F!")) && (strlen(ptr)>=11)))
+    if (!((ptr = strstr(folderlink, "#F!")) && (strlen(ptr) >= 11)) &&
+            !((ptr = strstr(folderlink, "folder/")) && (strlen(ptr) >= 15)))
     {
         return API_EARGS;
     }
 
-    const char *f = ptr + 3;
-    ptr += 11;
+    const char *nodeHandleBegining = nullptr;
+    if (*ptr == 'f')
+    {
+        nodeHandleBegining = ptr + 7;
+        ptr += 15;
+    }
+    else
+    {
+        nodeHandleBegining = ptr + 3;
+        ptr += 11;
+    }
 
     if (*ptr == '\0')    // no key provided, link is incomplete
     {
         return API_EINCOMPLETE;
     }
-    else if (*ptr != '!')
+    else if (*ptr != '!' && *ptr != '#')
     {
         return API_EARGS;
     }
 
     // Node handle size is 6 Bytes, so we init with zeros to avoid comparison problems
     handle auxh = 0;
-    if (Base64::atob(f, (byte*)&auxh, NODEHANDLE) != NODEHANDLE)
+    if (Base64::atob(nodeHandleBegining, (byte*)&auxh, NODEHANDLE) != NODEHANDLE)
     {
         return API_EARGS;
     }
@@ -9806,7 +9844,7 @@ void MegaClient::getpubliclink(Node* n, int del, m_time_t ets)
 }
 
 // open exported file link
-// formats supported: ...#!publichandle!key or publichandle!key
+// formats supported: ...#!publichandle!key, publichandle!key or file/publichandle#key
 error MegaClient::openfilelink(const char* link, int op)
 {
     const char* ptr = NULL;
@@ -9817,6 +9855,10 @@ error MegaClient::openfilelink(const char* link, int op)
     {
         ptr += 2;
     }
+    else if ((ptr = strstr(link, "file/")))
+    {
+        ptr += 5;
+    }
     else    // legacy format without '#'
     {
         ptr = link;
@@ -9825,8 +9867,7 @@ error MegaClient::openfilelink(const char* link, int op)
     if (Base64::atob(ptr, (byte*)&ph, NODEHANDLE) == NODEHANDLE)
     {
         ptr += 8;
-
-        if (*ptr == '!')
+        if (*ptr == '!' || (*ptr == '#' && *(ptr + 1) != '\0'))
         {
             ptr++;
 
@@ -9844,7 +9885,7 @@ error MegaClient::openfilelink(const char* link, int op)
                 return API_OK;
             }
         }
-        else if (*ptr == '\0')    // no key provided, check only the existence of the node
+        else if (*ptr == '\0' || *ptr == '#')    // no key provided, check only the existence of the node
         {
             if (op)
             {
@@ -9975,19 +10016,8 @@ error MegaClient::decryptlink(const char *link, const char *pwd, string* decrypt
             key[i] = encKey[i] ^ derivedKey[i];
         }
 
-        // generate plain link
-        char phStr[9];
-        char keyStr[FILENODEKEYLENGTH*4/3+3];
-
-        Base64::btoa((byte*) &ph, MegaClient::NODEHANDLE, phStr);
-        Base64::btoa(key, int(encKeyLen), keyStr);
-
-        decryptedLink->clear();
-        decryptedLink->append("https://mega.nz/#");
-        decryptedLink->append(isFolder ? "F!" : "!");
-        decryptedLink->append(phStr);
-        decryptedLink->append("!");
-        decryptedLink->append(keyStr);
+        Base64Str<FILENODEKEYLENGTH> keyStr(key);
+        decryptedLink->assign(MegaClient::getPublicLink(mNewLinkFormat, isFolder ? FOLDERNODE : FILENODE, ph, keyStr));
     }
 
     return API_OK;
