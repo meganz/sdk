@@ -5559,6 +5559,13 @@ class MegaTransferListener
          * The last parameter provides the result of the transfer. If the transfer finished without problems,
          * the error code will be API_OK
          *
+         * If the error code is API_EOVERQUOTA, we will need to compare the handle of the parent node related
+         * to this transfer by calling to MegaTransfer::getParentHandle(), with the handle of the root node
+         * of our account, If they are equal the node belongs to our account, otherwise the node belongs
+         * to another account. In both cases the application must show an informative message indicating
+         * if the transfer failed because our own account storage is in overquota or the target account
+         * storage is in overquota.
+         *
          * @param api MegaApi object that started the transfer
          * @param transfer Information about the transfer
          * @param error Error information
