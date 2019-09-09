@@ -366,15 +366,6 @@ protected:
     void downloadFolderNode(MegaNode *node, string *path);
     void checkCompletion();
 
-    MegaApiImpl *megaApi;
-    MegaClient *client;
-    MegaTransferPrivate *transfer;
-    MegaTransferListener *listener;
-    int recursive;
-    int tag;
-    int pendingTransfers;
-    std::set<MegaTransferPrivate*> subTransfers;
-
 public:
     void onTransferStart(MegaApi *, MegaTransfer *t) override;
     void onTransferUpdate(MegaApi *, MegaTransfer *t) override;
