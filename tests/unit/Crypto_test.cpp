@@ -81,7 +81,7 @@ TEST(Crypto, AES_GCM)
 
 
 
-// Test encryption/decryption of the xxTEA algorithm that we use for media file attributes and for chat-reactions
+// Test encryption/decryption of the xxTEA algorithm that we use for media file attributes
 TEST(Crypto, xxTea)
 {
     // two cases with data generated in the javascript version
@@ -111,48 +111,6 @@ TEST(Crypto, xxTea)
         {
             ASSERT_TRUE(data2[i] == uint32_t(-(int)i));
         }
-    }
-
-    // ---- chat reactions ----
-    // fake key + fake data
-    {
-        uint32_t key1[4] = { 1633771873, 1633771873, 0, 0 };  // "aaaaaaaa"
-        uint32_t data1[2] = { 825373492, 889192448 };   // "12345"
-
-        xxteaEncrypt(data1, 2, key1);
-
-        uint32_t encCmpData[2] = { 2924079809, 670217079 };
-        ASSERT_TRUE(0 == memcmp(data1, encCmpData, sizeof(data1)));
-
-        xxteaDecrypt(data1, 2, key1);
-
-        uint32_t decCmpData[2] = { 825373492, 889192448 };   // "12345"
-        ASSERT_TRUE(memcmp(data1, decCmpData, sizeof(data1)) == 0);
-    }
-    // fake key + real data
-    {
-        uint32_t key1[4] = { 1633771873, 1633771873 };  // "aaaaaaaa"
-        uint32_t data1[2] = { 1448376166, 4036991115 };
-
-        xxteaEncrypt(data1, 2, key1);
-
-        uint32_t encCmpData[2] = { 3544578451, 3605772619 };
-        ASSERT_TRUE(0 == memcmp(data1, encCmpData, sizeof(data1)));
-
-        xxteaDecrypt(data1, 2, key1);
-
-        uint32_t decCmpData[2] = { 1448376166, 4036991115 };
-        ASSERT_TRUE(memcmp(data1, decCmpData, sizeof(data1)) == 0);
-    }
-    // real key + real data
-    {
-//        TODO: add test vectors from Webclient here
-//        uint32_t key1[4] = { 1448376166, 1145731683, 1383743744, 1448376166 };
-//        uint32_t encCmpData[2] = { 575917686, 3136903486 };
-
-//        xxteaDecrypt(encCmpData, 2, key1);
-//        uint32_t decCmpData[2] = { 1448376166, 4036991115 };
-//        ASSERT_TRUE(memcmp(encCmpData, decCmpData, sizeof(encCmpData)) == 0);
     }
 }
 
