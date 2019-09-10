@@ -361,14 +361,13 @@ public:
      */
     template<typename T> static std::string a32_to_str(std::vector<T> data)
     {
-        size_t size =  data.size() * sizeof(T);
-        char result [size];
-        for (int i = 0; i < size; ++i)
+        size_t size = data.size() * sizeof(T);
+        std::unique_ptr<char[]> result(new char[size]);
+        for (size_t i = 0; i < size; ++i)
         {
             result[i] = (data[i >> 2] >> (24 - (i & 3) * 8)) & 255;
         }
-
-        return std::string (result, size);
+        return std::string (result.get(), size);
     }
 
     /**
@@ -383,8 +382,9 @@ public:
      */
     template<typename T> static std::vector<T> str_to_a32(std::string data)
     {
-        std::vector<T> data32((data.size() + 3) >> 2);
-        for (int i = 0; i < data.size(); ++i)
+        std::vector<T> data32;
+        data32.resize((data.size() + 3) >> 2);
+        for (size_t i = 0; i < data.size(); ++i)
         {
             data32[i >> 2] |= (data[i] & 255) << (24 - (i & 3) * 8);
         }
