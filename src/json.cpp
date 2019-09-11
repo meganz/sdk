@@ -192,7 +192,12 @@ nameid JSON::getnameid()
             id = (id << 8) + *ptr++;
         }
 
-        pos = ptr + 2;
+        pos = ptr + 1;
+
+        if (*pos != '}' && *pos != ']')
+        {
+            pos++;  // don't skip the following char if we're at the end of a structure eg. actionpacket with only {"a":"xyz"}
+        }
     }
 
     return id;
