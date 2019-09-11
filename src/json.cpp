@@ -192,7 +192,9 @@ nameid JSON::getnameid()
             id = (id << 8) + *ptr++;
         }
 
+        assert(*ptr == '"'); // if either assert fails, check the json syntax, it might be something new/changed
         pos = ptr + 1;
+        assert(*pos == ':' || *pos == ',');
 
         if (*pos != '}' && *pos != ']')
         {
