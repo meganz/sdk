@@ -25530,7 +25530,10 @@ void MegaHTTPServer::processOnAsyncEventClose(MegaTCPContext* tcpctx)
 
     if (httpctx->transfer)
     {
-        httpctx->megaApi->cancelTransfer(httpctx->transfer);
+        if (httpctx->transfer->getTag() != -1)
+        {
+            httpctx->megaApi->cancelTransfer(httpctx->transfer);
+        }
         httpctx->megaApi->fireOnStreamingFinish(httpctx->transfer, MegaError(httpctx->resultCode));
         httpctx->transfer = NULL; // this has been deleted in fireOnStreamingFinish
     }
