@@ -4933,7 +4933,7 @@ void exec_chatga(autocomplete::ACState& s)
     handle chatid;
     Base64::atob(s.words[1].s.c_str(), (byte*) &chatid, MegaClient::CHATHANDLE);
 
-    handle nodehandle;
+    handle nodehandle = 0; // make sure top two bytes are 0
     Base64::atob(s.words[2].s.c_str(), (byte*) &nodehandle, MegaClient::NODEHANDLE);
 
     const char *uid = s.words[3].s.c_str();
@@ -4946,7 +4946,7 @@ void exec_chatra(autocomplete::ACState& s)
     handle chatid;
     Base64::atob(s.words[1].s.c_str(), (byte*)&chatid, MegaClient::CHATHANDLE);
 
-    handle nodehandle;
+    handle nodehandle = 0; // make sure top two bytes are 0
     Base64::atob(s.words[2].s.c_str(), (byte*)&nodehandle, MegaClient::NODEHANDLE);
 
     const char *uid = s.words[3].s.c_str();
