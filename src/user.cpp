@@ -721,6 +721,7 @@ int User::needversioning(attr_t at)
         case ATTR_GEOLOCATION:
         case ATTR_MY_CHAT_FILES_FOLDER:
         case ATTR_PUSH_SETTINGS:
+        case ATTR_CAMERA_UPLOADS_FOLDER:
             return 0;
 
         case ATTR_AUTHRING:

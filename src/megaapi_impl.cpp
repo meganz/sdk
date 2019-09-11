@@ -14583,7 +14583,7 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
                 const char *value = stringMap->get("h");
                 if (value)
                 {
-                    handle nodehandle;
+                    handle nodehandle = 0;  // make sure top two bytes are 0
                     Base64::atob(value, (byte*) &nodehandle, MegaClient::NODEHANDLE);
                     request->setNodeHandle(nodehandle);
                 }
