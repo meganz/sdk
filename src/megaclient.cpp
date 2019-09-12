@@ -1047,9 +1047,6 @@ void MegaClient::init()
 
     notifyStorageChangeOnStateCurrent = false;
     mNotifiedSumSize = 0;
-
-    mBizMode = BIZ_MODE_UNKNOWN;
-    mBizStatus = BIZ_STATUS_UNKNOWN;
     mNodeCounters = NodeCounterMap();
 }
 
@@ -1118,6 +1115,8 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     overquotauntil = 0;
     mBizGracePeriodTs = 0;
     mBizExpirationTs = 0;
+    mBizMode = BIZ_MODE_UNKNOWN;
+    mBizStatus = BIZ_STATUS_UNKNOWN;
     ststatus = STORAGE_GREEN;
     looprequested = false;
 
@@ -3691,6 +3690,8 @@ void MegaClient::locallogout()
     overquotauntil = 0;
     mBizGracePeriodTs = 0;
     mBizExpirationTs = 0;
+    mBizMode = BIZ_MODE_UNKNOWN;
+    mBizStatus = BIZ_STATUS_UNKNOWN;
     scpaused = false;
 
     for (fafc_map::iterator cit = fafcs.begin(); cit != fafcs.end(); cit++)
