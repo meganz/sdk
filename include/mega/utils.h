@@ -382,15 +382,13 @@ public:
      */
     template<typename T> static std::vector<T> str_to_a32(std::string data)
     {
-        std::vector<T> data32;
-        data32.resize((data.size() + 3) >> 2);
+        std::vector<T> data32((data.size() + 3) >> 2);
         for (size_t i = 0; i < data.size(); ++i)
         {
             data32[i >> 2] |= (data[i] & 255) << (24 - (i & 3) * 8);
         }
         return data32;
     }
-
 };
 
 // for pre-c++11 where this version is not defined yet.  
