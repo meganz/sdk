@@ -25530,10 +25530,7 @@ void MegaHTTPServer::processOnAsyncEventClose(MegaTCPContext* tcpctx)
 
     if (httpctx->transfer)
     {
-        if (httpctx->transfer->getTag() != -1)
-        {
-            httpctx->megaApi->cancelTransfer(httpctx->transfer);
-        }
+        httpctx->megaApi->cancelTransfer(httpctx->transfer);
         httpctx->megaApi->fireOnStreamingFinish(httpctx->transfer, MegaError(httpctx->resultCode));
         httpctx->transfer = NULL; // this has been deleted in fireOnStreamingFinish
     }
@@ -27029,18 +27026,6 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
     }
     else //GET/POST/HEAD
     {
-        httpctx->transfer = new MegaTransferPrivate(MegaTransfer::TYPE_LOCAL_TCP_DOWNLOAD);
-        httpctx->transfer->setPath(httpctx->path.c_str());
-        if (httpctx->nodename.size())
-        {
-            httpctx->transfer->setFileName(httpctx->nodename.c_str());
-        }
-        if (httpctx->nodehandle.size())
-        {
-            httpctx->transfer->setNodeHandle(MegaApi::base64ToHandle(httpctx->nodehandle.c_str()));
-        }
-        httpctx->transfer->setStartTime(Waiter::ds);
-
         if (node->isFolder())
         {
             if (!httpserver->isFolderServerEnabled())
@@ -27079,6 +27064,20 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             delete baseNode;
             return 0;
         }
+
+        delete httpctx->transfer;
+        httpctx->transfer = new MegaTransferPrivate(MegaTransfer::TYPE_LOCAL_TCP_DOWNLOAD);
+        httpctx->transfer->setPath(httpctx->path.c_str());
+        if (httpctx->nodename.size())
+        {
+            httpctx->transfer->setFileName(httpctx->nodename.c_str());
+        }
+        if (httpctx->nodehandle.size())
+        {
+            httpctx->transfer->setNodeHandle(MegaApi::base64ToHandle(httpctx->nodehandle.c_str()));
+        }
+        httpctx->transfer->setStartTime(Waiter::ds);
+
         delete httpctx->node;
         httpctx->node = node;
         streamNode(httpctx);
@@ -27168,8 +27167,11 @@ int MegaHTTPServer::streamNode(MegaHTTPContext *httpctx)
     httpctx->pause = false;
     httpctx->lastBuffer = NULL;
     httpctx->lastBufferLen = 0;
-    httpctx->transfer->setStartPos(start);
-    httpctx->transfer->setEndPos(end);
+    if (httpctx->transfer)
+    {
+        httpctx->transfer->setStartPos(start);
+        httpctx->transfer->setEndPos(end);
+    }
 
     string resstr = response.str();
     if (httpctx->parser.method != HTTP_HEAD)
