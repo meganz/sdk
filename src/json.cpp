@@ -192,7 +192,14 @@ nameid JSON::getnameid()
             id = (id << 8) + *ptr++;
         }
 
-        pos = ptr + 2;
+        assert(*ptr == '"'); // if either assert fails, check the json syntax, it might be something new/changed
+        pos = ptr + 1;
+        assert(*pos == ':' || *pos == ',');
+
+        if (*pos != '}' && *pos != ']')
+        {
+            pos++;  // don't skip the following char if we're at the end of a structure eg. actionpacket with only {"a":"xyz"}
+        }
     }
 
     return id;
