@@ -2871,7 +2871,7 @@ void MegaApi::startUpload(const char *localPath, MegaNode *parent, const char *f
     pImpl->startUpload(false, localPath, parent, fileName, mtime, 0, false, NULL, false, false, listener);
 }
 
-void MegaApi::startForceUploadDuplicates(const char *localPath, MegaNode *parent, MegaTransferListener *listener)
+void MegaApi::startUploadForChat(const char *localPath, MegaNode *parent, MegaTransferListener *listener)
 {
     pImpl->startUpload(false, localPath, parent, nullptr, -1, 0, false, nullptr, false, true, listener);
 }
