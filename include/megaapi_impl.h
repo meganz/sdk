@@ -658,7 +658,6 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         void setFolderTransferTag(int tag);
         void setNotificationNumber(long long notificationNumber);
         void setListener(MegaTransferListener *listener);
-        void setForceNewUpload(bool forceNewUpload);
 
         virtual int getType() const;
         virtual const char * getTransferString() const;
@@ -708,7 +707,6 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         static MegaTransferPrivate* unserialize(string*);
 
         void startRecursiveOperation(unique_ptr<MegaRecursiveOperation>, MegaNode* node); // takes ownership of both
-        bool getForceNewUpload() const;
 
     protected:
         int type;
@@ -723,7 +721,6 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
             bool temporarySourceFile : 1;
             bool startFirst : 1;
             bool backupTransfer : 1;
-            bool mForceNewUpload : 1;
         };
 
         int64_t startTime;

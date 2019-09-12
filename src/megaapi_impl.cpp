@@ -2168,7 +2168,6 @@ MegaTransferPrivate::MegaTransferPrivate(int type, MegaTransferListener *listene
     this->priority = 0;
     this->meanSpeed = 0;
     this->notificationNumber = 0;
-    this->mForceNewUpload = false;
 }
 
 MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
@@ -2214,7 +2213,6 @@ MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
     this->setFolderTransferTag(transfer->getFolderTransferTag());
     this->setAppData(transfer->getAppData());
     this->setNotificationNumber(transfer->getNotificationNumber());
-    this->setForceNewUpload(transfer->getForceNewUpload());
 }
 
 MegaTransfer* MegaTransferPrivate::copy()
@@ -2740,21 +2738,11 @@ void MegaTransferPrivate::setListener(MegaTransferListener *listener)
     this->listener = listener;
 }
 
-void MegaTransferPrivate::setForceNewUpload(bool forceNewUpload)
-{
-    this->mForceNewUpload = forceNewUpload;
-}
-
 void MegaTransferPrivate::startRecursiveOperation(unique_ptr<MegaRecursiveOperation> op, MegaNode* node)
 {
     assert(op && !recursiveOperation);
     recursiveOperation = move(op);
     recursiveOperation->start(node);
-}
-
-bool MegaTransferPrivate::getForceNewUpload() const
-{
-    return mForceNewUpload;
 }
 
 void MegaTransferPrivate::setPath(const char* path)
@@ -7210,9 +7198,11 @@ bool MegaApiImpl::hasToForceUpload(const Node &node, const MegaTransferPrivate &
     bool hasPreview = (Node::hasfileattribute(&node.fileattrstring, GfxProc::PREVIEW) != 0);
     bool hasThumbnail = (Node::hasfileattribute(&node.fileattrstring, GfxProc::THUMBNAIL) != 0);
     string name = node.displayname();
-    bool isMedia = gfxAccess->isgfx(&name);
+    bool isMedia = gfxAccess->isgfx(&name) || gfxAccess->isvideo(&name);
+    bool canForceUpload = transfer.isStreamingTransfer();
+    bool isPdf = name.find(".pdf") != string::npos;
 
-    return transfer.getForceNewUpload() && isMedia && !hasPreview && !hasThumbnail;
+    return canForceUpload && (isMedia || isPdf) && !hasPreview && !hasThumbnail;
 }
 
 void MegaApiImpl::inviteContact(const char *email, const char *message, int action, MegaHandle contactLink, MegaRequestListener *listener)
@@ -7859,7 +7849,7 @@ void MegaApiImpl::startUpload(bool startFirst, const char *localPath, MegaNode *
         transfer->setFolderTransferTag(folderTransferTag);
     }
 
-    transfer->setForceNewUpload(forceNewUpload);
+    transfer->setStreamingTransfer(forceNewUpload);
 
     transferQueue.push(transfer);
     waiter->notify();
@@ -7994,7 +7984,7 @@ void MegaApiImpl::retryTransfer(MegaTransfer *transfer, MegaTransferListener *li
     {
         MegaNode *parent = getNodeByHandle(t->getParentHandle());
         startUpload(t->shouldStartFirst(), t->getPath(), parent, t->getFileName(), t->getTime(), 0,
-                          t->isBackupTransfer(), t->getAppData(), t->isSourceFileTemporary(), t->getForceNewUpload(), listener);
+                          t->isBackupTransfer(), t->getAppData(), t->isSourceFileTemporary(), t->isStreamingTransfer(), listener);
         delete parent;
     }
 }
