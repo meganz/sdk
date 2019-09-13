@@ -17252,15 +17252,18 @@ void MegaApiImpl::updateBackups()
 
 void MegaApiImpl::sendPendingTransfers()
 {
-    MegaTransferPrivate *transfer;
-    error e;
-    int nextTag;
-
-    while((transfer = transferQueue.pop()))
+    while(true)
     {
         sdkMutex.lock();
-        e = API_OK;
-        nextTag = client->nextreqtag();
+        MegaTransferPrivate *transfer = transferQueue.pop();
+        if (!transfer)
+        {
+            sdkMutex.unlock();
+            break;
+        }
+
+        error e = API_OK;
+        int nextTag = client->nextreqtag();
         transfer->setState(MegaTransfer::STATE_QUEUED);
 
         switch(transfer->getType())
@@ -17870,18 +17873,24 @@ void MegaApiImpl::sendPendingScRequest()
 
 void MegaApiImpl::sendPendingRequests()
 {
-    MegaRequestPrivate *request;
-    error e;
     int nextTag = 0;
 
-    while((request = requestQueue.pop()))
+    while(true)
     {
+        sdkMutex.lock();
+
+        MegaRequestPrivate *request = requestQueue.pop();
+        if (!request)
+        {
+            sdkMutex.unlock();
+            break;
+        }
+
         if (!nextTag && request->getType() != MegaRequest::TYPE_LOGOUT)
         {
             client->abortbackoff(false);
         }
 
-        sdkMutex.lock();
         if (!request->getTag())
         {
             nextTag = client->nextreqtag();
@@ -17895,7 +17904,7 @@ void MegaApiImpl::sendPendingRequests()
             nextTag = request->getTag();
         }
 
-        e = API_OK;
+        error e = API_OK;
         switch (request->getType())
         {
         case MegaRequest::TYPE_LOGIN:
@@ -27065,7 +27074,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             return 0;
         }
 
-        delete httpctx->transfer;
+        delete httpctx->transfer; //In case there is a transfer from a recycled HttpContext
         httpctx->transfer = new MegaTransferPrivate(MegaTransfer::TYPE_LOCAL_TCP_DOWNLOAD);
         httpctx->transfer->setPath(httpctx->path.c_str());
         if (httpctx->nodename.size())
