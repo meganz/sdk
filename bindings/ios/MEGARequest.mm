@@ -26,6 +26,7 @@
 #import "MEGAFolderInfo+init.h"
 #import "MEGATimeZoneDetails+init.h"
 #import "MEGAStringList+init.h"
+#import "MEGAPushNotificationSettings+init.h"
 
 using namespace mega;
 
@@ -184,6 +185,12 @@ using namespace mega;
 
 - (MEGAFolderInfo *)megaFolderInfo {
     return self.megaRequest ? [[MEGAFolderInfo alloc] initWithMegaFolderInfo:self.megaRequest->getMegaFolderInfo()->copy() cMemoryOwn:YES] : nil;
+}
+
+- (MEGAPushNotificationSettings *)megaPushNotificationSettings {
+    if (!self.megaRequest) return nil;
+ 
+    return self.megaRequest->getMegaPushNotificationSettings() ? [[MEGAPushNotificationSettings alloc] initWithMegaPushNotificationSettings:self.megaRequest->getMegaPushNotificationSettings()->copy() cMemoryOwn:YES] : nil;
 }
 
 - (NSDictionary<NSString *, MEGAStringList *> *)megaStringListDictionary {

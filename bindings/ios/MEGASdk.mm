@@ -44,6 +44,7 @@
 #import "MEGAFileInputStream.h"
 #import "MEGADataInputStream.h"
 #import "MEGACancelToken+init.h"
+#import "MEGAPushNotificationSettings+init.h"
 
 #import <set>
 #import <pthread.h>
@@ -2194,6 +2195,18 @@ using namespace mega;
 
 - (void)checkSMSVerificationCode:(NSString *)verificationCode delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->checkSMSVerificationCode([verificationCode UTF8String], [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+#pragma mark - Push Notification Settings
+
+- (void)getPushNotificationSettingsWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getPushNotificationSettings([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)setPushNotificationSettings:(MEGAPushNotificationSettings *)pushNotificationSettings
+                           delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->setPushNotificationSettings([pushNotificationSettings getCPtr],
+                                              [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
 #pragma mark - Debug log messages

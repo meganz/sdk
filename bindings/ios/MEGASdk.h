@@ -47,6 +47,7 @@
 #import "MEGAUserList.h"
 #import "MEGABackgroundMediaUpload.h"
 #import "MEGACancelToken.h"
+#import "MEGAPushNotificationSettings.h"
 
 typedef NS_ENUM (NSInteger, MEGASortOrderType) {
     MEGASortOrderTypeNone,
@@ -7191,6 +7192,39 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param listener MEGARequestDelegate to track this request
  */
 - (void)getRegisteredContacts:(NSArray<NSDictionary *> *)contacts delegate:(id<MEGARequestDelegate>)delegate;
+
+#pragma mark - Push Notification Settings
+
+/**
+ *@brief: Get push notification settings
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributePushSettings
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MegaRequest megaPushNotificationSettings] Returns settings for push notifications
+ *
+ *@param delegate MEGARequestDelegate to track this request
+ */
+- (void)getPushNotificationSettingsWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+
+/**
+ *@brief: Set push notification settings.
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributePushSettings
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MegaRequest megaPushNotificationSettings] Returns settings for push notifications
+ *
+ *@param pushNotificationSettings Push notification settings of the user. (An instance of MEGAPushNotificationSettings).
+ *@param delegate MEGARequestDelegate to track this request
+ */
+- (void)setPushNotificationSettings:(MEGAPushNotificationSettings *)pushNotificationSettings
+                           delegate:(id<MEGARequestDelegate>)delegate;
 
 #pragma mark - Debug log messages
 
