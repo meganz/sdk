@@ -7209,7 +7209,6 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  */
 - (void)getPushNotificationSettingsWithDelegate:(id<MEGARequestDelegate>)delegate;
 
-
 /**
  *@brief: Set push notification settings.
  *
