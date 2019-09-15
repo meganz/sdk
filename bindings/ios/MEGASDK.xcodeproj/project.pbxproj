@@ -94,6 +94,7 @@
 		B6657E9C225C2B6200EF8D91 /* raid.cpp in Sources */ = {isa = PBXBuildFile; fileRef = B6657E9B225C2B6200EF8D91 /* raid.cpp */; };
 		B698890D2198CCE300D0EE89 /* MEGAFileInputStream.mm in Sources */ = {isa = PBXBuildFile; fileRef = B698890B2198CCE300D0EE89 /* MEGAFileInputStream.mm */; };
 		B6A6CB662170125A009032C9 /* MEGABackgroundMediaUpload.mm in Sources */ = {isa = PBXBuildFile; fileRef = B6A6CB652170125A009032C9 /* MEGABackgroundMediaUpload.mm */; };
+		BF1DAC212325E99B0051830B /* MEGAPushNotificationSettings.mm in Sources */ = {isa = PBXBuildFile; fileRef = BF1DAC202325E99A0051830B /* MEGAPushNotificationSettings.mm */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -319,6 +320,9 @@
 		B698890C2198CCE300D0EE89 /* MEGAFileInputStream.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGAFileInputStream.h; sourceTree = "<group>"; };
 		B6A6CB642170125A009032C9 /* MEGABackgroundMediaUpload.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MEGABackgroundMediaUpload.h; sourceTree = "<group>"; };
 		B6A6CB652170125A009032C9 /* MEGABackgroundMediaUpload.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGABackgroundMediaUpload.mm; sourceTree = "<group>"; };
+		BF1DAC1B2320B7EF0051830B /* MEGAPushNotificationSettings.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MEGAPushNotificationSettings.h; sourceTree = "<group>"; };
+		BF1DAC1F2320B8BF0051830B /* MEGAPushNotificationSettings+init.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "MEGAPushNotificationSettings+init.h"; sourceTree = "<group>"; };
+		BF1DAC202325E99A0051830B /* MEGAPushNotificationSettings.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGAPushNotificationSettings.mm; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -501,6 +505,8 @@
 				B6A6CB652170125A009032C9 /* MEGABackgroundMediaUpload.mm */,
 				A8FD7332230ABA400070A5E8 /* MEGACancelToken.h */,
 				A8FD7333230ABA400070A5E8 /* MEGACancelToken.mm */,
+				BF1DAC1B2320B7EF0051830B /* MEGAPushNotificationSettings.h */,
+				BF1DAC202325E99A0051830B /* MEGAPushNotificationSettings.mm */,
 			);
 			name = bindings;
 			sourceTree = "<group>";
@@ -661,6 +667,7 @@
 				5B0670CD21F5BABD00AD9F99 /* MEGARecentActionBucket+init.h */,
 				B622FC762174261F00CF707C /* MEGABackgroundMediaUpload+init.h */,
 				A8FD7335230AC42B0070A5E8 /* MEGACancelToken+init.h */,
+				BF1DAC1F2320B8BF0051830B /* MEGAPushNotificationSettings+init.h */,
 			);
 			path = Private;
 			sourceTree = "<group>";
@@ -771,6 +778,7 @@
 				A8A86BD51F559EDA00C214DA /* mega_zxcvbn.cpp in Sources */,
 				A8FD7B641E93B40E0031FC50 /* osxutils.mm in Sources */,
 				940BEFB819ED92C2007E7FA2 /* backofftimer.cpp in Sources */,
+				BF1DAC212325E99B0051830B /* MEGAPushNotificationSettings.mm in Sources */,
 				940BEFF419ED9351007E7FA2 /* net.cpp in Sources */,
 				940BF01119ED97B9007E7FA2 /* MEGANode.mm in Sources */,
 				940BF01419ED97B9007E7FA2 /* MEGAShare.mm in Sources */,
