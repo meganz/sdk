@@ -2161,6 +2161,7 @@ MegaTransferPrivate::MegaTransferPrivate(int type, MegaTransferListener *listene
     this->temporarySourceFile = false;
     this->startFirst = false;
     this->backupTransfer = false;
+    this->foreignOverquota = false;
     this->lastError = API_OK;
     this->folderTransferTag = 0;
     this->appData = NULL;
@@ -2209,6 +2210,7 @@ MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
     this->setSourceFileTemporary(transfer->isSourceFileTemporary());
     this->setStartFirst(transfer->shouldStartFirst());
     this->setBackupTransfer(transfer->isBackupTransfer());
+    this->setForeignOverquota(transfer->isForeignOverquota());
     this->setLastError(transfer->getLastError());
     this->setFolderTransferTag(transfer->getFolderTransferTag());
     this->setAppData(transfer->getAppData());
@@ -2288,6 +2290,11 @@ bool MegaTransferPrivate::isFinished() const
 bool MegaTransferPrivate::isBackupTransfer() const
 {
     return backupTransfer;
+}
+
+bool MegaTransferPrivate::isForeignOverquota() const
+{
+    return foreignOverquota;
 }
 
 bool MegaTransferPrivate::isSourceFileTemporary() const
@@ -2690,6 +2697,10 @@ void MegaTransferPrivate::setBackupTransfer(bool backupTransfer)
     this->backupTransfer = backupTransfer;
 }
 
+void MegaTransferPrivate::setForeignOverquota(bool foreign)
+{
+    this->foreignOverquota = foreign;
+}
 void MegaTransferPrivate::setStreamingTransfer(bool streamingTransfer)
 {
     this->streamingTransfer = streamingTransfer;
@@ -16047,6 +16058,16 @@ void MegaApiImpl::processTransferFailed(Transfer *tr, MegaTransferPrivate *trans
     transfer->setLastError(megaError);
     transfer->setPriority(tr->priority);
     transfer->setState(MegaTransfer::STATE_RETRYING);
+
+    if (e == API_EOVERQUOTA)
+    {
+        unique_ptr<MegaNode> targetNode(getNodeByHandle(tr->target));
+        unique_ptr<MegaNode> targetRootNode(getRootNode(targetNode.get()));
+        unique_ptr<MegaNode> ownRootNode(getRootNode());
+        bool foreignOverquota = (ownRootNode->getHandle() != targetRootNode->getHandle()) ? true : false;
+        transfer->setForeignOverquota(foreignOverquota);
+    }
+
     fireOnTransferTemporaryError(transfer, megaError);
 }
 

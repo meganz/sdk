@@ -354,47 +354,40 @@ void Transfer::failed(error e, dstime timeleft)
         client->reqtag = creqtag;
     }
 
-    bool isLocal = true;
-    if (slot)
-    {
-        for (auto &file : slot->transfer->files)
-        {
-            Node *node = client->nodebyhandle(file->h);
-            isLocal = client->rootnodes[0] == client->getrootnode(node)->nodehandle;
-            if (!isLocal)
-            {
-                client->app->transfer_failed(this, e, timeleft);
-                break;
-            }
-        }
-    }
-
     if (e != API_EBUSINESSPASTDUE)
     {
-        if (e != API_EOVERQUOTA)
+        if (e == API_EOVERQUOTA)
+        {
+            if (slot)
+            {
+                    Node *node = client->nodebyhandle(slot->transfer->target);
+                    if (client->rootnodes[0] == client->getrootnode(node)->nodehandle)
+                    {
+                        bt.backoff(timeleft ? timeleft : NEVER);
+                        client->activateoverquota(timeleft);
+                    }
+                    else
+                    {
+                        client->app->transfer_failed(this, API_EOVERQUOTA, timeleft);
+                    }
+            }
+            else
+            {
+                client->app->transfer_failed(this, e, timeleft);
+            }
+        }
+        else
         {
             bt.backoff();
             state = TRANSFERSTATE_RETRYING;
             client->app->transfer_failed(this, e, timeleft);
             client->looprequested = true;
         }
-        else
-        {
-            if (isLocal)
-            {
-                bt.backoff(timeleft ? timeleft : NEVER);
-                client->activateoverquota(timeleft);
-            }
-            if (!slot)
-            {
-                client->app->transfer_failed(this, e, timeleft);
-            }
-        }
     }
 
     for (file_list::iterator it = files.begin(); it != files.end(); it++)
     {
-        if ( ((*it)->failed(e) && isLocal && (e != API_EBUSINESSPASTDUE))
+        if (((*it)->failed(e) && (e != API_EBUSINESSPASTDUE))
                 || (e == API_ENOENT // putnodes returned -9, file-storage server unavailable
                     && type == PUT
                     && tempurls.empty()

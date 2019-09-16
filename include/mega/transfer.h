@@ -135,6 +135,9 @@ struct MEGA_API Transfer : public FileFingerprint
 
     bool skipserialization;
 
+    // target handle to send in CommandPutFile
+    handle target;
+
     Transfer(MegaClient*, direction_t);
     virtual ~Transfer();
 
