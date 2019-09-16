@@ -53,6 +53,7 @@ Transfer::Transfer(MegaClient* cclient, direction_t ctype)
     finished = false;
     lastaccesstime = 0;
     ultoken = NULL;
+    foreignTarget = false;
 
     priority = 0;
     state = TRANSFERSTATE_NONE;
@@ -358,18 +359,10 @@ void Transfer::failed(error e, dstime timeleft)
     {
         if (e == API_EOVERQUOTA)
         {
-            if (slot)
+            if (slot && !slot->transfer->foreignTarget)
             {
-                    Node *node = client->nodebyhandle(slot->transfer->target);
-                    if (client->rootnodes[0] == client->getrootnode(node)->nodehandle)
-                    {
-                        bt.backoff(timeleft ? timeleft : NEVER);
-                        client->activateoverquota(timeleft);
-                    }
-                    else
-                    {
-                        client->app->transfer_failed(this, API_EOVERQUOTA, timeleft);
-                    }
+                bt.backoff(timeleft ? timeleft : NEVER);
+                client->activateoverquota(timeleft);
             }
             else
             {

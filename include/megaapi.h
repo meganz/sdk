@@ -3776,18 +3776,6 @@ class MegaTransfer
         virtual bool isBackupTransfer() const;
 
         /**
-         * @brief Returns true if a foreign storage is in overquota, otherwise returns false
-         * if our own storage is in overquota.
-         *
-         * This function must be called only when MegaTransferListener::onTransferTemporaryError
-         * or MegaListener::onTransferTemporaryError has been called with the error code API_EOVERQUOTA.
-         *
-         * @return true if a foreign storage is in overquota, otherwise false if our own storage
-         * is in overquota.
-         */
-        virtual bool isForeignOverquota() const;
-
-        /**
          * @brief Returns true is this is a streaming transfer
          * @return true if this is a streaming transfer, false otherwise
          * @see MegaApi::startStreaming
@@ -5602,8 +5590,9 @@ class MegaTransferListener
          * The SDK retains the ownership of the transfer and error parameters.
          * Don't use them after this functions returns.
          *
-         * If error code is API_EOVERQUOTA we need to call to MegaTransfer::isForeignOverquota to determine if
-         * our own storage is in overquota or not.
+         * If the error code is API_EOVERQUOTA we need to call to MegaTransfer::isStreamingTransfer to determine if
+         * our own storage, or a foreign storage is in overquota. If MegaTransfer::isStreamingTransfer returns true
+         * a foreign storage is in overquota, otherwise our own storage is in overquota.
          *
          * @param api MegaApi object that started the transfer
          * @param transfer Information about the transfer
@@ -6086,8 +6075,9 @@ class MegaListener
          * The SDK retains the ownership of the transfer and error parameters.
          * Don't use them after this functions returns.
          *
-         * If error code is API_EOVERQUOTA we need to call to MegaTransfer::isForeignOverquota to determine if
-         * our own storage is in overquota or not.
+         * If the error code is API_EOVERQUOTA we need to call to MegaTransfer::isStreamingTransfer to determine if
+         * our own storage, or a foreign storage is in overquota. If MegaTransfer::isStreamingTransfer returns true
+         * a foreign storage is in overquota, otherwise our own storage is in overquota.
          *
          * @param api MegaApi object that started the transfer
          * @param transfer Information about the transfer

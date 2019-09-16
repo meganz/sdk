@@ -330,7 +330,9 @@ CommandPutFile::CommandPutFile(MegaClient* client, TransferSlot* ctslot, int ms)
         if (!ISUNDEF(file->h))
         {
             arg("t", (byte*)&file->h, MegaClient::NODEHANDLE);
-            ctslot->transfer->target = file->h;
+            Node *node = client->nodebyhandle(file->h);
+            ctslot->transfer->foreignTarget = node
+                    && (client->rootnodes[0] != client->getrootnode(node)->nodehandle);
             break;
         }
     }
