@@ -7199,6 +7199,18 @@ void MegaApiImpl::abortPendingActions(error preverror)
     resetTotalUploads();
 }
 
+bool MegaApiImpl::hasToForceUpload(const Node &node, const MegaTransferPrivate &transfer) const
+{
+    bool hasPreview = (Node::hasfileattribute(&node.fileattrstring, GfxProc::PREVIEW) != 0);
+    bool hasThumbnail = (Node::hasfileattribute(&node.fileattrstring, GfxProc::THUMBNAIL) != 0);
+    string name = node.displayname();
+    bool isMedia = gfxAccess->isgfx(&name) || gfxAccess->isvideo(&name);
+    bool canForceUpload = transfer.isStreamingTransfer();
+    bool isPdf = name.find(".pdf") != string::npos;
+
+    return canForceUpload && (isMedia || isPdf) && !hasPreview && !hasThumbnail;
+}
+
 void MegaApiImpl::inviteContact(const char *email, const char *message, int action, MegaHandle contactLink, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_INVITE_CONTACT, listener);
@@ -7806,7 +7818,7 @@ void MegaApiImpl::startTimer( int64_t period, MegaRequestListener *listener)
     waiter->notify();
 }
 
-void MegaApiImpl::startUpload(bool startFirst, const char *localPath, MegaNode *parent, const char *fileName, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, MegaTransferListener *listener)
+void MegaApiImpl::startUpload(bool startFirst, const char *localPath, MegaNode *parent, const char *fileName, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, MegaTransferListener *listener)
 {
     MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_UPLOAD, listener);
     if(localPath)
@@ -7843,18 +7855,20 @@ void MegaApiImpl::startUpload(bool startFirst, const char *localPath, MegaNode *
         transfer->setFolderTransferTag(folderTransferTag);
     }
 
+    transfer->setStreamingTransfer(forceNewUpload);
+
     transferQueue.push(transfer);
     waiter->notify();
 }
 
 void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, MegaTransferListener *listener)
-{ return startUpload(false, localPath, parent, (const char *)NULL, -1, 0, false, NULL, false, listener); }
+{ return startUpload(false, localPath, parent, (const char *)NULL, -1, 0, false, NULL, false, false, listener); }
 
 void MegaApiImpl::startUpload(const char *localPath, MegaNode *parent, int64_t mtime, MegaTransferListener *listener)
-{ return startUpload(false, localPath, parent, (const char *)NULL, mtime, 0, false, NULL, false, listener); }
+{ return startUpload(false, localPath, parent, (const char *)NULL, mtime, 0, false, NULL, false, false, listener); }
 
 void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener)
-{ return startUpload(false, localPath, parent, fileName, -1, 0, false, NULL, false, listener); }
+{ return startUpload(false, localPath, parent, fileName, -1, 0, false, NULL, false, false, listener); }
 
 void MegaApiImpl::startDownload(bool startFirst, MegaNode *node, const char* localPath, int folderTransferTag, const char *appData, MegaTransferListener *listener)
 {
@@ -7976,7 +7990,7 @@ void MegaApiImpl::retryTransfer(MegaTransfer *transfer, MegaTransferListener *li
     {
         MegaNode *parent = getNodeByHandle(t->getParentHandle());
         startUpload(t->shouldStartFirst(), t->getPath(), parent, t->getFileName(), t->getTime(), 0,
-                          t->isBackupTransfer(), t->getAppData(), t->isSourceFileTemporary(), listener);
+                          t->isBackupTransfer(), t->getAppData(), t->isSourceFileTemporary(), t->isStreamingTransfer(), listener);
         delete parent;
     }
 }
@@ -17309,70 +17323,81 @@ void MegaApiImpl::sendPendingTransfers()
                 if (type == FILENODE)
                 {
                     Node *previousNode = client->childnodebyname(parent, fileName, true);
+
+                    bool forceToUpload = false;
                     if (previousNode && previousNode->type == type)
                     {
                         if (fp.isvalid && previousNode->isvalid && fp == *((FileFingerprint *)previousNode))
                         {
+                            forceToUpload= hasToForceUpload(*previousNode, *transfer);
+                            if (!forceToUpload)
+                            {
+                                transfer->setState(MegaTransfer::STATE_QUEUED);
+                                transferMap[nextTag] = transfer;
+                                transfer->setTag(nextTag);
+                                transfer->setTotalBytes(size);
+                                transfer->setTransferredBytes(0);
+                                transfer->setStartTime(Waiter::ds);
+                                transfer->setUpdateTime(Waiter::ds);
+                                fireOnTransferStart(transfer);
+                                transfer->setNodeHandle(previousNode->nodehandle);
+                                transfer->setDeltaSize(size);
+                                transfer->setSpeed(0);
+                                transfer->setMeanSpeed(0);
+                                transfer->setState(MegaTransfer::STATE_COMPLETED);
+                                fireOnTransferFinish(transfer, MegaError(API_OK));
+                                break;
+                            }
+                        }
+                    }
+
+                    // If has been found by name and it's necessary force upload, it isn't necessary look for it again
+                    if (!forceToUpload)
+                    {
+                        Node *samenode = client->nodebyfingerprint(&fp);
+                        if (samenode && samenode->nodekey.size() && !hasToForceUpload(*samenode, *transfer))
+                        {
+                            pendingUploads++;
                             transfer->setState(MegaTransfer::STATE_QUEUED);
                             transferMap[nextTag] = transfer;
                             transfer->setTag(nextTag);
                             transfer->setTotalBytes(size);
-                            transfer->setTransferredBytes(0);
                             transfer->setStartTime(Waiter::ds);
                             transfer->setUpdateTime(Waiter::ds);
                             fireOnTransferStart(transfer);
-                            transfer->setNodeHandle(previousNode->nodehandle);
+
+                            unsigned nc;
+                            TreeProcCopy tc;
+                            client->proctree(samenode, &tc, false, true);
+                            tc.allocnodes();
+                            nc = tc.nc;
+                            client->proctree(samenode, &tc, false, true);
+                            tc.nn->parenthandle = UNDEF;
+
+                            SymmCipher key;
+                            AttrMap attrs;
+                            string attrstring;
+                            key.setkey((const byte*)tc.nn[0].nodekey.data(), samenode->type);
+                            attrs = samenode->attrs;
+                            string sname = fileName;
+                            fsAccess->normalize(&sname);
+                            attrs.map['n'] = sname;
+                            attrs.getjson(&attrstring);
+                            client->makeattr(&key,tc.nn[0].attrstring, attrstring.c_str());
+                            if (tc.nn->type == FILENODE && !client->versions_disabled)
+                            {
+                                tc.nn->ovhandle = client->getovhandle(parent, &sname);
+                            }
+                            client->putnodes(parent->nodehandle, tc.nn, nc);
+
                             transfer->setDeltaSize(size);
                             transfer->setSpeed(0);
                             transfer->setMeanSpeed(0);
-                            transfer->setState(MegaTransfer::STATE_COMPLETED);
-                            fireOnTransferFinish(transfer, MegaError(API_OK));
-                            break;                            
+                            transfer->setState(MegaTransfer::STATE_COMPLETING);
+                            fireOnTransferUpdate(transfer);
+                            break;
                         }
-                    }
 
-                    Node *samenode = client->nodebyfingerprint(&fp);
-                    if (samenode && samenode->nodekey.size())
-                    {
-                        pendingUploads++;
-                        transfer->setState(MegaTransfer::STATE_QUEUED);
-                        transferMap[nextTag] = transfer;
-                        transfer->setTag(nextTag);
-                        transfer->setTotalBytes(size);
-                        transfer->setStartTime(Waiter::ds);
-                        transfer->setUpdateTime(Waiter::ds);
-                        fireOnTransferStart(transfer);
-
-                        unsigned nc;
-                        TreeProcCopy tc;
-                        client->proctree(samenode, &tc, false, true);
-                        tc.allocnodes();
-                        nc = tc.nc;
-                        client->proctree(samenode, &tc, false, true);
-                        tc.nn->parenthandle = UNDEF;
-
-                        SymmCipher key;
-                        AttrMap attrs;
-                        string attrstring;
-                        key.setkey((const byte*)tc.nn[0].nodekey.data(), samenode->type);
-                        attrs = samenode->attrs;
-                        string sname = fileName;
-                        fsAccess->normalize(&sname);
-                        attrs.map['n'] = sname;
-                        attrs.getjson(&attrstring);
-                        client->makeattr(&key,tc.nn[0].attrstring, attrstring.c_str());
-                        if (tc.nn->type == FILENODE && !client->versions_disabled)
-                        {
-                            tc.nn->ovhandle = client->getovhandle(parent, &sname);
-                        }
-                        client->putnodes(parent->nodehandle, tc.nn, nc);
-
-                        transfer->setDeltaSize(size);
-                        transfer->setSpeed(0);
-                        transfer->setMeanSpeed(0);
-                        transfer->setState(MegaTransfer::STATE_COMPLETING);
-                        fireOnTransferUpdate(transfer);
-                        break;
                     }
 
                     currentTransfer = transfer;                    
@@ -22912,7 +22937,7 @@ void MegaFolderUploadController::onFolderAvailable(MegaHandle handle)
                     pendingTransfers++;
                     string utf8path;
                     client->fsaccess->local2path(&localPath, &utf8path);
-                    megaApi->startUpload(false, utf8path.c_str(), parent, (const char *)NULL, -1, tag, false, NULL, false, this);
+                    megaApi->startUpload(false, utf8path.c_str(), parent, (const char *)NULL, -1, tag, false, NULL, false, false, this);
                 }
                 else
                 {
@@ -23708,7 +23733,7 @@ void MegaBackupController::onFolderAvailable(MegaHandle handle)
                         client->fsaccess->local2path(&localPath, &utf8path);
 
                         totalFiles++;
-                        megaApi->startUpload(false, utf8path.c_str(), parent, (const char *)NULL, -1, folderTransferTag, true, NULL, false, this);
+                        megaApi->startUpload(false, utf8path.c_str(), parent, (const char *)NULL, -1, folderTransferTag, true, NULL, false, false, this);
                     }
                     else
                     {

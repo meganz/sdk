@@ -10577,6 +10577,27 @@ class MegaApi
         void startUpload(const char* localPath, MegaNode* parent, const char* fileName, int64_t mtime, MegaTransferListener *listener = NULL);
 
         /**
+         * @brief Upload a file or a folder
+         *
+         * This method should be used ONLY to share by chat a local file. In case the file
+         * is already uploaded, but the corresponding node is missing the thumbnail and/or preview,
+         * this method will force a new upload from the scratch (ensuring the file attributes are set),
+         * instead of doing a remote copy.
+         *
+         * If the status of the business account is expired, onTransferFinish will be called with the error
+         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+         * "Your business account is overdue, please contact your administrator."
+         *
+         * @param localPath Local path of the file
+         * @param parent Parent node for the file in the MEGA account
+         * @param listener MegaTransferListener to track this transfer
+         *
+         * The custom modification time will be only applied for file transfers. If a folder
+         * is transferred using this function, the custom modification time won't have any effect
+         */
+        void startUploadForChat(const char* localPath, MegaNode* parent, MegaTransferListener *listener = nullptr);
+
+        /**
          * @brief Download a file or a folder from MEGA
          *
          *If the status of the business account is expired, onTransferFinish will be called with the error
