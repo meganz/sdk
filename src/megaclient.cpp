@@ -11324,9 +11324,6 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
 
                 if (authring->isSignedKey()) // for unsigned keys, already notified in trackKey()
                 {
-                    // TODO: notify the app through an event (and maybe send an event to stats)
-                    // --> "Key has been modified"
-
                     app->key_modified(uh, signatureType == ATTR_SIG_CU255_PUBK ? ATTR_CU25519_PUBK : ATTR_UNKNOWN);
                     sendevent(99451, "Key modification detected");
                 }
