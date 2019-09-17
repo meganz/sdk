@@ -22,7 +22,7 @@ import android.net.Uri;
 import android.provider.BaseColumns;
 import android.provider.MediaStore;
 
-import mega.privacy.android.app.utils.LogUtil;
+import static mega.privacy.android.app.utils.LogUtil.*;
 
 public class AndroidGfxProcessor extends MegaGfxProcessor {
     Rect size;
@@ -75,7 +75,7 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
                 }
                 retriever.release();
 
-                LogUtil.logDebug("Width: " + width + ", Height: " + height + ", Orientation: " + interchangeOrientation);
+                logDebug("Width: " + width + ", Height: " + height + ", Orientation: " + interchangeOrientation);
                 rect.right = width;
                 rect.bottom = height;
             } catch (Exception e) {
