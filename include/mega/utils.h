@@ -285,7 +285,7 @@ private:
      * @param type Type of the value (without scope nor non-historic modifiers).
      * @return String containing the array with the value, or NULL if error.
      */
-    string get(string type);
+    std::string get(string type) const;
 
     /**
      * @brief Get a reference to the TLV_map associated to this TLVstore
@@ -311,7 +311,7 @@ private:
      * @param type Type of the value (without scope nor non-historic modifiers).
      * @return True if the type of value is found, false otherwise.
      */
-    bool find(string type);
+    bool find(string type) const;
 
     /**
      * @brief add Adds a new record to the container
@@ -348,6 +348,9 @@ public:
      * @return True if success, false if the byte 'src' is not a valid UTF-8 string
      */
     static bool utf8toUnicode(const uint8_t *src, unsigned srclen, string *result);
+
+    static std::string stringToHex(const std::string& input);
+    static std::string hexToString(const std::string& input);
 };
 
 // for pre-c++11 where this version is not defined yet.  

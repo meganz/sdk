@@ -1173,38 +1173,37 @@ void DemoApp::putua_result(error e)
 
 void DemoApp::getua_result(error e)
 {
-#ifdef ENABLE_CHAT
     if (client->fetchingkeys)
     {
         return;
     }
-#endif
 
     cout << "User attribute retrieval failed (" << errorstring(e) << ")" << endl;
 }
 
-void DemoApp::getua_result(byte* data, unsigned l, attr_t)
+void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
 {
-#ifdef ENABLE_CHAT
     if (client->fetchingkeys)
     {
         return;
     }
-#endif
 
     cout << "Received " << l << " byte(s) of user attribute: ";
     fwrite(data, 1, l, stdout);
     cout << endl;
+
+    if (type == ATTR_ED25519_PUBK)
+    {
+        cout << "Credentials: " << AuthRing::fingerprint(string((const char*)data, l), true) << endl;
+    }
 }
 
-void DemoApp::getua_result(TLVstore *tlv, attr_t)
+void DemoApp::getua_result(TLVstore *tlv, attr_t type)
 {
-#ifdef ENABLE_CHAT
     if (client->fetchingkeys)
     {
         return;
     }
-#endif
 
     if (!tlv)
     {
@@ -1229,7 +1228,6 @@ void DemoApp::getua_result(TLVstore *tlv, attr_t)
             Base64::btoa((const byte *) value.data(), valuelen, buf);
 
             cout << "\t" << key << "\t" << buf << endl;
-
             delete [] buf;
         }
         delete keys;
@@ -2429,6 +2427,29 @@ void exec_showattributes(autocomplete::ACState& s)
 }
 
 
+void printAuthringInformation(handle userhandle)
+{
+    for (auto &it : client->mAuthRings)
+    {
+        AuthRing &authring = it.second;
+        attr_t at = it.first;
+        cout << User::attr2string(at) << ": " << endl;
+        for (auto &uh : authring.getTrackedUsers())
+        {
+            if (uh == userhandle || ISUNDEF(userhandle))    // no user was typed --> show authring for all users
+            {
+                User *user = client->finduser(uh);
+                string email = user ? user->email : "not a contact";
+
+                cout << "\tUserhandle: \t" << Base64Str<MegaClient::USERHANDLE>(uh) << endl;
+                cout << "\tEmail:      \t" << email << endl;
+                cout << "\tFingerprint:\t" << Utils::stringToHex(authring.getFingerprint(uh)) << endl;
+                cout << "\tAuth. level: \t" << AuthRing::authMethodToStr(authring.getAuthMethod(uh)) << endl;
+            }
+        }
+    }
+}
+
 autocomplete::ACN autocompleteSyntax()
 {
     using namespace autocomplete;
@@ -2500,6 +2521,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_putbps, sequence(text("putbps"), opt(either(wholenumber(100000), text("auto"), text("none")))));
     p->Add(exec_killsession, sequence(text("killsession"), opt(either(text("all"), param("sessionid")))));
     p->Add(exec_whoami, sequence(text("whoami"), repeat(either(flag("-storage"), flag("-transfer"), flag("-pro"), flag("-transactions"), flag("-purchases"), flag("-sessions")))));
+    p->Add(exec_verifycredentials, sequence(text("credentials"), either(text("show"), text("status"), text("verify"), text("reset")), opt(contactEmail(client))));
     p->Add(exec_passwd, sequence(text("passwd")));
     p->Add(exec_reset, sequence(text("reset"), contactEmail(client), opt(text("mk"))));
     p->Add(exec_recover, sequence(text("recover"), param("recoverylink")));
@@ -4111,6 +4133,12 @@ void exec_getua(autocomplete::ACState& s)
         }
     }
 
+    if (s.words[1].s == "pubk")
+    {
+        client->getpubkey(u->uid.c_str());
+        return;
+    }
+
     client->getua(u, User::string2attr(s.words[1].s.c_str()));
 }
 
@@ -4804,12 +4832,11 @@ void exec_whoami(autocomplete::ACState& s)
         if ((u = client->finduser(client->me)))
         {
             cout << "Account e-mail: " << u->email << " handle: " << Base64Str<MegaClient::USERHANDLE>(client->me) << endl;
-#ifdef ENABLE_CHAT
             if (client->signkey)
             {
-                cout << "Fingerprint: " << client->signkey->genFingerprintHex() << endl;
+                string pubKey((const char *)client->signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH);
+                cout << "Credentials: " << AuthRing::fingerprint(pubKey, true) << endl;
             }
-#endif
         }
 
         bool storage = s.extractflag("-storage");
@@ -4824,6 +4851,66 @@ void exec_whoami(autocomplete::ACState& s)
         cout << "Retrieving account status..." << endl;
 
         client->getaccountdetails(&account, all || storage, all || transfer, all || pro, all || transactions, all || purchases, all || sessions);
+    }
+}
+
+void exec_verifycredentials(autocomplete::ACState& s)
+{
+    User* u = nullptr;
+    if (s.words.size() == 2 && (s.words[1].s == "show" || s.words[1].s == "status"))
+    {
+        u = client->finduser(client->me);
+    }
+    else if (s.words.size() == 3)
+    {
+        u = client->finduser(s.words[2].s.c_str());
+    }
+    else
+    {
+        cout << "      credentials show|status|verify|reset [email]" << endl;
+        return;
+    }
+
+    if (!u)
+    {
+        cout << "Invalid user" << endl;
+        return;
+    }
+
+    if (s.words[1].s == "show")
+    {
+        if (u->isattrvalid(ATTR_ED25519_PUBK))
+        {
+            cout << "Credentials: " << AuthRing::fingerprint(*u->getattr(ATTR_ED25519_PUBK), true) << endl;
+        }
+        else
+        {
+            cout << "Fetching singing key... " << endl;
+            client->getua(u->uid.c_str(), ATTR_ED25519_PUBK);
+        }
+    }
+    else if (s.words[1].s == "status")
+    {
+        handle uh = s.words.size() == 3 ? u->userhandle : UNDEF;
+        printAuthringInformation(uh);
+    }
+    else if (s.words[1].s == "verify")
+    {
+        error e;
+        if ((e = client->verifyCredentials(u->userhandle)))
+        {
+            cout << "Verification failed. Error: " << errorstring(e) << endl;
+            return;
+        }
+    }
+    else if (s.words[1].s == "reset")
+    {
+        error e;
+        if ((e = client->resetCredentials(u->userhandle)))
+        {
+            cout << "Reset verification failed. Error: " << errorstring(e) << endl;
+            return;
+        }
     }
 }
 

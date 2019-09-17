@@ -50,7 +50,9 @@ struct MEGA_API User : public Cachable
     struct
     {
         bool keyring : 1;   // private keys
-        bool authring : 1;  // authentication information of the contact
+        bool authring : 1;  // authentication information of the contact (signing key)
+        bool authrsa : 1;   // authentication information of the contact (RSA key)
+        bool authcu255 : 1; // authentication information of the contact (Cu25519 key)
         bool lstint : 1;    // last interaction with the contact
         bool puEd255 : 1;   // public key for Ed25519
         bool puCu255 : 1;   // public key for Cu25519
@@ -117,6 +119,7 @@ public:
     static attr_t string2attr(const char *name);
     static int needversioning(attr_t at);
     static char scope(attr_t at);
+    static bool isAuthring(attr_t at);
 
     enum {
         PWD_LAST_SUCCESS = 0x01,
@@ -143,6 +146,63 @@ public:
 
     User(const char* = NULL);
 };
+
+class AuthRing
+{
+public:
+    AuthRing(attr_t type, const TLVstore &authring);
+
+    // return true if authring has changed (data can be pubKey or keySignature depending on authMethod)
+    void add(handle uh, const std::string &fingerprint, AuthMethod authMethod);
+
+    // assumes the key is already tracked for uh (otherwise, it will throw)
+    void update(handle uh, AuthMethod authMethod);
+
+    // return false if uh was not tracked
+    bool remove(handle uh);
+
+    // return the authring as tlv container, ready to set as user's attribute
+    std::string *serialize(PrnGen &rng, SymmCipher &key) const;
+
+    // false if uh is not tracked in the authring
+    bool isTracked(handle uh) const;
+
+    // true for Cu25519 and RSA, false for Ed25519
+    bool isSignedKey() const;
+
+    // true if key is tracked and authentication method is fingerprint/signature-verified
+    bool areCredentialsVerified(handle uh) const;
+
+    // returns AUTH_METHOD_UNKNOWN if no authentication is found for the given user
+    AuthMethod getAuthMethod(handle uh) const;
+
+    // returns the fingerprint of the public key for a given user, or empty string if user is not found
+    string getFingerprint(handle uh) const;
+
+    // returns the list of tracked users
+    vector<handle> getTrackedUsers() const;
+
+    // returns most significant 160 bits from SHA256, whether in binary or hexadecimal
+    static string fingerprint(const string &pubKey, bool hexadecimal = false);
+
+    // returns the authring type for a given attribute type associated to a public key
+    static attr_t keyTypeToAuthringType(attr_t at);
+
+    // returns the authring type for a given attribute type associated to a signature
+    static attr_t signatureTypeToAuthringType(attr_t at);
+
+    // returns the attribute type associated to the corresponding signature for a given authring type
+    static attr_t authringTypeToSignatureType(attr_t at);
+
+    // returns a human-friendly string for a given authentication method
+    static string authMethodToStr(AuthMethod authMethod);
+
+private:
+    const attr_t mType;
+    map<handle, string> mFingerprint;
+    map<handle, AuthMethod> mAuthMethod;
+};
+
 } // namespace
 
 #endif

@@ -2648,7 +2648,6 @@ void CommandPutMultipleUAVer::procresult()
             u->setattr(type, &it->second, &version);
             u->setTag(tag ? tag : -1);
 
-#ifdef ENABLE_CHAT
             if (type == ATTR_KEYRING)
             {
                 TLVstore *tlvRecords = TLVstore::containerToTLVrecords(&attrs[type], &client->key);
@@ -2697,7 +2696,19 @@ void CommandPutMultipleUAVer::procresult()
                     LOG_warn << "Failed to decrypt keyring after putua";
                 }
             }
-#endif
+            else if (User::isAuthring(type))
+            {
+                client->mAuthRings.erase(type);
+                const std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&attrs[type], &client->key));
+                if (tlvRecords)
+                {
+                    client->mAuthRings.emplace(type, AuthRing(type, *tlvRecords));
+                }
+                else
+                {
+                    LOG_err << "Failed to decrypt keyring after putua";
+                }
+            }
         }
     }
 
@@ -2770,6 +2781,20 @@ void CommandPutUAVer::procresult()
             User *u = client->ownuser();
             u->setattr(at, &av, &v);
             u->setTag(tag ? tag : -1);
+
+            if (User::isAuthring(at))
+            {
+                client->mAuthRings.erase(at);
+                const std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&av, &client->key));
+                if (tlvRecords)
+                {
+                    client->mAuthRings.emplace(at, AuthRing(at, *tlvRecords));
+                }
+                else
+                {
+                    LOG_err << "Failed to decrypt " << User::attr2string(at) << " after putua";
+                }
+            }
 
             client->notifyuser(u);
             client->app->putua_result(API_OK);
@@ -2877,12 +2902,21 @@ void CommandGetUA::procresult()
             return;
         }
 
-#ifdef  ENABLE_CHAT
-        if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me && e != API_EBLOCKED)
+        if (u->userhandle == client->me && e != API_EBLOCKED)
         {
-            client->initializekeys(); // we have now all the required data
+            if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK)
+            {
+                client->initializekeys(); // we have now all the required data
+            }
+
+            if (e == API_ENOENT && User::isAuthring(at))
+            {
+                // authring not created yet, will do it upon retrieval of public keys
+                client->mAuthRings.erase(at);
+                client->mAuthRings.emplace(at, AuthRing(at, TLVstore()));
+            }
         }
-#endif
+
         // if the attr does not exist, initialize it
         if (at == ATTR_DISABLE_VERSIONS && e == API_ENOENT)
         {
@@ -2924,12 +2958,10 @@ void CommandGetUA::procresult()
                     if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
                     {
                         client->app->getua_result(API_EINTERNAL);
-#ifdef ENABLE_CHAT
                         if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
                         {
                             client->initializekeys(); // we have now all the required data
                         }
-#endif
                         return;
                     }
                     buf.assign(ptr, (end-ptr));
@@ -2940,12 +2972,10 @@ void CommandGetUA::procresult()
                     if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
                     {
                         client->app->getua_result(API_EINTERNAL);
-#ifdef ENABLE_CHAT
                         if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
                         {
                             client->initializekeys(); // we have now all the required data
                         }
-#endif
                         return;
                     }
                     version.assign(ptr, (end-ptr));
@@ -3005,30 +3035,47 @@ void CommandGetUA::procresult()
                             u->setattr(at, tlvString, &version);
                             delete tlvString;
                             client->app->getua_result(tlvRecords, at);
+
+                            if (User::isAuthring(at))
+                            {
+                                client->mAuthRings.erase(at);
+                                client->mAuthRings.emplace(at, AuthRing(at, *tlvRecords));
+                            }
+
                             delete tlvRecords;
-                        }
                             break;
-
+                        }
                         case '+':   // public
-
+                        {
                             u->setattr(at, &value, &version);
                             client->app->getua_result((byte*) value.data(), unsigned(value.size()), at);
-#ifdef  ENABLE_CHAT
+
                             if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
                             {
                                 client->initializekeys(); // we have now all the required data
                             }
-#endif
+
+                            if (u->userhandle != client->me)
+                            {
+                                if (at == ATTR_ED25519_PUBK || at == ATTR_CU25519_PUBK)
+                                {
+                                    client->trackKey(at, u->userhandle, value);
+                                }
+                                else if (at == ATTR_SIG_CU255_PUBK || at == ATTR_SIG_RSA_PUBK)
+                                {
+                                    client->trackSignature(at, u->userhandle, value);
+                                }
+                            }
                             break;
-
+                        }
                         case '#':   // protected
-
+                        {
                             u->setattr(at, &value, &version);
                             client->app->getua_result((byte*) value.data(), unsigned(value.size()), at);
                             break;
-
+                        }
                         case '^': // private, non-encrypted
-
+                        {
                             // store the value in cache in binary format
                             u->setattr(at, &value, &version);
                             client->app->getua_result((byte*) value.data(), unsigned(value.size()), at);
@@ -3046,8 +3093,9 @@ void CommandGetUA::procresult()
                                 }
                             }
                             break;
-
+                        }
                         default:    // legacy attributes or unknown attribute
+                        {
                             if (at != ATTR_FIRSTNAME &&           // protected
                                     at != ATTR_LASTNAME &&        // protected
                                     at != ATTR_COUNTRY  &&        // private
@@ -3063,27 +3111,29 @@ void CommandGetUA::procresult()
                             u->setattr(at, &value, &version);
                             client->app->getua_result((byte*) value.data(), unsigned(value.size()), at);
                             break;
-                    }
+                        }
+
+                    }   // switch (scope)
 
                     u->setTag(tag ? tag : -1);
                     client->notifyuser(u);
                     return;
                 }
-
                 default:
+                {
                     if (!client->json.storeobject())
                     {
                         LOG_err << "Error in CommandGetUA. Parse error";
                         client->app->getua_result(API_EINTERNAL);
-#ifdef  ENABLE_CHAT
                         if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
                         {
                             client->initializekeys(); // we have now all the required data
                         }
-#endif
                         return;
                     }
-            }
+                }
+
+            }   // switch (nameid)
         }
     }
 }
@@ -3110,12 +3160,16 @@ void CommandDelUA::procresult()
             attr_t at = User::string2attr(an.c_str());
             u->removeattr(at);
 
-#ifdef ENABLE_CHAT
             if (at == ATTR_KEYRING)
             {
                 client->resetKeyring();
             }
-#endif
+            else if (User::isAuthring(at))
+            {
+                client->mAuthRings.emplace(at, AuthRing(at, TLVstore()));
+                client->getua(u, at, 0);
+            }
+
             client->notifyuser(u);
         }
 
@@ -3381,17 +3435,22 @@ void CommandPubKeyRequest::procresult()
                         client->mapuser(uh, u->email.c_str());
                     }
 
-    #ifdef ENABLE_CHAT
                     if (client->fetchingkeys && u->userhandle == client->me && len_pubk)
                     {
                         client->pubk.setkey(AsymmCipher::PUBKEY, pubkbuf, len_pubk);
                         return;
                     }
-    #endif
 
                     if (len_pubk && !u->pubk.setkey(AsymmCipher::PUBKEY, pubkbuf, len_pubk))
                     {
                         len_pubk = 0;
+                    }
+
+                    if (u->userhandle != client->me && len_pubk && u->pubk.isvalid())
+                    {
+                        string pubkstr;
+                        u->pubk.serializekeyforjs(pubkstr);
+                        client->trackKey(ATTR_UNKNOWN, u->userhandle, pubkstr);
                     }
                     finished = true;
                     break;

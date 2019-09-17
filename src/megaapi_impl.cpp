@@ -3801,6 +3801,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CHECK_SMS_VERIFICATIONCODE: return "CHECK_SMS_VERIFICATIONCODE";
         case TYPE_GET_REGISTERED_CONTACTS: return "GET_REGISTERED_CONTACTS";
         case TYPE_GET_COUNTRY_CALLING_CODES: return "GET_COUNTRY_CALLING_CODES";
+        case TYPE_VERIFY_CREDENTIALS: return "VERIFY_CREDENTIALS";
     }
     return "UNKNOWN";
 }
@@ -5290,26 +5291,70 @@ bool MegaApiImpl::checkPassword(const char *password)
     return result;
 }
 
-#ifdef ENABLE_CHAT
-char *MegaApiImpl::getMyFingerprint()
+char *MegaApiImpl::getMyCredentials()
 {
-    sdkMutex.lock();
+    SdkMutexGuard g(sdkMutex);
     if (ISUNDEF(client->me))
     {
-        sdkMutex.unlock();
         return NULL;
     }
 
-    char *result = NULL;
+    string result;
     if (client->signkey)
     {
-        result = client->signkey->genFingerprintHex();
+        result = AuthRing::fingerprint(string((const char*)client->signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH), true);
     }
 
-    sdkMutex.unlock();
-    return result;
+    return result.size() ? MegaApi::strdup(result.c_str()) : nullptr;
 }
-#endif
+
+void MegaApiImpl::getUserCredentials(MegaUser *user, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
+
+    request->setParamType(ATTR_ED25519_PUBK);
+    request->setFlag(true);
+    if(user)
+    {
+        request->setEmail(user->getEmail());
+    }
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+bool MegaApiImpl::areCredentialsVerified(MegaUser *user)
+{
+    SdkMutexGuard g(sdkMutex);
+    return user ? client->areCredentialsVerified(user->getHandle()) : false;
+}
+
+void MegaApiImpl::verifyCredentials(MegaUser *user, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_VERIFY_CREDENTIALS, listener);
+
+    if(user)
+    {
+        request->setNodeHandle(user->getHandle());
+    }
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::resetCredentials(MegaUser *user, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_VERIFY_CREDENTIALS, listener);
+
+    if(user)
+    {
+        request->setNodeHandle(user->getHandle());
+    }
+    request->setFlag(true);
+
+    requestQueue.push(request);
+    waiter->notify();
+}
 
 void MegaApiImpl::setLogLevel(int logLevel)
 {
@@ -9819,6 +9864,41 @@ void MegaApiImpl::setRichLinkWarningCounterValue(int value, MegaRequestListener 
     delete stringMap;
 }
 
+void MegaApiImpl::enableGeolocation(MegaRequestListener *listener)
+{
+    MegaStringMap *stringMap = new MegaStringMapPrivate();
+    string base64value;
+    Base64::btoa("1", base64value);
+    stringMap->set("v", base64value.c_str());
+    setUserAttribute(MegaApi::USER_ATTR_GEOLOCATION, stringMap, listener);
+    delete stringMap;
+}
+
+void MegaApiImpl::isGeolocationEnabled(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_GEOLOCATION);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+bool MegaApiImpl::isChatNotifiable(MegaHandle chatid)
+{
+    if (mPushSettings)
+    {
+        if (mPushSettings->isChatAlwaysNotifyEnabled(chatid))
+        {
+            return true;
+        }
+
+        return (!mPushSettings->isChatDndEnabled(chatid) && isGlobalNotifiable() && mPushSettings->isChatsEnabled());
+    }
+
+    return true;
+}
+
+#endif
+
 void MegaApiImpl::getCameraUploadsFolder(MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
@@ -9877,41 +9957,6 @@ void MegaApiImpl::setUserAlias(MegaHandle uh, const char *alias, MegaRequestList
     requestQueue.push(request);
     waiter->notify();
 }
-
-void MegaApiImpl::enableGeolocation(MegaRequestListener *listener)
-{
-    MegaStringMap *stringMap = new MegaStringMapPrivate();
-    string base64value;
-    Base64::btoa("1", base64value);
-    stringMap->set("v", base64value.c_str());
-    setUserAttribute(MegaApi::USER_ATTR_GEOLOCATION, stringMap, listener);
-    delete stringMap;
-}
-
-void MegaApiImpl::isGeolocationEnabled(MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
-    request->setParamType(MegaApi::USER_ATTR_GEOLOCATION);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-bool MegaApiImpl::isChatNotifiable(MegaHandle chatid)
-{
-    if (mPushSettings)
-    {
-        if (mPushSettings->isChatAlwaysNotifyEnabled(chatid))
-        {
-            return true;
-        }
-
-        return (!mPushSettings->isChatDndEnabled(chatid) && isGlobalNotifiable() && mPushSettings->isChatsEnabled());
-    }
-
-    return true;
-}
-
-#endif
 
 void MegaApiImpl::getPushNotificationSettings(MegaRequestListener *listener)
 {
@@ -14224,17 +14269,20 @@ void MegaApiImpl::removecontact_result(error e)
 void MegaApiImpl::putua_result(error e)
 {
     MegaError megaError(e);
-    if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_SET_ATTR_USER)) return;
+    MegaRequestPrivate* request = NULL;
+    auto it = requestMap.find(client->restag);
+    if (it == requestMap.end() || !(request = it->second)
+        || (request->getType() != MegaRequest::TYPE_SET_ATTR_USER &&
+            request->getType() != MegaRequest::TYPE_VERIFY_CREDENTIALS))
+    {
+        return;
+    }
 
-#ifdef ENABLE_CHAT
     if (e && client->fetchingkeys)
     {
         client->clearKeys();
         client->resetKeyring();
     }
-#endif
 
     // if user just set the preferred language... change the GET param to the new language
     if (request->getParamType() == MegaApi::USER_ATTR_LANGUAGE && e == API_OK)
@@ -14483,18 +14531,26 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
         break;
 
         // byte arrays with possible nulls in the middle --> to Base64
-        case MegaApi::USER_ATTR_ED25519_PUBLIC_KEY:
+        case MegaApi::USER_ATTR_ED25519_PUBLIC_KEY: // fall-through
+        {
+            if (request->getFlag()) // asking for the fingerprint
+            {
+                string fingerprint = AuthRing::fingerprint(string((const char*)data, len), true);
+                request->setPassword(fingerprint.c_str());
+                break;
+            }
+        }
         case MegaApi::USER_ATTR_CU25519_PUBLIC_KEY:
         case MegaApi::USER_ATTR_SIG_RSA_PUBLIC_KEY:
         case MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY:
         default:
-            {
-                string str;
-                str.resize(len * 4 / 3 + 4);
-                str.resize(Base64::btoa(data, len, (char*)str.data()));
-                request->setText(str.c_str());
-            }
-            break;
+        {
+            string str;
+            str.resize(len * 4 / 3 + 4);
+            str.resize(Base64::btoa(data, len, (char*)str.data()));
+            request->setText(str.c_str());
+        }
+        break;
     }
 
     delete pushSettings;
@@ -14688,6 +14744,34 @@ void MegaApiImpl::catchup_result()
     {
         waiter->notify();
     }
+}
+
+void MegaApiImpl::key_modified(handle userhandle, attr_t attribute)
+{
+    MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_KEY_MODIFIED);
+    switch (attribute)
+    {
+    case ATTR_CU25519_PUBK:
+        event->setNumber(0);
+        break;
+    case ATTR_ED25519_PUBK:
+        event->setNumber(1);
+        break;
+    case ATTR_UNKNOWN: // used internally for RSA
+        event->setNumber(2);
+        break;
+    case ATTR_SIG_CU255_PUBK:
+        event->setNumber(3);
+        break;
+    case ATTR_SIG_RSA_PUBK:
+        event->setNumber(4);
+        break;
+    default:
+        event->setNumber(-1);
+        break;
+    }
+    event->setHandle(userhandle);
+    fireOnEvent(event);
 }
 
 void MegaApiImpl::ephemeral_result(error e)
@@ -18797,7 +18881,7 @@ void MegaApiImpl::sendPendingRequests()
             string attrvalue;
 
             if (type == ATTR_KEYRING                ||
-                    type == ATTR_AUTHRING           ||
+                    User::isAuthring(type)          ||
                     type == ATTR_CU25519_PUBK       ||
                     type == ATTR_ED25519_PUBK       ||
                     type == ATTR_SIG_CU255_PUBK     ||
@@ -21149,6 +21233,20 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             client->reqs.add(new CommandPutNodes(client, parentHandle, NULL, newnode, 1, request->getTag(), PUTNODES_APP));
+            break;
+        }
+        case MegaRequest::TYPE_VERIFY_CREDENTIALS:
+        {
+            handle uh = request->getNodeHandle();
+            bool isReset = request->getFlag();
+            if (isReset)
+            {
+                e = client->resetCredentials(uh);
+            }
+            else
+            {
+                e = client->verifyCredentials(uh);
+            }
             break;
         }
         case MegaRequest::TYPE_SEND_SMS_VERIFICATIONCODE:
@@ -30512,6 +30610,16 @@ void MegaEventPrivate::setText(const char *text)
 void MegaEventPrivate::setNumber(int64_t number)
 {
     this->number = number;
+}
+
+MegaHandle MegaEventPrivate::getHandle() const
+{
+    return mHandle;
+}
+
+void MegaEventPrivate::setHandle(const MegaHandle &handle)
+{
+    mHandle = handle;
 }
 
 MegaHandleListPrivate::MegaHandleListPrivate()

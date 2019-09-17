@@ -1773,12 +1773,30 @@ bool MegaApi::checkPassword(const char *password)
     return pImpl->checkPassword(password);
 }
 
-#ifdef ENABLE_CHAT
-char *MegaApi::getMyFingerprint()
+char *MegaApi::getMyCredentials()
 {
-    return pImpl->getMyFingerprint();
+    return pImpl->getMyCredentials();
 }
-#endif
+
+void MegaApi::getUserCredentials(MegaUser *user, MegaRequestListener *listener)
+{
+    pImpl->getUserCredentials(user, listener);
+}
+
+bool MegaApi::areCredentialsVerified(MegaUser *user)
+{
+    return pImpl->areCredentialsVerified(user);
+}
+
+void MegaApi::verifyCredentials(MegaUser *user, MegaRequestListener *listener)
+{
+    pImpl->verifyCredentials(user, listener);
+}
+
+void MegaApi::resetCredentials(MegaUser *user, MegaRequestListener *listener)
+{
+    pImpl->resetCredentials(user, listener);
+}
 
 void MegaApi::setLogLevel(int logLevel)
 {
@@ -2542,6 +2560,7 @@ void MegaApi::isGeolocationEnabled(MegaRequestListener *listener)
 {
     pImpl->isGeolocationEnabled(listener);
 }
+#endif
 
 void MegaApi::setCameraUploadsFolder(MegaHandle nodehandle, MegaRequestListener *listener)
 {
@@ -2572,7 +2591,6 @@ void MegaApi::setUserAlias(MegaHandle uh, const char *alias, MegaRequestListener
 {
     pImpl->setUserAlias(uh, alias);
 }
-#endif
 
 void MegaApi::getRubbishBinAutopurgePeriod(MegaRequestListener *listener)
 {
@@ -5906,6 +5924,11 @@ const char *MegaEvent::getText() const
 int64_t MegaEvent::getNumber() const
 {
     return 0;
+}
+
+MegaHandle MegaEvent::getHandle() const
+{
+    return INVALID_HANDLE;
 }
 
 MegaHandleList *MegaHandleList::createInstance()

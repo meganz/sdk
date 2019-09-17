@@ -1179,7 +1179,7 @@ string* TLVstore::tlvRecordsToContainer()
     return result;
 }
 
-string TLVstore::get(string type)
+std::string TLVstore::get(string type) const
 {
     return tlv.at(type);
 }
@@ -1199,7 +1199,7 @@ vector<string> *TLVstore::getKeys() const
     return keys;
 }
 
-bool TLVstore::find(string type)
+bool TLVstore::find(string type) const
 {
     return (tlv.find(type) != tlv.end());
 }
@@ -1305,8 +1305,14 @@ TLVstore * TLVstore::containerToTLVrecords(const string *data)
         pos = data->find('\0', offset);
         typelen = pos - offset;
 
+        if (pos == string::npos)
+        {
+            LOG_warn << "Invalid record in the TLV";
+            return tlv;
+        }
+
         // if no valid TLV record in the container, but remaining bytes...
-        if ( (pos == data->npos) || (offset + typelen + 3 > datalen) )
+        if (offset + typelen + 3 > datalen)
         {
             delete tlv;
             return NULL;
@@ -1471,6 +1477,45 @@ bool Utils::utf8toUnicode(const uint8_t *src, unsigned srclen, string *result)
     delete [] res;
 
     return true;
+}
+
+std::string Utils::stringToHex(const std::string &input)
+{
+    static const char* const lut = "0123456789ABCDEF";
+    size_t len = input.length();
+
+    std::string output;
+    output.reserve(2 * len);
+    for (size_t i = 0; i < len; ++i)
+    {
+        const unsigned char c = input[i];
+        output.push_back(lut[c >> 4]);
+        output.push_back(lut[c & 15]);
+    }
+    return output;
+}
+
+std::string Utils::hexToString(const std::string &input)
+{
+    static const char* const lut = "0123456789ABCDEF";
+    size_t len = input.length();
+    if (len & 1) throw std::invalid_argument("odd length");
+
+    std::string output;
+    output.reserve(len / 2);
+    for (size_t i = 0; i < len; i += 2)
+    {
+        char a = input[i];
+        const char* p = std::lower_bound(lut, lut + 16, a);
+        if (*p != a) throw std::invalid_argument("not a hex digit");
+
+        char b = input[i + 1];
+        const char* q = std::lower_bound(lut, lut + 16, b);
+        if (*q != b) throw std::invalid_argument("not a hex digit");
+
+        output.push_back(((p - lut) << 4) | (q - lut));
+    }
+    return output;
 }
 
 long long abs(long long n)

@@ -1185,15 +1185,18 @@ public:
 
     int getType() const override;
     const char *getText() const override;
-    int64_t getNumber() const override;
+    int64_t getNumber() const override;    
+    MegaHandle getHandle() const override;
 
     void setText(const char* text);
     void setNumber(int64_t number);
+    void setHandle(const MegaHandle &handle);
 
 protected:
     int type;
     const char* text;
     int64_t number;
+    MegaHandle mHandle;
 };
 
 class MegaAccountBalancePrivate : public MegaAccountBalance
@@ -2042,9 +2045,11 @@ class MegaApiImpl : public MegaApp
         bool isBusinessAccountActive();
         int getBusinessStatus();
         bool checkPassword(const char *password);
-#ifdef ENABLE_CHAT
-        char* getMyFingerprint();
-#endif
+        char* getMyCredentials();
+        void getUserCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
+        bool areCredentialsVerified(MegaUser *user);
+        void verifyCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
+        void resetCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
         static void setLogLevel(int logLevel);
         static void addLoggerClass(MegaLogger *megaLogger);
         static void removeLoggerClass(MegaLogger *megaLogger);
@@ -2765,6 +2770,7 @@ protected:
 
         void nodes_current() override;
         void catchup_result() override;
+        void key_modified(handle, attr_t) override;
 
         void fetchnodes_result(error) override;
         void putnodes_result(error, targettype_t, NewNode*) override;
