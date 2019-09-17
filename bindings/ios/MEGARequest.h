@@ -475,7 +475,7 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
 /**
  *  @brief Returns settings for push notifications
  *
- * The SDK retains the ownership of the returned value. It will be valid until the MegaRequest object is deleted.
+ * The SDK retains the ownership of the returned value. It will be valid until the MEGARequest object is deleted.
  * This value is valid for these requests in onRequestFinish.
  *
 */

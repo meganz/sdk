@@ -70,20 +70,20 @@ using namespace mega;
     return self.megaPushNotificationSettings;
 }
 
-- (BOOL)isChatDndEnabledForChatid:(int64_t)chatid {
-    return self.megaPushNotificationSettings->isChatDndEnabled(chatid);
+- (BOOL)isChatDndEnabledForChatId:(int64_t)chatId {
+    return self.megaPushNotificationSettings->isChatDndEnabled(chatId);
 }
 
-- (int64_t)chatDndForChatid:(int64_t)chatid {
-    return self.megaPushNotificationSettings->getChatDnd(chatid);
+- (int64_t)chatDndForChatid:(int64_t)chatId {
+    return self.megaPushNotificationSettings->getChatDnd(chatId);
 }
 
-- (void)enableChatWithChatid:(int64_t)chatid enableFlag:(bool)enable {
-    self.megaPushNotificationSettings->enableChat(chatid, enable);
+- (void)setChatEnabled:(BOOL)enabled forChatId:(int64_t)chatId {
+    self.megaPushNotificationSettings->enableChat(chatId, enabled);
 }
 
-- (void)setChatDndForChatid:(int64_t)chatid untilTimeStamp:(int64_t)timestamp {
-    self.megaPushNotificationSettings->setChatDnd(chatid, timestamp);
+- (void)setChatDndForChatId:(int64_t)chatId untilTimeStamp:(int64_t)timestamp {
+    self.megaPushNotificationSettings->setChatDnd(chatId, timestamp);
 }
 
 @end

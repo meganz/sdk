@@ -7203,7 +7203,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  *
  * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
- * - [MegaRequest megaPushNotificationSettings] Returns settings for push notifications
+ * - [MEGARequest megaPushNotificationSettings] Returns settings for push notifications
  *
  *@param delegate MEGARequestDelegate to track this request
  */
