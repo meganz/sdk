@@ -80,7 +80,7 @@ NS_ASSUME_NONNULL_BEGIN
  * If there's no DND mode established for the specified chat, this function returns -1.
  * @note a DND value of 0 means the DND does not expire.
  *
- * @param chatid handle of the Node that identifies the chat room
+ * @param chatId handle of the Node that identifies the chat room
  * @return timestamp until DND mode is enabled (in seconds since the Epoch)
  */
 - (int64_t)chatDndForChatId:(int64_t)chatId;
