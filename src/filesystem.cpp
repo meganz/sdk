@@ -540,16 +540,19 @@ bool FileAccess::fread(string* dst, unsigned len, unsigned pad, m_off_t pos)
     return r;
 }
 
-bool FileAccess::frawread(byte* dst, unsigned len, m_off_t pos)
+bool FileAccess::frawread(byte* dst, unsigned len, m_off_t pos, bool skipopen, bool keepopen)
 {
-    if (!openf())
+    if (!skipopen && !openf())
     {
         return false;
     }
 
     bool r = sysread(dst, len, pos);
 
-    closef();
+    if (!keepopen)
+    {
+        closef();
+    }
 
     return r;
 }

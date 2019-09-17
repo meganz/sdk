@@ -77,10 +77,11 @@ public:
     // Queue a command to be send to MEGA. Some commands must go in their own batch (in case other commands fail the whole batch), determined by the Command's `batchSeparately` field.
     void add(Command*);
 
+
     bool cmdspending() const;
 
     // get the set of commands to be sent to the server (could be a retry)
-    void serverrequest(string*, bool& suppressSID);
+    size_t serverrequest(string*, bool& suppressSID);
 
     // once the server response is determined, call one of these to specify the results
     void requeuerequest();
@@ -89,8 +90,14 @@ public:
 
     void clear();
 
+#ifdef MEGA_MEASURE_CODE
+    Request deferredRequests;
+    std::function<bool(Command*)> deferRequests;
+    void sendDeferred();
     uint64_t csRequestsSent = 0, csRequestsCompleted = 0;
     uint64_t csBatchesSent = 0, csBatchesReceived = 0;
+#endif
+
 };
 
 } // namespace

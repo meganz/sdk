@@ -259,7 +259,7 @@ static void displaytransferdetails(Transfer* t, const char* action)
         cout << name;
     }
 
-    cout << ": " << (t->type == GET ? "Incoming" : "Outgoing") << " file transfer " << action;
+    //cout << ": " << (t->type == GET ? "Incoming" : "Outgoing") << " file transfer " << action;
 }
 
 // a new transfer was added
@@ -2336,6 +2336,67 @@ Node* nodeFromRemotePath(const string& s)
     return n;
 }
 
+#ifdef MEGA_MEASURE_CODE
+
+void exec_deferRequests(autocomplete::ACState& s)
+{
+    // cause all the API requests of this type to be gathered up so they will be sent in a single batch, for timing purposes
+    bool putnodes = s.extractflag("-putnodes");
+    bool movenode = s.extractflag("-movenode");
+    bool delnode = s.extractflag("-delnode");
+
+    client->reqs.deferRequests =    [=](Command* c)
+                                    { 
+                                        return  (putnodes && dynamic_cast<CommandPutNodes*>(c)) ||
+                                                (movenode && dynamic_cast<CommandMoveNode*>(c)) ||
+                                                (delnode && dynamic_cast<CommandDelNode*>(c));
+                                    };
+}
+
+void exec_sendDeferred(autocomplete::ACState& s)
+{
+    // send those gathered up commands, and optionally reset the gathering 
+    client->reqs.sendDeferred();
+    
+    if (s.extractflag("-reset"))
+    {
+        client->reqs.deferRequests = nullptr;
+    }
+}
+
+void exec_codeTimings(autocomplete::ACState& s)
+{
+    bool reset = s.extractflag("-reset");
+
+    auto io = static_cast<CurlHttpIO*>(client->httpio);
+    cout << client->performanceStats.prepareWait.report(reset) << "\n"
+        << client->performanceStats.doWait.report(reset) << "\n"
+        << client->performanceStats.checkEvents.report(reset) << "\n"
+        << client->performanceStats.execFunction.report(reset) << "\n"
+        << client->performanceStats.transferslotDoio.report(reset) << "\n"
+        << client->performanceStats.execdirectreads.report(reset) << "\n"
+        << client->performanceStats.transferComplete.report(reset) << "\n"
+        << client->performanceStats.applyKeys.report(reset) << "\n"
+        << client->performanceStats.scProcessingTime.report(reset) << "\n"
+        << client->performanceStats.csResponseProcessingTime.report(reset) << "\n"
+        << " cs Request waiting time: " << client->performanceStats.csRequestWaitTime.report(reset) << "\n"
+        << " transfers active time: " << client->performanceStats.transfersActiveTime.report(reset) << "\n"
+        << " transfer starts/finishes: " << client->performanceStats.transferStarts << " " << client->performanceStats.transferFinishes << "\n"
+        << io->countCurlHttpIOAddevents.report(reset) << "\n"
+        << io->countAddAresEventsCode.report(reset) << "\n"
+        << io->countAddCurlEventsCode.report(reset) << "\n"
+        << io->countProcessAresEventsCode.report(reset) << "\n"
+        << io->countProcessCurlEventsCode.report(reset) << "\n"
+        << std::flush;
+    if (reset)
+    {
+        client->performanceStats.transferStarts = 0;
+        client->performanceStats.transferFinishes = 0;
+    }
+}
+
+#endif
+
 #ifdef USE_FILESYSTEM
 fs::path pathFromLocalPath(const string& s, bool mustexist)
 {
@@ -2357,6 +2418,58 @@ void exec_treecompare(autocomplete::ACState& s)
         recursiveCompare(n, p);
     }
 }
+
+
+bool buildLocalFolders(fs::path targetfolder, const string& prefix, int foldersperfolder, int recurselevel, int filesperfolder, int filesize, int& totalfilecount, int& totalfoldercount)
+{
+    fs::path p = targetfolder / fs::u8path(prefix);
+    if (!fs::create_directory(p))
+        return false;
+    ++totalfoldercount;
+
+    for (int i = 0; i < filesperfolder; ++i)
+    {
+        string filename = prefix + "_file_" + std::to_string(++totalfilecount);
+        fs::path fp = p / fs::u8path(filename);
+        ofstream fs(fp.u8string(), std::ios::binary);
+        
+        for (unsigned j = filesize / sizeof(int); j--; )
+        {
+            fs.write((char*)&totalfilecount, sizeof(int));
+        }
+        fs.write((char*)&totalfilecount, filesize % sizeof(int));
+    }
+
+    if (recurselevel > 1)
+    {
+        for (int i = 0; i < foldersperfolder; ++i)
+        {
+            if (!buildLocalFolders(p, prefix + "_" + std::to_string(i), foldersperfolder, recurselevel - 1, filesperfolder, filesize, totalfilecount, totalfoldercount))
+                return false;
+        }
+    }
+    return true;
+}
+
+void exec_generatetestfilesfolders(autocomplete::ACState& s)
+{
+    string param, nameprefix = "test";
+    int folderdepth = 1, folderwidth = 1, filecount = 100, filesize = 1024;
+    if (s.extractflagparam("-folderdepth", param)) folderdepth = atoi(param.c_str());
+    if (s.extractflagparam("-folderwidth", param)) folderwidth = atoi(param.c_str());
+    if (s.extractflagparam("-filecount", param)) filecount = atoi(param.c_str());
+    if (s.extractflagparam("-filesize", param)) filesize = atoi(param.c_str());
+    if (s.extractflagparam("-nameprefix", param)) nameprefix = param;
+
+    fs::path p = pathFromLocalPath(s.words[1].s, true);
+    if (!p.empty())
+    {
+        int totalfilecount = 0, totalfoldercount = 0;
+        buildLocalFolders(p, nameprefix, folderwidth, folderdepth, filecount, filesize, totalfilecount, totalfoldercount);
+        cout << "created " << totalfilecount << " files and " << totalfoldercount << " folders";
+    }
+}
+
 #endif
 
 void exec_getcloudstorageused(autocomplete::ACState& s)
@@ -2555,8 +2668,20 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_quit, either(text("quit"), text("q"), text("exit")));
 
     p->Add(exec_find, sequence(text("find"), text("raided")));
+
+#ifdef MEGA_MEASURE_CODE
+    p->Add(exec_deferRequests, sequence(text("deferreqeusts"), repeat(either(flag("-putnodes")))));
+    p->Add(exec_sendDeferred, sequence(text("senddeferred"), opt(flag("-reset"))));
+    p->Add(exec_codeTimings, sequence(text("codetimings"), opt(flag("-reset"))));
+#endif
+
 #ifdef USE_FILESYSTEM
     p->Add(exec_treecompare, sequence(text("treecompare"), localFSPath(), remoteFSPath(client, &cwd)));
+    p->Add(exec_generatetestfilesfolders, sequence(text("generatetestfilesfolders"), repeat(either(sequence(flag("-folderdepth"), param("depth")), 
+                                                                                                   sequence(flag("-folderwidth"), param("width")), 
+                                                                                                   sequence(flag("-filecount"), param("count")), 
+                                                                                                   sequence(flag("-filesize"), param("size")), 
+                                                                                                   sequence(flag("-nameprefix"), param("prefix")))), localFSFolder("parent")));
 #endif
     p->Add(exec_querytransferquota, sequence(text("querytransferquota"), param("filesize")));
     p->Add(exec_getcloudstorageused, sequence(text("getcloudstorageused")));
@@ -7052,8 +7177,22 @@ void megacli()
             }
         }
 
+
+        auto puts = appxferq[PUT].size();
+        auto gets = appxferq[GET].size();
+
         // pass the CPU to the engine (nonblocking)
         client->exec();
+
+        if (puts && !appxferq[PUT].size())
+        {
+            cout << "Uploads complete" << endl;
+        }
+        if (gets && !appxferq[GET].size())
+        {
+            cout << "Downloads complete" << endl;
+        }
+
 
         if (clientFolder)
         {
@@ -7068,8 +7207,13 @@ public:
     void log(const char* time, int loglevel, const char* source, const char *message) override
     {
 #ifdef _WIN32
-        OutputDebugStringA(message);
-        OutputDebugStringA("\r\n");
+        string s;
+        s.reserve(1024);
+        s += time;
+        s += " ";
+        s += message;
+        s += "\r\n";
+        OutputDebugStringA(s.c_str());
 #else
         if (loglevel >= SimpleLogger::logCurrentLevel)
         {

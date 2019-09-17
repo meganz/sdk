@@ -112,7 +112,7 @@ struct MEGA_API FileAccess
     bool fread(string *, unsigned, unsigned, m_off_t);
 
     // absolute position read to byte buffer
-    bool frawread(byte *, unsigned, m_off_t);
+    bool frawread(byte *, unsigned, m_off_t, bool skipopen = false, bool keepopen = false);
 
     // non-locking ops: open/close temporary hFile
     bool openf();

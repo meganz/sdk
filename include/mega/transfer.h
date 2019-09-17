@@ -44,7 +44,7 @@ struct MEGA_API Transfer : public FileFingerprint
 
     // failures/backoff
     unsigned failcount;
-    BackoffTimer bt;
+    BackoffTimerTracked bt;
 
     // representative local filename for this transfer
     string localfilename;

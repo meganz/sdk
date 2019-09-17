@@ -28,6 +28,22 @@
 #include "raid.h"
 
 namespace mega {
+
+// Helper class: Automatically manage backoff timer enablement - if the slot is in progress and has an fa, the transfer's backoff timer should not be considered 
+// (part of a performance upgrade, so we don't loop all the transfers, calling their bt.update() on every preparewait() )
+class TransferSlotFileAccess
+{
+    std::unique_ptr<FileAccess> fa;
+    Transfer* transfer;
+public:
+    TransferSlotFileAccess(FileAccess* p, Transfer* t);
+    ~TransferSlotFileAccess();
+    void reset(FileAccess* p = nullptr);
+    inline operator bool() { return bool(fa); }
+    inline FileAccess* operator->() { return fa.get(); }
+    inline operator FileAccess* () { return fa.get(); }
+};
+
 // active transfer
 struct MEGA_API TransferSlot
 {
@@ -35,7 +51,7 @@ struct MEGA_API TransferSlot
     struct Transfer* transfer;
 
     // associated source/destination file
-    FileAccess* fa;
+    TransferSlotFileAccess fa;
 
     // command in flight to obtain temporary URL
     Command* pendingcmd;
@@ -113,7 +129,7 @@ struct MEGA_API TransferSlot
 
     // slot operation retry timer
     bool retrying;
-    BackoffTimer retrybt;
+    BackoffTimerTracked retrybt;
 
     // transfer failure flag. MegaClient will increment the transfer->errorcount when it sees this set.
     bool failure;

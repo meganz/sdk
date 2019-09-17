@@ -46,10 +46,10 @@ string MegaClient::GELBURL = "https://gelb.karere.mega.nz/";
 string MegaClient::CHATSTATSURL = "https://stats.karere.mega.nz";
 
 // maximum number of concurrent transfers (uploads + downloads)
-const unsigned MegaClient::MAXTOTALTRANSFERS = 512;
+const unsigned MegaClient::MAXTOTALTRANSFERS = 1024;
 
 // maximum number of concurrent transfers (uploads or downloads)
-const unsigned MegaClient::MAXTRANSFERS =384;
+const unsigned MegaClient::MAXTRANSFERS = 768;
 
 // maximum number of queued putfa before halting the upload queue
 const int MegaClient::MAXQUEUEDFA = 30;
@@ -1214,693 +1214,538 @@ MegaClient::~MegaClient()
 // nonblocking state machine executing all operations currently in progress
 void MegaClient::exec()
 {
+    CodeCounter::ScopeTimer ccst(performanceStats.execFunction);
+
+    WAIT_CLASS::bumpds();
+
+    if (overquotauntil && overquotauntil < Waiter::ds)
     {
-        CodeCounter::ScopeTimer ccst(performanceStats.execFunction);
+        overquotauntil = 0;
+    }
 
-        WAIT_CLASS::bumpds();
+    if (httpio->inetisback())
+    {
+        LOG_info << "Internet connectivity returned - resetting all backoff timers";
+        abortbackoff(overquotauntil <= Waiter::ds);
+    }
 
-        if (overquotauntil && overquotauntil < Waiter::ds)
+    if (EVER(httpio->lastdata) && Waiter::ds >= httpio->lastdata + HttpIO::NETWORKTIMEOUT
+            && !pendingcs)
+    {
+        LOG_debug << "Network timeout. Reconnecting";
+        disconnect();
+    }
+    else if (EVER(disconnecttimestamp))
+    {
+        if (disconnecttimestamp <= Waiter::ds)
         {
-            overquotauntil = 0;
-        }
+            sendevent(99427, "Timeout (server idle)", 0);
 
-        if (httpio->inetisback())
-        {
-            LOG_info << "Internet connectivity returned - resetting all backoff timers";
-            abortbackoff(overquotauntil <= Waiter::ds);
-        }
-
-        if (EVER(httpio->lastdata) && Waiter::ds >= httpio->lastdata + HttpIO::NETWORKTIMEOUT
-                && !pendingcs)
-        {
-            LOG_debug << "Network timeout. Reconnecting";
             disconnect();
         }
-        else if (EVER(disconnecttimestamp))
-        {
-            if (disconnecttimestamp <= Waiter::ds)
-            {
-                sendevent(99427, "Timeout (server idle)", 0);
+    }
+    else if (pendingcs && EVER(pendingcs->lastdata) && !requestLock && !fetchingnodes
+            &&  Waiter::ds >= pendingcs->lastdata + HttpIO::REQUESTTIMEOUT)
+    {
+        LOG_debug << "Request timeout. Triggering a lock request";
+        requestLock = true;
+    }
 
-                disconnect();
+    // successful network operation with a failed transfer chunk: increment error count
+    // and continue transfers
+    if (httpio->success && chunkfailed)
+    {
+        chunkfailed = false;
+
+        for (transferslot_list::iterator it = tslots.begin(); it != tslots.end(); it++)
+        {
+            if ((*it)->failure)
+            {
+                (*it)->lasterror = API_EFAILED;
+                (*it)->errorcount++;
+                (*it)->failure = false;
+                (*it)->lastdata = Waiter::ds;
+                LOG_warn << "Transfer error count raised: " << (*it)->errorcount;
             }
         }
-        else if (pendingcs && EVER(pendingcs->lastdata) && !requestLock && !fetchingnodes
-                &&  Waiter::ds >= pendingcs->lastdata + HttpIO::REQUESTTIMEOUT)
+    }
+
+    bool first = true;
+
+    do
+    {
+        if (!first)
         {
-            LOG_debug << "Request timeout. Triggering a lock request";
-            requestLock = true;
+            WAIT_CLASS::bumpds();
+        }
+        first = false;
+
+        looprequested = false;
+
+        if (cachedug && btugexpiration.armed())
+        {
+            LOG_debug << "Cached user data expired";
+            getuserdata();
+            fetchtimezone();
         }
 
-        // successful network operation with a failed transfer chunk: increment error count
-        // and continue transfers
-        if (httpio->success && chunkfailed)
+        if (pendinghttp.size())
         {
-            chunkfailed = false;
-
-            for (transferslot_list::iterator it = tslots.begin(); it != tslots.end(); it++)
+            pendinghttp_map::iterator it = pendinghttp.begin();
+            while (it != pendinghttp.end())
             {
-                if ((*it)->failure)
+                GenericHttpReq *req = it->second;
+                switch (req->status)
                 {
-                    (*it)->lasterror = API_EFAILED;
-                    (*it)->errorcount++;
-                    (*it)->failure = false;
-                    (*it)->lastdata = Waiter::ds;
-                    LOG_warn << "Transfer error count raised: " << (*it)->errorcount;
-                }
-            }
-        }
-
-        bool first = true, loop_continue = false;
-
-        do
-        {
-            if (!first)
-            {
-                WAIT_CLASS::bumpds();
-            }
-            first = false;
-
-            looprequested = false;
-
-            if (cachedug && btugexpiration.armed())
-            {
-                LOG_debug << "Cached user data expired";
-                getuserdata();
-                fetchtimezone();
-            }
-
-            if (pendinghttp.size())
-            {
-                pendinghttp_map::iterator it = pendinghttp.begin();
-                while (it != pendinghttp.end())
-                {
-                    GenericHttpReq *req = it->second;
-                    switch (req->status)
+                case REQ_FAILURE:
+                    if (!req->httpstatus && (!req->maxretries || (req->numretry + 1) < req->maxretries))
                     {
-                    case REQ_FAILURE:
-                        if (!req->httpstatus && (!req->maxretries || (req->numretry + 1) < req->maxretries))
+                        req->numretry++;
+                        req->status = REQ_PREPARED;
+                        req->bt.backoff();
+                        req->isbtactive = true;
+                        LOG_warn << "Request failed (" << req->posturl << ") retrying ("
+                                    << (req->numretry + 1) << " of " << req->maxretries << ")";
+                        it++;
+                        break;
+                    }
+                    // no retry -> fall through
+                case REQ_SUCCESS:
+                    restag = it->first;
+                    app->http_result(req->httpstatus ? API_OK : API_EFAILED,
+                                        req->httpstatus,
+                                        req->buf ? (byte *)req->buf : (byte *)req->in.data(),
+                                        int(req->buf ? req->bufpos : req->in.size()));
+                    delete req;
+                    pendinghttp.erase(it++);
+                    break;
+                case REQ_PREPARED:
+                    if (req->bt.armed())
+                    {
+                        req->isbtactive = false;
+                        LOG_debug << "Sending retry for " << req->posturl;
+                        switch (req->method)
                         {
-                            req->numretry++;
-                            req->status = REQ_PREPARED;
-                            req->bt.backoff();
-                            req->isbtactive = true;
-                            LOG_warn << "Request failed (" << req->posturl << ") retrying ("
-                                     << (req->numretry + 1) << " of " << req->maxretries << ")";
-                            it++;
-                            break;
+                            case METHOD_GET:
+                                req->get(this);
+                                break;
+                            case METHOD_POST:
+                                req->post(this);
+                                break;
+                            case METHOD_NONE:
+                                req->dns(this);
+                                break;
                         }
-                        // no retry -> fall through
-                    case REQ_SUCCESS:
+                        it++;
+                        break;
+                    }
+                    // no retry -> fall through
+                case REQ_INFLIGHT:
+                    if (req->maxbt.nextset() && req->maxbt.armed())
+                    {
+                        LOG_debug << "Max total time exceeded for request: " << req->posturl;
                         restag = it->first;
-                        app->http_result(req->httpstatus ? API_OK : API_EFAILED,
-                                         req->httpstatus,
-                                         req->buf ? (byte *)req->buf : (byte *)req->in.data(),
-                                         int(req->buf ? req->bufpos : req->in.size()));
+                        app->http_result(API_EFAILED, 0, NULL, 0);
                         delete req;
                         pendinghttp.erase(it++);
                         break;
-                    case REQ_PREPARED:
-                        if (req->bt.armed())
-                        {
-                            req->isbtactive = false;
-                            LOG_debug << "Sending retry for " << req->posturl;
-                            switch (req->method)
-                            {
-                                case METHOD_GET:
-                                    req->get(this);
-                                    break;
-                                case METHOD_POST:
-                                    req->post(this);
-                                    break;
-                                case METHOD_NONE:
-                                    req->dns(this);
-                                    break;
-                            }
-                            it++;
-                            break;
-                        }
-                        // no retry -> fall through
-                    case REQ_INFLIGHT:
-                        if (req->maxbt.nextset() && req->maxbt.armed())
-                        {
-                            LOG_debug << "Max total time exceeded for request: " << req->posturl;
-                            restag = it->first;
-                            app->http_result(API_EFAILED, 0, NULL, 0);
-                            delete req;
-                            pendinghttp.erase(it++);
-                            break;
-                        }
-                    default:
-                        it++;
                     }
+                default:
+                    it++;
                 }
             }
+        }
 
-            // file attribute puts (handled sequentially as a FIFO)
-            if (activefa.size())
+        // file attribute puts (handled sequentially as a FIFO)
+        if (activefa.size())
+        {
+            putfa_list::iterator curfa = activefa.begin();
+            while (curfa != activefa.end())
             {
-                putfa_list::iterator curfa = activefa.begin();
-                while (curfa != activefa.end())
+                HttpReqCommandPutFA* fa = *curfa;
+                m_off_t p = fa->transferred(this);
+                if (fa->progressreported < p)
                 {
-                    HttpReqCommandPutFA* fa = *curfa;
-                    m_off_t p = fa->transferred(this);
-                    if (fa->progressreported < p)
-                    {
-                        httpio->updateuploadspeed(p - fa->progressreported);
-                        fa->progressreported = p;
-                    }
+                    httpio->updateuploadspeed(p - fa->progressreported);
+                    fa->progressreported = p;
+                }
 
-                    switch (fa->status)
-                    {
-                        case REQ_SUCCESS:
-                            if (fa->in.size() == sizeof(handle))
+                switch (fa->status)
+                {
+                    case REQ_SUCCESS:
+                        if (fa->in.size() == sizeof(handle))
+                        {
+                            LOG_debug << "File attribute uploaded OK - " << fa->th;
+
+                            // successfully wrote file attribute - store handle &
+                            // remove from list
+                            handle fah = MemAccess::get<handle>(fa->in.data());
+
+                            if (fa->th == UNDEF)
                             {
-                                LOG_debug << "File attribute uploaded OK - " << fa->th;
-
-                                // successfully wrote file attribute - store handle &
-                                // remove from list
-                                handle fah = MemAccess::get<handle>(fa->in.data());
-
-                                if (fa->th == UNDEF)
-                                {
-                                    // client app requested the upload without a node yet, and it will use the fa handle
-                                    app->putfa_result(fah, fa->type, nullptr);
-                                }
-                                else
-                                {
-                                    Node* n;
-                                    handle h;
-                                    handlepair_set::iterator it;
-
-                                    // do we have a valid upload handle?
-                                    h = fa->th;
-
-                                    it = uhnh.lower_bound(pair<handle, handle>(h, 0));
-
-                                    if (it != uhnh.end() && it->first == h)
-                                    {
-                                        h = it->second;
-                                    }
-
-                                    // are we updating a live node? issue command directly.
-                                    // otherwise, queue for processing upon upload
-                                    // completion.
-                                    if ((n = nodebyhandle(h)) || (n = nodebyhandle(fa->th)))
-                                    {
-                                        LOG_debug << "Attaching file attribute";
-                                        reqs.add(new CommandAttachFA(this, n->nodehandle, fa->type, fah, fa->tag));
-                                    }
-                                    else
-                                    {
-                                        pendingfa[pair<handle, fatype>(fa->th, fa->type)] = pair<handle, int>(fah, fa->tag);
-                                        LOG_debug << "Queueing pending file attribute. Total: " << pendingfa.size();
-                                        checkfacompletion(fa->th);
-                                    }
-                                }
+                                // client app requested the upload without a node yet, and it will use the fa handle
+                                app->putfa_result(fah, fa->type, nullptr);
                             }
                             else
                             {
-                                LOG_warn << "Error attaching attribute";
-                                Transfer *transfer = NULL;
-                                handletransfer_map::iterator htit = faputcompletion.find(fa->th);
-                                if (htit != faputcompletion.end())
+                                Node* n;
+                                handle h;
+                                handlepair_set::iterator it;
+
+                                // do we have a valid upload handle?
+                                h = fa->th;
+
+                                it = uhnh.lower_bound(pair<handle, handle>(h, 0));
+
+                                if (it != uhnh.end() && it->first == h)
                                 {
-                                    // the failed attribute belongs to a pending upload
-                                    transfer = htit->second;
+                                    h = it->second;
+                                }
+
+                                // are we updating a live node? issue command directly.
+                                // otherwise, queue for processing upon upload
+                                // completion.
+                                if ((n = nodebyhandle(h)) || (n = nodebyhandle(fa->th)))
+                                {
+                                    LOG_debug << "Attaching file attribute";
+                                    reqs.add(new CommandAttachFA(this, n->nodehandle, fa->type, fah, fa->tag));
                                 }
                                 else
                                 {
-                                    // check if the failed attribute belongs to an active upload
-                                    for (transfer_map::iterator it = transfers[PUT].begin(); it != transfers[PUT].end(); it++)
-                                    {
-                                        if (it->second->uploadhandle == fa->th)
-                                        {
-                                            transfer = it->second;
-                                            break;
-                                        }
-                                    }
-                                }
-
-                                if (transfer)
-                                {
-                                    // reduce the number of required attributes to let the upload continue
-                                    transfer->minfa--;
+                                    pendingfa[pair<handle, fatype>(fa->th, fa->type)] = pair<handle, int>(fah, fa->tag);
+                                    LOG_debug << "Queueing pending file attribute. Total: " << pendingfa.size();
                                     checkfacompletion(fa->th);
-                                    sendevent(99407,"Attribute attach failed during active upload", 0);
-                                }
-                                else
-                                {
-                                    LOG_debug << "Transfer related to failed attribute not found: " << fa->th;
                                 }
                             }
-
-                            delete fa;
-                            curfa = activefa.erase(curfa);
-                            LOG_debug << "Remaining file attributes: " << activefa.size() << " active, " << queuedfa.size() << " queued";
-                            btpfa.reset();
-                            faretrying = false;
-                            break;
-
-                        case REQ_FAILURE:
-                            // repeat request with exponential backoff
-                            LOG_warn << "Error setting file attribute";
-                            curfa = activefa.erase(curfa);
-                            fa->status = REQ_READY;
-                            queuedfa.push_back(fa);
-                            btpfa.backoff();
-                            faretrying = true;
-                            break;
-
-                        default:
-                            curfa++;
-                    }
-                }
-            }
-
-            if (btpfa.armed())
-            {
-                faretrying = false;
-                while (queuedfa.size() && activefa.size() < MAXPUTFA)
-                {
-                    // dispatch most recent file attribute put
-                    putfa_list::iterator curfa = queuedfa.begin();
-                    HttpReqCommandPutFA* fa = *curfa;
-                    queuedfa.erase(curfa);
-                    activefa.push_back(fa);
-
-                    LOG_debug << "Adding file attribute to the request queue";
-                    fa->status = REQ_INFLIGHT;
-                    reqs.add(fa);
-                }
-            }
-
-            if (fafcs.size())
-            {
-                // file attribute fetching (handled in parallel on a per-cluster basis)
-                // cluster channels are never purged
-                fafc_map::iterator cit;
-                FileAttributeFetchChannel* fc;
-
-                for (cit = fafcs.begin(); cit != fafcs.end(); cit++)
-                {
-                    fc = cit->second;
-
-                    // is this request currently in flight?
-                    switch (fc->req.status)
-                    {
-                        case REQ_SUCCESS:
-                            if (fc->req.contenttype.find("text/html") != string::npos
-                                && !memcmp(fc->req.posturl.c_str(), "http:", 5))
-                            {
-                                LOG_warn << "Invalid Content-Type detected downloading file attr: " << fc->req.contenttype;
-                                fc->urltime = 0;
-                                usehttps = true;
-                                app->notify_change_to_https();
-
-                                sendevent(99436, "Automatic change to HTTPS", 0);
-                            }
-                            else
-                            {
-                                fc->parse(cit->first, true);
-                            }
-
-                            // notify app in case some attributes were not returned, then redispatch
-                            fc->failed();
-                            fc->req.disconnect();
-                            fc->req.status = REQ_PREPARED;
-                            fc->timeout.reset();
-                            fc->bt.reset();
-                            break;
-
-                        case REQ_INFLIGHT:
-                            if (!fc->req.httpio)
-                            {
-                                break;
-                            }
-
-                            if (fc->inbytes != fc->req.in.size())
-                            {
-                                httpio->lock();
-                                fc->parse(cit->first, false);
-                                httpio->unlock();
-
-                                fc->timeout.backoff(100);
-
-                                fc->inbytes = fc->req.in.size();
-                            }
-
-                            if (!fc->timeout.armed()) break;
-
-                            LOG_warn << "Timeout getting file attr";
-                            // timeout! fall through...
-                        case REQ_FAILURE:
-                            LOG_warn << "Error getting file attr";
-
-                            if (fc->req.httpstatus && fc->req.contenttype.find("text/html") != string::npos
-                                    && !memcmp(fc->req.posturl.c_str(), "http:", 5))
-                            {
-                                LOG_warn << "Invalid Content-Type detected on failed file attr: " << fc->req.contenttype;
-                                usehttps = true;
-                                app->notify_change_to_https();
-
-                                sendevent(99436, "Automatic change to HTTPS", 0);
-                            }
-
-                            fc->failed();
-                            fc->timeout.reset();
-                            fc->bt.backoff();
-                            fc->urltime = 0;
-                            fc->req.disconnect();
-                            fc->req.status = REQ_PREPARED;
-                        default:
-                            ;
-                    }
-
-                    if (fc->req.status != REQ_INFLIGHT && fc->bt.armed() && (fc->fafs[1].size() || fc->fafs[0].size()))
-                    {
-                        fc->req.in.clear();
-
-                        if (!fc->urltime || (Waiter::ds - fc->urltime) > 600)
-                        {
-                            // fetches pending for this unconnected channel - dispatch fresh connection
-                            LOG_debug << "Getting fresh download URL";
-                            fc->timeout.reset();
-                            reqs.add(new CommandGetFA(this, cit->first, fc->fahref));
-                            fc->req.status = REQ_INFLIGHT;
                         }
                         else
                         {
-                            // redispatch cached URL if not older than one minute
-                            LOG_debug << "Using cached download URL";
-                            fc->dispatch();
-                        }
-                    }
-                }
-            }
-
-            // handle API client-server requests
-            for (;;)
-            {
-                // do we have an API request outstanding?
-                if (pendingcs)
-                {
-                    // handle retry reason for requests
-                    retryreason_t reason = RETRY_NONE;
-
-                    if (pendingcs->status == REQ_SUCCESS || pendingcs->status == REQ_FAILURE)
-                    {
-                        performanceStats.csRequestWaitTime.stop();
-                    }
-
-                    switch (pendingcs->status)
-                    {
-                        case REQ_READY:
-                            break;
-
-                        case REQ_INFLIGHT:
-                            if (pendingcs->contentlength > 0)
+                            LOG_warn << "Error attaching attribute";
+                            Transfer *transfer = NULL;
+                            handletransfer_map::iterator htit = faputcompletion.find(fa->th);
+                            if (htit != faputcompletion.end())
                             {
-                                if (fetchingnodes && fnstats.timeToFirstByte == NEVER
-                                        && pendingcs->bufpos > 10)
-                                {
-								    WAIT_CLASS::bumpds();
-                                    fnstats.timeToFirstByte = WAIT_CLASS::ds - fnstats.startTime;
-                                }
-
-                                if (pendingcs->bufpos > pendingcs->notifiedbufpos)
-                                {
-                                    abortlockrequest();
-                                    app->request_response_progress(pendingcs->bufpos, pendingcs->contentlength);
-                                    pendingcs->notifiedbufpos = pendingcs->bufpos;
-                                }
-                            }
-                            break;
-
-                        case REQ_SUCCESS:
-                            abortlockrequest();
-                            app->request_response_progress(pendingcs->bufpos, -1);
-
-                            if (pendingcs->in != "-3" && pendingcs->in != "-4")
-                            {
-                                if (*pendingcs->in.c_str() == '[')
-                                {
-                                    if (fetchingnodes && fnstats.timeToFirstByte == NEVER)
-                                    {
-									    WAIT_CLASS::bumpds();
-                                        fnstats.timeToFirstByte = WAIT_CLASS::ds - fnstats.startTime;
-                                    }
-
-                                    if (csretrying)
-                                    {
-                                        app->notify_retry(0, RETRY_NONE);
-                                        csretrying = false;
-                                    }
-
-                                    // request succeeded, process result array
-                                    reqs.serverresponse(std::move(pendingcs->in), this);
-
-                                    WAIT_CLASS::bumpds();
-
-                                    delete pendingcs;
-                                    pendingcs = NULL;
-
-                                    notifypurge();
-                                    if (sctable && pendingsccommit && !reqs.cmdspending())
-                                    {
-                                        LOG_debug << "Executing postponed DB commit";
-                                        sctable->commit();
-                                        sctable->begin();
-                                        app->notify_dbcommit();
-                                        pendingsccommit = false;
-                                    }
-
-                                    // increment unique request ID
-                                    for (int i = sizeof reqid; i--; )
-                                    {
-                                        if (reqid[i]++ < 'z')
-                                        {
-                                            break;
-                                        }
-                                        else
-                                        {
-                                            reqid[i] = 'a';
-                                        }
-                                    }
-                                }
-                                else
-                                {
-                                    // request failed
-                                    error e = (error)atoi(pendingcs->in.c_str());
-
-                                    if (!e)
-                                    {
-                                        e = API_EINTERNAL;
-                                    }
-
-                                    app->request_error(e);
-                                    delete pendingcs;
-                                    pendingcs = NULL;
-                                    csretrying = false;
-
-                                    reqs.servererror(e, this);
-                                    break;
-                                }
-
-                                btcs.reset();
-                                break;
+                                // the failed attribute belongs to a pending upload
+                                transfer = htit->second;
                             }
                             else
                             {
-                                if (pendingcs->in == "-3")
+                                // check if the failed attribute belongs to an active upload
+                                for (transfer_map::iterator it = transfers[PUT].begin(); it != transfers[PUT].end(); it++)
                                 {
-                                    reason = RETRY_API_LOCK;
-                                }
-                                else
-                                {
-                                    reason = RETRY_RATE_LIMIT;
-                                }
-                                if (fetchingnodes)
-                                {
-                                    fnstats.eAgainCount++;
+                                    if (it->second->uploadhandle == fa->th)
+                                    {
+                                        transfer = it->second;
+                                        break;
+                                    }
                                 }
                             }
 
-                        // fall through
-                        case REQ_FAILURE:
-                            if (!reason && pendingcs->httpstatus != 200)
+                            if (transfer)
                             {
-                                if (pendingcs->httpstatus == 500)
-                                {
-                                    reason = RETRY_SERVERS_BUSY;
-                                }
-                                else if (pendingcs->httpstatus == 0)
-                                {
-                                    reason = RETRY_CONNECTIVITY;
-                                }
-                                else
-                                {
-                                    reason = RETRY_UNKNOWN;
-                                }
+                                // reduce the number of required attributes to let the upload continue
+                                transfer->minfa--;
+                                checkfacompletion(fa->th);
+                                sendevent(99407,"Attribute attach failed during active upload", 0);
                             }
-
-                            if (fetchingnodes && pendingcs->httpstatus != 200)
+                            else
                             {
-                                if (pendingcs->httpstatus == 500)
-                                {
-                                    fnstats.e500Count++;
-                                }
-                                else
-                                {
-                                    fnstats.eOthersCount++;
-                                }
+                                LOG_debug << "Transfer related to failed attribute not found: " << fa->th;
                             }
+                        }
 
-                            abortlockrequest();
-                            if (pendingcs->sslcheckfailed)
-                            {
-                                sslfakeissuer = pendingcs->sslfakeissuer;
-                                app->request_error(API_ESSL);
-                                sslfakeissuer.clear();
-
-                                if (!retryessl)
-                                {
-                                    delete pendingcs;
-                                    pendingcs = NULL;
-                                    csretrying = false;
-
-                                    reqs.servererror(API_ESSL, this);
-                                    break;
-                                }
-                            }
-
-                            // failure, repeat with capped exponential backoff
-                            app->request_response_progress(pendingcs->bufpos, -1);
-
-                            delete pendingcs;
-                            pendingcs = NULL;
-
-                            btcs.backoff();
-                            app->notify_retry(btcs.retryin(), reason);
-                            csretrying = true;
-
-                            reqs.requeuerequest();
-
-                        default:
-                            ;
-                    }
-
-                    if (pendingcs)
-                    {
+                        delete fa;
+                        curfa = activefa.erase(curfa);
+                        LOG_debug << "Remaining file attributes: " << activefa.size() << " active, " << queuedfa.size() << " queued";
+                        btpfa.reset();
+                        faretrying = false;
                         break;
-                    }
+
+                    case REQ_FAILURE:
+                        // repeat request with exponential backoff
+                        LOG_warn << "Error setting file attribute";
+                        curfa = activefa.erase(curfa);
+                        fa->status = REQ_READY;
+                        queuedfa.push_back(fa);
+                        btpfa.backoff();
+                        faretrying = true;
+                        break;
+
+                    default:
+                        curfa++;
                 }
-
-                if (btcs.armed())
-                {
-                    if (reqs.cmdspending())
-                    {
-                        pendingcs = new HttpReq();
-                        pendingcs->protect = true;
-                        pendingcs->logname = clientname + "cs ";
-
-                        bool suppressSID = true;
-                        reqs.serverrequest(pendingcs->out, suppressSID);
-
-                        pendingcs->posturl = APIURL;
-
-                        pendingcs->posturl.append("cs?id=");
-                        pendingcs->posturl.append(reqid, sizeof reqid);
-                        if (!suppressSID)
-                        {
-                            pendingcs->posturl.append(auth);
-                        }
-                        pendingcs->posturl.append(appkey);
-                        if (lang.size())
-                        {
-                            pendingcs->posturl.append(lang);
-                        }
-                        pendingcs->type = REQ_JSON;
-
-                        performanceStats.csRequestWaitTime.start();
-                        pendingcs->post(this);
-                        continue;
-                    }
-                    else
-                    {
-                        btcs.reset();
-                    }
-                }
-                break;
             }
+        }
 
-            // handle API server-client requests
-            if (!jsonsc.pos && pendingsc && !loggingout)
+        if (btpfa.armed())
+        {
+            faretrying = false;
+            while (queuedfa.size() && activefa.size() < MAXPUTFA)
             {
-                switch (pendingsc->status)
-                {
-                case REQ_SUCCESS:
-                    if (pendingsc->contentlength == 1
-                            && pendingsc->in.size()
-                            && pendingsc->in[0] == '0')
-                    {
-                        LOG_debug << "Waitd keep-alive received";
-                        delete pendingsc;
-                        pendingsc = NULL;
-                        btsc.reset();
-                        break;
-                    }
+                // dispatch most recent file attribute put
+                putfa_list::iterator curfa = queuedfa.begin();
+                HttpReqCommandPutFA* fa = *curfa;
+                queuedfa.erase(curfa);
+                activefa.push_back(fa);
 
-                    if (*pendingsc->in.c_str() == '{')
-                    {
-                        jsonsc.begin(pendingsc->in.c_str());
-                        jsonsc.enterobject();
+                LOG_debug << "Adding file attribute to the request queue";
+                fa->status = REQ_INFLIGHT;
+                reqs.add(fa);
+            }
+        }
+
+        if (fafcs.size())
+        {
+            // file attribute fetching (handled in parallel on a per-cluster basis)
+            // cluster channels are never purged
+            fafc_map::iterator cit;
+            FileAttributeFetchChannel* fc;
+
+            for (cit = fafcs.begin(); cit != fafcs.end(); cit++)
+            {
+                fc = cit->second;
+
+                // is this request currently in flight?
+                switch (fc->req.status)
+                {
+                    case REQ_SUCCESS:
+                        if (fc->req.contenttype.find("text/html") != string::npos
+                            && !memcmp(fc->req.posturl.c_str(), "http:", 5))
+                        {
+                            LOG_warn << "Invalid Content-Type detected downloading file attr: " << fc->req.contenttype;
+                            fc->urltime = 0;
+                            usehttps = true;
+                            app->notify_change_to_https();
+
+                            sendevent(99436, "Automatic change to HTTPS", 0);
+                        }
+                        else
+                        {
+                            fc->parse(cit->first, true);
+                        }
+
+                        // notify app in case some attributes were not returned, then redispatch
+                        fc->failed();
+                        fc->req.disconnect();
+                        fc->req.status = REQ_PREPARED;
+                        fc->timeout.reset();
+                        fc->bt.reset();
                         break;
+
+                    case REQ_INFLIGHT:
+                        if (!fc->req.httpio)
+                        {
+                            break;
+                        }
+
+                        if (fc->inbytes != fc->req.in.size())
+                        {
+                            httpio->lock();
+                            fc->parse(cit->first, false);
+                            httpio->unlock();
+
+                            fc->timeout.backoff(100);
+
+                            fc->inbytes = fc->req.in.size();
+                        }
+
+                        if (!fc->timeout.armed()) break;
+
+                        LOG_warn << "Timeout getting file attr";
+                        // timeout! fall through...
+                    case REQ_FAILURE:
+                        LOG_warn << "Error getting file attr";
+
+                        if (fc->req.httpstatus && fc->req.contenttype.find("text/html") != string::npos
+                                && !memcmp(fc->req.posturl.c_str(), "http:", 5))
+                        {
+                            LOG_warn << "Invalid Content-Type detected on failed file attr: " << fc->req.contenttype;
+                            usehttps = true;
+                            app->notify_change_to_https();
+
+                            sendevent(99436, "Automatic change to HTTPS", 0);
+                        }
+
+                        fc->failed();
+                        fc->timeout.reset();
+                        fc->bt.backoff();
+                        fc->urltime = 0;
+                        fc->req.disconnect();
+                        fc->req.status = REQ_PREPARED;
+                    default:
+                        ;
+                }
+
+                if (fc->req.status != REQ_INFLIGHT && fc->bt.armed() && (fc->fafs[1].size() || fc->fafs[0].size()))
+                {
+                    fc->req.in.clear();
+
+                    if (!fc->urltime || (Waiter::ds - fc->urltime) > 600)
+                    {
+                        // fetches pending for this unconnected channel - dispatch fresh connection
+                        LOG_debug << "Getting fresh download URL";
+                        fc->timeout.reset();
+                        reqs.add(new CommandGetFA(this, cit->first, fc->fahref));
+                        fc->req.status = REQ_INFLIGHT;
                     }
                     else
                     {
-                        error e = (error)atoi(pendingsc->in.c_str());
-                        if (e == API_ESID)
+                        // redispatch cached URL if not older than one minute
+                        LOG_debug << "Using cached download URL";
+                        fc->dispatch();
+                    }
+                }
+            }
+        }
+
+        // handle API client-server requests
+        for (;;)
+        {
+            // do we have an API request outstanding?
+            if (pendingcs)
+            {
+                // handle retry reason for requests
+                retryreason_t reason = RETRY_NONE;
+
+                if (pendingcs->status == REQ_SUCCESS || pendingcs->status == REQ_FAILURE)
+                {
+                    performanceStats.csRequestWaitTime.stop();
+                }
+
+                switch (pendingcs->status)
+                {
+                    case REQ_READY:
+                        break;
+
+                    case REQ_INFLIGHT:
+                        if (pendingcs->contentlength > 0)
                         {
-                            app->request_error(API_ESID);
-                            *scsn = 0;
+                            if (fetchingnodes && fnstats.timeToFirstByte == NEVER
+                                    && pendingcs->bufpos > 10)
+                            {
+								WAIT_CLASS::bumpds();
+                                fnstats.timeToFirstByte = WAIT_CLASS::ds - fnstats.startTime;
+                            }
+
+                            if (pendingcs->bufpos > pendingcs->notifiedbufpos)
+                            {
+                                abortlockrequest();
+                                app->request_response_progress(pendingcs->bufpos, pendingcs->contentlength);
+                                pendingcs->notifiedbufpos = pendingcs->bufpos;
+                            }
                         }
-                        else if (e == API_ETOOMANY)
+                        break;
+
+                    case REQ_SUCCESS:
+                        abortlockrequest();
+                        app->request_response_progress(pendingcs->bufpos, -1);
+
+                        if (pendingcs->in != "-3" && pendingcs->in != "-4")
                         {
-                            LOG_warn << "Too many pending updates - reloading local state";
-                            int creqtag = reqtag;
-                            reqtag = fetchnodestag; // associate with ongoing request, if any
-                            fetchingnodes = false;
-                            fetchnodestag = 0;
-                            fetchnodes(true);
-                            reqtag = creqtag;
+                            if (*pendingcs->in.c_str() == '[')
+                            {
+                                if (fetchingnodes && fnstats.timeToFirstByte == NEVER)
+                                {
+									WAIT_CLASS::bumpds();
+                                    fnstats.timeToFirstByte = WAIT_CLASS::ds - fnstats.startTime;
+                                }
+
+                                if (csretrying)
+                                {
+                                    app->notify_retry(0, RETRY_NONE);
+                                    csretrying = false;
+                                }
+
+                                // request succeeded, process result array
+                                reqs.serverresponse(std::move(pendingcs->in), this);
+
+                                WAIT_CLASS::bumpds();
+
+                                delete pendingcs;
+                                pendingcs = NULL;
+
+                                notifypurge();
+                                if (sctable && pendingsccommit && !reqs.cmdspending())
+                                {
+                                    LOG_debug << "Executing postponed DB commit";
+                                    sctable->commit();
+                                    sctable->begin();
+                                    app->notify_dbcommit();
+                                    pendingsccommit = false;
+                                }
+
+                                // increment unique request ID
+                                for (int i = sizeof reqid; i--; )
+                                {
+                                    if (reqid[i]++ < 'z')
+                                    {
+                                        break;
+                                    }
+                                    else
+                                    {
+                                        reqid[i] = 'a';
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                // request failed
+                                error e = (error)atoi(pendingcs->in.c_str());
+
+                                if (!e)
+                                {
+                                    e = API_EINTERNAL;
+                                }
+
+                                app->request_error(e);
+                                delete pendingcs;
+                                pendingcs = NULL;
+                                csretrying = false;
+
+                                reqs.servererror(e, this);
+                                break;
+                            }
+
+                            btcs.reset();
+                            break;
                         }
-                        else if (e == API_EAGAIN || e == API_ERATELIMIT)
+                        else
                         {
-                            if (!statecurrent)
+                            if (pendingcs->in == "-3")
+                            {
+                                reason = RETRY_API_LOCK;
+                            }
+                            else
+                            {
+                                reason = RETRY_RATE_LIMIT;
+                            }
+                            if (fetchingnodes)
                             {
                                 fnstats.eAgainCount++;
                             }
                         }
-                        else
-                        {
-                            LOG_err << "Unexpected sc response: " << pendingsc->in;
-                            if (useralerts.begincatchup)
-                            {
-                                useralerts.begincatchup = false;
-                                useralerts.catchupdone = true;
-                            }
-                            stopsc = true;
-                        }
-                    }
 
                     // fall through
-                case REQ_FAILURE:
-                    if (pendingsc)
-                    {
-                        if (!statecurrent && pendingsc->httpstatus != 200)
+                    case REQ_FAILURE:
+                        if (!reason && pendingcs->httpstatus != 200)
                         {
-                            if (pendingsc->httpstatus == 500)
+                            if (pendingcs->httpstatus == 500)
+                            {
+                                reason = RETRY_SERVERS_BUSY;
+                            }
+                            else if (pendingcs->httpstatus == 0)
+                            {
+                                reason = RETRY_CONNECTIVITY;
+                            }
+                            else
+                            {
+                                reason = RETRY_UNKNOWN;
+                            }
+                        }
+
+                        if (fetchingnodes && pendingcs->httpstatus != 200)
+                        {
+                            if (pendingcs->httpstatus == 500)
                             {
                                 fnstats.e500Count++;
                             }
@@ -1910,818 +1755,973 @@ void MegaClient::exec()
                             }
                         }
 
-                        if (pendingsc->sslcheckfailed)
+                        abortlockrequest();
+                        if (pendingcs->sslcheckfailed)
                         {
-                            sslfakeissuer = pendingsc->sslfakeissuer;
+                            sslfakeissuer = pendingcs->sslfakeissuer;
                             app->request_error(API_ESSL);
                             sslfakeissuer.clear();
 
                             if (!retryessl)
                             {
-                                *scsn = 0;
-                            }
-                        }
+                                delete pendingcs;
+                                pendingcs = NULL;
+                                csretrying = false;
 
-                        delete pendingsc;
-                        pendingsc = NULL;
-                    }
-
-                    if (stopsc)
-                    {
-                        btsc.backoff(NEVER);
-                    }
-                    else
-                    {
-                        // failure, repeat with capped exponential backoff
-                        btsc.backoff();
-                    }
-                    break;
-
-                case REQ_INFLIGHT:
-                    if (Waiter::ds >= (pendingsc->lastdata + HttpIO::SCREQUESTTIMEOUT))
-                    {
-                        LOG_debug << "sc timeout expired";
-                        delete pendingsc;
-                        pendingsc = NULL;
-                        btsc.reset();
-                    }
-                    break;
-                default:
-                    break;
-                }
-            }
-
-    #ifdef ENABLE_SYNC
-            if (syncactivity)
-            {
-                syncops = true;
-            }
-            syncactivity = false;
-
-            // do not process the SC result until all preconfigured syncs are up and running
-            // except if SC packets are required to complete a fetchnodes
-            if (!scpaused && jsonsc.pos && (syncsup || !statecurrent) && !syncdownrequired && !syncdownretry)
-    #else
-            if (!scpaused && jsonsc.pos)
-    #endif
-            {
-                // FIXME: reload in case of bad JSON
-                bool r;
-                if (useralerts.begincatchup)
-                {
-                    r = useralerts.procsc_useralert(jsonsc);
-                    if (r)
-                    {
-                        // NULL vector: "notify all elements"
-                        app->useralerts_updated(NULL, int(useralerts.alerts.size()));
-                    }
-                }
-                else
-                {
-                    r = procsc();
-                }
-
-                if (r)
-                {
-                    // completed - initiate next SC request
-                    delete pendingsc;
-                    pendingsc = NULL;
-
-                    btsc.reset();
-                }
-    #ifdef ENABLE_SYNC
-                else
-                {
-                    // remote changes require immediate attention of syncdown()
-                    syncdownrequired = true;
-                    syncactivity = true;
-                }
-    #endif
-            }
-
-            if (!pendingsc && *scsn && btsc.armed() && !stopsc)
-            {
-                pendingsc = new HttpReq();
-                pendingsc->logname = clientname + "sc ";
-
-                if (scnotifyurl.size() && !useralerts.begincatchup)
-                {
-                    pendingsc->posturl = scnotifyurl;
-                }
-                else
-                {
-                    pendingsc->posturl = APIURL;
-                    pendingsc->posturl.append("wsc");
-                }
-
-                pendingsc->protect = true;
-
-                if (useralerts.begincatchup)
-                {
-                    assert(!fetchingnodes);
-                    pendingsc->posturl.append("?c=50");
-                }
-                else
-                {
-                    pendingsc->posturl.append("?sn=");
-                    pendingsc->posturl.append(scsn);
-                }
-                pendingsc->posturl.append(auth);
-                pendingsc->type = REQ_JSON;
-                LOG_debug << "Sending keep-alive to waitd";
-                pendingsc->post(this);
-                jsonsc.pos = NULL;
-            }
-
-            if (badhostcs)
-            {
-                if (badhostcs->status == REQ_SUCCESS)
-                {
-                    LOG_debug << "Successful badhost report";
-                    btbadhost.reset();
-                    delete badhostcs;
-                    badhostcs = NULL;
-                }
-                else if(badhostcs->status == REQ_FAILURE
-                        || (badhostcs->status == REQ_INFLIGHT && Waiter::ds >= (badhostcs->lastdata + HttpIO::REQUESTTIMEOUT)))
-                {
-                    LOG_debug << "Failed badhost report. Retrying...";
-                    btbadhost.backoff();
-                    badhosts = badhostcs->outbuf;
-                    delete badhostcs;
-                    badhostcs = NULL;
-                }
-            }
-
-            if (workinglockcs)
-            {
-                if (workinglockcs->status == REQ_SUCCESS)
-                {
-                    LOG_debug << "Successful lock request";
-                    btworkinglock.reset();
-
-                    if (workinglockcs->in == "1")
-                    {
-                        LOG_warn << "Timeout (server idle)";
-                        disconnecttimestamp = Waiter::ds + HttpIO::CONNECTTIMEOUT;
-                    }
-                    else if (workinglockcs->in == "0")
-                    {
-                        sendevent(99425, "Timeout (server busy)", 0);
-                        pendingcs->lastdata = Waiter::ds;
-                    }
-                    else
-                    {
-                        LOG_err << "Error in lock request: " << workinglockcs->in;
-                        disconnecttimestamp = Waiter::ds + HttpIO::CONNECTTIMEOUT;
-                    }
-
-                    delete workinglockcs;
-                    workinglockcs = NULL;
-                    requestLock = false;
-                }
-                else if (workinglockcs->status == REQ_FAILURE
-                         || (workinglockcs->status == REQ_INFLIGHT && Waiter::ds >= (workinglockcs->lastdata + HttpIO::REQUESTTIMEOUT)))
-                {
-                    LOG_warn << "Failed lock request. Retrying...";
-                    btworkinglock.backoff();
-                    delete workinglockcs;
-                    workinglockcs = NULL;
-                }
-            }
-
-            // fill transfer slots from the queue
-
-            if (tctable)
-            {
-                tctable->begin();
-            }
-
-            dispatchmore(PUT);
-            dispatchmore(GET);
-
-    #ifndef EMSCRIPTEN
-            assert(!asyncfopens);
-    #endif
-
-            slotit = tslots.begin();
-
-            // handle active unpaused transfers
-            while (slotit != tslots.end())
-            {
-                transferslot_list::iterator it = slotit;
-
-                slotit++;
-
-                if (!xferpaused[(*it)->transfer->type] && (!(*it)->retrying || (*it)->retrybt.armed()))
-                {
-                    (*it)->doio(this);
-                }
-            }
-
-            if (tctable)
-            {
-                tctable->commit();
-            }
-
-    #ifdef ENABLE_SYNC
-            // verify filesystem fingerprints, disable deviating syncs
-            // (this covers mountovers, some device removals and some failures)
-            sync_list::iterator it;
-            for (it = syncs.begin(); it != syncs.end(); it++)
-            {
-                if ((*it)->fsfp)
-                {
-                    fsfp_t current = (*it)->dirnotify->fsfingerprint();
-                    if ((*it)->fsfp != current)
-                    {
-                        LOG_err << "Local fingerprint mismatch. Previous: " << (*it)->fsfp
-                                << "  Current: " << current;
-                        (*it)->errorcode = API_EFAILED;
-                        (*it)->changestate(SYNC_FAILED);
-                    }
-                }
-            }
-
-            if (!syncsup)
-            {
-                // set syncsup if there are no initializing syncs
-                // this will allow incoming server-client commands to trigger the filesystem
-                // actions that have occurred while the sync app was not running
-                for (it = syncs.begin(); it != syncs.end(); it++)
-                {
-                    if ((*it)->state == SYNC_INITIALSCAN)
-                    {
-                        break;
-                    }
-                }
-
-                if (it == syncs.end())
-                {
-                    syncsup = true;
-                    syncactivity = true;
-                    syncdownrequired = true;
-                }
-            }
-
-            // process active syncs
-            // sync timer: full rescan in case of filesystem notification failures
-            if (syncscanfailed && syncscanbt.armed())
-            {
-                syncscanfailed = false;
-                syncops = true;
-            }
-
-            // sync timer: file change upload delay timeouts (Nagle algorithm)
-            if (syncnagleretry && syncnaglebt.armed())
-            {
-                syncnagleretry = false;
-                syncops = true;
-            }
-
-            if (syncextraretry && syncextrabt.armed())
-            {
-                syncextraretry = false;
-                syncops = true;
-            }
-
-            // sync timer: read lock retry
-            if (syncfslockretry && syncfslockretrybt.armed())
-            {
-                syncfslockretrybt.backoff(Sync::SCANNING_DELAY_DS);
-            }
-
-            // halt all syncing while the local filesystem is pending a lock-blocked operation
-            // or while we are fetching nodes
-            // FIXME: indicate by callback
-            if (!syncdownretry && !syncadding && statecurrent && !syncdownrequired && !fetchingnodes)
-            {
-                // process active syncs, stop doing so while transient local fs ops are pending
-                if (syncs.size() || syncactivity)
-                {
-                    bool prevpending = false;
-                    for (int q = syncfslockretry ? DirNotify::RETRY : DirNotify::DIREVENTS; q >= DirNotify::DIREVENTS; q--)
-                    {
-                        for (it = syncs.begin(); it != syncs.end(); )
-                        {
-                            Sync* sync = *it++;
-                            prevpending = prevpending || sync->dirnotify->notifyq[q].size();
-                            if (prevpending)
-                            {
+                                reqs.servererror(API_ESSL, this);
                                 break;
                             }
                         }
+
+                        // failure, repeat with capped exponential backoff
+                        app->request_response_progress(pendingcs->bufpos, -1);
+
+                        delete pendingcs;
+                        pendingcs = NULL;
+
+                        btcs.backoff();
+                        app->notify_retry(btcs.retryin(), reason);
+                        csretrying = true;
+
+                        reqs.requeuerequest();
+
+                    default:
+                        ;
+                }
+
+                if (pendingcs)
+                {
+                    break;
+                }
+            }
+
+            if (btcs.armed())
+            {
+                if (reqs.cmdspending())
+                {
+                    pendingcs = new HttpReq();
+                    pendingcs->protect = true;
+                    pendingcs->logname = clientname + "cs ";
+
+                    bool suppressSID = true;
+                    reqs.serverrequest(pendingcs->out, suppressSID);
+
+                    pendingcs->posturl = APIURL;
+
+                    pendingcs->posturl.append("cs?id=");
+                    pendingcs->posturl.append(reqid, sizeof reqid);
+                    if (!suppressSID)
+                    {
+                        pendingcs->posturl.append(auth);
+                    }
+                    pendingcs->posturl.append(appkey);
+                    if (lang.size())
+                    {
+                        pendingcs->posturl.append(lang);
+                    }
+                    pendingcs->type = REQ_JSON;
+
+                    performanceStats.csRequestWaitTime.start();
+                    pendingcs->post(this);
+                    continue;
+                }
+                else
+                {
+                    btcs.reset();
+                }
+            }
+            break;
+        }
+
+        // handle API server-client requests
+        if (!jsonsc.pos && pendingsc && !loggingout)
+        {
+            switch (pendingsc->status)
+            {
+            case REQ_SUCCESS:
+                if (pendingsc->contentlength == 1
+                        && pendingsc->in.size()
+                        && pendingsc->in[0] == '0')
+                {
+                    LOG_debug << "Waitd keep-alive received";
+                    delete pendingsc;
+                    pendingsc = NULL;
+                    btsc.reset();
+                    break;
+                }
+
+                if (*pendingsc->in.c_str() == '{')
+                {
+                    jsonsc.begin(pendingsc->in.c_str());
+                    jsonsc.enterobject();
+                    break;
+                }
+                else
+                {
+                    error e = (error)atoi(pendingsc->in.c_str());
+                    if (e == API_ESID)
+                    {
+                        app->request_error(API_ESID);
+                        *scsn = 0;
+                    }
+                    else if (e == API_ETOOMANY)
+                    {
+                        LOG_warn << "Too many pending updates - reloading local state";
+                        int creqtag = reqtag;
+                        reqtag = fetchnodestag; // associate with ongoing request, if any
+                        fetchingnodes = false;
+                        fetchnodestag = 0;
+                        fetchnodes(true);
+                        reqtag = creqtag;
+                    }
+                    else if (e == API_EAGAIN || e == API_ERATELIMIT)
+                    {
+                        if (!statecurrent)
+                        {
+                            fnstats.eAgainCount++;
+                        }
+                    }
+                    else
+                    {
+                        LOG_err << "Unexpected sc response: " << pendingsc->in;
+                        if (useralerts.begincatchup)
+                        {
+                            useralerts.begincatchup = false;
+                            useralerts.catchupdone = true;
+                        }
+                        stopsc = true;
+                    }
+                }
+
+                // fall through
+            case REQ_FAILURE:
+                if (pendingsc)
+                {
+                    if (!statecurrent && pendingsc->httpstatus != 200)
+                    {
+                        if (pendingsc->httpstatus == 500)
+                        {
+                            fnstats.e500Count++;
+                        }
+                        else
+                        {
+                            fnstats.eOthersCount++;
+                        }
+                    }
+
+                    if (pendingsc->sslcheckfailed)
+                    {
+                        sslfakeissuer = pendingsc->sslfakeissuer;
+                        app->request_error(API_ESSL);
+                        sslfakeissuer.clear();
+
+                        if (!retryessl)
+                        {
+                            *scsn = 0;
+                        }
+                    }
+
+                    delete pendingsc;
+                    pendingsc = NULL;
+                }
+
+                if (stopsc)
+                {
+                    btsc.backoff(NEVER);
+                }
+                else
+                {
+                    // failure, repeat with capped exponential backoff
+                    btsc.backoff();
+                }
+                break;
+
+            case REQ_INFLIGHT:
+                if (Waiter::ds >= (pendingsc->lastdata + HttpIO::SCREQUESTTIMEOUT))
+                {
+                    LOG_debug << "sc timeout expired";
+                    delete pendingsc;
+                    pendingsc = NULL;
+                    btsc.reset();
+                }
+                break;
+            default:
+                break;
+            }
+        }
+
+#ifdef ENABLE_SYNC
+        if (syncactivity)
+        {
+            syncops = true;
+        }
+        syncactivity = false;
+
+        // do not process the SC result until all preconfigured syncs are up and running
+        // except if SC packets are required to complete a fetchnodes
+        if (!scpaused && jsonsc.pos && (syncsup || !statecurrent) && !syncdownrequired && !syncdownretry)
+#else
+        if (!scpaused && jsonsc.pos)
+#endif
+        {
+            // FIXME: reload in case of bad JSON
+            bool r;
+            if (useralerts.begincatchup)
+            {
+                r = useralerts.procsc_useralert(jsonsc);
+                if (r)
+                {
+                    // NULL vector: "notify all elements"
+                    app->useralerts_updated(NULL, int(useralerts.alerts.size()));
+                }
+            }
+            else
+            {
+                r = procsc();
+            }
+
+            if (r)
+            {
+                // completed - initiate next SC request
+                delete pendingsc;
+                pendingsc = NULL;
+
+                btsc.reset();
+            }
+#ifdef ENABLE_SYNC
+            else
+            {
+                // remote changes require immediate attention of syncdown()
+                syncdownrequired = true;
+                syncactivity = true;
+            }
+#endif
+        }
+
+        if (!pendingsc && *scsn && btsc.armed() && !stopsc)
+        {
+            pendingsc = new HttpReq();
+            pendingsc->logname = clientname + "sc ";
+
+            if (scnotifyurl.size() && !useralerts.begincatchup)
+            {
+                pendingsc->posturl = scnotifyurl;
+            }
+            else
+            {
+                pendingsc->posturl = APIURL;
+                pendingsc->posturl.append("wsc");
+            }
+
+            pendingsc->protect = true;
+
+            if (useralerts.begincatchup)
+            {
+                assert(!fetchingnodes);
+                pendingsc->posturl.append("?c=50");
+            }
+            else
+            {
+                pendingsc->posturl.append("?sn=");
+                pendingsc->posturl.append(scsn);
+            }
+            pendingsc->posturl.append(auth);
+            pendingsc->type = REQ_JSON;
+            LOG_debug << "Sending keep-alive to waitd";
+            pendingsc->post(this);
+            jsonsc.pos = NULL;
+        }
+
+        if (badhostcs)
+        {
+            if (badhostcs->status == REQ_SUCCESS)
+            {
+                LOG_debug << "Successful badhost report";
+                btbadhost.reset();
+                delete badhostcs;
+                badhostcs = NULL;
+            }
+            else if(badhostcs->status == REQ_FAILURE
+                    || (badhostcs->status == REQ_INFLIGHT && Waiter::ds >= (badhostcs->lastdata + HttpIO::REQUESTTIMEOUT)))
+            {
+                LOG_debug << "Failed badhost report. Retrying...";
+                btbadhost.backoff();
+                badhosts = badhostcs->outbuf;
+                delete badhostcs;
+                badhostcs = NULL;
+            }
+        }
+
+        if (workinglockcs)
+        {
+            if (workinglockcs->status == REQ_SUCCESS)
+            {
+                LOG_debug << "Successful lock request";
+                btworkinglock.reset();
+
+                if (workinglockcs->in == "1")
+                {
+                    LOG_warn << "Timeout (server idle)";
+                    disconnecttimestamp = Waiter::ds + HttpIO::CONNECTTIMEOUT;
+                }
+                else if (workinglockcs->in == "0")
+                {
+                    sendevent(99425, "Timeout (server busy)", 0);
+                    pendingcs->lastdata = Waiter::ds;
+                }
+                else
+                {
+                    LOG_err << "Error in lock request: " << workinglockcs->in;
+                    disconnecttimestamp = Waiter::ds + HttpIO::CONNECTTIMEOUT;
+                }
+
+                delete workinglockcs;
+                workinglockcs = NULL;
+                requestLock = false;
+            }
+            else if (workinglockcs->status == REQ_FAILURE
+                        || (workinglockcs->status == REQ_INFLIGHT && Waiter::ds >= (workinglockcs->lastdata + HttpIO::REQUESTTIMEOUT)))
+            {
+                LOG_warn << "Failed lock request. Retrying...";
+                btworkinglock.backoff();
+                delete workinglockcs;
+                workinglockcs = NULL;
+            }
+        }
+
+        // fill transfer slots from the queue
+
+        if (tctable)
+        {
+            tctable->begin();
+        }
+
+        putsgetscount[PUT] = 0;
+        putsgetscount[GET] = 0;
+        for (auto& t : tslots)
+        {
+            putsgetscount[t->transfer->type] += 1;
+        }
+
+        dispatchmore(PUT);
+        dispatchmore(GET); 
+
+#ifndef EMSCRIPTEN
+        assert(!asyncfopens);
+#endif
+
+        slotit = tslots.begin();
+
+        // handle active unpaused transfers
+        while (slotit != tslots.end())
+        {
+            transferslot_list::iterator it = slotit;
+
+            slotit++;
+
+            if (!xferpaused[(*it)->transfer->type] && (!(*it)->retrying || (*it)->retrybt.armed()))
+            {
+                (*it)->doio(this);
+            }
+        }
+
+        if (tctable)
+        {
+            tctable->commit();
+        }
+
+#ifdef ENABLE_SYNC
+        // verify filesystem fingerprints, disable deviating syncs
+        // (this covers mountovers, some device removals and some failures)
+        sync_list::iterator it;
+        for (it = syncs.begin(); it != syncs.end(); it++)
+        {
+            if ((*it)->fsfp)
+            {
+                fsfp_t current = (*it)->dirnotify->fsfingerprint();
+                if ((*it)->fsfp != current)
+                {
+                    LOG_err << "Local fingerprint mismatch. Previous: " << (*it)->fsfp
+                            << "  Current: " << current;
+                    (*it)->errorcode = API_EFAILED;
+                    (*it)->changestate(SYNC_FAILED);
+                }
+            }
+        }
+
+        if (!syncsup)
+        {
+            // set syncsup if there are no initializing syncs
+            // this will allow incoming server-client commands to trigger the filesystem
+            // actions that have occurred while the sync app was not running
+            for (it = syncs.begin(); it != syncs.end(); it++)
+            {
+                if ((*it)->state == SYNC_INITIALSCAN)
+                {
+                    break;
+                }
+            }
+
+            if (it == syncs.end())
+            {
+                syncsup = true;
+                syncactivity = true;
+                syncdownrequired = true;
+            }
+        }
+
+        // process active syncs
+        // sync timer: full rescan in case of filesystem notification failures
+        if (syncscanfailed && syncscanbt.armed())
+        {
+            syncscanfailed = false;
+            syncops = true;
+        }
+
+        // sync timer: file change upload delay timeouts (Nagle algorithm)
+        if (syncnagleretry && syncnaglebt.armed())
+        {
+            syncnagleretry = false;
+            syncops = true;
+        }
+
+        if (syncextraretry && syncextrabt.armed())
+        {
+            syncextraretry = false;
+            syncops = true;
+        }
+
+        // sync timer: read lock retry
+        if (syncfslockretry && syncfslockretrybt.armed())
+        {
+            syncfslockretrybt.backoff(Sync::SCANNING_DELAY_DS);
+        }
+
+        // halt all syncing while the local filesystem is pending a lock-blocked operation
+        // or while we are fetching nodes
+        // FIXME: indicate by callback
+        if (!syncdownretry && !syncadding && statecurrent && !syncdownrequired && !fetchingnodes)
+        {
+            // process active syncs, stop doing so while transient local fs ops are pending
+            if (syncs.size() || syncactivity)
+            {
+                bool prevpending = false;
+                for (int q = syncfslockretry ? DirNotify::RETRY : DirNotify::DIREVENTS; q >= DirNotify::DIREVENTS; q--)
+                {
+                    for (it = syncs.begin(); it != syncs.end(); )
+                    {
+                        Sync* sync = *it++;
+                        prevpending = prevpending || sync->dirnotify->notifyq[q].size();
                         if (prevpending)
                         {
                             break;
                         }
                     }
-
-                    dstime nds = NEVER;
-                    dstime mindelay = NEVER;
-                    for (it = syncs.begin(); it != syncs.end(); )
+                    if (prevpending)
                     {
-                        Sync* sync = *it++;
-                        if (sync->isnetwork && (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN))
-                        {
-                            while (sync->dirnotify->notifyq[DirNotify::EXTRA].size())
-                            {
-                                dstime dsmin = Waiter::ds - Sync::EXTRA_SCANNING_DELAY_DS;
-                                Notification &notification = sync->dirnotify->notifyq[DirNotify::EXTRA].front();
-                                if (notification.timestamp <= dsmin)
-                                {
-                                    LOG_debug << "Processing extra fs notification";
-                                    sync->dirnotify->notify(DirNotify::DIREVENTS, notification.localnode,
-                                                            notification.path.data(), notification.path.size());
-                                    sync->dirnotify->notifyq[DirNotify::EXTRA].pop_front();
-                                }
-                                else
-                                {
-                                    dstime delay = (notification.timestamp - dsmin) + 1;
-                                    if (delay < mindelay)
-                                    {
-                                        mindelay = delay;
-                                    }
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    if (EVER(mindelay))
-                    {
-                        syncextrabt.backoff(mindelay);
-                        syncextraretry = true;
-                    }
-                    else
-                    {
-                        syncextraretry = false;
-                    }
-
-                    for (int q = syncfslockretry ? DirNotify::RETRY : DirNotify::DIREVENTS; q >= DirNotify::DIREVENTS; q--)
-                    {
-                        if (!syncfsopsfailed)
-                        {
-                            syncfslockretry = false;
-
-                            // not retrying local operations: process pending notifyqs
-                            for (it = syncs.begin(); it != syncs.end(); )
-                            {
-                                Sync* sync = *it++;
-
-                                if (sync->state == SYNC_CANCELED || sync->state == SYNC_FAILED)
-                                {
-                                    delete sync;
-                                    continue;
-                                }
-                                else if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
-                                {
-                                    // process items from the notifyq until depleted
-                                    if (sync->dirnotify->notifyq[q].size())
-                                    {
-                                        dstime dsretry;
-
-                                        syncops = true;
-
-                                        if ((dsretry = sync->procscanq(q)))
-                                        {
-                                            // we resume processing after dsretry has elapsed
-                                            // (to avoid open-after-creation races with e.g. MS Office)
-                                            if (EVER(dsretry))
-                                            {
-                                                if (!syncnagleretry || (dsretry + 1) < syncnaglebt.backoffdelta())
-                                                {
-                                                    syncnaglebt.backoff(dsretry + 1);
-                                                }
-
-                                                syncnagleretry = true;
-                                            }
-                                            else
-                                            {
-                                                if (syncnagleretry)
-                                                {
-                                                    syncnaglebt.arm();
-                                                }
-                                                syncactivity = true;
-                                            }
-
-                                            if (syncadding)
-                                            {
-                                                break;
-                                            }
-                                        }
-                                        else
-                                        {
-                                            LOG_debug << "Pending MEGA nodes: " << synccreate.size();
-                                            if (!syncadding)
-                                            {
-                                                LOG_debug << "Running syncup to create missing folders";
-                                                syncup(&sync->localroot, &nds);
-                                                sync->cachenodes();
-                                            }
-
-                                            // we interrupt processing the notifyq if the completion
-                                            // of a node creation is required to continue
-                                            break;
-                                        }
-                                    }
-
-                                    if (sync->state == SYNC_INITIALSCAN && q == DirNotify::DIREVENTS && !sync->dirnotify->notifyq[q].size())
-                                    {
-                                        sync->changestate(SYNC_ACTIVE);
-
-                                        // scan for items that were deleted while the sync was stopped
-                                        // FIXME: defer this until RETRY queue is processed
-                                        sync->scanseqno++;
-                                        sync->deletemissing(&sync->localroot);
-                                    }
-                                }
-                            }
-
-                            if (syncadding)
-                            {
-                                break;
-                            }
-                        }
-                    }
-
-                    size_t totalpending = 0;
-                    size_t scanningpending = 0;
-                    for (int q = DirNotify::RETRY; q >= DirNotify::DIREVENTS; q--)
-                    {
-                        for (it = syncs.begin(); it != syncs.end(); )
-                        {
-                            Sync* sync = *it++;
-                            sync->cachenodes();
-
-                            totalpending += sync->dirnotify->notifyq[q].size();
-                            if (q == DirNotify::DIREVENTS)
-                            {
-                                scanningpending += sync->dirnotify->notifyq[q].size();
-                            }
-                            else if (!syncfslockretry && sync->dirnotify->notifyq[DirNotify::RETRY].size())
-                            {
-                                syncfslockretrybt.backoff(Sync::SCANNING_DELAY_DS);
-                                fsaccess->local2path(&sync->dirnotify->notifyq[DirNotify::RETRY].front().path, &blockedfile);
-                                syncfslockretry = true;
-                            }
-                        }
-                    }
-
-                    if (!syncfslockretry && !syncfsopsfailed)
-                    {
-                        blockedfile.clear();
-                    }
-
-                    if (syncadding)
-                    {
-                        // do not continue processing syncs while adding nodes
-                        // just go to evaluate the main do-while loop
-                        notifypurge();
-                        continue;
-                    }
-
-                    // delete files that were overwritten by folders in checkpath()
-                    execsyncdeletions();  
-
-                    if (synccreate.size())
-                    {
-                        syncupdate();
-                    }
-
-                    // notify the app of the length of the pending scan queue
-                    if (scanningpending < 4)
-                    {
-                        if (syncscanstate)
-                        {
-                            LOG_debug << "Scanning finished";
-                            app->syncupdate_scanning(false);
-                            syncscanstate = false;
-                        }
-                    }
-                    else if (scanningpending > 10)
-                    {
-                        if (!syncscanstate)
-                        {
-                            LOG_debug << "Scanning started";
-                            app->syncupdate_scanning(true);
-                            syncscanstate = true;
-                        }
-                    }
-
-                    if (prevpending && !totalpending)
-                    {
-                        LOG_debug << "Scan queue processed, triggering a scan";
-                        syncdownrequired = true;
-                    }
-
-                    notifypurge();
-
-                    if (!syncadding && (syncactivity || syncops))
-                    {
-                        for (it = syncs.begin(); it != syncs.end(); it++)
-                        {
-                            // make sure that the remote synced folder still exists
-                            if (!(*it)->localroot.node)
-                            {
-                                LOG_err << "The remote root node doesn't exist";
-                                (*it)->errorcode = API_ENOENT;
-                                (*it)->changestate(SYNC_FAILED);
-                            }
-                        }
-
-                        // perform aggregate ops that require all scanqs to be fully processed
-                        for (it = syncs.begin(); it != syncs.end(); it++)
-                        {
-                            if ((*it)->dirnotify->notifyq[DirNotify::DIREVENTS].size()
-                              || (*it)->dirnotify->notifyq[DirNotify::RETRY].size())
-                            {
-                                if (!syncnagleretry && !syncfslockretry)
-                                {
-                                    syncactivity = true;
-                                }
-
-                                break;
-                            }
-                        }
-
-                        if (it == syncs.end())
-                        {
-                            // execution of notified deletions - these are held in localsyncnotseen and
-                            // kept pending until all creations (that might reference them for the purpose of
-                            // copying) have completed and all notification queues have run empty (to ensure
-                            // that moves are not executed as deletions+additions.
-                            if (localsyncnotseen.size() && !synccreate.size())
-                            {
-                                // ... execute all pending deletions
-                                string path;
-                                FileAccess *fa = fsaccess->newfileaccess();
-                                while (localsyncnotseen.size())
-                                {
-                                    LocalNode* l = *localsyncnotseen.begin();
-                                    unlinkifexists(l, fa, &path);
-                                    delete l;
-                                }
-                                delete fa;
-                            }
-
-                            // process filesystem notifications for active syncs unless we
-                            // are retrying local fs writes
-                            if (!syncfsopsfailed)
-                            {
-                                LOG_verbose << "syncops: " << syncactivity << syncnagleretry
-                                            << syncfslockretry << synccreate.size();
-                                syncops = false;
-
-                                // FIXME: only syncup for subtrees that were actually
-                                // updated to reduce CPU load
-                                bool repeatsyncup = false;
-                                bool syncupdone = false;
-                                for (it = syncs.begin(); it != syncs.end(); it++)
-                                {
-                                    if (((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN)
-                                     && !syncadding && syncuprequired && !syncnagleretry)
-                                    {
-                                        LOG_debug << "Running syncup on demand";
-                                        repeatsyncup |= !syncup(&(*it)->localroot, &nds);
-                                        syncupdone = true;
-                                        (*it)->cachenodes();
-                                    }
-                                }
-                                syncuprequired = !syncupdone || repeatsyncup;
-
-                                if (EVER(nds))
-                                {
-                                    if (!syncnagleretry || (nds - Waiter::ds) < syncnaglebt.backoffdelta())
-                                    {
-                                        syncnaglebt.backoff(nds - Waiter::ds);
-                                    }
-
-                                    syncnagleretry = true;
-                                    syncuprequired = true;
-                                }
-
-                                // delete files that were overwritten by folders in syncup()
-                                execsyncdeletions();  
-
-                                if (synccreate.size())
-                                {
-                                    syncupdate();
-                                }
-
-                                unsigned totalnodes = 0;
-
-                                // we have no sync-related operations pending - trigger processing if at least one
-                                // filesystem item is notified or initiate a full rescan if there has been
-                                // an event notification failure (or event notification is unavailable)
-                                bool scanfailed = false;
-                                for (it = syncs.begin(); it != syncs.end(); it++)
-                                {
-                                    Sync* sync = *it;
-
-                                    totalnodes += sync->localnodes[FILENODE] + sync->localnodes[FOLDERNODE];
-
-                                    if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
-                                    {
-                                        if (sync->dirnotify->notifyq[DirNotify::DIREVENTS].size()
-                                         || sync->dirnotify->notifyq[DirNotify::RETRY].size())
-                                        {
-                                            break;
-                                        }
-                                        else
-                                        {
-                                            if (sync->fullscan)
-                                            {
-                                                // recursively delete all LocalNodes that were deleted (not moved or renamed!)
-                                                sync->deletemissing(&sync->localroot);
-                                                sync->cachenodes();
-                                            }
-
-                                            // if the directory events notification subsystem is permanently unavailable or
-                                            // has signaled a temporary error, initiate a full rescan
-                                            if (sync->state == SYNC_ACTIVE)
-                                            {
-                                                sync->fullscan = false;
-
-                                                if (syncscanbt.armed()
-                                                        && (sync->dirnotify->failed || fsaccess->notifyfailed
-                                                            || sync->dirnotify->error || fsaccess->notifyerr))
-                                                {
-                                                    LOG_warn << "Sync scan failed " << sync->dirnotify->failed
-                                                             << " " << fsaccess->notifyfailed
-                                                             << " " << sync->dirnotify->error
-                                                             << " " << fsaccess->notifyerr;
-                                                    if (sync->dirnotify->failed)
-                                                    {
-                                                        LOG_warn << "The cause was: " << sync->dirnotify->failreason;
-                                                    }
-                                                    scanfailed = true;
-
-                                                    sync->scan(&sync->localroot.localname, NULL);
-                                                    sync->dirnotify->error = 0;
-                                                    sync->fullscan = true;
-                                                    sync->scanseqno++;
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-
-                                if (scanfailed)
-                                {
-                                    fsaccess->notifyerr = false;
-                                    dstime backoff = 300 + totalnodes / 128;
-                                    syncscanbt.backoff(backoff);
-                                    syncscanfailed = true;
-                                    LOG_warn << "Next full scan in " << backoff << " ds";
-                                }
-
-                                // clear pending global notification error flag if all syncs were marked
-                                // to be rescanned
-                                if (fsaccess->notifyerr && it == syncs.end())
-                                {
-                                    fsaccess->notifyerr = false;
-                                }
-
-                                execsyncdeletions();  
-                            }
-                        }
+                        break;
                     }
                 }
-            }
-            else
-            {
-                notifypurge();
 
-                // sync timer: retry syncdown() ops in case of local filesystem lock clashes
-                if (syncdownretry && syncdownbt.armed())
+                dstime nds = NEVER;
+                dstime mindelay = NEVER;
+                for (it = syncs.begin(); it != syncs.end(); )
                 {
-                    syncdownretry = false;
-                    syncdownrequired = true;
-                }
-
-                if (syncdownrequired)
-                {
-                    syncdownrequired = false;
-                    if (!fetchingnodes)
+                    Sync* sync = *it++;
+                    if (sync->isnetwork && (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN))
                     {
-                        LOG_verbose << "Running syncdown";
-                        bool success = true;
-                        for (it = syncs.begin(); it != syncs.end(); it++)
+                        while (sync->dirnotify->notifyq[DirNotify::EXTRA].size())
                         {
-                            // make sure that the remote synced folder still exists
-                            if (!(*it)->localroot.node)
+                            dstime dsmin = Waiter::ds - Sync::EXTRA_SCANNING_DELAY_DS;
+                            Notification &notification = sync->dirnotify->notifyq[DirNotify::EXTRA].front();
+                            if (notification.timestamp <= dsmin)
                             {
-                                LOG_err << "The remote root node doesn't exist";
-                                (*it)->errorcode = API_ENOENT;
-                                (*it)->changestate(SYNC_FAILED);
+                                LOG_debug << "Processing extra fs notification";
+                                sync->dirnotify->notify(DirNotify::DIREVENTS, notification.localnode,
+                                                        notification.path.data(), notification.path.size());
+                                sync->dirnotify->notifyq[DirNotify::EXTRA].pop_front();
                             }
                             else
                             {
-                                string localpath = (*it)->localroot.localname;
-                                if ((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN)
+                                dstime delay = (notification.timestamp - dsmin) + 1;
+                                if (delay < mindelay)
                                 {
-                                    LOG_debug << "Running syncdown on demand";
-                                    if (!syncdown(&(*it)->localroot, &localpath, true))
-                                    {
-                                        // a local filesystem item was locked - schedule periodic retry
-                                        // and force a full rescan afterwards as the local item may
-                                        // be subject to changes that are notified with obsolete paths
-                                        success = false;
-                                        (*it)->dirnotify->error = true;
-                                    }
+                                    mindelay = delay;
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (EVER(mindelay))
+                {
+                    syncextrabt.backoff(mindelay);
+                    syncextraretry = true;
+                }
+                else
+                {
+                    syncextraretry = false;
+                }
 
-                                    (*it)->cachenodes();
+                for (int q = syncfslockretry ? DirNotify::RETRY : DirNotify::DIREVENTS; q >= DirNotify::DIREVENTS; q--)
+                {
+                    if (!syncfsopsfailed)
+                    {
+                        syncfslockretry = false;
+
+                        // not retrying local operations: process pending notifyqs
+                        for (it = syncs.begin(); it != syncs.end(); )
+                        {
+                            Sync* sync = *it++;
+
+                            if (sync->state == SYNC_CANCELED || sync->state == SYNC_FAILED)
+                            {
+                                delete sync;
+                                continue;
+                            }
+                            else if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
+                            {
+                                // process items from the notifyq until depleted
+                                if (sync->dirnotify->notifyq[q].size())
+                                {
+                                    dstime dsretry;
+
+                                    syncops = true;
+
+                                    if ((dsretry = sync->procscanq(q)))
+                                    {
+                                        // we resume processing after dsretry has elapsed
+                                        // (to avoid open-after-creation races with e.g. MS Office)
+                                        if (EVER(dsretry))
+                                        {
+                                            if (!syncnagleretry || (dsretry + 1) < syncnaglebt.backoffdelta())
+                                            {
+                                                syncnaglebt.backoff(dsretry + 1);
+                                            }
+
+                                            syncnagleretry = true;
+                                        }
+                                        else
+                                        {
+                                            if (syncnagleretry)
+                                            {
+                                                syncnaglebt.arm();
+                                            }
+                                            syncactivity = true;
+                                        }
+
+                                        if (syncadding)
+                                        {
+                                            break;
+                                        }
+                                    }
+                                    else
+                                    {
+                                        LOG_debug << "Pending MEGA nodes: " << synccreate.size();
+                                        if (!syncadding)
+                                        {
+                                            LOG_debug << "Running syncup to create missing folders";
+                                            syncup(&sync->localroot, &nds);
+                                            sync->cachenodes();
+                                        }
+
+                                        // we interrupt processing the notifyq if the completion
+                                        // of a node creation is required to continue
+                                        break;
+                                    }
+                                }
+
+                                if (sync->state == SYNC_INITIALSCAN && q == DirNotify::DIREVENTS && !sync->dirnotify->notifyq[q].size())
+                                {
+                                    sync->changestate(SYNC_ACTIVE);
+
+                                    // scan for items that were deleted while the sync was stopped
+                                    // FIXME: defer this until RETRY queue is processed
+                                    sync->scanseqno++;
+                                    sync->deletemissing(&sync->localroot);
                                 }
                             }
                         }
 
-                        // notify the app if a lock is being retried
-                        if (success)
+                        if (syncadding)
                         {
-                            syncuprequired = true;
-                            syncdownretry = false;
-                            syncactivity = true;
+                            break;
+                        }
+                    }
+                }
 
-                            if (syncfsopsfailed)
+                size_t totalpending = 0;
+                size_t scanningpending = 0;
+                for (int q = DirNotify::RETRY; q >= DirNotify::DIREVENTS; q--)
+                {
+                    for (it = syncs.begin(); it != syncs.end(); )
+                    {
+                        Sync* sync = *it++;
+                        sync->cachenodes();
+
+                        totalpending += sync->dirnotify->notifyq[q].size();
+                        if (q == DirNotify::DIREVENTS)
+                        {
+                            scanningpending += sync->dirnotify->notifyq[q].size();
+                        }
+                        else if (!syncfslockretry && sync->dirnotify->notifyq[DirNotify::RETRY].size())
+                        {
+                            syncfslockretrybt.backoff(Sync::SCANNING_DELAY_DS);
+                            fsaccess->local2path(&sync->dirnotify->notifyq[DirNotify::RETRY].front().path, &blockedfile);
+                            syncfslockretry = true;
+                        }
+                    }
+                }
+
+                if (!syncfslockretry && !syncfsopsfailed)
+                {
+                    blockedfile.clear();
+                }
+
+                if (syncadding)
+                {
+                    // do not continue processing syncs while adding nodes
+                    // just go to evaluate the main do-while loop
+                    notifypurge();
+                    continue;
+                }
+
+                // delete files that were overwritten by folders in checkpath()
+                execsyncdeletions();  
+
+                if (synccreate.size())
+                {
+                    syncupdate();
+                }
+
+                // notify the app of the length of the pending scan queue
+                if (scanningpending < 4)
+                {
+                    if (syncscanstate)
+                    {
+                        LOG_debug << "Scanning finished";
+                        app->syncupdate_scanning(false);
+                        syncscanstate = false;
+                    }
+                }
+                else if (scanningpending > 10)
+                {
+                    if (!syncscanstate)
+                    {
+                        LOG_debug << "Scanning started";
+                        app->syncupdate_scanning(true);
+                        syncscanstate = true;
+                    }
+                }
+
+                if (prevpending && !totalpending)
+                {
+                    LOG_debug << "Scan queue processed, triggering a scan";
+                    syncdownrequired = true;
+                }
+
+                notifypurge();
+
+                if (!syncadding && (syncactivity || syncops))
+                {
+                    for (it = syncs.begin(); it != syncs.end(); it++)
+                    {
+                        // make sure that the remote synced folder still exists
+                        if (!(*it)->localroot.node)
+                        {
+                            LOG_err << "The remote root node doesn't exist";
+                            (*it)->errorcode = API_ENOENT;
+                            (*it)->changestate(SYNC_FAILED);
+                        }
+                    }
+
+                    // perform aggregate ops that require all scanqs to be fully processed
+                    for (it = syncs.begin(); it != syncs.end(); it++)
+                    {
+                        if ((*it)->dirnotify->notifyq[DirNotify::DIREVENTS].size()
+                            || (*it)->dirnotify->notifyq[DirNotify::RETRY].size())
+                        {
+                            if (!syncnagleretry && !syncfslockretry)
                             {
-                                syncfsopsfailed = false;
-                                app->syncupdate_local_lockretry(false);
+                                syncactivity = true;
                             }
+
+                            break;
+                        }
+                    }
+
+                    if (it == syncs.end())
+                    {
+                        // execution of notified deletions - these are held in localsyncnotseen and
+                        // kept pending until all creations (that might reference them for the purpose of
+                        // copying) have completed and all notification queues have run empty (to ensure
+                        // that moves are not executed as deletions+additions.
+                        if (localsyncnotseen.size() && !synccreate.size())
+                        {
+                            // ... execute all pending deletions
+                            string path;
+                            FileAccess *fa = fsaccess->newfileaccess();
+                            while (localsyncnotseen.size())
+                            {
+                                LocalNode* l = *localsyncnotseen.begin();
+                                unlinkifexists(l, fa, &path);
+                                delete l;
+                            }
+                            delete fa;
+                        }
+
+                        // process filesystem notifications for active syncs unless we
+                        // are retrying local fs writes
+                        if (!syncfsopsfailed)
+                        {
+                            LOG_verbose << "syncops: " << syncactivity << syncnagleretry
+                                        << syncfslockretry << synccreate.size();
+                            syncops = false;
+
+                            // FIXME: only syncup for subtrees that were actually
+                            // updated to reduce CPU load
+                            bool repeatsyncup = false;
+                            bool syncupdone = false;
+                            for (it = syncs.begin(); it != syncs.end(); it++)
+                            {
+                                if (((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN)
+                                    && !syncadding && syncuprequired && !syncnagleretry)
+                                {
+                                    LOG_debug << "Running syncup on demand";
+                                    repeatsyncup |= !syncup(&(*it)->localroot, &nds);
+                                    syncupdone = true;
+                                    (*it)->cachenodes();
+                                }
+                            }
+                            syncuprequired = !syncupdone || repeatsyncup;
+
+                            if (EVER(nds))
+                            {
+                                if (!syncnagleretry || (nds - Waiter::ds) < syncnaglebt.backoffdelta())
+                                {
+                                    syncnaglebt.backoff(nds - Waiter::ds);
+                                }
+
+                                syncnagleretry = true;
+                                syncuprequired = true;
+                            }
+
+                            // delete files that were overwritten by folders in syncup()
+                            execsyncdeletions();  
+
+                            if (synccreate.size())
+                            {
+                                syncupdate();
+                            }
+
+                            unsigned totalnodes = 0;
+
+                            // we have no sync-related operations pending - trigger processing if at least one
+                            // filesystem item is notified or initiate a full rescan if there has been
+                            // an event notification failure (or event notification is unavailable)
+                            bool scanfailed = false;
+                            for (it = syncs.begin(); it != syncs.end(); it++)
+                            {
+                                Sync* sync = *it;
+
+                                totalnodes += sync->localnodes[FILENODE] + sync->localnodes[FOLDERNODE];
+
+                                if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
+                                {
+                                    if (sync->dirnotify->notifyq[DirNotify::DIREVENTS].size()
+                                        || sync->dirnotify->notifyq[DirNotify::RETRY].size())
+                                    {
+                                        break;
+                                    }
+                                    else
+                                    {
+                                        if (sync->fullscan)
+                                        {
+                                            // recursively delete all LocalNodes that were deleted (not moved or renamed!)
+                                            sync->deletemissing(&sync->localroot);
+                                            sync->cachenodes();
+                                        }
+
+                                        // if the directory events notification subsystem is permanently unavailable or
+                                        // has signaled a temporary error, initiate a full rescan
+                                        if (sync->state == SYNC_ACTIVE)
+                                        {
+                                            sync->fullscan = false;
+
+                                            if (syncscanbt.armed()
+                                                    && (sync->dirnotify->failed || fsaccess->notifyfailed
+                                                        || sync->dirnotify->error || fsaccess->notifyerr))
+                                            {
+                                                LOG_warn << "Sync scan failed " << sync->dirnotify->failed
+                                                            << " " << fsaccess->notifyfailed
+                                                            << " " << sync->dirnotify->error
+                                                            << " " << fsaccess->notifyerr;
+                                                if (sync->dirnotify->failed)
+                                                {
+                                                    LOG_warn << "The cause was: " << sync->dirnotify->failreason;
+                                                }
+                                                scanfailed = true;
+
+                                                sync->scan(&sync->localroot.localname, NULL);
+                                                sync->dirnotify->error = 0;
+                                                sync->fullscan = true;
+                                                sync->scanseqno++;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            if (scanfailed)
+                            {
+                                fsaccess->notifyerr = false;
+                                dstime backoff = 300 + totalnodes / 128;
+                                syncscanbt.backoff(backoff);
+                                syncscanfailed = true;
+                                LOG_warn << "Next full scan in " << backoff << " ds";
+                            }
+
+                            // clear pending global notification error flag if all syncs were marked
+                            // to be rescanned
+                            if (fsaccess->notifyerr && it == syncs.end())
+                            {
+                                fsaccess->notifyerr = false;
+                            }
+
+                            execsyncdeletions();  
+                        }
+                    }
+                }
+            }
+        }
+        else
+        {
+            notifypurge();
+
+            // sync timer: retry syncdown() ops in case of local filesystem lock clashes
+            if (syncdownretry && syncdownbt.armed())
+            {
+                syncdownretry = false;
+                syncdownrequired = true;
+            }
+
+            if (syncdownrequired)
+            {
+                syncdownrequired = false;
+                if (!fetchingnodes)
+                {
+                    LOG_verbose << "Running syncdown";
+                    bool success = true;
+                    for (it = syncs.begin(); it != syncs.end(); it++)
+                    {
+                        // make sure that the remote synced folder still exists
+                        if (!(*it)->localroot.node)
+                        {
+                            LOG_err << "The remote root node doesn't exist";
+                            (*it)->errorcode = API_ENOENT;
+                            (*it)->changestate(SYNC_FAILED);
                         }
                         else
                         {
-                            if (!syncfsopsfailed)
+                            string localpath = (*it)->localroot.localname;
+                            if ((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN)
                             {
-                                syncfsopsfailed = true;
-                                app->syncupdate_local_lockretry(true);
-                            }
+                                LOG_debug << "Running syncdown on demand";
+                                if (!syncdown(&(*it)->localroot, &localpath, true))
+                                {
+                                    // a local filesystem item was locked - schedule periodic retry
+                                    // and force a full rescan afterwards as the local item may
+                                    // be subject to changes that are notified with obsolete paths
+                                    success = false;
+                                    (*it)->dirnotify->error = true;
+                                }
 
-                            syncdownretry = true;
-                            syncdownbt.backoff(50);
+                                (*it)->cachenodes();
+                            }
+                        }
+                    }
+
+                    // notify the app if a lock is being retried
+                    if (success)
+                    {
+                        syncuprequired = true;
+                        syncdownretry = false;
+                        syncactivity = true;
+
+                        if (syncfsopsfailed)
+                        {
+                            syncfsopsfailed = false;
+                            app->syncupdate_local_lockretry(false);
                         }
                     }
                     else
                     {
-                        LOG_err << "Syncdown requested while fetchingnodes is set";
+                        if (!syncfsopsfailed)
+                        {
+                            syncfsopsfailed = true;
+                            app->syncupdate_local_lockretry(true);
+                        }
+
+                        syncdownretry = true;
+                        syncdownbt.backoff(50);
                     }
-                }
-            }
-    #endif
-
-            notifypurge();
-
-            if (!badhostcs && badhosts.size() && btbadhost.armed())
-            {
-                // report hosts affected by failed requests
-                LOG_debug << "Sending badhost report: " << badhosts;
-                badhostcs = new HttpReq();
-                badhostcs->posturl = APIURL;
-                badhostcs->posturl.append("pf?h");
-                badhostcs->outbuf = badhosts;
-                badhostcs->type = REQ_JSON;
-                badhostcs->post(this);
-                badhosts.clear();
-            }
-
-            if (!workinglockcs && requestLock && btworkinglock.armed())
-            {
-                LOG_debug << "Sending lock request";
-                workinglockcs = new HttpReq();
-                workinglockcs->posturl = APIURL;
-                workinglockcs->posturl.append("cs?");
-                workinglockcs->posturl.append(auth);
-                workinglockcs->posturl.append("&wlt=1");
-                workinglockcs->type = REQ_JSON;
-                workinglockcs->post(this);
-            }
-
-
-            for (vector<TimerWithBackoff *>::iterator it = bttimers.begin(); it != bttimers.end(); )
-            {
-                TimerWithBackoff *bttimer = *it;
-                if (bttimer->armed())
-                {
-                    restag = bttimer->tag;
-                    app->timer_result(API_OK);
-                    delete bttimer;
-                    it = bttimers.erase(it);
                 }
                 else
                 {
-                    ++it;
+                    LOG_err << "Syncdown requested while fetchingnodes is set";
                 }
             }
+        }
+#endif
 
-            httpio->updatedownloadspeed();
-            httpio->updateuploadspeed();
+        notifypurge();
 
+        if (!badhostcs && badhosts.size() && btbadhost.armed())
+        {
+            // report hosts affected by failed requests
+            LOG_debug << "Sending badhost report: " << badhosts;
+            badhostcs = new HttpReq();
+            badhostcs->posturl = APIURL;
+            badhostcs->posturl.append("pf?h");
+            badhostcs->outbuf = badhosts;
+            badhostcs->type = REQ_JSON;
+            badhostcs->post(this);
+            badhosts.clear();
+        }
+
+        if (!workinglockcs && requestLock && btworkinglock.armed())
+        {
+            LOG_debug << "Sending lock request";
+            workinglockcs = new HttpReq();
+            workinglockcs->posturl = APIURL;
+            workinglockcs->posturl.append("cs?");
+            workinglockcs->posturl.append(auth);
+            workinglockcs->posturl.append("&wlt=1");
+            workinglockcs->type = REQ_JSON;
+            workinglockcs->post(this);
+        }
+
+
+        for (vector<TimerWithBackoff *>::iterator it = bttimers.begin(); it != bttimers.end(); )
+        {
+            TimerWithBackoff *bttimer = *it;
+            if (bttimer->armed())
             {
-                CodeCounter::ScopeTimer ccst(performanceStats.curlDoio);
-                loop_continue = httpio->doio() || execdirectreads() || (!pendingcs && reqs.cmdspending() && btcs.armed()) || looprequested;
+                restag = bttimer->tag;
+                app->timer_result(API_OK);
+                delete bttimer;
+                it = bttimers.erase(it);
             }
+            else
+            {
+                ++it;
+            }
+        }
 
-        } while (loop_continue);
-    }
+        httpio->updatedownloadspeed();
+        httpio->updateuploadspeed();
+
+    } while (httpio->doio() || execdirectreads() || (!pendingcs && reqs.cmdspending() && btcs.armed()) || looprequested);
 
     NodeCounter storagesum;
     for (auto& nc : mNodeCounters)
@@ -2737,18 +2737,9 @@ void MegaClient::exec()
         app->storagesum_changed(mNotifiedSumSize);
     }
 
-#ifdef _DEBUG
-    NodeCounter sum;
-    for (auto& nc : mNodeCounters)
-    {
-        sum += nc.second;
-    }
-    LOG_warn << "storage sum : " << sum.storage << " mismatch wtih fingerprint size sum: " << mFingerprints.getSumSizes();
-#endif
-
 #ifdef MEGA_MEASURE_CODE
-    LOG_warn << "Active transfers: " << tslots.size() << performanceStats.execFunction.report() << performanceStats.transferslotDoio.report() << performanceStats.curlDoio.report() << performanceStats.execdirectreads.report() << performanceStats.transferComplete.report();
-    LOG_warn << "cs batches: " << reqs.csBatchesSent << " " << reqs.csBatchesReceived << " cs requests: " << reqs.csRequestsSent << " " << reqs.csRequestsCompleted << " cs time:" << performanceStats.csRequestWaitTime.report() << " transfers " << performanceStats.transferStarts << " " << performanceStats.transferFinishes;
+    performanceStats.transfersActiveTime.start(!tslots.empty() && !performanceStats.transfersActiveTime.inprogress());
+    performanceStats.transfersActiveTime.stop(tslots.empty() && performanceStats.transfersActiveTime.inprogress());
 #endif
 }
 
@@ -2768,6 +2759,8 @@ int MegaClient::wait()
 
 int MegaClient::preparewait()
 {
+    CodeCounter::ScopeTimer ccst(performanceStats.prepareWait);
+
     dstime nds;
 
     // get current dstime and clear wait events
@@ -2796,13 +2789,7 @@ int MegaClient::preparewait()
         nexttransferretry(GET, &nds);
 
         // retry transferslots
-        for (transferslot_list::iterator it = tslots.begin(); it != tslots.end(); it++)
-        {
-            if (!(*it)->retrybt.armed())
-            {
-                (*it)->retrybt.update(&nds);
-            }
-        }
+        tslotsbackoff.update(&nds, false);
 
         for (pendinghttp_map::iterator it = pendinghttp.begin(); it != pendinghttp.end(); it++)
         {
@@ -3025,11 +3012,15 @@ int MegaClient::preparewait()
 
 int MegaClient::dowait()
 {
+    CodeCounter::ScopeTimer ccst(performanceStats.doWait);
+
     return waiter->wait();
 }
 
 int MegaClient::checkevents()
 {
+    CodeCounter::ScopeTimer ccst(performanceStats.checkEvents);
+
     int r =  httpio->checkevents(waiter);
     r |= fsaccess->checkevents(waiter);
     if (gfx)
@@ -3499,24 +3490,9 @@ void MegaClient::freeq(direction_t d)
 }
 
 // determine next scheduled transfer retry
-// FIXME: make this an ordered set and only check the first element instead of
-// scanning the full map!
 void MegaClient::nexttransferretry(direction_t d, dstime* dsmin)
 {
-    for (transfer_map::iterator it = transfers[d].begin(); it != transfers[d].end(); it++)
-    {
-        if ((!it->second->slot || !it->second->slot->fa)
-         && it->second->bt.nextset())
-        {
-            it->second->bt.update(dsmin);
-            if (it->second->bt.armed())
-            {
-                // fire the timer only once but keeping it armed
-                it->second->bt.set(0);
-                LOG_debug << "Disabling armed transfer backoff";
-            }
-        }
-    }
+    transferRetryBackoffs[d].update(dsmin, true);
 }
 
 // disconnect all HTTP connections (slows down operations, but is semantically neutral)
@@ -3879,6 +3855,8 @@ void MegaClient::httprequest(const char *url, int method, bool binary, const cha
 // process server-client request
 bool MegaClient::procsc()
 {
+    CodeCounter::ScopeTimer ccst(performanceStats.scProcessingTime);
+
     nameid name;
 
 #ifdef ENABLE_SYNC
@@ -4676,7 +4654,7 @@ bool MegaClient::moretransfers(direction_t d)
         }
     }
 
-    if (total >= MAXTRANSFERS)
+    if (total >= MAXTRANSFERS/*)//todo:*/ || (total > putsgetscount[d] && total-putsgetscount[d] >= MAXTRANSFERS/2))
     {
         return false;
     }
@@ -7737,6 +7715,8 @@ void MegaClient::procph(JSON *j)
 
 int MegaClient::applykeys()
 {
+    CodeCounter::ScopeTimer ccst(performanceStats.applyKeys);
+
     int t = 0;
 
     // FIXME: rather than iterating through the whole node set, maintain subset

@@ -154,8 +154,27 @@ RequestDispatcher::RequestDispatcher()
     nextreqs.push_back(Request());
 }
 
+#ifdef MEGA_MEASURE_CODE
+void RequestDispatcher::sendDeferred()
+{
+    if (!nextreqs.back().empty())
+    {
+        nextreqs.push_back(Request());
+    }
+    nextreqs.back().swap(deferredRequests);
+}
+#endif
+
 void RequestDispatcher::add(Command *c)
 {
+#ifdef MEGA_MEASURE_CODE
+    if (deferRequests && deferRequests(c))
+    {
+        deferredRequests.add(c);
+        return;
+    }
+#endif
+
     if (nextreqs.back().size() >= MAX_COMMANDS)
     {
         LOG_debug << "Starting an additional Request due to MAX_COMMANDS";
@@ -178,7 +197,7 @@ bool RequestDispatcher::cmdspending() const
     return !nextreqs.front().empty();
 }
 
-void RequestDispatcher::serverrequest(string *out, bool& suppressSID)
+size_t RequestDispatcher::serverrequest(string *out, bool& suppressSID)
 {
     assert(inflightreq.empty());
     inflightreq.swap(nextreqs.front());
@@ -190,6 +209,7 @@ void RequestDispatcher::serverrequest(string *out, bool& suppressSID)
     inflightreq.get(out, suppressSID);
     csRequestsSent += inflightreq.size();
     csBatchesSent += 1;
+    return inflightreq.size();
 }
 
 void RequestDispatcher::requeuerequest()
@@ -205,6 +225,8 @@ void RequestDispatcher::requeuerequest()
 
 void RequestDispatcher::serverresponse(std::string&& movestring, MegaClient *client)
 {
+    CodeCounter::ScopeTimer ccst(client->performanceStats.csResponseProcessingTime);
+
     csBatchesReceived += 1;
     csRequestsCompleted += inflightreq.size();
     processing = true;

@@ -42,11 +42,26 @@ struct MEGA_API SockInfo
         WRITE = 2
     };
 
-    SockInfo();
-    curl_socket_t fd;
-    int mode;
+    SockInfo() = default;
+    curl_socket_t fd = curl_socket_t(-1);
+    int mode = NONE;
+
 #if defined(_WIN32)
-    HANDLE handle;
+    SockInfo(const SockInfo&) = delete;
+    void operator=(const SockInfo&) = delete;
+    SockInfo(SockInfo&& o);
+    ~SockInfo();
+
+    bool createAssociateEvent();
+    bool checkEvent(bool& read, bool& write);
+    void closeEvent();
+    HANDLE eventHandle();
+
+    bool signalledWrite = false;
+
+private:
+    HANDLE handle = WSA_INVALID_EVENT;
+    int associatedHandleEvents = 0;
 #endif
 };
 
@@ -142,8 +157,8 @@ protected:
     void closecurlevents(direction_t d);
     void processaresevents();
     void processcurlevents(direction_t d);
-    std::vector<SockInfo> aressockets;
     typedef std::map<curl_socket_t, SockInfo> SockInfoMap;
+    SockInfoMap aressockets;
     SockInfoMap curlsockets[3];
     m_time_t curltimeoutreset[3];
     bool arerequestspaused[3];
@@ -184,6 +199,12 @@ public:
 
     CurlHttpIO();
     ~CurlHttpIO();
+
+    CodeCounter::ScopeStats countCurlHttpIOAddevents = { "curl-httpio-addevents" };
+    CodeCounter::ScopeStats countAddAresEventsCode = { "ares-add-events" };
+    CodeCounter::ScopeStats countAddCurlEventsCode = { "curl-add-events" };
+    CodeCounter::ScopeStats countProcessAresEventsCode = { "ares-process-events" };
+    CodeCounter::ScopeStats countProcessCurlEventsCode = { "curl-process-events" };
 };
 
 struct MEGA_API CurlHttpContext

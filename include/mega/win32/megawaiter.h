@@ -32,6 +32,8 @@ class MEGA_API WinWaiter : public Waiter
     vector<HANDLE> handles;
     vector<int> flags;
 
+    size_t index = 0;
+
 public:
     PCRITICAL_SECTION pcsHTTP;
 

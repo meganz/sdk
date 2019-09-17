@@ -1014,6 +1014,7 @@ public:
 
     // transfer queues (PUT/GET)
     transfer_map transfers[2];
+    BackoffTimerGroupTracker transferRetryBackoffs[2];
 
     // transfer list to manage the priority of transfers
     TransferList transferlist;
@@ -1036,8 +1037,12 @@ public:
     // transfer tslots
     transferslot_list tslots;
 
+    // keep track of next transfer slot timeout
+    BackoffTimerGroupTracker tslotsbackoff;
+
     // next TransferSlot to doio() on
     transferslot_list::iterator slotit;
+    unsigned putsgetscount[2] = { 0,0 };
 
     // FileFingerprint to node mapping
     Fingerprints mFingerprints;
@@ -1494,12 +1499,17 @@ public:
     {
         CodeCounter::ScopeStats execFunction = "MegaClient_exec";
         CodeCounter::ScopeStats transferslotDoio = "TransferSlot_doio";
-        CodeCounter::ScopeStats curlDoio = "Curl_doio";
         CodeCounter::ScopeStats execdirectreads = "execdirectreads";
         CodeCounter::ScopeStats transferComplete = "transfer_complete";
+        CodeCounter::ScopeStats prepareWait = "MegaClient_prepareWait";
+        CodeCounter::ScopeStats doWait = "MegaClient_doWait";
+        CodeCounter::ScopeStats checkEvents = "MegaClient_checkEvents";
+        CodeCounter::ScopeStats applyKeys = "MegaClient_applyKeys";
+        CodeCounter::ScopeStats csResponseProcessingTime = "cs batch response processing";
+        CodeCounter::ScopeStats scProcessingTime = "sc processing";
         uint64_t transferStarts = 0, transferFinishes = 0;
         CodeCounter::DurationSum csRequestWaitTime;
-        CodeCounter::DurationSum scBatchProcessingTime;
+        CodeCounter::DurationSum transfersActiveTime;
     } performanceStats;
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);

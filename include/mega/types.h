@@ -564,6 +564,8 @@ typedef vector<recentaction> recentactions_vector;
 typedef enum { BIZ_STATUS_UNKNOWN = -2, BIZ_STATUS_EXPIRED = -1, BIZ_STATUS_INACTIVE = 0, BIZ_STATUS_ACTIVE = 1, BIZ_STATUS_GRACE_PERIOD = 2 } BizStatus;
 typedef enum { BIZ_MODE_UNKNOWN = -1, BIZ_MODE_SUBUSER = 0, BIZ_MODE_MASTER = 1 } BizMode;
 
+#define MEGA_MEASURE_CODE
+
 namespace CodeCounter
 {
     // Some classes that allow us to easily measure the number of times a block of code is called, and the sum of the time it takes.
@@ -582,7 +584,18 @@ namespace CodeCounter
         std::string name;
         ScopeStats(std::string s) : name(std::move(s)) {}
 
-        inline string report() { return " " + name + ": " + std::to_string(count) + " " + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(timeSpent).count()); }
+        inline string report(bool reset = false) 
+        { 
+            string s = " " + name + ": " + std::to_string(count) + " " + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(timeSpent).count()); 
+            if (reset)
+            {
+                count = 0;
+                starts -= finishes;
+                finishes = 0;
+                timeSpent = high_resolution_clock::duration{};
+            }
+            return s;
+        }
 #else
         ScopeStats(std::string s) {}
 #endif
@@ -594,12 +607,18 @@ namespace CodeCounter
         high_resolution_clock::duration sum{ 0 };
         high_resolution_clock::time_point deltaStart;
         bool started = false;
-        inline void start() { deltaStart = high_resolution_clock::now(); started = true; }
-        inline void stop() { if (started) sum += high_resolution_clock::now() - deltaStart; started = false; }
-        inline string report() { return std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(sum).count()); }
+        inline void start(bool b = true) { if (b && !started) { deltaStart = high_resolution_clock::now(); started = true; }  }
+        inline void stop(bool b = true) { if (b && started) { sum += high_resolution_clock::now() - deltaStart; started = false; } }
+        inline bool inprogress() { return started; }
+        inline string report(bool reset = false) 
+        { 
+            string s = std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(sum).count()); 
+            if (reset) sum = high_resolution_clock::duration{ 0 };
+            return s;
+        }
 #else
-        inline void start() {  }
-        inline void stop() {  }
+        inline void start(bool = true) {  }
+        inline void stop(bool = true) {  }
 #endif
     };
 

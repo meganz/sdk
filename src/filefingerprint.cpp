@@ -185,7 +185,7 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
                 if (!fa->frawread(block, sizeof block,
                                   (size - sizeof block)
                                   * (i * blocks + j)
-                                  / (sizeof crc / sizeof *crc * blocks - 1)))
+                                  / (sizeof crc / sizeof *crc * blocks - 1), i || j, true))
                 {
                     size = -1;
                     return true;
@@ -197,6 +197,7 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
             crc32.get((byte*)&crcval);
             newcrc[i] = htonl(crcval);
         }
+        fa->closef();
     }
 
     if (memcmp(crc, newcrc, sizeof crc))
