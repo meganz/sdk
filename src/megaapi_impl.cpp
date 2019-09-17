@@ -25539,9 +25539,8 @@ void MegaHTTPServer::processOnAsyncEventClose(MegaTCPContext* tcpctx)
 
     if (httpctx->transfer)
     {
-        httpctx->megaApi->cancelTransfer(httpctx->transfer);
-        httpctx->megaApi->fireOnStreamingFinish(httpctx->transfer, MegaError(httpctx->resultCode));
-        httpctx->transfer = NULL; // this has been deleted in fireOnStreamingFinish
+        httpctx->megaApi->cancelTransfer(httpctx->transfer.get());
+        httpctx->megaApi->fireOnStreamingFinish(httpctx->transfer.release(), MegaError(httpctx->resultCode)); // transfer will be deleted in fireOnStreamingFinish
     }
 
     delete httpctx->node;
@@ -26453,7 +26452,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             string link = MegaClient::getPublicLink(httpctx->megaApi->getMegaClient()->mNewLinkFormat, nodetype_t::FILENODE, h, httpctx->nodekey.c_str());
             LOG_debug << "Getting public link: " << link;
             httpctx->megaApi->getPublicNode(link.c_str(), httpctx);
-            httpctx->transfer = new MegaTransferPrivate(MegaTransfer::TYPE_LOCAL_TCP_DOWNLOAD);
+            httpctx->transfer.reset(new MegaTransferPrivate(MegaTransfer::TYPE_LOCAL_TCP_DOWNLOAD));
             httpctx->transfer->setPath(httpctx->path.c_str());
             httpctx->transfer->setFileName(httpctx->nodename.c_str());
             httpctx->transfer->setNodeHandle(MegaApi::base64ToHandle(httpctx->nodehandle.c_str()));
@@ -27074,8 +27073,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             return 0;
         }
 
-        delete httpctx->transfer; //In case there is a transfer from a recycled HttpContext
-        httpctx->transfer = new MegaTransferPrivate(MegaTransfer::TYPE_LOCAL_TCP_DOWNLOAD);
+        httpctx->transfer.reset(new MegaTransferPrivate(MegaTransfer::TYPE_LOCAL_TCP_DOWNLOAD));
         httpctx->transfer->setPath(httpctx->path.c_str());
         if (httpctx->nodename.size())
         {
@@ -27222,7 +27220,7 @@ void MegaHTTPServer::sendHeaders(MegaHTTPContext *httpctx, string *headers)
     if (httpctx->transfer)
     {
         httpctx->transfer->setTotalBytes(httpctx->size);
-        httpctx->megaApi->fireOnStreamingStart(httpctx->transfer);
+        httpctx->megaApi->fireOnStreamingStart(httpctx->transfer.get());
     }
 
 #ifdef ENABLE_EVT_TLS
@@ -27389,7 +27387,6 @@ MegaHTTPContext::MegaHTTPContext()
     nodereceived = false;
     resultCode = API_EINTERNAL;
     node = NULL;
-    transfer = NULL;
     nodesize = -1;
     messageBody = NULL;
     messageBodySize = 0;
@@ -27407,7 +27404,6 @@ MegaHTTPContext::MegaHTTPContext()
 
 MegaHTTPContext::~MegaHTTPContext()
 {
-    delete transfer;
     delete node;
     if (tmpFileAccess)
     {

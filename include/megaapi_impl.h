@@ -3210,7 +3210,7 @@ public:
 
     // Connection management
     StreamingBuffer streamingBuffer;
-    MegaTransferPrivate *transfer;
+    std::unique_ptr<MegaTransferPrivate> transfer;
     http_parser parser;
     char *lastBuffer;
     int lastBufferLen;
