@@ -198,7 +198,7 @@ public:
     static string authMethodToStr(AuthMethod authMethod);
 
 private:
-    const attr_t mType;
+    attr_t mType;
     map<handle, string> mFingerprint;
     map<handle, AuthMethod> mAuthMethod;
 };

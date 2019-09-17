@@ -2414,7 +2414,6 @@ void exec_showattributes(autocomplete::ACState& s)
                 f.unserializefingerprint(&pair.second);
                 cout << namebuf << ": " << pair.second << " (fingerprint: size " << f.size << " mtime " << f.mtime
                     << " crc " << std::hex << f.crc[0] << " " << f.crc[1] << " " << f.crc[2] << " " << f.crc[3] << std::dec << ")"
-
                     << " (node fingerprint: size " << n->size << " mtime " << n->mtime
                     << " crc " << std::hex << n->crc[0] << " " << n->crc[1] << " " << n->crc[2] << " " << n->crc[3] << std::dec << ")" << endl;
             }
@@ -2425,7 +2424,6 @@ void exec_showattributes(autocomplete::ACState& s)
         }
     }
 }
-
 
 void printAuthringInformation(handle userhandle)
 {

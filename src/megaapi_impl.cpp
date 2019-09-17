@@ -563,6 +563,8 @@ MegaNodePrivate *MegaNodePrivate::unserialize(string *d)
         return NULL;
     }
 
+    r.eraseused(*d);
+
     return new MegaNodePrivate(name.c_str(), FILENODE, size, ctime,
                                mtime, nodehandle, &nodekey, &attrstring, &fileattrstring,
                                fingerprint.empty() ? NULL : fingerprint.c_str(), originalfingerprint.empty() ? NULL : originalfingerprint.c_str(),
