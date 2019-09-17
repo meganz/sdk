@@ -1118,7 +1118,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     overquotauntil = 0;
     mBizGracePeriodTs = 0;
     mBizExpirationTs = 0;
-    ststatus = STORAGE_GREEN;
+    ststatus = STORAGE_UNKNOWN;
     looprequested = false;
 
 #ifdef ENABLE_CHAT
@@ -3659,7 +3659,7 @@ void MegaClient::locallogout()
     putmbpscap = 0;
     fetchingnodes = false;
     fetchnodestag = 0;
-    ststatus = STORAGE_GREEN;
+    ststatus = STORAGE_UNKNOWN;
     overquotauntil = 0;
     mBizGracePeriodTs = 0;
     mBizExpirationTs = 0;
