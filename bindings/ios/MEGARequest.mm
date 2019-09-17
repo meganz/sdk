@@ -190,7 +190,7 @@ using namespace mega;
 - (MEGAPushNotificationSettings *)megaPushNotificationSettings {
     if (!self.megaRequest) return nil;
  
-    return self.megaRequest->getMegaPushNotificationSettings() ? [[MEGAPushNotificationSettings alloc] initWithMegaPushNotificationSettings:self.megaRequest->getMegaPushNotificationSettings()->copy() cMemoryOwn:YES] : nil;
+    return self.megaRequest->getMegaPushNotificationSettings() ? [MEGAPushNotificationSettings.alloc initWithMegaPushNotificationSettings:self.megaRequest->getMegaPushNotificationSettings()->copy() cMemoryOwn:YES] : nil;
 }
 
 - (NSDictionary<NSString *, MEGAStringList *> *)megaStringListDictionary {

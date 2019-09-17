@@ -53,10 +53,10 @@ NS_ASSUME_NONNULL_BEGIN
 /**
  * @brief Returns whether Do-Not-Disturb mode for a chat is enabled or not
  *
- * @param chatid MegaHandle that identifies the chat room
- * @return True if enabled, false otherwise
+ * @param chatId handle of the node that identifies the chat room
+ * @return YES if enabled, NO otherwise
  */
-- (BOOL)isChatDndEnabledForChatid:(int64_t)chatid;
+- (BOOL)isChatDndEnabledForChatId:(int64_t)chatId;
 
 /**
  * @brief Enable or disable notifications for a chat
@@ -66,10 +66,10 @@ NS_ASSUME_NONNULL_BEGIN
  *
  * @note Settings per chat override any global notification setting.
  *
- * @param chatid MegaHandle that identifies the chat room
- * @param enable True to enable, false to disable
+ * @param enabled YES to enable, NO to disable
+ * @param chatId handle of the node that identifies the chat room
  */
-- (void)enableChatWithChatid:(int64_t)chatid enableFlag:(bool)enable;
+- (void)setChatEnabled:(BOOL)enabled forChatId:(int64_t)chatId;
 
 /**
  * @brief Returns the timestamp until the Do-Not-Disturb mode for a chat
@@ -80,10 +80,10 @@ NS_ASSUME_NONNULL_BEGIN
  * If there's no DND mode established for the specified chat, this function returns -1.
  * @note a DND value of 0 means the DND does not expire.
  *
- * @param chatid MegaHandle that identifies the chat room
- * @return Timestamp until DND mode is enabled (in seconds since the Epoch)
+ * @param chatid handle of the Node that identifies the chat room
+ * @return timestamp until DND mode is enabled (in seconds since the Epoch)
  */
-- (int64_t)chatDndForChatid:(int64_t)chatid;
+- (int64_t)chatDndForChatid:(int64_t)chatId;
 
 /**
  * @brief Set the DND mode for a chat for a period of time
@@ -97,9 +97,10 @@ NS_ASSUME_NONNULL_BEGIN
  * function will enable them back (but will not generate notification until
  * the specified timestamp).
  *
- * @param timestamp Timestamp until DND mode is enabled (in seconds since the Epoch)
+ * @param chatId handle of the node that identifies the chat room
+ * @param timestamp timestamp until DND mode is enabled (in seconds since the Epoch)
  */
-- (void)setChatDndForChatid:(int64_t)chatid untilTimeStamp:(int64_t)timestamp;
+- (void)setChatDndForChatId:(int64_t)chatId untilTimeStamp:(int64_t)timestamp;
 
 @end
 
