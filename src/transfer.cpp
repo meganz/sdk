@@ -32,6 +32,31 @@
 
 namespace mega {
 
+TransferCategory::TransferCategory(direction_t d, filesizetype_t s) 
+    : direction(d)
+    , sizetype(s) 
+{
+}
+
+TransferCategory::TransferCategory(Transfer* t)
+    : direction(t->type)
+    , sizetype(t->size > 1048576 ? LARGEFILE : SMALLFILE)
+{
+}
+
+unsigned TransferCategory::index() 
+{
+    assert(direction == GET || direction == PUT);
+    assert(sizetype == LARGEFILE || sizetype == SMALLFILE);
+    return 2 + direction * 2 + sizetype;
+}
+
+unsigned TransferCategory::directionIndex() 
+{
+    assert(direction == GET || direction == PUT);
+    return direction;
+}
+
 Transfer::Transfer(MegaClient* cclient, direction_t ctype)
     : bt(cclient->rng, cclient->transferRetryBackoffs[ctype])
 {
@@ -1862,19 +1887,49 @@ transfer_list::iterator TransferList::iterator(Transfer *transfer)
     return transfers[transfer->type].end();
 }
 
-Transfer *TransferList::nexttransfer(direction_t direction)
+std::array<vector<Transfer*>, 6> TransferList::nexttransfers(std::function<bool(Transfer*)>& continuefunction)
 {
-    for (transfer_list::iterator it = transfers[direction].begin(); it != transfers[direction].end(); it++)
+    std::array<vector<Transfer*>, 6> v;
+
+    static direction_t putget[] = { PUT, GET };
+
+    for (direction_t direction : putget)
     {
-        Transfer *transfer = (*it);
-        if ((!transfer->slot && isReady(transfer))
+        for (Transfer *transfer : transfers[direction])
+        {
+            bool continueLarge = true;
+            bool continueSmall = true;
+
+            if ((!transfer->slot && isReady(transfer))
                 || (transfer->asyncopencontext
                     && transfer->asyncopencontext->finished))
-        {
-            return transfer;
+            {
+                TransferCategory tc(transfer);
+                
+                if (tc.sizetype == LARGEFILE && continueLarge)
+                {
+                    continueLarge = continuefunction(transfer);
+                    if (continueLarge)
+                    {
+                        v[tc.index()].push_back(transfer);
+                    }
+                }
+                else if (tc.sizetype == SMALLFILE && continueSmall)
+                {
+                    continueSmall = continuefunction(transfer);
+                    if (continueSmall)
+                    {
+                        v[tc.index()].push_back(transfer);
+                    }
+                }
+                if (!continueLarge && !continueSmall)
+                {
+                    break;
+                }
+            }
         }
     }
-    return NULL;
+    return v;
 }
 
 Transfer *TransferList::transferat(direction_t direction, unsigned int position)

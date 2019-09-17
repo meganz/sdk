@@ -2096,15 +2096,7 @@ void MegaClient::exec()
             tctable->begin();
         }
 
-        putsgetscount[PUT] = 0;
-        putsgetscount[GET] = 0;
-        for (auto& t : tslots)
-        {
-            putsgetscount[t->transfer->type] += 1;
-        }
-
-        dispatchmore(PUT);
-        dispatchmore(GET); 
+        dispatchTransfers();
 
 #ifndef EMSCRIPTEN
         assert(!asyncfopens);
@@ -3110,298 +3102,379 @@ bool MegaClient::abortbackoff(bool includexfers)
     return r;
 }
 
-// this will dispatch the next queued transfer unless one is already in
-// progress and force isn't set
-// returns true if dispatch occurred, false otherwise
-bool MegaClient::dispatch(direction_t d)
+// activate enough queued transfers as necessary to keep the system busy - but not too busy
+void MegaClient::dispatchTransfers()
 {
     // do we have any transfer slots available?
     if (!slotavail())
     {
         LOG_verbose << "No slots available";
-        return false;
+        return;
     }
 
-    // file attribute jam? halt uploads.
-    if (d == PUT && queuedfa.size() > MAXQUEUEDFA)
-    {
-        LOG_warn << "Attribute queue full: " << queuedfa.size();
-        return false;
-    }
+    struct counter 
+    { 
+        m_off_t remainingsum = 0; 
+        unsigned total = 0; 
+        unsigned added = 0;
+        bool hasVeryBig = false;
 
-    Transfer *nexttransfer;
-    TransferSlot *ts = NULL;
-
-    for (;;)
-    {
-        nexttransfer = transferlist.nexttransfer(d);
-
-        // no inactive transfers ready?
-        if (!nexttransfer)
+        void addexisting(m_off_t size, m_off_t progressed)
         {
-            return false;
+            remainingsum += size - progressed;
+            total += 1;
+            if (size > 100 * 1024 * 1024 && (size - progressed) > 5 * 1024 * 1024)
+            {
+                hasVeryBig = true;
+            }
+        }
+        void addnew(m_off_t size)
+        {
+            addexisting(size, 0);
+            added += 1;
+        }
+    };
+    std::array<counter, 6> counters;
+
+    // determine average speed and total amount of data remaining for the given
+    // direction
+    for (TransferSlot* ts : tslots)
+    {
+        TransferCategory tc(ts->transfer);
+        counters[tc.index()].addexisting(ts->transfer->size, ts->progressreported);
+        counters[tc.directionIndex()].addexisting(ts->transfer->size,  ts->progressreported);
+    }
+
+    std::function<bool(Transfer*)> continuefunction = [&counters, this](Transfer* t) 
+        { 
+            TransferCategory tc(t);
+
+            // hard limit on puts/gets
+            if (counters[tc.directionIndex()].total >= MAXTRANSFERS)
+            {
+                return false;
+            }
+
+            // only request half the max at most, to get a quicker response from the API and get overlap with transfers going
+            if (counters[tc.index()].added >= MAXTRANSFERS/2)
+            {
+                return false;
+            }
+
+            // If we have one very big file, that is enough to max out the bandwidth by itself; get that one done quickly.
+            if (counters[tc.index()].hasVeryBig)
+            {
+                return false;
+            }
+
+            // queue up enough transfers that we can expect to keep busy for at least the next 30 seconds in this category
+            m_off_t speed = (tc.direction == GET) ? httpio->downloadSpeed : httpio->uploadSpeed;
+            m_off_t targetOutstanding = 30 * speed;
+            targetOutstanding = std::max<m_off_t>(targetOutstanding, 2 * 1024 * 1024);
+            targetOutstanding = std::min<m_off_t>(targetOutstanding, 100 * 1024 * 1024);
+
+            if (counters[tc.index()].remainingsum >= targetOutstanding)
+            {
+                return false;
+            }
+
+            counters[tc.index()].addnew(t->size);
+            counters[tc.directionIndex()].addnew(t->size);
+
+            return true; 
+        };
+
+    std::array<vector<Transfer*>, 6> nextInCategory = transferlist.nexttransfers(continuefunction);
+
+
+    static const TransferCategory categoryOrder[] = {
+        TransferCategory(PUT, LARGEFILE),
+        TransferCategory(GET, LARGEFILE),
+        TransferCategory(PUT, SMALLFILE),
+        TransferCategory(GET, SMALLFILE),
+    };
+
+    for (auto category : categoryOrder)
+    {
+
+        // file attribute jam? halt uploads.
+        if (category.direction == PUT && queuedfa.size() > MAXQUEUEDFA)
+        {
+            LOG_warn << "Attribute queue full: " << queuedfa.size();
+            continue;
         }
 
-        if (!nexttransfer->localfilename.size())
+        for (Transfer *nexttransfer : nextInCategory[category.index()])
         {
-            // this is a fresh transfer rather than the resumption of a partly
-            // completed and deferred one
-            if (d == PUT)
+            if (!slotavail())
             {
-                // generate fresh random encryption key/CTR IV for this file
-                byte keyctriv[SymmCipher::KEYLENGTH + sizeof(int64_t)];
-                rng.genblock(keyctriv, sizeof keyctriv);
-                memcpy(nexttransfer->transferkey, keyctriv, SymmCipher::KEYLENGTH);
-                nexttransfer->ctriv = MemAccess::get<uint64_t>((const char*)keyctriv + SymmCipher::KEYLENGTH);
+                return;
             }
-            else
-            {
-                // set up keys for the decryption of this file (k == NULL => private node)
-                Node* n;
-                const byte* k = NULL;
 
-                // locate suitable template file
-                for (file_list::iterator it = nexttransfer->files.begin(); it != nexttransfer->files.end(); it++)
+            if (!nexttransfer->localfilename.size())
+            {
+                // this is a fresh transfer rather than the resumption of a partly
+                // completed and deferred one
+                if (nexttransfer->type == PUT)
                 {
-                    if ((*it)->hprivate && !(*it)->hforeign)
+                    // generate fresh random encryption key/CTR IV for this file
+                    byte keyctriv[SymmCipher::KEYLENGTH + sizeof(int64_t)];
+                    rng.genblock(keyctriv, sizeof keyctriv);
+                    memcpy(nexttransfer->transferkey, keyctriv, SymmCipher::KEYLENGTH);
+                    nexttransfer->ctriv = MemAccess::get<uint64_t>((const char*)keyctriv + SymmCipher::KEYLENGTH);
+                }
+                else
+                {
+                    // set up keys for the decryption of this file (k == NULL => private node)
+                    Node* n;
+                    const byte* k = NULL;
+
+                    // locate suitable template file
+                    for (file_list::iterator it = nexttransfer->files.begin(); it != nexttransfer->files.end(); it++)
                     {
-                        // the size field must be valid right away for
-                        // MegaClient::moretransfers()
-                        if ((n = nodebyhandle((*it)->h)) && n->type == FILENODE)
+                        if ((*it)->hprivate && !(*it)->hforeign)
                         {
-                            k = (const byte*)n->nodekey.data();
-                            nexttransfer->size = n->size;
+                            // the size field must be valid right away for
+                            // MegaClient::moretransfers()
+                            if ((n = nodebyhandle((*it)->h)) && n->type == FILENODE)
+                            {
+                                k = (const byte*)n->nodekey.data();
+                                nexttransfer->size = n->size;
+                            }
+                        }
+                        else
+                        {
+                            k = (*it)->filekey;
+                            nexttransfer->size = (*it)->size;
+                        }
+
+                        if (k)
+                        {
+                            memcpy(nexttransfer->transferkey, k, SymmCipher::KEYLENGTH);
+                            SymmCipher::xorblock(k + SymmCipher::KEYLENGTH, nexttransfer->transferkey);
+                            nexttransfer->ctriv = MemAccess::get<int64_t>((const char*)k + SymmCipher::KEYLENGTH);
+                            nexttransfer->metamac = MemAccess::get<int64_t>((const char*)k + SymmCipher::KEYLENGTH + sizeof(int64_t));
+                            break;
                         }
                     }
-                    else
-                    {
-                        k = (*it)->filekey;
-                        nexttransfer->size = (*it)->size;
-                    }
 
-                    if (k)
+                    if (!k)
                     {
-                        memcpy(nexttransfer->transferkey, k, SymmCipher::KEYLENGTH);
-                        SymmCipher::xorblock(k + SymmCipher::KEYLENGTH, nexttransfer->transferkey);
-                        nexttransfer->ctriv = MemAccess::get<int64_t>((const char*)k + SymmCipher::KEYLENGTH);
-                        nexttransfer->metamac = MemAccess::get<int64_t>((const char*)k + SymmCipher::KEYLENGTH + sizeof(int64_t));
                         break;
                     }
                 }
 
-                if (!k)
+                nexttransfer->localfilename.clear();
+
+                // set file localnames (ultimate target) and one transfer-wide temp
+                // localname
+                for (file_list::iterator it = nexttransfer->files.begin();
+                    !nexttransfer->localfilename.size() && it != nexttransfer->files.end(); it++)
                 {
-                    return false;
+                    (*it)->prepare();
                 }
+
+                // app-side transfer preparations (populate localname, create thumbnail...)
+                app->transfer_prepare(nexttransfer);
             }
 
-            nexttransfer->localfilename.clear();
+            bool openok = false;
+            bool openfinished = false;
 
-            // set file localnames (ultimate target) and one transfer-wide temp
-            // localname
-            for (file_list::iterator it = nexttransfer->files.begin();
-                 !nexttransfer->localfilename.size() && it != nexttransfer->files.end(); it++)
+            // verify that a local path was given and start/resume transfer
+            if (nexttransfer->localfilename.size())
             {
-                (*it)->prepare();
-            }
+                TransferSlot *ts = nullptr;
 
-            // app-side transfer preparations (populate localname, create thumbnail...)
-            app->transfer_prepare(nexttransfer);
-        }
-
-        bool openok = false;
-        bool openfinished = false;
-
-        // verify that a local path was given and start/resume transfer
-        if (nexttransfer->localfilename.size())
-        {
-            if (!nexttransfer->slot)
-            {
-                // allocate transfer slot
-                ts = new TransferSlot(nexttransfer);
-            }
-            else
-            {
-                ts = nexttransfer->slot;
-            }
-
-            if (ts->fa->asyncavailable())
-            {
-                if (!nexttransfer->asyncopencontext)
+                if (!nexttransfer->slot)
                 {
-                    LOG_debug << "Starting async open";
+                    // allocate transfer slot
+                    ts = new TransferSlot(nexttransfer);
+                }
+                else
+                {
+                    ts = nexttransfer->slot;
+                }
 
+                if (ts->fa->asyncavailable())
+                {
+                    if (!nexttransfer->asyncopencontext)
+                    {
+                        LOG_debug << "Starting async open";
+
+                        // try to open file (PUT transfers: open in nonblocking mode)
+                        nexttransfer->asyncopencontext = (nexttransfer->type == PUT)
+                            ? ts->fa->asyncfopen(&nexttransfer->localfilename)
+                            : ts->fa->asyncfopen(&nexttransfer->localfilename, false, true, nexttransfer->size);
+                        asyncfopens++;
+                    }
+
+                    if (nexttransfer->asyncopencontext->finished)
+                    {
+                        LOG_debug << "Async open finished";
+                        openok = !nexttransfer->asyncopencontext->failed;
+                        openfinished = true;
+                        delete nexttransfer->asyncopencontext;
+                        nexttransfer->asyncopencontext = NULL;
+                        asyncfopens--;
+                    }
+
+                    assert(!asyncfopens);
+                    //FIXME: Improve the management of asynchronous fopen when they can
+                    //be really asynchronous. All transfers could open its file in this
+                    //stage (not good) and, if we limit it, the transfer queue could hang because
+                    //it's full of transfers in that state. Transfer moves also complicates
+                    //the management because transfers that haven't been opened could be
+                    //placed over transfers that are already being opened.
+                    //Probably, the best approach is to add the slot of these transfers to
+                    //the queue and ensure that all operations (transfer moves, pauses)
+                    //are correctly cancelled when needed
+                }
+                else
+                {
                     // try to open file (PUT transfers: open in nonblocking mode)
-                    nexttransfer->asyncopencontext = (d == PUT)
-                        ? ts->fa->asyncfopen(&nexttransfer->localfilename)
-                        : ts->fa->asyncfopen(&nexttransfer->localfilename, false, true, nexttransfer->size);
-                    asyncfopens++;
-                }
-
-                if (nexttransfer->asyncopencontext->finished)
-                {
-                    LOG_debug << "Async open finished";
-                    openok = !nexttransfer->asyncopencontext->failed;
-                    openfinished = true;
-                    delete nexttransfer->asyncopencontext;
-                    nexttransfer->asyncopencontext = NULL;
-                    asyncfopens--;
-                }
-
-                assert(!asyncfopens);
-                //FIXME: Improve the management of asynchronous fopen when they can
-                //be really asynchronous. All transfers could open its file in this
-                //stage (not good) and, if we limit it, the transfer queue could hang because
-                //it's full of transfers in that state. Transfer moves also complicates
-                //the management because transfers that haven't been opened could be
-                //placed over transfers that are already being opened.
-                //Probably, the best approach is to add the slot of these transfers to
-                //the queue and ensure that all operations (transfer moves, pauses)
-                //are correctly cancelled when needed
-            }
-            else
-            {
-                // try to open file (PUT transfers: open in nonblocking mode)
-                openok = (d == PUT)
+                    openok = (nexttransfer->type == PUT)
                         ? ts->fa->fopen(&nexttransfer->localfilename)
                         : ts->fa->fopen(&nexttransfer->localfilename, false, true);
-                openfinished = true;
-            }
-
-            if (openfinished && openok)
-            {
-                handle h = UNDEF;
-                bool hprivate = true;
-                const char *privauth = NULL;
-                const char *pubauth = NULL;
-                const char *chatauth = NULL;
-
-                nexttransfer->pos = 0;
-                nexttransfer->progresscompleted = 0;
-
-                if (d == GET || nexttransfer->tempurls.size())
-                {
-                    m_off_t p = 0;
-
-                    // resume at the end of the last contiguous completed block
-                    nexttransfer->chunkmacs.calcprogress(nexttransfer->size, nexttransfer->pos, nexttransfer->progresscompleted, &p);
-
-                    if (nexttransfer->progresscompleted > nexttransfer->size)
-                    {
-                        LOG_err << "Invalid transfer progress!";
-                        nexttransfer->pos = nexttransfer->size;
-                        nexttransfer->progresscompleted = nexttransfer->size;
-                    }
-
-                    ts->updatecontiguousprogress();
-                    LOG_debug << "Resuming transfer at " << nexttransfer->pos
-                              << " Completed: " << nexttransfer->progresscompleted
-                              << " Contiguous: " << ts->progresscontiguous
-                              << " Partial: " << p << " Size: " << nexttransfer->size
-                              << " ultoken: " << (nexttransfer->ultoken != NULL);
-                }
-                else
-                {
-                    nexttransfer->chunkmacs.clear();
+                    openfinished = true;
                 }
 
-                ts->progressreported = nexttransfer->progresscompleted;
-
-                if (d == PUT)
+                if (openfinished && openok)
                 {
-                    if (ts->fa->mtime != nexttransfer->mtime || ts->fa->size != nexttransfer->size)
-                    {
-                        LOG_warn << "Modification detected starting upload.   Size: " << nexttransfer->size << "  Mtime: " << nexttransfer->mtime
-                                 << "    FaSize: " << ts->fa->size << "  FaMtime: " << ts->fa->mtime;
-                        nexttransfer->failed(API_EREAD);
-                        continue;
-                    }
+                    handle h = UNDEF;
+                    bool hprivate = true;
+                    const char *privauth = NULL;
+                    const char *pubauth = NULL;
+                    const char *chatauth = NULL;
 
-                    // create thumbnail/preview imagery, if applicable (FIXME: do not re-create upon restart)
-                    if (nexttransfer->localfilename.size() && !nexttransfer->uploadhandle)
-                    {
-                        nexttransfer->uploadhandle = getuploadhandle();
+                    nexttransfer->pos = 0;
+                    nexttransfer->progresscompleted = 0;
 
-                        if (!gfxdisabled && gfx && gfx->isgfx(&nexttransfer->localfilename))
+                    if (nexttransfer->type == GET || nexttransfer->tempurls.size())
+                    {
+                        m_off_t p = 0;
+
+                        // resume at the end of the last contiguous completed block
+                        nexttransfer->chunkmacs.calcprogress(nexttransfer->size, nexttransfer->pos, nexttransfer->progresscompleted, &p);
+
+                        if (nexttransfer->progresscompleted > nexttransfer->size)
                         {
-                            // we want all imagery to be safely tucked away before completing the upload, so we bump minfa
-                            nexttransfer->minfa += gfx->gendimensionsputfa(ts->fa, &nexttransfer->localfilename, nexttransfer->uploadhandle, nexttransfer->transfercipher(), -1, false);
+                            LOG_err << "Invalid transfer progress!";
+                            nexttransfer->pos = nexttransfer->size;
+                            nexttransfer->progresscompleted = nexttransfer->size;
+                        }
+
+                        ts->updatecontiguousprogress();
+                        LOG_debug << "Resuming transfer at " << nexttransfer->pos
+                            << " Completed: " << nexttransfer->progresscompleted
+                            << " Contiguous: " << ts->progresscontiguous
+                            << " Partial: " << p << " Size: " << nexttransfer->size
+                            << " ultoken: " << (nexttransfer->ultoken != NULL);
+                    }
+                    else
+                    {
+                        nexttransfer->chunkmacs.clear();
+                    }
+
+                    ts->progressreported = nexttransfer->progresscompleted;
+
+                    if (nexttransfer->type == PUT)
+                    {
+                        if (ts->fa->mtime != nexttransfer->mtime || ts->fa->size != nexttransfer->size)
+                        {
+                            LOG_warn << "Modification detected starting upload.   Size: " << nexttransfer->size << "  Mtime: " << nexttransfer->mtime
+                                << "    FaSize: " << ts->fa->size << "  FaMtime: " << ts->fa->mtime;
+                            nexttransfer->failed(API_EREAD);
+                            continue;
+                        }
+
+                        // create thumbnail/preview imagery, if applicable (FIXME: do not re-create upon restart)
+                        if (nexttransfer->localfilename.size() && !nexttransfer->uploadhandle)
+                        {
+                            nexttransfer->uploadhandle = getuploadhandle();
+
+                            if (!gfxdisabled && gfx && gfx->isgfx(&nexttransfer->localfilename))
+                            {
+                                // we want all imagery to be safely tucked away before completing the upload, so we bump minfa
+                                nexttransfer->minfa += gfx->gendimensionsputfa(ts->fa, &nexttransfer->localfilename, nexttransfer->uploadhandle, nexttransfer->transfercipher(), -1, false);
+                            }
                         }
                     }
-                }
-                else
-                {
+                    else
+                    {
+                        for (file_list::iterator it = nexttransfer->files.begin();
+                            it != nexttransfer->files.end(); it++)
+                        {
+                            if (!(*it)->hprivate || (*it)->hforeign || nodebyhandle((*it)->h))
+                            {
+                                h = (*it)->h;
+                                hprivate = (*it)->hprivate;
+                                privauth = (*it)->privauth.size() ? (*it)->privauth.c_str() : NULL;
+                                pubauth = (*it)->pubauth.size() ? (*it)->pubauth.c_str() : NULL;
+                                chatauth = (*it)->chatauth;
+                                break;
+                            }
+                            else
+                            {
+                                LOG_err << "Unexpected node ownership";
+                            }
+                        }
+                    }
+
+                    // dispatch request for temporary source/target URL
+                    if (nexttransfer->tempurls.size())
+                    {
+                        ts->transferbuf.setIsRaid(nexttransfer, nexttransfer->tempurls, nexttransfer->pos, ts->maxRequestSize);
+                        app->transfer_prepare(nexttransfer);
+                    }
+                    else
+                    {
+                        reqs.add((ts->pendingcmd = (nexttransfer->type == PUT)
+                            ? (Command*)new CommandPutFile(this, ts, putmbpscap)
+                            : (Command*)new CommandGetFile(this, ts, NULL, h, hprivate, privauth, pubauth, chatauth)));
+                    }
+
+                    LOG_debug << "Activating transfer";
+                    ts->slots_it = tslots.insert(tslots.begin(), ts);
+
+                    // notify the app about the starting transfer
                     for (file_list::iterator it = nexttransfer->files.begin();
-                         it != nexttransfer->files.end(); it++)
+                        it != nexttransfer->files.end(); it++)
                     {
-                        if (!(*it)->hprivate || (*it)->hforeign || nodebyhandle((*it)->h))
-                        {
-                            h = (*it)->h;
-                            hprivate = (*it)->hprivate;
-                            privauth = (*it)->privauth.size() ? (*it)->privauth.c_str() : NULL;
-                            pubauth = (*it)->pubauth.size() ? (*it)->pubauth.c_str() : NULL;
-                            chatauth = (*it)->chatauth;
-                            break;
-                        }
-                        else
-                        {
-                            LOG_err << "Unexpected node ownership";
-                        }
+                        (*it)->start();
+                    }
+                    app->transfer_update(nexttransfer);
+
+                    performanceStats.transferStarts += 1;
+                    continue;
+                }
+                else if (openfinished)
+                {
+                    string utf8path;
+                    fsaccess->local2path(&nexttransfer->localfilename, &utf8path);
+                    if (nexttransfer->type == GET)
+                    {
+                        LOG_err << "Error dispatching transfer. Temporary file not writable: " << utf8path;
+                        nexttransfer->failed(API_EWRITE);
+                    }
+                    else if (!ts->fa->retry)
+                    {
+                        LOG_err << "Error dispatching transfer. Local file permanently unavailable: " << utf8path;
+                        nexttransfer->failed(API_EREAD);
+                    }
+                    else
+                    {
+                        LOG_warn << "Error dispatching transfer. Local file temporarily unavailable: " << utf8path;
+                        nexttransfer->failed(API_EREAD);
                     }
                 }
-
-                // dispatch request for temporary source/target URL
-                if (nexttransfer->tempurls.size())
-                {
-                    ts->transferbuf.setIsRaid(nexttransfer, nexttransfer->tempurls, nexttransfer->pos, ts->maxRequestSize);
-                    app->transfer_prepare(nexttransfer);
-                }
-                else
-                {
-                    reqs.add((ts->pendingcmd = (d == PUT)
-                          ? (Command*)new CommandPutFile(this, ts, putmbpscap)
-                          : (Command*)new CommandGetFile(this, ts, NULL, h, hprivate, privauth, pubauth, chatauth)));
-                }
-
-                LOG_debug << "Activating transfer";
-                ts->slots_it = tslots.insert(tslots.begin(), ts);
-
-                // notify the app about the starting transfer
-                for (file_list::iterator it = nexttransfer->files.begin();
-                     it != nexttransfer->files.end(); it++)
-                {
-                    (*it)->start();
-                }
-                app->transfer_update(nexttransfer);
-
-                performanceStats.transferStarts += 1;
-                return true;
             }
-            else if (openfinished)
+            else
             {
-                string utf8path;
-                fsaccess->local2path(&nexttransfer->localfilename, &utf8path);
-                if (d == GET)
-                {
-                    LOG_err << "Error dispatching transfer. Temporary file not writable: " << utf8path;
-                    nexttransfer->failed(API_EWRITE);
-                }
-                else if (!ts->fa->retry)
-                {
-                    LOG_err << "Error dispatching transfer. Local file permanently unavailable: " << utf8path;
-                    nexttransfer->failed(API_EREAD);
-                }
-                else
-                {
-                    LOG_warn << "Error dispatching transfer. Local file temporarily unavailable: " << utf8path;
-                    nexttransfer->failed(API_EREAD);
-                }
+                LOG_err << "Error preparing transfer. No localfilename";
+                nexttransfer->failed(API_EREAD);
             }
-        }
-        else
-        {
-            LOG_err << "Error preparing transfer. No localfilename";
-            nexttransfer->failed(API_EREAD);
+            break;
         }
     }
 }
@@ -4628,61 +4701,6 @@ bool MegaClient::slotavail() const
     return tslots.size() < MAXTOTALTRANSFERS;
 }
 
-// returns 1 if more transfers of the requested type can be dispatched
-// (back-to-back overlap pipelining)
-// FIXME: support overlapped partial reads (and support partial reads in the
-// first place)
-bool MegaClient::moretransfers(direction_t d)
-{
-    m_off_t r = 0;
-    unsigned int total = 0;
-
-    // don't dispatch if all tslots busy
-    if (!slotavail())
-    {
-        return false;
-    }
-
-    // determine average speed and total amount of data remaining for the given
-    // direction
-    for (transferslot_list::iterator it = tslots.begin(); it != tslots.end(); it++)
-    {
-        if ((*it)->transfer->type == d)
-        {
-            r += (*it)->transfer->size - (*it)->progressreported;
-            total++;
-        }
-    }
-
-    if (total >= MAXTRANSFERS/*)//todo:*/ || (total > putsgetscount[d] && total-putsgetscount[d] >= MAXTRANSFERS/2))
-    {
-        return false;
-    }
-
-    m_off_t speed = (d == GET) ? httpio->downloadSpeed : httpio->uploadSpeed;
-
-    // always blindly dispatch transfers up to MINPIPELINE
-    // dispatch more transfers if only a a little chunk per transfer left
-    // dispatch more if only two seconds of transfers left
-    if (r < MINPIPELINE || r < total * 131072 || (speed > 1024 && (r / speed) <= 2))
-    {
-        return true;
-    }
-
-    // otherwise, don't allow more than two concurrent transfers
-    if (total >= 2)
-    {
-        return false;
-    }
-
-    // dispatch a second transfer if less than 512KB left
-    if (r < 524288)
-    {
-        return true;
-    }
-    return false;
-}
-
 bool MegaClient::setstoragestatus(storagestatus_t status)
 {
     if (ststatus != status)
@@ -4730,13 +4748,6 @@ error MegaClient::smsverificationcheck(const std::string &verificationCode)
     reqs.add(new CommandSMSVerificationCheck(this, verificationCode));
 
     return API_OK;
-}
-
-void MegaClient::dispatchmore(direction_t d)
-{
-    // keep pipeline full by dispatching additional queued transfers, if
-    // appropriate and available
-    while (moretransfers(d) && dispatch(d));
 }
 
 // server-client node update processing

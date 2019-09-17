@@ -568,9 +568,6 @@ public:
     // clean rubbish bin
     void cleanrubbishbin();
 
-    // determine if more transfers fit in the pipeline
-    bool moretransfers(direction_t);
-
     // change the storage status
     bool setstoragestatus(storagestatus_t);
 
@@ -1242,11 +1239,8 @@ public:
     // determine if all transfer slots are full
     bool slotavail() const;
 
-    // dispatch as many queued transfers as possible
-    void dispatchmore(direction_t);
-
     // transfer queue dispatch/retry handling
-    bool dispatch(direction_t);
+    void dispatchTransfers();
 
     void defer(direction_t, int td, int = 0);
     void freeq(direction_t);

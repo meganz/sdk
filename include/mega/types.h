@@ -381,6 +381,7 @@ typedef map<int, FileAttributeFetchChannel*> fafc_map;
 
 // transfer type
 typedef enum { GET = 0, PUT, API, NONE } direction_t;
+typedef enum { LARGEFILE = 0, SMALLFILE } filesizetype_t;
 
 struct StringCmp
 {

@@ -29,6 +29,20 @@
 #include "raid.h"
 
 namespace mega {
+
+// helper class for categorizing transfers for upload/download queues
+struct TransferCategory
+{
+    direction_t direction = NONE;
+    filesizetype_t sizetype = LARGEFILE;
+
+    TransferCategory(direction_t d, filesizetype_t s);
+    TransferCategory(Transfer*);
+    unsigned index();
+    unsigned directionIndex();
+};
+
+
 // pending/active up/download ordered by file fingerprint (size - mtime - sparse CRC)
 struct MEGA_API Transfer : public FileFingerprint
 {
@@ -173,7 +187,7 @@ public:
     transfer_list::iterator begin(direction_t direction);
     transfer_list::iterator end(direction_t direction);
     transfer_list::iterator iterator(Transfer *transfer);
-    Transfer *nexttransfer(direction_t direction);
+    std::array<vector<Transfer*>, 6> nexttransfers(std::function<bool(Transfer*)>& continuefunction);
     Transfer *transferat(direction_t direction, unsigned int position);
 
     transfer_list transfers[2];
