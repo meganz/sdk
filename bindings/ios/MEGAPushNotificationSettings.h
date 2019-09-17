@@ -74,8 +74,8 @@ NS_ASSUME_NONNULL_BEGIN
 /**
  * @brief Returns the timestamp until the Do-Not-Disturb mode for a chat
  *
- * This method returns a valid value only if MegaPushNotificationSettings::isChatEnabled
- * returns false and MegaPushNotificationSettings::isChatDndEnabled returns true.
+ * This method returns a valid value only if [MEGAPushNotificationSettings isChatEnabled]
+ * returns NO and [MEGAPushNotificationSettings isChatDndEnabled] returns YES.
  *
  * If there's no DND mode established for the specified chat, this function returns -1.
  * @note a DND value of 0 means the DND does not expire.
@@ -83,7 +83,7 @@ NS_ASSUME_NONNULL_BEGIN
  * @param chatid handle of the Node that identifies the chat room
  * @return timestamp until DND mode is enabled (in seconds since the Epoch)
  */
-- (int64_t)chatDndForChatid:(int64_t)chatId;
+- (int64_t)chatDndForChatId:(int64_t)chatId;
 
 /**
  * @brief Set the DND mode for a chat for a period of time
