@@ -3605,6 +3605,8 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
 #ifdef DEBUG
 TEST_F(SdkTest, SdkTestOverquotaNonCloudraid)
 {
+    LOG_info << "___TEST SdkTestOverquotaNonCloudraid";
+
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
     // make a file to download, and upload so we can pull it down
@@ -3675,6 +3677,8 @@ TEST_F(SdkTest, SdkTestOverquotaNonCloudraid)
 #ifdef DEBUG
 TEST_F(SdkTest, SdkTestOverquotaCloudraid)
 {
+    LOG_info << "___TEST SdkTestOverquotaCloudraid";
+
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
     ASSERT_NO_FATAL_FAILURE(importPublicLink(0, "https://mega.nz/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", megaApi[0]->getRootNode()));
@@ -3836,6 +3840,8 @@ CheckStreamedFile_MegaTransferListener* StreamRaidFilePart(MegaApi* megaApi, m_o
 
 TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
 {
+    LOG_info << "___TEST SdkCloudraidStreamingSoakTest";
+
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 #endif
@@ -4108,6 +4114,8 @@ TEST_F(SdkTest, DISABLED_SdkGetRegisteredContacts)
 
 TEST_F(SdkTest, RecursiveUploadWithLogout)
 {
+    LOG_info << "___TEST RecursiveUploadWithLogout___";
+
     // this one used to cause a double-delete
 
     // make new folders (and files) in the local filesystem - approx 90 
@@ -4126,11 +4134,14 @@ TEST_F(SdkTest, RecursiveUploadWithLogout)
 
     // logout while the upload (which consists of many transfers) is ongoing
     ASSERT_EQ(API_OK, doRequestLogout(0));
-    ASSERT_EQ(API_EACCESS, uploadListener.waitForResult());
+    int result = uploadListener.waitForResult();
+    ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
 }
 
 TEST_F(SdkTest, RecursiveDownloadWithLogout)
 {
+    LOG_info << "___TEST RecursiveDownloadWithLogout";
+
     // this one used to cause a double-delete
 
     // make new folders (and files) in the local filesystem - approx 130 - we must upload in order to have something to download
@@ -4159,9 +4170,11 @@ TEST_F(SdkTest, RecursiveDownloadWithLogout)
     ASSERT_TRUE(!downloadListener.finished);
 
     // logout while the download (which consists of many transfers) is ongoing
+
     ASSERT_EQ(API_OK, doRequestLogout(0));
 
-    ASSERT_EQ(API_EACCESS, downloadListener.waitForResult());
+    int result = downloadListener.waitForResult();
+    ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
     fs::remove_all(uploadpath, ec);
     fs::remove_all(downloadpath, ec);
 }
