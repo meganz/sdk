@@ -410,18 +410,6 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  */
 @property (readonly, nonatomic) BusinessStatus businessStatus;
 
-#ifdef ENABLE_CHAT
-
-/**
- * @brief The fingerprint of the signing key of the currently open account
- *
- * If the MEGASdk object isn't logged in or there's no signing key available,
- * this function returns nil
- */
-@property (readonly, nonatomic) NSString *myFingerprint;
-
-#endif
-
 /**
  * @brief The number of unread user alerts for the logged in user
  */
