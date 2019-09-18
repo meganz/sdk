@@ -173,20 +173,6 @@ using namespace mega;
     return (BusinessStatus) self.megaApi->getBusinessStatus();
 }
 
-#ifdef ENABLE_CHAT
-
-- (NSString *)myFingerprint {
-    const char *val = self.megaApi->getMyFingerprint();
-    if (!val) return nil;
-    
-    NSString *ret = [[NSString alloc] initWithUTF8String:val];
-    
-    delete [] val;
-    return ret;
-}
-
-#endif
-
 - (NSInteger)numUnreadUserAlerts {
     return self.megaApi->getNumUnreadUserAlerts();
 }
