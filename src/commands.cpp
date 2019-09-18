@@ -2902,7 +2902,7 @@ void CommandGetUA::procresult()
             return;
         }
 
-        if (u->userhandle == client->me && e != API_EBLOCKED)
+        if (u && u->userhandle == client->me && e != API_EBLOCKED)
         {
             if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK)
             {
