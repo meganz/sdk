@@ -81,11 +81,12 @@
     4) Performance mode can be enabled via:
     mega::SimpleLogger::setPeformanceMode(true);
 
-    In performance mode, the SimpleLogger does not lock mutexes nor does it heap-allocate.
+    In performance mode, the `SimpleLogger` does not lock mutexes nor does it heap-allocate.
     Only `loglevel` and `message` of the `Logger` are populated where `message` will include
-    file/line. It assumed that the subclass of `Logger` provides timing information.
+    file/line. It is assumed that the subclass of `Logger` provides timing information.
 
-    In performance mode, output streams set via `addOutput` or `setAllOutputs` are ignored.
+    In performance mode, only outputting to a logger assigned through `setOutputClass` is supported.
+    Output streams set via `addOutput` or `setAllOutputs` are ignored.
 */
 #pragma once
 
@@ -138,8 +139,8 @@ class SimpleLogger
 
     std::string getTime();
 
-    std::array<char, 1024> mBuffer; // used in performance mode
-    std::array<char, 1024>::iterator mBufferIt; // used in performance mode
+    std::array<char, 256> mBuffer; // used in performance mode (stack-allocated since SimpleLogger is normally stack-allocated)
+    std::array<char, 256>::iterator mBufferIt; // used in performance mode
 
     // logging can occur from multiple threads, so we need to protect the lists of loggers to send to
     // though the loggers themselves are presumed to be owned elsewhere, and the pointers must remain valid
