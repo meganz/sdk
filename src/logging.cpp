@@ -27,8 +27,8 @@
 #endif
 
 #include "mega/logging.h"
-#include <time.h>
-#include <assert.h>
+
+#include <ctime>
 
 #if defined(WINDOWS_PHONE)
 #include <stdint.h>
@@ -44,51 +44,14 @@ Logger *SimpleLogger::logger = NULL;
 // by the default, display logs with level equal or less than logInfo
 enum LogLevel SimpleLogger::logCurrentLevel = logInfo;
 
-SimpleLogger::SimpleLogger(enum LogLevel ll, char const* filename, int line)
-{
-    this->level = ll;
-
-    //ostr << "[" << getTime() << "] ";
-    //ostr << "[" << toStr(ll) << "] ";
-    //ostr << filename << ":" << line << " ";
-
-    if (logger)
-    {
-        t = getTime();
-        std::ostringstream oss;
-        oss << filename;
-        if(line >= 0)
-        {
-            oss << ":" << line;
-        }
-        fname = oss.str();
-    }
-}
-
-SimpleLogger::~SimpleLogger()
-{
-    OutputStreams::iterator iter;
-    OutputStreams vec;
-
-    if (logger)
-        logger->log(t.c_str(), level, fname.c_str(), ostr.str().c_str());
-
-    ostr << std::endl;
-
-    vec = getOutput(level);
-
-    for (iter = vec.begin(); iter != vec.end(); iter++)
-    {
-        **iter << ostr.str();
-    }
-}
+bool SimpleLogger::performanceMode{false};
 
 std::string SimpleLogger::getTime()
 {
     char ts[50];
-    time_t t = time(NULL);
+    time_t t = std::time(NULL);
 
-    if (!strftime(ts, sizeof(ts), "%H:%M:%S", gmtime(&t))) {
+    if (!std::strftime(ts, sizeof(ts), "%H:%M:%S", std::gmtime(&t))) {
         ts[0] = '\0';
     }
     return ts;

@@ -77,19 +77,27 @@
     QString a = QString::fromAscii("test1");
     LOG_info << a;
     LOG_info << QString::fromAscii("test2");
+
+    4) Performance mode can be enabled via:
+    mega::SimpleLogger::setPeformanceMode(true);
+
+    In performance mode, the SimpleLogger does not lock mutexes nor does it heap-allocate.
+    Only `loglevel` and `message` of the `Logger` are populated where `message` will include
+    file/line. It assumed that the subclass of `Logger` provides timing information.
+
+    In performance mode, output streams set via `addOutput` or `setAllOutputs` are ignored.
 */
+#pragma once
 
-#ifndef MEGA_LOGGING_H
-#define MEGA_LOGGING_H 1
-
-#include <iostream>
-#include <ostream>
-#include <sstream>
-#include <vector>
-#include <string>
 #include <array>
+#include <atomic>
+#include <cassert>
+#include <cstring>
+#include <iostream>
 #include <mutex>
-#include <assert.h>
+#include <sstream>
+#include <string>
+#include <vector>
 
 // define MEGA_QT_LOGGING to support QString
 #ifdef MEGA_QT_LOGGING
@@ -99,7 +107,8 @@
 namespace mega {
 
 // available log levels
-enum LogLevel {
+enum LogLevel
+{
     logFatal = 0, // Very severe error event that will presumably lead the application to abort.
     logError,     // Error information but will continue application to keep running.
     logWarning,   // Information representing errors in application but application will keep running
@@ -109,8 +118,10 @@ enum LogLevel {
 };
 
 // Output Log Interface
-class Logger {
+class Logger
+{
 public:
+    virtual ~Logger() = default;
     virtual void log(const char *time, int loglevel, const char *source, const char *message) = 0;
 };
 
@@ -118,13 +129,17 @@ typedef std::vector<std::ostream *> OutputStreams;
 
 class OutputMap : public std::array<OutputStreams, unsigned(logMax)+1> {};
 
-class SimpleLogger {
+class SimpleLogger
+{
     enum LogLevel level;
     std::ostringstream ostr;
     std::string t;
     std::string fname;
 
     std::string getTime();
+
+    std::array<char, 1024> mBuffer; // used in performance mode
+    std::array<char, 1024>::iterator mBufferIt; // used in performance mode
 
     // logging can occur from multiple threads, so we need to protect the lists of loggers to send to
     // though the loggers themselves are presumed to be owned elsewhere, and the pointers must remain valid
@@ -133,17 +148,193 @@ class SimpleLogger {
     static OutputMap outputs;
     static OutputStreams getOutput(enum LogLevel ll);
 
+    static bool performanceMode;
+
+    template<typename DataIterator>
+    void copyToBuffer(const DataIterator dataIt, size_t currentSize)
+    {
+        size_t start = 0;
+        while (currentSize > 0)
+        {
+            const auto size = std::min(currentSize, static_cast<size_t>(std::distance(mBufferIt, mBuffer.end() - 1)));
+            mBufferIt = std::copy(dataIt + start, dataIt + start + size, mBufferIt);
+            if (mBufferIt == mBuffer.end() - 1)
+            {
+                outputBuffer();
+            }
+            start += size;
+            currentSize -= size;
+        }
+    }
+
+    void outputBuffer()
+    {
+        if (logger)
+        {
+            *mBufferIt = 0;
+            logger->log(nullptr, level, nullptr, mBuffer.data());
+            mBufferIt = mBuffer.begin();
+        }
+    }
+
+    template<typename T>
+    typename std::enable_if<std::is_enum<T>::value>::type
+    logValue(const T value)
+    {
+        char str[20];
+        const auto size = std::sprintf(str, "%d", static_cast<int>(value));
+        copyToBuffer(str, size);
+    }
+
+    template<typename T>
+    typename std::enable_if<std::is_pointer<T>::value && !std::is_same<T, char*>::value>::type
+    logValue(const T value)
+    {
+        char str[20];
+        const auto size = std::sprintf(str, "%p", reinterpret_cast<const void*>(value));
+        copyToBuffer(str, size);
+    }
+
+    template<typename T>
+    typename std::enable_if<std::is_integral<T>::value && std::is_signed<T>::value
+                            && !std::is_same<T, long>::value && !std::is_same<T, long long>::value>::type
+    logValue(const T value)
+    {
+        char str[20];
+        const auto size = std::sprintf(str, "%d", value);
+        copyToBuffer(str, size);
+    }
+
+    template<typename T>
+    typename std::enable_if<std::is_integral<T>::value && std::is_signed<T>::value
+                            && std::is_same<T, long>::value && !std::is_same<T, long long>::value>::type
+    logValue(const T value)
+    {
+        char str[20];
+        const auto size = std::sprintf(str, "%ld", value);
+        copyToBuffer(str, size);
+    }
+
+    template<typename T>
+    typename std::enable_if<std::is_integral<T>::value && std::is_signed<T>::value
+                            && !std::is_same<T, long>::value && std::is_same<T, long long>::value>::type
+    logValue(const T value)
+    {
+        char str[20];
+        const auto size = std::sprintf(str, "%lld", value);
+        copyToBuffer(str, size);
+    }
+
+    template<typename T>
+    typename std::enable_if<std::is_integral<T>::value && std::is_unsigned<T>::value
+                            && !std::is_same<T, unsigned long>::value && !std::is_same<T, unsigned long long>::value>::type
+    logValue(const T value)
+    {
+        char str[20];
+        const auto size = std::sprintf(str, "%u", value);
+        copyToBuffer(str, size);
+    }
+
+    template<typename T>
+    typename std::enable_if<std::is_integral<T>::value && std::is_unsigned<T>::value
+                            && std::is_same<T, unsigned long>::value && !std::is_same<T, unsigned long long>::value>::type
+    logValue(const T value)
+    {
+        char str[20];
+        const auto size = std::sprintf(str, "%lu", value);
+        copyToBuffer(str, size);
+    }
+
+    template<typename T>
+    typename std::enable_if<std::is_integral<T>::value && std::is_unsigned<T>::value
+                            && !std::is_same<T, unsigned long>::value && std::is_same<T, unsigned long long>::value>::type
+    logValue(const T value)
+    {
+        char str[20];
+        const auto size = std::sprintf(str, "%llu", value);
+        copyToBuffer(str, size);
+    }
+
+    template<typename T>
+    typename std::enable_if<std::is_floating_point<T>::value>::type
+    logValue(const T value)
+    {
+        char str[20];
+        const auto size = std::sprintf(str, "%f", value);
+        copyToBuffer(str, size);
+    }
+
+    void logValue(const char* value)
+    {
+        copyToBuffer(value, std::strlen(value));
+    }
+
+    void logValue(const std::string& value)
+    {
+        copyToBuffer(value.begin(), value.size());
+    }
+
 public:
     static Logger *logger;
 
     static enum LogLevel logCurrentLevel;
 
-    SimpleLogger(enum LogLevel ll, char const* filename, int line);
-    ~SimpleLogger();
+    SimpleLogger(const enum LogLevel ll, const char* filename, const int line)
+    : level{ll}
+    , mBufferIt{mBuffer.begin()}
+    {
+        if (!logger)
+        {
+            return;
+        }
+
+        if (performanceMode)
+        {
+            logValue(filename);
+            copyToBuffer(":", 1);
+            logValue(line);
+            copyToBuffer(" ", 1);
+            return;
+        }
+
+        t = getTime();
+        std::ostringstream oss;
+        oss << filename;
+        if(line >= 0)
+        {
+            oss << ":" << line;
+        }
+        fname = oss.str();
+    }
+
+    ~SimpleLogger()
+    {
+        if (performanceMode)
+        {
+            outputBuffer();
+            return;
+        }
+
+        OutputStreams::iterator iter;
+        OutputStreams vec;
+
+        if (logger)
+            logger->log(t.c_str(), level, fname.c_str(), ostr.str().c_str());
+
+        ostr << std::endl;
+
+        vec = getOutput(level);
+
+        for (iter = vec.begin(); iter != vec.end(); iter++)
+        {
+            **iter << ostr.str();
+        }
+    }
 
     static const char *toStr(enum LogLevel ll)
     {
-        switch (ll) {
+        switch (ll)
+        {
             case logMax: return "verbose";
             case logDebug: return "debug";
             case logInfo: return "info";
@@ -158,17 +349,51 @@ public:
     template <typename T>
     SimpleLogger& operator<<(T* obj)
     {
+        const char* null = "(NULL)";
+
+        if (performanceMode)
+        {
+            if (obj != NULL)
+            {
+                logValue(obj);
+            }
+            else
+            {
+                copyToBuffer(null, 6);
+            }
+            return *this;
+        }
+
         if(obj != NULL)
             ostr << obj;
         else
-            ostr << "(NULL)";
+            ostr << null;
 
         return *this;
     }
 
-    template <typename T>
-    SimpleLogger& operator<<(T const& obj)
+    template <typename T, typename = typename std::enable_if<std::is_arithmetic<T>::value>::type>
+    SimpleLogger& operator<<(const T obj)
     {
+        if (performanceMode)
+        {
+            logValue(obj);
+            return *this;
+        }
+
+        ostr << obj;
+        return *this;
+    }
+
+    template <typename T, typename = typename std::enable_if<!std::is_arithmetic<T>::value>::type>
+    SimpleLogger& operator<<(const T& obj)
+    {
+        if (performanceMode)
+        {
+            logValue(obj);
+            return *this;
+        }
+
         ostr << obj;
         return *this;
     }
@@ -176,6 +401,12 @@ public:
 #ifdef MEGA_QT_LOGGING
     SimpleLogger& operator<<(const QString& s)
     {
+        if (performanceMode)
+        {
+            logValue(s.toUtf8().constData());
+            return *this;
+        }
+
         ostr << s.toUtf8().constData();
         return *this;
     }
@@ -199,66 +430,42 @@ public:
         SimpleLogger::logCurrentLevel = ll;
     }
 
+    // set whether we're in performance mode (default: false)
+    static void setPeformanceMode(bool mode)
+    {
+        SimpleLogger::performanceMode = mode;
+    }
+
     // Synchronizes all registered stream buffers with their controlled output sequence
     static void flush();
 };
 
-// output VERBOSE log with line break
 #define LOG_verbose \
-    if (SimpleLogger::logCurrentLevel < logMax) ;\
+    if (::mega::SimpleLogger::logCurrentLevel < ::mega::logMax) ;\
     else \
-        SimpleLogger(logMax, __FILE__, __LINE__)
+        ::mega::SimpleLogger(::mega::logMax, __FILE__, __LINE__)
 
-// output VERBOSE log without line break
-#define LOGn_verbose \
-    if (SimpleLogger::logCurrentLevel < logMax) ;\
-    else \
-        SimpleLogger(logMax, __FILE__, __LINE__, false)
-
-// output DEBUG log with line break
 #define LOG_debug \
-    if (SimpleLogger::logCurrentLevel < logDebug) ;\
+    if (::mega::SimpleLogger::logCurrentLevel < ::mega::logDebug) ;\
     else \
-        SimpleLogger(logDebug, __FILE__, __LINE__)
-
-// output DEBUG log without line break
-#define LOGn_debug \
-    if (SimpleLogger::logCurrentLevel < logDebug) ;\
-    else \
-        SimpleLogger(logDebug, __FILE__, __LINE__, false)
+        ::mega::SimpleLogger(::mega::logDebug, __FILE__, __LINE__)
 
 #define LOG_info \
-    if (SimpleLogger::logCurrentLevel < logInfo) ;\
+    if (::mega::SimpleLogger::logCurrentLevel < ::mega::logInfo) ;\
     else \
-        SimpleLogger(logInfo, __FILE__, __LINE__)
-#define LOGn_info \
-    if (SimpleLogger::logCurrentLevel < logInfo) ;\
-    else \
-        SimpleLogger(logInfo, __FILE__, __LINE__, false)
+        ::mega::SimpleLogger(::mega::logInfo, __FILE__, __LINE__)
 
 #define LOG_warn \
-    if (SimpleLogger::logCurrentLevel < logWarning) ;\
+    if (::mega::SimpleLogger::logCurrentLevel < ::mega::logWarning) ;\
     else \
-        SimpleLogger(logWarning, __FILE__, __LINE__)
-#define LOGn_warn \
-    if (SimpleLogger::logCurrentLevel < logWarning) ;\
-    else \
-        SimpleLogger(logWarning, __FILE__, __LINE__, false)
+        ::mega::SimpleLogger(::mega::logWarning, __FILE__, __LINE__)
 
 #define LOG_err \
-    if (SimpleLogger::logCurrentLevel < logError) ;\
+    if (::mega::SimpleLogger::logCurrentLevel < ::mega::logError) ;\
     else \
-        SimpleLogger(logError, __FILE__, __LINE__)
-#define LOGn_err \
-    if (SimpleLogger::logCurrentLevel < logError) ;\
-    else \
-        SimpleLogger(logError, __FILE__, __LINE__, false)
+        ::mega::SimpleLogger(::mega::logError, __FILE__, __LINE__)
 
 #define LOG_fatal \
-    SimpleLogger(logFatal, __FILE__, __LINE__)
-#define LOGn_fatal \
-    SimpleLogger(logFatal, __FILE__, __LINE__, false)
+    ::mega::SimpleLogger(::mega::logFatal, __FILE__, __LINE__)
 
 } // namespace
-
-#endif
