@@ -7964,7 +7964,7 @@ class MegaApi
 
         /**
          * @brief Check if the MegaApi object is logged in
-         * @return 0 if not logged in, Otherwise, a number >= 0
+         * @return 0 if not logged in, Otherwise, a number > 0
          */
         int isLoggedIn();
 
