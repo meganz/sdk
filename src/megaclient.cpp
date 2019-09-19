@@ -11143,9 +11143,13 @@ void MegaClient::fetchContactsKeys()
 
 void MegaClient::fetchContactKeys(User *user)
 {
-    getua(user, ATTR_ED25519_PUBK);
-    getua(user, ATTR_CU25519_PUBK);
+    getua(user, ATTR_ED25519_PUBK, 0);
+    getua(user, ATTR_CU25519_PUBK, 0);
+
+    int creqtag = reqtag;
+    reqtag = 0;
     getpubkey(user->uid.c_str());
+    reqtag = creqtag;
 }
 
 error MegaClient::trackKey(attr_t keyType, handle uh, const std::string &pubKey)
