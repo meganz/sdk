@@ -563,6 +563,8 @@ MegaNodePrivate *MegaNodePrivate::unserialize(string *d)
         return NULL;
     }
 
+    r.eraseused(*d);
+
     return new MegaNodePrivate(name.c_str(), FILENODE, size, ctime,
                                mtime, nodehandle, &nodekey, &attrstring, &fileattrstring,
                                fingerprint.empty() ? NULL : fingerprint.c_str(), originalfingerprint.empty() ? NULL : originalfingerprint.c_str(),
@@ -17356,15 +17358,18 @@ void MegaApiImpl::updateBackups()
 
 void MegaApiImpl::sendPendingTransfers()
 {
-    MegaTransferPrivate *transfer;
-    error e;
-    int nextTag;
-
-    while((transfer = transferQueue.pop()))
+    while(true)
     {
         sdkMutex.lock();
-        e = API_OK;
-        nextTag = client->nextreqtag();
+        MegaTransferPrivate *transfer = transferQueue.pop();
+        if (!transfer)
+        {
+            sdkMutex.unlock();
+            break;
+        }
+
+        error e = API_OK;
+        int nextTag = client->nextreqtag();
         transfer->setState(MegaTransfer::STATE_QUEUED);
 
         switch(transfer->getType())
@@ -17985,18 +17990,24 @@ void MegaApiImpl::sendPendingScRequest()
 
 void MegaApiImpl::sendPendingRequests()
 {
-    MegaRequestPrivate *request;
-    error e;
     int nextTag = 0;
 
-    while((request = requestQueue.pop()))
+    while(true)
     {
+        sdkMutex.lock();
+
+        MegaRequestPrivate *request = requestQueue.pop();
+        if (!request)
+        {
+            sdkMutex.unlock();
+            break;
+        }
+
         if (!nextTag && request->getType() != MegaRequest::TYPE_LOGOUT)
         {
             client->abortbackoff(false);
         }
 
-        sdkMutex.lock();
         if (!request->getTag())
         {
             nextTag = client->nextreqtag();
@@ -18010,7 +18021,7 @@ void MegaApiImpl::sendPendingRequests()
             nextTag = request->getTag();
         }
 
-        e = API_OK;
+        error e = API_OK;
         switch (request->getType())
         {
         case MegaRequest::TYPE_LOGIN:
@@ -25671,9 +25682,8 @@ void MegaHTTPServer::processOnAsyncEventClose(MegaTCPContext* tcpctx)
 
     if (httpctx->transfer)
     {
-        httpctx->megaApi->cancelTransfer(httpctx->transfer);
-        httpctx->megaApi->fireOnStreamingFinish(httpctx->transfer, MegaError(httpctx->resultCode));
-        httpctx->transfer = NULL; // this has been deleted in fireOnStreamingFinish
+        httpctx->megaApi->cancelTransfer(httpctx->transfer.get());
+        httpctx->megaApi->fireOnStreamingFinish(httpctx->transfer.release(), MegaError(httpctx->resultCode)); // transfer will be deleted in fireOnStreamingFinish
     }
 
     delete httpctx->node;
@@ -26585,7 +26595,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             string link = MegaClient::getPublicLink(httpctx->megaApi->getMegaClient()->mNewLinkFormat, nodetype_t::FILENODE, h, httpctx->nodekey.c_str());
             LOG_debug << "Getting public link: " << link;
             httpctx->megaApi->getPublicNode(link.c_str(), httpctx);
-            httpctx->transfer = new MegaTransferPrivate(MegaTransfer::TYPE_LOCAL_TCP_DOWNLOAD);
+            httpctx->transfer.reset(new MegaTransferPrivate(MegaTransfer::TYPE_LOCAL_TCP_DOWNLOAD));
             httpctx->transfer->setPath(httpctx->path.c_str());
             httpctx->transfer->setFileName(httpctx->nodename.c_str());
             httpctx->transfer->setNodeHandle(MegaApi::base64ToHandle(httpctx->nodehandle.c_str()));
@@ -27167,18 +27177,6 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
     }
     else //GET/POST/HEAD
     {
-        httpctx->transfer = new MegaTransferPrivate(MegaTransfer::TYPE_LOCAL_TCP_DOWNLOAD);
-        httpctx->transfer->setPath(httpctx->path.c_str());
-        if (httpctx->nodename.size())
-        {
-            httpctx->transfer->setFileName(httpctx->nodename.c_str());
-        }
-        if (httpctx->nodehandle.size())
-        {
-            httpctx->transfer->setNodeHandle(MegaApi::base64ToHandle(httpctx->nodehandle.c_str()));
-        }
-        httpctx->transfer->setStartTime(Waiter::ds);
-
         if (node->isFolder())
         {
             if (!httpserver->isFolderServerEnabled())
@@ -27217,6 +27215,19 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             delete baseNode;
             return 0;
         }
+
+        httpctx->transfer.reset(new MegaTransferPrivate(MegaTransfer::TYPE_LOCAL_TCP_DOWNLOAD));
+        httpctx->transfer->setPath(httpctx->path.c_str());
+        if (httpctx->nodename.size())
+        {
+            httpctx->transfer->setFileName(httpctx->nodename.c_str());
+        }
+        if (httpctx->nodehandle.size())
+        {
+            httpctx->transfer->setNodeHandle(MegaApi::base64ToHandle(httpctx->nodehandle.c_str()));
+        }
+        httpctx->transfer->setStartTime(Waiter::ds);
+
         delete httpctx->node;
         httpctx->node = node;
         streamNode(httpctx);
@@ -27306,8 +27317,11 @@ int MegaHTTPServer::streamNode(MegaHTTPContext *httpctx)
     httpctx->pause = false;
     httpctx->lastBuffer = NULL;
     httpctx->lastBufferLen = 0;
-    httpctx->transfer->setStartPos(start);
-    httpctx->transfer->setEndPos(end);
+    if (httpctx->transfer)
+    {
+        httpctx->transfer->setStartPos(start);
+        httpctx->transfer->setEndPos(end);
+    }
 
     string resstr = response.str();
     if (httpctx->parser.method != HTTP_HEAD)
@@ -27349,7 +27363,7 @@ void MegaHTTPServer::sendHeaders(MegaHTTPContext *httpctx, string *headers)
     if (httpctx->transfer)
     {
         httpctx->transfer->setTotalBytes(httpctx->size);
-        httpctx->megaApi->fireOnStreamingStart(httpctx->transfer);
+        httpctx->megaApi->fireOnStreamingStart(httpctx->transfer.get());
     }
 
 #ifdef ENABLE_EVT_TLS
@@ -27516,7 +27530,6 @@ MegaHTTPContext::MegaHTTPContext()
     nodereceived = false;
     resultCode = API_EINTERNAL;
     node = NULL;
-    transfer = NULL;
     nodesize = -1;
     messageBody = NULL;
     messageBodySize = 0;
@@ -27534,7 +27547,6 @@ MegaHTTPContext::MegaHTTPContext()
 
 MegaHTTPContext::~MegaHTTPContext()
 {
-    delete transfer;
     delete node;
     if (tmpFileAccess)
     {

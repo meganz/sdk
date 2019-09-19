@@ -1117,7 +1117,8 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     mBizExpirationTs = 0;
     mBizMode = BIZ_MODE_UNKNOWN;
     mBizStatus = BIZ_STATUS_UNKNOWN;
-    ststatus = STORAGE_GREEN;
+
+    ststatus = STORAGE_UNKNOWN;
     looprequested = false;
 
     fetchingkeys = false;
@@ -3684,7 +3685,7 @@ void MegaClient::locallogout()
     putmbpscap = 0;
     fetchingnodes = false;
     fetchnodestag = 0;
-    ststatus = STORAGE_GREEN;
+    ststatus = STORAGE_UNKNOWN;
     overquotauntil = 0;
     mBizGracePeriodTs = 0;
     mBizExpirationTs = 0;

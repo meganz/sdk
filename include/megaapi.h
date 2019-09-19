@@ -6726,6 +6726,7 @@ class MegaApi
         };
 
         enum {
+            STORAGE_STATE_UNKNOWN = -9,
             STORAGE_STATE_GREEN = 0,
             STORAGE_STATE_ORANGE = 1,
             STORAGE_STATE_RED = 2,

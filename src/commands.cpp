@@ -2902,7 +2902,7 @@ void CommandGetUA::procresult()
             return;
         }
 
-        if (u->userhandle == client->me && e != API_EBLOCKED)
+        if (u && u->userhandle == client->me && e != API_EBLOCKED)
         {
             if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK)
             {
@@ -3055,7 +3055,7 @@ void CommandGetUA::procresult()
                                 client->initializekeys(); // we have now all the required data
                             }
 
-                            if (u->userhandle != client->me)
+                            if (!u->isTemporary && u->userhandle != client->me)
                             {
                                 if (at == ATTR_ED25519_PUBK || at == ATTR_CU25519_PUBK)
                                 {
@@ -3446,7 +3446,7 @@ void CommandPubKeyRequest::procresult()
                         len_pubk = 0;
                     }
 
-                    if (u->userhandle != client->me && len_pubk && u->pubk.isvalid())
+                    if (!u->isTemporary && u->userhandle != client->me && len_pubk && u->pubk.isvalid())
                     {
                         string pubkstr;
                         u->pubk.serializekeyforjs(pubkstr);

@@ -30,6 +30,10 @@
 #include <sys/timeb.h>
 #endif
 
+#ifdef __APPLE__
+#include <sys/sysctl.h>
+#endif
+
 namespace mega {
 
 string toNodeHandle(handle nodeHandle)
@@ -1958,6 +1962,33 @@ void tolower_string(std::string& str)
 {
     std::transform(str.begin(), str.end(), str.begin(), [](char c) {return static_cast<char>(::tolower(c)); });
 }
+
+#ifdef __APPLE__
+int macOSmajorVersion()
+{
+    char releaseStr[256];
+    size_t size = sizeof(releaseStr);
+    if (!sysctlbyname("kern.osrelease", releaseStr, &size, NULL, 0)  && size > 0)
+    {
+        if (strchr(releaseStr,'.'))
+        {
+            char *token = strtok(releaseStr, ".");
+            if (token)
+            {
+                errno = 0;
+                char *endPtr = NULL;
+                long majorVersion = strtol(token, &endPtr, 10);
+                if (endPtr != token && errno != ERANGE && majorVersion >= INT_MIN && majorVersion <= INT_MAX)
+                {
+                    return majorVersion;
+                }
+            }
+        }
+    }
+
+    return -1;
+}
+#endif
 
 void NodeCounter::operator += (const NodeCounter& o)
 {
