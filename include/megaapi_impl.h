@@ -1187,6 +1187,9 @@ public:
     const char *getText() const override;
     int64_t getNumber() const override;    
     MegaHandle getHandle() const override;
+    const char *getEventString() const override;
+
+    static const char* getEventString(int type);
 
     void setText(const char* text);
     void setNumber(int64_t number);
