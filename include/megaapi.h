@@ -8368,6 +8368,19 @@ class MegaApi
         static void setLogLevel(int logLevel);
 
         /**
+         * @brief Sets performance mode for logging (default: false)
+         *
+         * This function allows to turn on performance mode for logging. In performance mode,
+         * the underlying logger will be more efficient.
+         *
+         * Only `loglevel` and `message` of each `MegaLogger` are populated where `message` will
+         * include file/line. It is assumed that each `MegaLogger` provides timing information.
+         *
+         * @param enable Whether to enable performance mode
+         */
+        static void setLogPerformanceMode(bool enable);
+
+        /**
          * @brief Enable log to console
          *
          * By default, log to console is false.

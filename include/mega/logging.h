@@ -432,9 +432,9 @@ public:
     }
 
     // set whether we're in performance mode (default: false)
-    static void setPeformanceMode(bool mode)
+    static void setPeformanceMode(bool enable)
     {
-        SimpleLogger::performanceMode = mode;
+        SimpleLogger::performanceMode = enable;
     }
 
     // Synchronizes all registered stream buffers with their controlled output sequence

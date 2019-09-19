@@ -5363,6 +5363,11 @@ void MegaApiImpl::setLogLevel(int logLevel)
     externalLogger.setLogLevel(logLevel);
 }
 
+void MegaApiImpl::setLogPerformanceMode(bool enable)
+{
+    externalLogger.setPerformanceMode(enable);
+}
+
 void MegaApiImpl::addLoggerClass(MegaLogger *megaLogger)
 {
     externalLogger.addMegaLogger(megaLogger);
@@ -21926,6 +21931,11 @@ void ExternalLogger::removeMegaLogger(MegaLogger *logger)
 void ExternalLogger::setLogLevel(int logLevel)
 {
     SimpleLogger::setLogLevel((LogLevel)logLevel);
+}
+
+void ExternalLogger::setPerformanceMode(bool enable)
+{
+    SimpleLogger::setPeformanceMode(enable);
 }
 
 void ExternalLogger::setLogToConsole(bool enable)

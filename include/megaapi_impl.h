@@ -135,6 +135,7 @@ public:
     void addMegaLogger(MegaLogger* logger);
     void removeMegaLogger(MegaLogger *logger);
     void setLogLevel(int logLevel);
+    void setPerformanceMode(bool enable);
     void setLogToConsole(bool enable);
     void postLog(int logLevel, const char *message, const char *filename, int line);
     void log(const char *time, int loglevel, const char *source, const char *message) override;
@@ -2051,6 +2052,7 @@ class MegaApiImpl : public MegaApp
         void verifyCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
         void resetCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
         static void setLogLevel(int logLevel);
+        static void setLogPerformanceMode(bool enable);
         static void addLoggerClass(MegaLogger *megaLogger);
         static void removeLoggerClass(MegaLogger *megaLogger);
         static void setLogToConsole(bool enable);
@@ -2511,13 +2513,13 @@ class MegaApiImpl : public MegaApp
         void enableGeolocation(MegaRequestListener *listener = NULL);
         void isGeolocationEnabled(MegaRequestListener *listener = NULL);
         bool isChatNotifiable(MegaHandle chatid);
+#endif
         void setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
         void getMyChatFilesFolder(MegaRequestListener *listener = NULL);
         void setCameraUploadsFolder(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
         void getCameraUploadsFolder(MegaRequestListener *listener = NULL);
         void getUserAlias(MegaHandle uh, MegaRequestListener *listener = NULL);
         void setUserAlias(MegaHandle uh, const char *alias, MegaRequestListener *listener = NULL);
-#endif
 
         void getPushNotificationSettings(MegaRequestListener *listener = NULL);
         void setPushNotificationSettings(MegaPushNotificationSettings *settings, MegaRequestListener *listener = NULL);
