@@ -135,7 +135,6 @@ public:
     void addMegaLogger(MegaLogger* logger);
     void removeMegaLogger(MegaLogger *logger);
     void setLogLevel(int logLevel);
-    void setPerformanceMode(bool enable);
     void setLogToConsole(bool enable);
     void postLog(int logLevel, const char *message, const char *filename, int line);
     void log(const char *time, int loglevel, const char *source, const char *message) override;
@@ -2052,7 +2051,6 @@ class MegaApiImpl : public MegaApp
         void verifyCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
         void resetCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
         static void setLogLevel(int logLevel);
-        static void setLogPerformanceMode(bool enable);
         static void addLoggerClass(MegaLogger *megaLogger);
         static void removeLoggerClass(MegaLogger *megaLogger);
         static void setLogToConsole(bool enable);

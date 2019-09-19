@@ -7167,7 +7167,6 @@ MegaCLILogger logger;
 
 int main()
 {
-    SimpleLogger::setPeformanceMode(true);
 #ifdef _WIN32
     SimpleLogger::setLogLevel(logMax);  // warning and stronger to console; info and weaker to VS output window
     SimpleLogger::setOutputClass(&logger);

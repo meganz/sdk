@@ -25,6 +25,7 @@ set (USE_FREEIMAGE 1 CACHE STRING "")
 set (USE_SODIUM 0 CACHE STRING "")
 set (ENABLE_SYNC 1 CACHE STRING "")
 set (ENABLE_CHAT 0 CACHE STRING "")
+set (ENABLE_LOG_PERFORMANCE 0 CACHE STRING "")
 set (HAVE_FFMPEG 1 CACHE STRING "")
 set (USE_WEBRTC 0 CACHE STRING "")
 set (USE_LIBUV 0 CACHE STRING "")
@@ -593,6 +594,7 @@ target_compile_definitions(Mega PUBLIC
                 $<${USE_SODIUM}:USE_SODIUM>
                 $<${ENABLE_SYNC}:ENABLE_SYNC> 
                 $<${ENABLE_CHAT}:ENABLE_CHAT> 
+                $<${ENABLE_LOG_PERFORMANCE}:ENABLE_LOG_PERFORMANCE>
                 $<${NO_READLINE}:NO_READLINE>
                 $<${USE_FREEIMAGE}:USE_FREEIMAGE> 
                 $<${HAVE_FFMPEG}:HAVE_FFMPEG>

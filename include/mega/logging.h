@@ -78,15 +78,14 @@
     LOG_info << a;
     LOG_info << QString::fromAscii("test2");
 
-    4) Performance mode can be enabled via:
-    mega::SimpleLogger::setPeformanceMode(true);
+    4) Performance mode can be enabled via defining ENABLE_LOG_PERFORMANCE at compile time.
 
     In performance mode, the `SimpleLogger` does not lock mutexes nor does it heap-allocate.
     Only `loglevel` and `message` of the `Logger` are populated where `message` will include
     file/line. It is assumed that the subclass of `Logger` provides timing information.
 
     In performance mode, only outputting to a logger assigned through `setOutputClass` is supported.
-    Output streams set via `addOutput` or `setAllOutputs` are ignored.
+    Output streams are not supported.
 */
 #pragma once
 
@@ -123,6 +122,7 @@ class Logger
 {
 public:
     virtual ~Logger() = default;
+    // Note: `time` and `source` are null in performance mode
     virtual void log(const char *time, int loglevel, const char *source, const char *message) = 0;
 };
 
@@ -133,14 +133,13 @@ class OutputMap : public std::array<OutputStreams, unsigned(logMax)+1> {};
 class SimpleLogger
 {
     enum LogLevel level;
+
+#ifndef ENABLE_LOG_PERFORMANCE
     std::ostringstream ostr;
     std::string t;
     std::string fname;
 
     std::string getTime();
-
-    std::array<char, 256> mBuffer; // used in performance mode (stack-allocated since SimpleLogger is normally stack-allocated)
-    std::array<char, 256>::iterator mBufferIt; // used in performance mode
 
     // logging can occur from multiple threads, so we need to protect the lists of loggers to send to
     // though the loggers themselves are presumed to be owned elsewhere, and the pointers must remain valid
@@ -148,8 +147,9 @@ class SimpleLogger
     static std::mutex outputs_mutex;
     static OutputMap outputs;
     static OutputStreams getOutput(enum LogLevel ll);
-
-    static bool performanceMode;
+#else
+    std::array<char, 256> mBuffer; // will be stack-allocated since SimpleLogger is stack-allocated
+    std::array<char, 256>::iterator mBufferIt;
 
     template<typename DataIterator>
     void copyToBuffer(const DataIterator dataIt, size_t currentSize)
@@ -283,6 +283,7 @@ class SimpleLogger
     {
         copyToBuffer(value.begin(), value.size());
     }
+#endif
 
 public:
     static Logger *logger;
@@ -291,17 +292,16 @@ public:
 
     SimpleLogger(const enum LogLevel ll, const char* filename, const int line)
     : level{ll}
+#ifdef ENABLE_LOG_PERFORMANCE
     , mBufferIt{mBuffer.begin()}
+#endif
     {
-        if (performanceMode)
-        {
-            logValue(filename);
-            copyToBuffer(":", 1);
-            logValue(line);
-            copyToBuffer(" ", 1);
-            return;
-        }
-
+#ifdef ENABLE_LOG_PERFORMANCE
+        logValue(filename);
+        logValue(":");
+        logValue(line);
+        logValue(" ");
+#else
         if (!logger)
         {
             return;
@@ -315,16 +315,14 @@ public:
             oss << ":" << line;
         }
         fname = oss.str();
+#endif
     }
 
     ~SimpleLogger()
     {
-        if (performanceMode)
-        {
-            outputBuffer();
-            return;
-        }
-
+#ifdef ENABLE_LOG_PERFORMANCE
+        outputBuffer();
+#else
         OutputStreams::iterator iter;
         OutputStreams vec;
 
@@ -339,6 +337,7 @@ public:
         {
             **iter << ostr.str();
         }
+#endif
     }
 
     static const char *toStr(enum LogLevel ll)
@@ -359,65 +358,58 @@ public:
     template <typename T>
     SimpleLogger& operator<<(T* obj)
     {
-        const char* null = "(NULL)";
-
-        if (performanceMode)
+#ifdef ENABLE_LOG_PERFORMANCE
+        if (obj != NULL)
         {
-            if (obj != NULL)
-            {
-                logValue(obj);
-            }
-            else
-            {
-                copyToBuffer(null, 6);
-            }
-            return *this;
+            logValue(obj);
         }
-
-        if(obj != NULL)
-            ostr << obj;
         else
-            ostr << null;
-
+        {
+            logValue("(NULL)");
+        }
+#else
+        if (obj != NULL)
+        {
+            ostr << obj;
+        }
+        else
+        {
+            ostr << "(NULL)";
+        }
+#endif
         return *this;
     }
 
     template <typename T, typename = typename std::enable_if<std::is_scalar<T>::value>::type>
     SimpleLogger& operator<<(const T obj)
     {
-        if (performanceMode)
-        {
-            logValue(obj);
-            return *this;
-        }
-
+#ifdef ENABLE_LOG_PERFORMANCE
+        logValue(obj);
+#else
         ostr << obj;
+#endif
         return *this;
     }
 
     template <typename T, typename = typename std::enable_if<!std::is_scalar<T>::value>::type>
     SimpleLogger& operator<<(const T& obj)
     {
-        if (performanceMode)
-        {
-            logValue(obj);
-            return *this;
-        }
-
+#ifdef ENABLE_LOG_PERFORMANCE
+        logValue(obj);
+#else
         ostr << obj;
+#endif
         return *this;
     }
 
 #ifdef MEGA_QT_LOGGING
     SimpleLogger& operator<<(const QString& s)
     {
-        if (performanceMode)
-        {
-            logValue(s.toUtf8().constData());
-            return *this;
-        }
-
+#ifdef ENABLE_LOG_PERFORMANCE
+        logValue(s.toUtf8().constData());
+#else
         ostr << s.toUtf8().constData();
+#endif
         return *this;
     }
 #endif
@@ -428,32 +420,22 @@ public:
         logger = logger_class;
     }
 
-    // register output stream for log level
-    static void addOutput(enum LogLevel ll, std::ostream *os);
-
-    // register output stream for all log levels
-    static void setAllOutputs(std::ostream *os);
-
     // set the current log level. all logs which are higher than this level won't be handled
     static void setLogLevel(enum LogLevel ll)
     {
         SimpleLogger::logCurrentLevel = ll;
     }
 
-    // set whether we're in performance mode (default: false)
-    static void setPeformanceMode(bool enable)
-    {
-        SimpleLogger::performanceMode = enable;
-    }
+#ifndef ENABLE_LOG_PERFORMANCE
+    // register output stream for log level
+    static void addOutput(enum LogLevel ll, std::ostream *os);
 
-    // are we in performance mode?
-    static bool inPerformanceMode()
-    {
-        return SimpleLogger::performanceMode;
-    }
+    // register output stream for all log levels
+    static void setAllOutputs(std::ostream *os);
 
     // Synchronizes all registered stream buffers with their controlled output sequence
     static void flush();
+#endif
 };
 
 #define LOG_verbose \

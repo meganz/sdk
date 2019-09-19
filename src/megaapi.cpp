@@ -1803,11 +1803,6 @@ void MegaApi::setLogLevel(int logLevel)
     MegaApiImpl::setLogLevel(logLevel);
 }
 
-void MegaApi::setLogPerformanceMode(bool enable)
-{
-    MegaApiImpl::setLogPerformanceMode(enable);
-}
-
 void MegaApi::setLogToConsole(bool enable)
 {
     MegaApiImpl::setLogToConsole(enable);

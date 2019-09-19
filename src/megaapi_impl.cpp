@@ -5363,11 +5363,6 @@ void MegaApiImpl::setLogLevel(int logLevel)
     externalLogger.setLogLevel(logLevel);
 }
 
-void MegaApiImpl::setLogPerformanceMode(bool enable)
-{
-    externalLogger.setPerformanceMode(enable);
-}
-
 void MegaApiImpl::addLoggerClass(MegaLogger *megaLogger)
 {
     externalLogger.addMegaLogger(megaLogger);
@@ -21903,57 +21898,46 @@ ExternalLogger::ExternalLogger()
 
 ExternalLogger::~ExternalLogger()
 {
-    if (!SimpleLogger::inPerformanceMode())
-    {
-        mutex.lock();
-    }
+#ifndef ENABLE_LOG_PERFORMANCE
+    mutex.lock();
+#endif
     SimpleLogger::setOutputClass(NULL);
-    if (!SimpleLogger::inPerformanceMode())
-    {
-        mutex.unlock();
-    }
+#ifndef ENABLE_LOG_PERFORMANCE
+    mutex.unlock();
+#endif
 }
 
 void ExternalLogger::addMegaLogger(MegaLogger *logger)
 {
-    if (!SimpleLogger::inPerformanceMode())
-    {
-        mutex.lock();
-    }
+#ifndef ENABLE_LOG_PERFORMANCE
+    mutex.lock();
+#endif
     if (logger && megaLoggers.find(logger) == megaLoggers.end())
     {
         megaLoggers.insert(logger);
     }
-    if (!SimpleLogger::inPerformanceMode())
-    {
-        mutex.unlock();
-    }
+#ifndef ENABLE_LOG_PERFORMANCE
+    mutex.unlock();
+#endif
 }
 
 void ExternalLogger::removeMegaLogger(MegaLogger *logger)
 {
-    if (!SimpleLogger::inPerformanceMode())
-    {
-        mutex.lock();
-    }
+#ifndef ENABLE_LOG_PERFORMANCE
+    mutex.lock();
+#endif
     if (logger)
     {
         megaLoggers.erase(logger);
     }
-    if (!SimpleLogger::inPerformanceMode())
-    {
-        mutex.unlock();
-    }
+#ifndef ENABLE_LOG_PERFORMANCE
+    mutex.unlock();
+#endif
 }
 
 void ExternalLogger::setLogLevel(int logLevel)
 {
     SimpleLogger::setLogLevel((LogLevel)logLevel);
-}
-
-void ExternalLogger::setPerformanceMode(bool enable)
-{
-    SimpleLogger::setPeformanceMode(enable);
 }
 
 void ExternalLogger::setLogToConsole(bool enable)
@@ -21978,15 +21962,13 @@ void ExternalLogger::postLog(int logLevel, const char *message, const char *file
         filename = "";
     }
 
-    if (!SimpleLogger::inPerformanceMode())
-    {
-        mutex.lock();
-    }
+#ifndef ENABLE_LOG_PERFORMANCE
+    mutex.lock();
+#endif
     SimpleLogger{static_cast<LogLevel>(logLevel), filename, line} << message;
-    if (!SimpleLogger::inPerformanceMode())
-    {
-        mutex.unlock();
-    }
+#ifndef ENABLE_LOG_PERFORMANCE
+    mutex.unlock();
+#endif
 }
 
 void ExternalLogger::log(const char *time, int loglevel, const char *source, const char *message)
@@ -22006,10 +21988,9 @@ void ExternalLogger::log(const char *time, int loglevel, const char *source, con
         message = "";
     }
 
-    if (!SimpleLogger::inPerformanceMode())
-    {
-        mutex.lock();
-    }
+#ifndef ENABLE_LOG_PERFORMANCE
+    mutex.lock();
+#endif
     for (auto logger : megaLoggers)
     {
         logger->log(time, loglevel, source, message);
@@ -22017,20 +21998,17 @@ void ExternalLogger::log(const char *time, int loglevel, const char *source, con
 
     if (logToConsole)
     {
-        if (SimpleLogger::inPerformanceMode())
-        {
-            mutex.lock();
-        }
+#ifdef ENABLE_LOG_PERFORMANCE
+        mutex.lock();
+#endif
         std::cout << "[" << time << "][" << SimpleLogger::toStr((LogLevel)loglevel) << "] " << message << std::endl;
-        if (SimpleLogger::inPerformanceMode())
-        {
-            mutex.unlock();
-        }
-    }
-    if (!SimpleLogger::inPerformanceMode())
-    {
+#ifdef ENABLE_LOG_PERFORMANCE
         mutex.unlock();
+#endif
     }
+#ifndef ENABLE_LOG_PERFORMANCE
+    mutex.unlock();
+#endif
 }
 
 

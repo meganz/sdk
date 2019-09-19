@@ -36,15 +36,15 @@
 
 namespace mega {
 
-// static member initialization
-std::mutex SimpleLogger::outputs_mutex;
-OutputMap SimpleLogger::outputs;
-Logger *SimpleLogger::logger = NULL;
+Logger *SimpleLogger::logger = nullptr;
 
 // by the default, display logs with level equal or less than logInfo
 enum LogLevel SimpleLogger::logCurrentLevel = logInfo;
 
-bool SimpleLogger::performanceMode{false};
+#ifndef ENABLE_LOG_PERFORMANCE
+// static member initialization
+std::mutex SimpleLogger::outputs_mutex;
+OutputMap SimpleLogger::outputs;
 
 std::string SimpleLogger::getTime()
 {
@@ -99,5 +99,6 @@ void SimpleLogger::setAllOutputs(std::ostream *os)
         o.push_back(os);
     }
 }
+#endif
 
 } // namespace
