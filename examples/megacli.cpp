@@ -7143,7 +7143,7 @@ void megacli()
 
 class MegaCLILogger : public ::mega::Logger {
 public:
-    void log(const char* time, int loglevel, const char* source, const char *message) override
+    void log(const char*, int loglevel, const char*, const char *message) override
     {
 #ifdef _WIN32
         OutputDebugStringA(message);
@@ -7151,7 +7151,13 @@ public:
 #else
         if (loglevel >= SimpleLogger::logCurrentLevel)
         {
-            std::cout << "[" << time << "] " << SimpleLogger::toStr(static_cast<LogLevel>(loglevel)) << ": " << message << " (" << source << ")" << std::endl;
+            auto t = std::time(NULL);
+            char ts[50];
+            if (!std::strftime(ts, sizeof(ts), "%H:%M:%S", std::localtime(&t)))
+            {
+                ts[0] = '\0';
+            }
+            std::cout << "[" << ts << "] " << SimpleLogger::toStr(static_cast<LogLevel>(loglevel)) << ": " << message << std::endl;
         }
 #endif
     }
@@ -7161,6 +7167,7 @@ MegaCLILogger logger;
 
 int main()
 {
+    SimpleLogger::setPeformanceMode(true);
 #ifdef _WIN32
     SimpleLogger::setLogLevel(logMax);  // warning and stronger to console; info and weaker to VS output window
     SimpleLogger::setOutputClass(&logger);
