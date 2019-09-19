@@ -21903,29 +21903,47 @@ ExternalLogger::ExternalLogger()
 
 ExternalLogger::~ExternalLogger()
 {
-    mutex.lock();
+    if (!SimpleLogger::inPerformanceMode())
+    {
+        mutex.lock();
+    }
     SimpleLogger::setOutputClass(NULL);
-    mutex.unlock();
+    if (!SimpleLogger::inPerformanceMode())
+    {
+        mutex.unlock();
+    }
 }
 
 void ExternalLogger::addMegaLogger(MegaLogger *logger)
 {
-    mutex.lock();
+    if (!SimpleLogger::inPerformanceMode())
+    {
+        mutex.lock();
+    }
     if (logger && megaLoggers.find(logger) == megaLoggers.end())
     {
         megaLoggers.insert(logger);
     }
-    mutex.unlock();
+    if (!SimpleLogger::inPerformanceMode())
+    {
+        mutex.unlock();
+    }
 }
 
 void ExternalLogger::removeMegaLogger(MegaLogger *logger)
 {
-    mutex.lock();
+    if (!SimpleLogger::inPerformanceMode())
+    {
+        mutex.lock();
+    }
     if (logger)
     {
         megaLoggers.erase(logger);
     }
-    mutex.unlock();
+    if (!SimpleLogger::inPerformanceMode())
+    {
+        mutex.unlock();
+    }
 }
 
 void ExternalLogger::setLogLevel(int logLevel)
@@ -21960,9 +21978,15 @@ void ExternalLogger::postLog(int logLevel, const char *message, const char *file
         filename = "";
     }
 
-    mutex.lock();
-    SimpleLogger((LogLevel)logLevel, filename, line) << message;
-    mutex.unlock();
+    if (!SimpleLogger::inPerformanceMode())
+    {
+        mutex.lock();
+    }
+    SimpleLogger{static_cast<LogLevel>(logLevel), filename, line} << message;
+    if (!SimpleLogger::inPerformanceMode())
+    {
+        mutex.unlock();
+    }
 }
 
 void ExternalLogger::log(const char *time, int loglevel, const char *source, const char *message)
@@ -21982,17 +22006,31 @@ void ExternalLogger::log(const char *time, int loglevel, const char *source, con
         message = "";
     }
 
-    mutex.lock();
-    for (set<MegaLogger*>::iterator it = megaLoggers.begin(); it != megaLoggers.end(); it++)
+    if (!SimpleLogger::inPerformanceMode())
     {
-        (*it)->log(time, loglevel, source, message);
+        mutex.lock();
+    }
+    for (auto logger : megaLoggers)
+    {
+        logger->log(time, loglevel, source, message);
     }
 
     if (logToConsole)
     {
+        if (SimpleLogger::inPerformanceMode())
+        {
+            mutex.lock();
+        }
         std::cout << "[" << time << "][" << SimpleLogger::toStr((LogLevel)loglevel) << "] " << message << std::endl;
+        if (SimpleLogger::inPerformanceMode())
+        {
+            mutex.unlock();
+        }
     }
-    mutex.unlock();
+    if (!SimpleLogger::inPerformanceMode())
+    {
+        mutex.unlock();
+    }
 }
 
 

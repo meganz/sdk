@@ -437,6 +437,12 @@ public:
         SimpleLogger::performanceMode = enable;
     }
 
+    // are we in performance mode?
+    static bool inPerformanceMode()
+    {
+        return SimpleLogger::performanceMode;
+    }
+
     // Synchronizes all registered stream buffers with their controlled output sequence
     static void flush();
 };
