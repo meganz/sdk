@@ -267,7 +267,16 @@ class SimpleLogger
 
     void logValue(const char* value)
     {
-        copyToBuffer(value, std::strlen(value));
+        while (*value)
+        {
+            *mBufferIt = *value;
+            ++mBufferIt;
+            if (mBufferIt == mBuffer.end() - 1)
+            {
+                outputBuffer();
+            }
+            ++value;
+        }
     }
 
     void logValue(const std::string& value)
