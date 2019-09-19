@@ -27261,7 +27261,7 @@ int MegaHTTPServer::streamNode(MegaHTTPContext *httpctx)
 
     if (httpctx->rangeEnd >= 0)
     {
-        end = httpctx->rangeEnd;
+        end = std::min(totalSize - 1, httpctx->rangeEnd);
     }
     httpctx->rangeEnd = end + 1;
 
