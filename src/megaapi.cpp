@@ -5931,6 +5931,11 @@ MegaHandle MegaEvent::getHandle() const
     return INVALID_HANDLE;
 }
 
+const char *MegaEvent::getEventString() const
+{
+    return MegaEvent::getEventString();
+}
+
 MegaHandleList *MegaHandleList::createInstance()
 {
     return new MegaHandleListPrivate();
