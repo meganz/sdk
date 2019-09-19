@@ -1121,6 +1121,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     ststatus = STORAGE_UNKNOWN;
     looprequested = false;
 
+    mFetchingAuthrings = false;
     fetchingkeys = false;
     signkey = NULL;
     chatkey = NULL;
@@ -3725,6 +3726,7 @@ void MegaClient::locallogout()
 
     mAuthRings.clear();
     mAuthRingsTemp.clear();
+    mFetchingAuthrings = false;
 
     init();
 
@@ -4016,9 +4018,6 @@ bool MegaClient::procsc()
                             // now that we have loaded cached state, and caught up actionpackets since that state
                             // (or just fetched everything if there was no cache), our next sc request can be for useralerts
                             useralerts.begincatchup = true;
-
-                            // now that we know all contacts, fetch public keys and check authentication
-                            fetchContactsKeys();
                         }
                     }
                     app->catchup_result();
@@ -5364,6 +5363,7 @@ void MegaClient::sc_userattr()
                                     case ATTR_AUTHCU255:    // fall-through
                                     case ATTR_AUTHRSA:
                                     {
+                                        LOG_debug << User::attr2string(type) << " has changed externally. Fetching...";
                                         mAuthRings.erase(type);
                                         getua(u, type, 0);
                                         break;
@@ -11081,6 +11081,8 @@ void MegaClient::initializekeys()
 
 void MegaClient::loadAuthrings()
 {
+    mFetchingAuthrings = true;
+
     std::set<attr_t> attrs { ATTR_AUTHRING, ATTR_AUTHCU255, ATTR_AUTHRSA };
     for (auto at : attrs)
     {
@@ -11094,7 +11096,7 @@ void MegaClient::loadAuthrings()
                 if (tlvRecords)
                 {
                     mAuthRings.emplace(at, AuthRing(at, *tlvRecords));
-                    LOG_info << "Authring succesfully loaded: " << User::attr2string(at);
+                    LOG_info << "Authring succesfully loaded from cache: " << User::attr2string(at);
                 }
                 else
                 {
@@ -11114,6 +11116,13 @@ void MegaClient::loadAuthrings()
         }
 
         getua(ownUser, at, 0);
+    }
+
+    // if all authrings were loaded from cache...
+    if (mAuthRings.size() == attrs.size())
+    {
+        mFetchingAuthrings = false;
+        fetchContactsKeys();
     }
 }
 
