@@ -284,17 +284,17 @@ public:
     : level{ll}
     , mBufferIt{mBuffer.begin()}
     {
-        if (!logger)
-        {
-            return;
-        }
-
         if (performanceMode)
         {
             logValue(filename);
             copyToBuffer(":", 1);
             logValue(line);
             copyToBuffer(" ", 1);
+            return;
+        }
+
+        if (!logger)
+        {
             return;
         }
 
