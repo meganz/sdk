@@ -9950,9 +9950,9 @@ void MegaApiImpl::getUserAlias(MegaHandle uh, MegaRequestListener *listener)
 void MegaApiImpl::setUserAlias(MegaHandle uh, const char *alias, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
-    unique_ptr<MegaStringMap> stringMap(new MegaStringMapPrivate());
-    stringMap->set(Base64Str<MegaClient::USERHANDLE>(uh), alias ? alias : "");
-    request->setMegaStringMap(stringMap.get());
+    MegaStringMapPrivate stringMap;
+    stringMap.set(Base64Str<MegaClient::USERHANDLE>(uh), alias ? alias : "");
+    request->setMegaStringMap(&stringMap);
     request->setParamType(MegaApi::USER_ATTR_ALIAS);
     request->setNodeHandle(uh);
     request->setText(alias);
