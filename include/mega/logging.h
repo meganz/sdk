@@ -382,7 +382,7 @@ public:
         return *this;
     }
 
-    template <typename T, typename = typename std::enable_if<std::is_arithmetic<T>::value>::type>
+    template <typename T, typename = typename std::enable_if<std::is_scalar<T>::value>::type>
     SimpleLogger& operator<<(const T obj)
     {
         if (performanceMode)
@@ -395,7 +395,7 @@ public:
         return *this;
     }
 
-    template <typename T, typename = typename std::enable_if<!std::is_arithmetic<T>::value>::type>
+    template <typename T, typename = typename std::enable_if<!std::is_scalar<T>::value>::type>
     SimpleLogger& operator<<(const T& obj)
     {
         if (performanceMode)
