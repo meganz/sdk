@@ -434,7 +434,7 @@ string User::attr2string(attr_t type)
             break;
 
         case ATTR_CAMERA_UPLOADS_FOLDER:
-            attrname = "*!cam";
+            attrname = "*cam";
             break;
 
         case ATTR_MY_CHAT_FILES_FOLDER:
@@ -697,7 +697,7 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_GEOLOCATION;
     }
-    else if(!strcmp(name, "*!cam"))
+    else if(!strcmp(name, "*cam"))
     {
         return ATTR_CAMERA_UPLOADS_FOLDER;
     }
@@ -743,7 +743,6 @@ int User::needversioning(attr_t at)
         case ATTR_GEOLOCATION:
         case ATTR_MY_CHAT_FILES_FOLDER:
         case ATTR_PUSH_SETTINGS:
-        case ATTR_CAMERA_UPLOADS_FOLDER:
             return 0;
 
         case ATTR_LAST_INT:
@@ -757,6 +756,7 @@ int User::needversioning(attr_t at)
         case ATTR_AUTHCU255:
         case ATTR_CONTACT_LINK_VERIFICATION:
         case ATTR_ALIAS:
+        case ATTR_CAMERA_UPLOADS_FOLDER:
             return 1;
 
         case ATTR_STORAGE_STATE: //putua is forbidden for this attribute
