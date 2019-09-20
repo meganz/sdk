@@ -110,6 +110,10 @@ int MegaStringList::size() const
     return 0;
 }
 
+MegaStringListMap::MegaStringListMap()
+{
+
+}
 
 MegaStringListMap::~MegaStringListMap()
 {
@@ -144,6 +148,9 @@ int MegaStringListMap::size() const
     return 0;
 }
 
+MegaStringTable::MegaStringTable()
+{
+}
 
 MegaStringTable::~MegaStringTable()
 {
@@ -179,7 +186,15 @@ MegaNodeList *MegaNodeList::createInstance()
     return new MegaNodeListPrivate();
 }
 
-MegaNodeList::~MegaNodeList() { }
+MegaNodeList::MegaNodeList()
+{
+
+}
+
+MegaNodeList::~MegaNodeList()
+{
+
+}
 
 MegaNodeList *MegaNodeList::copy() const
 {
@@ -5658,6 +5673,10 @@ void MegaBackgroundMediaUpload::setCoordinates(double lat, double lon, bool unsh
 {
 }
 
+MegaBackgroundMediaUpload::MegaBackgroundMediaUpload()
+{
+}
+
 MegaBackgroundMediaUpload::~MegaBackgroundMediaUpload()
 {
 }
@@ -5830,6 +5849,11 @@ MegaStringMap *MegaStringMap::createInstance()
     return new MegaStringMapPrivate();
 }
 
+MegaStringMap::MegaStringMap()
+{
+
+}
+
 MegaStringMap::~MegaStringMap()
 {
 
@@ -5939,6 +5963,11 @@ const char *MegaEvent::getEventString() const
 MegaHandleList *MegaHandleList::createInstance()
 {
     return new MegaHandleListPrivate();
+}
+
+MegaHandleList::MegaHandleList()
+{
+
 }
 
 MegaHandleList::~MegaHandleList()
@@ -6314,6 +6343,11 @@ MegaPushNotificationSettings::MegaPushNotificationSettings()
 MegaCancelToken *MegaCancelToken::createInstance()
 {
     return new MegaCancelTokenPrivate;
+}
+
+MegaCancelToken::MegaCancelToken()
+{
+
 }
 
 MegaCancelToken::~MegaCancelToken()
