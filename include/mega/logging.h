@@ -267,16 +267,7 @@ class SimpleLogger
 
     void logValue(const char* value)
     {
-        while (*value)
-        {
-            *mBufferIt = *value;
-            ++mBufferIt;
-            if (mBufferIt == mBuffer.end() - 1)
-            {
-                outputBuffer();
-            }
-            ++value;
-        }
+        copyToBuffer(value, strlen(value));
     }
 
     void logValue(const std::string& value)
@@ -298,9 +289,9 @@ public:
     {
 #ifdef ENABLE_LOG_PERFORMANCE
         logValue(filename);
-        logValue(":");
+        copyToBuffer(":", 1);
         logValue(line);
-        logValue(" ");
+        copyToBuffer(" ", 1);
 #else
         if (!logger)
         {
@@ -365,7 +356,7 @@ public:
         }
         else
         {
-            logValue("(NULL)");
+            copyToBuffer("(NULL)", 6);
         }
 #else
         if (obj != NULL)
