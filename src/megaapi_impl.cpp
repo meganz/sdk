@@ -14349,12 +14349,16 @@ void MegaApiImpl::getua_result(error e)
             attr_t type = static_cast<attr_t>(request->getParamType());
             TLVstore tlv;
             const char *key;
+            std::string value;
 
             std::unique_ptr<MegaStringList> keys(stringMap->getKeys());
             for (int i = 0; i < keys->size(); i++)
             {
+                // Decode from B64 the target folder to avoid a double B64 encoding
                 key = keys->get(i);
-                tlv.set(key, stringMap->get(key));
+                value.resize(int(MegaClient::NODEHANDLE));
+                value.resize(Base64::atob(stringMap->get(key), (byte *)value.data(), int(MegaClient::NODEHANDLE)));
+                tlv.set(key, value);
             }
 
             // serialize and encrypt the TLV container
