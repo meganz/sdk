@@ -434,7 +434,7 @@ string User::attr2string(attr_t type)
             break;
 
         case ATTR_CAMERA_UPLOADS_FOLDER:
-            attrname = "*cam";
+            attrname = "*!cam";
             break;
 
         case ATTR_MY_CHAT_FILES_FOLDER:
@@ -697,7 +697,7 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_GEOLOCATION;
     }
-    else if (!strcmp(name, "*cam"))
+    else if (!strcmp(name, "*!cam"))
     {
         return ATTR_CAMERA_UPLOADS_FOLDER;
     }

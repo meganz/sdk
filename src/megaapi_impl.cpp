@@ -14348,25 +14348,36 @@ void MegaApiImpl::getua_result(error e)
                 request->setFlag(true);
             }
         }
-        else if (request->getType() == MegaRequest::TYPE_SET_ATTR_USER
-                 && ((request->getParamType() == MegaApi::USER_ATTR_ALIAS)
-                        || (request->getParamType() == MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER)))
+        else if (((request->getParamType() == MegaApi::USER_ATTR_ALIAS)
+                  ||(request->getParamType() == MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER))
+                    && request->getType() == MegaRequest::TYPE_SET_ATTR_USER)
         {
             // The attribute doesn't exists so we have to create it
             MegaStringMap *stringMap = request->getMegaStringMap();
             attr_t type = static_cast<attr_t>(request->getParamType());
             TLVstore tlv;
             const char *key;
-            std::string value;
-
             std::unique_ptr<MegaStringList> keys(stringMap->getKeys());
-            for (int i = 0; i < keys->size(); i++)
+
+            if (request->getParamType() == MegaApi::USER_ATTR_ALIAS)
             {
-                // Decode from B64 the target folder to avoid a double B64 encoding
-                key = keys->get(i);
-                value.resize(int(MegaClient::NODEHANDLE));
-                value.resize(Base64::atob(stringMap->get(key), (byte *)value.data(), int(MegaClient::NODEHANDLE)));
-                tlv.set(key, value);
+                for (int i = 0; i < keys->size(); i++)
+                {
+                    key = keys->get(i);
+                    tlv.set(key, stringMap->get(key));
+                }
+            }
+            else
+            {
+                std::string value;
+                for (int i = 0; i < keys->size(); i++)
+                {
+                    // Decode from B64 the target folder to avoid a double B64 encoding
+                    key = keys->get(i);
+                    value.resize(int(MegaClient::NODEHANDLE));
+                    value.resize(Base64::atob(stringMap->get(key), (byte *)value.data(), int(MegaClient::NODEHANDLE)));
+                    tlv.set(key, value);
+                }
             }
 
             // serialize and encrypt the TLV container
@@ -14585,90 +14596,68 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
     {
         if (request->getType() == MegaRequest::TYPE_SET_ATTR_USER)
         {
+            bool modified = false;
+            const char *key, *newValue;
+            std::string currentValue;
+            MegaStringMap *newAttrMap = request->getMegaStringMap();
+            std::unique_ptr<MegaStringList> keys(newAttrMap->getKeys());
+
             if (request->getParamType() == MegaApi::USER_ATTR_ALIAS)
             {
-                bool modified = false;
-                const char *key, *newAlias;
-                MegaStringMap *newAliasesMap = request->getMegaStringMap();
-                std::unique_ptr<MegaStringList> keys(newAliasesMap->getKeys());
-
-                // Iterate through the string map <uh_B64, alias>   (currently alias are set one by one)
                 for (int i = 0; i < keys->size(); i++)
                 {
-                    key = keys->get(i);
-                    newAlias = newAliasesMap->get(key);
+                   key = keys->get(i);
+                   newValue = newAttrMap->get(key);
+                   currentValue = tlv->find(key) ? tlv->get(key) : string();
 
-                    std::string currentAlias = tlv->find(key) ? tlv->get(key) : string();
-                    if (strcmp(newAlias, currentAlias.c_str()) != 0)
-                    {
-                        if (newAlias[0] != '\0')    // not empty, set new alias
-                        {
-                            tlv->set(key, newAlias);
-                        }
-                        else    // empty, reset the current alias
-                        {
-                            tlv->reset(key);
-                        }
-                        modified = true;
-                    }
+                   if (strcmp(newValue, currentValue.c_str()) != 0)
+                   {
+                       if (newValue[0] != '\0')    // not empty, set new alias
+                       {
+                           tlv->set(key, newValue);
+                       }
+                       else    // empty, reset the current alias
+                       {
+                           tlv->reset(key);
+                       }
+                       modified = true;
+                   }
                 }
-
-                if (modified)
-                {
-                    // serialize and encrypt the TLV container
-                    std::unique_ptr<string> container(tlv->tlvRecordsToContainer(client->rng, &client->key));
-                    assert(type == request->getParamType());
-                    client->putua(type, (byte *)container->data(), unsigned(container->size()), client->restag);
-                }
-                else
-                {
-                    LOG_debug << "Aliases not changed, already up to date";
-                    fireOnRequestFinish(request, MegaError(e));
-                }
-
-                return;
             }
-            else if (request->getParamType() == MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER)
+            else
             {
-                bool modified = false;
-                std::string newValueBin;
-                const char *key, *newValueB64;
-                MegaStringMap *newCuMap = request->getMegaStringMap();
-                std::unique_ptr<MegaStringList> keys(newCuMap->getKeys());
-
-                for (int i = 0; i < keys->size(); i++)
-                {
-                    key = keys->get(i);
-                    newValueB64 = newCuMap->get(key);
-
-                    char currentValueB64[MegaClient::NODEHANDLE * 4 / 3 + 3];
-                    std::string currentValueBin = tlv->find(key) ? tlv->get(key) : string();
-                    Base64::btoa((byte*) currentValueBin.data(), MegaClient::NODEHANDLE, currentValueB64);
-
-                    if (strcmp(newValueB64, currentValueB64) != 0)
-                    {
-                        // Decode from B64 the new target folder to avoid a double B64 encoding
-                        newValueBin.resize(int(MegaClient::NODEHANDLE));
-                        newValueBin.resize(Base64::atob(newValueB64, (byte *)newValueBin.data(), int(MegaClient::NODEHANDLE)));
-                        tlv->set(key, newValueBin);
-                        modified = true;
-                    }
-                }
-
-                if (modified)
-                {
-                    // serialize and encrypt the TLV container
-                    std::unique_ptr<string> container(tlv->tlvRecordsToContainer(client->rng, &client->key));
-                    assert(type == request->getParamType());
-                    client->putua(type, (byte *)container->data(), unsigned(container->size()), client->restag);
-                }
-                else
-                {
-                    LOG_debug << "Camera uploads folder attribute not changed, already up to date";
-                    fireOnRequestFinish(request, MegaError(e));
-                }
-                return;
+               for (int i = 0; i < keys->size(); i++)
+               {
+                   key = keys->get(i);
+                   newValue = newAttrMap->get(key);
+                   std::string aux = tlv->find(key) ? tlv->get(key) : string();
+                   currentValue.resize(MegaClient::NODEHANDLE * 4 / 3 + 3);
+                   Base64::btoa(aux, currentValue);
+                   if (strcmp(newValue, currentValue.c_str()) != 0)
+                   {
+                       // Decode from B64 the new target folder to avoid a double B64 encoding
+                       aux.resize(int(MegaClient::NODEHANDLE));
+                       aux.resize(Base64::atob(newValue, (byte *)aux.data(), int(MegaClient::NODEHANDLE)));
+                       tlv->set(key, aux);
+                       modified = true;
+                   }
+               }
             }
+
+            if (modified)
+            {
+                // serialize and encrypt the TLV container
+                std::unique_ptr<string> container(tlv->tlvRecordsToContainer(client->rng, &client->key));
+                assert(type == request->getParamType());
+                client->putua(type, (byte *)container->data(), unsigned(container->size()), client->restag);
+            }
+            else
+            {
+                LOG_debug << "Attribute " << User::attr2string((::mega::attr_t) request->getParamType())
+                          << " not changed, already up to date";
+                fireOnRequestFinish(request, MegaError(e));
+            }
+            return;
         }
 
         // TLV data usually includes byte arrays with zeros in the middle, so values
