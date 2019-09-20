@@ -697,7 +697,7 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_GEOLOCATION;
     }
-    else if(!strcmp(name, "*cam"))
+    else if (!strcmp(name, "*cam"))
     {
         return ATTR_CAMERA_UPLOADS_FOLDER;
     }
