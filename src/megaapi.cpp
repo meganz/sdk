@@ -2564,12 +2564,22 @@ void MegaApi::isGeolocationEnabled(MegaRequestListener *listener)
 
 void MegaApi::setCameraUploadsFolder(MegaHandle nodehandle, MegaRequestListener *listener)
 {
-    pImpl->setCameraUploadsFolder(nodehandle, listener);
+    pImpl->setCameraUploadsFolder(nodehandle, false, listener);
+}
+
+void MegaApi::setCameraUploadsFolderSecondary(MegaHandle nodehandle, MegaRequestListener *listener)
+{
+    pImpl->setCameraUploadsFolder(nodehandle, true, listener);
 }
 
 void MegaApi::getCameraUploadsFolder(MegaRequestListener *listener)
 {
-    pImpl->getCameraUploadsFolder(listener);
+    pImpl->getCameraUploadsFolder(false, listener);
+}
+
+void MegaApi::getCameraUploadsFolderSecondary(MegaRequestListener *listener)
+{
+    pImpl->getCameraUploadsFolder(true, listener);
 }
 
 void MegaApi::setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListener *listener)

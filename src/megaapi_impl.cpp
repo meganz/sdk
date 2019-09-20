@@ -9901,22 +9901,22 @@ bool MegaApiImpl::isChatNotifiable(MegaHandle chatid)
 
 #endif
 
-void MegaApiImpl::getCameraUploadsFolder(MegaRequestListener *listener)
+void MegaApiImpl::getCameraUploadsFolder(bool secondary, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
     request->setParamType(MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER);
+    request->setFlag(secondary);
     requestQueue.push(request);
     waiter->notify();
 }
 
-void MegaApiImpl::setCameraUploadsFolder(MegaHandle nodehandle, MegaRequestListener *listener)
+void MegaApiImpl::setCameraUploadsFolder(MegaHandle nodehandle, bool secondary, MegaRequestListener *listener)
 {
-    MegaStringMap *stringMap = new MegaStringMapPrivate();
-    char buffer[12];
-    Base64::btoa((byte*)&nodehandle, MegaClient::NODEHANDLE, buffer);
-    stringMap->set("h", buffer);
-    setUserAttribute(MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER, stringMap, listener);
-    delete stringMap;
+    MegaStringMapPrivate stringMap;
+    const char *key = secondary ? "sh" : "h";
+    Base64Str<MegaClient::NODEHANDLE> value(nodehandle);
+    stringMap.set(key, value);
+    setUserAttribute(MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER, &stringMap, listener);
 }
 
 void MegaApiImpl::getMyChatFilesFolder(MegaRequestListener *listener)
