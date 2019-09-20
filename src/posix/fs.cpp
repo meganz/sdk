@@ -458,6 +458,13 @@ bool PosixFileAccess::fopen(string* f, bool read, bool write)
     }
 #endif
 
+
+    if (!lstat(f->c_str(), &statbuf) && S_ISLNK(statbuf.st_mode))
+    {
+        LOG_debug << "File is symlink: " << f->c_str();
+        return false;
+    }
+
     mode_t mode = 0;
     if (write)
     {
