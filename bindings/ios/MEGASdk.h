@@ -327,14 +327,14 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * - https://mega.co.nz/#recovery
  *
  */
-@property (readonly, nonatomic) NSString *masterKey;
+@property (readonly, nonatomic, nullable) NSString *masterKey;
 
 /**
  * @brief User-Agent header used by the SDK
  *
  * The User-Agent used by the SDK
  */
-@property (readonly, nonatomic) NSString *userAgent;
+@property (readonly, nonatomic, nullable) NSString *userAgent;
 
 /**
  * @brief MEGAUser of the currently open account
@@ -566,7 +566,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @deprecated This function is only useful for old accounts. Once enabled the new registration logic,
  * this function will return an empty string for new accounts and will be removed few time after.
  */
-- (NSString *)hashForBase64pwkey:(NSString *)base64pwkey email:(NSString *)email __attribute__((deprecated("This function will return an empty string for new accounts and will be removed few time after")));
+- (nullable NSString *)hashForBase64pwkey:(NSString *)base64pwkey email:(NSString *)email __attribute__((deprecated("This function will return an empty string for new accounts and will be removed few time after")));
 
 /**
  * @brief Converts a Base64-encoded node handle to a MegaHandle.
@@ -598,7 +598,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param handle Node handle to be converted
  * @return Base64-encoded node handle
  */
-+ (NSString *)base64HandleForHandle:(uint64_t)handle;
++ (nullable NSString *)base64HandleForHandle:(uint64_t)handle;
 
 /**
  * @brief Converts the handle of a user to a Base64-encoded string
@@ -606,7 +606,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param userhandle User handle to be converted
  * @return Base64-encoded user handle
  */
-+ (NSString *)base64HandleForUserHandle:(uint64_t)userhandle;
++ (nullable NSString *)base64HandleForUserHandle:(uint64_t)userhandle;
 
 /**
  * @brief Retry all pending requests.
@@ -5594,9 +5594,6 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
 /**
  * @brief Get all children of a MEGANode.
  *
- * If the parent node doesn't exist or it isn't a folder, this function
- * returns nil.
- *
  * @param parent Parent node.
  * @param order Order for the returned list.
  * Valid values for this parameter are:
@@ -5639,9 +5636,6 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
 
 /**
  * @brief Get all children of a MEGANode.
- *
- * If the parent node doesn't exist or it isn't a folder, this function
- * returns nil.
  *
  * @param parent Parent node. Sort in alphabetical order, descending
  *
@@ -5709,9 +5703,6 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
 /**
  * @brief Get file and folder children of a MEGANode separatedly
  *
- * If the parent node doesn't exist or it isn't a folder, this function
- * returns nil.
- *
  * @param parent Parent node.
  * @param order Order for the returned list.
  * Valid values for this parameter are:
@@ -5754,9 +5745,6 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
 
 /**
  * @brief Get file and folder children of a MEGANode separatedly
- *
- * If the parent node doesn't exist or it isn't a folder, this function
- * returns nil.
  *
  * @param parent Parent node.
  *
@@ -6056,7 +6044,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param filePath Local file path
  * @return Base64-encoded CRC of the file
  */
-- (NSString *)CRCForFilePath:(NSString *)filePath;
+- (nullable NSString *)CRCForFilePath:(NSString *)filePath;
 
 /**
  * @brief Get the CRC of a node
@@ -6069,7 +6057,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param node MEGANode for which we want to get the CRC
  * @return Base64-encoded CRC of the node
  */
-- (NSString *)CRCForNode:(MEGANode *)node;
+- (nullable NSString *)CRCForNode:(MEGANode *)node;
 
 /**
  * @brief Get the CRC from a fingerPrint
@@ -6077,7 +6065,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param fingerprint fingerPrint from which we want to get the CRC
  * @return Base64-encoded CRC from the fingerPrint
  */
-- (NSString *)CRCForFingerprint:(NSString *)fingerprint;
+- (nullable NSString *)CRCForFingerprint:(NSString *)fingerprint;
 /**
  * @brief Returns a node with the provided CRC
  *
@@ -6312,7 +6300,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param name Name to convert (UTF8)
  * @return Converted name (UTF8)
  */
-- (NSString *)escapeFsIncompatible:(NSString *)name;
+- (nullable NSString *)escapeFsIncompatible:(NSString *)name;
 
 /**
  * @brief Unescape a file name escaped with [MEGASdk escapeFsIncompatible:]
@@ -6322,7 +6310,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param localName Escaped name to convert (UTF8)
  * @return Converted name (UTF8)
  */
-- (NSString *)unescapeFsIncompatible:(NSString *)localName;
+- (nullable NSString *)unescapeFsIncompatible:(NSString *)localName;
 
 /**
  * @brief Change the API URL
@@ -6912,7 +6900,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param extension File extension (with or without a leading dot)
  * @return MIME type associated with the extension
  */
-+ (NSString *)mimeTypeByExtension:(NSString *)extension;
++ (nullable NSString *)mimeTypeByExtension:(NSString *)extension;
 
 /**
  * @brief Register a device token for iOS push notifications
