@@ -134,6 +134,7 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
         string dbname;
 
         FileAccess *fas = client->fsaccess->newfileaccess();
+        fas->mFollowSymLinks = false;
 
         if (fas->fopen(crootpath, true, false))
         {
@@ -626,6 +627,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
 
     // attempt to open/type this file
     fa = client->fsaccess->newfileaccess();
+    fa->mFollowSymLinks = false;
 
     if (initializing || fullscan)
     {
@@ -893,6 +895,8 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                                 bool waitforupdate = false;
                                 it->second->getlocalpath(&local, true);
                                 FileAccess *prevfa = client->fsaccess->newfileaccess();
+                                prevfa->mFollowSymLinks = false;
+
                                 bool exists = prevfa->fopen(&local);
                                 if (exists)
                                 {

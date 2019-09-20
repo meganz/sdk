@@ -96,6 +96,8 @@ struct MEGA_API FileAccess
     // waiter to notify on filesystem events
     Waiter *waiter;
 
+    bool mFollowSymLinks = true;
+
     // open for reading, writing or reading and writing
     virtual bool fopen(string*, bool, bool) = 0;
 
