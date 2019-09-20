@@ -2914,6 +2914,12 @@ void CommandGetUA::procresult()
                 // authring not created yet, will do it upon retrieval of public keys
                 client->mAuthRings.erase(at);
                 client->mAuthRings.emplace(at, AuthRing(at, TLVstore()));
+
+                if (client->mFetchingAuthrings && client->mAuthRings.size() == 3)
+                {
+                    client->mFetchingAuthrings = false;
+                    client->fetchContactsKeys();
+                }
             }
         }
 
@@ -3040,6 +3046,12 @@ void CommandGetUA::procresult()
                             {
                                 client->mAuthRings.erase(at);
                                 client->mAuthRings.emplace(at, AuthRing(at, *tlvRecords));
+
+                                if (client->mFetchingAuthrings && client->mAuthRings.size() == 3)
+                                {
+                                    client->mFetchingAuthrings = false;
+                                    client->fetchContactsKeys();
+                                }
                             }
 
                             delete tlvRecords;
