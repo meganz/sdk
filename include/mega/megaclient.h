@@ -1373,6 +1373,9 @@ public:
     // used during initialization to accumulate required updates to authring (to send them all atomically)
     AuthRingsMap mAuthRingsTemp;
 
+    // true while authrings are being fetched
+    bool mFetchingAuthrings;
+
     // actual state of keys
     bool fetchingkeys;
 

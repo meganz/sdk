@@ -1619,6 +1619,9 @@ public:
  */
 class MegaHandleList
 {
+protected:
+    MegaHandleList();
+
 public:
     /**
      * @brief Creates a new instance of MegaHandleList
@@ -1765,6 +1768,9 @@ class MegaShare
 #ifdef ENABLE_CHAT
 class MegaTextChatPeerList
 {
+protected:
+    MegaTextChatPeerList();
+
 public:
     enum {
         PRIV_UNKNOWN = -2,
@@ -1840,10 +1846,6 @@ public:
      * @return Number of chat peers in the list
      */
     virtual int size() const;
-
-protected:
-    MegaTextChatPeerList();
-
 };
 
 class MegaTextChat
@@ -2076,6 +2078,9 @@ public:
 
 class MegaStringMap
 {
+protected:
+    MegaStringMap();
+
 public:
     /**
      * @brief Creates a new instance of MegaStringMap
@@ -2177,6 +2182,9 @@ public:
 */
 class MegaStringListMap
 {
+protected:
+    MegaStringListMap();
+
 public:
     virtual ~MegaStringListMap();
 
@@ -2237,6 +2245,9 @@ public:
 */
 class MegaStringTable
 {
+protected:
+    MegaStringTable();
+
 public:
     virtual ~MegaStringTable();
 
@@ -2285,6 +2296,9 @@ public:
  */
 class MegaNodeList
 {
+    protected:
+        MegaNodeList();
+
     public:
         /**
          * @brief Creates a new instance of MegaNodeList
@@ -3434,6 +3448,7 @@ public:
         EVENT_STORAGE_SUM_CHANGED       = 8,
         EVENT_BUSINESS_STATUS           = 9,
         EVENT_KEY_MODIFIED              = 10,
+        EVENT_USER_FLAGS_READY          = 11,
     };
 
     virtual ~MegaEvent();
@@ -3481,6 +3496,16 @@ public:
      * @return Handle relative to this event
      */
     virtual MegaHandle getHandle() const;
+
+    /**
+     * @brief Returns a readable description of the event
+     *
+     * This function returns a pointer to a statically allocated buffer.
+     * You don't have to free the returned pointer
+     *
+     * @return Readable description of the event
+     */
+    virtual const char* getEventString() const;
 };
 
 /**
@@ -4059,6 +4084,9 @@ public:
  */
 class MegaPushNotificationSettings
 {
+protected:
+    MegaPushNotificationSettings();
+
 public:
 
     /**
@@ -4322,9 +4350,6 @@ public:
      * @param enable True to enable, false to disable
      */
     virtual void enableChats(bool enable);
-
-protected:
-    MegaPushNotificationSettings();
 };
 
 /**
@@ -5940,6 +5965,8 @@ class MegaGlobalListener
          *  - Signature of chat key         = 3
          *  - Signature of RSA key          = 4
          *
+         * - MegaEvent::EVENT_USER_FLAGS_READY: when the user flags are available/updated.
+         *
          * @param api MegaApi object connected to the account
          * @param event Details about the event
          */
@@ -6424,6 +6451,8 @@ class MegaListener
          *  - Signature of chat key         = 3
          *  - Signature of RSA key          = 4
          *
+         * - MegaEvent::EVENT_USER_FLAGS_READY: when the user flags are available/updated.
+         *
          * @param api MegaApi object connected to the account
          * @param event Details about the event
          */
@@ -6441,6 +6470,9 @@ class MegaListener
  */
 class MegaBackgroundMediaUpload
 {
+protected:
+    MegaBackgroundMediaUpload();
+
 public:
 
     /**
@@ -16469,6 +16501,9 @@ public:
 
 class MegaCancelToken
 {
+protected:
+    MegaCancelToken();
+
 public:
 
     /**
