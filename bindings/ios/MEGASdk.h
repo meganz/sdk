@@ -434,7 +434,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * If you pass nil to this parameter, a default user agent will be used[].
  *
  */
-- (instancetype)initWithAppKey:(NSString *)appKey userAgent:(nullable NSString *)userAgent;
+- (nullable instancetype)initWithAppKey:(NSString *)appKey userAgent:(nullable NSString *)userAgent;
 
 /**
  * @brief Constructor suitable for most applications.
@@ -449,7 +449,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * If you pass nil to this parameter, the SDK won't use any local cache.
  *
  */
-- (instancetype)initWithAppKey:(NSString *)appKey userAgent:(nullable NSString *)userAgent basePath:(nullable NSString *)basePath;
+- (nullable instancetype)initWithAppKey:(NSString *)appKey userAgent:(nullable NSString *)userAgent basePath:(nullable NSString *)basePath;
 
 #pragma mark - Add and remove delegates
 
@@ -3224,7 +3224,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
  * If the user is not found, this function always returns the same color.
  */
-+ (NSString *)avatarColorForUser:(nullable MEGAUser *)user;
++ (nullable NSString *)avatarColorForUser:(nullable MEGAUser *)user;
 
 /**
  * @brief Get the default color for the avatar.
@@ -3236,7 +3236,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
  * If the user is not found, this function always returns the same color.
  */
-+ (NSString *)avatarColorForBase64UserHandle:(nullable NSString *)base64UserHandle;
++ (nullable NSString *)avatarColorForBase64UserHandle:(nullable NSString *)base64UserHandle;
 
 /**
  * @brief Set the avatar of the MEGA account.
