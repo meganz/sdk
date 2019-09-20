@@ -6177,6 +6177,22 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
 - (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString cancelToken:(MEGACancelToken *)cancelToken recursive:(BOOL)recursive;
 
 /**
+* @brief Search nodes containing a search string in their name.
+*
+* The search is case-insensitive.
+*
+* @param node The parent node of the tree to explore.
+* @param searchString Search string. The search is case-insensitive.
+* @param cancelToken MEGACancelToken to be able to cancel the processing at any time.
+* @param recursive YES if you want to seach recursively in the node tree.
+* @param order MEGASortOrderType for the returned list.
+* NO if you want to seach in the children of the node only
+*
+* @return List of nodes that contain the desired string in their name.
+*/
+- (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString cancelToken:(MEGACancelToken *)cancelToken recursive:(BOOL)recursive order:(MEGASortOrderType)order;
+
+/**
  * @brief Search nodes containing a search string in their name.
  *
  * The search is case-insensitive.
