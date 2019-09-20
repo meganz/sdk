@@ -29,7 +29,6 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
     int orientation;
     String srcPath;
     Bitmap bitmap;
-    static boolean isVideo;
     byte[] bitmapData;
     static Context context = null;
 
@@ -106,13 +105,11 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
     public boolean readBitmap(String path) {
 
         if(isVideoFile(path)){
-            isVideo = true;
             srcPath = path;
             size = getImageDimensions(srcPath, orientation);
             return (size.right != 0) && (size.bottom != 0);
         }
         else{
-            isVideo = false;
             srcPath = path;
             orientation = getExifOrientation(path);
             size = getImageDimensions(srcPath, orientation);
@@ -132,7 +129,7 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
         int width;
         int height;
 
-        if(AndroidGfxProcessor.isVideo){
+        if (isVideoFile(path)) {
 
             Bitmap bmThumbnail = null;
 
