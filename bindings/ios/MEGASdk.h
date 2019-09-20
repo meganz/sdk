@@ -412,18 +412,6 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  */
 @property (readonly, nonatomic) BusinessStatus businessStatus;
 
-#ifdef ENABLE_CHAT
-
-/**
- * @brief The fingerprint of the signing key of the currently open account
- *
- * If the MEGASdk object isn't logged in or there's no signing key available,
- * this function returns nil
- */
-@property (readonly, nonatomic, nullable) NSString *myFingerprint;
-
-#endif
-
 /**
  * @brief The number of unread user alerts for the logged in user
  */
@@ -5897,9 +5885,10 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
 /**
  * @brief Get a list with all active inboud sharings
  *
+ * @param order Order for the returned list.
  * @return List of MegaShare objects that other users are sharing with this account
  */
-- (MEGAShareList *)inSharesList;
+- (MEGAShareList *)inSharesList:(MEGASortOrderType)order;
 
 /**
  * @brief Get the user relative to an incoming share
@@ -5929,9 +5918,10 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
 /**
  * @brief Get a list with all active outbound sharings
  *
+ * @param order Order for the returned list.
  * @return List of MegaShare objects
  */
-- (MEGAShareList *)outShares;
+- (MEGAShareList *)outShares:(MEGASortOrderType)order;
 
 /**
  * @brief Get a list with the active outbound sharings for a MEGANode.
@@ -5946,9 +5936,10 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
 /**
  * @brief Get a list with all public links
  *
+ * @param order Order for the returned list.
  * @return List of MEGANode objects that are shared with everyone via public link
  */
-- (MEGANodeList *)publicLinks;
+- (MEGANodeList *)publicLinks:(MEGASortOrderType)order;
 
 /**
  * @brief Get a list with all incoming contact requests

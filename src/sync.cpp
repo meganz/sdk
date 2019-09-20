@@ -95,6 +95,36 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
     localroot.init(this, FOLDERNODE, NULL, crootpath);
     localroot.setnode(remotenode);
 
+#ifdef __APPLE__
+    if (macOSmajorVersion() >= 19) //macOS catalina+
+    {
+        LOG_debug << "macOS 10.15+ filesystem detected. Checking fseventspath.";
+        string supercrootpath = "/System/Volumes/Data" + *crootpath;
+
+        int fd = open(supercrootpath.c_str(), O_RDONLY);
+        if (fd == -1)
+        {
+            LOG_debug << "Unable to open path using fseventspath.";
+            mFsEventsPath = *crootpath;
+        }
+        else
+        {
+            char buf[MAXPATHLEN];
+            if (fcntl(fd, F_GETPATH, buf) < 0)
+            {
+                LOG_debug << "Using standard paths to detect filesystem notifications.";
+                mFsEventsPath = *crootpath;
+            }
+            else
+            {
+                LOG_debug << "Using fsevents paths to detect filesystem notifications.";
+                mFsEventsPath = supercrootpath;
+            }
+            close(fd);
+        }
+    }
+#endif
+
     sync_it = client->syncs.insert(client->syncs.end(), this);
 
     if (client->dbaccess)
