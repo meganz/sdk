@@ -2078,7 +2078,7 @@ public:
 
 class MegaStringMap
 {
-protected :
+protected:
     MegaStringMap();
 
 public:
@@ -3448,6 +3448,7 @@ public:
         EVENT_STORAGE_SUM_CHANGED       = 8,
         EVENT_BUSINESS_STATUS           = 9,
         EVENT_KEY_MODIFIED              = 10,
+        EVENT_USER_FLAGS_READY          = 11,
     };
 
     virtual ~MegaEvent();
@@ -3495,6 +3496,16 @@ public:
      * @return Handle relative to this event
      */
     virtual MegaHandle getHandle() const;
+
+    /**
+     * @brief Returns a readable description of the event
+     *
+     * This function returns a pointer to a statically allocated buffer.
+     * You don't have to free the returned pointer
+     *
+     * @return Readable description of the event
+     */
+    virtual const char* getEventString() const;
 };
 
 /**
@@ -5954,6 +5965,8 @@ class MegaGlobalListener
          *  - Signature of chat key         = 3
          *  - Signature of RSA key          = 4
          *
+         * - MegaEvent::EVENT_USER_FLAGS_READY: when the user flags are available/updated.
+         *
          * @param api MegaApi object connected to the account
          * @param event Details about the event
          */
@@ -6437,6 +6450,8 @@ class MegaListener
          *  - Public RSA key                = 2
          *  - Signature of chat key         = 3
          *  - Signature of RSA key          = 4
+         *
+         * - MegaEvent::EVENT_USER_FLAGS_READY: when the user flags are available/updated.
          *
          * @param api MegaApi object connected to the account
          * @param event Details about the event

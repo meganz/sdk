@@ -1187,6 +1187,9 @@ public:
     const char *getText() const override;
     int64_t getNumber() const override;    
     MegaHandle getHandle() const override;
+    const char *getEventString() const override;
+
+    static const char* getEventString(int type);
 
     void setText(const char* text);
     void setNumber(int64_t number);
@@ -2515,10 +2518,13 @@ class MegaApiImpl : public MegaApp
 
         void setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
         void getMyChatFilesFolder(MegaRequestListener *listener = NULL);
+
         void setCameraUploadsFolder(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
         void getCameraUploadsFolder(MegaRequestListener *listener = NULL);
+
         void getUserAlias(MegaHandle uh, MegaRequestListener *listener = NULL);
         void setUserAlias(MegaHandle uh, const char *alias, MegaRequestListener *listener = NULL);
+
         void getPushNotificationSettings(MegaRequestListener *listener = NULL);
         void setPushNotificationSettings(MegaPushNotificationSettings *settings, MegaRequestListener *listener = NULL);
 

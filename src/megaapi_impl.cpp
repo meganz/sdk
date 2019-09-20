@@ -13916,6 +13916,14 @@ void MegaApiImpl::logout_result(error e)
 
 void MegaApiImpl::userdata_result(string *name, string* pubk, string* privk, error result)
 {
+    // notify apps about the availability/update of user-flags, such as `aplvp`
+    // (note that usually the API command is triggered internally, so no request is associated)
+    if (result == API_OK)
+    {
+        MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_USER_FLAGS_READY);
+        fireOnEvent(event);
+    }
+
     MegaError megaError(result);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
@@ -30627,6 +30635,32 @@ void MegaEventPrivate::setNumber(int64_t number)
 MegaHandle MegaEventPrivate::getHandle() const
 {
     return mHandle;
+}
+
+const char *MegaEventPrivate::getEventString() const
+{
+    return MegaEventPrivate::getEventString(type);
+}
+
+const char *MegaEventPrivate::getEventString(int type)
+{
+    switch (type)
+    {
+        case MegaEvent::EVENT_COMMIT_DB: return "EVENT_COMMIT_DB";
+        case MegaEvent::EVENT_ACCOUNT_CONFIRMATION: return "EVENT_ACCOUNT_CONFIRMATION";
+        case MegaEvent::EVENT_CHANGE_TO_HTTPS: return "EVENT_CHANGE_TO_HTTPS";
+        case MegaEvent::EVENT_DISCONNECT: return "EVENT_DISCONNECT";
+        case MegaEvent::EVENT_ACCOUNT_BLOCKED: return "EVENT_ACCOUNT_BLOCKED";
+        case MegaEvent::EVENT_STORAGE: return "EVENT_STORAGE";
+        case MegaEvent::EVENT_NODES_CURRENT: return "EVENT_NODES_CURRENT";
+        case MegaEvent::EVENT_MEDIA_INFO_READY: return "EVENT_MEDIA_INFO_READY";
+        case MegaEvent::EVENT_STORAGE_SUM_CHANGED: return "EVENT_STORAGE_SUM_CHANGED";
+        case MegaEvent::EVENT_BUSINESS_STATUS: return "BUSINESS_STATUS";
+        case MegaEvent::EVENT_KEY_MODIFIED: return "KEY_MODIFIED";
+        case MegaEvent::EVENT_USER_FLAGS_READY: return "USER_FLAGS_READY";
+    }
+
+    return "UNKNOWN";
 }
 
 void MegaEventPrivate::setHandle(const MegaHandle &handle)
