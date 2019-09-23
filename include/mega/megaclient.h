@@ -221,6 +221,9 @@ public:
     // Account has VOIP push enabled (only for Apple)
     bool aplvp_enabled;
 
+    // Use new format to generate Mega links
+    bool mNewLinkFormat = false;
+
     // 2 = Opt-in and unblock SMS allowed 1 = Only unblock SMS allowed 0 = No SMS allowed  -1 = flag was not received
     SmsVerificationState mSmsVerificationState;
 
@@ -229,9 +232,6 @@ public:
 	
     // pseudo-random number generator
     PrnGen rng;
-
-    // Use new format to generate Mega links
-    bool mNewLinkFormat = false;
 
     static string getPublicLink(bool newLinkFormat, nodetype_t type, handle ph, const char *key);
 
