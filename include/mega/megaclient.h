@@ -300,6 +300,9 @@ public:
     // get user data
     void getuserdata();
 
+    // get miscelaneous flags
+    void getmiscflags();
+
     // get the public key of an user
     void getpubkey(const char* user);
 
@@ -1301,6 +1304,8 @@ public:
 
     void readipc(JSON*);
     void readopc(JSON*);
+
+    error readglobalflags(JSON*);
 
     void procph(JSON*);
 

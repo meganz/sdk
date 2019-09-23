@@ -3525,16 +3525,9 @@ void CommandGetUserData::procresult()
     m_time_t since = 0;
     int v = 0;
     string salt;
-    bool gmfa = false;
-    bool ssrs = false;
-    bool nsre = false;
-    bool aplvp = false;
-
-    int  smsve = -1;
     string smsv;
 
     bool b = false;
-    bool newLinkFormat = false;
     BizMode m = BIZ_MODE_UNKNOWN;
     BizStatus s = BIZ_STATUS_UNKNOWN;
     std::vector<std::pair<BizStatus, m_time_t>> sts;
@@ -3585,38 +3578,9 @@ void CommandGetUserData::procresult()
         case MAKENAMEID5('f', 'l', 'a', 'g', 's'):
             if (client->json.enterobject())
             {
-                bool endobject = false;
-                while (!endobject)
+                if (client->readglobalflags(&client->json) != API_OK)
                 {
-                    switch (client->json.getnameid())
-                    {
-                    case MAKENAMEID4('m', 'f', 'a', 'e'):   // multi-factor authentication enabled
-                        gmfa = bool(client->json.getint());
-                        break;
-                    case MAKENAMEID4('s', 's', 'r', 's'):   // server-side rubish-bin scheduler
-                        ssrs = bool(client->json.getint());
-                        break;
-                    case MAKENAMEID4('n', 's', 'r', 'e'):   // new secure registration enabled
-                        nsre = bool(client->json.getint());
-                        break;
-                    case MAKENAMEID5('a', 'p', 'l', 'v', 'p'):   // apple VOIP push enabled
-                        aplvp = bool(client->json.getint());
-                        break;
-                    case MAKENAMEID5('s', 'm', 's', 'v', 'e'):   // 2 = Opt-in and unblock SMS allowed 1 = Only unblock SMS allowed 0 = No SMS allowed
-                        smsve = int(client->json.getint());
-                        break;
-                    case MAKENAMEID4('n', 'l', 'f', 'e'):
-                        newLinkFormat = static_cast<bool>(client->json.getint());
-                        break;
-                    case EOO:
-                        endobject = true;
-                        break;
-                    default:
-                        if (!client->json.storeobject())
-                        {
-                            return client->app->userdata_result(NULL, NULL, NULL, API_EINTERNAL);
-                        }
-                    }
+                    return client->app->userdata_result(NULL, NULL, NULL, API_EINTERNAL);
                 }
                 client->json.leaveobject();
             }
@@ -3721,15 +3685,7 @@ void CommandGetUserData::procresult()
             }
 
             client->accountsince = since;
-            client->gmfa_enabled = gmfa;
-            client->ssrs_enabled = ssrs;
-            client->nsr_enabled = nsre;
-            client->aplvp_enabled = aplvp;
-
-            client->mSmsVerificationState = SmsVerificationState(smsve);
             client->mSmsVerifiedPhone = smsv;
-
-            client->mNewLinkFormat = newLinkFormat;
 
             client->k = k;
 
@@ -3848,49 +3804,24 @@ CommandGetMiscFlags::CommandGetMiscFlags(MegaClient *client)
 
 void CommandGetMiscFlags::procresult()
 {
+    error e;
     if (client->json.isnumeric())
     {
-        error e = (error)client->json.getint();
+        e = (error)client->json.getint();
         if (!e)
         {
+            LOG_err << "Unexpected response for gmf: no flags, but no error";
             e = API_ENOENT;
         }
         LOG_err << "gmf failed: " << e;
-        return;
     }
-
-    bool endobject = false;
-    while (!endobject)
+    else
     {
-        switch (client->json.getnameid())
-        {
-        case MAKENAMEID4('m', 'f', 'a', 'e'):   // multi-factor authentication enabled
-            client->gmfa_enabled = bool(client->json.getint());
-            break;
-        case MAKENAMEID4('s', 's', 'r', 's'):   // server-side rubish-bin scheduler
-            client->ssrs_enabled = bool(client->json.getint());
-            break;
-        case MAKENAMEID4('n', 's', 'r', 'e'):   // new secure registration enabled
-            client->nsr_enabled = bool(client->json.getint());
-            break;
-        case MAKENAMEID5('a', 'p', 'l', 'v', 'p'):   // apple VOIP push enabled
-            client->aplvp_enabled = bool(client->json.getint());
-            break;
-        case MAKENAMEID5('s', 'm', 's', 'v', 'e'):   // 2 = Opt-in and unblock SMS allowed 1 = Only unblock SMS allowed 0 = No SMS allowed
-            client->mSmsVerificationState = SmsVerificationState(client->json.getint());
-            break;
-        case EOO:
-            endobject = true;
-            break;
-        default:
-            if (!client->json.storeobject())
-            {
-                return;
-            }
-        }
+        e = client->readglobalflags(&client->json);
     }
-}
 
+    client->app->getmiscflags_result(e);
+}
 
 CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, AccountDetails* ad, bool storage, bool transfer, bool pro, int source)
 {
