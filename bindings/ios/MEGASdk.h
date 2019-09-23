@@ -410,18 +410,6 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  */
 @property (readonly, nonatomic) BusinessStatus businessStatus;
 
-#ifdef ENABLE_CHAT
-
-/**
- * @brief The fingerprint of the signing key of the currently open account
- *
- * If the MEGASdk object isn't logged in or there's no signing key available,
- * this function returns nil
- */
-@property (readonly, nonatomic) NSString *myFingerprint;
-
-#endif
-
 /**
  * @brief The number of unread user alerts for the logged in user
  */
@@ -5895,9 +5883,10 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
 /**
  * @brief Get a list with all active inboud sharings
  *
+ * @param order Order for the returned list.
  * @return List of MegaShare objects that other users are sharing with this account
  */
-- (MEGAShareList *)inSharesList;
+- (MEGAShareList *)inSharesList:(MEGASortOrderType)order;
 
 /**
  * @brief Get the user relative to an incoming share
@@ -5927,9 +5916,10 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
 /**
  * @brief Get a list with all active outbound sharings
  *
+ * @param order Order for the returned list.
  * @return List of MegaShare objects
  */
-- (MEGAShareList *)outShares;
+- (MEGAShareList *)outShares:(MEGASortOrderType)order;
 
 /**
  * @brief Get a list with the active outbound sharings for a MEGANode.
@@ -5944,9 +5934,10 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
 /**
  * @brief Get a list with all public links
  *
+ * @param order Order for the returned list.
  * @return List of MEGANode objects that are shared with everyone via public link
  */
-- (MEGANodeList *)publicLinks;
+- (MEGANodeList *)publicLinks:(MEGASortOrderType)order;
 
 /**
  * @brief Get a list with all incoming contact requests
@@ -6182,6 +6173,22 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @return List of nodes that contain the desired string in their name.
  */
 - (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString cancelToken:(MEGACancelToken *)cancelToken recursive:(BOOL)recursive;
+
+/**
+* @brief Search nodes containing a search string in their name.
+*
+* The search is case-insensitive.
+*
+* @param node The parent node of the tree to explore.
+* @param searchString Search string. The search is case-insensitive.
+* @param cancelToken MEGACancelToken to be able to cancel the processing at any time.
+* @param recursive YES if you want to seach recursively in the node tree.
+* @param order MEGASortOrderType for the returned list.
+* NO if you want to seach in the children of the node only
+*
+* @return List of nodes that contain the desired string in their name.
+*/
+- (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString cancelToken:(MEGACancelToken *)cancelToken recursive:(BOOL)recursive order:(MEGASortOrderType)order;
 
 /**
  * @brief Search nodes containing a search string in their name.

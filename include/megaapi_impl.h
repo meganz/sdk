@@ -178,6 +178,18 @@ public:
     virtual ~MegaRecursiveOperation() = default;
     virtual void start(MegaNode* node) = 0;
     virtual void cancel() = 0;
+
+protected:
+    MegaApiImpl *megaApi;
+    MegaClient *client;
+    MegaTransferPrivate *transfer;
+    MegaTransferListener *listener;
+    int recursive;
+    int tag;
+    int pendingTransfers;
+    std::set<MegaTransferPrivate*> subTransfers;
+    int mIncompleteTransfers = { 0 };
+    int mLastError = { API_OK };
 };
 
 class MegaFolderUploadController : public MegaRequestListener, public MegaTransferListener, public MegaRecursiveOperation
@@ -192,14 +204,6 @@ protected:
     void checkCompletion();
 
     std::list<std::string> pendingFolders;
-    MegaApiImpl *megaApi;
-    MegaClient *client;
-    MegaTransferPrivate *transfer;
-    MegaTransferListener *listener;
-    int recursive;
-    int tag;
-    int pendingTransfers;
-    std::set<MegaTransferPrivate*> subTransfers;
 
 public:
     void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e) override;
@@ -362,16 +366,6 @@ protected:
     void downloadFolderNode(MegaNode *node, string *path);
     void checkCompletion();
 
-    MegaApiImpl *megaApi;
-    MegaClient *client;
-    MegaTransferPrivate *transfer;
-    MegaTransferListener *listener;
-    int recursive;
-    int tag;
-    int pendingTransfers;
-    error e;
-    std::set<MegaTransferPrivate*> subTransfers;
-
 public:
     void onTransferStart(MegaApi *, MegaTransfer *t) override;
     void onTransferUpdate(MegaApi *, MegaTransfer *t) override;
@@ -420,6 +414,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
         MegaNode* getPublicNode() override;
         char *getPublicLink(bool includeKey = true) override;
         int64_t getPublicLinkCreationTime() override;
+        bool isNewLinkFormat();
         bool isFile() override;
         bool isFolder() override;
         bool isRemoved() override;
@@ -490,6 +485,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
             bool foreign : 1;
         };
         PublicLink *plink;
+        bool mNewLinkFormat;
         std::string *sharekey;   // for plinks of folders
         int duration;
         int width;
@@ -1189,15 +1185,21 @@ public:
 
     int getType() const override;
     const char *getText() const override;
-    int64_t getNumber() const override;
+    int64_t getNumber() const override;    
+    MegaHandle getHandle() const override;
+    const char *getEventString() const override;
+
+    static const char* getEventString(int type);
 
     void setText(const char* text);
     void setNumber(int64_t number);
+    void setHandle(const MegaHandle &handle);
 
 protected:
     int type;
     const char* text;
     int64_t number;
+    MegaHandle mHandle;
 };
 
 class MegaAccountBalancePrivate : public MegaAccountBalance
@@ -2046,9 +2048,11 @@ class MegaApiImpl : public MegaApp
         bool isBusinessAccountActive();
         int getBusinessStatus();
         bool checkPassword(const char *password);
-#ifdef ENABLE_CHAT
-        char* getMyFingerprint();
-#endif
+        char* getMyCredentials();
+        void getUserCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
+        bool areCredentialsVerified(MegaUser *user);
+        void verifyCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
+        void resetCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
         static void setLogLevel(int logLevel);
         static void addLoggerClass(MegaLogger *megaLogger);
         static void removeLoggerClass(MegaLogger *megaLogger);
@@ -2155,7 +2159,7 @@ class MegaApiImpl : public MegaApp
         void startUpload(const char* localPath, MegaNode *parent, MegaTransferListener *listener=NULL);
         void startUpload(const char* localPath, MegaNode *parent, int64_t mtime, MegaTransferListener *listener=NULL);
         void startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener = NULL);
-        void startUpload(bool startFirst, const char* localPath, MegaNode* parent, const char* fileName, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, MegaTransferListener *listener);
+        void startUpload(bool startFirst, const char* localPath, MegaNode* parent, const char* fileName, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, MegaTransferListener *listener);
         void startDownload(MegaNode* node, const char* localPath, MegaTransferListener *listener = NULL);
         void startDownload(bool startFirst, MegaNode *node, const char* target, int folderTransferTag, const char *appData, MegaTransferListener *listener);
         void startStreaming(MegaNode* node, m_off_t startPos, m_off_t size, MegaTransferListener *listener);
@@ -2510,13 +2514,16 @@ class MegaApiImpl : public MegaApp
         void enableGeolocation(MegaRequestListener *listener = NULL);
         void isGeolocationEnabled(MegaRequestListener *listener = NULL);
         bool isChatNotifiable(MegaHandle chatid);
+#endif
+
         void setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
         void getMyChatFilesFolder(MegaRequestListener *listener = NULL);
+
         void setCameraUploadsFolder(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
         void getCameraUploadsFolder(MegaRequestListener *listener = NULL);
+
         void getUserAlias(MegaHandle uh, MegaRequestListener *listener = NULL);
         void setUserAlias(MegaHandle uh, const char *alias, MegaRequestListener *listener = NULL);
-#endif
 
         void getPushNotificationSettings(MegaRequestListener *listener = NULL);
         void setPushNotificationSettings(MegaPushNotificationSettings *settings, MegaRequestListener *listener = NULL);
@@ -2769,6 +2776,7 @@ protected:
 
         void nodes_current() override;
         void catchup_result() override;
+        void key_modified(handle, attr_t) override;
 
         void fetchnodes_result(error) override;
         void putnodes_result(error, targettype_t, NewNode*) override;
@@ -2972,6 +2980,8 @@ protected:
 
         // deletes backups, requests and transfers. Reset total stats for down/uploads
         void abortPendingActions(error preverror = API_OK);
+
+        bool hasToForceUpload(const Node &node, const MegaTransferPrivate &transfer) const;
 
         friend class MegaBackgroundMediaUploadPrivate;
 };
@@ -3208,7 +3218,7 @@ public:
 
     // Connection management
     StreamingBuffer streamingBuffer;
-    MegaTransferPrivate *transfer;
+    std::unique_ptr<MegaTransferPrivate> transfer;
     http_parser parser;
     char *lastBuffer;
     int lastBufferLen;
