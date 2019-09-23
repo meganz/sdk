@@ -7216,18 +7216,31 @@ class MegaApi
 
         /**
          * @brief Check if server-side Rubbish Bin autopurging is enabled for the current account
+         *
+         * Before using this function, it's needed to:
+         *  - If you are logged-in: call to MegaApi::login and MegaApi::fetchNodes.
+         *
          * @return True if this feature is enabled. Otherwise false.
          */
         bool serverSideRubbishBinAutopurgeEnabled();
 
         /**
          * @brief Check if the account has VOIP push enabled
+         *
+         * Before using this function, it's needed to:
+         *  - If you are logged-in: call to MegaApi::login and MegaApi::fetchNodes.
+         *
          * @return True if this feature is enabled. Otherwise false.
          */
         bool appleVoipPushEnabled();
 
         /**
          * @brief Check if the new format for public links is enabled
+         *
+         * Before using this function, it's needed to:
+         *  - If you are logged-in: call to MegaApi::login and MegaApi::fetchNodes.
+         *  - If you are not logged-in: call to MegaApi::getGlobalFlags.
+         *
          * @return True if this feature is enabled. Otherwise, false.
          */
         bool newLinkFormatEnabled();
@@ -7236,6 +7249,10 @@ class MegaApi
          * @brief Check if the opt-in or account unblocking SMS is allowed
          *
          * The result indicated whether the MegaApi::sendSMSVerificationCode function can be used.
+         *
+         * Before using this function, it's needed to:
+         *  - If you are logged-in: call to MegaApi::login and MegaApi::fetchNodes.
+         *  - If you are not logged-in: call to MegaApi::getGlobalFlags.
          *
          * @return 2 = Opt-in and unblock SMS allowed.  1 = Only unblock SMS allowed.  0 = No SMS allowed
          */
@@ -7256,8 +7273,9 @@ class MegaApi
         /**
          * @brief Check if multi-factor authentication can be enabled for the current account.
          *
-         * It's needed to be logged into an account and with the nodes loaded (login + fetchNodes) before
-         * using this function. Otherwise it will always return false.
+         * Before using this function, it's needed to:
+         *  - If you are logged-in: call to MegaApi::login and MegaApi::fetchNodes.
+         *  - If you are not logged-in: call to MegaApi::getGlobalFlags.
          *
          * @return True if multi-factor authentication can be enabled for the current account, otherwise false.
          */
