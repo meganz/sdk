@@ -1987,6 +1987,7 @@ class MegaApiImpl : public MegaApp
 
         bool serverSideRubbishBinAutopurgeEnabled();
         bool appleVoipPushEnabled();
+        bool newLinkFormatEnabled();
         int smsAllowedState();
         char* smsVerifiedPhoneNumber();
 
@@ -2015,6 +2016,7 @@ class MegaApiImpl : public MegaApp
         void getUserData(MegaRequestListener *listener = NULL);
         void getUserData(MegaUser *user, MegaRequestListener *listener = NULL);
         void getUserData(const char *user, MegaRequestListener *listener = NULL);
+        void getGlobalFlags(MegaRequestListener *listener = NULL);
         void getCloudStorageUsed(MegaRequestListener *listener = NULL); 
         void getAccountDetails(bool storage, bool transfer, bool pro, bool sessions, bool purchases, bool transactions, int source = -1, MegaRequestListener *listener = NULL);
         void queryTransferQuota(long long size, MegaRequestListener *listener = NULL);
@@ -2869,7 +2871,7 @@ protected:
         void backgrounduploadurl_result(error, string*) override;
         void mediadetection_ready() override;
         void storagesum_changed(int64_t newsum) override;
-
+        void getmiscflags_result(error) override;
 
 #ifdef ENABLE_CHAT
         // chat-related commandsresult

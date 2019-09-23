@@ -7694,13 +7694,13 @@ error MegaClient::readglobalflags(JSON *json)
         case MAKENAMEID4('m', 'f', 'a', 'e'):   // multi-factor authentication enabled
             gmfa_enabled = bool(json->getint());
             break;
-        case MAKENAMEID4('s', 's', 'r', 's'):   // server-side rubish-bin scheduler
+        case MAKENAMEID4('s', 's', 'r', 's'):   // server-side rubish-bin scheduler (only available when logged in)
             ssrs_enabled = bool(json->getint());
             break;
         case MAKENAMEID4('n', 's', 'r', 'e'):   // new secure registration enabled
             nsr_enabled = bool(json->getint());
             break;
-        case MAKENAMEID5('a', 'p', 'l', 'v', 'p'):   // apple VOIP push enabled
+        case MAKENAMEID5('a', 'p', 'l', 'v', 'p'):   // apple VOIP push enabled (only available when logged in)
             aplvp_enabled = bool(json->getint());
             break;
         case MAKENAMEID5('s', 'm', 's', 'v', 'e'):   // 2 = Opt-in and unblock SMS allowed 1 = Only unblock SMS allowed 0 = No SMS allowed
