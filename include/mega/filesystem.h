@@ -84,6 +84,9 @@ struct MEGA_API FileAccess
     // type of opened path
     nodetype_t type;
 
+    // if opened path is a symlink
+    bool mIsLink = false;
+
     // if the open failed, retry indicates a potentially transient reason
     bool retry;
 
@@ -101,7 +104,7 @@ struct MEGA_API FileAccess
     // open for reading, writing or reading and writing
     virtual bool fopen(string*, bool, bool) = 0;
 
-    // open by name only
+    // open by name only. returns false for folders setting type to FOLDERNODE
     bool fopen(string*);
 
     // check if a local path is a folder

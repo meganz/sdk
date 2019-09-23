@@ -702,6 +702,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
 
         delete fa;
         fa = client->fsaccess->newfileaccess();
+        fa->mFollowSymLinks = false;
     }
 
     if (fa->fopen(localname ? localpath : &tmppath, true, false))
@@ -1007,6 +1008,11 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                     {
                         scan(localname ? localpath : &tmppath, fa);
                     }
+                }
+                else if (fa->mIsLink)
+                {
+                    LOG_debug << "checked path is a symlink.  Parent: " << (parent ? parent->name : "NO");
+                    //doing nothing for the moment
                 }
                 else
                 {
