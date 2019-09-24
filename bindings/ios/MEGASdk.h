@@ -48,6 +48,8 @@
 #import "MEGABackgroundMediaUpload.h"
 #import "MEGACancelToken.h"
 
+NS_ASSUME_NONNULL_BEGIN
+
 typedef NS_ENUM (NSInteger, MEGASortOrderType) {
     MEGASortOrderTypeNone,
     MEGASortOrderTypeDefaultAsc,
@@ -220,7 +222,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * this property is nil.
  *
  */
-@property (readonly, nonatomic) NSString *myEmail;
+@property (readonly, nonatomic, nullable) NSString *myEmail;
 
 /**
  * @brief Root node of the account.
@@ -229,7 +231,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * this property is nil.
  *
  */
-@property (readonly, nonatomic) MEGANode *rootNode;
+@property (readonly, nonatomic, nullable) MEGANode *rootNode;
 
 /**
  * @brief Rubbish node of the account.
@@ -238,7 +240,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * this property is nil.
  *
  */
-@property (readonly, nonatomic) MEGANode *rubbishNode;
+@property (readonly, nonatomic, nullable) MEGANode *rubbishNode;
 
 /**
  * @brief Inbox node of the account.
@@ -247,7 +249,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * this property is nil.
  *
  */
-@property (readonly, nonatomic) MEGANode *inboxNode;
+@property (readonly, nonatomic, nullable) MEGANode *inboxNode;
 
 /**
  * @brief All active transfers.
@@ -325,21 +327,21 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * - https://mega.co.nz/#recovery
  *
  */
-@property (readonly, nonatomic) NSString *masterKey;
+@property (readonly, nonatomic, nullable) NSString *masterKey;
 
 /**
  * @brief User-Agent header used by the SDK
  *
  * The User-Agent used by the SDK
  */
-@property (readonly, nonatomic) NSString *userAgent;
+@property (readonly, nonatomic, nullable) NSString *userAgent;
 
 /**
  * @brief MEGAUser of the currently open account
  *
  * If the MEGASdk object isn't logged in, this property is nil.
  */
-@property (readonly, nonatomic) MEGAUser *myUser;
+@property (readonly, nonatomic, nullable) MEGAUser *myUser;
 
 /**
  * @brief Returns whether MEGA Achievements are enabled for the open account
@@ -432,7 +434,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * If you pass nil to this parameter, a default user agent will be used[].
  *
  */
-- (instancetype)initWithAppKey:(NSString *)appKey userAgent:(NSString *)userAgent;
+- (nullable instancetype)initWithAppKey:(NSString *)appKey userAgent:(nullable NSString *)userAgent;
 
 /**
  * @brief Constructor suitable for most applications.
@@ -447,7 +449,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * If you pass nil to this parameter, the SDK won't use any local cache.
  *
  */
-- (instancetype)initWithAppKey:(NSString *)appKey userAgent:(NSString *)userAgent basePath:(NSString *)basePath;
+- (nullable instancetype)initWithAppKey:(NSString *)appKey userAgent:(nullable NSString *)userAgent basePath:(nullable NSString *)basePath;
 
 #pragma mark - Add and remove delegates
 
@@ -564,7 +566,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @deprecated This function is only useful for old accounts. Once enabled the new registration logic,
  * this function will return an empty string for new accounts and will be removed few time after.
  */
-- (NSString *)hashForBase64pwkey:(NSString *)base64pwkey email:(NSString *)email __attribute__((deprecated("This function will return an empty string for new accounts and will be removed few time after")));
+- (nullable NSString *)hashForBase64pwkey:(NSString *)base64pwkey email:(NSString *)email __attribute__((deprecated("This function will return an empty string for new accounts and will be removed few time after")));
 
 /**
  * @brief Converts a Base64-encoded node handle to a MegaHandle.
@@ -596,7 +598,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param handle Node handle to be converted
  * @return Base64-encoded node handle
  */
-+ (NSString *)base64HandleForHandle:(uint64_t)handle;
++ (nullable NSString *)base64HandleForHandle:(uint64_t)handle;
 
 /**
  * @brief Converts the handle of a user to a Base64-encoded string
@@ -604,7 +606,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param userhandle User handle to be converted
  * @return Base64-encoded user handle
  */
-+ (NSString *)base64HandleForUserHandle:(uint64_t)userhandle;
++ (nullable NSString *)base64HandleForUserHandle:(uint64_t)userhandle;
 
 /**
  * @brief Retry all pending requests.
@@ -821,7 +823,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param pin Pin code for multi-factor authentication
  * @param delegate MEGARequestDelegate to track this request
  */
-- (void)multiFactorAuthChangePassword:(NSString *)oldPassword newPassword:(NSString *)newPassword pin:(NSString *)pin delegate:(id<MEGARequestDelegate>)delegate;
+- (void)multiFactorAuthChangePassword:(nullable NSString *)oldPassword newPassword:(NSString *)newPassword pin:(NSString *)pin delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Change the password of a MEGA account with multi-factor authentication enabled
@@ -836,7 +838,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param newPassword New password
  * @param pin Pin code for multi-factor authentication
  */
-- (void)multiFactorAuthChangePassword:(NSString *)oldPassword newPassword:(NSString *)newPassword pin:(NSString *)pin;
+- (void)multiFactorAuthChangePassword:(nullable NSString *)oldPassword newPassword:(NSString *)newPassword pin:(NSString *)pin;
 
 /**
  * @brief Initialize the change of the email address associated to an account with multi-factor authentication enabled.
@@ -1082,7 +1084,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  *
  * @return Current session key.
  */
-- (NSString *)dumpSession;
+- (nullable NSString *)dumpSession;
 
 /**
  * @brief Check if the MEGASdk object is logged in.
@@ -2778,7 +2780,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param longitude Longitude in signed decimal degrees notation.
  * @param delegate Delegate to track this request.
  */
-- (void)setNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude delegate:(id<MEGARequestDelegate>)delegate;
+- (void)setNodeCoordinates:(MEGANode *)node latitude:(nullable NSNumber *)latitude longitude:(nullable NSNumber *)longitude delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Set the GPS coordinates of image files as a node attribute.
@@ -2800,7 +2802,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param latitude Latitude in signed decimal degrees notation.
  * @param longitude Longitude in signed decimal degrees notation.
  */
-- (void)setNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude;
+- (void)setNodeCoordinates:(MEGANode *)node latitude:(nullable NSNumber *)latitude longitude:(nullable NSNumber *)longitude;
 
 /**
  * @brief Set the GPS coordinates of image files as a node attribute.
@@ -2824,7 +2826,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param longitude Longitude in signed decimal degrees notation.
  * @param delegate Delegate to track this request.
  */
-- (void)setUnshareableNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude delegate:(id<MEGARequestDelegate>)delegate;
+- (void)setUnshareableNodeCoordinates:(MEGANode *)node latitude:(nullable NSNumber *)latitude longitude:(nullable NSNumber *)longitude delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Generate a public link of a file/folder in MEGA.
@@ -3192,7 +3194,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  *
  * @param delegate MEGARequestDelegate to track this request.
  */
-- (void)getAvatarUserWithEmailOrHandle:(NSString *)emailOrHandle destinationFilePath:(NSString *)destinationFilePath delegate:(id<MEGARequestDelegate>)delegate;
+- (void)getAvatarUserWithEmailOrHandle:(nullable NSString *)emailOrHandle destinationFilePath:(NSString *)destinationFilePath delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Get the avatar of any user in MEGA
@@ -3210,7 +3212,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * one of these characters, the file will be downloaded to a file in that path.
  *
  */
-- (void)getAvatarUserWithEmailOrHandle:(NSString *)emailOrHandle destinationFilePath:(NSString *)destinationFilePath;
+- (void)getAvatarUserWithEmailOrHandle:(nullable NSString *)emailOrHandle destinationFilePath:(NSString *)destinationFilePath;
 
 /**
  * @brief Get the default color for the avatar.
@@ -3222,7 +3224,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
  * If the user is not found, this function always returns the same color.
  */
-+ (NSString *)avatarColorForUser:(MEGAUser *)user;
++ (nullable NSString *)avatarColorForUser:(nullable MEGAUser *)user;
 
 /**
  * @brief Get the default color for the avatar.
@@ -3234,7 +3236,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
  * If the user is not found, this function always returns the same color.
  */
-+ (NSString *)avatarColorForBase64UserHandle:(NSString *)base64UserHandle;
++ (nullable NSString *)avatarColorForBase64UserHandle:(nullable NSString *)base64UserHandle;
 
 /**
  * @brief Set the avatar of the MEGA account.
@@ -3246,7 +3248,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param sourceFilePath Source path of the file that will be set as avatar.
  * @param delegate Delegate to track this request.
  */
-- (void)setAvatarUserWithSourceFilePath:(NSString *)sourceFilePath delegate:(id<MEGARequestDelegate>)delegate;
+- (void)setAvatarUserWithSourceFilePath:(nullable NSString *)sourceFilePath delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Set the avatar of the MEGA account.
@@ -3257,7 +3259,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  *
  * @param sourceFilePath Source path of the file that will be set as avatar.
  */
-- (void)setAvatarUserWithSourceFilePath:(NSString *)sourceFilePath;
+- (void)setAvatarUserWithSourceFilePath:(nullable NSString *)sourceFilePath;
 
 /**
  * @brief Get an attribute of a MEGAUser.
@@ -3313,7 +3315,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * Get whether the user has enabled send geolocation messages (private)
  *
  */
-- (void)getUserAttributeForUser:(MEGAUser *)user type:(MEGAUserAttribute)type;
+- (void)getUserAttributeForUser:(nullable MEGAUser *)user type:(MEGAUserAttribute)type;
 
 /**
  * @brief Get an attribute of a MEGAUser.
@@ -3367,7 +3369,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  *
  * @param delegate MEGARequestDelegate to track this request
  */
-- (void)getUserAttributeForUser:(MEGAUser *)user type:(MEGAUserAttribute)type delegate:(id<MEGARequestDelegate>)delegate;
+- (void)getUserAttributeForUser:(nullable MEGAUser *)user type:(MEGAUserAttribute)type delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Get an attribute of any user in MEGA.
@@ -3844,7 +3846,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param newPassword New password.
  * @param delegate Delegate to track this request.
  */
-- (void)changePassword:(NSString *)oldPassword newPassword:(NSString *)newPassword delegate:(id<MEGARequestDelegate>)delegate;
+- (void)changePassword:(nullable NSString *)oldPassword newPassword:(NSString *)newPassword delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Change the password of the MEGA account.
@@ -3857,7 +3859,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param oldPassword Old password (optional, it can be nil to not check the old password).
  * @param newPassword New password.
  */
-- (void)changePassword:(NSString *)oldPassword newPassword:(NSString *)newPassword;
+- (void)changePassword:(nullable NSString *)oldPassword newPassword:(NSString *)newPassword;
 
 /**
  * @brief Notify the user has exported the master key
@@ -4490,7 +4492,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  *
  * @param delegate MEGARequestDelegate to track this request
  */
-- (void)inviteContactWithEmail:(NSString *)email message:(NSString *)message action:(MEGAInviteAction)action delegate:(id<MEGARequestDelegate>)delegate;
+- (void)inviteContactWithEmail:(NSString *)email message:(nullable NSString *)message action:(MEGAInviteAction)action delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Invite another person to be your MEGA contact
@@ -4515,7 +4517,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * - MEGAInviteActionRemind = 2
  *
  */
-- (void)inviteContactWithEmail:(NSString *)email message:(NSString *)message action:(MEGAInviteAction)action;
+- (void)inviteContactWithEmail:(NSString *)email message:(nullable NSString *)message action:(MEGAInviteAction)action;
 
 /**
  * @brief Invite another person to be your MEGA contact using a contact link handle
@@ -4541,7 +4543,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * \c action is MEGAInviteActionAdd. Otherwise, it's ignored and it has no effect.
  * @param delegate MEGARequestDelegate to track this request
  */
-- (void)inviteContactWithEmail:(NSString *)email message:(NSString *)message action:(MEGAInviteAction)action handle:(uint64_t)handle delegate:(id<MEGARequestDelegate>)delegate;
+- (void)inviteContactWithEmail:(NSString *)email message:(nullable NSString *)message action:(MEGAInviteAction)action handle:(uint64_t)handle delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Invite another person to be your MEGA contact using a contact link handle
@@ -4566,7 +4568,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param handle Contact link handle of the other account. This parameter is considered only if the
  * \c action is MEGAInviteActionAdd. Otherwise, it's ignored and it has no effect.
  */
-- (void)inviteContactWithEmail:(NSString *)email message:(NSString *)message action:(MEGAInviteAction)action handle:(uint64_t)handle;
+- (void)inviteContactWithEmail:(NSString *)email message:(nullable NSString *)message action:(MEGAInviteAction)action handle:(uint64_t)handle;
 
 /**
  * @brief Reply to a contact request
@@ -4843,7 +4845,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * active transfer with it
  *
  */
-- (MEGATransfer *)transferByTag:(NSInteger)transferTag;
+- (nullable MEGATransfer *)transferByTag:(NSInteger)transferTag;
 /**
  * @brief Upload a file.
  *
@@ -5513,7 +5515,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param token The N binary bytes of the token returned from the file upload (of the last portion). N=36 currently.
  * @param delegate The MEGARequestDelegate to be called back with the result.
  */
-- (void)completeBackgroundMediaUpload:(MEGABackgroundMediaUpload *)mediaUpload fileName:(NSString *)fileName parentNode:(MEGANode *)parentNode fingerprint:(NSString *)fingerprint originalFingerprint:(NSString *)originalFingerprint binaryUploadToken:(NSData *)token delegate:(id<MEGARequestDelegate>)delegate;
+- (void)completeBackgroundMediaUpload:(MEGABackgroundMediaUpload *)mediaUpload fileName:(NSString *)fileName parentNode:(MEGANode *)parentNode fingerprint:(NSString *)fingerprint originalFingerprint:(nullable NSString *)originalFingerprint binaryUploadToken:(NSData *)token delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Call this to enable the library to attach media info attributes.
@@ -5592,9 +5594,6 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
 /**
  * @brief Get all children of a MEGANode.
  *
- * If the parent node doesn't exist or it isn't a folder, this function
- * returns nil.
- *
  * @param parent Parent node.
  * @param order Order for the returned list.
  * Valid values for this parameter are:
@@ -5638,9 +5637,6 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
 /**
  * @brief Get all children of a MEGANode.
  *
- * If the parent node doesn't exist or it isn't a folder, this function
- * returns nil.
- *
  * @param parent Parent node. Sort in alphabetical order, descending
  *
  * @return List with all child MEGANode objects.
@@ -5656,7 +5652,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param name Name of the node.
  * @return The MEGANode that has the selected parent and name.
  */
-- (MEGANode *)childNodeForParent:(MEGANode *)parent name:(NSString *)name;
+- (nullable MEGANode *)childNodeForParent:(MEGANode *)parent name:(NSString *)name;
 
 /**
  * @brief Get all versions of a file
@@ -5707,9 +5703,6 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
 /**
  * @brief Get file and folder children of a MEGANode separatedly
  *
- * If the parent node doesn't exist or it isn't a folder, this function
- * returns nil.
- *
  * @param parent Parent node.
  * @param order Order for the returned list.
  * Valid values for this parameter are:
@@ -5753,9 +5746,6 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
 /**
  * @brief Get file and folder children of a MEGANode separatedly
  *
- * If the parent node doesn't exist or it isn't a folder, this function
- * returns nil.
- *
  * @param parent Parent node.
  *
  * @return Lists with files and folders child MegaNode objects
@@ -5771,7 +5761,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param node MEGANode to get the parent.
  * @return The parent of the provided node.
  */
-- (MEGANode *)parentNodeForNode:(MEGANode *)node;
+- (nullable MEGANode *)parentNodeForNode:(MEGANode *)node;
 
 /**
  * @brief Get the path of a MEGANode.
@@ -5783,7 +5773,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param node MEGANode for which the path will be returned.
  * @return The path of the node.
  */
-- (NSString *)nodePathForNode:(MEGANode *)node;
+- (nullable NSString *)nodePathForNode:(MEGANode *)node;
 
 /**
  * @brief Get the MEGANode in a specific path in the MEGA account.
@@ -5803,7 +5793,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param node Base node if the path is relative.
  * @return The MEGANode object in the path, otherwise nil.
  */
-- (MEGANode *)nodeForPath:(NSString *)path node:(MEGANode *)node;
+- (nullable MEGANode *)nodeForPath:(NSString *)path node:(MEGANode *)node;
 
 /**
  * @brief Get the MEGANode in a specific path in the MEGA account.
@@ -5822,7 +5812,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param path Path to check.
  * @return The MEGANode object in the path, otherwise nil.
  */
-- (MEGANode *)nodeForPath:(NSString *)path;
+- (nullable MEGANode *)nodeForPath:(NSString *)path;
 
 /**
  * @brief Get the MEGANode that has a specific handle.
@@ -5837,7 +5827,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param handle Node handle to check.
  * @return MEGANode object with the handle, otherwise nil.
  */
-- (MEGANode *)nodeForHandle:(uint64_t)handle;
+- (nullable MEGANode *)nodeForHandle:(uint64_t)handle;
 
 /**
  * @brief Get all contacts of this MEGA account.
@@ -5854,7 +5844,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param email Email address to check.
  * @return MEGAUser that has the email address, otherwise nil.
  */
-- (MEGAUser *)contactForEmail:(NSString *)email;
+- (nullable MEGAUser *)contactForEmail:(NSString *)email;
 
 /**
  * @brief Get all MEGAUserAlerts for the logged in user
@@ -5897,7 +5887,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param node Incoming share
  * @return MEGAUser relative to the incoming share
  */
-- (MEGAUser *)userFromInShareNode:(MEGANode *)node;
+- (nullable MEGAUser *)userFromInShareNode:(MEGANode *)node;
 
 /**
  * @brief Check if a MEGANode is being shared.
@@ -5965,7 +5955,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param filePath Local file path.
  * @return Base64-encoded fingerprint for the file.
  */
-- (NSString *)fingerprintForFilePath:(NSString *)filePath;
+- (nullable NSString *)fingerprintForFilePath:(NSString *)filePath;
 
 /**
  * @brief Get a Base64-encoded fingerprint from a NSData and a modification time
@@ -5976,7 +5966,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param modificationTime Modification time that will be taken into account for the creation of the fingerprint
  * @return Base64-encoded fingerprint
  */
-- (NSString *)fingerprintForData:(NSData *)data modificationTime:(NSDate *)modificationTime;
+- (nullable NSString *)fingerprintForData:(NSData *)data modificationTime:(NSDate *)modificationTime;
 
 /**
  * @brief Get a Base64-encoded fingerprint from a local file and a modification time
@@ -5987,7 +5977,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param modificationTime Modification time that will be taken into account for the creation of the fingerprint
  * @return Base64-encoded fingerprint
  */
-- (NSString *)fingerprintForFilePath:(NSString *)filePath modificationTime:(NSDate *)modificationTime;
+- (nullable NSString *)fingerprintForFilePath:(NSString *)filePath modificationTime:(NSDate *)modificationTime;
 
 /**
  * @brief Get a Base64-encoded fingerprint for a node.
@@ -5999,7 +5989,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  *
  * @deprecated Use [MEGANode fingerprint] instead of this function
  */
-- (NSString *)fingerprintForNode:(MEGANode *)node __attribute__((deprecated("Use [MEGANode fingerprint] instead of this function.")));
+- (nullable NSString *)fingerprintForNode:(MEGANode *)node __attribute__((deprecated("Use [MEGANode fingerprint] instead of this function.")));
 
 /**
  * @brief Returns a node with the provided fingerprint.
@@ -6009,7 +5999,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param fingerprint Fingerprint to check.
  * @return MEGANode object with the provided fingerprint.
  */
-- (MEGANode *)nodeForFingerprint:(NSString *)fingerprint;
+- (nullable MEGANode *)nodeForFingerprint:(NSString *)fingerprint;
 
 /**
  * @brief Returns a node with the provided fingerprint.
@@ -6020,7 +6010,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param parent Preferred parent node
  * @return MEGANode object with the provided fingerprint.
  */
-- (MEGANode *)nodeForFingerprint:(NSString *)fingerprint parent:(MEGANode *)parent;
+- (nullable MEGANode *)nodeForFingerprint:(NSString *)fingerprint parent:(MEGANode *)parent;
 
 /**
  * @brief Returns nodes that have an original fingerprint equal to the supplied value
@@ -6054,7 +6044,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param filePath Local file path
  * @return Base64-encoded CRC of the file
  */
-- (NSString *)CRCForFilePath:(NSString *)filePath;
+- (nullable NSString *)CRCForFilePath:(NSString *)filePath;
 
 /**
  * @brief Get the CRC of a node
@@ -6067,7 +6057,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param node MEGANode for which we want to get the CRC
  * @return Base64-encoded CRC of the node
  */
-- (NSString *)CRCForNode:(MEGANode *)node;
+- (nullable NSString *)CRCForNode:(MEGANode *)node;
 
 /**
  * @brief Get the CRC from a fingerPrint
@@ -6075,7 +6065,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param fingerprint fingerPrint from which we want to get the CRC
  * @return Base64-encoded CRC from the fingerPrint
  */
-- (NSString *)CRCForFingerprint:(NSString *)fingerprint;
+- (nullable NSString *)CRCForFingerprint:(NSString *)fingerprint;
 /**
  * @brief Returns a node with the provided CRC
  *
@@ -6088,7 +6078,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * if it's not found.
  */
 
-- (MEGANode *)nodeByCRC:(NSString *)crc parent:(MEGANode *)parent;
+- (nullable MEGANode *)nodeByCRC:(NSString *)crc parent:(MEGANode *)parent;
 
 /**
  * @brief Get the access level of a MEGANode.
@@ -6261,7 +6251,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param node MEGANode to authorize
  * @return Authorized node, or nil if the node can't be authorized or is not a file
  */
-- (MEGANode *)authorizeNode:(MEGANode *)node;
+- (nullable MEGANode *)authorizeNode:(MEGANode *)node;
 
 #ifdef ENABLE_CHAT
 
@@ -6281,7 +6271,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param cauth Authorization token (public handle of the chatroom in B64url encoding)
  * @return Authorized node, or nil if the node can't be authorized
  */
-- (MEGANode *)authorizeChatNode:(MEGANode *)node cauth:(NSString *)cauth;
+- (nullable MEGANode *)authorizeChatNode:(MEGANode *)node cauth:(NSString *)cauth;
 
 #endif
 
@@ -6310,7 +6300,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param name Name to convert (UTF8)
  * @return Converted name (UTF8)
  */
-- (NSString *)escapeFsIncompatible:(NSString *)name;
+- (nullable NSString *)escapeFsIncompatible:(NSString *)name;
 
 /**
  * @brief Unescape a file name escaped with [MEGASdk escapeFsIncompatible:]
@@ -6320,7 +6310,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param localName Escaped name to convert (UTF8)
  * @return Converted name (UTF8)
  */
-- (NSString *)unescapeFsIncompatible:(NSString *)localName;
+- (nullable NSString *)unescapeFsIncompatible:(NSString *)localName;
 
 /**
  * @brief Change the API URL
@@ -6829,7 +6819,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param node Node to generate the local HTTP link
  * @return URL to the node in the local HTTP proxy server, otherwise nil
  */
-- (NSURL *)httpServerGetLocalLink:(MEGANode *)node;
+- (nullable NSURL *)httpServerGetLocalLink:(MEGANode *)node;
 
 /**
  * @brief Set the maximum buffer size for the internal buffer
@@ -6910,7 +6900,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param extension File extension (with or without a leading dot)
  * @return MIME type associated with the extension
  */
-+ (NSString *)mimeTypeByExtension:(NSString *)extension;
++ (nullable NSString *)mimeTypeByExtension:(NSString *)extension;
 
 /**
  * @brief Register a device token for iOS push notifications
@@ -7272,3 +7262,5 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
 + (void)logWithLevel:(MEGALogLevel)logLevel message:(NSString *)message;
 
 @end
+
+NS_ASSUME_NONNULL_END
