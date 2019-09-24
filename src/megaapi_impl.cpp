@@ -14561,46 +14561,53 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
         {
             bool modified = false;
             const char *key, *newValue;
-            std::string currentValue;
+            std::string currentValue, aux;
             MegaStringMap *newAttrMap = request->getMegaStringMap();
             std::unique_ptr<MegaStringList> keys(newAttrMap->getKeys());
 
-            if (request->getParamType() == MegaApi::USER_ATTR_ALIAS)
+            if (request->getParamType() ==  MegaApi::USER_ATTR_ALIAS)
             {
                 for (int i = 0; i < keys->size(); i++)
                 {
                    key = keys->get(i);
                    newValue = newAttrMap->get(key);
-                   currentValue = tlv->find(key) ? tlv->get(key) : string();
+                   aux = tlv->find(key) ? tlv->get(key) : string();
+                   currentValue.resize(aux.size() * 4 / 3 + 4);
+                   Base64::btoa(aux, currentValue);
 
                    if (strcmp(newValue, currentValue.c_str()) != 0)
                    {
                        if (newValue[0] != '\0')    // not empty, set new alias
                        {
-                           tlv->set(key, newValue);
+                           // Decode value from B64
+                           aux.resize(int(strlen(newValue) * 3 / 4 + 3));
+                           aux.resize(Base64::atob(newValue, (byte *)aux.data(), int(strlen(newValue))));
+                           tlv->set(key, aux);
                        }
                        else    // empty, reset the current alias
                        {
                            tlv->reset(key);
                        }
+
                        modified = true;
                    }
                 }
             }
-            else
+            else if (request->getParamType() ==  MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER)
             {
                for (int i = 0; i < keys->size(); i++)
                {
                    key = keys->get(i);
                    newValue = newAttrMap->get(key);
-                   std::string aux = tlv->find(key) ? tlv->get(key) : string();
-                   currentValue.resize(MegaClient::NODEHANDLE * 4 / 3 + 3);
+                   aux = tlv->find(key) ? tlv->get(key) : string();
+                   currentValue.resize(aux.size() * 4 / 3 + 4);
                    Base64::btoa(aux, currentValue);
+
                    if (strcmp(newValue, currentValue.c_str()) != 0)
                    {
-                       // Decode from B64 the new target folder to avoid a double B64 encoding
-                       aux.resize(int(MegaClient::NODEHANDLE));
-                       aux.resize(Base64::atob(newValue, (byte *)aux.data(), int(MegaClient::NODEHANDLE)));
+                       // Decode value from B64
+                       aux.resize(int(strlen(newValue) * 3 / 4 + 3));
+                       aux.resize(Base64::atob(newValue, (byte *)aux.data(), int(strlen(newValue))));
                        tlv->set(key, aux);
                        modified = true;
                    }
