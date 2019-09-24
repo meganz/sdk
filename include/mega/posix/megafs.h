@@ -80,7 +80,7 @@ public:
     int defaultfilepermissions;
     int defaultfolderpermissions;
 
-    FileAccess* newfileaccess();
+    FileAccess* newfileaccess(bool followSymLinks = true);
     DirAccess* newdiraccess();
     DirNotify* newdirnotify(string*, string*);
 
@@ -152,7 +152,7 @@ public:
     bool sysopen(bool async = false);
     void sysclose();
 
-    PosixFileAccess(Waiter *w, int defaultfilepermissions = 0600);
+    PosixFileAccess(Waiter *w, int defaultfilepermissions = 0600, bool followSymLinks = true);
 
     // async interface
     virtual bool asyncavailable();
@@ -167,6 +167,10 @@ protected:
     virtual AsyncIOContext* newasynccontext();
     static void asyncopfinished(union sigval sigev_value);
 #endif
+
+private:
+    bool mFollowSymLinks = true;
+
 };
 
 class MEGA_API PosixDirNotify : public DirNotify

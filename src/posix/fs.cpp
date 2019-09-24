@@ -74,7 +74,7 @@ void PosixAsyncIOContext::finish()
 }
 #endif
 
-PosixFileAccess::PosixFileAccess(Waiter *w, int defaultfilepermissions) : FileAccess(w)
+PosixFileAccess::PosixFileAccess(Waiter *w, int defaultfilepermissions, bool followSymLinks) : FileAccess(w)
 {
     fd = -1;
     this->defaultfilepermissions = defaultfilepermissions;
@@ -83,6 +83,7 @@ PosixFileAccess::PosixFileAccess(Waiter *w, int defaultfilepermissions) : FileAc
     dp = NULL;
 #endif
 
+    mFollowSymLinks = followSymLinks;
     fsidvalid = false;
 }
 
@@ -1760,9 +1761,9 @@ fsfp_t PosixDirNotify::fsfingerprint()
     return *(fsfp_t*)&statfsbuf.f_fsid + 1;
 }
 
-FileAccess* PosixFileSystemAccess::newfileaccess()
+FileAccess* PosixFileSystemAccess::newfileaccess(bool followSymLinks)
 {
-    return new PosixFileAccess(waiter, defaultfilepermissions);
+    return new PosixFileAccess(waiter, defaultfilepermissions, followSymLinks);
 }
 
 DirAccess* PosixFileSystemAccess::newdiraccess()

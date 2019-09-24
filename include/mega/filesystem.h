@@ -99,8 +99,6 @@ struct MEGA_API FileAccess
     // waiter to notify on filesystem events
     Waiter *waiter;
 
-    bool mFollowSymLinks = true;
-
     // open for reading, writing or reading and writing
     virtual bool fopen(string*, bool, bool) = 0;
 
@@ -231,8 +229,12 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // indicate error reports are not necessary on this call as it'll be retried in a moment if there is a continuing problem
     bool skip_errorreport;
 
-    // instantiate FileAccess object
-    virtual FileAccess* newfileaccess() = 0;
+    /**
+     * @brief instantiate FileAccess object
+     * @param followSymLinks whether symlinks should be followed when opening a path (default: true)
+     * @return
+     */
+    virtual FileAccess* newfileaccess(bool followSymLinks = true) = 0;
 
     // instantiate DirAccess object
     virtual DirAccess* newdiraccess() = 0;

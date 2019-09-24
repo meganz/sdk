@@ -12184,8 +12184,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 
                 ll->getlocalpath(&tmplocalpath);
 
-                FileAccess* fa = fsaccess->newfileaccess();
-                fa->mFollowSymLinks = false;
+                FileAccess* fa = fsaccess->newfileaccess(false);
                 if (fa->fopen(&tmplocalpath, true, false))
                 {
                     FileFingerprint fp;
@@ -12294,8 +12293,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
             if (rit->second->type == FILENODE)
             {
                 bool download = true;
-                FileAccess *f = fsaccess->newfileaccess();
-                f->mFollowSymLinks = false;
+                FileAccess *f = fsaccess->newfileaccess(false);
                 if (rit->second->localnode != (LocalNode*)~0
                         && (f->fopen(localpath) || f->type == FOLDERNODE))
                 {
@@ -12330,8 +12328,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
             else
             {
                 LOG_debug << "Creating local folder";
-                FileAccess *f = fsaccess->newfileaccess();
-                f->mFollowSymLinks = false;
+                FileAccess *f = fsaccess->newfileaccess(false);
                 if (f->fopen(localpath) || f->type == FOLDERNODE)
                 {
                     LOG_debug << "Skipping folder creation over an unscanned file/folder, or the file/folder is not to be synced (special attributes)";
@@ -12490,8 +12487,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
         rit = nchildren.find(&localname);
 
         string localpath;
-        unique_ptr<FileAccess> fa(fsaccess->newfileaccess());
-        fa->mFollowSymLinks = false;
+        unique_ptr<FileAccess> fa(fsaccess->newfileaccess(false));
 
         ll->getlocalpath(&localpath);
         fa->fopen(&localpath);
@@ -12784,8 +12780,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
 
                 string localpath;
                 bool t;
-                FileAccess* fa = fsaccess->newfileaccess();
-                fa->mFollowSymLinks = false;
+                FileAccess* fa = fsaccess->newfileaccess(false);
 
                 ll->getlocalpath(&localpath);
 
