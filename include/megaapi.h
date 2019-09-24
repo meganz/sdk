@@ -3448,7 +3448,7 @@ public:
         EVENT_STORAGE_SUM_CHANGED       = 8,
         EVENT_BUSINESS_STATUS           = 9,
         EVENT_KEY_MODIFIED              = 10,
-        EVENT_GLOBAL_FLAGS_READY          = 11,
+        EVENT_MISC_FLAGS_READY          = 11,
     };
 
     virtual ~MegaEvent();
@@ -5965,7 +5965,7 @@ class MegaGlobalListener
          *  - Signature of chat key         = 3
          *  - Signature of RSA key          = 4
          *
-         * - MegaEvent::EVENT_GLOBAL_FLAGS_READY: when the global flags are available/updated.
+         * - MegaEvent::EVENT_MISC_FLAGS_READY: when the miscellaneous flags are available/updated.
          *
          * @param api MegaApi object connected to the account
          * @param event Details about the event
@@ -6451,7 +6451,7 @@ class MegaListener
          *  - Signature of chat key         = 3
          *  - Signature of RSA key          = 4
          *
-         * - MegaEvent::EVENT_GLOBAL_FLAGS_READY: when the global flags are available/updated.
+         * - MegaEvent::EVENT_MISC_FLAGS_READY: when the miscellaneous flags are available/updated.
          *
          * @param api MegaApi object connected to the account
          * @param event Details about the event
@@ -7583,7 +7583,7 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_GET_MISC_FLAGS.
          *
-         * When onRequestFinish is called with MegaError::API_OK, the global flags are available.
+         * When onRequestFinish is called with MegaError::API_OK, the miscellaneous flags are available.
          * If you are logged in into an account, the error code provided in onRequestFinish is
          * MegaError::API_EACCESS.
          *

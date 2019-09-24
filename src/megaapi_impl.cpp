@@ -12158,7 +12158,7 @@ void MegaApiImpl::getmiscflags_result(error e)
 {
     if (e == API_OK)
     {
-        MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_GLOBAL_FLAGS_READY);
+        MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_MISC_FLAGS_READY);
         fireOnEvent(event);
     }
 
@@ -13948,7 +13948,7 @@ void MegaApiImpl::userdata_result(string *name, string* pubk, string* privk, err
     // (note that usually the API command is triggered internally, so no request is associated)
     if (result == API_OK)
     {
-        MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_GLOBAL_FLAGS_READY);
+        MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_MISC_FLAGS_READY);
         fireOnEvent(event);
     }
 
@@ -30696,7 +30696,7 @@ const char *MegaEventPrivate::getEventString(int type)
         case MegaEvent::EVENT_STORAGE_SUM_CHANGED: return "EVENT_STORAGE_SUM_CHANGED";
         case MegaEvent::EVENT_BUSINESS_STATUS: return "BUSINESS_STATUS";
         case MegaEvent::EVENT_KEY_MODIFIED: return "KEY_MODIFIED";
-        case MegaEvent::EVENT_GLOBAL_FLAGS_READY: return "GLOBAL_FLAGS_READY";
+        case MegaEvent::EVENT_MISC_FLAGS_READY: return "MISC_FLAGS_READY";
     }
 
     return "UNKNOWN";
