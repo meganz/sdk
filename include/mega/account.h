@@ -84,18 +84,29 @@ struct MEGA_API AccountDetails
     m_time_t pro_until = 0;
 
     // quota related to the session account
-    m_off_t storage_used = 0, storage_max = 0;
-    m_off_t transfer_own_used = 0, transfer_srv_used = 0, transfer_max = 0;
-    m_off_t transfer_own_reserved = 0, transfer_srv_reserved = 0;
+    m_off_t storage_used = 0;
+    m_off_t storage_max = 0;
+    m_off_t transfer_own_reserved = 0;
+
+    //Own user transfer
+    m_off_t transfer_own_used = 0;
+    m_off_t transfer_max = 0;
+
+    //3rd party shared quota used
+    m_off_t transfer_srv_used = 0;
+    m_off_t transfer_srv_reserved = 0;
+
     double srv_ratio = 0;
 
     // storage used for all relevant nodes (root nodes, incoming shares)
     handlestorage_map storage;
 
+    // Free transfer quota related:
     // transfer history pertaining to requesting IP address
     m_time_t transfer_hist_starttime = 0;       // transfer history start timestamp
     m_time_t transfer_hist_interval = 3600;     // timespan that a single transfer
                                         // window record covers
+
     vector<m_off_t> transfer_hist;      // transfer window - oldest to newest,
                                         // bytes consumed per twrtime interval
 

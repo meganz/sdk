@@ -15893,10 +15893,17 @@ public:
     virtual long long getTransferMax();
 
     /**
-     * @brief Get the used bandwidth
+     * @brief Get the used bandwidth for own user allowance
+     * @see: MegaAccountDetails::getTransferSrvUsed, MegaAccountDetails::getTemporalBandwidth
      * @return Used bandwidth (in bytes)
      */
     virtual long long getTransferOwnUsed();
+
+    /**
+     * @brief Get the used bandwidth from 3rd party shared quota
+     * @return Used bandwidth (in bytes)
+     */
+    virtual long long getTransferSrvUsed();
 
     /**
      * @brief Returns the number of nodes with account usage info
@@ -16070,7 +16077,7 @@ public:
     virtual int getTemporalBandwidthInterval();
 
     /**
-     * @brief Get the number of bytes that were recently transferred
+     * @brief Get the number of bytes that were recently transferred using Free allowance
      *
      * The time interval in which those bytes were transferred
      * is provided (in hours) using MegaAccountDetails::getTemporalBandwidthInterval
