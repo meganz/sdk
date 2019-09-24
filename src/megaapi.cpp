@@ -2005,9 +2005,9 @@ void MegaApi::getUserData(const char *user, MegaRequestListener *listener)
     pImpl->getUserData(user, listener);
 }
 
-void MegaApi::getGlobalFlags(MegaRequestListener *listener)
+void MegaApi::getMiscFlags(MegaRequestListener *listener)
 {
-    pImpl->getGlobalFlags(listener);
+    pImpl->getMiscFlags(listener);
 }
 
 void MegaApi::login(const char *login, const char *password, MegaRequestListener *listener)

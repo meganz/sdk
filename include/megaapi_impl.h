@@ -2016,7 +2016,7 @@ class MegaApiImpl : public MegaApp
         void getUserData(MegaRequestListener *listener = NULL);
         void getUserData(MegaUser *user, MegaRequestListener *listener = NULL);
         void getUserData(const char *user, MegaRequestListener *listener = NULL);
-        void getGlobalFlags(MegaRequestListener *listener = NULL);
+        void getMiscFlags(MegaRequestListener *listener = NULL);
         void getCloudStorageUsed(MegaRequestListener *listener = NULL); 
         void getAccountDetails(bool storage, bool transfer, bool pro, bool sessions, bool purchases, bool transactions, int source = -1, MegaRequestListener *listener = NULL);
         void queryTransferQuota(long long size, MegaRequestListener *listener = NULL);

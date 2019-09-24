@@ -2730,7 +2730,7 @@ class MegaRequest
             TYPE_GET_CLOUD_STORAGE_USED,
             TYPE_SEND_SMS_VERIFICATIONCODE, TYPE_CHECK_SMS_VERIFICATIONCODE,
             TYPE_GET_REGISTERED_CONTACTS, TYPE_GET_COUNTRY_CALLING_CODES,
-            TYPE_VERIFY_CREDENTIALS, TYPE_GET_GLOBAL_FLAGS,
+            TYPE_VERIFY_CREDENTIALS, TYPE_GET_MISC_FLAGS,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -7239,7 +7239,7 @@ class MegaApi
          *
          * Before using this function, it's needed to:
          *  - If you are logged-in: call to MegaApi::login and MegaApi::fetchNodes.
-         *  - If you are not logged-in: call to MegaApi::getGlobalFlags.
+         *  - If you are not logged-in: call to MegaApi::getMiscFlags.
          *
          * @return True if this feature is enabled. Otherwise, false.
          */
@@ -7252,7 +7252,7 @@ class MegaApi
          *
          * Before using this function, it's needed to:
          *  - If you are logged-in: call to MegaApi::login and MegaApi::fetchNodes.
-         *  - If you are not logged-in: call to MegaApi::getGlobalFlags.
+         *  - If you are not logged-in: call to MegaApi::getMiscFlags.
          *
          * @return 2 = Opt-in and unblock SMS allowed.  1 = Only unblock SMS allowed.  0 = No SMS allowed
          */
@@ -7275,7 +7275,7 @@ class MegaApi
          *
          * Before using this function, it's needed to:
          *  - If you are logged-in: call to MegaApi::login and MegaApi::fetchNodes.
-         *  - If you are not logged-in: call to MegaApi::getGlobalFlags.
+         *  - If you are not logged-in: call to MegaApi::getMiscFlags.
          *
          * @return True if multi-factor authentication can be enabled for the current account, otherwise false.
          */
@@ -7562,11 +7562,13 @@ class MegaApi
         void getUserData(const char *user, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Fetch global flags when not logged in
+         * @brief Fetch miscellaneous flags when not logged in
          *
-         * The associated request type with this request is MegaRequest::TYPE_GET_GLOBAL_FLAGS.
+         * The associated request type with this request is MegaRequest::TYPE_GET_MISC_FLAGS.
          *
          * When onRequestFinish is called with MegaError::API_OK, the global flags are available.
+         * If you are logged in into an account, the error code provided in onRequestFinish is
+         * MegaError::API_EACCESS.
          *
          * @see MegaApi::multiFactorAuthAvailable
          * @see MegaApi::newLinkFormatEnabled
@@ -7574,7 +7576,7 @@ class MegaApi
          *
          * @param listener MegaRequestListener to track this request
          */
-        void getGlobalFlags(MegaRequestListener *listener = NULL);
+        void getMiscFlags(MegaRequestListener *listener = NULL);
 
         /**
          * @brief Returns the current session key

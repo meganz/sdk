@@ -3804,7 +3804,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_REGISTERED_CONTACTS: return "GET_REGISTERED_CONTACTS";
         case TYPE_GET_COUNTRY_CALLING_CODES: return "GET_COUNTRY_CALLING_CODES";
         case TYPE_VERIFY_CREDENTIALS: return "VERIFY_CREDENTIALS";
-        case TYPE_GET_GLOBAL_FLAGS: return "GET_GLOBAL_FLAGS";
+        case TYPE_GET_MISC_FLAGS: return "GET_MISC_FLAGS";
     }
     return "UNKNOWN";
 }
@@ -5790,9 +5790,9 @@ void MegaApiImpl::getUserData(const char *user, MegaRequestListener *listener)
     waiter->notify();
 }
 
-void MegaApiImpl::getGlobalFlags(MegaRequestListener *listener)
+void MegaApiImpl::getMiscFlags(MegaRequestListener *listener)
 {
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_GLOBAL_FLAGS, listener);
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_MISC_FLAGS, listener);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -12164,7 +12164,7 @@ void MegaApiImpl::getmiscflags_result(error e)
 
     if (requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if (!request || (request->getType() != MegaRequest::TYPE_GET_GLOBAL_FLAGS)) return;
+    if (!request || (request->getType() != MegaRequest::TYPE_GET_MISC_FLAGS)) return;
 
     fireOnRequestFinish(request, e);
 }
@@ -21342,7 +21342,7 @@ void MegaApiImpl::sendPendingRequests()
             client->reqs.add(new CommandGetCountryCallingCodes{client});
             break;
         }
-        case MegaRequest::TYPE_GET_GLOBAL_FLAGS:
+        case MegaRequest::TYPE_GET_MISC_FLAGS:
         {
             if (client->loggedin())
             {
