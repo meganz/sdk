@@ -10262,7 +10262,7 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getName - user alias encoded in B64
+         * - MegaRequest::getName - Returns the user alias
          *
          * If the user alias doesn't exists the request will fail with the error code MegaError::API_ENOENT.
          *

@@ -14665,29 +14665,24 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
                 break;
             }
             case MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER:
+            case MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER:
             {
-                handle nodehandle = 0;  // make sure top two bytes are 0
-                const char *key = request->getFlag() ? "sh" : "h";
+                // If attr is CAMERA_UPLOADS_FOLDER determine if we want to retrieve primary or secondary folder
+                // If attr is MY_CHAT_FILES_FOLDER there's not exists secondary folder
+                const char *key = request->getParamType() == MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
+                        && request->getFlag()
+                            ? "sh"
+                            : "h";
+
                 const char *value = stringMap->get(key);
                 if (value)
                 {
+                   handle nodehandle = 0;  // make sure top two bytes are 0
                    Base64::atob(value, (byte*) &nodehandle, MegaClient::NODEHANDLE);
                    request->setNodeHandle(nodehandle);
                 }
                 break;
             }
-            case MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER:
-            {
-                const char *value = stringMap->get("h");
-                if (value)
-                {
-                    handle nodehandle = 0;  // make sure top two bytes are 0
-                    Base64::atob(value, (byte*) &nodehandle, MegaClient::NODEHANDLE);
-                    request->setNodeHandle(nodehandle);
-                }
-                break;
-            }
-
             case MegaApi::USER_ATTR_ALIAS:
             {
                 // If a uh was set in the request we have to find it in the aliases map and return it
@@ -14700,7 +14695,12 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
                         e = API_ENOENT;
                         break;
                     }
-                    request->setName(buf);
+                    else
+                    {
+                        char aux [strlen(buf) * 3 / 4 + 3];
+                        Base64::atob(buf, (byte*) aux, strlen(buf));
+                        request->setName(buf);
+                    }
                 }
                 break;
             }
