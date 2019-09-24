@@ -5943,7 +5943,7 @@ MegaHandle MegaEvent::getHandle() const
 
 const char *MegaEvent::getEventString() const
 {
-    return MegaEvent::getEventString();
+    return NULL;
 }
 
 MegaHandleList *MegaHandleList::createInstance()
