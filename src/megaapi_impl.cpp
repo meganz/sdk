@@ -14348,8 +14348,8 @@ void MegaApiImpl::getua_result(error e)
                 request->setFlag(true);
             }
         }
-        else if (((request->getParamType() == MegaApi::USER_ATTR_ALIAS)
-                  ||(request->getParamType() == MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER))
+        else if ((request->getParamType() == MegaApi::USER_ATTR_ALIAS
+                  || request->getParamType() == MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER)
                     && request->getType() == MegaRequest::TYPE_SET_ATTR_USER)
         {
             // The attribute doesn't exists so we have to create it
