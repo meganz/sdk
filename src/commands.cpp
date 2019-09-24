@@ -3578,7 +3578,7 @@ void CommandGetUserData::procresult()
         case MAKENAMEID5('f', 'l', 'a', 'g', 's'):
             if (client->json.enterobject())
             {
-                if (client->readglobalflags(&client->json) != API_OK)
+                if (client->readmiscflags(&client->json) != API_OK)
                 {
                     return client->app->userdata_result(NULL, NULL, NULL, API_EINTERNAL);
                 }
@@ -3817,7 +3817,7 @@ void CommandGetMiscFlags::procresult()
     }
     else
     {
-        e = client->readglobalflags(&client->json);
+        e = client->readmiscflags(&client->json);
     }
 
     client->app->getmiscflags_result(e);

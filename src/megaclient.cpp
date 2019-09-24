@@ -7683,7 +7683,7 @@ void MegaClient::readopc(JSON *j)
     }
 }
 
-error MegaClient::readglobalflags(JSON *json)
+error MegaClient::readmiscflags(JSON *json)
 {
     while (1)
     {

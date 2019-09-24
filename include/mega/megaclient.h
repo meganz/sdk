@@ -1305,7 +1305,7 @@ public:
     void readipc(JSON*);
     void readopc(JSON*);
 
-    error readglobalflags(JSON*);
+    error readmiscflags(JSON*);
 
     void procph(JSON*);
 
