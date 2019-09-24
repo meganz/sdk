@@ -1673,7 +1673,7 @@ using namespace mega;
 }
 
 - (MEGAShareList *)inSharesList:(MEGASortOrderType)order {
-    return [[MEGAShareList alloc] initWithShareList:self.megaApi->getInSharesList(order) cMemoryOwn:YES];
+    return [[MEGAShareList alloc] initWithShareList:self.megaApi->getInSharesList((int)order) cMemoryOwn:YES];
 }
 
 - (MEGAUser *)userFromInShareNode:(MEGANode *)node {
@@ -1687,7 +1687,7 @@ using namespace mega;
 }
 
 - (MEGAShareList *)outShares:(MEGASortOrderType)order {
-    return [[MEGAShareList alloc] initWithShareList:self.megaApi->getOutShares(order) cMemoryOwn:YES];
+    return [[MEGAShareList alloc] initWithShareList:self.megaApi->getOutShares((int)order) cMemoryOwn:YES];
 }
 
 - (MEGAShareList *)outSharesForNode:(MEGANode *)node {
@@ -1695,7 +1695,7 @@ using namespace mega;
 }
 
 - (MEGANodeList *)publicLinks:(MEGASortOrderType)order {
-    return [[MEGANodeList alloc] initWithNodeList:self.megaApi->getPublicLinks(order) cMemoryOwn:YES];
+    return [[MEGANodeList alloc] initWithNodeList:self.megaApi->getPublicLinks((int)order) cMemoryOwn:YES];
 }
 
 - (MEGAContactRequestList *)incomingContactRequests {
