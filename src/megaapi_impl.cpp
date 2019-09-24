@@ -14348,43 +14348,6 @@ void MegaApiImpl::getua_result(error e)
                 request->setFlag(true);
             }
         }
-        else if ((request->getParamType() == MegaApi::USER_ATTR_ALIAS
-                  || request->getParamType() == MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER)
-                    && request->getType() == MegaRequest::TYPE_SET_ATTR_USER)
-        {
-            // The attribute doesn't exists so we have to create it
-            MegaStringMap *stringMap = request->getMegaStringMap();
-            attr_t type = static_cast<attr_t>(request->getParamType());
-            TLVstore tlv;
-            const char *key;
-            std::unique_ptr<MegaStringList> keys(stringMap->getKeys());
-
-            if (request->getParamType() == MegaApi::USER_ATTR_ALIAS)
-            {
-                for (int i = 0; i < keys->size(); i++)
-                {
-                    key = keys->get(i);
-                    tlv.set(key, stringMap->get(key));
-                }
-            }
-            else
-            {
-                std::string value;
-                for (int i = 0; i < keys->size(); i++)
-                {
-                    // Decode from B64 the target folder to avoid a double B64 encoding
-                    key = keys->get(i);
-                    value.resize(int(MegaClient::NODEHANDLE));
-                    value.resize(Base64::atob(stringMap->get(key), (byte *)value.data(), int(MegaClient::NODEHANDLE)));
-                    tlv.set(key, value);
-                }
-            }
-
-            // serialize and encrypt the TLV container
-            std::unique_ptr<string> container(tlv.tlvRecordsToContainer(client->rng, &client->key));
-            client->putua(type, (byte *)container->data(), unsigned(container->size()));
-            return;
-        }
     }
 
     fireOnRequestFinish(request, megaError);
@@ -19000,10 +18963,11 @@ void MegaApiImpl::sendPendingRequests()
                     break;
                 }
 
-                if (type == ATTR_ALIAS || type == ATTR_CAMERA_UPLOADS_FOLDER)
+                User *ownUser = client->finduser(client->me);
+                if ((type == ATTR_ALIAS || type == ATTR_CAMERA_UPLOADS_FOLDER)
+                     && ownUser->isattrvalid(type))
                 {
                     // always get updated value before update it
-                    User *ownUser = client->finduser(client->me);
                     client->getua(ownUser, type);
                     break;
                 }
