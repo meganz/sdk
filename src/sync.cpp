@@ -563,19 +563,13 @@ Sync::~Sync()
     if (localroot.node)
     {
         TreeProcDelSyncGet tdsg;
-        if (client)
-        {
-            client->proctree(localroot.node, &tdsg);
-        }
+        client->proctree(localroot.node, &tdsg);
     }
 
     delete statecachetable;
 
-    if (client)
-    {
-        client->syncs.erase(sync_it);
-        client->syncactivity = true;
-    }
+    client->syncs.erase(sync_it);
+    client->syncactivity = true;
 }
 
 void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, string* path, LocalNode *p, int maxdepth)
@@ -607,7 +601,7 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, st
 
         l->parent_dbid = parent_dbid;
         l->size = size;
-        l->setfsid(fsid, l->sync->client->fsidnode);
+        l->setfsid(fsid);
         l->setnode(node);
 
         if (maxdepth)
@@ -1192,7 +1186,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                         {
                             if (fa->fsidvalid && l->fsid != fa->fsid)
                             {
-                                l->setfsid(fa->fsid, l->sync->client->fsidnode);
+                                l->setfsid(fa->fsid);
                             }
 
                             m_off_t dsize = l->size > 0 ? l->size : 0;
@@ -1230,7 +1224,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                         // content scan anyway)
                         if (fa->fsidvalid && fa->fsid != l->fsid)
                         {
-                            l->setfsid(fa->fsid, l->sync->client->fsidnode);
+                            l->setfsid(fa->fsid);
                             newnode = true;
                         }
                     }
@@ -1414,7 +1408,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
 
                     if (fa->fsidvalid)
                     {
-                        l->setfsid(fa->fsid, l->sync->client->fsidnode);
+                        l->setfsid(fa->fsid);
                     }
 
                     newnode = true;
@@ -1455,7 +1449,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                 {
                     if (fa->fsidvalid && l->fsid != fa->fsid)
                     {
-                        l->setfsid(fa->fsid, l->sync->client->fsidnode);
+                        l->setfsid(fa->fsid);
                     }
 
                     if (l->size > 0)

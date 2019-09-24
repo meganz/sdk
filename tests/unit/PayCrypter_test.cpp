@@ -1,5 +1,8 @@
 /**
- * (c) 2019 by Mega Limited, Wellsford, New Zealand
+ * @file tests/tests.cpp
+ * @brief Mega SDK main test file
+ *
+ * (c) 2013 by Mega Limited, Wellsford, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *

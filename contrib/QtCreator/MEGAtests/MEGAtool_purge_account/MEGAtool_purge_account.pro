@@ -15,7 +15,6 @@ CONFIG += USE_MEGAAPI
 CONFIG += USE_MEDIAINFO
 CONFIG += USE_FFMPEG
 CONFIG -= qt
-CONFIG += object_parallel_to_source
 
 LIBS += -lgtest
 

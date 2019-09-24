@@ -11381,7 +11381,7 @@ char *MegaApiImpl::getCRC(const char *filePath)
 
     string result;
     result.resize((sizeof fp.crc) * 4 / 3 + 4);
-    result.resize(Base64::btoa((const byte *)fp.crc.data(), sizeof fp.crc, (char*)result.c_str()));
+    result.resize(Base64::btoa((const byte *)fp.crc, sizeof fp.crc, (char*)result.c_str()));
     return MegaApi::strdup(result.c_str());
 }
 
@@ -11395,7 +11395,7 @@ char *MegaApiImpl::getCRCFromFingerprint(const char *fingerprint)
     
     string result;
     result.resize((sizeof fp->crc) * 4 / 3 + 4);
-    result.resize(Base64::btoa((const byte *)fp->crc.data(), sizeof fp->crc,(char*)result.c_str()));
+    result.resize(Base64::btoa((const byte *)fp->crc, sizeof fp->crc,(char*)result.c_str()));
     delete fp;
 
     return MegaApi::strdup(result.c_str());
@@ -11415,7 +11415,7 @@ char *MegaApiImpl::getCRC(MegaNode *n)
 
     string result;
     result.resize((sizeof node->crc) * 4 / 3 + 4);
-    result.resize(Base64::btoa((const byte *)node->crc.data(), sizeof node->crc.data(), (char*)result.c_str()));
+    result.resize(Base64::btoa((const byte *)node->crc, sizeof node->crc, (char*)result.c_str()));
 
     sdkMutex.unlock();
     return MegaApi::strdup(result.c_str());
@@ -11439,7 +11439,7 @@ MegaNode *MegaApiImpl::getNodeByCRC(const char *crc, MegaNode *parent)
     for (node_list::iterator it = node->children.begin(); it != node->children.end(); it++)
     {
         Node *child = (*it);
-        if(!memcmp(child->crc.data(), binarycrc, sizeof(node->crc)))
+        if(!memcmp(child->crc, binarycrc, sizeof(node->crc)))
         {
             MegaNode *result = MegaNodePrivate::fromNode(child);
             sdkMutex.unlock();

@@ -46,9 +46,9 @@ bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, h
 class MEGA_API Sync
 {
 public:
-    void* appData = nullptr;
+    void *appData;
 
-    MegaClient* client = nullptr;
+    MegaClient* client;
 
     // sync-wide directory notification provider
     std::unique_ptr<DirNotify> dirnotify;
@@ -62,13 +62,13 @@ public:
     string mFsEventsPath;
 #endif
     // current state
-    syncstate_t state = SYNC_FAILED;
+    syncstate_t state;
 
     // are we conducting a full tree scan? (during initialization and if event notification failed)
-    bool fullscan = false;
+    bool fullscan;
 
     // syncing to an inbound share?
-    bool inshare = false;
+    bool inshare;
     
     // deletion queue
     set<int32_t> deleteq;
@@ -100,8 +100,8 @@ public:
     // scan specific path
     LocalNode* checkpath(LocalNode*, string*, string* = NULL, dstime* = NULL, bool wejustcreatedthisfolder = false);
 
-    m_off_t localbytes = 0;
-    unsigned localnodes[2]{};
+    m_off_t localbytes;
+    unsigned localnodes[2];
 
     // look up LocalNode relative to localroot
     LocalNode* localnodebypath(LocalNode*, string*, LocalNode** = NULL, string* = NULL);
@@ -115,48 +115,47 @@ public:
     bool scan(string*, FileAccess*);
 
     // own position in session sync list
-    sync_list::iterator sync_it{};
+    sync_list::iterator sync_it;
 
     // rescan sequence number (incremented when a full rescan or a new
     // notification batch starts)
-    int scanseqno = 0;
+    int scanseqno;
 
     // notified nodes originating from this sync bear this tag
-    int tag = 0;
+    int tag;
 
     // debris path component relative to the base path
     string debris, localdebris;
 
     // permanent lock on the debris/tmp folder
-    FileAccess* tmpfa = nullptr;
+    FileAccess* tmpfa;
 
     // state cache table
-    DbTable* statecachetable = nullptr;
+    DbTable* statecachetable;
 
     // move file or folder to localdebris
     bool movetolocaldebris(string* localpath);
 
     // original filesystem fingerprint
-    fsfp_t fsfp = 0;
+    fsfp_t fsfp;
 
     // does the filesystem have stable IDs? (FAT does not)
     bool fsstableids = false;
 
     // Error that causes a cancellation
-    error errorcode = API_OK;
+    error errorcode;
 
     // true if the sync hasn't loaded cached LocalNodes yet
-    bool initializing = false;
+    bool initializing;
 
     // true if the local synced folder is a network folder
-    bool isnetwork = false;
+    bool isnetwork;
 
     // values related to possible files being updated
-    m_off_t updatedfilesize = 0;
-    m_time_t updatedfilets = 0;
-    m_time_t updatedfileinitialts = 0;
-
-    Sync() = default;
+    m_off_t updatedfilesize;
+    m_time_t updatedfilets;
+    m_time_t updatedfileinitialts;
+    
     Sync(MegaClient*, string*, const char*, string*, Node*, fsfp_t, bool, int, void*);
     ~Sync();
 
