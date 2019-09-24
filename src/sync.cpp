@@ -96,7 +96,7 @@ void hashCombineFingerprint(FileFingerprint& ffp, const FileFingerprint& other)
     assert(other.isvalid);
     hashCombine(ffp.size, other.size);
     hashCombine(ffp.mtime, other.mtime);
-    for (size_t i = 0; i < other.crc.size(); ++i)
+    for (size_t i = 0; i < sizeof(other.crc) / sizeof(*other.crc); ++i)
     {
         hashCombine(ffp.crc[i], other.crc[i]);
     }
@@ -253,7 +253,7 @@ void assignFilesystemId(FileSystemAccess& fsaccess, FileAccess& fa, handlelocaln
     }
     else if (nodeCount == 1)
     {
-        nodeRange.first->second->setfsid(fsId, fsidnodes);
+        nodeRange.first->second->setfsid(fsId);
         fingerprints.erase(nodeRange.first);
     }
     else
@@ -266,7 +266,7 @@ void assignFilesystemId(FileSystemAccess& fsaccess, FileAccess& fa, handlelocaln
         for (auto nodeIt = nodeRange.first; nodeIt != nodeRange.second; ++nodeIt)
         {
             string nodePath;
-            nodeIt->second->getlocalpath(&nodePath, false, &localseparator);
+            nodeIt->second->getlocalpath(&nodePath, false);
 
             const auto score = computeReversePathMatchScore(preferredNodePath, nodePath, localseparator);
 
@@ -277,7 +277,7 @@ void assignFilesystemId(FileSystemAccess& fsaccess, FileAccess& fa, handlelocaln
             }
         }
 
-        bestNodeIt->second->setfsid(fsId, fsidnodes);
+        bestNodeIt->second->setfsid(fsId);
         fingerprints.erase(bestNodeIt);
     }
 }
