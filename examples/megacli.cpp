@@ -6264,16 +6264,14 @@ void DemoApp::exportnode_result(handle h, handle ph)
             return;
         }
 
-        const char* key;
         if (n->type == FILENODE)
         {
-            key = Base64Str<FILENODEKEYLENGTH>{(const byte*)n->nodekey.data()};
+            cout << MegaClient::getPublicLink(client->mNewLinkFormat, n->type, ph, Base64Str<FILENODEKEYLENGTH>((const byte*)n->nodekey.data())) << endl;
         }
         else
         {
-            key = Base64Str<FOLDERNODEKEYLENGTH>{n->sharekey->key};
+            cout << MegaClient::getPublicLink(client->mNewLinkFormat, n->type, ph, Base64Str<FOLDERNODEKEYLENGTH>(n->sharekey->key)) << endl;
         }
-        cout << MegaClient::getPublicLink(client->mNewLinkFormat, n->type, ph, key) << endl;
     }
     else
     {
