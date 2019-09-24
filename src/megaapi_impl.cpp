@@ -21752,6 +21752,11 @@ long long MegaAccountDetailsPrivate::getTransferSrvUsed()
     return details.transfer_srv_used;
 }
 
+long long MegaAccountDetailsPrivate::getTransferUsed()
+{
+    return details.transfer_srv_used + details.transfer_own_used + getTemporalBandwidth();
+}
+
 int MegaAccountDetailsPrivate::getNumUsageItems()
 {
     return int(details.storage.size());

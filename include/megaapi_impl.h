@@ -1292,6 +1292,7 @@ class MegaAccountDetailsPrivate : public MegaAccountDetails
         virtual long long getTransferMax();
         virtual long long getTransferOwnUsed();
         virtual long long getTransferSrvUsed();
+        virtual long long getTransferUsed();
 
         virtual int getNumUsageItems();
         virtual long long getStorageUsed(MegaHandle handle);

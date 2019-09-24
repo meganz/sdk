@@ -5087,6 +5087,11 @@ long long MegaAccountDetails::getTransferSrvUsed()
     return 0;
 }
 
+long long MegaAccountDetails::getTransferUsed()
+{
+    return 0;
+}
+
 int MegaAccountDetails::getNumUsageItems()
 {
     return 0;
