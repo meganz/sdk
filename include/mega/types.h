@@ -129,6 +129,7 @@ namespace UserAlert
 {
     struct Base;
 }
+class AuthRing;
 
 #define EOO 0
 
@@ -455,6 +456,8 @@ typedef enum {
     ATTR_PUSH_SETTINGS = 25,                // private - non-encripted - char array in B64 - non-versioned
     ATTR_UNSHAREABLE_KEY = 26,              // private - char array
     ATTR_ALIAS = 27,                        // private - byte array - non-versioned
+    ATTR_AUTHRSA = 28,                      // private - byte array
+    ATTR_AUTHCU255 = 29,                    // private - byte array
 
 } attr_t;
 typedef map<attr_t, string> userattr_map;
@@ -537,7 +540,7 @@ typedef enum { EMAIL_REMOVED = 0, EMAIL_PENDING_REMOVED = 1, EMAIL_PENDING_ADDED
 
 typedef enum { RETRY_NONE = 0, RETRY_CONNECTIVITY = 1, RETRY_SERVERS_BUSY = 2, RETRY_API_LOCK = 3, RETRY_RATE_LIMIT = 4, RETRY_LOCAL_LOCK = 5, RETRY_UNKNOWN = 6} retryreason_t;
 
-typedef enum { STORAGE_GREEN = 0, STORAGE_ORANGE = 1, STORAGE_RED = 2, STORAGE_CHANGE = 3 } storagestatus_t;
+typedef enum { STORAGE_UNKNOWN = -9, STORAGE_GREEN = 0, STORAGE_ORANGE = 1, STORAGE_RED = 2, STORAGE_CHANGE = 3 } storagestatus_t;
 
 
 enum SmsVerificationState {
@@ -564,6 +567,15 @@ typedef vector<recentaction> recentactions_vector;
 
 typedef enum { BIZ_STATUS_UNKNOWN = -2, BIZ_STATUS_EXPIRED = -1, BIZ_STATUS_INACTIVE = 0, BIZ_STATUS_ACTIVE = 1, BIZ_STATUS_GRACE_PERIOD = 2 } BizStatus;
 typedef enum { BIZ_MODE_UNKNOWN = -1, BIZ_MODE_SUBUSER = 0, BIZ_MODE_MASTER = 1 } BizMode;
+
+typedef enum {
+    AUTH_METHOD_UNKNOWN     = -1,
+    AUTH_METHOD_SEEN        = 0,
+    AUTH_METHOD_FINGERPRINT = 1,    // used only for AUTHRING_ED255
+    AUTH_METHOD_SIGNATURE   = 2,    // used only for signed keys (RSA and Cu25519)
+} AuthMethod;
+
+typedef std::map<attr_t, AuthRing> AuthRingsMap;
 
 // inside 'mega' namespace, since use C++11 and can't rely on C++14 yet, provide make_unique for the most common case.
 // This keeps our syntax small, while making sure the compiler ensures the object is deleted when no longer used.

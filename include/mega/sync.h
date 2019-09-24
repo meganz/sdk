@@ -56,6 +56,11 @@ public:
     // root of local filesystem tree, holding the sync's root folder
     LocalNode localroot;
 
+    // Path used to normalize sync locaroot name when using prefix /System/Volumes/Data needed by fsevents, due to notification paths
+    // are served with such prefix from macOS catalina +
+#ifdef __APPLE__
+    string mFsEventsPath;
+#endif
     // current state
     syncstate_t state = SYNC_FAILED;
 

@@ -173,20 +173,6 @@ using namespace mega;
     return (BusinessStatus) self.megaApi->getBusinessStatus();
 }
 
-#ifdef ENABLE_CHAT
-
-- (NSString *)myFingerprint {
-    const char *val = self.megaApi->getMyFingerprint();
-    if (!val) return nil;
-    
-    NSString *ret = [[NSString alloc] initWithUTF8String:val];
-    
-    delete [] val;
-    return ret;
-}
-
-#endif
-
 - (NSInteger)numUnreadUserAlerts {
     return self.megaApi->getNumUnreadUserAlerts();
 }
@@ -1686,8 +1672,8 @@ using namespace mega;
     return [[MEGANodeList alloc] initWithNodeList:self.megaApi->getInShares() cMemoryOwn:YES];
 }
 
-- (MEGAShareList *)inSharesList {
-    return [[MEGAShareList alloc] initWithShareList:self.megaApi->getInSharesList() cMemoryOwn:YES];
+- (MEGAShareList *)inSharesList:(MEGASortOrderType)order {
+    return [[MEGAShareList alloc] initWithShareList:self.megaApi->getInSharesList(order) cMemoryOwn:YES];
 }
 
 - (MEGAUser *)userFromInShareNode:(MEGANode *)node {
@@ -1700,16 +1686,16 @@ using namespace mega;
     return self.megaApi->isShared([node getCPtr]);
 }
 
-- (MEGAShareList *)outShares {
-    return [[MEGAShareList alloc] initWithShareList:self.megaApi->getOutShares() cMemoryOwn:YES];
+- (MEGAShareList *)outShares:(MEGASortOrderType)order {
+    return [[MEGAShareList alloc] initWithShareList:self.megaApi->getOutShares(order) cMemoryOwn:YES];
 }
 
 - (MEGAShareList *)outSharesForNode:(MEGANode *)node {
     return [[MEGAShareList alloc] initWithShareList:self.megaApi->getOutShares((node != nil) ? [node getCPtr] : NULL) cMemoryOwn:YES];
 }
 
-- (MEGANodeList *)publicLinks {
-    return [[MEGANodeList alloc] initWithNodeList:self.megaApi->getPublicLinks() cMemoryOwn:YES];
+- (MEGANodeList *)publicLinks:(MEGASortOrderType)order {
+    return [[MEGANodeList alloc] initWithNodeList:self.megaApi->getPublicLinks(order) cMemoryOwn:YES];
 }
 
 - (MEGAContactRequestList *)incomingContactRequests {
@@ -1871,6 +1857,10 @@ using namespace mega;
 
 - (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString cancelToken:(MEGACancelToken *)cancelToken recursive:(BOOL)recursive {
     return [MEGANodeList.alloc initWithNodeList:self.megaApi->search(node ? [node getCPtr] : NULL, searchString.UTF8String, cancelToken ? [cancelToken getCPtr] : NULL, recursive) cMemoryOwn:YES];
+}
+
+- (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString cancelToken:(MEGACancelToken *)cancelToken recursive:(BOOL)recursive order:(MEGASortOrderType)order {
+    return [MEGANodeList.alloc initWithNodeList:self.megaApi->search(node ? [node getCPtr] : NULL, searchString.UTF8String, cancelToken ? [cancelToken getCPtr] : NULL, recursive, (int)order) cMemoryOwn:YES];
 }
 
 - (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString {
