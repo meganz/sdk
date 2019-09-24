@@ -9914,8 +9914,7 @@ void MegaApiImpl::setCameraUploadsFolder(MegaHandle nodehandle, bool secondary, 
 {
     MegaStringMapPrivate stringMap;
     const char *key = secondary ? "sh" : "h";
-    Base64Str<MegaClient::NODEHANDLE> value(nodehandle);
-    stringMap.set(key, value);
+    stringMap.set(key, Base64Str<MegaClient::NODEHANDLE> (nodehandle));
     setUserAttribute(MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER, &stringMap, listener);
 }
 
@@ -9929,12 +9928,9 @@ void MegaApiImpl::getMyChatFilesFolder(MegaRequestListener *listener)
 
 void MegaApiImpl::setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListener *listener)
 {
-    MegaStringMap *stringMap = new MegaStringMapPrivate();
-    char buffer[12];
-    Base64::btoa((byte*)&nodehandle, MegaClient::NODEHANDLE, buffer);
-    stringMap->set("h", buffer);
-    setUserAttribute(MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER, stringMap, listener);
-    delete stringMap;
+    MegaStringMapPrivate stringMap;
+    stringMap.set("h", Base64Str<MegaClient::NODEHANDLE> (nodehandle));
+    setUserAttribute(MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER, &stringMap, listener);
 }
 
 void MegaApiImpl::getUserAlias(MegaHandle uh, MegaRequestListener *listener)
@@ -9951,7 +9947,11 @@ void MegaApiImpl::setUserAlias(MegaHandle uh, const char *alias, MegaRequestList
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
     MegaStringMapPrivate stringMap;
-    stringMap.set(Base64Str<MegaClient::USERHANDLE>(uh), alias ? alias : "");
+    const char *aux = alias ? alias : "";
+    char *value = new char[strlen(aux)* 4 / 3 + 4];
+    Base64::btoa((byte*) aux, strlen(aux), value);
+    stringMap.set(Base64Str<MegaClient::USERHANDLE>(uh), value);
+    delete [] value;
     request->setMegaStringMap(&stringMap);
     request->setParamType(MegaApi::USER_ATTR_ALIAS);
     request->setNodeHandle(uh);
