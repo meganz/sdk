@@ -33,7 +33,7 @@ typedef NS_ENUM(NSUInteger, Event) {
     EventStorageSumChanged = 8,
     EventBusinessStatus = 9,
     EventKeyModified = 10,
-    EventGlobalFlagsReady = 11
+    EventMiscFlagsReady = 11
 };
 
 /**

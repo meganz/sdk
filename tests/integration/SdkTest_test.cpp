@@ -3859,7 +3859,7 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
 
     transferFlags[0][MegaTransfer::TYPE_DOWNLOAD] = false;
     megaApi[0]->startDownload(nimported, filename2.c_str());
-    ASSERT_TRUE(waitForResponse(&transferFlags[0][MegaTransfer::TYPE_DOWNLOAD], 60)) << "Download transfer failed after " << maxTimeout << " seconds";
+    ASSERT_TRUE(waitForResponse(&transferFlags[0][MegaTransfer::TYPE_DOWNLOAD])) << "Setup transfer failed after " << maxTimeout << " seconds";
     ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot download the initial file (error: " << lastError[0] << ")";
 
     char raidchar = 0;
@@ -3895,7 +3895,7 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
     m_time_t starttime = m_time();
     int seconds_to_test_for = gRunningInCI ? 60 : 60 * 10;
 
-    // ok loop for 10 minutes
+    // ok loop for 10 minutes  (one munite under jenkins)
     srand(unsigned(starttime));
     int randomRunsDone = 0;
     m_off_t randomRunsBytes = 0;
@@ -3932,8 +3932,9 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
         }
         else // decent piece of the file
         {
-            start = rand() % 5000000;
-            int n = 5000000 / (smallpieces ? 100 : 1);
+            int pieceSize = gRunningInCI ? 50000 : 5000000;
+            start = rand() % pieceSize;
+            int n = pieceSize / (smallpieces ? 100 : 1);
             end = start + n + rand() % n;
         }
 
@@ -3944,6 +3945,8 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
             else end += 1;
         }
         randomRunsBytes += end - start;
+
+        LOG_info << "beginning stream test, " << start << " to " << end << "(len " << end - start << ") " << (nonraid ? " non-raid " : " RAID ") << (!nonraid ? (smallpieces ? " smallpieces " : "normalpieces") : "");
 
         CheckStreamedFile_MegaTransferListener* p = StreamRaidFilePart(megaApi[0], start, end, !nonraid, smallpieces, nimported, nonRaidNode, compareDecryptedData);
 
