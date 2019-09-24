@@ -109,16 +109,16 @@ void combinedFingerprint(FileFingerprint& ffp, const localnode_map& nodeMap)
     ffp.isvalid = false;
     for (const auto& nodePair : nodeMap)
     {
-        const LocalNode& node = *nodePair.second;
-        if (node.type == FILENODE)
+        const LocalNode& l = *nodePair.second;
+        if (l.type == FILENODE)
         {
-            if (!node.isvalid)
+            if (!l.isvalid)
             {
-                LOG_err << "Invalid fingerprint: " << node.localname;
+                LOG_err << "Invalid fingerprint: " << l.localname;
                 ffp.isvalid = false;
                 break;
             }
-            hashCombineFingerprint(ffp, node);
+            hashCombineFingerprint(ffp, l);
         }
     }
 }
@@ -151,21 +151,21 @@ void combinedFingerprint(FileFingerprint& ffp, FileSystemAccess& fsaccess, const
     }
 }
 
-// Computes the fingerprint of the given `node` (file or folder) and stores it in `ffp`
-void computeFingerprint(FileFingerprint& ffp, const LocalNode& node)
+// Computes the fingerprint of the given `l` (file or folder) and stores it in `ffp`
+void computeFingerprint(FileFingerprint& ffp, const LocalNode& l)
 {
-    if (node.type == FILENODE)
+    if (l.type == FILENODE)
     {
-        if (!node.isvalid)
+        if (!l.isvalid)
         {
-            LOG_err << "Invalid fingerprint: " << node.localname;
+            LOG_err << "Invalid fingerprint: " << l.localname;
             return;
         }
-        ffp = node;
+        ffp = l;
     }
-    else if (node.type == FOLDERNODE)
+    else if (l.type == FOLDERNODE)
     {
-        combinedFingerprint(ffp, node.children);
+        combinedFingerprint(ffp, l.children);
     }
     else
     {
