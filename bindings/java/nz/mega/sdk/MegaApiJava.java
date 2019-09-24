@@ -506,6 +506,10 @@ public class MegaApiJava {
 
     /**
      * Check if server-side Rubbish Bin autopurging is enabled for the current account
+     *
+     * Before using this function, it's needed to:
+     *  - If you are logged-in: call to MegaApi::login and MegaApi::fetchNodes.
+     *
      * @return True if this feature is enabled. Otherwise false.
      */
     public boolean serverSideRubbishBinAutopurgeEnabled(){
@@ -513,10 +517,24 @@ public class MegaApiJava {
     }
 
     /**
+     * Check if the new format for public links is enabled
+     *
+     * Before using this function, it's needed to:
+     *  - If you are logged-in: call to MegaApi::login and MegaApi::fetchNodes.
+     *  - If you are not logged-in: call to MegaApi::getMiscFlags.
+     *
+     * @return True if this feature is enabled. Otherwise, false.
+     */
+    public boolean newLinkFormatEnabled() {
+        return megaApi.newLinkFormatEnabled();
+    }
+
+    /**
      * Check if multi-factor authentication can be enabled for the current account.
      *
-     * It's needed to be logged into an account and with the nodes loaded (login + fetchNodes) before
-     * using this function. Otherwise it will always return false.
+     * Before using this function, it's needed to:
+     *  - If you are logged-in: call to MegaApi::login and MegaApi::fetchNodes.
+     *  - If you are not logged-in: call to MegaApi::getMiscFlags.
      *
      * @return True if multi-factor authentication can be enabled for the current account, otherwise false.
      */
@@ -1103,6 +1121,42 @@ public class MegaApiJava {
      */
     public void getUserData(String user) {
         megaApi.getUserData(user);
+    }
+
+    /**
+     * Fetch miscellaneous flags when not logged in
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_MISC_FLAGS.
+     *
+     * When onRequestFinish is called with MegaError::API_OK, the global flags are available.
+     * If you are logged in into an account, the error code provided in onRequestFinish is
+     * MegaError::API_EACCESS.
+     *
+     * @see MegaApi::multiFactorAuthAvailable
+     * @see MegaApi::newLinkFormatEnabled
+     * @see MegaApi::smsAllowedState
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getMiscFlags(MegaRequestListenerInterface listener) {
+        megaApi.getMiscFlags(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Fetch miscellaneous flags when not logged in
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_MISC_FLAGS.
+     *
+     * When onRequestFinish is called with MegaError::API_OK, the global flags are available.
+     * If you are logged in into an account, the error code provided in onRequestFinish is
+     * MegaError::API_EACCESS.
+     *
+     * @see MegaApi::multiFactorAuthAvailable
+     * @see MegaApi::newLinkFormatEnabled
+     * @see MegaApi::smsAllowedState
+     */
+    public void getMiscFlags() {
+        megaApi.getMiscFlags();
     }
 
     /**

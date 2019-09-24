@@ -379,6 +379,8 @@ struct MEGA_API MegaApp
     // result of get country calling codes command
     virtual void getcountrycallingcodes_result(error, map<string, vector<string>>*) { }
 
+    virtual void getmiscflags_result(error) { }
+
     virtual ~MegaApp() { }
 };
 } // namespace

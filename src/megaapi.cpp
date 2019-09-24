@@ -1913,6 +1913,11 @@ bool MegaApi::appleVoipPushEnabled()
     return pImpl->appleVoipPushEnabled();
 }
 
+bool MegaApi::newLinkFormatEnabled()
+{
+    return pImpl->newLinkFormatEnabled();
+}
+
 int MegaApi::smsAllowedState()
 {
     return pImpl->smsAllowedState();
@@ -2013,6 +2018,11 @@ void MegaApi::getUserData(MegaUser *user, MegaRequestListener *listener)
 void MegaApi::getUserData(const char *user, MegaRequestListener *listener)
 {
     pImpl->getUserData(user, listener);
+}
+
+void MegaApi::getMiscFlags(MegaRequestListener *listener)
+{
+    pImpl->getMiscFlags(listener);
 }
 
 void MegaApi::login(const char *login, const char *password, MegaRequestListener *listener)
@@ -5957,7 +5967,7 @@ MegaHandle MegaEvent::getHandle() const
 
 const char *MegaEvent::getEventString() const
 {
-    return MegaEvent::getEventString();
+    return NULL;
 }
 
 MegaHandleList *MegaHandleList::createInstance()

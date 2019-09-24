@@ -3634,6 +3634,7 @@ void MegaClient::locallogout()
     ssrs_enabled = false;
     nsr_enabled = false;
     aplvp_enabled = false;
+    mNewLinkFormat = false;
     mSmsVerificationState = SMS_STATE_UNKNOWN;
     mSmsVerifiedPhone.clear();
     loggingout = 0;
@@ -7682,6 +7683,43 @@ void MegaClient::readopc(JSON *j)
     }
 }
 
+error MegaClient::readmiscflags(JSON *json)
+{
+    while (1)
+    {
+        switch (json->getnameid())
+        {
+        // mcs:1 --> MegaChat enabled
+        // ach:1 --> Mega Achievements enabled
+        case MAKENAMEID4('m', 'f', 'a', 'e'):   // multi-factor authentication enabled
+            gmfa_enabled = bool(json->getint());
+            break;
+        case MAKENAMEID4('s', 's', 'r', 's'):   // server-side rubish-bin scheduler (only available when logged in)
+            ssrs_enabled = bool(json->getint());
+            break;
+        case MAKENAMEID4('n', 's', 'r', 'e'):   // new secure registration enabled
+            nsr_enabled = bool(json->getint());
+            break;
+        case MAKENAMEID5('a', 'p', 'l', 'v', 'p'):   // apple VOIP push enabled (only available when logged in)
+            aplvp_enabled = bool(json->getint());
+            break;
+        case MAKENAMEID5('s', 'm', 's', 'v', 'e'):   // 2 = Opt-in and unblock SMS allowed 1 = Only unblock SMS allowed 0 = No SMS allowed
+            mSmsVerificationState = static_cast<SmsVerificationState>(json->getint());
+            break;
+        case MAKENAMEID4('n', 'l', 'f', 'e'):   // new link format enabled
+            mNewLinkFormat = static_cast<bool>(json->getint());
+            break;
+        case EOO:
+            return API_OK;
+        default:
+            if (!json->storeobject())
+            {
+                return API_EINTERNAL;
+            }
+        }
+    }
+}
+
 void MegaClient::procph(JSON *j)
 {
     // fields: h, ph, ets
@@ -8005,6 +8043,11 @@ void MegaClient::getuserdata()
 {
     cachedug = false;
     reqs.add(new CommandGetUserData(this));
+}
+
+void MegaClient::getmiscflags()
+{
+    reqs.add(new CommandGetMiscFlags(this));
 }
 
 void MegaClient::getpubkey(const char *user)
@@ -10201,7 +10244,7 @@ sessiontype_t MegaClient::loggedin()
 void MegaClient::whyamiblocked()
 {
     // make sure the smsve flag is up to date when we get the response
-    reqs.add(new CommandGetMiscFlags(this));
+    getmiscflags();
 
     // queue the actual request
     reqs.add(new CommandWhyAmIblocked(this));

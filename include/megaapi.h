@@ -2744,7 +2744,7 @@ class MegaRequest
             TYPE_GET_CLOUD_STORAGE_USED,
             TYPE_SEND_SMS_VERIFICATIONCODE, TYPE_CHECK_SMS_VERIFICATIONCODE,
             TYPE_GET_REGISTERED_CONTACTS, TYPE_GET_COUNTRY_CALLING_CODES,
-            TYPE_VERIFY_CREDENTIALS,
+            TYPE_VERIFY_CREDENTIALS, TYPE_GET_MISC_FLAGS,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -3448,7 +3448,7 @@ public:
         EVENT_STORAGE_SUM_CHANGED       = 8,
         EVENT_BUSINESS_STATUS           = 9,
         EVENT_KEY_MODIFIED              = 10,
-        EVENT_USER_FLAGS_READY          = 11,
+        EVENT_MISC_FLAGS_READY          = 11,
     };
 
     virtual ~MegaEvent();
@@ -5965,7 +5965,7 @@ class MegaGlobalListener
          *  - Signature of chat key         = 3
          *  - Signature of RSA key          = 4
          *
-         * - MegaEvent::EVENT_USER_FLAGS_READY: when the user flags are available/updated.
+         * - MegaEvent::EVENT_MISC_FLAGS_READY: when the miscellaneous flags are available/updated.
          *
          * @param api MegaApi object connected to the account
          * @param event Details about the event
@@ -6451,7 +6451,7 @@ class MegaListener
          *  - Signature of chat key         = 3
          *  - Signature of RSA key          = 4
          *
-         * - MegaEvent::EVENT_USER_FLAGS_READY: when the user flags are available/updated.
+         * - MegaEvent::EVENT_MISC_FLAGS_READY: when the miscellaneous flags are available/updated.
          *
          * @param api MegaApi object connected to the account
          * @param event Details about the event
@@ -7233,20 +7233,43 @@ class MegaApi
 
         /**
          * @brief Check if server-side Rubbish Bin autopurging is enabled for the current account
+         *
+         * Before using this function, it's needed to:
+         *  - If you are logged-in: call to MegaApi::login and MegaApi::fetchNodes.
+         *
          * @return True if this feature is enabled. Otherwise false.
          */
         bool serverSideRubbishBinAutopurgeEnabled();
 
         /**
          * @brief Check if the account has VOIP push enabled
+         *
+         * Before using this function, it's needed to:
+         *  - If you are logged-in: call to MegaApi::login and MegaApi::fetchNodes.
+         *
          * @return True if this feature is enabled. Otherwise false.
          */
         bool appleVoipPushEnabled();
 
         /**
+         * @brief Check if the new format for public links is enabled
+         *
+         * Before using this function, it's needed to:
+         *  - If you are logged-in: call to MegaApi::login and MegaApi::fetchNodes.
+         *  - If you are not logged-in: call to MegaApi::getMiscFlags.
+         *
+         * @return True if this feature is enabled. Otherwise, false.
+         */
+        bool newLinkFormatEnabled();
+
+        /**
          * @brief Check if the opt-in or account unblocking SMS is allowed
          *
          * The result indicated whether the MegaApi::sendSMSVerificationCode function can be used.
+         *
+         * Before using this function, it's needed to:
+         *  - If you are logged-in: call to MegaApi::login and MegaApi::fetchNodes.
+         *  - If you are not logged-in: call to MegaApi::getMiscFlags.
          *
          * @return 2 = Opt-in and unblock SMS allowed.  1 = Only unblock SMS allowed.  0 = No SMS allowed
          */
@@ -7267,8 +7290,9 @@ class MegaApi
         /**
          * @brief Check if multi-factor authentication can be enabled for the current account.
          *
-         * It's needed to be logged into an account and with the nodes loaded (login + fetchNodes) before
-         * using this function. Otherwise it will always return false.
+         * Before using this function, it's needed to:
+         *  - If you are logged-in: call to MegaApi::login and MegaApi::fetchNodes.
+         *  - If you are not logged-in: call to MegaApi::getMiscFlags.
          *
          * @return True if multi-factor authentication can be enabled for the current account, otherwise false.
          */
@@ -7553,6 +7577,23 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getUserData(const char *user, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Fetch miscellaneous flags when not logged in
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_MISC_FLAGS.
+         *
+         * When onRequestFinish is called with MegaError::API_OK, the miscellaneous flags are available.
+         * If you are logged in into an account, the error code provided in onRequestFinish is
+         * MegaError::API_EACCESS.
+         *
+         * @see MegaApi::multiFactorAuthAvailable
+         * @see MegaApi::newLinkFormatEnabled
+         * @see MegaApi::smsAllowedState
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getMiscFlags(MegaRequestListener *listener = NULL);
 
         /**
          * @brief Returns the current session key
