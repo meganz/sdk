@@ -21945,29 +21945,41 @@ ExternalLogger::ExternalLogger()
 
 ExternalLogger::~ExternalLogger()
 {
+#ifndef ENABLE_LOG_PERFORMANCE
     mutex.lock();
+#endif
     SimpleLogger::setOutputClass(NULL);
+#ifndef ENABLE_LOG_PERFORMANCE
     mutex.unlock();
+#endif
 }
 
 void ExternalLogger::addMegaLogger(MegaLogger *logger)
 {
+#ifndef ENABLE_LOG_PERFORMANCE
     mutex.lock();
+#endif
     if (logger && megaLoggers.find(logger) == megaLoggers.end())
     {
         megaLoggers.insert(logger);
     }
+#ifndef ENABLE_LOG_PERFORMANCE
     mutex.unlock();
+#endif
 }
 
 void ExternalLogger::removeMegaLogger(MegaLogger *logger)
 {
+#ifndef ENABLE_LOG_PERFORMANCE
     mutex.lock();
+#endif
     if (logger)
     {
         megaLoggers.erase(logger);
     }
+#ifndef ENABLE_LOG_PERFORMANCE
     mutex.unlock();
+#endif
 }
 
 void ExternalLogger::setLogLevel(int logLevel)
@@ -21997,9 +22009,13 @@ void ExternalLogger::postLog(int logLevel, const char *message, const char *file
         filename = "";
     }
 
+#ifndef ENABLE_LOG_PERFORMANCE
     mutex.lock();
-    SimpleLogger((LogLevel)logLevel, filename, line) << message;
+#endif
+    SimpleLogger{static_cast<LogLevel>(logLevel), filename, line} << message;
+#ifndef ENABLE_LOG_PERFORMANCE
     mutex.unlock();
+#endif
 }
 
 void ExternalLogger::log(const char *time, int loglevel, const char *source, const char *message)
@@ -22019,17 +22035,27 @@ void ExternalLogger::log(const char *time, int loglevel, const char *source, con
         message = "";
     }
 
+#ifndef ENABLE_LOG_PERFORMANCE
     mutex.lock();
-    for (set<MegaLogger*>::iterator it = megaLoggers.begin(); it != megaLoggers.end(); it++)
+#endif
+    for (auto logger : megaLoggers)
     {
-        (*it)->log(time, loglevel, source, message);
+        logger->log(time, loglevel, source, message);
     }
 
     if (logToConsole)
     {
+#ifdef ENABLE_LOG_PERFORMANCE
+        mutex.lock();
+#endif
         std::cout << "[" << time << "][" << SimpleLogger::toStr((LogLevel)loglevel) << "] " << message << std::endl;
+#ifdef ENABLE_LOG_PERFORMANCE
+        mutex.unlock();
+#endif
     }
+#ifndef ENABLE_LOG_PERFORMANCE
     mutex.unlock();
+#endif
 }
 
 

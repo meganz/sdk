@@ -8443,7 +8443,8 @@ class MegaApi
         /**
          * @brief Enable log to console
          *
-         * By default, log to console is false.
+         * By default, log to console is false. Logging to console is serialized via a mutex to
+         * avoid interleaving by multiple threads, even in performance mode.
          *
          * @param enable True to show messages in console, false to skip them.
          */
@@ -8458,6 +8459,9 @@ class MegaApi
          *
          * You can remove the existing logger by using MegaApi::removeLoggerObject.
          *
+         * In performance mode, it is assumed that this is only called on startup and
+         * not while actively logging.
+         *
          * @param megaLogger MegaLogger implementation
          */
         static void addLoggerObject(MegaLogger *megaLogger);
@@ -8467,6 +8471,9 @@ class MegaApi
          *
          * If the logger was registered in the past, it will stop receiving log
          * messages after the call to this function.
+         *
+         * In performance mode, it is assumed that this is only called on shutdown and
+         * not while actively logging.
          *
          * @param megaLogger Previously registered MegaLogger implementation
          */
@@ -8480,6 +8487,9 @@ class MegaApi
          *
          * The third and the fouth parameter are optional. You may want to use __FILE__ and __LINE__
          * to complete them.
+         *
+         * In performance mode, only logging to console is serialized through a mutex.
+         * Logging to `MegaLogger`s is not serialized and has to be done by the subclasses if needed.
          *
          * @param logLevel Log level for this message
          * @param message Message for the logging system
