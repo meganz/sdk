@@ -17145,14 +17145,20 @@ void MegaApiImpl::sendPendingTransfers()
     error e;
     int nextTag;
 
-    sdkMutex.lock();
-    if (client->tctable)
-    {
-        client->tctable->begin();
-    }
+    bool tableTransaction = false;
+    auto t0 = std::chrono::steady_clock::now();
+    unsigned count = 0, batch = 0;
 
-    while((transfer = transferQueue.pop()))
+    SdkMutexGuard guard(sdkMutex);
+
+    while(batch < 5 && (transfer = transferQueue.pop()))
     {
+        if (client->tctable && !tableTransaction)
+        {
+            client->tctable->begin();
+            tableTransaction = true;
+        }
+
         e = API_OK;
         nextTag = client->nextreqtag();
         transfer->setState(MegaTransfer::STATE_QUEUED);
@@ -17601,13 +17607,29 @@ void MegaApiImpl::sendPendingTransfers()
             fireOnTransferFinish(transfer, MegaError(e));
         }
 
+        if (++count > 100 || std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count() > 50)
+        {
+            if (client->tctable && tableTransaction)
+            {
+                client->tctable->commit();
+                tableTransaction = false;
+            }
+
+            // give the GUI a go from time to time, in case it needs to lock the mutex.  Also, return to main loop periodically so curl, API requests etc can progress
+            guard.unlock();
+            yield();
+            t0 = std::chrono::steady_clock::now();
+            count = 0;
+            ++batch;
+            guard.lock();
+        }
     }
 
-    if (client->tctable)
+    if (client->tctable && tableTransaction)
     {
         client->tctable->commit();
+        tableTransaction = false;
     }
-    sdkMutex.unlock();
 }
 
 void MegaApiImpl::removeRecursively(const char *path)
@@ -22752,7 +22774,8 @@ void MegaFolderUploadController::onFolderAvailable(MegaHandle handle)
     {
         size_t t = localPath.size();
 
-        while (da->dnext(&localPath, &localname, client->followsymlinks))
+        nodetype_t dirEntryType;
+        while (da->dnext(&localPath, &localname, client->followsymlinks, &dirEntryType))
         {
             if (t)
             {
@@ -22761,37 +22784,31 @@ void MegaFolderUploadController::onFolderAvailable(MegaHandle handle)
 
             localPath.append(localname);
 
-            FileAccess *fa = client->fsaccess->newfileaccess();
-            if (fa->fopen(&localPath, true, false))
+            string name = localname;
+            client->fsaccess->local2name(&name);
+            if (dirEntryType == FILENODE)
             {
-                string name = localname;
-                client->fsaccess->local2name(&name);
-                if (fa->type == FILENODE)
+                pendingTransfers++;
+                string utf8path;
+                client->fsaccess->local2path(&localPath, &utf8path);
+                megaApi->startUpload(false, utf8path.c_str(), parent, (const char *)NULL, -1, tag, false, NULL, false, this);
+            }
+            else if (dirEntryType == FOLDERNODE)
+            {
+                MegaNode *child = megaApi->getChildNode(parent, name.c_str());
+                if(!child || !child->isFolder())
                 {
-                    pendingTransfers++;
-                    string utf8path;
-                    client->fsaccess->local2path(&localPath, &utf8path);
-                    megaApi->startUpload(false, utf8path.c_str(), parent, (const char *)NULL, -1, tag, false, NULL, false, this);
+                    pendingFolders.push_back(localPath);
+                    megaApi->createFolder(name.c_str(), parent, this);
                 }
                 else
                 {
-                    MegaNode *child = megaApi->getChildNode(parent, name.c_str());
-                    if(!child || !child->isFolder())
-                    {
-                        pendingFolders.push_back(localPath);
-                        megaApi->createFolder(name.c_str(), parent, this);
-                    }
-                    else
-                    {
-                        pendingFolders.push_front(localPath);
-                        onFolderAvailable(child->getHandle());
-                    }
-                    delete child;
+                    pendingFolders.push_front(localPath);
+                    onFolderAvailable(child->getHandle());
                 }
+                delete child;
             }
-
             localPath.resize(t);
-            delete fa;
         }
     }
 

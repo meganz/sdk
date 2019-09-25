@@ -868,6 +868,7 @@ void CurlHttpIO::addevents(Waiter* w, int)
         if (ds <= 0)
         {
             curltimeoutms = 0;
+            //if (ds < 0) curltimeoutreset[API] = -1;
         }
         else
         {
@@ -896,6 +897,7 @@ void CurlHttpIO::addevents(Waiter* w, int)
                 if (ds <= 0)
                 {
                     curltimeoutms = 0;
+                    //if (ds < 0) curltimeoutreset[d] = -1;
                 }
                 else
                 {

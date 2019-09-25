@@ -2732,6 +2732,13 @@ void MegaClient::exec()
 #ifdef MEGA_MEASURE_CODE
     performanceStats.transfersActiveTime.start(!tslots.empty() && !performanceStats.transfersActiveTime.inprogress());
     performanceStats.transfersActiveTime.stop(tslots.empty() && performanceStats.transfersActiveTime.inprogress());
+
+    static auto lasttime = Waiter::ds;
+    if (Waiter::ds > lasttime + 1200)
+    {
+        lasttime = Waiter::ds;
+        LOG_info << performanceStats.report(false, httpio);
+    }
 #endif
 }
 
@@ -2984,6 +2991,7 @@ int MegaClient::preparewait()
     // immediate action required?
     if (!nds)
     {
+        //LOG_warn << "Waiter:  IMMEDIATE ACTION";
         return Waiter::NEEDEXEC;
     }
 
@@ -2993,11 +3001,15 @@ int MegaClient::preparewait()
         nds -= Waiter::ds;
     }
 
+    //if (nds == 0) {LOG_warn << "Waiter:  INIT " << nds;}
     waiter->init(nds);
 
     // set subsystem wakeup criteria (WinWaiter assumes httpio to be set first!)
     waiter->wakeupby(httpio, Waiter::NEEDEXEC);
+    //if (waiter->maxds == 0) { LOG_warn << "Waiter:  after httpio " << waiter->maxds; }
+
     waiter->wakeupby(fsaccess, Waiter::NEEDEXEC);
+    //if (waiter->maxds == 0) { LOG_warn << "Waiter:  after fsaccess " << waiter->maxds; }
 
     return 0;
 }
@@ -7011,7 +7023,7 @@ uint64_t MegaClient::stringhash64(string* s, SymmCipher* c)
 }
 
 // read and add/verify node array
-int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, int nnsize, int tag)
+int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, int nnsize, int tag, bool applykeys)
 {
     if (!j->enterarray())
     {
@@ -7304,6 +7316,11 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
             if (notify)
             {
                 notifynode(n);
+            }
+
+            if (applykeys)
+            {
+                n->applykey();
             }
         }
     }
@@ -7724,7 +7741,7 @@ void MegaClient::procph(JSON *j)
     }
 }
 
-int MegaClient::applykeys()
+void MegaClient::applykeys()
 {
     CodeCounter::ScopeTimer ccst(performanceStats.applyKeys);
 
@@ -7740,6 +7757,12 @@ int MegaClient::applykeys()
         }
     }
 
+    sendkeyrewrites();
+    //return t;
+}
+
+void MegaClient::sendkeyrewrites()
+{
     if (sharekeyrewrite.size())
     {
         reqs.add(new CommandShareKeyUpdate(this, &sharekeyrewrite));
@@ -7751,8 +7774,6 @@ int MegaClient::applykeys()
         reqs.add(new CommandNodeKeyUpdate(this, &nodekeyrewrite));
         nodekeyrewrite.clear();
     }
-
-    return t;
 }
 
 // user/contact list
@@ -13695,6 +13716,42 @@ void MegaClient::getwelcomepdf()
 {
     reqs.add(new CommandGetWelcomePDF(this));
 }
+
+#ifdef MEGA_MEASURE_CODE
+std::string MegaClient::PerformanceStats::report(bool reset, HttpIO* httpio)
+{
+    std::ostringstream s;
+    s << prepareWait.report(reset) << "\n"
+        << doWait.report(reset) << "\n"
+        << checkEvents.report(reset) << "\n"
+        << execFunction.report(reset) << "\n"
+        << transferslotDoio.report(reset) << "\n"
+        << execdirectreads.report(reset) << "\n"
+        << transferComplete.report(reset) << "\n"
+        << applyKeys.report(reset) << "\n"
+        << scProcessingTime.report(reset) << "\n"
+        << csResponseProcessingTime.report(reset) << "\n"
+        << " cs Request waiting time: " << csRequestWaitTime.report(reset) << "\n"
+        << " transfers active time: " << transfersActiveTime.report(reset) << "\n"
+        << " transfer starts/finishes: " << transferStarts << " " << transferFinishes << "\n";
+#ifdef USE_CURL
+    if (auto curlhttpio = dynamic_cast<CurlHttpIO*>(httpio))
+    {
+        s << curlhttpio->countCurlHttpIOAddevents.report(reset) << "\n"
+            << curlhttpio->countAddAresEventsCode.report(reset) << "\n"
+            << curlhttpio->countAddCurlEventsCode.report(reset) << "\n"
+            << curlhttpio->countProcessAresEventsCode.report(reset) << "\n"
+            << curlhttpio->countProcessCurlEventsCode.report(reset) << "\n";
+    }
+#endif
+    if (reset)
+    {
+        transferStarts = 0;
+        transferFinishes = 0;
+    }
+    return s.str();
+}
+#endif
 
 FetchNodesStats::FetchNodesStats()
 {

@@ -1249,10 +1249,6 @@ void TransferSlot::doio(MegaClient* client)
 
         retrybt.backoff(backoff);
     }
-    else
-    {
-        retrybt.reset();
-    }
 }
 
 

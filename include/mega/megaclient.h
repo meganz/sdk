@@ -1261,7 +1261,7 @@ public:
     dstime disconnecttimestamp;
 
     // process object arrays by the API server
-    int readnodes(JSON*, int, putsource_t = PUTNODES_APP, NewNode* = NULL, int = 0, int = 0);
+    int readnodes(JSON*, int, putsource_t = PUTNODES_APP, NewNode* = NULL, int = 0, int = 0, bool applykeys = false);
 
     void readok(JSON*);
     void readokelement(JSON*);
@@ -1354,7 +1354,10 @@ public:
     string clientname;
 
     // apply keys
-    int applykeys();
+    void applykeys();
+
+    // send andy key rewrites prepared when keys were applied
+    void sendkeyrewrites();
 
     // symmetric password challenge
     int checktsid(byte* sidbuf, unsigned len);
@@ -1489,7 +1492,7 @@ public:
     BizStatus mBizStatus;
 
     // Keep track of high level operation counts and times, for performance analysis
-    struct
+    struct PerformanceStats
     {
         CodeCounter::ScopeStats execFunction = "MegaClient_exec";
         CodeCounter::ScopeStats transferslotDoio = "TransferSlot_doio";
@@ -1504,6 +1507,8 @@ public:
         uint64_t transferStarts = 0, transferFinishes = 0;
         CodeCounter::DurationSum csRequestWaitTime;
         CodeCounter::DurationSum transfersActiveTime;
+
+        std::string report(bool reset, HttpIO* httpio);
     } performanceStats;
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
