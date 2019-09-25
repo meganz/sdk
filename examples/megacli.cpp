@@ -70,6 +70,8 @@ using std::dec;
 MegaClient* client;
 MegaClient* clientFolder;
 
+bool gVerboseMode = true;
+
 
 // new account signup e-mail address and name
 static string signupemail, signupname;
@@ -286,22 +288,28 @@ void DemoApp::transfer_failed(Transfer* t, error e, dstime)
 
 void DemoApp::transfer_complete(Transfer* t)
 {
-    displaytransferdetails(t, "completed, ");
+    if (gVerboseMode)
+    {
+        displaytransferdetails(t, "completed, ");
 
-    if (t->slot)
-    {
-        cout << t->slot->progressreported * 10 / (1024 * (Waiter::ds - t->slot->starttime + 1)) << " KB/s" << endl;
-    }
-    else
-    {
-        cout << "delayed" << endl;
+        if (t->slot)
+        {
+            cout << t->slot->progressreported * 10 / (1024 * (Waiter::ds - t->slot->starttime + 1)) << " KB/s" << endl;
+        }
+        else
+        {
+            cout << "delayed" << endl;
+        }
     }
 }
 
 // transfer about to start - make final preparations (determine localfilename, create thumbnail for image upload)
 void DemoApp::transfer_prepare(Transfer* t)
 {
-    displaytransferdetails(t, "starting\n");
+    if (gVerboseMode)
+    {
+        displaytransferdetails(t, "starting\n");
+    }
 
     if (t->type == GET)
     {
@@ -2367,32 +2375,7 @@ void exec_sendDeferred(autocomplete::ACState& s)
 void exec_codeTimings(autocomplete::ACState& s)
 {
     bool reset = s.extractflag("-reset");
-
-    auto io = static_cast<CurlHttpIO*>(client->httpio);
-    cout << client->performanceStats.prepareWait.report(reset) << "\n"
-        << client->performanceStats.doWait.report(reset) << "\n"
-        << client->performanceStats.checkEvents.report(reset) << "\n"
-        << client->performanceStats.execFunction.report(reset) << "\n"
-        << client->performanceStats.transferslotDoio.report(reset) << "\n"
-        << client->performanceStats.execdirectreads.report(reset) << "\n"
-        << client->performanceStats.transferComplete.report(reset) << "\n"
-        << client->performanceStats.applyKeys.report(reset) << "\n"
-        << client->performanceStats.scProcessingTime.report(reset) << "\n"
-        << client->performanceStats.csResponseProcessingTime.report(reset) << "\n"
-        << " cs Request waiting time: " << client->performanceStats.csRequestWaitTime.report(reset) << "\n"
-        << " transfers active time: " << client->performanceStats.transfersActiveTime.report(reset) << "\n"
-        << " transfer starts/finishes: " << client->performanceStats.transferStarts << " " << client->performanceStats.transferFinishes << "\n"
-        << io->countCurlHttpIOAddevents.report(reset) << "\n"
-        << io->countAddAresEventsCode.report(reset) << "\n"
-        << io->countAddCurlEventsCode.report(reset) << "\n"
-        << io->countProcessAresEventsCode.report(reset) << "\n"
-        << io->countProcessCurlEventsCode.report(reset) << "\n"
-        << std::flush;
-    if (reset)
-    {
-        client->performanceStats.transferStarts = 0;
-        client->performanceStats.transferFinishes = 0;
-    }
+    cout << client->performanceStats.report(reset, client->httpio) << flush;
 }
 
 #endif
@@ -2585,7 +2568,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_smsverify, sequence(text("smsverify"), either(sequence(text("send"), param("phonenumber"), opt(param("reverifywhitelisted"))), sequence(text("code"), param("verificationcode")))));
     p->Add(exec_verifiedphonenumber, sequence(text("verifiedphone")));
     p->Add(exec_mkdir, sequence(text("mkdir"), remoteFSFolder(client, &cwd)));
-    p->Add(exec_rm, sequence(text("rm"), remoteFSPath(client, &cwd)));
+    p->Add(exec_rm, sequence(text("rm"), remoteFSPath(client, &cwd), opt(sequence(flag("-regexchild"), param("regex")))));
     p->Add(exec_mv, sequence(text("mv"), remoteFSPath(client, &cwd, "src"), remoteFSPath(client, &cwd, "dst")));
     p->Add(exec_cp, sequence(text("cp"), remoteFSPath(client, &cwd, "src"), either(remoteFSPath(client, &cwd, "dst"), param("dstemail"))));
     p->Add(exec_du, sequence(text("du"), remoteFSPath(client, &cwd)));
@@ -2625,7 +2608,8 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_locallogout, sequence(text("locallogout")));
     p->Add(exec_symlink, sequence(text("symlink")));
     p->Add(exec_version, sequence(text("version")));
-    p->Add(exec_debug, sequence(text("debug")));
+    p->Add(exec_debug, sequence(text("debug"), opt(either(flag("-on"), flag("-off")))));
+    p->Add(exec_verbose, sequence(text("verbose"), opt(either(flag("-on"), flag("-off")))));
 #if defined(WIN32) && defined(NO_READLINE)
     p->Add(exec_clear, sequence(text("clear")));
     p->Add(exec_codepage, sequence(text("codepage"), opt(sequence(wholenumber(65001), opt(wholenumber(65001))))));
@@ -3022,28 +3006,48 @@ void exec_cd(autocomplete::ACState& s)
 
 void exec_rm(autocomplete::ACState& s)
 {
-    if (s.words.size() > 1)
-    {
-        if (Node* n = nodebypath(s.words[1].s.c_str()))
-        {
-            if (client->checkaccess(n, FULL))
-            {
-                error e = client->unlink(n);
+    string childregexstring;
+    bool useregex = s.extractflagparam("-regexchild", childregexstring);
 
-                if (e)
-                {
-                    cout << s.words[1].s << ": Deletion failed (" << errorstring(e) << ")" << endl;
-                }
-            }
-            else
+    if (Node* n = nodebypath(s.words[1].s.c_str()))
+    {
+        vector<Node*> v;
+        if (useregex)
+        {
+            std::regex re(childregexstring);
+            for (Node* c : n->children)
             {
-                cout << s.words[1].s << ": Access denied" << endl;
+                if (std::regex_match(c->displayname(), re))
+                {
+                    v.push_back(c);
+                }
             }
         }
         else
         {
-            cout << s.words[1].s << ": No such file or directory" << endl;
+            v.push_back(n);
         }
+
+        for (auto d : v)
+        {
+            if (client->checkaccess(d, FULL))
+            {
+                error e = client->unlink(d);
+
+                if (e)
+                {
+                    cout << d->displaypath() << ": Deletion failed (" << errorstring(e) << ")" << endl;
+                }
+            }
+            else
+            {
+                cout << d->displaypath() << ": Access denied" << endl;
+            }
+        }
+    }
+    else
+    {
+        cout << s.words[1].s << ": No such file or directory" << endl;
     }
 }
 
@@ -3537,7 +3541,10 @@ void exec_put(autocomplete::ACState& s)
         while (da->dnext(NULL, &localname, true, &type))
         {
             client->fsaccess->local2path(&localname, &name);
-            cout << "Queueing " << name << "..." << endl;
+            if (gVerboseMode)
+            {
+                cout << "Queueing " << name << "..." << endl;
+            }
 
             if (type == FILENODE)
             {
@@ -4390,7 +4397,36 @@ void exec_pause(autocomplete::ACState& s)
 
 void exec_debug(autocomplete::ACState& s)
 {
-    cout << "Debug mode " << (client->toggledebug() ? "on" : "off") << endl;
+    bool turnon = s.extractflag("-on");
+    bool turnoff = s.extractflag("-off");
+
+    bool state = client->debugstate();
+    if ((turnon && !state) || (turnoff && state) || (!turnon && !turnoff))
+    {
+        client->toggledebug();
+    }
+
+    cout << "Debug mode " << (client->debugstate() ? "on" : "off") << endl;
+}
+
+void exec_verbose(autocomplete::ACState& s)
+{
+    bool turnon = s.extractflag("-on");
+    bool turnoff = s.extractflag("-off");
+
+    if (turnon)
+    {
+        gVerboseMode = true;
+    }
+    else if (turnoff)
+    {
+        gVerboseMode = false;
+    }
+    else
+    {
+        gVerboseMode = !gVerboseMode;
+    }
+    cout << "Verbose mode " << (gVerboseMode ? "on" : "off") << endl;
 }
 
 #if defined(WIN32) && defined(NO_READLINE)

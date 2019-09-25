@@ -1507,7 +1507,6 @@ public:
         uint64_t transferStarts = 0, transferFinishes = 0;
         CodeCounter::DurationSum csRequestWaitTime;
         CodeCounter::DurationSum transfersActiveTime;
-
         std::string report(bool reset, HttpIO* httpio);
     } performanceStats;
 

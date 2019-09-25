@@ -334,6 +334,7 @@ void exec_locallogout(autocomplete::ACState& s);
 void exec_symlink(autocomplete::ACState& s);
 void exec_version(autocomplete::ACState& s);
 void exec_debug(autocomplete::ACState& s);
+void exec_verbose(autocomplete::ACState& s);
 void exec_clear(autocomplete::ACState& s);
 void exec_codepage(autocomplete::ACState& s);
 void exec_log(autocomplete::ACState& s);

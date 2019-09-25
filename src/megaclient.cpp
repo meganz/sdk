@@ -46,10 +46,10 @@ string MegaClient::GELBURL = "https://gelb.karere.mega.nz/";
 string MegaClient::CHATSTATSURL = "https://stats.karere.mega.nz";
 
 // maximum number of concurrent transfers (uploads + downloads)
-const unsigned MegaClient::MAXTOTALTRANSFERS = 1024;
+const unsigned MegaClient::MAXTOTALTRANSFERS = 768;
 
 // maximum number of concurrent transfers (uploads or downloads)
-const unsigned MegaClient::MAXTRANSFERS = 768;
+const unsigned MegaClient::MAXTRANSFERS = 512;
 
 // maximum number of queued putfa before halting the upload queue
 const int MegaClient::MAXQUEUEDFA = 30;
@@ -2991,7 +2991,6 @@ int MegaClient::preparewait()
     // immediate action required?
     if (!nds)
     {
-        //LOG_warn << "Waiter:  IMMEDIATE ACTION";
         return Waiter::NEEDEXEC;
     }
 
@@ -3001,15 +3000,11 @@ int MegaClient::preparewait()
         nds -= Waiter::ds;
     }
 
-    //if (nds == 0) {LOG_warn << "Waiter:  INIT " << nds;}
     waiter->init(nds);
 
     // set subsystem wakeup criteria (WinWaiter assumes httpio to be set first!)
     waiter->wakeupby(httpio, Waiter::NEEDEXEC);
-    //if (waiter->maxds == 0) { LOG_warn << "Waiter:  after httpio " << waiter->maxds; }
-
     waiter->wakeupby(fsaccess, Waiter::NEEDEXEC);
-    //if (waiter->maxds == 0) { LOG_warn << "Waiter:  after fsaccess " << waiter->maxds; }
 
     return 0;
 }
