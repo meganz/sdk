@@ -9914,7 +9914,7 @@ void MegaApiImpl::setCameraUploadsFolder(MegaHandle nodehandle, bool secondary, 
 {
     MegaStringMapPrivate stringMap;
     const char *key = secondary ? "sh" : "h";
-    stringMap.set(key, Base64Str<MegaClient::NODEHANDLE> (nodehandle));
+    stringMap.set(key, Base64Str<MegaClient::NODEHANDLE>(nodehandle));
     setUserAttribute(MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER, &stringMap, listener);
 }
 
@@ -9929,7 +9929,7 @@ void MegaApiImpl::getMyChatFilesFolder(MegaRequestListener *listener)
 void MegaApiImpl::setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListener *listener)
 {
     MegaStringMapPrivate stringMap;
-    stringMap.set("h", Base64Str<MegaClient::NODEHANDLE> (nodehandle));
+    stringMap.set("h", Base64Str<MegaClient::NODEHANDLE>(nodehandle));
     setUserAttribute(MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER, &stringMap, listener);
 }
 
@@ -9947,11 +9947,8 @@ void MegaApiImpl::setUserAlias(MegaHandle uh, const char *alias, MegaRequestList
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
     MegaStringMapPrivate stringMap;
-    const char *aux = alias ? alias : "";
-    char *value = new char[strlen(aux)* 4 / 3 + 4];
-    Base64::btoa((byte*) aux, strlen(aux), value);
-    stringMap.set(Base64Str<MegaClient::USERHANDLE>(uh), value);
-    delete [] value;
+    string buf = alias ? alias : "";    // alias is null to remove it
+    stringMap.set(Base64Str<MegaClient::USERHANDLE>(uh), Base64::btoa(buf).c_str());
     request->setMegaStringMap(&stringMap);
     request->setParamType(MegaApi::USER_ATTR_ALIAS);
     request->setNodeHandle(uh);
@@ -14592,63 +14589,42 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
            || (request->getType() != MegaRequest::TYPE_GET_ATTR_USER
                && request->getType() != MegaRequest::TYPE_SET_ATTR_USER)) return;
 
+    assert(type == static_cast<attr_t>(request->getParamType()));
+
     if (tlv)
     {
         if (request->getType() == MegaRequest::TYPE_SET_ATTR_USER)
         {
+            // merge current value with the new value
             bool modified = false;
-            const char *key, *newValue;
-            std::string currentValue, aux;
-            MegaStringMap *newAttrMap = request->getMegaStringMap();
-            std::unique_ptr<MegaStringList> keys(newAttrMap->getKeys());
-
-            if (request->getParamType() ==  MegaApi::USER_ATTR_ALIAS)
+            if (request->getParamType() == MegaApi::USER_ATTR_ALIAS
+                    || request->getParamType() == MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER)
             {
+                MegaStringMap *newAttrMap = request->getMegaStringMap();
+                std::unique_ptr<MegaStringList> keys(newAttrMap->getKeys());
                 for (int i = 0; i < keys->size(); i++)
                 {
-                   key = keys->get(i);
-                   newValue = newAttrMap->get(key);
-                   aux = tlv->find(key) ? tlv->get(key) : string();
-                   currentValue.resize(aux.size() * 4 / 3 + 4);
-                   Base64::btoa(aux, currentValue);
-
-                   if (strcmp(newValue, currentValue.c_str()) != 0)
+                   const char *key = keys->get(i);
+                   string newValue = newAttrMap->get(key);
+                   string currentValue;
+                   if (tlv->find(key))  // the key may not exist in the current user attribute
                    {
-                       if (newValue[0] != '\0')    // not empty, set new alias
-                       {
-                           // Decode value from B64
-                           aux.resize(int(strlen(newValue) * 3 / 4 + 3));
-                           aux.resize(Base64::atob(newValue, (byte *)aux.data(), int(strlen(newValue))));
-                           tlv->set(key, aux);
-                       }
-                       else    // empty, reset the current alias
-                       {
-                           tlv->reset(key);
-                       }
-
-                       modified = true;
+                       Base64::btoa(tlv->get(key), currentValue);
+                   }
+                   if (newValue != currentValue)
+                   {
+                        if (type == static_cast<attr_t>(MegaApi::USER_ATTR_ALIAS) && newValue[0] == '\0')
+                        {
+                            // alias being removed
+                            tlv->reset(key);
+                        }
+                        else
+                        {
+                            tlv->set(key, Base64::atob(newValue));
+                        }
+                        modified = true;
                    }
                 }
-            }
-            else if (request->getParamType() ==  MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER)
-            {
-               for (int i = 0; i < keys->size(); i++)
-               {
-                   key = keys->get(i);
-                   newValue = newAttrMap->get(key);
-                   aux = tlv->find(key) ? tlv->get(key) : string();
-                   currentValue.resize(aux.size() * 4 / 3 + 4);
-                   Base64::btoa(aux, currentValue);
-
-                   if (strcmp(newValue, currentValue.c_str()) != 0)
-                   {
-                       // Decode value from B64
-                       aux.resize(int(strlen(newValue) * 3 / 4 + 3));
-                       aux.resize(Base64::atob(newValue, (byte *)aux.data(), int(strlen(newValue))));
-                       tlv->set(key, aux);
-                       modified = true;
-                   }
-               }
             }
 
             if (modified)
@@ -14664,13 +14640,14 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
                           << " not changed, already up to date";
                 fireOnRequestFinish(request, MegaError(e));
             }
+
             return;
-        }
+        }   // end of get+set
 
         // TLV data usually includes byte arrays with zeros in the middle, so values
         // must be converted into Base64 strings to avoid problems
-        MegaStringMap *stringMap = new MegaStringMapPrivate(tlv->getMap(), true);
-        request->setMegaStringMap(stringMap);
+        std::unique_ptr<MegaStringMap> stringMap(new MegaStringMapPrivate(tlv->getMap(), true));
+        request->setMegaStringMap(stringMap.get());
         switch (request->getParamType())
         {
             // prepare request params to know if a warning should show or not
@@ -14712,14 +14689,19 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
             case MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER:
             {
                 // If attr is CAMERA_UPLOADS_FOLDER determine if we want to retrieve primary or secondary folder
-                // If attr is MY_CHAT_FILES_FOLDER there's not exists secondary folder
+                // If attr is MY_CHAT_FILES_FOLDER there's no secondary folder
                 const char *key = request->getParamType() == MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
                         && request->getFlag()
                             ? "sh"
                             : "h";
 
                 const char *value = stringMap->get(key);
-                if (value)
+                if (!value)
+                {
+                    e = API_ENOENT;
+                    break;
+                }
+                else
                 {
                    handle nodehandle = 0;  // make sure top two bytes are 0
                    Base64::atob(value, (byte*) &nodehandle, MegaClient::NODEHANDLE);
@@ -14729,7 +14711,7 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
             }
             case MegaApi::USER_ATTR_ALIAS:
             {
-                // If a uh was set in the request we have to find it in the aliases map and return it
+                // If a uh was set in the request, we have to find it in the aliases map and return it
                 const char *uh = request->getText();
                 if (uh)
                 {
@@ -14741,9 +14723,8 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
                     }
                     else
                     {
-                        char aux [strlen(buf) * 3 / 4 + 3];
-                        Base64::atob(buf, (byte*) aux, strlen(buf));
-                        request->setName(buf);
+                        string aValue = buf;
+                        request->setName(Base64::atob(buf).c_str());
                     }
                 }
                 break;
@@ -14752,7 +14733,6 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
             default:
                 break;
         }
-        delete stringMap;
     }
 
     fireOnRequestFinish(request, MegaError(e));
@@ -19007,28 +18987,22 @@ void MegaApiImpl::sendPendingRequests()
                     break;
                 }
 
-                if (type == ATTR_ALIAS || type == ATTR_CAMERA_UPLOADS_FOLDER)
+                User *ownUser = client->finduser(client->me);
+                if ((type == ATTR_ALIAS || type == ATTR_CAMERA_UPLOADS_FOLDER)
+                        && !ownUser->isattrvalid(type)) // not fetched yet or outdated
                 {
                     // always get updated value before update it
-                    User *ownUser = client->finduser(client->me);
                     client->getua(ownUser, type);
                     break;
                 }
 
                 // encode the MegaStringMap as a TLV container
                 TLVstore tlv;
-                string value;
-                const char *buf, *key;
-
                 std::unique_ptr<MegaStringList> keys(stringMap->getKeys());
                 for (int i=0; i < keys->size(); i++)
                 {
-                    key = keys->get(i);
-                    buf = stringMap->get(key);
-
-                    size_t len = strlen(buf)/4*3+3;
-                    value.resize(len);
-                    value.resize(Base64::atob(buf, (byte *)value.data(), int(len)));
+                    const char *key = keys->get(i);
+                    string value = Base64::atob(stringMap->get(key));
                     tlv.set(key, value);
                 }
 

@@ -10187,6 +10187,8 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getNodehandle - Returns the handle of the node where My Chat Files are stored
          *
+         * If the folder is not set, the request will fail with the error code MegaError::API_ENOENT.
+         *
          * @param listener MegaRequestListener to track this request
          */
         void getMyChatFilesFolder(MegaRequestListener *listener = NULL);
@@ -10231,6 +10233,8 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getNodehandle - Returns the handle of the primary node where Camera Uploads files are stored
          *
+         * If the folder is not set, the request will fail with the error code MegaError::API_ENOENT.
+         *
          * @param listener MegaRequestListener to track this request
          */
         void getCameraUploadsFolder(MegaRequestListener *listener = NULL);
@@ -10246,6 +10250,8 @@ class MegaApi
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getNodehandle - Returns the handle of the secondary node where Camera Uploads files are stored
+         *
+         * If the secondary folder is not set, the request will fail with the error code MegaError::API_ENOENT.
          *
          * @param listener MegaRequestListener to track this request
          */
