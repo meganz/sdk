@@ -28,6 +28,8 @@
 #import "MEGAContactRequestList.h"
 #import "MEGAEvent.h"
 
+NS_ASSUME_NONNULL_BEGIN
+
 @class MEGASdk;
 
 /**
@@ -280,3 +282,5 @@
 - (void)onEvent:(MEGASdk *)api event:(MEGAEvent *)event;
 
 @end
+
+NS_ASSUME_NONNULL_END

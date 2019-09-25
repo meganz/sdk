@@ -31,7 +31,9 @@ typedef NS_ENUM(NSUInteger, Event) {
     EventNodesCurrent = 6,
     EventMediaInfoReady = 7,
     EventStorageSumChanged = 8,
-    EventBusinessStatus = 9
+    EventBusinessStatus = 9,
+    EventKeyModified = 10,
+    EventMiscFlagsReady = 11
 };
 
 /**

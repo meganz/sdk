@@ -244,23 +244,6 @@ TEST(Crypto, Ed25519_Signing)
     sigRSAbin.resize(Base64::atob(sigRSAstr.data(), (byte *) sigRSAbin.data(), sigRSAbin.size()));
 
 
-    // ____ Check Ed25519 fingerprint generation ____
-
-    byte *fpEd255bin = signkey.genFingerprint();
-    string buf;
-    buf.resize(20 * 4 / 3 + 4);
-    buf.resize(Base64::btoa(fpEd255bin, 20, (char *) buf.data()));
-    delete fpEd255bin;
-
-    ASSERT_STREQ(fpEd255str.c_str(), buf.c_str()) << "Binary Ed25519 fingerprints don't match.";
-
-    char *fpEd255char = signkey.genFingerprintHex();
-    bool fpOK = !strncmp(fpEd255char, fpEd255hex.c_str(), 40);
-    delete fpEd255char;
-
-    ASSERT_TRUE(fpOK) << "Hex Ed25519 fingerprints don't match.";
-
-
     // ____ Check signature of RSA public key ____
 
     string sigPubk;
@@ -273,34 +256,34 @@ TEST(Crypto, Ed25519_Signing)
     // ____ Verify signature of RSA public key ____
 
     // good signature
-    bool sigOK = signkey.verifyKey((unsigned char*) pubRSAbin.data(), pubRSAbin.size(),
+    bool sigOK = EdDSA::verifyKey((unsigned char*) pubRSAbin.data(), pubRSAbin.size(),
                                    &sigRSAbin, (unsigned char*) puEd255bin.data());
     ASSERT_TRUE(sigOK) << "Verification of RSA signature failed.";
 
     // bad signature
     string sigBuf = sigRSAbin;
     sigBuf.at(70) = 42;
-    sigOK = signkey.verifyKey((unsigned char*) pubRSAbin.data(), pubRSAbin.size(),
+    sigOK = EdDSA::verifyKey((unsigned char*) pubRSAbin.data(), pubRSAbin.size(),
                                        &sigBuf, (unsigned char*) puEd255bin.data());
     ASSERT_FALSE(sigOK) << "Verification of bad RSA signature succeed when it should fail.";
 
     // empty signature
     sigBuf.clear();
-    sigOK = signkey.verifyKey((unsigned char*) pubRSAbin.data(), pubRSAbin.size(),
+    sigOK = EdDSA::verifyKey((unsigned char*) pubRSAbin.data(), pubRSAbin.size(),
                                        &sigBuf, (unsigned char*) puEd255bin.data());
     ASSERT_FALSE(sigOK) << "Verification of empty RSA signature succeed when it should fail.";
 
     // bad timestamp
     sigBuf = sigRSAbin;
     sigBuf.at(0) = 42;
-    sigOK = signkey.verifyKey((unsigned char*) pubRSAbin.data(), pubRSAbin.size(),
+    sigOK = EdDSA::verifyKey((unsigned char*) pubRSAbin.data(), pubRSAbin.size(),
                                        &sigBuf, (unsigned char*) puEd255bin.data());
     ASSERT_FALSE(sigOK) << "Verification of RSA signature with wrong timestamp succeed when it should fail.";
 
     // signature with bad point
     sigBuf = sigRSAbin;
     sigBuf.at(8) = 42;
-    sigOK = signkey.verifyKey((unsigned char*) pubRSAbin.data(), pubRSAbin.size(),
+    sigOK = EdDSA::verifyKey((unsigned char*) pubRSAbin.data(), pubRSAbin.size(),
                                        &sigBuf, (unsigned char*) puEd255bin.data());
     ASSERT_FALSE(sigOK) << "Verification of RSA signature with bad point succeed when it should fail.";
 
@@ -315,7 +298,7 @@ TEST(Crypto, Ed25519_Signing)
         rng.genblock(key, keylen);
         signkey.signKey((unsigned char *) key, keylen, &sig);
 
-        ASSERT_TRUE(signkey.verifyKey((unsigned char*) pubRSAbin.data(), pubRSAbin.size(),
+        ASSERT_TRUE(EdDSA::verifyKey((unsigned char*) pubRSAbin.data(), pubRSAbin.size(),
                                       &sigRSAbin, (unsigned char*) puEd255bin.data()))
                 << "Verification of signature failed for a random key.";
     }

@@ -22,8 +22,6 @@
 #ifndef SODIUM_H
 #define SODIUM_H 1
 
-#ifdef ENABLE_CHAT
-
 #include <sodium.h>
 
 namespace mega {
@@ -40,7 +38,7 @@ public:
     static const int PUBLIC_KEY_LENGTH = crypto_sign_PUBLICKEYBYTES;
 
     // TLV key to access to the corresponding value in the TLV records
-    static const string TLV_KEY;
+    static const std::string TLV_KEY;
     bool initializationOK;
 
     EdDSA(PrnGen &rng, unsigned char* keySeed = NULL);
@@ -73,21 +71,9 @@ public:
     static int verify(const unsigned char* msg, unsigned long long msglen,
                       const unsigned char* sig, const unsigned char* pubKey);
 
-    /**
-     * @brief Generates the fingerprint of the public key.
-     * @return The 20 bytes corresponding to the fingerprint. 40 bytes for hex format.
-     */
-    byte *genFingerprint(bool hexFormat = false);
-
-    /**
-     * @brief Generates the fingerprint of the public key in hexadecimal format.
-     * @return The fingerprint in hexadecimal format.
-     */
-    char *genFingerprintHex();
-
     void signKey(const unsigned char* key, const unsigned long long keyLength, std::string *sigBuf, uint64_t ts = 0);
-    bool verifyKey(const unsigned char* pubk, const unsigned long long pubkLen,
-                   string *sig, const unsigned char* singingPubKey = NULL);
+    static bool verifyKey(const unsigned char* pubk, const unsigned long long pubkLen,
+                   const std::string *sig, const unsigned char* singingPubKey);
 
 private:
     static const int PRIVATE_KEY_LENGTH = crypto_sign_SECRETKEYBYTES;
@@ -106,7 +92,7 @@ public:
     static const int PUBLIC_KEY_LENGTH = crypto_box_PUBLICKEYBYTES;
 
     // TLV key to access to the corresponding value in the TLV records
-    static const string TLV_KEY;
+    static const std::string TLV_KEY;
     bool initializationOK;
 
     unsigned char privKey[PRIVATE_KEY_LENGTH];
@@ -157,7 +143,5 @@ public:
 };
 
 } // namespace
-
-#endif  // ENABLE_CHAT
 
 #endif

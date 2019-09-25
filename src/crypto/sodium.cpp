@@ -22,8 +22,6 @@
 
 #include "mega.h"
 
-#ifdef ENABLE_CHAT
-
 namespace mega
 {
 
@@ -88,44 +86,6 @@ int EdDSA::verify(const unsigned char* msg, unsigned long long msglen,
     return !crypto_sign_verify_detached(sig, msg, msglen, pubKey);
 }
 
-byte *EdDSA::genFingerprint(bool hexFormat)
-{
-    HashSHA256 hash;
-    string binaryhash;
-    hash.add((byte*)&pubKey, PUBLIC_KEY_LENGTH);
-    hash.get(&binaryhash);
-
-    size_t size = hexFormat ? 40 : 20;
-
-    byte *result = new byte[size];
-    memcpy(result, binaryhash.substr(0, size).data(), size);
-
-    return result;
-}
-
-char *EdDSA::genFingerprintHex()
-{
-    byte *fp = genFingerprint(true);
-
-    static const char hexchars[] = "0123456789ABCDEF";
-    ostringstream oss;
-    string fpHex;
-    for (size_t i = 0; i < 40; ++i)
-    {
-        oss.put(hexchars[(fp[i] >> 4) & 0x0F]);
-        oss.put(hexchars[fp[i] & 0x0F]);
-    }
-    fpHex = oss.str();
-
-    delete fp;
-
-    char *result = new char[40 + 1];
-    strncpy(result, fpHex.c_str(), 40);
-    result[40] = '\0';
-
-    return result;
-}
-
 void EdDSA::signKey(const unsigned char *key, const unsigned long long keyLength, string *result, uint64_t ts)
 {
     if (!ts)
@@ -154,7 +114,7 @@ void EdDSA::signKey(const unsigned char *key, const unsigned long long keyLength
     result->append((const char*)sigBuf, crypto_sign_BYTES);
 }
 
-bool EdDSA::verifyKey(const unsigned char *pubk, const unsigned long long pubkLen, string *sig, const unsigned char* signingPubKey)
+bool EdDSA::verifyKey(const unsigned char *pubk, const unsigned long long pubkLen, const string *sig, const unsigned char* signingPubKey)
 {
     if (sig->size() < 72)
     {
@@ -171,8 +131,7 @@ bool EdDSA::verifyKey(const unsigned char *pubk, const unsigned long long pubkLe
     string signature = sig->substr(8);
 
     return verify((unsigned char*) message.data(), message.length(),
-                  (unsigned char*) signature.data(),
-                  signingPubKey ? signingPubKey : pubKey);
+                  (unsigned char*) signature.data(), signingPubKey);
 }
 
 const std::string ECDH::TLV_KEY= "prCu255";
@@ -223,4 +182,3 @@ int ECDH::decrypt(unsigned char *msg, const unsigned char *encmsg,
 
 } // namespace
 
-#endif  // ENABLE_CHAT
