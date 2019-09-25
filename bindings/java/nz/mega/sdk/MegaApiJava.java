@@ -506,6 +506,10 @@ public class MegaApiJava {
 
     /**
      * Check if server-side Rubbish Bin autopurging is enabled for the current account
+     *
+     * Before using this function, it's needed to:
+     *  - If you are logged-in: call to MegaApi::login and MegaApi::fetchNodes.
+     *
      * @return True if this feature is enabled. Otherwise false.
      */
     public boolean serverSideRubbishBinAutopurgeEnabled(){
@@ -513,10 +517,24 @@ public class MegaApiJava {
     }
 
     /**
+     * Check if the new format for public links is enabled
+     *
+     * Before using this function, it's needed to:
+     *  - If you are logged-in: call to MegaApi::login and MegaApi::fetchNodes.
+     *  - If you are not logged-in: call to MegaApi::getMiscFlags.
+     *
+     * @return True if this feature is enabled. Otherwise, false.
+     */
+    public boolean newLinkFormatEnabled() {
+        return megaApi.newLinkFormatEnabled();
+    }
+
+    /**
      * Check if multi-factor authentication can be enabled for the current account.
      *
-     * It's needed to be logged into an account and with the nodes loaded (login + fetchNodes) before
-     * using this function. Otherwise it will always return false.
+     * Before using this function, it's needed to:
+     *  - If you are logged-in: call to MegaApi::login and MegaApi::fetchNodes.
+     *  - If you are not logged-in: call to MegaApi::getMiscFlags.
      *
      * @return True if multi-factor authentication can be enabled for the current account, otherwise false.
      */
@@ -1103,6 +1121,42 @@ public class MegaApiJava {
      */
     public void getUserData(String user) {
         megaApi.getUserData(user);
+    }
+
+    /**
+     * Fetch miscellaneous flags when not logged in
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_MISC_FLAGS.
+     *
+     * When onRequestFinish is called with MegaError::API_OK, the global flags are available.
+     * If you are logged in into an account, the error code provided in onRequestFinish is
+     * MegaError::API_EACCESS.
+     *
+     * @see MegaApi::multiFactorAuthAvailable
+     * @see MegaApi::newLinkFormatEnabled
+     * @see MegaApi::smsAllowedState
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getMiscFlags(MegaRequestListenerInterface listener) {
+        megaApi.getMiscFlags(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Fetch miscellaneous flags when not logged in
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_MISC_FLAGS.
+     *
+     * When onRequestFinish is called with MegaError::API_OK, the global flags are available.
+     * If you are logged in into an account, the error code provided in onRequestFinish is
+     * MegaError::API_EACCESS.
+     *
+     * @see MegaApi::multiFactorAuthAvailable
+     * @see MegaApi::newLinkFormatEnabled
+     * @see MegaApi::smsAllowedState
+     */
+    public void getMiscFlags() {
+        megaApi.getMiscFlags();
     }
 
     /**
@@ -1995,21 +2049,6 @@ public class MegaApiJava {
      */
     public boolean checkPassword(String password){
         return megaApi.checkPassword(password);
-    }
-
-    /**
-     * Returns the fingerprint of the signing key of the currently open account
-     *
-     * If the MegaApi object isn't logged in or there's no signing key available,
-     * this function returns NULL
-     *
-     * You take the ownership of the returned value.
-     * Use delete [] to free it.
-     *
-     * @return Fingerprint of the signing key of the current account
-     */
-    public String getMyFingerprint(){
-        return megaApi.getMyFingerprint();
     }
 
     /**
@@ -7071,6 +7110,63 @@ public class MegaApiJava {
     }
 
     /**
+     * Search nodes containing a search string in their name
+     *
+     * The search is case-insensitive.
+     *
+     * You take the ownership of the returned value.
+     *
+     * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
+     * to MegaCancelToken::setCancelFlag(true). If a valid object is passed, it must be kept alive until
+     * this method returns.
+     *
+     * @param node The parent node of the tree to explore
+     * @param searchString Search string. The search is case-insensitive
+     * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
+     * @param recursive True if you want to seach recursively in the node tree.
+     * False if you want to seach in the children of the node only
+     * @param order Order for the returned list
+     * Valid values for this parameter are:
+     * - MegaApi::ORDER_NONE = 0
+     * Undefined order
+     *
+     * - MegaApi::ORDER_DEFAULT_ASC = 1
+     * Folders first in alphabetical order, then files in the same order
+     *
+     * - MegaApi::ORDER_DEFAULT_DESC = 2
+     * Files first in reverse alphabetical order, then folders in the same order
+     *
+     * - MegaApi::ORDER_SIZE_ASC = 3
+     * Sort by size, ascending
+     *
+     * - MegaApi::ORDER_SIZE_DESC = 4
+     * Sort by size, descending
+     *
+     * - MegaApi::ORDER_CREATION_ASC = 5
+     * Sort by creation time in MEGA, ascending
+     *
+     * - MegaApi::ORDER_CREATION_DESC = 6
+     * Sort by creation time in MEGA, descending
+     *
+     * - MegaApi::ORDER_MODIFICATION_ASC = 7
+     * Sort by modification time of the original file, ascending
+     *
+     * - MegaApi::ORDER_MODIFICATION_DESC = 8
+     * Sort by modification time of the original file, descending
+     *
+     * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+     * Sort in alphabetical order, ascending
+     *
+     * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+     * Sort in alphabetical order, descending
+     *
+     * @return List of nodes that contain the desired string in their name
+     */
+    public ArrayList<MegaNode> search(MegaNode node, String searchString, MegaCancelToken cancelToken, boolean recursive, int order) {
+        return nodeListToArray(megaApi.search(node, searchString, cancelToken, recursive, order));
+    }
+
+    /**
      * Search nodes containing a search string in their name.
      * <p>
      * The search is case-insensitive.
@@ -7165,6 +7261,67 @@ public class MegaApiJava {
      *  - Rubbish bin
      *  - Incoming shares from other users
      *
+     * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
+     * to MegaCancelToken::setCancelFlag(true). If a valid object is passed, it must be kept alive until
+     * this method returns.
+     *
+     * You take the ownership of the returned value.
+     *
+     * @param searchString Search string. The search is case-insensitive
+     * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
+     * @param order Order for the returned list
+     * Valid values for this parameter are:
+     * - MegaApi::ORDER_NONE = 0
+     * Undefined order
+     *
+     * - MegaApi::ORDER_DEFAULT_ASC = 1
+     * Folders first in alphabetical order, then files in the same order
+     *
+     * - MegaApi::ORDER_DEFAULT_DESC = 2
+     * Files first in reverse alphabetical order, then folders in the same order
+     *
+     * - MegaApi::ORDER_SIZE_ASC = 3
+     * Sort by size, ascending
+     *
+     * - MegaApi::ORDER_SIZE_DESC = 4
+     * Sort by size, descending
+     *
+     * - MegaApi::ORDER_CREATION_ASC = 5
+     * Sort by creation time in MEGA, ascending
+     *
+     * - MegaApi::ORDER_CREATION_DESC = 6
+     * Sort by creation time in MEGA, descending
+     *
+     * - MegaApi::ORDER_MODIFICATION_ASC = 7
+     * Sort by modification time of the original file, ascending
+     *
+     * - MegaApi::ORDER_MODIFICATION_DESC = 8
+     * Sort by modification time of the original file, descending
+     *
+     * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+     * Sort in alphabetical order, ascending
+     *
+     * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+     * Sort in alphabetical order, descending
+     *
+     * @return List of nodes that contain the desired string in their name
+     */
+    public ArrayList<MegaNode> search(String searchString, MegaCancelToken cancelToken, int order) {
+        return nodeListToArray(megaApi.search(searchString, cancelToken, order));
+    }
+
+
+    /**
+     * Search nodes containing a search string in their name
+     *
+     * The search is case-insensitive.
+     *
+     * The search will consider every accessible node for the account:
+     *  - Cloud drive
+     *  - Inbox
+     *  - Rubbish bin
+     *  - Incoming shares from other users
+     *
      * You take the ownership of the returned value.
      *
      * @param searchString Search string. The search is case-insensitive
@@ -7173,16 +7330,6 @@ public class MegaApiJava {
      */
     public ArrayList<MegaNode> search(String searchString) {
         return nodeListToArray(megaApi.search(searchString));
-    }
-
-    /**
-     * Allows to cancel an ongoing search
-     *
-     * Since searches are blocking, if the user refines the search string, the current search
-     * can be discarded to not wait for the results and finish it immediately.
-     */
-    public void cancelSearch() {
-        megaApi.cancelSearch();
     }
 
 

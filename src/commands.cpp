@@ -2648,7 +2648,6 @@ void CommandPutMultipleUAVer::procresult()
             u->setattr(type, &it->second, &version);
             u->setTag(tag ? tag : -1);
 
-#ifdef ENABLE_CHAT
             if (type == ATTR_KEYRING)
             {
                 TLVstore *tlvRecords = TLVstore::containerToTLVrecords(&attrs[type], &client->key);
@@ -2697,7 +2696,19 @@ void CommandPutMultipleUAVer::procresult()
                     LOG_warn << "Failed to decrypt keyring after putua";
                 }
             }
-#endif
+            else if (User::isAuthring(type))
+            {
+                client->mAuthRings.erase(type);
+                const std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&attrs[type], &client->key));
+                if (tlvRecords)
+                {
+                    client->mAuthRings.emplace(type, AuthRing(type, *tlvRecords));
+                }
+                else
+                {
+                    LOG_err << "Failed to decrypt keyring after putua";
+                }
+            }
         }
     }
 
@@ -2770,6 +2781,20 @@ void CommandPutUAVer::procresult()
             User *u = client->ownuser();
             u->setattr(at, &av, &v);
             u->setTag(tag ? tag : -1);
+
+            if (User::isAuthring(at))
+            {
+                client->mAuthRings.erase(at);
+                const std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&av, &client->key));
+                if (tlvRecords)
+                {
+                    client->mAuthRings.emplace(at, AuthRing(at, *tlvRecords));
+                }
+                else
+                {
+                    LOG_err << "Failed to decrypt " << User::attr2string(at) << " after putua";
+                }
+            }
 
             client->notifyuser(u);
             client->app->putua_result(API_OK);
@@ -2877,12 +2902,27 @@ void CommandGetUA::procresult()
             return;
         }
 
-#ifdef  ENABLE_CHAT
-        if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me && e != API_EBLOCKED)
+        if (u && u->userhandle == client->me && e != API_EBLOCKED)
         {
-            client->initializekeys(); // we have now all the required data
+            if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK)
+            {
+                client->initializekeys(); // we have now all the required data
+            }
+
+            if (e == API_ENOENT && User::isAuthring(at))
+            {
+                // authring not created yet, will do it upon retrieval of public keys
+                client->mAuthRings.erase(at);
+                client->mAuthRings.emplace(at, AuthRing(at, TLVstore()));
+
+                if (client->mFetchingAuthrings && client->mAuthRings.size() == 3)
+                {
+                    client->mFetchingAuthrings = false;
+                    client->fetchContactsKeys();
+                }
+            }
         }
-#endif
+
         // if the attr does not exist, initialize it
         if (at == ATTR_DISABLE_VERSIONS && e == API_ENOENT)
         {
@@ -2924,12 +2964,10 @@ void CommandGetUA::procresult()
                     if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
                     {
                         client->app->getua_result(API_EINTERNAL);
-#ifdef ENABLE_CHAT
                         if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
                         {
                             client->initializekeys(); // we have now all the required data
                         }
-#endif
                         return;
                     }
                     buf.assign(ptr, (end-ptr));
@@ -2940,12 +2978,10 @@ void CommandGetUA::procresult()
                     if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
                     {
                         client->app->getua_result(API_EINTERNAL);
-#ifdef ENABLE_CHAT
                         if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
                         {
                             client->initializekeys(); // we have now all the required data
                         }
-#endif
                         return;
                     }
                     version.assign(ptr, (end-ptr));
@@ -3005,30 +3041,53 @@ void CommandGetUA::procresult()
                             u->setattr(at, tlvString, &version);
                             delete tlvString;
                             client->app->getua_result(tlvRecords, at);
+
+                            if (User::isAuthring(at))
+                            {
+                                client->mAuthRings.erase(at);
+                                client->mAuthRings.emplace(at, AuthRing(at, *tlvRecords));
+
+                                if (client->mFetchingAuthrings && client->mAuthRings.size() == 3)
+                                {
+                                    client->mFetchingAuthrings = false;
+                                    client->fetchContactsKeys();
+                                }
+                            }
+
                             delete tlvRecords;
-                        }
                             break;
-
+                        }
                         case '+':   // public
-
+                        {
                             u->setattr(at, &value, &version);
                             client->app->getua_result((byte*) value.data(), unsigned(value.size()), at);
-#ifdef  ENABLE_CHAT
+
                             if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
                             {
                                 client->initializekeys(); // we have now all the required data
                             }
-#endif
+
+                            if (!u->isTemporary && u->userhandle != client->me)
+                            {
+                                if (at == ATTR_ED25519_PUBK || at == ATTR_CU25519_PUBK)
+                                {
+                                    client->trackKey(at, u->userhandle, value);
+                                }
+                                else if (at == ATTR_SIG_CU255_PUBK || at == ATTR_SIG_RSA_PUBK)
+                                {
+                                    client->trackSignature(at, u->userhandle, value);
+                                }
+                            }
                             break;
-
+                        }
                         case '#':   // protected
-
+                        {
                             u->setattr(at, &value, &version);
                             client->app->getua_result((byte*) value.data(), unsigned(value.size()), at);
                             break;
-
+                        }
                         case '^': // private, non-encrypted
-
+                        {
                             // store the value in cache in binary format
                             u->setattr(at, &value, &version);
                             client->app->getua_result((byte*) value.data(), unsigned(value.size()), at);
@@ -3046,8 +3105,9 @@ void CommandGetUA::procresult()
                                 }
                             }
                             break;
-
+                        }
                         default:    // legacy attributes or unknown attribute
+                        {
                             if (at != ATTR_FIRSTNAME &&           // protected
                                     at != ATTR_LASTNAME &&        // protected
                                     at != ATTR_COUNTRY  &&        // private
@@ -3063,27 +3123,29 @@ void CommandGetUA::procresult()
                             u->setattr(at, &value, &version);
                             client->app->getua_result((byte*) value.data(), unsigned(value.size()), at);
                             break;
-                    }
+                        }
+
+                    }   // switch (scope)
 
                     u->setTag(tag ? tag : -1);
                     client->notifyuser(u);
                     return;
                 }
-
                 default:
+                {
                     if (!client->json.storeobject())
                     {
                         LOG_err << "Error in CommandGetUA. Parse error";
                         client->app->getua_result(API_EINTERNAL);
-#ifdef  ENABLE_CHAT
                         if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
                         {
                             client->initializekeys(); // we have now all the required data
                         }
-#endif
                         return;
                     }
-            }
+                }
+
+            }   // switch (nameid)
         }
     }
 }
@@ -3110,12 +3172,16 @@ void CommandDelUA::procresult()
             attr_t at = User::string2attr(an.c_str());
             u->removeattr(at);
 
-#ifdef ENABLE_CHAT
             if (at == ATTR_KEYRING)
             {
                 client->resetKeyring();
             }
-#endif
+            else if (User::isAuthring(at))
+            {
+                client->mAuthRings.emplace(at, AuthRing(at, TLVstore()));
+                client->getua(u, at, 0);
+            }
+
             client->notifyuser(u);
         }
 
@@ -3381,17 +3447,22 @@ void CommandPubKeyRequest::procresult()
                         client->mapuser(uh, u->email.c_str());
                     }
 
-    #ifdef ENABLE_CHAT
                     if (client->fetchingkeys && u->userhandle == client->me && len_pubk)
                     {
                         client->pubk.setkey(AsymmCipher::PUBKEY, pubkbuf, len_pubk);
                         return;
                     }
-    #endif
 
                     if (len_pubk && !u->pubk.setkey(AsymmCipher::PUBKEY, pubkbuf, len_pubk))
                     {
                         len_pubk = 0;
+                    }
+
+                    if (!u->isTemporary && u->userhandle != client->me && len_pubk && u->pubk.isvalid())
+                    {
+                        string pubkstr;
+                        u->pubk.serializekeyforjs(pubkstr);
+                        client->trackKey(ATTR_UNKNOWN, u->userhandle, pubkstr);
                     }
                     finished = true;
                     break;
@@ -3454,12 +3525,6 @@ void CommandGetUserData::procresult()
     m_time_t since = 0;
     int v = 0;
     string salt;
-    bool gmfa = false;
-    bool ssrs = false;
-    bool nsre = false;
-    bool aplvp = false;
-
-    int  smsve = -1;
     string smsv;
 
     bool b = false;
@@ -3513,35 +3578,9 @@ void CommandGetUserData::procresult()
         case MAKENAMEID5('f', 'l', 'a', 'g', 's'):
             if (client->json.enterobject())
             {
-                bool endobject = false;
-                while (!endobject)
+                if (client->readmiscflags(&client->json) != API_OK)
                 {
-                    switch (client->json.getnameid())
-                    {
-                    case MAKENAMEID4('m', 'f', 'a', 'e'):   // multi-factor authentication enabled
-                        gmfa = bool(client->json.getint());
-                        break;
-                    case MAKENAMEID4('s', 's', 'r', 's'):   // server-side rubish-bin scheduler
-                        ssrs = bool(client->json.getint());
-                        break;
-                    case MAKENAMEID4('n', 's', 'r', 'e'):   // new secure registration enabled
-                        nsre = bool(client->json.getint());
-                        break;
-                    case MAKENAMEID5('a', 'p', 'l', 'v', 'p'):   // apple VOIP push enabled
-                        aplvp = bool(client->json.getint());
-                        break;
-                    case MAKENAMEID5('s', 'm', 's', 'v', 'e'):   // 2 = Opt-in and unblock SMS allowed 1 = Only unblock SMS allowed 0 = No SMS allowed
-                        smsve = int(client->json.getint());
-                        break;
-                    case EOO:
-                        endobject = true;
-                        break;
-                    default:
-                        if (!client->json.storeobject())
-                        {
-                            return client->app->userdata_result(NULL, NULL, NULL, API_EINTERNAL);
-                        }
-                    }
+                    return client->app->userdata_result(NULL, NULL, NULL, API_EINTERNAL);
                 }
                 client->json.leaveobject();
             }
@@ -3646,12 +3685,6 @@ void CommandGetUserData::procresult()
             }
 
             client->accountsince = since;
-            client->gmfa_enabled = gmfa;
-            client->ssrs_enabled = ssrs;
-            client->nsr_enabled = nsre;
-            client->aplvp_enabled = aplvp;
-
-            client->mSmsVerificationState = SmsVerificationState(smsve);
             client->mSmsVerifiedPhone = smsv;
 
             client->k = k;
@@ -3771,49 +3804,24 @@ CommandGetMiscFlags::CommandGetMiscFlags(MegaClient *client)
 
 void CommandGetMiscFlags::procresult()
 {
+    error e;
     if (client->json.isnumeric())
     {
-        error e = (error)client->json.getint();
+        e = (error)client->json.getint();
         if (!e)
         {
+            LOG_err << "Unexpected response for gmf: no flags, but no error";
             e = API_ENOENT;
         }
         LOG_err << "gmf failed: " << e;
-        return;
     }
-
-    bool endobject = false;
-    while (!endobject)
+    else
     {
-        switch (client->json.getnameid())
-        {
-        case MAKENAMEID4('m', 'f', 'a', 'e'):   // multi-factor authentication enabled
-            client->gmfa_enabled = bool(client->json.getint());
-            break;
-        case MAKENAMEID4('s', 's', 'r', 's'):   // server-side rubish-bin scheduler
-            client->ssrs_enabled = bool(client->json.getint());
-            break;
-        case MAKENAMEID4('n', 's', 'r', 'e'):   // new secure registration enabled
-            client->nsr_enabled = bool(client->json.getint());
-            break;
-        case MAKENAMEID5('a', 'p', 'l', 'v', 'p'):   // apple VOIP push enabled
-            client->aplvp_enabled = bool(client->json.getint());
-            break;
-        case MAKENAMEID5('s', 'm', 's', 'v', 'e'):   // 2 = Opt-in and unblock SMS allowed 1 = Only unblock SMS allowed 0 = No SMS allowed
-            client->mSmsVerificationState = SmsVerificationState(client->json.getint());
-            break;
-        case EOO:
-            endobject = true;
-            break;
-        default:
-            if (!client->json.storeobject())
-            {
-                return;
-            }
-        }
+        e = client->readmiscflags(&client->json);
     }
-}
 
+    client->app->getmiscflags_result(e);
+}
 
 CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, AccountDetails* ad, bool storage, bool transfer, bool pro, int source)
 {

@@ -37,6 +37,7 @@
 #include "pendingcontactrequest.h"
 #include "mediafileattribute.h"
 #include "useralerts.h"
+#include "user.h"
 
 namespace mega {
 
@@ -222,6 +223,9 @@ public:
     // Account has VOIP push enabled (only for Apple)
     bool aplvp_enabled;
 
+    // Use new format to generate Mega links
+    bool mNewLinkFormat = false;
+
     // 2 = Opt-in and unblock SMS allowed 1 = Only unblock SMS allowed 0 = No SMS allowed  -1 = flag was not received
     SmsVerificationState mSmsVerificationState;
 
@@ -230,6 +234,8 @@ public:
 	
     // pseudo-random number generator
     PrnGen rng;
+
+    static string getPublicLink(bool newLinkFormat, nodetype_t type, handle ph, const char *key);
 
 #ifdef ENABLE_CHAT
     // all chats
@@ -296,6 +302,9 @@ public:
     // get user data
     void getuserdata();
 
+    // get miscelaneous flags
+    void getmiscflags();
+
     // get the public key of an user
     void getpubkey(const char* user);
 
@@ -349,11 +358,35 @@ public:
     // fetchnodes stats
     FetchNodesStats fnstats;
 
-#ifdef ENABLE_CHAT
     // load cryptographic keys: RSA, Ed25519, Cu25519 and their signatures
-    void fetchkeys();    
+    void fetchkeys();
+
+    // check existence and integrity of keys and signatures, initialize if missing
     void initializekeys();
-#endif
+
+    // to be called after resumption from cache (user attributes loaded)
+    void loadAuthrings();
+
+    // load cryptographic keys for contacts: RSA, Ed25519, Cu25519
+    void fetchContactsKeys();
+
+    // fetch keys related to authrings for a given contact
+    void fetchContactKeys(User *user);
+
+    // track a public key in the authring for a given user
+    error trackKey(attr_t keyType, handle uh, const std::string &key);
+
+    // track the signature of a public key in the authring for a given user
+    error trackSignature(attr_t signatureType, handle uh, const std::string &signature);
+
+    // set the Ed25519 public key as verified for a given user in the authring (done by user manually by comparing hash of keys)
+    error verifyCredentials(handle uh);
+
+    // reset the tracking of public keys in the authrings for a given user
+    error resetCredentials(handle uh);
+
+    // check credentials are verified for a given user
+    bool areCredentialsVerified(handle uh);
 
     // retrieve user details
     void getaccountdetails(AccountDetails*, bool, bool, bool, bool, bool, bool, int source = -1);
@@ -1276,6 +1309,8 @@ public:
     void readipc(JSON*);
     void readopc(JSON*);
 
+    error readmiscflags(JSON*);
+
     void procph(JSON*);
 
     void readcr();
@@ -1332,7 +1367,6 @@ public:
     // account access (full account): RSA private key
     AsymmCipher asymkey;
 
-#ifdef ENABLE_CHAT
     // RSA public key
     AsymmCipher pubk;
 
@@ -1342,6 +1376,15 @@ public:
     // ECDH key (x25519 private key).
     ECDH *chatkey;
 
+    // set when keys for every current contact have been checked
+    AuthRingsMap mAuthRings;
+
+    // used during initialization to accumulate required updates to authring (to send them all atomically)
+    AuthRingsMap mAuthRingsTemp;
+
+    // true while authrings are being fetched
+    bool mFetchingAuthrings;
+
     // actual state of keys
     bool fetchingkeys;
 
@@ -1350,7 +1393,6 @@ public:
 
     // delete chatkey and signing key
     void resetKeyring();
-#endif
 
     // binary session ID
     string sid;
