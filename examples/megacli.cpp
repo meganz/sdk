@@ -6766,23 +6766,18 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
 
             for (unsigned i = 0; i < ad->transfer_hist.size(); i++)
             {
-                t -= ad->transfer_hist_interval;
                 cout << "\t\t" << t;
-                if (t < ad->transfer_hist_interval)
+                t -= ad->transfer_hist_interval;
+                if (t < 0)
                 {
                     cout << " second(s) ago until now: ";
                 }
                 else
                 {
-                    cout << "-" << t - ad->transfer_hist_interval << " second(s) ago: ";
+                    cout << "-" << t << " second(s) ago: ";
                 }
                 cout << ad->transfer_hist[i] << " byte(s)" << endl;
             }
-        }
-
-        if (ad->transfer_limit)
-        {
-            cout << "Per-IP transfer limit: " << ad->transfer_limit << endl;
         }
     }
 
