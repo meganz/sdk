@@ -21754,7 +21754,13 @@ long long MegaAccountDetailsPrivate::getTransferSrvUsed()
 
 long long MegaAccountDetailsPrivate::getTransferUsed()
 {
-    return details.transfer_srv_used + details.transfer_own_used + getTemporalBandwidth();
+    long long total = details.transfer_srv_used + details.transfer_own_used + getTemporalBandwidth();
+    // in case the total exceed the maximum allowance (due to the free IP-based quota)...
+    if (total > details.transfer_max)
+    {
+        total = details.transfer_max;
+    }
+    return total;
 }
 
 int MegaAccountDetailsPrivate::getNumUsageItems()
