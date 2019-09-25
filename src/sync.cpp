@@ -1005,7 +1005,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                         scan(localname ? localpath : &tmppath, fa);
                     }
                 }
-                else if (fa->mIsLink)
+                else if (fa->mIsSymLink)
                 {
                     LOG_debug << "checked path is a symlink.  Parent: " << (parent ? parent->name : "NO");
                     //doing nothing for the moment

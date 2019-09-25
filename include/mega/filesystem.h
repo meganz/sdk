@@ -85,7 +85,7 @@ struct MEGA_API FileAccess
     nodetype_t type;
 
     // if opened path is a symlink
-    bool mIsLink = false;
+    bool mIsSymLink = false;
 
     // if the open failed, retry indicates a potentially transient reason
     bool retry;

@@ -119,7 +119,7 @@ bool PosixFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
 #endif
 
     type = TYPE_UNKNOWN;
-    mIsLink = !lstat(localname.c_str(), &statbuf) && S_ISLNK(statbuf.st_mode);
+    mIsSymLink = !lstat(localname.c_str(), &statbuf) && S_ISLNK(statbuf.st_mode);
     if (!(mFollowSymLinks? stat(localname.c_str(), &statbuf) : lstat(localname.c_str(), &statbuf)))
     {
         errorcode = 0;
@@ -460,7 +460,7 @@ bool PosixFileAccess::fopen(string* f, bool read, bool write)
     }
 #endif
 
-    mIsLink = !lstat(f->c_str(), &statbuf) && S_ISLNK(statbuf.st_mode);
+    mIsSymLink = !lstat(f->c_str(), &statbuf) && S_ISLNK(statbuf.st_mode);
 
     mode_t mode = 0;
     if (write)
@@ -470,7 +470,7 @@ bool PosixFileAccess::fopen(string* f, bool read, bool write)
 
     // if mFollowSymLinks is true (open normally: it will open the targeted file/folder),
     // otherwise, get the file descriptor for symlinks in case it is a sync link (notice O_PATH invalidates read/only flags)
-    if ((fd = open(f->c_str(), (!mFollowSymLinks && mIsLink) ? (O_PATH | O_NOFOLLOW) : (write ? (read ? O_RDWR : O_WRONLY | O_CREAT) : O_RDONLY) , defaultfilepermissions)) >= 0)
+    if ((fd = open(f->c_str(), (!mFollowSymLinks && mIsSymLink) ? (O_PATH | O_NOFOLLOW) : (write ? (read ? O_RDWR : O_WRONLY | O_CREAT) : O_RDONLY) , defaultfilepermissions)) >= 0)
     {
         if (write)
         {

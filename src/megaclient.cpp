@@ -12297,7 +12297,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                 if (rit->second->localnode != (LocalNode*)~0
                         && (f->fopen(localpath) || f->type == FOLDERNODE))
                 {
-                    if (f->mIsLink && l->sync->movetolocaldebris(localpath))
+                    if (f->mIsSymLink && l->sync->movetolocaldebris(localpath))
                     {
                         LOG_debug << "Found a link in localpath " << localpath;
                     }
@@ -12491,7 +12491,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
 
         ll->getlocalpath(&localpath);
         fa->fopen(&localpath);
-        bool isLink = fa->mIsLink;
+        bool isSymLink = fa->mIsSymLink;
 
         // do we have a corresponding remote child?
         if (rit != nchildren.end())
@@ -12501,10 +12501,10 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
             // local: file, remote: folder - overwrite
             // local: folder, remote: folder - recurse
             // local: file, remote: file - overwrite if newer
-            if (ll->type != rit->second->type || fa->mIsLink)
+            if (ll->type != rit->second->type || fa->mIsSymLink)
             {
                 insync = false;
-                LOG_warn << "Type changed: " << localname << " LNtype: " << ll->type << " Ntype: " << rit->second->type << " islink = " << fa->mIsLink;
+                LOG_warn << "Type changed: " << localname << " LNtype: " << ll->type << " Ntype: " << rit->second->type << " isSymLink = " << fa->mIsSymLink;
                 movetosyncdebris(rit->second, l->sync->inshare);
             }
             else
@@ -12685,7 +12685,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
             }
         }
 
-        if (isLink)
+        if (isSymLink)
         {
             continue; //Do nothing for the moment
         }
@@ -12784,7 +12784,6 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
 
                 ll->getlocalpath(&localpath);
 
-
                 if (!(t = fa->fopen(&localpath, true, false))
                  || fa->size != ll->size
                  || fa->mtime != ll->mtime)
@@ -12879,7 +12878,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
         {
             ll->created = true;
 
-            assert (!isLink);
+            assert (!isSymLink);
             // create remote folder or send file
             LOG_debug << "Adding local file to synccreate: " << ll->name << " " << synccreate.size();
             synccreate.push_back(ll);
