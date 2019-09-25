@@ -4169,7 +4169,7 @@ void CommandGetUserQuota::procresult()
                 break;
 
             case EOO:
-                assert(!mStorage || (got_storage && got_storage_used));
+                assert(!mStorage || (got_storage && got_storage_used) || client->loggedinfolderlink());
 
                 if (mStorage)
                 {
