@@ -44,6 +44,8 @@ public:
     inline operator FileAccess* () { return fa.get(); }
 };
 
+class DBTableTransactionCommitter;
+
 // active transfer
 struct MEGA_API TransferSlot
 {
@@ -107,7 +109,7 @@ struct MEGA_API TransferSlot
     AsyncIOContext** asyncIO;
 
     // handle I/O for this slot
-    void doio(MegaClient*);
+    void doio(MegaClient*, DBTableTransactionCommitter&);
 
     // helper for doio to delay connection creation until we know if it's raid or non-raid
     bool createconnectionsonce();

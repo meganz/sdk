@@ -348,7 +348,7 @@ void CommandPutFile::procresult()
     {
         if (!canceled)
         {
-            tslot->transfer->failed(error(client->json.getint()));
+            tslot->transfer->failed(error(client->json.getint()), *client->tctableRequestCommitter);
         }
        
         return;
@@ -376,7 +376,7 @@ void CommandPutFile::procresult()
                 }
                 else
                 {
-                    return tslot->transfer->failed(API_EINTERNAL);
+                    return tslot->transfer->failed(API_EINTERNAL, *client->tctableRequestCommitter);
                 }
 
             default:
@@ -384,7 +384,7 @@ void CommandPutFile::procresult()
                 {
                     if (!canceled)
                     {
-                        tslot->transfer->failed(API_EINTERNAL);
+                        tslot->transfer->failed(API_EINTERNAL, *client->tctableRequestCommitter);
                     }
 
                     return;
@@ -652,7 +652,7 @@ void CommandGetFile::procresult()
 
         if (tslot)
         {
-            return tslot->transfer->failed(e);
+            return tslot->transfer->failed(e, *client->tctableRequestCommitter);
         }
 
         return client->app->checkfile_result(ph, e);
@@ -759,7 +759,7 @@ void CommandGetFile::procresult()
 
                     if (tslot)
                     {
-                        return tslot->transfer->failed(e);
+                        return tslot->transfer->failed(e, *client->tctableRequestCommitter);
                     }
 
                     return client->app->checkfile_result(ph, e);
@@ -790,7 +790,7 @@ void CommandGetFile::procresult()
 
                                         if (tslot)
                                         {
-                                            return tslot->transfer->failed(API_EINTERNAL);
+                                            return tslot->transfer->failed(API_EINTERNAL, *client->tctableRequestCommitter);
                                         }
 
                                         return client->app->checkfile_result(ph, API_EINTERNAL);
@@ -804,7 +804,7 @@ void CommandGetFile::procresult()
 
                                         if (tslot)
                                         {
-                                            return tslot->transfer->failed(API_EINTERNAL);
+                                            return tslot->transfer->failed(API_EINTERNAL, *client->tctableRequestCommitter);
                                         }
 
                                         return client->app->checkfile_result(ph, API_EINTERNAL);
@@ -854,8 +854,8 @@ void CommandGetFile::procresult()
                                             // default retry interval
                                             tl = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS;
                                         }
-
-                                        return tslot->transfer->failed(e, e == API_EOVERQUOTA ? tl * 10 : 0);
+                                        
+                                        return tslot->transfer->failed(e, *client->tctableRequestCommitter, e == API_EOVERQUOTA ? tl * 10 : 0);
                                     }
                                     else
                                     {
@@ -872,7 +872,7 @@ void CommandGetFile::procresult()
 
                                         if (tslot)
                                         {
-                                            return tslot->transfer->failed(API_EINTERNAL);
+                                            return tslot->transfer->failed(API_EINTERNAL, *client->tctableRequestCommitter);
                                         }
                                         else
                                         {
@@ -890,7 +890,7 @@ void CommandGetFile::procresult()
 
                     if (tslot)
                     {
-                        return tslot->transfer->failed(API_EKEY);
+                        return tslot->transfer->failed(API_EKEY, *client->tctableRequestCommitter);
                     }
                     else
                     {
@@ -903,7 +903,7 @@ void CommandGetFile::procresult()
                 {
                     if (tslot)
                     {
-                        return tslot->transfer->failed(API_EINTERNAL);
+                        return tslot->transfer->failed(API_EINTERNAL, *client->tctableRequestCommitter);
                     }
                     else
                     {
@@ -1123,7 +1123,7 @@ void CommandPutNodes::procresult()
     {
         if (client->tctable)
         {
-            client->tctable->begin();
+            client->tctableRequestCommitter->beginOnce();
             vector<uint32_t> &ids = it->second;
             for (unsigned int i = 0; i < ids.size(); i++)
             {
@@ -1132,7 +1132,6 @@ void CommandPutNodes::procresult()
                     client->tctable->del(ids[i]);
                 }
             }
-            client->tctable->commit();
         }
         client->pendingtcids.erase(it);
     }

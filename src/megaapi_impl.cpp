@@ -6095,7 +6095,10 @@ void MegaApiImpl::loop()
         {
             WAIT_CLASS::bumpds();
             updateBackups();
-            sendPendingTransfers();
+            if (sendPendingTransfers())
+            {
+                yield();
+            }
             sendPendingRequests();
             sendPendingScRequest();
             if(threadExit)
@@ -17139,25 +17142,21 @@ void MegaApiImpl::updateBackups()
     }
 }
 
-void MegaApiImpl::sendPendingTransfers()
+unsigned MegaApiImpl::sendPendingTransfers()
 {
     MegaTransferPrivate *transfer;
     error e;
     int nextTag;
 
-    bool tableTransaction = false;
     auto t0 = std::chrono::steady_clock::now();
-    unsigned count = 0, batch = 0;
+    unsigned count = 0;
 
     SdkMutexGuard guard(sdkMutex);
+    DBTableTransactionCommitter committer(client->tctable);
 
-    while(batch < 5 && (transfer = transferQueue.pop()))
+    while((transfer = transferQueue.pop()))
     {
-        if (client->tctable && !tableTransaction)
-        {
-            client->tctable->begin();
-            tableTransaction = true;
-        }
+        committer.beginOnce();
 
         e = API_OK;
         nextTag = client->nextreqtag();
@@ -17273,7 +17272,7 @@ void MegaApiImpl::sendPendingTransfers()
                     string wFileName = fileName;
                     MegaFilePut *f = new MegaFilePut(client, &wLocalPath, &wFileName, transfer->getParentHandle(), "", mtime, isSourceTemporary);
                     f->setTransfer(transfer);
-                    bool started = client->startxfer(PUT, f, true, startFirst, transfer->isBackupTransfer());
+                    bool started = client->startxfer(PUT, f, committer, true, startFirst, transfer->isBackupTransfer());
                     if (!started)
                     {
                         transfer->setState(MegaTransfer::STATE_QUEUED);
@@ -17512,7 +17511,7 @@ void MegaApiImpl::sendPendingTransfers()
 
                     transfer->setPath(path.c_str());
                     f->setTransfer(transfer);
-                    bool ok = client->startxfer(GET, f, true, startFirst);
+                    bool ok = client->startxfer(GET, f, committer, true, startFirst);
                     if (!ok)
                     {
                         //Already existing transfer
@@ -17609,27 +17608,23 @@ void MegaApiImpl::sendPendingTransfers()
 
         if (++count > 100 || std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count() > 50)
         {
-            if (client->tctable && tableTransaction)
-            {
-                client->tctable->commit();
-                tableTransaction = false;
-            }
+            break;
+            //if (client->tctable && tableTransaction)
+            //{
+            //    client->tctable->commit();
+            //    tableTransaction = false;
+            //}
 
-            // give the GUI a go from time to time, in case it needs to lock the mutex.  Also, return to main loop periodically so curl, API requests etc can progress
-            guard.unlock();
-            yield();
-            t0 = std::chrono::steady_clock::now();
-            count = 0;
-            ++batch;
-            guard.lock();
+            //// give the GUI a go from time to time, in case it needs to lock the mutex.  Also, return to main loop periodically so curl, API requests etc can progress
+            //guard.unlock();
+            //yield();
+            //t0 = std::chrono::steady_clock::now();
+            //count = 0;
+            //++batch;
+            //guard.lock();
         }
     }
-
-    if (client->tctable && tableTransaction)
-    {
-        client->tctable->commit();
-        tableTransaction = false;
-    }
+    return count;
 }
 
 void MegaApiImpl::removeRecursively(const char *path)
@@ -19625,7 +19620,8 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            e = client->transferlist.pause(megaTransfer->getTransfer(), pause);
+            DBTableTransactionCommitter committer(client->tctable);
+            e = client->transferlist.pause(megaTransfer->getTransfer(), pause, committer);
             if (!e)
             {
                 fireOnRequestFinish(request, MegaError(API_OK));
@@ -19660,19 +19656,20 @@ void MegaApiImpl::sendPendingRequests()
 
             if (automove)
             {
+                DBTableTransactionCommitter committer(client->tctable);
                 switch (number)
                 {
                     case MegaTransfer::MOVE_TYPE_UP:
-                        client->transferlist.moveup(transfer);
+                        client->transferlist.moveup(transfer, committer);
                         break;
                     case MegaTransfer::MOVE_TYPE_DOWN:
-                        client->transferlist.movedown(transfer);
+                        client->transferlist.movedown(transfer, committer);
                         break;
                     case MegaTransfer::MOVE_TYPE_TOP:
-                        client->transferlist.movetofirst(transfer);
+                        client->transferlist.movetofirst(transfer, committer);
                         break;
                     case MegaTransfer::MOVE_TYPE_BOTTOM:
-                        client->transferlist.movetolast(transfer);
+                        client->transferlist.movetolast(transfer, committer);
                         break;
                     default:
                         e = API_EARGS;
@@ -19688,10 +19685,11 @@ void MegaApiImpl::sendPendingRequests()
                     break;
                 }
 
+                DBTableTransactionCommitter committer(client->tctable);
                 Transfer *prevTransfer = prevMegaTransfer->getTransfer();
                 if (!prevTransfer)
                 {
-                    client->transferlist.movetransfer(transfer, client->transferlist.transfers[transfer->type].begin());
+                    client->transferlist.movetransfer(transfer, client->transferlist.transfers[transfer->type].begin(), committer);
                 }
                 else
                 {
@@ -19701,7 +19699,7 @@ void MegaApiImpl::sendPendingRequests()
                     }
                     else
                     {
-                        client->transferlist.movetransfer(transfer, prevTransfer);
+                        client->transferlist.movetransfer(transfer, prevTransfer, committer);
                     }
                 }
             }
@@ -20310,7 +20308,8 @@ void MegaApiImpl::sendPendingRequests()
                         Transfer *t = it->second;
                         if (t->slot)
                         {
-                            t->failed(API_EAGAIN);
+                            DBTableTransactionCommitter committer(client->tctable);
+                            t->failed(API_EAGAIN, committer);
                         }
                     }
                 }

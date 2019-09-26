@@ -1406,7 +1406,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1L);
         curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE,  90L);
         curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 60L);
-        curl_easy_setopt(curl, CURLOPT_SOCKOPTFUNCTION, sockopt_callback);
+        //curl_easy_setopt(curl, CURLOPT_SOCKOPTFUNCTION, sockopt_callback);
         curl_easy_setopt(curl, CURLOPT_SOCKOPTDATA, (void*)req);
 
         if (httpio->maxspeed[GET] && httpio->maxspeed[GET] <= 102400)
@@ -1843,23 +1843,24 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
             send_request(httpctx);
             return;
         }
+    }
 
+    if (dnsEntry && dnsEntry->ipv4.size() && !dnsEntry->isIPv4Expired())
+    {
+        LOG_debug << "DNS cache hit for " << httpctx->hostname << " (IPv4) " << dnsEntry->ipv4;
+        httpctx->isIPv6 = false;
+        httpctx->isCachedIp = true;
+        httpctx->hostip = dnsEntry->ipv4;
+        httpctx->ares_pending = 0;
+        send_request(httpctx);
+        return;
+    }
+
+    if (ipv6requestsenabled)
+    {
         httpctx->ares_pending++;
         LOG_debug << "Resolving IPv6 address for " << httpctx->hostname;
         ares_gethostbyname(ares, httpctx->hostname.c_str(), PF_INET6, ares_completed_callback, httpctx);
-    }
-    else
-    {
-        if (dnsEntry && dnsEntry->ipv4.size() && !dnsEntry->isIPv4Expired())
-        {
-            LOG_debug << "DNS cache hit for " << httpctx->hostname << " (IPv4) " << dnsEntry->ipv4;
-            httpctx->isIPv6 = false;
-            httpctx->isCachedIp = true;
-            httpctx->hostip = dnsEntry->ipv4;
-            httpctx->ares_pending = 0;
-            send_request(httpctx);
-            return;
-        }
     }
 
     LOG_debug << "Resolving IPv4 address for " << httpctx->hostname;
@@ -2525,28 +2526,28 @@ int CurlHttpIO::socket_callback(CURL *, curl_socket_t s, int what, void *userp, 
     return 0;
 }
 
-int CurlHttpIO::sockopt_callback(void *clientp, curl_socket_t, curlsocktype)
-{
-    HttpReq *req = (HttpReq*)clientp;
-    CurlHttpIO* httpio = (CurlHttpIO*)req->httpio;
-    CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
-    if (httpio && !httpio->disconnecting
-            && httpctx && httpctx->isCachedIp && !httpctx->ares_pending)
-    {
-        httpctx->ares_pending = 1;
-        if (httpio->ipv6requestsenabled)
-        {
-            httpctx->ares_pending++;
-            LOG_debug << "Resolving IPv6 address for " << httpctx->hostname << " during connection";
-            ares_gethostbyname(httpio->ares, httpctx->hostname.c_str(), PF_INET6, ares_completed_callback, httpctx);
-        }
-
-        LOG_debug << "Resolving IPv4 address for " << httpctx->hostname << " during connection";
-        ares_gethostbyname(httpio->ares, httpctx->hostname.c_str(), PF_INET, ares_completed_callback, httpctx);
-    }
-
-    return CURL_SOCKOPT_OK;
-}
+//int CurlHttpIO::sockopt_callback(void *clientp, curl_socket_t, curlsocktype)
+//{
+//    HttpReq *req = (HttpReq*)clientp;
+//    CurlHttpIO* httpio = (CurlHttpIO*)req->httpio;
+//    CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
+//    if (httpio && !httpio->disconnecting
+//            && httpctx && httpctx->isCachedIp && !httpctx->ares_pending)
+//    {
+//        httpctx->ares_pending = 1;
+//        if (httpio->ipv6requestsenabled)
+//        {
+//            httpctx->ares_pending++;
+//            LOG_debug << "Resolving IPv6 address for " << httpctx->hostname << " during connection";
+//            ares_gethostbyname(httpio->ares, httpctx->hostname.c_str(), PF_INET6, ares_completed_callback, httpctx);
+//        }
+//
+//        LOG_debug << "Resolving IPv4 address for " << httpctx->hostname << " during connection";
+//        ares_gethostbyname(httpio->ares, httpctx->hostname.c_str(), PF_INET, ares_completed_callback, httpctx);
+//    }
+//
+//    return CURL_SOCKOPT_OK;
+//}
 
 int CurlHttpIO::api_socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp)
 {

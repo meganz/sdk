@@ -244,7 +244,7 @@ TransferSlot::~TransferSlot()
 
         if (cachetransfer)
         {
-            transfer->client->transfercacheadd(transfer);
+            transfer->client->transfercacheadd(transfer, nullptr);
             LOG_debug << "Completed: " << transfer->progresscompleted;
         }
     }
@@ -407,13 +407,14 @@ void chunkmac_map::calcprogress(m_off_t size, m_off_t& chunkpos, m_off_t& progre
 }
 
 // file transfer state machine
-void TransferSlot::doio(MegaClient* client)
+void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committer)
 {
     CodeCounter::ScopeTimer pbt(client->performanceStats.transferslotDoio);
 
     if (!fa || (transfer->size && transfer->progresscompleted == transfer->size)
             || (transfer->type == PUT && transfer->ultoken))
     {
+        committer.beginOnce();
         if (transfer->type == GET || transfer->ultoken)
         {
             if (fa && transfer->type == GET)
@@ -425,7 +426,7 @@ void TransferSlot::doio(MegaClient* client)
                 // verify meta MAC
                 if (transfer->currentmetamac == transfer->metamac)
                 {
-                    return transfer->complete();
+                    return transfer->complete(committer);
                 }
                 else
                 {
@@ -435,7 +436,7 @@ void TransferSlot::doio(MegaClient* client)
                     client->reqtag = creqtag;
 
                     transfer->chunkmacs.clear();
-                    return transfer->failed(API_EKEY);
+                    return transfer->failed(API_EKEY, committer);
                 }
             }
 
@@ -443,7 +444,7 @@ void TransferSlot::doio(MegaClient* client)
             retrybt.backoff(2);
             retrying = true;
 
-            return transfer->complete();
+            return transfer->complete(committer);
         }
         else
         {
@@ -452,7 +453,7 @@ void TransferSlot::doio(MegaClient* client)
             client->sendevent(99410, "No upload token available");
             client->reqtag = creqtag;
 
-            return transfer->failed(API_EINTERNAL);
+            return transfer->failed(API_EINTERNAL, committer);
         }
     }
 
@@ -470,7 +471,7 @@ void TransferSlot::doio(MegaClient* client)
     if (errorcount > 4)
     {
         LOG_warn << "Failed transfer: too many errors";
-        return transfer->failed(lasterror);
+        return transfer->failed(lasterror, committer);
     }
 
     for (int i = connections; i--; )
@@ -593,7 +594,7 @@ void TransferSlot::doio(MegaClient* client)
                                     ((int64_t*)transfer->filekey)[3] = macsmac(&transfer->chunkmacs);
                                     SymmCipher::xorblock(transfer->filekey + SymmCipher::KEYLENGTH, transfer->filekey);
 
-                                    client->transfercacheadd(transfer);
+                                    client->transfercacheadd(transfer, &committer);
 
                                     if (transfer->progresscompleted != progressreported)
                                     {
@@ -603,7 +604,7 @@ void TransferSlot::doio(MegaClient* client)
                                         progress();
                                     }
 
-                                    return transfer->complete();
+                                    return transfer->complete(committer);
                                 }
                                 else
                                 {
@@ -646,11 +647,11 @@ void TransferSlot::doio(MegaClient* client)
                                 client->sendevent(99436, "Automatic change to HTTPS");
                                 client->reqtag = creqtag;
 
-                                return transfer->failed(API_EAGAIN);
+                                return transfer->failed(API_EAGAIN, committer);
                             }
 
                             // fail with returned error
-                            return transfer->failed(e);
+                            return transfer->failed(e, committer);
                         }
 
                         m_off_t startpos = reqs[i]->pos;
@@ -672,12 +673,12 @@ void TransferSlot::doio(MegaClient* client)
                             client->sendevent(99409, "No upload token received");
                             client->reqtag = creqtag;
 
-                            return transfer->failed(API_EINTERNAL);
+                            return transfer->failed(API_EINTERNAL, committer);
                         }
 
                         errorcount = 0;
                         transfer->failcount = 0;
-                        client->transfercacheadd(transfer);
+                        client->transfercacheadd(transfer, &committer);
                         reqs[i]->status = REQ_READY;
                     }
                     else   // GET
@@ -727,7 +728,7 @@ void TransferSlot::doio(MegaClient* client)
                                         if (!fa->retry)
                                         {
                                             transferbuf.bufferWriteCompleted(i, false);  // discard failed data so we don't retry on slot deletion
-                                            return transfer->failed(API_EWRITE);
+                                            return transfer->failed(API_EWRITE, committer);
                                         }
                                         lasterror = API_EWRITE;
                                         backoff = 2;
@@ -746,7 +747,7 @@ void TransferSlot::doio(MegaClient* client)
                                         if (!transfer->progresscompleted
                                             || (transfer->currentmetamac == transfer->metamac))
                                         {
-                                            client->transfercacheadd(transfer);
+                                            client->transfercacheadd(transfer, &committer);
                                             if (transfer->progresscompleted != progressreported)
                                             {
                                                 progressreported = transfer->progresscompleted;
@@ -755,7 +756,7 @@ void TransferSlot::doio(MegaClient* client)
                                                 progress();
                                             }
 
-                                            return transfer->complete();
+                                            return transfer->complete(committer);
                                         }
                                         else
                                         {
@@ -765,10 +766,10 @@ void TransferSlot::doio(MegaClient* client)
                                             client->reqtag = creqtag;
 
                                             transfer->chunkmacs.clear();
-                                            return transfer->failed(API_EKEY);
+                                            return transfer->failed(API_EKEY, committer);
                                         }
                                     }
-                                    client->transfercacheadd(transfer);
+                                    client->transfercacheadd(transfer, &committer);
                                     reqs[i]->status = REQ_READY;
                                 }
                             }
@@ -795,7 +796,7 @@ void TransferSlot::doio(MegaClient* client)
                                 client->sendevent(99436, "Automatic change to HTTPS");
                                 client->reqtag = creqtag;
 
-                                return transfer->failed(API_EAGAIN);
+                                return transfer->failed(API_EAGAIN, committer);
                             }
 
                             int creqtag = client->reqtag;
@@ -860,7 +861,7 @@ void TransferSlot::doio(MegaClient* client)
                                     if (!transfer->progresscompleted
                                             || (transfer->currentmetamac == transfer->metamac))
                                     {
-                                        client->transfercacheadd(transfer);
+                                        client->transfercacheadd(transfer, &committer);
                                         if (transfer->progresscompleted != progressreported)
                                         {
                                             progressreported = transfer->progresscompleted;
@@ -869,7 +870,7 @@ void TransferSlot::doio(MegaClient* client)
                                             progress();
                                         }
 
-                                        return transfer->complete();
+                                        return transfer->complete(committer);
                                     }
                                     else
                                     {
@@ -879,11 +880,11 @@ void TransferSlot::doio(MegaClient* client)
                                         client->reqtag = creqtag;
 
                                         transfer->chunkmacs.clear();
-                                        return transfer->failed(API_EKEY);
+                                        return transfer->failed(API_EKEY, committer);
                                     }
                                 }
 
-                                client->transfercacheadd(transfer);
+                                client->transfercacheadd(transfer, &committer);
                                 reqs[i]->status = REQ_READY;
 
                                 if (client->orderdownloadedchunks && !transferbuf.isRaid())
@@ -906,7 +907,7 @@ void TransferSlot::doio(MegaClient* client)
                                 transferbuf.bufferWriteCompleted(i, false);  // discard failed data so we don't retry on slot deletion
                                 delete asyncIO[i];
                                 asyncIO[i] = NULL;
-                                return transfer->failed(transfer->type == PUT ? API_EREAD : API_EWRITE);
+                                return transfer->failed(transfer->type == PUT ? API_EREAD : API_EWRITE, committer);
                             }
 
                             // retry shortly
@@ -943,7 +944,7 @@ void TransferSlot::doio(MegaClient* client)
                         client->sendevent(99436, "Automatic change to HTTPS");
                         client->reqtag = creqtag;
 
-                        return transfer->failed(API_EAGAIN);
+                        return transfer->failed(API_EAGAIN, committer);
                     }
 
                     if (reqs[i]->httpstatus == 509)
@@ -967,13 +968,13 @@ void TransferSlot::doio(MegaClient* client)
                             backoff = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS * 10;
                         }
 
-                        return transfer->failed(API_EOVERQUOTA, backoff);
+                        return transfer->failed(API_EOVERQUOTA, committer, backoff);
                     }
                     else if (reqs[i]->httpstatus == 403 || reqs[i]->httpstatus == 404)
                     {
                         if (!tryRaidRecoveryFromHttpGetError(i))
                         {
-                            return transfer->failed(API_EAGAIN);
+                            return transfer->failed(API_EAGAIN, committer);
                         }
                     }
                     else if (reqs[i]->httpstatus == 0 && tryRaidRecoveryFromHttpGetError(i))
@@ -1078,7 +1079,7 @@ void TransferSlot::doio(MegaClient* client)
                                 LOG_warn << "Error preparing transfer: " << fa->retry;
                                 if (!fa->retry)
                                 {
-                                    return transfer->failed(API_EREAD);
+                                    return transfer->failed(API_EREAD, committer);
                                 }
 
                                 // retry the read shortly
@@ -1121,7 +1122,7 @@ void TransferSlot::doio(MegaClient* client)
                             client->reqtag = creqtag;
 
                             transfer->chunkmacs.clear();
-                            return transfer->failed(API_EINTERNAL);
+                            return transfer->failed(API_EINTERNAL, committer);
                         }
 
                         reqs[i]->prepare(finaltempurl.c_str(), transfer->transfercipher(),
@@ -1230,7 +1231,7 @@ void TransferSlot::doio(MegaClient* client)
         if (!chunkfailed)
         {
             LOG_warn << "Transfer failed due to a timeout";
-            transfer->failed(API_EAGAIN);
+            transfer->failed(API_EAGAIN, committer);
         }
         else
         {
