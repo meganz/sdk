@@ -145,6 +145,9 @@ public:
     void resetTag();
 
     User(const char* = NULL);
+
+    // merges the new values in the given TLV. Returns true if TLV is changed.
+    static bool mergeUserAttribute(attr_t type, const MegaStringMap &newValuesMap, TLVstore &tlv);
 };
 
 class AuthRing

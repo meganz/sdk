@@ -14595,49 +14595,15 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
     {
         if (request->getType() == MegaRequest::TYPE_SET_ATTR_USER)
         {
-            // merge current value with the new value
-            bool modified = false;
-            if (request->getParamType() == MegaApi::USER_ATTR_ALIAS
-                    || request->getParamType() == MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER)
-            {
-                MegaStringMap *newAttrMap = request->getMegaStringMap();
-                std::unique_ptr<MegaStringList> keys(newAttrMap->getKeys());
-                for (int i = 0; i < keys->size(); i++)
-                {
-                   const char *key = keys->get(i);
-                   string newValue = newAttrMap->get(key);
-                   string currentValue;
-                   if (tlv->find(key))  // the key may not exist in the current user attribute
-                   {
-                       Base64::btoa(tlv->get(key), currentValue);
-                   }
-                   if (newValue != currentValue)
-                   {
-                        if (type == static_cast<attr_t>(MegaApi::USER_ATTR_ALIAS) && newValue[0] == '\0')
-                        {
-                            // alias being removed
-                            tlv->reset(key);
-                        }
-                        else
-                        {
-                            tlv->set(key, Base64::atob(newValue));
-                        }
-                        modified = true;
-                   }
-                }
-            }
-
-            if (modified)
+            if (User::mergeUserAttribute(type, *request->getMegaStringMap(), *tlv))
             {
                 // serialize and encrypt the TLV container
                 std::unique_ptr<string> container(tlv->tlvRecordsToContainer(client->rng, &client->key));
-                assert(type == request->getParamType());
                 client->putua(type, (byte *)container->data(), unsigned(container->size()), client->restag);
             }
             else
             {
-                LOG_debug << "Attribute " << User::attr2string((::mega::attr_t) request->getParamType())
-                          << " not changed, already up to date";
+                LOG_debug << "Attribute " << User::attr2string(type) << " not changed, already up to date";
                 fireOnRequestFinish(request, MegaError(e));
             }
 
@@ -18987,28 +18953,38 @@ void MegaApiImpl::sendPendingRequests()
                     break;
                 }
 
+                std::unique_ptr<TLVstore> tlv;
                 User *ownUser = client->finduser(client->me);
-                if ((type == ATTR_ALIAS || type == ATTR_CAMERA_UPLOADS_FOLDER)
-                        && !ownUser->isattrvalid(type)) // not fetched yet or outdated
+                if (type == ATTR_ALIAS || type == ATTR_CAMERA_UPLOADS_FOLDER)
                 {
-                    // always get updated value before update it
-                    client->getua(ownUser, type);
-                    break;
+                    if (!ownUser->isattrvalid(type)) // not fetched yet or outdated
+                    {
+                        // always get updated value before update it
+                        client->getua(ownUser, type);
+                        break;
+                    }
+                    else
+                    {
+                        tlv->reset(TLVstore::containerToTLVrecords(ownUser->getattr(type)));
+                    }
+                }
+                else
+                {
+                    tlv->reset(new TLVstore);
                 }
 
-                // encode the MegaStringMap as a TLV container
-                TLVstore tlv;
-                std::unique_ptr<MegaStringList> keys(stringMap->getKeys());
-                for (int i=0; i < keys->size(); i++)
+                if (User::mergeUserAttribute(type, *stringMap, *tlv))
                 {
-                    const char *key = keys->get(i);
-                    string value = Base64::atob(stringMap->get(key));
-                    tlv.set(key, value);
+                    // serialize and encrypt the TLV container
+                    std::unique_ptr<string> container(tlv.tlvRecordsToContainer(client->rng, &client->key));
+                    client->putua(type, (byte *)container->data(), unsigned(container->size()));
                 }
-
-                // serialize and encrypt the TLV container
-                std::unique_ptr<string> container(tlv.tlvRecordsToContainer(client->rng, &client->key));
-                client->putua(type, (byte *)container->data(), unsigned(container->size()));
+                else
+                {
+                    // no changes, current value equal to new value
+                    LOG_debug << "Attribute " << User::attr2string(type) << " not changed, already up to date";
+                    fireOnRequestFinish(request, MegaError(API_OK));
+                }
                 break;
             }
             else if (scope == '^')

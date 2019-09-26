@@ -41,6 +41,38 @@ User::User(const char* cemail)
     memset(&changed, 0, sizeof(changed));
 }
 
+bool User::mergeUserAttribute(attr_t type, const MegaStringMap &newValuesMap, TLVstore &tlv)
+{
+    bool modified = false;
+
+    std::unique_ptr<MegaStringList> keys(newValuesMap.getKeys());
+    for (int i = 0; i < keys->size(); i++)
+    {
+        const char *key = keys->get(i);
+        string newValue = newValuesMap->get(key);
+        string currentValue;
+        if (tlv->find(key))  // the key may not exist in the current user attribute
+        {
+            Base64::btoa(tlv->get(key), currentValue);
+        }
+        if (newValue != currentValue)
+        {
+            if (type == ATTR_ALIAS && newValue[0] == '\0')
+            {
+                // alias being removed
+                tlv->reset(key);
+            }
+            else
+            {
+                tlv->set(key, Base64::atob(newValue));
+            }
+            modified = true;
+        }
+    }
+
+    return modified;
+}
+
 bool User::serialize(string* d)
 {
     unsigned char l;
