@@ -589,8 +589,6 @@ unique_ptr<T> make_unique(constructorArgs&&... args)
     return (unique_ptr<T>(new T(std::forward<constructorArgs>(args)...)));
 }
 
-#define MEGA_MEASURE_CODE
-
 namespace CodeCounter
 {
     // Some classes that allow us to easily measure the number of times a block of code is called, and the sum of the time it takes.

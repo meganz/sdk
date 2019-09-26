@@ -211,14 +211,18 @@ size_t RequestDispatcher::serverrequest(string *out, bool& suppressSID)
         nextreqs.push_back(Request());
     }
     inflightreq.get(out, suppressSID);
+#ifdef MEGA_MEASURE_CODE
     csRequestsSent += inflightreq.size();
     csBatchesSent += 1;
+#endif
     return inflightreq.size();
 }
 
 void RequestDispatcher::requeuerequest()
 {
+#ifdef MEGA_MEASURE_CODE
     csBatchesReceived += 1;
+#endif
     assert(!inflightreq.empty());
     if (!nextreqs.front().empty())
     {
@@ -231,8 +235,10 @@ void RequestDispatcher::serverresponse(std::string&& movestring, MegaClient *cli
 {
     CodeCounter::ScopeTimer ccst(client->performanceStats.csResponseProcessingTime);
 
+#ifdef MEGA_MEASURE_CODE
     csBatchesReceived += 1;
     csRequestsCompleted += inflightreq.size();
+#endif
     processing = true;
     inflightreq.serverresponse(std::move(movestring), client);
     inflightreq.process(client);

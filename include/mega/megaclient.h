@@ -1541,17 +1541,17 @@ public:
     // Keep track of high level operation counts and times, for performance analysis
     struct PerformanceStats
     {
-        CodeCounter::ScopeStats execFunction = "MegaClient_exec";
-        CodeCounter::ScopeStats transferslotDoio = "TransferSlot_doio";
-        CodeCounter::ScopeStats execdirectreads = "execdirectreads";
-        CodeCounter::ScopeStats transferComplete = "transfer_complete";
-        CodeCounter::ScopeStats prepareWait = "MegaClient_prepareWait";
-        CodeCounter::ScopeStats doWait = "MegaClient_doWait";
-        CodeCounter::ScopeStats checkEvents = "MegaClient_checkEvents";
-        CodeCounter::ScopeStats applyKeys = "MegaClient_applyKeys";
-        CodeCounter::ScopeStats dispatchTransfers = "dispatchTransfers";
-        CodeCounter::ScopeStats csResponseProcessingTime = "cs batch response processing";
-        CodeCounter::ScopeStats scProcessingTime = "sc processing";
+        CodeCounter::ScopeStats execFunction = { "MegaClient_exec" };
+        CodeCounter::ScopeStats transferslotDoio = { "TransferSlot_doio" };
+        CodeCounter::ScopeStats execdirectreads = { "execdirectreads" };
+        CodeCounter::ScopeStats transferComplete = { "transfer_complete" };
+        CodeCounter::ScopeStats prepareWait = { "MegaClient_prepareWait" };
+        CodeCounter::ScopeStats doWait = { "MegaClient_doWait" };
+        CodeCounter::ScopeStats checkEvents = { "MegaClient_checkEvents" };
+        CodeCounter::ScopeStats applyKeys = { "MegaClient_applyKeys" };
+        CodeCounter::ScopeStats dispatchTransfers = { "dispatchTransfers" };
+        CodeCounter::ScopeStats csResponseProcessingTime = { "cs batch response processing" };
+        CodeCounter::ScopeStats scProcessingTime = { "sc processing" };
         uint64_t transferStarts = 0, transferFinishes = 0;
         CodeCounter::DurationSum csRequestWaitTime;
         CodeCounter::DurationSum transfersActiveTime;
