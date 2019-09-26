@@ -25,8 +25,12 @@
 #include "megaapi_impl.h"
 #include <algorithm>
 
-#ifdef _WIN32
+#ifdef WIN32
 #include <filesystem>
+namespace fs = ::std::filesystem;
+#else
+#include <experimental/filesystem>
+namespace fs = ::std::experimental::filesystem;
 #endif
 
 using namespace std;
@@ -136,6 +140,43 @@ void usleep(int n)
     Sleep(n / 1000);
 }
 #endif
+
+// helper functions and struct/classes 
+namespace
+{
+
+    bool buildLocalFolders(fs::path targetfolder, const string& prefix, int n, int recurselevel, int filesperfolder)
+    {
+        fs::path p = targetfolder / fs::u8path(prefix);
+        if (!fs::create_directory(p))
+            return false;
+
+        for (int i = 0; i < filesperfolder; ++i)
+        {
+            string filename = "file" + to_string(i) + "_" + prefix;
+            fs::path fp = p / fs::u8path(filename);
+#if (__cplusplus >= 201700L)
+            ofstream fs(fp/*, ios::binary*/);
+#else
+            ofstream fs(fp.u8string()/*, ios::binary*/);
+#endif
+            fs << filename;
+        }
+
+        if (recurselevel > 0)
+        {
+            for (int i = 0; i < n; ++i)
+            {
+                if (!buildLocalFolders(p, prefix + "_" + to_string(i), n, recurselevel - 1, filesperfolder))
+                    return false;
+            }
+        }
+
+        return true;
+    }
+
+}
+
 
 void SdkTest::SetUp()
 {
@@ -3564,6 +3605,8 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
 #ifdef DEBUG
 TEST_F(SdkTest, SdkTestOverquotaNonCloudraid)
 {
+    LOG_info << "___TEST SdkTestOverquotaNonCloudraid";
+
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
     // make a file to download, and upload so we can pull it down
@@ -3634,6 +3677,8 @@ TEST_F(SdkTest, SdkTestOverquotaNonCloudraid)
 #ifdef DEBUG
 TEST_F(SdkTest, SdkTestOverquotaCloudraid)
 {
+    LOG_info << "___TEST SdkTestOverquotaCloudraid";
+
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
     ASSERT_NO_FATAL_FAILURE(importPublicLink(0, "https://mega.nz/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", megaApi[0]->getRootNode()));
@@ -3795,6 +3840,8 @@ CheckStreamedFile_MegaTransferListener* StreamRaidFilePart(MegaApi* megaApi, m_o
 
 TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
 {
+    LOG_info << "___TEST SdkCloudraidStreamingSoakTest";
+
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 #endif
@@ -3812,7 +3859,7 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
 
     transferFlags[0][MegaTransfer::TYPE_DOWNLOAD] = false;
     megaApi[0]->startDownload(nimported, filename2.c_str());
-    ASSERT_TRUE(waitForResponse(&transferFlags[0][MegaTransfer::TYPE_DOWNLOAD], 60)) << "Download transfer failed after " << maxTimeout << " seconds";
+    ASSERT_TRUE(waitForResponse(&transferFlags[0][MegaTransfer::TYPE_DOWNLOAD])) << "Setup transfer failed after " << maxTimeout << " seconds";
     ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot download the initial file (error: " << lastError[0] << ")";
 
     char raidchar = 0;
@@ -3848,7 +3895,7 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
     m_time_t starttime = m_time();
     int seconds_to_test_for = gRunningInCI ? 60 : 60 * 10;
 
-    // ok loop for 10 minutes
+    // ok loop for 10 minutes  (one munite under jenkins)
     srand(unsigned(starttime));
     int randomRunsDone = 0;
     m_off_t randomRunsBytes = 0;
@@ -3885,8 +3932,9 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
         }
         else // decent piece of the file
         {
-            start = rand() % 5000000;
-            int n = 5000000 / (smallpieces ? 100 : 1);
+            int pieceSize = gRunningInCI ? 50000 : 5000000;
+            start = rand() % pieceSize;
+            int n = pieceSize / (smallpieces ? 100 : 1);
             end = start + n + rand() % n;
         }
 
@@ -3897,6 +3945,8 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
             else end += 1;
         }
         randomRunsBytes += end - start;
+
+        LOG_info << "beginning stream test, " << start << " to " << end << "(len " << end - start << ") " << (nonraid ? " non-raid " : " RAID ") << (!nonraid ? (smallpieces ? " smallpieces " : "normalpieces") : "");
 
         CheckStreamedFile_MegaTransferListener* p = StreamRaidFilePart(megaApi[0], start, end, !nonraid, smallpieces, nimported, nonRaidNode, compareDecryptedData);
 
@@ -4056,12 +4106,78 @@ TEST_F(SdkTest, DISABLED_SdkGetRegisteredContacts)
 
     // Check johnsmith1
     ASSERT_EQ(js1, std::get<0>(table[0])); // eud
-    ASSERT_GT(std::get<1>(table[0]).size(), 0); // id
+    ASSERT_GT(std::get<1>(table[0]).size(), 0u); // id
     ASSERT_EQ(js1, std::get<2>(table[0])); // ud
 
     // Check johnsmith2
     ASSERT_EQ(js2, std::get<0>(table[1])); // eud
-    ASSERT_GT(std::get<1>(table[1]).size(), 0); // id
+    ASSERT_GT(std::get<1>(table[1]).size(), 0u); // id
     ASSERT_EQ(js2, std::get<2>(table[1])); // ud
 }
 
+TEST_F(SdkTest, RecursiveUploadWithLogout)
+{
+    LOG_info << "___TEST RecursiveUploadWithLogout___";
+
+    // this one used to cause a double-delete
+
+    // make new folders (and files) in the local filesystem - approx 90 
+    fs::path p = fs::current_path() / "uploadme_mega_auto_test_sdk";
+    if (fs::exists(p))
+    {
+        fs::remove_all(p);
+    }
+    fs::create_directories(p);
+    ASSERT_TRUE(buildLocalFolders(p.u8string().c_str(), "newkid", 3, 2, 10));
+
+    // start uploading
+    TransferTracker uploadListener;
+    megaApi[0]->startUpload(p.u8string().c_str(), megaApi[0]->getRootNode(), &uploadListener);
+    WaitMillisec(500);
+
+    // logout while the upload (which consists of many transfers) is ongoing
+    ASSERT_EQ(API_OK, doRequestLogout(0));
+    int result = uploadListener.waitForResult();
+    ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
+}
+
+TEST_F(SdkTest, RecursiveDownloadWithLogout)
+{
+    LOG_info << "___TEST RecursiveDownloadWithLogout";
+
+    // this one used to cause a double-delete
+
+    // make new folders (and files) in the local filesystem - approx 130 - we must upload in order to have something to download
+    fs::path uploadpath = fs::current_path() / "uploadme_mega_auto_test_sdk";
+    fs::path downloadpath = fs::current_path() / "downloadme_mega_auto_test_sdk";
+
+    std::error_code ec;
+    fs::remove_all(uploadpath, ec);
+    fs::remove_all(downloadpath, ec);
+    ASSERT_TRUE(!fs::exists(uploadpath));
+    ASSERT_TRUE(!fs::exists(downloadpath));
+    fs::create_directories(uploadpath);
+    fs::create_directories(downloadpath);
+
+    ASSERT_TRUE(buildLocalFolders(uploadpath.u8string().c_str(), "newkid", 3, 2, 10));
+
+    // upload all of those
+    TransferTracker uploadListener, downloadListener;
+    megaApi[0]->startUpload(uploadpath.u8string().c_str(), megaApi[0]->getRootNode(), &uploadListener);
+    ASSERT_EQ(API_OK, uploadListener.waitForResult());
+
+    // ok now try the download
+    megaApi[0]->startDownload(megaApi[0]->getNodeByPath("/uploadme_mega_auto_test_sdk"), downloadpath.u8string().c_str(), &downloadListener);
+    WaitMillisec(1000);
+    ASSERT_TRUE(downloadListener.started);
+    ASSERT_TRUE(!downloadListener.finished);
+
+    // logout while the download (which consists of many transfers) is ongoing
+
+    ASSERT_EQ(API_OK, doRequestLogout(0));
+
+    int result = downloadListener.waitForResult();
+    ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
+    fs::remove_all(uploadpath, ec);
+    fs::remove_all(downloadpath, ec);
+}

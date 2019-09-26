@@ -30,6 +30,10 @@
 #include <sys/timeb.h>
 #endif
 
+#ifdef __APPLE__
+#include <sys/sysctl.h>
+#endif
+
 namespace mega {
 
 string toNodeHandle(handle nodeHandle)
@@ -199,6 +203,69 @@ bool CacheableReader::unserializebinary(byte* data, size_t len)
     ptr += len;
     fieldnum += 1;
     return true;
+}
+
+
+void chunkmac_map::serialize(string& d) const
+{
+    unsigned short ll = (unsigned short)size();
+    d.append((char*)&ll, sizeof(ll));
+    for (const_iterator it = begin(); it != end(); it++)
+    {
+        d.append((char*)&it->first, sizeof(it->first));
+        d.append((char*)&it->second, sizeof(it->second));
+    }
+}
+
+bool chunkmac_map::unserialize(const char*& ptr, const char* end)
+{
+    unsigned short ll;
+    if ((ptr + sizeof(ll) > end) || ptr + (ll = MemAccess::get<unsigned short>(ptr)) * (sizeof(m_off_t) + sizeof(ChunkMAC)) + sizeof(ll) > end)
+    {
+        return false;
+    }
+
+    ptr += sizeof(ll);
+
+    for (int i = 0; i < ll; i++)
+    {
+        m_off_t pos = MemAccess::get<m_off_t>(ptr);
+        ptr += sizeof(m_off_t);
+
+        memcpy(&((*this)[pos]), ptr, sizeof(ChunkMAC));
+        ptr += sizeof(ChunkMAC);
+    }
+    return true;
+}
+
+void chunkmac_map::calcprogress(m_off_t size, m_off_t& chunkpos, m_off_t& progresscompleted, m_off_t* lastblockprogress)
+{
+    chunkpos = 0;
+    progresscompleted = 0;
+
+    for (chunkmac_map::iterator it = begin(); it != end(); ++it)
+    {
+        m_off_t chunkceil = ChunkedHash::chunkceil(it->first, size);
+
+        if (chunkpos == it->first && it->second.finished)
+        {
+            chunkpos = chunkceil;
+            progresscompleted = chunkceil;
+        }
+        else if (it->second.finished)
+        {
+            m_off_t chunksize = chunkceil - ChunkedHash::chunkfloor(it->first);
+            progresscompleted += chunksize;
+        }
+        else
+        {
+            progresscompleted += it->second.offset;
+            if (lastblockprogress)
+            {
+                *lastblockprogress += it->second.offset;
+            }
+        }
+    }
 }
 
 bool CacheableReader::unserializechunkmacs(chunkmac_map& m)
@@ -1089,9 +1156,9 @@ string * TLVstore::tlvRecordsToContainer(PrnGen &rng, SymmCipher *key, encryptio
     return result;
 }
 
-string * TLVstore::tlvRecordsToContainer()
+string* TLVstore::tlvRecordsToContainer()
 {
-    string * result = new string;
+    string *result = new string;
     size_t offset = 0;
     size_t length;
 
@@ -1116,7 +1183,7 @@ string * TLVstore::tlvRecordsToContainer()
     return result;
 }
 
-string TLVstore::get(string type)
+std::string TLVstore::get(string type) const
 {
     return tlv.at(type);
 }
@@ -1136,7 +1203,7 @@ vector<string> *TLVstore::getKeys() const
     return keys;
 }
 
-bool TLVstore::find(string type)
+bool TLVstore::find(string type) const
 {
     return (tlv.find(type) != tlv.end());
 }
@@ -1144,6 +1211,11 @@ bool TLVstore::find(string type)
 void TLVstore::set(string type, string value)
 {
     tlv[type] = value;
+}
+
+void TLVstore::reset(std::string type)
+{
+    tlv.erase(type);
 }
 
 size_t TLVstore::size()
@@ -1237,8 +1309,14 @@ TLVstore * TLVstore::containerToTLVrecords(const string *data)
         pos = data->find('\0', offset);
         typelen = pos - offset;
 
+        if (pos == string::npos)
+        {
+            LOG_warn << "Invalid record in the TLV";
+            return tlv;
+        }
+
         // if no valid TLV record in the container, but remaining bytes...
-        if ( (pos == data->npos) || (offset + typelen + 3 > datalen) )
+        if (offset + typelen + 3 > datalen)
         {
             delete tlv;
             return NULL;
@@ -1287,7 +1365,7 @@ TLVstore * TLVstore::containerToTLVrecords(const string *data, SymmCipher *key)
     unsigned taglen = TLVstore::getTaglen(encSetting);
     encryptionmode_t encMode = TLVstore::getMode(encSetting);
 
-    if (encMode == AES_MODE_UNKNOWN || !ivlen || !taglen ||  data->size() <= offset+ivlen+taglen)
+    if (encMode == AES_MODE_UNKNOWN || !ivlen || !taglen ||  data->size() < offset+ivlen+taglen)
     {
         return NULL;
     }
@@ -1302,20 +1380,25 @@ TLVstore * TLVstore::containerToTLVrecords(const string *data, SymmCipher *key)
     unsigned clearTextLen = cipherTextLen - taglen;
     string clearText;
 
+    bool decrypted = false;
     if (encMode == AES_MODE_CCM)   // CCM or GCM_BROKEN (same than CCM)
     {
-        key->ccm_decrypt(&cipherText, iv, ivlen, taglen, &clearText);
+       decrypted = key->ccm_decrypt(&cipherText, iv, ivlen, taglen, &clearText);
     }
     else if (encMode == AES_MODE_GCM)  // GCM
     {
-        key->gcm_decrypt(&cipherText, iv, ivlen, taglen, &clearText);
+       decrypted = key->gcm_decrypt(&cipherText, iv, ivlen, taglen, &clearText);
     }
 
     delete [] iv;
 
-    if (clearText.empty())  // the decryption has failed (probably due to authentication)
+    if (!decrypted)  // the decryption has failed (probably due to authentication)
     {
         return NULL;
+    }
+    else if (clearText.empty()) // If decryption succeeded but attribute is empty, generate an empty TLV
+    {
+        return new TLVstore();
     }
 
     TLVstore *tlv = TLVstore::containerToTLVrecords(&clearText);
@@ -1398,6 +1481,45 @@ bool Utils::utf8toUnicode(const uint8_t *src, unsigned srclen, string *result)
     delete [] res;
 
     return true;
+}
+
+std::string Utils::stringToHex(const std::string &input)
+{
+    static const char* const lut = "0123456789ABCDEF";
+    size_t len = input.length();
+
+    std::string output;
+    output.reserve(2 * len);
+    for (size_t i = 0; i < len; ++i)
+    {
+        const unsigned char c = input[i];
+        output.push_back(lut[c >> 4]);
+        output.push_back(lut[c & 15]);
+    }
+    return output;
+}
+
+std::string Utils::hexToString(const std::string &input)
+{
+    static const char* const lut = "0123456789ABCDEF";
+    size_t len = input.length();
+    if (len & 1) throw std::invalid_argument("odd length");
+
+    std::string output;
+    output.reserve(len / 2);
+    for (size_t i = 0; i < len; i += 2)
+    {
+        char a = input[i];
+        const char* p = std::lower_bound(lut, lut + 16, a);
+        if (*p != a) throw std::invalid_argument("not a hex digit");
+
+        char b = input[i + 1];
+        const char* q = std::lower_bound(lut, lut + 16, b);
+        if (*q != b) throw std::invalid_argument("not a hex digit");
+
+        output.push_back(((p - lut) << 4) | (q - lut));
+    }
+    return output;
 }
 
 long long abs(long long n)
@@ -1840,6 +1962,33 @@ void tolower_string(std::string& str)
 {
     std::transform(str.begin(), str.end(), str.begin(), [](char c) {return static_cast<char>(::tolower(c)); });
 }
+
+#ifdef __APPLE__
+int macOSmajorVersion()
+{
+    char releaseStr[256];
+    size_t size = sizeof(releaseStr);
+    if (!sysctlbyname("kern.osrelease", releaseStr, &size, NULL, 0)  && size > 0)
+    {
+        if (strchr(releaseStr,'.'))
+        {
+            char *token = strtok(releaseStr, ".");
+            if (token)
+            {
+                errno = 0;
+                char *endPtr = NULL;
+                long majorVersion = strtol(token, &endPtr, 10);
+                if (endPtr != token && errno != ERANGE && majorVersion >= INT_MIN && majorVersion <= INT_MAX)
+                {
+                    return majorVersion;
+                }
+            }
+        }
+    }
+
+    return -1;
+}
+#endif
 
 void NodeCounter::operator += (const NodeCounter& o)
 {

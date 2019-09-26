@@ -1,4 +1,4 @@
-# This file enables building with cmake
+# This file enables building with cmake 
 #
 # use cases
 #  - generate a visual studio solution and projects, eg: cmake . -G "Visual Studio 15 2017"
@@ -25,6 +25,7 @@ set (USE_FREEIMAGE 1 CACHE STRING "")
 set (USE_SODIUM 0 CACHE STRING "")
 set (ENABLE_SYNC 1 CACHE STRING "")
 set (ENABLE_CHAT 0 CACHE STRING "")
+set (ENABLE_LOG_PERFORMANCE 0 CACHE STRING "")
 set (HAVE_FFMPEG 1 CACHE STRING "")
 set (USE_WEBRTC 0 CACHE STRING "")
 set (USE_LIBUV 0 CACHE STRING "")
@@ -64,17 +65,24 @@ if (ENABLE_CHAT AND NOT USE_SODIUM)
 endif()
 
 if (WIN32)
-    if("${CMAKE_GENERATOR}" MATCHES "(Win64|IA64)")
+    message(STATUS "CMAKE_GENERATOR is ${CMAKE_GENERATOR}")
+    message(STATUS "CMAKE_GENERATOR_PLATFORM is ${CMAKE_GENERATOR_PLATFORM}")
+    if ("${CMAKE_GENERATOR_PLATFORM}" MATCHES "(Win64|IA64|x64)")
         SET(build_64_bit 1)
+        message(STATUS "Building 64 bit")
     elseif(CMAKE_SIZEOF_VOID_P EQUAL 4)
         SET(build_64_bit 0)
+        message(STATUS "Building 32 bit")
+    else()
+        message(FATAL_ERROR "Can't tell if we should build 32 bit or 64 bit")
     endif()
 else()
-    set (build_64_bit 1 CACHE TYPE BOOL)
+    set (build_64_bit 1 CACHE STRING "Build for a 64 bit target")
+    message(STATUS "Building 64 bit")
 endif()
 
 if ("${MEGA_PROJECT_NAME}" STREQUAL "")
-    set(MEGA_PROJECT_NAME, "MegaSDK")
+    set(MEGA_PROJECT_NAME "MegaSDK" CACHE STRING "")
 endif()
 
 if(build_64_bit)
@@ -586,6 +594,7 @@ target_compile_definitions(Mega PUBLIC
                 $<${USE_SODIUM}:USE_SODIUM>
                 $<${ENABLE_SYNC}:ENABLE_SYNC> 
                 $<${ENABLE_CHAT}:ENABLE_CHAT> 
+                $<${ENABLE_LOG_PERFORMANCE}:ENABLE_LOG_PERFORMANCE>
                 $<${NO_READLINE}:NO_READLINE>
                 $<${USE_FREEIMAGE}:USE_FREEIMAGE> 
                 $<${HAVE_FFMPEG}:HAVE_FFMPEG>

@@ -20,6 +20,8 @@
  */
 #import <Foundation/Foundation.h>
 
+NS_ASSUME_NONNULL_BEGIN
+
 /**
  * @brief Protocol to get information about global events.
  *
@@ -182,3 +184,5 @@
 - (void)onEvent:(MEGASdk *)api event:(MEGAEvent *)event;
 
 @end
+
+NS_ASSUME_NONNULL_END

@@ -350,8 +350,8 @@ std::ostream& Text::describe(std::ostream& s) const
 
 bool ExportedLink::isLink(const string& s, bool file, bool folder)
 {
-    bool filestr = s.find("#!") != string::npos;
-    bool folderstr = s.find("#F!") != string::npos;
+    bool filestr = (s.find("#!") != string::npos || s.find("file/") != string::npos);
+    bool folderstr = (s.find("#F!") != string::npos || s.find("folder/") != string::npos);
     if (file && !folder)
     {
         return filestr;

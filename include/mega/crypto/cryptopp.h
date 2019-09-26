@@ -39,7 +39,6 @@
 #include <cryptopp/pwdbased.h>
 
 namespace mega {
-using std::string;
 
 /**
  * @brief A generic pseudo-random number generator.
@@ -99,7 +98,7 @@ public:
     typedef uint64_t ctr_iv;
 
     void setkey(const byte*, int = 1);
-    bool setkey(const string*);
+    bool setkey(const std::string*);
 
     /**
      * @brief Encrypt symmetrically using AES in ECB mode.
@@ -156,7 +155,7 @@ public:
      * @param result Encrypted message
      * @return Void.
      */
-    void cbc_encrypt_pkcs_padding(const string *data, const byte* iv, string *result);
+    void cbc_encrypt_pkcs_padding(const std::string *data, const byte* iv, std::string *result);
 
     /**
      * @brief Decrypt symmetrically using AES in CBC mode and pkcs padding
@@ -168,7 +167,7 @@ public:
      * @param result Decrypted message
      * @return Void.
      */
-    void cbc_decrypt_pkcs_padding(const string *data, const byte* iv, string *result);
+    void cbc_decrypt_pkcs_padding(const std::string *data, const byte* iv, std::string *result);
 
     /**
      * Authenticated symmetric encryption using AES in CCM mode (counter with CBC-MAC).
@@ -184,7 +183,7 @@ public:
      * @param taglen Length of expected authentication tag. Allowed sizes are 8 and 16 bytes.
      * @param result Encrypted data, including the authentication tag.
      */
-    void ccm_encrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result);
+    void ccm_encrypt(const std::string *data, const byte *iv, unsigned ivlen, unsigned taglen, std::string *result);
 
     /**
      * @brief Authenticated symmetric decryption using AES in CCM mode (counter with CBC-MAC).
@@ -199,7 +198,7 @@ public:
      * @param taglen Length of expected authentication tag. Allowed sizes are 8 and 16 bytes.
      * @param result Decrypted data, not including the authentication tag.
      */
-    void ccm_decrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result);
+    bool ccm_decrypt(const std::string *data, const byte *iv, unsigned ivlen, unsigned taglen, std::string *result);
 
     /**
      * @brief Authenticated symmetric encryption using AES in GCM mode.
@@ -215,7 +214,7 @@ public:
      * @param taglen Length of expected authentication tag.
      * @param result Encrypted data, including the authentication tag.
      */
-    void gcm_encrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result);
+    void gcm_encrypt(const std::string *data, const byte *iv, unsigned ivlen, unsigned taglen, std::string *result);
 
     /**
      * @brief Authenticated symmetric decryption using AES in GCM mode.
@@ -230,7 +229,7 @@ public:
      * @param taglen Length of expected authentication tag. Allowed sizes are 8 and 16 bytes.
      * @param result Decrypted data, not including the authentication tag.
      */
-    void gcm_decrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result);
+    bool gcm_decrypt(const std::string *data, const byte *iv, unsigned ivlen, unsigned taglen, std::string *result);
 
     /**
      * @brief Serialize key for compatibility with the webclient
@@ -240,7 +239,7 @@ public:
      *
      * @param d string that receives the serialized key
      */
-    void serializekeyforjs(string *);
+    void serializekeyforjs(std::string *);
 
     void ctr_crypt(byte *, unsigned, m_off_t, ctr_iv, byte *, bool, bool initmac = true);
 
@@ -347,7 +346,7 @@ public:
      */
     unsigned rawdecrypt(const byte* cipher, size_t cipherlen, byte* buf, size_t buflen);
 
-    static void serializeintarray(CryptoPP::Integer*, int, string*, bool headers = true);
+    static void serializeintarray(CryptoPP::Integer*, int, std::string*, bool headers = true);
 
     /**
      * @brief Serialises a key to a string.
@@ -357,7 +356,7 @@ public:
      *     (AsymmCipher::PRIVKEY or AsymmCipher::PUBKEY).
      * @return Void.
      */
-    void serializekey(string* d, int keytype);
+    void serializekey(std::string* d, int keytype);
 
     /**
      * @brief Serialize public key for compatibility with the webclient.
@@ -368,7 +367,7 @@ public:
      * @param d String to take the serialized key without size-headers
      * @return Void.
      */
-    void serializekeyforjs(string& d);
+    void serializekeyforjs(std::string& d);
 
     /**
      * @brief Generates an RSA key pair of a given key size.
@@ -388,7 +387,7 @@ class MEGA_API Hash
 
 public:
     void add(const byte*, unsigned);
-    void get(string*);
+    void get(std::string*);
 };
 
 class MEGA_API HashSHA256
@@ -397,7 +396,7 @@ class MEGA_API HashSHA256
 
 public:
     void add(const byte*, unsigned int);
-    void get(string*);
+    void get(std::string*);
 };
 
 class MEGA_API HashCRC32
