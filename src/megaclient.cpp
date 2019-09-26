@@ -9157,14 +9157,28 @@ void MegaClient::notifynode(Node* n)
             // FIXME: aggregate subtrees!
             if (n->localnode && n->localnode->parent)
             {
-                n->localnode->deleted = n->changed.removed;
+                if (!n->localnode->sync->isDownSync())
+                {
+                    n->localnode->syncable = !n->changed.removed;
+                }
+                else
+                {
+                    n->localnode->deleted = n->changed.removed;
+                }
             }
 
             if (n->parent && n->parent->localnode && (!n->localnode || (n->localnode->parent != n->parent->localnode)))
             {
                 if (n->localnode)
                 {
-                    n->localnode->deleted = n->changed.removed;
+                    if (!n->localnode->sync->isDownSync())
+                    {
+                        n->localnode->syncable = !n->changed.removed;
+                    }
+                    else
+                    {
+                        n->localnode->deleted = n->changed.removed;
+                    }
                 }
 
                 if (!n->changed.removed && n->changed.parent)
@@ -12605,6 +12619,12 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
     {
         LocalNode* ll = lit->second;
 
+        if (ll->sync->isUpSync() && !ll->sync->overwriteChanges() && !ll->syncable)
+        {
+            LOG_debug << "LocalNode not syncable: " << ll->name;
+            continue;
+        }
+
         if (ll->deleted)
         {
             LOG_debug << "LocalNode deleted " << ll->name;
@@ -13016,10 +13036,17 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
 
             if (ll->sync->isUpSync())
             {
-                // create remote folder or send file
-                LOG_debug << "Adding local file to synccreate: " << ll->name << " " << synccreate.size();
-                synccreate.push_back(ll);
-                syncactivity = true;
+                if (ll->syncable || ll->sync->overwriteChanges())
+                {
+                    // create remote folder or send file
+                    LOG_debug << "Adding local file to synccreate: " << ll->name << " " << synccreate.size();
+                    synccreate.push_back(ll);
+                    syncactivity = true;
+                }
+                else
+                {
+                    LOG_debug << "syncable prevents adding to synccreate";
+                }
             }
             else
             {

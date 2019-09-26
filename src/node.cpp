@@ -205,7 +205,14 @@ Node::~Node()
     // sync: remove reference from local filesystem node
     if (localnode)
     {
-        localnode->deleted = true;
+        if (!localnode->sync->isDownSync())
+        {
+            localnode->syncable = false;
+        }
+        else
+        {
+            localnode->deleted = true;
+        }
         localnode->node = NULL;
     }
 
