@@ -14595,7 +14595,8 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
     {
         if (request->getType() == MegaRequest::TYPE_SET_ATTR_USER)
         {
-            if (User::mergeUserAttribute(type, *request->getMegaStringMap(), *tlv))
+            const string_map *newValuesMap = static_cast<MegaStringMapPrivate*>(request->getMegaStringMap())->getMap();
+            if (User::mergeUserAttribute(type, *newValuesMap, *tlv))
             {
                 // serialize and encrypt the TLV container
                 std::unique_ptr<string> container(tlv->tlvRecordsToContainer(client->rng, &client->key));
@@ -14689,7 +14690,6 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
                     }
                     else
                     {
-                        string aValue = buf;
                         request->setName(Base64::atob(buf).c_str());
                     }
                 }
@@ -18965,18 +18965,19 @@ void MegaApiImpl::sendPendingRequests()
                     }
                     else
                     {
-                        tlv->reset(TLVstore::containerToTLVrecords(ownUser->getattr(type)));
+                        tlv.reset(TLVstore::containerToTLVrecords(ownUser->getattr(type), &client->key));
                     }
                 }
                 else
                 {
-                    tlv->reset(new TLVstore);
+                    tlv.reset(new TLVstore);
                 }
 
-                if (User::mergeUserAttribute(type, *stringMap, *tlv))
+                const string_map *newValuesMap = static_cast<MegaStringMapPrivate*>(request->getMegaStringMap())->getMap();
+                if (User::mergeUserAttribute(type, *newValuesMap, *tlv.get()))
                 {
                     // serialize and encrypt the TLV container
-                    std::unique_ptr<string> container(tlv.tlvRecordsToContainer(client->rng, &client->key));
+                    std::unique_ptr<string> container(tlv->tlvRecordsToContainer(client->rng, &client->key));
                     client->putua(type, (byte *)container->data(), unsigned(container->size()));
                 }
                 else

@@ -22,6 +22,7 @@
 #include "mega/user.h"
 #include "mega/megaclient.h"
 #include "mega/logging.h"
+#include "mega/base64.h"
 
 namespace mega {
 User::User(const char* cemail)
@@ -41,30 +42,29 @@ User::User(const char* cemail)
     memset(&changed, 0, sizeof(changed));
 }
 
-bool User::mergeUserAttribute(attr_t type, const MegaStringMap &newValuesMap, TLVstore &tlv)
+bool User::mergeUserAttribute(attr_t type, const string_map &newValuesMap, TLVstore &tlv)
 {
     bool modified = false;
 
-    std::unique_ptr<MegaStringList> keys(newValuesMap.getKeys());
-    for (int i = 0; i < keys->size(); i++)
+    for (const auto &it : newValuesMap)
     {
-        const char *key = keys->get(i);
-        string newValue = newValuesMap->get(key);
+        const char *key = it.first.c_str();
+        string newValue = it.second;
         string currentValue;
-        if (tlv->find(key))  // the key may not exist in the current user attribute
+        if (tlv.find(key))  // the key may not exist in the current user attribute
         {
-            Base64::btoa(tlv->get(key), currentValue);
+            Base64::btoa(tlv.get(key), currentValue);
         }
         if (newValue != currentValue)
         {
             if (type == ATTR_ALIAS && newValue[0] == '\0')
             {
                 // alias being removed
-                tlv->reset(key);
+                tlv.reset(key);
             }
             else
             {
-                tlv->set(key, Base64::atob(newValue));
+                tlv.set(key, Base64::atob(newValue));
             }
             modified = true;
         }

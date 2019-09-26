@@ -147,7 +147,7 @@ public:
     User(const char* = NULL);
 
     // merges the new values in the given TLV. Returns true if TLV is changed.
-    static bool mergeUserAttribute(attr_t type, const MegaStringMap &newValuesMap, TLVstore &tlv);
+    static bool mergeUserAttribute(attr_t type, const string_map &newValuesMap, TLVstore &tlv);
 };
 
 class AuthRing
