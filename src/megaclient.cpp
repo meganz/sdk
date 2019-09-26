@@ -12454,77 +12454,84 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
         else
         {
             LOG_debug << "doesn't have a previous localnode";
-            // missing node is not associated with an existing LocalNode
-            if (rit->second->type == FILENODE)
+            if (rit->second->syncable || l->sync->overwriteChanges())
             {
-                bool download = true;
-                FileAccess *f = fsaccess->newfileaccess();
-                if (rit->second->localnode != (LocalNode*)~0
-                        && (f->fopen(localpath) || f->type == FOLDERNODE))
+                // missing node is not associated with an existing LocalNode
+                if (rit->second->type == FILENODE)
                 {
-                    LOG_debug << "Skipping download over an unscanned file/folder, or the file/folder is not to be synced (special attributes)";
-                    download = false;
+                    bool download = true;
+                    FileAccess *f = fsaccess->newfileaccess();
+                    if (rit->second->localnode != (LocalNode*)~0
+                            && (f->fopen(localpath) || f->type == FOLDERNODE))
+                    {
+                        LOG_debug << "Skipping download over an unscanned file/folder, or the file/folder is not to be synced (special attributes)";
+                        download = false;
+                    }
+                    delete f;
+                    rit->second->localnode = NULL;
+
+                    // start fetching this node, unless fetch is already in progress
+                    // FIXME: to cover renames that occur during the
+                    // download, reconstruct localname in complete()
+                    if (download && !rit->second->syncget)
+                    {
+                        LOG_debug << "Start fetching file node";
+                        fsaccess->local2path(localpath, &localname);
+                        app->syncupdate_get(l->sync, rit->second, localname.c_str());
+
+                        rit->second->syncget = new SyncFileGet(l->sync, rit->second, localpath);
+                        nextreqtag();
+                        startxfer(GET, rit->second->syncget);
+                        syncactivity = true;
+                    }
                 }
-                delete f;
-                rit->second->localnode = NULL;
-
-                // start fetching this node, unless fetch is already in progress
-                // FIXME: to cover renames that occur during the
-                // download, reconstruct localname in complete()
-                if (download && !rit->second->syncget)
+                else
                 {
-                    LOG_debug << "Start fetching file node";
-                    fsaccess->local2path(localpath, &localname);
-                    app->syncupdate_get(l->sync, rit->second, localname.c_str());
+                    LOG_debug << "Creating local folder";
+                    FileAccess *f = fsaccess->newfileaccess();
+                    if (f->fopen(localpath) || f->type == FOLDERNODE)
+                    {
+                        LOG_debug << "Skipping folder creation over an unscanned file/folder, or the file/folder is not to be synced (special attributes)";
+                    }
+                    // create local path, add to LocalNodes and recurse
+                    else if (fsaccess->mkdirlocal(localpath))
+                    {
+                        LocalNode* ll = l->sync->checkpath(l, localpath, &localname, NULL, true);
 
-                    rit->second->syncget = new SyncFileGet(l->sync, rit->second, localpath);
-                    nextreqtag();
-                    startxfer(GET, rit->second->syncget);
-                    syncactivity = true;
+                        if (ll && ll != (LocalNode*)~0)
+                        {
+                            LOG_debug << "Local folder created, continuing syncdown";
+
+                            ll->setnode(rit->second);
+                            ll->sync->statecacheadd(ll);
+
+                            if (!syncdown(ll, localpath, rubbish) && success)
+                            {
+                                LOG_debug << "Syncdown not finished";
+                                success = false;
+                            }
+                        }
+                        else
+                        {
+                            LOG_debug << "Checkpath() failed " << (ll == NULL);
+                        }
+                    }
+                    else if (success && fsaccess->transient_error)
+                    {
+                        fsaccess->local2path(localpath, &blockedfile);
+                        LOG_debug << "Transient error creating folder " << blockedfile;
+                        success = false;
+                    }
+                    else if (!fsaccess->transient_error)
+                    {
+                        LOG_debug << "Non transient error creating folder";
+                    }
+                    delete f;
                 }
             }
             else
             {
-                LOG_debug << "Creating local folder";
-                FileAccess *f = fsaccess->newfileaccess();
-                if (f->fopen(localpath) || f->type == FOLDERNODE)
-                {
-                    LOG_debug << "Skipping folder creation over an unscanned file/folder, or the file/folder is not to be synced (special attributes)";
-                }
-                // create local path, add to LocalNodes and recurse
-                else if (fsaccess->mkdirlocal(localpath))
-                {
-                    LocalNode* ll = l->sync->checkpath(l, localpath, &localname, NULL, true);
-
-                    if (ll && ll != (LocalNode*)~0)
-                    {
-                        LOG_debug << "Local folder created, continuing syncdown";
-
-                        ll->setnode(rit->second);
-                        ll->sync->statecacheadd(ll);
-
-                        if (!syncdown(ll, localpath, rubbish) && success)
-                        {
-                            LOG_debug << "Syncdown not finished";
-                            success = false;
-                        }
-                    }
-                    else
-                    {
-                        LOG_debug << "Checkpath() failed " << (ll == NULL);
-                    }
-                }
-                else if (success && fsaccess->transient_error)
-                {
-                    fsaccess->local2path(localpath, &blockedfile);
-                    LOG_debug << "Transient error creating folder " << blockedfile;
-                    success = false;
-                }
-                else if (!fsaccess->transient_error)
-                {
-                    LOG_debug << "Non transient error creating folder";
-                }
-                delete f;
+                LOG_debug << "syncable prevents transfer";
             }
         }
 

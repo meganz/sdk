@@ -1647,6 +1647,10 @@ LocalNode::~LocalNode()
 
     if (node)
     {
+        if (!sync->isUpSync())
+        {
+            node->syncable = false;
+        }
         // move associated node to SyncDebris unless the sync is currently
         // shutting down
         if (sync->state < SYNC_INITIALSCAN)
