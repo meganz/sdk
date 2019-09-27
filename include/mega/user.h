@@ -112,7 +112,7 @@ public:
     const string *getattrversion(attr_t at);
     void invalidateattr(attr_t at);
     bool isattrvalid(attr_t at);
-    void removeattr(attr_t at);
+    void removeattr(attr_t at, const string *version = nullptr);
 
     static string attr2string(attr_t at);
     static string attr2longname(attr_t at);

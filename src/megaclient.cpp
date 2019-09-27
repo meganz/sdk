@@ -11297,7 +11297,6 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
     if (signatureType == ATTR_SIG_CU255_PUBK)
     {
         // retrieve public key whose signature wants to be verified, from cache
-        assert(user && user->isattrvalid(ATTR_CU25519_PUBK));
         if (!user || !user->isattrvalid(ATTR_CU25519_PUBK))
         {
             LOG_warn << "Failed to verify signature " << User::attr2string(signatureType) << " for user " << uid << ": CU25519 public key is not available";
@@ -11325,7 +11324,6 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
     }
 
     // retrieve signing key from cache
-    assert(user->isattrvalid(ATTR_ED25519_PUBK));
     if (!user->isattrvalid(ATTR_ED25519_PUBK))
     {
         LOG_warn << "Failed to verify signature " << User::attr2string(signatureType) << " for user " << uid << ": signing public key is not available";

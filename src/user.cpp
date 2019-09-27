@@ -324,11 +324,19 @@ void User::invalidateattr(attr_t at)
     attrsv.erase(at);
 }
 
-void User::removeattr(attr_t at)
+void User::removeattr(attr_t at, const string *version)
 {
     setChanged(at);
     attrs.erase(at);
-    attrsv.erase(at);
+    if (version)
+    {
+        attrsv[at] = *version;
+    }
+    else
+    {
+        attrsv.erase(at);
+    }
+
 }
 
 // returns the value if there is value (even if it's invalid by now)

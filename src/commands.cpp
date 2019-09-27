@@ -2895,6 +2895,12 @@ void CommandGetUA::procresult()
     if (client->json.isnumeric())
     {
         error e = (error)client->json.getint();
+
+        if (e == API_ENOENT && u)
+        {
+            u->removeattr(at);
+        }
+
         client->app->getua_result(e);
 
         if (isFromChatPreview())    // if `mcuga` was sent, no need to do anything else
