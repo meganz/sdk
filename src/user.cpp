@@ -353,7 +353,7 @@ const string * User::getattr(attr_t at)
 
 bool User::isattrvalid(attr_t at)
 {
-    return attrsv.count(at);
+    return attrs.count(at) && attrsv.count(at);
 }
 
 string User::attr2string(attr_t type)
