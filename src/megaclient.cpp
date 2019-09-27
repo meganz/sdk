@@ -6862,7 +6862,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent)
 
         bool send_move_node = true;
 #ifdef ENABLE_SYNC
-        const bool is_delete_op = syncdel == SYNCDEL_DEBRISDAY;
+        const bool is_delete_op = syncdel == SYNCDEL_BIN || syncdel == SYNCDEL_DEBRIS || syncdel == SYNCDEL_DEBRISDAY;
         if (prevParent->localnode && prevParent->localnode->sync)
         {
             if (prevParent->localnode->sync->isUpSync())
@@ -6884,10 +6884,10 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent)
         if (send_move_node)
         {
             reqs.add(new CommandMoveNode(this, n, p, syncdel, prevparent));
-        }
-        if (setrr)
-        {
-            setattr(n);
+            if (setrr)
+            {
+                setattr(n);
+            }
         }
     }
 

@@ -72,12 +72,16 @@ public:
     // sync-wide directory notification provider
     std::unique_ptr<DirNotify> dirnotify;
 
+    // whether this is an up-sync from local to remote
     bool isUpSync() const;
 
+    // whether this is a down-sync from remote to local
     bool isDownSync() const;
 
+    // whether deletions are synced
     bool syncDeletions() const;
 
+    // whether changes are overwritten
     bool overwriteChanges() const;
 
     // root of local filesystem tree, holding the sync's root folder
