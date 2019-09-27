@@ -91,6 +91,16 @@ struct Model
             }
             return false;
         }
+        void print(string prefix="")
+        {
+            cout << prefix << name << endl;
+            prefix.append(name).append("/");
+            for (const auto &in: kids)
+            {
+                in->print(prefix);
+            }
+        }
+
     };
 
     unique_ptr<ModelNode> makeModelSubfolder(const string& utf8Name)
@@ -2532,6 +2542,56 @@ GTEST_TEST(Sync, BasicSync_CreateAndReplaceLinkLocally)
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
 }
 
-//TODO: add tests BasicSync_CreateAndReplaceLink that actually replaces a symlink via syncdown
+
+GTEST_TEST(Sync, BasicSync_CreateAndReplaceLinkUponSyncDown)
+{
+    // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
+    fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
+    StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
+    StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
+
+    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "f", 1, 1));
+    ASSERT_TRUE(clientA2.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
+    ASSERT_EQ(clientA1.basefolderhandle, clientA2.basefolderhandle);
+
+    Model model;
+    model.root->addkid(model.buildModelSubdirs("f", 1, 1, 0));
+
+    // set up sync for A1, it should build matching local folders
+    ASSERT_TRUE(clientA1.setupSync_mainthread("sync1", "f", 1));
+    ASSERT_TRUE(clientA2.setupSync_mainthread("sync2", "f", 2));
+
+    waitonsyncs(4s, &clientA1, &clientA2);
+    clientA1.logcb = clientA2.logcb = true;
+    // check everything matches (model has expected state of remote and local)
+    ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
+
+    // move something in the local filesystem and see if we catch up in A1 and A2 (deleter and observer syncs)
+    error_code linkage_error;
+    fs::create_symlink(clientA1.syncSet[1].localpath / "f_0", clientA1.syncSet[1].localpath / "linked", linkage_error);
+    ASSERT_TRUE(!linkage_error) << linkage_error;
+
+    // let them catch up
+    waitonsyncs(DEFAULWAIT, &clientA1, &clientA2);
+
+    //check client 2 is unaffected
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
+
+    ASSERT_TRUE(createFile(clientA2.syncSet[2].localpath, "linked"));
+
+    // let them catch up
+    waitonsyncs(DEFAULWAIT, &clientA1, &clientA2);
+
+    model.findnode("f")->addkid(model.makeModelSubfolder("linked")); //notice: the deleted here is folder because what's actually deleted is a symlink that points to a folder
+                                                                     //ideally we could add full support for symlinks in this tests suite
+
+    model.movetosynctrash("f/linked","f");
+    model.findnode("f")->addkid(model.makeModelSubfile("linked"));
+    model.ensureLocalDebrisTmpLock("f"); // since we downloaded files
+
+    //check client 2 is as expected
+    ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
+}
 
 #endif
