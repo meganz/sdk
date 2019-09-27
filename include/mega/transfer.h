@@ -135,8 +135,8 @@ struct MEGA_API Transfer : public FileFingerprint
 
     bool skipserialization;
 
-    // target handle to send in CommandPutFile
-    handle foreignTarget;
+    // to differentiate between overquota errors due to foreign account OQ or own account OQ
+    bool mForeignTarget;
 
     Transfer(MegaClient*, direction_t);
     virtual ~Transfer();
