@@ -5322,24 +5322,10 @@ void MegaClient::sc_userattr()
                 {
                     LOG_debug << "User attributes update for non-existing user";
                 }
-                // if no version received (very old actionpacket)...
-                else if ( !uavlist.size() )
-                {
-                    // ...invalidate all of the notified user attributes
-                    for (itua = ualist.begin(); itua != ualist.end(); itua++)
-                    {
-                        attr_t type = User::string2attr(itua->c_str());
-                        u->invalidateattr(type);
-                        if (type == ATTR_KEYRING)
-                        {
-                            resetKeyring();
-                        }
-                    }
-                    u->setTag(0);
-                    notifyuser(u);
-                }
                 else if (ualist.size() == uavlist.size())
                 {
+                    assert(ualist.size() && uavlist.size());
+
                     // invalidate only out-of-date attributes
                     for (itua = ualist.begin(), ituav = uavlist.begin();
                          itua != ualist.end();
