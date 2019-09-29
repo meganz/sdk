@@ -7254,6 +7254,15 @@ void MegaApiImpl::abortPendingActions(error preverror)
     {
         delete transfer;
     }
+    MegaRequestPrivate *request;
+    while ((request = requestQueue.pop()))
+    {
+        delete request;
+    }
+    while ((request = scRequestQueue.pop()))
+    {
+        delete request;
+    }
 
     resetTotalDownloads();
     resetTotalUploads();
