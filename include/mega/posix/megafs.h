@@ -80,28 +80,28 @@ public:
     int defaultfilepermissions;
     int defaultfolderpermissions;
 
-    FileAccess* newfileaccess(bool followSymLinks = true);
-    DirAccess* newdiraccess();
-    DirNotify* newdirnotify(string*, string*);
+    FileAccess* newfileaccess(bool followSymLinks = true) override;
+    DirAccess* newdiraccess() override;
+    DirNotify* newdirnotify(string*, string*) override;
 
-    void tmpnamelocal(string*) const;
+    void tmpnamelocal(string*) const override;
 
-    void local2path(string*, string*) const;
-    void path2local(string*, string*) const;
+    void local2path(string*, string*) const override;
+    void path2local(string*, string*) const override;
 
-    bool getsname(string*, string*) const;
+    bool getsname(string*, string*) const override;
 
-    bool renamelocal(string*, string*, bool);
-    bool copylocal(string*, string*, m_time_t);
+    bool renamelocal(string*, string*, bool) override;
+    bool copylocal(string*, string*, m_time_t) override;
     bool rubbishlocal(string*);
-    bool unlinklocal(string*);
-    bool rmdirlocal(string*);
-    bool mkdirlocal(string*, bool);
-    bool setmtimelocal(string *, m_time_t);
-    bool chdirlocal(string*) const;
-    size_t lastpartlocal(string*) const;
-    bool getextension(string*, char*, size_t) const;
-    bool expanselocalpath(string *path, string *absolutepath);
+    bool unlinklocal(string*) override;
+    bool rmdirlocal(string*) override;
+    bool mkdirlocal(string*, bool) override;
+    bool setmtimelocal(string *, m_time_t) override;
+    bool chdirlocal(string*) const override;
+    size_t lastpartlocal(string*) const override;
+    bool getextension(string*, char*, size_t) const override;
+    bool expanselocalpath(string *path, string *absolutepath) override;
 
     void addevents(Waiter*, int);
     int checkevents(Waiter*);
