@@ -1652,8 +1652,8 @@ LocalNode::~LocalNode()
             node->syncable = false;
         }
         // move associated node to SyncDebris unless the sync is currently
-        // shutting down
-        if (sync->state < SYNC_INITIALSCAN)
+        // shutting down or sync is not an up-sync
+        if (sync->state < SYNC_INITIALSCAN || !sync->isUpSync())
         {
             node->localnode = NULL;
         }
