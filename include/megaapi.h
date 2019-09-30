@@ -1666,12 +1666,6 @@ public:
      * @param megaHandle to be added
      */
     virtual void addMegaHandle(MegaHandle megaHandle);
-
-    /**
-     * @brief Remove a MegaHandle from the list
-     * @param megaHandle to be removed
-     */
-    virtual void removeMegaHandle(MegaHandle megaHandle);
 };
 
 /**
