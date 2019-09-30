@@ -3930,6 +3930,16 @@ void MegaApi::getPublicLinkInformation(const char *megaFolderLink, MegaRequestLi
     pImpl->getPublicLinkInformation(megaFolderLink, listener);
 }
 
+void MegaApi::lockMutex()
+{
+    pImpl->lockMutex();
+}
+
+void MegaApi::unlockMutex()
+{
+    pImpl->unlockMutex();
+}
+
 void MegaApi::sendSMSVerificationCode(const char* phoneNumber, MegaRequestListener *listener, bool reverifying_whitelisted)
 {
     pImpl->sendSMSVerificationCode(phoneNumber, listener, reverifying_whitelisted);

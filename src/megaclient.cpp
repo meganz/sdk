@@ -7850,7 +7850,6 @@ void MegaClient::applykeys()
     }
 
     sendkeyrewrites();
-    //return t;
 }
 
 void MegaClient::sendkeyrewrites()

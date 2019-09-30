@@ -15586,7 +15586,24 @@ class MegaApi
          */
         void getPublicLinkInformation(const char *megaFolderLink, MegaRequestListener *listener = NULL);
 
-private:
+
+        /**
+         * @brief Lock and unlock the SDK's mutex externally
+         *
+         * These functions must be used very carefully.  They are meant to be used 
+         * when the application is about to make a burst of calls to the API over a very short
+         * time period, which could otherwise be interrupted by the SDK's operation.
+         *
+         * Each call to lockMutex must be balanced by a subsequent call to unlockMutex.
+         * The SDK itself will not be able to operate while the mutex is externally locked.
+         * 
+         * The MEGA_API_HAS_LOCK_UNLOCK is temporary and will be removed once both MEGAsync and SDK branches are merged.
+         */
+        #define MEGA_API_HAS_LOCK_UNLOCK  // TODO: remove this before merging
+        void lockMutex();
+        void unlockMutex();
+
+ private:
         MegaApiImpl *pImpl;
         friend class MegaApiImpl;
 };

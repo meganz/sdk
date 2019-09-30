@@ -396,6 +396,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
     }
 
     retrying = false;
+    retrybt.reset();  // in case we don't delete the slot, and in case retrybt.next=1
     transfer->state = TRANSFERSTATE_ACTIVE;
 
     if (!createconnectionsonce())   // don't use connections, reqs, or asyncIO before this point.
