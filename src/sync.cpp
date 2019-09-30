@@ -133,7 +133,7 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
         handle tableid[3];
         string dbname;
 
-        FileAccess *fas = client->fsaccess->newfileaccess();
+        FileAccess *fas = client->fsaccess->newfileaccess(false);
 
         if (fas->fopen(crootpath, true, false))
         {
@@ -625,7 +625,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
     }
 
     // attempt to open/type this file
-    fa = client->fsaccess->newfileaccess();
+    fa = client->fsaccess->newfileaccess(false);
 
     if (initializing || fullscan)
     {
@@ -699,7 +699,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
         }
 
         delete fa;
-        fa = client->fsaccess->newfileaccess();
+        fa = client->fsaccess->newfileaccess(false);
     }
 
     if (fa->fopen(localname ? localpath : &tmppath, true, false))
@@ -892,7 +892,8 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                                 string local;
                                 bool waitforupdate = false;
                                 it->second->getlocalpath(&local, true);
-                                FileAccess *prevfa = client->fsaccess->newfileaccess();
+                                FileAccess *prevfa = client->fsaccess->newfileaccess(false);
+
                                 bool exists = prevfa->fopen(&local);
                                 if (exists)
                                 {
@@ -1003,6 +1004,11 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                     {
                         scan(localname ? localpath : &tmppath, fa);
                     }
+                }
+                else if (fa->mIsSymLink)
+                {
+                    LOG_debug << "checked path is a symlink.  Parent: " << (parent ? parent->name : "NO");
+                    //doing nothing for the moment
                 }
                 else
                 {

@@ -217,7 +217,7 @@ void DirNotify::notify(notifyqueue q, LocalNode* l, const char* localpath, size_
             tmppath.append(path);
         }
         attr_map::iterator ait;
-        FileAccess *fa = sync->client->fsaccess->newfileaccess();
+        FileAccess *fa = sync->client->fsaccess->newfileaccess(false);
         bool success = fa->fopen(&tmppath, false, false);
         LocalNode *ll = sync->localnodebypath(l, &path);
         if ((!ll && !success && !fa->retry) // deleted file
