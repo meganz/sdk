@@ -1341,7 +1341,7 @@ const char* MegaError::getErrorString(int errorCode, ErrorContexts context)
         case API_EMFAREQUIRED:
             return "Multi-factor authentication required";
         case API_EMASTERONLY:
-            return "Access denied for sub-users";
+            return "Access denied for users";
         case API_EBUSINESSPASTDUE:
             return "Business account has expired";
         case PAYMENT_ECARD:
