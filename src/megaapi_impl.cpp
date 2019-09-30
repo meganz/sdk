@@ -30710,6 +30710,17 @@ void MegaHandleListPrivate::addMegaHandle(MegaHandle h)
     mList.push_back(h);
 }
 
+void MegaHandleListPrivate::removeMegaHandle(MegaHandle h)
+{
+    for (auto it = mList.begin(); it != mList.end(); it++)
+    {
+        if (*it == h)
+        {
+            mList.erase(it);
+        }
+    }
+}
+
 MegaChildrenListsPrivate::MegaChildrenListsPrivate(MegaChildrenLists *list)
 {
     files = list->getFileList()->copy();

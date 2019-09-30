@@ -5995,6 +5995,11 @@ void MegaHandleList::addMegaHandle(MegaHandle megaHandle)
 
 }
 
+void MegaHandleList::removeMegaHandle(MegaHandle megaHandle)
+{
+
+}
+
 MegaChildrenLists::~MegaChildrenLists()
 {
 

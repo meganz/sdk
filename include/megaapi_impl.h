@@ -583,6 +583,7 @@ public:
     virtual MegaHandle get(unsigned int i) const;
     virtual unsigned int size() const;
     virtual void addMegaHandle(MegaHandle megaHandle);
+    virtual void removeMegaHandle(MegaHandle megaHandle);
 
 private:
     std::vector<MegaHandle> mList;
