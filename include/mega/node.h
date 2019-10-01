@@ -247,7 +247,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     static Node* unserialize(MegaClient*, string*, node_vector*);
 
     Node() = default;
-    Node(MegaClient*, vector<Node*>*, handle, handle, nodetype_t, m_off_t, handle, const char*, m_time_t);
+    Node(MegaClient*, vector<Node*>*, handle, handle, nodetype_t, m_off_t, handle, const char*, m_time_t, const bool* syncable = nullptr);
     ~Node();
 
 private:

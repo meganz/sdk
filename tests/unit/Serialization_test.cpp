@@ -403,7 +403,7 @@ void checkDeserializedNode(const mega::Node& dl, const mega::Node& ref, bool ign
     ASSERT_EQ(ref.nodekey, dl.nodekey);
     ASSERT_EQ(ignore_fileattrstring ? "" : ref.fileattrstring, dl.fileattrstring);
     ASSERT_EQ(ref.attrs.map, dl.attrs.map);
-    ASSERT_EQ(ref.syncable, dl.syncable);
+    ASSERT_EQ(ref.isSyncable(), dl.isSyncable());
     if (ref.plink)
     {
         ASSERT_NE(nullptr, dl.plink);
@@ -460,7 +460,7 @@ TEST(Serialization, Node_forFile_withoutParent_withoutShares_withoutAttrs_withou
     n.nodekey.resize(mega::FILENODEKEYLENGTH);
     n.owner = 43;
     n.ctime = 44;
-    n.syncable = false;
+    n.setSyncable(false);
     std::string data;
     ASSERT_TRUE(n.serialize(&data));
     ASSERT_EQ(90, data.size());
@@ -478,7 +478,7 @@ TEST(Serialization, Node_forFolder_withoutParent_withoutShares_withoutAttrs_with
     n.nodekey.resize(mega::FOLDERNODEKEYLENGTH);
     n.owner = 43;
     n.ctime = 44;
-    n.syncable = false;
+    n.setSyncable(false);
     std::string data;
     ASSERT_TRUE(n.serialize(&data));
     ASSERT_EQ(71, data.size());
@@ -502,7 +502,7 @@ TEST(Serialization, Node_forFile_withoutShares_withoutAttrs_withoutFileAttrStrin
     n.nodekey.resize(mega::FILENODEKEYLENGTH);
     n.owner = 43;
     n.ctime = 44;
-    n.syncable = false;
+    n.setSyncable(false);
     std::string data;
     ASSERT_TRUE(n.serialize(&data));
     ASSERT_EQ(90, data.size());
@@ -526,7 +526,7 @@ TEST(Serialization, Node_forFile_withoutShares_withoutFileAttrString_withoutPlin
     n.nodekey.resize(mega::FILENODEKEYLENGTH);
     n.owner = 43;
     n.ctime = 44;
-    n.syncable = false;
+    n.setSyncable(false);
     n.attrs.map = {
         {101, "foo"},
         {102, "bar"},
@@ -554,7 +554,7 @@ TEST(Serialization, Node_forFile_withoutShares_withoutPlink)
     n.nodekey.resize(mega::FILENODEKEYLENGTH);
     n.owner = 43;
     n.ctime = 44;
-    n.syncable = false;
+    n.setSyncable(false);
     n.attrs.map = {
         {101, "foo"},
         {102, "bar"},
@@ -583,7 +583,7 @@ TEST(Serialization, Node_forFile_withoutShares)
     n.nodekey.resize(mega::FILENODEKEYLENGTH);
     n.owner = 43;
     n.ctime = 44;
-    n.syncable = false;
+    n.setSyncable(false);
     n.attrs.map = {
         {101, "foo"},
         {102, "bar"},
@@ -613,7 +613,7 @@ TEST(Serialization, Node_forFolder_withoutShares_withoutAttrs_withoutFileAttrStr
     n.nodekey.resize(mega::FOLDERNODEKEYLENGTH);
     n.owner = 43;
     n.ctime = 44;
-    n.syncable = false;
+    n.setSyncable(false);
     std::string data;
     ASSERT_TRUE(n.serialize(&data));
     ASSERT_EQ(71, data.size());
@@ -637,7 +637,7 @@ TEST(Serialization, Node_forFolder_withoutShares_withoutFileAttrString_withoutPl
     n.nodekey.resize(mega::FOLDERNODEKEYLENGTH);
     n.owner = 43;
     n.ctime = 44;
-    n.syncable = false;
+    n.setSyncable(false);
     n.attrs.map = {
         {101, "foo"},
         {102, "bar"},
@@ -665,7 +665,7 @@ TEST(Serialization, Node_forFolder_withoutShares_withoutPlink)
     n.nodekey.resize(mega::FOLDERNODEKEYLENGTH);
     n.owner = 43;
     n.ctime = 44;
-    n.syncable = false;
+    n.setSyncable(false);
     n.attrs.map = {
         {101, "foo"},
         {102, "bar"},
@@ -694,7 +694,7 @@ TEST(Serialization, Node_forFolder_withoutShares)
     n.nodekey.resize(mega::FOLDERNODEKEYLENGTH);
     n.owner = 43;
     n.ctime = 44;
-    n.syncable = false;
+    n.setSyncable(false);
     n.attrs.map = {
         {101, "foo"},
         {102, "bar"},

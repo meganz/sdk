@@ -50,7 +50,7 @@ NewNode::~NewNode()
 
 
 Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
-           nodetype_t t, m_off_t s, handle u, const char* fa, m_time_t ts)
+           nodetype_t t, m_off_t s, handle u, const char* fa, m_time_t ts, const bool* syncable)
 {
     client = cclient;
     outshares = NULL;
@@ -68,10 +68,20 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
     syncget = NULL;
 
     syncdeleted = SYNCDEL_NONE;
-    todebris_it = client->todebris.end();
-    tounlink_it = client->tounlink.end();
+    if (client)
+    {
+        todebris_it = client->todebris.end();
+        tounlink_it = client->tounlink.end();
+    }
 
-    mSyncable = client->unsyncables.find(nodehandle) == client->unsyncables.end();
+    if (syncable)
+    {
+        mSyncable = *syncable;
+    }
+    else if (client)
+    {
+        mSyncable = client->unsyncables.find(nodehandle) == client->unsyncables.end();
+    }
 #endif
 
     type = t;
@@ -371,13 +381,13 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     }
 
 #ifdef ENABLE_SYNC
-    if (!syncable)
+    if (!syncable && client)
     {
         client->unsyncables.insert(h);
     }
 #endif
 
-    n = new Node(client, dp, h, ph, t, s, u, fa, ts);
+    n = new Node(client, dp, h, ph, t, s, u, fa, ts, &syncable);
 
     if (k)
     {
@@ -1113,15 +1123,18 @@ Node* Node::firstancestor()
 void Node::setSyncable(bool syncable)
 {
     mSyncable = syncable;
-    if (syncable)
+    if (client)
     {
-        client->unsyncables.erase(nodehandle);
+        if (syncable)
+        {
+            client->unsyncables.erase(nodehandle);
+        }
+        else
+        {
+            client->unsyncables.insert(nodehandle);
+        }
+        client->nodenotify.push_back(this);
     }
-    else
-    {
-        client->unsyncables.insert(nodehandle);
-    }
-    client->nodenotify.push_back(this);
 }
 
 bool Node::isSyncable() const
