@@ -12463,7 +12463,8 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                     bool download = true;
                     FileAccess *f = fsaccess->newfileaccess();
                     if (rit->second->localnode != (LocalNode*)~0
-                            && (f->fopen(localpath) || f->type == FOLDERNODE))
+                            && (f->fopen(localpath) || f->type == FOLDERNODE)
+                        && !l->sync->overwriteChanges())
                     {
                         LOG_debug << "Skipping download over an unscanned file/folder, or the file/folder is not to be synced (special attributes)";
                         download = false;
