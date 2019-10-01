@@ -896,6 +896,7 @@ void MegaClient::activateoverquota(dstime timeleft)
                     t->slot->retrybt.backoff(timeleft);
                     t->slot->retrying = true;
                     app->transfer_failed(t, API_EOVERQUOTA, timeleft);
+                    ++performanceStats.transferTempErrors;
                 }
             }
         }
@@ -913,6 +914,7 @@ void MegaClient::activateoverquota(dstime timeleft)
                 t->slot->retrybt.backoff(NEVER);
                 t->slot->retrying = true;
                 app->transfer_failed(t, API_EOVERQUOTA, 0);
+                ++performanceStats.transferTempErrors;
             }
         }
     }
@@ -14280,7 +14282,8 @@ std::string MegaClient::PerformanceStats::report(bool reset, HttpIO* httpio)
         << csResponseProcessingTime.report(reset) << "\n"
         << " cs Request waiting time: " << csRequestWaitTime.report(reset) << "\n"
         << " transfers active time: " << transfersActiveTime.report(reset) << "\n"
-        << " transfer starts/finishes: " << transferStarts << " " << transferFinishes << "\n";
+        << " transfer starts/finishes: " << transferStarts << " " << transferFinishes << "\n"
+        << " transfer temperror/fails: " << transferTempErrors << " " << transferFails << "\n";
 #ifdef USE_CURL
     if (auto curlhttpio = dynamic_cast<CurlHttpIO*>(httpio))
     {
@@ -14295,6 +14298,8 @@ std::string MegaClient::PerformanceStats::report(bool reset, HttpIO* httpio)
     {
         transferStarts = 0;
         transferFinishes = 0;
+        transferTempErrors = 0;
+        transferFails = 0;
     }
     return s.str();
 }

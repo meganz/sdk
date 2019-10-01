@@ -1553,6 +1553,7 @@ public:
         CodeCounter::ScopeStats csResponseProcessingTime = { "cs batch response processing" };
         CodeCounter::ScopeStats scProcessingTime = { "sc processing" };
         uint64_t transferStarts = 0, transferFinishes = 0;
+        uint64_t transferTempErrors = 0, transferFails = 0;
         CodeCounter::DurationSum csRequestWaitTime;
         CodeCounter::DurationSum transfersActiveTime;
         std::string report(bool reset, HttpIO* httpio);

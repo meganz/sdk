@@ -943,6 +943,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
 
                             client->app->transfer_failed(transfer, API_EFAILED);
                             client->setchunkfailed(&reqs[i]->posturl);
+                            ++client->performanceStats.transferTempErrors;
 
                             if (changeport)
                             {
@@ -1176,6 +1177,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
         {
             LOG_warn << "Chunk failed due to a timeout";
             client->app->transfer_failed(transfer, API_EFAILED);
+            ++client->performanceStats.transferTempErrors;
         }
     }
 
