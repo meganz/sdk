@@ -189,7 +189,6 @@ check_include_file(inttypes.h HAVE_INTTYPES_H)
 check_include_file(dirent.h HAVE_DIRENT_H)
 check_include_file(uv.h HAVE_LIBUV)
 check_function_exists(aio_write, HAVE_AIO_RT)
-check_function_exists(fdopendir, HAVE_FDOPENDIR)
 
 
 function(ImportStaticLibrary libName includeDir lib32debug lib32release lib64debug lib64release)
