@@ -21478,6 +21478,16 @@ int MegaApiImpl::areServersBusy()
     return isWaiting();
 }
 
+void MegaApiImpl::lockMutex()
+{
+    sdkMutex.lock();
+}
+
+void MegaApiImpl::unlockMutex()
+{
+    sdkMutex.unlock();
+}
+
 TreeProcCopy::TreeProcCopy()
 {
     nn = NULL;
