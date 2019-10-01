@@ -441,6 +441,9 @@ public:
 
     // indicates whether all startup syncs have been fully scanned
     bool syncsup;
+
+    // set of remote nodes that cannot be synced to the local tree
+    std::set<handle> unsyncables;
 #endif
 
     // if set, symlinks will be followed except in recursive deletions

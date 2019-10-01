@@ -70,6 +70,8 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
     syncdeleted = SYNCDEL_NONE;
     todebris_it = client->todebris.end();
     tounlink_it = client->tounlink.end();
+
+    mSyncable = client->unsyncables.find(nodehandle) == client->unsyncables.end();
 #endif
 
     type = t;
@@ -368,9 +370,14 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
         skey = NULL;
     }
 
-    n = new Node(client, dp, h, ph, t, s, u, fa, ts);
+#ifdef ENABLE_SYNC
+    if (!syncable)
+    {
+        client->unsyncables.insert(h);
+    }
+#endif
 
-    n->syncable = syncable;
+    n = new Node(client, dp, h, ph, t, s, u, fa, ts);
 
     if (k)
     {
@@ -541,7 +548,7 @@ bool Node::serialize(string* d)
     char hasLinkCreationTs = plink ? 1 : 0;
     d->append((char*)&hasLinkCreationTs, 1);
 
-    d->append((char*)&syncable, sizeof(syncable));
+    d->append((char*)&mSyncable, sizeof(mSyncable));
 
     d->append("\0\0\0\0", 5); // Use these bytes for extensions
 
@@ -1038,6 +1045,15 @@ bool Node::setparent(Node* p)
     if (parent)
     {
         child_it = parent->children.insert(parent->children.end(), this);
+
+#ifdef ENABLE_SYNC
+        if (parent->type == FILENODE)
+        {
+            // copy syncable from child (old version) to parent (new version)
+            parent->setSyncable(isSyncable());
+            setSyncable(false);
+        }
+#endif
     }
 
     Node* newancestor = firstancestor();
@@ -1092,6 +1108,27 @@ Node* Node::firstancestor()
     }
     return n;
 }
+
+#ifdef ENABLE_SYNC
+void Node::setSyncable(bool syncable)
+{
+    mSyncable = syncable;
+    if (syncable)
+    {
+        client->unsyncables.erase(nodehandle);
+    }
+    else
+    {
+        client->unsyncables.insert(nodehandle);
+    }
+    client->nodenotify.push_back(this);
+}
+
+bool Node::isSyncable() const
+{
+    return mSyncable;
+}
+#endif
 
 // returns 1 if n is under p, 0 otherwise
 bool Node::isbelow(Node* p) const
@@ -1649,7 +1686,7 @@ LocalNode::~LocalNode()
     {
         if (!sync->isUpSync())
         {
-            node->syncable = false;
+            node->setSyncable(false);
         }
         // move associated node to SyncDebris unless the sync is currently
         // shutting down or sync is not an up-sync

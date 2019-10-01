@@ -12454,8 +12454,9 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
         else
         {
             LOG_debug << "doesn't have a previous localnode";
-            if (rit->second->syncable || l->sync->overwriteChanges())
+            if (rit->second->isSyncable() || l->sync->overwriteChanges())
             {
+                rit->second->setSyncable(true);
                 // missing node is not associated with an existing LocalNode
                 if (rit->second->type == FILENODE)
                 {
