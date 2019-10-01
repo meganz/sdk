@@ -336,7 +336,6 @@ void User::removeattr(attr_t at, const string *version)
     {
         attrsv.erase(at);
     }
-
 }
 
 // returns the value if there is value (even if it's invalid by now)

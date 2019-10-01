@@ -14350,34 +14350,18 @@ void MegaApiImpl::getua_result(error e)
                     && request->getType() == MegaRequest::TYPE_SET_ATTR_USER)
         {
             // The attribute doesn't exists so we have to create it
-            MegaStringMap *stringMap = request->getMegaStringMap();
-            attr_t type = static_cast<attr_t>(request->getParamType());
             TLVstore tlv;
-            const char *key;
+            MegaStringMap *stringMap = request->getMegaStringMap();
             std::unique_ptr<MegaStringList> keys(stringMap->getKeys());
-
-            if (request->getParamType() == MegaApi::USER_ATTR_ALIAS)
+            const char *key;
+            for (int i = 0; i < keys->size(); i++)
             {
-                for (int i = 0; i < keys->size(); i++)
-                {
-                    key = keys->get(i);
-                    tlv.set(key, stringMap->get(key));
-                }
-            }
-            else
-            {
-                std::string value;
-                for (int i = 0; i < keys->size(); i++)
-                {
-                    // Decode from B64 the target folder to avoid a double B64 encoding
-                    key = keys->get(i);
-                    value.resize(int(MegaClient::NODEHANDLE));
-                    value.resize(Base64::atob(stringMap->get(key), (byte *)value.data(), int(MegaClient::NODEHANDLE)));
-                    tlv.set(key, value);
-                }
+                key = keys->get(i);
+                tlv.set(key, Base64::atob(stringMap->get(key)));
             }
 
             // serialize and encrypt the TLV container
+            attr_t type = static_cast<attr_t>(request->getParamType());
             std::unique_ptr<string> container(tlv.tlvRecordsToContainer(client->rng, &client->key));
             client->putua(type, (byte *)container->data(), unsigned(container->size()));
             return;
