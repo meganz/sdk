@@ -2736,7 +2736,7 @@ CommandPutUAVer::CommandPutUAVer(MegaClient* client, attr_t at, const byte* av, 
     }
 
     const string *attrv = client->ownuser()->getattrversion(at);
-    if (attrv)
+    if (client->ownuser()->isattrvalid(at) && attrv)
     {
         element(attrv->c_str());
     }
