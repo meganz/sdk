@@ -1423,9 +1423,9 @@ using namespace mega;
                                 appData:(NSString *)appData
                       isSourceTemporary:(BOOL)isSourceTemporary
                                delegate:(id<MEGATransferDelegate>)delegate {
-    self.megaApi->startUploadForChat((localPath != nil) ? [localPath UTF8String] : NULL,
-                                     (parent != nil) ? [parent getCPtr] : NULL,
-                                     (appData !=nil) ? [appData UTF8String] : NULL,
+    self.megaApi->startUploadForChat(localPath.UTF8String,
+                                     parent.getCPtr,
+                                     appData.UTF8String,
                                      isSourceTemporary,
                                      [self createDelegateMEGATransferListener:delegate singleListener:YES]);
 }
