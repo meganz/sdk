@@ -6633,17 +6633,16 @@ class MegaApiImpl;
  */
 class MegaApiLock
 {
-    MegaApiImpl* api;
-    bool locked = false;
-    MegaApiLock(MegaApiImpl*, bool lock);
-    friend class MegaApi;
-
 public:
     /**
      * @brief Lock the MegaApi if this instance does not currently have a lock on it yet.
-     * 
-     * There is no harm in calling this more than once, the MegaApi will only be locked 
-     * once, and the first unlock() call will release it.
+     *
+     * There is no harm in calling this more than once, the MegaApi will only be locked
+     * once, and the first unlock() call will release it.    Sometimes it is useful eg.
+     * in a loop which may or may not need to use a locking function, or may need to use
+     * many, to call lockOnce() before any such usage, and know that the MegaApi will
+     * be locked once from that point, until the end of the loop (when unlockOnce() can
+     * be called, or the MegaApiLock destroyed.
      */
     void lockOnce();
 
@@ -6654,13 +6653,23 @@ public:
      * their locks.  Only use multiple of these if you need nested locking.  The destructor
      * of the object will release the lock, so it is sufficient to delete it when finished.
      * However, when using it from a garbage collected language it may be prudent to call unlock() directly.
+     *
+     * This function must be called from the same thread that called MegaApiLock::lockOnce().
      */
-    void unlock();
-    
+    void unlockOnce();
+
     /**
      * @brief Destructor.  This will call unlock() if the MegaApi is still locked by this instance.
      */
     ~MegaApiLock();
+
+private:
+    MegaApiImpl* api;
+    bool locked = false;
+    MegaApiLock(MegaApiImpl*, bool lock);
+    MegaApiLock(const MegaApiLock&) = delete;
+    void operator=(const MegaApiLock&) = delete;
+    friend class MegaApi;
 };
 
 /**

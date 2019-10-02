@@ -5721,7 +5721,7 @@ MegaApiLock::MegaApiLock(MegaApiImpl* ptr, bool lock) : api(ptr)
 
 MegaApiLock::~MegaApiLock()
 {
-    unlock();
+    unlockOnce();
 }
 
 void MegaApiLock::lockOnce()
@@ -5733,7 +5733,7 @@ void MegaApiLock::lockOnce()
     }
 }
 
-void MegaApiLock::unlock()
+void MegaApiLock::unlockOnce()
 {
     if (locked)
     {
