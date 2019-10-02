@@ -3930,6 +3930,11 @@ void MegaApi::getPublicLinkInformation(const char *megaFolderLink, MegaRequestLi
     pImpl->getPublicLinkInformation(megaFolderLink, listener);
 }
 
+MegaApiLock* MegaApi::getMegaApiLock(bool lockNow)
+{
+    return new MegaApiLock(pImpl, lockNow);
+}
+
 void MegaApi::sendSMSVerificationCode(const char* phoneNumber, MegaRequestListener *listener, bool reverifying_whitelisted)
 {
     pImpl->sendSMSVerificationCode(phoneNumber, listener, reverifying_whitelisted);
@@ -5705,6 +5710,38 @@ MegaInputStream::~MegaInputStream()
 {
 
 }
+
+MegaApiLock::MegaApiLock(MegaApiImpl* ptr, bool lock) : api(ptr)
+{
+    if (lock)
+    {
+        lockOnce();
+    }
+}
+
+MegaApiLock::~MegaApiLock()
+{
+    unlockOnce();
+}
+
+void MegaApiLock::lockOnce()
+{
+    if (!locked)
+    {
+        api->lockMutex();
+        locked = true;
+    }
+}
+
+void MegaApiLock::unlockOnce()
+{
+    if (locked)
+    {
+        api->unlockMutex();
+        locked = false;
+    }
+}
+
 
 #ifdef ENABLE_CHAT
 MegaTextChatPeerList * MegaTextChatPeerList::createInstance()

@@ -6627,6 +6627,52 @@ public:
 class MegaApiImpl;
 
 /**
+ * @brief Allows calling many synchronous operations on MegaApi without being blocked by SDK activity.
+ *
+ * Call MegaApi::getMegaApiLock() to get an instance of this class to use.
+ */
+class MegaApiLock
+{
+public:
+    /**
+     * @brief Lock the MegaApi if this instance does not currently have a lock on it yet.
+     *
+     * There is no harm in calling this more than once, the MegaApi will only be locked
+     * once, and the first unlock() call will release it.    Sometimes it is useful eg.
+     * in a loop which may or may not need to use a locking function, or may need to use
+     * many, to call lockOnce() before any such usage, and know that the MegaApi will
+     * be locked once from that point, until the end of the loop (when unlockOnce() can
+     * be called, or the MegaApiLock destroyed.
+     */
+    void lockOnce();
+
+    /**
+     * @brief Release the lock on the MegaApi if one is still held by this instance
+     *
+     * The MegaApi will be unable to continue work until all MegaApiLock objects release
+     * their locks.  Only use multiple of these if you need nested locking.  The destructor
+     * of the object will release the lock, so it is sufficient to delete it when finished.
+     * However, when using it from a garbage collected language it may be prudent to call unlock() directly.
+     *
+     * This function must be called from the same thread that called MegaApiLock::lockOnce().
+     */
+    void unlockOnce();
+
+    /**
+     * @brief Destructor.  This will call unlock() if the MegaApi is still locked by this instance.
+     */
+    ~MegaApiLock();
+
+private:
+    MegaApiImpl* api;
+    bool locked = false;
+    MegaApiLock(MegaApiImpl*, bool lock);
+    MegaApiLock(const MegaApiLock&) = delete;
+    void operator=(const MegaApiLock&) = delete;
+    friend class MegaApi;
+};
+
+/**
  * @brief Allows to control a MEGA account or a shared folder
  *
  * You must provide an appKey to use this SDK. You can generate an appKey for your app for free here:
@@ -15593,7 +15639,25 @@ class MegaApi
          */
         void getPublicLinkInformation(const char *megaFolderLink, MegaRequestListener *listener = NULL);
 
-private:
+
+        /**
+         * @brief Get an object that can lock the MegaApi, allowing multple quick synchronous calls.
+         *
+         * This object must be used very carefully.  It is meant to be used  when the application is about 
+         * to make a burst of synchronous calls (that return data immediately, without using a listener)
+         * to the API over a very short time period, which could otherwise be blocked multple times
+         * interrupted by the MegaApi's operation.
+         *
+         * The MegaApiLock usual use is to request it already locked, and the caller must destroy it
+         * when its sequence of operations are complete, which will allow the MegaApi to continue again.
+         * However explicit lock and unlock calls can also be made on it, which are protected from 
+         * making more than one lock, and the destructor will make sure the lock is released.
+         * 
+         * You take ownership of the returned value, and you must delete it when the sequence is complete.
+         */
+        MegaApiLock* getMegaApiLock(bool lockNow);
+
+ private:
         MegaApiImpl *pImpl;
         friend class MegaApiImpl;
 };

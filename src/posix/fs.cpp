@@ -460,7 +460,13 @@ bool PosixFileAccess::fopen(string* f, bool read, bool write)
     }
 #endif
 
+    bool statok = false;
     mIsSymLink = !lstat(f->c_str(), &statbuf) && S_ISLNK(statbuf.st_mode);
+
+    if (mIsSymLink && !mFollowSymLinks)
+    {
+        statok = true; //we will use statbuf filled by lstat instead of fstat
+    }
 
     mode_t mode = 0;
     if (write)
@@ -468,16 +474,26 @@ bool PosixFileAccess::fopen(string* f, bool read, bool write)
         mode = umask(0);
     }
 
+#ifndef O_PATH
+#define O_PATH 0
+// Notice in systems were O_PATH is not available, open will fail for links with O_NOFOLLOW
+#endif
+
     // if mFollowSymLinks is true (open normally: it will open the targeted file/folder),
     // otherwise, get the file descriptor for symlinks in case it is a sync link (notice O_PATH invalidates read/only flags)
-    if ((fd = open(f->c_str(), (!mFollowSymLinks && mIsSymLink) ? (O_PATH | O_NOFOLLOW) : (write ? (read ? O_RDWR : O_WRONLY | O_CREAT) : O_RDONLY) , defaultfilepermissions)) >= 0)
+    if ((fd = open(f->c_str(), (!mFollowSymLinks && mIsSymLink) ? (O_PATH | O_NOFOLLOW) : (write ? (read ? O_RDWR : O_WRONLY | O_CREAT) : O_RDONLY) , defaultfilepermissions)) >= 0 || statok)
     {
         if (write)
         {
             umask(mode);
         }
 
-        if (!fstat(fd, &statbuf))
+        if (!statok)
+        {
+            statok = !fstat(fd, &statbuf);
+        }
+
+        if (statok)
         {
             #ifdef __MACH__
                 //If creation time equal to kMagicBusyCreationDate
