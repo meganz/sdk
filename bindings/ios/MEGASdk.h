@@ -7112,7 +7112,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  *
  * @return nil if there is no verified number, otherwise a string containing that phone number.
  */
-- (NSString *)smsVerifiedPhoneNumber;
+- (nullable NSString *)smsVerifiedPhoneNumber;
 
 /**
  * @brief Requests the currently available country calling codes

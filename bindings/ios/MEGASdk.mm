@@ -2161,9 +2161,16 @@ using namespace mega;
     return (SMSState)self.megaApi->smsAllowedState();
 }
 
-- (NSString *)smsVerifiedPhoneNumber {
+- (nullable NSString *)smsVerifiedPhoneNumber {
     char *number = self.megaApi->smsVerifiedPhoneNumber();
-    return number == NULL ? nil : @(number);
+    
+    if (number == NULL) {
+        return nil;
+    }
+    
+    NSString *numberString = @(number);
+    delete [] number;
+    return numberString;
 }
 
 - (void)getRegisteredContacts:(NSArray<NSDictionary *> *)contacts delegate:(id<MEGARequestDelegate>)delegate {
