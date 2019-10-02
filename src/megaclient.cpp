@@ -3634,6 +3634,7 @@ void MegaClient::locallogout()
     ssrs_enabled = false;
     nsr_enabled = false;
     aplvp_enabled = false;
+    mNewLinkFormat = false;
     mSmsVerificationState = SMS_STATE_UNKNOWN;
     mSmsVerifiedPhone.clear();
     loggingout = 0;
@@ -7682,6 +7683,43 @@ void MegaClient::readopc(JSON *j)
     }
 }
 
+error MegaClient::readmiscflags(JSON *json)
+{
+    while (1)
+    {
+        switch (json->getnameid())
+        {
+        // mcs:1 --> MegaChat enabled
+        // ach:1 --> Mega Achievements enabled
+        case MAKENAMEID4('m', 'f', 'a', 'e'):   // multi-factor authentication enabled
+            gmfa_enabled = bool(json->getint());
+            break;
+        case MAKENAMEID4('s', 's', 'r', 's'):   // server-side rubish-bin scheduler (only available when logged in)
+            ssrs_enabled = bool(json->getint());
+            break;
+        case MAKENAMEID4('n', 's', 'r', 'e'):   // new secure registration enabled
+            nsr_enabled = bool(json->getint());
+            break;
+        case MAKENAMEID5('a', 'p', 'l', 'v', 'p'):   // apple VOIP push enabled (only available when logged in)
+            aplvp_enabled = bool(json->getint());
+            break;
+        case MAKENAMEID5('s', 'm', 's', 'v', 'e'):   // 2 = Opt-in and unblock SMS allowed 1 = Only unblock SMS allowed 0 = No SMS allowed
+            mSmsVerificationState = static_cast<SmsVerificationState>(json->getint());
+            break;
+        case MAKENAMEID4('n', 'l', 'f', 'e'):   // new link format enabled
+            mNewLinkFormat = static_cast<bool>(json->getint());
+            break;
+        case EOO:
+            return API_OK;
+        default:
+            if (!json->storeobject())
+            {
+                return API_EINTERNAL;
+            }
+        }
+    }
+}
+
 void MegaClient::procph(JSON *j)
 {
     // fields: h, ph, ets
@@ -8005,6 +8043,11 @@ void MegaClient::getuserdata()
 {
     cachedug = false;
     reqs.add(new CommandGetUserData(this));
+}
+
+void MegaClient::getmiscflags()
+{
+    reqs.add(new CommandGetMiscFlags(this));
 }
 
 void MegaClient::getpubkey(const char *user)
@@ -10201,7 +10244,7 @@ sessiontype_t MegaClient::loggedin()
 void MegaClient::whyamiblocked()
 {
     // make sure the smsve flag is up to date when we get the response
-    reqs.add(new CommandGetMiscFlags(this));
+    getmiscflags();
 
     // queue the actual request
     reqs.add(new CommandWhyAmIblocked(this));
@@ -12196,8 +12239,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 
                 ll->getlocalpath(&tmplocalpath);
 
-                FileAccess* fa = fsaccess->newfileaccess();
-
+                FileAccess* fa = fsaccess->newfileaccess(false);
                 if (fa->fopen(&tmplocalpath, true, false))
                 {
                     FileFingerprint fp;
@@ -12306,12 +12348,19 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
             if (rit->second->type == FILENODE)
             {
                 bool download = true;
-                FileAccess *f = fsaccess->newfileaccess();
+                FileAccess *f = fsaccess->newfileaccess(false);
                 if (rit->second->localnode != (LocalNode*)~0
                         && (f->fopen(localpath) || f->type == FOLDERNODE))
                 {
-                    LOG_debug << "Skipping download over an unscanned file/folder, or the file/folder is not to be synced (special attributes)";
-                    download = false;
+                    if (f->mIsSymLink && l->sync->movetolocaldebris(localpath))
+                    {
+                        LOG_debug << "Found a link in localpath " << localpath;
+                    }
+                    else
+                    {
+                        LOG_debug << "Skipping download over an unscanned file/folder, or the file/folder is not to be synced (special attributes)";
+                        download = false;
+                    }
                 }
                 delete f;
                 rit->second->localnode = NULL;
@@ -12334,7 +12383,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
             else
             {
                 LOG_debug << "Creating local folder";
-                FileAccess *f = fsaccess->newfileaccess();
+                FileAccess *f = fsaccess->newfileaccess(false);
                 if (f->fopen(localpath) || f->type == FOLDERNODE)
                 {
                     LOG_debug << "Skipping folder creation over an unscanned file/folder, or the file/folder is not to be synced (special attributes)";
@@ -12492,6 +12541,13 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
 
         rit = nchildren.find(&localname);
 
+        string localpath;
+        unique_ptr<FileAccess> fa(fsaccess->newfileaccess(false));
+
+        ll->getlocalpath(&localpath);
+        fa->fopen(&localpath);
+        bool isSymLink = fa->mIsSymLink;
+
         // do we have a corresponding remote child?
         if (rit != nchildren.end())
         {
@@ -12500,10 +12556,10 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
             // local: file, remote: folder - overwrite
             // local: folder, remote: folder - recurse
             // local: file, remote: file - overwrite if newer
-            if (ll->type != rit->second->type)
+            if (ll->type != rit->second->type || fa->mIsSymLink)
             {
                 insync = false;
-                LOG_warn << "Type changed: " << localname << " LNtype: " << ll->type << " Ntype: " << rit->second->type;
+                LOG_warn << "Type changed: " << localname << " LNtype: " << ll->type << " Ntype: " << rit->second->type << " isSymLink = " << fa->mIsSymLink;
                 movetosyncdebris(rit->second, l->sync->inshare);
             }
             else
@@ -12684,7 +12740,11 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
             }
         }
 
-        if (ll->type == FILENODE)
+        if (isSymLink)
+        {
+            continue; //Do nothing for the moment
+        }
+        else if (ll->type == FILENODE)
         {
             // do not begin transfer until the file size / mtime has stabilized
             insync = false;
@@ -12775,7 +12835,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
 
                 string localpath;
                 bool t;
-                FileAccess* fa = fsaccess->newfileaccess();
+                FileAccess* fa = fsaccess->newfileaccess(false);
 
                 ll->getlocalpath(&localpath);
 
@@ -12873,6 +12933,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
         {
             ll->created = true;
 
+            assert (!isSymLink);
             // create remote folder or send file
             LOG_debug << "Adding local file to synccreate: " << ll->name << " " << synccreate.size();
             synccreate.push_back(ll);

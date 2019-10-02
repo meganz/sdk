@@ -1476,7 +1476,7 @@ WinDirNotify::~WinDirNotify()
 #endif
 }
 
-FileAccess* WinFileSystemAccess::newfileaccess()
+FileAccess* WinFileSystemAccess::newfileaccess(bool followSymLinks = true)
 {
     return new WinFileAccess(waiter);
 }

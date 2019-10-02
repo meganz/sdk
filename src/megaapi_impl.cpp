@@ -3804,6 +3804,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_REGISTERED_CONTACTS: return "GET_REGISTERED_CONTACTS";
         case TYPE_GET_COUNTRY_CALLING_CODES: return "GET_COUNTRY_CALLING_CODES";
         case TYPE_VERIFY_CREDENTIALS: return "VERIFY_CREDENTIALS";
+        case TYPE_GET_MISC_FLAGS: return "GET_MISC_FLAGS";
     }
     return "UNKNOWN";
 }
@@ -5636,6 +5637,11 @@ bool MegaApiImpl::appleVoipPushEnabled()
     return client->aplvp_enabled;
 }
 
+bool MegaApiImpl::newLinkFormatEnabled()
+{
+    return client->mNewLinkFormat;
+}
+
 int MegaApiImpl::smsAllowedState()
 {
     return (client->mSmsVerificationState != SMS_STATE_UNKNOWN) ? client->mSmsVerificationState : 0;
@@ -5780,6 +5786,13 @@ void MegaApiImpl::getUserData(const char *user, MegaRequestListener *listener)
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_USER_DATA, listener);
     request->setFlag(true);
     request->setEmail(user);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::getMiscFlags(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_MISC_FLAGS, listener);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -7240,6 +7253,15 @@ void MegaApiImpl::abortPendingActions(error preverror)
     while ((transfer = transferQueue.pop()))
     {
         delete transfer;
+    }
+    MegaRequestPrivate *request;
+    while ((request = requestQueue.pop()))
+    {
+        delete request;
+    }
+    while ((request = scRequestQueue.pop()))
+    {
+        delete request;
     }
 
     resetTotalDownloads();
@@ -12141,6 +12163,21 @@ void MegaApiImpl::storagesum_changed(int64_t newsum)
     fireOnEvent(event);
 }
 
+void MegaApiImpl::getmiscflags_result(error e)
+{
+    if (e == API_OK)
+    {
+        MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_MISC_FLAGS_READY);
+        fireOnEvent(event);
+    }
+
+    if (requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if (!request || (request->getType() != MegaRequest::TYPE_GET_MISC_FLAGS)) return;
+
+    fireOnRequestFinish(request, e);
+}
+
 #ifdef ENABLE_CHAT
 
 void MegaApiImpl::chatcreate_result(TextChat *chat, error e)
@@ -13920,7 +13957,7 @@ void MegaApiImpl::userdata_result(string *name, string* pubk, string* privk, err
     // (note that usually the API command is triggered internally, so no request is associated)
     if (result == API_OK)
     {
-        MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_USER_FLAGS_READY);
+        MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_MISC_FLAGS_READY);
         fireOnEvent(event);
     }
 
@@ -21314,6 +21351,17 @@ void MegaApiImpl::sendPendingRequests()
             client->reqs.add(new CommandGetCountryCallingCodes{client});
             break;
         }
+        case MegaRequest::TYPE_GET_MISC_FLAGS:
+        {
+            if (client->loggedin())
+            {
+                // it only returns not-user-related flags (ie. server-sider-rubbish scheduler is missing)
+                e = API_EACCESS;
+                break;
+            }
+            client->getmiscflags();
+            break;
+        }
         default:
         {
             e = API_EINTERNAL;
@@ -21906,29 +21954,41 @@ ExternalLogger::ExternalLogger()
 
 ExternalLogger::~ExternalLogger()
 {
+#ifndef ENABLE_LOG_PERFORMANCE
     mutex.lock();
+#endif
     SimpleLogger::setOutputClass(NULL);
+#ifndef ENABLE_LOG_PERFORMANCE
     mutex.unlock();
+#endif
 }
 
 void ExternalLogger::addMegaLogger(MegaLogger *logger)
 {
+#ifndef ENABLE_LOG_PERFORMANCE
     mutex.lock();
+#endif
     if (logger && megaLoggers.find(logger) == megaLoggers.end())
     {
         megaLoggers.insert(logger);
     }
+#ifndef ENABLE_LOG_PERFORMANCE
     mutex.unlock();
+#endif
 }
 
 void ExternalLogger::removeMegaLogger(MegaLogger *logger)
 {
+#ifndef ENABLE_LOG_PERFORMANCE
     mutex.lock();
+#endif
     if (logger)
     {
         megaLoggers.erase(logger);
     }
+#ifndef ENABLE_LOG_PERFORMANCE
     mutex.unlock();
+#endif
 }
 
 void ExternalLogger::setLogLevel(int logLevel)
@@ -21958,9 +22018,13 @@ void ExternalLogger::postLog(int logLevel, const char *message, const char *file
         filename = "";
     }
 
+#ifndef ENABLE_LOG_PERFORMANCE
     mutex.lock();
-    SimpleLogger((LogLevel)logLevel, filename, line) << message;
+#endif
+    SimpleLogger{static_cast<LogLevel>(logLevel), filename, line} << message;
+#ifndef ENABLE_LOG_PERFORMANCE
     mutex.unlock();
+#endif
 }
 
 void ExternalLogger::log(const char *time, int loglevel, const char *source, const char *message)
@@ -21980,17 +22044,27 @@ void ExternalLogger::log(const char *time, int loglevel, const char *source, con
         message = "";
     }
 
+#ifndef ENABLE_LOG_PERFORMANCE
     mutex.lock();
-    for (set<MegaLogger*>::iterator it = megaLoggers.begin(); it != megaLoggers.end(); it++)
+#endif
+    for (auto logger : megaLoggers)
     {
-        (*it)->log(time, loglevel, source, message);
+        logger->log(time, loglevel, source, message);
     }
 
     if (logToConsole)
     {
+#ifdef ENABLE_LOG_PERFORMANCE
+        mutex.lock();
+#endif
         std::cout << "[" << time << "][" << SimpleLogger::toStr((LogLevel)loglevel) << "] " << message << std::endl;
+#ifdef ENABLE_LOG_PERFORMANCE
+        mutex.unlock();
+#endif
     }
+#ifndef ENABLE_LOG_PERFORMANCE
     mutex.unlock();
+#endif
 }
 
 
@@ -30657,7 +30731,7 @@ const char *MegaEventPrivate::getEventString(int type)
         case MegaEvent::EVENT_STORAGE_SUM_CHANGED: return "EVENT_STORAGE_SUM_CHANGED";
         case MegaEvent::EVENT_BUSINESS_STATUS: return "BUSINESS_STATUS";
         case MegaEvent::EVENT_KEY_MODIFIED: return "KEY_MODIFIED";
-        case MegaEvent::EVENT_USER_FLAGS_READY: return "USER_FLAGS_READY";
+        case MegaEvent::EVENT_MISC_FLAGS_READY: return "MISC_FLAGS_READY";
     }
 
     return "UNKNOWN";

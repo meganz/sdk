@@ -1341,7 +1341,7 @@ const char* MegaError::getErrorString(int errorCode, ErrorContexts context)
         case API_EMFAREQUIRED:
             return "Multi-factor authentication required";
         case API_EMASTERONLY:
-            return "Access denied for sub-users";
+            return "Access denied for users";
         case API_EBUSINESSPASTDUE:
             return "Business account has expired";
         case PAYMENT_ECARD:
@@ -1913,6 +1913,11 @@ bool MegaApi::appleVoipPushEnabled()
     return pImpl->appleVoipPushEnabled();
 }
 
+bool MegaApi::newLinkFormatEnabled()
+{
+    return pImpl->newLinkFormatEnabled();
+}
+
 int MegaApi::smsAllowedState()
 {
     return pImpl->smsAllowedState();
@@ -2013,6 +2018,11 @@ void MegaApi::getUserData(MegaUser *user, MegaRequestListener *listener)
 void MegaApi::getUserData(const char *user, MegaRequestListener *listener)
 {
     pImpl->getUserData(user, listener);
+}
+
+void MegaApi::getMiscFlags(MegaRequestListener *listener)
+{
+    pImpl->getMiscFlags(listener);
 }
 
 void MegaApi::login(const char *login, const char *password, MegaRequestListener *listener)
@@ -2904,9 +2914,9 @@ void MegaApi::startUpload(const char *localPath, MegaNode *parent, const char *f
     pImpl->startUpload(false, localPath, parent, fileName, mtime, 0, false, NULL, false, false, listener);
 }
 
-void MegaApi::startUploadForChat(const char *localPath, MegaNode *parent, MegaTransferListener *listener)
+void MegaApi::startUploadForChat(const char *localPath, MegaNode *parent, const char *appData, bool isSourceTemporary, MegaTransferListener *listener)
 {
-    pImpl->startUpload(false, localPath, parent, nullptr, -1, 0, false, nullptr, false, true, listener);
+    pImpl->startUpload(false, localPath, parent, nullptr, -1, 0, false, appData, isSourceTemporary, true, listener);
 }
 
 void MegaApi::startDownload(MegaNode *node, const char* localFolder, MegaTransferListener *listener)
@@ -5957,7 +5967,7 @@ MegaHandle MegaEvent::getHandle() const
 
 const char *MegaEvent::getEventString() const
 {
-    return MegaEvent::getEventString();
+    return NULL;
 }
 
 MegaHandleList *MegaHandleList::createInstance()
