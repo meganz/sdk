@@ -33,7 +33,7 @@ void Request::add(Command* c)
 
 size_t Request::size() const
 {
-    return static_cast<int>(cmds.size());
+    return cmds.size();
 }
 
 void Request::get(string* req, bool& suppressSID) const
@@ -54,6 +54,9 @@ void Request::get(string* req, bool& suppressSID) const
 
 void Request::process(MegaClient* client)
 {
+    DBTableTransactionCommitter committer(client->tctable);
+    client->tctableRequestCommitter = &committer;
+
     client->json = json;
     for (; processindex < cmds.size() && !stopProcessing; processindex++)
     {
@@ -93,6 +96,7 @@ void Request::process(MegaClient* client)
     {
         clear();
     }
+    client->tctableRequestCommitter = nullptr;
 }
 
 void Request::serverresponse(std::string&& movestring, MegaClient* client)

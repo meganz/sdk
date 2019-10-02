@@ -414,7 +414,7 @@ public:
     error rename(Node*, Node*, syncdel_t = SYNCDEL_NONE, handle = UNDEF);
 
     // start/stop/pause file transfer
-    bool startxfer(direction_t, File*, bool skipdupes = false, bool startfirst = false, bool donotpersist = false);
+    bool startxfer(direction_t, File*, DBTableTransactionCommitter&, bool skipdupes = false, bool startfirst = false, bool donotpersist = false);
     void stopxfer(File* f);
     void pausexfers(direction_t, bool, bool = false);
 
@@ -952,6 +952,10 @@ public:
 
     // transfer cache table
     DbTable* tctable;
+
+    // during processing of request responses, transfer table updates can be wrapped up in a single begin/commit
+    DBTableTransactionCommitter* tctableRequestCommitter = nullptr;
+
     // scsn as read from sctable
     handle cachedscsn;
 
@@ -1115,7 +1119,7 @@ public:
     void notifynode(Node*);
 
     // update transfer in the persistent cache
-    void transfercacheadd(Transfer*);
+    void transfercacheadd(Transfer*, DBTableTransactionCommitter*);
 
     // remove a transfer from the persistent cache
     void transfercachedel(Transfer*);

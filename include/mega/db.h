@@ -72,6 +72,35 @@ public:
     virtual ~DbTable() { }
 };
 
+class DBTableTransactionCommitter
+{
+    DbTable* table;
+    bool started = false;
+
+public:
+    inline void beginOnce()
+    {
+        if (table && !started)
+        {
+            table->begin();
+            started = true;
+        }
+    }
+
+    inline ~DBTableTransactionCommitter()
+    {
+        if (started)
+        {
+            table->commit();
+        }
+    }
+
+    explicit inline DBTableTransactionCommitter(DbTable* t)
+        : table(t) 
+    {
+    }
+};
+
 struct MEGA_API DbAccess
 {
     static const int LEGACY_DB_VERSION = 11;
