@@ -44,6 +44,8 @@ struct PosixWaiter : public Waiter
 
 protected:
     int m_pipe[2];
+    std::mutex mMutex;
+    bool alreadyNotified = false;
 };
 } // namespace
 
