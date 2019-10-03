@@ -26,6 +26,7 @@
 #import "MEGAFolderInfo.h"
 #import "MEGATimeZoneDetails.h"
 #import "MEGAStringList.h"
+#import "MEGAPushNotificationSettings.h"
 
 typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeLogin,
@@ -470,6 +471,15 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  *
  */
 @property (readonly, nonatomic) MEGAFolderInfo *megaFolderInfo;
+
+/**
+ *  @brief Returns settings for push notifications
+ *
+ * The SDK retains the ownership of the returned value. It will be valid until the MEGARequest object is deleted.
+ * This value is valid for these requests in onRequestFinish.
+ *
+*/
+@property (readonly, nonatomic) MEGAPushNotificationSettings *megaPushNotificationSettings;
 
 /**
  * @brief Tag of a transfer related to the request.
