@@ -112,7 +112,7 @@ public:
     const string *getattrversion(attr_t at);
     void invalidateattr(attr_t at);
     bool isattrvalid(attr_t at);
-    void removeattr(attr_t at);
+    void removeattr(attr_t at, const string *version = nullptr);
 
     static string attr2string(attr_t at);
     static string attr2longname(attr_t at);
@@ -145,6 +145,9 @@ public:
     void resetTag();
 
     User(const char* = NULL);
+
+    // merges the new values in the given TLV. Returns true if TLV is changed.
+    static bool mergeUserAttribute(attr_t type, const string_map &newValuesMap, TLVstore &tlv);
 };
 
 class AuthRing

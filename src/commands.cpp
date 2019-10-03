@@ -2736,7 +2736,7 @@ CommandPutUAVer::CommandPutUAVer(MegaClient* client, attr_t at, const byte* av, 
     }
 
     const string *attrv = client->ownuser()->getattrversion(at);
-    if (attrv)
+    if (client->ownuser()->isattrvalid(at) && attrv)
     {
         element(attrv->c_str());
     }
@@ -2895,6 +2895,12 @@ void CommandGetUA::procresult()
     if (client->json.isnumeric())
     {
         error e = (error)client->json.getint();
+
+        if (e == API_ENOENT && u)
+        {
+            u->removeattr(at);
+        }
+
         client->app->getua_result(e);
 
         if (isFromChatPreview())    // if `mcuga` was sent, no need to do anything else
@@ -3158,6 +3164,8 @@ CommandDelUA::CommandDelUA(MegaClient *client, const char *an)
     cmd("upr");
     arg("ua", an);
 
+    arg("v", 1);    // returns the new version for the (removed) null value
+
     tag = client->reqtag;
 }
 
@@ -3165,32 +3173,36 @@ void CommandDelUA::procresult()
 {
     if (client->json.isnumeric())
     {
-        error e = (error)client->json.getint();
-        if (e == API_OK)
-        {
-            User *u = client->ownuser();
-            attr_t at = User::string2attr(an.c_str());
-            u->removeattr(at);
-
-            if (at == ATTR_KEYRING)
-            {
-                client->resetKeyring();
-            }
-            else if (User::isAuthring(at))
-            {
-                client->mAuthRings.emplace(at, AuthRing(at, TLVstore()));
-                client->getua(u, at, 0);
-            }
-
-            client->notifyuser(u);
-        }
-
-        client->app->delua_result(e);
+        client->app->delua_result((error)client->json.getint());
     }
     else
     {
-        client->json.storeobject();
-        client->app->delua_result(API_EINTERNAL);
+        const char* ptr;
+        const char* end;
+        if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
+        {
+            client->app->delua_result(API_EINTERNAL);
+            return;
+        }
+
+        User *u = client->ownuser();
+        attr_t at = User::string2attr(an.c_str());
+        string version(ptr, (end-ptr));
+
+        u->removeattr(at, &version); // store version to filter corresponding AP in order to avoid double onUsersUpdate()
+
+        if (at == ATTR_KEYRING)
+        {
+            client->resetKeyring();
+        }
+        else if (User::isAuthring(at))
+        {
+            client->mAuthRings.emplace(at, AuthRing(at, TLVstore()));
+            client->getua(u, at, 0);
+        }
+
+        client->notifyuser(u);
+        client->app->delua_result(API_OK);
     }
 }
 
