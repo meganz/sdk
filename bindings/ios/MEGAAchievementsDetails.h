@@ -26,7 +26,8 @@ typedef NS_ENUM(NSUInteger, MEGAAchievement) {
     MEGAAchievementWelcome = 1,
     MEGAAchievementInvite = 3,
     MEGAAchievementDesktopInstall = 4,
-    MEGAAchievementMobileInstall = 5
+    MEGAAchievementMobileInstall = 5,
+    MEGAAchievementAddPhone = 9
 };
 
 /**
@@ -131,6 +132,7 @@ typedef NS_ENUM(NSUInteger, MEGAAchievement) {
  *  - MEGAAchievementInvite = 3
  *  - MEGAAchievementDesktopInstall = 4
  *  - MEGAAchievementMobileInstall = 5
+ *  - MEGAAchievementAddPhone = 9
  *
  * @param classId Id of the MEGA achievement
  * @return Storage granted by this MEGA achievement class, in bytes
@@ -145,6 +147,7 @@ typedef NS_ENUM(NSUInteger, MEGAAchievement) {
  *  - MEGAAchievementInvite = 3
  *  - MEGAAchievementDesktopInstall = 4
  *  - MEGAAchievementMobileInstall = 5
+ *  - MEGAAchievementAddPhone = 9
  *
  * @param classId Id of the MEGA achievement
  * @return Transfer quota granted by this MEGA achievement class, in bytes
@@ -159,6 +162,7 @@ typedef NS_ENUM(NSUInteger, MEGAAchievement) {
  *  - MEGAAchievementInvite = 3
  *  - MEGAAchievementDesktopInstall = 4
  *  - MEGAAchievementMobileInstall = 5
+ *  - MEGAAchievementAddPhone = 9
  *
  * The storage and transfer quota resulting from a MEGA achievement may expire after
  * certain number of days. In example, the "Welcome" reward lasts for 30 days and afterwards

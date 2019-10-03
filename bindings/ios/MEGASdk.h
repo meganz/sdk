@@ -7134,6 +7134,17 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  */
 - (SMSState)smsAllowedState;
 
+
+/**
+ * @brief Get the verified phone number for the account logged in
+ *
+ * Returns the phone number previously confirmed with sendSMSVerificationCodeToPhoneNumber:delegate
+ * and checkSMSVerificationCode:delegate metnhods in MEGASdk.
+ *
+ * @return nil if there is no verified number, otherwise a string containing that phone number.
+ */
+- (nullable NSString *)smsVerifiedPhoneNumber;
+
 /**
  * @brief Requests the currently available country calling codes
  *

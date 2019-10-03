@@ -2173,6 +2173,18 @@ using namespace mega;
     return (SMSState)self.megaApi->smsAllowedState();
 }
 
+- (nullable NSString *)smsVerifiedPhoneNumber {
+    char *number = self.megaApi->smsVerifiedPhoneNumber();
+    
+    if (number == NULL) {
+        return nil;
+    }
+    
+    NSString *numberString = @(number);
+    delete [] number;
+    return numberString;
+}
+
 - (void)getRegisteredContacts:(NSArray<NSDictionary *> *)contacts delegate:(id<MEGARequestDelegate>)delegate {
     MegaStringMap *stringMapContacts = MegaStringMap::createInstance();
     for (NSDictionary *contact in contacts) {
