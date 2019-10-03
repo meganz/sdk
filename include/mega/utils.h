@@ -467,7 +467,6 @@ template<typename T, typename U>
 void hashCombine(T& seed, const U& v)
 {
     static_assert(std::is_integral<T>::value, "T is not integral");
-    static_assert(std::is_integral<U>::value, "U is not integral");
     // the magic number is the twos complement version of the golden ratio
     seed ^= std::hash<U>{}(v) + 0x9e3779b9 + (seed<<6) + (seed>>2);
 }
