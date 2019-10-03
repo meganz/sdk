@@ -41,7 +41,7 @@ int computeReversePathMatchScore(const string& path1, const string& path2, const
 // Recursively iterates through the filesystem tree starting at the sync root and assigns
 // fs IDs to those local nodes that match the fingerprint retrieved from disk.
 bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, handlelocalnode_map& fsidnodes,
-                         const string& localdebris, const string& localseparator, bool followsymlinks);
+                         const string& localdebris, const string& localseparator);
 
 class MEGA_API Sync
 {

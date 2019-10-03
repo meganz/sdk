@@ -40,12 +40,17 @@ namespace {
 
 // Collects all syncable filesystem paths in the given folder under `localpath`
 set<string> collectAllPathsInFolder(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, string localpath,
-                                    const string& localdebris, const string& localseparator, const bool followsymlinks)
+                                    const string& localdebris, const string& localseparator)
 {
-    auto fa = std::unique_ptr<FileAccess>{fsaccess.newfileaccess()};
+    auto fa = std::unique_ptr<FileAccess>{fsaccess.newfileaccess(false)};
     if (!fa->fopen(&localpath, true, false))
     {
         LOG_err << "Unable to open path: " << localpath;
+        return {};
+    }
+    if (fa->mIsSymLink)
+    {
+        LOG_debug << "Ignoring symlink: " << localpath;
         return {};
     }
     assert(fa->type == FOLDERNODE);
@@ -62,7 +67,7 @@ set<string> collectAllPathsInFolder(Sync& sync, MegaApp& app, FileSystemAccess& 
     const size_t localpathSize = localpath.size();
 
     string localname;
-    while (da->dnext(&localpath, &localname, followsymlinks))
+    while (da->dnext(&localpath, &localname, false))
     {
         auto name = localname;
         fsaccess.local2name(&name);
@@ -129,12 +134,17 @@ void combinedFingerprint(FileFingerprint& ffp, FileSystemAccess& fsaccess, const
     ffp.isvalid = false;
     for (const auto& path : paths)
     {
-        auto fa = std::unique_ptr<FileAccess>{fsaccess.newfileaccess()};
+        auto fa = std::unique_ptr<FileAccess>{fsaccess.newfileaccess(false)};
         if (!fa->fopen(const_cast<string*>(&path), true, false))
         {
             LOG_err << "Unable to open path: " << path;
             ffp.isvalid = false;
             break;
+        }
+        if (fa->mIsSymLink)
+        {
+            LOG_debug << "Ignoring symlink: " << path;
+            continue;
         }
         if (fa->type == FILENODE)
         {
@@ -285,12 +295,17 @@ void assignFilesystemId(FileSystemAccess& fsaccess, FileAccess& fa, handlelocaln
 // Recursively assigns fs IDs
 void assignFilesystemIdsImpl(bool& success, Sync& sync, MegaApp& app, handlelocalnode_map& fsidnodes,
                              FileSystemAccess& fsaccess, string localpath, const string& localdebris,
-                             const string& localseparator, bool followsymlinks, FingerprintMap& fingerprints)
+                             const string& localseparator, FingerprintMap& fingerprints)
 {
-    auto fa = std::unique_ptr<FileAccess>{fsaccess.newfileaccess()};
+    auto fa = std::unique_ptr<FileAccess>{fsaccess.newfileaccess(false)};
     if (!(success = fa->fopen(&localpath, true, false)))
     {
         LOG_err << "Unable to open path: " << localpath;
+        return;
+    }
+    if (fa->mIsSymLink)
+    {
+        LOG_debug << "Ignoring symlink: " << localpath;
         return;
     }
 
@@ -300,13 +315,13 @@ void assignFilesystemIdsImpl(bool& success, Sync& sync, MegaApp& app, handleloca
     }
     else if (fa->type == FOLDERNODE)
     {
-        const auto paths = collectAllPathsInFolder(sync, app, fsaccess, localpath, localdebris, localseparator, followsymlinks);
+        const auto paths = collectAllPathsInFolder(sync, app, fsaccess, localpath, localdebris, localseparator);
         assignFilesystemId(fsaccess, *fa, fsidnodes, fingerprints, localpath, localseparator, paths);
         fa.reset();
         for (const auto& path : paths)
         {
             assignFilesystemIdsImpl(success, sync, app, fsidnodes, fsaccess, path,
-                                    localdebris, localseparator, followsymlinks, fingerprints);
+                                    localdebris, localseparator, fingerprints);
         }
     }
     else
@@ -395,11 +410,11 @@ int computeReversePathMatchScore(const string& path1, const string& path2, const
 }
 
 bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, handlelocalnode_map& fsidnodes,
-                         const string& localdebris, const string& localseparator, const bool followsymlinks)
+                         const string& localdebris, const string& localseparator)
 {
     auto rootpath = sync.localroot.localname;
 
-    auto fa = std::unique_ptr<FileAccess>{fsaccess.newfileaccess()};
+    auto fa = std::unique_ptr<FileAccess>{fsaccess.newfileaccess(false)};
     if (!fa->fopen(&rootpath, true, false))
     {
         LOG_err << "Unable to open rootpath";
@@ -408,6 +423,12 @@ bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, h
     if (fa->type != FOLDERNODE)
     {
         LOG_err << "rootpath not a folder";
+        assert(false);
+        return false;
+    }
+    if (fa->mIsSymLink)
+    {
+        LOG_err << "rootpath is a symlink";
         assert(false);
         return false;
     }
@@ -425,7 +446,7 @@ bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, h
 
     bool success = true;
     assignFilesystemIdsImpl(success, sync, app, fsidnodes, fsaccess, rootpath,
-                            localdebris, localseparator, followsymlinks, fingerprints);
+                            localdebris, localseparator, fingerprints);
     LOG_info << "Number of fingerprints after assignment: " << fingerprints.size();
 
     return success;
@@ -842,7 +863,7 @@ LocalNode* Sync::localnodebypath(LocalNode* l, string* localpath, LocalNode** pa
 bool Sync::assignfsids()
 {
     return assignFilesystemIds(*this, *client->app, *client->fsaccess, client->fsidnode,
-                               localdebris, client->fsaccess->localseparator, client->followsymlinks);
+                               localdebris, client->fsaccess->localseparator);
 }
 
 // scan localpath, add or update child nodes, call recursively for folder nodes
