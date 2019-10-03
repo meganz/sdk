@@ -269,7 +269,6 @@ void assignFilesystemId(FileSystemAccess& fsaccess, FileAccess& fa, handlelocaln
     else
     {
         // We're assigning `fa.fsid` to the node that is the best match to `preferredNodePath`.
-        // If `preferredNodePath` is in debris we're only assigning to a node that's also in debris.
         auto bestNodeIt = nodeRange.first;
         int bestScore = -1;
 
