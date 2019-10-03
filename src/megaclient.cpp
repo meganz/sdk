@@ -1081,6 +1081,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     aplvp_enabled = false;
     mSmsVerificationState = SMS_STATE_UNKNOWN;
     loggingout = 0;
+    loggedout = false;
     cachedug = false;
     minstreamingrate = -1;
 
@@ -1704,6 +1705,13 @@ void MegaClient::exec()
                                     {
                                         reqid[i] = 'a';
                                     }
+                                }
+
+                                if (loggedout)
+                                {
+                                    removecaches();
+                                    locallogout();
+                                    app->logout_result(API_OK);
                                 }
                             }
                             else
@@ -3633,6 +3641,7 @@ void MegaClient::locallogout()
     mSmsVerificationState = SMS_STATE_UNKNOWN;
     mSmsVerifiedPhone.clear();
     loggingout = 0;
+    loggedout = false;
     cachedug = false;
     minstreamingrate = -1;
 #ifdef USE_MEDIAINFO

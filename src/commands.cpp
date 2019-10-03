@@ -1568,6 +1568,8 @@ CommandLogout::CommandLogout(MegaClient *client)
 {
     cmd("sml");
 
+    batchSeparately = true;
+
     tag = client->reqtag;
 }
 
@@ -1575,13 +1577,19 @@ void CommandLogout::procresult()
 {
     error e = (error)client->json.getint();
     MegaApp *app = client->app;
-    client->loggingout--;
+    if (client->loggingout > 0)
+    {
+        client->loggingout--;
+    }
     if(!e)
     {
-        client->removecaches();
-        client->locallogout();
+        // notify client after cache removal, as before
+        client->loggedout = true;
     }
-    app->logout_result(e);
+    else
+    {
+        app->logout_result(e);
+    }
 }
 
 CommandPrelogin::CommandPrelogin(MegaClient* client, const char* email)

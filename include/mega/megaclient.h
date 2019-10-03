@@ -1527,7 +1527,10 @@ public:
     bool versions_disabled;
 
     // the SDK is trying to log out
-    int loggingout;
+    int loggingout = 0;
+
+    // the logout request succeeded, time to clean up localy once returned from CS response processing
+    bool loggedout = false;
 
     // true if the account is a master business account, false if it's a sub-user account
     BizMode mBizMode;
