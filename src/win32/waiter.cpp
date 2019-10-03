@@ -109,6 +109,13 @@ int WinWaiter::wait()
         EnterCriticalSection(pcsHTTP);
     }
 
+#ifdef MEGA_MEASURE_CODE
+    if (dwWaitResult == WAIT_TIMEOUT && maxds > 0) ++performanceStats.waitTimedoutNonzero;
+    else if (dwWaitResult == WAIT_TIMEOUT && maxds == 0) ++performanceStats.waitTimedoutZero;
+    else if (dwWaitResult == WAIT_IO_COMPLETION) ++performanceStats.waitIOCompleted;
+    else if (dwWaitResult >= WAIT_OBJECT_0) ++performanceStats.waitSignalled;
+#endif
+
     if ((dwWaitResult == WAIT_TIMEOUT) || (dwWaitResult == WAIT_IO_COMPLETION) || maxds == 0)
     {
         r = NEEDEXEC;

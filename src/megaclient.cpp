@@ -2760,7 +2760,7 @@ void MegaClient::exec()
     if (Waiter::ds > lasttime + 1200)
     {
         lasttime = Waiter::ds;
-        LOG_info << performanceStats.report(false, httpio);
+        LOG_info << performanceStats.report(false, httpio, waiter);
     }
 #endif
 }
@@ -2903,7 +2903,7 @@ int MegaClient::preparewait()
 
         // retrying of transient failed read ops
         if (syncfslockretry && !syncdownretry && !syncadding
-                && statecurrent && !syncdownrequired && !syncfsopsfailed)
+            && statecurrent && !syncdownrequired && !syncfsopsfailed)
         {
             LOG_debug << "Waiting for a temporary error checking filesystem notification";
             syncfslockretrybt.update(&nds);
@@ -2968,7 +2968,7 @@ int MegaClient::preparewait()
                 }
             }
             else if (workinglockcs && EVER(workinglockcs->lastdata)
-                     && workinglockcs->status == REQ_INFLIGHT)
+                && workinglockcs->status == REQ_INFLIGHT)
             {
                 dstime timeout = workinglockcs->lastdata + HttpIO::REQUESTTIMEOUT;
                 if (timeout > Waiter::ds && timeout < nds)
@@ -2984,7 +2984,7 @@ int MegaClient::preparewait()
 
 
         if (badhostcs && EVER(badhostcs->lastdata)
-                && badhostcs->status == REQ_INFLIGHT)
+            && badhostcs->status == REQ_INFLIGHT)
         {
             dstime timeout = badhostcs->lastdata + HttpIO::REQUESTTIMEOUT;
             if (timeout > Waiter::ds && timeout < nds)
@@ -3014,6 +3014,7 @@ int MegaClient::preparewait()
     // immediate action required?
     if (!nds)
     {
+        ++performanceStats.prepwaitImmediate;
         return Waiter::NEEDEXEC;
     }
 
@@ -3023,11 +3024,27 @@ int MegaClient::preparewait()
         nds -= Waiter::ds;
     }
 
+    if (nds == 0)
+    {
+        ++performanceStats.prepwaitZero;
+    }
+
     waiter->init(nds);
 
     // set subsystem wakeup criteria (WinWaiter assumes httpio to be set first!)
     waiter->wakeupby(httpio, Waiter::NEEDEXEC);
+
+    if (waiter->maxds == 0)
+    {
+        ++performanceStats.prepwaitHttpio;
+    }
+
     waiter->wakeupby(fsaccess, Waiter::NEEDEXEC);
+
+    if (waiter->maxds == 0)
+    {
+        ++performanceStats.prepwaitFsaccess;
+    }
 
     return 0;
 }
@@ -14266,7 +14283,7 @@ void MegaClient::getwelcomepdf()
 }
 
 #ifdef MEGA_MEASURE_CODE
-std::string MegaClient::PerformanceStats::report(bool reset, HttpIO* httpio)
+std::string MegaClient::PerformanceStats::report(bool reset, HttpIO* httpio, Waiter* waiter)
 {
     std::ostringstream s;
     s << prepareWait.report(reset) << "\n"
@@ -14283,7 +14300,8 @@ std::string MegaClient::PerformanceStats::report(bool reset, HttpIO* httpio)
         << " cs Request waiting time: " << csRequestWaitTime.report(reset) << "\n"
         << " transfers active time: " << transfersActiveTime.report(reset) << "\n"
         << " transfer starts/finishes: " << transferStarts << " " << transferFinishes << "\n"
-        << " transfer temperror/fails: " << transferTempErrors << " " << transferFails << "\n";
+        << " transfer temperror/fails: " << transferTempErrors << " " << transferFails << "\n"
+        << " nowait reason: immedate: " << prepwaitImmediate << " zero: " << prepwaitZero << " httpio: " << prepwaitHttpio << " fsaccess " << prepwaitFsaccess << "\n";
 #ifdef USE_CURL
     if (auto curlhttpio = dynamic_cast<CurlHttpIO*>(httpio))
     {
@@ -14293,6 +14311,12 @@ std::string MegaClient::PerformanceStats::report(bool reset, HttpIO* httpio)
             << curlhttpio->countProcessAresEventsCode.report(reset) << "\n"
             << curlhttpio->countProcessCurlEventsCode.report(reset) << "\n";
     }
+#endif
+#ifdef WIN32
+    s << " waiter nonzero timeout: " << static_cast<WinWaiter*>(waiter)->performanceStats.waitTimedoutNonzero 
+      << " zero timeout: " << static_cast<WinWaiter*>(waiter)->performanceStats.waitTimedoutZero
+      << " io trigger: " << static_cast<WinWaiter*>(waiter)->performanceStats.waitIOCompleted 
+      << " event trigger: "  << static_cast<WinWaiter*>(waiter)->performanceStats.waitSignalled << "\n";
 #endif
     if (reset)
     {

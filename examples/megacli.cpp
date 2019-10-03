@@ -70,7 +70,7 @@ using std::dec;
 MegaClient* client;
 MegaClient* clientFolder;
 
-bool gVerboseMode = true;
+bool gVerboseMode = false;
 
 
 // new account signup e-mail address and name
@@ -261,7 +261,7 @@ static void displaytransferdetails(Transfer* t, const char* action)
         cout << name;
     }
 
-    //cout << ": " << (t->type == GET ? "Incoming" : "Outgoing") << " file transfer " << action;
+    cout << ": " << (t->type == GET ? "Incoming" : "Outgoing") << " file transfer " << action;
 }
 
 // a new transfer was added
@@ -1196,13 +1196,16 @@ void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
         return;
     }
 
-    cout << "Received " << l << " byte(s) of user attribute: ";
-    fwrite(data, 1, l, stdout);
-    cout << endl;
-
-    if (type == ATTR_ED25519_PUBK)
+    if (gVerboseMode)
     {
-        cout << "Credentials: " << AuthRing::fingerprint(string((const char*)data, l), true) << endl;
+        cout << "Received " << l << " byte(s) of user attribute: ";
+        fwrite(data, 1, l, stdout);
+        cout << endl;
+
+        if (type == ATTR_ED25519_PUBK)
+        {
+            cout << "Credentials: " << AuthRing::fingerprint(string((const char*)data, l), true) << endl;
+        }
     }
 }
 
@@ -1217,7 +1220,7 @@ void DemoApp::getua_result(TLVstore *tlv, attr_t type)
     {
         cout << "Error getting private user attribute" << endl;
     }
-    else
+    else if (!gVerboseMode)
     {
         cout << "Received a TLV with " << tlv->size() << " item(s) of user attribute: " << endl;
 
@@ -2373,7 +2376,7 @@ void exec_sendDeferred(autocomplete::ACState& s)
 void exec_codeTimings(autocomplete::ACState& s)
 {
     bool reset = s.extractflag("-reset");
-    cout << client->performanceStats.report(reset, client->httpio) << flush;
+    cout << client->performanceStats.report(reset, client->httpio, client->waiter) << flush;
 }
 
 #endif
