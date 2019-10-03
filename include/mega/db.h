@@ -112,14 +112,17 @@ public:
     explicit inline DBTableTransactionCommitter(DbTable* t)
         : table(t) 
     {
-        if (table->mCurrentTransaction)
+        if (table)
         {
-            table = nullptr;  // we are nested; do nothing
-            assert(false); // for now at least, avoid nested scenarios if possible
-        }
-        else
-        {
-            table->mCurrentTransaction = this;
+            if (table->mCurrentTransaction)
+            {
+                table = nullptr;  // we are nested; do nothing
+                assert(false); // for now at least, avoid nested scenarios if possible
+            }
+            else
+            {
+                table->mCurrentTransaction = this;
+            }
         }
     }
 };
