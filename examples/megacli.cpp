@@ -6745,10 +6745,16 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
     {
         if (ad->transfer_max)
         {
+            long long transferFreeUsed = 0;
+            for (unsigned i = 0; i < ad->transfer_hist.size(); i++)
+            {
+                transferFreeUsed += ad->transfer_hist[i];
+            }
+
             cout << "\tTransfer in progress: " << ad->transfer_own_reserved << "/" << ad->transfer_srv_reserved << endl;
-            cout << "\tTransfer completed: " << ad->transfer_own_used << "/" << ad->transfer_srv_used << " of "
+            cout << "\tTransfer completed: " << ad->transfer_own_used << "/" << ad->transfer_srv_used << "/" << transferFreeUsed << " of "
                  << ad->transfer_max << " ("
-                 << (100 * (ad->transfer_own_used + ad->transfer_srv_used) / ad->transfer_max) << "%)" << endl;
+                 << (100 * (ad->transfer_own_used + ad->transfer_srv_used + transferFreeUsed) / ad->transfer_max) << "%)" << endl;
             cout << "\tServing bandwidth ratio: " << ad->srv_ratio << "%" << endl;
         }
 
@@ -6760,23 +6766,18 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
 
             for (unsigned i = 0; i < ad->transfer_hist.size(); i++)
             {
-                t -= ad->transfer_hist_interval;
                 cout << "\t\t" << t;
-                if (t < ad->transfer_hist_interval)
+                t -= ad->transfer_hist_interval;
+                if (t < 0)
                 {
                     cout << " second(s) ago until now: ";
                 }
                 else
                 {
-                    cout << "-" << t - ad->transfer_hist_interval << " second(s) ago: ";
+                    cout << "-" << t << " second(s) ago: ";
                 }
                 cout << ad->transfer_hist[i] << " byte(s)" << endl;
             }
-        }
-
-        if (ad->transfer_limit)
-        {
-            cout << "Per-IP transfer limit: " << ad->transfer_limit << endl;
         }
     }
 
