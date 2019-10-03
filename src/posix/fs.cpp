@@ -74,7 +74,7 @@ void PosixAsyncIOContext::finish()
 }
 #endif
 
-PosixFileAccess::PosixFileAccess(Waiter *w, int defaultfilepermissions) : FileAccess(w)
+PosixFileAccess::PosixFileAccess(Waiter *w, int defaultfilepermissions, bool followSymLinks) : FileAccess(w)
 {
     fd = -1;
     this->defaultfilepermissions = defaultfilepermissions;
@@ -83,6 +83,7 @@ PosixFileAccess::PosixFileAccess(Waiter *w, int defaultfilepermissions) : FileAc
     dp = NULL;
 #endif
 
+    mFollowSymLinks = followSymLinks;
     fsidvalid = false;
 }
 
@@ -118,7 +119,8 @@ bool PosixFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
 #endif
 
     type = TYPE_UNKNOWN;
-    if (!stat(localname.c_str(), &statbuf))
+    mIsSymLink = !lstat(localname.c_str(), &statbuf) && S_ISLNK(statbuf.st_mode);
+    if (!(mFollowSymLinks? stat(localname.c_str(), &statbuf) : lstat(localname.c_str(), &statbuf)))
     {
         errorcode = 0;
         if (S_ISDIR(statbuf.st_mode))
@@ -458,20 +460,40 @@ bool PosixFileAccess::fopen(string* f, bool read, bool write)
     }
 #endif
 
-    mode_t mode;
+    bool statok = false;
+    mIsSymLink = !lstat(f->c_str(), &statbuf) && S_ISLNK(statbuf.st_mode);
+
+    if (mIsSymLink && !mFollowSymLinks)
+    {
+        statok = true; //we will use statbuf filled by lstat instead of fstat
+    }
+
+    mode_t mode = 0;
     if (write)
     {
         mode = umask(0);
     }
 
-    if ((fd = open(f->c_str(), write ? (read ? O_RDWR : O_WRONLY | O_CREAT) : O_RDONLY, defaultfilepermissions)) >= 0)
+#ifndef O_PATH
+#define O_PATH 0
+// Notice in systems were O_PATH is not available, open will fail for links with O_NOFOLLOW
+#endif
+
+    // if mFollowSymLinks is true (open normally: it will open the targeted file/folder),
+    // otherwise, get the file descriptor for symlinks in case it is a sync link (notice O_PATH invalidates read/only flags)
+    if ((fd = open(f->c_str(), (!mFollowSymLinks && mIsSymLink) ? (O_PATH | O_NOFOLLOW) : (write ? (read ? O_RDWR : O_WRONLY | O_CREAT) : O_RDONLY) , defaultfilepermissions)) >= 0 || statok)
     {
         if (write)
         {
             umask(mode);
         }
 
-        if (!fstat(fd, &statbuf))
+        if (!statok)
+        {
+            statok = !fstat(fd, &statbuf);
+        }
+
+        if (statok)
         {
             #ifdef __MACH__
                 //If creation time equal to kMagicBusyCreationDate
@@ -486,6 +508,7 @@ bool PosixFileAccess::fopen(string* f, bool read, bool write)
             size = statbuf.st_size;
             mtime = statbuf.st_mtime;
             type = S_ISDIR(statbuf.st_mode) ? FOLDERNODE : FILENODE;
+            // in the future we might want to add LINKNODE to type and set it here using S_ISLNK
             fsid = (handle)statbuf.st_ino;
             fsidvalid = true;
 
@@ -606,6 +629,8 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
             close(fd);
         }
     }
+#else
+    (void)fseventsfd;  // suppress warning
 #endif
 }
 
@@ -618,7 +643,7 @@ PosixFileSystemAccess::~PosixFileSystemAccess()
 }
 
 // wake up from filesystem updates
-void PosixFileSystemAccess::addevents(Waiter* w, int flags)
+void PosixFileSystemAccess::addevents(Waiter* w, int /*flags*/)
 {
     if (notifyfd >= 0)
     {
@@ -861,11 +886,11 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
 
                 for (it = client->syncs.begin(); it != client->syncs.end(); it++)
                 {
-                    int rsize = (*it)->localroot.localname.size();
+                    int rsize = (*it)->mFsEventsPath.size() ? (*it)->mFsEventsPath.size() : (*it)->localroot.localname.size();
                     int isize = (*it)->dirnotify->ignore.size();
 
                     if (psize >= rsize
-                      && !memcmp((*it)->localroot.localname.c_str(), path, rsize)    // prefix match
+                      && !memcmp((*it)->mFsEventsPath.size() ? (*it)->mFsEventsPath.c_str() : (*it)->localroot.localname.c_str(), path, rsize)    // prefix match
                       && (!path[rsize] || path[rsize] == '/')               // at end: end of path or path separator
                       && (psize <= (rsize + isize)                          // not ignored
                           || (path[rsize + isize + 1] && path[rsize + isize + 1] != '/')
@@ -880,7 +905,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                                 break;
                             }
 
-                            paths[i] += (*it)->localroot.localname.size() + 1;
+                            paths[i] += rsize + 1;
                             pathsync[i] = *it;
                             break;
                         }
@@ -976,7 +1001,7 @@ bool PosixFileSystemAccess::renamelocal(string* oldname, string* newname, bool o
     bool existingandcare = !override && (0 == access(newname->c_str(), F_OK));
     if (!existingandcare && !rename(oldname->c_str(), newname->c_str()))
     {
-        LOG_verbose << "Succesfully moved file: " << oldname->c_str() << " to " << newname->c_str();
+        LOG_verbose << "Successfully moved file: " << oldname->c_str() << " to " << newname->c_str();
         return true;
     }
 
@@ -1073,7 +1098,7 @@ bool PosixFileSystemAccess::copylocal(string* oldname, string* newname, m_time_t
 }
 
 // FIXME: add platform support for recycle bins
-bool PosixFileSystemAccess::rubbishlocal(string* name)
+bool PosixFileSystemAccess::rubbishlocal(string* /*name*/)
 {
     return false;
 }
@@ -1121,7 +1146,7 @@ void PosixFileSystemAccess::emptydirlocal(string* name, dev_t basedev)
     dirent* d;
     int removed;
     struct stat statbuf;
-    int t;
+    size_t t;
 
     if (!basedev)
     {
@@ -1312,7 +1337,7 @@ size_t PosixFileSystemAccess::lastpartlocal(string* localname) const
 }
 
 // return lowercased ASCII file extension, including the . separator
-bool PosixFileSystemAccess::getextension(string* filename, char* extension, int size) const
+bool PosixFileSystemAccess::getextension(string* filename, char* extension, size_t size) const
 {
     const char* ptr = filename->data() + filename->size();
     char c;
@@ -1752,9 +1777,9 @@ fsfp_t PosixDirNotify::fsfingerprint()
     return *(fsfp_t*)&statfsbuf.f_fsid + 1;
 }
 
-FileAccess* PosixFileSystemAccess::newfileaccess()
+FileAccess* PosixFileSystemAccess::newfileaccess(bool followSymLinks)
 {
-    return new PosixFileAccess(waiter, defaultfilepermissions);
+    return new PosixFileAccess(waiter, defaultfilepermissions, followSymLinks);
 }
 
 DirAccess* PosixFileSystemAccess::newdiraccess()

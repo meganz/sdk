@@ -71,7 +71,7 @@ typedef struct {
  * 
  * @param expression cron expression as nul-terminated string,
  *        should be no longer that 256 bytes
- * @param pointer to cron expression structure, it's client code responsibility
+ * @param target to cron expression structure, it's client code responsibility
  *        to free/destroy it afterwards
  * @param error output error message, will be set to string literal
  *        error message in case of error. Will be set to NULL on success.

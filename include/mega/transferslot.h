@@ -25,6 +25,7 @@
 #include "http.h"
 #include "node.h"
 #include "backofftimer.h"
+#include "raid.h"
 
 namespace mega {
 // active transfer
@@ -79,15 +80,21 @@ struct MEGA_API TransferSlot
     // file attributes mutable
     int fileattrsmutable;
 
-    // maximum number of parallel connections and connection aray
+    // maximum number of parallel connections and connection array
     int connections;
     HttpReqXfer** reqs;
+
+    // Manage download input buffers and file output buffers for file download.  Raid-aware, and automatically performs decryption and mac.
+    TransferBufferManager transferbuf;
 
     // async IO operations
     AsyncIOContext** asyncIO;
 
     // handle I/O for this slot
     void doio(MegaClient*);
+
+    // helper for doio to delay connection creation until we know if it's raid or non-raid
+    bool createconnectionsonce();
 
     // disconnect and reconnect all open connections for this transfer
     void disconnect();
@@ -108,7 +115,7 @@ struct MEGA_API TransferSlot
     bool retrying;
     BackoffTimer retrybt;
 
-    // transfer failure flag
+    // transfer failure flag. MegaClient will increment the transfer->errorcount when it sees this set.
     bool failure;
     
     TransferSlot(Transfer*);
@@ -116,6 +123,7 @@ struct MEGA_API TransferSlot
 
 protected:
     void toggleport(HttpReqXfer* req);
+    bool tryRaidRecoveryFromHttpGetError(unsigned i);
 
 };
 } // namespace

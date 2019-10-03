@@ -633,7 +633,7 @@ UserAlert::Takedown::Takedown(UserAlertRaw& un, unsigned int id)
     relevant = isTakedown || isReinstate;
 }
 
-UserAlert::Takedown::Takedown(bool down, bool reinstate, int t, handle nh, m_time_t timestamp, unsigned int id)
+UserAlert::Takedown::Takedown(bool down, bool reinstate, int /*t*/, handle nh, m_time_t timestamp, unsigned int id)
     : Base(type_ph, UNDEF, "", timestamp, id)
 {
     isTakedown = down;
@@ -694,9 +694,9 @@ UserAlerts::UserAlerts(MegaClient& cmc)
     , lsn(UNDEF)
     , fsn(UNDEF)
     , lastTimeDelta(0)
+    , provisionalmode(false)
     , notingSharedNodes(false)
     , ignoreNodesUnderShare(UNDEF)
-    , provisionalmode(false)
 {
 }
 
@@ -933,9 +933,9 @@ void UserAlerts::noteSharedNode(handle user, int type, m_time_t ts, Node* n)
 }
 
 // make a notification out of the shared nodes noted
-void UserAlerts::convertNotedSharedNodes(bool added)
+void UserAlerts::convertNotedSharedNodes(bool added, handle originatingUser)
 {
-    if (catchupdone && notingSharedNodes)
+    if (catchupdone && notingSharedNodes && originatingUser != mc.me)
     {
         using namespace UserAlert;
         for (map<pair<handle, handle>, ff>::iterator i = notedSharedNodes.begin(); i != notedSharedNodes.end(); ++i)

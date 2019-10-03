@@ -33,9 +33,11 @@ class MEGA_API Base64
 
 public:
     static int btoa(const string&, string&);
-    static int btoa(const byte*, int, char*);
+    static string btoa(const string &in);   // use Base64Str<size> instead when `size` is known at compile time (more efficient)
+    static int btoa(const byte*, int, char*);   // deprecated
     static int atob(const string&, string&);
-    static int atob(const char*, byte*, int);
+    static string atob(const string&);
+    static int atob(const char*, byte*, int);   // deprecated
 
     static void itoa(int64_t, string *);
     static int64_t atoi(string *);
@@ -45,21 +47,22 @@ template <unsigned BINARYSIZE>
 struct Base64Str
 {
     // provides a way to build the C string on the stack efficiently, using minimal space
-    char chars[(BINARYSIZE * 4 + 2) / 3 + 1];
+    enum { STRLEN = (BINARYSIZE * 4 + 2) / 3};
+    char chars[STRLEN + 1]; // sizeof(chars) can be larger due to alignment etc
     Base64Str(const byte* b)
     {
         int n = Base64::btoa(b, BINARYSIZE, chars);
-        assert(n + 1 == sizeof(chars));
+        assert(static_cast<size_t>(n + 1) == sizeof(chars));
     }
     Base64Str(const byte* b, int size)
     {
         int n = Base64::btoa(b, size, chars);
-        assert(n + 1 <= sizeof(chars));
+        assert(static_cast<size_t>(n + 1) <= sizeof(chars));
     }
     Base64Str(const handle& h)
     {
         int n = Base64::btoa((const byte*)&h, BINARYSIZE, chars);
-        assert(n + 1 == sizeof(chars));
+        assert(static_cast<size_t>(n + 1) == sizeof(chars));
     }
     operator const char* () const
     {

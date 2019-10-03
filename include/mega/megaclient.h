@@ -37,6 +37,7 @@
 #include "pendingcontactrequest.h"
 #include "mediafileattribute.h"
 #include "useralerts.h"
+#include "user.h"
 
 namespace mega {
 
@@ -182,12 +183,16 @@ class MEGA_API MegaClient
 public:
     // own identity
     handle me;
+    string uid;
 
     // root nodes (files, incoming, rubbish)
     handle rootnodes[3];
 
     // all nodes
     node_map nodes;
+
+    // keep track of user storage, inshare storage, file/folder counts per root node.
+    NodeCounterMap mNodeCounters;
 
     // all users
     user_map users;
@@ -215,6 +220,20 @@ public:
 
     // Account has VOIP push enabled (only for Apple)
     bool aplvp_enabled;
+
+    // Use new format to generate Mega links
+    bool mNewLinkFormat = false;
+
+    // 2 = Opt-in and unblock SMS allowed 1 = Only unblock SMS allowed 0 = No SMS allowed  -1 = flag was not received
+    SmsVerificationState mSmsVerificationState;
+
+    // the verified account phone number, filled in from 'ug'
+    string mSmsVerifiedPhone;
+	
+    // pseudo-random number generator
+    PrnGen rng;
+
+    static string getPublicLink(bool newLinkFormat, nodetype_t type, handle ph, const char *key);
 
 #ifdef ENABLE_CHAT
     // all chats
@@ -244,6 +263,7 @@ public:
     // ephemeral session support
     void createephemeral();
     void resumeephemeral(handle, const byte*, int = 0);
+    void cancelsignup();
 
     // full account confirmation/creation support
     void sendsignuplink(const char*, const char*, const byte*);
@@ -280,11 +300,17 @@ public:
     // get user data
     void getuserdata();
 
+    // get miscelaneous flags
+    void getmiscflags();
+
     // get the public key of an user
     void getpubkey(const char* user);
 
     // check if logged in
     sessiontype_t loggedin();
+
+    // check if logged in a folder link
+    bool loggedinfolderlink();
 
     // check the reason of being blocked
     void whyamiblocked();
@@ -303,6 +329,9 @@ public:
     // Kill session id
     void killsession(handle session);
     void killallsessions();
+
+    // extract public handle and key from folder link
+    error parsefolderlink(const char* folderlink, handle &h, byte *key);
 
     // set folder link: node, key
     error folderaccess(const char*folderlink);
@@ -327,14 +356,38 @@ public:
     // fetchnodes stats
     FetchNodesStats fnstats;
 
-#ifdef ENABLE_CHAT
     // load cryptographic keys: RSA, Ed25519, Cu25519 and their signatures
-    void fetchkeys();    
+    void fetchkeys();
+
+    // check existence and integrity of keys and signatures, initialize if missing
     void initializekeys();
-#endif
+
+    // to be called after resumption from cache (user attributes loaded)
+    void loadAuthrings();
+
+    // load cryptographic keys for contacts: RSA, Ed25519, Cu25519
+    void fetchContactsKeys();
+
+    // fetch keys related to authrings for a given contact
+    void fetchContactKeys(User *user);
+
+    // track a public key in the authring for a given user
+    error trackKey(attr_t keyType, handle uh, const std::string &key);
+
+    // track the signature of a public key in the authring for a given user
+    error trackSignature(attr_t signatureType, handle uh, const std::string &signature);
+
+    // set the Ed25519 public key as verified for a given user in the authring (done by user manually by comparing hash of keys)
+    error verifyCredentials(handle uh);
+
+    // reset the tracking of public keys in the authrings for a given user
+    error resetCredentials(handle uh);
+
+    // check credentials are verified for a given user
+    bool areCredentialsVerified(handle uh);
 
     // retrieve user details
-    void getaccountdetails(AccountDetails*, bool, bool, bool, bool, bool, bool);
+    void getaccountdetails(AccountDetails*, bool, bool, bool, bool, bool, bool, int source = -1);
 
     // check if the available bandwidth quota is enough to transfer an amount of bytes
     void querytransferquota(m_off_t size);
@@ -461,6 +514,8 @@ public:
     // close all open HTTP connections
     void disconnect();
 
+    // close server-client HTTP connection
+    void catchup();
     // abort lock request
     void abortlockrequest();
 
@@ -492,7 +547,7 @@ public:
     void sendchatstats(const char*, int port);
 
     // send chat logs with user's annonymous id
-    void sendchatlogs(const char*, const char*);
+    void sendchatlogs(const char*, const char*, int port);
 
     // send a HTTP request
     void httprequest(const char*, int, bool = false, const char* = NULL, int = 1);
@@ -551,6 +606,15 @@ public:
 
     // change the storage status
     bool setstoragestatus(storagestatus_t);
+
+    // get info about a folder link
+    void getpubliclinkinfo(handle h);
+
+    // send an sms to verificate a phone number (returns EARGS if phone number has invalid format)
+    error smsverificationsend(const string& phoneNumber, bool reVerifyingWhitelisted = false);
+
+    // check the verification code received by sms is valid (returns EARGS if provided code has invalid format)
+    error smsverificationcheck(const string& verificationCode);
 
 #ifdef ENABLE_CHAT
 
@@ -671,8 +735,17 @@ public:
     // timestamp until the bandwidth is overquota in deciseconds, related to Waiter::ds
     m_time_t overquotauntil;
 
+    // timestamp when a business account will enter into Grace Period
+    m_time_t mBizGracePeriodTs;
+
+    // timestamp when a business account will finally expire
+    m_time_t mBizExpirationTs;
+
     // storage status
     storagestatus_t ststatus;
+
+    // minimum bytes per second for streaming (0 == no limit, -1 == use default)
+    int minstreamingrate;
 
     // root URL for API requests
     static string APIURL;
@@ -714,6 +787,7 @@ private:
     // server-client command trigger connection
     HttpReq* pendingsc;
     BackoffTimer btsc;
+    bool stopsc = false;
 
     // badhost report
     HttpReq* badhostcs;
@@ -752,6 +826,9 @@ private:
     // next internal upload handle
     handle nextuh;
 
+    // just one notification after fetchnodes and catch-up actionpackets
+    bool notifyStorageChangeOnStateCurrent = false;
+
     // maximum number of concurrent transfers (uploads + downloads)
     static const unsigned MAXTOTALTRANSFERS;
 
@@ -779,7 +856,7 @@ private:
     // server-client command processing
     void sc_updatenode();
     Node* sc_deltree();
-    void sc_newnodes();
+    handle sc_newnodes();
     void sc_contacts();
     void sc_keys();
     void sc_fileattr();
@@ -793,12 +870,13 @@ private:
     void sc_ph();
     void sc_se();
 #ifdef ENABLE_CHAT
-    void sc_chatupdate();
+    void sc_chatupdate(bool readingPublicChat);
     void sc_chatnode();
     void sc_chatflags();
 #endif
     void sc_uac();
     void sc_la();
+    void sc_ub();
 
     void init();
 
@@ -818,7 +896,7 @@ private:
     void checkevent(dstime, dstime*, dstime*);
 
     // converts UTF-8 to 32-bit word array
-    static char* str_to_a32(const char*, int*);
+    static char* utf8_to_a32forjs(const char*, int*);
 
     // was the app notified of a retrying CS request?
     bool csretrying;
@@ -877,7 +955,12 @@ public:
     // scsn as read from sctable
     handle cachedscsn;
 
-    // have we just completed fetching new nodes?
+    // initial state load in progress?  initial state can come from the database cache or via an 'f' command to the API.  
+    // Either way there can still be a lot of historic actionpackets to follow since that snaphot, especially if the user has not been online for a long time.
+    bool fetchingnodes;
+    int fetchnodestag;
+
+    // have we just completed fetching new nodes?  (ie, caught up on all the historic actionpackets since the fetchnodes)
     bool statecurrent;
 
     // pending file attribute writes
@@ -921,6 +1004,9 @@ public:
     // session key to protect local storage
     string sessionkey;
 
+    // key protecting non-shareable GPS coordinates in nodes
+    string unshareablekey;
+
     // application key
     char appkey[16];
 
@@ -950,10 +1036,10 @@ public:
     void pendingattrstring(handle, string*);
 
     // active/pending direct reads
-    handledrn_map hdrns;
-    dsdrn_map dsdrns;
-    dr_list drq;
-    drs_list drss;
+    handledrn_map hdrns;   // DirectReadNodes, main ownership.  One per file, each with one DirectRead per client request.
+    dsdrn_map dsdrns;      // indicates the time at which DRNs should be retried 
+    dr_list drq;           // DirectReads that are in DirectReadNodes which have fectched URLs
+    drs_list drss;         // DirectReadSlot for each DR in drq, up to Max
 
     // merge newly received share into nodes
     void mergenewshares(bool);
@@ -987,7 +1073,10 @@ public:
     transferslot_list::iterator slotit;
 
     // FileFingerprint to node mapping
-    fingerprint_set fingerprints;
+    Fingerprints mFingerprints;
+
+    // send updates to app when the storage size changes
+    int64_t mNotifiedSumSize = 0;
 
     // asymmetric to symmetric key rewriting
     handle_vector nodekeyrewrite;
@@ -1003,10 +1092,6 @@ public:
 
     // number of seconds to invalidate the cached user data
     static dstime USER_DATA_EXPIRATION_BACKOFF_SECS;
-
-    // initial state load in progress?
-    bool fetchingnodes;
-    int fetchnodestag;
 
     // total number of Node objects
     long long totalNodes;
@@ -1060,6 +1145,13 @@ public:
     Node* nodebyhandle(handle);
     Node* nodebyfingerprint(FileFingerprint*);
     node_vector *nodesbyfingerprint(FileFingerprint* fingerprint);
+    void nodesbyoriginalfingerprint(const char* fingerprint, Node* parent, node_vector *nv);
+
+    // get up to "maxcount" nodes, not older than "since", ordered by creation time
+    node_vector getRecentNodes(unsigned maxcount, m_time_t since, bool includerubbishbin);
+
+    // get a vector of recent actions in the account
+    recentactions_vector getRecentActions(unsigned maxcount, m_time_t since);
 
     // generate & return upload handle
     handle getuploadhandle();
@@ -1213,6 +1305,8 @@ public:
     void readipc(JSON*);
     void readopc(JSON*);
 
+    error readmiscflags(JSON*);
+
     void procph(JSON*);
 
     void readcr();
@@ -1269,7 +1363,6 @@ public:
     // account access (full account): RSA private key
     AsymmCipher asymkey;
 
-#ifdef ENABLE_CHAT
     // RSA public key
     AsymmCipher pubk;
 
@@ -1279,6 +1372,15 @@ public:
     // ECDH key (x25519 private key).
     ECDH *chatkey;
 
+    // set when keys for every current contact have been checked
+    AuthRingsMap mAuthRings;
+
+    // used during initialization to accumulate required updates to authring (to send them all atomically)
+    AuthRingsMap mAuthRingsTemp;
+
+    // true while authrings are being fetched
+    bool mFetchingAuthrings;
+
     // actual state of keys
     bool fetchingkeys;
 
@@ -1287,7 +1389,6 @@ public:
 
     // delete chatkey and signing key
     void resetKeyring();
-#endif
 
     // binary session ID
     string sid;
@@ -1423,6 +1524,12 @@ public:
 
     // the SDK is trying to log out
     int loggingout;
+
+    // true if the account is a master business account, false if it's a sub-user account
+    BizMode mBizMode;
+
+    // -1: expired, 0: inactive (no business subscription), 1: active, 2: grace-period
+    BizStatus mBizStatus;
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
     ~MegaClient();

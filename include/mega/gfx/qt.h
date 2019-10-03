@@ -55,7 +55,8 @@ class MEGA_API GfxProcQT : public GfxProc
         TYPE_NONE = -1,
         TYPE_IMAGE = 0,
         TYPE_VIDEO,
-        TYPE_RAW
+        TYPE_RAW,
+        TYPE_PDF
     };
 
     QImageReader *image;
@@ -65,6 +66,7 @@ class MEGA_API GfxProcQT : public GfxProc
 
 public:
     GfxProcQT();
+    ~GfxProcQT();
     bool readbitmap(FileAccess*, string*, int);
     bool resizebitmap(int, int, string*);
     void freebitmap();
@@ -82,8 +84,13 @@ protected:
     static QImageReader *readbitmapLibraw(int &w, int &h, int &orientation, QString imagePath);
 #endif
 
+#ifdef HAVE_PDFIUM
+    static const char* supportedformatsPDF();
+    static QImageReader *readbitmapPdf(int &w, int &h, int &orientation, QString imagePath);
+#endif
+
 #ifdef HAVE_FFMPEG
-    static MUTEX_CLASS gfxMutex;
+    static std::mutex gfxMutex;
     static const char* supportedformatsFfmpeg();
     static QImageReader *readbitmapFfmpeg(int &w, int &h, int &orientation, QString imagePath);
 #endif

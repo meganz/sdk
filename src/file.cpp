@@ -52,7 +52,7 @@ File::~File()
 
 bool File::serialize(string *d)
 {
-    char type = transfer->type;
+    char type = char(transfer->type);
     d->append((const char*)&type, sizeof(type));
 
     if (!FileFingerprint::serialize(d))
@@ -410,7 +410,7 @@ bool File::failed(error e)
     }
 
     return  // Non fatal errors, up to 16 retries
-            ((e != API_EBLOCKED && e != API_ENOENT && e != API_EINTERNAL && e != API_EACCESS && transfer->failcount < 16)
+            ((e != API_EBLOCKED && e != API_ENOENT && e != API_EINTERNAL && e != API_EACCESS && e != API_ETOOMANY && transfer->failcount < 16)
             // I/O errors up to 6 retries
             && !((e == API_EREAD || e == API_EWRITE) && transfer->failcount > 6))
             // Retry sync transfers up to 8 times for erros that doesn't have a specific management

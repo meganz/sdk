@@ -22,12 +22,13 @@ import android.net.Uri;
 import android.provider.BaseColumns;
 import android.provider.MediaStore;
 
+import static mega.privacy.android.app.utils.LogUtil.*;
+
 public class AndroidGfxProcessor extends MegaGfxProcessor {
     Rect size;
     int orientation;
     String srcPath;
     Bitmap bitmap;
-    static boolean isVideo;
     byte[] bitmapData;
     static Context context = null;
 
@@ -60,10 +61,20 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
 
                 MediaMetadataRetriever retriever = new MediaMetadataRetriever();
                 retriever.setDataSource(path);
-                int width = Integer.valueOf(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH));
-                int height = Integer.valueOf(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT));
+                int width;
+                int height;
+                int interchangeOrientation = Integer.valueOf(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION));
+                if (interchangeOrientation == 90 || interchangeOrientation == 270) {
+                    width = Integer.valueOf(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT));
+                    height = Integer.valueOf(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH));
+                }
+                else {
+                    width = Integer.valueOf(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH));
+                    height = Integer.valueOf(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT));
+                }
                 retriever.release();
 
+                logDebug("Width: " + width + ", Height: " + height + ", Orientation: " + interchangeOrientation);
                 rect.right = width;
                 rect.bottom = height;
             } catch (Exception e) {
@@ -94,13 +105,11 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
     public boolean readBitmap(String path) {
 
         if(isVideoFile(path)){
-            isVideo = true;
             srcPath = path;
             size = getImageDimensions(srcPath, orientation);
             return (size.right != 0) && (size.bottom != 0);
         }
         else{
-            isVideo = false;
             srcPath = path;
             orientation = getExifOrientation(path);
             size = getImageDimensions(srcPath, orientation);
@@ -120,7 +129,7 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
         int width;
         int height;
 
-        if(AndroidGfxProcessor.isVideo){
+        if (isVideoFile(path)) {
 
             Bitmap bmThumbnail = null;
 

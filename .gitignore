@@ -22,9 +22,9 @@
 *.exe
 *.out
 *.app
-/tests/sdk_test
-/tests/misc_test
-/tests/purge_account
+/tests/test_unit
+/tests/test_integration
+/tests/tool_purge_account
 examples/megacli
 examples/megasimplesync
 examples/linux/megafuse
@@ -64,10 +64,12 @@ config.log
 config.status
 config.sub
 py-compile
+/sdk_build
 
 # Documentation generator
 doc/_build
 doc/api
+doc/lib
 doc/sphinx_api
 doc/Doxyfile
 doc/example/lsmega
@@ -80,12 +82,21 @@ doc/example/lsmega
 *~
 Debug
 Release
+/contrib/QtCreator/build-*
+/contrib/QtCreator/MEGAsdk.pro.user
+/contrib/QtCreator/MEGAcli/MEGAcli.pro.user
+/contrib/QtCreator/MEGAtests/MEGAtests.pro.user
+/contrib/QtCreator/MEGAsymplesync/MEGAsymplesync.pro.user
 /contrib/QtCreator/megacli.creator.user
+/contrib/build-MEGAsdk-Desktop-*
+/contrib/cmake/cmake-build-*
+/contrib/build-cmake-Desktop-*
+/contrib/cmake/CMakeLists.txt.user
+/contrib/cmake/.idea
 megaclient_statecache*
 
 # Mega SDK runtime
 *.db-journal
 
 /third_party/Makefile
-
-/contrib/QtCreator/build-*
+/third_party/3rdparty

@@ -95,39 +95,118 @@ MegaStringList::~MegaStringList()
 
 }
 
-MegaStringList *MegaStringList::copy()
+MegaStringList *MegaStringList::copy() const
 {
     return NULL;
 }
 
-const char *MegaStringList::get(int)
+const char *MegaStringList::get(int) const
 {
     return NULL;
 }
 
-int MegaStringList::size()
+int MegaStringList::size() const
 {
     return 0;
 }
+
+MegaStringListMap::MegaStringListMap()
+{
+
+}
+
+MegaStringListMap::~MegaStringListMap()
+{
+}
+
+MegaStringListMap* MegaStringListMap::createInstance()
+{
+    return new MegaStringListMapPrivate;
+}
+
+MegaStringListMap* MegaStringListMap::copy() const
+{
+    return nullptr;
+}
+
+const MegaStringList* MegaStringListMap::get(const char*) const
+{
+    return nullptr;
+}
+
+MegaStringList *MegaStringListMap::getKeys() const
+{
+    return nullptr;
+}
+
+void MegaStringListMap::set(const char*, const MegaStringList*)
+{
+}
+
+int MegaStringListMap::size() const
+{
+    return 0;
+}
+
+MegaStringTable::MegaStringTable()
+{
+}
+
+MegaStringTable::~MegaStringTable()
+{
+}
+
+MegaStringTable* MegaStringTable::createInstance()
+{
+    return new MegaStringTablePrivate;
+}
+
+MegaStringTable* MegaStringTable::copy() const
+{
+    return nullptr;
+}
+
+void MegaStringTable::append(const MegaStringList*)
+{
+}
+
+const MegaStringList* MegaStringTable::get(int) const
+{
+    return nullptr;
+}
+
+int MegaStringTable::size() const
+{
+    return 0;
+}
+
 
 MegaNodeList *MegaNodeList::createInstance()
 {
     return new MegaNodeListPrivate();
 }
 
-MegaNodeList::~MegaNodeList() { }
+MegaNodeList::MegaNodeList()
+{
 
-MegaNodeList *MegaNodeList::copy()
+}
+
+MegaNodeList::~MegaNodeList()
+{
+
+}
+
+MegaNodeList *MegaNodeList::copy() const
 {
     return NULL;
 }
 
-MegaNode *MegaNodeList::get(int)
+MegaNode *MegaNodeList::get(int) const
 {
     return NULL;
 }
 
-int MegaNodeList::size()
+int MegaNodeList::size() const
 {
     return 0;
 }
@@ -200,6 +279,68 @@ int MegaUserAlertList::size() const
     return 0;
 }
 
+
+
+MegaRecentActionBucket::~MegaRecentActionBucket()
+{
+}
+
+MegaRecentActionBucket* MegaRecentActionBucket::copy() const
+{
+    return NULL;
+}
+
+ 
+int64_t MegaRecentActionBucket::getTimestamp() const
+{
+    return 0;
+}
+
+const char* MegaRecentActionBucket::getUserEmail() const
+{
+    return NULL;
+}
+
+MegaHandle MegaRecentActionBucket::getParentHandle() const
+{
+    return INVALID_HANDLE;
+}
+
+bool MegaRecentActionBucket::isUpdate() const
+{
+    return false;
+}
+
+bool MegaRecentActionBucket::isMedia() const
+{
+    return false;
+}
+
+const MegaNodeList* MegaRecentActionBucket::getNodes() const
+{
+    return NULL;
+}
+
+MegaRecentActionBucketList::~MegaRecentActionBucketList()
+{
+}
+
+MegaRecentActionBucketList* MegaRecentActionBucketList::copy() const
+{
+    return NULL;
+}
+
+MegaRecentActionBucket* MegaRecentActionBucketList::get(int /*i*/) const
+{
+    return NULL;
+}
+
+int MegaRecentActionBucketList::size() const
+{
+    return 0;
+}
+
+
 MegaShareList::~MegaShareList() { }
 
 MegaShare *MegaShareList::get(int)
@@ -232,6 +373,11 @@ const char *MegaNode::getName()
 }
 
 const char *MegaNode::getFingerprint()
+{
+    return NULL;
+}
+
+const char *MegaNode::getOriginalFingerprint()
 {
     return NULL;
 }
@@ -351,6 +497,11 @@ char * MegaNode::getPublicLink(bool includeKey)
     return NULL;
 }
 
+int64_t MegaNode::getPublicLinkCreationTime()
+{
+    return 0;
+}
+
 bool MegaNode::isFile()
 {
     return false;
@@ -466,6 +617,11 @@ MegaNodeList *MegaNode::getChildren()
     return NULL;
 }
 
+MegaHandle MegaNode::getOwner() const
+{
+    return INVALID_HANDLE;
+}
+
 char *MegaNode::serialize()
 {
     return NULL;
@@ -573,12 +729,12 @@ const char *MegaUserAlert::getTypeString() const
 
 MegaHandle MegaUserAlert::getUserHandle() const
 {
-    return UNDEF;
+    return INVALID_HANDLE;
 }
 
 MegaHandle MegaUserAlert::getNodeHandle() const
 {
-    return UNDEF;
+    return INVALID_HANDLE;
 }
 
 const char* MegaUserAlert::getEmail() const
@@ -847,7 +1003,27 @@ MegaStringMap *MegaRequest::getMegaStringMap() const
     return NULL;
 }
 
+MegaStringListMap* MegaRequest::getMegaStringListMap() const
+{
+    return nullptr;
+}
+
+MegaStringTable* MegaRequest::getMegaStringTable() const
+{
+    return nullptr;
+}
+
 MegaFolderInfo *MegaRequest::getMegaFolderInfo() const
+{
+    return NULL;
+}
+
+const MegaPushNotificationSettings *MegaRequest::getMegaPushNotificationSettings() const
+{
+    return NULL;
+}
+
+MegaBackgroundMediaUpload* MegaRequest::getMegaBackgroundMediaUploadPtr() const
 {
     return NULL;
 }
@@ -1084,6 +1260,11 @@ const char* MegaError::getErrorString() const
 
 const char* MegaError::getErrorString(int errorCode)
 {
+    return MegaError::getErrorString(errorCode, API_EC_DEFAULT);
+}
+
+const char* MegaError::getErrorString(int errorCode, ErrorContexts context)
+{
     if(errorCode <= 0)
     {
         switch(errorCode)
@@ -1101,7 +1282,13 @@ const char* MegaError::getErrorString(int errorCode)
         case API_EFAILED:
             return "Failed permanently";
         case API_ETOOMANY:
-            return "Too many concurrent connections or transfers";
+            switch (context)
+            {
+                case API_EC_DOWNLOAD:
+                    return "Terms of Service breached";
+                default:
+                    return "Too many concurrent connections or transfers";
+            }
         case API_ERANGE:
             return "Out of range";
         case API_EEXPIRED:
@@ -1109,7 +1296,13 @@ const char* MegaError::getErrorString(int errorCode)
         case API_ENOENT:
             return "Not found";
         case API_ECIRCULAR:
-            return "Circular linkage detected";
+            switch (context)
+            {
+                case API_EC_UPLOAD:
+                    return "Upload produces recursivity";
+                default:
+                    return "Circular linkage detected";
+            }
         case API_EACCESS:
             return "Access denied";
         case API_EEXIST:
@@ -1121,7 +1314,14 @@ const char* MegaError::getErrorString(int errorCode)
         case API_ESID:
             return "Bad session ID";
         case API_EBLOCKED:
-            return "Blocked";
+            switch (context)
+            {
+                case API_EC_IMPORT:
+                case API_EC_DOWNLOAD:
+                    return "Not accessible due to ToS/AUP violation";
+                default:
+                    return "Blocked";
+            }
         case API_EOVERQUOTA:
             return "Over quota";
         case API_ETEMPUNAVAIL:
@@ -1140,6 +1340,10 @@ const char* MegaError::getErrorString(int errorCode)
             return "Not enough quota";
         case API_EMFAREQUIRED:
             return "Multi-factor authentication required";
+        case API_EMASTERONLY:
+            return "Access denied for users";
+        case API_EBUSINESSPASTDUE:
+            return "Business account has expired";
         case PAYMENT_ECARD:
             return "Credit card rejected";
         case PAYMENT_EBILLING:
@@ -1554,14 +1758,29 @@ MegaUser *MegaApi::getMyUser()
     return pImpl->getMyUser();
 }
 
-char *MegaApi::getMyXMPPJid()
-{
-    return pImpl->getMyXMPPJid();
-}
-
 bool MegaApi::isAchievementsEnabled()
 {
     return pImpl->isAchievementsEnabled();
+}
+
+bool MegaApi::isBusinessAccount()
+{
+    return pImpl->isBusinessAccount();
+}
+
+bool MegaApi::isMasterBusinessAccount()
+{
+    return pImpl->isMasterBusinessAccount();
+}
+
+int MegaApi::getBusinessStatus()
+{
+    return pImpl->getBusinessStatus();
+}
+
+bool MegaApi::isBusinessAccountActive()
+{
+    return pImpl->isBusinessAccountActive();
 }
 
 bool MegaApi::checkPassword(const char *password)
@@ -1569,12 +1788,30 @@ bool MegaApi::checkPassword(const char *password)
     return pImpl->checkPassword(password);
 }
 
-#ifdef ENABLE_CHAT
-char *MegaApi::getMyFingerprint()
+char *MegaApi::getMyCredentials()
 {
-    return pImpl->getMyFingerprint();
+    return pImpl->getMyCredentials();
 }
-#endif
+
+void MegaApi::getUserCredentials(MegaUser *user, MegaRequestListener *listener)
+{
+    pImpl->getUserCredentials(user, listener);
+}
+
+bool MegaApi::areCredentialsVerified(MegaUser *user)
+{
+    return pImpl->areCredentialsVerified(user);
+}
+
+void MegaApi::verifyCredentials(MegaUser *user, MegaRequestListener *listener)
+{
+    pImpl->verifyCredentials(user, listener);
+}
+
+void MegaApi::resetCredentials(MegaUser *user, MegaRequestListener *listener)
+{
+    pImpl->resetCredentials(user, listener);
+}
 
 void MegaApi::setLogLevel(int logLevel)
 {
@@ -1646,6 +1883,16 @@ char *MegaApi::userHandleToBase64(MegaHandle handle)
     return MegaApiImpl::userHandleToBase64(handle);
 }
 
+void MegaApi::base64ToBinary(const char *base64string, unsigned char **binary, size_t* binarysize)
+{
+    return MegaApiImpl::base64ToBinary(base64string, binary, binarysize);
+}
+
+char *MegaApi::binaryToBase64(const char* binaryData, size_t length)
+{
+    return MegaApiImpl::binaryToBase64(binaryData, length);
+}
+
 void MegaApi::retryPendingConnections(bool disconnect, bool includexfers, MegaRequestListener* listener)
 {
     pImpl->retryPendingConnections(disconnect, includexfers, listener);
@@ -1664,6 +1911,21 @@ bool MegaApi::serverSideRubbishBinAutopurgeEnabled()
 bool MegaApi::appleVoipPushEnabled()
 {
     return pImpl->appleVoipPushEnabled();
+}
+
+bool MegaApi::newLinkFormatEnabled()
+{
+    return pImpl->newLinkFormatEnabled();
+}
+
+int MegaApi::smsAllowedState()
+{
+    return pImpl->smsAllowedState();
+}
+
+char* MegaApi::smsVerifiedPhoneNumber()
+{
+    return pImpl->smsVerifiedPhoneNumber();
 }
 
 bool MegaApi::multiFactorAuthAvailable()
@@ -1718,7 +1980,7 @@ void MegaApi::fetchTimeZone(MegaRequestListener *listener)
 
 void MegaApi::addEntropy(char *data, unsigned int size)
 {
-    MegaApiImpl::addEntropy(data, size);
+    pImpl->addEntropy(data, size);
 }
 
 #ifdef WINDOWS_PHONE
@@ -1758,6 +2020,11 @@ void MegaApi::getUserData(const char *user, MegaRequestListener *listener)
     pImpl->getUserData(user, listener);
 }
 
+void MegaApi::getMiscFlags(MegaRequestListener *listener)
+{
+    pImpl->getMiscFlags(listener);
+}
+
 void MegaApi::login(const char *login, const char *password, MegaRequestListener *listener)
 {
     pImpl->login(login, password, listener);
@@ -1771,11 +2038,6 @@ char *MegaApi::dumpSession()
 char *MegaApi::getSequenceNumber()
 {
     return pImpl->getSequenceNumber();
-}
-
-char *MegaApi::dumpXMPPSession()
-{
-    return pImpl->dumpXMPPSession();
 }
 
 char *MegaApi::getAccountAuth()
@@ -1801,6 +2063,11 @@ void MegaApi::createAccount(const char* email, const char* password, const char*
 void MegaApi::resumeCreateAccount(const char* sid, MegaRequestListener *listener)
 {
     pImpl->resumeCreateAccount(sid, listener);
+}
+
+void MegaApi::cancelCreateAccount(MegaRequestListener *listener)
+{
+    pImpl->cancelCreateAccount(listener);
 }
 
 void MegaApi::sendSignupLink(const char *email, const char *name, const char *password, MegaRequestListener *listener)
@@ -1998,6 +2265,16 @@ void MegaApi::setThumbnail(MegaNode* node, const char *srcFilePath, MegaRequestL
     pImpl->setThumbnail(node, srcFilePath, listener);
 }
 
+void MegaApi::putThumbnail(MegaBackgroundMediaUpload* bu, const char *srcFilePath, MegaRequestListener *listener)
+{
+    pImpl->putThumbnail(bu, srcFilePath, listener);
+}
+
+void MegaApi::setThumbnailByHandle(MegaNode* node, MegaHandle fileattribute, MegaRequestListener *listener)
+{
+    pImpl->setThumbnailByHandle(node, fileattribute, listener);
+}
+
 void MegaApi::getPreview(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener)
 {
     pImpl->getPreview(node, dstFilePath, listener);
@@ -2011,6 +2288,16 @@ void MegaApi::cancelGetPreview(MegaNode* node, MegaRequestListener *listener)
 void MegaApi::setPreview(MegaNode* node, const char *srcFilePath, MegaRequestListener *listener)
 {
     pImpl->setPreview(node, srcFilePath, listener);
+}
+
+void MegaApi::putPreview(MegaBackgroundMediaUpload* bu, const char *srcFilePath, MegaRequestListener *listener)
+{
+    pImpl->putPreview(bu, srcFilePath, listener);
+}
+
+void MegaApi::setPreviewByHandle(MegaNode* node, MegaHandle fileattribute, MegaRequestListener *listener)
+{
+    pImpl->setPreviewByHandle(node, fileattribute, listener);
 }
 
 void MegaApi::getUserAvatar(MegaUser* user, const char *dstFilePath, MegaRequestListener *listener)
@@ -2041,6 +2328,11 @@ char *MegaApi::getUserAvatarColor(const char *userhandle)
 void MegaApi::setAvatar(const char *dstFilePath, MegaRequestListener *listener)
 {
     pImpl->setAvatar(dstFilePath, listener);
+}
+
+bool MegaApi::testAllocation(unsigned allocCount, size_t allocSize)
+{
+    return pImpl->testAllocation(allocCount, allocSize);
 }
 
 void MegaApi::getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener)
@@ -2105,7 +2397,12 @@ void MegaApi::setNodeDuration(MegaNode *node, int secs, MegaRequestListener *lis
 
 void MegaApi::setNodeCoordinates(MegaNode *node, double latitude, double longitude, MegaRequestListener *listener)
 {
-    pImpl->setNodeCoordinates(node, latitude, longitude, listener);
+    pImpl->setNodeCoordinates(node, false, latitude, longitude, listener);
+}
+
+void MegaApi::setUnshareableNodeCoordinates(MegaNode *node, double latitude, double longitude, MegaRequestListener *listener)
+{
+    pImpl->setNodeCoordinates(node, true, latitude, longitude, listener);
 }
 
 void MegaApi::exportNode(MegaNode *node, MegaRequestListener *listener)
@@ -2128,14 +2425,24 @@ void MegaApi::fetchNodes(MegaRequestListener *listener)
     pImpl->fetchNodes(listener);
 }
 
+void MegaApi::getCloudStorageUsed(MegaRequestListener *listener)
+{
+    pImpl->getCloudStorageUsed(listener);
+}
+
 void MegaApi::getAccountDetails(MegaRequestListener *listener)
 {
-    pImpl->getAccountDetails(true, true, true, false, false, false, listener);
+    pImpl->getAccountDetails(true, true, true, false, false, false, -1, listener);
+}
+
+void MegaApi::getSpecificAccountDetails(bool storage, bool transfer, bool pro, int source, MegaRequestListener *listener)
+{
+    pImpl->getAccountDetails(storage, transfer, pro, false, false, false, source, listener);
 }
 
 void MegaApi::getExtendedAccountDetails(bool sessions, bool purchases, bool transactions, MegaRequestListener *listener)
 {
-    pImpl->getAccountDetails(true, true, true, sessions, purchases, transactions, listener);
+    pImpl->getAccountDetails(false, false, false, sessions, purchases, transactions, -1, listener);
 }
 
 void MegaApi::queryTransferQuota(long long size, MegaRequestListener *listener)
@@ -2238,6 +2545,16 @@ void MegaApi::isMasterKeyExported(MegaRequestListener *listener)
     pImpl->getUserAttr((const char*)NULL, MegaApi::USER_ATTR_PWD_REMINDER, NULL, 0, listener);
 }
 
+void MegaApi::getPushNotificationSettings(MegaRequestListener *listener)
+{
+    pImpl->getPushNotificationSettings(listener);
+}
+
+void MegaApi::setPushNotificationSettings(MegaPushNotificationSettings *settings, MegaRequestListener *listener)
+{
+    pImpl->setPushNotificationSettings(settings, listener);
+}
+
 #ifdef ENABLE_CHAT
 void MegaApi::enableRichPreviews(bool enable, MegaRequestListener *listener)
 {
@@ -2269,6 +2586,46 @@ void MegaApi::isGeolocationEnabled(MegaRequestListener *listener)
     pImpl->isGeolocationEnabled(listener);
 }
 #endif
+
+void MegaApi::setCameraUploadsFolder(MegaHandle nodehandle, MegaRequestListener *listener)
+{
+    pImpl->setCameraUploadsFolder(nodehandle, false, listener);
+}
+
+void MegaApi::setCameraUploadsFolderSecondary(MegaHandle nodehandle, MegaRequestListener *listener)
+{
+    pImpl->setCameraUploadsFolder(nodehandle, true, listener);
+}
+
+void MegaApi::getCameraUploadsFolder(MegaRequestListener *listener)
+{
+    pImpl->getCameraUploadsFolder(false, listener);
+}
+
+void MegaApi::getCameraUploadsFolderSecondary(MegaRequestListener *listener)
+{
+    pImpl->getCameraUploadsFolder(true, listener);
+}
+
+void MegaApi::setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListener *listener)
+{
+    pImpl->setMyChatFilesFolder(nodehandle, listener);
+}
+
+void MegaApi::getMyChatFilesFolder(MegaRequestListener *listener)
+{
+    pImpl->getMyChatFilesFolder(listener);
+}
+
+void MegaApi::getUserAlias(MegaHandle uh, MegaRequestListener *listener)
+{
+    pImpl->getUserAlias(uh, listener);
+}
+
+void MegaApi::setUserAlias(MegaHandle uh, const char *alias, MegaRequestListener *listener)
+{
+    pImpl->setUserAlias(uh, alias);
+}
 
 void MegaApi::getRubbishBinAutopurgePeriod(MegaRequestListener *listener)
 {
@@ -2534,17 +2891,17 @@ void MegaApi::startTimer( int64_t period, MegaRequestListener *listener)
 
 void MegaApi::startUploadWithData(const char *localPath, MegaNode *parent, const char *appData, MegaTransferListener *listener)
 {
-    pImpl->startUpload(false, localPath, parent, (const char *)NULL, -1, 0, false, appData, false, listener);
+    pImpl->startUpload(false, localPath, parent, (const char *)NULL, -1, 0, false, appData, false, false, listener);
 }
 
 void MegaApi::startUploadWithData(const char *localPath, MegaNode *parent, const char *appData, bool isSourceTemporary, MegaTransferListener *listener)
 {
-    pImpl->startUpload(false, localPath, parent, (const char *)NULL, -1, 0, false, appData, isSourceTemporary, listener);
+    pImpl->startUpload(false, localPath, parent, (const char *)NULL, -1, 0, false, appData, isSourceTemporary, false, listener);
 }
 
 void MegaApi::startUploadWithTopPriority(const char *localPath, MegaNode *parent, const char *appData, bool isSourceTemporary, MegaTransferListener *listener)
 {
-    pImpl->startUpload(true, localPath, parent, (const char *)NULL, -1, 0, false, appData, isSourceTemporary, listener);
+    pImpl->startUpload(true, localPath, parent, (const char *)NULL, -1, 0, false, appData, isSourceTemporary, false, listener);
 }
 
 void MegaApi::startUpload(const char *localPath, MegaNode *parent, int64_t mtime, MegaTransferListener *listener)
@@ -2554,7 +2911,7 @@ void MegaApi::startUpload(const char *localPath, MegaNode *parent, int64_t mtime
 
 void MegaApi::startUpload(const char *localPath, MegaNode *parent, int64_t mtime, bool isSourceTemporary, MegaTransferListener *listener)
 {
-    pImpl->startUpload(false, localPath, parent, (const char *)NULL, mtime, 0, false, NULL, isSourceTemporary, listener);
+    pImpl->startUpload(false, localPath, parent, (const char *)NULL, mtime, 0, false, NULL, isSourceTemporary, false, listener);
 }
 
 void MegaApi::startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener)
@@ -2564,7 +2921,12 @@ void MegaApi::startUpload(const char* localPath, MegaNode* parent, const char* f
 
 void MegaApi::startUpload(const char *localPath, MegaNode *parent, const char *fileName, int64_t mtime, MegaTransferListener *listener)
 {
-    pImpl->startUpload(false, localPath, parent, fileName, mtime, 0, false, NULL, false, listener);
+    pImpl->startUpload(false, localPath, parent, fileName, mtime, 0, false, NULL, false, false, listener);
+}
+
+void MegaApi::startUploadForChat(const char *localPath, MegaNode *parent, const char *appData, bool isSourceTemporary, MegaTransferListener *listener)
+{
+    pImpl->startUpload(false, localPath, parent, nullptr, -1, 0, false, appData, isSourceTemporary, true, listener);
 }
 
 void MegaApi::startDownload(MegaNode *node, const char* localFolder, MegaTransferListener *listener)
@@ -2655,6 +3017,11 @@ void MegaApi::cancelTransfers(int direction, MegaRequestListener *listener)
 void MegaApi::startStreaming(MegaNode* node, int64_t startPos, int64_t size, MegaTransferListener *listener)
 {
     pImpl->startStreaming(node, startPos, size, listener);
+}
+
+void MegaApi::setStreamingMinimumRate(int bytesPerSecond)
+{
+    pImpl->setStreamingMinimumRate(bytesPerSecond);
 }
 
 #ifdef ENABLE_SYNC
@@ -2936,19 +3303,19 @@ int MegaApi::getNumUnreadUserAlerts()
     return pImpl->getNumUnreadUserAlerts();
 }
 
-MegaNodeList* MegaApi::getInShares(MegaUser *megaUser)
+MegaNodeList* MegaApi::getInShares(MegaUser *megaUser, int order)
 {
-    return pImpl->getInShares(megaUser);
+    return pImpl->getInShares(megaUser, order);
 }
 
-MegaNodeList* MegaApi::getInShares()
+MegaNodeList* MegaApi::getInShares(int order)
 {
-    return pImpl->getInShares();
+    return pImpl->getInShares(order);
 }
 
-MegaShareList* MegaApi::getInSharesList()
+MegaShareList* MegaApi::getInSharesList(int order)
 {
-    return pImpl->getInSharesList();
+    return pImpl->getInSharesList(order);
 }
 
 MegaUser *MegaApi::getUserFromInShare(MegaNode *node)
@@ -2991,9 +3358,9 @@ bool MegaApi::isPendingShare(MegaNode *node)
     return pImpl->isPendingShare(node);
 }
 
-MegaShareList *MegaApi::getOutShares()
+MegaShareList *MegaApi::getOutShares(int order)
 {
-    return pImpl->getOutShares();
+    return pImpl->getOutShares(order);
 }
 
 MegaShareList* MegaApi::getOutShares(MegaNode *megaNode)
@@ -3011,9 +3378,9 @@ MegaShareList *MegaApi::getPendingOutShares(MegaNode *node)
     return pImpl->getPendingOutShares(node);
 }
 
-MegaNodeList *MegaApi::getPublicLinks()
+MegaNodeList *MegaApi::getPublicLinks(int order)
 {
-    return pImpl->getPublicLinks();
+    return pImpl->getPublicLinks(order);
 }
 
 MegaContactRequestList *MegaApi::getIncomingContactRequests()
@@ -3031,6 +3398,16 @@ int MegaApi::getAccess(MegaNode* megaNode)
     return pImpl->getAccess(megaNode);
 }
 
+MegaRecentActionBucketList* MegaApi::getRecentActions(unsigned days, unsigned maxnodes)
+{
+    return pImpl->getRecentActions(days, maxnodes);
+}
+
+MegaRecentActionBucketList* MegaApi::getRecentActions()
+{
+    return pImpl->getRecentActions();
+}
+
 bool MegaApi::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, bool recursive)
 {
     return pImpl->processMegaTree(n, processor, recursive);
@@ -3038,9 +3415,9 @@ bool MegaApi::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, bool re
 
 MegaNode *MegaApi::createForeignFileNode(MegaHandle handle, const char *key,
                                     const char *name, int64_t size, int64_t mtime,
-                                        MegaHandle parentHandle, const char *privateAuth, const char *publicAuth)
+                                        MegaHandle parentHandle, const char *privateAuth, const char *publicAuth, const char *chatAuth)
 {
-    return pImpl->createForeignFileNode(handle, key, name, size, mtime, parentHandle, privateAuth, publicAuth);
+    return pImpl->createForeignFileNode(handle, key, name, size, mtime, parentHandle, privateAuth, publicAuth, chatAuth);
 }
 
 void MegaApi::getLastAvailableVersion(const char *appKey, MegaRequestListener *listener)
@@ -3213,12 +3590,22 @@ char *MegaApi::base32ToBase64(const char *base32)
 
 MegaNodeList* MegaApi::search(MegaNode* n, const char* searchString, bool recursive, int order)
 {
-    return pImpl->search(n, searchString, recursive, order);
+    return pImpl->search(n, searchString, nullptr, recursive, order);
+}
+
+MegaNodeList *MegaApi::search(MegaNode *n, const char *searchString, MegaCancelToken *cancelToken, bool recursive, int order)
+{
+    return pImpl->search(n, searchString, cancelToken, recursive, order);
 }
 
 MegaNodeList *MegaApi::search(const char *searchString, int order)
 {
-    return pImpl->search(searchString, order);
+    return pImpl->search(searchString, nullptr, order);
+}
+
+MegaNodeList *MegaApi::search(const char *searchString, MegaCancelToken *cancelToken, int order)
+{
+    return pImpl->search(searchString, cancelToken, order);
 }
 
 long long MegaApi::getSize(MegaNode *n)
@@ -3227,7 +3614,7 @@ long long MegaApi::getSize(MegaNode *n)
 }
 
 char *MegaApi::getFingerprint(const char *filePath)
-{
+{   
     return pImpl->getFingerprint(filePath);
 }
 
@@ -3254,6 +3641,11 @@ MegaNode *MegaApi::getNodeByFingerprint(const char *fingerprint, MegaNode *paren
 MegaNodeList *MegaApi::getNodesByFingerprint(const char *fingerprint)
 {
     return pImpl->getNodesByFingerprint(fingerprint);
+}
+
+MegaNodeList *MegaApi::getNodesByOriginalFingerprint(const char* originalFingerprint, MegaNode* parent)
+{
+    return pImpl->getNodesByOriginalFingerprint(originalFingerprint, parent);
 }
 
 MegaNode *MegaApi::getExportableNodeByFingerprint(const char *fingerprint, const char *name)
@@ -3538,10 +3930,46 @@ void MegaApi::getMegaAchievements(MegaRequestListener *listener)
     pImpl->getMegaAchievements(listener);
 }
 
-#ifdef HAVE_LIBUV
-bool MegaApi::httpServerStart(bool localOnly, int port, bool useTLS, const char * certificatepath, const char * keypath)
+void MegaApi::catchup(MegaRequestListener *listener)
 {
-    return pImpl->httpServerStart(localOnly, port, useTLS, certificatepath, keypath);
+    pImpl->catchup(listener);
+}
+
+void MegaApi::getPublicLinkInformation(const char *megaFolderLink, MegaRequestListener *listener)
+{
+    pImpl->getPublicLinkInformation(megaFolderLink, listener);
+}
+
+MegaApiLock* MegaApi::getMegaApiLock(bool lockNow)
+{
+    return new MegaApiLock(pImpl, lockNow);
+}
+
+void MegaApi::sendSMSVerificationCode(const char* phoneNumber, MegaRequestListener *listener, bool reverifying_whitelisted)
+{
+    pImpl->sendSMSVerificationCode(phoneNumber, listener, reverifying_whitelisted);
+}
+
+void MegaApi::checkSMSVerificationCode(const char* verificationCode, MegaRequestListener *listener)
+{
+    pImpl->checkSMSVerificationCode(verificationCode, listener);
+}
+
+void MegaApi::getRegisteredContacts(const MegaStringMap* contacts, MegaRequestListener *listener)
+{
+    pImpl->getRegisteredContacts(contacts, listener);
+}
+
+void MegaApi::getCountryCallingCodes(MegaRequestListener *listener)
+{
+    pImpl->getCountryCallingCodes(listener);
+}
+
+
+#ifdef HAVE_LIBUV
+bool MegaApi::httpServerStart(bool localOnly, int port, bool useTLS, const char * certificatepath, const char * keypath, bool useIPv6)
+{
+    return pImpl->httpServerStart(localOnly, port, useTLS, certificatepath, keypath, useIPv6);
 }
 
 void MegaApi::httpServerStop()
@@ -3769,581 +4197,574 @@ char *MegaApi::getMimeType(const char *extension)
         extension++;
     }
 
-    static map<string, string> *mimeMap = NULL;
-    if (!mimeMap)
-    {
-        mimeMap = new map<string, string>();
-        (*mimeMap)["323"]="text/h323";
-        (*mimeMap)["3g2"]="video/3gpp2";
-        (*mimeMap)["3gp"]="video/3gpp";
-        (*mimeMap)["3gp2"]="video/3gpp2";
-        (*mimeMap)["3gpp"]="video/3gpp";
-        (*mimeMap)["7z"]="application/x-7z-compressed";
-        (*mimeMap)["aa"]="audio/audible";
-        (*mimeMap)["AAC"]="audio/aac";
-        (*mimeMap)["aaf"]="application/octet-stream";
-        (*mimeMap)["aax"]="audio/vnd.audible.aax";
-        (*mimeMap)["ac3"]="audio/ac3";
-        (*mimeMap)["aca"]="application/octet-stream";
-        (*mimeMap)["accda"]="application/msaccess.addin";
-        (*mimeMap)["accdb"]="application/msaccess";
-        (*mimeMap)["accdc"]="application/msaccess.cab";
-        (*mimeMap)["accde"]="application/msaccess";
-        (*mimeMap)["accdr"]="application/msaccess.runtime";
-        (*mimeMap)["accdt"]="application/msaccess";
-        (*mimeMap)["accdw"]="application/msaccess.webapplication";
-        (*mimeMap)["accft"]="application/msaccess.ftemplate";
-        (*mimeMap)["acx"]="application/internet-property-stream";
-        (*mimeMap)["AddIn"]="text/xml";
-        (*mimeMap)["ade"]="application/msaccess";
-        (*mimeMap)["adobebridge"]="application/x-bridge-url";
-        (*mimeMap)["adp"]="application/msaccess";
-        (*mimeMap)["ADT"]="audio/vnd.dlna.adts";
-        (*mimeMap)["ADTS"]="audio/aac";
-        (*mimeMap)["afm"]="application/octet-stream";
-        (*mimeMap)["ai"]="application/postscript";
-        (*mimeMap)["aif"]="audio/x-aiff";
-        (*mimeMap)["aifc"]="audio/aiff";
-        (*mimeMap)["aiff"]="audio/aiff";
-        (*mimeMap)["air"]="application/vnd.adobe.air-application-installer-package+zip";
-        (*mimeMap)["amc"]="application/x-mpeg";
-        (*mimeMap)["application"]="application/x-ms-application";
-        (*mimeMap)["art"]="image/x-jg";
-        (*mimeMap)["asa"]="application/xml";
-        (*mimeMap)["asax"]="application/xml";
-        (*mimeMap)["ascx"]="application/xml";
-        (*mimeMap)["asd"]="application/octet-stream";
-        (*mimeMap)["asf"]="video/x-ms-asf";
-        (*mimeMap)["ashx"]="application/xml";
-        (*mimeMap)["asi"]="application/octet-stream";
-        (*mimeMap)["asm"]="text/plain";
-        (*mimeMap)["asmx"]="application/xml";
-        (*mimeMap)["aspx"]="application/xml";
-        (*mimeMap)["asr"]="video/x-ms-asf";
-        (*mimeMap)["asx"]="video/x-ms-asf";
-        (*mimeMap)["atom"]="application/atom+xml";
-        (*mimeMap)["au"]="audio/basic";
-        (*mimeMap)["avi"]="video/x-msvideo";
-        (*mimeMap)["axs"]="application/olescript";
-        (*mimeMap)["bas"]="text/plain";
-        (*mimeMap)["bcpio"]="application/x-bcpio";
-        (*mimeMap)["bin"]="application/octet-stream";
-        (*mimeMap)["bmp"]="image/bmp";
-        (*mimeMap)["c"]="text/plain";
-        (*mimeMap)["cab"]="application/octet-stream";
-        (*mimeMap)["caf"]="audio/x-caf";
-        (*mimeMap)["calx"]="application/vnd.ms-office.calx";
-        (*mimeMap)["cat"]="application/vnd.ms-pki.seccat";
-        (*mimeMap)["cc"]="text/plain";
-        (*mimeMap)["cd"]="text/plain";
-        (*mimeMap)["cdda"]="audio/aiff";
-        (*mimeMap)["cdf"]="application/x-cdf";
-        (*mimeMap)["cer"]="application/x-x509-ca-cert";
-        (*mimeMap)["chm"]="application/octet-stream";
-        (*mimeMap)["class"]="application/x-java-applet";
-        (*mimeMap)["clp"]="application/x-msclip";
-        (*mimeMap)["cmx"]="image/x-cmx";
-        (*mimeMap)["cnf"]="text/plain";
-        (*mimeMap)["cod"]="image/cis-cod";
-        (*mimeMap)["config"]="application/xml";
-        (*mimeMap)["contact"]="text/x-ms-contact";
-        (*mimeMap)["coverage"]="application/xml";
-        (*mimeMap)["cpio"]="application/x-cpio";
-        (*mimeMap)["cpp"]="text/plain";
-        (*mimeMap)["crd"]="application/x-mscardfile";
-        (*mimeMap)["crl"]="application/pkix-crl";
-        (*mimeMap)["crt"]="application/x-x509-ca-cert";
-        (*mimeMap)["cs"]="text/plain";
-        (*mimeMap)["csdproj"]="text/plain";
-        (*mimeMap)["csh"]="application/x-csh";
-        (*mimeMap)["csproj"]="text/plain";
-        (*mimeMap)["css"]="text/css";
-        (*mimeMap)["csv"]="text/csv";
-        (*mimeMap)["cur"]="application/octet-stream";
-        (*mimeMap)["cxx"]="text/plain";
-        (*mimeMap)["dat"]="application/octet-stream";
-        (*mimeMap)["datasource"]="application/xml";
-        (*mimeMap)["dbproj"]="text/plain";
-        (*mimeMap)["dcr"]="application/x-director";
-        (*mimeMap)["def"]="text/plain";
-        (*mimeMap)["deploy"]="application/octet-stream";
-        (*mimeMap)["der"]="application/x-x509-ca-cert";
-        (*mimeMap)["dgml"]="application/xml";
-        (*mimeMap)["dib"]="image/bmp";
-        (*mimeMap)["dif"]="video/x-dv";
-        (*mimeMap)["dir"]="application/x-director";
-        (*mimeMap)["disco"]="text/xml";
-        (*mimeMap)["dll"]="application/x-msdownload";
-        (*mimeMap)["dll.config"]="text/xml";
-        (*mimeMap)["dlm"]="text/dlm";
-        (*mimeMap)["doc"]="application/msword";
-        (*mimeMap)["docm"]="application/vnd.ms-word.document.macroEnabled.12";
-        (*mimeMap)["docx"]="application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-        (*mimeMap)["dot"]="application/msword";
-        (*mimeMap)["dotm"]="application/vnd.ms-word.template.macroEnabled.12";
-        (*mimeMap)["dotx"]="application/vnd.openxmlformats-officedocument.wordprocessingml.template";
-        (*mimeMap)["dsp"]="application/octet-stream";
-        (*mimeMap)["dsw"]="text/plain";
-        (*mimeMap)["dtd"]="text/xml";
-        (*mimeMap)["dtsConfig"]="text/xml";
-        (*mimeMap)["dv"]="video/x-dv";
-        (*mimeMap)["dvi"]="application/x-dvi";
-        (*mimeMap)["dwf"]="drawing/x-dwf";
-        (*mimeMap)["dwp"]="application/octet-stream";
-        (*mimeMap)["dxr"]="application/x-director";
-        (*mimeMap)["eml"]="message/rfc822";
-        (*mimeMap)["emz"]="application/octet-stream";
-        (*mimeMap)["eot"]="application/octet-stream";
-        (*mimeMap)["eps"]="application/postscript";
-        (*mimeMap)["etl"]="application/etl";
-        (*mimeMap)["etx"]="text/x-setext";
-        (*mimeMap)["evy"]="application/envoy";
-        (*mimeMap)["exe"]="application/octet-stream";
-        (*mimeMap)["exe.config"]="text/xml";
-        (*mimeMap)["fdf"]="application/vnd.fdf";
-        (*mimeMap)["fif"]="application/fractals";
-        (*mimeMap)["filters"]="Application/xml";
-        (*mimeMap)["fla"]="application/octet-stream";
-        (*mimeMap)["flr"]="x-world/x-vrml";
-        (*mimeMap)["flv"]="video/x-flv";
-        (*mimeMap)["fsscript"]="application/fsharp-script";
-        (*mimeMap)["fsx"]="application/fsharp-script";
-        (*mimeMap)["generictest"]="application/xml";
-        (*mimeMap)["gif"]="image/gif";
-        (*mimeMap)["group"]="text/x-ms-group";
-        (*mimeMap)["gsm"]="audio/x-gsm";
-        (*mimeMap)["gtar"]="application/x-gtar";
-        (*mimeMap)["gz"]="application/x-gzip";
-        (*mimeMap)["h"]="text/plain";
-        (*mimeMap)["hdf"]="application/x-hdf";
-        (*mimeMap)["hdml"]="text/x-hdml";
-        (*mimeMap)["hhc"]="application/x-oleobject";
-        (*mimeMap)["hhk"]="application/octet-stream";
-        (*mimeMap)["hhp"]="application/octet-stream";
-        (*mimeMap)["hlp"]="application/winhlp";
-        (*mimeMap)["hpp"]="text/plain";
-        (*mimeMap)["hqx"]="application/mac-binhex40";
-        (*mimeMap)["hta"]="application/hta";
-        (*mimeMap)["htc"]="text/x-component";
-        (*mimeMap)["htm"]="text/html";
-        (*mimeMap)["html"]="text/html";
-        (*mimeMap)["htt"]="text/webviewhtml";
-        (*mimeMap)["hxa"]="application/xml";
-        (*mimeMap)["hxc"]="application/xml";
-        (*mimeMap)["hxd"]="application/octet-stream";
-        (*mimeMap)["hxe"]="application/xml";
-        (*mimeMap)["hxf"]="application/xml";
-        (*mimeMap)["hxh"]="application/octet-stream";
-        (*mimeMap)["hxi"]="application/octet-stream";
-        (*mimeMap)["hxk"]="application/xml";
-        (*mimeMap)["hxq"]="application/octet-stream";
-        (*mimeMap)["hxr"]="application/octet-stream";
-        (*mimeMap)["hxs"]="application/octet-stream";
-        (*mimeMap)["hxt"]="text/html";
-        (*mimeMap)["hxv"]="application/xml";
-        (*mimeMap)["hxw"]="application/octet-stream";
-        (*mimeMap)["hxx"]="text/plain";
-        (*mimeMap)["i"]="text/plain";
-        (*mimeMap)["ico"]="image/x-icon";
-        (*mimeMap)["ics"]="application/octet-stream";
-        (*mimeMap)["idl"]="text/plain";
-        (*mimeMap)["ief"]="image/ief";
-        (*mimeMap)["iii"]="application/x-iphone";
-        (*mimeMap)["inc"]="text/plain";
-        (*mimeMap)["inf"]="application/octet-stream";
-        (*mimeMap)["inl"]="text/plain";
-        (*mimeMap)["ins"]="application/x-internet-signup";
-        (*mimeMap)["ipa"]="application/x-itunes-ipa";
-        (*mimeMap)["ipg"]="application/x-itunes-ipg";
-        (*mimeMap)["ipproj"]="text/plain";
-        (*mimeMap)["ipsw"]="application/x-itunes-ipsw";
-        (*mimeMap)["iqy"]="text/x-ms-iqy";
-        (*mimeMap)["isp"]="application/x-internet-signup";
-        (*mimeMap)["ite"]="application/x-itunes-ite";
-        (*mimeMap)["itlp"]="application/x-itunes-itlp";
-        (*mimeMap)["itms"]="application/x-itunes-itms";
-        (*mimeMap)["itpc"]="application/x-itunes-itpc";
-        (*mimeMap)["IVF"]="video/x-ivf";
-        (*mimeMap)["jar"]="application/java-archive";
-        (*mimeMap)["java"]="application/octet-stream";
-        (*mimeMap)["jck"]="application/liquidmotion";
-        (*mimeMap)["jcz"]="application/liquidmotion";
-        (*mimeMap)["jfif"]="image/pjpeg";
-        (*mimeMap)["jnlp"]="application/x-java-jnlp-file";
-        (*mimeMap)["jpb"]="application/octet-stream";
-        (*mimeMap)["jpe"]="image/jpeg";
-        (*mimeMap)["jpeg"]="image/jpeg";
-        (*mimeMap)["jpg"]="image/jpeg";
-        (*mimeMap)["js"]="application/x-javascript";
-        (*mimeMap)["json"]="application/json";
-        (*mimeMap)["jsx"]="text/jscript";
-        (*mimeMap)["jsxbin"]="text/plain";
-        (*mimeMap)["latex"]="application/x-latex";
-        (*mimeMap)["library-ms"]="application/windows-library+xml";
-        (*mimeMap)["lit"]="application/x-ms-reader";
-        (*mimeMap)["loadtest"]="application/xml";
-        (*mimeMap)["lpk"]="application/octet-stream";
-        (*mimeMap)["lsf"]="video/x-la-asf";
-        (*mimeMap)["lst"]="text/plain";
-        (*mimeMap)["lsx"]="video/x-la-asf";
-        (*mimeMap)["lzh"]="application/octet-stream";
-        (*mimeMap)["m13"]="application/x-msmediaview";
-        (*mimeMap)["m14"]="application/x-msmediaview";
-        (*mimeMap)["m1v"]="video/mpeg";
-        (*mimeMap)["m2t"]="video/vnd.dlna.mpeg-tts";
-        (*mimeMap)["m2ts"]="video/vnd.dlna.mpeg-tts";
-        (*mimeMap)["m2v"]="video/mpeg";
-        (*mimeMap)["m3u"]="audio/x-mpegurl";
-        (*mimeMap)["m3u8"]="audio/x-mpegurl";
-        (*mimeMap)["m4a"]="audio/m4a";
-        (*mimeMap)["m4b"]="audio/m4b";
-        (*mimeMap)["m4p"]="audio/m4p";
-        (*mimeMap)["m4r"]="audio/x-m4r";
-        (*mimeMap)["m4v"]="video/x-m4v";
-        (*mimeMap)["mac"]="image/x-macpaint";
-        (*mimeMap)["mak"]="text/plain";
-        (*mimeMap)["man"]="application/x-troff-man";
-        (*mimeMap)["manifest"]="application/x-ms-manifest";
-        (*mimeMap)["map"]="text/plain";
-        (*mimeMap)["master"]="application/xml";
-        (*mimeMap)["mda"]="application/msaccess";
-        (*mimeMap)["mdb"]="application/x-msaccess";
-        (*mimeMap)["mde"]="application/msaccess";
-        (*mimeMap)["mdp"]="application/octet-stream";
-        (*mimeMap)["me"]="application/x-troff-me";
-        (*mimeMap)["mfp"]="application/x-shockwave-flash";
-        (*mimeMap)["mht"]="message/rfc822";
-        (*mimeMap)["mhtml"]="message/rfc822";
-        (*mimeMap)["mid"]="audio/mid";
-        (*mimeMap)["midi"]="audio/mid";
-        (*mimeMap)["mix"]="application/octet-stream";
-        (*mimeMap)["mk"]="text/plain";
-        (*mimeMap)["mmf"]="application/x-smaf";
-        (*mimeMap)["mno"]="text/xml";
-        (*mimeMap)["mny"]="application/x-msmoney";
-        (*mimeMap)["mod"]="video/mpeg";
-        (*mimeMap)["mov"]="video/quicktime";
-        (*mimeMap)["movie"]="video/x-sgi-movie";
-        (*mimeMap)["mp2"]="video/mpeg";
-        (*mimeMap)["mp2v"]="video/mpeg";
-        (*mimeMap)["mp3"]="audio/mpeg";
-        (*mimeMap)["mp4"]="video/mp4";
-        (*mimeMap)["mp4v"]="video/mp4";
-        (*mimeMap)["mpa"]="video/mpeg";
-        (*mimeMap)["mpe"]="video/mpeg";
-        (*mimeMap)["mpeg"]="video/mpeg";
-        (*mimeMap)["mpf"]="application/vnd.ms-mediapackage";
-        (*mimeMap)["mpg"]="video/mpeg";
-        (*mimeMap)["mpp"]="application/vnd.ms-project";
-        (*mimeMap)["mpv2"]="video/mpeg";
-        (*mimeMap)["mqv"]="video/quicktime";
-        (*mimeMap)["ms"]="application/x-troff-ms";
-        (*mimeMap)["msi"]="application/octet-stream";
-        (*mimeMap)["mso"]="application/octet-stream";
-        (*mimeMap)["mts"]="video/vnd.dlna.mpeg-tts";
-        (*mimeMap)["mtx"]="application/xml";
-        (*mimeMap)["mvb"]="application/x-msmediaview";
-        (*mimeMap)["mvc"]="application/x-miva-compiled";
-        (*mimeMap)["mxp"]="application/x-mmxp";
-        (*mimeMap)["nc"]="application/x-netcdf";
-        (*mimeMap)["nsc"]="video/x-ms-asf";
-        (*mimeMap)["nws"]="message/rfc822";
-        (*mimeMap)["ocx"]="application/octet-stream";
-        (*mimeMap)["oda"]="application/oda";
-        (*mimeMap)["odc"]="text/x-ms-odc";
-        (*mimeMap)["odh"]="text/plain";
-        (*mimeMap)["odl"]="text/plain";
-        (*mimeMap)["odp"]="application/vnd.oasis.opendocument.presentation";
-        (*mimeMap)["ods"]="application/oleobject";
-        (*mimeMap)["odt"]="application/vnd.oasis.opendocument.text";
-        (*mimeMap)["one"]="application/onenote";
-        (*mimeMap)["onea"]="application/onenote";
-        (*mimeMap)["onepkg"]="application/onenote";
-        (*mimeMap)["onetmp"]="application/onenote";
-        (*mimeMap)["onetoc"]="application/onenote";
-        (*mimeMap)["onetoc2"]="application/onenote";
-        (*mimeMap)["orderedtest"]="application/xml";
-        (*mimeMap)["osdx"]="application/opensearchdescription+xml";
-        (*mimeMap)["p10"]="application/pkcs10";
-        (*mimeMap)["p12"]="application/x-pkcs12";
-        (*mimeMap)["p7b"]="application/x-pkcs7-certificates";
-        (*mimeMap)["p7c"]="application/pkcs7-mime";
-        (*mimeMap)["p7m"]="application/pkcs7-mime";
-        (*mimeMap)["p7r"]="application/x-pkcs7-certreqresp";
-        (*mimeMap)["p7s"]="application/pkcs7-signature";
-        (*mimeMap)["pbm"]="image/x-portable-bitmap";
-        (*mimeMap)["pcast"]="application/x-podcast";
-        (*mimeMap)["pct"]="image/pict";
-        (*mimeMap)["pcx"]="application/octet-stream";
-        (*mimeMap)["pcz"]="application/octet-stream";
-        (*mimeMap)["pdf"]="application/pdf";
-        (*mimeMap)["pfb"]="application/octet-stream";
-        (*mimeMap)["pfm"]="application/octet-stream";
-        (*mimeMap)["pfx"]="application/x-pkcs12";
-        (*mimeMap)["pgm"]="image/x-portable-graymap";
-        (*mimeMap)["pic"]="image/pict";
-        (*mimeMap)["pict"]="image/pict";
-        (*mimeMap)["pkgdef"]="text/plain";
-        (*mimeMap)["pkgundef"]="text/plain";
-        (*mimeMap)["pko"]="application/vnd.ms-pki.pko";
-        (*mimeMap)["pls"]="audio/scpls";
-        (*mimeMap)["pma"]="application/x-perfmon";
-        (*mimeMap)["pmc"]="application/x-perfmon";
-        (*mimeMap)["pml"]="application/x-perfmon";
-        (*mimeMap)["pmr"]="application/x-perfmon";
-        (*mimeMap)["pmw"]="application/x-perfmon";
-        (*mimeMap)["png"]="image/png";
-        (*mimeMap)["pnm"]="image/x-portable-anymap";
-        (*mimeMap)["pnt"]="image/x-macpaint";
-        (*mimeMap)["pntg"]="image/x-macpaint";
-        (*mimeMap)["pnz"]="image/png";
-        (*mimeMap)["pot"]="application/vnd.ms-powerpoint";
-        (*mimeMap)["potm"]="application/vnd.ms-powerpoint.template.macroEnabled.12";
-        (*mimeMap)["potx"]="application/vnd.openxmlformats-officedocument.presentationml.template";
-        (*mimeMap)["ppa"]="application/vnd.ms-powerpoint";
-        (*mimeMap)["ppam"]="application/vnd.ms-powerpoint.addin.macroEnabled.12";
-        (*mimeMap)["ppm"]="image/x-portable-pixmap";
-        (*mimeMap)["pps"]="application/vnd.ms-powerpoint";
-        (*mimeMap)["ppsm"]="application/vnd.ms-powerpoint.slideshow.macroEnabled.12";
-        (*mimeMap)["ppsx"]="application/vnd.openxmlformats-officedocument.presentationml.slideshow";
-        (*mimeMap)["ppt"]="application/vnd.ms-powerpoint";
-        (*mimeMap)["pptm"]="application/vnd.ms-powerpoint.presentation.macroEnabled.12";
-        (*mimeMap)["pptx"]="application/vnd.openxmlformats-officedocument.presentationml.presentation";
-        (*mimeMap)["prf"]="application/pics-rules";
-        (*mimeMap)["prm"]="application/octet-stream";
-        (*mimeMap)["prx"]="application/octet-stream";
-        (*mimeMap)["ps"]="application/postscript";
-        (*mimeMap)["psc1"]="application/PowerShell";
-        (*mimeMap)["psd"]="application/octet-stream";
-        (*mimeMap)["psess"]="application/xml";
-        (*mimeMap)["psm"]="application/octet-stream";
-        (*mimeMap)["psp"]="application/octet-stream";
-        (*mimeMap)["pub"]="application/x-mspublisher";
-        (*mimeMap)["pwz"]="application/vnd.ms-powerpoint";
-        (*mimeMap)["qht"]="text/x-html-insertion";
-        (*mimeMap)["qhtm"]="text/x-html-insertion";
-        (*mimeMap)["qt"]="video/quicktime";
-        (*mimeMap)["qti"]="image/x-quicktime";
-        (*mimeMap)["qtif"]="image/x-quicktime";
-        (*mimeMap)["qtl"]="application/x-quicktimeplayer";
-        (*mimeMap)["qxd"]="application/octet-stream";
-        (*mimeMap)["ra"]="audio/x-pn-realaudio";
-        (*mimeMap)["ram"]="audio/x-pn-realaudio";
-        (*mimeMap)["rar"]="application/octet-stream";
-        (*mimeMap)["ras"]="image/x-cmu-raster";
-        (*mimeMap)["rat"]="application/rat-file";
-        (*mimeMap)["rc"]="text/plain";
-        (*mimeMap)["rc2"]="text/plain";
-        (*mimeMap)["rct"]="text/plain";
-        (*mimeMap)["rdlc"]="application/xml";
-        (*mimeMap)["resx"]="application/xml";
-        (*mimeMap)["rf"]="image/vnd.rn-realflash";
-        (*mimeMap)["rgb"]="image/x-rgb";
-        (*mimeMap)["rgs"]="text/plain";
-        (*mimeMap)["rm"]="application/vnd.rn-realmedia";
-        (*mimeMap)["rmi"]="audio/mid";
-        (*mimeMap)["rmp"]="application/vnd.rn-rn_music_package";
-        (*mimeMap)["roff"]="application/x-troff";
-        (*mimeMap)["rpm"]="audio/x-pn-realaudio-plugin";
-        (*mimeMap)["rqy"]="text/x-ms-rqy";
-        (*mimeMap)["rtf"]="application/rtf";
-        (*mimeMap)["rtx"]="text/richtext";
-        (*mimeMap)["ruleset"]="application/xml";
-        (*mimeMap)["s"]="text/plain";
-        (*mimeMap)["safariextz"]="application/x-safari-safariextz";
-        (*mimeMap)["scd"]="application/x-msschedule";
-        (*mimeMap)["sct"]="text/scriptlet";
-        (*mimeMap)["sd2"]="audio/x-sd2";
-        (*mimeMap)["sdp"]="application/sdp";
-        (*mimeMap)["sea"]="application/octet-stream";
-        (*mimeMap)["searchConnector-ms"]="application/windows-search-connector+xml";
-        (*mimeMap)["setpay"]="application/set-payment-initiation";
-        (*mimeMap)["setreg"]="application/set-registration-initiation";
-        (*mimeMap)["settings"]="application/xml";
-        (*mimeMap)["sgimb"]="application/x-sgimb";
-        (*mimeMap)["sgml"]="text/sgml";
-        (*mimeMap)["sh"]="application/x-sh";
-        (*mimeMap)["shar"]="application/x-shar";
-        (*mimeMap)["shtml"]="text/html";
-        (*mimeMap)["sit"]="application/x-stuffit";
-        (*mimeMap)["sitemap"]="application/xml";
-        (*mimeMap)["skin"]="application/xml";
-        (*mimeMap)["sldm"]="application/vnd.ms-powerpoint.slide.macroEnabled.12";
-        (*mimeMap)["sldx"]="application/vnd.openxmlformats-officedocument.presentationml.slide";
-        (*mimeMap)["slk"]="application/vnd.ms-excel";
-        (*mimeMap)["sln"]="text/plain";
-        (*mimeMap)["slupkg-ms"]="application/x-ms-license";
-        (*mimeMap)["smd"]="audio/x-smd";
-        (*mimeMap)["smi"]="application/octet-stream";
-        (*mimeMap)["smx"]="audio/x-smd";
-        (*mimeMap)["smz"]="audio/x-smd";
-        (*mimeMap)["snd"]="audio/basic";
-        (*mimeMap)["snippet"]="application/xml";
-        (*mimeMap)["snp"]="application/octet-stream";
-        (*mimeMap)["sol"]="text/plain";
-        (*mimeMap)["sor"]="text/plain";
-        (*mimeMap)["spc"]="application/x-pkcs7-certificates";
-        (*mimeMap)["spl"]="application/futuresplash";
-        (*mimeMap)["src"]="application/x-wais-source";
-        (*mimeMap)["srf"]="text/plain";
-        (*mimeMap)["SSISDeploymentManifest"]="text/xml";
-        (*mimeMap)["ssm"]="application/streamingmedia";
-        (*mimeMap)["sst"]="application/vnd.ms-pki.certstore";
-        (*mimeMap)["stl"]="application/vnd.ms-pki.stl";
-        (*mimeMap)["sv4cpio"]="application/x-sv4cpio";
-        (*mimeMap)["sv4crc"]="application/x-sv4crc";
-        (*mimeMap)["svc"]="application/xml";
-        (*mimeMap)["swf"]="application/x-shockwave-flash";
-        (*mimeMap)["t"]="application/x-troff";
-        (*mimeMap)["tar"]="application/x-tar";
-        (*mimeMap)["tcl"]="application/x-tcl";
-        (*mimeMap)["testrunconfig"]="application/xml";
-        (*mimeMap)["testsettings"]="application/xml";
-        (*mimeMap)["tex"]="application/x-tex";
-        (*mimeMap)["texi"]="application/x-texinfo";
-        (*mimeMap)["texinfo"]="application/x-texinfo";
-        (*mimeMap)["tgz"]="application/x-compressed";
-        (*mimeMap)["thmx"]="application/vnd.ms-officetheme";
-        (*mimeMap)["thn"]="application/octet-stream";
-        (*mimeMap)["tif"]="image/tiff";
-        (*mimeMap)["tiff"]="image/tiff";
-        (*mimeMap)["tlh"]="text/plain";
-        (*mimeMap)["tli"]="text/plain";
-        (*mimeMap)["toc"]="application/octet-stream";
-        (*mimeMap)["tr"]="application/x-troff";
-        (*mimeMap)["trm"]="application/x-msterminal";
-        (*mimeMap)["trx"]="application/xml";
-        (*mimeMap)["ts"]="video/vnd.dlna.mpeg-tts";
-        (*mimeMap)["tsv"]="text/tab-separated-values";
-        (*mimeMap)["ttf"]="application/octet-stream";
-        (*mimeMap)["tts"]="video/vnd.dlna.mpeg-tts";
-        (*mimeMap)["txt"]="text/plain";
-        (*mimeMap)["u32"]="application/octet-stream";
-        (*mimeMap)["uls"]="text/iuls";
-        (*mimeMap)["user"]="text/plain";
-        (*mimeMap)["ustar"]="application/x-ustar";
-        (*mimeMap)["vb"]="text/plain";
-        (*mimeMap)["vbdproj"]="text/plain";
-        (*mimeMap)["vbk"]="video/mpeg";
-        (*mimeMap)["vbproj"]="text/plain";
-        (*mimeMap)["vbs"]="text/vbscript";
-        (*mimeMap)["vcf"]="text/x-vcard";
-        (*mimeMap)["vcproj"]="Application/xml";
-        (*mimeMap)["vcs"]="text/plain";
-        (*mimeMap)["vcxproj"]="Application/xml";
-        (*mimeMap)["vddproj"]="text/plain";
-        (*mimeMap)["vdp"]="text/plain";
-        (*mimeMap)["vdproj"]="text/plain";
-        (*mimeMap)["vdx"]="application/vnd.ms-visio.viewer";
-        (*mimeMap)["vml"]="text/xml";
-        (*mimeMap)["vscontent"]="application/xml";
-        (*mimeMap)["vsct"]="text/xml";
-        (*mimeMap)["vsd"]="application/vnd.visio";
-        (*mimeMap)["vsi"]="application/ms-vsi";
-        (*mimeMap)["vsix"]="application/vsix";
-        (*mimeMap)["vsixlangpack"]="text/xml";
-        (*mimeMap)["vsixmanifest"]="text/xml";
-        (*mimeMap)["vsmdi"]="application/xml";
-        (*mimeMap)["vspscc"]="text/plain";
-        (*mimeMap)["vss"]="application/vnd.visio";
-        (*mimeMap)["vsscc"]="text/plain";
-        (*mimeMap)["vssettings"]="text/xml";
-        (*mimeMap)["vssscc"]="text/plain";
-        (*mimeMap)["vst"]="application/vnd.visio";
-        (*mimeMap)["vstemplate"]="text/xml";
-        (*mimeMap)["vsto"]="application/x-ms-vsto";
-        (*mimeMap)["vsw"]="application/vnd.visio";
-        (*mimeMap)["vsx"]="application/vnd.visio";
-        (*mimeMap)["vtx"]="application/vnd.visio";
-        (*mimeMap)["wav"]="audio/wav";
-        (*mimeMap)["wave"]="audio/wav";
-        (*mimeMap)["wax"]="audio/x-ms-wax";
-        (*mimeMap)["wbk"]="application/msword";
-        (*mimeMap)["wbmp"]="image/vnd.wap.wbmp";
-        (*mimeMap)["wcm"]="application/vnd.ms-works";
-        (*mimeMap)["wdb"]="application/vnd.ms-works";
-        (*mimeMap)["wdp"]="image/vnd.ms-photo";
-        (*mimeMap)["webarchive"]="application/x-safari-webarchive";
-        (*mimeMap)["webtest"]="application/xml";
-        (*mimeMap)["wiq"]="application/xml";
-        (*mimeMap)["wiz"]="application/msword";
-        (*mimeMap)["wks"]="application/vnd.ms-works";
-        (*mimeMap)["WLMP"]="application/wlmoviemaker";
-        (*mimeMap)["wlpginstall"]="application/x-wlpg-detect";
-        (*mimeMap)["wlpginstall3"]="application/x-wlpg3-detect";
-        (*mimeMap)["wm"]="video/x-ms-wm";
-        (*mimeMap)["wma"]="audio/x-ms-wma";
-        (*mimeMap)["wmd"]="application/x-ms-wmd";
-        (*mimeMap)["wmf"]="application/x-msmetafile";
-        (*mimeMap)["wml"]="text/vnd.wap.wml";
-        (*mimeMap)["wmlc"]="application/vnd.wap.wmlc";
-        (*mimeMap)["wmls"]="text/vnd.wap.wmlscript";
-        (*mimeMap)["wmlsc"]="application/vnd.wap.wmlscriptc";
-        (*mimeMap)["wmp"]="video/x-ms-wmp";
-        (*mimeMap)["wmv"]="video/x-ms-wmv";
-        (*mimeMap)["wmx"]="video/x-ms-wmx";
-        (*mimeMap)["wmz"]="application/x-ms-wmz";
-        (*mimeMap)["wpl"]="application/vnd.ms-wpl";
-        (*mimeMap)["wps"]="application/vnd.ms-works";
-        (*mimeMap)["wri"]="application/x-mswrite";
-        (*mimeMap)["wrl"]="x-world/x-vrml";
-        (*mimeMap)["wrz"]="x-world/x-vrml";
-        (*mimeMap)["wsc"]="text/scriptlet";
-        (*mimeMap)["wsdl"]="text/xml";
-        (*mimeMap)["wvx"]="video/x-ms-wvx";
-        (*mimeMap)["x"]="application/directx";
-        (*mimeMap)["xaf"]="x-world/x-vrml";
-        (*mimeMap)["xaml"]="application/xaml+xml";
-        (*mimeMap)["xap"]="application/x-silverlight-app";
-        (*mimeMap)["xbap"]="application/x-ms-xbap";
-        (*mimeMap)["xbm"]="image/x-xbitmap";
-        (*mimeMap)["xdr"]="text/plain";
-        (*mimeMap)["xht"]="application/xhtml+xml";
-        (*mimeMap)["xhtml"]="application/xhtml+xml";
-        (*mimeMap)["xla"]="application/vnd.ms-excel";
-        (*mimeMap)["xlam"]="application/vnd.ms-excel.addin.macroEnabled.12";
-        (*mimeMap)["xlc"]="application/vnd.ms-excel";
-        (*mimeMap)["xld"]="application/vnd.ms-excel";
-        (*mimeMap)["xlk"]="application/vnd.ms-excel";
-        (*mimeMap)["xll"]="application/vnd.ms-excel";
-        (*mimeMap)["xlm"]="application/vnd.ms-excel";
-        (*mimeMap)["xls"]="application/vnd.ms-excel";
-        (*mimeMap)["xlsb"]="application/vnd.ms-excel.sheet.binary.macroEnabled.12";
-        (*mimeMap)["xlsm"]="application/vnd.ms-excel.sheet.macroEnabled.12";
-        (*mimeMap)["xlsx"]="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-        (*mimeMap)["xlt"]="application/vnd.ms-excel";
-        (*mimeMap)["xltm"]="application/vnd.ms-excel.template.macroEnabled.12";
-        (*mimeMap)["xltx"]="application/vnd.openxmlformats-officedocument.spreadsheetml.template";
-        (*mimeMap)["xlw"]="application/vnd.ms-excel";
-        (*mimeMap)["xml"]="text/xml";
-        (*mimeMap)["xmta"]="application/xml";
-        (*mimeMap)["xof"]="x-world/x-vrml";
-        (*mimeMap)["XOML"]="text/plain";
-        (*mimeMap)["xpm"]="image/x-xpixmap";
-        (*mimeMap)["xps"]="application/vnd.ms-xpsdocument";
-        (*mimeMap)["xrm-ms"]="text/xml";
-        (*mimeMap)["xsc"]="application/xml";
-        (*mimeMap)["xsd"]="text/xml";
-        (*mimeMap)["xsf"]="text/xml";
-        (*mimeMap)["xsl"]="text/xml";
-        (*mimeMap)["xslt"]="text/xml";
-        (*mimeMap)["xsn"]="application/octet-stream";
-        (*mimeMap)["xss"]="application/xml";
-        (*mimeMap)["xtp"]="application/octet-stream";
-        (*mimeMap)["xwd"]="image/x-xwindowdump";
-        (*mimeMap)["z"]="application/x-compress";
-        (*mimeMap)["zip"]="application/x-zip-compressed";
-    }
+    static const map<string, string> mimeMap{
+        // from c++11, this sort of static local initialization is one-time and thread safe
+        {"323", "text/h323"},
+        {"3g2", "video/3gpp2"},
+        {"3gp", "video/3gpp"},
+        {"3gp2", "video/3gpp2"},
+        {"3gpp", "video/3gpp"},
+        {"7z", "application/x-7z-compressed"},
+        {"aa", "audio/audible"},
+        {"AAC", "audio/aac"},
+        {"aaf", "application/octet-stream"},
+        {"aax", "audio/vnd.audible.aax"},
+        {"ac3", "audio/ac3"},
+        {"aca", "application/octet-stream"},
+        {"accda", "application/msaccess.addin"},
+        {"accdb", "application/msaccess"},
+        {"accdc", "application/msaccess.cab"},
+        {"accde", "application/msaccess"},
+        {"accdr", "application/msaccess.runtime"},
+        {"accdt", "application/msaccess"},
+        {"accdw", "application/msaccess.webapplication"},
+        {"accft", "application/msaccess.ftemplate"},
+        {"acx", "application/internet-property-stream"},
+        {"AddIn", "text/xml"},
+        {"ade", "application/msaccess"},
+        {"adobebridge", "application/x-bridge-url"},
+        {"adp", "application/msaccess"},
+        {"ADT", "audio/vnd.dlna.adts"},
+        {"ADTS", "audio/aac"},
+        {"afm", "application/octet-stream"},
+        {"ai", "application/postscript"},
+        {"aif", "audio/x-aiff"},
+        {"aifc", "audio/aiff"},
+        {"aiff", "audio/aiff"},
+        {"air", "application/vnd.adobe.air-application-installer-package+zip"},
+        {"amc", "application/x-mpeg"},
+        {"application", "application/x-ms-application"},
+        {"art", "image/x-jg"},
+        {"asa", "application/xml"},
+        {"asax", "application/xml"},
+        {"ascx", "application/xml"},
+        {"asd", "application/octet-stream"},
+        {"asf", "video/x-ms-asf"},
+        {"ashx", "application/xml"},
+        {"asi", "application/octet-stream"},
+        {"asm", "text/plain"},
+        {"asmx", "application/xml"},
+        {"aspx", "application/xml"},
+        {"asr", "video/x-ms-asf"},
+        {"asx", "video/x-ms-asf"},
+        {"atom", "application/atom+xml"},
+        {"au", "audio/basic"},
+        {"avi", "video/x-msvideo"},
+        {"axs", "application/olescript"},
+        {"bas", "text/plain"},
+        {"bcpio", "application/x-bcpio"},
+        {"bin", "application/octet-stream"},
+        {"bmp", "image/bmp"},
+        {"c", "text/plain"},
+        {"cab", "application/octet-stream"},
+        {"caf", "audio/x-caf"},
+        {"calx", "application/vnd.ms-office.calx"},
+        {"cat", "application/vnd.ms-pki.seccat"},
+        {"cc", "text/plain"},
+        {"cd", "text/plain"},
+        {"cdda", "audio/aiff"},
+        {"cdf", "application/x-cdf"},
+        {"cer", "application/x-x509-ca-cert"},
+        {"chm", "application/octet-stream"},
+        {"class", "application/x-java-applet"},
+        {"clp", "application/x-msclip"},
+        {"cmx", "image/x-cmx"},
+        {"cnf", "text/plain"},
+        {"cod", "image/cis-cod"},
+        {"config", "application/xml"},
+        {"contact", "text/x-ms-contact"},
+        {"coverage", "application/xml"},
+        {"cpio", "application/x-cpio"},
+        {"cpp", "text/plain"},
+        {"crd", "application/x-mscardfile"},
+        {"crl", "application/pkix-crl"},
+        {"crt", "application/x-x509-ca-cert"},
+        {"cs", "text/plain"},
+        {"csdproj", "text/plain"},
+        {"csh", "application/x-csh"},
+        {"csproj", "text/plain"},
+        {"css", "text/css"},
+        {"csv", "text/csv"},
+        {"cur", "application/octet-stream"},
+        {"cxx", "text/plain"},
+        {"dat", "application/octet-stream"},
+        {"datasource", "application/xml"},
+        {"dbproj", "text/plain"},
+        {"dcr", "application/x-director"},
+        {"def", "text/plain"},
+        {"deploy", "application/octet-stream"},
+        {"der", "application/x-x509-ca-cert"},
+        {"dgml", "application/xml"},
+        {"dib", "image/bmp"},
+        {"dif", "video/x-dv"},
+        {"dir", "application/x-director"},
+        {"disco", "text/xml"},
+        {"dll", "application/x-msdownload"},
+        {"dll.config", "text/xml"},
+        {"dlm", "text/dlm"},
+        {"doc", "application/msword"},
+        {"docm", "application/vnd.ms-word.document.macroEnabled.12"},
+        {"docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"},
+        {"dot", "application/msword"},
+        {"dotm", "application/vnd.ms-word.template.macroEnabled.12"},
+        {"dotx", "application/vnd.openxmlformats-officedocument.wordprocessingml.template"},
+        {"dsp", "application/octet-stream"},
+        {"dsw", "text/plain"},
+        {"dtd", "text/xml"},
+        {"dtsConfig", "text/xml"},
+        {"dv", "video/x-dv"},
+        {"dvi", "application/x-dvi"},
+        {"dwf", "drawing/x-dwf"},
+        {"dwp", "application/octet-stream"},
+        {"dxr", "application/x-director"},
+        {"eml", "message/rfc822"},
+        {"emz", "application/octet-stream"},
+        {"eot", "application/octet-stream"},
+        {"eps", "application/postscript"},
+        {"etl", "application/etl"},
+        {"etx", "text/x-setext"},
+        {"evy", "application/envoy"},
+        {"exe", "application/octet-stream"},
+        {"exe.config", "text/xml"},
+        {"fdf", "application/vnd.fdf"},
+        {"fif", "application/fractals"},
+        {"filters", "Application/xml"},
+        {"fla", "application/octet-stream"},
+        {"flr", "x-world/x-vrml"},
+        {"flv", "video/x-flv"},
+        {"fsscript", "application/fsharp-script"},
+        {"fsx", "application/fsharp-script"},
+        {"generictest", "application/xml"},
+        {"gif", "image/gif"},
+        {"group", "text/x-ms-group"},
+        {"gsm", "audio/x-gsm"},
+        {"gtar", "application/x-gtar"},
+        {"gz", "application/x-gzip"},
+        {"h", "text/plain"},
+        {"hdf", "application/x-hdf"},
+        {"hdml", "text/x-hdml"},
+        {"hhc", "application/x-oleobject"},
+        {"hhk", "application/octet-stream"},
+        {"hhp", "application/octet-stream"},
+        {"hlp", "application/winhlp"},
+        {"hpp", "text/plain"},
+        {"hqx", "application/mac-binhex40"},
+        {"hta", "application/hta"},
+        {"htc", "text/x-component"},
+        {"htm", "text/html"},
+        {"html", "text/html"},
+        {"htt", "text/webviewhtml"},
+        {"hxa", "application/xml"},
+        {"hxc", "application/xml"},
+        {"hxd", "application/octet-stream"},
+        {"hxe", "application/xml"},
+        {"hxf", "application/xml"},
+        {"hxh", "application/octet-stream"},
+        {"hxi", "application/octet-stream"},
+        {"hxk", "application/xml"},
+        {"hxq", "application/octet-stream"},
+        {"hxr", "application/octet-stream"},
+        {"hxs", "application/octet-stream"},
+        {"hxt", "text/html"},
+        {"hxv", "application/xml"},
+        {"hxw", "application/octet-stream"},
+        {"hxx", "text/plain"},
+        {"i", "text/plain"},
+        {"ico", "image/x-icon"},
+        {"ics", "application/octet-stream"},
+        {"idl", "text/plain"},
+        {"ief", "image/ief"},
+        {"iii", "application/x-iphone"},
+        {"inc", "text/plain"},
+        {"inf", "application/octet-stream"},
+        {"inl", "text/plain"},
+        {"ins", "application/x-internet-signup"},
+        {"ipa", "application/x-itunes-ipa"},
+        {"ipg", "application/x-itunes-ipg"},
+        {"ipproj", "text/plain"},
+        {"ipsw", "application/x-itunes-ipsw"},
+        {"iqy", "text/x-ms-iqy"},
+        {"isp", "application/x-internet-signup"},
+        {"ite", "application/x-itunes-ite"},
+        {"itlp", "application/x-itunes-itlp"},
+        {"itms", "application/x-itunes-itms"},
+        {"itpc", "application/x-itunes-itpc"},
+        {"IVF", "video/x-ivf"},
+        {"jar", "application/java-archive"},
+        {"java", "application/octet-stream"},
+        {"jck", "application/liquidmotion"},
+        {"jcz", "application/liquidmotion"},
+        {"jfif", "image/pjpeg"},
+        {"jnlp", "application/x-java-jnlp-file"},
+        {"jpb", "application/octet-stream"},
+        {"jpe", "image/jpeg"},
+        {"jpeg", "image/jpeg"},
+        {"jpg", "image/jpeg"},
+        {"js", "application/x-javascript"},
+        {"json", "application/json"},
+        {"jsx", "text/jscript"},
+        {"jsxbin", "text/plain"},
+        {"latex", "application/x-latex"},
+        {"library-ms", "application/windows-library+xml"},
+        {"lit", "application/x-ms-reader"},
+        {"loadtest", "application/xml"},
+        {"lpk", "application/octet-stream"},
+        {"lsf", "video/x-la-asf"},
+        {"lst", "text/plain"},
+        {"lsx", "video/x-la-asf"},
+        {"lzh", "application/octet-stream"},
+        {"m13", "application/x-msmediaview"},
+        {"m14", "application/x-msmediaview"},
+        {"m1v", "video/mpeg"},
+        {"m2t", "video/vnd.dlna.mpeg-tts"},
+        {"m2ts", "video/vnd.dlna.mpeg-tts"},
+        {"m2v", "video/mpeg"},
+        {"m3u", "audio/x-mpegurl"},
+        {"m3u8", "audio/x-mpegurl"},
+        {"m4a", "audio/m4a"},
+        {"m4b", "audio/m4b"},
+        {"m4p", "audio/m4p"},
+        {"m4r", "audio/x-m4r"},
+        {"m4v", "video/x-m4v"},
+        {"mac", "image/x-macpaint"},
+        {"mak", "text/plain"},
+        {"man", "application/x-troff-man"},
+        {"manifest", "application/x-ms-manifest"},
+        {"map", "text/plain"},
+        {"master", "application/xml"},
+        {"mda", "application/msaccess"},
+        {"mdb", "application/x-msaccess"},
+        {"mde", "application/msaccess"},
+        {"mdp", "application/octet-stream"},
+        {"me", "application/x-troff-me"},
+        {"mfp", "application/x-shockwave-flash"},
+        {"mht", "message/rfc822"},
+        {"mhtml", "message/rfc822"},
+        {"mid", "audio/mid"},
+        {"midi", "audio/mid"},
+        {"mix", "application/octet-stream"},
+        {"mk", "text/plain"},
+        {"mmf", "application/x-smaf"},
+        {"mno", "text/xml"},
+        {"mny", "application/x-msmoney"},
+        {"mod", "video/mpeg"},
+        {"mov", "video/quicktime"},
+        {"movie", "video/x-sgi-movie"},
+        {"mp2", "video/mpeg"},
+        {"mp2v", "video/mpeg"},
+        {"mp3", "audio/mpeg"},
+        {"mp4", "video/mp4"},
+        {"mp4v", "video/mp4"},
+        {"mpa", "video/mpeg"},
+        {"mpe", "video/mpeg"},
+        {"mpeg", "video/mpeg"},
+        {"mpf", "application/vnd.ms-mediapackage"},
+        {"mpg", "video/mpeg"},
+        {"mpp", "application/vnd.ms-project"},
+        {"mpv2", "video/mpeg"},
+        {"mqv", "video/quicktime"},
+        {"ms", "application/x-troff-ms"},
+        {"msi", "application/octet-stream"},
+        {"mso", "application/octet-stream"},
+        {"mts", "video/vnd.dlna.mpeg-tts"},
+        {"mtx", "application/xml"},
+        {"mvb", "application/x-msmediaview"},
+        {"mvc", "application/x-miva-compiled"},
+        {"mxp", "application/x-mmxp"},
+        {"nc", "application/x-netcdf"},
+        {"nsc", "video/x-ms-asf"},
+        {"nws", "message/rfc822"},
+        {"ocx", "application/octet-stream"},
+        {"oda", "application/oda"},
+        {"odc", "text/x-ms-odc"},
+        {"odh", "text/plain"},
+        {"odl", "text/plain"},
+        {"odp", "application/vnd.oasis.opendocument.presentation"},
+        {"ods", "application/oleobject"},
+        {"odt", "application/vnd.oasis.opendocument.text"},
+        {"one", "application/onenote"},
+        {"onea", "application/onenote"},
+        {"onepkg", "application/onenote"},
+        {"onetmp", "application/onenote"},
+        {"onetoc", "application/onenote"},
+        {"onetoc2", "application/onenote"},
+        {"orderedtest", "application/xml"},
+        {"osdx", "application/opensearchdescription+xml"},
+        {"p10", "application/pkcs10"},
+        {"p12", "application/x-pkcs12"},
+        {"p7b", "application/x-pkcs7-certificates"},
+        {"p7c", "application/pkcs7-mime"},
+        {"p7m", "application/pkcs7-mime"},
+        {"p7r", "application/x-pkcs7-certreqresp"},
+        {"p7s", "application/pkcs7-signature"},
+        {"pbm", "image/x-portable-bitmap"},
+        {"pcast", "application/x-podcast"},
+        {"pct", "image/pict"},
+        {"pcx", "application/octet-stream"},
+        {"pcz", "application/octet-stream"},
+        {"pdf", "application/pdf"},
+        {"pfb", "application/octet-stream"},
+        {"pfm", "application/octet-stream"},
+        {"pfx", "application/x-pkcs12"},
+        {"pgm", "image/x-portable-graymap"},
+        {"pic", "image/pict"},
+        {"pict", "image/pict"},
+        {"pkgdef", "text/plain"},
+        {"pkgundef", "text/plain"},
+        {"pko", "application/vnd.ms-pki.pko"},
+        {"pls", "audio/scpls"},
+        {"pma", "application/x-perfmon"},
+        {"pmc", "application/x-perfmon"},
+        {"pml", "application/x-perfmon"},
+        {"pmr", "application/x-perfmon"},
+        {"pmw", "application/x-perfmon"},
+        {"png", "image/png"},
+        {"pnm", "image/x-portable-anymap"},
+        {"pnt", "image/x-macpaint"},
+        {"pntg", "image/x-macpaint"},
+        {"pnz", "image/png"},
+        {"pot", "application/vnd.ms-powerpoint"},
+        {"potm", "application/vnd.ms-powerpoint.template.macroEnabled.12"},
+        {"potx", "application/vnd.openxmlformats-officedocument.presentationml.template"},
+        {"ppa", "application/vnd.ms-powerpoint"},
+        {"ppam", "application/vnd.ms-powerpoint.addin.macroEnabled.12"},
+        {"ppm", "image/x-portable-pixmap"},
+        {"pps", "application/vnd.ms-powerpoint"},
+        {"ppsm", "application/vnd.ms-powerpoint.slideshow.macroEnabled.12"},
+        {"ppsx", "application/vnd.openxmlformats-officedocument.presentationml.slideshow"},
+        {"ppt", "application/vnd.ms-powerpoint"},
+        {"pptm", "application/vnd.ms-powerpoint.presentation.macroEnabled.12"},
+        {"pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"},
+        {"prf", "application/pics-rules"},
+        {"prm", "application/octet-stream"},
+        {"prx", "application/octet-stream"},
+        {"ps", "application/postscript"},
+        {"psc1", "application/PowerShell"},
+        {"psd", "application/octet-stream"},
+        {"psess", "application/xml"},
+        {"psm", "application/octet-stream"},
+        {"psp", "application/octet-stream"},
+        {"pub", "application/x-mspublisher"},
+        {"pwz", "application/vnd.ms-powerpoint"},
+        {"qht", "text/x-html-insertion"},
+        {"qhtm", "text/x-html-insertion"},
+        {"qt", "video/quicktime"},
+        {"qti", "image/x-quicktime"},
+        {"qtif", "image/x-quicktime"},
+        {"qtl", "application/x-quicktimeplayer"},
+        {"qxd", "application/octet-stream"},
+        {"ra", "audio/x-pn-realaudio"},
+        {"ram", "audio/x-pn-realaudio"},
+        {"rar", "application/octet-stream"},
+        {"ras", "image/x-cmu-raster"},
+        {"rat", "application/rat-file"},
+        {"rc", "text/plain"},
+        {"rc2", "text/plain"},
+        {"rct", "text/plain"},
+        {"rdlc", "application/xml"},
+        {"resx", "application/xml"},
+        {"rf", "image/vnd.rn-realflash"},
+        {"rgb", "image/x-rgb"},
+        {"rgs", "text/plain"},
+        {"rm", "application/vnd.rn-realmedia"},
+        {"rmi", "audio/mid"},
+        {"rmp", "application/vnd.rn-rn_music_package"},
+        {"roff", "application/x-troff"},
+        {"rpm", "audio/x-pn-realaudio-plugin"},
+        {"rqy", "text/x-ms-rqy"},
+        {"rtf", "application/rtf"},
+        {"rtx", "text/richtext"},
+        {"ruleset", "application/xml"},
+        {"s", "text/plain"},
+        {"safariextz", "application/x-safari-safariextz"},
+        {"scd", "application/x-msschedule"},
+        {"sct", "text/scriptlet"},
+        {"sd2", "audio/x-sd2"},
+        {"sdp", "application/sdp"},
+        {"sea", "application/octet-stream"},
+        {"searchConnector-ms", "application/windows-search-connector+xml"},
+        {"setpay", "application/set-payment-initiation"},
+        {"setreg", "application/set-registration-initiation"},
+        {"settings", "application/xml"},
+        {"sgimb", "application/x-sgimb"},
+        {"sgml", "text/sgml"},
+        {"sh", "application/x-sh"},
+        {"shar", "application/x-shar"},
+        {"shtml", "text/html"},
+        {"sit", "application/x-stuffit"},
+        {"sitemap", "application/xml"},
+        {"skin", "application/xml"},
+        {"sldm", "application/vnd.ms-powerpoint.slide.macroEnabled.12"},
+        {"sldx", "application/vnd.openxmlformats-officedocument.presentationml.slide"},
+        {"slk", "application/vnd.ms-excel"},
+        {"sln", "text/plain"},
+        {"slupkg-ms", "application/x-ms-license"},
+        {"smd", "audio/x-smd"},
+        {"smi", "application/octet-stream"},
+        {"smx", "audio/x-smd"},
+        {"smz", "audio/x-smd"},
+        {"snd", "audio/basic"},
+        {"snippet", "application/xml"},
+        {"snp", "application/octet-stream"},
+        {"sol", "text/plain"},
+        {"sor", "text/plain"},
+        {"spc", "application/x-pkcs7-certificates"},
+        {"spl", "application/futuresplash"},
+        {"src", "application/x-wais-source"},
+        {"srf", "text/plain"},
+        {"SSISDeploymentManifest", "text/xml"},
+        {"ssm", "application/streamingmedia"},
+        {"sst", "application/vnd.ms-pki.certstore"},
+        {"stl", "application/vnd.ms-pki.stl"},
+        {"sv4cpio", "application/x-sv4cpio"},
+        {"sv4crc", "application/x-sv4crc"},
+        {"svc", "application/xml"},
+        {"swf", "application/x-shockwave-flash"},
+        {"t", "application/x-troff"},
+        {"tar", "application/x-tar"},
+        {"tcl", "application/x-tcl"},
+        {"testrunconfig", "application/xml"},
+        {"testsettings", "application/xml"},
+        {"tex", "application/x-tex"},
+        {"texi", "application/x-texinfo"},
+        {"texinfo", "application/x-texinfo"},
+        {"tgz", "application/x-compressed"},
+        {"thmx", "application/vnd.ms-officetheme"},
+        {"thn", "application/octet-stream"},
+        {"tif", "image/tiff"},
+        {"tiff", "image/tiff"},
+        {"tlh", "text/plain"},
+        {"tli", "text/plain"},
+        {"toc", "application/octet-stream"},
+        {"tr", "application/x-troff"},
+        {"trm", "application/x-msterminal"},
+        {"trx", "application/xml"},
+        {"ts", "video/vnd.dlna.mpeg-tts"},
+        {"tsv", "text/tab-separated-values"},
+        {"ttf", "application/octet-stream"},
+        {"tts", "video/vnd.dlna.mpeg-tts"},
+        {"txt", "text/plain"},
+        {"u32", "application/octet-stream"},
+        {"uls", "text/iuls"},
+        {"user", "text/plain"},
+        {"ustar", "application/x-ustar"},
+        {"vb", "text/plain"},
+        {"vbdproj", "text/plain"},
+        {"vbk", "video/mpeg"},
+        {"vbproj", "text/plain"},
+        {"vbs", "text/vbscript"},
+        {"vcf", "text/x-vcard"},
+        {"vcproj", "Application/xml"},
+        {"vcs", "text/plain"},
+        {"vcxproj", "Application/xml"},
+        {"vddproj", "text/plain"},
+        {"vdp", "text/plain"},
+        {"vdproj", "text/plain"},
+        {"vdx", "application/vnd.ms-visio.viewer"},
+        {"vml", "text/xml"},
+        {"vscontent", "application/xml"},
+        {"vsct", "text/xml"},
+        {"vsd", "application/vnd.visio"},
+        {"vsi", "application/ms-vsi"},
+        {"vsix", "application/vsix"},
+        {"vsixlangpack", "text/xml"},
+        {"vsixmanifest", "text/xml"},
+        {"vsmdi", "application/xml"},
+        {"vspscc", "text/plain"},
+        {"vss", "application/vnd.visio"},
+        {"vsscc", "text/plain"},
+        {"vssettings", "text/xml"},
+        {"vssscc", "text/plain"},
+        {"vst", "application/vnd.visio"},
+        {"vstemplate", "text/xml"},
+        {"vsto", "application/x-ms-vsto"},
+        {"vsw", "application/vnd.visio"},
+        {"vsx", "application/vnd.visio"},
+        {"vtx", "application/vnd.visio"},
+        {"wav", "audio/wav"},
+        {"wave", "audio/wav"},
+        {"wax", "audio/x-ms-wax"},
+        {"wbk", "application/msword"},
+        {"wbmp", "image/vnd.wap.wbmp"},
+        {"wcm", "application/vnd.ms-works"},
+        {"wdb", "application/vnd.ms-works"},
+        {"wdp", "image/vnd.ms-photo"},
+        {"webarchive", "application/x-safari-webarchive"},
+        {"webtest", "application/xml"},
+        {"wiq", "application/xml"},
+        {"wiz", "application/msword"},
+        {"wks", "application/vnd.ms-works"},
+        {"WLMP", "application/wlmoviemaker"},
+        {"wlpginstall", "application/x-wlpg-detect"},
+        {"wlpginstall3", "application/x-wlpg3-detect"},
+        {"wm", "video/x-ms-wm"},
+        {"wma", "audio/x-ms-wma"},
+        {"wmd", "application/x-ms-wmd"},
+        {"wmf", "application/x-msmetafile"},
+        {"wml", "text/vnd.wap.wml"},
+        {"wmlc", "application/vnd.wap.wmlc"},
+        {"wmls", "text/vnd.wap.wmlscript"},
+        {"wmlsc", "application/vnd.wap.wmlscriptc"},
+        {"wmp", "video/x-ms-wmp"},
+        {"wmv", "video/x-ms-wmv"},
+        {"wmx", "video/x-ms-wmx"},
+        {"wmz", "application/x-ms-wmz"},
+        {"wpl", "application/vnd.ms-wpl"},
+        {"wps", "application/vnd.ms-works"},
+        {"wri", "application/x-mswrite"},
+        {"wrl", "x-world/x-vrml"},
+        {"wrz", "x-world/x-vrml"},
+        {"wsc", "text/scriptlet"},
+        {"wsdl", "text/xml"},
+        {"wvx", "video/x-ms-wvx"},
+        {"x", "application/directx"},
+        {"xaf", "x-world/x-vrml"},
+        {"xaml", "application/xaml+xml"},
+        {"xap", "application/x-silverlight-app"},
+        {"xbap", "application/x-ms-xbap"},
+        {"xbm", "image/x-xbitmap"},
+        {"xdr", "text/plain"},
+        {"xht", "application/xhtml+xml"},
+        {"xhtml", "application/xhtml+xml"},
+        {"xla", "application/vnd.ms-excel"},
+        {"xlam", "application/vnd.ms-excel.addin.macroEnabled.12"},
+        {"xlc", "application/vnd.ms-excel"},
+        {"xld", "application/vnd.ms-excel"},
+        {"xlk", "application/vnd.ms-excel"},
+        {"xll", "application/vnd.ms-excel"},
+        {"xlm", "application/vnd.ms-excel"},
+        {"xls", "application/vnd.ms-excel"},
+        {"xlsb", "application/vnd.ms-excel.sheet.binary.macroEnabled.12"},
+        {"xlsm", "application/vnd.ms-excel.sheet.macroEnabled.12"},
+        {"xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"},
+        {"xlt", "application/vnd.ms-excel"},
+        {"xltm", "application/vnd.ms-excel.template.macroEnabled.12"},
+        {"xltx", "application/vnd.openxmlformats-officedocument.spreadsheetml.template"},
+        {"xlw", "application/vnd.ms-excel"},
+        {"xml", "text/xml"},
+        {"xmta", "application/xml"},
+        {"xof", "x-world/x-vrml"},
+        {"XOML", "text/plain"},
+        {"xpm", "image/x-xpixmap"},
+        {"xps", "application/vnd.ms-xpsdocument"},
+        {"xrm-ms", "text/xml"},
+        {"xsc", "application/xml"},
+        {"xsd", "text/xml"},
+        {"xsf", "text/xml"},
+        {"xsl", "text/xml"},
+        {"xslt", "text/xml"},
+        {"xsn", "application/octet-stream"},
+        {"xss", "application/xml"},
+        {"xtp", "application/octet-stream"},
+        {"xwd", "image/x-xwindowdump"},
+        {"z", "application/x-compress"},
+        {"zip", "application/x-zip-compressed"}
+    };
 
     string key = extension;
-    std::transform(key.begin(), key.end(), key.begin(), ::tolower);
-    map<string, string>::iterator it = mimeMap->find(key);
-    if (it == mimeMap->end())
-    {
-        return NULL;
-    }
-
-    return MegaApi::strdup(it->second.c_str());
+    tolower_string(key);
+    map<string, string>::const_iterator it = mimeMap.find(key);
+    return it == mimeMap.cend() ? nullptr : MegaApi::strdup(it->second.c_str());
 }
 
 #ifdef ENABLE_CHAT
@@ -4417,9 +4838,9 @@ void MegaApi::sendChatStats(const char *data, int port, MegaRequestListener *lis
     pImpl->sendChatStats(data, port, listener);
 }
 
-void MegaApi::sendChatLogs(const char *data, const char *aid, MegaRequestListener *listener)
+void MegaApi::sendChatLogs(const char *data, const char *aid, int port, MegaRequestListener *listener)
 {
-    pImpl->sendChatLogs(data, aid, listener);
+    pImpl->sendChatLogs(data, aid, port, listener);
 }
 
 MegaTextChatList* MegaApi::getChatList()
@@ -4482,13 +4903,28 @@ void MegaApi::chatLinkJoin(MegaHandle publichandle, const char *unifiedKey, Mega
     pImpl->chatLinkJoin(publichandle, unifiedKey, listener);
 }
 
+bool MegaApi::isChatNotifiable(MegaHandle chatid)
+{
+    return pImpl->isChatNotifiable(chatid);
+}
+
 #endif
+
+bool MegaApi::isSharesNotifiable()
+{
+    return pImpl->isSharesNotifiable();
+}
+
+bool MegaApi::isContactsNotifiable()
+{
+    return pImpl->isContactsNotifiable();
+}
 
 char* MegaApi::strdup(const char* buffer)
 {
-    if(!buffer)
+    if (!buffer)
         return NULL;
-    int tam = int(strlen(buffer)+1);
+    int tam = int(strlen(buffer) + 1);
     char *newbuffer = new char[tam];
     memcpy(newbuffer, buffer, tam);
     return newbuffer;
@@ -4566,6 +5002,27 @@ bool MegaApi::createPreview(const char *imagePath, const char *dstPath)
 bool MegaApi::createAvatar(const char *imagePath, const char *dstPath)
 {
     return pImpl->createAvatar(imagePath, dstPath);
+}
+
+void MegaApi::backgroundMediaUploadRequestUploadURL(int64_t fullFileSize, MegaBackgroundMediaUpload* state, MegaRequestListener *listener)
+{
+    return pImpl->backgroundMediaUploadRequestUploadURL(fullFileSize, state, listener); 
+}
+
+void MegaApi::backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state, const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,
+    const char *string64UploadToken, MegaRequestListener *listener)
+{
+    pImpl->backgroundMediaUploadComplete(state, utf8Name, parent, fingerprint, fingerprintoriginal, string64UploadToken, listener);
+}
+
+bool MegaApi::ensureMediaInfo()
+{
+    return pImpl->ensureMediaInfo();
+}
+
+void MegaApi::setOriginalFingerprint(MegaNode* node, const char* originalFingerprint, MegaRequestListener *listener)
+{
+    return pImpl->setOriginalFingerprint(node, originalFingerprint, listener);
 }
 
 MegaHashSignature::MegaHashSignature(const char *base64Key)
@@ -4646,6 +5103,16 @@ long long MegaAccountDetails::getTransferMax()
 }
 
 long long MegaAccountDetails::getTransferOwnUsed()
+{
+    return 0;
+}
+
+long long MegaAccountDetails::getTransferSrvUsed()
+{
+    return 0;
+}
+
+long long MegaAccountDetails::getTransferUsed()
 {
     return 0;
 }
@@ -5194,6 +5661,61 @@ double MegaAccountTransaction::getAmount() const
     return 0;
 }
 
+MegaBackgroundMediaUpload *MegaBackgroundMediaUpload::createInstance(MegaApi *api)
+{
+    return new MegaBackgroundMediaUploadPrivate(api);
+}
+
+MegaBackgroundMediaUpload* MegaBackgroundMediaUpload::unserialize(const char* d, MegaApi* api)
+{
+    unsigned char* binary;
+    size_t binSize;
+    MegaApi::base64ToBinary(d, &binary, &binSize);
+    std::string binString((char*)binary, binSize);
+    delete[] binary;
+    return d ? new MegaBackgroundMediaUploadPrivate(binString, api) : NULL;
+}
+
+bool MegaBackgroundMediaUpload::analyseMediaInfo(const char* inputFilepath)
+{
+    return false;
+}
+
+char *MegaBackgroundMediaUpload::encryptFile(const char* inputFilepath, int64_t startPos, int64_t* length, const char* outputFilepath, bool adjustsizeonly)
+{
+    return NULL;
+}
+
+char *MegaBackgroundMediaUpload::getUploadURL()
+{
+    return NULL;
+}
+
+char *MegaBackgroundMediaUpload::serialize()
+{
+    return NULL;
+}
+
+void MegaBackgroundMediaUpload::setThumbnail(MegaHandle h)
+{
+}
+
+void MegaBackgroundMediaUpload::setPreview(MegaHandle h)
+{
+}
+
+void MegaBackgroundMediaUpload::setCoordinates(double lat, double lon, bool unshareable)
+{
+}
+
+MegaBackgroundMediaUpload::MegaBackgroundMediaUpload()
+{
+}
+
+MegaBackgroundMediaUpload::~MegaBackgroundMediaUpload()
+{
+}
+
 int64_t MegaInputStream::getSize()
 {
     return 0;
@@ -5208,6 +5730,38 @@ MegaInputStream::~MegaInputStream()
 {
 
 }
+
+MegaApiLock::MegaApiLock(MegaApiImpl* ptr, bool lock) : api(ptr)
+{
+    if (lock)
+    {
+        lockOnce();
+    }
+}
+
+MegaApiLock::~MegaApiLock()
+{
+    unlockOnce();
+}
+
+void MegaApiLock::lockOnce()
+{
+    if (!locked)
+    {
+        api->lockMutex();
+        locked = true;
+    }
+}
+
+void MegaApiLock::unlockOnce()
+{
+    if (locked)
+    {
+        api->unlockMutex();
+        locked = false;
+    }
+}
+
 
 #ifdef ENABLE_CHAT
 MegaTextChatPeerList * MegaTextChatPeerList::createInstance()
@@ -5362,6 +5916,11 @@ MegaStringMap *MegaStringMap::createInstance()
     return new MegaStringMapPrivate();
 }
 
+MegaStringMap::MegaStringMap()
+{
+
+}
+
 MegaStringMap::~MegaStringMap()
 {
 
@@ -5453,14 +6012,29 @@ const char *MegaEvent::getText() const
     return NULL;
 }
 
-const int MegaEvent::getNumber() const
+int64_t MegaEvent::getNumber() const
 {
     return 0;
+}
+
+MegaHandle MegaEvent::getHandle() const
+{
+    return INVALID_HANDLE;
+}
+
+const char *MegaEvent::getEventString() const
+{
+    return NULL;
 }
 
 MegaHandleList *MegaHandleList::createInstance()
 {
     return new MegaHandleListPrivate();
+}
+
+MegaHandleList::MegaHandleList()
+{
+
 }
 
 MegaHandleList::~MegaHandleList()
@@ -5673,12 +6247,12 @@ int MegaTimeZoneDetails::getNumTimeZones() const
     return 0;
 }
 
-const char *MegaTimeZoneDetails::getTimeZone(int index) const
+const char *MegaTimeZoneDetails::getTimeZone(int /*index*/) const
 {
     return NULL;
 }
 
-int MegaTimeZoneDetails::getTimeOffset(int index) const
+int MegaTimeZoneDetails::getTimeOffset(int /*index*/) const
 {
     return 0;
 }
@@ -5686,6 +6260,176 @@ int MegaTimeZoneDetails::getTimeOffset(int index) const
 int MegaTimeZoneDetails::getDefault() const
 {
     return -1;
+}
+
+MegaPushNotificationSettings *MegaPushNotificationSettings::createInstance()
+{
+    return new MegaPushNotificationSettingsPrivate();
+}
+
+MegaPushNotificationSettings::~MegaPushNotificationSettings()
+{
+
+}
+
+MegaPushNotificationSettings *MegaPushNotificationSettings::copy() const
+{
+    return NULL;
+}
+
+bool MegaPushNotificationSettings::isGlobalEnabled() const
+{
+    return false;
+}
+
+bool MegaPushNotificationSettings::isGlobalDndEnabled() const
+{
+    return false;
+}
+
+int64_t MegaPushNotificationSettings::getGlobalDnd() const
+{
+    return 0;
+}
+
+bool MegaPushNotificationSettings::isGlobalScheduleEnabled() const
+{
+    return false;
+}
+
+int MegaPushNotificationSettings::getGlobalScheduleStart() const
+{
+    return 0;
+}
+
+int MegaPushNotificationSettings::getGlobalScheduleEnd() const
+{
+    return 0;
+}
+
+const char *MegaPushNotificationSettings::getGlobalScheduleTimezone() const
+{
+    return NULL;
+}
+
+bool MegaPushNotificationSettings::isChatEnabled(MegaHandle /*chatid*/) const
+{
+    return false;
+}
+
+bool MegaPushNotificationSettings::isChatDndEnabled(MegaHandle /*chatid*/) const
+{
+    return false;
+}
+
+int64_t MegaPushNotificationSettings::getChatDnd(MegaHandle /*chatid*/) const
+{
+    return 0;
+}
+
+bool MegaPushNotificationSettings::isChatAlwaysNotifyEnabled(MegaHandle /*chatid*/) const
+{
+    return false;
+}
+
+bool MegaPushNotificationSettings::isContactsEnabled() const
+{
+    return false;
+}
+
+bool MegaPushNotificationSettings::isSharesEnabled() const
+{
+    return false;
+}
+
+bool MegaPushNotificationSettings::isChatsEnabled() const
+{
+    return false;
+}
+
+void MegaPushNotificationSettings::enableGlobal(bool /*enable*/)
+{
+
+}
+
+void MegaPushNotificationSettings::setGlobalDnd(int64_t /*timestamp*/)
+{
+
+}
+
+void MegaPushNotificationSettings::disableGlobalDnd()
+{
+
+}
+
+void MegaPushNotificationSettings::setGlobalSchedule(int /*start*/, int /*end*/, const char * /*timezone*/)
+{
+
+}
+
+void MegaPushNotificationSettings::disableGlobalSchedule()
+{
+
+}
+
+void MegaPushNotificationSettings::enableChat(MegaHandle /*chatid*/, bool /*enable*/)
+{
+
+}
+
+void MegaPushNotificationSettings::setChatDnd(MegaHandle /*chatid*/, int64_t /*timestamp*/)
+{
+
+}
+
+void MegaPushNotificationSettings::enableChatAlwaysNotify(MegaHandle /*chatid*/, bool /*enable*/)
+{
+
+}
+
+void MegaPushNotificationSettings::enableContacts(bool /*enable*/)
+{
+
+}
+
+void MegaPushNotificationSettings::enableShares(bool /*enable*/)
+{
+
+}
+
+void MegaPushNotificationSettings::enableChats(bool /*enable*/)
+{
+
+}
+
+MegaPushNotificationSettings::MegaPushNotificationSettings()
+{
+
+}
+
+MegaCancelToken *MegaCancelToken::createInstance()
+{
+    return new MegaCancelTokenPrivate;
+}
+
+MegaCancelToken::MegaCancelToken()
+{
+
+}
+
+MegaCancelToken::~MegaCancelToken()
+{
+
+}
+
+void MegaCancelToken::cancel(bool)
+{
+
+}
+
+bool MegaCancelToken::isCancelled() const
+{
+    return false;
 }
 
 }

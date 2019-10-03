@@ -291,7 +291,7 @@ public:
     // keep track of incoming nodes in shares, and convert to a notification
     void beginNotingSharedNodes();
     void noteSharedNode(handle user, int type, m_time_t timestamp, Node* n);
-    void convertNotedSharedNodes(bool added);
+    void convertNotedSharedNodes(bool added, handle originatingUser);
     void ignoreNextSharedNodesUnder(handle h);
 
     // enter provisional mode, added items will be checked for suitability before actually adding 

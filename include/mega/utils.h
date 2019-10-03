@@ -25,8 +25,19 @@
 #include "types.h"
 #include "mega/logging.h"
 
+// Needed for Windows Phone (MSVS 2013 - C++ version 9.8)
+#if defined(_WIN32) && _MSC_VER <= 1800 && __cplusplus < 201103L && !defined(_TIMESPEC_DEFINED) && ! __struct_timespec_defined
+struct timespec
+{
+    long long	tv_sec; 	/* seconds */
+    long        tv_nsec;	/* nanoseconds */
+};
+# define __struct_timespec_defined  1
+#endif
+
 namespace mega {
-// convert 2...8 character ID to int64 integer (endian agnostic)
+// convert 1...8 character ID to int64 integer (endian agnostic)
+#define MAKENAMEID1(a) (nameid)(a)
 #define MAKENAMEID2(a, b) (nameid)(((a) << 8) + (b))
 #define MAKENAMEID3(a, b, c) (nameid)(((a) << 16) + ((b) << 8) + (c))
 #define MAKENAMEID4(a, b, c, d) (nameid)(((a) << 24) + ((b) << 16) + ((c) << 8) + (d))
@@ -66,7 +77,7 @@ struct MEGA_API PaddedCBC
      *     for encryption will be generated and available through the reference.
      * @return Void.
      */
-    static void encrypt(string* data, SymmCipher* key, string* iv = NULL);
+    static void encrypt(PrnGen &rng, string* data, SymmCipher* key, string* iv = NULL);
 
     /**
      * @brief Decrypts a string and strips the padding.
@@ -141,12 +152,17 @@ class MEGA_API PayCrypter
      */
     byte iv[IV_BYTES];
 
+    /**
+     * @brief Random blocks generator
+     */
+    PrnGen &rng;
+
 public:
 
     /**
      * @brief Constructor. Initializes keys with random values.
      */
-    PayCrypter();
+    PayCrypter(PrnGen &rng);
 
     /**
      * @brief Updates the crypto keys (mainly for testing)
@@ -256,7 +272,7 @@ private:
      * @param encSetting Block encryption mode to be used by AES
      * @return A new string holding the encrypted byte array. You take the ownership of the string.
      */
-    string *tlvRecordsToContainer(SymmCipher *key, encryptionsetting_t encSetting = AES_GCM_12_16);
+    string *tlvRecordsToContainer(PrnGen &rng, SymmCipher *key, encryptionsetting_t encSetting = AES_GCM_12_16);
 
     /**
      * @brief Converts the TLV records into a byte array
@@ -269,7 +285,7 @@ private:
      * @param type Type of the value (without scope nor non-historic modifiers).
      * @return String containing the array with the value, or NULL if error.
      */
-    string get(string type);
+    std::string get(string type) const;
 
     /**
      * @brief Get a reference to the TLV_map associated to this TLVstore
@@ -295,7 +311,7 @@ private:
      * @param type Type of the value (without scope nor non-historic modifiers).
      * @return True if the type of value is found, false otherwise.
      */
-    bool find(string type);
+    bool find(string type) const;
 
     /**
      * @brief add Adds a new record to the container
@@ -303,6 +319,12 @@ private:
      * @param value New value to be set.
      */
     void set(string type, string value);
+
+    /**
+     * @brief Removes a record from the container
+     * @param type Type for the value to be removed (without scope nor non-historic modifiers).
+     */
+    void reset(string type);
 
     size_t size();
 
@@ -326,6 +348,50 @@ public:
      * @return True if success, false if the byte 'src' is not a valid UTF-8 string
      */
     static bool utf8toUnicode(const uint8_t *src, unsigned srclen, string *result);
+
+    /**
+     * @brief This function is analogous to a32_to_str in js version.
+     * Converts a vector of <T> elements into a std::string
+     *
+     * @param data a vector of <T> elements
+     * @note this function has been initially designed to work with <T> = uint32_t or <T> = int32_t
+     * This is a valid example: <t> = uint32_t, data = [1952805748] => return_value = "test"
+     *
+     * @return returns a std::string
+     */
+    template<typename T> static std::string a32_to_str(std::vector<T> data)
+    {
+        size_t size = data.size() * sizeof(T);
+        std::unique_ptr<char[]> result(new char[size]);
+        for (size_t i = 0; i < size; ++i)
+        {
+            result[i] = (data[i >> 2] >> (24 - (i & 3) * 8)) & 255;
+        }
+        return std::string (result.get(), size);
+    }
+
+    /**
+     * @brief This function is analogous to str_to_a32 in js version.
+     * Converts a std::string into a vector of <T> elements
+     *
+     * @param data a std::string
+     * @note this function has been initially designed to work with <T> = uint32_t or <T> = int32_t
+     * This is a valid example: <t> = uint32_t, data = "test"  => return_value = [1952805748]
+     *
+     * @return returns a vector of <T> elements
+     */
+    template<typename T> static std::vector<T> str_to_a32(std::string data)
+    {
+        std::vector<T> data32((data.size() + 3) >> 2);
+        for (size_t i = 0; i < data.size(); ++i)
+        {
+            data32[i >> 2] |= (data[i] & 255) << (24 - (i & 3) * 8);
+        }
+        return data32;
+    }
+
+    static std::string stringToHex(const std::string& input);
+    static std::string hexToString(const std::string& input);
 };
 
 // for pre-c++11 where this version is not defined yet.  
@@ -335,11 +401,65 @@ extern m_time_t m_time(m_time_t* tt = NULL);
 extern struct tm* m_localtime(m_time_t, struct tm *dt);
 extern struct tm* m_gmtime(m_time_t, struct tm *dt);
 extern m_time_t m_mktime(struct tm*);
+extern int m_clock_getmonotonictime(struct timespec *t);
+// Similar behaviour to mktime but it receives a struct tm with a date in UTC and return mktime in UTC
+extern m_time_t m_mktime_UTC(const struct tm *src);
 
 std::string rfc1123_datetime( time_t time );
 std::string webdavurlescape(const std::string &value);
 std::string escapewebdavchar(const char c);
 std::string webdavnameescape(const std::string &value);
+
+void tolower_string(std::string& str);
+
+#ifdef __APPLE__
+int macOSmajorVersion();
+#endif
+
+struct CacheableWriter
+{
+    CacheableWriter(string& d);
+    string& dest;
+
+    void serializebinary(byte* data, size_t len);
+    void serializecstr(const char* field, bool storeNull);  // may store the '\0' also for backward compatibility
+    void serializestring(const string& field);
+    void serializei64(int64_t field);
+    void serializeu32(uint32_t field);
+    void serializehandle(handle field);
+    void serializebool(bool field);
+    void serializebyte(byte field);
+    void serializedouble(double field);
+    void serializechunkmacs(const chunkmac_map& m);
+
+    // Each class that might get extended should store expansion flags at the end
+    // When adding new fields to an existing class, set the next expansion flag true to indicate they are present.
+    // If you turn on the last flag, then you must also add another set of expansion flags (all false) after the new fields, for further expansion later.
+    void serializeexpansionflags(bool b1 = false, bool b2 = false, bool b3 = false, bool b4 = false, bool b5 = false, bool b6 = false, bool b7 = false, bool b8 = false);
+};
+
+struct CacheableReader
+{
+    CacheableReader(const string& d);
+    const char* ptr;
+    const char* end;
+    unsigned fieldnum;
+
+    bool unserializebinary(byte* data, size_t len);
+    bool unserializecstr(string& s, bool removeNull); // set removeNull if this field stores the terminating '\0' at the end
+    bool unserializestring(string& s);
+    bool unserializei64(int64_t& s);
+    bool unserializeu32(uint32_t& s);
+    bool unserializebyte(byte& s);
+    bool unserializedouble(double& s);
+    bool unserializehandle(handle& s);
+    bool unserializebool(bool& s);
+    bool unserializechunkmacs(chunkmac_map& m);
+
+    bool unserializeexpansionflags(unsigned char field[8], unsigned usedFlagCount);
+
+    void eraseused(string& d); // must be the same string, unchanged
+};
 
 } // namespace
 

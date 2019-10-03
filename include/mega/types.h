@@ -72,6 +72,7 @@ typedef unsigned char byte;
 
 #include "mega/crypto/sodium.h"
 
+#include <memory>
 #include <string>
 
 namespace mega {
@@ -88,8 +89,9 @@ using std::deque;
 using std::multiset;
 using std::queue;
 using std::streambuf;
+using std::tuple;
 using std::ostringstream;
-
+using std::unique_ptr;
 
 // forward declaration
 struct AttrMap;
@@ -127,6 +129,7 @@ namespace UserAlert
 {
     struct Base;
 }
+class AuthRing;
 
 #define EOO 0
 
@@ -166,7 +169,14 @@ struct ChunkMAC
 };
 
 // file chunk macs
-typedef map<m_off_t, ChunkMAC> chunkmac_map;
+class chunkmac_map : public map<m_off_t, ChunkMAC>
+{
+public:
+    int64_t macsmac(SymmCipher *cipher);
+    void serialize(string& d) const;
+    bool unserialize(const char*& ptr, const char* end);
+    void calcprogress(m_off_t size, m_off_t& chunkpos, m_off_t& completedprogress, m_off_t* lastblockprogress = nullptr);
+};
 
 /**
  * @brief Declaration of API error codes.
@@ -200,7 +210,9 @@ typedef enum ErrorCodes
     API_EAPPKEY = -22,              ///< Invalid or missing application key.
     API_ESSL = -23,                 ///< SSL verification failed
     API_EGOINGOVERQUOTA = -24,      ///< Not enough quota
-    API_EMFAREQUIRED = -26          ///< Multi-factor authentication required
+    API_EMFAREQUIRED = -26,         ///< Multi-factor authentication required
+    API_EMASTERONLY = -27,          ///< Access denied for sub-users (only for business accounts)
+    API_EBUSINESSPASTDUE = -28      ///< Business account expired
 } error;
 
 // returned by loggedin()
@@ -283,8 +295,6 @@ typedef vector<LocalNode*> localnode_vector;
 
 typedef map<handle, LocalNode*> handlelocalnode_map;
 
-typedef list<LocalNode*> localnode_list;
-
 typedef set<LocalNode*> localnode_set;
 
 typedef multimap<int32_t, LocalNode*> idlocalnode_map;
@@ -325,6 +335,19 @@ typedef map<handle, Transfer*> handletransfer_map;
 // maps node handles to Node pointers
 typedef map<handle, Node*> node_map;
 
+struct NodeCounter
+{
+    m_off_t storage = 0;
+    m_off_t versionStorage = 0;
+    size_t files = 0;
+    size_t folders = 0;
+    size_t versions = 0;
+    void operator += (const NodeCounter&);
+    void operator -= (const NodeCounter&);
+};
+
+typedef std::map<handle, NodeCounter> NodeCounterMap;
+
 // maps node handles to Share pointers
 typedef map<handle, struct Share*> share_map;
 
@@ -338,7 +361,6 @@ typedef vector<handle> handle_vector;
 typedef set<pair<handle, handle> > handlepair_set;
 
 // node and user vectors
-typedef vector<struct NodeCore*> nodecore_vector;
 typedef vector<struct User*> user_vector;
 typedef vector<UserAlert::Base*> useralert_vector;
 typedef vector<struct PendingContactRequest*> pcr_vector;
@@ -352,18 +374,6 @@ typedef map<handle, int> uh_map;
 // maps lowercase user e-mail addresses to userids
 typedef map<string, int> um_map;
 
-// file attribute data
-typedef map<unsigned, string> fadata_map;
-
-// syncid to node handle mapping
-typedef map<handle, handle> syncidhandle_map;
-
-// NewNodes index to syncid mapping
-typedef map<int, handle> newnodesyncid_map;
-
-// for dynamic node addition requests, used by the sync subsystem
-typedef vector<struct NewNode*> newnode_vector;
-
 // file attribute fetch map
 typedef map<handle, FileAttributeFetch*> faf_map;
 
@@ -372,8 +382,6 @@ typedef map<int, FileAttributeFetchChannel*> fafc_map;
 
 // transfer type
 typedef enum { GET = 0, PUT, API, NONE } direction_t;
-
-typedef set<pair<int, handle> > fareq_set;
 
 struct StringCmp
 {
@@ -390,17 +398,6 @@ typedef list<DirectReadSlot*> drs_list;
 
 typedef map<const string*, LocalNode*, StringCmp> localnode_map;
 typedef map<const string*, Node*, StringCmp> remotenode_map;
-
-// FIXME: use forward_list instead
-typedef list<NewNode*> newnode_list;
-typedef list<handle> handle_list;
-
-typedef map<handle, NewNode*> handlenewnode_map;
-
-typedef map<handle, char> handlecount_map;
-
-// maps FileFingerprints to node
-typedef multiset<FileFingerprint*, FileFingerprintCmp> fingerprint_set;
 
 typedef enum { TREESTATE_NONE = 0, TREESTATE_SYNCED, TREESTATE_PENDING, TREESTATE_SYNCING } treestate_t;
 
@@ -431,29 +428,37 @@ typedef string_map TLV_map;
 // user attribute types
 typedef enum {
     ATTR_UNKNOWN = -1,
-    ATTR_AVATAR = 0,            // public - char array - non-versioned
-    ATTR_FIRSTNAME = 1,         // public - char array - non-versioned
-    ATTR_LASTNAME = 2,          // public - char array - non-versioned
-    ATTR_AUTHRING = 3,          // private - byte array
-    ATTR_LAST_INT = 4,          // private - byte array
-    ATTR_ED25519_PUBK = 5,      // public - byte array - versioned
-    ATTR_CU25519_PUBK = 6,      // public - byte array - versioned
-    ATTR_KEYRING = 7,           // private - byte array - versioned
-    ATTR_SIG_RSA_PUBK = 8,      // public - byte array - versioned
-    ATTR_SIG_CU255_PUBK = 9,    // public - byte array - versioned
-    ATTR_COUNTRY = 10,          // public - char array - non-versioned
-    ATTR_BIRTHDAY = 11,         // public - char array - non-versioned
-    ATTR_BIRTHMONTH = 12,       // public - char array - non-versioned
-    ATTR_BIRTHYEAR = 13,        // public - char array - non-versioned
-    ATTR_LANGUAGE = 14,         // private, non-encrypted - char array in B64 - non-versioned
-    ATTR_PWD_REMINDER = 15,     // private, non-encrypted - char array in B64 - non-versioned
-    ATTR_DISABLE_VERSIONS = 16, // private, non-encrypted - char array in B64 - non-versioned
-    ATTR_CONTACT_LINK_VERIFICATION = 17,  // private, non-encrypted - char array in B64 - non-versioned
-    ATTR_RICH_PREVIEWS = 18,     // private - byte array
-    ATTR_RUBBISH_TIME = 19,      // private, non-encrypted - char array in B64 - non-versioned
-    ATTR_LAST_PSA = 20,          // private - char array
-    ATTR_STORAGE_STATE = 21,     // private - non-encrypted - char array in B64 - non-versioned
-    ATTR_GEOLOCATION = 22        // private - byte array
+    ATTR_AVATAR = 0,                        // public - char array - non-versioned
+    ATTR_FIRSTNAME = 1,                     // public - char array - non-versioned
+    ATTR_LASTNAME = 2,                      // public - char array - non-versioned
+    ATTR_AUTHRING = 3,                      // private - byte array
+    ATTR_LAST_INT = 4,                      // private - byte array
+    ATTR_ED25519_PUBK = 5,                  // public - byte array - versioned
+    ATTR_CU25519_PUBK = 6,                  // public - byte array - versioned
+    ATTR_KEYRING = 7,                       // private - byte array - versioned
+    ATTR_SIG_RSA_PUBK = 8,                  // public - byte array - versioned
+    ATTR_SIG_CU255_PUBK = 9,                // public - byte array - versioned
+    ATTR_COUNTRY = 10,                      // public - char array - non-versioned
+    ATTR_BIRTHDAY = 11,                     // public - char array - non-versioned
+    ATTR_BIRTHMONTH = 12,                   // public - char array - non-versioned
+    ATTR_BIRTHYEAR = 13,                    // public - char array - non-versioned
+    ATTR_LANGUAGE = 14,                     // private, non-encrypted - char array in B64 - non-versioned
+    ATTR_PWD_REMINDER = 15,                 // private, non-encrypted - char array in B64 - non-versioned
+    ATTR_DISABLE_VERSIONS = 16,             // private, non-encrypted - char array in B64 - non-versioned
+    ATTR_CONTACT_LINK_VERIFICATION = 17,    // private, non-encrypted - char array in B64 - non-versioned
+    ATTR_RICH_PREVIEWS = 18,                // private - byte array
+    ATTR_RUBBISH_TIME = 19,                 // private, non-encrypted - char array in B64 - non-versioned
+    ATTR_LAST_PSA = 20,                     // private - char array
+    ATTR_STORAGE_STATE = 21,                // private - non-encrypted - char array in B64 - non-versioned
+    ATTR_GEOLOCATION = 22,                  // private - byte array - non-versioned
+    ATTR_CAMERA_UPLOADS_FOLDER = 23,        // private - byte array - non-versioned
+    ATTR_MY_CHAT_FILES_FOLDER = 24,         // private - byte array - non-versioned
+    ATTR_PUSH_SETTINGS = 25,                // private - non-encripted - char array in B64 - non-versioned
+    ATTR_UNSHAREABLE_KEY = 26,              // private - char array
+    ATTR_ALIAS = 27,                        // private - byte array - non-versioned
+    ATTR_AUTHRSA = 28,                      // private - byte array
+    ATTR_AUTHCU255 = 29,                    // private - byte array
+
 } attr_t;
 typedef map<attr_t, string> userattr_map;
 
@@ -535,11 +540,77 @@ typedef enum { EMAIL_REMOVED = 0, EMAIL_PENDING_REMOVED = 1, EMAIL_PENDING_ADDED
 
 typedef enum { RETRY_NONE = 0, RETRY_CONNECTIVITY = 1, RETRY_SERVERS_BUSY = 2, RETRY_API_LOCK = 3, RETRY_RATE_LIMIT = 4, RETRY_LOCAL_LOCK = 5, RETRY_UNKNOWN = 6} retryreason_t;
 
-typedef enum { STORAGE_GREEN = 0, STORAGE_ORANGE = 1, STORAGE_RED = 2, STORAGE_CHANGE = 3 } storagestatus_t;
+typedef enum { STORAGE_UNKNOWN = -9, STORAGE_GREEN = 0, STORAGE_ORANGE = 1, STORAGE_RED = 2, STORAGE_CHANGE = 3 } storagestatus_t;
+
+
+enum SmsVerificationState {
+    // These values (except unknown) are delivered from the servers
+    SMS_STATE_UNKNOWN = -1,       // Flag was not received
+    SMS_STATE_NOT_ALLOWED = 0,    // No SMS allowed
+    SMS_STATE_ONLY_UNBLOCK = 1,   // Only unblock SMS allowed
+    SMS_STATE_FULL = 2            // Opt-in and unblock SMS allowed
+};
 
 typedef unsigned int achievement_class_id;
 typedef map<achievement_class_id, Achievement> achievements_map;
 
+struct recentaction
+{
+    m_time_t time;
+    handle user;
+    handle parent;
+    bool updated;
+    bool media;
+    node_vector nodes;
+};
+typedef vector<recentaction> recentactions_vector;
+
+typedef enum { BIZ_STATUS_UNKNOWN = -2, BIZ_STATUS_EXPIRED = -1, BIZ_STATUS_INACTIVE = 0, BIZ_STATUS_ACTIVE = 1, BIZ_STATUS_GRACE_PERIOD = 2 } BizStatus;
+typedef enum { BIZ_MODE_UNKNOWN = -1, BIZ_MODE_SUBUSER = 0, BIZ_MODE_MASTER = 1 } BizMode;
+
+typedef enum {
+    AUTH_METHOD_UNKNOWN     = -1,
+    AUTH_METHOD_SEEN        = 0,
+    AUTH_METHOD_FINGERPRINT = 1,    // used only for AUTHRING_ED255
+    AUTH_METHOD_SIGNATURE   = 2,    // used only for signed keys (RSA and Cu25519)
+} AuthMethod;
+
+typedef std::map<attr_t, AuthRing> AuthRingsMap;
+
+// inside 'mega' namespace, since use C++11 and can't rely on C++14 yet, provide make_unique for the most common case.
+// This keeps our syntax small, while making sure the compiler ensures the object is deleted when no longer used.
+// Sometimes there will be ambiguity about std::make_unique vs mega::make_unique if cpp files "use namespace std", in which case specify ::mega::.
+// It's better that we use the same one in older and newer compilers so we detect any issues.
+template<class T, class... constructorArgs>
+unique_ptr<T> make_unique(constructorArgs&&... args)
+{
+    return (unique_ptr<T>(new T(std::forward<constructorArgs>(args)...)));
+}
+
 } // namespace
+
+#define MEGA_DISABLE_COPY(class_name) \
+    class_name(const class_name&) = delete; \
+    class_name& operator=(const class_name&) = delete;
+
+#define MEGA_DISABLE_MOVE(class_name) \
+    class_name(class_name&&) = delete; \
+    class_name& operator=(class_name&&) = delete;
+
+#define MEGA_DISABLE_COPY_MOVE(class_name) \
+    MEGA_DISABLE_COPY(class_name) \
+    MEGA_DISABLE_MOVE(class_name)
+
+#define MEGA_DEFAULT_COPY(class_name) \
+    class_name(const class_name&) = default; \
+    class_name& operator=(const class_name&) = default;
+
+#define MEGA_DEFAULT_MOVE(class_name) \
+    class_name(class_name&&) = default; \
+    class_name& operator=(class_name&&) = default;
+
+#define MEGA_DEFAULT_COPY_MOVE(class_name) \
+    MEGA_DEFAULT_COPY(class_name) \
+    MEGA_DEFAULT_MOVE(class_name)
 
 #endif

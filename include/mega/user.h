@@ -50,7 +50,9 @@ struct MEGA_API User : public Cachable
     struct
     {
         bool keyring : 1;   // private keys
-        bool authring : 1;  // authentication information of the contact
+        bool authring : 1;  // authentication information of the contact (signing key)
+        bool authrsa : 1;   // authentication information of the contact (RSA key)
+        bool authcu255 : 1; // authentication information of the contact (Cu25519 key)
         bool lstint : 1;    // last interaction with the contact
         bool puEd255 : 1;   // public key for Ed25519
         bool puCu255 : 1;   // public key for Cu25519
@@ -60,17 +62,21 @@ struct MEGA_API User : public Cachable
         bool firstname : 1;
         bool lastname : 1;
         bool country : 1;
-        bool birthday : 1;  // wraps status of birthday, birthmonth, birthyear
+        bool birthday : 1;      // wraps status of birthday, birthmonth, birthyear
         bool email : 1;
-        bool language : 1;  // preferred language code
+        bool language : 1;      // preferred language code
         bool pwdReminder : 1;   // password-reminder-dialog information
         bool disableVersions : 1;   // disable fileversioning
         bool contactLinkVerification : 1; // Verify contact requests with contact links
         bool richPreviews : 1;  // enable messages with rich previews
         bool lastPsa : 1;
         bool rubbishTime : 1;   // days to keep nodes in rubbish bin before auto clean
-        bool storageState : 1;   // state of the storage (0 = green, 1 = orange, 2 = red)
+        bool storageState : 1;  // state of the storage (0 = green, 1 = orange, 2 = red)
         bool geolocation : 1;   // enable send geolocations
+        bool cameraUploadsFolder : 1;   // target folder for Camera Uploads
+        bool myChatFilesFolder : 1;   // target folder for my chat files
+        bool pushSettings : 1;  // push notification settings
+        bool alias : 1; // user's aliases
     } changed;
 
     // user's public key
@@ -106,13 +112,14 @@ public:
     const string *getattrversion(attr_t at);
     void invalidateattr(attr_t at);
     bool isattrvalid(attr_t at);
-    void removeattr(attr_t at);
+    void removeattr(attr_t at, const string *version = nullptr);
 
     static string attr2string(attr_t at);
     static string attr2longname(attr_t at);
     static attr_t string2attr(const char *name);
-    static bool needversioning(attr_t at);
+    static int needversioning(attr_t at);
     static char scope(attr_t at);
+    static bool isAuthring(attr_t at);
 
     enum {
         PWD_LAST_SUCCESS = 0x01,
@@ -138,7 +145,67 @@ public:
     void resetTag();
 
     User(const char* = NULL);
+
+    // merges the new values in the given TLV. Returns true if TLV is changed.
+    static bool mergeUserAttribute(attr_t type, const string_map &newValuesMap, TLVstore &tlv);
 };
+
+class AuthRing
+{
+public:
+    AuthRing(attr_t type, const TLVstore &authring);
+
+    // return true if authring has changed (data can be pubKey or keySignature depending on authMethod)
+    void add(handle uh, const std::string &fingerprint, AuthMethod authMethod);
+
+    // assumes the key is already tracked for uh (otherwise, it will throw)
+    void update(handle uh, AuthMethod authMethod);
+
+    // return false if uh was not tracked
+    bool remove(handle uh);
+
+    // return the authring as tlv container, ready to set as user's attribute
+    std::string *serialize(PrnGen &rng, SymmCipher &key) const;
+
+    // false if uh is not tracked in the authring
+    bool isTracked(handle uh) const;
+
+    // true for Cu25519 and RSA, false for Ed25519
+    bool isSignedKey() const;
+
+    // true if key is tracked and authentication method is fingerprint/signature-verified
+    bool areCredentialsVerified(handle uh) const;
+
+    // returns AUTH_METHOD_UNKNOWN if no authentication is found for the given user
+    AuthMethod getAuthMethod(handle uh) const;
+
+    // returns the fingerprint of the public key for a given user, or empty string if user is not found
+    string getFingerprint(handle uh) const;
+
+    // returns the list of tracked users
+    vector<handle> getTrackedUsers() const;
+
+    // returns most significant 160 bits from SHA256, whether in binary or hexadecimal
+    static string fingerprint(const string &pubKey, bool hexadecimal = false);
+
+    // returns the authring type for a given attribute type associated to a public key
+    static attr_t keyTypeToAuthringType(attr_t at);
+
+    // returns the authring type for a given attribute type associated to a signature
+    static attr_t signatureTypeToAuthringType(attr_t at);
+
+    // returns the attribute type associated to the corresponding signature for a given authring type
+    static attr_t authringTypeToSignatureType(attr_t at);
+
+    // returns a human-friendly string for a given authentication method
+    static string authMethodToStr(AuthMethod authMethod);
+
+private:
+    attr_t mType;
+    map<handle, string> mFingerprint;
+    map<handle, AuthMethod> mAuthMethod;
+};
+
 } // namespace
 
 #endif

@@ -203,7 +203,7 @@ struct MEGA_API HttpReq
     reqstatus_t status;
     m_off_t pos;
 
-    long httpstatus;
+    int httpstatus;
 
     httpmethod_t method;
     contenttype_t type;
@@ -265,6 +265,27 @@ struct MEGA_API HttpReq
     char* data();
     size_t size();
 
+    // a buffer that the HttpReq filled in.   This struct owns the buffer (so HttpReq no longer has it).
+    struct http_buf_t 
+    { 
+        byte* datastart();
+        size_t datalen();
+
+        size_t start;
+        size_t end;
+
+        http_buf_t(byte* b, size_t s, size_t e);  // takes ownership of the byte*, which must have been allocated with new[]
+        ~http_buf_t();
+        void swap(http_buf_t& other);
+        bool isNull();
+
+    private: 
+        byte* buf;
+    };
+    
+    // give up ownership of the buffer for client to use.  The caller is the new owner of the http_buf_t, and the HttpReq no longer has the buffer or any info about it.
+    http_buf_t* release_buf();
+
     // set amount of purgeable data at 0
     void purge(size_t);
 
@@ -293,7 +314,7 @@ struct MEGA_API HttpReq
 
 struct MEGA_API GenericHttpReq : public HttpReq
 {
-    GenericHttpReq(bool = false);
+    GenericHttpReq(PrnGen &rng, bool = false);
 
     // tag related to the request
     int tag;
@@ -315,13 +336,50 @@ struct MEGA_API GenericHttpReq : public HttpReq
     BackoffTimer maxbt;
 };
 
+class MEGA_API EncryptByChunks
+{
+    // this class allows encrypting a large buffer chunk by chunk, 
+    // or alternatively encrypting consecutive data by feeding it a piece at a time, 
+    // from separate buffers (the algorithm chooses the size though)
+
+public:
+    // size (in bytes) of the CRC of uploaded chunks
+    enum { CRCSIZE = 12 };
+
+    EncryptByChunks(SymmCipher* k, chunkmac_map* m, uint64_t iv);
+
+    // encryption: data must be NULL-padded to SymmCipher::BLOCKSIZE
+    // (so buffer allocation size must be rounded up too)
+    // len must be < 2^31
+    virtual byte* nextbuffer(unsigned datasize) = 0;
+
+    bool encrypt(m_off_t pos, m_off_t npos, string& urlSuffix);
+
+private:
+    SymmCipher* key;
+    chunkmac_map* macs;
+    uint64_t ctriv;     // initialization vector for CTR mode
+    byte crc[CRCSIZE];
+    void updateCRC(byte* data, unsigned size, unsigned offset);
+};
+
+class MEGA_API EncryptBufferByChunks : public EncryptByChunks
+{
+    // specialisation for encrypting a whole contiguous buffer by chunks
+    byte *chunkstart;
+
+    byte* nextbuffer(unsigned bufsize) override;
+
+public:
+    EncryptBufferByChunks(byte* b, SymmCipher* k, chunkmac_map* m, uint64_t iv);
+};
+
 // file chunk I/O
 struct MEGA_API HttpReqXfer : public HttpReq
 {
     unsigned size;
 
     virtual void prepare(const char*, SymmCipher*, chunkmac_map*, uint64_t, m_off_t, m_off_t) = 0;
-    virtual void finalize(Transfer*) { }
 
     HttpReqXfer() : HttpReq(true), size(0) { }
 };
@@ -329,9 +387,6 @@ struct MEGA_API HttpReqXfer : public HttpReq
 // file chunk upload
 struct MEGA_API HttpReqUL : public HttpReqXfer
 {
-    // size (in bytes) of the CRC of uploaded chunks
-    static const int CRCSIZE;
-
     void prepare(const char*, SymmCipher*, chunkmac_map*, uint64_t, m_off_t, m_off_t);
 
     m_off_t transferred(MegaClient*);
@@ -343,11 +398,11 @@ struct MEGA_API HttpReqUL : public HttpReqXfer
 struct MEGA_API HttpReqDL : public HttpReqXfer
 {
     m_off_t dlpos;
-    chunkmac_map chunkmacs;
+    bool buffer_released;
 
     void prepare(const char*, SymmCipher*, chunkmac_map*, uint64_t, m_off_t, m_off_t);
-    void finalize(Transfer *transfer);
 
+    HttpReqDL();
     ~HttpReqDL() { }
 };
 

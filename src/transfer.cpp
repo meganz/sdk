@@ -33,6 +33,7 @@
 namespace mega {
 
 Transfer::Transfer(MegaClient* cclient, direction_t ctype)
+    : bt(cclient->rng)
 {
     type = ctype;
     client = cclient;
@@ -129,13 +130,7 @@ bool Transfer::serialize(string *d)
     d->append((const char*)&metamac, sizeof(metamac));
     d->append((const char*)transferkey, sizeof (transferkey));
 
-    ll = (unsigned short)chunkmacs.size();
-    d->append((char*)&ll, sizeof(ll));
-    for (chunkmac_map::iterator it = chunkmacs.begin(); it != chunkmacs.end(); it++)
-    {
-        d->append((char*)&it->first, sizeof(it->first));
-        d->append((char*)&it->second, sizeof(it->second));
-    }
+    chunkmacs.serialize(*d);
 
     if (!FileFingerprint::serialize(d))
     {
@@ -164,11 +159,18 @@ bool Transfer::serialize(string *d)
         d->append((const char*)&hasUltoken, sizeof(char));
     }
 
-    ll = (unsigned short)tempurl.size();
+    // store raid URL string(s) in the same record as non-raid, 0-delimited in the case of raid
+    std::string combinedUrls;
+    for (std::vector<std::string>::const_iterator i = tempurls.begin(); i != tempurls.end(); ++i)
+    {
+        combinedUrls.append("", i == tempurls.begin() ? 0 : 1); // '\0' separator
+        combinedUrls.append(*i);
+    }
+    ll = (unsigned short)combinedUrls.size();
     d->append((char*)&ll, sizeof(ll));
-    d->append(tempurl.data(), ll);
+    d->append(combinedUrls.data(), ll);
 
-    char s = state;
+    char s = static_cast<char>(state);
     d->append((const char*)&s, sizeof(s));
     d->append((const char*)&priority, sizeof(priority));
     d->append("", 1);
@@ -221,23 +223,11 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
 
     t->localfilename.assign(filepath, ll);
 
-    ll = MemAccess::get<unsigned short>(ptr);
-    ptr += sizeof(ll);
-
-    if (ptr + ll * (sizeof(m_off_t) + sizeof(ChunkMAC)) + sizeof(ll) > end)
+    if (!t->chunkmacs.unserialize(ptr, end))
     {
         LOG_err << "Transfer unserialization failed - chunkmacs too long";
         delete t;
         return NULL;
-    }
-
-    for (int i = 0; i < ll; i++)
-    {
-        m_off_t pos = MemAccess::get<m_off_t>(ptr);
-        ptr += sizeof(m_off_t);
-
-        memcpy(&(t->chunkmacs[pos]), ptr, sizeof(ChunkMAC));
-        ptr += sizeof(ChunkMAC);
     }
 
     d->erase(0, ptr - d->data());
@@ -300,7 +290,21 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
         return NULL;
     }
 
-    t->tempurl.assign(ptr, ll);
+    std::string combinedUrls;
+    combinedUrls.assign(ptr, ll);
+    for (size_t p = 0; p < ll; )
+    {
+        size_t n = combinedUrls.find('\0');
+        t->tempurls.push_back(combinedUrls.substr(p, n));
+        assert(!t->tempurls.back().empty());
+        p += (n == std::string::npos) ? ll : (n + 1);
+    }
+    if (!t->tempurls.empty() && t->tempurls.size() != 1 && t->tempurls.size() != RAIDPARTS)
+    {
+        LOG_err << "Transfer unserialization failed - temp URL incorrect components";
+        delete t;
+        return NULL;
+    }
     ptr += ll;
 
     char state = MemAccess::get<char>(ptr);
@@ -322,25 +326,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     }
     ptr++;
 
-    for (chunkmac_map::iterator it = t->chunkmacs.begin(); it != t->chunkmacs.end(); it++)
-    {
-        m_off_t chunkceil = ChunkedHash::chunkceil(it->first, t->size);
-
-        if (t->pos == it->first && it->second.finished)
-        {
-            t->pos = chunkceil;
-            t->progresscompleted = chunkceil;
-        }
-        else if (it->second.finished)
-        {
-            m_off_t chunksize = chunkceil - ChunkedHash::chunkfloor(it->first);
-            t->progresscompleted += chunksize;
-        }
-        else
-        {
-            t->progresscompleted += it->second.offset;
-        }
-    }
+    t->chunkmacs.calcprogress(t->size, t->pos, t->progresscompleted);
 
     transfers[type].insert(pair<FileFingerprint*, Transfer*>(t, t));
     return t;
@@ -368,36 +354,39 @@ void Transfer::failed(error e, dstime timeleft)
         client->reqtag = creqtag;
     }
 
-    if (e != API_EOVERQUOTA)
+    if (e != API_EBUSINESSPASTDUE)
     {
-        bt.backoff();
-        state = TRANSFERSTATE_RETRYING;
-        client->app->transfer_failed(this, e, timeleft);
-        client->looprequested = true;
-    }
-    else
-    {
-        bt.backoff(timeleft ? timeleft : NEVER);
-        client->activateoverquota(timeleft);
-        if (!slot)
+        if (e != API_EOVERQUOTA)
         {
+            bt.backoff();
+            state = TRANSFERSTATE_RETRYING;
             client->app->transfer_failed(this, e, timeleft);
+            client->looprequested = true;
+        }
+        else
+        {
+            bt.backoff(timeleft ? timeleft : NEVER);
+            client->activateoverquota(timeleft);
+            if (!slot)
+            {
+                client->app->transfer_failed(this, e, timeleft);
+            }
         }
     }
 
     for (file_list::iterator it = files.begin(); it != files.end(); it++)
     {
-        if ( (*it)->failed(e)
+        if ( ((*it)->failed(e) && (e != API_EBUSINESSPASTDUE))
                 || (e == API_ENOENT // putnodes returned -9, file-storage server unavailable
                     && type == PUT
-                    && slot && slot->transfer->tempurl.empty()
+                    && tempurls.empty()
                     && failcount < 16) )
         {
             defer = true;
         }
     }
 
-    tempurl.clear();
+    tempurls.clear();
     if (type == PUT)
     {
         chunkmacs.clear();
@@ -432,7 +421,7 @@ void Transfer::failed(error e, dstime timeleft)
         for (file_list::iterator it = files.begin(); it != files.end(); it++)
         {
 #ifdef ENABLE_SYNC
-            if((*it)->syncxfer)
+            if((*it)->syncxfer && e != API_EBUSINESSPASTDUE)
             {
                 client->syncdownrequired = true;
             }
@@ -525,7 +514,7 @@ void Transfer::complete()
         // verify integrity of file
         FileAccess* fa = client->fsaccess->newfileaccess();
         FileFingerprint fingerprint;
-        Node* n;
+        Node* n = nullptr;
         bool fixfingerprint = false;
         bool fixedfingerprint = false;
         bool syncxfer = false;
@@ -1160,7 +1149,7 @@ void DirectReadNode::retry(error e, dstime timeleft)
         }
     }
 
-    tempurl.clear();
+    tempurls.clear();
 
     if (!e || !minretryds)
     {
@@ -1192,8 +1181,21 @@ void DirectReadNode::cmdresult(error e, dstime timeleft)
         // feed all pending reads to the global read queue
         for (dr_list::iterator it = reads.begin(); it != reads.end(); it++)
         {
-            assert((*it)->drq_it == client->drq.end());
-            (*it)->drq_it = client->drq.insert(client->drq.end(), *it);
+            DirectRead* dr = *it;
+            assert(dr->drq_it == client->drq.end());
+
+            if (dr->drbuf.tempUrlVector().empty())
+            {
+                // DirectRead starting
+                dr->drbuf.setIsRaid(dr->drn->tempurls, dr->offset, dr->offset + dr->count, dr->drn->size, 2097152);  // 2 MB max buffer usage approx for streaming
+            }
+            else
+            {
+                // URLs have been re-requested, eg. due to temp URL expiry.  Keep any parts downloaded already
+                dr->drbuf.updateUrlsAndResetPos(dr->drn->tempurls);
+            }
+
+            dr->drq_it = client->drq.insert(client->drq.end(), *it);
         }
 
         schedule(DirectReadSlot::TIMEOUT_DS);
@@ -1227,132 +1229,191 @@ void DirectReadNode::enqueue(m_off_t offset, m_off_t count, int reqtag, void* ap
     new DirectRead(this, count, offset, reqtag, appdata);
 }
 
+bool DirectReadSlot::processAnyOutputPieces()
+{
+    bool continueDirectRead = true;
+    TransferBufferManager::FilePiece* outputPiece;
+    while (continueDirectRead && (outputPiece = dr->drbuf.getAsyncOutputBufferPointer(0)))
+    {
+        size_t len = outputPiece->buf.datalen();
+        speed = speedController.calculateSpeed();
+        meanSpeed = speedController.getMeanSpeed();
+        dr->drn->client->httpio->updatedownloadspeed(len);
+        continueDirectRead = dr->drn->client->app->pread_data(outputPiece->buf.datastart(), len, pos, speed, meanSpeed, dr->appdata);
+
+        dr->drbuf.bufferWriteCompleted(0, true);
+
+        if (continueDirectRead)
+        {
+            pos += len;
+            dr->drn->partiallen += len;
+            dr->progress += len;
+        }
+    }
+    return continueDirectRead;
+}
+
 bool DirectReadSlot::doio()
 {
-    if (req->status == REQ_INFLIGHT || req->status == REQ_SUCCESS)
+    for (unsigned connectionNum = unsigned(reqs.size()); connectionNum--; )
     {
-        if (req->in.size())
+        HttpReq* req = reqs[connectionNum];
+
+        if (req->status == REQ_INFLIGHT || req->status == REQ_SUCCESS)
         {
-            int r, l, t;
-            byte buf[SymmCipher::BLOCKSIZE];
-
-            // decrypt, pass to app and erase
-            r = pos & (sizeof buf - 1);
-            t = req->in.size();
-
-            dr->drn->schedule(DirectReadSlot::TIMEOUT_DS);
-
-            if (r)
+            if (req->in.size())
             {
-                l = sizeof buf - r;
+                unsigned n = unsigned(req->in.size());
 
-                if (l > t)
+                if (req->status == REQ_INFLIGHT)
                 {
-                    l = t;
+                    // raid reassembly logic needs to operate on whole raidlines
+                    n -= n % RAIDSECTOR;
                 }
 
-                memcpy(buf + r, req->in.data(), l);
-                dr->drn->symmcipher.ctr_crypt(buf, sizeof buf, pos - r, dr->drn->ctriv, NULL, false);
-                memcpy((char*)req->in.data(), buf + r, l);
+                if (n)
+                {
+
+                    RaidBufferManager::FilePiece* np = new RaidBufferManager::FilePiece(req->pos, n);
+                    memcpy(np->buf.datastart(), req->in.data(), n);
+
+                    req->in.erase(0, n);
+                    req->contentlength -= n;
+                    req->bufpos = 0;
+                    req->pos += n;
+
+                    dr->drbuf.submitBuffer(connectionNum, np);
+
+                    if (req->httpio)
+                    {
+                        req->httpio->lastdata = Waiter::ds;
+                        req->lastdata = Waiter::ds;
+                    }
+
+                    dr->drn->schedule(DirectReadSlot::TIMEOUT_DS);
+
+                    // we might have a raid-reassembled block to write now, or this very block in non-raid
+                    if (!processAnyOutputPieces())
+                    {
+                        // app-requested abort
+                        delete dr;
+                        return true;
+                    }
+                }
+            }
+
+            if (req->status == REQ_SUCCESS)
+            {
+                req->status = REQ_READY;
+            }
+        }
+        
+        if (req->status == REQ_READY)
+        {
+            bool newBufferSupplied = false, pauseForRaid = false;
+            std::pair<m_off_t, m_off_t> posrange = dr->drbuf.nextNPosForConnection(connectionNum, newBufferSupplied, pauseForRaid);
+
+            // we might have a raid-reassembled block to write, or a previously loaded block, or a skip block to process.
+            processAnyOutputPieces();
+
+            if (!newBufferSupplied && !pauseForRaid)
+            {
+                if (posrange.first >= posrange.second)
+                {
+                    req->status = REQ_DONE;
+                    bool allDone = true;
+                    for (size_t i = reqs.size(); i--; )
+                    {
+                        if (reqs[i]->status != REQ_DONE)
+                        {
+                            allDone = false;
+                        }
+                    }
+                    if (allDone)
+                    {
+                        dr->drn->schedule(DirectReadSlot::TEMPURL_TIMEOUT_DS);
+
+                        // remove and delete completed read request, then remove slot
+                        delete dr;
+                        return true;
+                    }
+                }
+                else
+                {
+                    char buf[128];
+                    sprintf(buf, "/%" PRIu64 "-", posrange.first);
+                    if (dr->count)
+                    {
+                        sprintf(strchr(buf, 0), "%" PRIu64, posrange.second - 1);
+                    }
+
+                    req->pos = posrange.first;
+                    req->posturl = adjustURLPort(dr->drbuf.tempURL(connectionNum));
+                    req->posturl.append(buf);
+                    LOG_debug << "POST URL: " << req->posturl;
+                    req->post(dr->drn->client);  // status will go to inflight or fail
+
+                    dr->drbuf.transferPos(connectionNum) = posrange.second;
+                }
+            }
+        }
+        
+        if (req->status == REQ_FAILURE)
+        {
+            if (req->httpstatus == 509)
+            {
+                if (req->timeleft < 0)
+                {
+                    int creqtag = dr->drn->client->reqtag;
+                    dr->drn->client->reqtag = 0;
+                    dr->drn->client->sendevent(99408, "Overquota without timeleft");
+                    dr->drn->client->reqtag = creqtag;
+                }
+
+                dstime backoff;
+
+                LOG_warn << "Bandwidth overquota from storage server for streaming transfer";
+                if (req->timeleft > 0)
+                {
+                    backoff = dstime(req->timeleft * 10);
+                }
+                else
+                {
+                    // default retry interval
+                    backoff = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS * 10;
+                }
+
+                dr->drn->retry(API_EOVERQUOTA, backoff);
             }
             else
             {
-                l = 0;
+                // a failure triggers a complete abort and retry of all pending reads for this node, including getting updated URL(s)
+                dr->drn->retry(API_EREAD);
             }
+            return true;
+        }
 
-            if (t > l)
+        if (Waiter::ds - dr->drn->partialstarttime > MEAN_SPEED_INTERVAL_DS)
+        {
+            m_off_t meanspeed = (10 * dr->drn->partiallen) / (Waiter::ds - dr->drn->partialstarttime);
+
+            LOG_debug << "Mean speed (B/s): " << meanspeed;
+            int minspeed = dr->drn->client->minstreamingrate;
+            if (minspeed < 0)
             {
-                r = (l - t) & (sizeof buf - 1);
-                req->in.resize(t + r);
-                dr->drn->symmcipher.ctr_crypt((byte*)req->in.data() + l, req->in.size() - l, pos + l, dr->drn->ctriv, NULL, false);
+                minspeed = MIN_BYTES_PER_SECOND;
             }
-
-            if (req->httpio)
+            if (minspeed != 0 && meanspeed < minspeed)
             {
-                req->httpio->lastdata = Waiter::ds;
-                req->lastdata = Waiter::ds;
-            }
-
-            speed = speedController.calculateSpeed(t);
-            meanSpeed = speedController.getMeanSpeed();
-            dr->drn->client->httpio->updatedownloadspeed(t);
-            if (dr->drn->client->app->pread_data((byte*)req->in.data(), t, pos, speed, meanSpeed, dr->appdata))
-            {
-                pos += t;
-                dr->drn->partiallen += t;
-                dr->progress += t;
-
-                req->in.clear();
-                req->contentlength -= t;
-                req->bufpos = 0;               
-            }
-            else
-            {
-                // app-requested abort
-                delete dr;
+                LOG_warn << "Transfer speed too low for streaming. Retrying";
+                dr->drn->retry(API_EAGAIN);
                 return true;
             }
-        }
-
-        if (req->status == REQ_SUCCESS)
-        {
-            dr->drn->schedule(DirectReadSlot::TEMPURL_TIMEOUT_DS);
-
-            // remove and delete completed read request, then remove slot
-            delete dr;
-            return true;
-        }
-    }
-    else if (req->status == REQ_FAILURE)
-    {
-        if (req->httpstatus == 509)
-        {
-            if (req->timeleft < 0)
-            {
-                int creqtag = dr->drn->client->reqtag;
-                dr->drn->client->reqtag = 0;
-                dr->drn->client->sendevent(99408, "Overquota without timeleft");
-                dr->drn->client->reqtag = creqtag;
-            }
-
-            dstime backoff;
-
-            LOG_warn << "Bandwidth overquota from storage server for streaming transfer";
-            if (req->timeleft > 0)
-            {
-                backoff = dstime(req->timeleft * 10);
-            }
             else
             {
-                // default retry interval
-                backoff = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS * 10;
+                dr->drn->partiallen = 0;
+                dr->drn->partialstarttime = Waiter::ds;
             }
-
-            dr->drn->retry(API_EOVERQUOTA, backoff);
-        }
-        else
-        {
-            // a failure triggers a complete abort and retry of all pending reads for this node
-            dr->drn->retry(API_EREAD);
-        }
-        return true;
-    }
-
-    if (Waiter::ds - dr->drn->partialstarttime > MEAN_SPEED_INTERVAL_DS)
-    {
-        m_off_t meanspeed = (10 * dr->drn->partiallen) / (Waiter::ds - dr->drn->partialstarttime);
-
-        LOG_debug << "Mean speed (B/s): " << meanspeed;
-        if (meanspeed < MIN_BYTES_PER_SECOND)
-        {
-            LOG_warn << "Transfer speed too low for streaming. Retrying";
-            dr->drn->retry(API_EAGAIN);
-            return true;
-        }
-        else
-        {
-            dr->drn->partiallen = 0;
-            dr->drn->partialstarttime = Waiter::ds;
         }
     }
 
@@ -1373,6 +1434,7 @@ void DirectRead::abort()
 }
 
 DirectRead::DirectRead(DirectReadNode* cdrn, m_off_t ccount, m_off_t coffset, int creqtag, void* cappdata)
+    : drbuf(this)
 {
     drn = cdrn;
 
@@ -1386,9 +1448,10 @@ DirectRead::DirectRead(DirectReadNode* cdrn, m_off_t ccount, m_off_t coffset, in
 
     reads_it = drn->reads.insert(drn->reads.end(), this);
     
-    if (drn->tempurl.size())
+    if (!drn->tempurls.empty())
     {
-        // we already have a tempurl: queue for immediate fetching
+        // we already have tempurl(s): queue for immediate fetching
+        drbuf.setIsRaid(drn->tempurls, offset, offset + count, drn->size, 2097152);  // 2 MB max buffer usage approx
         drq_it = drn->client->drq.insert(drn->client->drq.end(), this);
     }
     else
@@ -1408,33 +1471,12 @@ DirectRead::~DirectRead()
     }
 }
 
-// request DirectRead's range via tempurl
-DirectReadSlot::DirectReadSlot(DirectRead* cdr)
+std::string DirectReadSlot::adjustURLPort(std::string url)
 {
-    char buf[128];
-
-    dr = cdr;
-
-    pos = dr->offset + dr->progress;
-
-    speed = meanSpeed = 0;
-
-    req = new HttpReq(true);
-
-    sprintf(buf,"/%" PRIu64 "-", pos);
-
-    if (dr->count)
+    if (!memcmp(url.c_str(), "http:", 5))
     {
-        sprintf(strchr(buf, 0), "%" PRIu64, dr->offset + dr->count - 1);
-    }
-
-    dr->drn->partiallen = 0;
-    dr->drn->partialstarttime = Waiter::ds;
-    req->posturl = dr->drn->tempurl;
-    if (!memcmp(req->posturl.c_str(), "http:", 5))
-    {
-        size_t portendindex = req->posturl.find("/", 8);
-        size_t portstartindex = req->posturl.find(":", 8);
+        size_t portendindex = url.find("/", 8);
+        size_t portstartindex = url.find(":", 8);
 
         if (portendindex != string::npos)
         {
@@ -1443,7 +1485,7 @@ DirectReadSlot::DirectReadSlot(DirectRead* cdr)
                 if (dr->drn->client->usealtdownport)
                 {
                     LOG_debug << "Enabling alternative port for streaming transfer";
-                    req->posturl.insert(portendindex, ":8080");
+                    url.insert(portendindex, ":8080");
                 }
             }
             else
@@ -1451,19 +1493,36 @@ DirectReadSlot::DirectReadSlot(DirectRead* cdr)
                 if (!dr->drn->client->usealtdownport)
                 {
                     LOG_debug << "Disabling alternative port for streaming transfer";
-                    req->posturl.erase(portstartindex, portendindex - portstartindex);
+                    url.erase(portstartindex, portendindex - portstartindex);
                 }
             }
         }
     }
+    return url;
+}
 
-    req->posturl.append(buf);
-    req->type = REQ_BINARY;
+// request DirectRead's range via tempurl
+DirectReadSlot::DirectReadSlot(DirectRead* cdr)
+{
+    dr = cdr;
 
-    LOG_debug << "POST URL: " << req->posturl;
-    req->post(dr->drn->client);
+    pos = dr->offset + dr->progress;
+    dr->nextrequestpos = pos;
+
+    speed = meanSpeed = 0;
+
+    assert(reqs.empty());
+    for (size_t i = dr->drbuf.tempUrlVector().size(); i--; )
+    {
+        reqs.push_back(new HttpReq(true));
+        reqs.back()->status = REQ_READY;
+        reqs.back()->type = REQ_BINARY;
+    }
 
     drs_it = dr->drn->client->drss.insert(dr->drn->client->drss.end(), this);
+
+    dr->drn->partiallen = 0;
+    dr->drn->partialstarttime = Waiter::ds;
 }
 
 DirectReadSlot::~DirectReadSlot()
@@ -1471,7 +1530,10 @@ DirectReadSlot::~DirectReadSlot()
     dr->drn->client->drss.erase(drs_it);
 
     LOG_debug << "Deleting DirectReadSlot";
-    delete req;
+    for (size_t i = reqs.size(); i--; )
+    {
+        delete reqs[i];
+    }
 }
 
 bool priority_comparator(Transfer* i, Transfer *j)
@@ -1598,8 +1660,8 @@ void TransferList::movetransfer(transfer_list::iterator it, transfer_list::itera
         return;
     }
 
-    int srcindex = std::distance(transfers[transfer->type].begin(), it);
-    int dstindex = std::distance(transfers[transfer->type].begin(), dstit);
+    int srcindex = int(std::distance(transfers[transfer->type].begin(), it));
+    int dstindex = int(std::distance(transfers[transfer->type].begin(), dstit));
     LOG_debug << "Moving transfer from " << srcindex << " to " << dstindex;
 
     uint64_t prevpriority = 0;
@@ -1761,7 +1823,8 @@ error TransferList::pause(Transfer *transfer, bool enable)
             {
                 transfer->bt.arm();
             }
-            delete transfer->slot;
+            delete transfer->slot;  
+            transfer->slot = NULL;
         }
         transfer->state = TRANSFERSTATE_PAUSED;
         client->transfercacheadd(transfer);
@@ -1823,7 +1886,7 @@ Transfer *TransferList::transferat(direction_t direction, unsigned int position)
     return NULL;
 }
 
-void TransferList::prepareIncreasePriority(Transfer *transfer, transfer_list::iterator srcit, transfer_list::iterator dstit)
+void TransferList::prepareIncreasePriority(Transfer *transfer, transfer_list::iterator /*srcit*/, transfer_list::iterator dstit)
 {
     if (dstit == transfers[transfer->type].end())
     {
@@ -1851,7 +1914,8 @@ void TransferList::prepareIncreasePriority(Transfer *transfer, transfer_list::it
             {
                 lastActiveTransfer->bt.arm();
             }
-            delete lastActiveTransfer->slot;
+            delete lastActiveTransfer->slot; 
+            lastActiveTransfer->slot = NULL;
             lastActiveTransfer->state = TRANSFERSTATE_QUEUED;
             client->transfercacheadd(lastActiveTransfer);
             client->app->transfer_update(lastActiveTransfer);
@@ -1872,7 +1936,8 @@ void TransferList::prepareDecreasePriority(Transfer *transfer, transfer_list::it
                 {
                     transfer->bt.arm();
                 }
-                delete transfer->slot;
+                delete transfer->slot; 
+                transfer->slot = NULL;
                 transfer->state = TRANSFERSTATE_QUEUED;
                 break;
             }

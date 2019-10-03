@@ -104,7 +104,7 @@ void GfxProc::loop()
     {
         waiter.init(NEVER);
         waiter.wait();
-        while (job = requests.pop())
+        while ((job = requests.pop()))
         {
             if (finished)
             {
@@ -155,12 +155,12 @@ void GfxProc::loop()
         }
     }
 
-    while (job = requests.pop())
+    while ((job = requests.pop()))
     {
         delete job;
     }
 
-    while (job = responses.pop())
+    while ((job = responses.pop()))
     {
         for (unsigned i = 0; i < job->imagetypes.size(); i++)
         {
@@ -180,7 +180,7 @@ int GfxProc::checkevents(Waiter *)
     GfxJob *job = NULL;
     bool needexec = false;
     SymmCipher key;
-    while (job = responses.pop())
+    while ((job = responses.pop()))
     {
         for (unsigned i = 0; i < job->images.size(); i++)
         {
@@ -194,7 +194,7 @@ int GfxProc::checkevents(Waiter *)
                 key.setkey(job->key);
                 int creqtag = client->reqtag;
                 client->reqtag = 0;
-                client->putfa(job->h, (meta_t)job->imagetypes[i], &key, job->images[i], job->flag);
+                client->putfa(job->h, job->imagetypes[i], &key, job->images[i], job->flag);
                 client->reqtag = creqtag;
             }
             else
@@ -284,7 +284,7 @@ void GfxProc::transform(int& w, int& h, int& rw, int& rh, int& px, int& py)
 
 // load bitmap image, generate all designated sizes, attach to specified upload/node handle
 // FIXME: move to a worker thread to keep the engine nonblocking
-int GfxProc::gendimensionsputfa(FileAccess* fa, string* localfilename, handle th, SymmCipher* key, int missing, bool checkAccess)
+int GfxProc::gendimensionsputfa(FileAccess* /*fa*/, string* localfilename, handle th, SymmCipher* key, int missing, bool checkAccess)
 {
     if (SimpleLogger::logCurrentLevel >= logDebug)
     {
@@ -298,7 +298,7 @@ int GfxProc::gendimensionsputfa(FileAccess* fa, string* localfilename, handle th
     job->flag = checkAccess;
     memcpy(job->key, key->key, SymmCipher::KEYLENGTH);
     job->localfilename = *localfilename;
-    for (int i = sizeof dimensions/sizeof dimensions[0]; i--; )
+    for (fatype i = sizeof dimensions/sizeof dimensions[0]; i--; )
     {
         if (missing & (1 << i))
         {
@@ -368,7 +368,7 @@ bool GfxProc::savefa(string *localfilepath, int width, int height, string *local
     return true;
 }
 
-GfxProc::GfxProc() : mutex(false)
+GfxProc::GfxProc()
 {
     client = NULL;
     finished = false;
@@ -382,7 +382,7 @@ GfxProc::~GfxProc()
     thread.join();
 }
 
-GfxJobQueue::GfxJobQueue() : mutex(false)
+GfxJobQueue::GfxJobQueue()
 {
 
 }

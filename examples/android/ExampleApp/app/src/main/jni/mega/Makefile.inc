@@ -30,6 +30,7 @@ CPP_SOURCES= sdk/src/attrmap.cpp \
     sdk/src/megaclient.cpp \
     sdk/src/node.cpp \
     sdk/src/pubkeyaction.cpp \
+    sdk/src/raid.cpp \
     sdk/src/request.cpp \
     sdk/src/serialize64.cpp \
     sdk/src/share.cpp \

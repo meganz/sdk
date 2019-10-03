@@ -26,11 +26,12 @@ namespace mega {
 // or name length into account
 unsigned AttrMap::storagesize(int perrecord) const
 {
+    assert(perrecord >= 0);
     unsigned t = 0;
 
     for (attr_map::const_iterator it = map.begin(); it != map.end(); it++)
     {
-        t += perrecord + it->second.size();
+        t += static_cast<unsigned>(perrecord + it->second.size());
     }
 
     return t;
@@ -48,18 +49,17 @@ int AttrMap::nameid2string(nameid id, char* buf)
         }
     }
 
-    return ptr - buf;
+    return static_cast<int>(ptr - buf);
 }
 
 nameid AttrMap::string2nameid(const char *a)
 {
-    int len;
     if (!a)
     {
         return 0;
     }
 
-    len = strlen(a);
+    size_t len = strlen(a);
     if (len > 8)
     {
         return 0;
@@ -174,7 +174,7 @@ void AttrMap::getjson(string* s) const
             pptr = it->second.c_str();
             ptr = it->second.c_str();
 
-            for (int i = it->second.size(); i-- >= 0; ptr++)
+            for (int i = static_cast<int>(it->second.size()); i-- >= 0; ptr++)
             {
                 if ((i < 0) || ((*(const signed char*)ptr >= 0) && (*ptr < ' ')) || (*ptr == '"') || (*ptr == '\\'))
                 {

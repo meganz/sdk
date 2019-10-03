@@ -25,17 +25,21 @@
 /* Define to 1 if you have the <dirent.h> header file, and it defines `DIR'. */
 #cmakedefine HAVE_DIRENT_H
 
-/* Define to 1 if you have the `fdopendir' function. */
-#cmakedefine HAVE_FDOPENDIR
-
 /* Define to use FFMPEG */
+#ifndef HAVE_FFMPEG
 #cmakedefine HAVE_FFMPEG 
+#endif
 
 /* Define to 1 if you have the <inttypes.h> header file. */
 #cmakedefine HAVE_INTTYPES_H
 
 /* Define to 1 if you have the <glob.h> header file. */
 #cmakedefine HAVE_GLOB_H
+
+#ifndef _WIN32
+/* Define to 1 if you have the `fdopendir' function. */
+#define HAVE_FDOPENDIR 1
+#endif
 
 /* Define to use libuv */
 /* #undef HAVE_LIBUV */
@@ -111,7 +115,9 @@
 /* #undef HAVE_SYS_DIR_H */
 
 /* Define to 1 if you have the <sys/inotify.h> header file. */
+#ifndef __APPLE__
 #define HAVE_SYS_INOTIFY_H 1
+#endif
 
 /* Define to 1 if you have the <sys/malloc.h> header file. */
 /* #undef HAVE_SYS_MALLOC_H */
@@ -199,7 +205,9 @@
 #define USE_DB 0
 
 /* Use inotify API */
+#ifndef __APPLE__
 #define USE_INOTIFY 1
+#endif
 
 /* Use IOS */
 /* #undef USE_IOS */

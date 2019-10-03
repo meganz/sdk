@@ -22,6 +22,7 @@
 #include <megaapi.h>
 #include <Windows.h>
 #include <iostream>
+#include <time.h>
 
 //ENTER YOUR CREDENTIALS HERE
 #define MEGA_EMAIL "EMAIL"
@@ -147,6 +148,13 @@ public:
 	}
 };
 
+string displayTime(time_t t)
+{
+    char timebuf[32];
+    strftime(timebuf, sizeof timebuf, "%c", localtime(&t));
+    return timebuf;
+}
+
 
 int main()
 {
@@ -179,6 +187,10 @@ int main()
 	{
 		Sleep(1000);
 	}
+
+    // Add code here to exercise MegaApi
+
+
 
 #ifdef HAVE_LIBUV
 	cout << "Do you want to enable the local HTTP server (y/n)?" << endl;

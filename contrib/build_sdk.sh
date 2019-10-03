@@ -141,7 +141,7 @@ package_download() {
         cp /tmp/megasdkbuild/$3 $file 
     else
         echo "Downloading $name to get $3"
-        wget --no-check-certificate -c $url -O $file --progress=bar:force -t 2 -T 30 || \
+        wget --secure-protocol=TLSv1 --no-check-certificate -c $url -O $file --progress=bar:force -t 2 -T 30 || \
         curl -k $url > $file || exit 1
     fi
     
@@ -296,7 +296,13 @@ package_install() {
     local cwd=$(pwd)
     cd $dir
 
-    make install $target &> ../$name.install.log
+    if [ $android_build -eq 1 ] && [[ $name == "Crypto++"* ]]; then
+        echo make install-lib $target
+        make install-lib $target &> ../$name.install.log || make install $target &> ../$name.install.log
+    else
+        echo make install $target
+        make install $target &> ../$name.install.log
+    fi
     local exit_code=$?
     if [ $exit_code -ne 0 ]; then
         echo "Failed to install $name, exit status: $exit_code"
@@ -384,9 +390,9 @@ cryptopp_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="Crypto++"
-    local cryptopp_ver="565"
+    local cryptopp_ver="800"
     local cryptopp_url="http://www.cryptopp.com/cryptopp$cryptopp_ver.zip"
-    local cryptopp_md5="df5ef4647b4e978bba0cac79a83aaed5"
+    local cryptopp_md5="f5affc19468c78fd8c5694c664cbd8ec"
     local cryptopp_file="cryptopp$cryptopp_ver.zip"
     local cryptopp_dir="cryptopp$cryptopp_ver"
 
@@ -408,6 +414,8 @@ cryptopp_pkg() {
     sed "s#CXXFLAGS += -march=native#CXXFLAGS += #g" -i $cryptopp_dir/GNUmakefile
     
     if [ $android_build -eq 1 ]; then
+        cp ${ANDROID_NDK_ROOT}/sources/android/cpufeatures/cpu-features.h $cryptopp_dir/
+        cp ${ANDROID_NDK_ROOT}/sources/android/cpufeatures/cpu-features.c $cryptopp_dir/
         package_build $name $cryptopp_dir "static -f GNUmakefile-cross"
         package_install $name $cryptopp_dir $install_dir "-f GNUmakefile-cross"
     else
@@ -661,9 +669,9 @@ curl_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="cURL"
-    local curl_ver="7.49.1"
+    local curl_ver="7.59.0"
     local curl_url="http://curl.haxx.se/download/curl-$curl_ver.tar.gz"
-    local curl_md5="2feb3767b958add6a177c6602ff21e8c"
+    local curl_md5="a44f98c25c7506e7103039b542aa5ad8"
     local curl_file="curl-$curl_ver.tar.gz"
     local curl_dir="curl-$curl_ver"
     local openssl_flags=""
@@ -678,13 +686,13 @@ curl_pkg() {
     if [ $use_dynamic -eq 1 ]; then
         local curl_params="--disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-dict \
             --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi \
-            --without-librtmp --without-libidn --without-libssh2 --enable-ipv6 --disable-manual --without-nghttp2 --without-libpsl \
-            --with-zlib=$install_dir --enable-ares=$install_dir $openssl_flags"
+            --without-librtmp --without-libidn --without-libidn2 --without-libssh2 --enable-ipv6 --disable-manual --without-nghttp2 --without-libpsl \
+            --without-brotli --with-zlib=$install_dir --enable-ares=$install_dir $openssl_flags"
     else
         local curl_params="--disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-dict \
             --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi \
-            --without-librtmp --without-libidn --without-libssh2 --enable-ipv6 --disable-manual --without-nghttp2 --without-libpsl \
-            --disable-shared --with-zlib=$install_dir --enable-ares=$install_dir $openssl_flags"
+            --without-librtmp --without-libidn --without-libidn2 --without-libssh2 --enable-ipv6 --disable-manual --without-nghttp2 --without-libpsl \
+            --without-brotli --disable-shared --with-zlib=$install_dir --enable-ares=$install_dir $openssl_flags"
     fi
 
     if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ]; then

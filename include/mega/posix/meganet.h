@@ -43,7 +43,7 @@ struct MEGA_API SockInfo
     };
 
     SockInfo();
-    int fd;
+    curl_socket_t fd;
     int mode;
 #if defined(_WIN32)
     HANDLE handle;
@@ -55,7 +55,7 @@ struct MEGA_API CurlHttpContext;
 class CurlHttpIO: public HttpIO
 {
 protected:
-    static MUTEX_CLASS curlMutex;
+    static std::mutex curlMutex;
 
     string useragent;
     CURLM* curlm[3];
@@ -97,7 +97,7 @@ protected:
     static int upload_timer_callback(CURLM *multi, long timeout_ms, void *userp);
 
 #if defined(USE_OPENSSL) && !defined(OPENSSL_IS_BORINGSSL)
-    static MUTEX_CLASS **sslMutexes;
+    static std::recursive_mutex **sslMutexes;
     static void locking_function(int mode, int lockNumber, const char *, int);
 
 #if OPENSSL_VERSION_NUMBER >= 0x10000000
@@ -143,7 +143,8 @@ protected:
     void processaresevents();
     void processcurlevents(direction_t d);
     std::vector<SockInfo> aressockets;
-    std::map<int, SockInfo> curlsockets[3];
+    typedef std::map<curl_socket_t, SockInfo> SockInfoMap;
+    SockInfoMap curlsockets[3];
     m_time_t curltimeoutreset[3];
     bool arerequestspaused[3];
     int numconnections[3];

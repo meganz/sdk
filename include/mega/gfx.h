@@ -22,6 +22,8 @@
 #ifndef GFX_H
 #define GFX_H 1
 
+#include <mutex>
+
 #include "megawaiter.h"
 #include "mega/thread/qtthread.h"
 #include "mega/thread/posixthread.h"
@@ -39,7 +41,7 @@ public:
     string localfilename;
 
     // vector with the required image type
-    vector<int> imagetypes;
+    vector<fatype> imagetypes;
 
     // handle related to the image
     handle h;
@@ -58,7 +60,7 @@ class MEGA_API GfxJobQueue
 {
     protected:
         std::deque<GfxJob *> jobs;
-        MUTEX_CLASS mutex;
+        std::mutex mutex;
 
     public:
         GfxJobQueue();
@@ -71,7 +73,7 @@ class MEGA_API GfxProc
 {
     bool finished;
     WAIT_CLASS waiter;
-    MUTEX_CLASS mutex;
+    std::mutex mutex;
     THREAD_CLASS thread;
     GfxJobQueue requests;
     GfxJobQueue responses;

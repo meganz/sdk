@@ -84,6 +84,9 @@ struct MEGA_API FileAccess
     // type of opened path
     nodetype_t type;
 
+    // if opened path is a symlink
+    bool mIsSymLink = false;
+
     // if the open failed, retry indicates a potentially transient reason
     bool retry;
 
@@ -99,7 +102,7 @@ struct MEGA_API FileAccess
     // open for reading, writing or reading and writing
     virtual bool fopen(string*, bool, bool) = 0;
 
-    // open by name only
+    // open by name only. returns false for folders setting type to FOLDERNODE
     bool fopen(string*);
 
     // check if a local path is a folder
@@ -226,8 +229,12 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // indicate error reports are not necessary on this call as it'll be retried in a moment if there is a continuing problem
     bool skip_errorreport;
 
-    // instantiate FileAccess object
-    virtual FileAccess* newfileaccess() = 0;
+    /**
+     * @brief instantiate FileAccess object
+     * @param followSymLinks whether symlinks should be followed when opening a path (default: true)
+     * @return
+     */
+    virtual FileAccess* newfileaccess(bool followSymLinks = true) = 0;
 
     // instantiate DirAccess object
     virtual DirAccess* newdiraccess() = 0;
@@ -290,7 +297,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     virtual size_t lastpartlocal(string*) const = 0;
 
     // obtain lowercased extension
-    virtual bool getextension(string*, char*, int) const = 0;
+    virtual bool getextension(string*, char*, size_t) const = 0;
 
     // check if synchronization is supported for a specific path
     virtual bool issyncsupported(string*, bool* = NULL) { return true; }

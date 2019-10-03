@@ -22,6 +22,7 @@
 #include "mega/user.h"
 #include "mega/megaclient.h"
 #include "mega/logging.h"
+#include "mega/base64.h"
 
 namespace mega {
 User::User(const char* cemail)
@@ -39,6 +40,37 @@ User::User(const char* cemail)
     }
 
     memset(&changed, 0, sizeof(changed));
+}
+
+bool User::mergeUserAttribute(attr_t type, const string_map &newValuesMap, TLVstore &tlv)
+{
+    bool modified = false;
+
+    for (const auto &it : newValuesMap)
+    {
+        const char *key = it.first.c_str();
+        string newValue = it.second;
+        string currentValue;
+        if (tlv.find(key))  // the key may not exist in the current user attribute
+        {
+            Base64::btoa(tlv.get(key), currentValue);
+        }
+        if (newValue != currentValue)
+        {
+            if (type == ATTR_ALIAS && newValue[0] == '\0')
+            {
+                // alias being removed
+                tlv.reset(key);
+            }
+            else
+            {
+                tlv.set(key, Base64::atob(newValue));
+            }
+            modified = true;
+        }
+    }
+
+    return modified;
 }
 
 bool User::serialize(string* d)
@@ -221,7 +253,6 @@ User* User::unserialize(MegaClient* client, string* d)
         }
     }
 
-#ifdef ENABLE_CHAT
     const string *av = (u->isattrvalid(ATTR_KEYRING)) ? u->getattr(ATTR_KEYRING) : NULL;
     if (av)
     {
@@ -230,7 +261,7 @@ User* User::unserialize(MegaClient* client, string* d)
         {
             if (tlvRecords->find(EdDSA::TLV_KEY))
             {
-                client->signkey = new EdDSA((unsigned char *) tlvRecords->get(EdDSA::TLV_KEY).data());
+                client->signkey = new EdDSA(client->rng, (unsigned char *) tlvRecords->get(EdDSA::TLV_KEY).data());
                 if (!client->signkey->initializationOK)
                 {
                     delete client->signkey;
@@ -254,7 +285,7 @@ User* User::unserialize(MegaClient* client, string* d)
                 }
                 else
                 {
-                    LOG_info << "Chat key succesfully loaded from local cache.";
+                    LOG_info << "Chat key successfully loaded from local cache.";
                 }
             }
 
@@ -265,9 +296,8 @@ User* User::unserialize(MegaClient* client, string* d)
             LOG_warn << "Failed to decrypt keyring from cache";
         }
     }
-#endif
 
-    if ((ptr < end) && !u->pubk.setkey(AsymmCipher::PUBKEY, (byte*)ptr, end - ptr))
+    if ((ptr < end) && !u->pubk.setkey(AsymmCipher::PUBKEY, (byte*)ptr, int(end - ptr)))
     {
         client->discarduser(uh);
         return NULL;
@@ -294,11 +324,18 @@ void User::invalidateattr(attr_t at)
     attrsv.erase(at);
 }
 
-void User::removeattr(attr_t at)
+void User::removeattr(attr_t at, const string *version)
 {
     setChanged(at);
     attrs.erase(at);
-    attrsv.erase(at);
+    if (version)
+    {
+        attrsv[at] = *version;
+    }
+    else
+    {
+        attrsv.erase(at);
+    }
 }
 
 // returns the value if there is value (even if it's invalid by now)
@@ -315,12 +352,23 @@ const string * User::getattr(attr_t at)
 
 bool User::isattrvalid(attr_t at)
 {
-    return attrsv.count(at);
+    return attrs.count(at) && attrsv.count(at);
 }
 
 string User::attr2string(attr_t type)
 {
     string attrname;
+
+    // Special first character (required, except for the oldest attributes):
+    // `+` is public and unencrypted
+    // `#` is 'protected' and unencrypted, the API will allow contacts to fetch it but not give it out to non-contacts
+    // `^` is private but unencrypted, i.e.the API won't give it out to anybody except you, but the API can read the value as well
+    // `*` is private and encrypted, API only gives it to you and the API doesn't have a way to know the true value
+    // `%` business usage
+
+    // Special second character (optional)
+    // ! only store a single copy and do not keep a history of changes
+    // ~ only store one time (ignore subsequent updates, and no history of course) 
 
     switch(type)
     {
@@ -338,6 +386,14 @@ string User::attr2string(attr_t type)
 
         case ATTR_AUTHRING:
             attrname = "*!authring";
+            break;
+
+        case ATTR_AUTHRSA:
+            attrname = "*!authRSA";
+            break;
+
+        case ATTR_AUTHCU255:
+            attrname = "*!authCu255";
             break;
 
         case ATTR_LAST_INT:
@@ -416,6 +472,26 @@ string User::attr2string(attr_t type)
             attrname = "*!geo";
             break;
 
+        case ATTR_CAMERA_UPLOADS_FOLDER:
+            attrname = "*!cam";
+            break;
+
+        case ATTR_MY_CHAT_FILES_FOLDER:
+            attrname = "*!cf";
+            break;
+
+        case ATTR_PUSH_SETTINGS:
+            attrname = "^!ps";
+            break;
+
+        case ATTR_UNSHAREABLE_KEY:
+            attrname = "*~usk";  // unshareable key (for encrypting attributes that should not be shared)
+            break;
+
+        case ATTR_ALIAS:
+            attrname =  "*!>alias";
+            break;
+
         case ATTR_UNKNOWN:  // empty string
             break;
     }
@@ -443,6 +519,14 @@ string User::attr2longname(attr_t type)
 
     case ATTR_AUTHRING:
         longname = "AUTHRING";
+        break;
+
+    case ATTR_AUTHRSA:
+        longname = "AUTHRSA";
+        break;
+
+    case ATTR_AUTHCU255:
+        longname = "AUTHCU255";
         break;
 
     case ATTR_LAST_INT:
@@ -520,9 +604,29 @@ string User::attr2longname(attr_t type)
     case ATTR_GEOLOCATION:
         longname = "GEOLOCATION";
         break;
+            
+    case ATTR_UNSHAREABLE_KEY:
+        longname = "UNSHAREABLE_KEY";
+        break;
+
+    case ATTR_CAMERA_UPLOADS_FOLDER:
+        longname = "CAMERA_UPLOADS_FOLDER";
+        break;
+
+    case ATTR_MY_CHAT_FILES_FOLDER:
+        longname = "MY_CHAT_FILES_FOLDER";
+        break;
 
     case ATTR_UNKNOWN:
         longname = "";  // empty string
+        break;
+
+    case ATTR_PUSH_SETTINGS:
+        longname = "PUSH_SETTINGS";
+        break;
+            
+    case ATTR_ALIAS:
+        longname = "ALIAS";
         break;
     }
 
@@ -539,6 +643,14 @@ attr_t User::string2attr(const char* name)
     else if (!strcmp(name, "*!authring"))
     {
         return ATTR_AUTHRING;
+    }
+    else if (!strcmp(name, "*!authRSA"))
+    {
+        return ATTR_AUTHRSA;
+    }
+    else if (!strcmp(name, "*!authCu255"))
+    {
+        return ATTR_AUTHCU255;
     }
     else if (!strcmp(name, "*!lstint"))
     {
@@ -624,13 +736,33 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_GEOLOCATION;
     }
+    else if (!strcmp(name, "*!cam"))
+    {
+        return ATTR_CAMERA_UPLOADS_FOLDER;
+    }
+    else if(!strcmp(name, "*!cf"))
+    {
+        return ATTR_MY_CHAT_FILES_FOLDER;
+    }
+    else if(!strcmp(name, "^!ps"))
+    {
+        return ATTR_PUSH_SETTINGS;
+    }
+    else if (!strcmp(name, "*~usk"))
+    {
+        return ATTR_UNSHAREABLE_KEY;
+    }
+    else if (!strcmp(name, "*!>alias"))
+    {
+        return ATTR_ALIAS;
+    }
     else
     {
         return ATTR_UNKNOWN;   // attribute not recognized
     }
 }
 
-bool User::needversioning(attr_t at)
+int User::needversioning(attr_t at)
 {
     switch(at)
     {
@@ -648,16 +780,22 @@ bool User::needversioning(attr_t at)
         case ATTR_LAST_PSA:
         case ATTR_RUBBISH_TIME:
         case ATTR_GEOLOCATION:
+        case ATTR_MY_CHAT_FILES_FOLDER:
+        case ATTR_PUSH_SETTINGS:
             return 0;
 
-        case ATTR_AUTHRING:
         case ATTR_LAST_INT:
         case ATTR_ED25519_PUBK:
         case ATTR_CU25519_PUBK:
         case ATTR_SIG_RSA_PUBK:
         case ATTR_SIG_CU255_PUBK:
         case ATTR_KEYRING:
+        case ATTR_AUTHRING:
+        case ATTR_AUTHRSA:
+        case ATTR_AUTHCU255:
         case ATTR_CONTACT_LINK_VERIFICATION:
+        case ATTR_ALIAS:
+        case ATTR_CAMERA_UPLOADS_FOLDER:
             return 1;
 
         case ATTR_STORAGE_STATE: //putua is forbidden for this attribute
@@ -672,9 +810,15 @@ char User::scope(attr_t at)
     {
         case ATTR_KEYRING:
         case ATTR_AUTHRING:
+        case ATTR_AUTHRSA:
+        case ATTR_AUTHCU255:
         case ATTR_LAST_INT:
         case ATTR_RICH_PREVIEWS:
         case ATTR_GEOLOCATION:
+        case ATTR_CAMERA_UPLOADS_FOLDER:
+        case ATTR_MY_CHAT_FILES_FOLDER:
+        case ATTR_UNSHAREABLE_KEY:
+        case ATTR_ALIAS:
             return '*';
 
         case ATTR_AVATAR:
@@ -691,11 +835,17 @@ char User::scope(attr_t at)
         case ATTR_LAST_PSA:
         case ATTR_RUBBISH_TIME:
         case ATTR_STORAGE_STATE:
+        case ATTR_PUSH_SETTINGS:
             return '^';
 
         default:
             return '0';
     }
+}
+
+bool User::isAuthring(attr_t at)
+{
+    return (at == ATTR_AUTHRING || at == ATTR_AUTHCU255 || at == ATTR_AUTHRSA);
 }
 
 bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int size, string *newValue)
@@ -790,7 +940,7 @@ bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int s
     else
     {
         char *pEnd = NULL;
-        int tmp = strtol(buf.data(), &pEnd, 10);
+        long tmp = strtol(buf.data(), &pEnd, 10);
         if (*pEnd != '#' || (tmp != 0 && tmp != 1))
         {
             flagMkExported = false;
@@ -819,7 +969,7 @@ bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int s
     else
     {
         char *pEnd = NULL;
-        int tmp = strtol(buf.data(), &pEnd, 10);
+        long tmp = strtol(buf.data(), &pEnd, 10);
         if (*pEnd != '#' || (tmp != 0 && tmp != 1))
         {
             flagDontShowAgain = false;
@@ -997,6 +1147,14 @@ bool User::setChanged(attr_t at)
             changed.authring = true;
             break;
 
+        case ATTR_AUTHRSA:
+            changed.authrsa = true;
+            break;
+
+        case ATTR_AUTHCU255:
+            changed.authcu255 = true;
+            break;
+
         case ATTR_LAST_INT:
             changed.lstint = true;
             break;
@@ -1067,6 +1225,22 @@ bool User::setChanged(attr_t at)
             changed.geolocation = true;
             break;
 
+        case ATTR_CAMERA_UPLOADS_FOLDER:
+            changed.cameraUploadsFolder = true;
+            break;
+
+        case ATTR_MY_CHAT_FILES_FOLDER:
+            changed.myChatFilesFolder = true;
+            break;
+
+        case ATTR_PUSH_SETTINGS:
+            changed.pushSettings = true;
+            break;
+
+        case ATTR_ALIAS:
+            changed.alias = true;
+            break;
+
         default:
             return false;
     }
@@ -1098,4 +1272,215 @@ void User::set(visibility_t v, m_time_t ct)
     show = v;
     ctime = ct;
 }
+
+AuthRing::AuthRing(attr_t type, const TLVstore &authring)
+    : mType(type)
+{
+    string authType = "";
+    string authValue;
+    if (authring.find(authType))  // key is an empty string, but may not be there if authring was reset
+    {
+        authValue = authring.get(authType);
+
+        handle userhandle;
+        byte authFingerprint[20];
+        byte authMethod = AUTH_METHOD_UNKNOWN;
+
+        const char *ptr = authValue.data();
+        const char *end = ptr + authValue.size();
+        unsigned recordSize = 29;   // <handle.8> <fingerprint.20> <authLevel.1>
+        while (ptr + recordSize <= end)
+        {
+            memcpy(&userhandle, ptr, sizeof(userhandle));
+            ptr += sizeof(userhandle);
+
+            memcpy(authFingerprint, ptr, sizeof(authFingerprint));
+            ptr += sizeof(authFingerprint);
+
+            memcpy(&authMethod, ptr, sizeof(authMethod));
+            ptr += sizeof(authMethod);
+
+            mFingerprint[userhandle] = string((const char*) authFingerprint, sizeof(authFingerprint));
+            mAuthMethod[userhandle] = static_cast<AuthMethod>(authMethod);
+        }
+    }
+}
+
+std::string* AuthRing::serialize(PrnGen &rng, SymmCipher &key) const
+{
+    string buf;
+
+    map<handle, string>::const_iterator itFingerprint;
+    map<handle, AuthMethod>::const_iterator itAuthMethod;
+    for (itFingerprint = mFingerprint.begin(), itAuthMethod = mAuthMethod.begin();
+         itFingerprint != mFingerprint.end() && itAuthMethod != mAuthMethod.end();
+         itFingerprint++, itAuthMethod++)
+    {
+        buf.append((const char *)&itFingerprint->first, sizeof(handle));
+        buf.append(itFingerprint->second);
+        buf.append((const char *)&itAuthMethod->second, 1);
+    }
+
+    TLVstore tlv;
+    tlv.set("", buf);
+
+    return tlv.tlvRecordsToContainer(rng, &key);
+}
+
+bool AuthRing::isTracked(handle uh) const
+{
+    return mAuthMethod.find(uh) != mAuthMethod.end();
+}
+
+AuthMethod AuthRing::getAuthMethod(handle uh) const
+{
+    AuthMethod authMethod = AUTH_METHOD_UNKNOWN;
+    auto it = mAuthMethod.find(uh);
+    if (it != mAuthMethod.end())
+    {
+        authMethod = it->second;
+    }
+    return authMethod;
+}
+
+std::string AuthRing::getFingerprint(handle uh) const
+{
+    string fingerprint;
+    auto it = mFingerprint.find(uh);
+    if (it != mFingerprint.end())
+    {
+        fingerprint = it->second;
+    }
+    return fingerprint;
+}
+
+vector<handle> AuthRing::getTrackedUsers() const
+{
+    vector<handle> users;
+    for (auto &it : mFingerprint)
+    {
+        users.push_back(it.first);
+    }
+    return users;
+}
+
+void AuthRing::add(handle uh, const std::string &fingerprint, AuthMethod authMethod)
+{
+    assert(mFingerprint.find(uh) == mFingerprint.end());
+    assert(mAuthMethod.find(uh) == mAuthMethod.end());
+    mFingerprint[uh] = fingerprint;
+    mAuthMethod[uh] = authMethod;
+}
+
+void AuthRing::update(handle uh, AuthMethod authMethod)
+{
+    mAuthMethod.at(uh) = authMethod;
+}
+
+bool AuthRing::remove(handle uh)
+{
+    return mFingerprint.erase(uh) + mAuthMethod.erase(uh);
+}
+
+attr_t AuthRing::keyTypeToAuthringType(attr_t at)
+{
+    if (at == ATTR_ED25519_PUBK)
+    {
+        return ATTR_AUTHRING;
+    }
+    else if (at == ATTR_CU25519_PUBK)
+    {
+        return ATTR_AUTHCU255;
+    }
+    else if (at == ATTR_UNKNOWN)   // ATTR_UNKNOWN -> pubk is not a user attribute
+    {
+        return ATTR_AUTHRSA;
+    }
+
+    assert(false);
+    return ATTR_UNKNOWN;
+}
+
+attr_t AuthRing::signatureTypeToAuthringType(attr_t at)
+{
+    if (at == ATTR_SIG_CU255_PUBK)
+    {
+        return ATTR_AUTHCU255;
+    }
+    else if (at == ATTR_SIG_RSA_PUBK)
+    {
+        return ATTR_AUTHRSA;
+    }
+
+    assert(false);
+    return ATTR_UNKNOWN;
+}
+
+attr_t AuthRing::authringTypeToSignatureType(attr_t at)
+{
+    if (at == ATTR_AUTHCU255)
+    {
+        return ATTR_SIG_CU255_PUBK;
+    }
+    else if (at == ATTR_AUTHRSA)
+    {
+        return ATTR_SIG_RSA_PUBK;
+    }
+
+    assert(false);
+    return ATTR_UNKNOWN;
+}
+
+std::string AuthRing::authMethodToStr(AuthMethod authMethod)
+{
+    if (authMethod == AUTH_METHOD_SEEN)
+    {
+        return "seen";
+    }
+    else if (authMethod == AUTH_METHOD_FINGERPRINT)
+    {
+        return "fingerprint comparison";
+    }
+    else if (authMethod == AUTH_METHOD_SIGNATURE)
+    {
+        return "signature verified";
+    }
+
+    return "unknown";
+}
+
+std::string AuthRing::fingerprint(const std::string &pubKey, bool hexadecimal)
+{
+    HashSHA256 hash;
+    hash.add((const byte *)pubKey.data(), pubKey.size());
+
+    string result;
+    hash.get(&result);
+    result.erase(20);   // keep only the most significant 160 bits
+
+    if (hexadecimal)
+    {
+        return Utils::stringToHex(result);
+    }
+
+    return result;
+}
+
+bool AuthRing::isSignedKey() const
+{
+    return mType != ATTR_AUTHRING;
+}
+
+bool AuthRing::areCredentialsVerified(handle uh) const
+{
+    if (isSignedKey())
+    {
+        return getAuthMethod(uh) == AUTH_METHOD_SIGNATURE;
+    }
+    else
+    {
+        return getAuthMethod(uh) == AUTH_METHOD_FINGERPRINT;
+    }
+}
+
 } // namespace

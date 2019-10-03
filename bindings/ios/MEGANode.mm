@@ -157,6 +157,14 @@ using namespace mega;
     return self.megaNode ? [[MEGANode alloc] initWithMegaNode:self.megaNode->getPublicNode() cMemoryOwn:YES] : nil;
 }
 
+- (NSString *)publicLink {
+    return self.megaNode ? [[NSString alloc] initWithUTF8String:self.megaNode->getPublicLink()] : nil;
+}
+
+- (uint64_t)owner {
+    return self.megaNode ? self.megaNode->getOwner() : ::mega::INVALID_HANDLE;
+}
+
 - (BOOL)isFile {
     return self.megaNode ? self.megaNode->isFile() : NO;
 }

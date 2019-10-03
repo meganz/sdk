@@ -23,20 +23,23 @@
 #define MEGA_MEDIAFILEATTRIBUTE_H 1
 
 #include "types.h"
+#include "json.h"
 #include <string>
 
 namespace mega {
 
 enum fatype_ids { fa_media = 8, fa_mediaext = 9 };
 
-void xxteaEncrypt(uint32_t* v, uint32_t vlen, uint32_t key[4]);
-void xxteaDecrypt(uint32_t* v, uint32_t vlen, uint32_t key[4]);
+void xxteaEncrypt(uint32_t* v, uint32_t vlen, uint32_t key[4], bool endianConv = true);
+void xxteaDecrypt(uint32_t* v, uint32_t vlen, uint32_t key[4], bool endianConv = true);
 
 struct MEGA_API MediaFileInfo;
 struct MEGA_API FileSystemAccess;
 
 struct MEGA_API MediaProperties
 {
+    enum { UNKNOWN_FORMAT = 254, NOT_IDENTIFIED_FORMAT = 255 };
+
     byte shortformat;
     uint32_t width;
     uint32_t height;
@@ -54,9 +57,11 @@ struct MEGA_API MediaProperties
     bool is_VFR;
     bool no_audio;
 
-
     MediaProperties();
     bool operator==(const MediaProperties& o) const;
+
+    bool isPopulated();
+    bool isIdentified();
 
     // turn the structure into a string suitable for pfa command
     static std::string encodeMediaPropertiesAttributes(MediaProperties vp, uint32_t filekey[4]);
@@ -75,9 +80,9 @@ struct MEGA_API MediaProperties
     std::string convertMediaPropertyFileAttributes(uint32_t attributekey[4], MediaFileInfo& mediaInfo);
 #endif
 
+    std::string serialize();
+    MediaProperties(const std::string& deserialize);
 };
-
-struct MEGA_API JSON;
 
 #ifdef USE_MEDIAINFO
 

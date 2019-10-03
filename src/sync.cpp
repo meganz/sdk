@@ -95,6 +95,36 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
     localroot.init(this, FOLDERNODE, NULL, crootpath);
     localroot.setnode(remotenode);
 
+#ifdef __APPLE__
+    if (macOSmajorVersion() >= 19) //macOS catalina+
+    {
+        LOG_debug << "macOS 10.15+ filesystem detected. Checking fseventspath.";
+        string supercrootpath = "/System/Volumes/Data" + *crootpath;
+
+        int fd = open(supercrootpath.c_str(), O_RDONLY);
+        if (fd == -1)
+        {
+            LOG_debug << "Unable to open path using fseventspath.";
+            mFsEventsPath = *crootpath;
+        }
+        else
+        {
+            char buf[MAXPATHLEN];
+            if (fcntl(fd, F_GETPATH, buf) < 0)
+            {
+                LOG_debug << "Using standard paths to detect filesystem notifications.";
+                mFsEventsPath = *crootpath;
+            }
+            else
+            {
+                LOG_debug << "Using fsevents paths to detect filesystem notifications.";
+                mFsEventsPath = supercrootpath;
+            }
+            close(fd);
+        }
+    }
+#endif
+
     sync_it = client->syncs.insert(client->syncs.end(), this);
 
     if (client->dbaccess)
@@ -103,7 +133,7 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
         handle tableid[3];
         string dbname;
 
-        FileAccess *fas = client->fsaccess->newfileaccess();
+        FileAccess *fas = client->fsaccess->newfileaccess(false);
 
         if (fas->fopen(crootpath, true, false))
         {
@@ -114,7 +144,7 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
             dbname.resize(sizeof tableid * 4 / 3 + 3);
             dbname.resize(Base64::btoa((byte*)tableid, sizeof tableid, (char*)dbname.c_str()));
 
-            statecachetable = client->dbaccess->open(client->fsaccess, &dbname);
+            statecachetable = client->dbaccess->open(client->rng, client->fsaccess, &dbname);
 
             readstatecache();
         }
@@ -595,7 +625,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
     }
 
     // attempt to open/type this file
-    fa = client->fsaccess->newfileaccess();
+    fa = client->fsaccess->newfileaccess(false);
 
     if (initializing || fullscan)
     {
@@ -669,7 +699,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
         }
 
         delete fa;
-        fa = client->fsaccess->newfileaccess();
+        fa = client->fsaccess->newfileaccess(false);
     }
 
     if (fa->fopen(localname ? localpath : &tmppath, true, false))
@@ -862,7 +892,8 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                                 string local;
                                 bool waitforupdate = false;
                                 it->second->getlocalpath(&local, true);
-                                FileAccess *prevfa = client->fsaccess->newfileaccess();
+                                FileAccess *prevfa = client->fsaccess->newfileaccess(false);
+
                                 bool exists = prevfa->fopen(&local);
                                 if (exists)
                                 {
@@ -973,6 +1004,11 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                     {
                         scan(localname ? localpath : &tmppath, fa);
                     }
+                }
+                else if (fa->mIsSymLink)
+                {
+                    LOG_debug << "checked path is a symlink.  Parent: " << (parent ? parent->name : "NO");
+                    //doing nothing for the moment
                 }
                 else
                 {
@@ -1185,7 +1221,7 @@ dstime Sync::procscanq(int q)
         cachenodes();
     }
 
-    return ~0;
+    return dstime(~0);
 }
 
 // delete all child LocalNodes that have been missing for two consecutive scans (*l must still exist)
