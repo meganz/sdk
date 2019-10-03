@@ -24,8 +24,8 @@
 #include "mega/logging.h"
 
 namespace mega {
-DbTable::DbTable(PrnGen &rng)
-    : rng(rng)
+DbTable::DbTable(PrnGen &rng, bool checkAlwaysTransacted)
+    : rng(rng), mCheckAlwaysTransacted(checkAlwaysTransacted)
 {
     nextid = 0;
 }
@@ -78,6 +78,23 @@ bool DbTable::next(uint32_t* type, string* data, SymmCipher* key)
     }
 
     return false;
+}
+
+void DbTable::checkTransaction()
+{
+    if (mCheckAlwaysTransacted)
+    {
+        assert(mCurrentTransaction);  // if this fails, we should have started a DBTableTransactionCommitter higher in the call stack
+        if (mCurrentTransaction)
+        {
+            mCurrentTransaction->beginOnce();
+        }
+    }
+}
+
+void DbTable::checkCommitter(DBTableTransactionCommitter* committer)
+{
+    assert(!committer || committer == mCurrentTransaction);
 }
 
 DbAccess::DbAccess()

@@ -26,10 +26,18 @@
 
 namespace mega {
 // generic host transactional database access interface
+class DBTableTransactionCommitter;
+
 class MEGA_API DbTable
 {
     static const int IDSPACING = 16;
     PrnGen &rng;
+
+protected:
+    bool mCheckAlwaysTransacted = false;
+    DBTableTransactionCommitter* mCurrentTransaction = nullptr;
+    friend class DBTableTransactionCommitter;
+    void checkTransaction();
 
 public:
     // for a full sequential get: rewind to first record
@@ -65,14 +73,16 @@ public:
     // permanantly remove all database info
     virtual void remove() = 0;
 
+    void checkCommitter(DBTableTransactionCommitter*);
+
     // autoincrement
     uint32_t nextid;
 
-    DbTable(PrnGen &rng);
+    DbTable(PrnGen &rng, bool alwaysTransacted);
     virtual ~DbTable() { }
 };
 
-class DBTableTransactionCommitter
+class MEGA_API DBTableTransactionCommitter
 {
     DbTable* table;
     bool started = false;
@@ -89,15 +99,28 @@ public:
 
     inline ~DBTableTransactionCommitter()
     {
-        if (started)
+        if (table)
         {
-            table->commit();
+            if (started)
+            {
+                table->commit();
+            }
+            table->mCurrentTransaction = nullptr;
         }
     }
 
     explicit inline DBTableTransactionCommitter(DbTable* t)
         : table(t) 
     {
+        if (table->mCurrentTransaction)
+        {
+            table = nullptr;  // we are nested; do nothing
+            assert(false); // for now at least, avoid nested scenarios if possible
+        }
+        else
+        {
+            table->mCurrentTransaction = this;
+        }
     }
 };
 
@@ -107,7 +130,7 @@ struct MEGA_API DbAccess
     static const int DB_VERSION = LEGACY_DB_VERSION + 1;
 
     DbAccess();
-    virtual DbTable* open(PrnGen &rng, FileSystemAccess*, string*, bool = false) = 0;
+    virtual DbTable* open(PrnGen &rng, FileSystemAccess*, string*, bool recycleLegacyDB, bool checkAlwaysTransacted) = 0;
 
     virtual ~DbAccess() { }
 

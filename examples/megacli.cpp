@@ -1915,6 +1915,7 @@ void xferq(direction_t d, int cancel)
 {
     string name;
 
+    DBTableTransactionCommitter committer(client->tctable);
     for (appfile_list::iterator it = appxferq[d].begin(); it != appxferq[d].end(); )
     {
         if (cancel < 0 || cancel == (*it)->seqno)
@@ -1953,7 +1954,7 @@ void xferq(direction_t d, int cancel)
 
                 if ((*it)->transfer)
                 {
-                    client->stopxfer(*it);
+                    client->stopxfer(*it, &committer);
                 }
                 delete *it++;
             }

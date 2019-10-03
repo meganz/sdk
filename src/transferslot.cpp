@@ -337,7 +337,6 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
     if (!fa || (transfer->size && transfer->progresscompleted == transfer->size)
             || (transfer->type == PUT && transfer->ultoken))
     {
-        committer.beginOnce();
         if (transfer->type == GET || transfer->ultoken)
         {
             if (fa && transfer->type == GET)

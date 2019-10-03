@@ -75,7 +75,7 @@ Transfer::~Transfer()
     {
         if (finished)
         {
-            client->filecachedel(*it);
+            client->filecachedel(*it, nullptr);
         }
 
         (*it)->transfer = NULL;
@@ -111,7 +111,7 @@ Transfer::~Transfer()
         {
             client->fsaccess->unlinklocal(&localfilename);
         }
-        client->transfercachedel(this);
+        client->transfercachedel(this, nullptr);
     }
 }
 
@@ -814,7 +814,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                     if (success)
                     {
                         // prevent deletion of associated Transfer object in completed()
-                        client->filecachedel(*it);
+                        client->filecachedel(*it, &committer);
                         client->app->file_complete(*it);
                         (*it)->transfer = NULL;
                         (*it)->completed(this, NULL);
@@ -827,7 +827,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                         if (!success)
                         {
                             LOG_warn << "Unable to complete transfer due to a persistent error";
-                            client->filecachedel(f);
+                            client->filecachedel(f, &committer);
 #ifdef ENABLE_SYNC
                             if (f->syncxfer)
                             {
@@ -953,7 +953,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                     client->syncdownrequired = true;
                 }
 #endif
-                client->filecachedel(f);
+                client->filecachedel(f, &committer);
                 files.erase(it++);
                 client->app->file_removed(f, API_EREAD);
                 f->transfer = NULL;
