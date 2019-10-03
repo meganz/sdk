@@ -15900,14 +15900,14 @@ public:
     virtual long long getTransferOwnUsed();
 
     /**
-     * @brief Get the used bandwidth from 3rd party shared quota
+     * @brief Get the used bandwidth served to other users
      * @see: MegaAccountDetails::getTransferUsed
      * @return Used bandwidth (in bytes)
      */
     virtual long long getTransferSrvUsed();
 
     /**
-     * @brief Get the used bandwidth including own, free & 3rd party allowance
+     * @brief Get the used bandwidth allowance including own, free and served to other users
      * @see: MegaAccountDetails::getTransferOwnUsed, MegaAccountDetails::getTemporalBandwidth, MegaAccountDetails::getTransferSrvUsed
      * @return Used bandwidth (in bytes)
      */

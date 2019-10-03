@@ -4069,7 +4069,7 @@ void CommandGetUserQuota::procresult()
                 break;
 
             case MAKENAMEID3('t', 'u', 'a'):
-            // Transfer usage by 3rd parties (actor) which hasn't yet been committed back to the API DB. Supplements csxfer
+            // Transfer usage served to other users which hasn't yet been committed back to the API DB. Supplements csxfer
                 details->transfer_srv_used += client->json.getint();
                 break;
 
