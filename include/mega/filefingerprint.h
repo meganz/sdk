@@ -21,6 +21,8 @@
 
 #pragma once
 
+#include <array>
+
 #include "types.h"
 #include "filesystem.h"
 
@@ -31,7 +33,7 @@ struct MEGA_API FileFingerprint : public Cachable
 {
     m_off_t size = -1;
     m_time_t mtime = 0;
-    int32_t crc[4]{};
+    std::array<int32_t, 4> crc{};
 
     // if true, represents actual file data
     // if false, is constructed from node ctime/key

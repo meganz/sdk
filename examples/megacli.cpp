@@ -511,7 +511,7 @@ AppFileGet::AppFileGet(Node* n, handle ch, byte* cfilekey, m_off_t csize, m_time
 
         if (!cfingerprint->size() || !unserializefingerprint(cfingerprint))
         {
-            memcpy(crc, filekey, sizeof crc);
+            memcpy(crc.data(), filekey, sizeof crc);
         }
 
         name = *cfilename;

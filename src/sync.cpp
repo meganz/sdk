@@ -101,7 +101,7 @@ void hashCombineFingerprint(FileFingerprint& ffp, const FileFingerprint& other)
     assert(other.isvalid);
     hashCombine(ffp.size, other.size);
     hashCombine(ffp.mtime, other.mtime);
-    for (size_t i = 0; i < sizeof(other.crc) / sizeof(*other.crc); ++i)
+    for (size_t i = 0; i < other.crc.size(); ++i)
     {
         hashCombine(ffp.crc[i], other.crc[i]);
     }
@@ -263,7 +263,7 @@ void assignFilesystemId(FileSystemAccess& fsaccess, FileAccess& fa, handlelocaln
     }
     else if (nodeCount == 1)
     {
-        nodeRange.first->second->setfsid(fsId);
+        nodeRange.first->second->setfsid(fsId, fsidnodes);
         fingerprints.erase(nodeRange.first);
     }
     else
@@ -276,7 +276,7 @@ void assignFilesystemId(FileSystemAccess& fsaccess, FileAccess& fa, handlelocaln
         for (auto nodeIt = nodeRange.first; nodeIt != nodeRange.second; ++nodeIt)
         {
             string nodePath;
-            nodeIt->second->getlocalpath(&nodePath, false);
+            nodeIt->second->getlocalpath(&nodePath, false, &localseparator);
 
             const auto score = computeReversePathMatchScore(preferredNodePath, nodePath, localseparator);
 
@@ -287,7 +287,7 @@ void assignFilesystemId(FileSystemAccess& fsaccess, FileAccess& fa, handlelocaln
             }
         }
 
-        bestNodeIt->second->setfsid(fsId);
+        bestNodeIt->second->setfsid(fsId, fsidnodes);
         fingerprints.erase(bestNodeIt);
     }
 }
@@ -584,13 +584,19 @@ Sync::~Sync()
     if (localroot.node)
     {
         TreeProcDelSyncGet tdsg;
-        client->proctree(localroot.node, &tdsg);
+        if (client)
+        {
+            client->proctree(localroot.node, &tdsg);
+        }
     }
 
     delete statecachetable;
 
-    client->syncs.erase(sync_it);
-    client->syncactivity = true;
+    if (client)
+    {
+        client->syncs.erase(sync_it);
+        client->syncactivity = true;
+    }
 }
 
 void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, string* path, LocalNode *p, int maxdepth)
@@ -622,7 +628,7 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, st
 
         l->parent_dbid = parent_dbid;
         l->size = size;
-        l->setfsid(fsid);
+        l->setfsid(fsid, l->sync->client->fsidnode);
         l->setnode(node);
 
         if (maxdepth)
@@ -1207,7 +1213,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                         {
                             if (fa->fsidvalid && l->fsid != fa->fsid)
                             {
-                                l->setfsid(fa->fsid);
+                                l->setfsid(fa->fsid, l->sync->client->fsidnode);
                             }
 
                             m_off_t dsize = l->size > 0 ? l->size : 0;
@@ -1245,7 +1251,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                         // content scan anyway)
                         if (fa->fsidvalid && fa->fsid != l->fsid)
                         {
-                            l->setfsid(fa->fsid);
+                            l->setfsid(fa->fsid, l->sync->client->fsidnode);
                             newnode = true;
                         }
                     }
@@ -1435,7 +1441,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
 
                     if (fa->fsidvalid)
                     {
-                        l->setfsid(fa->fsid);
+                        l->setfsid(fa->fsid, l->sync->client->fsidnode);
                     }
 
                     newnode = true;
@@ -1476,7 +1482,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                 {
                     if (fa->fsidvalid && l->fsid != fa->fsid)
                     {
-                        l->setfsid(fa->fsid);
+                        l->setfsid(fa->fsid, l->sync->client->fsidnode);
                     }
 
                     if (l->size > 0)
