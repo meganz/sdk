@@ -33,9 +33,11 @@ class MEGA_API Base64
 
 public:
     static int btoa(const string&, string&);
-    static int btoa(const byte*, int, char*);
+    static string btoa(const string &in);   // use Base64Str<size> instead when `size` is known at compile time (more efficient)
+    static int btoa(const byte*, int, char*);   // deprecated
     static int atob(const string&, string&);
-    static int atob(const char*, byte*, int);
+    static string atob(const string&);
+    static int atob(const char*, byte*, int);   // deprecated
 
     static void itoa(int64_t, string *);
     static int64_t atoi(string *);

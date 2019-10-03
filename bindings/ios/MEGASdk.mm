@@ -1418,6 +1418,18 @@ using namespace mega;
     self.megaApi->startUploadWithTopPriority((localPath != nil) ? [localPath UTF8String] : NULL, (parent != nil) ? [parent getCPtr] : NULL, (appData !=nil) ? [appData UTF8String] : NULL, isSourceTemporary);
 }
 
+- (void)startUploadForChatWithLocalPath:(NSString *)localPath
+                                 parent:(MEGANode *)parent
+                                appData:(NSString *)appData
+                      isSourceTemporary:(BOOL)isSourceTemporary
+                               delegate:(id<MEGATransferDelegate>)delegate {
+    self.megaApi->startUploadForChat(localPath.UTF8String,
+                                     parent.getCPtr,
+                                     appData.UTF8String,
+                                     isSourceTemporary,
+                                     [self createDelegateMEGATransferListener:delegate singleListener:YES]);
+}
+
 - (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath delegate:(id<MEGATransferDelegate>)delegate {
     self.megaApi->startDownload((node != nil) ? [node getCPtr] : NULL, (localPath != nil) ? [localPath UTF8String] : NULL, [self createDelegateMEGATransferListener:delegate singleListener:YES]);
 }
@@ -2159,6 +2171,18 @@ using namespace mega;
 
 - (SMSState)smsAllowedState {
     return (SMSState)self.megaApi->smsAllowedState();
+}
+
+- (nullable NSString *)smsVerifiedPhoneNumber {
+    char *number = self.megaApi->smsVerifiedPhoneNumber();
+    
+    if (number == NULL) {
+        return nil;
+    }
+    
+    NSString *numberString = @(number);
+    delete [] number;
+    return numberString;
 }
 
 - (void)getRegisteredContacts:(NSArray<NSDictionary *> *)contacts delegate:(id<MEGARequestDelegate>)delegate {

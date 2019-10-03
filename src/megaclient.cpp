@@ -5323,24 +5323,10 @@ void MegaClient::sc_userattr()
                 {
                     LOG_debug << "User attributes update for non-existing user";
                 }
-                // if no version received (very old actionpacket)...
-                else if ( !uavlist.size() )
-                {
-                    // ...invalidate all of the notified user attributes
-                    for (itua = ualist.begin(); itua != ualist.end(); itua++)
-                    {
-                        attr_t type = User::string2attr(itua->c_str());
-                        u->invalidateattr(type);
-                        if (type == ATTR_KEYRING)
-                        {
-                            resetKeyring();
-                        }
-                    }
-                    u->setTag(0);
-                    notifyuser(u);
-                }
                 else if (ualist.size() == uavlist.size())
                 {
+                    assert(ualist.size() && uavlist.size());
+
                     // invalidate only out-of-date attributes
                     for (itua = ualist.begin(), ituav = uavlist.begin();
                          itua != ualist.end();
@@ -6884,10 +6870,10 @@ void MegaClient::unlinkversions()
     reqs.add(new CommandDelVersions(this));
 }
 
-// emulates the semantics of its JavaScript counterpart
+// Converts a string in UTF8 to array of int32 in the same way than Webclient converts a string in UTF16 to array of 32-bit elements
 // (returns NULL if the input is invalid UTF-8)
 // unfortunately, discards bits 8-31 of multibyte characters for backwards compatibility
-char* MegaClient::str_to_a32(const char* str, int* len)
+char* MegaClient::utf8_to_a32forjs(const char* str, int* len)
 {
     if (!str)
     {
@@ -6979,7 +6965,7 @@ error MegaClient::pw_key(const char* utf8pw, byte* key) const
     int t;
     char* pw;
 
-    if (!(pw = str_to_a32(utf8pw, &t)))
+    if (!(pw = utf8_to_a32forjs(utf8pw, &t)))
     {
         return API_EARGS;
     }
@@ -11354,7 +11340,6 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
     if (signatureType == ATTR_SIG_CU255_PUBK)
     {
         // retrieve public key whose signature wants to be verified, from cache
-        assert(user && user->isattrvalid(ATTR_CU25519_PUBK));
         if (!user || !user->isattrvalid(ATTR_CU25519_PUBK))
         {
             LOG_warn << "Failed to verify signature " << User::attr2string(signatureType) << " for user " << uid << ": CU25519 public key is not available";
@@ -11382,7 +11367,6 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
     }
 
     // retrieve signing key from cache
-    assert(user->isattrvalid(ATTR_ED25519_PUBK));
     if (!user->isattrvalid(ATTR_ED25519_PUBK))
     {
         LOG_warn << "Failed to verify signature " << User::attr2string(signatureType) << " for user " << uid << ": signing public key is not available";
