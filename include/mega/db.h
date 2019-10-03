@@ -116,8 +116,7 @@ public:
         {
             if (table->mCurrentTransaction)
             {
-                table = nullptr;  // we are nested; do nothing
-                assert(false); // for now at least, avoid nested scenarios if possible
+                table = nullptr;  // we are nested; this one does nothing.  This can occur during eg. putnodes response when the core sdk and the intermediate layer both do db work.
             }
             else
             {
