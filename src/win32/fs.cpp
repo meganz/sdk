@@ -1238,7 +1238,7 @@ void WinDirNotify::addnotify(LocalNode* l, string*)
 #endif
 }
 
-fsfp_t WinDirNotify::fsfingerprint()
+fsfp_t WinDirNotify::fsfingerprint() const
 {
 #ifdef WINDOWS_PHONE
 	FILE_ID_INFO fi = { 0 };
@@ -1257,6 +1257,27 @@ fsfp_t WinDirNotify::fsfingerprint()
 #else
     return fi.dwVolumeSerialNumber + 1;
 #endif
+}
+
+bool WinDirNotify::fsstableids() const
+{
+#ifdef WINDOWS_PHONE
+#error "Not implemented"
+#endif
+    TCHAR volume[MAX_PATH + 1];
+    if (GetVolumePathNameW((LPCWSTR)localbasepath.data(), volume, MAX_PATH + 1))
+    {
+        TCHAR fs[MAX_PATH + 1];
+        if (GetVolumeInformation(volume, NULL, 0, NULL, NULL, NULL, fs, MAX_PATH + 1))
+        {
+            LOG_info << "Filesystem type: " << fs;
+            return wcsicmp(fs, L"FAT")
+                && wcsicmp(fs, L"FAT32")
+                && wcsicmp(fs, L"exFAT");
+        }
+    }
+    LOG_err << "Failed to get filesystem type. Error code: " << GetLastError();
+    return true;
 }
 
 VOID CALLBACK WinDirNotify::completion(DWORD dwErrorCode, DWORD dwBytes, LPOVERLAPPED lpOverlapped)

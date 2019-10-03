@@ -19,37 +19,36 @@
  * program.
  */
 
-#ifndef MEGA_FILEFINGERPRINT_H
-#define MEGA_FILEFINGERPRINT_H 1
+#pragma once
 
 #include "types.h"
 #include "filesystem.h"
 
 namespace mega {
+
 // sparse file fingerprint, including size and mtime
 struct MEGA_API FileFingerprint : public Cachable
 {
-    m_off_t size;
-    m_time_t mtime;
-    int32_t crc[4];
-
-    static const int MAXFULL = 8192;
+    m_off_t size = -1;
+    m_time_t mtime = 0;
+    int32_t crc[4]{};
 
     // if true, represents actual file data
     // if false, is constructed from node ctime/key
-    bool isvalid;
+    bool isvalid = false;
 
-    bool genfingerprint(FileAccess*, bool = false);
-    bool genfingerprint(InputStreamAccess*, m_time_t, bool = false);
-    void serializefingerprint(string*) const;
-    int unserializefingerprint(string*);
+    bool genfingerprint(FileAccess* fa, bool ignoremtime = false);
+    bool genfingerprint(InputStreamAccess* is, m_time_t cmtime, bool ignoremtime = false);
+    void serializefingerprint(string* d) const;
+    int unserializefingerprint(string* d);
 
-    FileFingerprint& operator=(FileFingerprint&);
+    FileFingerprint() = default;
 
-    FileFingerprint();
+    FileFingerprint(const FileFingerprint&);
+    FileFingerprint& operator=(const FileFingerprint& other);
 
-    virtual bool serialize(string*);
-    static FileFingerprint* unserialize(string*);
+    virtual bool serialize(string* d);
+    static FileFingerprint* unserialize(string* d);
 };
 
 // orders transfers by file fingerprints, ordered by size / mtime / sparse CRC
@@ -58,7 +57,6 @@ struct MEGA_API FileFingerprintCmp
     bool operator()(const FileFingerprint* a, const FileFingerprint* b) const;
 };
 
-bool operator==(FileFingerprint&, FileFingerprint&);
-} // namespace
+bool operator==(const FileFingerprint& lhs, const FileFingerprint& rhs);
 
-#endif
+} // mega

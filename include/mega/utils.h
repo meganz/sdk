@@ -22,6 +22,8 @@
 #ifndef MEGA_UTILS_H
 #define MEGA_UTILS_H 1
 
+#include <type_traits>
+
 #include "types.h"
 #include "mega/logging.h"
 
@@ -460,6 +462,14 @@ struct CacheableReader
 
     void eraseused(string& d); // must be the same string, unchanged
 };
+
+template<typename T, typename U>
+void hashCombine(T& seed, const U& v)
+{
+    static_assert(std::is_integral<T>::value, "T is not integral");
+    // the magic number is the twos complement version of the golden ratio
+    seed ^= std::hash<U>{}(v) + 0x9e3779b9 + (seed<<6) + (seed>>2);
+}
 
 } // namespace
 

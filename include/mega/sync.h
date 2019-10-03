@@ -26,6 +26,23 @@
 #include "megaclient.h"
 
 namespace mega {
+
+// Returns true for a path that can be synced (.debris is not one of those).
+bool isPathSyncable(const string& localpath, const string& localdebris, const string& localseparator);
+
+// Invalidates the fs IDs of all local nodes below `l` and removes them from `fsidnodes`.
+void invalidateFilesystemIds(handlelocalnode_map& fsidnodes, LocalNode& l, size_t& count);
+
+// Searching from the back, this function compares path1 and path2 character by character and
+// returns the number of consecutive character matches (excluding separators) but only including whole node names.
+// It's assumed that the paths are normalized (e.g. not contain ..) and separated with the given `localseparator`.
+int computeReversePathMatchScore(const string& path1, const string& path2, const string& localseparator);
+
+// Recursively iterates through the filesystem tree starting at the sync root and assigns
+// fs IDs to those local nodes that match the fingerprint retrieved from disk.
+bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, handlelocalnode_map& fsidnodes,
+                         const string& localdebris, const string& localseparator);
+
 class MEGA_API Sync
 {
 public:
@@ -34,11 +51,7 @@ public:
     MegaClient* client;
 
     // sync-wide directory notification provider
-#if __cplusplus >= 201100L
     std::unique_ptr<DirNotify> dirnotify;
-#else
-    std::auto_ptr<DirNotify> dirnotify;
-#endif
 
     // root of local filesystem tree, holding the sync's root folder
     LocalNode localroot;
@@ -93,6 +106,10 @@ public:
     // look up LocalNode relative to localroot
     LocalNode* localnodebypath(LocalNode*, string*, LocalNode** = NULL, string* = NULL);
 
+    // Assigns fs IDs to those local nodes that match the fingerprint retrieved from disk.
+    // The fs IDs of unmatched nodes are invalidated.
+    bool assignfsids();
+
     // scan items in specified path and add as children of the specified
     // LocalNode
     bool scan(string*, FileAccess*);
@@ -121,6 +138,9 @@ public:
 
     // original filesystem fingerprint
     fsfp_t fsfp;
+
+    // does the filesystem have stable IDs? (FAT does not)
+    bool fsstableids = false;
 
     // Error that causes a cancellation
     error errorcode;

@@ -11948,6 +11948,18 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
             Sync* sync = new Sync(this, rootpath, debris, localdebris, remotenode, fsfp, inshare, tag, appData);
             sync->isnetwork = isnetwork;
 
+            if (!sync->fsstableids)
+            {
+                if (sync->assignfsids())
+                {
+                    LOG_info << "Successfully assigned fs IDs for filesystem with unstable IDs";
+                }
+                else
+                {
+                    LOG_warn << "Failed to assign some fs IDs for filesystem with unstable IDs";
+                }
+            }
+
             if (sync->scan(rootpath, fa))
             {
                 syncsup = false;
