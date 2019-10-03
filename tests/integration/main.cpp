@@ -18,7 +18,30 @@ public:
     void log(const char* time, int loglevel, const char* source, const char* message)
     {
         std::ostringstream os;
-        os << "[" << time << "] " << SimpleLogger::toStr(static_cast<LogLevel>(loglevel)) << ": " << message << " (" << source << ")" << std::endl;
+
+        os << "[";
+        if (time)
+        {
+            os << time;
+        }
+        else
+        {
+            auto t = std::time(NULL);
+            char ts[50];
+            if (!std::strftime(ts, sizeof(ts), "%H:%M:%S", std::gmtime(&t)))
+            {
+                ts[0] = '\0';
+            }
+            os << ts;
+        }
+        os << "] " << SimpleLogger::toStr(static_cast<LogLevel>(loglevel)) << ": " << message;
+
+        if (source)
+        {
+            os << " (" << source << ")";
+        }
+        os << std::endl;
+
         if (loglevel <= SimpleLogger::logCurrentLevel)
         {
             if (gRunningInCI)

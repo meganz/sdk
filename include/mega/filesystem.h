@@ -84,6 +84,9 @@ struct MEGA_API FileAccess
     // type of opened path
     nodetype_t type;
 
+    // if opened path is a symlink
+    bool mIsSymLink = false;
+
     // if the open failed, retry indicates a potentially transient reason
     bool retry;
 
@@ -99,7 +102,7 @@ struct MEGA_API FileAccess
     // open for reading, writing or reading and writing
     virtual bool fopen(string*, bool, bool) = 0;
 
-    // open by name only
+    // open by name only. returns false for folders setting type to FOLDERNODE
     bool fopen(string*);
 
     // check if a local path is a folder
@@ -203,7 +206,11 @@ struct MEGA_API DirNotify
     void notify(notifyqueue, LocalNode *, const char*, size_t, bool = false);
 
     // filesystem fingerprint
-    virtual fsfp_t fsfingerprint();
+    virtual fsfp_t fsfingerprint() const;
+
+    // Returns true if the filesystem's IDs are stable (e.g. never change between mounts).
+    // This should return false for any FAT filesystem.
+    virtual bool fsstableids() const;
 
     // ignore this
     string ignore;
@@ -226,8 +233,12 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // indicate error reports are not necessary on this call as it'll be retried in a moment if there is a continuing problem
     bool skip_errorreport;
 
-    // instantiate FileAccess object
-    virtual FileAccess* newfileaccess() = 0;
+    /**
+     * @brief instantiate FileAccess object
+     * @param followSymLinks whether symlinks should be followed when opening a path (default: true)
+     * @return
+     */
+    virtual FileAccess* newfileaccess(bool followSymLinks = true) = 0;
 
     // instantiate DirAccess object
     virtual DirAccess* newdiraccess() = 0;

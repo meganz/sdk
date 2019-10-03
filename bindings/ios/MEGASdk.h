@@ -5003,6 +5003,37 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
 - (void)startUploadTopPriorityWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary;
 
 /**
+* @brief Upload a file or a folder
+*
+* This method should be used ONLY to share by chat a local file. In case the file
+* is already uploaded, but the corresponding node is missing the thumbnail and/or preview,
+* this method will force a new upload from the scratch (ensuring the file attributes are set),
+* instead of doing a remote copy.
+*
+* If the status of the business account is expired, onTransferFinish will be called with the error
+* code MEGAErrorTypeApiEBusinessPastDue. In this case, apps should show a warning message similar to
+* "Your business account is overdue, please contact your administrator."
+*
+* @param localPath Local path of the file
+* @param parent Parent node for the file in the MEGA account
+* @param appData Custom app data to save in the MEGATransfer object
+* The data in this parameter can be accessed using [MEGATransfer appData] in callbacks
+* related to the transfer.
+* @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
+* This parameter is intended to automatically delete temporary files that are only created to be uploaded.
+* Use this parameter with caution. Set it to YES only if you are sure about what are you doing.
+* @param delegate MEGATransferDelegate to track this transfer
+*
+* The custom modification time will be only applied for file transfers. If a folder
+* is transferred using this function, the custom modification time won't have any effect
+*/
+- (void)startUploadForChatWithLocalPath:(NSString *)localPath
+                                 parent:(MEGANode *)parent
+                                appData:(NSString *)appData
+                      isSourceTemporary:(BOOL)isSourceTemporary
+                               delegate:(id<MEGATransferDelegate>)delegate;
+
+/**
  * @brief Download a file from MEGA.
  *
  * If the status of the business account is expired, onTransferFinish will be called with the error
@@ -7102,6 +7133,17 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @return SMSState enum to indicate the SMS state for the current account.
  */
 - (SMSState)smsAllowedState;
+
+
+/**
+ * @brief Get the verified phone number for the account logged in
+ *
+ * Returns the phone number previously confirmed with sendSMSVerificationCodeToPhoneNumber:delegate
+ * and checkSMSVerificationCode:delegate metnhods in MEGASdk.
+ *
+ * @return nil if there is no verified number, otherwise a string containing that phone number.
+ */
+- (nullable NSString *)smsVerifiedPhoneNumber;
 
 /**
  * @brief Requests the currently available country calling codes

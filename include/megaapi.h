@@ -6633,17 +6633,16 @@ class MegaApiImpl;
  */
 class MegaApiLock
 {
-    MegaApiImpl* api;
-    bool locked = false;
-    MegaApiLock(MegaApiImpl*, bool lock);
-    friend class MegaApi;
-
 public:
     /**
      * @brief Lock the MegaApi if this instance does not currently have a lock on it yet.
-     * 
-     * There is no harm in calling this more than once, the MegaApi will only be locked 
-     * once, and the first unlock() call will release it.
+     *
+     * There is no harm in calling this more than once, the MegaApi will only be locked
+     * once, and the first unlock() call will release it.    Sometimes it is useful eg.
+     * in a loop which may or may not need to use a locking function, or may need to use
+     * many, to call lockOnce() before any such usage, and know that the MegaApi will
+     * be locked once from that point, until the end of the loop (when unlockOnce() can
+     * be called, or the MegaApiLock destroyed.
      */
     void lockOnce();
 
@@ -6654,13 +6653,23 @@ public:
      * their locks.  Only use multiple of these if you need nested locking.  The destructor
      * of the object will release the lock, so it is sufficient to delete it when finished.
      * However, when using it from a garbage collected language it may be prudent to call unlock() directly.
+     *
+     * This function must be called from the same thread that called MegaApiLock::lockOnce().
      */
-    void unlock();
-    
+    void unlockOnce();
+
     /**
      * @brief Destructor.  This will call unlock() if the MegaApi is still locked by this instance.
      */
     ~MegaApiLock();
+
+private:
+    MegaApiImpl* api;
+    bool locked = false;
+    MegaApiLock(MegaApiImpl*, bool lock);
+    MegaApiLock(const MegaApiLock&) = delete;
+    void operator=(const MegaApiLock&) = delete;
+    friend class MegaApi;
 };
 
 /**
@@ -8106,7 +8115,7 @@ class MegaApi
 
         /**
          * @brief Check if the MegaApi object is logged in
-         * @return 0 if not logged in, Otherwise, a number >= 0
+         * @return 0 if not logged in, Otherwise, a number > 0
          */
         int isLoggedIn();
 
@@ -10275,36 +10284,75 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getNodehandle - Returns the handle of the node where My Chat Files are stored
          *
+         * If the folder is not set, the request will fail with the error code MegaError::API_ENOENT.
+         *
          * @param listener MegaRequestListener to track this request
          */
         void getMyChatFilesFolder(MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Set Camera Uploads target folder.
+         * @brief Set Camera Uploads primary target folder.
          *
          * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
+         * - MegaRequest::getFlag - Returns false
+         * - MegaRequest::getNodehandle - Returns the provided node handle
          *
-         * @param nodehandle MegaHandle of the node to be used as target folder
+         * @param nodehandle MegaHandle of the node to be used as primary target folder
          * @param listener MegaRequestListener to track this request
          */
         void setCameraUploadsFolder(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Gets Camera Uploads target folder.
+         * @brief Set Camera Uploads secondary target folder.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
+         * - MegaRequest::getFlag - Returns true
+         * - MegaRequest::getNodehandle - Returns the provided node handle
+         *
+         * @param nodehandle MegaHandle of the node to be used as secondary target folder
+         * @param listener MegaRequestListener to track this request
+         */
+        void setCameraUploadsFolderSecondary(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Gets Camera Uploads primary target folder.
          *
          * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
+         * - MegaRequest::getFlag - Returns false
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getNodehandle - Returns the handle of the node where Camera Uploads files are stored
+         * - MegaRequest::getNodehandle - Returns the handle of the primary node where Camera Uploads files are stored
+         *
+         * If the folder is not set, the request will fail with the error code MegaError::API_ENOENT.
          *
          * @param listener MegaRequestListener to track this request
          */
         void getCameraUploadsFolder(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Gets Camera Uploads secondary target folder.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
+         * - MegaRequest::getFlag - Returns true
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNodehandle - Returns the handle of the secondary node where Camera Uploads files are stored
+         *
+         * If the secondary folder is not set, the request will fail with the error code MegaError::API_ENOENT.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getCameraUploadsFolderSecondary(MegaRequestListener *listener = NULL);
 
         /**
          * @brief Gets the alias for an user
@@ -10317,7 +10365,7 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getName - user alias encoded in B64
+         * - MegaRequest::getName - Returns the user alias
          *
          * If the user alias doesn't exists the request will fail with the error code MegaError::API_ENOENT.
          *
@@ -10795,14 +10843,21 @@ class MegaApi
          * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
          * "Your business account is overdue, please contact your administrator."
          *
-         * @param localPath Local path of the file
-         * @param parent Parent node for the file in the MEGA account
+         * @param localPath Local path of the file or folder
+         * @param parent Parent node for the file or folder in the MEGA account
+         * @param appData Custom app data to save in the MegaTransfer object
+         * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+         * related to the transfer. If a transfer is started with exactly the same data
+         * (local path and target parent) as another one in the transfer queue, the new transfer
+         * fails with the error API_EEXISTS and the appData of the new transfer is appended to
+         * the appData of the old transfer, using a '!' separator if the old transfer had already
+         * appData.
+         * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
+         * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
+         * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
          * @param listener MegaTransferListener to track this transfer
-         *
-         * The custom modification time will be only applied for file transfers. If a folder
-         * is transferred using this function, the custom modification time won't have any effect
          */
-        void startUploadForChat(const char* localPath, MegaNode* parent, MegaTransferListener *listener = nullptr);
+        void startUploadForChat(const char *localPath, MegaNode *parent, const char *appData, bool isSourceTemporary, MegaTransferListener *listener = nullptr);
 
         /**
          * @brief Download a file or a folder from MEGA
@@ -15637,9 +15692,8 @@ class MegaApi
          * However explicit lock and unlock calls can also be made on it, which are protected from 
          * making more than one lock, and the destructor will make sure the lock is released.
          * 
-         * You take ownership of the returned value.
+         * You take ownership of the returned value, and you must delete it when the sequence is complete.
          */
-        #define MEGA_API_HAS_LOCK_UNLOCK  // TODO: remove this macro before merging
         MegaApiLock* getMegaApiLock(bool lockNow);
 
  private:
@@ -16000,10 +16054,25 @@ public:
     virtual long long getTransferMax();
 
     /**
-     * @brief Get the used bandwidth
+     * @brief Get the used bandwidth for own user allowance
+     * @see: MegaAccountDetails::getTransferUsed
      * @return Used bandwidth (in bytes)
      */
     virtual long long getTransferOwnUsed();
+
+    /**
+     * @brief Get the used bandwidth served to other users
+     * @see: MegaAccountDetails::getTransferUsed
+     * @return Used bandwidth (in bytes)
+     */
+    virtual long long getTransferSrvUsed();
+
+    /**
+     * @brief Get the used bandwidth allowance including own, free and served to other users
+     * @see: MegaAccountDetails::getTransferOwnUsed, MegaAccountDetails::getTemporalBandwidth, MegaAccountDetails::getTransferSrvUsed
+     * @return Used bandwidth (in bytes)
+     */
+    virtual long long getTransferUsed();
 
     /**
      * @brief Returns the number of nodes with account usage info
@@ -16177,11 +16246,12 @@ public:
     virtual int getTemporalBandwidthInterval();
 
     /**
-     * @brief Get the number of bytes that were recently transferred
+     * @brief Get the number of bytes that were recently transferred using free allowance
      *
      * The time interval in which those bytes were transferred
      * is provided (in hours) using MegaAccountDetails::getTemporalBandwidthInterval
      *
+     * @see: MegaAccountDetails::getTransferUsed
      * @return Number of bytes that were recently transferred
      */
     virtual long long getTemporalBandwidth();

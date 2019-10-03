@@ -449,7 +449,7 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
         for (file_list::iterator it = files.begin(); it != files.end(); it++)
         {
 #ifdef ENABLE_SYNC
-            if((*it)->syncxfer)
+            if((*it)->syncxfer && e != API_EBUSINESSPASTDUE)
             {
                 client->syncdownrequired = true;
             }

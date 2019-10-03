@@ -22,7 +22,7 @@ set (USE_CURL 1 CACHE STRING "")
 set (USE_SQLITE 1 CACHE STRING "")
 set (USE_MEDIAINFO 1 CACHE STRING "")
 set (USE_FREEIMAGE 1 CACHE STRING "")
-set (USE_SODIUM 0 CACHE STRING "")
+set (USE_SODIUM 1 CACHE STRING "")
 set (ENABLE_SYNC 1 CACHE STRING "")
 set (ENABLE_CHAT 0 CACHE STRING "")
 set (ENABLE_LOG_PERFORMANCE 0 CACHE STRING "")
@@ -138,7 +138,8 @@ else (USE_PREBUILT_3RDPARTY)
             include_directories( "${vcpkg_dir}/include" )
             link_directories( "${vcpkg_dir}/lib" )
         else()
-            # in this case, we are using libraries added to the linux installation
+            include_directories( "${Mega3rdPartyDir}/include" )
+            link_directories( "${Mega3rdPartyDir}/lib" )
         endif()
     ENDIF(WIN32)
 endif()
@@ -189,7 +190,6 @@ check_include_file(inttypes.h HAVE_INTTYPES_H)
 check_include_file(dirent.h HAVE_DIRENT_H)
 check_include_file(uv.h HAVE_LIBUV)
 check_function_exists(aio_write, HAVE_AIO_RT)
-check_function_exists(fdopendir, HAVE_FDOPENDIR)
 
 
 function(ImportStaticLibrary libName includeDir lib32debug lib32release lib64debug lib64release)
@@ -666,6 +666,7 @@ if (WIN32)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4458")  # identifier hides class member
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4324")  # structure was padded due to alignment specifier (common in Sodium)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4456")  # declaration hides previous local declaration
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4266")  # derived class did not override all overloads of a virtual function
     #TODO: remove some of those gradually.  also consider: /wd4503 /wd4996 /wd4702
 else()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wconversion -Wno-unused-parameter")

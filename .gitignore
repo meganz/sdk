@@ -93,6 +93,7 @@ Release
 /contrib/build-cmake-Desktop-*
 /contrib/cmake/CMakeLists.txt.user
 /contrib/cmake/.idea
+/contrib/cmake/build
 megaclient_statecache*
 
 # Mega SDK runtime

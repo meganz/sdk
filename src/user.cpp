@@ -22,6 +22,7 @@
 #include "mega/user.h"
 #include "mega/megaclient.h"
 #include "mega/logging.h"
+#include "mega/base64.h"
 
 namespace mega {
 User::User(const char* cemail)
@@ -39,6 +40,37 @@ User::User(const char* cemail)
     }
 
     memset(&changed, 0, sizeof(changed));
+}
+
+bool User::mergeUserAttribute(attr_t type, const string_map &newValuesMap, TLVstore &tlv)
+{
+    bool modified = false;
+
+    for (const auto &it : newValuesMap)
+    {
+        const char *key = it.first.c_str();
+        string newValue = it.second;
+        string currentValue;
+        if (tlv.find(key))  // the key may not exist in the current user attribute
+        {
+            Base64::btoa(tlv.get(key), currentValue);
+        }
+        if (newValue != currentValue)
+        {
+            if (type == ATTR_ALIAS && newValue[0] == '\0')
+            {
+                // alias being removed
+                tlv.reset(key);
+            }
+            else
+            {
+                tlv.set(key, Base64::atob(newValue));
+            }
+            modified = true;
+        }
+    }
+
+    return modified;
 }
 
 bool User::serialize(string* d)
@@ -292,11 +324,18 @@ void User::invalidateattr(attr_t at)
     attrsv.erase(at);
 }
 
-void User::removeattr(attr_t at)
+void User::removeattr(attr_t at, const string *version)
 {
     setChanged(at);
     attrs.erase(at);
-    attrsv.erase(at);
+    if (version)
+    {
+        attrsv[at] = *version;
+    }
+    else
+    {
+        attrsv.erase(at);
+    }
 }
 
 // returns the value if there is value (even if it's invalid by now)
@@ -313,7 +352,7 @@ const string * User::getattr(attr_t at)
 
 bool User::isattrvalid(attr_t at)
 {
-    return attrsv.count(at);
+    return attrs.count(at) && attrsv.count(at);
 }
 
 string User::attr2string(attr_t type)
@@ -697,7 +736,7 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_GEOLOCATION;
     }
-    else if(!strcmp(name, "*!cam"))
+    else if (!strcmp(name, "*!cam"))
     {
         return ATTR_CAMERA_UPLOADS_FOLDER;
     }
@@ -743,7 +782,6 @@ int User::needversioning(attr_t at)
         case ATTR_GEOLOCATION:
         case ATTR_MY_CHAT_FILES_FOLDER:
         case ATTR_PUSH_SETTINGS:
-        case ATTR_CAMERA_UPLOADS_FOLDER:
             return 0;
 
         case ATTR_LAST_INT:
@@ -757,6 +795,7 @@ int User::needversioning(attr_t at)
         case ATTR_AUTHCU255:
         case ATTR_CONTACT_LINK_VERIFICATION:
         case ATTR_ALIAS:
+        case ATTR_CAMERA_UPLOADS_FOLDER:
             return 1;
 
         case ATTR_STORAGE_STATE: //putua is forbidden for this attribute
