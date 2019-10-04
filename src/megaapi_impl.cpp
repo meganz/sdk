@@ -6170,10 +6170,7 @@ void MegaApiImpl::loop()
         {
             WAIT_CLASS::bumpds();
             updateBackups();
-            if (sendPendingTransfers())
-            {
-                yield();
-            }
+            sendPendingTransfers();
             sendPendingRequests();
             sendPendingScRequest();
             if(threadExit)
@@ -17415,16 +17412,19 @@ void MegaApiImpl::updateBackups()
     }
 }
 
-unsigned MegaApiImpl::sendPendingTransfers()
+void MegaApiImpl::sendPendingTransfers()
 {
-    auto t0 = std::chrono::steady_clock::now();
-    unsigned count = 0;
-
-    SdkMutexGuard guard(sdkMutex);
     DBTableTransactionCommitter committer(client->tctable);
-
-    while(MegaTransferPrivate *transfer = transferQueue.pop())
+    while(true)
     {
+        sdkMutex.lock();
+        MegaTransferPrivate *transfer = transferQueue.pop();
+        if (!transfer)
+        {
+            sdkMutex.unlock();
+            break;
+        }
+
         error e = API_OK;
         int nextTag = client->nextreqtag();
         transfer->setState(MegaTransfer::STATE_QUEUED);
@@ -17881,13 +17881,8 @@ unsigned MegaApiImpl::sendPendingTransfers()
             transfer->setState(MegaTransfer::STATE_FAILED);
             fireOnTransferFinish(transfer, MegaError(e), committer);
         }
-
-        if (++count > 100 || std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count() > 100)
-        {
-            break;
-        }
     }
-    return count;
+    sdkMutex.unlock();
 }
 
 void MegaApiImpl::removeRecursively(const char *path)
