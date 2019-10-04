@@ -155,19 +155,18 @@ bool PosixFileAccess::sysopen(bool)
     }
 #endif
 
+    assert(fd < 0 && "There should be no opened file descriptor at this point");
+    sysclose();
     return (fd = open(localname.c_str(), O_RDONLY)) >= 0;
 }
 
 void PosixFileAccess::sysclose()
 {
-    if (localname.size())
+    assert(!localname.size() || fd >= 0);
+    if (fd >= 0)
     {
-        assert (fd >= 0);
-        if (fd >= 0)
-        {
-            close(fd);
-            fd = -1;
-        }
+        close(fd);
+        fd = -1;
     }
 }
 
@@ -371,6 +370,13 @@ bool PosixFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
 #endif
 }
 
+int PosixFileAccess::stealFileDescriptor()
+{
+    int toret = fd;
+    fd = -1;
+    return toret;
+}
+
 bool PosixFileAccess::fopen(string* f, bool read, bool write)
 {
 #ifdef USE_IOS
@@ -479,6 +485,8 @@ bool PosixFileAccess::fopen(string* f, bool read, bool write)
 // Notice in systems were O_PATH is not available, open will fail for links with O_NOFOLLOW
 #endif
 
+    assert(fd < 0 && "There should be no opened file descriptor at this point");
+    sysclose();
     // if mFollowSymLinks is true (open normally: it will open the targeted file/folder),
     // otherwise, get the file descriptor for symlinks in case it is a sync link (notice O_PATH invalidates read/only flags)
     if ((fd = open(f->c_str(), (!mFollowSymLinks && mIsSymLink) ? (O_PATH | O_NOFOLLOW) : (write ? (read ? O_RDWR : O_WRONLY | O_CREAT) : O_RDONLY) , defaultfilepermissions)) >= 0 || statok)
@@ -1848,8 +1856,7 @@ bool PosixDirAccess::dopen(string* path, FileAccess* f, bool doglob)
     if (f)
     {
 #ifdef HAVE_FDOPENDIR
-        dp = fdopendir(((PosixFileAccess*)f)->fd);
-        ((PosixFileAccess*)f)->fd = -1;
+        dp = fdopendir(((PosixFileAccess*)f)->stealFileDescriptor());
 #else
         dp = ((PosixFileAccess*)f)->dp;
         ((PosixFileAccess*)f)->dp = NULL;
