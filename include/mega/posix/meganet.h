@@ -184,6 +184,12 @@ public:
 
     CurlHttpIO();
     ~CurlHttpIO();
+
+    CodeCounter::ScopeStats countCurlHttpIOAddevents = { "curl-httpio-addevents" };
+    CodeCounter::ScopeStats countAddAresEventsCode = { "ares-add-events" };
+    CodeCounter::ScopeStats countAddCurlEventsCode = { "curl-add-events" };
+    CodeCounter::ScopeStats countProcessAresEventsCode = { "ares-process-events" };
+    CodeCounter::ScopeStats countProcessCurlEventsCode = { "curl-process-events" };
 };
 
 struct MEGA_API CurlHttpContext

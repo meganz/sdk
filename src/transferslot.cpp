@@ -243,6 +243,7 @@ TransferSlot::~TransferSlot()
         }
 
         transfer->client->tslots.erase(slots_it);
+        transfer->client->performanceStats.transferFinishes += 1;
     }
 
     if (pendingcmd)
@@ -334,6 +335,8 @@ int64_t TransferSlot::macsmac(chunkmac_map* m)
 // file transfer state machine
 void TransferSlot::doio(MegaClient* client)
 {
+    CodeCounter::ScopeTimer pbt(client->performanceStats.transferslotDoio);
+
     if (!fa || (transfer->size && transfer->progresscompleted == transfer->size)
             || (transfer->type == PUT && transfer->ultoken))
     {
@@ -926,6 +929,7 @@ void TransferSlot::doio(MegaClient* client)
 
                             client->app->transfer_failed(transfer, API_EFAILED);
                             client->setchunkfailed(&reqs[i]->posturl);
+                            ++client->performanceStats.transferTempErrors;
 
                             if (changeport)
                             {
@@ -1159,6 +1163,7 @@ void TransferSlot::doio(MegaClient* client)
         {
             LOG_warn << "Chunk failed due to a timeout";
             client->app->transfer_failed(transfer, API_EFAILED);
+            ++client->performanceStats.transferTempErrors;
         }
     }
 

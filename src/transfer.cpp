@@ -362,6 +362,7 @@ void Transfer::failed(error e, dstime timeleft)
             state = TRANSFERSTATE_RETRYING;
             client->app->transfer_failed(this, e, timeleft);
             client->looprequested = true;
+            ++client->performanceStats.transferTempErrors;
         }
         else
         {
@@ -370,6 +371,7 @@ void Transfer::failed(error e, dstime timeleft)
             if (!slot)
             {
                 client->app->transfer_failed(this, e, timeleft);
+                ++client->performanceStats.transferTempErrors;
             }
         }
     }
@@ -429,6 +431,7 @@ void Transfer::failed(error e, dstime timeleft)
             client->app->file_removed(*it, e);
         }
         client->app->transfer_removed(this);
+        ++client->performanceStats.transferFails;
         delete this;
     }
 }
@@ -481,6 +484,8 @@ void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ std::strin
 // fingerprint, notify app, notify files
 void Transfer::complete()
 {
+    CodeCounter::ScopeTimer ccst(client->performanceStats.transferComplete);
+
     state = TRANSFERSTATE_COMPLETING;
     client->app->transfer_update(this);
 
