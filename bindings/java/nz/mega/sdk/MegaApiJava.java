@@ -137,6 +137,7 @@ public class MegaApiJava {
 
     public final static int KEEP_ALIVE_CAMERA_UPLOADS = MegaApi.KEEP_ALIVE_CAMERA_UPLOADS;
 
+    public final static int STORAGE_STATE_UNKNOWN = MegaApi.STORAGE_STATE_UNKNOWN;
     public final static int STORAGE_STATE_GREEN = MegaApi.STORAGE_STATE_GREEN;
     public final static int STORAGE_STATE_ORANGE = MegaApi.STORAGE_STATE_ORANGE;
     public final static int STORAGE_STATE_RED = MegaApi.STORAGE_STATE_RED;
@@ -3902,100 +3903,167 @@ public class MegaApiJava {
     }
 
     /**
-     * Get details about the MEGA account.
-     * <p>
-     * The associated request type with this request is MegaRequest.TYPE_ACCOUNT_DETAILS.
-     * <p>
-     * Valid data in the MegaRequest object received in onRequestFinish() when the error code
-     * is MegaError.API_OK: <br>
-     * - MegaRequest.getMegaAccountDetails() - Details of the MEGA account.
-     * 
-     * @param listener
-     *            MegaRequestListener to track this request.
+     * Get details about the MEGA account
+     *
+     * Only basic data will be available. If you can get more data (sessions, transactions, purchases),
+     * use MegaApi::getExtendedAccountDetails.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_ACCOUNT_DETAILS
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaAccountDetails - Details of the MEGA account
+     * - MegaRequest::getNumDetails - Requested flags
+     *
+     * The available flags are:
+     *  - storage quota: (numDetails & 0x01)
+     *  - transfer quota: (numDetails & 0x02)
+     *  - pro level: (numDetails & 0x04)
+     *
+     * @param listener MegaRequestListener to track this request
      */
     public void getAccountDetails(MegaRequestListenerInterface listener) {
         megaApi.getAccountDetails(createDelegateRequestListener(listener));
     }
 
     /**
-     * Get details about the MEGA account.
+     * Get details about the MEGA account
+     *
+     * Only basic data will be available. If you can get more data (sessions, transactions, purchases),
+     * use MegaApi::getExtendedAccountDetails.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_ACCOUNT_DETAILS
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaAccountDetails - Details of the MEGA account
+     * - MegaRequest::getNumDetails - Requested flags
+     *
+     * The available flags are:
+     *  - storage quota: (numDetails & 0x01)
+     *  - transfer quota: (numDetails & 0x02)
+     *  - pro level: (numDetails & 0x04)
      */
     public void getAccountDetails() {
         megaApi.getAccountDetails();
     }
 
     /**
-     * Get details about the MEGA account.
-     * <p>
-     * This function allows to optionally get data about sessions, transactions and purchases related to the account.
-     * <p>
-     * The associated request type with this request is MegaRequest.TYPE_ACCOUNT_DETAILS.
-     * <p>
-     * Valid data in the MegaRequest object received in onRequestFinish() when the error code
-     * is MegaError.API_OK: <br>
-     * - MegaRequest.getMegaAccountDetails() - Details of the MEGA account.
+     * Get details about the MEGA account
      *
-     * @param sessions
-     *              Boolean. Get sessions history if true. Do not get sessions history if false.
-     * @param purchases
-     *              Boolean. Get purchase history if true. Do not get purchase history if false.
-     * @param transactions
-     *              Boolean. Get transactions history if true. Do not get transactions history if false.
-     * @param listener
-     *            MegaRequestListener to track this request.
+     * Only basic data will be available. If you need more data (sessions, transactions, purchases),
+     * use MegaApi::getExtendedAccountDetails.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_ACCOUNT_DETAILS
+     *
+     * Use this version of the function to get just the details you need, to minimise server load
+     * and keep the system highly available for all. At least one flag must be set.
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaAccountDetails - Details of the MEGA account
+     * - MegaRequest::getNumDetails - Requested flags
+     *
+     * The available flags are:
+     *  - storage quota: (numDetails & 0x01)
+     *  - transfer quota: (numDetails & 0x02)
+     *  - pro level: (numDetails & 0x04)
+     *
+     * In case none of the flags are set, the associated request will fail with error MegaError::API_EARGS.
+     *
+     * @param storage If true, account storage details are requested
+     * @param transfer If true, account transfer details are requested
+     * @param pro If true, pro level of account is requested
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getSpecificAccountDetails(boolean storage, boolean transfer, boolean pro, MegaRequestListenerInterface listener) {
+        megaApi.getSpecificAccountDetails(storage, transfer, pro, -1, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Get details about the MEGA account
+     *
+     * Only basic data will be available. If you need more data (sessions, transactions, purchases),
+     * use MegaApi::getExtendedAccountDetails.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_ACCOUNT_DETAILS
+     *
+     * Use this version of the function to get just the details you need, to minimise server load
+     * and keep the system highly available for all. At least one flag must be set.
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaAccountDetails - Details of the MEGA account
+     * - MegaRequest::getNumDetails - Requested flags
+     *
+     * The available flags are:
+     *  - storage quota: (numDetails & 0x01)
+     *  - transfer quota: (numDetails & 0x02)
+     *  - pro level: (numDetails & 0x04)
+     *
+     * In case none of the flags are set, the associated request will fail with error MegaError::API_EARGS.
+     *
+     * @param storage If true, account storage details are requested
+     * @param transfer If true, account transfer details are requested
+     * @param pro If true, pro level of account is requested
+     */
+    public void getSpecificAccountDetails(boolean storage, boolean transfer, boolean pro) {
+        megaApi.getSpecificAccountDetails(storage, transfer, pro, -1);
+    }
+
+    /**
+     * Get details about the MEGA account
+     *
+     * This function allows to optionally get data about sessions, transactions and purchases related to the account.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_ACCOUNT_DETAILS
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaAccountDetails - Details of the MEGA account
+     * - MegaRequest::getNumDetails - Requested flags
+     *
+     * The available flags are:
+     *  - transactions: (numDetails & 0x08)
+     *  - purchases: (numDetails & 0x10)
+     *  - sessions: (numDetails & 0x020)
+     *
+     * In case none of the flags are set, the associated request will fail with error MegaError::API_EARGS.
+     *
+     * @param sessions If true, sessions are requested
+     * @param purchases If true, purchases are requested
+     * @param transactions If true, transactions are requested
+     * @param listener MegaRequestListener to track this request
      */
     public void getExtendedAccountDetails(boolean sessions, boolean purchases, boolean transactions, MegaRequestListenerInterface listener) {
         megaApi.getExtendedAccountDetails(sessions, purchases, transactions, createDelegateRequestListener(listener));
     }
 
     /**
-     * Get details about the MEGA account.
-     * 
+     * Get details about the MEGA account
+     *
      * This function allows to optionally get data about sessions, transactions and purchases related to the account.
      *
-     * @param sessions
-     *              Boolean. Get sessions history if true. Do not get sessions history if false.
-     * @param purchases
-     *              Boolean. Get purchase history if true. Do not get purchase history if false.
-     * @param transactions
-     *              Boolean. Get transactions history if true. Do not get transactions history if false.
+     * The associated request type with this request is MegaRequest::TYPE_ACCOUNT_DETAILS
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaAccountDetails - Details of the MEGA account
+     * - MegaRequest::getNumDetails - Requested flags
+     *
+     * The available flags are:
+     *  - transactions: (numDetails & 0x08)
+     *  - purchases: (numDetails & 0x10)
+     *  - sessions: (numDetails & 0x020)
+     *
+     * In case none of the flags are set, the associated request will fail with error MegaError::API_EARGS.
+     *
+     * @param sessions If true, sessions are requested
+     * @param purchases If true, purchases are requested
+     * @param transactions If true, transactions are requested
      */
     public void getExtendedAccountDetails(boolean sessions, boolean purchases, boolean transactions) {
         megaApi.getExtendedAccountDetails(sessions, purchases, transactions);
-    }
-
-    /**
-     * Get details about the MEGA account.
-     * 
-     * This function allows to optionally get data about sessions and purchases related to the account.
-     *
-     * @param sessions
-     *              Boolean. Get sessions history if true. Do not get sessions history if false.
-     * @param purchases
-     *              Boolean. Get purchase history if true. Do not get purchase history if false.
-     */
-    public void getExtendedAccountDetails(boolean sessions, boolean purchases) {
-        megaApi.getExtendedAccountDetails(sessions, purchases);
-    }
-
-    /**
-     * Get details about the MEGA account.
-     * 
-     * This function allows to optionally get data about sessions related to the account.
-     *
-     * @param sessions
-     *              Boolean. Get sessions history if true. Do not get sessions history if false.
-     */
-    public void getExtendedAccountDetails(boolean sessions) {
-        megaApi.getExtendedAccountDetails(sessions);
-    }
-
-    /**
-     * Get details about the MEGA account.
-     * 
-     */
-    public void getExtendedAccountDetails() {
-        megaApi.getExtendedAccountDetails();
     }
 
     /**
