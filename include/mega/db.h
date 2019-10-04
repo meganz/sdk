@@ -35,7 +35,7 @@ class MEGA_API DbTable
 
 protected:
     bool mCheckAlwaysTransacted = false;
-    DBTableTransactionCommitter* mCurrentTransaction = nullptr;
+    DBTableTransactionCommitter* mCurrentTransactionCommiter = nullptr;
     friend class DBTableTransactionCommitter;
     void checkTransaction();
 
@@ -84,43 +84,43 @@ public:
 
 class MEGA_API DBTableTransactionCommitter
 {
-    DbTable* table;
-    bool started = false;
+    DbTable* mTable;
+    bool mStarted = false;
 
 public:
     inline void beginOnce()
     {
-        if (table && !started)
+        if (mTable && !mStarted)
         {
-            table->begin();
-            started = true;
+            mTable->begin();
+            mStarted = true;
         }
     }
 
     inline ~DBTableTransactionCommitter()
     {
-        if (table)
+        if (mTable)
         {
-            if (started)
+            if (mStarted)
             {
-                table->commit();
+                mTable->commit();
             }
-            table->mCurrentTransaction = nullptr;
+            mTable->mCurrentTransactionCommiter = nullptr;
         }
     }
 
     explicit inline DBTableTransactionCommitter(DbTable* t)
-        : table(t) 
+        : mTable(t)
     {
-        if (table)
+        if (mTable)
         {
-            if (table->mCurrentTransaction)
+            if (mTable->mCurrentTransactionCommiter)
             {
-                table = nullptr;  // we are nested; this one does nothing.  This can occur during eg. putnodes response when the core sdk and the intermediate layer both do db work.
+                mTable = nullptr;  // we are nested; this one does nothing.  This can occur during eg. putnodes response when the core sdk and the intermediate layer both do db work.
             }
             else
             {
-                table->mCurrentTransaction = this;
+                mTable->mCurrentTransactionCommiter = this;
             }
         }
     }

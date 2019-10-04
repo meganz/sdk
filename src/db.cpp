@@ -84,17 +84,17 @@ void DbTable::checkTransaction()
 {
     if (mCheckAlwaysTransacted)
     {
-        assert(mCurrentTransaction);  // if this fails, we should have started a DBTableTransactionCommitter higher in the call stack
-        if (mCurrentTransaction)
+        assert(mCurrentTransactionCommiter);  // if this fails, we should have started a DBTableTransactionCommitter higher in the call stack
+        if (mCurrentTransactionCommiter)
         {
-            mCurrentTransaction->beginOnce();
+            mCurrentTransactionCommiter->beginOnce();
         }
     }
 }
 
 void DbTable::checkCommitter(DBTableTransactionCommitter* committer)
 {
-    assert(!committer || committer == mCurrentTransaction);
+    assert(!committer || committer == mCurrentTransactionCommiter);
 }
 
 DbAccess::DbAccess()

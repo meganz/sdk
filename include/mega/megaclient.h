@@ -954,7 +954,7 @@ public:
     DbTable* tctable;
 
     // during processing of request responses, transfer table updates can be wrapped up in a single begin/commit
-    DBTableTransactionCommitter* tctableRequestCommitter = nullptr;
+    DBTableTransactionCommitter* mTctableRequestCommitter = nullptr;
 
     // scsn as read from sctable
     handle cachedscsn;
