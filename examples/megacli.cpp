@@ -2682,7 +2682,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_find, sequence(text("find"), text("raided")));
 
 #ifdef MEGA_MEASURE_CODE
-    p->Add(exec_deferRequests, sequence(text("deferreqeusts"), repeat(either(flag("-putnodes")))));
+    p->Add(exec_deferRequests, sequence(text("deferrequests"), repeat(either(flag("-putnodes")))));
     p->Add(exec_sendDeferred, sequence(text("senddeferred"), opt(flag("-reset"))));
     p->Add(exec_codeTimings, sequence(text("codetimings"), opt(flag("-reset"))));
 #endif
