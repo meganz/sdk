@@ -30,9 +30,6 @@ namespace mega {
 // Returns true for a path that can be synced (.debris is not one of those).
 bool isPathSyncable(const string& localpath, const string& localdebris, const string& localseparator);
 
-// Invalidates the fs IDs of all local nodes below `l` and removes them from `fsidnodes`.
-void invalidateFilesystemIds(handlelocalnode_map& fsidnodes, LocalNode& l, size_t& count);
-
 // Searching from the back, this function compares path1 and path2 character by character and
 // returns the number of consecutive character matches (excluding separators) but only including whole node names.
 // It's assumed that the paths are normalized (e.g. not contain ..) and separated with the given `localseparator`.

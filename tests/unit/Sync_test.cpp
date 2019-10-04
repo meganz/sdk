@@ -253,30 +253,6 @@ TEST(Sync, isPathSyncable)
     ASSERT_FALSE(mega::isPathSyncable(mt::gLocalDebris + "/", mt::gLocalDebris, "/"));
 }
 
-TEST(Sync, invalidateFilesystemIds)
-{
-    Fixture fx{"d"};
-
-    // Level 0
-    mega::LocalNode& d = fx.mSync->localroot;
-
-    // Level 1
-    auto d_0 = mt::makeLocalNode(*fx.mSync, d, fx.mLocalNodes, mega::FOLDERNODE, "d_0");
-    auto f_0 = mt::makeLocalNode(*fx.mSync, d, fx.mLocalNodes, mega::FILENODE, "f_0");
-
-    size_t count = 0;
-    mega::invalidateFilesystemIds(fx.mLocalNodes, d, count);
-
-    ASSERT_EQ(3, count);
-    ASSERT_TRUE(fx.mLocalNodes.empty());
-    ASSERT_EQ(fx.mLocalNodes.end(), d.fsid_it);
-    ASSERT_EQ(fx.mLocalNodes.end(), d_0->fsid_it);
-    ASSERT_EQ(fx.mLocalNodes.end(), f_0->fsid_it);
-    ASSERT_EQ(mega::UNDEF, d.fsid);
-    ASSERT_EQ(mega::UNDEF, d_0->fsid);
-    ASSERT_EQ(mega::UNDEF, f_0->fsid);
-}
-
 namespace  {
 
 void test_computeReversePathMatchScore(const std::string& sep)
@@ -507,7 +483,7 @@ TEST(Sync, assignFilesystemIds_whenSomeFsIdIsNotValid)
 
     const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, "d/" + mt::gLocalDebris, "/");
 
-    ASSERT_TRUE(success);
+    ASSERT_FALSE(success);
 
     // assert that directories have correct fs IDs
     ASSERT_EQ(d.getFsId(), ld.fsid);
@@ -582,7 +558,7 @@ TEST(Sync, assignFilesystemIds_whenSubDirCannotBeOpened)
 
     const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, "d/" + mt::gLocalDebris, "/");
 
-    ASSERT_TRUE(success);
+    ASSERT_FALSE(success);
 
     // assert that directories have invalid fs IDs
     ASSERT_EQ(mega::UNDEF, ld.fsid);
@@ -775,6 +751,44 @@ TEST(Sync, assignFilesystemIds_whenFolderWasMoved)
     ASSERT_TRUE(fx.iteratorsCorrect(*ld_0));
     ASSERT_TRUE(fx.iteratorsCorrect(*lf_0_0));
     ASSERT_TRUE(fx.iteratorsCorrect(*lf_0_1));
+}
+
+TEST(Sync, assignFilesystemIds_whenFileWasCopied)
+{
+    Fixture fx{"d"};
+
+    // Level 0
+    mt::FsNode d{nullptr, mega::FOLDERNODE, "d"};
+    mega::LocalNode& ld = fx.mSync->localroot;
+
+    // Level 1
+    mt::FsNode f_0{&d, mega::FILENODE, "f_0"};
+    mt::FsNode d_0{&d, mega::FOLDERNODE, "d_0"};
+
+    auto lf_0 = mt::makeLocalNode(*fx.mSync, ld, fx.mLocalNodes, mega::FILENODE, "f_0", f_0.getFingerprint());
+
+    // Level 2
+    mt::FsNode f_1{&d_0, mega::FILENODE, "f_0"}; // same name as `f_0`
+    f_1.assignContentFrom(f_0); // file was copied maintaining mtime
+
+    mt::collectAllFsNodes(fx.mFsNodes, d);
+
+    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, "d/" + mt::gLocalDebris, "/");
+
+    ASSERT_TRUE(success);
+
+    // assert that directories have correct fs IDs
+    ASSERT_EQ(d.getFsId(), ld.fsid);
+
+    // assert that all file `LocalNode`s have same fs IDs as the corresponding `FsNode`s
+    ASSERT_EQ(f_0.getFsId(), lf_0->fsid);
+
+    // assert that the local node map is correct
+    constexpr std::size_t fileCount = 2;
+    ASSERT_EQ(fileCount, fx.mLocalNodes.size());
+
+    ASSERT_TRUE(fx.iteratorsCorrect(ld));
+    ASSERT_TRUE(fx.iteratorsCorrect(*lf_0));
 }
 
 #ifdef NDEBUG
