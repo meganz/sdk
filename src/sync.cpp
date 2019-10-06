@@ -351,8 +351,12 @@ void assignFilesystemIdsImpl(const FingerprintSet& fingerprints, FingerprintLoca
         {
             for (auto fileIt = fileRange.first; fileIt != fileRange.second; ++fileIt)
             {
-                const auto score = computeReversePathMatchScore(nodeIt->second.path, fileIt->second.path, localseparator);
-                nodes[&nodeIt->second.l][score] = fileIt->second.fsid;
+                auto& l = nodeIt->second.l;
+                if (&l != &l.sync->localroot) // never assign fs ID to the root localnode
+                {
+                    const auto score = computeReversePathMatchScore(nodeIt->second.path, fileIt->second.path, localseparator);
+                    nodes[&l][score] = fileIt->second.fsid;
+                }
             }
         }
 
