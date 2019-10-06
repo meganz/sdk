@@ -206,6 +206,7 @@ void computeFingerprint(FileFingerprint& ffp, FileSystemAccess& fsaccess, FileAc
     }
 }
 
+// Need this to store `FileFingerprint` by-value in map or set
 struct FileFingerprintComparator
 {
     bool operator()(const FileFingerprint& lhs, const FileFingerprint& rhs) const
@@ -214,26 +215,27 @@ struct FileFingerprintComparator
     }
 };
 
-using FingerprintSet = std::set<FileFingerprint, FileFingerprintComparator>;
-
+// Represents a local node for use in assigning fs IDs
 struct FsNode
 {
     LocalNode& l;
     string path;
 };
 
-using FingerprintLocalNodeMap = std::multimap<FileFingerprint, FsNode, FileFingerprintComparator>;
-
+// Represents a file/folder for use in assigning fs IDs
 struct FsFile
 {
     handle fsid;
     string path;
 };
 
+using FingerprintSet = std::set<FileFingerprint, FileFingerprintComparator>;
+using FingerprintLocalNodeMap = std::multimap<FileFingerprint, FsNode, FileFingerprintComparator>;
 using FingerprintFileMap = std::multimap<FileFingerprint, FsFile, FileFingerprintComparator>;
 
-// Collects all LocalNodes by storing them in `localnodes`, keyed by FileFingerprint.
-// Also invalidates the fs IDs of all local nodes.
+// Collects all `LocalNode`s by storing them in `localnodes`, keyed by FileFingerprint.
+// Invalidates the fs IDs of all local nodes.
+// Stores all fingerprints in `fingerprints` for later reference.
 void collectAllLocalNodes(FingerprintSet& fingerprints, FingerprintLocalNodeMap& localnodes,
                           LocalNode& l, handlelocalnode_map& fsidnodes, const string& localseparator)
 {
@@ -246,6 +248,7 @@ void collectAllLocalNodes(FingerprintSet& fingerprints, FingerprintLocalNodeMap&
         l.getlocalpath(&path, false, &localseparator);
         localnodes.insert(std::make_pair(ffp, FsNode{l, std::move(path)}));
     }
+    // invalidate fsid of `l`
     l.fsid = mega::UNDEF;
     if (l.fsid_it != fsidnodes.end())
     {
@@ -262,7 +265,8 @@ void collectAllLocalNodes(FingerprintSet& fingerprints, FingerprintLocalNodeMap&
     }
 }
 
-// Collects all Files by storing them in `fingerprints`, keyed by FileFingerprint.
+// Collects all `File`s by storing them in `files`, keyed by FileFingerprint.
+// Stores all fingerprints in `fingerprints` for later reference.
 void collectAllFiles(bool& success, FingerprintSet& fingerprints, FingerprintFileMap& files,
                      Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, const string& localpath,
                      const string& localdebris, const string& localseparator)
@@ -320,7 +324,7 @@ void collectAllFiles(bool& success, FingerprintSet& fingerprints, FingerprintFil
     }
 }
 
-// Assigns fs IDs from `files` to those localnodes that match the fingerprints found in `files`.
+// Assigns fs IDs from `files` to those `localnodes` that match the fingerprints found in `files`.
 // If there are multiple matches we apply a best-path heuristic.
 void assignFilesystemIdsImpl(const FingerprintSet& fingerprints, FingerprintLocalNodeMap& localnodes,
                              FingerprintFileMap& files, handlelocalnode_map& fsidnodes, const string& localseparator)
