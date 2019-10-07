@@ -132,10 +132,11 @@ m_time_t FileTime_to_POSIX(FILETIME* ft)
 
 bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
 {
+    assert(nonblocking_localname.size());
     WIN32_FILE_ATTRIBUTE_DATA fad;
 
     type = TYPE_UNKNOWN;
-    if (!GetFileAttributesExW((LPCWSTR)localname.data(), GetFileExInfoStandard, (LPVOID)&fad))
+    if (!GetFileAttributesExW((LPCWSTR)nonblocking_localname.data(), GetFileExInfoStandard, (LPVOID)&fad))
     {
         DWORD e = GetLastError();
         errorcode = e;
@@ -147,9 +148,9 @@ bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
     if (SimpleLogger::logCurrentLevel >= logDebug && skipattributes(fad.dwFileAttributes))
     {
         string utf8path;
-        utf8path.resize((localname.size() + 1) * 4 / sizeof(wchar_t));
-        utf8path.resize(WideCharToMultiByte(CP_UTF8, 0, (wchar_t*)localname.data(),
-                                         int(localname.size() / sizeof(wchar_t)),
+        utf8path.resize((nonblocking_localname.size() + 1) * 4 / sizeof(wchar_t));
+        utf8path.resize(WideCharToMultiByte(CP_UTF8, 0, (wchar_t*)nonblocking_localname.data(),
+                                         int(nonblocking_localname.size() / sizeof(wchar_t)),
                                          (char*)utf8path.data(),
                                          int(utf8path.size() + 1),
                                          NULL, NULL));
@@ -175,13 +176,14 @@ bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
 bool WinFileAccess::sysopen(bool async)
 {
     assert(hFile == INVALID_HANDLE_VALUE);
+    assert(nonblocking_localname.size());
 
 #ifdef WINDOWS_PHONE
     hFile = CreateFile2((LPCWSTR)localname.data(), GENERIC_READ,
                         FILE_SHARE_WRITE | FILE_SHARE_READ,
                         OPEN_EXISTING, NULL);
 #else
-    hFile = CreateFileW((LPCWSTR)localname.data(), GENERIC_READ,
+    hFile = CreateFileW((LPCWSTR)nonblocking_localname.data(), GENERIC_READ,
                         FILE_SHARE_WRITE | FILE_SHARE_READ,
                         NULL, OPEN_EXISTING, async ? FILE_FLAG_OVERLAPPED : 0, NULL);
 #endif
@@ -199,7 +201,7 @@ bool WinFileAccess::sysopen(bool async)
 
 void WinFileAccess::sysclose()
 {
-    assert(localname.size());
+    assert(nonblocking_localname.size());
     assert(hFile != INVALID_HANDLE_VALUE);
 
     if (hFile != INVALID_HANDLE_VALUE)
@@ -398,11 +400,11 @@ void WinFileAccess::asyncsyswrite(AsyncIOContext *context)
 // update local name
 void WinFileAccess::updatelocalname(string* name)
 {
-    if (localname.size())
+    if (nonblocking_localname.size())
     {
-        localname = *name;
-        WinFileSystemAccess::sanitizedriveletter(&localname);
-        localname.append("", 1);
+        nonblocking_localname = *name;
+        WinFileSystemAccess::sanitizedriveletter(&nonblocking_localname);
+        nonblocking_localname.append("", 1);
     }
 }
 

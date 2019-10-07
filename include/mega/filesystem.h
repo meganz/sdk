@@ -94,15 +94,15 @@ struct MEGA_API FileAccess
     int errorcode;
 
     // for files "opened" in nonblocking mode, the current local filename
-    string localname;
+    string nonblocking_localname;
 
     // waiter to notify on filesystem events
     Waiter *waiter;
 
-    // open for reading, writing or reading and writing
+    // blocking mode: open for reading, writing or reading and writing.  This one really does open the file, and openf(), closef() will have no effect
     virtual bool fopen(string*, bool, bool) = 0;
 
-    // Only prepares for opening.  Actually stats the file/folder, getting mtime, size, type.  Call openf() afterwards to actually open it if required.  For folders, retunrs false with type==FOLDERNODE.
+    // nonblocking open: Only prepares for opening.  Actually stats the file/folder, getting mtime, size, type.  Call openf() afterwards to actually open it if required.  For folders, retunrs false with type==FOLDERNODE.
     bool fopen(string*);
 
     // check if a local path is a folder
@@ -115,9 +115,9 @@ struct MEGA_API FileAccess
     bool fread(string *, unsigned, unsigned, m_off_t);
 
     // absolute position read to byte buffer
-    bool frawread(byte *, unsigned, m_off_t, bool skipopen = false, bool keepopen = false);
+    bool frawread(byte *, unsigned, m_off_t, bool caller_opened = false);
 
-    // After a successful fopen(), call fopen() to really open the file (by localname) (this is a lazy-type approach in case we don't actually need to open the file after finding out type/size/mtime).  If the size or mtime changed, it will fail.
+    // After a successful nonblocking fopen(), call openf() to really open the file (by localname) (this is a lazy-type approach in case we don't actually need to open the file after finding out type/size/mtime).  If the size or mtime changed, it will fail.
     bool openf();
 
     // After calling openf(), make sure to close the file again quickly with closef().

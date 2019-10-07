@@ -22950,7 +22950,7 @@ bool FileInputStream::read(byte *buffer, unsigned size)
         return false;
     }
 
-    if (fileAccess->frawread(buffer, size, offset, true, true))
+    if (fileAccess->frawread(buffer, size, offset, true))
     {
         offset += size;
         return true;
