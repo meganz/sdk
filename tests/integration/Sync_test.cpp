@@ -811,7 +811,7 @@ struct StandardClient : public MegaApp
         }
     }
 
-    bool setupSync_inthread(int syncid, const string& subfoldername, const fs::path& localpath)
+    bool setupSync_inthread(SyncDescriptor desc, int syncid, const string& subfoldername, const fs::path& localpath)
     {
         if (Node* n = client.nodebyhandle(basefolderhandle))
         {
@@ -819,7 +819,7 @@ struct StandardClient : public MegaApp
             {
                 string local, orig = localpath.u8string();
                 client.fsaccess->path2local(&orig, &local);
-                error e = client.addsync(&local, DEBRISFOLDER, NULL, m, 0, syncid);  // use syncid as tag
+                error e = client.addsync(desc, &local, DEBRISFOLDER, NULL, m, 0, syncid);  // use syncid as tag
                 if (!e)
                 {
                     syncSet[syncid] = SyncInfo{ m->nodehandle, localpath };
@@ -1383,6 +1383,11 @@ struct StandardClient : public MegaApp
 
     bool login_fetchnodes_resumesync(const string& session, const string& localsyncpath, const std::string& remotesyncrootfolder, int syncid)
     {
+        return login_fetchnodes_resumesync(SyncDescriptor{}, session, localsyncpath, remotesyncrootfolder, syncid);
+    }
+
+    bool login_fetchnodes_resumesync(SyncDescriptor desc, const string& session, const string& localsyncpath, const std::string& remotesyncrootfolder, int syncid)
+    {
         future<bool> p2;
         p2 = thread_do([=](StandardClient& sc, promise<bool>& pb) { sc.loginFromSession(session, pb); });
         if (!waitonresults(&p2)) return false;
@@ -1392,7 +1397,7 @@ struct StandardClient : public MegaApp
         {
             promise<bool> tp;
             mc.ensureTestBaseFolder(false, tp);
-            pb.set_value(tp.get_future().get() ? mc.setupSync_inthread(syncid, remotesyncrootfolder, localsyncpath) : false);
+            pb.set_value(tp.get_future().get() ? mc.setupSync_inthread(desc, syncid, remotesyncrootfolder, localsyncpath) : false);
         };
 
         p2 = thread_do([](StandardClient& sc, promise<bool>& pb) { sc.fetchnodes(pb); });
@@ -1404,9 +1409,14 @@ struct StandardClient : public MegaApp
 
     bool setupSync_mainthread(const std::string& localsyncrootfolder, const std::string& remotesyncrootfolder, int syncid)
     {
+        return setupSync_mainthread(SyncDescriptor{}, localsyncrootfolder, remotesyncrootfolder, syncid);
+    }
+
+    bool setupSync_mainthread(SyncDescriptor desc, const std::string& localsyncrootfolder, const std::string& remotesyncrootfolder, int syncid)
+    {
         fs::path syncdir = fsBasePath / fs::u8path(localsyncrootfolder);
         fs::create_directory(syncdir);
-        future<bool> fb = thread_do([=](StandardClient& mc, promise<bool>& pb) { pb.set_value(mc.setupSync_inthread(syncid, remotesyncrootfolder, syncdir)); });
+        future<bool> fb = thread_do([=](StandardClient& mc, promise<bool>& pb) { pb.set_value(mc.setupSync_inthread(desc, syncid, remotesyncrootfolder, syncdir)); });
         return fb.get();
     }
 
@@ -2363,4 +2373,63 @@ GTEST_TEST(Sync, DISABLED_BasicSync_moveAndDeleteLocalFile)
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
     ASSERT_TRUE(model.removesynctrash("f"));
     ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
+}
+
+TEST(Sync, OneWay_Upload_syncDelFalse_OverwriteFalse_1)
+{
+    /* Steps:
+     * - Add remote file
+     * - Assert: No local file
+     */
+    const SyncDescriptor desc{SyncDescriptor::TYPE_UP, false, false};
+
+    fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
+    StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1 (two-way)
+    StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2 (one-way)
+
+    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "f", 1, 1));
+    ASSERT_TRUE(clientA2.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
+    ASSERT_EQ(clientA1.basefolderhandle, clientA2.basefolderhandle);
+
+    ASSERT_TRUE(clientA1.setupSync_mainthread("sync1", "f", 1));
+    ASSERT_TRUE(clientA2.setupSync_mainthread(desc, "sync2", "f", 2));
+    waitonsyncs(4s, &clientA1, &clientA2);
+    clientA1.logcb = clientA2.logcb = true;
+
+    Model model;
+    model.root->addkid(model.buildModelSubdirs("f", 1, 1, 0));
+    ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
+    ASSERT_FALSE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
+}
+
+TEST(Sync, OneWay_Upload_syncDelFalse_OverwriteFalse_2)
+{
+    /* Steps:
+     * - Add local file
+     * - Assert: File uploaded
+     */
+    const SyncDescriptor desc{SyncDescriptor::TYPE_UP, false, false};
+
+    fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
+    StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1 (two-way)
+    StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2 (one-way)
+
+    ASSERT_TRUE(clientA1.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
+    ASSERT_TRUE(clientA2.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
+    ASSERT_EQ(clientA1.basefolderhandle, clientA2.basefolderhandle);
+
+    ASSERT_TRUE(clientA1.setupSync_mainthread("sync1", "f", 1));
+    ASSERT_TRUE(clientA2.setupSync_mainthread(desc, "sync2", "f", 2));
+    waitonsyncs(4s, &clientA1, &clientA2);
+    clientA1.logcb = clientA2.logcb = true;
+
+    fs::create_directory(clientA2.syncSet[2].localpath / "f_0" / "new_dir");
+
+    waitonsyncs(20s, &clientA1, &clientA2);
+
+    Model model;
+    model.root->addkid(model.buildModelSubdirs("f", 1, 1, 0));
+    model.makeModelSubfolder("f_0/new_dir");
+    ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
+    ASSERT_FALSE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
 }
