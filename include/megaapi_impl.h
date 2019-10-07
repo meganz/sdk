@@ -2962,7 +2962,7 @@ protected:
 
         void sendPendingScRequest();
         void sendPendingRequests();
-        void sendPendingTransfers();
+        unsigned sendPendingTransfers();
         void updateBackups();
         char *stringToArray(string &buffer);
 
