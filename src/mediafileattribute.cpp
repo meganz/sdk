@@ -670,7 +670,7 @@ bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, std::string filena
             return false;
         }
 
-        if (!fa->frawread(buf, n, readpos))
+        if (!fa->frawread(buf, n, readpos, true,  true))
         {
             LOG_err << "could not read local file";
             mi.Open_Buffer_Finalize();
