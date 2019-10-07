@@ -139,12 +139,19 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
         changed = true;
     }
 
+    if (!fa->openf())
+    {
+        size = -1;
+        return true;
+    }
+
     if (size <= (m_off_t)sizeof crc)
     {
         // tiny file: read verbatim, NUL pad
         if (!fa->frawread((byte*)newcrc, static_cast<unsigned>(size), 0, true,  true))
         {
             size = -1;
+            fa->closef();
             return true;
         }
 
@@ -162,6 +169,7 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
         if (!fa->frawread(buf, static_cast<unsigned>(size), 0, true,  true))
         {
             size = -1;
+            fa->closef();
             return true;
         }
 
@@ -193,6 +201,7 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
                                   / (sizeof crc / sizeof *crc * blocks - 1), true,  true))
                 {
                     size = -1;
+                    fa->closef();
                     return true;
                 }
 
@@ -216,6 +225,7 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
         changed = true;
     }
 
+    fa->closef();
     return changed;
 }
 

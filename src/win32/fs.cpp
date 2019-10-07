@@ -46,6 +46,7 @@ WinFileAccess::~WinFileAccess()
 bool WinFileAccess::sysread(byte* dst, unsigned len, m_off_t pos)
 {
     DWORD dwRead;
+    assert(hFile != INVALID_HANDLE_VALUE);
 
     if (!SetFilePointerEx(hFile, *(LARGE_INTEGER*)&pos, NULL, FILE_BEGIN))
     {
@@ -173,6 +174,8 @@ bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
 
 bool WinFileAccess::sysopen(bool async)
 {
+    assert(hFile == INVALID_HANDLE_VALUE);
+
 #ifdef WINDOWS_PHONE
     hFile = CreateFile2((LPCWSTR)localname.data(), GENERIC_READ,
                         FILE_SHARE_WRITE | FILE_SHARE_READ,
@@ -196,14 +199,13 @@ bool WinFileAccess::sysopen(bool async)
 
 void WinFileAccess::sysclose()
 {
-    if (localname.size())
+    assert(localname.size());
+    assert(hFile != INVALID_HANDLE_VALUE);
+
+    if (hFile != INVALID_HANDLE_VALUE)
     {
-        assert (hFile != INVALID_HANDLE_VALUE);
-        if (hFile != INVALID_HANDLE_VALUE)
-        {
-            CloseHandle(hFile);
-            hFile = INVALID_HANDLE_VALUE;
-        }
+        CloseHandle(hFile);
+        hFile = INVALID_HANDLE_VALUE;
     }
 }
 
@@ -427,6 +429,7 @@ bool WinFileAccess::fopen(string *name, bool read, bool write)
 bool WinFileAccess::fopen(string* name, bool read, bool write, bool async)
 {
     WIN32_FIND_DATA fad = { 0 };
+    assert(hFile == INVALID_HANDLE_VALUE);
 
 #ifdef WINDOWS_PHONE
     FILE_ID_INFO bhfi = { 0 };

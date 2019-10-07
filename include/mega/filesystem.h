@@ -102,7 +102,7 @@ struct MEGA_API FileAccess
     // open for reading, writing or reading and writing
     virtual bool fopen(string*, bool, bool) = 0;
 
-    // open by name only. returns false for folders setting type to FOLDERNODE
+    // Only prepares for opening.  Actually stats the file/folder, getting mtime, size, type.  Call openf() afterwards to actually open it if required.  For folders, retunrs false with type==FOLDERNODE.
     bool fopen(string*);
 
     // check if a local path is a folder
@@ -117,18 +117,14 @@ struct MEGA_API FileAccess
     // absolute position read to byte buffer
     bool frawread(byte *, unsigned, m_off_t, bool skipopen = false, bool keepopen = false);
 
-    // non-locking ops: open/close temporary hFile
+    // After a successful fopen(), call fopen() to really open the file (by localname) (this is a lazy-type approach in case we don't actually need to open the file after finding out type/size/mtime).  If the size or mtime changed, it will fail.
     bool openf();
+
+    // After calling openf(), make sure to close the file again quickly with closef().
     void closef();
 
     // absolute position write
     virtual bool fwrite(const byte *, unsigned, m_off_t) = 0;
-
-    // system-specific raw read/open/close
-    virtual bool sysread(byte *, unsigned, m_off_t) = 0;
-    virtual bool sysstat(m_time_t*, m_off_t*) = 0;
-    virtual bool sysopen(bool async = false) = 0;
-    virtual void sysclose() = 0;
 
     FileAccess(Waiter *waiter);
     virtual ~FileAccess();
@@ -142,13 +138,8 @@ struct MEGA_API FileAccess
     void asyncclosef();
 
     AsyncIOContext *asyncfopen(string *, bool, bool, m_off_t = 0);
-    virtual void asyncsysopen(AsyncIOContext*);
-
     AsyncIOContext* asyncfread(string *, unsigned, unsigned, m_off_t);
-    virtual void asyncsysread(AsyncIOContext*);
-
     AsyncIOContext* asyncfwrite(const byte *, unsigned, m_off_t);
-    virtual void asyncsyswrite(AsyncIOContext*);
 
 
 protected:
@@ -156,6 +147,15 @@ protected:
     static void asyncopfinished(void *param);
     bool isAsyncOpened;
     int numAsyncReads;
+
+    // system-specific raw read/open/close to be provided by platform implementation.   fopen / openf / fread etc are implemented by calling these.
+    virtual bool sysread(byte *, unsigned, m_off_t) = 0;
+    virtual bool sysstat(m_time_t*, m_off_t*) = 0;
+    virtual bool sysopen(bool async = false) = 0;
+    virtual void sysclose() = 0;
+    virtual void asyncsysopen(AsyncIOContext*);
+    virtual void asyncsysread(AsyncIOContext*);
+    virtual void asyncsyswrite(AsyncIOContext*);
 };
 
 struct MEGA_API InputStreamAccess
