@@ -156,7 +156,15 @@ bool PosixFileAccess::sysopen(bool)
 #endif
 
     assert(fd < 0 && "There should be no opened file descriptor at this point");
-    sysclose();
+    if (fd >= 0)
+    {
+        sysclose();
+    }
+
+    assert(mFollowSymLinks); //Notice: symlinks are not considered here for the moment,
+    // this is ok: this is not called with mFollowSymLinks = false, but from transfers doio.
+    // When fully supporting symlinks, this might need to be reassessed
+
     return (fd = open(nonblocking_localname.c_str(), O_RDONLY)) >= 0;
 }
 

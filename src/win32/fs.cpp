@@ -178,6 +178,11 @@ bool WinFileAccess::sysopen(bool async)
     assert(hFile == INVALID_HANDLE_VALUE);
     assert(nonblocking_localname.size());
 
+    if (hFile != INVALID_HANDLE_VALUE)
+    {
+        sysclose();
+    }
+
 #ifdef WINDOWS_PHONE
     hFile = CreateFile2((LPCWSTR)localname.data(), GENERIC_READ,
                         FILE_SHARE_WRITE | FILE_SHARE_READ,
