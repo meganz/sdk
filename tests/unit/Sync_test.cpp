@@ -326,7 +326,7 @@ TEST(Sync, assignFilesystemIds_whenFilesystemFingerprintsMatchLocalNodes)
     ASSERT_TRUE(success);
 
     // assert that directories have correct fs IDs
-    ASSERT_EQ(d.getFsId(), ld.fsid);
+    ASSERT_EQ(mega::UNDEF, ld.fsid);
     ASSERT_EQ(d_0.getFsId(), ld_0->fsid);
     ASSERT_EQ(d_1.getFsId(), ld_1->fsid);
     ASSERT_EQ(d_1_1.getFsId(), ld_1_1->fsid);
@@ -339,10 +339,10 @@ TEST(Sync, assignFilesystemIds_whenFilesystemFingerprintsMatchLocalNodes)
     ASSERT_EQ(f_1_1_0.getFsId(), lf_1_1_0->fsid);
 
     // assert that the local node map is correct
-    constexpr std::size_t fileCount = 9;
+    constexpr std::size_t fileCount = 8;
     ASSERT_EQ(fileCount, fx.mLocalNodes.size());
 
-    ASSERT_TRUE(fx.iteratorsCorrect(ld));
+    ASSERT_FALSE(fx.iteratorsCorrect(ld));
     ASSERT_TRUE(fx.iteratorsCorrect(*ld_0));
     ASSERT_TRUE(fx.iteratorsCorrect(*ld_1));
     ASSERT_TRUE(fx.iteratorsCorrect(*ld_1_1));
@@ -439,7 +439,7 @@ TEST(Sync, assignFilesystemIds_whenTwoLocalNodesHaveSameFingerprint)
     ASSERT_TRUE(success);
 
     // assert that directories have correct fs IDs
-    ASSERT_EQ(d.getFsId(), ld.fsid);
+    ASSERT_EQ(mega::UNDEF, ld.fsid);
     ASSERT_EQ(d_0.getFsId(), ld_0->fsid);
     ASSERT_EQ(d_1.getFsId(), ld_1->fsid);
     ASSERT_EQ(d_1_1.getFsId(), ld_1_1->fsid);
@@ -452,10 +452,10 @@ TEST(Sync, assignFilesystemIds_whenTwoLocalNodesHaveSameFingerprint)
     ASSERT_EQ(f_1_1_0.getFsId(), lf_1_1_0->fsid);
 
     // assert that the local node map is correct
-    constexpr std::size_t fileCount = 9;
+    constexpr std::size_t fileCount = 8;
     ASSERT_EQ(fileCount, fx.mLocalNodes.size());
 
-    ASSERT_TRUE(fx.iteratorsCorrect(ld));
+    ASSERT_FALSE(fx.iteratorsCorrect(ld));
     ASSERT_TRUE(fx.iteratorsCorrect(*ld_0));
     ASSERT_TRUE(fx.iteratorsCorrect(*ld_1));
     ASSERT_TRUE(fx.iteratorsCorrect(*ld_1_1));
@@ -486,16 +486,16 @@ TEST(Sync, assignFilesystemIds_whenSomeFsIdIsNotValid)
     ASSERT_FALSE(success);
 
     // assert that directories have correct fs IDs
-    ASSERT_EQ(d.getFsId(), ld.fsid);
+    ASSERT_EQ(mega::UNDEF, ld.fsid);
 
     // file node must have undef fs ID
     ASSERT_EQ(mega::UNDEF, lf_0->fsid);
 
     // assert that the local node map is correct
-    constexpr std::size_t fileCount = 1;
+    constexpr std::size_t fileCount = 0;
     ASSERT_EQ(fileCount, fx.mLocalNodes.size());
 
-    ASSERT_TRUE(fx.iteratorsCorrect(ld));
+    ASSERT_FALSE(fx.iteratorsCorrect(ld));
     ASSERT_FALSE(fx.iteratorsCorrect(*lf_0));
 }
 
@@ -624,13 +624,13 @@ TEST(Sync, assignFilesystemIds_whenPathIsNotSyncableThroughApp)
 
     ASSERT_TRUE(success);
 
-    ASSERT_EQ(d.getFsId(), ld.fsid);
+    ASSERT_EQ(mega::UNDEF, ld.fsid);
     ASSERT_EQ(f_0.getFsId(), lf_0->fsid);
 
-    constexpr std::size_t fileCount = 2;
+    constexpr std::size_t fileCount = 1;
     ASSERT_EQ(fileCount, fx.mLocalNodes.size());
 
-    ASSERT_TRUE(fx.iteratorsCorrect(ld));
+    ASSERT_FALSE(fx.iteratorsCorrect(ld));
     ASSERT_TRUE(fx.iteratorsCorrect(*lf_0));
 }
 
@@ -657,16 +657,16 @@ TEST(Sync, assignFilesystemIds_whenDebrisIsPartOfFiles)
     ASSERT_TRUE(success);
 
     // assert that directories have correct fs IDs
-    ASSERT_EQ(d.getFsId(), ld.fsid);
+    ASSERT_EQ(mega::UNDEF, ld.fsid);
 
     // assert that all file `LocalNode`s have same fs IDs as the corresponding `FsNode`s
     ASSERT_EQ(f_0.getFsId(), lf_0->fsid);
 
     // assert that the local node map is correct
-    constexpr std::size_t fileCount = 2;
+    constexpr std::size_t fileCount = 1;
     ASSERT_EQ(fileCount, fx.mLocalNodes.size());
 
-    ASSERT_TRUE(fx.iteratorsCorrect(ld));
+    ASSERT_FALSE(fx.iteratorsCorrect(ld));
     ASSERT_TRUE(fx.iteratorsCorrect(*lf_0));
 }
 
@@ -778,16 +778,16 @@ TEST(Sync, assignFilesystemIds_whenFileWasCopied)
     ASSERT_TRUE(success);
 
     // assert that directories have correct fs IDs
-    ASSERT_EQ(d.getFsId(), ld.fsid);
+    ASSERT_EQ(mega::UNDEF, ld.fsid);
 
     // assert that all file `LocalNode`s have same fs IDs as the corresponding `FsNode`s
     ASSERT_EQ(f_0.getFsId(), lf_0->fsid);
 
     // assert that the local node map is correct
-    constexpr std::size_t fileCount = 2;
+    constexpr std::size_t fileCount = 1;
     ASSERT_EQ(fileCount, fx.mLocalNodes.size());
 
-    ASSERT_TRUE(fx.iteratorsCorrect(ld));
+    ASSERT_FALSE(fx.iteratorsCorrect(ld));
     ASSERT_TRUE(fx.iteratorsCorrect(*lf_0));
 }
 
