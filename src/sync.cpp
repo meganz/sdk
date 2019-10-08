@@ -323,6 +323,7 @@ void collectAllFiles(bool& success, FingerprintSet& fingerprints, FingerprintFil
 size_t assignFilesystemIdsImpl(const FingerprintSet& fingerprints, FingerprintLocalNodeMap& localnodes,
                                FingerprintFileMap& files, handlelocalnode_map& fsidnodes, const string& localseparator)
 {
+    string accumulated;
     size_t assignmentCount = 0;
     for (const auto& fp : fingerprints)
     {
@@ -351,7 +352,7 @@ size_t assignFilesystemIdsImpl(const FingerprintSet& fingerprints, FingerprintLo
                 {
                     string nodePath;
                     l->getlocalpath(&nodePath, false, &localseparator);
-                    const auto score = computeReversePathMatchScore(nodePath, fileIt->second.path, localseparator);
+                    const auto score = computeReversePathMatchScore(accumulated, nodePath, fileIt->second.path, localseparator);
                     nodes[l][score] = fileIt->second.fsid;
                 }
             }
@@ -385,14 +386,13 @@ bool isPathSyncable(const string& localpath, const string& localdebris, const st
                     localseparator.size()));
 }
 
-int computeReversePathMatchScore(const string& path1, const string& path2, const string& localseparator)
+int computeReversePathMatchScore(string& accumulated, const string& path1, const string& path2, const string& localseparator)
 {
     if (path1.empty() || path2.empty())
     {
         return 0;
     }
 
-    static string accumulated; // static for performance reasons
     accumulated.clear();
 
     const auto path1End = path1.size() - 1;

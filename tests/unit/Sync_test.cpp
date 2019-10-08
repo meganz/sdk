@@ -257,24 +257,25 @@ namespace  {
 
 void test_computeReversePathMatchScore(const std::string& sep)
 {
-    ASSERT_EQ(0, mega::computeReversePathMatchScore("", "", sep));
-    ASSERT_EQ(0, mega::computeReversePathMatchScore("", sep + "a", sep));
-    ASSERT_EQ(0, mega::computeReversePathMatchScore(sep + "b", "", sep));
-    ASSERT_EQ(0, mega::computeReversePathMatchScore("a", "b", sep));
-    ASSERT_EQ(2, mega::computeReversePathMatchScore("cc", "cc", sep));
-    ASSERT_EQ(0, mega::computeReversePathMatchScore(sep, sep, sep));
-    ASSERT_EQ(0, mega::computeReversePathMatchScore(sep + "b", sep + "a", sep));
-    ASSERT_EQ(2, mega::computeReversePathMatchScore(sep + "cc", sep + "cc", sep));
-    ASSERT_EQ(0, mega::computeReversePathMatchScore(sep + "b", sep + "b" + sep, sep));
-    ASSERT_EQ(2, mega::computeReversePathMatchScore(sep + "a" + sep + "b", sep + "a" + sep + "b", sep));
-    ASSERT_EQ(2, mega::computeReversePathMatchScore(sep + "a" + sep + "c" + sep + "a" + sep + "b", sep + "a" + sep + "b", sep));
-    ASSERT_EQ(3, mega::computeReversePathMatchScore(sep + "aaa" + sep + "bbbb" + sep + "ccc", sep + "aaa" + sep + "bbb" + sep + "ccc", sep));
-    ASSERT_EQ(2, mega::computeReversePathMatchScore("a" + sep + "b", "a" + sep + "b", sep));
+    std::string acc;
+    ASSERT_EQ(0, mega::computeReversePathMatchScore(acc, "", "", sep));
+    ASSERT_EQ(0, mega::computeReversePathMatchScore(acc, "", sep + "a", sep));
+    ASSERT_EQ(0, mega::computeReversePathMatchScore(acc, sep + "b", "", sep));
+    ASSERT_EQ(0, mega::computeReversePathMatchScore(acc, "a", "b", sep));
+    ASSERT_EQ(2, mega::computeReversePathMatchScore(acc, "cc", "cc", sep));
+    ASSERT_EQ(0, mega::computeReversePathMatchScore(acc, sep, sep, sep));
+    ASSERT_EQ(0, mega::computeReversePathMatchScore(acc, sep + "b", sep + "a", sep));
+    ASSERT_EQ(2, mega::computeReversePathMatchScore(acc, sep + "cc", sep + "cc", sep));
+    ASSERT_EQ(0, mega::computeReversePathMatchScore(acc, sep + "b", sep + "b" + sep, sep));
+    ASSERT_EQ(2, mega::computeReversePathMatchScore(acc, sep + "a" + sep + "b", sep + "a" + sep + "b", sep));
+    ASSERT_EQ(2, mega::computeReversePathMatchScore(acc, sep + "a" + sep + "c" + sep + "a" + sep + "b", sep + "a" + sep + "b", sep));
+    ASSERT_EQ(3, mega::computeReversePathMatchScore(acc, sep + "aaa" + sep + "bbbb" + sep + "ccc", sep + "aaa" + sep + "bbb" + sep + "ccc", sep));
+    ASSERT_EQ(2, mega::computeReversePathMatchScore(acc, "a" + sep + "b", "a" + sep + "b", sep));
     const std::string base = sep + "a" + sep + "b";
     const std::string reference = sep + "c12" + sep + "e34";
-    ASSERT_EQ(6, mega::computeReversePathMatchScore(base + reference, base + sep + "a65" + reference, sep));
-    ASSERT_EQ(6, mega::computeReversePathMatchScore(base + reference, base + sep + ".debris" + reference, sep));
-    ASSERT_EQ(6, mega::computeReversePathMatchScore(base + reference, base + sep + "ab" + reference, sep));
+    ASSERT_EQ(6, mega::computeReversePathMatchScore(acc, base + reference, base + sep + "a65" + reference, sep));
+    ASSERT_EQ(6, mega::computeReversePathMatchScore(acc, base + reference, base + sep + ".debris" + reference, sep));
+    ASSERT_EQ(6, mega::computeReversePathMatchScore(acc, base + reference, base + sep + "ab" + reference, sep));
 }
 
 }
