@@ -16616,7 +16616,7 @@ bool MegaApiImpl::nodeComparatorPhotoASC(Node *i, Node *j, MegaClient* mc)
 
     if (i_photo != j_photo)
     {
-        return i_video; // photos before videos
+        return i_photo; // photos before videos
     }
 
     // within photos or videos or non-media, order by date
@@ -16636,7 +16636,7 @@ bool MegaApiImpl::nodeComparatorPhotoDESC(Node *i, Node *j, MegaClient* mc)
 
     if (i_photo != j_photo)
     {
-        return i_video; // photos before videos
+        return i_photo; // photos before videos
     }
 
     // within photos or videos or non-media, order by date
