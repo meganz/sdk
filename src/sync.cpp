@@ -19,6 +19,8 @@
  * program.
  */
 
+#include <unordered_map>
+
 #include "mega.h"
 
 #ifdef ENABLE_SYNC
@@ -318,9 +320,10 @@ void collectAllFiles(bool& success, FingerprintSet& fingerprints, FingerprintFil
 
 // Assigns fs IDs from `files` to those `localnodes` that match the fingerprints found in `files`.
 // If there are multiple matches we apply a best-path heuristic.
-void assignFilesystemIdsImpl(const FingerprintSet& fingerprints, FingerprintLocalNodeMap& localnodes,
-                             FingerprintFileMap& files, handlelocalnode_map& fsidnodes, const string& localseparator)
+size_t assignFilesystemIdsImpl(const FingerprintSet& fingerprints, FingerprintLocalNodeMap& localnodes,
+                               FingerprintFileMap& files, handlelocalnode_map& fsidnodes, const string& localseparator)
 {
+    size_t assignmentCount = 0;
     for (const auto& fp : fingerprints)
     {
         const auto nodeRange = localnodes.equal_range(&fp);
@@ -337,7 +340,7 @@ void assignFilesystemIdsImpl(const FingerprintSet& fingerprints, FingerprintLoca
             continue;
         }
 
-        std::map<LocalNode*, std::map<int, handle>> nodes; // = {l: {score: fsid}}
+        std::unordered_map<LocalNode*, std::map<int, handle>> nodes; // = {l: {score: fsid}}
 
         for (auto nodeIt = nodeRange.first; nodeIt != nodeRange.second; ++nodeIt)
         {
@@ -360,12 +363,14 @@ void assignFilesystemIdsImpl(const FingerprintSet& fingerprints, FingerprintLoca
             const auto bestScorePair = nodesPair.second.crbegin();
             const auto fsId = bestScorePair->second;
             nodesPair.first->setfsid(fsId, fsidnodes);
+            ++assignmentCount;
         }
 
         // the fingerprint that these files and localnodes correspond to has now finished processing
         files.erase(fileRange.first, fileRange.second);
         localnodes.erase(nodeRange.first, nodeRange.second);
     }
+    return assignmentCount;
 }
 
 } // anonymous
@@ -432,6 +437,7 @@ bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, h
                          const string& localdebris, const string& localseparator)
 {
     auto rootpath = sync.localroot.localname;
+    LOG_info << "Assigning fs IDs at rootpath: " << rootpath;
 
     auto fa = std::unique_ptr<FileAccess>{fsaccess.newfileaccess(false)};
     if (!fa->fopen(&rootpath, true, false))
@@ -459,16 +465,15 @@ bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, h
 
     FingerprintLocalNodeMap localnodes;
     collectAllLocalNodes(fingerprints, localnodes, sync.localroot, fsidnodes, localseparator);
-    LOG_info << "Number of localnodes before assignment: " << localnodes.size();
+    LOG_info << "Number of localnodes: " << localnodes.size();
 
     FingerprintFileMap files;
     collectAllFiles(success, fingerprints, files, sync, app, fsaccess, std::move(rootpath), localdebris, localseparator);
-    LOG_info << "Number of files before assignment: " << files.size();
+    LOG_info << "Number of files: " << files.size();
 
     LOG_info << "Number of fingerprints: " << fingerprints.size();
-    assignFilesystemIdsImpl(fingerprints, localnodes, files, fsidnodes, localseparator);
-    LOG_info << "Number of localnodes after assignment: " << localnodes.size();
-    LOG_info << "Number of files after assignment: " << files.size();
+    const auto assignmentCount = assignFilesystemIdsImpl(fingerprints, localnodes, files, fsidnodes, localseparator);
+    LOG_info << "Number of fsid assignements: " << assignmentCount;
 
     return success;
 }
