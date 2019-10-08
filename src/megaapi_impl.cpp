@@ -16421,17 +16421,8 @@ std::function<bool (Node*, Node*)>MegaApiImpl::getComparatorFunction(int order)
     return comp;
 }
 
-bool MegaApiImpl::nodeComparatorDefaultASC(Node *i, Node *j)
+int MegaApiImpl::nodeNaturalComparatorASC(Node *i, Node *j)
 {
-    if (i->type < j->type)
-    {
-        return 0;
-    }
-    if (i->type > j->type)
-    {
-        return 1;
-    }
-
     int r = naturalsorting_compare(i->displayname(), j->displayname());
     if (r < 0 || (!r && i < j))
     {
@@ -16440,17 +16431,8 @@ bool MegaApiImpl::nodeComparatorDefaultASC(Node *i, Node *j)
     return 0;
 }
 
-bool MegaApiImpl::nodeComparatorDefaultDESC(Node *i, Node *j)
+int MegaApiImpl::nodeNaturalComparatorDESC(Node *i, Node *j)
 {
-    if (i->type < j->type)
-    {
-        return 0;
-    }
-    if (i->type > j->type)
-    {
-        return 1;
-    }
-
     int r = naturalsorting_compare(i->displayname(), j->displayname());
     if (r < 0 || (!r && i < j))
     {
@@ -16459,11 +16441,38 @@ bool MegaApiImpl::nodeComparatorDefaultDESC(Node *i, Node *j)
     return 1;
 }
 
+bool MegaApiImpl::nodeComparatorDefaultASC(Node *i, Node *j)
+{
+    int t = typeComparator(i, j);
+    if (t >= 0)
+    {
+        return t;
+    }
+
+    return nodeNaturalComparatorASC(i, j);
+}
+
+bool MegaApiImpl::nodeComparatorDefaultDESC(Node *i, Node *j)
+{
+    int t = typeComparator(i, j);
+    if (t >= 0)
+    {
+        return t;
+    }
+
+    return nodeNaturalComparatorDESC(i, j);
+}
+
 bool MegaApiImpl::nodeComparatorSizeASC(Node *i, Node *j)
 {
-    if (i->type > FILENODE || j->type > FILENODE || i->size == j->size)
+    int t = typeComparator(i, j);
+    if (t >= 0)
     {
-        return nodeComparatorDefaultASC(i, j);
+        return t;
+    }
+    if (i->type != FILENODE) // Only file nodes have size
+    {
+        return nodeNaturalComparatorASC(i, j);
     }
 
     m_off_t r = i->size - j->size;
@@ -16476,9 +16485,14 @@ bool MegaApiImpl::nodeComparatorSizeASC(Node *i, Node *j)
 
 bool MegaApiImpl::nodeComparatorSizeDESC(Node *i, Node *j)
 {
-    if (i->type > FILENODE || j->type > FILENODE || i->size == j->size)
+    int t = typeComparator(i, j);
+    if (t >= 0)
     {
-        return nodeComparatorDefaultASC(i, j);
+        return t;
+    }
+    if (i->type != FILENODE) // Only file nodes have size
+    {
+        return nodeNaturalComparatorDESC(i, j);
     }
 
     m_off_t r = i->size - j->size;
@@ -16491,13 +16505,10 @@ bool MegaApiImpl::nodeComparatorSizeDESC(Node *i, Node *j)
 
 bool MegaApiImpl::nodeComparatorCreationASC(Node *i, Node *j)
 {
-    if (i->type < j->type)
+    int t = typeComparator(i, j);
+    if (t >= 0)
     {
-        return 0;
-    }
-    if (i->type > j->type)
-    {
-        return 1;
+        return t;
     }
     if (i->ctime < j->ctime)
     {
@@ -16507,18 +16518,15 @@ bool MegaApiImpl::nodeComparatorCreationASC(Node *i, Node *j)
     {
         return 0;
     }
-    return nodeComparatorDefaultASC(i, j);
+    return nodeNaturalComparatorASC(i, j);
 }
 
 bool MegaApiImpl::nodeComparatorCreationDESC(Node *i, Node *j)
 {
-    if (i->type < j->type)
+    int t = typeComparator(i, j);
+    if (t >= 0)
     {
-        return 0;
-    }
-    if (i->type > j->type)
-    {
-        return 1;
+        return t;
     }
     if (i->ctime < j->ctime)
     {
@@ -16528,14 +16536,19 @@ bool MegaApiImpl::nodeComparatorCreationDESC(Node *i, Node *j)
     {
         return 1;
     }
-    return nodeComparatorDefaultASC(i, j);
+    return nodeNaturalComparatorDESC(i, j);
 }
 
 bool MegaApiImpl::nodeComparatorModificationASC(Node *i, Node *j)
 {
-    if (i->type > FILENODE || j->type > FILENODE || i->mtime == j->mtime)
+    int t = typeComparator(i, j);
+    if (t >= 0)
     {
-        return nodeComparatorDefaultASC(i, j);
+        return t;
+    }
+    if (i->type != FILENODE) // Only file nodes have last modified date
+    {
+        nodeComparatorCreationASC(i, j);
     }
 
     m_time_t r = i->mtime - j->mtime;
@@ -16548,9 +16561,14 @@ bool MegaApiImpl::nodeComparatorModificationASC(Node *i, Node *j)
 
 bool MegaApiImpl::nodeComparatorModificationDESC(Node *i, Node *j)
 {
-    if (i->type > FILENODE || j->type > FILENODE || i->mtime == j->mtime)
+    int t = typeComparator(i, j);
+    if (t >= 0)
     {
-        return nodeComparatorDefaultASC(i, j);
+        return t;
+    }
+    if (i->type != FILENODE) // Only file nodes have last modified date
+    {
+        nodeComparatorCreationDESC(i, j);
     }
 
     m_time_t r = i->mtime - j->mtime;
@@ -16563,13 +16581,10 @@ bool MegaApiImpl::nodeComparatorModificationDESC(Node *i, Node *j)
 
 bool MegaApiImpl::nodeComparatorAlphabeticalASC(Node *i, Node *j)
 {
-    if (i->type < j->type)
+    int t = typeComparator(i, j);
+    if (t >= 0)
     {
-        return 0;
-    }
-    if (i->type > j->type)
-    {
-        return 1;
+        return t;
     }
 
     int r = strcasecmp(i->displayname(), j->displayname());
@@ -16582,13 +16597,10 @@ bool MegaApiImpl::nodeComparatorAlphabeticalASC(Node *i, Node *j)
 
 bool MegaApiImpl::nodeComparatorAlphabeticalDESC(Node *i, Node *j)
 {
-    if (i->type < j->type)
+    int t = typeComparator(i, j);
+    if (t >= 0)
     {
-        return 0;
-    }
-    if (i->type > j->type)
-    {
-        return 1;
+        return t;
     }
 
     int r = strcasecmp(i->displayname(), j->displayname());
@@ -16597,6 +16609,20 @@ bool MegaApiImpl::nodeComparatorAlphabeticalDESC(Node *i, Node *j)
         return 0;
     }
     return 1;
+}
+
+// Compare node types. Returns -1 if i==j, 0 if i goes first, +1 if j goes first.
+int MegaApiImpl::typeComparator(Node *i, Node *j)
+{
+    if (i->type < j->type)
+    {
+        return 0;
+    }
+    if (i->type > j->type)
+    {
+        return 1;
+    }
+    return -1;
 }
 
 int MegaApiImpl::getNumChildren(MegaNode* p)
