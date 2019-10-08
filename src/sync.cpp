@@ -323,6 +323,7 @@ void collectAllFiles(bool& success, FingerprintSet& fingerprints, FingerprintFil
 size_t assignFilesystemIdsImpl(const FingerprintSet& fingerprints, FingerprintLocalNodeMap& localnodes,
                                FingerprintFileMap& files, handlelocalnode_map& fsidnodes, const string& localseparator)
 {
+    string nodePath;
     string accumulated;
     size_t assignmentCount = 0;
     for (const auto& fp : fingerprints)
@@ -350,7 +351,7 @@ size_t assignFilesystemIdsImpl(const FingerprintSet& fingerprints, FingerprintLo
                 auto l = nodeIt->second;
                 if (l != &l->sync->localroot) // never assign fs ID to the root localnode
                 {
-                    string nodePath;
+                    nodePath.clear();
                     l->getlocalpath(&nodePath, false, &localseparator);
                     const auto score = computeReversePathMatchScore(accumulated, nodePath, fileIt->second.path, localseparator);
                     nodes[l][score] = fileIt->second.fsid;
