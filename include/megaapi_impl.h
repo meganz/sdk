@@ -2390,8 +2390,8 @@ class MegaApiImpl : public MegaApp
         void resumeActionPackets();
 
         static std::function<bool (Node*, Node*)>getComparatorFunction(int order);
-        static int nodeNaturalComparatorASC(Node *i, Node *j);
-        static int nodeNaturalComparatorDESC(Node *i, Node *j);
+        static bool nodeNaturalComparatorASC(Node *i, Node *j);
+        static bool nodeNaturalComparatorDESC(Node *i, Node *j);
         static bool nodeComparatorDefaultASC  (Node *i, Node *j);
         static bool nodeComparatorDefaultDESC (Node *i, Node *j);
         static bool nodeComparatorSizeASC  (Node *i, Node *j);

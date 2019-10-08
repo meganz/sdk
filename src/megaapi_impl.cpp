@@ -16421,7 +16421,7 @@ std::function<bool (Node*, Node*)>MegaApiImpl::getComparatorFunction(int order)
     return comp;
 }
 
-int MegaApiImpl::nodeNaturalComparatorASC(Node *i, Node *j)
+bool MegaApiImpl::nodeNaturalComparatorASC(Node *i, Node *j)
 {
     int r = naturalsorting_compare(i->displayname(), j->displayname());
     if (r < 0 || (!r && i < j))
@@ -16431,7 +16431,7 @@ int MegaApiImpl::nodeNaturalComparatorASC(Node *i, Node *j)
     return 0;
 }
 
-int MegaApiImpl::nodeNaturalComparatorDESC(Node *i, Node *j)
+bool MegaApiImpl::nodeNaturalComparatorDESC(Node *i, Node *j)
 {
     int r = naturalsorting_compare(i->displayname(), j->displayname());
     if (r < 0 || (!r && i < j))
