@@ -896,6 +896,7 @@ void MegaClient::activateoverquota(dstime timeleft)
                     t->slot->retrybt.backoff(timeleft);
                     t->slot->retrying = true;
                     app->transfer_failed(t, API_EOVERQUOTA, timeleft);
+                    ++performanceStats.transferTempErrors;
                 }
             }
         }
@@ -913,6 +914,7 @@ void MegaClient::activateoverquota(dstime timeleft)
                 t->slot->retrybt.backoff(NEVER);
                 t->slot->retrying = true;
                 app->transfer_failed(t, API_EOVERQUOTA, 0);
+                ++performanceStats.transferTempErrors;
             }
         }
     }
@@ -1241,6 +1243,8 @@ std::string MegaClient::getPublicLink(bool newLinkFormat, nodetype_t type, handl
 // nonblocking state machine executing all operations currently in progress
 void MegaClient::exec()
 {
+    CodeCounter::ScopeTimer ccst(performanceStats.execFunction);
+
     WAIT_CLASS::bumpds();
 
     if (overquotauntil && overquotauntil < Waiter::ds)
@@ -1631,6 +1635,11 @@ void MegaClient::exec()
                 // handle retry reason for requests
                 retryreason_t reason = RETRY_NONE;
 
+                if (pendingcs->status == REQ_SUCCESS || pendingcs->status == REQ_FAILURE)
+                {
+                    performanceStats.csRequestWaitTime.stop();
+                }
+
                 switch (pendingcs->status)
                 {
                     case REQ_READY:
@@ -1840,6 +1849,7 @@ void MegaClient::exec()
                     }
                     pendingcs->type = REQ_JSON;
 
+                    performanceStats.csRequestWaitTime.start();
                     pendingcs->post(this);
                     continue;
                 }
@@ -2738,15 +2748,15 @@ void MegaClient::exec()
         app->storagesum_changed(mNotifiedSumSize);
     }
 
-#ifdef _DEBUG
-    NodeCounter sum;
-    for (auto& nc : mNodeCounters)
+#ifdef MEGA_MEASURE_CODE
+    performanceStats.transfersActiveTime.start(!tslots.empty() && !performanceStats.transfersActiveTime.inprogress());
+    performanceStats.transfersActiveTime.stop(tslots.empty() && performanceStats.transfersActiveTime.inprogress());
+
+    static auto lasttime = Waiter::ds;
+    if (Waiter::ds > lasttime + 1200)
     {
-        sum += nc.second;
-    }
-    if (sum.storage != mFingerprints.getSumSizes())
-    {
-        LOG_warn << "storage sum : " << sum.storage << " mismatch wtih fingerprint size sum: " << mFingerprints.getSumSizes();
+        lasttime = Waiter::ds;
+        LOG_info << performanceStats.report(false, httpio, waiter);
     }
 #endif
 }
@@ -2767,6 +2777,8 @@ int MegaClient::wait()
 
 int MegaClient::preparewait()
 {
+    CodeCounter::ScopeTimer ccst(performanceStats.prepareWait);
+
     dstime nds;
 
     // get current dstime and clear wait events
@@ -3004,6 +3016,7 @@ int MegaClient::preparewait()
     // immediate action required?
     if (!nds)
     {
+        ++performanceStats.prepwaitImmediate;
         return Waiter::NEEDEXEC;
     }
 
@@ -3013,22 +3026,56 @@ int MegaClient::preparewait()
         nds -= Waiter::ds;
     }
 
+#ifdef MEGA_MEASURE_CODE
+    bool reasonGiven = false;
+    if (nds == 0)
+    {
+        ++performanceStats.prepwaitZero;
+        reasonGiven = true;
+    }
+#endif
+
     waiter->init(nds);
 
     // set subsystem wakeup criteria (WinWaiter assumes httpio to be set first!)
     waiter->wakeupby(httpio, Waiter::NEEDEXEC);
+
+#ifdef MEGA_MEASURE_CODE
+    if (waiter->maxds == 0 && !reasonGiven)
+    {
+        ++performanceStats.prepwaitHttpio;
+        reasonGiven = true;
+    }
+#endif
+
     waiter->wakeupby(fsaccess, Waiter::NEEDEXEC);
+
+#ifdef MEGA_MEASURE_CODE
+    if (waiter->maxds == 0 && !reasonGiven)
+    {
+        ++performanceStats.prepwaitFsaccess;
+        reasonGiven = true;
+    }
+    if (!reasonGiven)
+    {
+        ++performanceStats.nonzeroWait;
+    }
+#endif
 
     return 0;
 }
 
 int MegaClient::dowait()
 {
+    CodeCounter::ScopeTimer ccst(performanceStats.doWait);
+
     return waiter->wait();
 }
 
 int MegaClient::checkevents()
 {
+    CodeCounter::ScopeTimer ccst(performanceStats.checkEvents);
+
     int r =  httpio->checkevents(waiter);
     r |= fsaccess->checkevents(waiter);
     if (gfx)
@@ -3382,6 +3429,7 @@ bool MegaClient::dispatch(direction_t d)
                 }
                 app->transfer_update(nexttransfer);
 
+                performanceStats.transferStarts += 1;
                 return true;
             }
             else if (openfinished)
@@ -3880,6 +3928,8 @@ void MegaClient::httprequest(const char *url, int method, bool binary, const cha
 // process server-client request
 bool MegaClient::procsc()
 {
+    CodeCounter::ScopeTimer ccst(performanceStats.scProcessingTime);
+
     nameid name;
 
 #ifdef ENABLE_SYNC
@@ -11756,6 +11806,8 @@ void MegaClient::abortreads(handle h, bool p, m_off_t offset, m_off_t count)
 // execute pending directreads
 bool MegaClient::execdirectreads()
 {
+    CodeCounter::ScopeTimer ccst(performanceStats.execdirectreads);
+
     bool r = false;
     DirectReadSlot* drs;
 
@@ -14226,6 +14278,51 @@ void MegaClient::getwelcomepdf()
 {
     reqs.add(new CommandGetWelcomePDF(this));
 }
+
+#ifdef MEGA_MEASURE_CODE
+std::string MegaClient::PerformanceStats::report(bool reset, HttpIO* httpio, Waiter* waiter)
+{
+    std::ostringstream s;
+    s << prepareWait.report(reset) << "\n"
+        << doWait.report(reset) << "\n"
+        << checkEvents.report(reset) << "\n"
+        << execFunction.report(reset) << "\n"
+        << transferslotDoio.report(reset) << "\n"
+        << execdirectreads.report(reset) << "\n"
+        << transferComplete.report(reset) << "\n"
+        << dispatchTransfers.report(reset) << "\n"
+        << applyKeys.report(reset) << "\n"
+        << scProcessingTime.report(reset) << "\n"
+        << csResponseProcessingTime.report(reset) << "\n"
+        << " cs Request waiting time: " << csRequestWaitTime.report(reset) << "\n"
+        << " transfers active time: " << transfersActiveTime.report(reset) << "\n"
+        << " transfer starts/finishes: " << transferStarts << " " << transferFinishes << "\n"
+        << " transfer temperror/fails: " << transferTempErrors << " " << transferFails << "\n"
+        << " nowait reason: immedate: " << prepwaitImmediate << " zero: " << prepwaitZero << " httpio: " << prepwaitHttpio << " fsaccess: " << prepwaitFsaccess << " nonzero waits: " << nonzeroWait << "\n";
+#ifdef USE_CURL
+    if (auto curlhttpio = dynamic_cast<CurlHttpIO*>(httpio))
+    {
+        s << curlhttpio->countCurlHttpIOAddevents.report(reset) << "\n"
+            << curlhttpio->countAddAresEventsCode.report(reset) << "\n"
+            << curlhttpio->countAddCurlEventsCode.report(reset) << "\n"
+            << curlhttpio->countProcessAresEventsCode.report(reset) << "\n"
+            << curlhttpio->countProcessCurlEventsCode.report(reset) << "\n";
+    }
+#endif
+#ifdef WIN32
+    s << " waiter nonzero timeout: " << static_cast<WinWaiter*>(waiter)->performanceStats.waitTimedoutNonzero 
+      << " zero timeout: " << static_cast<WinWaiter*>(waiter)->performanceStats.waitTimedoutZero
+      << " io trigger: " << static_cast<WinWaiter*>(waiter)->performanceStats.waitIOCompleted 
+      << " event trigger: "  << static_cast<WinWaiter*>(waiter)->performanceStats.waitSignalled << "\n";
+#endif
+    if (reset)
+    {
+        transferStarts = transferFinishes = transferTempErrors = transferFails = 0;
+        prepwaitImmediate = prepwaitZero = prepwaitHttpio = prepwaitFsaccess = nonzeroWait = 0;
+    }
+    return s.str();
+}
+#endif
 
 FetchNodesStats::FetchNodesStats()
 {
