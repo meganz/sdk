@@ -16492,7 +16492,7 @@ bool MegaApiImpl::nodeComparatorSizeDESC(Node *i, Node *j)
     }
     if (i->type != FILENODE) // Only file nodes have size
     {
-        return nodeNaturalComparatorDESC(i, j);
+        return nodeNaturalComparatorASC(i, j);
     }
 
     m_off_t r = i->size - j->size;
@@ -16536,7 +16536,7 @@ bool MegaApiImpl::nodeComparatorCreationDESC(Node *i, Node *j)
     {
         return 1;
     }
-    return nodeNaturalComparatorDESC(i, j);
+    return nodeNaturalComparatorASC(i, j);
 }
 
 bool MegaApiImpl::nodeComparatorModificationASC(Node *i, Node *j)
