@@ -17428,6 +17428,7 @@ void MegaApiImpl::sendPendingTransfers()
                 if (!fa->fopen(&wLocalPath, true, false))
                 {
                     e = API_EREAD;
+                    delete fa;
                     break;
                 }
 
@@ -22949,7 +22950,7 @@ bool FileInputStream::read(byte *buffer, unsigned size)
         return false;
     }
 
-    if (fileAccess->sysread(buffer, size, offset))
+    if (fileAccess->frawread(buffer, size, offset, true))
     {
         offset += size;
         return true;
