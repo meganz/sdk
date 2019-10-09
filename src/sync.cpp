@@ -103,9 +103,6 @@ private:
 using FingerprintLocalNodeMap = std::multimap<const FileFingerprint*, LocalNode*, FileFingerprintCmp>;
 using FingerprintFileMap = std::multimap<const FileFingerprint*, FsFile, FileFingerprintCmp>;
 
-void computeFingerprint(FileFingerprint& ffp, FingerprintCache& fingerprints, FileSystemAccess& fsaccess,
-                        FileAccess& fa, const vector<string>& paths);
-
 // Collects all syncable filesystem paths in the given folder under `localpath`
 vector<string> collectAllPathsInFolder(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, string localpath,
                                        const string& localdebris, const string& localseparator)
@@ -217,14 +214,23 @@ void combinedFingerprint(FileFingerprint& ffp, FingerprintCache& fingerprints,
         }
         if (fa->type == FILENODE)
         {
-            FileFingerprint faFfp;
-            computeFingerprint(faFfp, fingerprints, fsaccess, *fa, {});
-            if (!faFfp.isvalid)
+            if (const auto ffpPtr = fingerprints.get(fa->fsid))
             {
-                ffp.isvalid = false;
-                break;
+                hashCombineFingerprint(ffp, *ffpPtr);
             }
-            hashCombineFingerprint(ffp, faFfp);
+            else
+            {
+                FileFingerprint faFfp;
+                faFfp.genfingerprint(fa.get());
+                if (!faFfp.isvalid)
+                {
+                    LOG_err << "Invalid fingerprint";
+                    ffp.isvalid = false;
+                    break;
+                }
+                fingerprints.add(fa->fsid, faFfp);
+                hashCombineFingerprint(ffp, faFfp);
+            }
         }
     }
 }
@@ -264,7 +270,6 @@ void computeFingerprint(FileFingerprint& ffp, FingerprintCache& fingerprints, Fi
             LOG_err << "Invalid fingerprint";
             return;
         }
-        fingerprints.add(fa.fsid, ffp);
     }
     else if (fa.type == FOLDERNODE)
     {
