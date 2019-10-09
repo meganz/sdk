@@ -16413,8 +16413,8 @@ std::function<bool (Node*, Node*)>MegaApiImpl::getComparatorFunction(int order)
         case MegaApi::ORDER_CREATION_DESC: comp = MegaApiImpl::nodeComparatorCreationDESC; break;
         case MegaApi::ORDER_MODIFICATION_ASC: comp = MegaApiImpl::nodeComparatorModificationASC; break;
         case MegaApi::ORDER_MODIFICATION_DESC: comp = MegaApiImpl::nodeComparatorModificationDESC; break;
-        case MegaApi::ORDER_ALPHABETICAL_ASC: comp = MegaApiImpl::nodeComparatorAlphabeticalASC; break;
-        case MegaApi::ORDER_ALPHABETICAL_DESC: comp = MegaApiImpl::nodeComparatorAlphabeticalDESC; break;
+        case MegaApi::ORDER_ALPHABETICAL_ASC: comp = MegaApiImpl::nodeComparatorDefaultASC; break;
+        case MegaApi::ORDER_ALPHABETICAL_DESC: comp = MegaApiImpl::nodeComparatorDefaultDESC; break;
         default: comp = MegaApiImpl::nodeComparatorDefaultASC; break;
     }
 
@@ -16572,38 +16572,6 @@ bool MegaApiImpl::nodeComparatorModificationDESC(Node *i, Node *j)
     }
 
     m_time_t r = i->mtime - j->mtime;
-    if (r < 0 || (!r && i < j))
-    {
-        return 0;
-    }
-    return 1;
-}
-
-bool MegaApiImpl::nodeComparatorAlphabeticalASC(Node *i, Node *j)
-{
-    int t = typeComparator(i, j);
-    if (t >= 0)
-    {
-        return t;
-    }
-
-    int r = strcasecmp(i->displayname(), j->displayname());
-    if (r < 0 || (!r && i < j))
-    {
-        return 1;
-    }
-    return 0;
-}
-
-bool MegaApiImpl::nodeComparatorAlphabeticalDESC(Node *i, Node *j)
-{
-    int t = typeComparator(i, j);
-    if (t >= 0)
-    {
-        return t;
-    }
-
-    int r = strcasecmp(i->displayname(), j->displayname());
     if (r < 0 || (!r && i < j))
     {
         return 0;

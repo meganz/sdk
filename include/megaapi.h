@@ -12453,12 +12453,16 @@ class MegaApi
 		 * - MegaApi::ORDER_MODIFICATION_DESC = 8
 		 * Sort by modification time of the original file, descending
 		 *
-		 * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-		 * Sort in alphabetical order, ascending
-		 *
-		 * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-		 * Sort in alphabetical order, descending
-		 *
+         * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+         * Same behavior than MegaApi::ORDER_DEFAULT_ASC
+         *
+         * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+         * Same behavior than MegaApi::ORDER_DEFAULT_DESC
+         *
+         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
+         * They will be eventually removed.
+         *
 		 * @return List with all child MegaNode objects
 		 */
         MegaNodeList* getChildren(MegaNode *parent, int order = 1);
@@ -12536,10 +12540,14 @@ class MegaApi
          * Sort by modification time of the original file, descending
          *
          * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-         * Sort in alphabetical order, ascending
+         * Same behavior than MegaApi::ORDER_DEFAULT_ASC
          *
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-         * Sort in alphabetical order, descending
+         * Same behavior than MegaApi::ORDER_DEFAULT_DESC
+         *
+         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
+         * They will be eventually removed.
          *
          * @return Lists with files and folders child MegaNode objects
          */
@@ -13305,10 +13313,14 @@ class MegaApi
          * Sort by modification time of the original file, descending
          *
          * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-         * Sort in alphabetical order, ascending
+         * Same behavior than MegaApi::ORDER_DEFAULT_ASC
          *
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-         * Sort in alphabetical order, descending
+         * Same behavior than MegaApi::ORDER_DEFAULT_DESC
+         *
+         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
+         * They will be eventually removed.
          *
          * @return List of nodes that contain the desired string in their name
          */
@@ -13360,10 +13372,14 @@ class MegaApi
          * Sort by modification time of the original file, descending
          *
          * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-         * Sort in alphabetical order, ascending
+         * Same behavior than MegaApi::ORDER_DEFAULT_ASC
          *
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-         * Sort in alphabetical order, descending
+         * Same behavior than MegaApi::ORDER_DEFAULT_DESC
+         *
+         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
+         * They will be eventually removed.
          *
          * @return List of nodes that contain the desired string in their name
          */
@@ -13413,10 +13429,14 @@ class MegaApi
          * Sort by modification time of the original file, descending
          *
          * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-         * Sort in alphabetical order, ascending
+         * Same behavior than MegaApi::ORDER_DEFAULT_ASC
          *
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-         * Sort in alphabetical order, descending
+         * Same behavior than MegaApi::ORDER_DEFAULT_DESC
+         *
+         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
+         * They will be eventually removed.
          *
          * @return List of nodes that contain the desired string in their name
          */
@@ -13471,10 +13491,14 @@ class MegaApi
          * Sort by modification time of the original file, descending
          *
          * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-         * Sort in alphabetical order, ascending
+         * Same behavior than MegaApi::ORDER_DEFAULT_ASC
          *
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-         * Sort in alphabetical order, descending
+         * Same behavior than MegaApi::ORDER_DEFAULT_DESC
+         *
+         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
+         * They will be eventually removed.
          *
          * @return List of nodes that contain the desired string in their name
          */
