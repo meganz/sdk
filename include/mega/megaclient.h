@@ -1154,9 +1154,7 @@ public:
     recentactions_vector getRecentActions(unsigned maxcount, m_time_t since);
 
     // determine if the file is a video, photo, or media (video or photo).  If the extension (with trailing .) is not precalculated, pass null
-    bool nodeIsPhoto(const Node*, char ext[12] = nullptr);
-    bool nodeIsVideo(const Node*, char ext[12] = nullptr);
-    bool nodeIsMedia(const Node*, bool* isphoto, bool* isvideo, char ext[12] = nullptr);
+    bool nodeIsMedia(const Node*, bool* isphoto, bool* isvideo) const;
 
     // generate & return upload handle
     handle getuploadhandle();

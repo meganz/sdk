@@ -13779,6 +13779,7 @@ node_vector MegaClient::getRecentNodes(unsigned maxcount, m_time_t since, bool i
 
 namespace action_bucket_compare
 {
+    // these lists of file extensions (and the logic to use them) all come from the webclient - if updating here, please make sure the webclient is updated too, preferably webclient first.
     const static string webclient_is_image_def = ".jpg.jpeg.gif.bmp.png.";
     const static string webclient_is_image_raw = ".3fr.arw.cr2.crw.ciff.cs1.dcr.dng.erf.iiq.k25.kdc.mef.mos.mrw.nef.nrw.orf.pef.raf.raw.rw2.rwl.sr2.srf.srw.x3f.";
     const static string webclient_is_image_thumb = "psd.svg.tif.tiff.webp";  // leaving out .pdf
@@ -13806,11 +13807,11 @@ namespace action_bucket_compare
         return a.time > b.time;
     }
 
-    bool getExtensionDotted(const Node* n, char ext[12], MegaClient* mc)
+    bool getExtensionDotted(const Node* n, char ext[12], const MegaClient& mc)
     {
         string localname, name = n->displayname();
-        mc->fsaccess->path2local(&name, &localname);
-        if (mc->fsaccess->getextension(&localname, ext, 8))  // plenty of buffer space left to append a '.'
+        mc.fsaccess->path2local(&name, &localname);
+        if (mc.fsaccess->getextension(&localname, ext, 8))  // plenty of buffer space left to append a '.'
         {
             strcat(ext, ".");
             return true;
@@ -13818,55 +13819,26 @@ namespace action_bucket_compare
         return false;
     }
 
-}   // end namespace action_bucket_compare
-
-
-bool MegaClient::nodeIsPhoto(const Node* n, char ext[12])
-{
-    // evaluate according to the webclient rules, so that we get exactly the same bucketing.
-    if (n->type != FILENODE)
+    bool nodeIsPhoto(const Node* n, char ext[12])
     {
-        return false;
-    }
-    if (!ext)
-    {
-        char extbuf[12];
-        return action_bucket_compare::getExtensionDotted(n, extbuf, this)
-               && nodeIsPhoto(n, extbuf);
-    }
-    else
-    {
+        // evaluate according to the webclient rules, so that we get exactly the same bucketing.
         return action_bucket_compare::webclient_is_image_def.find(ext) != string::npos ||
-               action_bucket_compare::webclient_is_image_raw.find(ext) != string::npos ||
-              (action_bucket_compare::webclient_mime_photo_extensions.find(ext) != string::npos && n->hasfileattribute(GfxProc::PREVIEW));
+            action_bucket_compare::webclient_is_image_raw.find(ext) != string::npos ||
+            (action_bucket_compare::webclient_mime_photo_extensions.find(ext) != string::npos && n->hasfileattribute(GfxProc::PREVIEW));
     }
-}
 
-bool MegaClient::nodeIsVideo(const Node* n, char ext[12])
-{
-    // evaluate according to the webclient rules, so that we get exactly the same bucketing.
-    if (n->type != FILENODE)
-    {
-        return false;
-    }
-    if (!ext)
-    {
-        char extbuf[12];
-        return action_bucket_compare::getExtensionDotted(n, extbuf, this)
-               && nodeIsVideo(n, extbuf);
-    }
-    else
+    bool nodeIsVideo(const Node* n, char ext[12], const MegaClient& mc)
     {
         if (n->hasfileattribute(fa_media) && n->nodekey.size() == FILENODEKEYLENGTH)
         {
 #ifdef USE_MEDIAINFO
-            if (mediaFileInfo.mediaCodecsReceived)
+            if (mc.mediaFileInfo.mediaCodecsReceived)
             {
                 MediaProperties mp = MediaProperties::decodeMediaPropertiesAttributes(n->fileattrstring, (uint32_t*)(n->nodekey.data() + FILENODEKEYLENGTH / 2));
                 unsigned videocodec = mp.videocodecid;
                 if (!videocodec && mp.shortformat)
                 {
-                    auto& v = mediaFileInfo.mediaCodecs.shortformats;
+                    auto& v = mc.mediaFileInfo.mediaCodecs.shortformats;
                     if (mp.shortformat < v.size())
                     {
                         videocodec = v[mp.shortformat].videocodecid;
@@ -13882,19 +13854,17 @@ bool MegaClient::nodeIsVideo(const Node* n, char ext[12])
         }
         return action_bucket_compare::webclient_mime_video_extensions.find(ext) != string::npos;
     }
-}
 
-bool MegaClient::nodeIsMedia(const Node* n, bool* isphoto, bool* isvideo, char ext[12])
+
+}   // end namespace action_bucket_compare
+
+
+bool MegaClient::nodeIsMedia(const Node* n, bool* isphoto, bool* isvideo) const
 {
-    if (!ext)
+    char ext[12];
+    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext, *this))
     {
-        char extbuf[12];
-        return action_bucket_compare::getExtensionDotted(n, extbuf, this)
-               && nodeIsMedia(n, isphoto, isvideo, extbuf);
-    }
-    else
-    {
-        bool a = nodeIsPhoto(n, ext);
+        bool a = action_bucket_compare::nodeIsPhoto(n, ext);
         if (isphoto)
         {
             *isphoto = a;
@@ -13903,13 +13873,14 @@ bool MegaClient::nodeIsMedia(const Node* n, bool* isphoto, bool* isvideo, char e
         {
             return true;
         }
-        bool b = nodeIsVideo(n, ext);
+        bool b = action_bucket_compare::nodeIsVideo(n, ext, *this);
         if (isvideo)
         {
             *isvideo = b;
         }
         return a || b;
     }
+    return false;
 }
 
 recentactions_vector MegaClient::getRecentActions(unsigned maxcount, m_time_t since)

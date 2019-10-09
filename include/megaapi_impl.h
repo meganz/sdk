@@ -1834,7 +1834,7 @@ class SearchTreeProcessor : public TreeProcessor
 class OutShareProcessor : public TreeProcessor
 {
     public:
-        OutShareProcessor(MegaClient*);
+        OutShareProcessor(MegaClient&);
         virtual bool processNode(Node* node);
         virtual ~OutShareProcessor() {}
         vector<Share *> getShares();
@@ -1843,7 +1843,7 @@ class OutShareProcessor : public TreeProcessor
     protected:
         vector<Share *> mShares;
         node_vector mNodes;
-        MegaClient* mClient;
+        MegaClient& mClient;
 };
 
 class PendingOutShareProcessor : public TreeProcessor
@@ -2390,8 +2390,8 @@ class MegaApiImpl : public MegaApp
         void pauseActionPackets();
         void resumeActionPackets();
 
-        static std::function<bool (Node*, Node*)>getComparatorFunction(int order, MegaClient* mc);
-        static void sortByComparatorFunction(node_vector&, int order, MegaClient* mc);
+        static std::function<bool (Node*, Node*)>getComparatorFunction(int order, MegaClient& mc);
+        static void sortByComparatorFunction(node_vector&, int order, MegaClient& mc);
         static bool nodeComparatorDefaultASC  (Node *i, Node *j);
         static bool nodeComparatorDefaultDESC (Node *i, Node *j);
         static bool nodeComparatorSizeASC  (Node *i, Node *j);
@@ -2402,10 +2402,10 @@ class MegaApiImpl : public MegaApp
         static bool nodeComparatorModificationDESC  (Node *i, Node *j);
         static bool nodeComparatorAlphabeticalASC  (Node *i, Node *j);
         static bool nodeComparatorAlphabeticalDESC  (Node *i, Node *j);
-        static bool nodeComparatorPhotoASC(Node *i, Node *j, MegaClient* mc);
-        static bool nodeComparatorPhotoDESC(Node *i, Node *j, MegaClient* mc);
-        static bool nodeComparatorVideoASC(Node *i, Node *j, MegaClient* mc);
-        static bool nodeComparatorVideoDESC(Node *i, Node *j, MegaClient* mc);
+        static bool nodeComparatorPhotoASC(Node *i, Node *j, MegaClient& mc);
+        static bool nodeComparatorPhotoDESC(Node *i, Node *j, MegaClient& mc);
+        static bool nodeComparatorVideoASC(Node *i, Node *j, MegaClient& mc);
+        static bool nodeComparatorVideoDESC(Node *i, Node *j, MegaClient& mc);
         static bool userComparatorDefaultASC (User *i, User *j);
 
         char* escapeFsIncompatible(const char *filename);
