@@ -16470,13 +16470,14 @@ bool MegaApiImpl::nodeComparatorSizeASC(Node *i, Node *j)
     {
         return t;
     }
-    if (i->type != FILENODE) // Only file nodes have size
+
+    m_off_t r = i->size - j->size;
+    if (i->type != FILENODE || !r) // Only file nodes have size
     {
         return nodeNaturalComparatorASC(i, j);
     }
 
-    m_off_t r = i->size - j->size;
-    if (r < 0 || (!r && i < j))
+    if (r < 0)
     {
         return 1;
     }
@@ -16490,13 +16491,14 @@ bool MegaApiImpl::nodeComparatorSizeDESC(Node *i, Node *j)
     {
         return t;
     }
-    if (i->type != FILENODE) // Only file nodes have size
+
+    m_off_t r = i->size - j->size;
+    if (i->type != FILENODE || !r) // Only file nodes have size
     {
         return nodeNaturalComparatorDESC(i, j);
     }
 
-    m_off_t r = i->size - j->size;
-    if (r < 0 || (!r && i < j))
+    if (r < 0)
     {
         return 0;
     }
@@ -16546,17 +16548,22 @@ bool MegaApiImpl::nodeComparatorModificationASC(Node *i, Node *j)
     {
         return t;
     }
+
     if (i->type != FILENODE) // Only file nodes have last modified date
     {
-        nodeComparatorCreationASC(i, j);
+        return nodeComparatorCreationASC(i, j);
     }
 
     m_time_t r = i->mtime - j->mtime;
-    if (r < 0 || (!r && i < j))
+    if (r < 0)
     {
         return 1;
     }
-    return 0;
+    if (r > 0)
+    {
+        return 0;
+    }
+    return nodeNaturalComparatorASC(i, j);
 }
 
 bool MegaApiImpl::nodeComparatorModificationDESC(Node *i, Node *j)
@@ -16566,17 +16573,23 @@ bool MegaApiImpl::nodeComparatorModificationDESC(Node *i, Node *j)
     {
         return t;
     }
-    if (i->type != FILENODE) // Only file nodes have last modified date
+
+    if (i->type != FILENODE)
     {
-        nodeComparatorCreationDESC(i, j);
+        return nodeComparatorCreationDESC(i, j);
     }
 
     m_time_t r = i->mtime - j->mtime;
-    if (r < 0 || (!r && i < j))
+    if (r < 0)
     {
         return 0;
     }
-    return 1;
+    if (r > 0)
+    {
+        return 1;
+    }
+
+    return nodeNaturalComparatorDESC(i, j);
 }
 
 // Compare node types. Returns -1 if i==j, 0 if i goes first, +1 if j goes first.
