@@ -13786,6 +13786,42 @@ namespace action_bucket_compare
     const static string webclient_mime_photo_extensions = ".3ds.bmp.btif.cgm.cmx.djv.djvu.dwg.dxf.fbs.fh.fh4.fh5.fh7.fhc.fpx.fst.g3.gif.heic.heif.ico.ief.jpe.jpeg.jpg.ktx.mdi.mmr.npx.pbm.pct.pcx.pgm.pic.png.pnm.ppm.psd.ras.rgb.rlc.sgi.sid.svg.svgz.tga.tif.tiff.uvg.uvi.uvvg.uvvi.wbmp.wdp.webp.xbm.xif.xpm.xwd.";
     const static string webclient_mime_video_extensions = ".3g2.3gp.asf.asx.avi.dvb.f4v.fli.flv.fvt.h261.h263.h264.jpgm.jpgv.jpm.m1v.m2v.m4u.m4v.mj2.mjp2.mk3d.mks.mkv.mng.mov.movie.mp4.mp4v.mpe.mpeg.mpg.mpg4.mxu.ogv.pyv.qt.smv.uvh.uvm.uvp.uvs.uvu.uvv.uvvh.uvvm.uvvp.uvvs.uvvu.uvvv.viv.vob.webm.wm.wmv.wmx.wvx.";
 
+    bool nodeIsVideo(const Node* n, char ext[12], const MegaClient& mc)
+    {
+        if (n->hasfileattribute(fa_media) && n->nodekey.size() == FILENODEKEYLENGTH)
+        {
+#ifdef USE_MEDIAINFO
+            if (mc.mediaFileInfo.mediaCodecsReceived)
+            {
+                MediaProperties mp = MediaProperties::decodeMediaPropertiesAttributes(n->fileattrstring, (uint32_t*)(n->nodekey.data() + FILENODEKEYLENGTH / 2));
+                unsigned videocodec = mp.videocodecid;
+                if (!videocodec && mp.shortformat)
+                {
+                    auto& v = mc.mediaFileInfo.mediaCodecs.shortformats;
+                    if (mp.shortformat < v.size())
+                    {
+                        videocodec = v[mp.shortformat].videocodecid;
+                    }
+                }
+                // approximation: the webclient has a lot of logic to determine if a particular codec is playable in that browser.  We'll just base our decision on the presence of a video codec.
+                if (!videocodec)
+                {
+                    return false; // otherwise double-check by extension
+                }
+            }
+#endif  
+        }
+        return action_bucket_compare::webclient_mime_video_extensions.find(ext) != string::npos;
+    }
+
+    bool nodeIsPhoto(const Node* n, char ext[12])
+    {
+        // evaluate according to the webclient rules, so that we get exactly the same bucketing.
+        return action_bucket_compare::webclient_is_image_def.find(ext) != string::npos ||
+            action_bucket_compare::webclient_is_image_raw.find(ext) != string::npos ||
+            (action_bucket_compare::webclient_mime_photo_extensions.find(ext) != string::npos && n->hasfileattribute(GfxProc::PREVIEW));
+    }
+
     static bool compare(const Node* a, const Node* b, MegaClient* mc)
     {
         if (a->owner != b->owner) return a->owner > b->owner;
@@ -13818,43 +13854,6 @@ namespace action_bucket_compare
         }
         return false;
     }
-
-    bool nodeIsPhoto(const Node* n, char ext[12])
-    {
-        // evaluate according to the webclient rules, so that we get exactly the same bucketing.
-        return action_bucket_compare::webclient_is_image_def.find(ext) != string::npos ||
-            action_bucket_compare::webclient_is_image_raw.find(ext) != string::npos ||
-            (action_bucket_compare::webclient_mime_photo_extensions.find(ext) != string::npos && n->hasfileattribute(GfxProc::PREVIEW));
-    }
-
-    bool nodeIsVideo(const Node* n, char ext[12], const MegaClient& mc)
-    {
-        if (n->hasfileattribute(fa_media) && n->nodekey.size() == FILENODEKEYLENGTH)
-        {
-#ifdef USE_MEDIAINFO
-            if (mc.mediaFileInfo.mediaCodecsReceived)
-            {
-                MediaProperties mp = MediaProperties::decodeMediaPropertiesAttributes(n->fileattrstring, (uint32_t*)(n->nodekey.data() + FILENODEKEYLENGTH / 2));
-                unsigned videocodec = mp.videocodecid;
-                if (!videocodec && mp.shortformat)
-                {
-                    auto& v = mc.mediaFileInfo.mediaCodecs.shortformats;
-                    if (mp.shortformat < v.size())
-                    {
-                        videocodec = v[mp.shortformat].videocodecid;
-                    }
-                }
-                // approximation: the webclient has a lot of logic to determine if a particular codec is playable in that browser.  We'll just base our decision on the presence of a video codec.
-                if (!videocodec)
-                {
-                    return false; // otherwise double-check by extension
-                }
-            }
-#endif  
-        }
-        return action_bucket_compare::webclient_mime_video_extensions.find(ext) != string::npos;
-    }
-
 
 }   // end namespace action_bucket_compare
 

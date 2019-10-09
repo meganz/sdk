@@ -16396,9 +16396,9 @@ int naturalsorting_compare (const char *i, const char *j)
 
 std::function<bool (Node*, Node*)> MegaApiImpl::getComparatorFunction(int order, MegaClient& mc)
 {
-    switch(order)
+    switch(MegaApi::OrderType(order))
     {
-        case MegaApi::ORDER_NONE: break;
+        case MegaApi::ORDER_NONE: return nullptr;
         case MegaApi::ORDER_DEFAULT_ASC: return MegaApiImpl::nodeComparatorDefaultASC;
         case MegaApi::ORDER_DEFAULT_DESC: return MegaApiImpl::nodeComparatorDefaultDESC;
         case MegaApi::ORDER_SIZE_ASC: return MegaApiImpl::nodeComparatorSizeASC;
