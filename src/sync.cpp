@@ -406,14 +406,15 @@ size_t assignFilesystemIdsImpl(const FingerprintCache& fingerprints, Fingerprint
 
         for (auto nodeIt = nodeRange.first; nodeIt != nodeRange.second; ++nodeIt)
         {
-            for (auto fileIt = fileRange.first; fileIt != fileRange.second; ++fileIt)
+            auto l = nodeIt->second;
+            if (l != &l->sync->localroot) // never assign fs ID to the root localnode
             {
-                auto l = nodeIt->second;
-                if (l != &l->sync->localroot) // never assign fs ID to the root localnode
+                nodePath.clear();
+                l->getlocalpath(&nodePath, false, &localseparator);
+                for (auto fileIt = fileRange.first; fileIt != fileRange.second; ++fileIt)
                 {
-                    nodePath.clear();
-                    l->getlocalpath(&nodePath, false, &localseparator);
-                    const auto score = computeReversePathMatchScore(accumulated, nodePath, fileIt->second.path, localseparator);
+                    const auto& filePath = fileIt->second.path;
+                    const auto score = computeReversePathMatchScore(accumulated, nodePath, filePath, localseparator);
                     nodes[l][score] = fileIt->second.fsid;
                 }
             }
@@ -424,7 +425,8 @@ size_t assignFilesystemIdsImpl(const FingerprintCache& fingerprints, Fingerprint
             // the last score in the sub-map is the highest (map is sorted)
             const auto bestScorePair = nodesPair.second.crbegin();
             const auto fsId = bestScorePair->second;
-            nodesPair.first->setfsid(fsId, fsidnodes);
+            const auto l = nodesPair.first;
+            l->setfsid(fsId, fsidnodes);
             ++assignmentCount;
         }
 
