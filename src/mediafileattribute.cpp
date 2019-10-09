@@ -724,14 +724,13 @@ bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, std::string filena
 
 void MediaProperties::extractMediaPropertyFileAttributes(const std::string& localFilename, FileSystemAccess* fsa)
 {
-    FileAccess* tmpfa = fsa->newfileaccess();
-    if (tmpfa)
+    if (auto tmpfa = fsa->newfileaccess())
     {
         try
         {
             MediaInfoLib::MediaInfo minfo;
 
-            if (mediaInfoOpenFileWithLimits(minfo, localFilename, tmpfa, 10485760, 3))  // we can read more off local disk
+            if (mediaInfoOpenFileWithLimits(minfo, localFilename, tmpfa.get(), 10485760, 3))  // we can read more off local disk
             {
                 if (!minfo.Count_Get(MediaInfoLib::Stream_General, 0))
                 {
@@ -815,7 +814,6 @@ void MediaProperties::extractMediaPropertyFileAttributes(const std::string& loca
         {
             LOG_err << "unknown excption caught reading media file attributes";
         }
-        delete tmpfa;
     }
 }
 

@@ -217,7 +217,7 @@ void DirNotify::notify(notifyqueue q, LocalNode* l, const char* localpath, size_
             tmppath.append(path);
         }
         attr_map::iterator ait;
-        FileAccess *fa = sync->client->fsaccess->newfileaccess(false);
+        auto fa = sync->client->fsaccess->newfileaccess(false);
         bool success = fa->fopen(&tmppath, false, false);
         LocalNode *ll = sync->localnodebypath(l, &path);
         if ((!ll && !success && !fa->retry) // deleted file
@@ -229,10 +229,8 @@ void DirNotify::notify(notifyqueue q, LocalNode* l, const char* localpath, size_
                 && (ll->type != FILENODE || (ll->mtime == fa->mtime && ll->size == fa->size))))
         {
             LOG_debug << "Self filesystem notification skipped";
-            delete fa;
             return;
         }
-        delete fa;
     }
 
     if (q == DirNotify::DIREVENTS || q == DirNotify::EXTRA)

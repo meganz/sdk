@@ -499,8 +499,7 @@ void Transfer::complete()
         bool success;
 
         // disconnect temp file from slot...
-        delete slot->fa;
-        slot->fa = NULL;
+        slot->fa.reset();
 
         // FIXME: multiple overwrite race conditions below (make copies
         // from open file instead of closing/reopening!)
@@ -517,7 +516,6 @@ void Transfer::complete()
 #endif
 
         // verify integrity of file
-        FileAccess* fa = client->fsaccess->newfileaccess();
         FileFingerprint fingerprint;
         Node* n = nullptr;
         bool fixfingerprint = false;
@@ -544,51 +542,53 @@ void Transfer::complete()
             }
         }
 
-        if (!fixedfingerprint && success && fa->fopen(&localfilename, true, false))
+        if (auto fa = client->fsaccess->newfileaccess())
         {
-            fingerprint.genfingerprint(fa);
-            if (isvalid && !(fingerprint == *(FileFingerprint*)this))
+            if (!fixedfingerprint && success && fa->fopen(&localfilename, true, false))
             {
-                LOG_err << "Fingerprint mismatch";
+                fingerprint.genfingerprint(fa.get());
+                if (isvalid && !(fingerprint == *(FileFingerprint*)this))
+                {
+                    LOG_err << "Fingerprint mismatch";
 
-                // enforce the verification of the fingerprint for sync transfers only
-                if (syncxfer && (!badfp.isvalid || !(badfp == fingerprint)))
-                {
-                    badfp = fingerprint;
-                    delete fa;
-                    chunkmacs.clear();
-                    client->fsaccess->unlinklocal(&localfilename);
-                    return failed(API_EWRITE);
-                }
-                else
-                {
-                    // We consider that mtime is different if the difference is >2
-                    // due to the resolution of mtime in some filesystems (like FAT).
-                    // This check prevents changes in the fingerprint due to silent
-                    // errors in setmtimelocal (returning success but not setting the
-                    // modification time) that seem to happen in some Android devices.
-                    if (abs(mtime - fingerprint.mtime) <= 2)
+                    // enforce the verification of the fingerprint for sync transfers only
+                    if (syncxfer && (!badfp.isvalid || !(badfp == fingerprint)))
                     {
-                        fixfingerprint = true;
+                        badfp = fingerprint;
+                        chunkmacs.clear();
+                        client->fsaccess->unlinklocal(&localfilename);
+                        fa.reset();
+                        return failed(API_EWRITE);
                     }
                     else
                     {
-                        LOG_warn << "Silent failure in setmtimelocal";
+                        // We consider that mtime is different if the difference is >2
+                        // due to the resolution of mtime in some filesystems (like FAT).
+                        // This check prevents changes in the fingerprint due to silent
+                        // errors in setmtimelocal (returning success but not setting the
+                        // modification time) that seem to happen in some Android devices.
+                        if (abs(mtime - fingerprint.mtime) <= 2)
+                        {
+                            fixfingerprint = true;
+                        }
+                        else
+                        {
+                            LOG_warn << "Silent failure in setmtimelocal";
+                        }
                     }
                 }
             }
-        }
 #ifdef ENABLE_SYNC
-        else
-        {
-            if (syncxfer && !fixedfingerprint && success)
+            else
             {
-                transient_error = fa->retry;
-                LOG_debug << "Unable to validate fingerprint " << transient_error;
+                if (syncxfer && !fixedfingerprint && success)
+                {
+                    transient_error = fa->retry;
+                    LOG_debug << "Unable to validate fingerprint " << transient_error;
+                }
             }
-        }
 #endif
-        delete fa;
+        }
 
         char me64[12];
         Base64::btoa((const byte*)&client->me, MegaClient::USERHANDLE, me64);
@@ -639,7 +639,7 @@ void Transfer::complete()
 
                 if (localname != localfilename)
                 {
-                    fa = client->fsaccess->newfileaccess();
+                    auto fa = client->fsaccess->newfileaccess();
                     if (fa->fopen(&localname) || fa->type == FOLDERNODE)
                     {
                         // the destination path already exists
@@ -733,8 +733,6 @@ void Transfer::complete()
                     {
                         transient_error = fa->retry;
                     }
-
-                    delete fa;
 
                     if (transient_error)
                     {
@@ -877,8 +875,7 @@ void Transfer::complete()
         else
         {
             // some files are still pending completion, close fa and set retry timer
-            delete slot->fa;
-            slot->fa = NULL;
+            slot->fa.reset();
 
             LOG_debug << "Files pending completion: " << files.size() << ". Waiting for a retry.";
             LOG_debug << "First pending file: " << files.front()->name;
@@ -901,8 +898,7 @@ void Transfer::complete()
                 client->reqtag = creqtag;
             }
 
-            delete slot->fa;
-            slot->fa = NULL;
+            slot->fa.reset();
         }
 
         // files must not change during a PUT transfer
@@ -910,7 +906,6 @@ void Transfer::complete()
         {
             File *f = (*it);
             bool isOpen = true;
-            FileAccess *fa = client->fsaccess->newfileaccess();
             string *localpath = &f->localname;
 
 #ifdef ENABLE_SYNC
@@ -928,6 +923,7 @@ void Transfer::complete()
             }
 #endif
 
+            auto fa = client->fsaccess->newfileaccess();
             if (!fa->fopen(localpath))
             {
                 isOpen = false;
@@ -936,12 +932,11 @@ void Transfer::complete()
                     LOG_warn << "Retrying upload completion due to a transient error";
                     slot->retrying = true;
                     slot->retrybt.backoff(11);
-                    delete fa;
                     return;
                 }
             }
 
-            if (!isOpen || f->genfingerprint(fa))
+            if (!isOpen || f->genfingerprint(fa.get()))
             {
                 if (!isOpen)
                 {
@@ -968,7 +963,6 @@ void Transfer::complete()
             {
                 it++;
             }
-            delete fa;
         }
 
         if (!files.size())

@@ -1911,19 +1911,14 @@ public:
 
 int loadfile(string* name, string* data)
 {
-    FileAccess* fa = client->fsaccess->newfileaccess();
+    auto fa = client->fsaccess->newfileaccess();
 
     if (fa->fopen(name, 1, 0))
     {
         data->resize(size_t(fa->size));
         fa->fread(data, unsigned(data->size()), 0, 0);
-        delete fa;
-
         return 1;
     }
-
-    delete fa;
-
     return 0;
 }
 
@@ -3576,11 +3571,11 @@ void exec_put(autocomplete::ACState& s)
 
             if (type == FILENODE)
             {
-                FileAccess *fa = client->fsaccess->newfileaccess();
+                auto fa = client->fsaccess->newfileaccess();
                 if (fa->fopen(&name, true, false))
                 {
                     FileFingerprint fp;
-                    fp.genfingerprint(fa);
+                    fp.genfingerprint(fa.get());
 
                     Node *previousNode = client->childnodebyname(n, name.c_str(), true);
                     if (previousNode && previousNode->type == type)
@@ -3588,12 +3583,11 @@ void exec_put(autocomplete::ACState& s)
                         if (fp.isvalid && previousNode->isvalid && fp == *((FileFingerprint *)previousNode))
                         {
                             cout << "Identical file already exist. Skipping transfer of " << name << endl;
-                            delete fa;
                             continue;
                         }
                     }
                 }
-                delete fa;
+                fa.reset();
 
                 f = new AppFilePut(&localname, target, targetuser.c_str());
                 f->appxfer_it = appxferq[PUT].insert(appxferq[PUT].end(), f);

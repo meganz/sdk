@@ -1476,9 +1476,9 @@ WinDirNotify::~WinDirNotify()
 #endif
 }
 
-FileAccess* WinFileSystemAccess::newfileaccess(bool followSymLinks)
+std::unique_ptr<FileAccess> WinFileSystemAccess::newfileaccess(bool followSymLinks)
 {
-    return new WinFileAccess(waiter);
+    return std::unique_ptr<FileAccess>(new WinFileAccess(waiter));
 }
 
 DirAccess* WinFileSystemAccess::newdiraccess()
