@@ -16398,6 +16398,7 @@ std::function<bool (Node*, Node*)> MegaApiImpl::getComparatorFunction(int order,
 {
     switch(order)
     {
+        case MegaApi::ORDER_NONE: break;
         case MegaApi::ORDER_DEFAULT_ASC: return MegaApiImpl::nodeComparatorDefaultASC;
         case MegaApi::ORDER_DEFAULT_DESC: return MegaApiImpl::nodeComparatorDefaultDESC;
         case MegaApi::ORDER_SIZE_ASC: return MegaApiImpl::nodeComparatorSizeASC;
@@ -16412,8 +16413,8 @@ std::function<bool (Node*, Node*)> MegaApiImpl::getComparatorFunction(int order,
         case MegaApi::ORDER_PHOTO_DESC: return [&mc](Node* i, Node*j) { return MegaApiImpl::nodeComparatorPhotoDESC(i, j, mc); };
         case MegaApi::ORDER_VIDEO_ASC: return [&mc](Node* i, Node*j) { return MegaApiImpl::nodeComparatorVideoASC(i, j, mc); };
         case MegaApi::ORDER_VIDEO_DESC: return [&mc](Node* i, Node*j) { return MegaApiImpl::nodeComparatorVideoDESC(i, j, mc); };
-        default: break; 
     }
+    assert(false);
     return nullptr;
 }
 
