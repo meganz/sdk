@@ -1156,9 +1156,9 @@ string * TLVstore::tlvRecordsToContainer(PrnGen &rng, SymmCipher *key, encryptio
     return result;
 }
 
-string * TLVstore::tlvRecordsToContainer()
+string* TLVstore::tlvRecordsToContainer()
 {
-    string * result = new string;
+    string *result = new string;
     size_t offset = 0;
     size_t length;
 
@@ -1183,7 +1183,7 @@ string * TLVstore::tlvRecordsToContainer()
     return result;
 }
 
-string TLVstore::get(string type)
+std::string TLVstore::get(string type) const
 {
     return tlv.at(type);
 }
@@ -1203,7 +1203,7 @@ vector<string> *TLVstore::getKeys() const
     return keys;
 }
 
-bool TLVstore::find(string type)
+bool TLVstore::find(string type) const
 {
     return (tlv.find(type) != tlv.end());
 }
@@ -1211,6 +1211,11 @@ bool TLVstore::find(string type)
 void TLVstore::set(string type, string value)
 {
     tlv[type] = value;
+}
+
+void TLVstore::reset(std::string type)
+{
+    tlv.erase(type);
 }
 
 size_t TLVstore::size()
@@ -1305,7 +1310,7 @@ TLVstore * TLVstore::containerToTLVrecords(const string *data)
         typelen = pos - offset;
 
         // if no valid TLV record in the container, but remaining bytes...
-        if ( (pos == data->npos) || (offset + typelen + 3 > datalen) )
+        if (pos == string::npos || offset + typelen + 3 > datalen)
         {
             delete tlv;
             return NULL;
@@ -1354,7 +1359,7 @@ TLVstore * TLVstore::containerToTLVrecords(const string *data, SymmCipher *key)
     unsigned taglen = TLVstore::getTaglen(encSetting);
     encryptionmode_t encMode = TLVstore::getMode(encSetting);
 
-    if (encMode == AES_MODE_UNKNOWN || !ivlen || !taglen ||  data->size() <= offset+ivlen+taglen)
+    if (encMode == AES_MODE_UNKNOWN || !ivlen || !taglen ||  data->size() < offset+ivlen+taglen)
     {
         return NULL;
     }
@@ -1369,20 +1374,25 @@ TLVstore * TLVstore::containerToTLVrecords(const string *data, SymmCipher *key)
     unsigned clearTextLen = cipherTextLen - taglen;
     string clearText;
 
+    bool decrypted = false;
     if (encMode == AES_MODE_CCM)   // CCM or GCM_BROKEN (same than CCM)
     {
-        key->ccm_decrypt(&cipherText, iv, ivlen, taglen, &clearText);
+       decrypted = key->ccm_decrypt(&cipherText, iv, ivlen, taglen, &clearText);
     }
     else if (encMode == AES_MODE_GCM)  // GCM
     {
-        key->gcm_decrypt(&cipherText, iv, ivlen, taglen, &clearText);
+       decrypted = key->gcm_decrypt(&cipherText, iv, ivlen, taglen, &clearText);
     }
 
     delete [] iv;
 
-    if (clearText.empty())  // the decryption has failed (probably due to authentication)
+    if (!decrypted)  // the decryption has failed (probably due to authentication)
     {
         return NULL;
+    }
+    else if (clearText.empty()) // If decryption succeeded but attribute is empty, generate an empty TLV
+    {
+        return new TLVstore();
     }
 
     TLVstore *tlv = TLVstore::containerToTLVrecords(&clearText);
@@ -1465,6 +1475,45 @@ bool Utils::utf8toUnicode(const uint8_t *src, unsigned srclen, string *result)
     delete [] res;
 
     return true;
+}
+
+std::string Utils::stringToHex(const std::string &input)
+{
+    static const char* const lut = "0123456789ABCDEF";
+    size_t len = input.length();
+
+    std::string output;
+    output.reserve(2 * len);
+    for (size_t i = 0; i < len; ++i)
+    {
+        const unsigned char c = input[i];
+        output.push_back(lut[c >> 4]);
+        output.push_back(lut[c & 15]);
+    }
+    return output;
+}
+
+std::string Utils::hexToString(const std::string &input)
+{
+    static const char* const lut = "0123456789ABCDEF";
+    size_t len = input.length();
+    if (len & 1) throw std::invalid_argument("odd length");
+
+    std::string output;
+    output.reserve(len / 2);
+    for (size_t i = 0; i < len; i += 2)
+    {
+        char a = input[i];
+        const char* p = std::lower_bound(lut, lut + 16, a);
+        if (*p != a) throw std::invalid_argument("not a hex digit");
+
+        char b = input[i + 1];
+        const char* q = std::lower_bound(lut, lut + 16, b);
+        if (*q != b) throw std::invalid_argument("not a hex digit");
+
+        output.push_back(((p - lut) << 4) | (q - lut));
+    }
+    return output;
 }
 
 long long abs(long long n)
