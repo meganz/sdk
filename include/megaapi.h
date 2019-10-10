@@ -12369,15 +12369,13 @@ class MegaApi
          */
         long long getNumNodes();
 
-        typedef enum {
-            ORDER_NONE = 0, ORDER_DEFAULT_ASC, ORDER_DEFAULT_DESC,
+        enum { ORDER_NONE = 0, ORDER_DEFAULT_ASC, ORDER_DEFAULT_DESC,
             ORDER_SIZE_ASC, ORDER_SIZE_DESC,
             ORDER_CREATION_ASC, ORDER_CREATION_DESC,
             ORDER_MODIFICATION_ASC, ORDER_MODIFICATION_DESC,
             ORDER_ALPHABETICAL_ASC, ORDER_ALPHABETICAL_DESC,
             ORDER_PHOTO_ASC, ORDER_PHOTO_DESC,
-            ORDER_VIDEO_ASC, ORDER_VIDEO_DESC
-        } OrderType;
+            ORDER_VIDEO_ASC, ORDER_VIDEO_DESC};
 
         /**
          * @brief Get the number of child nodes
