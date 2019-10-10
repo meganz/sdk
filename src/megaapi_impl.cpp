@@ -16471,17 +16471,22 @@ bool MegaApiImpl::nodeComparatorSizeASC(Node *i, Node *j)
         return t;
     }
 
-    m_off_t r = i->size - j->size;
-    if (i->type != FILENODE || !r) // Only file nodes have size
+    if (i->type != FILENODE) // Only file nodes have size
     {
+        // If node doesn't have size, order alphabetically ascending
         return nodeNaturalComparatorASC(i, j);
     }
 
+    m_off_t r = i->size - j->size;
     if (r < 0)
     {
         return 1;
     }
-    return 0;
+    if (r > 0)
+    {
+        return 0;
+    }
+    return nodeNaturalComparatorASC(i, j);
 }
 
 bool MegaApiImpl::nodeComparatorSizeDESC(Node *i, Node *j)
@@ -16492,17 +16497,22 @@ bool MegaApiImpl::nodeComparatorSizeDESC(Node *i, Node *j)
         return t;
     }
 
-    m_off_t r = i->size - j->size;
-    if (i->type != FILENODE || !r) // Only file nodes have size
+    if (i->type != FILENODE) // Only file nodes have size
     {
-        return nodeNaturalComparatorDESC(i, j);
+        // If node doesn't have size, order alphabetically ascending
+        return nodeNaturalComparatorASC(i, j);
     }
 
+    m_off_t r = i->size - j->size;
     if (r < 0)
     {
         return 0;
     }
-    return 1;
+    if (r > 0)
+    {
+        return 1;
+    }
+    return nodeNaturalComparatorDESC(i, j);
 }
 
 bool MegaApiImpl::nodeComparatorCreationASC(Node *i, Node *j)
@@ -16551,7 +16561,8 @@ bool MegaApiImpl::nodeComparatorModificationASC(Node *i, Node *j)
 
     if (i->type != FILENODE) // Only file nodes have last modified date
     {
-        return nodeComparatorCreationASC(i, j);
+        // If node doesn't have mtime, order alphabetically ascending
+        return nodeNaturalComparatorASC(i, j);
     }
 
     m_time_t r = i->mtime - j->mtime;
@@ -16576,7 +16587,8 @@ bool MegaApiImpl::nodeComparatorModificationDESC(Node *i, Node *j)
 
     if (i->type != FILENODE)
     {
-        return nodeComparatorCreationDESC(i, j);
+        // If node doesn't have mtime, order alphabetically ascending
+        return nodeNaturalComparatorASC(i, j);
     }
 
     m_time_t r = i->mtime - j->mtime;
