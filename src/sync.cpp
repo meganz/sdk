@@ -1219,6 +1219,8 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
 
                             statecacheadd(l);
 
+                            fa.reset();
+
                             if (isnetwork && l->type == FILENODE)
                             {
                                 LOG_debug << "Queueing extra fs notification for modified file";

@@ -555,9 +555,9 @@ void Transfer::complete()
                     if (syncxfer && (!badfp.isvalid || !(badfp == fingerprint)))
                     {
                         badfp = fingerprint;
+                        fa.reset();
                         chunkmacs.clear();
                         client->fsaccess->unlinklocal(&localfilename);
-                        fa.reset();
                         return failed(API_EWRITE);
                     }
                     else

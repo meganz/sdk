@@ -24429,6 +24429,7 @@ void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, string *pa
     {
         if (!client->fsaccess->mkdirlocal(&localpath))
         {
+            da.reset();
             LOG_err << "Unable to create folder: " << *path;
 
             recursive--;
