@@ -531,6 +531,11 @@ bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, h
     collectAllLocalNodes(fingerprints, localnodes, sync.localroot, fsidnodes, localseparator);
     LOG_info << "Number of localnodes: " << localnodes.size();
 
+    if (localnodes.empty())
+    {
+        return success;
+    }
+
     FingerprintFileMap files;
     collectAllFiles(success, fingerprints, files, sync, app, fsaccess, rootpath, localdebris, localseparator);
     LOG_info << "Number of files: " << files.size();
