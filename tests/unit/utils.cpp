@@ -46,10 +46,6 @@ void collectAllFsNodesImpl(std::map<std::string, const mt::FsNode*>& nodes, cons
 void initializeLocalNode(mega::LocalNode& l, mega::Sync& sync, mega::LocalNode* parent, mega::handlelocalnode_map& fsidnodes,
                          mega::nodetype_t type, const std::string& name, const mega::FileFingerprint& ffp)
 {
-    if (ffp.isvalid)
-    {
-        assert(type == mega::FILENODE);
-    }
     l.sync = &sync;
     l.parent = parent;
     l.type = type;
@@ -88,10 +84,6 @@ std::unique_ptr<mega::LocalNode> makeLocalNode(mega::Sync& sync, mega::LocalNode
                                                mega::nodetype_t type, const std::string& name,
                                                const mega::FileFingerprint& ffp)
 {
-    if (ffp.isvalid)
-    {
-        assert(type == mega::FILENODE);
-    }
     auto l = std::unique_ptr<mega::LocalNode>{new mega::LocalNode};
     initializeLocalNode(*l, sync, &parent, fsidnodes, type, name, ffp);
     return l;
