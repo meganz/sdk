@@ -508,7 +508,7 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
     }
 
     fsstableids = dirnotify->fsstableids();
-    LOG_info << "Filesystem IDs are stable: " << std::boolalpha << fsstableids;
+    LOG_info << "Filesystem IDs are stable: " << fsstableids;
     fsstableids = true; // TODO: Remove this once the fs ID assignment is working properly
 
     localroot.init(this, FOLDERNODE, NULL, crootpath);
