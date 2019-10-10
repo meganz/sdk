@@ -39,8 +39,15 @@ struct MEGA_API FileFingerprint : public Cachable
     // if false, is constructed from node ctime/key
     bool isvalid = false;
 
+    // Generates a light-weight fingerprint only based on size, mtime, and name of a file (no I/O)
+    bool genfingerprint(m_off_t filesize, m_time_t filemtime, const char* filename);
+
+    // Generates a fingerprint by iterating through`fa`
     bool genfingerprint(FileAccess* fa, bool ignoremtime = false);
+
+    // Generates a fingerprint by iterating through `is`
     bool genfingerprint(InputStreamAccess* is, m_time_t cmtime, bool ignoremtime = false);
+
     void serializefingerprint(string* d) const;
     int unserializefingerprint(string* d);
 

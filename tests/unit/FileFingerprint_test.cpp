@@ -510,3 +510,58 @@ TEST(FileFingerprint, genfingerprint_InputStreamAccess_forLargeFile_butReadFails
     ASSERT_EQ(expected, ffp.crc);
     ASSERT_EQ(false, ffp.isvalid);
 }
+
+TEST(FileFingerprint, genfingerprint_lightWeight)
+{
+    mega::FileFingerprint ffp;
+    const m_off_t filesize = 42;
+    const mega::m_time_t filemtime = 13;
+    const std::string filename = "filename";
+    ASSERT_TRUE(ffp.genfingerprint(filesize, filemtime, filename.c_str()));
+    ASSERT_EQ(filesize, ffp.size);
+    ASSERT_EQ(filemtime, ffp.mtime);
+    const std::array<int32_t, 4> expected = {212, 202, 217, 202};
+    ASSERT_EQ(expected, ffp.crc);
+    ASSERT_EQ(true, ffp.isvalid);
+}
+
+TEST(FileFingerprint, genfingerprint_lightWeight_fileNameSmallerThanFour)
+{
+    mega::FileFingerprint ffp;
+    const m_off_t filesize = 42;
+    const mega::m_time_t filemtime = 13;
+    const std::string filename = "f";
+    ASSERT_TRUE(ffp.genfingerprint(filesize, filemtime, filename.c_str()));
+    ASSERT_EQ(filesize, ffp.size);
+    ASSERT_EQ(filemtime, ffp.mtime);
+    const std::array<int32_t, 4> expected = {102, 0, 0, 0};
+    ASSERT_EQ(expected, ffp.crc);
+    ASSERT_EQ(true, ffp.isvalid);
+}
+
+TEST(FileFingerprint, genfingerprint_lightWeight_fileNameEmpty)
+{
+    mega::FileFingerprint ffp;
+    const m_off_t filesize = 42;
+    const mega::m_time_t filemtime = 13;
+    const std::string filename = "";
+    ASSERT_TRUE(ffp.genfingerprint(filesize, filemtime, filename.c_str()));
+    ASSERT_EQ(filesize, ffp.size);
+    ASSERT_EQ(filemtime, ffp.mtime);
+    const std::array<int32_t, 4> expected = {0, 0, 0, 0};
+    ASSERT_EQ(expected, ffp.crc);
+    ASSERT_EQ(true, ffp.isvalid);
+}
+
+TEST(FileFingerprint, genfingerprint_lightWeight_fileNameNull)
+{
+    mega::FileFingerprint ffp;
+    const m_off_t filesize = 42;
+    const mega::m_time_t filemtime = 13;
+    ASSERT_TRUE(ffp.genfingerprint(filesize, filemtime, nullptr));
+    ASSERT_EQ(filesize, ffp.size);
+    ASSERT_EQ(filemtime, ffp.mtime);
+    const std::array<int32_t, 4> expected = {0, 0, 0, 0};
+    ASSERT_EQ(expected, ffp.crc);
+    ASSERT_EQ(true, ffp.isvalid);
+}
