@@ -2387,6 +2387,8 @@ GTEST_TEST(Sync, DISABLED_BasicSync_moveAndDeleteLocalFile)
     ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
 }
 
+namespace {
+
 string makefa(const string& name, int fakecrc, int mtime)
 {
     AttrMap attrs;
@@ -2417,15 +2419,17 @@ Node* makenode(MegaClient& mc, handle parent, ::mega::nodetype_t type, m_off_t s
 
     int attrlen = int(newnode->attrstring->size());
     string base64attrstring;
-    base64attrstring.resize(attrlen * 4 / 3 + 4);
-    base64attrstring.resize(Base64::btoa((::mega::byte *)newnode->attrstring->data(), int(newnode->attrstring->size()), (char *)base64attrstring.data()));
+    base64attrstring.resize(static_cast<size_t>(attrlen * 4 / 3 + 4));
+    base64attrstring.resize(static_cast<size_t>(Base64::btoa((::mega::byte *)newnode->attrstring->data(), int(newnode->attrstring->size()), (char *)base64attrstring.data())));
 
     *newnode->attrstring = base64attrstring;
 
     return newnode;
 }
 
-GTEST_TEST(Unit, SortOrder)
+} // anonymous
+
+GTEST_TEST(Sync, NodeSorting_forPhotosAndVideos)
 {
     fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
     StandardClient standardclient(localtestroot, "sortOrderTests");
@@ -2437,8 +2441,8 @@ GTEST_TEST(Unit, SortOrder)
 
     // first 3 are root nodes:
     auto cloudroot = makenode(client, UNDEF, ROOTNODE, -1, owner, makefa("root", 1, 1), key);
-    makenode(client, UNDEF, INCOMINGNODE, owner, -1, makefa("inbox", 1, 1), key);
-    makenode(client, UNDEF, RUBBISHNODE, owner, -1, makefa("bin", 1, 1), key);
+    makenode(client, UNDEF, INCOMINGNODE, -1, owner, makefa("inbox", 1, 1), key);
+    makenode(client, UNDEF, RUBBISHNODE, -1, owner, makefa("bin", 1, 1), key);
 
     // now some files to sort
     auto photo1 = makenode(client, cloudroot->nodehandle, FILENODE, 9999, owner, makefa("abc.jpg", 1, 1570673890), key);
