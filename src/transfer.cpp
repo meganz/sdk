@@ -932,7 +932,6 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
         for (file_list::iterator it = files.begin(); it != files.end(); )
         {
             File *f = (*it);
-            bool isOpen = true;
             FileAccess *fa = client->fsaccess->newfileaccess();
             string *localpath = &f->localname;
 
@@ -951,9 +950,9 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
             }
 #endif
 
-            if (!fa->fopen(localpath))
+            bool isOpen = fa->fopen(localpath);
+            if (!isOpen)
             {
-                isOpen = false;
                 if (client->fsaccess->transient_error)
                 {
                     LOG_warn << "Retrying upload completion due to a transient error";
