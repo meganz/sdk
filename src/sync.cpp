@@ -165,7 +165,6 @@ void hashCombineFingerprint(FileFingerprint& ffp, const FileFingerprint& other)
 {
     assert(other.isvalid);
     hashCombine(ffp.size, other.size);
-    hashCombine(ffp.mtime, other.mtime);
     for (size_t i = 0; i < other.crc.size(); ++i)
     {
         hashCombine(ffp.crc[i], other.crc[i]);
@@ -249,6 +248,7 @@ void computeFingerprint(FileFingerprint& ffp, const LocalNode& l)
     }
     else if (l.type == FOLDERNODE)
     {
+        ffp.mtime = l.mtime;
         combinedFingerprint(ffp, l.children);
     }
     else
@@ -273,6 +273,7 @@ void computeFingerprint(FileFingerprint& ffp, FingerprintCache& fingerprints, Fi
     }
     else if (fa.type == FOLDERNODE)
     {
+        ffp.mtime = fa.mtime;
         combinedFingerprint(ffp, fingerprints, fsaccess, paths);
     }
     else
