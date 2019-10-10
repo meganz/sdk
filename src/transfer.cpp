@@ -362,6 +362,7 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
             state = TRANSFERSTATE_RETRYING;
             client->app->transfer_failed(this, e, timeleft);
             client->looprequested = true;
+            ++client->performanceStats.transferTempErrors;
         }
         else
         {
@@ -370,6 +371,7 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
             if (!slot)
             {
                 client->app->transfer_failed(this, e, timeleft);
+                ++client->performanceStats.transferTempErrors;
             }
         }
     }
@@ -421,7 +423,7 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
         for (file_list::iterator it = files.begin(); it != files.end(); it++)
         {
 #ifdef ENABLE_SYNC
-            if((*it)->syncxfer)
+            if((*it)->syncxfer && e != API_EBUSINESSPASTDUE)
             {
                 client->syncdownrequired = true;
             }
@@ -429,6 +431,7 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
             client->app->file_removed(*it, e);
         }
         client->app->transfer_removed(this);
+        ++client->performanceStats.transferFails;
         delete this;
     }
 }
@@ -481,6 +484,8 @@ void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ std::strin
 // fingerprint, notify app, notify files
 void Transfer::complete(DBTableTransactionCommitter& committer)
 {
+    CodeCounter::ScopeTimer ccst(client->performanceStats.transferComplete);
+
     state = TRANSFERSTATE_COMPLETING;
     client->app->transfer_update(this);
 
@@ -904,7 +909,6 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
         for (file_list::iterator it = files.begin(); it != files.end(); )
         {
             File *f = (*it);
-            bool isOpen = true;
             FileAccess *fa = client->fsaccess->newfileaccess();
             string *localpath = &f->localname;
 
@@ -923,9 +927,9 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
             }
 #endif
 
-            if (!fa->fopen(localpath))
+            bool isOpen = fa->fopen(localpath);
+            if (!isOpen)
             {
-                isOpen = false;
                 if (client->fsaccess->transient_error)
                 {
                     LOG_warn << "Retrying upload completion due to a transient error";

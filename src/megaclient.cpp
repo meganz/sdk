@@ -896,6 +896,7 @@ void MegaClient::activateoverquota(dstime timeleft)
                     t->slot->retrybt.backoff(timeleft);
                     t->slot->retrying = true;
                     app->transfer_failed(t, API_EOVERQUOTA, timeleft);
+                    ++performanceStats.transferTempErrors;
                 }
             }
         }
@@ -913,6 +914,7 @@ void MegaClient::activateoverquota(dstime timeleft)
                 t->slot->retrybt.backoff(NEVER);
                 t->slot->retrying = true;
                 app->transfer_failed(t, API_EOVERQUOTA, 0);
+                ++performanceStats.transferTempErrors;
             }
         }
     }
@@ -1242,6 +1244,8 @@ std::string MegaClient::getPublicLink(bool newLinkFormat, nodetype_t type, handl
 // nonblocking state machine executing all operations currently in progress
 void MegaClient::exec()
 {
+    CodeCounter::ScopeTimer ccst(performanceStats.execFunction);
+
     WAIT_CLASS::bumpds();
 
     if (overquotauntil && overquotauntil < Waiter::ds)
@@ -1632,6 +1636,11 @@ void MegaClient::exec()
                 // handle retry reason for requests
                 retryreason_t reason = RETRY_NONE;
 
+                if (pendingcs->status == REQ_SUCCESS || pendingcs->status == REQ_FAILURE)
+                {
+                    performanceStats.csRequestWaitTime.stop();
+                }
+
                 switch (pendingcs->status)
                 {
                     case REQ_READY:
@@ -1848,6 +1857,7 @@ void MegaClient::exec()
                     }
                     pendingcs->type = REQ_JSON;
 
+                    performanceStats.csRequestWaitTime.start();
                     pendingcs->post(this);
                     continue;
                 }
@@ -2749,6 +2759,17 @@ void MegaClient::exec()
         app->storagesum_changed(mNotifiedSumSize);
     }
 
+#ifdef MEGA_MEASURE_CODE
+    performanceStats.transfersActiveTime.start(!tslots.empty() && !performanceStats.transfersActiveTime.inprogress());
+    performanceStats.transfersActiveTime.stop(tslots.empty() && performanceStats.transfersActiveTime.inprogress());
+
+    static auto lasttime = Waiter::ds;
+    if (Waiter::ds > lasttime + 1200)
+    {
+        lasttime = Waiter::ds;
+        LOG_info << performanceStats.report(false, httpio, waiter);
+    }
+#endif
 }
 
 // get next event time from all subsystems, then invoke the waiter if needed
@@ -2767,6 +2788,8 @@ int MegaClient::wait()
 
 int MegaClient::preparewait()
 {
+    CodeCounter::ScopeTimer ccst(performanceStats.prepareWait);
+
     dstime nds;
 
     // get current dstime and clear wait events
@@ -3004,6 +3027,7 @@ int MegaClient::preparewait()
     // immediate action required?
     if (!nds)
     {
+        ++performanceStats.prepwaitImmediate;
         return Waiter::NEEDEXEC;
     }
 
@@ -3013,22 +3037,56 @@ int MegaClient::preparewait()
         nds -= Waiter::ds;
     }
 
+#ifdef MEGA_MEASURE_CODE
+    bool reasonGiven = false;
+    if (nds == 0)
+    {
+        ++performanceStats.prepwaitZero;
+        reasonGiven = true;
+    }
+#endif
+
     waiter->init(nds);
 
     // set subsystem wakeup criteria (WinWaiter assumes httpio to be set first!)
     waiter->wakeupby(httpio, Waiter::NEEDEXEC);
+
+#ifdef MEGA_MEASURE_CODE
+    if (waiter->maxds == 0 && !reasonGiven)
+    {
+        ++performanceStats.prepwaitHttpio;
+        reasonGiven = true;
+    }
+#endif
+
     waiter->wakeupby(fsaccess, Waiter::NEEDEXEC);
+
+#ifdef MEGA_MEASURE_CODE
+    if (waiter->maxds == 0 && !reasonGiven)
+    {
+        ++performanceStats.prepwaitFsaccess;
+        reasonGiven = true;
+    }
+    if (!reasonGiven)
+    {
+        ++performanceStats.nonzeroWait;
+    }
+#endif
 
     return 0;
 }
 
 int MegaClient::dowait()
 {
+    CodeCounter::ScopeTimer ccst(performanceStats.doWait);
+
     return waiter->wait();
 }
 
 int MegaClient::checkevents()
 {
+    CodeCounter::ScopeTimer ccst(performanceStats.checkEvents);
+
     int r =  httpio->checkevents(waiter);
     r |= fsaccess->checkevents(waiter);
     if (gfx)
@@ -3384,6 +3442,7 @@ bool MegaClient::dispatch(direction_t d)
                 }
                 app->transfer_update(nexttransfer);
 
+                performanceStats.transferStarts += 1;
                 return true;
             }
             else if (openfinished)
@@ -3884,6 +3943,8 @@ void MegaClient::httprequest(const char *url, int method, bool binary, const cha
 // process server-client request
 bool MegaClient::procsc()
 {
+    CodeCounter::ScopeTimer ccst(performanceStats.scProcessingTime);
+
     nameid name;
 
 #ifdef ENABLE_SYNC
@@ -5326,24 +5387,10 @@ void MegaClient::sc_userattr()
                 {
                     LOG_debug << "User attributes update for non-existing user";
                 }
-                // if no version received (very old actionpacket)...
-                else if ( !uavlist.size() )
-                {
-                    // ...invalidate all of the notified user attributes
-                    for (itua = ualist.begin(); itua != ualist.end(); itua++)
-                    {
-                        attr_t type = User::string2attr(itua->c_str());
-                        u->invalidateattr(type);
-                        if (type == ATTR_KEYRING)
-                        {
-                            resetKeyring();
-                        }
-                    }
-                    u->setTag(0);
-                    notifyuser(u);
-                }
                 else if (ualist.size() == uavlist.size())
                 {
+                    assert(ualist.size() && uavlist.size());
+
                     // invalidate only out-of-date attributes
                     for (itua = ualist.begin(), ituav = uavlist.begin();
                          itua != ualist.end();
@@ -6887,10 +6934,10 @@ void MegaClient::unlinkversions()
     reqs.add(new CommandDelVersions(this));
 }
 
-// emulates the semantics of its JavaScript counterpart
+// Converts a string in UTF8 to array of int32 in the same way than Webclient converts a string in UTF16 to array of 32-bit elements
 // (returns NULL if the input is invalid UTF-8)
 // unfortunately, discards bits 8-31 of multibyte characters for backwards compatibility
-char* MegaClient::str_to_a32(const char* str, int* len)
+char* MegaClient::utf8_to_a32forjs(const char* str, int* len)
 {
     if (!str)
     {
@@ -6982,7 +7029,7 @@ error MegaClient::pw_key(const char* utf8pw, byte* key) const
     int t;
     char* pw;
 
-    if (!(pw = str_to_a32(utf8pw, &t)))
+    if (!(pw = utf8_to_a32forjs(utf8pw, &t)))
     {
         return API_EARGS;
     }
@@ -11360,7 +11407,6 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
     if (signatureType == ATTR_SIG_CU255_PUBK)
     {
         // retrieve public key whose signature wants to be verified, from cache
-        assert(user && user->isattrvalid(ATTR_CU25519_PUBK));
         if (!user || !user->isattrvalid(ATTR_CU25519_PUBK))
         {
             LOG_warn << "Failed to verify signature " << User::attr2string(signatureType) << " for user " << uid << ": CU25519 public key is not available";
@@ -11388,7 +11434,6 @@ error MegaClient::trackSignature(attr_t signatureType, handle uh, const std::str
     }
 
     // retrieve signing key from cache
-    assert(user->isattrvalid(ATTR_ED25519_PUBK));
     if (!user->isattrvalid(ATTR_ED25519_PUBK))
     {
         LOG_warn << "Failed to verify signature " << User::attr2string(signatureType) << " for user " << uid << ": signing public key is not available";
@@ -11778,6 +11823,8 @@ void MegaClient::abortreads(handle h, bool p, m_off_t offset, m_off_t count)
 // execute pending directreads
 bool MegaClient::execdirectreads()
 {
+    CodeCounter::ScopeTimer ccst(performanceStats.execdirectreads);
+
     bool r = false;
     DirectReadSlot* drs;
 
@@ -11969,6 +12016,18 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
 
             Sync* sync = new Sync(this, rootpath, debris, localdebris, remotenode, fsfp, inshare, tag, appData);
             sync->isnetwork = isnetwork;
+
+            if (!sync->fsstableids)
+            {
+                if (sync->assignfsids())
+                {
+                    LOG_info << "Successfully assigned fs IDs for filesystem with unstable IDs";
+                }
+                else
+                {
+                    LOG_warn << "Failed to assign some fs IDs for filesystem with unstable IDs";
+                }
+            }
 
             if (sync->scan(rootpath, fa))
             {
@@ -13794,27 +13853,25 @@ node_vector MegaClient::getRecentNodes(unsigned maxcount, m_time_t since, bool i
 
 namespace action_bucket_compare
 {
-    std::mutex media_check;   // when we can use c++11, switch to a lambda that remembers the MegaClient* for compare().  In the meantime, force just one MegaClient at a time instead.
-    MegaClient* mc;
-
+    // these lists of file extensions (and the logic to use them) all come from the webclient - if updating here, please make sure the webclient is updated too, preferably webclient first.
     const static string webclient_is_image_def = ".jpg.jpeg.gif.bmp.png.";
     const static string webclient_is_image_raw = ".3fr.arw.cr2.crw.ciff.cs1.dcr.dng.erf.iiq.k25.kdc.mef.mos.mrw.nef.nrw.orf.pef.raf.raw.rw2.rwl.sr2.srf.srw.x3f.";
     const static string webclient_is_image_thumb = "psd.svg.tif.tiff.webp";  // leaving out .pdf
     const static string webclient_mime_photo_extensions = ".3ds.bmp.btif.cgm.cmx.djv.djvu.dwg.dxf.fbs.fh.fh4.fh5.fh7.fhc.fpx.fst.g3.gif.heic.heif.ico.ief.jpe.jpeg.jpg.ktx.mdi.mmr.npx.pbm.pct.pcx.pgm.pic.png.pnm.ppm.psd.ras.rgb.rlc.sgi.sid.svg.svgz.tga.tif.tiff.uvg.uvi.uvvg.uvvi.wbmp.wdp.webp.xbm.xif.xpm.xwd.";
     const static string webclient_mime_video_extensions = ".3g2.3gp.asf.asx.avi.dvb.f4v.fli.flv.fvt.h261.h263.h264.jpgm.jpgv.jpm.m1v.m2v.m4u.m4v.mj2.mjp2.mk3d.mks.mkv.mng.mov.movie.mp4.mp4v.mpe.mpeg.mpg.mpg4.mxu.ogv.pyv.qt.smv.uvh.uvm.uvp.uvs.uvu.uvv.uvvh.uvvm.uvvp.uvvs.uvvu.uvvv.viv.vob.webm.wm.wmv.wmx.wvx.";
 
-    static bool isvideo(const Node* n, const char *ext)
+    bool nodeIsVideo(const Node* n, char ext[12], const MegaClient& mc)
     {
         if (n->hasfileattribute(fa_media) && n->nodekey.size() == FILENODEKEYLENGTH)
         {
 #ifdef USE_MEDIAINFO
-            if (mc->mediaFileInfo.mediaCodecsReceived)
+            if (mc.mediaFileInfo.mediaCodecsReceived)
             {
                 MediaProperties mp = MediaProperties::decodeMediaPropertiesAttributes(n->fileattrstring, (uint32_t*)(n->nodekey.data() + FILENODEKEYLENGTH / 2));
                 unsigned videocodec = mp.videocodecid;
                 if (!videocodec && mp.shortformat)
                 {
-                    auto& v = mc->mediaFileInfo.mediaCodecs.shortformats;
+                    auto& v = mc.mediaFileInfo.mediaCodecs.shortformats;
                     if (mp.shortformat < v.size())
                     {
                         videocodec = v[mp.shortformat].videocodecid;
@@ -13828,30 +13885,18 @@ namespace action_bucket_compare
             }
 #endif  
         }
-        return webclient_mime_video_extensions.find(ext) != string::npos;
+        return action_bucket_compare::webclient_mime_video_extensions.find(ext) != string::npos;
     }
 
-    static bool ismedia(const Node* n)
+    bool nodeIsPhoto(const Node* n, char ext[12])
     {
         // evaluate according to the webclient rules, so that we get exactly the same bucketing.
-        string localname, name = n->displayname();
-        mc->fsaccess->path2local(&name, &localname);
-        char ext[12];
-        if (mc->fsaccess->getextension(&localname, ext, sizeof(ext) - 4))  // plenty of buffer space left to append a '.'
-        {
-            strcat(ext, ".");
-            if (webclient_is_image_def.find(ext) != string::npos ||
-                webclient_is_image_raw.find(ext) != string::npos ||
-                (webclient_mime_photo_extensions.find(ext) != string::npos && n->hasfileattribute(GfxProc::PREVIEW)) ||
-                isvideo(n, ext))
-            {
-                return true;
-            }
-        }
-        return false;
+        return action_bucket_compare::webclient_is_image_def.find(ext) != string::npos ||
+            action_bucket_compare::webclient_is_image_raw.find(ext) != string::npos ||
+            (action_bucket_compare::webclient_mime_photo_extensions.find(ext) != string::npos && n->hasfileattribute(GfxProc::PREVIEW));
     }
 
-    static bool compare(const Node* a, const Node* b)
+    static bool compare(const Node* a, const Node* b, MegaClient* mc)
     {
         if (a->owner != b->owner) return a->owner > b->owner;
         if (a->parent != b->parent) return a->parent > b->parent;
@@ -13860,7 +13905,8 @@ namespace action_bucket_compare
         if (a->children.size() != b->children.size()) return a->children.size() > b->children.size();
 
         // media/nonmedia
-        bool a_media = ismedia(a), b_media = ismedia(b);
+        bool a_media = mc->nodeIsMedia(a, nullptr, nullptr);
+        bool b_media = mc->nodeIsMedia(b, nullptr, nullptr);
         if (a_media != b_media) return a_media && !b_media;
 
         return false;
@@ -13871,16 +13917,49 @@ namespace action_bucket_compare
         return a.time > b.time;
     }
 
+    bool getExtensionDotted(const Node* n, char ext[12], const MegaClient& mc)
+    {
+        string localname, name = n->displayname();
+        mc.fsaccess->path2local(&name, &localname);
+        if (mc.fsaccess->getextension(&localname, ext, 8))  // plenty of buffer space left to append a '.'
+        {
+            strcat(ext, ".");
+            return true;
+        }
+        return false;
+    }
+
 }   // end namespace action_bucket_compare
+
+
+bool MegaClient::nodeIsMedia(const Node* n, bool* isphoto, bool* isvideo) const
+{
+    char ext[12];
+    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext, *this))
+    {
+        bool a = action_bucket_compare::nodeIsPhoto(n, ext);
+        if (isphoto)
+        {
+            *isphoto = a;
+        }
+        if (a && !isvideo)
+        {
+            return true;
+        }
+        bool b = action_bucket_compare::nodeIsVideo(n, ext, *this);
+        if (isvideo)
+        {
+            *isvideo = b;
+        }
+        return a || b;
+    }
+    return false;
+}
 
 recentactions_vector MegaClient::getRecentActions(unsigned maxcount, m_time_t since)
 {
     recentactions_vector rav;
     node_vector v = getRecentNodes(maxcount, since, false);
-
-    using namespace action_bucket_compare;
-    std::lock_guard<std::mutex> g(media_check); // when we can use c++11, switch to a lambda.  In the meantime, force just one MegaClient at a time instead.
-    mc = this;
 
     for (node_vector::iterator i = v.begin(); i != v.end(); )
     {
@@ -13892,12 +13971,12 @@ recentactions_vector MegaClient::getRecentActions(unsigned maxcount, m_time_t si
         }
 
         // sort the defined bucket by owner, parent folder, added/updated and ismedia
-        std::sort(i, bucketend, action_bucket_compare::compare);
+        std::sort(i, bucketend, [this](const Node* n1, const Node* n2) { return action_bucket_compare::compare(n1, n2, this); });
 
         // split the 6h-bucket in different buckets according to their content
         for (node_vector::iterator j = i; j != bucketend; ++j)
         {
-            if (i == j || action_bucket_compare::compare(*i, *j))
+            if (i == j || action_bucket_compare::compare(*i, *j, this))
             {
                 // add a new bucket
                 recentaction ra;
@@ -13905,7 +13984,7 @@ recentactions_vector MegaClient::getRecentActions(unsigned maxcount, m_time_t si
                 ra.user = (*j)->owner;
                 ra.parent = (*j)->parent ? (*j)->parent->nodehandle : UNDEF;
                 ra.updated = !(*j)->children.empty();   // children of files represent previous versions
-                ra.media = ismedia(*j);
+                ra.media = nodeIsMedia(*j, nullptr, nullptr);
                 rav.push_back(ra);
             }
             // add the node to the bucket
@@ -14241,6 +14320,51 @@ void MegaClient::getwelcomepdf()
 {
     reqs.add(new CommandGetWelcomePDF(this));
 }
+
+#ifdef MEGA_MEASURE_CODE
+std::string MegaClient::PerformanceStats::report(bool reset, HttpIO* httpio, Waiter* waiter)
+{
+    std::ostringstream s;
+    s << prepareWait.report(reset) << "\n"
+        << doWait.report(reset) << "\n"
+        << checkEvents.report(reset) << "\n"
+        << execFunction.report(reset) << "\n"
+        << transferslotDoio.report(reset) << "\n"
+        << execdirectreads.report(reset) << "\n"
+        << transferComplete.report(reset) << "\n"
+        << dispatchTransfers.report(reset) << "\n"
+        << applyKeys.report(reset) << "\n"
+        << scProcessingTime.report(reset) << "\n"
+        << csResponseProcessingTime.report(reset) << "\n"
+        << " cs Request waiting time: " << csRequestWaitTime.report(reset) << "\n"
+        << " transfers active time: " << transfersActiveTime.report(reset) << "\n"
+        << " transfer starts/finishes: " << transferStarts << " " << transferFinishes << "\n"
+        << " transfer temperror/fails: " << transferTempErrors << " " << transferFails << "\n"
+        << " nowait reason: immedate: " << prepwaitImmediate << " zero: " << prepwaitZero << " httpio: " << prepwaitHttpio << " fsaccess: " << prepwaitFsaccess << " nonzero waits: " << nonzeroWait << "\n";
+#ifdef USE_CURL
+    if (auto curlhttpio = dynamic_cast<CurlHttpIO*>(httpio))
+    {
+        s << curlhttpio->countCurlHttpIOAddevents.report(reset) << "\n"
+            << curlhttpio->countAddAresEventsCode.report(reset) << "\n"
+            << curlhttpio->countAddCurlEventsCode.report(reset) << "\n"
+            << curlhttpio->countProcessAresEventsCode.report(reset) << "\n"
+            << curlhttpio->countProcessCurlEventsCode.report(reset) << "\n";
+    }
+#endif
+#ifdef WIN32
+    s << " waiter nonzero timeout: " << static_cast<WinWaiter*>(waiter)->performanceStats.waitTimedoutNonzero 
+      << " zero timeout: " << static_cast<WinWaiter*>(waiter)->performanceStats.waitTimedoutZero
+      << " io trigger: " << static_cast<WinWaiter*>(waiter)->performanceStats.waitIOCompleted 
+      << " event trigger: "  << static_cast<WinWaiter*>(waiter)->performanceStats.waitSignalled << "\n";
+#endif
+    if (reset)
+    {
+        transferStarts = transferFinishes = transferTempErrors = transferFails = 0;
+        prepwaitImmediate = prepwaitZero = prepwaitHttpio = prepwaitFsaccess = nonzeroWait = 0;
+    }
+    return s.str();
+}
+#endif
 
 FetchNodesStats::FetchNodesStats()
 {

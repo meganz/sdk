@@ -89,6 +89,15 @@ int Base64::atob(const string &in, string &out)
     return (int)out.size();
 }
 
+std::string Base64::atob(const std::string &in)
+{
+    string out;
+    out.resize(in.size() * 3 / 4 + 3);
+    out.resize(Base64::atob(in.data(), (byte *) out.data(), (int)out.size()));
+
+    return out;
+}
+
 int Base64::atob(const char* a, byte* b, int blen)
 {
     byte c[4];
@@ -200,6 +209,15 @@ int Base64::btoa(const string &in, string &out)
     out.resize(Base64::btoa((const byte*) in.data(), (int)in.size(), (char *) out.data()));
 
     return (int)out.size();
+}
+
+std::string Base64::btoa(const string &in)
+{
+    string out;
+    out.resize(in.size() * 4 / 3 + 4);
+    out.resize(Base64::btoa((const byte*) in.data(), (int)in.size(), (char *) out.data()));
+
+    return out;
 }
 
 int Base64::btoa(const byte* b, int blen, char* a)

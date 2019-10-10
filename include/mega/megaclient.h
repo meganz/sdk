@@ -896,7 +896,7 @@ private:
     void checkevent(dstime, dstime*, dstime*);
 
     // converts UTF-8 to 32-bit word array
-    static char* str_to_a32(const char*, int*);
+    static char* utf8_to_a32forjs(const char*, int*);
 
     // was the app notified of a retrying CS request?
     bool csretrying;
@@ -1156,6 +1156,9 @@ public:
 
     // get a vector of recent actions in the account
     recentactions_vector getRecentActions(unsigned maxcount, m_time_t since);
+
+    // determine if the file is a video, photo, or media (video or photo).  If the extension (with trailing .) is not precalculated, pass null
+    bool nodeIsMedia(const Node*, bool* isphoto, bool* isvideo) const;
 
     // generate & return upload handle
     handle getuploadhandle();
@@ -1537,6 +1540,28 @@ public:
 
     // -1: expired, 0: inactive (no business subscription), 1: active, 2: grace-period
     BizStatus mBizStatus;
+
+    // Keep track of high level operation counts and times, for performance analysis
+    struct PerformanceStats
+    {
+        CodeCounter::ScopeStats execFunction = { "MegaClient_exec" };
+        CodeCounter::ScopeStats transferslotDoio = { "TransferSlot_doio" };
+        CodeCounter::ScopeStats execdirectreads = { "execdirectreads" };
+        CodeCounter::ScopeStats transferComplete = { "transfer_complete" };
+        CodeCounter::ScopeStats prepareWait = { "MegaClient_prepareWait" };
+        CodeCounter::ScopeStats doWait = { "MegaClient_doWait" };
+        CodeCounter::ScopeStats checkEvents = { "MegaClient_checkEvents" };
+        CodeCounter::ScopeStats applyKeys = { "MegaClient_applyKeys" };
+        CodeCounter::ScopeStats dispatchTransfers = { "dispatchTransfers" };
+        CodeCounter::ScopeStats csResponseProcessingTime = { "cs batch response processing" };
+        CodeCounter::ScopeStats scProcessingTime = { "sc processing" };
+        uint64_t transferStarts = 0, transferFinishes = 0;
+        uint64_t transferTempErrors = 0, transferFails = 0;
+        uint64_t prepwaitImmediate = 0, prepwaitZero = 0, prepwaitHttpio = 0, prepwaitFsaccess = 0, nonzeroWait = 0;
+        CodeCounter::DurationSum csRequestWaitTime;
+        CodeCounter::DurationSum transfersActiveTime;
+        std::string report(bool reset, HttpIO* httpio, Waiter* waiter);
+    } performanceStats;
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
     ~MegaClient();

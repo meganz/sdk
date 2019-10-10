@@ -8115,7 +8115,7 @@ class MegaApi
 
         /**
          * @brief Check if the MegaApi object is logged in
-         * @return 0 if not logged in, Otherwise, a number >= 0
+         * @return 0 if not logged in, Otherwise, a number > 0
          */
         int isLoggedIn();
 
@@ -10284,36 +10284,75 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getNodehandle - Returns the handle of the node where My Chat Files are stored
          *
+         * If the folder is not set, the request will fail with the error code MegaError::API_ENOENT.
+         *
          * @param listener MegaRequestListener to track this request
          */
         void getMyChatFilesFolder(MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Set Camera Uploads target folder.
+         * @brief Set Camera Uploads primary target folder.
          *
          * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
+         * - MegaRequest::getFlag - Returns false
+         * - MegaRequest::getNodehandle - Returns the provided node handle
          *
-         * @param nodehandle MegaHandle of the node to be used as target folder
+         * @param nodehandle MegaHandle of the node to be used as primary target folder
          * @param listener MegaRequestListener to track this request
          */
         void setCameraUploadsFolder(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Gets Camera Uploads target folder.
+         * @brief Set Camera Uploads secondary target folder.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
+         * - MegaRequest::getFlag - Returns true
+         * - MegaRequest::getNodehandle - Returns the provided node handle
+         *
+         * @param nodehandle MegaHandle of the node to be used as secondary target folder
+         * @param listener MegaRequestListener to track this request
+         */
+        void setCameraUploadsFolderSecondary(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Gets Camera Uploads primary target folder.
          *
          * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
+         * - MegaRequest::getFlag - Returns false
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getNodehandle - Returns the handle of the node where Camera Uploads files are stored
+         * - MegaRequest::getNodehandle - Returns the handle of the primary node where Camera Uploads files are stored
+         *
+         * If the folder is not set, the request will fail with the error code MegaError::API_ENOENT.
          *
          * @param listener MegaRequestListener to track this request
          */
         void getCameraUploadsFolder(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Gets Camera Uploads secondary target folder.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
+         * - MegaRequest::getFlag - Returns true
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNodehandle - Returns the handle of the secondary node where Camera Uploads files are stored
+         *
+         * If the secondary folder is not set, the request will fail with the error code MegaError::API_ENOENT.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getCameraUploadsFolderSecondary(MegaRequestListener *listener = NULL);
 
         /**
          * @brief Gets the alias for an user
@@ -10326,7 +10365,7 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getName - user alias encoded in B64
+         * - MegaRequest::getName - Returns the user alias
          *
          * If the user alias doesn't exists the request will fail with the error code MegaError::API_ENOENT.
          *
@@ -12330,98 +12369,111 @@ class MegaApi
          */
         long long getNumNodes();
 
-        enum {	ORDER_NONE = 0, ORDER_DEFAULT_ASC, ORDER_DEFAULT_DESC,
+        enum OrderType { ORDER_NONE = 0, ORDER_DEFAULT_ASC, ORDER_DEFAULT_DESC,
             ORDER_SIZE_ASC, ORDER_SIZE_DESC,
             ORDER_CREATION_ASC, ORDER_CREATION_DESC,
             ORDER_MODIFICATION_ASC, ORDER_MODIFICATION_DESC,
-            ORDER_ALPHABETICAL_ASC, ORDER_ALPHABETICAL_DESC};
+            ORDER_ALPHABETICAL_ASC, ORDER_ALPHABETICAL_DESC,
+            ORDER_PHOTO_ASC, ORDER_PHOTO_DESC,
+            ORDER_VIDEO_ASC, ORDER_VIDEO_DESC};
 
+        /**
+         * @brief Get the number of child nodes
+         *
+         * If the node doesn't exist in MEGA or isn't a folder,
+         * this function returns 0
+         *
+         * This function doesn't search recursively, only returns the direct child nodes.
+         *
+         * @param parent Parent node
+         * @return Number of child nodes
+         */
+        int getNumChildren(MegaNode* parent);
 
-		/**
-		 * @brief Get the number of child nodes
-		 *
-		 * If the node doesn't exist in MEGA or isn't a folder,
-		 * this function returns 0
-		 *
-		 * This function doesn't search recursively, only returns the direct child nodes.
-		 *
-		 * @param parent Parent node
-		 * @return Number of child nodes
-		 */
-		int getNumChildren(MegaNode* parent);
+        /**
+         * @brief Get the number of child files of a node
+         *
+         * If the node doesn't exist in MEGA or isn't a folder,
+         * this function returns 0
+         *
+         * This function doesn't search recursively, only returns the direct child files.
+         *
+         * @param parent Parent node
+         * @return Number of child files
+         */
+        int getNumChildFiles(MegaNode* parent);
 
-		/**
-		 * @brief Get the number of child files of a node
-		 *
-		 * If the node doesn't exist in MEGA or isn't a folder,
-		 * this function returns 0
-		 *
-		 * This function doesn't search recursively, only returns the direct child files.
-		 *
-		 * @param parent Parent node
-		 * @return Number of child files
-		 */
-		int getNumChildFiles(MegaNode* parent);
+        /**
+         * @brief Get the number of child folders of a node
+         *
+         * If the node doesn't exist in MEGA or isn't a folder,
+         * this function returns 0
+         *
+         * This function doesn't search recursively, only returns the direct child folders.
+         *
+         * @param parent Parent node
+         * @return Number of child folders
+         */
+        int getNumChildFolders(MegaNode* parent);
 
-		/**
-		 * @brief Get the number of child folders of a node
-		 *
-		 * If the node doesn't exist in MEGA or isn't a folder,
-		 * this function returns 0
-		 *
-		 * This function doesn't search recursively, only returns the direct child folders.
-		 *
-		 * @param parent Parent node
-		 * @return Number of child folders
-		 */
-		int getNumChildFolders(MegaNode* parent);
-
-		/**
-		 * @brief Get all children of a MegaNode
-		 *
-		 * If the parent node doesn't exist or it isn't a folder, this function
-		 * returns NULL
-		 *
-		 * You take the ownership of the returned value
-		 *
-		 * @param parent Parent node
-		 * @param order Order for the returned list
-		 * Valid values for this parameter are:
-		 * - MegaApi::ORDER_NONE = 0
-		 * Undefined order
-		 *
-		 * - MegaApi::ORDER_DEFAULT_ASC = 1
-		 * Folders first in alphabetical order, then files in the same order
-		 *
-		 * - MegaApi::ORDER_DEFAULT_DESC = 2
-		 * Files first in reverse alphabetical order, then folders in the same order
-		 *
-		 * - MegaApi::ORDER_SIZE_ASC = 3
-		 * Sort by size, ascending
-		 *
-		 * - MegaApi::ORDER_SIZE_DESC = 4
-		 * Sort by size, descending
-		 *
-		 * - MegaApi::ORDER_CREATION_ASC = 5
-		 * Sort by creation time in MEGA, ascending
-		 *
-		 * - MegaApi::ORDER_CREATION_DESC = 6
-		 * Sort by creation time in MEGA, descending
-		 *
-		 * - MegaApi::ORDER_MODIFICATION_ASC = 7
-		 * Sort by modification time of the original file, ascending
-		 *
-		 * - MegaApi::ORDER_MODIFICATION_DESC = 8
-		 * Sort by modification time of the original file, descending
-		 *
-		 * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-		 * Sort in alphabetical order, ascending
-		 *
-		 * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-		 * Sort in alphabetical order, descending
-		 *
-		 * @return List with all child MegaNode objects
-		 */
+        /**
+         * @brief Get all children of a MegaNode
+         *
+         * If the parent node doesn't exist or it isn't a folder, this function
+         * returns NULL
+         *
+         * You take the ownership of the returned value
+         *
+         * @param parent Parent node
+         * @param order Order for the returned list
+         * Valid values for this parameter are:
+         * - MegaApi::ORDER_NONE = 0
+         * Undefined order
+         *
+         * - MegaApi::ORDER_DEFAULT_ASC = 1
+         * Folders first in alphabetical order, then files in the same order
+         *
+         * - MegaApi::ORDER_DEFAULT_DESC = 2
+         * Files first in reverse alphabetical order, then folders in the same order
+         *
+         * - MegaApi::ORDER_SIZE_ASC = 3
+         * Sort by size, ascending
+         *
+         * - MegaApi::ORDER_SIZE_DESC = 4
+         * Sort by size, descending
+         *
+         * - MegaApi::ORDER_CREATION_ASC = 5
+         * Sort by creation time in MEGA, ascending
+         *
+         * - MegaApi::ORDER_CREATION_DESC = 6
+         * Sort by creation time in MEGA, descending
+         *
+         * - MegaApi::ORDER_MODIFICATION_ASC = 7
+         * Sort by modification time of the original file, ascending
+         *
+         * - MegaApi::ORDER_MODIFICATION_DESC = 8
+         * Sort by modification time of the original file, descending
+         *
+         * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+         * Sort in alphabetical order, ascending
+         *
+         * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+         * Sort in alphabetical order, descending
+         *
+         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * Sort with photos first, then by date ascending
+         *
+         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * Sort with photos first, then by date descending
+         *
+         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * Sort with videos first, then by date ascending
+         *
+         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * Sort with videos first, then by date descending
+         *
+         * @return List with all child MegaNode objects
+         */
         MegaNodeList* getChildren(MegaNode *parent, int order = 1);
 
         /**
@@ -12501,6 +12553,18 @@ class MegaApi
          *
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Sort in alphabetical order, descending
+         *
+         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * Sort with photos first, then by date ascending
+         *
+         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * Sort with photos first, then by date descending
+         *
+         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * Sort with videos first, then by date ascending
+         *
+         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * Sort with videos first, then by date descending
          *
          * @return Lists with files and folders child MegaNode objects
          */
@@ -13271,6 +13335,18 @@ class MegaApi
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Sort in alphabetical order, descending
          *
+         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * Sort with photos first, then by date ascending
+         *
+         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * Sort with photos first, then by date descending
+         *
+         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * Sort with videos first, then by date ascending
+         *
+         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * Sort with videos first, then by date descending
+         *
          * @return List of nodes that contain the desired string in their name
          */
         MegaNodeList* search(MegaNode* node, const char* searchString, bool recursive = 1, int order = ORDER_NONE);
@@ -13326,6 +13402,18 @@ class MegaApi
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Sort in alphabetical order, descending
          *
+         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * Sort with photos first, then by date ascending
+         *
+         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * Sort with photos first, then by date descending
+         *
+         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * Sort with videos first, then by date ascending
+         *
+         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * Sort with videos first, then by date descending
+         *
          * @return List of nodes that contain the desired string in their name
          */
         MegaNodeList* search(MegaNode* node, const char* searchString, MegaCancelToken *cancelToken, bool recursive = 1, int order = ORDER_NONE);
@@ -13378,6 +13466,18 @@ class MegaApi
          *
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Sort in alphabetical order, descending
+         *
+         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * Sort with photos first, then by date ascending
+         *
+         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * Sort with photos first, then by date descending
+         *
+         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * Sort with videos first, then by date ascending
+         *
+         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * Sort with videos first, then by date descending
          *
          * @return List of nodes that contain the desired string in their name
          */
@@ -13436,6 +13536,18 @@ class MegaApi
          *
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Sort in alphabetical order, descending
+         *
+         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * Sort with photos first, then by date ascending
+         *
+         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * Sort with photos first, then by date descending
+         *
+         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * Sort with videos first, then by date ascending
+         *
+         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * Sort with videos first, then by date descending
          *
          * @return List of nodes that contain the desired string in their name
          */
@@ -16015,10 +16127,25 @@ public:
     virtual long long getTransferMax();
 
     /**
-     * @brief Get the used bandwidth
+     * @brief Get the used bandwidth for own user allowance
+     * @see: MegaAccountDetails::getTransferUsed
      * @return Used bandwidth (in bytes)
      */
     virtual long long getTransferOwnUsed();
+
+    /**
+     * @brief Get the used bandwidth served to other users
+     * @see: MegaAccountDetails::getTransferUsed
+     * @return Used bandwidth (in bytes)
+     */
+    virtual long long getTransferSrvUsed();
+
+    /**
+     * @brief Get the used bandwidth allowance including own, free and served to other users
+     * @see: MegaAccountDetails::getTransferOwnUsed, MegaAccountDetails::getTemporalBandwidth, MegaAccountDetails::getTransferSrvUsed
+     * @return Used bandwidth (in bytes)
+     */
+    virtual long long getTransferUsed();
 
     /**
      * @brief Returns the number of nodes with account usage info
@@ -16192,11 +16319,12 @@ public:
     virtual int getTemporalBandwidthInterval();
 
     /**
-     * @brief Get the number of bytes that were recently transferred
+     * @brief Get the number of bytes that were recently transferred using free allowance
      *
      * The time interval in which those bytes were transferred
      * is provided (in hours) using MegaAccountDetails::getTemporalBandwidthInterval
      *
+     * @see: MegaAccountDetails::getTransferUsed
      * @return Number of bytes that were recently transferred
      */
     virtual long long getTemporalBandwidth();

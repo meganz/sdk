@@ -115,9 +115,14 @@ int PosixWaiter::wait()
     // empty pipe
     uint8_t buf;
     bool external = false;
-    while (read(m_pipe[0], &buf, sizeof buf) > 0)
+
     {
-        external = true;
+        std::lock_guard<std::mutex> g(mMutex);
+        while (read(m_pipe[0], &buf, sizeof buf) > 0)
+        {
+            external = true;
+        }
+        alreadyNotified = false;
     }
 
     // timeout or error
@@ -134,6 +139,11 @@ int PosixWaiter::wait()
 
 void PosixWaiter::notify()
 {
-    write(m_pipe[1], "0", 1);
+    std::lock_guard<std::mutex> g(mMutex);
+    if (!alreadyNotified)
+    {
+        write(m_pipe[1], "0", 1);
+        alreadyNotified = true;
+    }
 }
 } // namespace
