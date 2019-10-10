@@ -13831,27 +13831,25 @@ node_vector MegaClient::getRecentNodes(unsigned maxcount, m_time_t since, bool i
 
 namespace action_bucket_compare
 {
-    std::mutex media_check;   // when we can use c++11, switch to a lambda that remembers the MegaClient* for compare().  In the meantime, force just one MegaClient at a time instead.
-    MegaClient* mc;
-
+    // these lists of file extensions (and the logic to use them) all come from the webclient - if updating here, please make sure the webclient is updated too, preferably webclient first.
     const static string webclient_is_image_def = ".jpg.jpeg.gif.bmp.png.";
     const static string webclient_is_image_raw = ".3fr.arw.cr2.crw.ciff.cs1.dcr.dng.erf.iiq.k25.kdc.mef.mos.mrw.nef.nrw.orf.pef.raf.raw.rw2.rwl.sr2.srf.srw.x3f.";
     const static string webclient_is_image_thumb = "psd.svg.tif.tiff.webp";  // leaving out .pdf
     const static string webclient_mime_photo_extensions = ".3ds.bmp.btif.cgm.cmx.djv.djvu.dwg.dxf.fbs.fh.fh4.fh5.fh7.fhc.fpx.fst.g3.gif.heic.heif.ico.ief.jpe.jpeg.jpg.ktx.mdi.mmr.npx.pbm.pct.pcx.pgm.pic.png.pnm.ppm.psd.ras.rgb.rlc.sgi.sid.svg.svgz.tga.tif.tiff.uvg.uvi.uvvg.uvvi.wbmp.wdp.webp.xbm.xif.xpm.xwd.";
     const static string webclient_mime_video_extensions = ".3g2.3gp.asf.asx.avi.dvb.f4v.fli.flv.fvt.h261.h263.h264.jpgm.jpgv.jpm.m1v.m2v.m4u.m4v.mj2.mjp2.mk3d.mks.mkv.mng.mov.movie.mp4.mp4v.mpe.mpeg.mpg.mpg4.mxu.ogv.pyv.qt.smv.uvh.uvm.uvp.uvs.uvu.uvv.uvvh.uvvm.uvvp.uvvs.uvvu.uvvv.viv.vob.webm.wm.wmv.wmx.wvx.";
 
-    static bool isvideo(const Node* n, const char *ext)
+    bool nodeIsVideo(const Node* n, char ext[12], const MegaClient& mc)
     {
         if (n->hasfileattribute(fa_media) && n->nodekey.size() == FILENODEKEYLENGTH)
         {
 #ifdef USE_MEDIAINFO
-            if (mc->mediaFileInfo.mediaCodecsReceived)
+            if (mc.mediaFileInfo.mediaCodecsReceived)
             {
                 MediaProperties mp = MediaProperties::decodeMediaPropertiesAttributes(n->fileattrstring, (uint32_t*)(n->nodekey.data() + FILENODEKEYLENGTH / 2));
                 unsigned videocodec = mp.videocodecid;
                 if (!videocodec && mp.shortformat)
                 {
-                    auto& v = mc->mediaFileInfo.mediaCodecs.shortformats;
+                    auto& v = mc.mediaFileInfo.mediaCodecs.shortformats;
                     if (mp.shortformat < v.size())
                     {
                         videocodec = v[mp.shortformat].videocodecid;
@@ -13865,30 +13863,18 @@ namespace action_bucket_compare
             }
 #endif  
         }
-        return webclient_mime_video_extensions.find(ext) != string::npos;
+        return action_bucket_compare::webclient_mime_video_extensions.find(ext) != string::npos;
     }
 
-    static bool ismedia(const Node* n)
+    bool nodeIsPhoto(const Node* n, char ext[12])
     {
         // evaluate according to the webclient rules, so that we get exactly the same bucketing.
-        string localname, name = n->displayname();
-        mc->fsaccess->path2local(&name, &localname);
-        char ext[12];
-        if (mc->fsaccess->getextension(&localname, ext, sizeof(ext) - 4))  // plenty of buffer space left to append a '.'
-        {
-            strcat(ext, ".");
-            if (webclient_is_image_def.find(ext) != string::npos ||
-                webclient_is_image_raw.find(ext) != string::npos ||
-                (webclient_mime_photo_extensions.find(ext) != string::npos && n->hasfileattribute(GfxProc::PREVIEW)) ||
-                isvideo(n, ext))
-            {
-                return true;
-            }
-        }
-        return false;
+        return action_bucket_compare::webclient_is_image_def.find(ext) != string::npos ||
+            action_bucket_compare::webclient_is_image_raw.find(ext) != string::npos ||
+            (action_bucket_compare::webclient_mime_photo_extensions.find(ext) != string::npos && n->hasfileattribute(GfxProc::PREVIEW));
     }
 
-    static bool compare(const Node* a, const Node* b)
+    static bool compare(const Node* a, const Node* b, MegaClient* mc)
     {
         if (a->owner != b->owner) return a->owner > b->owner;
         if (a->parent != b->parent) return a->parent > b->parent;
@@ -13897,7 +13883,8 @@ namespace action_bucket_compare
         if (a->children.size() != b->children.size()) return a->children.size() > b->children.size();
 
         // media/nonmedia
-        bool a_media = ismedia(a), b_media = ismedia(b);
+        bool a_media = mc->nodeIsMedia(a, nullptr, nullptr);
+        bool b_media = mc->nodeIsMedia(b, nullptr, nullptr);
         if (a_media != b_media) return a_media && !b_media;
 
         return false;
@@ -13908,16 +13895,49 @@ namespace action_bucket_compare
         return a.time > b.time;
     }
 
+    bool getExtensionDotted(const Node* n, char ext[12], const MegaClient& mc)
+    {
+        string localname, name = n->displayname();
+        mc.fsaccess->path2local(&name, &localname);
+        if (mc.fsaccess->getextension(&localname, ext, 8))  // plenty of buffer space left to append a '.'
+        {
+            strcat(ext, ".");
+            return true;
+        }
+        return false;
+    }
+
 }   // end namespace action_bucket_compare
+
+
+bool MegaClient::nodeIsMedia(const Node* n, bool* isphoto, bool* isvideo) const
+{
+    char ext[12];
+    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext, *this))
+    {
+        bool a = action_bucket_compare::nodeIsPhoto(n, ext);
+        if (isphoto)
+        {
+            *isphoto = a;
+        }
+        if (a && !isvideo)
+        {
+            return true;
+        }
+        bool b = action_bucket_compare::nodeIsVideo(n, ext, *this);
+        if (isvideo)
+        {
+            *isvideo = b;
+        }
+        return a || b;
+    }
+    return false;
+}
 
 recentactions_vector MegaClient::getRecentActions(unsigned maxcount, m_time_t since)
 {
     recentactions_vector rav;
     node_vector v = getRecentNodes(maxcount, since, false);
-
-    using namespace action_bucket_compare;
-    std::lock_guard<std::mutex> g(media_check); // when we can use c++11, switch to a lambda.  In the meantime, force just one MegaClient at a time instead.
-    mc = this;
 
     for (node_vector::iterator i = v.begin(); i != v.end(); )
     {
@@ -13929,12 +13949,12 @@ recentactions_vector MegaClient::getRecentActions(unsigned maxcount, m_time_t si
         }
 
         // sort the defined bucket by owner, parent folder, added/updated and ismedia
-        std::sort(i, bucketend, action_bucket_compare::compare);
+        std::sort(i, bucketend, [this](const Node* n1, const Node* n2) { return action_bucket_compare::compare(n1, n2, this); });
 
         // split the 6h-bucket in different buckets according to their content
         for (node_vector::iterator j = i; j != bucketend; ++j)
         {
-            if (i == j || action_bucket_compare::compare(*i, *j))
+            if (i == j || action_bucket_compare::compare(*i, *j, this))
             {
                 // add a new bucket
                 recentaction ra;
@@ -13942,7 +13962,7 @@ recentactions_vector MegaClient::getRecentActions(unsigned maxcount, m_time_t si
                 ra.user = (*j)->owner;
                 ra.parent = (*j)->parent ? (*j)->parent->nodehandle : UNDEF;
                 ra.updated = !(*j)->children.empty();   // children of files represent previous versions
-                ra.media = ismedia(*j);
+                ra.media = nodeIsMedia(*j, nullptr, nullptr);
                 rav.push_back(ra);
             }
             // add the node to the bucket
