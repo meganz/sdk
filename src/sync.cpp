@@ -104,8 +104,8 @@ using FingerprintLocalNodeMap = std::multimap<const FileFingerprint*, LocalNode*
 using FingerprintFileMap = std::multimap<const FileFingerprint*, FsFile, FileFingerprintCmp>;
 
 // Collects all syncable filesystem paths in the given folder under `localpath`
-vector<string> collectAllPathsInFolder(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, string localpath,
-                                       const string& localdebris, const string& localseparator)
+set<string> collectAllPathsInFolder(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, string localpath,
+                                    const string& localdebris, const string& localseparator)
 {
     auto fa = std::unique_ptr<FileAccess>{fsaccess.newfileaccess(false)};
     if (!fa->fopen(&localpath, true, false))
@@ -127,7 +127,7 @@ vector<string> collectAllPathsInFolder(Sync& sync, MegaApp& app, FileSystemAcces
         return {};
     }
 
-    vector<string> paths;
+    set<string> paths; // has to be a set to enforce same sorting as `children` of `LocalNode`
 
     const size_t localpathSize = localpath.size();
 
@@ -150,7 +150,7 @@ vector<string> collectAllPathsInFolder(Sync& sync, MegaApp& app, FileSystemAcces
             // skip the sync's debris folder
             if (isPathSyncable(localpath, localdebris, localseparator))
             {
-                paths.push_back(localpath);
+                paths.insert(localpath);
             }
         }
 
@@ -194,7 +194,7 @@ void combinedFingerprint(FileFingerprint& ffp, const localnode_map& nodeMap)
 
 // Combines the fingerprints of all files in the given paths
 void combinedFingerprint(FileFingerprint& ffp, FingerprintCache& fingerprints,
-                         FileSystemAccess& fsaccess, const vector<string>& paths)
+                         FileSystemAccess& fsaccess, const set<string>& paths)
 {
     ffp.isvalid = false;
     for (const auto& path : paths)
@@ -259,7 +259,7 @@ void computeFingerprint(FileFingerprint& ffp, const LocalNode& l)
 
 // Computes the fingerprint of the given `fa` (file or folder) and stores it in `ffp`
 void computeFingerprint(FileFingerprint& ffp, FingerprintCache& fingerprints, FileSystemAccess& fsaccess,
-                        FileAccess& fa, const vector<string>& paths)
+                        FileAccess& fa, const set<string>& paths)
 {
     if (fa.type == FILENODE)
     {
@@ -316,15 +316,15 @@ void collectAllLocalNodes(FingerprintCache& fingerprints, FingerprintLocalNodeMa
 // Collects all `File`s by storing them in `files`, keyed by FileFingerprint.
 // Stores all fingerprints in `fingerprints` for later reference.
 void collectAllFiles(bool& success, FingerprintCache& fingerprints, FingerprintFileMap& files,
-                     Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, string localpath,
+                     Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, const string& localpath,
                      const string& localdebris, const string& localseparator)
 {
     auto insertFingerprint = [&files, &fingerprints](FileSystemAccess& fsaccess, FileAccess& fa,
-                                                     std::string path, const vector<string>& paths)
+                                                     const std::string& path, const set<string>& paths)
     {
         if (const auto ffpPtr = fingerprints.get(fa.fsid))
         {
-            files.insert(std::make_pair(ffpPtr, FsFile{fa.fsid, std::move(path)}));
+            files.insert(std::make_pair(ffpPtr, FsFile{fa.fsid, path}));
         }
         else
         {
@@ -333,7 +333,7 @@ void collectAllFiles(bool& success, FingerprintCache& fingerprints, FingerprintF
             if (ffp.isvalid)
             {
                 const auto ffpPtr = fingerprints.add(fa.fsid, ffp);
-                files.insert(std::make_pair(ffpPtr, FsFile{fa.fsid, std::move(path)}));
+                files.insert(std::make_pair(ffpPtr, FsFile{fa.fsid, path}));
             }
         }
     };
@@ -359,16 +359,16 @@ void collectAllFiles(bool& success, FingerprintCache& fingerprints, FingerprintF
 
     if (fa->type == FILENODE)
     {
-        insertFingerprint(fsaccess, *fa, std::move(localpath), {});
+        insertFingerprint(fsaccess, *fa, localpath, {});
     }
     else if (fa->type == FOLDERNODE)
     {
-        auto paths = collectAllPathsInFolder(sync, app, fsaccess, localpath, localdebris, localseparator);
-        insertFingerprint(fsaccess, *fa, std::move(localpath), paths);
+        const auto paths = collectAllPathsInFolder(sync, app, fsaccess, localpath, localdebris, localseparator);
+        insertFingerprint(fsaccess, *fa, localpath, paths);
         fa.reset();
-        for (auto&& path : paths)
+        for (const auto& path : paths)
         {
-            collectAllFiles(success, fingerprints, files, sync, app, fsaccess, std::move(path), localdebris, localseparator);
+            collectAllFiles(success, fingerprints, files, sync, app, fsaccess, path, localdebris, localseparator);
         }
     }
     else
@@ -500,11 +500,11 @@ int computeReversePathMatchScore(string& accumulated, const string& path1, const
 bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, handlelocalnode_map& fsidnodes,
                          const string& localdebris, const string& localseparator)
 {
-    auto rootpath = sync.localroot.localname;
+    const auto& rootpath = sync.localroot.localname;
     LOG_info << "Assigning fs IDs at rootpath: " << rootpath;
 
     auto fa = std::unique_ptr<FileAccess>{fsaccess.newfileaccess(false)};
-    if (!fa->fopen(&rootpath, true, false))
+    if (!fa->fopen(const_cast<string*>(&rootpath), true, false))
     {
         LOG_err << "Unable to open rootpath";
         return false;
@@ -532,7 +532,7 @@ bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, h
     LOG_info << "Number of localnodes: " << localnodes.size();
 
     FingerprintFileMap files;
-    collectAllFiles(success, fingerprints, files, sync, app, fsaccess, std::move(rootpath), localdebris, localseparator);
+    collectAllFiles(success, fingerprints, files, sync, app, fsaccess, rootpath, localdebris, localseparator);
     LOG_info << "Number of files: " << files.size();
 
     LOG_info << "Number of fingerprints: " << fingerprints.all().size();

@@ -355,6 +355,51 @@ TEST(Sync, assignFilesystemIds_whenFilesystemFingerprintsMatchLocalNodes)
     ASSERT_TRUE(fx.iteratorsCorrect(*lf_1_1_0));
 }
 
+TEST(Sync, assignFilesystemIds_whenFilesystemFingerprintsMatchLocalNodes_oppositeDeclarationOrder)
+{
+    Fixture fx{"d"};
+
+    // Level 0
+    mt::FsNode d{nullptr, mega::FOLDERNODE, "d"};
+    mega::LocalNode& ld = fx.mSync->localroot;
+    static_cast<mega::FileFingerprint&>(ld) = d.getFingerprint();
+
+    // Level 1
+    mt::FsNode d_0{&d, mega::FOLDERNODE, "d_0"};
+    auto ld_0 = mt::makeLocalNode(*fx.mSync, ld, fx.mLocalNodes, mega::FOLDERNODE, "d_0", d_0.getFingerprint());
+
+    // Level 2
+
+    // reverse order of declaration should still lead to same results (files vs localnodes)
+    mt::FsNode f_0_1{&d_0, mega::FILENODE, "f_0_1"};
+    mt::FsNode f_0_0{&d_0, mega::FILENODE, "f_0_0"};
+    auto lf_0_0 = mt::makeLocalNode(*fx.mSync, *ld_0, fx.mLocalNodes, mega::FILENODE, "f_0_0", f_0_0.getFingerprint());
+    auto lf_0_1 = mt::makeLocalNode(*fx.mSync, *ld_0, fx.mLocalNodes, mega::FILENODE, "f_0_1", f_0_1.getFingerprint());
+
+    mt::collectAllFsNodes(fx.mFsNodes, d);
+
+    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, "d/" + mt::gLocalDebris, "/");
+
+    ASSERT_TRUE(success);
+
+    // assert that directories have correct fs IDs
+    ASSERT_EQ(mega::UNDEF, ld.fsid);
+    ASSERT_EQ(d_0.getFsId(), ld_0->fsid);
+
+    // assert that all file `LocalNode`s have same fs IDs as the corresponding `FsNode`s
+    ASSERT_EQ(f_0_0.getFsId(), lf_0_0->fsid);
+    ASSERT_EQ(f_0_1.getFsId(), lf_0_1->fsid);
+
+    // assert that the local node map is correct
+    constexpr std::size_t fileCount = 3;
+    ASSERT_EQ(fileCount, fx.mLocalNodes.size());
+
+    ASSERT_FALSE(fx.iteratorsCorrect(ld));
+    ASSERT_TRUE(fx.iteratorsCorrect(*ld_0));
+    ASSERT_TRUE(fx.iteratorsCorrect(*lf_0_0));
+    ASSERT_TRUE(fx.iteratorsCorrect(*lf_0_1));
+}
+
 TEST(Sync, assignFilesystemIds_whenNoLocalNodesMatchFilesystemFingerprints)
 {
     Fixture fx{"d"};
