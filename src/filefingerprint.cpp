@@ -123,35 +123,59 @@ FileFingerprint& FileFingerprint::operator=(const FileFingerprint& other)
 
 bool FileFingerprint::genfingerprint(const m_off_t filesize, const m_time_t filemtime, const char* filename)
 {
-    mtime = filemtime;
-    size = filesize;
-    isvalid = true;
+    bool changed = false;
+    decltype(crc) newcrc{};
+
+    if (mtime != filemtime)
+    {
+        mtime = filemtime;
+        changed = true;
+    }
+
+    if (size != filesize)
+    {
+        size = filesize;
+        changed = true;
+    }
+
+    if (!isvalid)
+    {
+        isvalid = true;
+        changed = true;
+    }
 
     if (!filename)
     {
-        return true;
+        return changed;
     }
 
     if (!*filename)
     {
-        return true;
+        return changed;
     }
 
-    for (;;)
+    bool end = false;
+    while (!end)
     {
-        for (auto& value : crc)
+        for (auto& value : newcrc)
         {
             value += *filename;
             ++filename;
-            if (!*filename)
+            if  (!*filename)
             {
-                // null terminator found
-                return true;
+                end = true;
+                break;
             }
         }
     }
 
-    return true;
+    if (crc != newcrc)
+    {
+        crc = newcrc;
+        changed = true;
+    }
+
+    return changed;
 }
 
 bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
