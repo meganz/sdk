@@ -53,7 +53,7 @@ public:
     bool arm();
 
     // time left for event to become armed
-    dstime retryin();
+    dstime retryin() const;
 
     // current backoff delta
     dstime backoffdelta();
@@ -66,6 +66,82 @@ public:
 
     BackoffTimer(PrnGen &rng);
 };
+
+class MEGA_API BackoffTimerTracked;
+
+// This class keeps track of a group of BackoffTimerTracked, which register and deregister themselves.
+// Timers are in the multimap when they have non-0 non-NEVER timeouts set, giving us a much smaller group should we need to iterate it.
+class MEGA_API BackoffTimerGroupTracker
+{
+    std::multimap<dstime, BackoffTimerTracked*> timeouts;
+
+public:
+    typedef std::multimap<dstime, BackoffTimerTracked*>::iterator Iter;
+
+    inline Iter add(BackoffTimerTracked* bt);
+    inline void remove(Iter i) { timeouts.erase(i); }
+
+    // Find out the soonest (non-0 and non-NEVER) timeout in the group.
+    // For transfers, it calls set(0) on any timed out timers, as the old code did.
+    void update(dstime* waituntil, bool transfers);
+};
+
+
+// Just like a backoff timer, but is part of a group where we want to know the soonest (non-0) timeout in the group immediately
+// Also, the enable() function can be used to exclude timers when they are not relevant, while keeping the timer settings.
+class MEGA_API BackoffTimerTracked
+{
+    bool isEnabled;
+    BackoffTimer bt;
+    BackoffTimerGroupTracker& tracker;
+    BackoffTimerGroupTracker::Iter trackerPos;
+
+    void untrack()
+    {
+        if (isEnabled && bt.nextset() != 0 && bt.nextset() != NEVER)
+        {
+            tracker.remove(trackerPos);
+            trackerPos = BackoffTimerGroupTracker::Iter();
+        }
+    }
+
+    void track()
+    {
+        if (isEnabled && bt.nextset() != 0 && bt.nextset() != NEVER)
+        {
+            trackerPos = tracker.add(this);
+        }
+    }
+
+public:
+    BackoffTimerTracked(PrnGen &rng, BackoffTimerGroupTracker& tr) : isEnabled(true), bt(rng), tracker(tr) 
+    { 
+        track(); 
+    }
+    ~BackoffTimerTracked() 
+    { 
+        untrack(); 
+    }
+
+    inline bool arm()               { untrack(); bool result = bt.arm();   track(); return result; }
+    inline void backoff()           { untrack(); bt.backoff();             track(); }
+    inline void backoff(dstime t)   { untrack(); bt.backoff(t);            track(); }
+    inline void set(dstime t)       { untrack(); bt.set(t);                track(); }
+    inline void update(dstime* t)   { untrack(); bt.update(t);             track(); }
+    inline void reset()             { untrack(); bt.reset();               track(); }
+
+    inline bool armed() const       { return bt.armed(); };
+    inline dstime nextset() const   { return bt.nextset(); };
+    inline dstime retryin() const   { return bt.retryin(); }
+
+    inline void enable(bool b)      { untrack(); isEnabled = b; track(); }
+    inline bool enabled()           { return isEnabled; }
+};
+
+inline auto BackoffTimerGroupTracker::add(BackoffTimerTracked* bt) -> Iter 
+{ 
+    return timeouts.emplace(bt->nextset() ? bt->nextset() : NEVER, bt); 
+}
 
 
 class MEGA_API TimerWithBackoff: public BackoffTimer {

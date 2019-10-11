@@ -86,7 +86,7 @@ void BackoffTimer::set(dstime newds)
     }
 }
 
-dstime BackoffTimer::retryin()
+dstime BackoffTimer::retryin() const
 {
     if (armed())
     {
@@ -134,6 +134,87 @@ TimerWithBackoff::TimerWithBackoff(PrnGen &rng, int tag)
     : BackoffTimer(rng)
 {
     this->tag = tag;
+}
+
+
+void BackoffTimerGroupTracker::update(dstime* waituntil, bool transfers)
+{
+    vector<BackoffTimerTracked*> v;
+    v.reserve(timeouts.size());
+
+    if (transfers)
+    {
+        // used to be:
+        //for (transfer_map::iterator it = transfers[d].begin(); it != transfers[d].end(); it++)
+        //{
+        //    if ((!it->second->slot || !it->second->slot->fa)
+        //     && it->second->bt.nextset())
+        //    {
+        //        it->second->bt.update(dsmin);
+        //        if (it->second->bt.armed())
+        //        {
+        //            // fire the timer only once but keeping it armed
+        //            it->second->bt.set(0);
+        //            LOG_debug << "Disabling armed transfer backoff";
+        //        }
+        //    }
+        //}
+
+        for (auto t : timeouts)
+        {
+            // put the ones to work on in a vector, as working on them changes their position in the map
+            if (t.first <= Waiter::ds)
+            {
+                v.push_back(t.second);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        for (auto t : v)
+        {
+            t->update(waituntil);
+            if (t->armed())
+            {
+                // fire the timer only once but keeping it armed
+                t->set(0);
+                LOG_debug << "Disabling armed transfer backoff";
+            }
+        }
+
+    }
+    else
+    {
+        // used to be:
+        //for (transferslot_list::iterator it = tslots.begin(); it != tslots.end(); it++)
+        //{
+        //    if (!(*it)->retrybt.armed())
+        //    {
+        //        (*it)->retrybt.update(&nds);
+        //    }
+        //}
+
+        for (auto t : timeouts)
+        {
+            if (t.second->armed())
+            {
+                v.push_back(t.second);
+            }
+            if (t.first > Waiter::ds)
+            {
+                break;
+            }
+        }
+
+        for (auto t : v)
+        {
+            // update may set next=1 so we can't just call the first one.
+            t->update(waituntil);
+        }
+
+    }
 }
 
 } // namespace

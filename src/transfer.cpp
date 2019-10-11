@@ -33,7 +33,7 @@
 namespace mega {
 
 Transfer::Transfer(MegaClient* cclient, direction_t ctype)
-    : bt(cclient->rng)
+    : bt(cclient->rng, cclient->transferRetryBackoffs[ctype])
 {
     type = ctype;
     client = cclient;
@@ -499,8 +499,7 @@ void Transfer::complete()
         bool success;
 
         // disconnect temp file from slot...
-        delete slot->fa;
-        slot->fa = NULL;
+        slot->fa.reset();
 
         // FIXME: multiple overwrite race conditions below (make copies
         // from open file instead of closing/reopening!)
@@ -877,8 +876,7 @@ void Transfer::complete()
         else
         {
             // some files are still pending completion, close fa and set retry timer
-            delete slot->fa;
-            slot->fa = NULL;
+            slot->fa.reset();
 
             LOG_debug << "Files pending completion: " << files.size() << ". Waiting for a retry.";
             LOG_debug << "First pending file: " << files.front()->name;
@@ -901,8 +899,7 @@ void Transfer::complete()
                 client->reqtag = creqtag;
             }
 
-            delete slot->fa;
-            slot->fa = NULL;
+            slot->fa.reset();
         }
 
         // files must not change during a PUT transfer
