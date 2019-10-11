@@ -12369,7 +12369,7 @@ class MegaApi
          */
         long long getNumNodes();
 
-        enum OrderType { ORDER_NONE = 0, ORDER_DEFAULT_ASC, ORDER_DEFAULT_DESC,
+        enum { ORDER_NONE = 0, ORDER_DEFAULT_ASC, ORDER_DEFAULT_DESC,
             ORDER_SIZE_ASC, ORDER_SIZE_DESC,
             ORDER_CREATION_ASC, ORDER_CREATION_DESC,
             ORDER_MODIFICATION_ASC, ORDER_MODIFICATION_DESC,
@@ -12455,10 +12455,10 @@ class MegaApi
          * Sort by modification time of the original file, descending
          *
          * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-         * Sort in alphabetical order, ascending
+         * Same behavior than MegaApi::ORDER_DEFAULT_ASC
          *
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-         * Sort in alphabetical order, descending
+         * Same behavior than MegaApi::ORDER_DEFAULT_DESC
          *
          * - MegaApi::ORDER_PHOTO_ASC = 11
          * Sort with photos first, then by date ascending
@@ -12471,6 +12471,10 @@ class MegaApi
          *
          * - MegaApi::ORDER_VIDEO_DESC = 14
          * Sort with videos first, then by date descending
+         *
+         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
+         * They will be eventually removed.
          *
          * @return List with all child MegaNode objects
          */
@@ -12549,10 +12553,14 @@ class MegaApi
          * Sort by modification time of the original file, descending
          *
          * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-         * Sort in alphabetical order, ascending
+         * Same behavior than MegaApi::ORDER_DEFAULT_ASC
          *
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-         * Sort in alphabetical order, descending
+         * Same behavior than MegaApi::ORDER_DEFAULT_DESC
+         *
+         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
+         * They will be eventually removed.
          *
          * - MegaApi::ORDER_PHOTO_ASC = 11
          * Sort with photos first, then by date ascending
@@ -13330,10 +13338,14 @@ class MegaApi
          * Sort by modification time of the original file, descending
          *
          * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-         * Sort in alphabetical order, ascending
+         * Same behavior than MegaApi::ORDER_DEFAULT_ASC
          *
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-         * Sort in alphabetical order, descending
+         * Same behavior than MegaApi::ORDER_DEFAULT_DESC
+         *
+         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
+         * They will be eventually removed.
          *
          * - MegaApi::ORDER_PHOTO_ASC = 11
          * Sort with photos first, then by date ascending
@@ -13397,10 +13409,14 @@ class MegaApi
          * Sort by modification time of the original file, descending
          *
          * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-         * Sort in alphabetical order, ascending
+         * Same behavior than MegaApi::ORDER_DEFAULT_ASC
          *
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-         * Sort in alphabetical order, descending
+         * Same behavior than MegaApi::ORDER_DEFAULT_DESC
+         *
+         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
+         * They will be eventually removed.
          *
          * - MegaApi::ORDER_PHOTO_ASC = 11
          * Sort with photos first, then by date ascending
@@ -13462,10 +13478,14 @@ class MegaApi
          * Sort by modification time of the original file, descending
          *
          * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-         * Sort in alphabetical order, ascending
+         * Same behavior than MegaApi::ORDER_DEFAULT_ASC
          *
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-         * Sort in alphabetical order, descending
+         * Same behavior than MegaApi::ORDER_DEFAULT_DESC
+         *
+         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
+         * They will be eventually removed.
          *
          * - MegaApi::ORDER_PHOTO_ASC = 11
          * Sort with photos first, then by date ascending
@@ -13532,10 +13552,14 @@ class MegaApi
          * Sort by modification time of the original file, descending
          *
          * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-         * Sort in alphabetical order, ascending
+         * Same behavior than MegaApi::ORDER_DEFAULT_ASC
          *
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-         * Sort in alphabetical order, descending
+         * Same behavior than MegaApi::ORDER_DEFAULT_DESC
+         *
+         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
+         * They will be eventually removed.
          *
          * - MegaApi::ORDER_PHOTO_ASC = 11
          * Sort with photos first, then by date ascending
