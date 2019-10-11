@@ -119,6 +119,9 @@ struct MEGA_API MegaApp
     // up to date with API (regarding actionpackets)
     virtual void catchup_result() { }
 
+    // notify about a modified key
+    virtual void key_modified(handle, attr_t) { }
+
     // node addition has failed
     virtual void putnodes_result(error, targettype_t, NewNode*) { }
 
@@ -375,6 +378,8 @@ struct MEGA_API MegaApp
 
     // result of get country calling codes command
     virtual void getcountrycallingcodes_result(error, map<string, vector<string>>*) { }
+
+    virtual void getmiscflags_result(error) { }
 
     virtual ~MegaApp() { }
 };

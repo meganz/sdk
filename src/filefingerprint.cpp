@@ -25,9 +25,15 @@
 #include "mega/logging.h"
 #include "mega/utils.h"
 
+namespace {
+
+constexpr int MAXFULL = 8192;
+
+} // anonymous
+
 namespace mega {
 
-bool operator==(FileFingerprint& lhs, FileFingerprint& rhs)
+bool operator==(const FileFingerprint& lhs, const FileFingerprint& rhs)
 {
     // size differs - cannot be equal
     if (lhs.size != rhs.size)
@@ -57,15 +63,6 @@ bool operator==(FileFingerprint& lhs, FileFingerprint& rhs)
     }
 
     return !memcmp(lhs.crc, rhs.crc, sizeof lhs.crc);
-}
-
-FileFingerprint::FileFingerprint()
-{
-    // mark as invalid
-    size = -1;
-    mtime = 0;
-    isvalid = false;
-    memset(crc, 0, sizeof crc);
 }
 
 bool FileFingerprint::serialize(string *d)
@@ -107,13 +104,21 @@ FileFingerprint *FileFingerprint::unserialize(string *d)
     return fp;
 }
 
-FileFingerprint& FileFingerprint::operator=(FileFingerprint& rhs)
+FileFingerprint::FileFingerprint(const FileFingerprint& other)
+: size{other.size}
+, mtime{other.mtime}
+, isvalid{other.isvalid}
 {
-    isvalid = rhs.isvalid;
-    size = rhs.size;
-    mtime = rhs.mtime;
-    memcpy(crc, rhs.crc, sizeof crc);
+    memcpy(crc, other.crc, sizeof(crc));
+}
 
+FileFingerprint& FileFingerprint::operator=(const FileFingerprint& other)
+{
+    assert(this != &other);
+    size = other.size;
+    mtime = other.mtime;
+    memcpy(crc, other.crc, sizeof(crc));
+    isvalid = other.isvalid;
     return *this;
 }
 
@@ -134,12 +139,19 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
         changed = true;
     }
 
+    if (!fa->openf())
+    {
+        size = -1;
+        return true;
+    }
+
     if (size <= (m_off_t)sizeof crc)
     {
         // tiny file: read verbatim, NUL pad
-        if (!fa->frawread((byte*)newcrc, static_cast<unsigned>(size), 0))
+        if (!fa->frawread((byte*)newcrc, static_cast<unsigned>(size), 0, true))
         {
             size = -1;
+            fa->closef();
             return true;
         }
 
@@ -154,9 +166,10 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
         HashCRC32 crc32;
         byte buf[MAXFULL];
 
-        if (!fa->frawread(buf, static_cast<unsigned>(size), 0))
+        if (!fa->frawread(buf, static_cast<unsigned>(size), 0, true))
         {
             size = -1;
+            fa->closef();
             return true;
         }
 
@@ -185,9 +198,10 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
                 if (!fa->frawread(block, sizeof block,
                                   (size - sizeof block)
                                   * (i * blocks + j)
-                                  / (sizeof crc / sizeof *crc * blocks - 1)))
+                                  / (sizeof crc / sizeof *crc * blocks - 1), true))
                 {
                     size = -1;
+                    fa->closef();
                     return true;
                 }
 
@@ -211,6 +225,7 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
         changed = true;
     }
 
+    fa->closef();
     return changed;
 }
 

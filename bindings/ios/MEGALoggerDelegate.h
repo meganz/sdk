@@ -20,6 +20,7 @@
  */
 #import <Foundation/Foundation.h>
 
+NS_ASSUME_NONNULL_BEGIN
 
 /**
  * @brief Protocol to receive information about SDK logs
@@ -59,3 +60,5 @@
 - (void)logWithTime:(NSString*)time logLevel:(NSInteger)logLevel source:(NSString *)source message:(NSString *)message;
 
 @end
+
+NS_ASSUME_NONNULL_END

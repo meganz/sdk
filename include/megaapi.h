@@ -1619,6 +1619,9 @@ public:
  */
 class MegaHandleList
 {
+protected:
+    MegaHandleList();
+
 public:
     /**
      * @brief Creates a new instance of MegaHandleList
@@ -1765,6 +1768,9 @@ class MegaShare
 #ifdef ENABLE_CHAT
 class MegaTextChatPeerList
 {
+protected:
+    MegaTextChatPeerList();
+
 public:
     enum {
         PRIV_UNKNOWN = -2,
@@ -1840,10 +1846,6 @@ public:
      * @return Number of chat peers in the list
      */
     virtual int size() const;
-
-protected:
-    MegaTextChatPeerList();
-
 };
 
 class MegaTextChat
@@ -2076,6 +2078,9 @@ public:
 
 class MegaStringMap
 {
+protected:
+    MegaStringMap();
+
 public:
     /**
      * @brief Creates a new instance of MegaStringMap
@@ -2177,6 +2182,9 @@ public:
 */
 class MegaStringListMap
 {
+protected:
+    MegaStringListMap();
+
 public:
     virtual ~MegaStringListMap();
 
@@ -2237,6 +2245,9 @@ public:
 */
 class MegaStringTable
 {
+protected:
+    MegaStringTable();
+
 public:
     virtual ~MegaStringTable();
 
@@ -2285,6 +2296,9 @@ public:
  */
 class MegaNodeList
 {
+    protected:
+        MegaNodeList();
+
     public:
         /**
          * @brief Creates a new instance of MegaNodeList
@@ -2729,8 +2743,8 @@ class MegaRequest
             TYPE_GET_BACKGROUND_UPLOAD_URL, TYPE_COMPLETE_BACKGROUND_UPLOAD,
             TYPE_GET_CLOUD_STORAGE_USED,
             TYPE_SEND_SMS_VERIFICATIONCODE, TYPE_CHECK_SMS_VERIFICATIONCODE,
-            TYPE_GET_REGISTERED_CONTACTS,
-            TYPE_GET_COUNTRY_CALLING_CODES,
+            TYPE_GET_REGISTERED_CONTACTS, TYPE_GET_COUNTRY_CALLING_CODES,
+            TYPE_VERIFY_CREDENTIALS, TYPE_GET_MISC_FLAGS,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -3433,6 +3447,8 @@ public:
         EVENT_MEDIA_INFO_READY          = 7,
         EVENT_STORAGE_SUM_CHANGED       = 8,
         EVENT_BUSINESS_STATUS           = 9,
+        EVENT_KEY_MODIFIED              = 10,
+        EVENT_MISC_FLAGS_READY          = 11,
     };
 
     virtual ~MegaEvent();
@@ -3474,6 +3490,22 @@ public:
      * @return Number relative to this event
      */
     virtual int64_t getNumber() const;
+
+    /**
+     * @brief Returns the handle relative to this event
+     * @return Handle relative to this event
+     */
+    virtual MegaHandle getHandle() const;
+
+    /**
+     * @brief Returns a readable description of the event
+     *
+     * This function returns a pointer to a statically allocated buffer.
+     * You don't have to free the returned pointer
+     *
+     * @return Readable description of the event
+     */
+    virtual const char* getEventString() const;
 };
 
 /**
@@ -4052,6 +4084,9 @@ public:
  */
 class MegaPushNotificationSettings
 {
+protected:
+    MegaPushNotificationSettings();
+
 public:
 
     /**
@@ -4315,9 +4350,6 @@ public:
      * @param enable True to enable, false to disable
      */
     virtual void enableChats(bool enable);
-
-protected:
-    MegaPushNotificationSettings();
 };
 
 /**
@@ -5920,10 +5952,24 @@ class MegaGlobalListener
          * For this event type, MegaEvent::getNumber provides the new business status.
          *
          * The posible values are:
-         *  - MegaApi::BUSINESS_STATUS_EXPIRED = -1
+         *  - BUSINESS_STATUS_EXPIRED = -1
          *  - BUSINESS_STATUS_INACTIVE = 0
          *  - BUSINESS_STATUS_ACTIVE = 1
          *  - BUSINESS_STATUS_GRACE_PERIOD = 2
+         *
+         * - MegaEvent::EVENT_KEY_MODIFIED: when the key of a user has changed.
+         *
+         * For this event type, MegaEvent::getHandle provides the handle of the user whose key has been modified.
+         * For this event type, MegaEvent::getNumber provides type of key that has been modified.
+         *
+         * The posible values are:
+         *  - Public chat key (Cu25519)     = 0
+         *  - Public signing key (Ed25519)  = 1
+         *  - Public RSA key                = 2
+         *  - Signature of chat key         = 3
+         *  - Signature of RSA key          = 4
+         *
+         * - MegaEvent::EVENT_MISC_FLAGS_READY: when the miscellaneous flags are available/updated.
          *
          * @param api MegaApi object connected to the account
          * @param event Details about the event
@@ -6396,10 +6442,24 @@ class MegaListener
          * For this event type, MegaEvent::getNumber provides the new business status.
          *
          * The posible values are:
-         *  - MegaApi::BUSINESS_STATUS_EXPIRED = -1
+         *  - BUSINESS_STATUS_EXPIRED = -1
          *  - BUSINESS_STATUS_INACTIVE = 0
          *  - BUSINESS_STATUS_ACTIVE = 1
          *  - BUSINESS_STATUS_GRACE_PERIOD = 2
+         *
+         * - MegaEvent::EVENT_KEY_MODIFIED: when the key of a user has changed.
+         *
+         * For this event type, MegaEvent::getHandle provides the handle of the user whose key has been modified.
+         * For this event type, MegaEvent::getNumber provides type of key that has been modified.
+         *
+         * The posible values are:
+         *  - Public chat key (Cu25519)     = 0
+         *  - Public signing key (Ed25519)  = 1
+         *  - Public RSA key                = 2
+         *  - Signature of chat key         = 3
+         *  - Signature of RSA key          = 4
+         *
+         * - MegaEvent::EVENT_MISC_FLAGS_READY: when the miscellaneous flags are available/updated.
          *
          * @param api MegaApi object connected to the account
          * @param event Details about the event
@@ -6418,6 +6478,9 @@ class MegaListener
  */
 class MegaBackgroundMediaUpload
 {
+protected:
+    MegaBackgroundMediaUpload();
+
 public:
 
     /**
@@ -6572,6 +6635,52 @@ public:
 class MegaApiImpl;
 
 /**
+ * @brief Allows calling many synchronous operations on MegaApi without being blocked by SDK activity.
+ *
+ * Call MegaApi::getMegaApiLock() to get an instance of this class to use.
+ */
+class MegaApiLock
+{
+public:
+    /**
+     * @brief Lock the MegaApi if this instance does not currently have a lock on it yet.
+     *
+     * There is no harm in calling this more than once, the MegaApi will only be locked
+     * once, and the first unlock() call will release it.    Sometimes it is useful eg.
+     * in a loop which may or may not need to use a locking function, or may need to use
+     * many, to call lockOnce() before any such usage, and know that the MegaApi will
+     * be locked once from that point, until the end of the loop (when unlockOnce() can
+     * be called, or the MegaApiLock destroyed.
+     */
+    void lockOnce();
+
+    /**
+     * @brief Release the lock on the MegaApi if one is still held by this instance
+     *
+     * The MegaApi will be unable to continue work until all MegaApiLock objects release
+     * their locks.  Only use multiple of these if you need nested locking.  The destructor
+     * of the object will release the lock, so it is sufficient to delete it when finished.
+     * However, when using it from a garbage collected language it may be prudent to call unlock() directly.
+     *
+     * This function must be called from the same thread that called MegaApiLock::lockOnce().
+     */
+    void unlockOnce();
+
+    /**
+     * @brief Destructor.  This will call unlock() if the MegaApi is still locked by this instance.
+     */
+    ~MegaApiLock();
+
+private:
+    MegaApiImpl* api;
+    bool locked = false;
+    MegaApiLock(MegaApiImpl*, bool lock);
+    MegaApiLock(const MegaApiLock&) = delete;
+    void operator=(const MegaApiLock&) = delete;
+    friend class MegaApi;
+};
+
+/**
  * @brief Allows to control a MEGA account or a shared folder
  *
  * You must provide an appKey to use this SDK. You can generate an appKey for your app for free here:
@@ -6703,6 +6812,7 @@ class MegaApi
         };
 
         enum {
+            STORAGE_STATE_UNKNOWN = -9,
             STORAGE_STATE_GREEN = 0,
             STORAGE_STATE_ORANGE = 1,
             STORAGE_STATE_RED = 2,
@@ -7177,20 +7287,43 @@ class MegaApi
 
         /**
          * @brief Check if server-side Rubbish Bin autopurging is enabled for the current account
+         *
+         * Before using this function, it's needed to:
+         *  - If you are logged-in: call to MegaApi::login and MegaApi::fetchNodes.
+         *
          * @return True if this feature is enabled. Otherwise false.
          */
         bool serverSideRubbishBinAutopurgeEnabled();
 
         /**
          * @brief Check if the account has VOIP push enabled
+         *
+         * Before using this function, it's needed to:
+         *  - If you are logged-in: call to MegaApi::login and MegaApi::fetchNodes.
+         *
          * @return True if this feature is enabled. Otherwise false.
          */
         bool appleVoipPushEnabled();
 
         /**
+         * @brief Check if the new format for public links is enabled
+         *
+         * Before using this function, it's needed to:
+         *  - If you are logged-in: call to MegaApi::login and MegaApi::fetchNodes.
+         *  - If you are not logged-in: call to MegaApi::getMiscFlags.
+         *
+         * @return True if this feature is enabled. Otherwise, false.
+         */
+        bool newLinkFormatEnabled();
+
+        /**
          * @brief Check if the opt-in or account unblocking SMS is allowed
          *
          * The result indicated whether the MegaApi::sendSMSVerificationCode function can be used.
+         *
+         * Before using this function, it's needed to:
+         *  - If you are logged-in: call to MegaApi::login and MegaApi::fetchNodes.
+         *  - If you are not logged-in: call to MegaApi::getMiscFlags.
          *
          * @return 2 = Opt-in and unblock SMS allowed.  1 = Only unblock SMS allowed.  0 = No SMS allowed
          */
@@ -7211,8 +7344,9 @@ class MegaApi
         /**
          * @brief Check if multi-factor authentication can be enabled for the current account.
          *
-         * It's needed to be logged into an account and with the nodes loaded (login + fetchNodes) before
-         * using this function. Otherwise it will always return false.
+         * Before using this function, it's needed to:
+         *  - If you are logged-in: call to MegaApi::login and MegaApi::fetchNodes.
+         *  - If you are not logged-in: call to MegaApi::getMiscFlags.
          *
          * @return True if multi-factor authentication can be enabled for the current account, otherwise false.
          */
@@ -7497,6 +7631,23 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getUserData(const char *user, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Fetch miscellaneous flags when not logged in
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_MISC_FLAGS.
+         *
+         * When onRequestFinish is called with MegaError::API_OK, the miscellaneous flags are available.
+         * If you are logged in into an account, the error code provided in onRequestFinish is
+         * MegaError::API_EACCESS.
+         *
+         * @see MegaApi::multiFactorAuthAvailable
+         * @see MegaApi::newLinkFormatEnabled
+         * @see MegaApi::smsAllowedState
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getMiscFlags(MegaRequestListener *listener = NULL);
 
         /**
          * @brief Returns the current session key
@@ -7972,7 +8123,7 @@ class MegaApi
 
         /**
          * @brief Check if the MegaApi object is logged in
-         * @return 0 if not logged in, Otherwise, a number >= 0
+         * @return 0 if not logged in, Otherwise, a number > 0
          */
         int isLoggedIn();
 
@@ -8254,9 +8405,8 @@ class MegaApi
          */
         bool checkPassword(const char *password);
 
-#ifdef ENABLE_CHAT
         /**
-         * @brief Returns the fingerprint of the signing key of the currently open account
+         * @brief Returns the credentials of the currently open account
          *
          * If the MegaApi object isn't logged in or there's no signing key available,
          * this function returns NULL
@@ -8266,8 +8416,64 @@ class MegaApi
          *
          * @return Fingerprint of the signing key of the current account
          */
-        char* getMyFingerprint();
-#endif
+        char* getMyCredentials();
+
+        /**
+         * Returns the credentials of a given user
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns MegaApi::USER_ATTR_ED25519_PUBLIC_KEY
+         * - MegaRequest::getFlag - Returns true
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getPassword - Returns the credentials in hexadecimal format
+         *
+         * @param user MegaUser of the contact (see MegaApi::getContact) to get the fingerprint
+         * @param listener MegaRequestListener to track this request
+         */
+        void getUserCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Checks if credentials are verified for the given user
+         *
+         * @param user MegaUser of the contact whose credentiasl want to be checked
+         * @return true if verified, false otherwise
+         */
+        bool areCredentialsVerified(MegaUser *user);
+
+        /**
+         * @brief Verify credentials of a given user
+         *
+         * This function allow to tag credentials of a user as verified. It should be called when the
+         * logged in user compares the fingerprint of the user (provided by an independent and secure
+         * method) with the fingerprint shown by the app (@see MegaApi::getUserCredentials).
+         *
+         * The associated request type with this request is MegaRequest::TYPE_VERIFY_CREDENTIALS
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns userhandle
+         *
+         * @param user MegaUser of the contact whose credentials want to be verified
+         * @param listener MegaRequestListener to track this request
+         */
+        void verifyCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Reset credentials of a given user
+         *
+         * Call this function to forget the existing authentication of keys and signatures for a given
+         * user. A full reload of the account will start the authentication process again.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_VERIFY_CREDENTIALS
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns userhandle
+         * - MegaRequest::getFlag - Returns true
+         *
+         * @param user MegaUser of the contact whose credentials want to be reset
+         * @param listener MegaRequestListener to track this request
+         */
+        void resetCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Set the active log level
@@ -8291,7 +8497,8 @@ class MegaApi
         /**
          * @brief Enable log to console
          *
-         * By default, log to console is false.
+         * By default, log to console is false. Logging to console is serialized via a mutex to
+         * avoid interleaving by multiple threads, even in performance mode.
          *
          * @param enable True to show messages in console, false to skip them.
          */
@@ -8306,6 +8513,9 @@ class MegaApi
          *
          * You can remove the existing logger by using MegaApi::removeLoggerObject.
          *
+         * In performance mode, it is assumed that this is only called on startup and
+         * not while actively logging.
+         *
          * @param megaLogger MegaLogger implementation
          */
         static void addLoggerObject(MegaLogger *megaLogger);
@@ -8315,6 +8525,9 @@ class MegaApi
          *
          * If the logger was registered in the past, it will stop receiving log
          * messages after the call to this function.
+         *
+         * In performance mode, it is assumed that this is only called on shutdown and
+         * not while actively logging.
          *
          * @param megaLogger Previously registered MegaLogger implementation
          */
@@ -8328,6 +8541,9 @@ class MegaApi
          *
          * The third and the fouth parameter are optional. You may want to use __FILE__ and __LINE__
          * to complete them.
+         *
+         * In performance mode, only logging to console is serialized through a mutex.
+         * Logging to `MegaLogger`s is not serialized and has to be done by the subclasses if needed.
          *
          * @param logLevel Log level for this message
          * @param message Message for the logging system
@@ -10051,6 +10267,7 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void isGeolocationEnabled(MegaRequestListener *listener = NULL);
+#endif
 
         /**
          * @brief Set My Chat Files target folder.
@@ -10075,37 +10292,75 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getNodehandle - Returns the handle of the node where My Chat Files are stored
          *
+         * If the folder is not set, the request will fail with the error code MegaError::API_ENOENT.
+         *
          * @param listener MegaRequestListener to track this request
          */
         void getMyChatFilesFolder(MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Set Camera Uploads target folder.
+         * @brief Set Camera Uploads primary target folder.
          *
          * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
+         * - MegaRequest::getFlag - Returns false
+         * - MegaRequest::getNodehandle - Returns the provided node handle
          *
-         * @param nodehandle MegaHandle of the node to be used as target folder
+         * @param nodehandle MegaHandle of the node to be used as primary target folder
          * @param listener MegaRequestListener to track this request
          */
         void setCameraUploadsFolder(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Gets Camera Uploads target folder.
+         * @brief Set Camera Uploads secondary target folder.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
+         * - MegaRequest::getFlag - Returns true
+         * - MegaRequest::getNodehandle - Returns the provided node handle
+         *
+         * @param nodehandle MegaHandle of the node to be used as secondary target folder
+         * @param listener MegaRequestListener to track this request
+         */
+        void setCameraUploadsFolderSecondary(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Gets Camera Uploads primary target folder.
          *
          * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
+         * - MegaRequest::getFlag - Returns false
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getNodehandle - Returns the handle of the node where Camera Uploads files are stored
+         * - MegaRequest::getNodehandle - Returns the handle of the primary node where Camera Uploads files are stored
+         *
+         * If the folder is not set, the request will fail with the error code MegaError::API_ENOENT.
          *
          * @param listener MegaRequestListener to track this request
          */
         void getCameraUploadsFolder(MegaRequestListener *listener = NULL);
-#endif
+
+        /**
+         * @brief Gets Camera Uploads secondary target folder.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
+         * - MegaRequest::getFlag - Returns true
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNodehandle - Returns the handle of the secondary node where Camera Uploads files are stored
+         *
+         * If the secondary folder is not set, the request will fail with the error code MegaError::API_ENOENT.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getCameraUploadsFolderSecondary(MegaRequestListener *listener = NULL);
 
         /**
          * @brief Gets the alias for an user
@@ -10118,7 +10373,7 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getName - user alias encoded in B64
+         * - MegaRequest::getName - Returns the user alias
          *
          * If the user alias doesn't exists the request will fail with the error code MegaError::API_ENOENT.
          *
@@ -10583,6 +10838,34 @@ class MegaApi
          * is transferred using this function, the custom modification time won't have any effect
          */
         void startUpload(const char* localPath, MegaNode* parent, const char* fileName, int64_t mtime, MegaTransferListener *listener = NULL);
+
+        /**
+         * @brief Upload a file or a folder
+         *
+         * This method should be used ONLY to share by chat a local file. In case the file
+         * is already uploaded, but the corresponding node is missing the thumbnail and/or preview,
+         * this method will force a new upload from the scratch (ensuring the file attributes are set),
+         * instead of doing a remote copy.
+         *
+         * If the status of the business account is expired, onTransferFinish will be called with the error
+         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+         * "Your business account is overdue, please contact your administrator."
+         *
+         * @param localPath Local path of the file or folder
+         * @param parent Parent node for the file or folder in the MEGA account
+         * @param appData Custom app data to save in the MegaTransfer object
+         * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+         * related to the transfer. If a transfer is started with exactly the same data
+         * (local path and target parent) as another one in the transfer queue, the new transfer
+         * fails with the error API_EEXISTS and the appData of the new transfer is appended to
+         * the appData of the old transfer, using a '!' separator if the old transfer had already
+         * appData.
+         * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
+         * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
+         * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
+         * @param listener MegaTransferListener to track this transfer
+         */
+        void startUploadForChat(const char *localPath, MegaNode *parent, const char *appData, bool isSourceTemporary, MegaTransferListener *listener = nullptr);
 
         /**
          * @brief Download a file or a folder from MEGA
@@ -12094,98 +12377,115 @@ class MegaApi
          */
         long long getNumNodes();
 
-        enum {	ORDER_NONE = 0, ORDER_DEFAULT_ASC, ORDER_DEFAULT_DESC,
+        enum { ORDER_NONE = 0, ORDER_DEFAULT_ASC, ORDER_DEFAULT_DESC,
             ORDER_SIZE_ASC, ORDER_SIZE_DESC,
             ORDER_CREATION_ASC, ORDER_CREATION_DESC,
             ORDER_MODIFICATION_ASC, ORDER_MODIFICATION_DESC,
-            ORDER_ALPHABETICAL_ASC, ORDER_ALPHABETICAL_DESC};
+            ORDER_ALPHABETICAL_ASC, ORDER_ALPHABETICAL_DESC,
+            ORDER_PHOTO_ASC, ORDER_PHOTO_DESC,
+            ORDER_VIDEO_ASC, ORDER_VIDEO_DESC};
 
+        /**
+         * @brief Get the number of child nodes
+         *
+         * If the node doesn't exist in MEGA or isn't a folder,
+         * this function returns 0
+         *
+         * This function doesn't search recursively, only returns the direct child nodes.
+         *
+         * @param parent Parent node
+         * @return Number of child nodes
+         */
+        int getNumChildren(MegaNode* parent);
 
-		/**
-		 * @brief Get the number of child nodes
-		 *
-		 * If the node doesn't exist in MEGA or isn't a folder,
-		 * this function returns 0
-		 *
-		 * This function doesn't search recursively, only returns the direct child nodes.
-		 *
-		 * @param parent Parent node
-		 * @return Number of child nodes
-		 */
-		int getNumChildren(MegaNode* parent);
+        /**
+         * @brief Get the number of child files of a node
+         *
+         * If the node doesn't exist in MEGA or isn't a folder,
+         * this function returns 0
+         *
+         * This function doesn't search recursively, only returns the direct child files.
+         *
+         * @param parent Parent node
+         * @return Number of child files
+         */
+        int getNumChildFiles(MegaNode* parent);
 
-		/**
-		 * @brief Get the number of child files of a node
-		 *
-		 * If the node doesn't exist in MEGA or isn't a folder,
-		 * this function returns 0
-		 *
-		 * This function doesn't search recursively, only returns the direct child files.
-		 *
-		 * @param parent Parent node
-		 * @return Number of child files
-		 */
-		int getNumChildFiles(MegaNode* parent);
+        /**
+         * @brief Get the number of child folders of a node
+         *
+         * If the node doesn't exist in MEGA or isn't a folder,
+         * this function returns 0
+         *
+         * This function doesn't search recursively, only returns the direct child folders.
+         *
+         * @param parent Parent node
+         * @return Number of child folders
+         */
+        int getNumChildFolders(MegaNode* parent);
 
-		/**
-		 * @brief Get the number of child folders of a node
-		 *
-		 * If the node doesn't exist in MEGA or isn't a folder,
-		 * this function returns 0
-		 *
-		 * This function doesn't search recursively, only returns the direct child folders.
-		 *
-		 * @param parent Parent node
-		 * @return Number of child folders
-		 */
-		int getNumChildFolders(MegaNode* parent);
-
-		/**
-		 * @brief Get all children of a MegaNode
-		 *
-		 * If the parent node doesn't exist or it isn't a folder, this function
-		 * returns NULL
-		 *
-		 * You take the ownership of the returned value
-		 *
-		 * @param parent Parent node
-		 * @param order Order for the returned list
-		 * Valid values for this parameter are:
-		 * - MegaApi::ORDER_NONE = 0
-		 * Undefined order
-		 *
-		 * - MegaApi::ORDER_DEFAULT_ASC = 1
-		 * Folders first in alphabetical order, then files in the same order
-		 *
-		 * - MegaApi::ORDER_DEFAULT_DESC = 2
-		 * Files first in reverse alphabetical order, then folders in the same order
-		 *
-		 * - MegaApi::ORDER_SIZE_ASC = 3
-		 * Sort by size, ascending
-		 *
-		 * - MegaApi::ORDER_SIZE_DESC = 4
-		 * Sort by size, descending
-		 *
-		 * - MegaApi::ORDER_CREATION_ASC = 5
-		 * Sort by creation time in MEGA, ascending
-		 *
-		 * - MegaApi::ORDER_CREATION_DESC = 6
-		 * Sort by creation time in MEGA, descending
-		 *
-		 * - MegaApi::ORDER_MODIFICATION_ASC = 7
-		 * Sort by modification time of the original file, ascending
-		 *
-		 * - MegaApi::ORDER_MODIFICATION_DESC = 8
-		 * Sort by modification time of the original file, descending
-		 *
-		 * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-		 * Sort in alphabetical order, ascending
-		 *
-		 * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-		 * Sort in alphabetical order, descending
-		 *
-		 * @return List with all child MegaNode objects
-		 */
+        /**
+         * @brief Get all children of a MegaNode
+         *
+         * If the parent node doesn't exist or it isn't a folder, this function
+         * returns NULL
+         *
+         * You take the ownership of the returned value
+         *
+         * @param parent Parent node
+         * @param order Order for the returned list
+         * Valid values for this parameter are:
+         * - MegaApi::ORDER_NONE = 0
+         * Undefined order
+         *
+         * - MegaApi::ORDER_DEFAULT_ASC = 1
+         * Folders first in alphabetical order, then files in the same order
+         *
+         * - MegaApi::ORDER_DEFAULT_DESC = 2
+         * Files first in reverse alphabetical order, then folders in the same order
+         *
+         * - MegaApi::ORDER_SIZE_ASC = 3
+         * Sort by size, ascending
+         *
+         * - MegaApi::ORDER_SIZE_DESC = 4
+         * Sort by size, descending
+         *
+         * - MegaApi::ORDER_CREATION_ASC = 5
+         * Sort by creation time in MEGA, ascending
+         *
+         * - MegaApi::ORDER_CREATION_DESC = 6
+         * Sort by creation time in MEGA, descending
+         *
+         * - MegaApi::ORDER_MODIFICATION_ASC = 7
+         * Sort by modification time of the original file, ascending
+         *
+         * - MegaApi::ORDER_MODIFICATION_DESC = 8
+         * Sort by modification time of the original file, descending
+         *
+         * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+         * Same behavior than MegaApi::ORDER_DEFAULT_ASC
+         *
+         * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+         * Same behavior than MegaApi::ORDER_DEFAULT_DESC
+         *
+         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * Sort with photos first, then by date ascending
+         *
+         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * Sort with photos first, then by date descending
+         *
+         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * Sort with videos first, then by date ascending
+         *
+         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * Sort with videos first, then by date descending
+         *
+         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
+         * They will be eventually removed.
+         *
+         * @return List with all child MegaNode objects
+         */
         MegaNodeList* getChildren(MegaNode *parent, int order = 1);
 
         /**
@@ -12261,10 +12561,26 @@ class MegaApi
          * Sort by modification time of the original file, descending
          *
          * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-         * Sort in alphabetical order, ascending
+         * Same behavior than MegaApi::ORDER_DEFAULT_ASC
          *
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-         * Sort in alphabetical order, descending
+         * Same behavior than MegaApi::ORDER_DEFAULT_DESC
+         *
+         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
+         * They will be eventually removed.
+         *
+         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * Sort with photos first, then by date ascending
+         *
+         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * Sort with photos first, then by date descending
+         *
+         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * Sort with videos first, then by date ascending
+         *
+         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * Sort with videos first, then by date descending
          *
          * @return Lists with files and folders child MegaNode objects
          */
@@ -13030,10 +13346,26 @@ class MegaApi
          * Sort by modification time of the original file, descending
          *
          * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-         * Sort in alphabetical order, ascending
+         * Same behavior than MegaApi::ORDER_DEFAULT_ASC
          *
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-         * Sort in alphabetical order, descending
+         * Same behavior than MegaApi::ORDER_DEFAULT_DESC
+         *
+         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
+         * They will be eventually removed.
+         *
+         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * Sort with photos first, then by date ascending
+         *
+         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * Sort with photos first, then by date descending
+         *
+         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * Sort with videos first, then by date ascending
+         *
+         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * Sort with videos first, then by date descending
          *
          * @return List of nodes that contain the desired string in their name
          */
@@ -13085,10 +13417,26 @@ class MegaApi
          * Sort by modification time of the original file, descending
          *
          * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-         * Sort in alphabetical order, ascending
+         * Same behavior than MegaApi::ORDER_DEFAULT_ASC
          *
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-         * Sort in alphabetical order, descending
+         * Same behavior than MegaApi::ORDER_DEFAULT_DESC
+         *
+         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
+         * They will be eventually removed.
+         *
+         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * Sort with photos first, then by date ascending
+         *
+         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * Sort with photos first, then by date descending
+         *
+         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * Sort with videos first, then by date ascending
+         *
+         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * Sort with videos first, then by date descending
          *
          * @return List of nodes that contain the desired string in their name
          */
@@ -13138,10 +13486,26 @@ class MegaApi
          * Sort by modification time of the original file, descending
          *
          * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-         * Sort in alphabetical order, ascending
+         * Same behavior than MegaApi::ORDER_DEFAULT_ASC
          *
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-         * Sort in alphabetical order, descending
+         * Same behavior than MegaApi::ORDER_DEFAULT_DESC
+         *
+         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
+         * They will be eventually removed.
+         *
+         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * Sort with photos first, then by date ascending
+         *
+         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * Sort with photos first, then by date descending
+         *
+         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * Sort with videos first, then by date ascending
+         *
+         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * Sort with videos first, then by date descending
          *
          * @return List of nodes that contain the desired string in their name
          */
@@ -13196,10 +13560,26 @@ class MegaApi
          * Sort by modification time of the original file, descending
          *
          * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-         * Sort in alphabetical order, ascending
+         * Same behavior than MegaApi::ORDER_DEFAULT_ASC
          *
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-         * Sort in alphabetical order, descending
+         * Same behavior than MegaApi::ORDER_DEFAULT_DESC
+         *
+         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
+         * They will be eventually removed.
+         *
+         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * Sort with photos first, then by date ascending
+         *
+         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * Sort with photos first, then by date descending
+         *
+         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * Sort with videos first, then by date ascending
+         *
+         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * Sort with videos first, then by date descending
          *
          * @return List of nodes that contain the desired string in their name
          */
@@ -15403,7 +15783,25 @@ class MegaApi
          */
         void getPublicLinkInformation(const char *megaFolderLink, MegaRequestListener *listener = NULL);
 
-private:
+
+        /**
+         * @brief Get an object that can lock the MegaApi, allowing multple quick synchronous calls.
+         *
+         * This object must be used very carefully.  It is meant to be used  when the application is about 
+         * to make a burst of synchronous calls (that return data immediately, without using a listener)
+         * to the API over a very short time period, which could otherwise be blocked multple times
+         * interrupted by the MegaApi's operation.
+         *
+         * The MegaApiLock usual use is to request it already locked, and the caller must destroy it
+         * when its sequence of operations are complete, which will allow the MegaApi to continue again.
+         * However explicit lock and unlock calls can also be made on it, which are protected from 
+         * making more than one lock, and the destructor will make sure the lock is released.
+         * 
+         * You take ownership of the returned value, and you must delete it when the sequence is complete.
+         */
+        MegaApiLock* getMegaApiLock(bool lockNow);
+
+ private:
         MegaApiImpl *pImpl;
         friend class MegaApiImpl;
 };
@@ -15761,10 +16159,25 @@ public:
     virtual long long getTransferMax();
 
     /**
-     * @brief Get the used bandwidth
+     * @brief Get the used bandwidth for own user allowance
+     * @see: MegaAccountDetails::getTransferUsed
      * @return Used bandwidth (in bytes)
      */
     virtual long long getTransferOwnUsed();
+
+    /**
+     * @brief Get the used bandwidth served to other users
+     * @see: MegaAccountDetails::getTransferUsed
+     * @return Used bandwidth (in bytes)
+     */
+    virtual long long getTransferSrvUsed();
+
+    /**
+     * @brief Get the used bandwidth allowance including own, free and served to other users
+     * @see: MegaAccountDetails::getTransferOwnUsed, MegaAccountDetails::getTemporalBandwidth, MegaAccountDetails::getTransferSrvUsed
+     * @return Used bandwidth (in bytes)
+     */
+    virtual long long getTransferUsed();
 
     /**
      * @brief Returns the number of nodes with account usage info
@@ -15938,11 +16351,12 @@ public:
     virtual int getTemporalBandwidthInterval();
 
     /**
-     * @brief Get the number of bytes that were recently transferred
+     * @brief Get the number of bytes that were recently transferred using free allowance
      *
      * The time interval in which those bytes were transferred
      * is provided (in hours) using MegaAccountDetails::getTemporalBandwidthInterval
      *
+     * @see: MegaAccountDetails::getTransferUsed
      * @return Number of bytes that were recently transferred
      */
     virtual long long getTemporalBandwidth();
@@ -16340,6 +16754,9 @@ public:
 
 class MegaCancelToken
 {
+protected:
+    MegaCancelToken();
+
 public:
 
     /**

@@ -337,7 +337,7 @@ CommandPutFile::CommandPutFile(MegaClient* client, TransferSlot* ctslot, int ms)
             if (node)
             {
                 handle rootnode = client->getrootnode(node)->nodehandle;
-                tslot->transfer->foreignTarget = client->rootnodes[0] != rootnode;
+                tslot->transfer->mForeignTarget = client->rootnodes[0] != rootnode;
 
                 if (targetRoots.find(rootnode) != targetRoots.end())
                 {
@@ -2675,7 +2675,6 @@ void CommandPutMultipleUAVer::procresult()
             u->setattr(type, &it->second, &version);
             u->setTag(tag ? tag : -1);
 
-#ifdef ENABLE_CHAT
             if (type == ATTR_KEYRING)
             {
                 TLVstore *tlvRecords = TLVstore::containerToTLVrecords(&attrs[type], &client->key);
@@ -2724,7 +2723,19 @@ void CommandPutMultipleUAVer::procresult()
                     LOG_warn << "Failed to decrypt keyring after putua";
                 }
             }
-#endif
+            else if (User::isAuthring(type))
+            {
+                client->mAuthRings.erase(type);
+                const std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&attrs[type], &client->key));
+                if (tlvRecords)
+                {
+                    client->mAuthRings.emplace(type, AuthRing(type, *tlvRecords));
+                }
+                else
+                {
+                    LOG_err << "Failed to decrypt keyring after putua";
+                }
+            }
         }
     }
 
@@ -2752,7 +2763,7 @@ CommandPutUAVer::CommandPutUAVer(MegaClient* client, attr_t at, const byte* av, 
     }
 
     const string *attrv = client->ownuser()->getattrversion(at);
-    if (attrv)
+    if (client->ownuser()->isattrvalid(at) && attrv)
     {
         element(attrv->c_str());
     }
@@ -2797,6 +2808,20 @@ void CommandPutUAVer::procresult()
             User *u = client->ownuser();
             u->setattr(at, &av, &v);
             u->setTag(tag ? tag : -1);
+
+            if (User::isAuthring(at))
+            {
+                client->mAuthRings.erase(at);
+                const std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&av, &client->key));
+                if (tlvRecords)
+                {
+                    client->mAuthRings.emplace(at, AuthRing(at, *tlvRecords));
+                }
+                else
+                {
+                    LOG_err << "Failed to decrypt " << User::attr2string(at) << " after putua";
+                }
+            }
 
             client->notifyuser(u);
             client->app->putua_result(API_OK);
@@ -2897,6 +2922,12 @@ void CommandGetUA::procresult()
     if (client->json.isnumeric())
     {
         error e = (error)client->json.getint();
+
+        if (e == API_ENOENT && u)
+        {
+            u->removeattr(at);
+        }
+
         client->app->getua_result(e);
 
         if (isFromChatPreview())    // if `mcuga` was sent, no need to do anything else
@@ -2904,12 +2935,27 @@ void CommandGetUA::procresult()
             return;
         }
 
-#ifdef  ENABLE_CHAT
-        if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me && e != API_EBLOCKED)
+        if (u && u->userhandle == client->me && e != API_EBLOCKED)
         {
-            client->initializekeys(); // we have now all the required data
+            if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK)
+            {
+                client->initializekeys(); // we have now all the required data
+            }
+
+            if (e == API_ENOENT && User::isAuthring(at))
+            {
+                // authring not created yet, will do it upon retrieval of public keys
+                client->mAuthRings.erase(at);
+                client->mAuthRings.emplace(at, AuthRing(at, TLVstore()));
+
+                if (client->mFetchingAuthrings && client->mAuthRings.size() == 3)
+                {
+                    client->mFetchingAuthrings = false;
+                    client->fetchContactsKeys();
+                }
+            }
         }
-#endif
+
         // if the attr does not exist, initialize it
         if (at == ATTR_DISABLE_VERSIONS && e == API_ENOENT)
         {
@@ -2951,12 +2997,10 @@ void CommandGetUA::procresult()
                     if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
                     {
                         client->app->getua_result(API_EINTERNAL);
-#ifdef ENABLE_CHAT
                         if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
                         {
                             client->initializekeys(); // we have now all the required data
                         }
-#endif
                         return;
                     }
                     buf.assign(ptr, (end-ptr));
@@ -2967,12 +3011,10 @@ void CommandGetUA::procresult()
                     if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
                     {
                         client->app->getua_result(API_EINTERNAL);
-#ifdef ENABLE_CHAT
                         if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
                         {
                             client->initializekeys(); // we have now all the required data
                         }
-#endif
                         return;
                     }
                     version.assign(ptr, (end-ptr));
@@ -3032,30 +3074,53 @@ void CommandGetUA::procresult()
                             u->setattr(at, tlvString, &version);
                             delete tlvString;
                             client->app->getua_result(tlvRecords, at);
+
+                            if (User::isAuthring(at))
+                            {
+                                client->mAuthRings.erase(at);
+                                client->mAuthRings.emplace(at, AuthRing(at, *tlvRecords));
+
+                                if (client->mFetchingAuthrings && client->mAuthRings.size() == 3)
+                                {
+                                    client->mFetchingAuthrings = false;
+                                    client->fetchContactsKeys();
+                                }
+                            }
+
                             delete tlvRecords;
-                        }
                             break;
-
+                        }
                         case '+':   // public
-
+                        {
                             u->setattr(at, &value, &version);
                             client->app->getua_result((byte*) value.data(), unsigned(value.size()), at);
-#ifdef  ENABLE_CHAT
+
                             if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
                             {
                                 client->initializekeys(); // we have now all the required data
                             }
-#endif
+
+                            if (!u->isTemporary && u->userhandle != client->me)
+                            {
+                                if (at == ATTR_ED25519_PUBK || at == ATTR_CU25519_PUBK)
+                                {
+                                    client->trackKey(at, u->userhandle, value);
+                                }
+                                else if (at == ATTR_SIG_CU255_PUBK || at == ATTR_SIG_RSA_PUBK)
+                                {
+                                    client->trackSignature(at, u->userhandle, value);
+                                }
+                            }
                             break;
-
+                        }
                         case '#':   // protected
-
+                        {
                             u->setattr(at, &value, &version);
                             client->app->getua_result((byte*) value.data(), unsigned(value.size()), at);
                             break;
-
+                        }
                         case '^': // private, non-encrypted
-
+                        {
                             // store the value in cache in binary format
                             u->setattr(at, &value, &version);
                             client->app->getua_result((byte*) value.data(), unsigned(value.size()), at);
@@ -3073,8 +3138,9 @@ void CommandGetUA::procresult()
                                 }
                             }
                             break;
-
+                        }
                         default:    // legacy attributes or unknown attribute
+                        {
                             if (at != ATTR_FIRSTNAME &&           // protected
                                     at != ATTR_LASTNAME &&        // protected
                                     at != ATTR_COUNTRY  &&        // private
@@ -3090,27 +3156,29 @@ void CommandGetUA::procresult()
                             u->setattr(at, &value, &version);
                             client->app->getua_result((byte*) value.data(), unsigned(value.size()), at);
                             break;
-                    }
+                        }
+
+                    }   // switch (scope)
 
                     u->setTag(tag ? tag : -1);
                     client->notifyuser(u);
                     return;
                 }
-
                 default:
+                {
                     if (!client->json.storeobject())
                     {
                         LOG_err << "Error in CommandGetUA. Parse error";
                         client->app->getua_result(API_EINTERNAL);
-#ifdef  ENABLE_CHAT
                         if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
                         {
                             client->initializekeys(); // we have now all the required data
                         }
-#endif
                         return;
                     }
-            }
+                }
+
+            }   // switch (nameid)
         }
     }
 }
@@ -3123,6 +3191,8 @@ CommandDelUA::CommandDelUA(MegaClient *client, const char *an)
     cmd("upr");
     arg("ua", an);
 
+    arg("v", 1);    // returns the new version for the (removed) null value
+
     tag = client->reqtag;
 }
 
@@ -3130,28 +3200,36 @@ void CommandDelUA::procresult()
 {
     if (client->json.isnumeric())
     {
-        error e = (error)client->json.getint();
-        if (e == API_OK)
-        {
-            User *u = client->ownuser();
-            attr_t at = User::string2attr(an.c_str());
-            u->removeattr(at);
-
-#ifdef ENABLE_CHAT
-            if (at == ATTR_KEYRING)
-            {
-                client->resetKeyring();
-            }
-#endif
-            client->notifyuser(u);
-        }
-
-        client->app->delua_result(e);
+        client->app->delua_result((error)client->json.getint());
     }
     else
     {
-        client->json.storeobject();
-        client->app->delua_result(API_EINTERNAL);
+        const char* ptr;
+        const char* end;
+        if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
+        {
+            client->app->delua_result(API_EINTERNAL);
+            return;
+        }
+
+        User *u = client->ownuser();
+        attr_t at = User::string2attr(an.c_str());
+        string version(ptr, (end-ptr));
+
+        u->removeattr(at, &version); // store version to filter corresponding AP in order to avoid double onUsersUpdate()
+
+        if (at == ATTR_KEYRING)
+        {
+            client->resetKeyring();
+        }
+        else if (User::isAuthring(at))
+        {
+            client->mAuthRings.emplace(at, AuthRing(at, TLVstore()));
+            client->getua(u, at, 0);
+        }
+
+        client->notifyuser(u);
+        client->app->delua_result(API_OK);
     }
 }
 
@@ -3408,17 +3486,22 @@ void CommandPubKeyRequest::procresult()
                         client->mapuser(uh, u->email.c_str());
                     }
 
-    #ifdef ENABLE_CHAT
                     if (client->fetchingkeys && u->userhandle == client->me && len_pubk)
                     {
                         client->pubk.setkey(AsymmCipher::PUBKEY, pubkbuf, len_pubk);
                         return;
                     }
-    #endif
 
                     if (len_pubk && !u->pubk.setkey(AsymmCipher::PUBKEY, pubkbuf, len_pubk))
                     {
                         len_pubk = 0;
+                    }
+
+                    if (!u->isTemporary && u->userhandle != client->me && len_pubk && u->pubk.isvalid())
+                    {
+                        string pubkstr;
+                        u->pubk.serializekeyforjs(pubkstr);
+                        client->trackKey(ATTR_UNKNOWN, u->userhandle, pubkstr);
                     }
                     finished = true;
                     break;
@@ -3481,16 +3564,9 @@ void CommandGetUserData::procresult()
     m_time_t since = 0;
     int v = 0;
     string salt;
-    bool gmfa = false;
-    bool ssrs = false;
-    bool nsre = false;
-    bool aplvp = false;
-
-    int  smsve = -1;
     string smsv;
 
     bool b = false;
-    bool newLinkFormat = false;
     BizMode m = BIZ_MODE_UNKNOWN;
     BizStatus s = BIZ_STATUS_UNKNOWN;
     std::vector<std::pair<BizStatus, m_time_t>> sts;
@@ -3541,38 +3617,9 @@ void CommandGetUserData::procresult()
         case MAKENAMEID5('f', 'l', 'a', 'g', 's'):
             if (client->json.enterobject())
             {
-                bool endobject = false;
-                while (!endobject)
+                if (client->readmiscflags(&client->json) != API_OK)
                 {
-                    switch (client->json.getnameid())
-                    {
-                    case MAKENAMEID4('m', 'f', 'a', 'e'):   // multi-factor authentication enabled
-                        gmfa = bool(client->json.getint());
-                        break;
-                    case MAKENAMEID4('s', 's', 'r', 's'):   // server-side rubish-bin scheduler
-                        ssrs = bool(client->json.getint());
-                        break;
-                    case MAKENAMEID4('n', 's', 'r', 'e'):   // new secure registration enabled
-                        nsre = bool(client->json.getint());
-                        break;
-                    case MAKENAMEID5('a', 'p', 'l', 'v', 'p'):   // apple VOIP push enabled
-                        aplvp = bool(client->json.getint());
-                        break;
-                    case MAKENAMEID5('s', 'm', 's', 'v', 'e'):   // 2 = Opt-in and unblock SMS allowed 1 = Only unblock SMS allowed 0 = No SMS allowed
-                        smsve = int(client->json.getint());
-                        break;
-                    case MAKENAMEID4('n', 'l', 'f', 'e'):
-                        newLinkFormat = static_cast<bool>(client->json.getint());
-                        break;
-                    case EOO:
-                        endobject = true;
-                        break;
-                    default:
-                        if (!client->json.storeobject())
-                        {
-                            return client->app->userdata_result(NULL, NULL, NULL, API_EINTERNAL);
-                        }
-                    }
+                    return client->app->userdata_result(NULL, NULL, NULL, API_EINTERNAL);
                 }
                 client->json.leaveobject();
             }
@@ -3677,15 +3724,7 @@ void CommandGetUserData::procresult()
             }
 
             client->accountsince = since;
-            client->gmfa_enabled = gmfa;
-            client->ssrs_enabled = ssrs;
-            client->nsr_enabled = nsre;
-            client->aplvp_enabled = aplvp;
-
-            client->mSmsVerificationState = SmsVerificationState(smsve);
             client->mSmsVerifiedPhone = smsv;
-
-            client->mNewLinkFormat = newLinkFormat;
 
             client->k = k;
 
@@ -3804,49 +3843,24 @@ CommandGetMiscFlags::CommandGetMiscFlags(MegaClient *client)
 
 void CommandGetMiscFlags::procresult()
 {
+    error e;
     if (client->json.isnumeric())
     {
-        error e = (error)client->json.getint();
+        e = (error)client->json.getint();
         if (!e)
         {
+            LOG_err << "Unexpected response for gmf: no flags, but no error";
             e = API_ENOENT;
         }
         LOG_err << "gmf failed: " << e;
-        return;
     }
-
-    bool endobject = false;
-    while (!endobject)
+    else
     {
-        switch (client->json.getnameid())
-        {
-        case MAKENAMEID4('m', 'f', 'a', 'e'):   // multi-factor authentication enabled
-            client->gmfa_enabled = bool(client->json.getint());
-            break;
-        case MAKENAMEID4('s', 's', 'r', 's'):   // server-side rubish-bin scheduler
-            client->ssrs_enabled = bool(client->json.getint());
-            break;
-        case MAKENAMEID4('n', 's', 'r', 'e'):   // new secure registration enabled
-            client->nsr_enabled = bool(client->json.getint());
-            break;
-        case MAKENAMEID5('a', 'p', 'l', 'v', 'p'):   // apple VOIP push enabled
-            client->aplvp_enabled = bool(client->json.getint());
-            break;
-        case MAKENAMEID5('s', 'm', 's', 'v', 'e'):   // 2 = Opt-in and unblock SMS allowed 1 = Only unblock SMS allowed 0 = No SMS allowed
-            client->mSmsVerificationState = SmsVerificationState(client->json.getint());
-            break;
-        case EOO:
-            endobject = true;
-            break;
-        default:
-            if (!client->json.storeobject())
-            {
-                return;
-            }
-        }
+        e = client->readmiscflags(&client->json);
     }
-}
 
+    client->app->getmiscflags_result(e);
+}
 
 CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, AccountDetails* ad, bool storage, bool transfer, bool pro, int source)
 {
@@ -3891,33 +3905,36 @@ void CommandGetUserQuota::procresult()
     details->pro_level = 0;
     details->subscription_type = 'O';
     details->subscription_renew = 0;
+    details->subscription_method.clear();
+    memset(details->subscription_cycle, 0, sizeof(details->subscription_cycle));
 
     details->pro_until = 0;
 
     details->storage_used = 0;
     details->storage_max = 0;
+
+    details->transfer_max = 0;
     details->transfer_own_used = 0;
     details->transfer_srv_used = 0;
-    details->transfer_max = 0;
-    details->transfer_own_reserved = 0;
-    details->transfer_srv_reserved = 0;
     details->srv_ratio = 0;
 
     details->transfer_hist_starttime = 0;
     details->transfer_hist_interval = 3600;
-    details->transfer_hist_valid = true;
     details->transfer_hist.clear();
+    details->transfer_hist_valid = true;
 
     details->transfer_reserved = 0;
-
-    details->transfer_limit = 0;
+    details->transfer_own_reserved = 0;
+    details->transfer_srv_reserved = 0;
 
     for (;;)
     {
         switch (client->json.getnameid())
         {
-            case MAKENAMEID2('b', 't'):                  // age of transfer
-                                                         // window start
+            case MAKENAMEID2('b', 't'):
+            // "Base time age", this is number of seconds since the start of the current quota buckets
+                // age of transfer
+                // window start
                 td = client->json.getint();
                 if (td != -1)
                 {
@@ -3925,11 +3942,8 @@ void CommandGetUserQuota::procresult()
                 }
                 break;
 
-            case MAKENAMEID3('b', 't', 'i'):
-                details->transfer_hist_interval = client->json.getint();
-                break;
-
             case MAKENAMEID3('t', 'a', 'h'):
+            // The free IP-based quota buckets, 6 entries for 6 hours
                 if (client->json.enterarray())
                 {
                     m_off_t t;
@@ -3944,36 +3958,29 @@ void CommandGetUserQuota::procresult()
                 break;
 
             case MAKENAMEID3('t', 'a', 'r'):
+            // IP transfer reserved
                 details->transfer_reserved = client->json.getint();
                 break;
 
-            case MAKENAMEID3('t', 'a', 'l'):
-                details->transfer_limit = client->json.getint();
-                break;
-
-            case MAKENAMEID3('t', 'u', 'a'):
-                details->transfer_own_used += client->json.getint();
-                break;
-
-            case MAKENAMEID3('t', 'u', 'o'):
-                details->transfer_srv_used += client->json.getint();
-                break;
-
             case MAKENAMEID3('r', 'u', 'a'):
+            // Actor reserved quota
                 details->transfer_own_reserved += client->json.getint();
                 break;
 
             case MAKENAMEID3('r', 'u', 'o'):
+            // Owner reserved quota
                 details->transfer_srv_reserved += client->json.getint();
                 break;
 
             case MAKENAMEID5('c', 's', 't', 'r', 'g'):
-                // storage used
+            // Your total account storage usage
                 details->storage_used = client->json.getint();
                 got_storage_used = true;
                 break;
 
             case MAKENAMEID6('c', 's', 't', 'r', 'g', 'n'):
+            // Storage breakdown of root nodes and shares for your account
+            // [bytes, numFiles, numFolders, versionedBytes, numVersionedFiles]
                 if (client->json.enterobject())
                 {
                     handle h;
@@ -4011,38 +4018,48 @@ void CommandGetUserQuota::procresult()
                 break;
 
             case MAKENAMEID5('m', 's', 't', 'r', 'g'):
-                // total storage quota
+            // maximum storage allowance
                 details->storage_max = client->json.getint();
                 got_storage = true;
                 break;
 
             case MAKENAMEID6('c', 'a', 'x', 'f', 'e', 'r'):
-                // own transfer quota used
+            // PRO transfer quota consumed by yourself
+                details->transfer_own_used += client->json.getint();
+                break;
+
+            case MAKENAMEID3('t', 'u', 'o'):
+            // Transfer usage by the owner on quotad which hasn't yet been committed back to the API DB. Supplements caxfer
                 details->transfer_own_used += client->json.getint();
                 break;
 
             case MAKENAMEID6('c', 's', 'x', 'f', 'e', 'r'):
-                // third-party transfer quota used
+            // PRO transfer quota served to others
+                details->transfer_srv_used += client->json.getint();
+                break;
+
+            case MAKENAMEID3('t', 'u', 'a'):
+            // Transfer usage served to other users which hasn't yet been committed back to the API DB. Supplements csxfer
                 details->transfer_srv_used += client->json.getint();
                 break;
 
             case MAKENAMEID5('m', 'x', 'f', 'e', 'r'):
-                // total transfer quota
+            // maximum transfer allowance
                 details->transfer_max = client->json.getint();
                 break;
 
             case MAKENAMEID8('s', 'r', 'v', 'r', 'a', 't', 'i', 'o'):
-                // percentage of transfer quota allocated to serving
+            // The ratio of your PRO transfer quota that is able to be served to others
                 details->srv_ratio = client->json.getfloat();
                 break;
 
             case MAKENAMEID5('u', 't', 'y', 'p', 'e'):
-                // Pro plan (0 == none)
+            // PRO type. 0 means Free; 4 is Pro Lite as it was added late; 100 indicates a business.
                 details->pro_level = (int)client->json.getint();
                 break;
 
             case MAKENAMEID5('s', 't', 'y', 'p', 'e'):
-                // subscription type
+            // Flag indicating if this is a recurring subscription or one-off. "O" is one off, "R" is recurring.
                 const char* ptr;
                 if ((ptr = client->json.getvalue()))
                 {
@@ -4060,6 +4077,7 @@ void CommandGetUserQuota::procresult()
                 break;
 
             case MAKENAMEID6('s', 'r', 'e', 'n', 'e', 'w'):
+            // Only provided for recurring subscriptions to indicate the best estimate of when the subscription will renew
                 if (client->json.enterarray())
                 {
                     details->subscription_renew = client->json.getint();
@@ -4086,12 +4104,12 @@ void CommandGetUserQuota::procresult()
                 break;
 
             case MAKENAMEID6('s', 'u', 'n', 't', 'i', 'l'):
-                // expiry of last active Pro plan (may be different from current one)
+            // Time the last active PRO plan will expire (may be different from current one)
                 details->pro_until = client->json.getint();
                 break;
 
             case MAKENAMEID7('b', 'a', 'l', 'a', 'n', 'c', 'e'):
-                // account balances
+            // Balance of your account
                 if (client->json.enterarray())
                 {
                     const char* cur;
@@ -4116,11 +4134,12 @@ void CommandGetUserQuota::procresult()
                 break;
 
             case MAKENAMEID4('u', 's', 'l', 'w'):
+            // The percentage (in 1000s) indicating the limit at which you are 'nearly' over. Currently 98% for PRO, 90% for free.
                 uslw = int(client->json.getint());
                 break;
 
             case EOO:
-                assert(!mStorage || (got_storage && got_storage_used));
+                assert(!mStorage || (got_storage && got_storage_used) || client->loggedinfolderlink());
 
                 if (mStorage)
                 {

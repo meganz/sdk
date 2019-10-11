@@ -37,6 +37,7 @@
 #include "pendingcontactrequest.h"
 #include "mediafileattribute.h"
 #include "useralerts.h"
+#include "user.h"
 
 namespace mega {
 
@@ -220,6 +221,9 @@ public:
     // Account has VOIP push enabled (only for Apple)
     bool aplvp_enabled;
 
+    // Use new format to generate Mega links
+    bool mNewLinkFormat = false;
+
     // 2 = Opt-in and unblock SMS allowed 1 = Only unblock SMS allowed 0 = No SMS allowed  -1 = flag was not received
     SmsVerificationState mSmsVerificationState;
 
@@ -228,9 +232,6 @@ public:
 	
     // pseudo-random number generator
     PrnGen rng;
-
-    // Use new format to generate Mega links
-    bool mNewLinkFormat = false;
 
     static string getPublicLink(bool newLinkFormat, nodetype_t type, handle ph, const char *key);
 
@@ -299,6 +300,9 @@ public:
     // get user data
     void getuserdata();
 
+    // get miscelaneous flags
+    void getmiscflags();
+
     // get the public key of an user
     void getpubkey(const char* user);
 
@@ -352,11 +356,35 @@ public:
     // fetchnodes stats
     FetchNodesStats fnstats;
 
-#ifdef ENABLE_CHAT
     // load cryptographic keys: RSA, Ed25519, Cu25519 and their signatures
-    void fetchkeys();    
+    void fetchkeys();
+
+    // check existence and integrity of keys and signatures, initialize if missing
     void initializekeys();
-#endif
+
+    // to be called after resumption from cache (user attributes loaded)
+    void loadAuthrings();
+
+    // load cryptographic keys for contacts: RSA, Ed25519, Cu25519
+    void fetchContactsKeys();
+
+    // fetch keys related to authrings for a given contact
+    void fetchContactKeys(User *user);
+
+    // track a public key in the authring for a given user
+    error trackKey(attr_t keyType, handle uh, const std::string &key);
+
+    // track the signature of a public key in the authring for a given user
+    error trackSignature(attr_t signatureType, handle uh, const std::string &signature);
+
+    // set the Ed25519 public key as verified for a given user in the authring (done by user manually by comparing hash of keys)
+    error verifyCredentials(handle uh);
+
+    // reset the tracking of public keys in the authrings for a given user
+    error resetCredentials(handle uh);
+
+    // check credentials are verified for a given user
+    bool areCredentialsVerified(handle uh);
 
     // retrieve user details
     void getaccountdetails(AccountDetails*, bool, bool, bool, bool, bool, bool, int source = -1);
@@ -868,7 +896,7 @@ private:
     void checkevent(dstime, dstime*, dstime*);
 
     // converts UTF-8 to 32-bit word array
-    static char* str_to_a32(const char*, int*);
+    static char* utf8_to_a32forjs(const char*, int*);
 
     // was the app notified of a retrying CS request?
     bool csretrying;
@@ -1125,6 +1153,9 @@ public:
     // get a vector of recent actions in the account
     recentactions_vector getRecentActions(unsigned maxcount, m_time_t since);
 
+    // determine if the file is a video, photo, or media (video or photo).  If the extension (with trailing .) is not precalculated, pass null
+    bool nodeIsMedia(const Node*, bool* isphoto, bool* isvideo) const;
+
     // generate & return upload handle
     handle getuploadhandle();
 
@@ -1277,6 +1308,8 @@ public:
     void readipc(JSON*);
     void readopc(JSON*);
 
+    error readmiscflags(JSON*);
+
     void procph(JSON*);
 
     void readcr();
@@ -1333,7 +1366,6 @@ public:
     // account access (full account): RSA private key
     AsymmCipher asymkey;
 
-#ifdef ENABLE_CHAT
     // RSA public key
     AsymmCipher pubk;
 
@@ -1343,6 +1375,15 @@ public:
     // ECDH key (x25519 private key).
     ECDH *chatkey;
 
+    // set when keys for every current contact have been checked
+    AuthRingsMap mAuthRings;
+
+    // used during initialization to accumulate required updates to authring (to send them all atomically)
+    AuthRingsMap mAuthRingsTemp;
+
+    // true while authrings are being fetched
+    bool mFetchingAuthrings;
+
     // actual state of keys
     bool fetchingkeys;
 
@@ -1351,7 +1392,6 @@ public:
 
     // delete chatkey and signing key
     void resetKeyring();
-#endif
 
     // binary session ID
     string sid;
@@ -1493,6 +1533,28 @@ public:
 
     // -1: expired, 0: inactive (no business subscription), 1: active, 2: grace-period
     BizStatus mBizStatus;
+
+    // Keep track of high level operation counts and times, for performance analysis
+    struct PerformanceStats
+    {
+        CodeCounter::ScopeStats execFunction = { "MegaClient_exec" };
+        CodeCounter::ScopeStats transferslotDoio = { "TransferSlot_doio" };
+        CodeCounter::ScopeStats execdirectreads = { "execdirectreads" };
+        CodeCounter::ScopeStats transferComplete = { "transfer_complete" };
+        CodeCounter::ScopeStats prepareWait = { "MegaClient_prepareWait" };
+        CodeCounter::ScopeStats doWait = { "MegaClient_doWait" };
+        CodeCounter::ScopeStats checkEvents = { "MegaClient_checkEvents" };
+        CodeCounter::ScopeStats applyKeys = { "MegaClient_applyKeys" };
+        CodeCounter::ScopeStats dispatchTransfers = { "dispatchTransfers" };
+        CodeCounter::ScopeStats csResponseProcessingTime = { "cs batch response processing" };
+        CodeCounter::ScopeStats scProcessingTime = { "sc processing" };
+        uint64_t transferStarts = 0, transferFinishes = 0;
+        uint64_t transferTempErrors = 0, transferFails = 0;
+        uint64_t prepwaitImmediate = 0, prepwaitZero = 0, prepwaitHttpio = 0, prepwaitFsaccess = 0, nonzeroWait = 0;
+        CodeCounter::DurationSum csRequestWaitTime;
+        CodeCounter::DurationSum transfersActiveTime;
+        std::string report(bool reset, HttpIO* httpio, Waiter* waiter);
+    } performanceStats;
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
     ~MegaClient();

@@ -178,6 +178,18 @@ public:
     virtual ~MegaRecursiveOperation() = default;
     virtual void start(MegaNode* node) = 0;
     virtual void cancel() = 0;
+
+protected:
+    MegaApiImpl *megaApi;
+    MegaClient *client;
+    MegaTransferPrivate *transfer;
+    MegaTransferListener *listener;
+    int recursive;
+    int tag;
+    int pendingTransfers;
+    std::set<MegaTransferPrivate*> subTransfers;
+    int mIncompleteTransfers = { 0 };
+    int mLastError = { API_OK };
 };
 
 class MegaFolderUploadController : public MegaRequestListener, public MegaTransferListener, public MegaRecursiveOperation
@@ -192,14 +204,6 @@ protected:
     void checkCompletion();
 
     std::list<std::string> pendingFolders;
-    MegaApiImpl *megaApi;
-    MegaClient *client;
-    MegaTransferPrivate *transfer;
-    MegaTransferListener *listener;
-    int recursive;
-    int tag;
-    int pendingTransfers;
-    std::set<MegaTransferPrivate*> subTransfers;
 
 public:
     void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e) override;
@@ -361,16 +365,6 @@ public:
 protected:
     void downloadFolderNode(MegaNode *node, string *path);
     void checkCompletion();
-
-    MegaApiImpl *megaApi;
-    MegaClient *client;
-    MegaTransferPrivate *transfer;
-    MegaTransferListener *listener;
-    int recursive;
-    int tag;
-    int pendingTransfers;
-    error e;
-    std::set<MegaTransferPrivate*> subTransfers;
 
 public:
     void onTransferStart(MegaApi *, MegaTransfer *t) override;
@@ -1190,15 +1184,21 @@ public:
 
     int getType() const override;
     const char *getText() const override;
-    int64_t getNumber() const override;
+    int64_t getNumber() const override;    
+    MegaHandle getHandle() const override;
+    const char *getEventString() const override;
+
+    static const char* getEventString(int type);
 
     void setText(const char* text);
     void setNumber(int64_t number);
+    void setHandle(const MegaHandle &handle);
 
 protected:
     int type;
     const char* text;
     int64_t number;
+    MegaHandle mHandle;
 };
 
 class MegaAccountBalancePrivate : public MegaAccountBalance
@@ -1290,6 +1290,8 @@ class MegaAccountDetailsPrivate : public MegaAccountDetails
         virtual long long getVersionStorageUsed();
         virtual long long getTransferMax();
         virtual long long getTransferOwnUsed();
+        virtual long long getTransferSrvUsed();
+        virtual long long getTransferUsed();
 
         virtual int getNumUsageItems();
         virtual long long getStorageUsed(MegaHandle handle);
@@ -1831,7 +1833,7 @@ class SearchTreeProcessor : public TreeProcessor
 class OutShareProcessor : public TreeProcessor
 {
     public:
-        OutShareProcessor();
+        OutShareProcessor(MegaClient&);
         virtual bool processNode(Node* node);
         virtual ~OutShareProcessor() {}
         vector<Share *> getShares();
@@ -1840,6 +1842,7 @@ class OutShareProcessor : public TreeProcessor
     protected:
         vector<Share *> mShares;
         node_vector mNodes;
+        MegaClient& mClient;
 };
 
 class PendingOutShareProcessor : public TreeProcessor
@@ -1986,6 +1989,7 @@ class MegaApiImpl : public MegaApp
 
         bool serverSideRubbishBinAutopurgeEnabled();
         bool appleVoipPushEnabled();
+        bool newLinkFormatEnabled();
         int smsAllowedState();
         char* smsVerifiedPhoneNumber();
 
@@ -2014,6 +2018,7 @@ class MegaApiImpl : public MegaApp
         void getUserData(MegaRequestListener *listener = NULL);
         void getUserData(MegaUser *user, MegaRequestListener *listener = NULL);
         void getUserData(const char *user, MegaRequestListener *listener = NULL);
+        void getMiscFlags(MegaRequestListener *listener = NULL);
         void getCloudStorageUsed(MegaRequestListener *listener = NULL); 
         void getAccountDetails(bool storage, bool transfer, bool pro, bool sessions, bool purchases, bool transactions, int source = -1, MegaRequestListener *listener = NULL);
         void queryTransferQuota(long long size, MegaRequestListener *listener = NULL);
@@ -2047,9 +2052,11 @@ class MegaApiImpl : public MegaApp
         bool isBusinessAccountActive();
         int getBusinessStatus();
         bool checkPassword(const char *password);
-#ifdef ENABLE_CHAT
-        char* getMyFingerprint();
-#endif
+        char* getMyCredentials();
+        void getUserCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
+        bool areCredentialsVerified(MegaUser *user);
+        void verifyCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
+        void resetCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
         static void setLogLevel(int logLevel);
         static void addLoggerClass(MegaLogger *megaLogger);
         static void removeLoggerClass(MegaLogger *megaLogger);
@@ -2156,7 +2163,7 @@ class MegaApiImpl : public MegaApp
         void startUpload(const char* localPath, MegaNode *parent, MegaTransferListener *listener=NULL);
         void startUpload(const char* localPath, MegaNode *parent, int64_t mtime, MegaTransferListener *listener=NULL);
         void startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener = NULL);
-        void startUpload(bool startFirst, const char* localPath, MegaNode* parent, const char* fileName, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, MegaTransferListener *listener);
+        void startUpload(bool startFirst, const char* localPath, MegaNode* parent, const char* fileName, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, MegaTransferListener *listener);
         void startDownload(MegaNode* node, const char* localPath, MegaTransferListener *listener = NULL);
         void startDownload(bool startFirst, MegaNode *node, const char* target, int folderTransferTag, const char *appData, MegaTransferListener *listener);
         void startStreaming(MegaNode* node, m_off_t startPos, m_off_t size, MegaTransferListener *listener);
@@ -2382,7 +2389,10 @@ class MegaApiImpl : public MegaApp
         void pauseActionPackets();
         void resumeActionPackets();
 
-        static std::function<bool (Node*, Node*)>getComparatorFunction(int order);
+        static std::function<bool (Node*, Node*)>getComparatorFunction(int order, MegaClient& mc);
+        static void sortByComparatorFunction(node_vector&, int order, MegaClient& mc);
+        static bool nodeNaturalComparatorASC(Node *i, Node *j);
+        static bool nodeNaturalComparatorDESC(Node *i, Node *j);
         static bool nodeComparatorDefaultASC  (Node *i, Node *j);
         static bool nodeComparatorDefaultDESC (Node *i, Node *j);
         static bool nodeComparatorSizeASC  (Node *i, Node *j);
@@ -2391,8 +2401,11 @@ class MegaApiImpl : public MegaApp
         static bool nodeComparatorCreationDESC  (Node *i, Node *j);
         static bool nodeComparatorModificationASC  (Node *i, Node *j);
         static bool nodeComparatorModificationDESC  (Node *i, Node *j);
-        static bool nodeComparatorAlphabeticalASC  (Node *i, Node *j);
-        static bool nodeComparatorAlphabeticalDESC  (Node *i, Node *j);
+        static bool nodeComparatorPhotoASC(Node *i, Node *j, MegaClient& mc);
+        static bool nodeComparatorPhotoDESC(Node *i, Node *j, MegaClient& mc);
+        static bool nodeComparatorVideoASC(Node *i, Node *j, MegaClient& mc);
+        static bool nodeComparatorVideoDESC(Node *i, Node *j, MegaClient& mc);
+        static int typeComparator(Node *i, Node *j);
         static bool userComparatorDefaultASC (User *i, User *j);
 
         char* escapeFsIncompatible(const char *filename);
@@ -2511,13 +2524,14 @@ class MegaApiImpl : public MegaApp
         void enableGeolocation(MegaRequestListener *listener = NULL);
         void isGeolocationEnabled(MegaRequestListener *listener = NULL);
         bool isChatNotifiable(MegaHandle chatid);
+#endif
+
         void setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
         void getMyChatFilesFolder(MegaRequestListener *listener = NULL);
-        void setCameraUploadsFolder(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
-        void getCameraUploadsFolder(MegaRequestListener *listener = NULL);
+        void setCameraUploadsFolder(MegaHandle nodehandle, bool secondary, MegaRequestListener *listener = NULL);
+        void getCameraUploadsFolder(bool secondary, MegaRequestListener *listener = NULL);
         void getUserAlias(MegaHandle uh, MegaRequestListener *listener = NULL);
         void setUserAlias(MegaHandle uh, const char *alias, MegaRequestListener *listener = NULL);
-#endif
 
         void getPushNotificationSettings(MegaRequestListener *listener = NULL);
         void setPushNotificationSettings(MegaPushNotificationSettings *settings, MegaRequestListener *listener = NULL);
@@ -2560,6 +2574,8 @@ class MegaApiImpl : public MegaApp
         void fireOnBackupTemporaryError(MegaBackupController *backup, MegaError e);
 
         void yield();
+        void lockMutex();
+        void unlockMutex();
 
 protected:
         static const unsigned int MAX_SESSION_LENGTH;
@@ -2770,6 +2786,7 @@ protected:
 
         void nodes_current() override;
         void catchup_result() override;
+        void key_modified(handle, attr_t) override;
 
         void fetchnodes_result(error) override;
         void putnodes_result(error, targettype_t, NewNode*) override;
@@ -2865,7 +2882,7 @@ protected:
         void backgrounduploadurl_result(error, string*) override;
         void mediadetection_ready() override;
         void storagesum_changed(int64_t newsum) override;
-
+        void getmiscflags_result(error) override;
 
 #ifdef ENABLE_CHAT
         // chat-related commandsresult
@@ -2973,6 +2990,8 @@ protected:
 
         // deletes backups, requests and transfers. Reset total stats for down/uploads
         void abortPendingActions(error preverror = API_OK);
+
+        bool hasToForceUpload(const Node &node, const MegaTransferPrivate &transfer) const;
 
         friend class MegaBackgroundMediaUploadPrivate;
 };
@@ -3209,7 +3228,7 @@ public:
 
     // Connection management
     StreamingBuffer streamingBuffer;
-    MegaTransferPrivate *transfer;
+    std::unique_ptr<MegaTransferPrivate> transfer;
     http_parser parser;
     char *lastBuffer;
     int lastBufferLen;

@@ -70,6 +70,8 @@ using std::dec;
 MegaClient* client;
 MegaClient* clientFolder;
 
+bool gVerboseMode = false;
+
 
 // new account signup e-mail address and name
 static string signupemail, signupname;
@@ -286,22 +288,28 @@ void DemoApp::transfer_failed(Transfer* t, error e, dstime)
 
 void DemoApp::transfer_complete(Transfer* t)
 {
-    displaytransferdetails(t, "completed, ");
+    if (gVerboseMode)
+    {
+        displaytransferdetails(t, "completed, ");
 
-    if (t->slot)
-    {
-        cout << t->slot->progressreported * 10 / (1024 * (Waiter::ds - t->slot->starttime + 1)) << " KB/s" << endl;
-    }
-    else
-    {
-        cout << "delayed" << endl;
+        if (t->slot)
+        {
+            cout << t->slot->progressreported * 10 / (1024 * (Waiter::ds - t->slot->starttime + 1)) << " KB/s" << endl;
+        }
+        else
+        {
+            cout << "delayed" << endl;
+        }
     }
 }
 
 // transfer about to start - make final preparations (determine localfilename, create thumbnail for image upload)
 void DemoApp::transfer_prepare(Transfer* t)
 {
-    displaytransferdetails(t, "starting\n");
+    if (gVerboseMode)
+    {
+        displaytransferdetails(t, "starting\n");
+    }
 
     if (t->type == GET)
     {
@@ -1173,44 +1181,46 @@ void DemoApp::putua_result(error e)
 
 void DemoApp::getua_result(error e)
 {
-#ifdef ENABLE_CHAT
     if (client->fetchingkeys)
     {
         return;
     }
-#endif
 
     cout << "User attribute retrieval failed (" << errorstring(e) << ")" << endl;
 }
 
-void DemoApp::getua_result(byte* data, unsigned l, attr_t)
+void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
 {
-#ifdef ENABLE_CHAT
     if (client->fetchingkeys)
     {
         return;
     }
-#endif
 
-    cout << "Received " << l << " byte(s) of user attribute: ";
-    fwrite(data, 1, l, stdout);
-    cout << endl;
+    if (gVerboseMode)
+    {
+        cout << "Received " << l << " byte(s) of user attribute: ";
+        fwrite(data, 1, l, stdout);
+        cout << endl;
+
+        if (type == ATTR_ED25519_PUBK)
+        {
+            cout << "Credentials: " << AuthRing::fingerprint(string((const char*)data, l), true) << endl;
+        }
+    }
 }
 
-void DemoApp::getua_result(TLVstore *tlv, attr_t)
+void DemoApp::getua_result(TLVstore *tlv, attr_t type)
 {
-#ifdef ENABLE_CHAT
     if (client->fetchingkeys)
     {
         return;
     }
-#endif
 
     if (!tlv)
     {
         cout << "Error getting private user attribute" << endl;
     }
-    else
+    else if (!gVerboseMode)
     {
         cout << "Received a TLV with " << tlv->size() << " item(s) of user attribute: " << endl;
 
@@ -1229,7 +1239,6 @@ void DemoApp::getua_result(TLVstore *tlv, attr_t)
             Base64::btoa((const byte *) value.data(), valuelen, buf);
 
             cout << "\t" << key << "\t" << buf << endl;
-
             delete [] buf;
         }
         delete keys;
@@ -2336,6 +2345,42 @@ Node* nodeFromRemotePath(const string& s)
     return n;
 }
 
+#ifdef MEGA_MEASURE_CODE
+
+void exec_deferRequests(autocomplete::ACState& s)
+{
+    // cause all the API requests of this type to be gathered up so they will be sent in a single batch, for timing purposes
+    bool putnodes = s.extractflag("-putnodes");
+    bool movenode = s.extractflag("-movenode");
+    bool delnode = s.extractflag("-delnode");
+
+    client->reqs.deferRequests =    [=](Command* c)
+                                    { 
+                                        return  (putnodes && dynamic_cast<CommandPutNodes*>(c)) ||
+                                                (movenode && dynamic_cast<CommandMoveNode*>(c)) ||
+                                                (delnode && dynamic_cast<CommandDelNode*>(c));
+                                    };
+}
+
+void exec_sendDeferred(autocomplete::ACState& s)
+{
+    // send those gathered up commands, and optionally reset the gathering 
+    client->reqs.sendDeferred();
+    
+    if (s.extractflag("-reset"))
+    {
+        client->reqs.deferRequests = nullptr;
+    }
+}
+
+void exec_codeTimings(autocomplete::ACState& s)
+{
+    bool reset = s.extractflag("-reset");
+    cout << client->performanceStats.report(reset, client->httpio, client->waiter) << flush;
+}
+
+#endif
+
 #ifdef USE_FILESYSTEM
 fs::path pathFromLocalPath(const string& s, bool mustexist)
 {
@@ -2357,6 +2402,58 @@ void exec_treecompare(autocomplete::ACState& s)
         recursiveCompare(n, p);
     }
 }
+
+
+bool buildLocalFolders(fs::path targetfolder, const string& prefix, int foldersperfolder, int recurselevel, int filesperfolder, int filesize, int& totalfilecount, int& totalfoldercount)
+{
+    fs::path p = targetfolder / fs::u8path(prefix);
+    if (!fs::create_directory(p))
+        return false;
+    ++totalfoldercount;
+
+    for (int i = 0; i < filesperfolder; ++i)
+    {
+        string filename = prefix + "_file_" + std::to_string(++totalfilecount);
+        fs::path fp = p / fs::u8path(filename);
+        ofstream fs(fp.u8string(), std::ios::binary);
+        
+        for (unsigned j = filesize / sizeof(int); j--; )
+        {
+            fs.write((char*)&totalfilecount, sizeof(int));
+        }
+        fs.write((char*)&totalfilecount, filesize % sizeof(int));
+    }
+
+    if (recurselevel > 1)
+    {
+        for (int i = 0; i < foldersperfolder; ++i)
+        {
+            if (!buildLocalFolders(p, prefix + "_" + std::to_string(i), foldersperfolder, recurselevel - 1, filesperfolder, filesize, totalfilecount, totalfoldercount))
+                return false;
+        }
+    }
+    return true;
+}
+
+void exec_generatetestfilesfolders(autocomplete::ACState& s)
+{
+    string param, nameprefix = "test";
+    int folderdepth = 1, folderwidth = 1, filecount = 100, filesize = 1024;
+    if (s.extractflagparam("-folderdepth", param)) folderdepth = atoi(param.c_str());
+    if (s.extractflagparam("-folderwidth", param)) folderwidth = atoi(param.c_str());
+    if (s.extractflagparam("-filecount", param)) filecount = atoi(param.c_str());
+    if (s.extractflagparam("-filesize", param)) filesize = atoi(param.c_str());
+    if (s.extractflagparam("-nameprefix", param)) nameprefix = param;
+
+    fs::path p = pathFromLocalPath(s.words[1].s, true);
+    if (!p.empty())
+    {
+        int totalfilecount = 0, totalfoldercount = 0;
+        buildLocalFolders(p, nameprefix, folderwidth, folderdepth, filecount, filesize, totalfilecount, totalfoldercount);
+        cout << "created " << totalfilecount << " files and " << totalfoldercount << " folders";
+    }
+}
+
 #endif
 
 void exec_getcloudstorageused(autocomplete::ACState& s)
@@ -2416,7 +2513,6 @@ void exec_showattributes(autocomplete::ACState& s)
                 f.unserializefingerprint(&pair.second);
                 cout << namebuf << ": " << pair.second << " (fingerprint: size " << f.size << " mtime " << f.mtime
                     << " crc " << std::hex << f.crc[0] << " " << f.crc[1] << " " << f.crc[2] << " " << f.crc[3] << std::dec << ")"
-
                     << " (node fingerprint: size " << n->size << " mtime " << n->mtime
                     << " crc " << std::hex << n->crc[0] << " " << n->crc[1] << " " << n->crc[2] << " " << n->crc[3] << std::dec << ")" << endl;
             }
@@ -2428,6 +2524,28 @@ void exec_showattributes(autocomplete::ACState& s)
     }
 }
 
+void printAuthringInformation(handle userhandle)
+{
+    for (auto &it : client->mAuthRings)
+    {
+        AuthRing &authring = it.second;
+        attr_t at = it.first;
+        cout << User::attr2string(at) << ": " << endl;
+        for (auto &uh : authring.getTrackedUsers())
+        {
+            if (uh == userhandle || ISUNDEF(userhandle))    // no user was typed --> show authring for all users
+            {
+                User *user = client->finduser(uh);
+                string email = user ? user->email : "not a contact";
+
+                cout << "\tUserhandle: \t" << Base64Str<MegaClient::USERHANDLE>(uh) << endl;
+                cout << "\tEmail:      \t" << email << endl;
+                cout << "\tFingerprint:\t" << Utils::stringToHex(authring.getFingerprint(uh)) << endl;
+                cout << "\tAuth. level: \t" << AuthRing::authMethodToStr(authring.getAuthMethod(uh)) << endl;
+            }
+        }
+    }
+}
 
 autocomplete::ACN autocompleteSyntax()
 {
@@ -2472,7 +2590,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_smsverify, sequence(text("smsverify"), either(sequence(text("send"), param("phonenumber"), opt(param("reverifywhitelisted"))), sequence(text("code"), param("verificationcode")))));
     p->Add(exec_verifiedphonenumber, sequence(text("verifiedphone")));
     p->Add(exec_mkdir, sequence(text("mkdir"), remoteFSFolder(client, &cwd)));
-    p->Add(exec_rm, sequence(text("rm"), remoteFSPath(client, &cwd)));
+    p->Add(exec_rm, sequence(text("rm"), remoteFSPath(client, &cwd), opt(sequence(flag("-regexchild"), param("regex")))));
     p->Add(exec_mv, sequence(text("mv"), remoteFSPath(client, &cwd, "src"), remoteFSPath(client, &cwd, "dst")));
     p->Add(exec_cp, sequence(text("cp"), remoteFSPath(client, &cwd, "src"), either(remoteFSPath(client, &cwd, "dst"), param("dstemail"))));
     p->Add(exec_du, sequence(text("du"), remoteFSPath(client, &cwd)));
@@ -2500,6 +2618,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_putbps, sequence(text("putbps"), opt(either(wholenumber(100000), text("auto"), text("none")))));
     p->Add(exec_killsession, sequence(text("killsession"), opt(either(text("all"), param("sessionid")))));
     p->Add(exec_whoami, sequence(text("whoami"), repeat(either(flag("-storage"), flag("-transfer"), flag("-pro"), flag("-transactions"), flag("-purchases"), flag("-sessions")))));
+    p->Add(exec_verifycredentials, sequence(text("credentials"), either(text("show"), text("status"), text("verify"), text("reset")), opt(contactEmail(client))));
     p->Add(exec_passwd, sequence(text("passwd")));
     p->Add(exec_reset, sequence(text("reset"), contactEmail(client), opt(text("mk"))));
     p->Add(exec_recover, sequence(text("recover"), param("recoverylink")));
@@ -2512,7 +2631,8 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_locallogout, sequence(text("locallogout")));
     p->Add(exec_symlink, sequence(text("symlink")));
     p->Add(exec_version, sequence(text("version")));
-    p->Add(exec_debug, sequence(text("debug")));
+    p->Add(exec_debug, sequence(text("debug"), opt(either(flag("-on"), flag("-off")))));
+    p->Add(exec_verbose, sequence(text("verbose"), opt(either(flag("-on"), flag("-off")))));
 #if defined(WIN32) && defined(NO_READLINE)
     p->Add(exec_clear, sequence(text("clear")));
     p->Add(exec_codepage, sequence(text("codepage"), opt(sequence(wholenumber(65001), opt(wholenumber(65001))))));
@@ -2555,8 +2675,20 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_quit, either(text("quit"), text("q"), text("exit")));
 
     p->Add(exec_find, sequence(text("find"), text("raided")));
+
+#ifdef MEGA_MEASURE_CODE
+    p->Add(exec_deferRequests, sequence(text("deferrequests"), repeat(either(flag("-putnodes")))));
+    p->Add(exec_sendDeferred, sequence(text("senddeferred"), opt(flag("-reset"))));
+    p->Add(exec_codeTimings, sequence(text("codetimings"), opt(flag("-reset"))));
+#endif
+
 #ifdef USE_FILESYSTEM
     p->Add(exec_treecompare, sequence(text("treecompare"), localFSPath(), remoteFSPath(client, &cwd)));
+    p->Add(exec_generatetestfilesfolders, sequence(text("generatetestfilesfolders"), repeat(either(sequence(flag("-folderdepth"), param("depth")), 
+                                                                                                   sequence(flag("-folderwidth"), param("width")), 
+                                                                                                   sequence(flag("-filecount"), param("count")), 
+                                                                                                   sequence(flag("-filesize"), param("size")), 
+                                                                                                   sequence(flag("-nameprefix"), param("prefix")))), localFSFolder("parent")));
 #endif
     p->Add(exec_querytransferquota, sequence(text("querytransferquota"), param("filesize")));
     p->Add(exec_getcloudstorageused, sequence(text("getcloudstorageused")));
@@ -2897,28 +3029,48 @@ void exec_cd(autocomplete::ACState& s)
 
 void exec_rm(autocomplete::ACState& s)
 {
-    if (s.words.size() > 1)
-    {
-        if (Node* n = nodebypath(s.words[1].s.c_str()))
-        {
-            if (client->checkaccess(n, FULL))
-            {
-                error e = client->unlink(n);
+    string childregexstring;
+    bool useregex = s.extractflagparam("-regexchild", childregexstring);
 
-                if (e)
-                {
-                    cout << s.words[1].s << ": Deletion failed (" << errorstring(e) << ")" << endl;
-                }
-            }
-            else
+    if (Node* n = nodebypath(s.words[1].s.c_str()))
+    {
+        vector<Node*> v;
+        if (useregex)
+        {
+            std::regex re(childregexstring);
+            for (Node* c : n->children)
             {
-                cout << s.words[1].s << ": Access denied" << endl;
+                if (std::regex_match(c->displayname(), re))
+                {
+                    v.push_back(c);
+                }
             }
         }
         else
         {
-            cout << s.words[1].s << ": No such file or directory" << endl;
+            v.push_back(n);
         }
+
+        for (auto d : v)
+        {
+            if (client->checkaccess(d, FULL))
+            {
+                error e = client->unlink(d);
+
+                if (e)
+                {
+                    cout << d->displaypath() << ": Deletion failed (" << errorstring(e) << ")" << endl;
+                }
+            }
+            else
+            {
+                cout << d->displaypath() << ": Access denied" << endl;
+            }
+        }
+    }
+    else
+    {
+        cout << s.words[1].s << ": No such file or directory" << endl;
     }
 }
 
@@ -3412,7 +3564,10 @@ void exec_put(autocomplete::ACState& s)
         while (da->dnext(NULL, &localname, true, &type))
         {
             client->fsaccess->local2path(&localname, &name);
-            cout << "Queueing " << name << "..." << endl;
+            if (gVerboseMode)
+            {
+                cout << "Queueing " << name << "..." << endl;
+            }
 
             if (type == FILENODE)
             {
@@ -4111,6 +4266,12 @@ void exec_getua(autocomplete::ACState& s)
         }
     }
 
+    if (s.words[1].s == "pubk")
+    {
+        client->getpubkey(u->uid.c_str());
+        return;
+    }
+
     client->getua(u, User::string2attr(s.words[1].s.c_str()));
 }
 
@@ -4265,7 +4426,36 @@ void exec_pause(autocomplete::ACState& s)
 
 void exec_debug(autocomplete::ACState& s)
 {
-    cout << "Debug mode " << (client->toggledebug() ? "on" : "off") << endl;
+    bool turnon = s.extractflag("-on");
+    bool turnoff = s.extractflag("-off");
+
+    bool state = client->debugstate();
+    if ((turnon && !state) || (turnoff && state) || (!turnon && !turnoff))
+    {
+        client->toggledebug();
+    }
+
+    cout << "Debug mode " << (client->debugstate() ? "on" : "off") << endl;
+}
+
+void exec_verbose(autocomplete::ACState& s)
+{
+    bool turnon = s.extractflag("-on");
+    bool turnoff = s.extractflag("-off");
+
+    if (turnon)
+    {
+        gVerboseMode = true;
+    }
+    else if (turnoff)
+    {
+        gVerboseMode = false;
+    }
+    else
+    {
+        gVerboseMode = !gVerboseMode;
+    }
+    cout << "Verbose mode " << (gVerboseMode ? "on" : "off") << endl;
 }
 
 #if defined(WIN32) && defined(NO_READLINE)
@@ -4804,12 +4994,11 @@ void exec_whoami(autocomplete::ACState& s)
         if ((u = client->finduser(client->me)))
         {
             cout << "Account e-mail: " << u->email << " handle: " << Base64Str<MegaClient::USERHANDLE>(client->me) << endl;
-#ifdef ENABLE_CHAT
             if (client->signkey)
             {
-                cout << "Fingerprint: " << client->signkey->genFingerprintHex() << endl;
+                string pubKey((const char *)client->signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH);
+                cout << "Credentials: " << AuthRing::fingerprint(pubKey, true) << endl;
             }
-#endif
         }
 
         bool storage = s.extractflag("-storage");
@@ -4824,6 +5013,66 @@ void exec_whoami(autocomplete::ACState& s)
         cout << "Retrieving account status..." << endl;
 
         client->getaccountdetails(&account, all || storage, all || transfer, all || pro, all || transactions, all || purchases, all || sessions);
+    }
+}
+
+void exec_verifycredentials(autocomplete::ACState& s)
+{
+    User* u = nullptr;
+    if (s.words.size() == 2 && (s.words[1].s == "show" || s.words[1].s == "status"))
+    {
+        u = client->finduser(client->me);
+    }
+    else if (s.words.size() == 3)
+    {
+        u = client->finduser(s.words[2].s.c_str());
+    }
+    else
+    {
+        cout << "      credentials show|status|verify|reset [email]" << endl;
+        return;
+    }
+
+    if (!u)
+    {
+        cout << "Invalid user" << endl;
+        return;
+    }
+
+    if (s.words[1].s == "show")
+    {
+        if (u->isattrvalid(ATTR_ED25519_PUBK))
+        {
+            cout << "Credentials: " << AuthRing::fingerprint(*u->getattr(ATTR_ED25519_PUBK), true) << endl;
+        }
+        else
+        {
+            cout << "Fetching singing key... " << endl;
+            client->getua(u->uid.c_str(), ATTR_ED25519_PUBK);
+        }
+    }
+    else if (s.words[1].s == "status")
+    {
+        handle uh = s.words.size() == 3 ? u->userhandle : UNDEF;
+        printAuthringInformation(uh);
+    }
+    else if (s.words[1].s == "verify")
+    {
+        error e;
+        if ((e = client->verifyCredentials(u->userhandle)))
+        {
+            cout << "Verification failed. Error: " << errorstring(e) << endl;
+            return;
+        }
+    }
+    else if (s.words[1].s == "reset")
+    {
+        error e;
+        if ((e = client->resetCredentials(u->userhandle)))
+        {
+            cout << "Reset verification failed. Error: " << errorstring(e) << endl;
+            return;
+        }
     }
 }
 
@@ -4933,7 +5182,7 @@ void exec_chatga(autocomplete::ACState& s)
     handle chatid;
     Base64::atob(s.words[1].s.c_str(), (byte*) &chatid, MegaClient::CHATHANDLE);
 
-    handle nodehandle;
+    handle nodehandle = 0; // make sure top two bytes are 0
     Base64::atob(s.words[2].s.c_str(), (byte*) &nodehandle, MegaClient::NODEHANDLE);
 
     const char *uid = s.words[3].s.c_str();
@@ -4946,7 +5195,7 @@ void exec_chatra(autocomplete::ACState& s)
     handle chatid;
     Base64::atob(s.words[1].s.c_str(), (byte*)&chatid, MegaClient::CHATHANDLE);
 
-    handle nodehandle;
+    handle nodehandle = 0; // make sure top two bytes are 0
     Base64::atob(s.words[2].s.c_str(), (byte*)&nodehandle, MegaClient::NODEHANDLE);
 
     const char *uid = s.words[3].s.c_str();
@@ -6179,8 +6428,14 @@ void DemoApp::exportnode_result(handle h, handle ph)
             return;
         }
 
-        const char *key = (n->type == FILENODE) ? Base64Str<FILENODEKEYLENGTH>((const byte*)n->nodekey.data()) : Base64Str<FOLDERNODEKEYLENGTH>(n->sharekey->key);
-        cout << MegaClient::getPublicLink(client->mNewLinkFormat, n->type, ph, key) << endl;
+        if (n->type == FILENODE)
+        {
+            cout << MegaClient::getPublicLink(client->mNewLinkFormat, n->type, ph, Base64Str<FILENODEKEYLENGTH>((const byte*)n->nodekey.data())) << endl;
+        }
+        else
+        {
+            cout << MegaClient::getPublicLink(client->mNewLinkFormat, n->type, ph, Base64Str<FOLDERNODEKEYLENGTH>(n->sharekey->key)) << endl;
+        }
     }
     else
     {
@@ -6654,10 +6909,16 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
     {
         if (ad->transfer_max)
         {
+            long long transferFreeUsed = 0;
+            for (unsigned i = 0; i < ad->transfer_hist.size(); i++)
+            {
+                transferFreeUsed += ad->transfer_hist[i];
+            }
+
             cout << "\tTransfer in progress: " << ad->transfer_own_reserved << "/" << ad->transfer_srv_reserved << endl;
-            cout << "\tTransfer completed: " << ad->transfer_own_used << "/" << ad->transfer_srv_used << " of "
+            cout << "\tTransfer completed: " << ad->transfer_own_used << "/" << ad->transfer_srv_used << "/" << transferFreeUsed << " of "
                  << ad->transfer_max << " ("
-                 << (100 * (ad->transfer_own_used + ad->transfer_srv_used) / ad->transfer_max) << "%)" << endl;
+                 << (100 * (ad->transfer_own_used + ad->transfer_srv_used + transferFreeUsed) / ad->transfer_max) << "%)" << endl;
             cout << "\tServing bandwidth ratio: " << ad->srv_ratio << "%" << endl;
         }
 
@@ -6669,23 +6930,18 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
 
             for (unsigned i = 0; i < ad->transfer_hist.size(); i++)
             {
-                t -= ad->transfer_hist_interval;
                 cout << "\t\t" << t;
-                if (t < ad->transfer_hist_interval)
+                t -= ad->transfer_hist_interval;
+                if (t < 0)
                 {
                     cout << " second(s) ago until now: ";
                 }
                 else
                 {
-                    cout << "-" << t - ad->transfer_hist_interval << " second(s) ago: ";
+                    cout << "-" << t << " second(s) ago: ";
                 }
                 cout << ad->transfer_hist[i] << " byte(s)" << endl;
             }
-        }
-
-        if (ad->transfer_limit)
-        {
-            cout << "Per-IP transfer limit: " << ad->transfer_limit << endl;
         }
     }
 
@@ -7045,8 +7301,22 @@ void megacli()
             }
         }
 
+
+        auto puts = appxferq[PUT].size();
+        auto gets = appxferq[GET].size();
+
         // pass the CPU to the engine (nonblocking)
         client->exec();
+
+        if (puts && !appxferq[PUT].size())
+        {
+            cout << "Uploads complete" << endl;
+        }
+        if (gets && !appxferq[GET].size())
+        {
+            cout << "Downloads complete" << endl;
+        }
+
 
         if (clientFolder)
         {
@@ -7058,15 +7328,24 @@ void megacli()
 
 class MegaCLILogger : public ::mega::Logger {
 public:
-    void log(const char* time, int loglevel, const char* source, const char *message) override
+    void log(const char*, int loglevel, const char*, const char *message) override
     {
 #ifdef _WIN32
-        OutputDebugStringA(message);
-        OutputDebugStringA("\r\n");
+        string s;
+        s.reserve(1024);
+        s += message;
+        s += "\r\n";
+        OutputDebugStringA(s.c_str());
 #else
         if (loglevel >= SimpleLogger::logCurrentLevel)
         {
-            std::cout << "[" << time << "] " << SimpleLogger::toStr(static_cast<LogLevel>(loglevel)) << ": " << message << " (" << source << ")" << std::endl;
+            auto t = std::time(NULL);
+            char ts[50];
+            if (!std::strftime(ts, sizeof(ts), "%H:%M:%S", std::localtime(&t)))
+            {
+                ts[0] = '\0';
+            }
+            std::cout << "[" << ts << "] " << SimpleLogger::toStr(static_cast<LogLevel>(loglevel)) << ": " << message << std::endl;
         }
 #endif
     }

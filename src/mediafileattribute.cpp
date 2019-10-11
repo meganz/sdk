@@ -320,16 +320,19 @@ inline uint32_t mx(uint32_t sum, uint32_t y, uint32_t z, uint32_t p, uint32_t e,
 }
 
 
-void xxteaEncrypt(uint32_t* v, uint32_t vlen, uint32_t key[4])
+void xxteaEncrypt(uint32_t* v, uint32_t vlen, uint32_t key[4], bool endianConv)
 {
-    if (DetectBigEndian())
+    if (endianConv)
     {
-        EndianConversion32(v, vlen);
-    }
-    else
-    {
-        // match webclient
-        EndianConversion32(key, 4);
+        if (DetectBigEndian())
+        {
+            EndianConversion32(v, vlen);
+        }
+        else
+        {
+            // match webclient
+            EndianConversion32(key, 4);
+        }
     }
 
     uint32_t n = vlen - 1;
@@ -349,26 +352,33 @@ void xxteaEncrypt(uint32_t* v, uint32_t vlen, uint32_t key[4])
         z = v[n] = v[n] + mx(sum, y, z, n, e, key);
     }
 
-    if (DetectBigEndian())
+    if (endianConv)
     {
-        EndianConversion32(v, vlen);
-    }
-    else
-    {
-        EndianConversion32(key, 4);
+        if (DetectBigEndian())
+        {
+            EndianConversion32(v, vlen);
+        }
+        else
+        {
+            EndianConversion32(key, 4);
+        }
     }
 }
 
-void xxteaDecrypt(uint32_t* v, uint32_t vlen, uint32_t key[4])
+void xxteaDecrypt(uint32_t* v, uint32_t vlen, uint32_t key[4], bool endianConv)
 {
-    if (DetectBigEndian())
+    if (endianConv)
     {
-        EndianConversion32(v, vlen);
+        if (DetectBigEndian())
+        {
+            EndianConversion32(v, vlen);
+        }
+        else
+        {
+            EndianConversion32(key, 4);
+        }
     }
-    else
-    {
-        EndianConversion32(key, 4);
-    }
+
     uint32_t n = vlen - 1;
     uint32_t y = v[0];
     uint32_t q = 6 + 52 / vlen;
@@ -384,13 +394,17 @@ void xxteaDecrypt(uint32_t* v, uint32_t vlen, uint32_t key[4])
         uint32_t z = v[n];
         y = v[0] = v[0] - mx(sum, y, z, 0, e, key);
     }
-    if (DetectBigEndian())
+
+    if (endianConv)
     {
-        EndianConversion32(v, vlen);
-    }
-    else
-    {
-        EndianConversion32(key, 4);
+        if (DetectBigEndian())
+        {
+            EndianConversion32(v, vlen);
+        }
+        else
+        {
+            EndianConversion32(key, 4);
+        }
     }
 }
 
@@ -656,7 +670,7 @@ bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, std::string filena
             return false;
         }
 
-        if (!fa->frawread(buf, n, readpos))
+        if (!fa->frawread(buf, n, readpos, true))
         {
             LOG_err << "could not read local file";
             mi.Open_Buffer_Finalize();

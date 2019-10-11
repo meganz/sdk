@@ -173,20 +173,6 @@ using namespace mega;
     return (BusinessStatus) self.megaApi->getBusinessStatus();
 }
 
-#ifdef ENABLE_CHAT
-
-- (NSString *)myFingerprint {
-    const char *val = self.megaApi->getMyFingerprint();
-    if (!val) return nil;
-    
-    NSString *ret = [[NSString alloc] initWithUTF8String:val];
-    
-    delete [] val;
-    return ret;
-}
-
-#endif
-
 - (NSInteger)numUnreadUserAlerts {
     return self.megaApi->getNumUnreadUserAlerts();
 }
@@ -1432,6 +1418,18 @@ using namespace mega;
     self.megaApi->startUploadWithTopPriority((localPath != nil) ? [localPath UTF8String] : NULL, (parent != nil) ? [parent getCPtr] : NULL, (appData !=nil) ? [appData UTF8String] : NULL, isSourceTemporary);
 }
 
+- (void)startUploadForChatWithLocalPath:(NSString *)localPath
+                                 parent:(MEGANode *)parent
+                                appData:(NSString *)appData
+                      isSourceTemporary:(BOOL)isSourceTemporary
+                               delegate:(id<MEGATransferDelegate>)delegate {
+    self.megaApi->startUploadForChat(localPath.UTF8String,
+                                     parent.getCPtr,
+                                     appData.UTF8String,
+                                     isSourceTemporary,
+                                     [self createDelegateMEGATransferListener:delegate singleListener:YES]);
+}
+
 - (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath delegate:(id<MEGATransferDelegate>)delegate {
     self.megaApi->startDownload((node != nil) ? [node getCPtr] : NULL, (localPath != nil) ? [localPath UTF8String] : NULL, [self createDelegateMEGATransferListener:delegate singleListener:YES]);
 }
@@ -1687,7 +1685,7 @@ using namespace mega;
 }
 
 - (MEGAShareList *)inSharesList:(MEGASortOrderType)order {
-    return [[MEGAShareList alloc] initWithShareList:self.megaApi->getInSharesList(order) cMemoryOwn:YES];
+    return [[MEGAShareList alloc] initWithShareList:self.megaApi->getInSharesList((int)order) cMemoryOwn:YES];
 }
 
 - (MEGAUser *)userFromInShareNode:(MEGANode *)node {
@@ -1701,7 +1699,7 @@ using namespace mega;
 }
 
 - (MEGAShareList *)outShares:(MEGASortOrderType)order {
-    return [[MEGAShareList alloc] initWithShareList:self.megaApi->getOutShares(order) cMemoryOwn:YES];
+    return [[MEGAShareList alloc] initWithShareList:self.megaApi->getOutShares((int)order) cMemoryOwn:YES];
 }
 
 - (MEGAShareList *)outSharesForNode:(MEGANode *)node {
@@ -1709,7 +1707,7 @@ using namespace mega;
 }
 
 - (MEGANodeList *)publicLinks:(MEGASortOrderType)order {
-    return [[MEGANodeList alloc] initWithNodeList:self.megaApi->getPublicLinks(order) cMemoryOwn:YES];
+    return [[MEGANodeList alloc] initWithNodeList:self.megaApi->getPublicLinks((int)order) cMemoryOwn:YES];
 }
 
 - (MEGAContactRequestList *)incomingContactRequests {
@@ -1869,8 +1867,8 @@ using namespace mega;
     return [[MEGANodeList alloc] initWithNodeList:self.megaApi->search((node != nil) ? [node getCPtr] : NULL, (searchString != nil) ? [searchString UTF8String] : NULL, recursive) cMemoryOwn:YES];
 }
 
-- (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString cancelToken:(MEGACancelToken *)cancelToken recursive:(BOOL)recursive {
-    return [MEGANodeList.alloc initWithNodeList:self.megaApi->search(node ? [node getCPtr] : NULL, searchString.UTF8String, cancelToken ? [cancelToken getCPtr] : NULL, recursive) cMemoryOwn:YES];
+- (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString cancelToken:(MEGACancelToken *)cancelToken recursive:(BOOL)recursive order:(MEGASortOrderType)order {
+    return [MEGANodeList.alloc initWithNodeList:self.megaApi->search(node ? [node getCPtr] : NULL, searchString.UTF8String, cancelToken ? [cancelToken getCPtr] : NULL, recursive, (int)order) cMemoryOwn:YES];
 }
 
 - (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString {
@@ -2169,6 +2167,18 @@ using namespace mega;
 
 - (SMSState)smsAllowedState {
     return (SMSState)self.megaApi->smsAllowedState();
+}
+
+- (nullable NSString *)smsVerifiedPhoneNumber {
+    char *number = self.megaApi->smsVerifiedPhoneNumber();
+    
+    if (number == NULL) {
+        return nil;
+    }
+    
+    NSString *numberString = @(number);
+    delete [] number;
+    return numberString;
 }
 
 - (void)getRegisteredContacts:(NSArray<NSDictionary *> *)contacts delegate:(id<MEGARequestDelegate>)delegate {

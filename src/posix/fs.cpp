@@ -74,7 +74,7 @@ void PosixAsyncIOContext::finish()
 }
 #endif
 
-PosixFileAccess::PosixFileAccess(Waiter *w, int defaultfilepermissions) : FileAccess(w)
+PosixFileAccess::PosixFileAccess(Waiter *w, int defaultfilepermissions, bool followSymLinks) : FileAccess(w)
 {
     fd = -1;
     this->defaultfilepermissions = defaultfilepermissions;
@@ -83,6 +83,7 @@ PosixFileAccess::PosixFileAccess(Waiter *w, int defaultfilepermissions) : FileAc
     dp = NULL;
 #endif
 
+    mFollowSymLinks = followSymLinks;
     fsidvalid = false;
 }
 
@@ -107,18 +108,19 @@ bool PosixFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
     retry = false;
 
 #ifdef USE_IOS
-    string localname = this->localname;
+    string nonblocking_localname = this->nonblocking_localname;
     if (PosixFileSystemAccess::appbasepath)
     {
-        if (localname.size() && localname.at(0) != '/')
+        if (nonblocking_localname.size() && nonblocking_localname.at(0) != '/')
         {
-            localname.insert(0, PosixFileSystemAccess::appbasepath);
+            nonblocking_localname.insert(0, PosixFileSystemAccess::appbasepath);
         }
     }
 #endif
 
     type = TYPE_UNKNOWN;
-    if (!stat(localname.c_str(), &statbuf))
+    mIsSymLink = !lstat(nonblocking_localname.c_str(), &statbuf) && S_ISLNK(statbuf.st_mode);
+    if (!(mFollowSymLinks? stat(nonblocking_localname.c_str(), &statbuf) : lstat(nonblocking_localname.c_str(), &statbuf)))
     {
         errorcode = 0;
         if (S_ISDIR(statbuf.st_mode))
@@ -143,29 +145,36 @@ bool PosixFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
 bool PosixFileAccess::sysopen(bool)
 {
 #ifdef USE_IOS
-    string localname = this->localname;
+    string nonblocking_localname = this->nonblocking_localname;
     if (PosixFileSystemAccess::appbasepath)
     {
-        if (localname.size() && localname.at(0) != '/')
+        if (nonblocking_localname.size() && nonblocking_localname.at(0) != '/')
         {
-            localname.insert(0, PosixFileSystemAccess::appbasepath);
+            nonblocking_localname.insert(0, PosixFileSystemAccess::appbasepath);
         }
     }
 #endif
 
-    return (fd = open(localname.c_str(), O_RDONLY)) >= 0;
+    assert(fd < 0 && "There should be no opened file descriptor at this point");
+    if (fd >= 0)
+    {
+        sysclose();
+    }
+
+    assert(mFollowSymLinks); //Notice: symlinks are not considered here for the moment,
+    // this is ok: this is not called with mFollowSymLinks = false, but from transfers doio.
+    // When fully supporting symlinks, this might need to be reassessed
+
+    return (fd = open(nonblocking_localname.c_str(), O_RDONLY)) >= 0;
 }
 
 void PosixFileAccess::sysclose()
 {
-    if (localname.size())
+    assert(!nonblocking_localname.size() || fd >= 0);
+    if (fd >= 0)
     {
-        assert (fd >= 0);
-        if (fd >= 0)
-        {
-            close(fd);
-            fd = -1;
-        }
+        close(fd);
+        fd = -1;
     }
 }
 
@@ -341,9 +350,9 @@ void PosixFileAccess::asyncsyswrite(AsyncIOContext *context)
 // update local name
 void PosixFileAccess::updatelocalname(string* name)
 {
-    if (localname.size())
+    if (nonblocking_localname.size())
     {
-        localname = *name;
+        nonblocking_localname = *name;
     }
 }
 
@@ -367,6 +376,13 @@ bool PosixFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
     lseek64(fd, pos, SEEK_SET);
     return write(fd, data, len) == len;
 #endif
+}
+
+int PosixFileAccess::stealFileDescriptor()
+{
+    int toret = fd;
+    fd = -1;
+    return toret;
 }
 
 bool PosixFileAccess::fopen(string* f, bool read, bool write)
@@ -458,20 +474,42 @@ bool PosixFileAccess::fopen(string* f, bool read, bool write)
     }
 #endif
 
+    bool statok = false;
+    mIsSymLink = !lstat(f->c_str(), &statbuf) && S_ISLNK(statbuf.st_mode);
+
+    if (mIsSymLink && !mFollowSymLinks)
+    {
+        statok = true; //we will use statbuf filled by lstat instead of fstat
+    }
+
     mode_t mode = 0;
     if (write)
     {
         mode = umask(0);
     }
 
-    if ((fd = open(f->c_str(), write ? (read ? O_RDWR : O_WRONLY | O_CREAT) : O_RDONLY, defaultfilepermissions)) >= 0)
+#ifndef O_PATH
+#define O_PATH 0
+// Notice in systems were O_PATH is not available, open will fail for links with O_NOFOLLOW
+#endif
+
+    assert(fd < 0 && "There should be no opened file descriptor at this point");
+    sysclose();
+    // if mFollowSymLinks is true (open normally: it will open the targeted file/folder),
+    // otherwise, get the file descriptor for symlinks in case it is a sync link (notice O_PATH invalidates read/only flags)
+    if ((fd = open(f->c_str(), (!mFollowSymLinks && mIsSymLink) ? (O_PATH | O_NOFOLLOW) : (write ? (read ? O_RDWR : O_WRONLY | O_CREAT) : O_RDONLY) , defaultfilepermissions)) >= 0 || statok)
     {
         if (write)
         {
             umask(mode);
         }
 
-        if (!fstat(fd, &statbuf))
+        if (!statok)
+        {
+            statok = !fstat(fd, &statbuf);
+        }
+
+        if (statok)
         {
             #ifdef __MACH__
                 //If creation time equal to kMagicBusyCreationDate
@@ -486,6 +524,7 @@ bool PosixFileAccess::fopen(string* f, bool read, bool write)
             size = statbuf.st_size;
             mtime = statbuf.st_mtime;
             type = S_ISDIR(statbuf.st_mode) ? FOLDERNODE : FILENODE;
+            // in the future we might want to add LINKNODE to type and set it here using S_ISLNK
             fsid = (handle)statbuf.st_ino;
             fsidvalid = true;
 
@@ -863,11 +902,11 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
 
                 for (it = client->syncs.begin(); it != client->syncs.end(); it++)
                 {
-                    int rsize = (*it)->localroot.localname.size();
+                    int rsize = (*it)->mFsEventsPath.size() ? (*it)->mFsEventsPath.size() : (*it)->localroot.localname.size();
                     int isize = (*it)->dirnotify->ignore.size();
 
                     if (psize >= rsize
-                      && !memcmp((*it)->localroot.localname.c_str(), path, rsize)    // prefix match
+                      && !memcmp((*it)->mFsEventsPath.size() ? (*it)->mFsEventsPath.c_str() : (*it)->localroot.localname.c_str(), path, rsize)    // prefix match
                       && (!path[rsize] || path[rsize] == '/')               // at end: end of path or path separator
                       && (psize <= (rsize + isize)                          // not ignored
                           || (path[rsize + isize + 1] && path[rsize + isize + 1] != '/')
@@ -882,7 +921,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                                 break;
                             }
 
-                            paths[i] += (*it)->localroot.localname.size() + 1;
+                            paths[i] += rsize + 1;
                             pathsync[i] = *it;
                             break;
                         }
@@ -1744,7 +1783,7 @@ void PosixDirNotify::delnotify(LocalNode* l)
 #endif
 }
 
-fsfp_t PosixDirNotify::fsfingerprint()
+fsfp_t PosixDirNotify::fsfingerprint() const
 {
     struct statfs statfsbuf;
 
@@ -1754,9 +1793,30 @@ fsfp_t PosixDirNotify::fsfingerprint()
     return *(fsfp_t*)&statfsbuf.f_fsid + 1;
 }
 
-FileAccess* PosixFileSystemAccess::newfileaccess()
+bool PosixDirNotify::fsstableids() const
 {
-    return new PosixFileAccess(waiter, defaultfilepermissions);
+    struct statfs statfsbuf;
+
+    if (statfs(localbasepath.c_str(), &statfsbuf))
+    {
+        LOG_err << "Failed to get filesystem type. Error code: " << errno;
+        return true;
+    }
+
+    LOG_info << "Filesystem type: " << statfsbuf.f_type;
+
+#ifdef __APPLE__
+    return statfsbuf.f_type != 0x1c // FAT32
+        && statfsbuf.f_type != 0x1d; // exFAT
+#else
+    return statfsbuf.f_type != 0x4d44 // FAT
+        && statfsbuf.f_type != 0x65735546; // FUSE
+#endif
+}
+
+FileAccess* PosixFileSystemAccess::newfileaccess(bool followSymLinks)
+{
+    return new PosixFileAccess(waiter, defaultfilepermissions, followSymLinks);
 }
 
 DirAccess* PosixFileSystemAccess::newdiraccess()
@@ -1804,8 +1864,7 @@ bool PosixDirAccess::dopen(string* path, FileAccess* f, bool doglob)
     if (f)
     {
 #ifdef HAVE_FDOPENDIR
-        dp = fdopendir(((PosixFileAccess*)f)->fd);
-        ((PosixFileAccess*)f)->fd = -1;
+        dp = fdopendir(((PosixFileAccess*)f)->stealFileDescriptor());
 #else
         dp = ((PosixFileAccess*)f)->dp;
         ((PosixFileAccess*)f)->dp = NULL;

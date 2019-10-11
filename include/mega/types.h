@@ -74,6 +74,7 @@ typedef unsigned char byte;
 
 #include <memory>
 #include <string>
+#include <chrono>
 
 namespace mega {
 
@@ -129,6 +130,7 @@ namespace UserAlert
 {
     struct Base;
 }
+class AuthRing;
 
 #define EOO 0
 
@@ -455,6 +457,8 @@ typedef enum {
     ATTR_PUSH_SETTINGS = 25,                // private - non-encripted - char array in B64 - non-versioned
     ATTR_UNSHAREABLE_KEY = 26,              // private - char array
     ATTR_ALIAS = 27,                        // private - byte array - non-versioned
+    ATTR_AUTHRSA = 28,                      // private - byte array
+    ATTR_AUTHCU255 = 29,                    // private - byte array
 
 } attr_t;
 typedef map<attr_t, string> userattr_map;
@@ -537,7 +541,7 @@ typedef enum { EMAIL_REMOVED = 0, EMAIL_PENDING_REMOVED = 1, EMAIL_PENDING_ADDED
 
 typedef enum { RETRY_NONE = 0, RETRY_CONNECTIVITY = 1, RETRY_SERVERS_BUSY = 2, RETRY_API_LOCK = 3, RETRY_RATE_LIMIT = 4, RETRY_LOCAL_LOCK = 5, RETRY_UNKNOWN = 6} retryreason_t;
 
-typedef enum { STORAGE_GREEN = 0, STORAGE_ORANGE = 1, STORAGE_RED = 2, STORAGE_CHANGE = 3 } storagestatus_t;
+typedef enum { STORAGE_UNKNOWN = -9, STORAGE_GREEN = 0, STORAGE_ORANGE = 1, STORAGE_RED = 2, STORAGE_CHANGE = 3 } storagestatus_t;
 
 
 enum SmsVerificationState {
@@ -565,6 +569,15 @@ typedef vector<recentaction> recentactions_vector;
 typedef enum { BIZ_STATUS_UNKNOWN = -2, BIZ_STATUS_EXPIRED = -1, BIZ_STATUS_INACTIVE = 0, BIZ_STATUS_ACTIVE = 1, BIZ_STATUS_GRACE_PERIOD = 2 } BizStatus;
 typedef enum { BIZ_MODE_UNKNOWN = -1, BIZ_MODE_SUBUSER = 0, BIZ_MODE_MASTER = 1 } BizMode;
 
+typedef enum {
+    AUTH_METHOD_UNKNOWN     = -1,
+    AUTH_METHOD_SEEN        = 0,
+    AUTH_METHOD_FINGERPRINT = 1,    // used only for AUTHRING_ED255
+    AUTH_METHOD_SIGNATURE   = 2,    // used only for signed keys (RSA and Cu25519)
+} AuthMethod;
+
+typedef std::map<attr_t, AuthRing> AuthRingsMap;
+
 // inside 'mega' namespace, since use C++11 and can't rely on C++14 yet, provide make_unique for the most common case.
 // This keeps our syntax small, while making sure the compiler ensures the object is deleted when no longer used.
 // Sometimes there will be ambiguity about std::make_unique vs mega::make_unique if cpp files "use namespace std", in which case specify ::mega::.
@@ -573,6 +586,88 @@ template<class T, class... constructorArgs>
 unique_ptr<T> make_unique(constructorArgs&&... args)
 {
     return (unique_ptr<T>(new T(std::forward<constructorArgs>(args)...)));
+}
+
+//#define MEGA_MEASURE_CODE   // uncomment this to track time spent in major subsystems, and log it every 2 minutes, with extra control from megacli
+
+namespace CodeCounter
+{
+    // Some classes that allow us to easily measure the number of times a block of code is called, and the sum of the time it takes.
+    // Only enabled if MEGA_MEASURE_CODE is turned on.
+    // Usage generally doesn't need to be protected by the macro as the classes and methods will be empty when not enabled.
+
+    using namespace std::chrono;
+
+    struct ScopeStats
+    {
+#ifdef MEGA_MEASURE_CODE
+        uint64_t count = 0;
+        uint64_t starts = 0;
+        uint64_t finishes = 0;
+        high_resolution_clock::duration timeSpent{};
+        std::string name;
+        ScopeStats(std::string s) : name(std::move(s)) {}
+
+        inline string report(bool reset = false) 
+        { 
+            string s = " " + name + ": " + std::to_string(count) + " " + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(timeSpent).count()); 
+            if (reset)
+            {
+                count = 0;
+                starts -= finishes;
+                finishes = 0;
+                timeSpent = high_resolution_clock::duration{};
+            }
+            return s;
+        }
+#else
+        ScopeStats(std::string s) {}
+#endif
+    };
+
+    struct DurationSum
+    {
+#ifdef MEGA_MEASURE_CODE
+        high_resolution_clock::duration sum{ 0 };
+        high_resolution_clock::time_point deltaStart;
+        bool started = false;
+        inline void start(bool b = true) { if (b && !started) { deltaStart = high_resolution_clock::now(); started = true; }  }
+        inline void stop(bool b = true) { if (b && started) { sum += high_resolution_clock::now() - deltaStart; started = false; } }
+        inline bool inprogress() { return started; }
+        inline string report(bool reset = false) 
+        { 
+            string s = std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(sum).count()); 
+            if (reset) sum = high_resolution_clock::duration{ 0 };
+            return s;
+        }
+#else
+        inline void start(bool = true) {  }
+        inline void stop(bool = true) {  }
+#endif
+    };
+
+    struct ScopeTimer
+    {
+#ifdef MEGA_MEASURE_CODE
+        ScopeStats& scope;
+        high_resolution_clock::time_point blockStart;
+
+        ScopeTimer(ScopeStats& sm) : scope(sm), blockStart(high_resolution_clock::now())
+        {
+            ++scope.starts;
+        }
+        ~ScopeTimer()
+        {
+            ++scope.count;
+            ++scope.finishes;
+            scope.timeSpent += high_resolution_clock::now() - blockStart;
+        }
+#else
+        ScopeTimer(ScopeStats& sm)
+        {
+        }
+#endif
+    };
 }
 
 } // namespace
