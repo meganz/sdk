@@ -6869,8 +6869,8 @@ void DemoApp::contactlinkquery_result(error e, handle h, string *email, string *
         cout << "Contact link created successfully: " << endl;
         cout << "\tUserhandle: " << LOG_HANDLE(h) << endl;
         cout << "\tEmail: " << *email << endl;
-        cout << "\tFirstname: " << *fn << endl;
-        cout << "\tLastname: " << *ln << endl;
+        cout << "\tFirstname: " << Base64::atob(*fn) << endl;
+        cout << "\tLastname: " << Base64::atob(*ln) << endl;
     }
 }
 
