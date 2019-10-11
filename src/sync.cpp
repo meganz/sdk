@@ -956,7 +956,10 @@ bool Sync::assignfsids()
 // localpath must be prefixed with Sync
 bool Sync::scan(string* localpath, FileAccess* fa)
 {
-    assert(fa->type == FOLDERNODE);
+    if (fa)
+    {
+        assert(fa->type == FOLDERNODE);
+    }
     if (isPathSyncable(*localpath, localdebris, client->fsaccess->localseparator))
     {
         DirAccess* da;

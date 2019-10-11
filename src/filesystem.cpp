@@ -279,7 +279,7 @@ FileAccess::~FileAccess()
 // open file for reading
 bool FileAccess::fopen(string* name)
 {
-    localname.resize(1);
+    nonblocking_localname.resize(1);
     updatelocalname(name);
 
     return sysstat(&mtime, &size);
@@ -294,8 +294,9 @@ bool FileAccess::isfolder(string *name)
 // check if size and mtime are unchanged, then open for reading
 bool FileAccess::openf()
 {
-    if (!localname.size())
+    if (!nonblocking_localname.size())
     {
+        // file was not opened in nonblocking mode
         return true;
     }
 
@@ -322,7 +323,7 @@ bool FileAccess::openf()
 
 void FileAccess::closef()
 {
-    if (localname.size())
+    if (nonblocking_localname.size())
     {
         sysclose();
     }
@@ -339,7 +340,7 @@ void FileAccess::asyncopfinished(void *param)
 
 AsyncIOContext *FileAccess::asyncfopen(string *f)
 {
-    localname.resize(1);
+    nonblocking_localname.resize(1);
     updatelocalname(f);
 
     LOG_verbose << "Async open start";
@@ -365,7 +366,7 @@ AsyncIOContext *FileAccess::asyncfopen(string *f)
 bool FileAccess::asyncopenf()
 {
     numAsyncReads++;
-    if (!localname.size())
+    if (!nonblocking_localname.size())
     {
         return true;
     }
@@ -545,16 +546,19 @@ bool FileAccess::fread(string* dst, unsigned len, unsigned pad, m_off_t pos)
     return r;
 }
 
-bool FileAccess::frawread(byte* dst, unsigned len, m_off_t pos)
+bool FileAccess::frawread(byte* dst, unsigned len, m_off_t pos, bool caller_opened)
 {
-    if (!openf())
+    if (!caller_opened && !openf())
     {
         return false;
     }
 
     bool r = sysread(dst, len, pos);
 
-    closef();
+    if (!caller_opened)
+    {
+        closef();
+    }
 
     return r;
 }

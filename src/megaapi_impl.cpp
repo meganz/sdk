@@ -10166,7 +10166,7 @@ MegaNodeList* MegaApiImpl::getInShares(MegaUser *megaUser, int order)
     MegaNodeList *nodeList;
     if (vNodes.size())
     {
-        std::sort(vNodes.begin(), vNodes.end(), getComparatorFunction(order));
+        sortByComparatorFunction(vNodes, order, *client);
         nodeList = new MegaNodeListPrivate(vNodes.data(), int(vNodes.size()));
     }
     else
@@ -10196,7 +10196,7 @@ MegaNodeList* MegaApiImpl::getInShares(int order)
         }
     }
 
-    std::sort(nodes.begin(), nodes.end(), getComparatorFunction(order));
+    sortByComparatorFunction(nodes, order, *client);
 
     MegaNodeList *nodeList = new MegaNodeListPrivate(nodes.data(), int(nodes.size()));
     sdkMutex.unlock();
@@ -10221,7 +10221,7 @@ MegaShareList* MegaApiImpl::getInSharesList(int order)
         }
     }
 
-    std::sort(nodes.begin(), nodes.end(), getComparatorFunction(order));
+    sortByComparatorFunction(nodes, order, *client);
 
     vector<Share*> shares;
     handle_vector handles;
@@ -10280,7 +10280,7 @@ MegaShareList *MegaApiImpl::getOutShares(int order)
 {
     sdkMutex.lock();
 
-    OutShareProcessor shareProcessor;
+    OutShareProcessor shareProcessor(*client);
     processTree(client->nodebyhandle(client->rootnodes[0]), &shareProcessor, true);
     shareProcessor.sortShares(order);
     MegaShareList *shareList = new MegaShareListPrivate(shareProcessor.getShares().data(), shareProcessor.getHandles().data(), int(shareProcessor.getShares().size()));
@@ -10384,7 +10384,7 @@ MegaNodeList *MegaApiImpl::getPublicLinks(int order)
     PublicLinkProcessor linkProcessor;
     processTree(client->nodebyhandle(client->rootnodes[0]), &linkProcessor, true);
     node_vector nodes = linkProcessor.getNodes();
-    std::sort(nodes.begin(), nodes.end(), getComparatorFunction(order));
+    sortByComparatorFunction(nodes, order, *client);
     MegaNodeList *nodeList = new MegaNodeListPrivate(nodes.data(), int(nodes.size()));
 
     sdkMutex.unlock();
@@ -10612,10 +10612,7 @@ MegaNodeList *MegaApiImpl::search(const char *searchString, MegaCancelToken *can
     }
     delete shares;
 
-    if (order && order <= MegaApi::ORDER_ALPHABETICAL_DESC)
-    {
-        std::sort(result.begin(), result.end(), getComparatorFunction(order));
-    }
+    sortByComparatorFunction(result, order, *client);
     MegaNodeList *nodeList = new MegaNodeListPrivate(result.data(), int(result.size()));
     
     return nodeList;
@@ -11142,10 +11139,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, MegaCan
     }
 
     vector<Node *>& vNodes = searchProcessor.getResults();
-    if (order && order <= MegaApi::ORDER_ALPHABETICAL_DESC)
-    {
-        std::sort(vNodes.begin(), vNodes.end(), getComparatorFunction(order));
-    }
+    sortByComparatorFunction(vNodes, order, *client);
 
     MegaNodeList *nodeList = new MegaNodeListPrivate(vNodes.data(), int(vNodes.size()));
     return nodeList;
@@ -16400,104 +16394,138 @@ int naturalsorting_compare (const char *i, const char *j)
     return 0;
 }
 
-std::function<bool (Node*, Node*)>MegaApiImpl::getComparatorFunction(int order)
+std::function<bool (Node*, Node*)> MegaApiImpl::getComparatorFunction(int order, MegaClient& mc)
 {
-    std::function<bool (Node*, Node*)> comp;
-    switch(order)
+    switch (order)
     {
-        case MegaApi::ORDER_DEFAULT_ASC: comp = MegaApiImpl::nodeComparatorDefaultASC; break;
-        case MegaApi::ORDER_DEFAULT_DESC: comp = MegaApiImpl::nodeComparatorDefaultDESC; break;
-        case MegaApi::ORDER_SIZE_ASC: comp = MegaApiImpl::nodeComparatorSizeASC; break;
-        case MegaApi::ORDER_SIZE_DESC: comp = MegaApiImpl::nodeComparatorSizeDESC; break;
-        case MegaApi::ORDER_CREATION_ASC: comp = MegaApiImpl::nodeComparatorCreationASC; break;
-        case MegaApi::ORDER_CREATION_DESC: comp = MegaApiImpl::nodeComparatorCreationDESC; break;
-        case MegaApi::ORDER_MODIFICATION_ASC: comp = MegaApiImpl::nodeComparatorModificationASC; break;
-        case MegaApi::ORDER_MODIFICATION_DESC: comp = MegaApiImpl::nodeComparatorModificationDESC; break;
-        case MegaApi::ORDER_ALPHABETICAL_ASC: comp = MegaApiImpl::nodeComparatorAlphabeticalASC; break;
-        case MegaApi::ORDER_ALPHABETICAL_DESC: comp = MegaApiImpl::nodeComparatorAlphabeticalDESC; break;
-        default: comp = MegaApiImpl::nodeComparatorDefaultASC; break;
+        case MegaApi::ORDER_NONE: return nullptr;
+        case MegaApi::ORDER_DEFAULT_ASC: return MegaApiImpl::nodeComparatorDefaultASC;
+        case MegaApi::ORDER_DEFAULT_DESC: return MegaApiImpl::nodeComparatorDefaultDESC;
+        case MegaApi::ORDER_SIZE_ASC: return MegaApiImpl::nodeComparatorSizeASC;
+        case MegaApi::ORDER_SIZE_DESC: return MegaApiImpl::nodeComparatorSizeDESC;
+        case MegaApi::ORDER_CREATION_ASC: return MegaApiImpl::nodeComparatorCreationASC;
+        case MegaApi::ORDER_CREATION_DESC: return MegaApiImpl::nodeComparatorCreationDESC;
+        case MegaApi::ORDER_MODIFICATION_ASC: return MegaApiImpl::nodeComparatorModificationASC;
+        case MegaApi::ORDER_MODIFICATION_DESC: return MegaApiImpl::nodeComparatorModificationDESC;
+        case MegaApi::ORDER_ALPHABETICAL_ASC: return MegaApiImpl::nodeComparatorDefaultASC;
+        case MegaApi::ORDER_ALPHABETICAL_DESC: return MegaApiImpl::nodeComparatorDefaultDESC;
+        case MegaApi::ORDER_PHOTO_ASC: return [&mc](Node* i, Node*j) { return MegaApiImpl::nodeComparatorPhotoASC(i, j, mc); };
+        case MegaApi::ORDER_PHOTO_DESC: return [&mc](Node* i, Node*j) { return MegaApiImpl::nodeComparatorPhotoDESC(i, j, mc); };
+        case MegaApi::ORDER_VIDEO_ASC: return [&mc](Node* i, Node*j) { return MegaApiImpl::nodeComparatorVideoASC(i, j, mc); };
+        case MegaApi::ORDER_VIDEO_DESC: return [&mc](Node* i, Node*j) { return MegaApiImpl::nodeComparatorVideoDESC(i, j, mc); };
     }
+    assert(false);
+    return nullptr;
+}
 
-    return comp;
+void MegaApiImpl::sortByComparatorFunction(node_vector& v, int order, MegaClient& mc)
+{
+    if (auto f = getComparatorFunction(order, mc))
+    {
+        std::sort(v.begin(), v.end(), f);
+    }
+}
+
+bool MegaApiImpl::nodeNaturalComparatorASC(Node *i, Node *j)
+{
+    int r = naturalsorting_compare(i->displayname(), j->displayname());
+    if (r < 0 || (!r && i < j))
+    {
+        return 1;
+    }
+    return 0;
+}
+
+bool MegaApiImpl::nodeNaturalComparatorDESC(Node *i, Node *j)
+{
+    int r = naturalsorting_compare(i->displayname(), j->displayname());
+    if (r < 0 || (!r && i < j))
+    {
+        return 0;
+    }
+    return 1;
 }
 
 bool MegaApiImpl::nodeComparatorDefaultASC(Node *i, Node *j)
 {
-    if (i->type < j->type)
+    int t = typeComparator(i, j);
+    if (t >= 0)
     {
-        return 0;
-    }
-    if (i->type > j->type)
-    {
-        return 1;
+        return t;
     }
 
-    int r = naturalsorting_compare(i->displayname(), j->displayname());
-    if (r < 0 || (!r && i < j))
-    {
-        return 1;
-    }
-    return 0;
+    return nodeNaturalComparatorASC(i, j);
 }
 
 bool MegaApiImpl::nodeComparatorDefaultDESC(Node *i, Node *j)
 {
-    if (i->type < j->type)
+    int t = typeComparator(i, j);
+    if (t >= 0)
     {
-        return 0;
-    }
-    if (i->type > j->type)
-    {
-        return 1;
+        return t;
     }
 
-    int r = naturalsorting_compare(i->displayname(), j->displayname());
-    if (r < 0 || (!r && i < j))
-    {
-        return 0;
-    }
-    return 1;
+    return nodeNaturalComparatorDESC(i, j);
 }
 
 bool MegaApiImpl::nodeComparatorSizeASC(Node *i, Node *j)
 {
-    if (i->type > FILENODE || j->type > FILENODE || i->size == j->size)
+    int t = typeComparator(i, j);
+    if (t >= 0)
     {
-        return nodeComparatorDefaultASC(i, j);
+        return t;
+    }
+
+    if (i->type != FILENODE) // Only file nodes have size
+    {
+        // If node doesn't have size, order alphabetically ascending
+        return nodeNaturalComparatorASC(i, j);
     }
 
     m_off_t r = i->size - j->size;
-    if (r < 0 || (!r && i < j))
+    if (r < 0)
     {
         return 1;
     }
-    return 0;
+    if (r > 0)
+    {
+        return 0;
+    }
+    return nodeNaturalComparatorASC(i, j);
 }
 
 bool MegaApiImpl::nodeComparatorSizeDESC(Node *i, Node *j)
 {
-    if (i->type > FILENODE || j->type > FILENODE || i->size == j->size)
+    int t = typeComparator(i, j);
+    if (t >= 0)
     {
-        return nodeComparatorDefaultASC(i, j);
+        return t;
+    }
+
+    if (i->type != FILENODE) // Only file nodes have size
+    {
+        // If node doesn't have size, order alphabetically ascending
+        return nodeNaturalComparatorASC(i, j);
     }
 
     m_off_t r = i->size - j->size;
-    if (r < 0 || (!r && i < j))
+    if (r < 0)
     {
         return 0;
     }
-    return 1;
+    if (r > 0)
+    {
+        return 1;
+    }
+    return nodeNaturalComparatorDESC(i, j);
 }
 
 bool MegaApiImpl::nodeComparatorCreationASC(Node *i, Node *j)
 {
-    if (i->type < j->type)
+    int t = typeComparator(i, j);
+    if (t >= 0)
     {
-        return 0;
-    }
-    if (i->type > j->type)
-    {
-        return 1;
+        return t;
     }
     if (i->ctime < j->ctime)
     {
@@ -16507,18 +16535,15 @@ bool MegaApiImpl::nodeComparatorCreationASC(Node *i, Node *j)
     {
         return 0;
     }
-    return nodeComparatorDefaultASC(i, j);
+    return nodeNaturalComparatorASC(i, j);
 }
 
 bool MegaApiImpl::nodeComparatorCreationDESC(Node *i, Node *j)
 {
-    if (i->type < j->type)
+    int t = typeComparator(i, j);
+    if (t >= 0)
     {
-        return 0;
-    }
-    if (i->type > j->type)
-    {
-        return 1;
+        return t;
     }
     if (i->ctime < j->ctime)
     {
@@ -16528,40 +16553,64 @@ bool MegaApiImpl::nodeComparatorCreationDESC(Node *i, Node *j)
     {
         return 1;
     }
-    return nodeComparatorDefaultASC(i, j);
+    return nodeNaturalComparatorDESC(i, j);
 }
 
 bool MegaApiImpl::nodeComparatorModificationASC(Node *i, Node *j)
 {
-    if (i->type > FILENODE || j->type > FILENODE || i->mtime == j->mtime)
+    int t = typeComparator(i, j);
+    if (t >= 0)
     {
-        return nodeComparatorDefaultASC(i, j);
+        return t;
+    }
+
+    if (i->type != FILENODE) // Only file nodes have last modified date
+    {
+        // If node doesn't have mtime, order alphabetically ascending
+        return nodeNaturalComparatorASC(i, j);
     }
 
     m_time_t r = i->mtime - j->mtime;
-    if (r < 0 || (!r && i < j))
+    if (r < 0)
     {
         return 1;
     }
-    return 0;
+    if (r > 0)
+    {
+        return 0;
+    }
+    return nodeNaturalComparatorASC(i, j);
 }
 
 bool MegaApiImpl::nodeComparatorModificationDESC(Node *i, Node *j)
 {
-    if (i->type > FILENODE || j->type > FILENODE || i->mtime == j->mtime)
+    int t = typeComparator(i, j);
+    if (t >= 0)
     {
-        return nodeComparatorDefaultASC(i, j);
+        return t;
+    }
+
+    if (i->type != FILENODE)
+    {
+        // If node doesn't have mtime, order alphabetically ascending
+        return nodeNaturalComparatorASC(i, j);
     }
 
     m_time_t r = i->mtime - j->mtime;
-    if (r < 0 || (!r && i < j))
+    if (r < 0)
     {
         return 0;
     }
-    return 1;
+    if (r > 0)
+    {
+        return 1;
+    }
+
+    return nodeNaturalComparatorDESC(i, j);
 }
 
-bool MegaApiImpl::nodeComparatorAlphabeticalASC(Node *i, Node *j)
+// Compare node types. Returns -1 if i==j, 0 if i goes first, +1 if j goes first.
+int MegaApiImpl::typeComparator(Node *i, Node *j)
 {
     if (i->type < j->type)
     {
@@ -16571,32 +16620,87 @@ bool MegaApiImpl::nodeComparatorAlphabeticalASC(Node *i, Node *j)
     {
         return 1;
     }
-
-    int r = strcasecmp(i->displayname(), j->displayname());
-    if (r < 0 || (!r && i < j))
-    {
-        return 1;
-    }
-    return 0;
+    return -1;
 }
 
-bool MegaApiImpl::nodeComparatorAlphabeticalDESC(Node *i, Node *j)
+bool MegaApiImpl::nodeComparatorPhotoASC(Node *i, Node *j, MegaClient& mc)
 {
-    if (i->type < j->type)
+    bool i_photo = false, i_video = false, j_photo = false, j_video = false;
+    bool i_media = mc.nodeIsMedia(i, &i_photo, &i_video);
+    bool j_media = mc.nodeIsMedia(j, &j_photo, &j_video);
+
+    if (i_media != j_media)
     {
-        return 0;
-    }
-    if (i->type > j->type)
-    {
-        return 1;
+        return i_media;  // media go first
     }
 
-    int r = strcasecmp(i->displayname(), j->displayname());
-    if (r < 0 || (!r && i < j))
+    if (i_photo != j_photo)
     {
-        return 0;
+        return i_photo; // photos before videos
     }
-    return 1;
+
+    // within photos or videos or non-media, order by date
+    return nodeComparatorModificationASC(i, j);
+}
+
+bool MegaApiImpl::nodeComparatorPhotoDESC(Node *i, Node *j, MegaClient& mc)
+{
+    bool i_photo = false, i_video = false, j_photo = false, j_video = false;
+    bool i_media = mc.nodeIsMedia(i, &i_photo, &i_video);
+    bool j_media = mc.nodeIsMedia(j, &j_photo, &j_video);
+
+    if (i_media != j_media)
+    {
+        return i_media;  // media go first
+    }
+
+    if (i_photo != j_photo)
+    {
+        return i_photo; // photos before videos
+    }
+
+    // within photos or videos or non-media, order by date
+    return nodeComparatorModificationDESC(i, j);
+}
+
+bool MegaApiImpl::nodeComparatorVideoASC(Node *i, Node *j, MegaClient& mc)
+{
+    bool i_photo = false, i_video = false, j_photo = false, j_video = false;
+    bool i_media = mc.nodeIsMedia(i, &i_photo, &i_video);
+    bool j_media = mc.nodeIsMedia(j, &j_photo, &j_video);
+
+    if (i_media != j_media)
+    {
+        return i_media;  // media go first
+    }
+
+    if (i_video != j_video) 
+    {
+        return i_video; // videos before photos
+    }
+
+    // within photos or videos or non-media, order by date
+    return nodeComparatorModificationASC(i, j);
+}
+
+bool MegaApiImpl::nodeComparatorVideoDESC(Node *i, Node *j, MegaClient& mc)
+{
+    bool i_photo = false, i_video = false, j_photo = false, j_video = false;
+    bool i_media = mc.nodeIsMedia(i, &i_photo, &i_video);
+    bool j_media = mc.nodeIsMedia(j, &j_photo, &j_video);
+
+    if (i_media != j_media)
+    {
+        return i_media;  // media go first
+    }
+
+    if (i_video != j_video)
+    {
+        return i_video; // videos before photos
+    }
+
+    // within photos or videos or non-media, order by date
+    return nodeComparatorModificationDESC(i, j);
 }
 
 int MegaApiImpl::getNumChildren(MegaNode* p)
@@ -16690,20 +16794,19 @@ MegaNodeList *MegaApiImpl::getChildren(MegaNode* p, int order)
 
     node_vector childrenNodes;
 
-    if(!order || order> MegaApi::ORDER_ALPHABETICAL_DESC)
+    if (std::function<bool(Node*, Node*)> comparatorFunction = getComparatorFunction(order, *client))
     {
-        for (node_list::iterator it = parent->children.begin(); it != parent->children.end(); )
-            childrenNodes.push_back(*it++);
-    }
-    else
-    {
-        std::function<bool (Node*, Node*)> comparatorFunction = getComparatorFunction(order);
         for (node_list::iterator it = parent->children.begin(); it != parent->children.end(); )
         {
             Node *n = *it++;
             const node_vector::iterator i = std::lower_bound(childrenNodes.begin(), childrenNodes.end(), n, comparatorFunction);
             childrenNodes.insert(i, n);
         }
+    }
+    else
+    {
+        for (node_list::iterator it = parent->children.begin(); it != parent->children.end(); )
+            childrenNodes.push_back(*it++);
     }
 
     MegaNodeListPrivate *result = NULL;
@@ -16829,24 +16932,8 @@ MegaChildrenLists *MegaApiImpl::getFileFolderChildren(MegaNode *p, int order)
     node_vector files;
     node_vector folders;
 
-    if(!order || order> MegaApi::ORDER_ALPHABETICAL_DESC)
+    if (std::function<bool(Node*, Node*)> comparatorFunction = getComparatorFunction(order, *client))
     {
-        for (node_list::iterator it = parent->children.begin(); it != parent->children.end(); )
-        {
-            Node *n = *it++;
-            if (n->type == FILENODE)
-            {
-                files.push_back(n);
-            }
-            else // if (n->type == FOLDERNODE)
-            {
-                folders.push_back(n);
-            }
-        }
-    }
-    else
-    {
-        std::function<bool (Node*, Node*)> comparatorFunction = getComparatorFunction(order);
         for (node_list::iterator it = parent->children.begin(); it != parent->children.end(); )
         {
             Node *n = *it++;
@@ -16859,6 +16946,21 @@ MegaChildrenLists *MegaApiImpl::getFileFolderChildren(MegaNode *p, int order)
             {
                 const node_vector::iterator i = std::lower_bound(folders.begin(), folders.end(), n, comparatorFunction);
                 folders.insert(i, n);
+            }
+        }
+    }
+    else
+    {
+        for (node_list::iterator it = parent->children.begin(); it != parent->children.end(); )
+        {
+            Node *n = *it++;
+            if (n->type == FILENODE)
+            {
+                files.push_back(n);
+            }
+            else // if (n->type == FOLDERNODE)
+            {
+                folders.push_back(n);
             }
         }
     }
@@ -16915,41 +17017,37 @@ int MegaApiImpl::getIndex(MegaNode *n, int order)
         return -1;
     }
 
-    sdkMutex.lock();
+    SdkMutexGuard g(sdkMutex);
     Node *node = client->nodebyhandle(n->getHandle());
     if(!node)
     {
-        sdkMutex.unlock();
         return -1;
     }
 
     Node *parent = node->parent;
     if (!parent)
     {
-        sdkMutex.unlock();
         return -1;
     }
 
-
-    if(!order || order> MegaApi::ORDER_ALPHABETICAL_DESC)
+    if (std::function<bool(Node*, Node*)> comparatorFunction = getComparatorFunction(order, *client))
     {
-        sdkMutex.unlock();
+        node_vector childrenNodes;
+        for (node_list::iterator it = parent->children.begin(); it != parent->children.end(); )
+        {
+            Node *temp = *it++;
+            const node_vector::iterator i = std::lower_bound(childrenNodes.begin(), childrenNodes.end(), temp, comparatorFunction);
+            childrenNodes.insert(i, temp);
+        }
+
+        const node_vector::iterator i = std::lower_bound(childrenNodes.begin(), childrenNodes.end(), node, comparatorFunction);
+
+        return int(i - childrenNodes.begin());
+    }
+    else
+    {
         return 0;
     }
-
-    std::function<bool (Node*, Node*)> comparatorFunction = getComparatorFunction(order);
-    node_vector childrenNodes;
-    for (node_list::iterator it = parent->children.begin(); it != parent->children.end(); )
-    {
-        Node *temp = *it++;
-        const node_vector::iterator i = std::lower_bound(childrenNodes.begin(), childrenNodes.end(), temp, comparatorFunction);
-        childrenNodes.insert(i, temp);
-    }
-
-    const node_vector::iterator i = std::lower_bound(childrenNodes.begin(), childrenNodes.end(), node, comparatorFunction);
-
-    sdkMutex.unlock();
-    return int(i - childrenNodes.begin());
 }
 
 MegaNode *MegaApiImpl::getChildNode(MegaNode *parent, const char* name)
@@ -17428,6 +17526,7 @@ void MegaApiImpl::sendPendingTransfers()
                 if (!fa->fopen(&wLocalPath, true, false))
                 {
                     e = API_EREAD;
+                    delete fa;
                     break;
                 }
 
@@ -22085,9 +22184,9 @@ void ExternalLogger::log(const char *time, int loglevel, const char *source, con
 }
 
 
-OutShareProcessor::OutShareProcessor()
+OutShareProcessor::OutShareProcessor(MegaClient& mc)
+    : mClient(mc)
 {
-
 }
 
 bool OutShareProcessor::processNode(Node *node)
@@ -22139,7 +22238,7 @@ vector<handle> OutShareProcessor::getHandles()
 
 void OutShareProcessor::sortShares(int order)
 {
-    std::sort(mNodes.begin(), mNodes.end(), MegaApiImpl::getComparatorFunction(order));
+    MegaApiImpl::sortByComparatorFunction(mNodes, order, mClient);
 }
 
 PendingOutShareProcessor::PendingOutShareProcessor()
@@ -22949,7 +23048,7 @@ bool FileInputStream::read(byte *buffer, unsigned size)
         return false;
     }
 
-    if (fileAccess->sysread(buffer, size, offset))
+    if (fileAccess->frawread(buffer, size, offset, true))
     {
         offset += size;
         return true;

@@ -1153,6 +1153,9 @@ public:
     // get a vector of recent actions in the account
     recentactions_vector getRecentActions(unsigned maxcount, m_time_t since);
 
+    // determine if the file is a video, photo, or media (video or photo).  If the extension (with trailing .) is not precalculated, pass null
+    bool nodeIsMedia(const Node*, bool* isphoto, bool* isvideo) const;
+
     // generate & return upload handle
     handle getuploadhandle();
 

@@ -133,8 +133,10 @@ struct MEGA_API PosixAsyncIOContext : public AsyncIOContext
 
 class MEGA_API PosixFileAccess : public FileAccess
 {
-public:
+private:
     int fd;
+public:
+    int stealFileDescriptor();
     int defaultfilepermissions;
 
 #ifndef HAVE_FDOPENDIR

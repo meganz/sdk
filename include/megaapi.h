@@ -12369,98 +12369,115 @@ class MegaApi
          */
         long long getNumNodes();
 
-        enum {	ORDER_NONE = 0, ORDER_DEFAULT_ASC, ORDER_DEFAULT_DESC,
+        enum { ORDER_NONE = 0, ORDER_DEFAULT_ASC, ORDER_DEFAULT_DESC,
             ORDER_SIZE_ASC, ORDER_SIZE_DESC,
             ORDER_CREATION_ASC, ORDER_CREATION_DESC,
             ORDER_MODIFICATION_ASC, ORDER_MODIFICATION_DESC,
-            ORDER_ALPHABETICAL_ASC, ORDER_ALPHABETICAL_DESC};
+            ORDER_ALPHABETICAL_ASC, ORDER_ALPHABETICAL_DESC,
+            ORDER_PHOTO_ASC, ORDER_PHOTO_DESC,
+            ORDER_VIDEO_ASC, ORDER_VIDEO_DESC};
 
+        /**
+         * @brief Get the number of child nodes
+         *
+         * If the node doesn't exist in MEGA or isn't a folder,
+         * this function returns 0
+         *
+         * This function doesn't search recursively, only returns the direct child nodes.
+         *
+         * @param parent Parent node
+         * @return Number of child nodes
+         */
+        int getNumChildren(MegaNode* parent);
 
-		/**
-		 * @brief Get the number of child nodes
-		 *
-		 * If the node doesn't exist in MEGA or isn't a folder,
-		 * this function returns 0
-		 *
-		 * This function doesn't search recursively, only returns the direct child nodes.
-		 *
-		 * @param parent Parent node
-		 * @return Number of child nodes
-		 */
-		int getNumChildren(MegaNode* parent);
+        /**
+         * @brief Get the number of child files of a node
+         *
+         * If the node doesn't exist in MEGA or isn't a folder,
+         * this function returns 0
+         *
+         * This function doesn't search recursively, only returns the direct child files.
+         *
+         * @param parent Parent node
+         * @return Number of child files
+         */
+        int getNumChildFiles(MegaNode* parent);
 
-		/**
-		 * @brief Get the number of child files of a node
-		 *
-		 * If the node doesn't exist in MEGA or isn't a folder,
-		 * this function returns 0
-		 *
-		 * This function doesn't search recursively, only returns the direct child files.
-		 *
-		 * @param parent Parent node
-		 * @return Number of child files
-		 */
-		int getNumChildFiles(MegaNode* parent);
+        /**
+         * @brief Get the number of child folders of a node
+         *
+         * If the node doesn't exist in MEGA or isn't a folder,
+         * this function returns 0
+         *
+         * This function doesn't search recursively, only returns the direct child folders.
+         *
+         * @param parent Parent node
+         * @return Number of child folders
+         */
+        int getNumChildFolders(MegaNode* parent);
 
-		/**
-		 * @brief Get the number of child folders of a node
-		 *
-		 * If the node doesn't exist in MEGA or isn't a folder,
-		 * this function returns 0
-		 *
-		 * This function doesn't search recursively, only returns the direct child folders.
-		 *
-		 * @param parent Parent node
-		 * @return Number of child folders
-		 */
-		int getNumChildFolders(MegaNode* parent);
-
-		/**
-		 * @brief Get all children of a MegaNode
-		 *
-		 * If the parent node doesn't exist or it isn't a folder, this function
-		 * returns NULL
-		 *
-		 * You take the ownership of the returned value
-		 *
-		 * @param parent Parent node
-		 * @param order Order for the returned list
-		 * Valid values for this parameter are:
-		 * - MegaApi::ORDER_NONE = 0
-		 * Undefined order
-		 *
-		 * - MegaApi::ORDER_DEFAULT_ASC = 1
-		 * Folders first in alphabetical order, then files in the same order
-		 *
-		 * - MegaApi::ORDER_DEFAULT_DESC = 2
-		 * Files first in reverse alphabetical order, then folders in the same order
-		 *
-		 * - MegaApi::ORDER_SIZE_ASC = 3
-		 * Sort by size, ascending
-		 *
-		 * - MegaApi::ORDER_SIZE_DESC = 4
-		 * Sort by size, descending
-		 *
-		 * - MegaApi::ORDER_CREATION_ASC = 5
-		 * Sort by creation time in MEGA, ascending
-		 *
-		 * - MegaApi::ORDER_CREATION_DESC = 6
-		 * Sort by creation time in MEGA, descending
-		 *
-		 * - MegaApi::ORDER_MODIFICATION_ASC = 7
-		 * Sort by modification time of the original file, ascending
-		 *
-		 * - MegaApi::ORDER_MODIFICATION_DESC = 8
-		 * Sort by modification time of the original file, descending
-		 *
-		 * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-		 * Sort in alphabetical order, ascending
-		 *
-		 * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-		 * Sort in alphabetical order, descending
-		 *
-		 * @return List with all child MegaNode objects
-		 */
+        /**
+         * @brief Get all children of a MegaNode
+         *
+         * If the parent node doesn't exist or it isn't a folder, this function
+         * returns NULL
+         *
+         * You take the ownership of the returned value
+         *
+         * @param parent Parent node
+         * @param order Order for the returned list
+         * Valid values for this parameter are:
+         * - MegaApi::ORDER_NONE = 0
+         * Undefined order
+         *
+         * - MegaApi::ORDER_DEFAULT_ASC = 1
+         * Folders first in alphabetical order, then files in the same order
+         *
+         * - MegaApi::ORDER_DEFAULT_DESC = 2
+         * Files first in reverse alphabetical order, then folders in the same order
+         *
+         * - MegaApi::ORDER_SIZE_ASC = 3
+         * Sort by size, ascending
+         *
+         * - MegaApi::ORDER_SIZE_DESC = 4
+         * Sort by size, descending
+         *
+         * - MegaApi::ORDER_CREATION_ASC = 5
+         * Sort by creation time in MEGA, ascending
+         *
+         * - MegaApi::ORDER_CREATION_DESC = 6
+         * Sort by creation time in MEGA, descending
+         *
+         * - MegaApi::ORDER_MODIFICATION_ASC = 7
+         * Sort by modification time of the original file, ascending
+         *
+         * - MegaApi::ORDER_MODIFICATION_DESC = 8
+         * Sort by modification time of the original file, descending
+         *
+         * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+         * Same behavior than MegaApi::ORDER_DEFAULT_ASC
+         *
+         * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+         * Same behavior than MegaApi::ORDER_DEFAULT_DESC
+         *
+         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * Sort with photos first, then by date ascending
+         *
+         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * Sort with photos first, then by date descending
+         *
+         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * Sort with videos first, then by date ascending
+         *
+         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * Sort with videos first, then by date descending
+         *
+         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
+         * They will be eventually removed.
+         *
+         * @return List with all child MegaNode objects
+         */
         MegaNodeList* getChildren(MegaNode *parent, int order = 1);
 
         /**
@@ -12536,10 +12553,26 @@ class MegaApi
          * Sort by modification time of the original file, descending
          *
          * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-         * Sort in alphabetical order, ascending
+         * Same behavior than MegaApi::ORDER_DEFAULT_ASC
          *
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-         * Sort in alphabetical order, descending
+         * Same behavior than MegaApi::ORDER_DEFAULT_DESC
+         *
+         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
+         * They will be eventually removed.
+         *
+         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * Sort with photos first, then by date ascending
+         *
+         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * Sort with photos first, then by date descending
+         *
+         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * Sort with videos first, then by date ascending
+         *
+         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * Sort with videos first, then by date descending
          *
          * @return Lists with files and folders child MegaNode objects
          */
@@ -13305,10 +13338,26 @@ class MegaApi
          * Sort by modification time of the original file, descending
          *
          * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-         * Sort in alphabetical order, ascending
+         * Same behavior than MegaApi::ORDER_DEFAULT_ASC
          *
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-         * Sort in alphabetical order, descending
+         * Same behavior than MegaApi::ORDER_DEFAULT_DESC
+         *
+         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
+         * They will be eventually removed.
+         *
+         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * Sort with photos first, then by date ascending
+         *
+         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * Sort with photos first, then by date descending
+         *
+         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * Sort with videos first, then by date ascending
+         *
+         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * Sort with videos first, then by date descending
          *
          * @return List of nodes that contain the desired string in their name
          */
@@ -13360,10 +13409,26 @@ class MegaApi
          * Sort by modification time of the original file, descending
          *
          * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-         * Sort in alphabetical order, ascending
+         * Same behavior than MegaApi::ORDER_DEFAULT_ASC
          *
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-         * Sort in alphabetical order, descending
+         * Same behavior than MegaApi::ORDER_DEFAULT_DESC
+         *
+         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
+         * They will be eventually removed.
+         *
+         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * Sort with photos first, then by date ascending
+         *
+         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * Sort with photos first, then by date descending
+         *
+         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * Sort with videos first, then by date ascending
+         *
+         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * Sort with videos first, then by date descending
          *
          * @return List of nodes that contain the desired string in their name
          */
@@ -13413,10 +13478,26 @@ class MegaApi
          * Sort by modification time of the original file, descending
          *
          * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-         * Sort in alphabetical order, ascending
+         * Same behavior than MegaApi::ORDER_DEFAULT_ASC
          *
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-         * Sort in alphabetical order, descending
+         * Same behavior than MegaApi::ORDER_DEFAULT_DESC
+         *
+         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
+         * They will be eventually removed.
+         *
+         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * Sort with photos first, then by date ascending
+         *
+         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * Sort with photos first, then by date descending
+         *
+         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * Sort with videos first, then by date ascending
+         *
+         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * Sort with videos first, then by date descending
          *
          * @return List of nodes that contain the desired string in their name
          */
@@ -13471,10 +13552,26 @@ class MegaApi
          * Sort by modification time of the original file, descending
          *
          * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-         * Sort in alphabetical order, ascending
+         * Same behavior than MegaApi::ORDER_DEFAULT_ASC
          *
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-         * Sort in alphabetical order, descending
+         * Same behavior than MegaApi::ORDER_DEFAULT_DESC
+         *
+         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
+         * They will be eventually removed.
+         *
+         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * Sort with photos first, then by date ascending
+         *
+         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * Sort with photos first, then by date descending
+         *
+         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * Sort with videos first, then by date ascending
+         *
+         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * Sort with videos first, then by date descending
          *
          * @return List of nodes that contain the desired string in their name
          */
