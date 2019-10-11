@@ -206,6 +206,16 @@ public:
         *path = *local;
     }
 
+    size_t lastpartlocal(std::string* localname) const override
+    {
+        const char* ptr = localname->data();
+        if ((ptr = strrchr(ptr, '/')))
+        {
+            return ptr - localname->data() + 1;
+        }
+        return 0;
+    }
+
 private:
     std::map<std::string, const mt::FsNode*>& mFsNodes;
 };
@@ -628,7 +638,7 @@ TEST(Sync, assignFilesystemIds_whenSubDirCannotBeOpened)
     ASSERT_FALSE(fx.iteratorsCorrect(*ld_0));
 }
 
-TEST(Sync, assignFilesystemIds_whenSomeFingerprintIsNotValid)
+TEST(Sync, assignFilesystemIds_forSingleFile)
 {
     Fixture fx{"d"};
 
@@ -639,7 +649,6 @@ TEST(Sync, assignFilesystemIds_whenSomeFingerprintIsNotValid)
 
     // Level 1
     mt::FsNode f_0{&d, mega::FILENODE, "f_0"};
-    f_0.setReadable(false);
     auto lf_0 = mt::makeLocalNode(*fx.mSync, ld, fx.mLocalNodes, mega::FILENODE, "f_0", f_0.getFingerprint());
 
     mt::collectAllFsNodes(fx.mFsNodes, d);
@@ -648,13 +657,15 @@ TEST(Sync, assignFilesystemIds_whenSomeFingerprintIsNotValid)
 
     ASSERT_TRUE(success);
 
-    // all invalid
     ASSERT_EQ(mega::UNDEF, ld.fsid);
-    ASSERT_EQ(mega::UNDEF, lf_0->fsid);
+    ASSERT_EQ(f_0.getFsId(), lf_0->fsid);
 
     // assert that the local node map is correct
-    constexpr std::size_t fileCount = 0;
+    constexpr std::size_t fileCount = 1;
     ASSERT_EQ(fileCount, fx.mLocalNodes.size());
+
+    ASSERT_FALSE(fx.iteratorsCorrect(ld));
+    ASSERT_TRUE(fx.iteratorsCorrect(*lf_0));
 }
 
 TEST(Sync, assignFilesystemIds_whenPathIsNotSyncableThroughApp)
@@ -757,14 +768,14 @@ TEST(Sync, assignFilesystemIds_preferredPathMatchAssignsFinalFsId)
 
     // assert that all file `LocalNode`s have same fs IDs as the corresponding `FsNode`s
     ASSERT_EQ(f_0.getFsId(), lf_0->fsid);
-    ASSERT_EQ(f_1_0.getFsId(), lf_1->fsid);
+    ASSERT_EQ(mega::UNDEF, lf_1->fsid);
 
     // assert that the local node map is correct
-    constexpr std::size_t fileCount = 2;
+    constexpr std::size_t fileCount = 1;
     ASSERT_EQ(fileCount, fx.mLocalNodes.size());
 
     ASSERT_TRUE(fx.iteratorsCorrect(*lf_0));
-    ASSERT_TRUE(fx.iteratorsCorrect(*lf_1));
+    ASSERT_FALSE(fx.iteratorsCorrect(*lf_1));
 }
 
 TEST(Sync, assignFilesystemIds_whenFolderWasMoved)

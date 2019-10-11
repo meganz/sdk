@@ -47,7 +47,7 @@ FsNode::FsNode(FsNode* parent, const mega::nodetype_t type, std::string name)
             mContent.push_back(nextRandomByte());
         }
         mFileAccess->fopen(&path, true, false);
-        mFingerprint.genfingerprint(mFileAccess.get());
+        mFingerprint.genfingerprint(mSize, mMTime, mName.c_str());
     }
     else
     {

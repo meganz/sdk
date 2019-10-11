@@ -221,7 +221,9 @@ void combinedFingerprint(FileFingerprint& ffp, FingerprintCache& fingerprints,
             else
             {
                 FileFingerprint faFfp;
-                faFfp.genfingerprint(fa.get());
+                const auto index = fsaccess.lastpartlocal(const_cast<string*>(&path));
+                const string name = path.substr(index);
+                faFfp.genfingerprint(fa->size, fa->mtime, name.c_str());
                 if (!faFfp.isvalid)
                 {
                     LOG_err << "Invalid fingerprint";
@@ -259,12 +261,14 @@ void computeFingerprint(FileFingerprint& ffp, const LocalNode& l)
 
 // Computes the fingerprint of the given `fa` (file or folder) and stores it in `ffp`
 void computeFingerprint(FileFingerprint& ffp, FingerprintCache& fingerprints, FileSystemAccess& fsaccess,
-                        FileAccess& fa, const set<string>& paths)
+                        FileAccess& fa, const std::string& path, const set<string>& paths)
 {
     if (fa.type == FILENODE)
     {
         assert(paths.empty());
-        ffp.genfingerprint(&fa);
+        const auto index = fsaccess.lastpartlocal(const_cast<string*>(&path));
+        const string name = path.substr(index);
+        ffp.genfingerprint(fa.size, fa.mtime, name.c_str());
         if (!ffp.isvalid)
         {
             LOG_err << "Invalid fingerprint";
@@ -328,7 +332,7 @@ void collectAllFiles(bool& success, FingerprintCache& fingerprints, FingerprintF
         else
         {
             FileFingerprint ffp;
-            computeFingerprint(ffp, fingerprints, fsaccess, fa, paths);
+            computeFingerprint(ffp, fingerprints, fsaccess, fa, path, paths);
             if (ffp.isvalid)
             {
                 const auto ffpPtr = fingerprints.add(fa.fsid, ffp);
@@ -389,20 +393,29 @@ size_t assignFilesystemIdsImpl(const FingerprintCache& fingerprints, Fingerprint
     for (const auto& fp : fingerprints.all())
     {
         const auto nodeRange = localnodes.equal_range(&fp);
-        if (std::distance(nodeRange.first, nodeRange.second) <= 0)
+        const auto nodeCount = std::distance(nodeRange.first, nodeRange.second);
+        if (nodeCount <= 0)
         {
             continue;
         }
 
         const auto fileRange = files.equal_range(&fp);
-        if (std::distance(fileRange.first, fileRange.second) <= 0)
+        const auto fileCount = std::distance(fileRange.first, fileRange.second);
+        if (fileCount <= 0)
         {
             // without files we cannot assign fs IDs to these localnodes, so no need to keep them
             localnodes.erase(nodeRange.first, nodeRange.second);
             continue;
         }
 
-        std::unordered_map<LocalNode*, std::map<int, handle>> nodes; // = {l: {score: fsid}}
+        struct Element
+        {
+            int score;
+            handle fsid;
+            LocalNode* l;
+        };
+        std::vector<Element> elements;
+        elements.reserve(nodeCount * fileCount);
 
         for (auto nodeIt = nodeRange.first; nodeIt != nodeRange.second; ++nodeIt)
         {
@@ -415,19 +428,27 @@ size_t assignFilesystemIdsImpl(const FingerprintCache& fingerprints, Fingerprint
                 {
                     const auto& filePath = fileIt->second.path;
                     const auto score = computeReversePathMatchScore(accumulated, nodePath, filePath, localseparator);
-                    nodes[l][score] = fileIt->second.fsid;
+                    elements.push_back({score, fileIt->second.fsid, l});
                 }
             }
         }
 
-        for (auto& nodesPair : nodes)
+        // Sort in descending order by score. Elements with highest score come first
+        std::sort(elements.begin(), elements.end(), [](const Element& e1, const Element& e2)
+                                                    {
+                                                        return e1.score > e2.score;
+                                                    });
+
+        std::set<handle> usedFsIds;
+        for (const auto& e : elements)
         {
-            // the last score in the sub-map is the highest (map is sorted)
-            const auto bestScorePair = nodesPair.second.crbegin();
-            const auto fsId = bestScorePair->second;
-            const auto l = nodesPair.first;
-            l->setfsid(fsId, fsidnodes);
-            ++assignmentCount;
+            if (e.l->fsid == mega::UNDEF // node not assigned
+                && usedFsIds.find(e.fsid) == usedFsIds.end()) // fsid not used
+            {
+                e.l->setfsid(e.fsid, fsidnodes);
+                usedFsIds.insert(e.fsid);
+                ++assignmentCount;
+            }
         }
 
         // the fingerprint that these files and localnodes correspond to has now finished processing

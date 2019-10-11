@@ -72,7 +72,7 @@ public:
         mSize = node.getSize();
         mMTime = node.getMTime();
         mContent = node.getContent();
-        mFingerprint = node.getFingerprint();
+        mFingerprint.genfingerprint(mSize, mMTime, mName.c_str());
     }
 
     mega::nodetype_t getType() const
