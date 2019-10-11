@@ -768,14 +768,14 @@ TEST(Sync, assignFilesystemIds_preferredPathMatchAssignsFinalFsId)
 
     // assert that all file `LocalNode`s have same fs IDs as the corresponding `FsNode`s
     ASSERT_EQ(f_0.getFsId(), lf_0->fsid);
-    ASSERT_EQ(mega::UNDEF, lf_1->fsid);
+    ASSERT_EQ(f_1_0.getFsId(), lf_1->fsid);
 
     // assert that the local node map is correct
-    constexpr std::size_t fileCount = 1;
+    constexpr std::size_t fileCount = 2;
     ASSERT_EQ(fileCount, fx.mLocalNodes.size());
 
     ASSERT_TRUE(fx.iteratorsCorrect(*lf_0));
-    ASSERT_FALSE(fx.iteratorsCorrect(*lf_1));
+    ASSERT_TRUE(fx.iteratorsCorrect(*lf_1));
 }
 
 TEST(Sync, assignFilesystemIds_whenFolderWasMoved)

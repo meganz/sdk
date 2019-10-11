@@ -62,7 +62,7 @@ class FingerprintCache
 public:
     using FingerprintSet = std::set<FileFingerprint, FileFingerprintComparator>;
 
-    // Adds a new fingerprint not corresponding to file or folder
+    // Adds a new fingerprint corresponding to a localnode
     const FileFingerprint* add(const FileFingerprint& ffp)
     {
          const auto insertPair = mFingerprints.insert(ffp);
@@ -182,13 +182,15 @@ void combinedFingerprint(FileFingerprint& ffp, const localnode_map& nodeMap)
         const LocalNode& l = *nodePair.second;
         if (l.type == FILENODE)
         {
-            if (!l.isvalid)
+            FileFingerprint lFfp;
+            lFfp.genfingerprint(l.size, l.mtime, l.localname.c_str());
+            if (!lFfp.isvalid)
             {
                 LOG_err << "Invalid fingerprint: " << l.localname;
                 ffp.isvalid = false;
                 break;
             }
-            hashCombineFingerprint(ffp, l);
+            hashCombineFingerprint(ffp, lFfp);
         }
     }
 }
@@ -247,7 +249,7 @@ void computeFingerprint(FileFingerprint& ffp, const LocalNode& l)
             LOG_err << "Invalid fingerprint: " << l.localname;
             return;
         }
-        ffp = l;
+        ffp.genfingerprint(l.size, l.mtime, l.localname.c_str());
     }
     else if (l.type == FOLDERNODE)
     {
