@@ -27625,10 +27625,8 @@ MegaHTTPContext::MegaHTTPContext()
 MegaHTTPContext::~MegaHTTPContext()
 {
     delete node;
-    if (tmpFileAccess)
+    if (tmpFileName.size())
     {
-        delete tmpFileAccess;
-
         string localPath;
         server->fsAccess->path2local(&tmpFileName, &localPath);
         server->fsAccess->unlinklocal(&localPath);
@@ -30142,7 +30140,6 @@ MegaFTPDataContext::MegaFTPDataContext()
 MegaFTPDataContext::~MegaFTPDataContext()
 {
     delete transfer;
-    delete tmpFileAccess;
     delete node;
 }
 

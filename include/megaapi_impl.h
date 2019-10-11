@@ -3260,7 +3260,7 @@ public:
     std::string host;
     std::string destination;
     bool overwrite;
-    FileAccess *tmpFileAccess;
+    std::unique_ptr<FileAccess> tmpFileAccess;
     std::string tmpFileName;
     std::string newname; //newname for moved node
     MegaHandle nodeToMove; //node to be moved after delete
@@ -3532,7 +3532,7 @@ public:
     m_off_t rangeWritten;
 
     std::string tmpFileName;
-    FileAccess* tmpFileAccess;
+    std::unique_ptr<FileAccess> tmpFileAccess;
     size_t tmpFileSize;
 
     bool controlRespondedElsewhere;
