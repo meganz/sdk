@@ -1204,7 +1204,7 @@ void CommandPutNodes::procresult()
         {
             case 'f':
                 empty = !memcmp(client->json.pos, "[]", 2);
-                if (client->readnodes(&client->json, 1, source, nn, nnsize, tag))
+                if (client->readnodes(&client->json, 1, source, nn, nnsize, tag, true))  // do apply keys to received nodes only as we go for command response, much much faster for many small responses
                 {
                     e = API_OK;
                 }
@@ -1217,7 +1217,7 @@ void CommandPutNodes::procresult()
                 break;
 
             case MAKENAMEID2('f', '2'):
-                if (!client->readnodes(&client->json, 1))
+                if (!client->readnodes(&client->json, 1, PUTNODES_APP, NULL, 0, 0, true))  // do apply keys to received nodes only as we go for command response, much much faster for many small responses
                 {
                     LOG_err << "Parse error (readversions)";
                     e = API_EINTERNAL;
@@ -1241,7 +1241,7 @@ void CommandPutNodes::procresult()
         }
     }
 
-    client->applykeys();
+    client->sendkeyrewrites();
 
 #ifdef ENABLE_SYNC
     if (source == PUTNODES_SYNC)
