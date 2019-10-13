@@ -516,6 +516,7 @@ void Transfer::complete()
 #endif
 
         // verify integrity of file
+        auto fa = client->fsaccess->newfileaccess();
         FileFingerprint fingerprint;
         Node* n = nullptr;
         bool fixfingerprint = false;
@@ -542,53 +543,51 @@ void Transfer::complete()
             }
         }
 
-        if (auto fa = client->fsaccess->newfileaccess())
+        if (!fixedfingerprint && success && fa->fopen(&localfilename, true, false))
         {
-            if (!fixedfingerprint && success && fa->fopen(&localfilename, true, false))
+            fingerprint.genfingerprint(fa.get());
+            if (isvalid && !(fingerprint == *(FileFingerprint*)this))
             {
-                fingerprint.genfingerprint(fa.get());
-                if (isvalid && !(fingerprint == *(FileFingerprint*)this))
-                {
-                    LOG_err << "Fingerprint mismatch";
+                LOG_err << "Fingerprint mismatch";
 
-                    // enforce the verification of the fingerprint for sync transfers only
-                    if (syncxfer && (!badfp.isvalid || !(badfp == fingerprint)))
+                // enforce the verification of the fingerprint for sync transfers only
+                if (syncxfer && (!badfp.isvalid || !(badfp == fingerprint)))
+                {
+                    badfp = fingerprint;
+                    fa.reset();
+                    chunkmacs.clear();
+                    client->fsaccess->unlinklocal(&localfilename);
+                    return failed(API_EWRITE);
+                }
+                else
+                {
+                    // We consider that mtime is different if the difference is >2
+                    // due to the resolution of mtime in some filesystems (like FAT).
+                    // This check prevents changes in the fingerprint due to silent
+                    // errors in setmtimelocal (returning success but not setting the
+                    // modification time) that seem to happen in some Android devices.
+                    if (abs(mtime - fingerprint.mtime) <= 2)
                     {
-                        badfp = fingerprint;
-                        fa.reset();
-                        chunkmacs.clear();
-                        client->fsaccess->unlinklocal(&localfilename);
-                        return failed(API_EWRITE);
+                        fixfingerprint = true;
                     }
                     else
                     {
-                        // We consider that mtime is different if the difference is >2
-                        // due to the resolution of mtime in some filesystems (like FAT).
-                        // This check prevents changes in the fingerprint due to silent
-                        // errors in setmtimelocal (returning success but not setting the
-                        // modification time) that seem to happen in some Android devices.
-                        if (abs(mtime - fingerprint.mtime) <= 2)
-                        {
-                            fixfingerprint = true;
-                        }
-                        else
-                        {
-                            LOG_warn << "Silent failure in setmtimelocal";
-                        }
+                        LOG_warn << "Silent failure in setmtimelocal";
                     }
                 }
             }
-#ifdef ENABLE_SYNC
-            else
-            {
-                if (syncxfer && !fixedfingerprint && success)
-                {
-                    transient_error = fa->retry;
-                    LOG_debug << "Unable to validate fingerprint " << transient_error;
-                }
-            }
-#endif
         }
+#ifdef ENABLE_SYNC
+        else
+        {
+            if (syncxfer && !fixedfingerprint && success)
+            {
+                transient_error = fa->retry;
+                LOG_debug << "Unable to validate fingerprint " << transient_error;
+            }
+        }
+#endif
+        fa.reset();
 
         char me64[12];
         Base64::btoa((const byte*)&client->me, MegaClient::USERHANDLE, me64);
@@ -639,7 +638,7 @@ void Transfer::complete()
 
                 if (localname != localfilename)
                 {
-                    auto fa = client->fsaccess->newfileaccess();
+                    fa = client->fsaccess->newfileaccess();
                     if (fa->fopen(&localname) || fa->type == FOLDERNODE)
                     {
                         // the destination path already exists

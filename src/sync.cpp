@@ -42,7 +42,7 @@ namespace {
 set<string> collectAllPathsInFolder(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, string localpath,
                                     const string& localdebris, const string& localseparator)
 {
-    auto fa = std::unique_ptr<FileAccess>{fsaccess.newfileaccess(false)};
+    auto fa = fsaccess.newfileaccess(false);
     if (!fa->fopen(&localpath, true, false))
     {
         LOG_err << "Unable to open path: " << localpath;
@@ -134,7 +134,7 @@ void combinedFingerprint(FileFingerprint& ffp, FileSystemAccess& fsaccess, const
     ffp.isvalid = false;
     for (const auto& path : paths)
     {
-        auto fa = std::unique_ptr<FileAccess>{fsaccess.newfileaccess(false)};
+        auto fa = fsaccess.newfileaccess(false);
         if (!fa->fopen(const_cast<string*>(&path), true, false))
         {
             LOG_err << "Unable to open path: " << path;
@@ -296,7 +296,7 @@ void assignFilesystemIdsImpl(bool& success, Sync& sync, MegaApp& app, handleloca
                              FileSystemAccess& fsaccess, string localpath, const string& localdebris,
                              const string& localseparator, FingerprintMap& fingerprints)
 {
-    auto fa = std::unique_ptr<FileAccess>{fsaccess.newfileaccess(false)};
+    auto fa = fsaccess.newfileaccess(false);
     if (!(success = fa->fopen(&localpath, true, false)))
     {
         LOG_err << "Unable to open path: " << localpath;
@@ -413,7 +413,7 @@ bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, h
 {
     auto rootpath = sync.localroot.localname;
 
-    auto fa = std::unique_ptr<FileAccess>{fsaccess.newfileaccess(false)};
+    auto fa = fsaccess.newfileaccess(false);
     if (!fa->fopen(&rootpath, true, false))
     {
         LOG_err << "Unable to open rootpath";
