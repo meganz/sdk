@@ -14945,8 +14945,8 @@ void MegaApiImpl::contactlinkquery_result(error e, handle h, string *email, stri
     {
         request->setParentHandle(h);
         request->setEmail(email->c_str());
-        request->setName(firstname->c_str());
-        request->setText(lastname->c_str());
+        request->setName(Base64::atob(*firstname).c_str());
+        request->setText(Base64::atob(*lastname).c_str());
         request->setFile(avatar->c_str());
     }
     fireOnRequestFinish(request, e);
