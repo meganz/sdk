@@ -374,8 +374,9 @@ void Transfer::failed(error e, dstime timeleft)
                     if (node)
                     {
                         handle rootnode = client->getrootnode(node)->nodehandle;
-                        if (client->rootnodes[0] != rootnode)
+                        if (!timeleft && client->rootnodes[0] != rootnode)
                         {
+                            // Remove files with foreign targets, if there's not a bandwidth overquota
                             slot->transfer->files.erase(it++);
                         }
                         else
@@ -385,10 +386,10 @@ void Transfer::failed(error e, dstime timeleft)
                     }
                 }
 
-                /* If all targets are foreign, transfer must fail. Otherwise we need to
-                 * remove all foreign targets from transferslot and activate overquota.
+                /* If all targets are foreign and there's not a bandwidth overquota, transfer must fail.
+                 * Otherwise we need to activate overquota.
                  */
-                if (allForeignTargets)
+                if (!timeleft && allForeignTargets)
                 {
                     client->app->transfer_failed(this, e, NEVER);
                 }
