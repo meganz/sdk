@@ -52,6 +52,7 @@ const m_off_t TransferSlot::MAX_UPLOAD_GAP = 62914560; // 60 MB (up to 63 chunks
 
 TransferSlot::TransferSlot(Transfer* ctransfer)
     : retrybt(ctransfer->client->rng)
+    , fa(ctransfer->client->fsaccess->newfileaccess())
 {
     starttime = 0;
     lastprogressreport = 0;
@@ -77,8 +78,6 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
     transfer = ctransfer;
     transfer->slot = this;
     transfer->state = TRANSFERSTATE_ACTIVE;
-
-    fa = transfer->client->fsaccess->newfileaccess();
 
     slots_it = transfer->client->tslots.end();
 
@@ -175,12 +174,10 @@ TransferSlot::~TransferSlot()
             }
 
             // Open the file in synchonous mode
-            delete fa;
             fa = transfer->client->fsaccess->newfileaccess();
             if (!fa->fopen(&transfer->localfilename, false, true))
             {
-                delete fa;
-                fa = NULL;
+                fa.reset();
             }
         }
 
@@ -266,11 +263,6 @@ TransferSlot::~TransferSlot()
 
     delete[] asyncIO;
     delete[] reqs;
-
-    if (fa)
-    {
-        delete fa;
-    }
 }
 
 void TransferSlot::toggleport(HttpReqXfer *req)

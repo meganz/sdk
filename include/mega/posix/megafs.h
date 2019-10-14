@@ -80,7 +80,7 @@ public:
     int defaultfilepermissions;
     int defaultfolderpermissions;
 
-    FileAccess* newfileaccess(bool followSymLinks = true) override;
+    std::unique_ptr<FileAccess> newfileaccess(bool followSymLinks = true) override;
     DirAccess* newdiraccess() override;
     DirNotify* newdirnotify(string*, string*) override;
 

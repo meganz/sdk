@@ -349,21 +349,18 @@ bool GfxProc::savefa(string *localfilepath, int width, int height, string *local
         return false;
     }
 
-    FileAccess *f = client->fsaccess->newfileaccess();
+    auto f = client->fsaccess->newfileaccess();
     client->fsaccess->unlinklocal(localdstpath);
     if (!f->fopen(localdstpath, false, true))
     {
-        delete f;
         return false;
     }
 
     if (!f->fwrite((const byte*)jpeg.data(), unsigned(jpeg.size()), 0))
     {
-        delete f;
         return false;
     }
 
-    delete f;
     return true;
 }
 

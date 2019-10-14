@@ -2931,6 +2931,10 @@ protected:
         bool sync_syncable(Sync *, const char*, string *, Node *) override;
         bool sync_syncable(Sync *, const char*, string *) override;
         void syncupdate_local_lockretry(bool) override;
+
+        // for the exclusive use of sync_syncable
+        unique_ptr<FileAccess> mSyncable_fa;
+        std::mutex mSyncable_fa_mutex;
 #endif
 
 protected:
@@ -3263,7 +3267,7 @@ public:
     std::string host;
     std::string destination;
     bool overwrite;
-    FileAccess *tmpFileAccess;
+    std::unique_ptr<FileAccess> tmpFileAccess;
     std::string tmpFileName;
     std::string newname; //newname for moved node
     MegaHandle nodeToMove; //node to be moved after delete
@@ -3535,7 +3539,7 @@ public:
     m_off_t rangeWritten;
 
     std::string tmpFileName;
-    FileAccess* tmpFileAccess;
+    std::unique_ptr<FileAccess> tmpFileAccess;
     size_t tmpFileSize;
 
     bool controlRespondedElsewhere;
