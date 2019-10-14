@@ -407,7 +407,7 @@ void Transfer::failed(error e, dstime timeleft)
 
     for (file_list::iterator it = files.begin(); it != files.end();)
     {
-        // Remove files with foreign targets, if there's an storage overquota
+        // Remove files with foreign targets, if transfer failed with a (foreign) storage overquota
         auto auxit = it++;
         Node *node = client->nodebyhandle((*auxit)->h);
         if (e == API_EOVERQUOTA && !timeleft && node)
