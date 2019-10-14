@@ -21,7 +21,7 @@
 
 #import "MEGAPushNotificationSettings.h"
 #import "megaapi.h"
-#import "MegaPushNotificationSettings+init.h"
+#import "MEGAPushNotificationSettings+init.h"
 
 using namespace mega;
 
@@ -34,6 +34,8 @@ using namespace mega;
 
 @implementation MEGAPushNotificationSettings
 
+#pragma mark - Initializer.
+
 - (instancetype)init {
     self = [super init];
     
@@ -44,6 +46,8 @@ using namespace mega;
     
     return self;
 }
+
+#pragma mark - Private methods.
 
 - (instancetype)initWithMegaPushNotificationSettings:(MegaPushNotificationSettings *)megaPushNotificationSettings cMemoryOwn:(BOOL)cMemoryOwn {
     self = [super init];
@@ -70,6 +74,22 @@ using namespace mega;
     return self.megaPushNotificationSettings;
 }
 
+#pragma mark - Property getter and setter methods.
+
+- (int64_t)globalDNDTimestamp {
+    return self.megaPushNotificationSettings->getGlobalDnd();
+}
+
+- (void)setGlobalDNDTimestamp:(int64_t)globalDNDTimestamp {
+    self.megaPushNotificationSettings->setGlobalDnd(globalDNDTimestamp);
+}
+
+- (BOOL)isGlobalDNDEnabled {
+    return self.megaPushNotificationSettings->isGlobalDndEnabled();
+}
+
+#pragma mark - Interface methods.
+
 - (BOOL)isChatDndEnabledForChatId:(int64_t)chatId {
     return self.megaPushNotificationSettings->isChatDndEnabled(chatId);
 }
@@ -82,8 +102,16 @@ using namespace mega;
     self.megaPushNotificationSettings->enableChat(chatId, enabled);
 }
 
-- (void)setChatDndForChatId:(int64_t)chatId untilTimeStamp:(int64_t)timestamp {
+- (void)setChatDndForChatId:(int64_t)chatId untilTimestamp:(int64_t)timestamp {
     self.megaPushNotificationSettings->setChatDnd(chatId, timestamp);
+}
+
+- (void)disableGlobalDND {
+    return self.megaPushNotificationSettings->disableGlobalDnd();
+}
+
+- (void)setGlobalEnabled:(BOOL)enabled {
+    self.megaPushNotificationSettings->enableGlobal(enabled);
 }
 
 @end
