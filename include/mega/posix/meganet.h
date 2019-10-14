@@ -102,6 +102,7 @@ protected:
     static int seek_data(void*, curl_off_t, int);
 
     static int socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp, direction_t d);
+    static int sockopt_callback(void *clientp, curl_socket_t curlfd, curlsocktype purpose);
     static int api_socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp);
     static int download_socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp);
     static int upload_socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp);
@@ -238,6 +239,8 @@ struct MEGA_API CurlDNSEntry
     dstime ipv4timestamp;
     string ipv6;
     dstime ipv6timestamp;
+
+    bool mNeedsResolvingAgain = false;
 };
 
 } // namespace

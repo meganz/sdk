@@ -770,6 +770,13 @@ void CurlHttpIO::disconnect()
     {
         dnscache.clear();
     }
+    else
+    {
+        for (auto &dnsPair: dnscache)
+        {
+            dnsPair.second.mNeedsResolvingAgain= true;
+        }
+    }
 
     curlm[API] = curl_multi_init();
     curlm[GET] = curl_multi_init();
@@ -1399,7 +1406,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1L);
         curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE,  90L);
         curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 60L);
-        //curl_easy_setopt(curl, CURLOPT_SOCKOPTFUNCTION, sockopt_callback);  // not used anymore
+        curl_easy_setopt(curl, CURLOPT_SOCKOPTFUNCTION, sockopt_callback);  // not used anymore
         curl_easy_setopt(curl, CURLOPT_SOCKOPTDATA, (void*)req);
 
         if (httpio->maxspeed[GET] && httpio->maxspeed[GET] <= 102400)
@@ -2521,28 +2528,29 @@ int CurlHttpIO::socket_callback(CURL *, curl_socket_t s, int what, void *userp, 
 // This one was causing us to issue additional c-ares requests, when normal usage already sends those requests
 // CURL doco: When set, this callback function gets called by libcurl when the socket has been created, but before the connect call to allow applications to change specific socket options.The callback's purpose argument identifies the exact purpose for this particular socket:
 
-//int CurlHttpIO::sockopt_callback(void *clientp, curl_socket_t, curlsocktype)
-//{
-//    HttpReq *req = (HttpReq*)clientp;
-//    CurlHttpIO* httpio = (CurlHttpIO*)req->httpio;
-//    CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
-//    if (httpio && !httpio->disconnecting
-//            && httpctx && httpctx->isCachedIp && !httpctx->ares_pending)
-//    {
-//        httpctx->ares_pending = 1;
-//        if (httpio->ipv6requestsenabled)
-//        {
-//            httpctx->ares_pending++;
-//            LOG_debug << "Resolving IPv6 address for " << httpctx->hostname << " during connection";
-//            ares_gethostbyname(httpio->ares, httpctx->hostname.c_str(), PF_INET6, ares_completed_callback, httpctx);
-//        }
-//
-//        LOG_debug << "Resolving IPv4 address for " << httpctx->hostname << " during connection";
-//        ares_gethostbyname(httpio->ares, httpctx->hostname.c_str(), PF_INET, ares_completed_callback, httpctx);
-//    }
-//
-//    return CURL_SOCKOPT_OK;
-//}
+int CurlHttpIO::sockopt_callback(void *clientp, curl_socket_t, curlsocktype)
+{
+    HttpReq *req = (HttpReq*)clientp;
+    CurlHttpIO* httpio = (CurlHttpIO*)req->httpio;
+    CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
+    if (httpio && !httpio->disconnecting
+            && httpctx && httpctx->isCachedIp && !httpctx->ares_pending && httpio->dnscache[httpctx->hostname].mNeedsResolvingAgain)
+    {
+        httpio->dnscache[httpctx->hostname].mNeedsResolvingAgain = false;
+        httpctx->ares_pending = 1;
+        if (httpio->ipv6requestsenabled)
+        {
+            httpctx->ares_pending++;
+            LOG_debug << "Resolving IPv6 address for " << httpctx->hostname << " during connection";
+            ares_gethostbyname(httpio->ares, httpctx->hostname.c_str(), PF_INET6, ares_completed_callback, httpctx);
+        }
+
+        LOG_debug << "Resolving IPv4 address for " << httpctx->hostname << " during connection";
+        ares_gethostbyname(httpio->ares, httpctx->hostname.c_str(), PF_INET, ares_completed_callback, httpctx);
+    }
+
+    return CURL_SOCKOPT_OK;
+}
 
 int CurlHttpIO::api_socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp)
 {
