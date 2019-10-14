@@ -39,10 +39,6 @@ struct MEGA_API FileFingerprint : public Cachable
     // if false, is constructed from node ctime/key
     bool isvalid = false;
 
-    // Generates a light-weight fingerprint only based on size, mtime, and name of a file (no I/O).
-    // `filename` can be null in which case only size and mtime are used.
-    bool genfingerprint(m_off_t filesize, m_time_t filemtime, const char* filename);
-
     // Generates a fingerprint by iterating through`fa`
     bool genfingerprint(FileAccess* fa, bool ignoremtime = false);
 
@@ -68,5 +64,27 @@ struct MEGA_API FileFingerprintCmp
 };
 
 bool operator==(const FileFingerprint& lhs, const FileFingerprint& rhs);
+
+// A light-weight fingerprint only based on size and mtime
+struct MEGA_API LightFileFingerprint
+{
+    m_off_t size = -1;
+    m_time_t mtime = 0;
+
+    LightFileFingerprint() = default;
+
+    MEGA_DEFAULT_COPY_MOVE(LightFileFingerprint)
+
+    // Generates a new fingerprint not involving I/O
+    bool genfingerprint(m_off_t filesize, m_time_t filemtime);
+};
+
+// Orders light file fingerprints by size, mtime, and namehash in terms of "<"
+struct MEGA_API LightFileFingerprintCmp
+{
+    bool operator()(const LightFileFingerprint* a, const LightFileFingerprint* b) const;
+};
+
+bool operator==(const LightFileFingerprint& lhs, const LightFileFingerprint& rhs);
 
 } // mega

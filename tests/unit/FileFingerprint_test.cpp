@@ -19,6 +19,7 @@
 #include <array>
 #include <memory>
 #include <numeric>
+#include <string>
 
 #include <gtest/gtest.h>
 
@@ -511,57 +512,67 @@ TEST(FileFingerprint, genfingerprint_InputStreamAccess_forLargeFile_butReadFails
     ASSERT_EQ(false, ffp.isvalid);
 }
 
-TEST(FileFingerprint, genfingerprint_lightWeight)
+TEST(FileFingerprint, light_genfingerprint)
 {
-    mega::FileFingerprint ffp;
+    mega::LightFileFingerprint ffp;
     const m_off_t filesize = 42;
     const mega::m_time_t filemtime = 13;
-    const std::string filename = "filename";
-    ASSERT_TRUE(ffp.genfingerprint(filesize, filemtime, filename.c_str()));
+    ASSERT_TRUE(ffp.genfingerprint(filesize, filemtime));
     ASSERT_EQ(filesize, ffp.size);
     ASSERT_EQ(filemtime, ffp.mtime);
-    const std::array<int32_t, 4> expected = {212, 202, 217, 202};
-    ASSERT_EQ(expected, ffp.crc);
-    ASSERT_EQ(true, ffp.isvalid);
 }
 
-TEST(FileFingerprint, genfingerprint_lightWeight_fileNameSmallerThanFour)
+TEST(FileFingerprint, light_genfingerprint_compare_equal)
 {
-    mega::FileFingerprint ffp;
-    const m_off_t filesize = 42;
-    const mega::m_time_t filemtime = 13;
-    const std::string filename = "f";
-    ASSERT_TRUE(ffp.genfingerprint(filesize, filemtime, filename.c_str()));
-    ASSERT_EQ(filesize, ffp.size);
-    ASSERT_EQ(filemtime, ffp.mtime);
-    const std::array<int32_t, 4> expected = {102, 0, 0, 0};
-    ASSERT_EQ(expected, ffp.crc);
-    ASSERT_EQ(true, ffp.isvalid);
+    mega::LightFileFingerprint ffp1;
+    ffp1.size = 42;
+    ffp1.mtime = 13;
+    mega::LightFileFingerprint ffp2;
+    ffp2.size = 42;
+    ffp2.mtime = 13;
+    ASSERT_TRUE(ffp1 == ffp2);
 }
 
-TEST(FileFingerprint, genfingerprint_lightWeight_fileNameEmpty)
+TEST(FileFingerprint, light_genfingerprint_compare_not_equal)
 {
-    mega::FileFingerprint ffp;
-    const m_off_t filesize = 42;
-    const mega::m_time_t filemtime = 13;
-    const std::string filename = "";
-    ASSERT_TRUE(ffp.genfingerprint(filesize, filemtime, filename.c_str()));
-    ASSERT_EQ(filesize, ffp.size);
-    ASSERT_EQ(filemtime, ffp.mtime);
-    const std::array<int32_t, 4> expected = {0, 0, 0, 0};
-    ASSERT_EQ(expected, ffp.crc);
-    ASSERT_EQ(true, ffp.isvalid);
+    mega::LightFileFingerprint ffp1;
+    ffp1.size = 42;
+    ffp1.mtime = 13;
+    mega::LightFileFingerprint ffp2;
+    ffp2.size = 42;
+    ffp2.mtime = 12;
+    ASSERT_FALSE(ffp1 == ffp2);
 }
 
-TEST(FileFingerprint, genfingerprint_lightWeight_fileNameNull)
+TEST(FileFingerprint, light_genfingerprint_firstSmaller_becauseOfSize)
 {
-    mega::FileFingerprint ffp;
-    const m_off_t filesize = 42;
-    const mega::m_time_t filemtime = 13;
-    ASSERT_TRUE(ffp.genfingerprint(filesize, filemtime, nullptr));
-    ASSERT_EQ(filesize, ffp.size);
-    ASSERT_EQ(filemtime, ffp.mtime);
-    const std::array<int32_t, 4> expected = {0, 0, 0, 0};
-    ASSERT_EQ(expected, ffp.crc);
-    ASSERT_EQ(true, ffp.isvalid);
+    mega::LightFileFingerprint ffp1;
+    ffp1.size = 41;
+    ffp1.mtime = 13;
+    mega::LightFileFingerprint ffp2;
+    ffp2.size = 42;
+    ffp2.mtime = 13;
+    ASSERT_TRUE(mega::LightFileFingerprintCmp{}(&ffp1, &ffp2));
+}
+
+TEST(FileFingerprint, light_genfingerprint_firstSmaller_becauseOfMTime)
+{
+    mega::LightFileFingerprint ffp1;
+    ffp1.size = 42;
+    ffp1.mtime = 12;
+    mega::LightFileFingerprint ffp2;
+    ffp2.size = 42;
+    ffp2.mtime = 13;
+    ASSERT_TRUE(mega::LightFileFingerprintCmp{}(&ffp1, &ffp2));
+}
+
+TEST(FileFingerprint, light_genfingerprint_firstNotSmaller)
+{
+    mega::LightFileFingerprint ffp1;
+    ffp1.size = 42;
+    ffp1.mtime = 13;
+    mega::LightFileFingerprint ffp2;
+    ffp2.size = 42;
+    ffp2.mtime = 13;
+    ASSERT_FALSE(mega::LightFileFingerprintCmp{}(&ffp1, &ffp2));
 }

@@ -778,7 +778,7 @@ TEST(Sync, assignFilesystemIds_preferredPathMatchAssignsFinalFsId)
     ASSERT_TRUE(fx.iteratorsCorrect(*lf_1));
 }
 
-TEST(Sync, assignFilesystemIds_whenFolderWasMoved)
+TEST(Sync, assignFilesystemIds_whenFolderWasMoved_differentLeafName)
 {
     Fixture fx{"d"};
 
@@ -805,7 +805,53 @@ TEST(Sync, assignFilesystemIds_whenFolderWasMoved)
 
     // assert that directories have correct fs IDs
     ASSERT_EQ(mega::UNDEF, ld.fsid);
-    ASSERT_EQ(d_0_renamed.getFsId(), ld_0->fsid);
+    ASSERT_EQ(mega::UNDEF, ld_0->fsid);
+
+    // assert that all file `LocalNode`s have same fs IDs as the corresponding `FsNode`s
+    ASSERT_EQ(f_0_0.getFsId(), lf_0_0->fsid);
+    ASSERT_EQ(f_0_1.getFsId(), lf_0_1->fsid);
+
+    // assert that the local node map is correct
+    constexpr std::size_t fileCount = 2;
+    ASSERT_EQ(fileCount, fx.mLocalNodes.size());
+
+    ASSERT_FALSE(fx.iteratorsCorrect(ld));
+    ASSERT_FALSE(fx.iteratorsCorrect(*ld_0));
+    ASSERT_TRUE(fx.iteratorsCorrect(*lf_0_0));
+    ASSERT_TRUE(fx.iteratorsCorrect(*lf_0_1));
+}
+
+TEST(Sync, assignFilesystemIds_whenFolderWasMoved_sameLeafName)
+{
+    Fixture fx{"d"};
+
+    // Level 0
+    mt::FsNode d{nullptr, mega::FOLDERNODE, "d"};
+    mega::LocalNode& ld = fx.mSync->localroot;
+    static_cast<mega::FileFingerprint&>(ld) = d.getFingerprint();
+
+    // Level 1
+    mt::FsNode d_0_renamed{&d, mega::FOLDERNODE, "d_0_renamed"};
+    auto ld_0 = mt::makeLocalNode(*fx.mSync, ld, fx.mLocalNodes, mega::FOLDERNODE, "d_0", d_0_renamed.getFingerprint());
+
+    // Level 2
+    mt::FsNode d_0{&d_0_renamed, mega::FOLDERNODE, "d_0"};
+
+    // Level 3
+    mt::FsNode f_0_0{&d_0, mega::FILENODE, "f_0_0"};
+    auto lf_0_0 = mt::makeLocalNode(*fx.mSync, *ld_0, fx.mLocalNodes, mega::FILENODE, "f_0_0", f_0_0.getFingerprint());
+    mt::FsNode f_0_1{&d_0, mega::FILENODE, "f_0_1"};
+    auto lf_0_1 = mt::makeLocalNode(*fx.mSync, *ld_0, fx.mLocalNodes, mega::FILENODE, "f_0_1", f_0_1.getFingerprint());
+
+    mt::collectAllFsNodes(fx.mFsNodes, d);
+
+    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, "d/" + mt::gLocalDebris, "/");
+
+    ASSERT_TRUE(success);
+
+    // assert that directories have correct fs IDs
+    ASSERT_EQ(mega::UNDEF, ld.fsid);
+    ASSERT_EQ(d_0.getFsId(), ld_0->fsid);
 
     // assert that all file `LocalNode`s have same fs IDs as the corresponding `FsNode`s
     ASSERT_EQ(f_0_0.getFsId(), lf_0_0->fsid);
@@ -850,6 +896,70 @@ TEST(Sync, assignFilesystemIds_whenFileWasCopied)
     ASSERT_EQ(mega::UNDEF, ld.fsid);
 
     // assert that all file `LocalNode`s have same fs IDs as the corresponding `FsNode`s
+    ASSERT_EQ(f_0.getFsId(), lf_0->fsid);
+
+    // assert that the local node map is correct
+    constexpr std::size_t fileCount = 1;
+    ASSERT_EQ(fileCount, fx.mLocalNodes.size());
+
+    ASSERT_FALSE(fx.iteratorsCorrect(ld));
+    ASSERT_TRUE(fx.iteratorsCorrect(*lf_0));
+}
+
+TEST(Sync, assignFilesystemIds_whenFileWasMove_differentLeafName)
+{
+    Fixture fx{"d"};
+
+    // Level 0
+    mt::FsNode d{nullptr, mega::FOLDERNODE, "d"};
+    mega::LocalNode& ld = fx.mSync->localroot;
+    static_cast<mega::FileFingerprint&>(ld) = d.getFingerprint();
+
+    // Level 1
+    mt::FsNode f_0{&d, mega::FILENODE, "f_0_renamed"};
+    auto lf_0 = mt::makeLocalNode(*fx.mSync, ld, fx.mLocalNodes, mega::FILENODE, "f_0", f_0.getFingerprint());
+
+    mt::collectAllFsNodes(fx.mFsNodes, d);
+
+    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, "d/" + mt::gLocalDebris, "/");
+
+    ASSERT_TRUE(success);
+
+    ASSERT_EQ(mega::UNDEF, ld.fsid);
+    ASSERT_EQ(mega::UNDEF, lf_0->fsid);
+
+    // assert that the local node map is correct
+    constexpr std::size_t fileCount = 0;
+    ASSERT_EQ(fileCount, fx.mLocalNodes.size());
+
+    ASSERT_FALSE(fx.iteratorsCorrect(ld));
+    ASSERT_FALSE(fx.iteratorsCorrect(*lf_0));
+}
+
+TEST(Sync, assignFilesystemIds_whenFileWasMove_sameLeafName)
+{
+    Fixture fx{"d"};
+
+    // Level 0
+    mt::FsNode d{nullptr, mega::FOLDERNODE, "d"};
+    mega::LocalNode& ld = fx.mSync->localroot;
+    static_cast<mega::FileFingerprint&>(ld) = d.getFingerprint();
+
+    // Level 1
+    mt::FsNode d_0{&d, mega::FOLDERNODE, "d_0"};
+
+    // Level 2
+    mt::FsNode f_0{&d_0, mega::FILENODE, "f_0"};
+
+    auto lf_0 = mt::makeLocalNode(*fx.mSync, ld, fx.mLocalNodes, mega::FILENODE, "f_0", f_0.getFingerprint()); // still at level 1
+
+    mt::collectAllFsNodes(fx.mFsNodes, d);
+
+    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, "d/" + mt::gLocalDebris, "/");
+
+    ASSERT_TRUE(success);
+
+    ASSERT_EQ(mega::UNDEF, ld.fsid);
     ASSERT_EQ(f_0.getFsId(), lf_0->fsid);
 
     // assert that the local node map is correct

@@ -121,63 +121,6 @@ FileFingerprint& FileFingerprint::operator=(const FileFingerprint& other)
     return *this;
 }
 
-bool FileFingerprint::genfingerprint(const m_off_t filesize, const m_time_t filemtime, const char* filename)
-{
-    bool changed = false;
-    decltype(crc) newcrc{};
-
-    if (mtime != filemtime)
-    {
-        mtime = filemtime;
-        changed = true;
-    }
-
-    if (size != filesize)
-    {
-        size = filesize;
-        changed = true;
-    }
-
-    if (!isvalid)
-    {
-        isvalid = true;
-        changed = true;
-    }
-
-    if (!filename)
-    {
-        return changed;
-    }
-
-    if (!*filename)
-    {
-        return changed;
-    }
-
-    bool end = false;
-    while (!end)
-    {
-        for (auto& value : newcrc)
-        {
-            value += *filename;
-            ++filename;
-            if  (!*filename)
-            {
-                end = true;
-                break;
-            }
-        }
-    }
-
-    if (crc != newcrc)
-    {
-        crc = newcrc;
-        changed = true;
-    }
-
-    return changed;
-}
-
 bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
 {
     bool changed = false;
@@ -470,4 +413,36 @@ bool FileFingerprintCmp::operator()(const FileFingerprint* a, const FileFingerpr
 
     return memcmp(a->crc.data(), b->crc.data(), sizeof a->crc) < 0;
 }
-} // namespace
+
+bool LightFileFingerprint::genfingerprint(const m_off_t filesize, const m_time_t filemtime)
+{
+    bool changed = false;
+
+    if (mtime != filemtime)
+    {
+        mtime = filemtime;
+        changed = true;
+    }
+
+    if (size != filesize)
+    {
+        size = filesize;
+        changed = true;
+    }
+
+    return changed;
+}
+
+bool LightFileFingerprintCmp::operator()(const LightFileFingerprint* a, const LightFileFingerprint* b) const
+{
+    assert(a);
+    assert(b);
+    return std::tie(a->size, a->mtime) < std::tie(b->size, b->mtime);
+}
+
+bool operator==(const LightFileFingerprint& lhs, const LightFileFingerprint& rhs)
+{
+    return std::tie(lhs.size, lhs.mtime) == std::tie(rhs.size, rhs.mtime);
+}
+
+} // mega

@@ -33,6 +33,7 @@ FsNode::FsNode(FsNode* parent, const mega::nodetype_t type, std::string name)
 
     if (parent)
     {
+        assert(parent->getType() == mega::FOLDERNODE);
         parent->mChildren.push_back(this);
     }
 
@@ -47,12 +48,11 @@ FsNode::FsNode(FsNode* parent, const mega::nodetype_t type, std::string name)
             mContent.push_back(nextRandomByte());
         }
         mFileAccess->fopen(&path, true, false);
-        mFingerprint.genfingerprint(mSize, mMTime, mName.c_str());
+        mFingerprint.genfingerprint(mFileAccess.get());
     }
     else
     {
         mFileAccess->fopen(&path, true, false);
-        mFingerprint.isvalid = true;
         mFingerprint.mtime = mMTime;
     }
 }
