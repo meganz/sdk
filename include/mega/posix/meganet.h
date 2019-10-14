@@ -42,11 +42,26 @@ struct MEGA_API SockInfo
         WRITE = 2
     };
 
-    SockInfo();
-    curl_socket_t fd;
-    int mode;
+    SockInfo() = default;
+    curl_socket_t fd = curl_socket_t(-1);
+    int mode = NONE;
+
 #if defined(_WIN32)
-    HANDLE handle;
+    SockInfo(const SockInfo&) = delete;
+    void operator=(const SockInfo&) = delete;
+    SockInfo(SockInfo&& o);
+    ~SockInfo();
+
+    bool createAssociateEvent();
+    bool checkEvent(bool& read, bool& write);
+    void closeEvent();
+    HANDLE eventHandle();
+
+    bool signalledWrite = false;
+
+private:
+    HANDLE handle = WSA_INVALID_EVENT;
+    int associatedHandleEvents = 0;
 #endif
 };
 
@@ -87,7 +102,6 @@ protected:
     static int seek_data(void*, curl_off_t, int);
 
     static int socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp, direction_t d);
-    static int sockopt_callback(void *clientp, curl_socket_t curlfd, curlsocktype purpose);
     static int api_socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp);
     static int download_socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp);
     static int upload_socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp);
@@ -142,8 +156,8 @@ protected:
     void closecurlevents(direction_t d);
     void processaresevents();
     void processcurlevents(direction_t d);
-    std::vector<SockInfo> aressockets;
     typedef std::map<curl_socket_t, SockInfo> SockInfoMap;
+    SockInfoMap aressockets;
     SockInfoMap curlsockets[3];
     m_time_t curltimeoutreset[3];
     bool arerequestspaused[3];
