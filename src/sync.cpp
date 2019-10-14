@@ -501,7 +501,7 @@ bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, h
 
     LOG_info << "Number of fingerprints: " << fingerprints.all().size();
     const auto assignmentCount = assignFilesystemIdsImpl(fingerprints, localnodes, files, fsidnodes, localseparator);
-    LOG_info << "Number of fsid assignements: " << assignmentCount;
+    LOG_info << "Number of fsid assignments: " << assignmentCount;
 
     return success;
 }

@@ -437,12 +437,12 @@ bool LightFileFingerprintCmp::operator()(const LightFileFingerprint* a, const Li
 {
     assert(a);
     assert(b);
-    return std::tie(a->size, a->mtime) < std::tie(b->size, b->mtime);
+    return std::tie(a->mtime, a->size) < std::tie(b->mtime, b->size);
 }
 
 bool operator==(const LightFileFingerprint& lhs, const LightFileFingerprint& rhs)
 {
-    return std::tie(lhs.size, lhs.mtime) == std::tie(rhs.size, rhs.mtime);
+    return std::tie(lhs.mtime, lhs.size) == std::tie(rhs.mtime, rhs.size);
 }
 
 } // mega

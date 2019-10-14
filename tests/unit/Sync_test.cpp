@@ -906,7 +906,7 @@ TEST(Sync, assignFilesystemIds_whenFileWasCopied)
     ASSERT_TRUE(fx.iteratorsCorrect(*lf_0));
 }
 
-TEST(Sync, assignFilesystemIds_whenFileWasMove_differentLeafName)
+TEST(Sync, assignFilesystemIds_whenFileWasMoved_differentLeafName)
 {
     Fixture fx{"d"};
 
@@ -936,7 +936,7 @@ TEST(Sync, assignFilesystemIds_whenFileWasMove_differentLeafName)
     ASSERT_FALSE(fx.iteratorsCorrect(*lf_0));
 }
 
-TEST(Sync, assignFilesystemIds_whenFileWasMove_sameLeafName)
+TEST(Sync, assignFilesystemIds_whenFileWasMoved_sameLeafName)
 {
     Fixture fx{"d"};
 
