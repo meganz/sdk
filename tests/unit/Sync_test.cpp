@@ -970,6 +970,36 @@ TEST(Sync, assignFilesystemIds_whenFileWasMoved_sameLeafName)
     ASSERT_TRUE(fx.iteratorsCorrect(*lf_0));
 }
 
+TEST(Sync, assignFilesystemIds_emptyFolderStaysUnassigned)
+{
+    Fixture fx{"d"};
+
+    // Level 0
+    mt::FsNode d{nullptr, mega::FOLDERNODE, "d"};
+    mega::LocalNode& ld = fx.mSync->localroot;
+    static_cast<mega::FileFingerprint&>(ld) = d.getFingerprint();
+
+    // Level 1
+    mt::FsNode d_0{&d, mega::FOLDERNODE, "d_0"};
+    auto ld_0 = mt::makeLocalNode(*fx.mSync, ld, fx.mLocalNodes, mega::FOLDERNODE, "d_0");
+
+    mt::collectAllFsNodes(fx.mFsNodes, d);
+
+    const auto success = mega::assignFilesystemIds(*fx.mSync, fx.mApp, fx.mFsAccess, fx.mLocalNodes, "d/" + mt::gLocalDebris, "/");
+
+    ASSERT_TRUE(success);
+
+    ASSERT_EQ(mega::UNDEF, ld.fsid);
+    ASSERT_EQ(mega::UNDEF, ld_0->fsid);
+
+    // assert that the local node map is correct
+    constexpr std::size_t fileCount = 0;
+    ASSERT_EQ(fileCount, fx.mLocalNodes.size());
+
+    ASSERT_FALSE(fx.iteratorsCorrect(ld));
+    ASSERT_FALSE(fx.iteratorsCorrect(*ld_0));
+}
+
 #ifdef NDEBUG
 TEST(Sync, assignFilesystemIds_whenRootPathIsNotAFolder_hittingAssert)
 {
