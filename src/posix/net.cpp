@@ -774,7 +774,7 @@ void CurlHttpIO::disconnect()
     {
         for (auto &dnsPair: dnscache)
         {
-            dnsPair.second.disconnectHappened = true;
+            dnsPair.second.mNeedsResolvingAgain= true;
         }
     }
 
