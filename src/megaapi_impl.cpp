@@ -2163,6 +2163,7 @@ MegaTransferPrivate::MegaTransferPrivate(int type, MegaTransferListener *listene
     this->temporarySourceFile = false;
     this->startFirst = false;
     this->backupTransfer = false;
+    this->foreignOverquota = false;
     this->lastError = API_OK;
     this->folderTransferTag = 0;
     this->appData = NULL;
@@ -2211,6 +2212,7 @@ MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
     this->setSourceFileTemporary(transfer->isSourceFileTemporary());
     this->setStartFirst(transfer->shouldStartFirst());
     this->setBackupTransfer(transfer->isBackupTransfer());
+    this->setForeignOverquota(transfer->isForeignOverquota());
     this->setLastError(transfer->getLastError());
     this->setFolderTransferTag(transfer->getFolderTransferTag());
     this->setAppData(transfer->getAppData());
@@ -2290,6 +2292,11 @@ bool MegaTransferPrivate::isFinished() const
 bool MegaTransferPrivate::isBackupTransfer() const
 {
     return backupTransfer;
+}
+
+bool MegaTransferPrivate::isForeignOverquota() const
+{
+    return foreignOverquota;
 }
 
 bool MegaTransferPrivate::isSourceFileTemporary() const
@@ -2690,6 +2697,11 @@ void MegaTransferPrivate::setStartFirst(bool startFirst)
 void MegaTransferPrivate::setBackupTransfer(bool backupTransfer)
 {
     this->backupTransfer = backupTransfer;
+}
+
+void MegaTransferPrivate::setForeignOverquota(bool foreignOverquota)
+{
+    this->foreignOverquota = foreignOverquota;
 }
 
 void MegaTransferPrivate::setStreamingTransfer(bool streamingTransfer)
@@ -16178,7 +16190,16 @@ void MegaApiImpl::processTransferFailed(Transfer *tr, MegaTransferPrivate *trans
     transfer->setLastError(megaError);
     transfer->setPriority(tr->priority);
     transfer->setState(MegaTransfer::STATE_RETRYING);
-    transfer->setStreamingTransfer(tr->mForeignTarget);
+
+    unique_ptr<MegaNode> targetNode(getNodeByHandle(transfer->getParentHandle()));
+    if (targetNode)
+    {
+        unique_ptr<MegaNode> ownRootNode(getRootNode());
+        unique_ptr<MegaNode> targetRootNode(getRootNode(targetNode.get()));
+        transfer->setForeignOverquota((e == API_EOVERQUOTA)
+            && (ownRootNode->getHandle() != targetRootNode->getHandle()));
+    }
+
     fireOnTransferTemporaryError(transfer, megaError);
 }
 
