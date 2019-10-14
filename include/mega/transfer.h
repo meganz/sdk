@@ -135,9 +135,6 @@ struct MEGA_API Transfer : public FileFingerprint
 
     bool skipserialization;
 
-    // to differentiate between overquota errors due to foreign account OQ or own account OQ
-    bool mForeignTarget;
-
     Transfer(MegaClient*, direction_t);
     virtual ~Transfer();
 

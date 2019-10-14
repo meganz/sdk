@@ -53,7 +53,6 @@ Transfer::Transfer(MegaClient* cclient, direction_t ctype)
     finished = false;
     lastaccesstime = 0;
     ultoken = NULL;
-    mForeignTarget = false;
 
     priority = 0;
     state = TRANSFERSTATE_NONE;
@@ -359,15 +358,45 @@ void Transfer::failed(error e, dstime timeleft)
     {
         if (e == API_EOVERQUOTA)
         {
-            if (slot && !slot->transfer->mForeignTarget)
+            if (!slot)
             {
-                bt.backoff(timeleft ? timeleft : NEVER);
                 client->activateoverquota(timeleft);
+                bt.backoff(timeleft ? timeleft : NEVER);
+                client->app->transfer_failed(this, e, timeleft);
+                ++client->performanceStats.transferTempErrors;
             }
             else
             {
-                client->app->transfer_failed(this, e, timeleft);
-                ++client->performanceStats.transferTempErrors;
+                bool allForeignTargets = true;
+                for (file_list::iterator it = slot->transfer->files.begin(); it != slot->transfer->files.end();)
+                {
+                    Node *node = client->nodebyhandle((*it)->h);
+                    if (node)
+                    {
+                        handle rootnode = client->getrootnode(node)->nodehandle;
+                        if (client->rootnodes[0] != rootnode)
+                        {
+                            slot->transfer->files.erase(it++);
+                        }
+                        else
+                        {
+                            allForeignTargets = false;
+                        }
+                    }
+                }
+
+                /* If all targets are foreign, transfer must fail. Otherwise we need to
+                 * remove all foreign targets from transferslot and activate overquota.
+                 */
+                if (allForeignTargets)
+                {
+                    client->app->transfer_failed(this, e, NEVER);
+                }
+                else
+                {
+                    bt.backoff(timeleft ? timeleft : NEVER);
+                    client->activateoverquota(timeleft);
+                }
             }
         }
         else

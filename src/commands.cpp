@@ -337,8 +337,6 @@ CommandPutFile::CommandPutFile(MegaClient* client, TransferSlot* ctslot, int ms)
             if (node)
             {
                 handle rootnode = client->getrootnode(node)->nodehandle;
-                tslot->transfer->mForeignTarget = client->rootnodes[0] != rootnode;
-
                 if (targetRoots.find(rootnode) != targetRoots.end())
                 {
                     continue;
