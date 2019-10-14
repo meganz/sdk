@@ -179,6 +179,9 @@ if (WIN32)
 
     set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
     set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MP")
+    set (CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /Zi")
+    set (CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /Zi")
+
 
     # for inet_ntoa (which is available in XP)
     add_definitions( -D_WINSOCK_DEPRECATED_NO_WARNINGS )

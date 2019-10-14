@@ -191,9 +191,9 @@ public:
     : mFsNodes{fsNodes}
     {}
 
-    mega::FileAccess* newfileaccess(bool) override
+    std::unique_ptr<mega::FileAccess> newfileaccess(bool) override
     {
-        return new MockFileAccess{mFsNodes};
+        return std::unique_ptr<mega::FileAccess>{new MockFileAccess{mFsNodes}};
     }
 
     mega::DirAccess* newdiraccess() override

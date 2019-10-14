@@ -2471,14 +2471,13 @@ void MegaClient::exec()
                         {
                             // ... execute all pending deletions
                             string path;
-                            FileAccess *fa = fsaccess->newfileaccess();
+                            auto fa = fsaccess->newfileaccess();
                             while (localsyncnotseen.size())
                             {
                                 LocalNode* l = *localsyncnotseen.begin();
-                                unlinkifexists(l, fa, &path);
+                                unlinkifexists(l, fa.get(), &path);
                                 delete l;
                             }
-                            delete fa;
                         }
 
                         // process filesystem notifications for active syncs unless we
@@ -3380,7 +3379,7 @@ bool MegaClient::dispatch(direction_t d)
                         if (!gfxdisabled && gfx && gfx->isgfx(&nexttransfer->localfilename))
                         {
                             // we want all imagery to be safely tucked away before completing the upload, so we bump minfa
-                            nexttransfer->minfa += gfx->gendimensionsputfa(ts->fa, &nexttransfer->localfilename, nexttransfer->uploadhandle, nexttransfer->transfercipher(), -1, false);
+                            nexttransfer->minfa += gfx->gendimensionsputfa(ts->fa.get(), &nexttransfer->localfilename, nexttransfer->uploadhandle, nexttransfer->transfercipher(), -1, false);
                         }
                     }
                 }
@@ -11988,7 +11987,7 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
         return API_EFAILED;
     }
 
-    FileAccess* fa = fsaccess->newfileaccess();
+    auto fa = fsaccess->newfileaccess();
     if (fa->fopen(rootpath, true, false))
     {
         if (fa->type == FOLDERNODE)
@@ -12012,7 +12011,7 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
                 }
             }
 
-            if (sync->scan(rootpath, fa))
+            if (sync->scan(rootpath, fa.get()))
             {
                 syncsup = false;
                 e = API_OK;
@@ -12038,8 +12037,6 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
     {
         e = fa->retry ? API_ETEMPUNAVAIL : API_ENOENT;
     }
-
-    delete fa;
 
     return e;
 #else
@@ -12275,19 +12272,17 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 
                 ll->getlocalpath(&tmplocalpath);
 
-                FileAccess* fa = fsaccess->newfileaccess(false);
+                auto fa = fsaccess->newfileaccess(false);
                 if (fa->fopen(&tmplocalpath, true, false))
                 {
                     FileFingerprint fp;
-                    fp.genfingerprint(fa);
+                    fp.genfingerprint(fa.get());
 
                     if (!(fp == *(FileFingerprint*)ll))
                     {
                         ll->deleted = false;
                     }
                 }
-
-                delete fa;
             }
 
             if (ll->deleted)
@@ -12384,7 +12379,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
             if (rit->second->type == FILENODE)
             {
                 bool download = true;
-                FileAccess *f = fsaccess->newfileaccess(false);
+                auto f = fsaccess->newfileaccess(false);
                 if (rit->second->localnode != (LocalNode*)~0
                         && (f->fopen(localpath) || f->type == FOLDERNODE))
                 {
@@ -12398,7 +12393,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                         download = false;
                     }
                 }
-                delete f;
+                f.reset();
                 rit->second->localnode = NULL;
 
                 // start fetching this node, unless fetch is already in progress
@@ -12419,7 +12414,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
             else
             {
                 LOG_debug << "Creating local folder";
-                FileAccess *f = fsaccess->newfileaccess(false);
+                auto f = fsaccess->newfileaccess(false);
                 if (f->fopen(localpath) || f->type == FOLDERNODE)
                 {
                     LOG_debug << "Skipping folder creation over an unscanned file/folder, or the file/folder is not to be synced (special attributes)";
@@ -12457,7 +12452,6 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                 {
                     LOG_debug << "Non transient error creating folder";
                 }
-                delete f;
             }
         }
 
@@ -12703,7 +12697,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                     if(ll->size == ll->node->size && !memcmp(ll->crc.data(), ll->node->crc.data(), sizeof(ll->crc)))
                     {
                         LOG_debug << "Modification time changed only";
-                        FileAccess *f = fsaccess->newfileaccess();
+                        auto f = fsaccess->newfileaccess();
                         string lpath;
                         ll->getlocalpath(&lpath);
                         string stream = lpath;
@@ -12728,7 +12722,6 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                                         ll->mtime = ll->node->mtime;
                                         ll->treestate(TREESTATE_SYNCED);
                                         RegCloseKey(hKey);
-                                        delete f;
                                         continue;
                                     }
                                 }
@@ -12740,11 +12733,8 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                         if (f->fopen(&lpath))
                         {
                             LOG_warn << "Windows Search detected";
-                            delete f;
                             continue;
                         }
-
-                        delete f;
                     }
 #endif
 
@@ -12871,7 +12861,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
 
                 string localpath;
                 bool t;
-                FileAccess* fa = fsaccess->newfileaccess(false);
+                auto fa = fsaccess->newfileaccess(false);
 
                 ll->getlocalpath(&localpath);
 
@@ -12882,7 +12872,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                     if (t)
                     {
                         ll->sync->localbytes -= ll->size;
-                        ll->genfingerprint(fa);
+                        ll->genfingerprint(fa.get());
                         ll->sync->localbytes += ll->size;                        
 
                         ll->sync->statecacheadd(ll);
@@ -12893,8 +12883,6 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                     LOG_debug << "Localnode not stable yet: " << ll->name << " " << t << " " << fa->size << " " << ll->size
                               << " " << fa->mtime << " " << ll->mtime << " " << ll->nagleds;
 
-                    delete fa;
-
                     if (ll->nagleds < *nds)
                     {
                         *nds = ll->nagleds;
@@ -12902,8 +12890,6 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
 
                     continue;
                 }
-
-                delete fa;
                 
                 ll->created = false;
             }
@@ -13477,14 +13463,12 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes, bool startfir
             if (!f->isvalid)    // (sync LocalNodes always have this set)
             {
                 // missing FileFingerprint for local file - generate
-                FileAccess* fa = fsaccess->newfileaccess();
+                auto fa = fsaccess->newfileaccess();
 
                 if (fa->fopen(&f->localname, d == PUT, d == GET))
                 {
-                    f->genfingerprint(fa);
+                    f->genfingerprint(fa.get());
                 }
-
-                delete fa;
             }
 
             // if we are unable to obtain a valid file FileFingerprint, don't proceed
@@ -13576,7 +13560,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes, bool startfir
                     }
                 }
 
-                FileAccess* fa = fsaccess->newfileaccess();
+                auto fa = fsaccess->newfileaccess();
                 if (!fa->fopen(&t->localfilename))
                 {
                     if (d == PUT)
@@ -13601,7 +13585,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes, bool startfir
                 {
                     if (d == PUT)
                     {
-                        if (f->genfingerprint(fa))
+                        if (f->genfingerprint(fa.get()))
                         {
                             LOG_warn << "The local file has been modified";
                             t->tempurls.clear();
@@ -13623,7 +13607,6 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes, bool startfir
                         }
                     }
                 }
-                delete fa;
                 cachedtransfers[d].erase(it);
                 LOG_debug << "Transfer resumed";
             }
