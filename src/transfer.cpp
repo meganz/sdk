@@ -368,18 +368,13 @@ void Transfer::failed(error e, dstime timeleft)
             else
             {
                 bool allForeignTargets = true;
-                for (file_list::iterator it = slot->transfer->files.begin(); it != slot->transfer->files.end();)
+                for (file_list::iterator it = files.begin(); it != files.end(); it++)
                 {
                     Node *node = client->nodebyhandle((*it)->h);
                     if (node)
                     {
                         handle rootnode = client->getrootnode(node)->nodehandle;
-                        if (!timeleft && client->rootnodes[0] != rootnode)
-                        {
-                            // Remove files with foreign targets, if there's not a bandwidth overquota
-                            slot->transfer->files.erase(it++);
-                        }
-                        else
+                        if (client->rootnodes[0] == rootnode)
                         {
                             allForeignTargets = false;
                         }
@@ -410,9 +405,29 @@ void Transfer::failed(error e, dstime timeleft)
         }
     }
 
-    for (file_list::iterator it = files.begin(); it != files.end(); it++)
+    for (file_list::iterator it = files.begin(); it != files.end();)
     {
-        if (((*it)->failed(e) && (e != API_EBUSINESSPASTDUE))
+        // Remove files with foreign targets, if there's an storage overquota
+        auto auxit = it++;
+        Node *node = client->nodebyhandle((*auxit)->h);
+        if (e == API_EOVERQUOTA && !timeleft && node)
+        {
+            handle rootnode = client->getrootnode(node)->nodehandle;
+            if (client->rootnodes[0] != rootnode)
+            {
+#ifdef ENABLE_SYNC
+                if((*auxit)->syncxfer && e != API_EBUSINESSPASTDUE)
+                {
+                    client->syncdownrequired = true;
+                }
+#endif
+                client->app->file_removed(*auxit, e);
+                files.erase(auxit);
+                break;
+            }
+        }
+
+        if (((*auxit)->failed(e) && (e != API_EBUSINESSPASTDUE))
                 || (e == API_ENOENT // putnodes returned -9, file-storage server unavailable
                     && type == PUT
                     && tempurls.empty()
