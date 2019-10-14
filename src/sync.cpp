@@ -149,8 +149,9 @@ void hashCombineFingerprint(LightFileFingerprint& ffp, const LightFileFingerprin
 }
 
 // Combines the fingerprints of all file nodes in the given map
-void combinedFingerprint(LightFileFingerprint& ffp, const localnode_map& nodeMap)
+bool combinedFingerprint(LightFileFingerprint& ffp, const localnode_map& nodeMap)
 {
+    bool success = false;
     for (const auto& nodePair : nodeMap)
     {
         const LocalNode& l = *nodePair.second;
@@ -159,20 +160,24 @@ void combinedFingerprint(LightFileFingerprint& ffp, const localnode_map& nodeMap
             LightFileFingerprint lFfp;
             lFfp.genfingerprint(l.size, l.mtime);
             hashCombineFingerprint(ffp, lFfp);
+            success = true;
         }
     }
+    return success;
 }
 
 // Combines the fingerprints of all files in the given paths
 bool combinedFingerprint(LightFileFingerprint& ffp, FileSystemAccess& fsaccess, const set<string>& paths)
 {
+    bool success = false;
     for (const auto& path : paths)
     {
         auto fa = std::unique_ptr<FileAccess>{fsaccess.newfileaccess(false)};
         if (!fa->fopen(const_cast<string*>(&path), true, false))
         {
             LOG_err << "Unable to open path: " << path;
-            return false;
+            success = false;
+            break;
         }
         if (fa->mIsSymLink)
         {
@@ -184,9 +189,10 @@ bool combinedFingerprint(LightFileFingerprint& ffp, FileSystemAccess& fsaccess, 
             LightFileFingerprint faFfp;
             faFfp.genfingerprint(fa->size, fa->mtime);
             hashCombineFingerprint(ffp, faFfp);
+            success = true;
         }
     }
-    return true;
+    return success;
 }
 
 // Computes the fingerprint of the given `l` (file or folder) and stores it in `ffp`
@@ -199,8 +205,7 @@ bool computeFingerprint(LightFileFingerprint& ffp, const LocalNode& l)
     }
     else if (l.type == FOLDERNODE)
     {
-        combinedFingerprint(ffp, l.children);
-        return true;
+        return combinedFingerprint(ffp, l.children);
     }
     else
     {
