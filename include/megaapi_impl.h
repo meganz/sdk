@@ -2809,8 +2809,8 @@ protected:
         void putfa_result(handle, fatype, const char*) override;
 
         // purchase transactions
-        void enumeratequotaitems_result(handle product, unsigned prolevel, unsigned gbstorage, unsigned gbtransfer,
-                                                unsigned months, unsigned amount, const char* currency, const char* description, const char* iosid, const char* androidid) override;
+        void enumeratequotaitems_result(unsigned type, handle product, unsigned prolevel, unsigned gbstorage, unsigned gbtransfer,
+                                                unsigned months, unsigned amount, unsigned amountMonth, const char* currency, const char* description, const char* iosid, const char* androidid) override;
         void enumeratequotaitems_result(error e) override;
         void additem_result(error) override;
         void checkout_result(const char*, error) override;
