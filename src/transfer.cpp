@@ -362,6 +362,7 @@ void Transfer::failed(error e, dstime timeleft)
             state = TRANSFERSTATE_RETRYING;
             client->app->transfer_failed(this, e, timeleft);
             client->looprequested = true;
+            ++client->performanceStats.transferTempErrors;
         }
         else
         {
@@ -370,6 +371,7 @@ void Transfer::failed(error e, dstime timeleft)
             if (!slot)
             {
                 client->app->transfer_failed(this, e, timeleft);
+                ++client->performanceStats.transferTempErrors;
             }
         }
     }
@@ -421,7 +423,7 @@ void Transfer::failed(error e, dstime timeleft)
         for (file_list::iterator it = files.begin(); it != files.end(); it++)
         {
 #ifdef ENABLE_SYNC
-            if((*it)->syncxfer)
+            if((*it)->syncxfer && e != API_EBUSINESSPASTDUE)
             {
                 client->syncdownrequired = true;
             }
@@ -429,6 +431,7 @@ void Transfer::failed(error e, dstime timeleft)
             client->app->file_removed(*it, e);
         }
         client->app->transfer_removed(this);
+        ++client->performanceStats.transferFails;
         delete this;
     }
 }
@@ -481,6 +484,8 @@ void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ std::strin
 // fingerprint, notify app, notify files
 void Transfer::complete()
 {
+    CodeCounter::ScopeTimer ccst(client->performanceStats.transferComplete);
+
     state = TRANSFERSTATE_COMPLETING;
     client->app->transfer_update(this);
 
@@ -494,8 +499,7 @@ void Transfer::complete()
         bool success;
 
         // disconnect temp file from slot...
-        delete slot->fa;
-        slot->fa = NULL;
+        slot->fa.reset();
 
         // FIXME: multiple overwrite race conditions below (make copies
         // from open file instead of closing/reopening!)
@@ -512,7 +516,7 @@ void Transfer::complete()
 #endif
 
         // verify integrity of file
-        FileAccess* fa = client->fsaccess->newfileaccess();
+        auto fa = client->fsaccess->newfileaccess();
         FileFingerprint fingerprint;
         Node* n = nullptr;
         bool fixfingerprint = false;
@@ -541,7 +545,7 @@ void Transfer::complete()
 
         if (!fixedfingerprint && success && fa->fopen(&localfilename, true, false))
         {
-            fingerprint.genfingerprint(fa);
+            fingerprint.genfingerprint(fa.get());
             if (isvalid && !(fingerprint == *(FileFingerprint*)this))
             {
                 LOG_err << "Fingerprint mismatch";
@@ -550,7 +554,7 @@ void Transfer::complete()
                 if (syncxfer && (!badfp.isvalid || !(badfp == fingerprint)))
                 {
                     badfp = fingerprint;
-                    delete fa;
+                    fa.reset();
                     chunkmacs.clear();
                     client->fsaccess->unlinklocal(&localfilename);
                     return failed(API_EWRITE);
@@ -583,7 +587,7 @@ void Transfer::complete()
             }
         }
 #endif
-        delete fa;
+        fa.reset();
 
         char me64[12];
         Base64::btoa((const byte*)&client->me, MegaClient::USERHANDLE, me64);
@@ -729,8 +733,6 @@ void Transfer::complete()
                         transient_error = fa->retry;
                     }
 
-                    delete fa;
-
                     if (transient_error)
                     {
                         LOG_warn << "Transient error checking if the destination file exist";
@@ -872,8 +874,7 @@ void Transfer::complete()
         else
         {
             // some files are still pending completion, close fa and set retry timer
-            delete slot->fa;
-            slot->fa = NULL;
+            slot->fa.reset();
 
             LOG_debug << "Files pending completion: " << files.size() << ". Waiting for a retry.";
             LOG_debug << "First pending file: " << files.front()->name;
@@ -896,16 +897,13 @@ void Transfer::complete()
                 client->reqtag = creqtag;
             }
 
-            delete slot->fa;
-            slot->fa = NULL;
+            slot->fa.reset();
         }
 
         // files must not change during a PUT transfer
         for (file_list::iterator it = files.begin(); it != files.end(); )
         {
             File *f = (*it);
-            bool isOpen = true;
-            FileAccess *fa = client->fsaccess->newfileaccess();
             string *localpath = &f->localname;
 
 #ifdef ENABLE_SYNC
@@ -923,20 +921,20 @@ void Transfer::complete()
             }
 #endif
 
-            if (!fa->fopen(localpath))
+            auto fa = client->fsaccess->newfileaccess();
+            bool isOpen = fa->fopen(localpath);
+            if (!isOpen)
             {
-                isOpen = false;
                 if (client->fsaccess->transient_error)
                 {
                     LOG_warn << "Retrying upload completion due to a transient error";
                     slot->retrying = true;
                     slot->retrybt.backoff(11);
-                    delete fa;
                     return;
                 }
             }
 
-            if (!isOpen || f->genfingerprint(fa))
+            if (!isOpen || f->genfingerprint(fa.get()))
             {
                 if (!isOpen)
                 {
@@ -963,7 +961,6 @@ void Transfer::complete()
             {
                 it++;
             }
-            delete fa;
         }
 
         if (!files.size())

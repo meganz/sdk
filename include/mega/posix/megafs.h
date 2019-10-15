@@ -80,28 +80,28 @@ public:
     int defaultfilepermissions;
     int defaultfolderpermissions;
 
-    FileAccess* newfileaccess();
-    DirAccess* newdiraccess();
-    DirNotify* newdirnotify(string*, string*);
+    std::unique_ptr<FileAccess> newfileaccess(bool followSymLinks = true) override;
+    DirAccess* newdiraccess() override;
+    DirNotify* newdirnotify(string*, string*) override;
 
-    void tmpnamelocal(string*) const;
+    void tmpnamelocal(string*) const override;
 
-    void local2path(string*, string*) const;
-    void path2local(string*, string*) const;
+    void local2path(string*, string*) const override;
+    void path2local(string*, string*) const override;
 
-    bool getsname(string*, string*) const;
+    bool getsname(string*, string*) const override;
 
-    bool renamelocal(string*, string*, bool);
-    bool copylocal(string*, string*, m_time_t);
+    bool renamelocal(string*, string*, bool) override;
+    bool copylocal(string*, string*, m_time_t) override;
     bool rubbishlocal(string*);
-    bool unlinklocal(string*);
-    bool rmdirlocal(string*);
-    bool mkdirlocal(string*, bool);
-    bool setmtimelocal(string *, m_time_t);
-    bool chdirlocal(string*) const;
-    size_t lastpartlocal(string*) const;
-    bool getextension(string*, char*, size_t) const;
-    bool expanselocalpath(string *path, string *absolutepath);
+    bool unlinklocal(string*) override;
+    bool rmdirlocal(string*) override;
+    bool mkdirlocal(string*, bool) override;
+    bool setmtimelocal(string *, m_time_t) override;
+    bool chdirlocal(string*) const override;
+    size_t lastpartlocal(string*) const override;
+    bool getextension(string*, char*, size_t) const override;
+    bool expanselocalpath(string *path, string *absolutepath) override;
 
     void addevents(Waiter*, int);
     int checkevents(Waiter*);
@@ -133,8 +133,10 @@ struct MEGA_API PosixAsyncIOContext : public AsyncIOContext
 
 class MEGA_API PosixFileAccess : public FileAccess
 {
-public:
+private:
     int fd;
+public:
+    int stealFileDescriptor();
     int defaultfilepermissions;
 
 #ifndef HAVE_FDOPENDIR
@@ -151,7 +153,7 @@ public:
     bool sysopen(bool async = false);
     void sysclose();
 
-    PosixFileAccess(Waiter *w, int defaultfilepermissions = 0600);
+    PosixFileAccess(Waiter *w, int defaultfilepermissions = 0600, bool followSymLinks = true);
 
     // async interface
     virtual bool asyncavailable();
@@ -166,6 +168,10 @@ protected:
     virtual AsyncIOContext* newasynccontext();
     static void asyncopfinished(union sigval sigev_value);
 #endif
+
+private:
+    bool mFollowSymLinks = true;
+
 };
 
 class MEGA_API PosixDirNotify : public DirNotify

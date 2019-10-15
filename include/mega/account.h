@@ -84,31 +84,30 @@ struct MEGA_API AccountDetails
     m_time_t pro_until = 0;
 
     // quota related to the session account
-    m_off_t storage_used = 0, storage_max = 0;
-    m_off_t transfer_own_used = 0, transfer_srv_used = 0, transfer_max = 0;
-    m_off_t transfer_own_reserved = 0, transfer_srv_reserved = 0;
+    m_off_t storage_used = 0;
+    m_off_t storage_max = 0;
+
+    // Own user transfer
+    m_off_t transfer_max = 0;
+    m_off_t transfer_own_used = 0;
+    m_off_t transfer_srv_used = 0;  // 3rd party served quota to other users
+
+    // ratio of your PRO transfer quota that is able to be served to 3rd party
     double srv_ratio = 0;
 
     // storage used for all relevant nodes (root nodes, incoming shares)
     handlestorage_map storage;
 
-    // transfer history pertaining to requesting IP address
-    m_time_t transfer_hist_starttime = 0;       // transfer history start timestamp
-    m_time_t transfer_hist_interval = 3600;     // timespan that a single transfer
-                                        // window record covers
-    vector<m_off_t> transfer_hist;      // transfer window - oldest to newest,
-                                        // bytes consumed per twrtime interval
+    // Free IP-based transfer quota related:
+    m_time_t transfer_hist_starttime = 0;   // transfer history start timestamp
+    m_time_t transfer_hist_interval = 3600; // timespan that a single transfer window record covers
+    vector<m_off_t> transfer_hist;          // transfer window - oldest to newest, bytes consumed per time interval
+    bool transfer_hist_valid = true;        // transfer hist valid for overquota accounts
 
-    m_off_t transfer_reserved = 0;      // byte quota reserved for the
-                                        // completion of active transfers
-
-    m_off_t transfer_limit = 0;         // current byte quota for the
-                                        // requesting IP address (dynamic,
-                                        // overage will be drawn from account
-                                        // quota)
-
-    bool transfer_hist_valid = true;    // transfer hist valid for overquota
-                                        // accounts
+    // Reserved transfer quota for ongoing transfers (currently ignored by clients)
+    m_off_t transfer_reserved = 0;      // free IP-based
+    m_off_t transfer_srv_reserved = 0;  // 3rd party
+    m_off_t transfer_own_reserved = 0;  // own account
 
     vector<AccountBalance> balances;
     vector<AccountSession> sessions;

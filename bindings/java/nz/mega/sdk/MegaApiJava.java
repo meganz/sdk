@@ -142,6 +142,11 @@ public class MegaApiJava {
     public final static int STORAGE_STATE_RED = MegaApi.STORAGE_STATE_RED;
     public final static int STORAGE_STATE_CHANGE = MegaApi.STORAGE_STATE_CHANGE;
 
+    public final static int BUSINESS_STATUS_EXPIRED = MegaApi.BUSINESS_STATUS_EXPIRED;
+    public final static int BUSINESS_STATUS_INACTIVE = MegaApi.BUSINESS_STATUS_INACTIVE;
+    public final static int BUSINESS_STATUS_ACTIVE = MegaApi.BUSINESS_STATUS_ACTIVE;
+    public final static int BUSINESS_STATUS_GRACE_PERIOD = MegaApi.BUSINESS_STATUS_GRACE_PERIOD;
+
     public final static int ORDER_NONE = MegaApi.ORDER_NONE;
     public final static int ORDER_DEFAULT_ASC = MegaApi.ORDER_DEFAULT_ASC;
     public final static int ORDER_DEFAULT_DESC = MegaApi.ORDER_DEFAULT_DESC;
@@ -153,6 +158,10 @@ public class MegaApiJava {
     public final static int ORDER_MODIFICATION_DESC = MegaApi.ORDER_MODIFICATION_DESC;
     public final static int ORDER_ALPHABETICAL_ASC = MegaApi.ORDER_ALPHABETICAL_ASC;
     public final static int ORDER_ALPHABETICAL_DESC = MegaApi.ORDER_ALPHABETICAL_DESC;
+    public final static int ORDER_PHOTO_ASC = MegaApi.ORDER_PHOTO_ASC;
+    public final static int ORDER_PHOTO_DESC = MegaApi.ORDER_PHOTO_DESC;
+    public final static int ORDER_VIDEO_ASC = MegaApi.ORDER_VIDEO_ASC;
+    public final static int ORDER_VIDEO_DESC = MegaApi.ORDER_VIDEO_DESC;
 
     public final static int TCP_SERVER_DENY_ALL = MegaApi.TCP_SERVER_DENY_ALL;
     public final static int TCP_SERVER_ALLOW_ALL = MegaApi.TCP_SERVER_ALLOW_ALL;

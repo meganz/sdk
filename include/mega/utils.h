@@ -351,6 +351,47 @@ public:
      */
     static bool utf8toUnicode(const uint8_t *src, unsigned srclen, string *result);
 
+    /**
+     * @brief This function is analogous to a32_to_str in js version.
+     * Converts a vector of <T> elements into a std::string
+     *
+     * @param data a vector of <T> elements
+     * @note this function has been initially designed to work with <T> = uint32_t or <T> = int32_t
+     * This is a valid example: <t> = uint32_t, data = [1952805748] => return_value = "test"
+     *
+     * @return returns a std::string
+     */
+    template<typename T> static std::string a32_to_str(std::vector<T> data)
+    {
+        size_t size = data.size() * sizeof(T);
+        std::unique_ptr<char[]> result(new char[size]);
+        for (size_t i = 0; i < size; ++i)
+        {
+            result[i] = (data[i >> 2] >> (24 - (i & 3) * 8)) & 255;
+        }
+        return std::string (result.get(), size);
+    }
+
+    /**
+     * @brief This function is analogous to str_to_a32 in js version.
+     * Converts a std::string into a vector of <T> elements
+     *
+     * @param data a std::string
+     * @note this function has been initially designed to work with <T> = uint32_t or <T> = int32_t
+     * This is a valid example: <t> = uint32_t, data = "test"  => return_value = [1952805748]
+     *
+     * @return returns a vector of <T> elements
+     */
+    template<typename T> static std::vector<T> str_to_a32(std::string data)
+    {
+        std::vector<T> data32((data.size() + 3) >> 2);
+        for (size_t i = 0; i < data.size(); ++i)
+        {
+            data32[i >> 2] |= (data[i] & 255) << (24 - (i & 3) * 8);
+        }
+        return data32;
+    }
+
     static std::string stringToHex(const std::string& input);
     static std::string hexToString(const std::string& input);
 };
@@ -426,15 +467,8 @@ template<typename T, typename U>
 void hashCombine(T& seed, const U& v)
 {
     static_assert(std::is_integral<T>::value, "T is not integral");
-    // Taken from Boost's hash combine function
+    // the magic number is the twos complement version of the golden ratio
     seed ^= std::hash<U>{}(v) + 0x9e3779b9 + (seed<<6) + (seed>>2);
-}
-
-// Returns the size of a C-style array
-template<typename T, std::size_t N>
-std::size_t getSize(const T (&array)[N]) noexcept
-{
-    return N;
 }
 
 } // namespace

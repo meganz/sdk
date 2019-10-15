@@ -52,6 +52,7 @@ const m_off_t TransferSlot::MAX_UPLOAD_GAP = 62914560; // 60 MB (up to 63 chunks
 
 TransferSlot::TransferSlot(Transfer* ctransfer)
     : retrybt(ctransfer->client->rng)
+    , fa(ctransfer->client->fsaccess->newfileaccess())
 {
     starttime = 0;
     lastprogressreport = 0;
@@ -77,8 +78,6 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
     transfer = ctransfer;
     transfer->slot = this;
     transfer->state = TRANSFERSTATE_ACTIVE;
-
-    fa = transfer->client->fsaccess->newfileaccess();
 
     slots_it = transfer->client->tslots.end();
 
@@ -175,12 +174,10 @@ TransferSlot::~TransferSlot()
             }
 
             // Open the file in synchonous mode
-            delete fa;
             fa = transfer->client->fsaccess->newfileaccess();
             if (!fa->fopen(&transfer->localfilename, false, true))
             {
-                delete fa;
-                fa = NULL;
+                fa.reset();
             }
         }
 
@@ -243,6 +240,7 @@ TransferSlot::~TransferSlot()
         }
 
         transfer->client->tslots.erase(slots_it);
+        transfer->client->performanceStats.transferFinishes += 1;
     }
 
     if (pendingcmd)
@@ -265,11 +263,6 @@ TransferSlot::~TransferSlot()
 
     delete[] asyncIO;
     delete[] reqs;
-
-    if (fa)
-    {
-        delete fa;
-    }
 }
 
 void TransferSlot::toggleport(HttpReqXfer *req)
@@ -334,6 +327,8 @@ int64_t TransferSlot::macsmac(chunkmac_map* m)
 // file transfer state machine
 void TransferSlot::doio(MegaClient* client)
 {
+    CodeCounter::ScopeTimer pbt(client->performanceStats.transferslotDoio);
+
     if (!fa || (transfer->size && transfer->progresscompleted == transfer->size)
             || (transfer->type == PUT && transfer->ultoken))
     {
@@ -926,6 +921,7 @@ void TransferSlot::doio(MegaClient* client)
 
                             client->app->transfer_failed(transfer, API_EFAILED);
                             client->setchunkfailed(&reqs[i]->posturl);
+                            ++client->performanceStats.transferTempErrors;
 
                             if (changeport)
                             {
@@ -1159,6 +1155,7 @@ void TransferSlot::doio(MegaClient* client)
         {
             LOG_warn << "Chunk failed due to a timeout";
             client->app->transfer_failed(transfer, API_EFAILED);
+            ++client->performanceStats.transferTempErrors;
         }
     }
 

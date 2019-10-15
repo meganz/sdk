@@ -46,10 +46,6 @@ void collectAllFsNodesImpl(std::map<std::string, const mt::FsNode*>& nodes, cons
 void initializeLocalNode(mega::LocalNode& l, mega::Sync& sync, mega::LocalNode* parent, mega::handlelocalnode_map& fsidnodes,
                          mega::nodetype_t type, const std::string& name, const mega::FileFingerprint& ffp)
 {
-    if (ffp.isvalid)
-    {
-        assert(type == mega::FILENODE);
-    }
     l.sync = &sync;
     l.parent = parent;
     l.type = type;
@@ -77,6 +73,7 @@ mega::handle nextFsId()
 std::unique_ptr<mega::Sync> makeSync(const std::string& localname, mega::handlelocalnode_map& fsidnodes)
 {
     auto sync = std::unique_ptr<mega::Sync>{new mega::Sync};
+    sync->state = mega::SYNC_CANCELED; // to avoid the asssertion in Sync::~Sync()
     initializeLocalNode(sync->localroot, *sync, nullptr, fsidnodes,  mega::FOLDERNODE, localname, {});
     sync->localdebris = sync->localroot.localname + "/" + mt::gLocalDebris;
     return sync;
@@ -87,10 +84,6 @@ std::unique_ptr<mega::LocalNode> makeLocalNode(mega::Sync& sync, mega::LocalNode
                                                mega::nodetype_t type, const std::string& name,
                                                const mega::FileFingerprint& ffp)
 {
-    if (ffp.isvalid)
-    {
-        assert(type == mega::FILENODE);
-    }
     auto l = std::unique_ptr<mega::LocalNode>{new mega::LocalNode};
     initializeLocalNode(*l, sync, &parent, fsidnodes, type, name, ffp);
     return l;

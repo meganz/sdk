@@ -30,8 +30,8 @@ namespace mega {
 
 enum fatype_ids { fa_media = 8, fa_mediaext = 9 };
 
-void xxteaEncrypt(uint32_t* v, uint32_t vlen, uint32_t key[4]);
-void xxteaDecrypt(uint32_t* v, uint32_t vlen, uint32_t key[4]);
+void xxteaEncrypt(uint32_t* v, uint32_t vlen, uint32_t key[4], bool endianConv = true);
+void xxteaDecrypt(uint32_t* v, uint32_t vlen, uint32_t key[4], bool endianConv = true);
 
 struct MEGA_API MediaFileInfo;
 struct MEGA_API FileSystemAccess;

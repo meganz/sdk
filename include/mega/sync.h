@@ -49,18 +49,16 @@ struct SyncDescriptor
 // Returns true for a path that can be synced (.debris is not one of those).
 bool isPathSyncable(const string& localpath, const string& localdebris, const string& localseparator);
 
-// Invalidates the fs IDs of all local nodes below `l` and removes them from `fsidnodes`.
-void invalidateFilesystemIds(handlelocalnode_map& fsidnodes, LocalNode& l, size_t& count);
-
 // Searching from the back, this function compares path1 and path2 character by character and
 // returns the number of consecutive character matches (excluding separators) but only including whole node names.
 // It's assumed that the paths are normalized (e.g. not contain ..) and separated with the given `localseparator`.
-int computeReversePathMatchScore(const string& path1, const string& path2, const string& localseparator);
+// `accumulated` is a buffer that is used to avoid constant reallocations.
+int computeReversePathMatchScore(string& accumulated, const string& path1, const string& path2, const string& localseparator);
 
 // Recursively iterates through the filesystem tree starting at the sync root and assigns
 // fs IDs to those local nodes that match the fingerprint retrieved from disk.
 bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, handlelocalnode_map& fsidnodes,
-                         const string& localdebris, const string& localseparator, bool followsymlinks);
+                         const string& localdebris, const string& localseparator);
 
 class MEGA_API Sync
 {
@@ -93,10 +91,10 @@ public:
     string mFsEventsPath;
 #endif
     // current state
-    syncstate_t state = SYNC_FAILED;
+    syncstate_t state = SYNC_INITIALSCAN;
 
     // are we conducting a full tree scan? (during initialization and if event notification failed)
-    bool fullscan = false;
+    bool fullscan = true;
 
     // syncing to an inbound share?
     bool inshare = false;
@@ -159,7 +157,7 @@ public:
     string debris, localdebris;
 
     // permanent lock on the debris/tmp folder
-    FileAccess* tmpfa = nullptr;
+    std::unique_ptr<FileAccess> tmpfa;
 
     // state cache table
     DbTable* statecachetable = nullptr;
@@ -177,13 +175,13 @@ public:
     error errorcode = API_OK;
 
     // true if the sync hasn't loaded cached LocalNodes yet
-    bool initializing = false;
+    bool initializing = true;
 
     // true if the local synced folder is a network folder
     bool isnetwork = false;
 
     // values related to possible files being updated
-    m_off_t updatedfilesize = 0;
+    m_off_t updatedfilesize = ~0;
     m_time_t updatedfilets = 0;
     m_time_t updatedfileinitialts = 0;
 

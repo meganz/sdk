@@ -1346,7 +1346,7 @@ const char* MegaError::getErrorString(int errorCode, ErrorContexts context)
         case API_EMFAREQUIRED:
             return "Multi-factor authentication required";
         case API_EMASTERONLY:
-            return "Access denied for sub-users";
+            return "Access denied for users";
         case API_EBUSINESSPASTDUE:
             return "Business account has expired";
         case PAYMENT_ECARD:
@@ -2594,12 +2594,22 @@ void MegaApi::isGeolocationEnabled(MegaRequestListener *listener)
 
 void MegaApi::setCameraUploadsFolder(MegaHandle nodehandle, MegaRequestListener *listener)
 {
-    pImpl->setCameraUploadsFolder(nodehandle, listener);
+    pImpl->setCameraUploadsFolder(nodehandle, false, listener);
+}
+
+void MegaApi::setCameraUploadsFolderSecondary(MegaHandle nodehandle, MegaRequestListener *listener)
+{
+    pImpl->setCameraUploadsFolder(nodehandle, true, listener);
 }
 
 void MegaApi::getCameraUploadsFolder(MegaRequestListener *listener)
 {
-    pImpl->getCameraUploadsFolder(listener);
+    pImpl->getCameraUploadsFolder(false, listener);
+}
+
+void MegaApi::getCameraUploadsFolderSecondary(MegaRequestListener *listener)
+{
+    pImpl->getCameraUploadsFolder(true, listener);
 }
 
 void MegaApi::setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListener *listener)
@@ -2919,9 +2929,9 @@ void MegaApi::startUpload(const char *localPath, MegaNode *parent, const char *f
     pImpl->startUpload(false, localPath, parent, fileName, mtime, 0, false, NULL, false, false, listener);
 }
 
-void MegaApi::startUploadForChat(const char *localPath, MegaNode *parent, MegaTransferListener *listener)
+void MegaApi::startUploadForChat(const char *localPath, MegaNode *parent, const char *appData, bool isSourceTemporary, MegaTransferListener *listener)
 {
-    pImpl->startUpload(false, localPath, parent, nullptr, -1, 0, false, nullptr, false, true, listener);
+    pImpl->startUpload(false, localPath, parent, nullptr, -1, 0, false, appData, isSourceTemporary, true, listener);
 }
 
 void MegaApi::startDownload(MegaNode *node, const char* localFolder, MegaTransferListener *listener)
@@ -3943,6 +3953,11 @@ void MegaApi::catchup(MegaRequestListener *listener)
 void MegaApi::getPublicLinkInformation(const char *megaFolderLink, MegaRequestListener *listener)
 {
     pImpl->getPublicLinkInformation(megaFolderLink, listener);
+}
+
+MegaApiLock* MegaApi::getMegaApiLock(bool lockNow)
+{
+    return new MegaApiLock(pImpl, lockNow);
 }
 
 void MegaApi::sendSMSVerificationCode(const char* phoneNumber, MegaRequestListener *listener, bool reverifying_whitelisted)
@@ -5107,6 +5122,16 @@ long long MegaAccountDetails::getTransferOwnUsed()
     return 0;
 }
 
+long long MegaAccountDetails::getTransferSrvUsed()
+{
+    return 0;
+}
+
+long long MegaAccountDetails::getTransferUsed()
+{
+    return 0;
+}
+
 int MegaAccountDetails::getNumUsageItems()
 {
     return 0;
@@ -5756,6 +5781,38 @@ MegaInputStream::~MegaInputStream()
 {
 
 }
+
+MegaApiLock::MegaApiLock(MegaApiImpl* ptr, bool lock) : api(ptr)
+{
+    if (lock)
+    {
+        lockOnce();
+    }
+}
+
+MegaApiLock::~MegaApiLock()
+{
+    unlockOnce();
+}
+
+void MegaApiLock::lockOnce()
+{
+    if (!locked)
+    {
+        api->lockMutex();
+        locked = true;
+    }
+}
+
+void MegaApiLock::unlockOnce()
+{
+    if (locked)
+    {
+        api->unlockMutex();
+        locked = false;
+    }
+}
+
 
 #ifdef ENABLE_CHAT
 MegaTextChatPeerList * MegaTextChatPeerList::createInstance()

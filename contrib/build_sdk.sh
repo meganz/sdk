@@ -687,12 +687,12 @@ curl_pkg() {
         local curl_params="--disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-dict \
             --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi \
             --without-librtmp --without-libidn --without-libidn2 --without-libssh2 --enable-ipv6 --disable-manual --without-nghttp2 --without-libpsl \
-            --with-zlib=$install_dir --enable-ares=$install_dir $openssl_flags"
+            --without-brotli --with-zlib=$install_dir --enable-ares=$install_dir $openssl_flags"
     else
         local curl_params="--disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-dict \
             --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi \
             --without-librtmp --without-libidn --without-libidn2 --without-libssh2 --enable-ipv6 --disable-manual --without-nghttp2 --without-libpsl \
-            --disable-shared --with-zlib=$install_dir --enable-ares=$install_dir $openssl_flags"
+            --without-brotli --disable-shared --with-zlib=$install_dir --enable-ares=$install_dir $openssl_flags"
     fi
 
     if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ]; then

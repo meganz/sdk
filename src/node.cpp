@@ -1412,11 +1412,6 @@ void LocalNode::bumpnagleds()
     nagleds = sync->client->waiter->ds + 11;
 }
 
-LocalNode::LocalNode()
-: sync{nullptr}
-, checked{false}
-{}
-
 // initialize fresh LocalNode object - must be called exactly once
 void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, string* cfullpath)
 {
@@ -1661,7 +1656,7 @@ LocalNode::~LocalNode()
             }
         }
     }
-
+    
     // remove from fsidnode map, if present
     if (fsid_it != sync->client->fsidnode.end())
     {
@@ -1811,7 +1806,7 @@ void LocalNode::prepare()
     getlocalpath(&transfer->localfilename, true);
 
     // is this transfer in progress? update file's filename.
-    if (transfer->slot && transfer->slot->fa && transfer->slot->fa->localname.size())
+    if (transfer->slot && transfer->slot->fa && transfer->slot->fa->nonblocking_localname.size())
     {
         transfer->slot->fa->updatelocalname(&transfer->localfilename);
     }
@@ -1842,7 +1837,7 @@ void LocalNode::completed(Transfer* t, LocalNode*)
 namespace {
 
 // Need this to read old caches that don't have extension bytes
-constexpr m_off_t LOCALNODE_EXTENSION_BYTES_FLAG = -1000; // any large negative number will do
+constexpr m_off_t LOCALNODE_EXTENSION_BYTES_FLAG = -1000;
 
 }
 

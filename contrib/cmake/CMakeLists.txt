@@ -22,7 +22,7 @@ set (USE_CURL 1 CACHE STRING "")
 set (USE_SQLITE 1 CACHE STRING "")
 set (USE_MEDIAINFO 1 CACHE STRING "")
 set (USE_FREEIMAGE 1 CACHE STRING "")
-set (USE_SODIUM 0 CACHE STRING "")
+set (USE_SODIUM 1 CACHE STRING "")
 set (ENABLE_SYNC 1 CACHE STRING "")
 set (ENABLE_CHAT 0 CACHE STRING "")
 set (ENABLE_LOG_PERFORMANCE 0 CACHE STRING "")
@@ -179,6 +179,9 @@ if (WIN32)
 
     set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
     set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MP")
+    set (CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /Zi")
+    set (CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /Zi")
+
 
     # for inet_ntoa (which is available in XP)
     add_definitions( -D_WINSOCK_DEPRECATED_NO_WARNINGS )
@@ -190,7 +193,6 @@ check_include_file(inttypes.h HAVE_INTTYPES_H)
 check_include_file(dirent.h HAVE_DIRENT_H)
 check_include_file(uv.h HAVE_LIBUV)
 check_function_exists(aio_write, HAVE_AIO_RT)
-check_function_exists(fdopendir, HAVE_FDOPENDIR)
 
 
 function(ImportStaticLibrary libName includeDir lib32debug lib32release lib64debug lib64release)

@@ -32,6 +32,8 @@
 #include <fstream>
 #include <atomic>
 
+#include <megaapi_impl.h>
+
 using namespace ::mega;
 using namespace ::std;
 
@@ -91,6 +93,16 @@ struct Model
             }
             return false;
         }
+        void print(string prefix="")
+        {
+            cout << prefix << name << endl;
+            prefix.append(name).append("/");
+            for (const auto &in: kids)
+            {
+                in->print(prefix);
+            }
+        }
+
     };
 
     unique_ptr<ModelNode> makeModelSubfolder(const string& utf8Name)
@@ -1523,6 +1535,22 @@ fs::path makeNewTestRoot(fs::path p)
 
 //std::atomic<int> fileSizeCount = 20;
 
+bool createFile(const fs::path &p, const string &filename)
+{
+    fs::path fp = p / fs::u8path(filename);
+#if (__cplusplus >= 201700L)
+    ofstream fs(fp/*, ios::binary*/);
+#else
+    ofstream fs(fp.u8string()/*, ios::binary*/);
+#endif
+    fs << filename;
+    if (fs.bad())
+    {
+        return false;
+    }
+    return true;
+}
+
 bool buildLocalFolders(fs::path targetfolder, const string& prefix, int n, int recurselevel, int filesperfolder)
 {
     if (suppressfiles) filesperfolder = 0;
@@ -1534,13 +1562,7 @@ bool buildLocalFolders(fs::path targetfolder, const string& prefix, int n, int r
     for (int i = 0; i < filesperfolder; ++i)
     {
         string filename = "file" + to_string(i) + "_" + prefix;
-        fs::path fp = p / fs::u8path(filename);
-#if (__cplusplus >= 201700L)
-        ofstream fs(fp/*, ios::binary*/);
-#else
-        ofstream fs(fp.u8string()/*, ios::binary*/);
-#endif
-        fs << filename;
+        createFile(p, filename);
         //int thisSize = (++fileSizeCount)/2;
         //for (int j = 0; j < thisSize; ++j) fs << ('0' + j % 10);
     }
@@ -2433,3 +2455,298 @@ TEST(Sync, OneWay_Upload_syncDelFalse_OverwriteFalse_2)
     ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
     ASSERT_FALSE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
 }
+
+namespace {
+
+string makefa(const string& name, int fakecrc, int mtime)
+{
+    AttrMap attrs;
+    attrs.map['n'] = name;
+
+    FileFingerprint ff;
+    ff.crc[0] = ff.crc[1] = ff.crc[2] = ff.crc[3] = fakecrc;
+    ff.mtime = mtime;
+    ff.serializefingerprint(&attrs.map['c']);
+
+    string attrjson;
+    attrs.getjson(&attrjson);
+    return attrjson;
+}
+
+Node* makenode(MegaClient& mc, handle parent, ::mega::nodetype_t type, m_off_t size, handle owner, const string& attrs, ::mega::byte* key)
+{
+    static handle handlegenerator = 10;
+    std::vector<Node*> dp;
+    auto newnode = new Node(&mc, &dp, ++handlegenerator, parent, type, size, owner, nullptr, 1);
+    
+    newnode->nodekey.assign((char*)key, type == FILENODE ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH);
+    newnode->attrstring = new string;
+
+    SymmCipher sc;
+    sc.setkey(key, type);
+    mc.makeattr(&sc, newnode->attrstring, attrs.c_str());
+
+    int attrlen = int(newnode->attrstring->size());
+    string base64attrstring;
+    base64attrstring.resize(static_cast<size_t>(attrlen * 4 / 3 + 4));
+    base64attrstring.resize(static_cast<size_t>(Base64::btoa((::mega::byte *)newnode->attrstring->data(), int(newnode->attrstring->size()), (char *)base64attrstring.data())));
+
+    *newnode->attrstring = base64attrstring;
+
+    return newnode;
+}
+
+} // anonymous
+
+GTEST_TEST(Sync, NodeSorting_forPhotosAndVideos)
+{
+    fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
+    StandardClient standardclient(localtestroot, "sortOrderTests");
+    auto& client = standardclient.client;
+
+    handle owner = 99999;
+
+    ::mega::byte key[] = { 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04 };
+
+    // first 3 are root nodes:
+    auto cloudroot = makenode(client, UNDEF, ROOTNODE, -1, owner, makefa("root", 1, 1), key);
+    makenode(client, UNDEF, INCOMINGNODE, -1, owner, makefa("inbox", 1, 1), key);
+    makenode(client, UNDEF, RUBBISHNODE, -1, owner, makefa("bin", 1, 1), key);
+
+    // now some files to sort
+    auto photo1 = makenode(client, cloudroot->nodehandle, FILENODE, 9999, owner, makefa("abc.jpg", 1, 1570673890), key);
+    auto photo2 = makenode(client, cloudroot->nodehandle, FILENODE, 9999, owner, makefa("cba.png", 1, 1570673891), key);
+    auto video1 = makenode(client, cloudroot->nodehandle, FILENODE, 9999, owner, makefa("xyz.mov", 1, 1570673892), key);
+    auto video2 = makenode(client, cloudroot->nodehandle, FILENODE, 9999, owner, makefa("zyx.mp4", 1, 1570673893), key);
+    auto otherfile = makenode(client, cloudroot->nodehandle, FILENODE, 9999, owner, makefa("ASDF.fsda", 1, 1570673894), key);
+    auto otherfolder = makenode(client, cloudroot->nodehandle, FOLDERNODE, -1, owner, makefa("myfolder", 1, 1570673895), key);
+
+    node_vector v{ photo1, photo2, video1, video2, otherfolder, otherfile };
+    for (auto n : v) n->setkey(key);
+
+    MegaApiImpl::sortByComparatorFunction(v, MegaApi::ORDER_PHOTO_ASC, client);
+    node_vector v2{ photo1, photo2, video1, video2, otherfolder, otherfile };
+    ASSERT_EQ(v, v2);
+
+    MegaApiImpl::sortByComparatorFunction(v, MegaApi::ORDER_PHOTO_DESC, client);
+    node_vector v3{ photo2, photo1, video2, video1, otherfolder, otherfile };
+    ASSERT_EQ(v, v3);
+
+    MegaApiImpl::sortByComparatorFunction(v, MegaApi::ORDER_VIDEO_ASC, client);
+    node_vector v4{ video1, video2, photo1, photo2, otherfolder, otherfile };
+    ASSERT_EQ(v, v4);
+
+    MegaApiImpl::sortByComparatorFunction(v, MegaApi::ORDER_VIDEO_DESC, client);
+    node_vector v5{ video2, video1, photo2, photo1, otherfolder, otherfile };
+    ASSERT_EQ(v, v5);
+}
+
+#ifndef _WIN32
+#define DEFAULWAIT 20s
+GTEST_TEST(Sync, BasicSync_CreateAndDeleteLink)
+{
+    // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
+    fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
+    StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
+    StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
+
+    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "f", 1, 1));
+    ASSERT_TRUE(clientA2.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
+    ASSERT_EQ(clientA1.basefolderhandle, clientA2.basefolderhandle);
+
+    Model model;
+    model.root->addkid(model.buildModelSubdirs("f", 1, 1, 0));
+
+    // set up sync for A1, it should build matching local folders
+    ASSERT_TRUE(clientA1.setupSync_mainthread("sync1", "f", 1));
+    ASSERT_TRUE(clientA2.setupSync_mainthread("sync2", "f", 2));
+
+    waitonsyncs(4s, &clientA1, &clientA2);
+    clientA1.logcb = clientA2.logcb = true;
+    // check everything matches (model has expected state of remote and local)
+    ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
+
+
+    // move something in the local filesystem and see if we catch up in A1 and A2 (deleter and observer syncs)
+    error_code linkage_error;
+    fs::create_symlink(clientA1.syncSet[1].localpath / "f_0", clientA1.syncSet[1].localpath / "linked", linkage_error);
+    ASSERT_TRUE(!linkage_error) << linkage_error;
+
+    // let them catch up
+    waitonsyncs(DEFAULWAIT, &clientA1, &clientA2);
+
+    //check client 2 is unaffected
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
+
+
+    fs::remove(clientA1.syncSet[1].localpath / "linked");
+    // let them catch up
+    waitonsyncs(DEFAULWAIT, &clientA1, &clientA2);
+
+    //check client 2 is unaffected
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
+}
+
+GTEST_TEST(Sync, BasicSync_CreateRenameAndDeleteLink)
+{
+    // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
+    fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
+    StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
+    StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
+
+    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "f", 1, 1));
+    ASSERT_TRUE(clientA2.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
+    ASSERT_EQ(clientA1.basefolderhandle, clientA2.basefolderhandle);
+
+    Model model;
+    model.root->addkid(model.buildModelSubdirs("f", 1, 1, 0));
+
+    // set up sync for A1, it should build matching local folders
+    ASSERT_TRUE(clientA1.setupSync_mainthread("sync1", "f", 1));
+    ASSERT_TRUE(clientA2.setupSync_mainthread("sync2", "f", 2));
+
+    waitonsyncs(4s, &clientA1, &clientA2);
+    clientA1.logcb = clientA2.logcb = true;
+    // check everything matches (model has expected state of remote and local)
+    ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
+
+
+    // move something in the local filesystem and see if we catch up in A1 and A2 (deleter and observer syncs)
+    error_code linkage_error;
+    fs::create_symlink(clientA1.syncSet[1].localpath / "f_0", clientA1.syncSet[1].localpath / "linked", linkage_error);
+    ASSERT_TRUE(!linkage_error) << linkage_error;
+
+    // let them catch up
+    waitonsyncs(DEFAULWAIT, &clientA1, &clientA2);
+
+    //check client 2 is unaffected
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
+
+    fs::rename(clientA1.syncSet[1].localpath / "linked", clientA1.syncSet[1].localpath / "linkrenamed", linkage_error);
+
+    // let them catch up
+    waitonsyncs(DEFAULWAIT, &clientA1, &clientA2);
+
+    //check client 2 is unaffected
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
+
+    fs::remove(clientA1.syncSet[1].localpath / "linkrenamed");
+
+    // let them catch up
+    waitonsyncs(DEFAULWAIT, &clientA1, &clientA2);
+
+    //check client 2 is unaffected
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
+}
+
+GTEST_TEST(Sync, BasicSync_CreateAndReplaceLinkLocally)
+{
+    // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
+    fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
+    StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
+    StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
+
+    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "f", 1, 1));
+    ASSERT_TRUE(clientA2.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
+    ASSERT_EQ(clientA1.basefolderhandle, clientA2.basefolderhandle);
+
+    Model model;
+    model.root->addkid(model.buildModelSubdirs("f", 1, 1, 0));
+
+    // set up sync for A1, it should build matching local folders
+    ASSERT_TRUE(clientA1.setupSync_mainthread("sync1", "f", 1));
+    ASSERT_TRUE(clientA2.setupSync_mainthread("sync2", "f", 2));
+
+    waitonsyncs(4s, &clientA1, &clientA2);
+    clientA1.logcb = clientA2.logcb = true;
+    // check everything matches (model has expected state of remote and local)
+    ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
+
+
+    // move something in the local filesystem and see if we catch up in A1 and A2 (deleter and observer syncs)
+    error_code linkage_error;
+    fs::create_symlink(clientA1.syncSet[1].localpath / "f_0", clientA1.syncSet[1].localpath / "linked", linkage_error);
+    ASSERT_TRUE(!linkage_error) << linkage_error;
+
+    // let them catch up
+    waitonsyncs(DEFAULWAIT, &clientA1, &clientA2);
+
+    //check client 2 is unaffected
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
+    fs::rename(clientA1.syncSet[1].localpath / "f_0", clientA1.syncSet[1].localpath / "linked", linkage_error);
+
+    // let them catch up
+    waitonsyncs(DEFAULWAIT, &clientA1, &clientA2);
+
+    //check client 2 is unaffected
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
+
+    fs::remove(clientA1.syncSet[1].localpath / "linked");
+    ASSERT_TRUE(createFile(clientA1.syncSet[1].localpath, "linked"));
+
+    // let them catch up
+    waitonsyncs(DEFAULWAIT, &clientA1, &clientA2);
+
+    model.findnode("f")->addkid(model.makeModelSubfile("linked"));
+    model.ensureLocalDebrisTmpLock("f"); // since we downloaded files
+
+    //check client 2 is as expected
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
+}
+
+
+GTEST_TEST(Sync, BasicSync_CreateAndReplaceLinkUponSyncDown)
+{
+    // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
+    fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
+    StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
+    StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
+
+    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "f", 1, 1));
+    ASSERT_TRUE(clientA2.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
+    ASSERT_EQ(clientA1.basefolderhandle, clientA2.basefolderhandle);
+
+    Model model;
+    model.root->addkid(model.buildModelSubdirs("f", 1, 1, 0));
+
+    // set up sync for A1, it should build matching local folders
+    ASSERT_TRUE(clientA1.setupSync_mainthread("sync1", "f", 1));
+    ASSERT_TRUE(clientA2.setupSync_mainthread("sync2", "f", 2));
+
+    waitonsyncs(4s, &clientA1, &clientA2);
+    clientA1.logcb = clientA2.logcb = true;
+    // check everything matches (model has expected state of remote and local)
+    ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
+
+    // move something in the local filesystem and see if we catch up in A1 and A2 (deleter and observer syncs)
+    error_code linkage_error;
+    fs::create_symlink(clientA1.syncSet[1].localpath / "f_0", clientA1.syncSet[1].localpath / "linked", linkage_error);
+    ASSERT_TRUE(!linkage_error) << linkage_error;
+
+    // let them catch up
+    waitonsyncs(DEFAULWAIT, &clientA1, &clientA2);
+
+    //check client 2 is unaffected
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
+
+    ASSERT_TRUE(createFile(clientA2.syncSet[2].localpath, "linked"));
+
+    // let them catch up
+    waitonsyncs(DEFAULWAIT, &clientA1, &clientA2);
+
+    model.findnode("f")->addkid(model.makeModelSubfolder("linked")); //notice: the deleted here is folder because what's actually deleted is a symlink that points to a folder
+                                                                     //ideally we could add full support for symlinks in this tests suite
+
+    model.movetosynctrash("f/linked","f");
+    model.findnode("f")->addkid(model.makeModelSubfile("linked"));
+    model.ensureLocalDebrisTmpLock("f"); // since we downloaded files
+
+    //check client 2 is as expected
+    ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
+}
+
+#endif

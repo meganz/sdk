@@ -18,7 +18,6 @@
 
 #pragma once
 
-#include <array>
 #include <memory>
 
 #include <mega/node.h>
@@ -43,16 +42,5 @@ void collectAllFsNodes(std::map<std::string, const mt::FsNode*>& nodes, const mt
 std::uint16_t nextRandomInt();
 
 mega::byte nextRandomByte();
-
-template<size_t N>
-std::array<int32_t, N> toArr(const int32_t (&values)[N])
-{
-    std::array<int32_t, N> array;
-    for (size_t i = 0; i < N; ++i)
-    {
-        array[i] = values[i];
-    }
-    return array;
-}
 
 } // mt

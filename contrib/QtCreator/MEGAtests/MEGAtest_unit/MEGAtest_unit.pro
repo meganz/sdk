@@ -1,4 +1,3 @@
-
 CONFIG(debug, debug|release) {
     CONFIG -= debug release
     CONFIG += debug

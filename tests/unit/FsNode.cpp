@@ -33,6 +33,7 @@ FsNode::FsNode(FsNode* parent, const mega::nodetype_t type, std::string name)
 
     if (parent)
     {
+        assert(parent->getType() == mega::FOLDERNODE);
         parent->mChildren.push_back(this);
     }
 
@@ -52,7 +53,6 @@ FsNode::FsNode(FsNode* parent, const mega::nodetype_t type, std::string name)
     else
     {
         mFileAccess->fopen(&path, true, false);
-        mFingerprint.isvalid = true;
         mFingerprint.mtime = mMTime;
     }
 }

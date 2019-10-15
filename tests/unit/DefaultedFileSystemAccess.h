@@ -27,7 +27,7 @@ namespace mt {
 class DefaultedFileSystemAccess : public mega::FileSystemAccess
 {
 public:
-    mega::FileAccess* newfileaccess() override
+    std::unique_ptr<mega::FileAccess> newfileaccess(bool followSymLinks = true) override
     {
         throw NotImplemented{__func__};
     }

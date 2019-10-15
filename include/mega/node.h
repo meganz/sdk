@@ -33,13 +33,13 @@ struct MEGA_API NodeCore
     ~NodeCore();
 
     // node's own handle
-    handle nodehandle = mega::UNDEF;
+    handle nodehandle;
 
     // parent node handle (in a Node context, temporary placeholder until parent is set)
-    handle parenthandle = mega::UNDEF;
+    handle parenthandle;
 
     // node type
-    nodetype_t type = TYPE_UNKNOWN;
+    nodetype_t type;
 
     // full folder/file key, symmetrically or asymmetrically encrypted
     // node crypto keys (raw or cooked -
@@ -47,7 +47,7 @@ struct MEGA_API NodeCore
     string nodekey;
 
     // node attributes
-    string* attrstring = nullptr;
+    string *attrstring;
 };
 
 // new node for putnodes()
@@ -56,17 +56,17 @@ struct MEGA_API NewNode : public NodeCore
     static const int OLDUPLOADTOKENLEN = 27;
     static const int UPLOADTOKENLEN = 36;
 
-    newnodesource_t source = NEW_NODE;
+    newnodesource_t source;
 
-    handle ovhandle = mega::UNDEF;
-    handle uploadhandle = mega::UNDEF;
+    handle ovhandle;
+    handle uploadhandle;
     byte uploadtoken[UPLOADTOKENLEN]{};
 
-    handle syncid = mega::UNDEF;
-    LocalNode* localnode = nullptr;
-    string* fileattributes = nullptr;  // owned here, usually NULL
+    handle syncid;
+    LocalNode* localnode;
+    string* fileattributes;  // owned here, usually NULL
 
-    bool added = false;
+    bool added;
 
     NewNode();
     ~NewNode();
@@ -74,10 +74,10 @@ struct MEGA_API NewNode : public NodeCore
 
 struct MEGA_API PublicLink
 {
-    handle ph = mega::UNDEF;
-    m_time_t cts = 0;
-    m_time_t ets = 0;
-    bool takendown = false;
+    handle ph;
+    m_time_t cts;
+    m_time_t ets;
+    bool takendown;
 
     PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown);
     PublicLink(PublicLink *plink);
@@ -354,7 +354,7 @@ struct MEGA_API LocalNode : public File
 
     void setnameparent(LocalNode*, string*);
 
-    LocalNode();
+    LocalNode() = default;
     void init(Sync*, nodetype_t, LocalNode*, string*);
 
     virtual bool serialize(string*);

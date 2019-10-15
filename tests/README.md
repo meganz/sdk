@@ -14,9 +14,10 @@ You can run all tests or just a subset of the tests by supplying a filter to the
 test executable, e.g., `./test_unit --gtest_filter=Crypto*`
 
 Unit and integration tests are organized in such a way that the filename
-should match the same of the contained test suite. A single test file should
+should match the name of the contained test suite. A single test file should
 only contain a single test suite. E.g., `Crypto_test.cpp` should only contain 
 tests like `TEST(Crypto, blahblah)`. This makes test discovery more efficient.
+Any testing framework code should live inside the `mt` namespace (= mega testing).
 
 The `tool` directory contains standalone test applications that must be run manually.
 

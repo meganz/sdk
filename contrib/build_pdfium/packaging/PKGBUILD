@@ -9,7 +9,7 @@ url="TODO"
 license=() #TODO
 groups=()
 depends=('glibc' 'gcc-libs')
-makedepends=('unzip' 'ca-certificates' 'python' 'rsync' 'libatomic')
+makedepends=('unzip' 'ca-certificates' 'python2' 'rsync')
 checkdepends=()
 optdepends=()
 provides=("pdfium-mega=${pkgver}")

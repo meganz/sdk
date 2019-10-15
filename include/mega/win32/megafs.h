@@ -44,7 +44,7 @@ struct MEGA_API WinDirNotify;
 class MEGA_API WinFileSystemAccess : public FileSystemAccess
 {
 public:
-    FileAccess* newfileaccess() override;
+    std::unique_ptr<FileAccess> newfileaccess(bool followSymLinks = true) override;
     DirAccess* newdiraccess() override;
     DirNotify* newdirnotify(string*, string*) override;
 

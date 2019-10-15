@@ -139,12 +139,19 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
         changed = true;
     }
 
+    if (!fa->openf())
+    {
+        size = -1;
+        return true;
+    }
+
     if (size <= (m_off_t)sizeof crc)
     {
         // tiny file: read verbatim, NUL pad
-        if (!fa->frawread((byte*)newcrc.data(), static_cast<unsigned>(size), 0))
+        if (!fa->frawread((byte*)newcrc.data(), static_cast<unsigned>(size), 0, true))
         {
             size = -1;
+            fa->closef();
             return true;
         }
 
@@ -159,9 +166,10 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
         HashCRC32 crc32;
         byte buf[MAXFULL];
 
-        if (!fa->frawread(buf, static_cast<unsigned>(size), 0))
+        if (!fa->frawread(buf, static_cast<unsigned>(size), 0, true))
         {
             size = -1;
+            fa->closef();
             return true;
         }
 
@@ -190,9 +198,10 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
                 if (!fa->frawread(block, sizeof block,
                                   (size - sizeof block)
                                   * (i * blocks + j)
-                                  / (crc.size() * blocks - 1)))
+                                  / (crc.size() * blocks - 1), true))
                 {
                     size = -1;
+                    fa->closef();
                     return true;
                 }
 
@@ -216,6 +225,7 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
         changed = true;
     }
 
+    fa->closef();
     return changed;
 }
 
@@ -403,4 +413,36 @@ bool FileFingerprintCmp::operator()(const FileFingerprint* a, const FileFingerpr
 
     return memcmp(a->crc.data(), b->crc.data(), sizeof a->crc) < 0;
 }
-} // namespace
+
+bool LightFileFingerprint::genfingerprint(const m_off_t filesize, const m_time_t filemtime)
+{
+    bool changed = false;
+
+    if (mtime != filemtime)
+    {
+        mtime = filemtime;
+        changed = true;
+    }
+
+    if (size != filesize)
+    {
+        size = filesize;
+        changed = true;
+    }
+
+    return changed;
+}
+
+bool LightFileFingerprintCmp::operator()(const LightFileFingerprint* a, const LightFileFingerprint* b) const
+{
+    assert(a);
+    assert(b);
+    return std::tie(a->mtime, a->size) < std::tie(b->mtime, b->size);
+}
+
+bool operator==(const LightFileFingerprint& lhs, const LightFileFingerprint& rhs)
+{
+    return std::tie(lhs.mtime, lhs.size) == std::tie(rhs.mtime, rhs.size);
+}
+
+} // mega

@@ -1315,6 +1315,8 @@ class MegaAccountDetailsPrivate : public MegaAccountDetails
         virtual long long getVersionStorageUsed();
         virtual long long getTransferMax();
         virtual long long getTransferOwnUsed();
+        virtual long long getTransferSrvUsed();
+        virtual long long getTransferUsed();
 
         virtual int getNumUsageItems();
         virtual long long getStorageUsed(MegaHandle handle);
@@ -1856,7 +1858,7 @@ class SearchTreeProcessor : public TreeProcessor
 class OutShareProcessor : public TreeProcessor
 {
     public:
-        OutShareProcessor();
+        OutShareProcessor(MegaClient&);
         virtual bool processNode(Node* node);
         virtual ~OutShareProcessor() {}
         vector<Share *> getShares();
@@ -1865,6 +1867,7 @@ class OutShareProcessor : public TreeProcessor
     protected:
         vector<Share *> mShares;
         node_vector mNodes;
+        MegaClient& mClient;
 };
 
 class PendingOutShareProcessor : public TreeProcessor
@@ -2413,7 +2416,10 @@ class MegaApiImpl : public MegaApp
         void pauseActionPackets();
         void resumeActionPackets();
 
-        static std::function<bool (Node*, Node*)>getComparatorFunction(int order);
+        static std::function<bool (Node*, Node*)>getComparatorFunction(int order, MegaClient& mc);
+        static void sortByComparatorFunction(node_vector&, int order, MegaClient& mc);
+        static bool nodeNaturalComparatorASC(Node *i, Node *j);
+        static bool nodeNaturalComparatorDESC(Node *i, Node *j);
         static bool nodeComparatorDefaultASC  (Node *i, Node *j);
         static bool nodeComparatorDefaultDESC (Node *i, Node *j);
         static bool nodeComparatorSizeASC  (Node *i, Node *j);
@@ -2422,8 +2428,11 @@ class MegaApiImpl : public MegaApp
         static bool nodeComparatorCreationDESC  (Node *i, Node *j);
         static bool nodeComparatorModificationASC  (Node *i, Node *j);
         static bool nodeComparatorModificationDESC  (Node *i, Node *j);
-        static bool nodeComparatorAlphabeticalASC  (Node *i, Node *j);
-        static bool nodeComparatorAlphabeticalDESC  (Node *i, Node *j);
+        static bool nodeComparatorPhotoASC(Node *i, Node *j, MegaClient& mc);
+        static bool nodeComparatorPhotoDESC(Node *i, Node *j, MegaClient& mc);
+        static bool nodeComparatorVideoASC(Node *i, Node *j, MegaClient& mc);
+        static bool nodeComparatorVideoDESC(Node *i, Node *j, MegaClient& mc);
+        static int typeComparator(Node *i, Node *j);
         static bool userComparatorDefaultASC (User *i, User *j);
 
         char* escapeFsIncompatible(const char *filename);
@@ -2546,10 +2555,8 @@ class MegaApiImpl : public MegaApp
 
         void setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
         void getMyChatFilesFolder(MegaRequestListener *listener = NULL);
-
-        void setCameraUploadsFolder(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
-        void getCameraUploadsFolder(MegaRequestListener *listener = NULL);
-
+        void setCameraUploadsFolder(MegaHandle nodehandle, bool secondary, MegaRequestListener *listener = NULL);
+        void getCameraUploadsFolder(bool secondary, MegaRequestListener *listener = NULL);
         void getUserAlias(MegaHandle uh, MegaRequestListener *listener = NULL);
         void setUserAlias(MegaHandle uh, const char *alias, MegaRequestListener *listener = NULL);
 
@@ -2594,6 +2601,8 @@ class MegaApiImpl : public MegaApp
         void fireOnBackupTemporaryError(MegaBackupController *backup, MegaError e);
 
         void yield();
+        void lockMutex();
+        void unlockMutex();
 
 protected:
         static const unsigned int MAX_SESSION_LENGTH;
@@ -2948,6 +2957,10 @@ protected:
         bool sync_syncable(Sync *, const char*, string *, Node *) override;
         bool sync_syncable(Sync *, const char*, string *) override;
         void syncupdate_local_lockretry(bool) override;
+
+        // for the exclusive use of sync_syncable
+        unique_ptr<FileAccess> mSyncable_fa;
+        std::mutex mSyncable_fa_mutex;
 #endif
 
 protected:
@@ -3280,7 +3293,7 @@ public:
     std::string host;
     std::string destination;
     bool overwrite;
-    FileAccess *tmpFileAccess;
+    std::unique_ptr<FileAccess> tmpFileAccess;
     std::string tmpFileName;
     std::string newname; //newname for moved node
     MegaHandle nodeToMove; //node to be moved after delete
@@ -3552,7 +3565,7 @@ public:
     m_off_t rangeWritten;
 
     std::string tmpFileName;
-    FileAccess* tmpFileAccess;
+    std::unique_ptr<FileAccess> tmpFileAccess;
     size_t tmpFileSize;
 
     bool controlRespondedElsewhere;
