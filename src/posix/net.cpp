@@ -87,6 +87,16 @@ bool SockInfo::checkEvent(bool& read, bool& write)
         if (!write && (FD_WRITE & associatedHandleEvents))
         {
             // per https://curl.haxx.se/mail/lib-2009-10/0313.html check if the socket has any buffer space
+
+            // The trick is that we want to wait on the event handle to know when we can read and write
+            // that works fine for read, however for write the event is not signalled in the normal case
+            // where curl wrote to the socket, but not enough to cause it to become unwriteable for now.
+            // So, we need to signal curl to write again if it has more data to write, if the socket can take
+            // more data.  This trick with WSASend for 0 bytes enables that - if it fails with would-block
+            // then we can stop asking curl to write to the socket, and start waiting on the handle to 
+            // know when to try again.
+            // If curl has finished writing to the socket, it will call us back to change the mode to read only.
+
             WSABUF buf{ 0, (CHAR*)&buf };
             DWORD bSent = 0;
             auto writeResult = WSASend(fd, &buf, 1, &bSent, 0, NULL, NULL);
@@ -97,7 +107,7 @@ bool SockInfo::checkEvent(bool& read, bool& write)
         if (read || write)
         {
             signalledWrite = signalledWrite || write;
-            return true;
+            return true;   // if we return true, both read and write must have been set.
         }
     }
     return false;
@@ -115,12 +125,12 @@ void SockInfo::closeEvent()
 }
 
 SockInfo::SockInfo(SockInfo&& o)
+    : fd(o.fd)
+    , mode(o.mode)
+    , signalledWrite(o.signalledWrite)
+    , handle(o.handle)
+    , associatedHandleEvents(o.associatedHandleEvents)
 {
-    fd = o.fd;
-    mode = o.mode;
-    signalledWrite = o.signalledWrite;
-    handle = o.handle;
-    associatedHandleEvents = o.associatedHandleEvents;
     o.handle = WSA_INVALID_EVENT;
 }
 
@@ -612,7 +622,7 @@ void CurlHttpIO::processaresevents()
 
 #if defined(_WIN32)
         bool read, write;
-        if (info.checkEvent(read, write))
+        if (info.checkEvent(read, write))  // if checkEvent returns true, both `read` and `write` have been set.
         {
             ares_process_fd(ares, read ? info.fd : ARES_SOCKET_BAD, write ? info.fd : ARES_SOCKET_BAD);
         }
@@ -657,7 +667,7 @@ void CurlHttpIO::processcurlevents(direction_t d)
 
 #if defined(_WIN32)
         bool read, write;
-        if (info.checkEvent(read, write))
+        if (info.checkEvent(read, write)) // if checkEvent returns true, both `read` and `write` have been set.
         {
             curl_multi_socket_action(curlm[d], info.fd,
                                      (read ? CURL_CSELECT_IN : 0)
@@ -1406,7 +1416,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1L);
         curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE,  90L);
         curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 60L);
-        curl_easy_setopt(curl, CURLOPT_SOCKOPTFUNCTION, sockopt_callback);  // not used anymore
+        curl_easy_setopt(curl, CURLOPT_SOCKOPTFUNCTION, sockopt_callback);
         curl_easy_setopt(curl, CURLOPT_SOCKOPTDATA, (void*)req);
 
         if (httpio->maxspeed[GET] && httpio->maxspeed[GET] <= 102400)
