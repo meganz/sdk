@@ -3792,7 +3792,7 @@ struct CheckStreamedFile_MegaTransferListener : public MegaTransferListener
     {
         ostringstream msg;
         msg << "onTransferTemporaryError: " << (error ? error->getErrorString() : "NULL") << endl;
-        api->log(MegaApi::LOG_LEVEL_ERROR, msg.str().c_str());
+        api->log(MegaApi::LOG_LEVEL_WARNING, msg.str().c_str());
     }
     bool onTransferData(MegaApi *api, MegaTransfer *transfer, char *buffer, size_t size) override
     {
@@ -3976,7 +3976,7 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
 
     }
 
-    ASSERT_TRUE(randomRunsDone > (gRunningInCI ? 10 : 100));
+    ASSERT_GT(randomRunsDone, (gRunningInCI ? 10 : 100));
 
     ostringstream msg;
     msg << "Streaming test downloaded " << randomRunsDone << " samples of the file from random places and sizes, " << randomRunsBytes << " bytes total" << endl;
