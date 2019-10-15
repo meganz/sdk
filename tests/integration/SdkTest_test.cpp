@@ -3210,10 +3210,9 @@ TEST_F(SdkTest, SdkTestFingerprint)
         {
             m_time_t mtime = 0;
             {
-                FileAccess* nfa = fsa.newfileaccess();
+                auto nfa = fsa.newfileaccess();
                 nfa->fopen(&localname);
                 mtime = nfa->mtime;
-                delete nfa;
             }
 
             myMIS mis(name.c_str());
