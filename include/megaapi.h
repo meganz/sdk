@@ -16402,7 +16402,7 @@ public:
      * @brief Get the number of GB of storage associated with the product
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
      * @note business plans have unlimited storage
-     * @return number of GB of storage or zero if index is invalid or pricing plan is business type
+     * @return number of GB of storage or zero if index is invalid or pricing plan is a business plan
      */
     virtual unsigned int getGBStorage(int productIndex);
 
@@ -16410,7 +16410,7 @@ public:
      * @brief Get the number of GB of bandwidth associated with the product
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
      * @note business plans have unlimited bandwidth
-     * @return number of GB of bandwidth or zero if index is invalid or pricing plan is business type
+     * @return number of GB of bandwidth or zero if index is invalid or pricing plan is a business plan
      */
     virtual unsigned int getGBTransfer(int productIndex);
 
@@ -16472,7 +16472,18 @@ public:
      */
     virtual const char* getAndroidID(int productIndex);
 
+    /**
+     * @brief Returns if the pricing plan is a business plan
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return true if the pricing plan is a business plan, otherwise return false
+     */
     virtual bool isBusinessType(int productIndex);
+
+    /**
+     * @brief getAmountMonth Get the monthly price of the product (in cents)
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return Monthly price of the product (in cents)
+     */
     virtual int getAmountMonth(int productIndex);
 
     /**
