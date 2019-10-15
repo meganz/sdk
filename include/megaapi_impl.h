@@ -740,6 +740,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         long long endPos;
         int retry;
         int maxRetries;
+
         MegaTransferListener *listener;
         Transfer *transfer;
         MegaError lastError;

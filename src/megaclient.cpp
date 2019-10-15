@@ -549,7 +549,7 @@ Node *MegaClient::getrootnode(Node *node)
     return n;
 }
 
-bool MegaClient::isAccountRootNode(handle h)
+bool MegaClient::isPrivateNode(handle h)
 {
     Node *node = nodebyhandle(h);
     if (!node)
@@ -558,13 +558,12 @@ bool MegaClient::isAccountRootNode(handle h)
     }
 
     handle rootnode = getrootnode(node)->nodehandle;
-    if (rootnode == rootnodes[0]
-        || rootnode == rootnodes[1]
-        || rootnode == rootnodes[2])
-    {
-        return true;
-    }
-    return false;
+    return (rootnode == rootnodes[0] || rootnode == rootnodes[1] || rootnode == rootnodes[2]);
+}
+
+bool MegaClient::isForeignNode(handle h)
+{
+    return !isPrivateNode(h);
 }
 
 // set server-client sequence number

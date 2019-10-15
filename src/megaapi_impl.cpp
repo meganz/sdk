@@ -16190,8 +16190,7 @@ void MegaApiImpl::processTransferFailed(Transfer *tr, MegaTransferPrivate *trans
     transfer->setLastError(megaError);
     transfer->setPriority(tr->priority);
     transfer->setState(MegaTransfer::STATE_RETRYING);
-    transfer->setForeignOverquota((e == API_EOVERQUOTA)
-        && !client->isAccountRootNode(transfer->getParentHandle()));
+    transfer->setForeignOverquota(e == API_EOVERQUOTA && client->isForeignNode(transfer->getParentHandle()));
     fireOnTransferTemporaryError(transfer, megaError);
 }
 

@@ -368,9 +368,9 @@ void Transfer::failed(error e, dstime timeleft)
             else
             {
                 bool allForeignTargets = true;
-                for (file_list::iterator it = files.begin(); it != files.end(); it++)
+                for (auto &file : files)
                 {
-                    if (client->isAccountRootNode((*it)->h))
+                    if (client->isPrivateNode(file->h))
                     {
                         allForeignTargets = false;
                         break;
@@ -404,24 +404,23 @@ void Transfer::failed(error e, dstime timeleft)
     for (file_list::iterator it = files.begin(); it != files.end();)
     {
         // Remove files with foreign targets, if transfer failed with a (foreign) storage overquota
-        auto auxit = it++;
         if (e == API_EOVERQUOTA && !timeleft)
         {
-            if (!client->isAccountRootNode((*auxit)->h))
+            if (client->isForeignNode((*it)->h))
             {
 #ifdef ENABLE_SYNC
-                if((*auxit)->syncxfer && e != API_EBUSINESSPASTDUE)
+                if((*it)->syncxfer && e != API_EBUSINESSPASTDUE)
                 {
                     client->syncdownrequired = true;
                 }
 #endif
-                client->app->file_removed(*auxit, e);
-                files.erase(auxit);
+                client->app->file_removed(*it, e);
+                files.erase(it++);
                 continue;
             }
         }
 
-        if (((*auxit)->failed(e) && (e != API_EBUSINESSPASTDUE))
+        if (((*it)->failed(e) && (e != API_EBUSINESSPASTDUE))
                 || (e == API_ENOENT // putnodes returned -9, file-storage server unavailable
                     && type == PUT
                     && tempurls.empty()
@@ -429,6 +428,8 @@ void Transfer::failed(error e, dstime timeleft)
         {
             defer = true;
         }
+
+        it++;
     }
 
     tempurls.clear();
