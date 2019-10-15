@@ -1058,8 +1058,8 @@ class MegaRequestPrivate : public MegaRequest
         void setTotalBytes(long long totalBytes);
         void setTransferredBytes(long long transferredBytes);
         void setTag(int tag);
-        void addProduct(handle product, int proLevel, unsigned int gbStorage, unsigned int gbTransfer,
-                        int months, int amount, const char *currency, const char *description, const char *iosid, const char *androidid);
+        void addProduct(unsigned int type, handle product, int proLevel, unsigned int gbStorage, unsigned int gbTransfer,
+                        int months, int amount, int amountMonth, const char *currency, const char *description, const char *iosid, const char *androidid);
         void setProxy(Proxy *proxy);
         Proxy *getProxy();
         void setTimeZoneDetails(MegaTimeZoneDetails *timeZoneDetails);
@@ -1342,17 +1342,21 @@ public:
     virtual const char* getDescription(int productIndex);
     virtual const char* getIosID(int productIndex);
     virtual const char* getAndroidID(int productIndex);
+    virtual bool isBusinessType(int productIndex);
+    virtual int getAmountMonth(int productIndex);
     virtual MegaPricing *copy();
 
-    void addProduct(handle product, int proLevel, unsigned int gbStorage, unsigned int gbTransfer,
-                    int months, int amount, const char *currency, const char *description, const char *iosid, const char *androidid);
+    void addProduct(unsigned int type, handle product, int proLevel, unsigned int gbStorage, unsigned int gbTransfer,
+                    int months, int amount, int amountMonth, const char *currency, const char *description, const char *iosid, const char *androidid);
 private:
+    vector<unsigned int> type;
     vector<handle> handles;
     vector<int> proLevel;
     vector<unsigned int> gbStorage;
     vector<unsigned int> gbTransfer;
     vector<int> months;
     vector<int> amount;
+    vector<int> amountMonth;
     vector<const char *> currency;
     vector<const char *> description;
     vector<const char *> iosId;
