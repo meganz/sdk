@@ -50,14 +50,14 @@ public:
                 {
                     mLogFile.open("test_integration.log");
                 }
-                mLogFile << os.str();
+                mLogFile << os.str() << std::flush;
             }
             else
             {
 #ifdef _WIN32
                 OutputDebugStringA(os.str().c_str());
 #else
-                std::cout << os.str();
+                std::cout << os.str() << std::flush;
 #endif
                 if (!gTestingInvalidArgs)
                 {
