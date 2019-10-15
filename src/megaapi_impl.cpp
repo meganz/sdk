@@ -22392,7 +22392,7 @@ const char *MegaPricingPrivate::getAndroidID(int productIndex)
 bool MegaPricingPrivate::isBusinessType(int productIndex)
 {
     if((unsigned)productIndex < type.size())
-        return static_cast<bool>(type[productIndex]);
+        return type[productIndex];
 
     return false;
 }
