@@ -370,14 +370,9 @@ void Transfer::failed(error e, dstime timeleft)
                 bool allForeignTargets = true;
                 for (file_list::iterator it = files.begin(); it != files.end(); it++)
                 {
-                    Node *node = client->nodebyhandle((*it)->h);
-                    if (node)
+                    if (client->isAccountRootNode((*it)->h))
                     {
-                        handle rootnode = client->getrootnode(node)->nodehandle;
-                        if (client->rootnodes[0] == rootnode)
-                        {
-                            allForeignTargets = false;
-                        }
+                        allForeignTargets = false;
                     }
                 }
 
@@ -409,11 +404,9 @@ void Transfer::failed(error e, dstime timeleft)
     {
         // Remove files with foreign targets, if transfer failed with a (foreign) storage overquota
         auto auxit = it++;
-        Node *node = client->nodebyhandle((*auxit)->h);
-        if (e == API_EOVERQUOTA && !timeleft && node)
+        if (e == API_EOVERQUOTA && !timeleft)
         {
-            handle rootnode = client->getrootnode(node)->nodehandle;
-            if (client->rootnodes[0] != rootnode)
+            if (!client->isAccountRootNode((*auxit)->h))
             {
 #ifdef ENABLE_SYNC
                 if((*auxit)->syncxfer && e != API_EBUSINESSPASTDUE)

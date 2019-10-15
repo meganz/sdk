@@ -1443,6 +1443,9 @@ public:
     //returns the top-level node for a node
     Node *getrootnode(Node*);
 
+    //returns true if the root node of the node to check (given a handle by param) belongs to our account
+    bool isAccountRootNode(handle h);
+
     // process node subtree
     void proctree(Node*, TreeProc*, bool skipinshares = false, bool skipversions = false);
 

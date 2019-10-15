@@ -16190,16 +16190,8 @@ void MegaApiImpl::processTransferFailed(Transfer *tr, MegaTransferPrivate *trans
     transfer->setLastError(megaError);
     transfer->setPriority(tr->priority);
     transfer->setState(MegaTransfer::STATE_RETRYING);
-
-    unique_ptr<MegaNode> targetNode(getNodeByHandle(transfer->getParentHandle()));
-    if (targetNode)
-    {
-        unique_ptr<MegaNode> ownRootNode(getRootNode());
-        unique_ptr<MegaNode> targetRootNode(getRootNode(targetNode.get()));
-        transfer->setForeignOverquota((e == API_EOVERQUOTA)
-            && (ownRootNode->getHandle() != targetRootNode->getHandle()));
-    }
-
+    transfer->setForeignOverquota((e == API_EOVERQUOTA)
+        && !client->isAccountRootNode(transfer->getParentHandle()));
     fireOnTransferTemporaryError(transfer, megaError);
 }
 

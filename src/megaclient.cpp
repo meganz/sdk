@@ -549,6 +549,24 @@ Node *MegaClient::getrootnode(Node *node)
     return n;
 }
 
+bool MegaClient::isAccountRootNode(handle h)
+{
+    Node *node = nodebyhandle(h);
+    if (!node)
+    {
+        return false;
+    }
+
+    handle rootnode = getrootnode(node)->nodehandle;
+    if (rootnode == rootnodes[0]
+        || rootnode == rootnodes[1]
+        || rootnode == rootnodes[2])
+    {
+        return true;
+    }
+    return false;
+}
+
 // set server-client sequence number
 bool MegaClient::setscsn(JSON* j)
 {
