@@ -47,14 +47,14 @@ bool SockInfo::createAssociateEvent()
 {
     if (handle == WSA_INVALID_EVENT)
     {
-        handle = WSACreateEvent();
         associatedHandleEvents = 0;
         signalledWrite = false;
-    }
-    if (handle == WSA_INVALID_EVENT)
-    {
-        LOG_err << "Failed to create WSA event for " << fd;
-        return false;
+        handle = WSACreateEvent();
+        if (handle == WSA_INVALID_EVENT)
+        {
+            LOG_err << "Failed to create WSA event for " << fd;
+            return false;
+        }
     }
 
     int events = (mode & SockInfo::READ ? FD_READ : 0) | (mode & SockInfo::WRITE ? FD_WRITE : 0);
@@ -499,23 +499,18 @@ void CurlHttpIO::addaresevents(Waiter *waiter)
                 info.mode |= SockInfo::WRITE;
             }
 
-            if (!info.mode)
-            {
-                continue;
-            }
-
 #if defined(_WIN32)
             if (info.createAssociateEvent())
             {
                 ((WinWaiter *)waiter)->addhandle(info.eventHandle(), Waiter::NEEDEXEC);
             }
 #else
-            if (info.mode & SockInfo::READ)
+            if (readable)
             {
                 FD_SET(info.fd, &((PosixWaiter *)waiter)->rfds);
                 ((PosixWaiter *)waiter)->bumpmaxfd(info.fd);
             }
-            if (info.mode & SockInfo::WRITE)
+            if (writeable)
             {
                 FD_SET(info.fd, &((PosixWaiter *)waiter)->wfds);
                 ((PosixWaiter *)waiter)->bumpmaxfd(info.fd);
@@ -536,7 +531,9 @@ void CurlHttpIO::addcurlevents(Waiter *waiter, direction_t d)
 {
     CodeCounter::ScopeTimer ccst(countAddCurlEventsCode);
 
+#if defined(_WIN32)
     bool anyWriters = false;
+#endif
 
     SockInfoMap &socketmap = curlsockets[d];
     for (SockInfoMap::iterator it = socketmap.begin(); it != socketmap.end(); it++)
