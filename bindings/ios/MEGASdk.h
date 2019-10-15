@@ -7199,7 +7199,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest megaPushNotificationSettings] Returns settings for push notifications
  *
- *@param delegate MEGARequestDelegate to track this request
+ * @param delegate MEGARequestDelegate to track this request
  */
 - (void)getPushNotificationSettingsWithDelegate:(id<MEGARequestDelegate>)delegate;
 

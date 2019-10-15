@@ -1,5 +1,5 @@
 /**
- * @file MegaPushNotificationSettings.mm
+ * @file MEGAPushNotificationSettings.mm
  * @brief Push Notification related MEGASdk methods.
  *
  * (c) 2019- by Mega Limited, Auckland, New Zealand
