@@ -373,6 +373,7 @@ void Transfer::failed(error e, dstime timeleft)
                     if (client->isAccountRootNode((*it)->h))
                     {
                         allForeignTargets = false;
+                        break;
                     }
                 }
 
@@ -416,7 +417,7 @@ void Transfer::failed(error e, dstime timeleft)
 #endif
                 client->app->file_removed(*auxit, e);
                 files.erase(auxit);
-                break;
+                continue;
             }
         }
 
