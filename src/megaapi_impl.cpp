@@ -3630,11 +3630,11 @@ void MegaRequestPrivate::setTag(int tag)
     this->tag = tag;
 }
 
-void MegaRequestPrivate::addProduct(handle product, int proLevel, unsigned int gbStorage, unsigned int gbTransfer, int months, int amount, const char *currency, const char* description, const char* iosid, const char* androidid)
+void MegaRequestPrivate::addProduct(unsigned int type, handle product, int proLevel, unsigned int gbStorage, unsigned int gbTransfer, int months, int amount, int amountMonth, const char *currency, const char* description, const char* iosid, const char* androidid)
 {
     if (megaPricing)
     {
-        megaPricing->addProduct(product, proLevel, gbStorage, gbTransfer, months, amount, currency, description, iosid, androidid);
+        megaPricing->addProduct(type, product, proLevel, gbStorage, gbTransfer, months, amount, amountMonth, currency, description, iosid, androidid);
     }
 }
 
@@ -13355,7 +13355,7 @@ void MegaApiImpl::enumeratequotaitems_result(unsigned type, handle product, unsi
         return;
     }
 
-    request->addProduct(product, prolevel, gbstorage, gbtransfer, months, amount, currency, description, iosid, androidid);
+    request->addProduct(type, product, prolevel, gbstorage, gbtransfer, months, amount, amountMonth, currency, description, iosid, androidid);
 }
 
 void MegaApiImpl::enumeratequotaitems_result(error e)
@@ -22380,27 +22380,44 @@ const char *MegaPricingPrivate::getAndroidID(int productIndex)
     return NULL;
 }
 
+bool MegaPricingPrivate::isBusinessType(int productIndex)
+{
+    if((unsigned)productIndex < type.size())
+        return static_cast<bool>(type[productIndex]);
+
+    return false;
+}
+
+int MegaPricingPrivate::getAmountMonth(int productIndex)
+{
+    if((unsigned)productIndex < amountMonth.size())
+        return amountMonth[productIndex];
+
+    return 0;
+}
 MegaPricing *MegaPricingPrivate::copy()
 {
     MegaPricingPrivate *megaPricing = new MegaPricingPrivate();
     for(unsigned i=0; i<handles.size(); i++)
     {
-        megaPricing->addProduct(handles[i], proLevel[i], gbStorage[i], gbTransfer[i],
-                                months[i], amount[i], currency[i], description[i], iosId[i], androidId[i]);
+        megaPricing->addProduct(type[i], handles[i], proLevel[i], gbStorage[i], gbTransfer[i],
+                                months[i], amount[i], amountMonth[i], currency[i], description[i], iosId[i], androidId[i]);
     }
 
     return megaPricing;
 }
 
-void MegaPricingPrivate::addProduct(handle product, int proLevel, unsigned int gbStorage, unsigned int gbTransfer, int months, int amount, const char *currency,
-                                    const char* description, const char* iosid, const char* androidid)
+void MegaPricingPrivate::addProduct(unsigned int type, handle product, int proLevel, unsigned int gbStorage, unsigned int gbTransfer, int months, int amount, int amountMonth,
+                                    const char *currency, const char* description, const char* iosid, const char* androidid)
 {
+    this->type.push_back(type);
     this->handles.push_back(product);
     this->proLevel.push_back(proLevel);
     this->gbStorage.push_back(gbStorage);
     this->gbTransfer.push_back(gbTransfer);
     this->months.push_back(months);
     this->amount.push_back(amount);
+    this->amountMonth.push_back(amountMonth);
     this->currency.push_back(MegaApi::strdup(currency));
     this->description.push_back(MegaApi::strdup(description));
     this->iosId.push_back(MegaApi::strdup(iosid));

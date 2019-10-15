@@ -5297,6 +5297,16 @@ const char *MegaPricing::getAndroidID(int)
     return NULL;
 }
 
+bool MegaPricing::isBusinessType(int)
+{
+    return false;
+}
+
+int MegaPricing::getAmountMonth(int)
+{
+    return 0;
+}
+
 MegaPricing *MegaPricing::copy()
 {
     return NULL;
