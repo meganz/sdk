@@ -22318,7 +22318,7 @@ int MegaPricingPrivate::getProLevel(int productIndex)
 
 unsigned int MegaPricingPrivate::getGBStorage(int productIndex)
 {
-    if((unsigned)productIndex < gbStorage.size())
+    if((unsigned)productIndex < gbStorage.size() && !type[productIndex])
         return gbStorage[productIndex];
 
     return 0;
@@ -22326,7 +22326,7 @@ unsigned int MegaPricingPrivate::getGBStorage(int productIndex)
 
 unsigned int MegaPricingPrivate::getGBTransfer(int productIndex)
 {
-    if((unsigned)productIndex < gbTransfer.size())
+    if((unsigned)productIndex < gbTransfer.size() && !type[productIndex])
         return gbTransfer[productIndex];
 
     return 0;
@@ -22395,6 +22395,7 @@ int MegaPricingPrivate::getAmountMonth(int productIndex)
 
     return 0;
 }
+
 MegaPricing *MegaPricingPrivate::copy()
 {
     MegaPricingPrivate *megaPricing = new MegaPricingPrivate();
