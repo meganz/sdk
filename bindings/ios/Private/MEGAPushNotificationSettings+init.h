@@ -1,6 +1,6 @@
 /**
- * @file MegaPushNotificationSettings+init.h
- * @brief Private functions of MegaPushNotificationSettings
+ * @file MEGAPushNotificationSettings+init.h
+ * @brief Private functions of MEGAPushNotificationSettings
  *
  * (c) 2019 - by Mega Limited, Auckland, New Zealand
  *

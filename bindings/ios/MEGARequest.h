@@ -473,11 +473,11 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
 @property (readonly, nonatomic) MEGAFolderInfo *megaFolderInfo;
 
 /**
- *  @brief Returns settings for push notifications
+ * @brief Returns settings for push notifications
  *
- * The SDK retains the ownership of the returned value. It will be valid until the MEGARequest object is deleted.
- * This value is valid for these requests in onRequestFinish.
- *
+ * This value is valid for these requests in onRequestFinish when the
+ * error code is MEGAErrorTypeApiOk:
+ * - [MEGASdk getPushNotificationSettingsWithDelegate] - Returns settings for push notifications
 */
 @property (readonly, nonatomic) MEGAPushNotificationSettings *megaPushNotificationSettings;
 

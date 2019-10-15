@@ -94,7 +94,7 @@ using namespace mega;
     return self.megaPushNotificationSettings->isChatDndEnabled(chatId);
 }
 
-- (int64_t)chatDndForChatId:(int64_t)chatId {
+- (int64_t)timestampForChatId:(int64_t)chatId {
     return self.megaPushNotificationSettings->getChatDnd(chatId);
 }
 

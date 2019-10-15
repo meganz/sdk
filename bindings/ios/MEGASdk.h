@@ -7190,7 +7190,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
 #pragma mark - Push Notification Settings
 
 /**
- *@brief: Get push notification settings
+ * @brief Get push notification settings
  *
  * The associated request type with this request is MEGARequestTypeSetAttrUser
  * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributePushSettings
@@ -7204,7 +7204,19 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
 - (void)getPushNotificationSettingsWithDelegate:(id<MEGARequestDelegate>)delegate;
 
 /**
- *@brief: Set push notification settings.
+ * @brief Get push notification settings
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributePushSettings
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest megaPushNotificationSettings] Returns settings for push notifications
+ */
+- (void)getPushNotificationSettings;
+
+/**
+ * @brief Set push notification settings.
  *
  * The associated request type with this request is MEGARequestTypeSetAttrUser
  * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributePushSettings
@@ -7213,11 +7225,25 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest megaPushNotificationSettings] Returns settings for push notifications
  *
- *@param pushNotificationSettings Push notification settings of the user. (An instance of MEGAPushNotificationSettings).
- *@param delegate MEGARequestDelegate to track this request
+ * @param pushNotificationSettings Push notification settings of the user. (An instance of MEGAPushNotificationSettings).
+ * @param delegate MEGARequestDelegate to track this request
  */
 - (void)setPushNotificationSettings:(MEGAPushNotificationSettings *)pushNotificationSettings
                            delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Set push notification settings.
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributePushSettings
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest megaPushNotificationSettings] Returns settings for push notifications
+ *
+ * @param pushNotificationSettings Push notification settings of the user. (An instance of MEGAPushNotificationSettings).
+ */
+- (void)setPushNotificationSettings:(MEGAPushNotificationSettings *)pushNotificationSettings;
 
 #pragma mark - Debug log messages
 

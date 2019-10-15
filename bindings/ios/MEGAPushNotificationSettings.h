@@ -104,7 +104,7 @@ NS_ASSUME_NONNULL_BEGIN
  * @param chatId handle of the Node that identifies the chat room
  * @return timestamp until DND mode is enabled (in seconds since the Epoch)
  */
-- (int64_t)chatDndForChatId:(int64_t)chatId;
+- (int64_t)timestampForChatId:(int64_t)chatId;
 
 /**
  * @brief Set the DND mode for a chat for a period of time

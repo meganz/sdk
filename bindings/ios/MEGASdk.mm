@@ -2193,10 +2193,18 @@ using namespace mega;
     self.megaApi->getPushNotificationSettings([self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
+- (void)getPushNotificationSettings {
+    self.megaApi->getPushNotificationSettings();
+}
+
 - (void)setPushNotificationSettings:(MEGAPushNotificationSettings *)pushNotificationSettings
                            delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->setPushNotificationSettings(pushNotificationSettings.getCPtr,
                                               [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)setPushNotificationSettings:(MEGAPushNotificationSettings *)pushNotificationSettings {
+    self.megaApi->setPushNotificationSettings(pushNotificationSettings.getCPtr);
 }
 
 #pragma mark - Debug log messages
