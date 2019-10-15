@@ -2369,8 +2369,8 @@ void CommandUpdatePendingContact::procresult()
 CommandEnumerateQuotaItems::CommandEnumerateQuotaItems(MegaClient* client)
 {
     cmd("utqa");
-    arg("f", 1);
-
+    arg("nf", 1);
+    arg("b", 1);
     tag = client->reqtag;
 }
 
@@ -2381,36 +2381,95 @@ void CommandEnumerateQuotaItems::procresult()
         return client->app->enumeratequotaitems_result((error)client->json.getint());
     }
 
-    handle product;
-    int prolevel, gbstorage, gbtransfer, months;
-    unsigned amount;
-    const char* a;
-    const char* c;
-    const char* d;
-    const char* ios;
-    const char* android;
+    handle product = UNDEF;
+    int prolevel = -1, gbstorage = -1, gbtransfer = -1, months = -1, type = -1;
+    unsigned amount = 0, amountMonth = 0;
+    const char* a = nullptr;
+    const char* c = nullptr;
+    const char* d = nullptr;
+    const char* m = nullptr;
+    const char* ios = nullptr;
+    const char* android = nullptr;
     string currency;
     string description;
     string ios_id;
     string android_id;
 
-    while (client->json.enterarray())
+    while (client->json.enterobject())
     {
-        if (ISUNDEF((product = client->json.gethandle(8)))
-                || ((prolevel = int(client->json.getint())) < 0)
-                || ((gbstorage = int(client->json.getint())) < 0)
-                || ((gbtransfer = int(client->json.getint())) < 0)
-                || ((months = int(client->json.getint())) < 0)
-                || !(a = client->json.getvalue())
-                || !(c = client->json.getvalue())
-                || !(d = client->json.getvalue())
-                || !(ios = client->json.getvalue())
-                || !(android = client->json.getvalue()))
+        bool finished = false;
+        while (!finished)
         {
-            return client->app->enumeratequotaitems_result(API_EINTERNAL);
+            switch (client->json.getnameid())
+            {
+                case MAKENAMEID2('i', 't'):
+                    type = int(client->json.getint());
+                    break;
+                case MAKENAMEID2('i', 'd'):
+                    product = client->json.gethandle(8);
+                    break;
+                case MAKENAMEID2('a', 'l'):
+                    prolevel = int(client->json.getint());
+                    break;
+                case 's':
+                    gbstorage = int(client->json.getint());
+                    break;
+                case 't':
+                    gbtransfer = int(client->json.getint());
+                    break;
+                case 'm':
+                    months = int(client->json.getint());
+                    break;
+                case 'p':
+                    a = client->json.getvalue();
+                    break;
+                case 'c':
+                    c = client->json.getvalue();
+                    break;
+                case 'd':
+                    d = client->json.getvalue();
+                    break;
+                case MAKENAMEID3('i', 'o', 's'):
+                    ios = client->json.getvalue();
+                    break;
+                case MAKENAMEID6('g', 'o', 'o', 'g', 'l', 'e'):
+                    android = client->json.getvalue();
+                    break;
+                case MAKENAMEID3('m', 'b', 'p'):
+                    m = client->json.getvalue();
+                    break;
+                case EOO:
+                    if (type < 0
+                            || ISUNDEF(product)
+                            || (prolevel < 0)
+                            || (!type && gbstorage < 0)
+                            || (!type && gbtransfer < 0)
+                            || (months < 0)
+                            || !a
+                            || !c
+                            || !d
+                            || !m
+                            || !ios
+                            || !android)
+                    {
+                        return client->app->enumeratequotaitems_result(API_EINTERNAL);
+                    }
+
+                    // If pricing plan is business, storage and bandwith are unlimited
+                    if (type == 1)
+                    {
+                        gbstorage = 0;
+                        gbtransfer = 0;
+                    }
+                    finished = true;
+                    break;
+                default:
+                    return client->app->enumeratequotaitems_result(API_EINTERNAL);
+            }
         }
 
 
+        client->json.leaveobject();
         Node::copystring(&currency, c);
         Node::copystring(&description, d);
         Node::copystring(&ios_id, ios);
@@ -2432,8 +2491,23 @@ void CommandEnumerateQuotaItems::procresult()
             }
         }
 
-        client->app->enumeratequotaitems_result(product, prolevel, gbstorage,
-                                                gbtransfer, months, amount,
+        amountMonth = atoi(m) * 100;
+        if ((c = strchr(m, '.')))
+        {
+            c++;
+            if ((*c >= '0') && (*c <= '9'))
+            {
+                amountMonth += (*c - '0') * 10;
+            }
+            c++;
+            if ((*c >= '0') && (*c <= '9'))
+            {
+                amountMonth += *c - '0';
+            }
+        }
+
+        client->app->enumeratequotaitems_result(type, product, prolevel, gbstorage,
+                                                gbtransfer, months, amount, amountMonth,
                                                 currency.c_str(), description.c_str(),
                                                 ios_id.c_str(), android_id.c_str());
         client->json.leavearray();
