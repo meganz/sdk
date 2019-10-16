@@ -2430,6 +2430,7 @@ void CommandEnumerateQuotaItems::procresult()
                     {
                         gbstorage = 0;
                         gbtransfer = 0;
+                        prolevel = 100; // legacy value returned by `utqa` with `f` instead of `nf`
                     }
                     finished = true;
                     break;
