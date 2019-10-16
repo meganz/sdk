@@ -1447,6 +1447,12 @@ public:
     //returns the top-level node for a node
     Node *getrootnode(Node*);
 
+    //returns true if the node referenced by the handle belongs to the logged-in account
+    bool isPrivateNode(handle h);
+
+    //returns true if the node referenced by the handle belongs to other account than the logged-in account
+    bool isForeignNode(handle h);
+
     // process node subtree
     void proctree(Node*, TreeProc*, bool skipinshares = false, bool skipversions = false);
 

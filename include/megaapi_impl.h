@@ -646,6 +646,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         void setSourceFileTemporary(bool temporary);
         void setStartFirst(bool startFirst);
         void setBackupTransfer(bool backupTransfer);
+        void setForeignOverquota(bool backupTransfer);
         void setStreamingTransfer(bool streamingTransfer);
         void setLastBytes(char *lastBytes);
         void setLastError(MegaError e);
@@ -685,6 +686,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         virtual bool isSourceFileTemporary() const;
         virtual bool shouldStartFirst() const;
         virtual bool isBackupTransfer() const;
+        virtual bool isForeignOverquota() const;
         virtual char *getLastBytes() const;
         virtual MegaError getLastError() const;
         virtual bool isFolderTransfer() const;
@@ -715,6 +717,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
             bool temporarySourceFile : 1;
             bool startFirst : 1;
             bool backupTransfer : 1;
+            bool foreignOverquota : 1;
         };
 
         int64_t startTime;

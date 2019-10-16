@@ -356,7 +356,42 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
 
     if (e != API_EBUSINESSPASTDUE)
     {
-        if (e != API_EOVERQUOTA)
+        if (e == API_EOVERQUOTA)
+        {
+            if (!slot)
+            {
+                client->activateoverquota(timeleft);
+                bt.backoff(timeleft ? timeleft : NEVER);
+                client->app->transfer_failed(this, e, timeleft);
+                ++client->performanceStats.transferTempErrors;
+            }
+            else
+            {
+                bool allForeignTargets = true;
+                for (auto &file : files)
+                {
+                    if (client->isPrivateNode(file->h))
+                    {
+                        allForeignTargets = false;
+                        break;
+                    }
+                }
+
+                /* If all targets are foreign and there's not a bandwidth overquota, transfer must fail.
+                 * Otherwise we need to activate overquota.
+                 */
+                if (!timeleft && allForeignTargets)
+                {
+                    client->app->transfer_failed(this, e, NEVER);
+                }
+                else
+                {
+                    bt.backoff(timeleft ? timeleft : NEVER);
+                    client->activateoverquota(timeleft);
+                }
+            }
+        }
+        else
         {
             bt.backoff();
             state = TRANSFERSTATE_RETRYING;
@@ -364,21 +399,28 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
             client->looprequested = true;
             ++client->performanceStats.transferTempErrors;
         }
-        else
-        {
-            bt.backoff(timeleft ? timeleft : NEVER);
-            client->activateoverquota(timeleft);
-            if (!slot)
-            {
-                client->app->transfer_failed(this, e, timeleft);
-                ++client->performanceStats.transferTempErrors;
-            }
-        }
     }
 
-    for (file_list::iterator it = files.begin(); it != files.end(); it++)
+    for (file_list::iterator it = files.begin(); it != files.end();)
     {
-        if ( ((*it)->failed(e) && (e != API_EBUSINESSPASTDUE))
+        // Remove files with foreign targets, if transfer failed with a (foreign) storage overquota
+        if (e == API_EOVERQUOTA && !timeleft)
+        {
+            if (client->isForeignNode((*it)->h))
+            {
+#ifdef ENABLE_SYNC
+                if((*it)->syncxfer && e != API_EBUSINESSPASTDUE)
+                {
+                    client->syncdownrequired = true;
+                }
+#endif
+                client->app->file_removed(*it, e);
+                files.erase(it++);
+                continue;
+            }
+        }
+
+        if (((*it)->failed(e) && (e != API_EBUSINESSPASTDUE))
                 || (e == API_ENOENT // putnodes returned -9, file-storage server unavailable
                     && type == PUT
                     && tempurls.empty()
@@ -386,6 +428,8 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
         {
             defer = true;
         }
+
+        it++;
     }
 
     tempurls.clear();

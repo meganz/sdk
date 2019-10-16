@@ -3808,6 +3808,14 @@ class MegaTransfer
         virtual bool isBackupTransfer() const;
 
         /**
+         * @brief Returns true if the transfer has failed with API_EOVERQUOTA
+         * and the target is foreign.
+         *
+         * @return true if the transfer has failed with API_EOVERQUOTA and the target is foreign.
+         */
+        virtual bool isForeignOverquota() const;
+
+        /**
          * @brief Returns true is this is a streaming transfer
          * @return true if this is a streaming transfer, false otherwise
          * @see MegaApi::startStreaming
@@ -5622,6 +5630,10 @@ class MegaTransferListener
          * The SDK retains the ownership of the transfer and error parameters.
          * Don't use them after this functions returns.
          *
+         * If the error code is API_EOVERQUOTA we need to call to MegaTransfer::isForeignOverquota to determine if
+         * our own storage, or a foreign storage is in overquota. If MegaTransfer::isForeignOverquota returns true
+         * a foreign storage is in overquota, otherwise our own storage is in overquota.
+         *
          * @param api MegaApi object that started the transfer
          * @param transfer Information about the transfer
          * @param error Error information
@@ -6116,6 +6128,10 @@ class MegaListener
          *
          * The SDK retains the ownership of the transfer and error parameters.
          * Don't use them after this functions returns.
+         *
+         * If the error code is API_EOVERQUOTA we need to call to MegaTransfer::isForeignOverquota to determine if
+         * our own storage, or a foreign storage is in overquota. If MegaTransfer::isForeignOverquota returns true
+         * a foreign storage is in overquota, otherwise our own storage is in overquota.
          *
          * @param api MegaApi object that started the transfer
          * @param transfer Information about the transfer
