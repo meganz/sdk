@@ -2554,7 +2554,7 @@ class MegaApiImpl : public MegaApp
         void getCountryCallingCodes(MegaRequestListener *listener = NULL);
 
         void fireOnTransferStart(MegaTransferPrivate *transfer);
-        void fireOnTransferFinish(MegaTransferPrivate *transfer, MegaError e);
+        void fireOnTransferFinish(MegaTransferPrivate *transfer, MegaError e, DBTableTransactionCommitter& committer);
         void fireOnTransferUpdate(MegaTransferPrivate *transfer);
         void fireOnTransferTemporaryError(MegaTransferPrivate *transfer, MegaError e);
         map<int, MegaTransferPrivate *> transferMap;
@@ -2973,7 +2973,7 @@ protected:
 
         void sendPendingScRequest();
         void sendPendingRequests();
-        void sendPendingTransfers();
+        unsigned sendPendingTransfers();
         void updateBackups();
         char *stringToArray(string &buffer);
 
