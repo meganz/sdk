@@ -3630,7 +3630,7 @@ void MegaRequestPrivate::setTag(int tag)
     this->tag = tag;
 }
 
-void MegaRequestPrivate::addProduct(unsigned int type, handle product, int proLevel, unsigned int gbStorage, unsigned int gbTransfer, int months, int amount, int amountMonth, const char *currency, const char* description, const char* iosid, const char* androidid)
+void MegaRequestPrivate::addProduct(unsigned int type, handle product, int proLevel, int gbStorage, int gbTransfer, int months, int amount, int amountMonth, const char *currency, const char* description, const char* iosid, const char* androidid)
 {
     if (megaPricing)
     {
@@ -13344,7 +13344,7 @@ void MegaApiImpl::putfa_result(handle h, fatype, const char *)
     fireOnRequestFinish(request, megaError);
 }
 
-void MegaApiImpl::enumeratequotaitems_result(unsigned type, handle product, unsigned prolevel, unsigned gbstorage, unsigned gbtransfer, unsigned months, unsigned amount, unsigned amountMonth, const char* currency, const char* description, const char* iosid, const char* androidid)
+void MegaApiImpl::enumeratequotaitems_result(unsigned type, handle product, unsigned prolevel, int gbstorage, int gbtransfer, unsigned months, unsigned amount, unsigned amountMonth, const char* currency, const char* description, const char* iosid, const char* androidid)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
@@ -22316,18 +22316,22 @@ int MegaPricingPrivate::getProLevel(int productIndex)
     return 0;
 }
 
-unsigned int MegaPricingPrivate::getGBStorage(int productIndex)
+int MegaPricingPrivate::getGBStorage(int productIndex)
 {
-    if((unsigned)productIndex < gbStorage.size() && !type[productIndex])
-        return gbStorage[productIndex];
+    if (static_cast<size_t>(productIndex) < gbStorage.size())
+    {
+        return gbStorage[static_cast<size_t>(productIndex)];
+    }
 
     return 0;
 }
 
-unsigned int MegaPricingPrivate::getGBTransfer(int productIndex)
+int MegaPricingPrivate::getGBTransfer(int productIndex)
 {
-    if((unsigned)productIndex < gbTransfer.size() && !type[productIndex])
-        return gbTransfer[productIndex];
+    if (static_cast<size_t>(productIndex) < gbTransfer.size())
+    {
+        return gbTransfer[static_cast<size_t>(productIndex)];
+    }
 
     return 0;
 }
@@ -22408,7 +22412,7 @@ MegaPricing *MegaPricingPrivate::copy()
     return megaPricing;
 }
 
-void MegaPricingPrivate::addProduct(unsigned int type, handle product, int proLevel, unsigned int gbStorage, unsigned int gbTransfer, int months, int amount, int amountMonth,
+void MegaPricingPrivate::addProduct(unsigned int type, handle product, int proLevel, int gbStorage, int gbTransfer, int months, int amount, int amountMonth,
                                     const char *currency, const char* description, const char* iosid, const char* androidid)
 {
     this->type.push_back(type);
