@@ -563,7 +563,14 @@ bool MegaClient::isPrivateNode(handle h)
 
 bool MegaClient::isForeignNode(handle h)
 {
-    return !isPrivateNode(h);
+    Node *node = nodebyhandle(h);
+    if (!node)
+    {
+        return false;
+    }
+
+    handle rootnode = getrootnode(node)->nodehandle;
+    return (rootnode != rootnodes[0] && rootnode != rootnodes[1] && rootnode != rootnodes[2]);
 }
 
 // set server-client sequence number
