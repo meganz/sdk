@@ -16418,17 +16418,19 @@ public:
      * @brief Get the number of GB of storage associated with the product
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
      * @note business plans have unlimited storage
-     * @return number of GB of storage or zero if index is invalid or pricing plan is a business plan
+     * @return number of GB of storage, zero if index is invalid, or -1
+     * if pricing plan is a business plan
      */
-    virtual unsigned int getGBStorage(int productIndex);
+    virtual int getGBStorage(int productIndex);
 
     /**
      * @brief Get the number of GB of bandwidth associated with the product
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
      * @note business plans have unlimited bandwidth
-     * @return number of GB of bandwidth or zero if index is invalid or pricing plan is a business plan
+     * @return number of GB of bandwidth, zero if index is invalid, or -1,
+     * if pricing plan is a business plan
      */
-    virtual unsigned int getGBTransfer(int productIndex);
+    virtual int getGBTransfer(int productIndex);
 
     /**
      * @brief Get the duration of the product (in months)
@@ -16438,7 +16440,7 @@ public:
     virtual int getMonths(int productIndex);
 
     /**
-     * @brief getAmount Get the price of the product (in cents)
+     * @brief Get the price of the product (in cents)
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
      * @return Price of the product (in cents)
      */
@@ -16473,7 +16475,8 @@ public:
      * the MegaPricing object is deleted.
      *
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
-     * @return iOS ID of the product
+     * @return iOS ID of the product, NULL if index is invalid or an empty string
+     * if pricing plan is a business plan.
      */
     virtual const char* getIosID(int productIndex);
 
@@ -16484,7 +16487,8 @@ public:
      * the MegaPricing object is deleted.
      *
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
-     * @return Android ID of the product
+     * @return Android ID of the product, NULL if index is invalid or an empty string
+     * if pricing plan is a business plan.
      */
     virtual const char* getAndroidID(int productIndex);
 
@@ -16496,7 +16500,7 @@ public:
     virtual bool isBusinessType(int productIndex);
 
     /**
-     * @brief getAmountMonth Get the monthly price of the product (in cents)
+     * @brief Get the monthly price of the product (in cents)
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
      * @return Monthly price of the product (in cents)
      */

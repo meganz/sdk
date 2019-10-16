@@ -5262,12 +5262,12 @@ int MegaPricing::getProLevel(int)
     return 0;
 }
 
-unsigned int MegaPricing::getGBStorage(int)
+int MegaPricing::getGBStorage(int)
 {
     return 0;
 }
 
-unsigned int MegaPricing::getGBTransfer(int)
+int MegaPricing::getGBTransfer(int)
 {
     return 0;
 }
