@@ -839,6 +839,14 @@ struct StandardClient : public MegaApp
         return false;
     }
 
+    bool delSync_inthread(const int syncId, const bool keepCache)
+    {
+        const auto handle = syncSet.at(syncId).h;
+        const auto node = client.nodebyhandle(handle);
+        EXPECT_TRUE(node);
+        client.delsync(node->localnode->sync, keepCache);
+        return true;
+    }
 
     bool recursiveConfirm(Model::ModelNode* mn, Node* n, int& descendants, const string& identifier, int depth)
     {
@@ -1433,6 +1441,12 @@ struct StandardClient : public MegaApp
         fs::path syncdir = fsBasePath / fs::u8path(localsyncrootfolder);
         fs::create_directory(syncdir);
         future<bool> fb = thread_do([=](StandardClient& mc, promise<bool>& pb) { pb.set_value(mc.setupSync_inthread(desc, syncid, remotesyncrootfolder, syncdir)); });
+        return fb.get();
+    }
+
+    bool delSync_mainthread(int syncId, bool keepCache = false)
+    {
+        future<bool> fb = thread_do([=](StandardClient& mc, promise<bool>& pb) { pb.set_value(mc.delSync_inthread(syncId, keepCache)); });
         return fb.get();
     }
 
@@ -2464,8 +2478,8 @@ setupOneWayTestClients(const SyncDescriptor desc)
     EXPECT_TRUE(cliOneWay->login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
     EXPECT_EQ(cliTwoWay->basefolderhandle, cliOneWay->basefolderhandle);
 
-    EXPECT_TRUE(cliTwoWay->setupSync_mainthread("sync1", "f", 0));
-    EXPECT_TRUE(cliOneWay->setupSync_mainthread(desc, "sync2", "f", 0));
+    EXPECT_TRUE(cliTwoWay->setupSync_mainthread("sync", "f", 0));
+    EXPECT_TRUE(cliOneWay->setupSync_mainthread(desc, "sync", "f", 0));
     waitonsyncs(4s, cliTwoWay.get(), cliOneWay.get());
     cliTwoWay->logcb = cliOneWay->logcb = true;
     return std::make_pair(std::move(cliTwoWay), std::move(cliOneWay));
@@ -2577,6 +2591,94 @@ TEST(Sync, OneWay_Upload_syncDelFalse_overwriteFalse_4)
     ASSERT_TRUE(cliTwoWay->confirmModel_mainthread(model.root.get(), 0));
     ASSERT_TRUE(cliOneWay->confirmModel_mainthread(model.root.get(), 0, StandardClient::CONFIRM_REMOTE));
     ASSERT_FALSE(cliOneWay->confirmModel_mainthread(model.root.get(), 0, StandardClient::CONFIRM_LOCAL));
+}
+
+TEST(Sync, OneWay_Upload_syncDelFalse_overwriteFalse_5)
+{
+    /* Steps:
+     * - Add local file
+     * - Wait for upload
+     * - Remove remote file via cliTwoWay
+     * - Edit local file
+     * - Assert: Remote file still gone
+     */
+    const SyncDescriptor desc{SyncDescriptor::TYPE_UP, false, false};
+
+    auto [cliTwoWay, cliOneWay] = setupOneWayTestClients(desc);
+
+    ASSERT_TRUE(createFile(cliOneWay->syncSet[0].localpath, "foo"));
+
+    waitonsyncs(20s, cliTwoWay.get(), cliOneWay.get());
+    // foo is now uploaded
+
+    ASSERT_TRUE(cliTwoWay->drillchildnodebyname(cliTwoWay->gettestbasenode(), "f/foo"));
+    ASSERT_TRUE(cliOneWay->drillchildnodebyname(cliOneWay->gettestbasenode(), "f/foo"));
+
+    fs::remove(cliTwoWay->syncSet[0].localpath / "foo");
+
+    waitonsyncs(20s, cliTwoWay.get(), cliOneWay.get());
+    // foo is now removed from remote
+
+    ASSERT_TRUE(appendToFile(cliOneWay->syncSet[0].localpath, "foo", "blah"));
+
+    waitonsyncs(20s, cliTwoWay.get(), cliOneWay.get());
+    // foo is now edited locally
+
+    ASSERT_FALSE(cliTwoWay->drillchildnodebyname(cliTwoWay->gettestbasenode(), "f/foo"));
+    ASSERT_FALSE(cliOneWay->drillchildnodebyname(cliOneWay->gettestbasenode(), "f/foo"));
+}
+
+TEST(Sync, OneWay_Upload_syncDelFalse_overwriteFalse_6)
+{
+    /* Steps:
+     * - Add local file
+     * - Wait for upload
+     * - Pause sync of cliOneWay
+     * - Edit local file
+     * - Edit remote file via cliTwoWay
+     * - Resume sync of cliOneWay
+     * - Assert: New local is not uploaded (remote is newer)
+     */
+    const SyncDescriptor desc{SyncDescriptor::TYPE_UP, false, false};
+
+    auto [cliTwoWay, cliOneWay] = setupOneWayTestClients(desc);
+
+    ASSERT_TRUE(createFile(cliOneWay->syncSet[0].localpath, "foo"));
+
+    waitonsyncs(20s, cliTwoWay.get(), cliOneWay.get());
+    // foo is now uploaded
+
+    ASSERT_TRUE(cliOneWay->delSync_mainthread(0, true));
+
+    waitonsyncs(20s, cliTwoWay.get(), cliOneWay.get());
+    // cliOneWay is now paused
+
+    ASSERT_TRUE(appendToFile(cliOneWay->syncSet[0].localpath, "foo", "blah"));
+
+    waitonsyncs(20s, cliTwoWay.get(), cliOneWay.get());
+    // foo is now edited locally
+
+    ASSERT_TRUE(appendToFile(cliTwoWay->syncSet[0].localpath, "foo", "halb"));
+
+    waitonsyncs(20s, cliTwoWay.get(), cliOneWay.get());
+    // foo is now edited remotely
+
+    ASSERT_TRUE(cliOneWay->setupSync_mainthread(desc, "sync", "f", 0));
+
+    waitonsyncs(20s, cliTwoWay.get(), cliOneWay.get());
+    // cliOneWay is now resumed
+
+    std::string contentTwoWay;
+    ASSERT_TRUE(readFileContents(contentTwoWay, cliTwoWay->syncSet[0].localpath, "foo"));
+
+    const std::string expectedContentTwoWay = "foohalb";
+    ASSERT_EQ(expectedContentTwoWay, contentTwoWay);
+
+    std::string contentOneWay;
+    ASSERT_TRUE(readFileContents(contentOneWay, cliOneWay->syncSet[0].localpath, "foo"));
+
+    const std::string expectedContentOneWay = "fooblah";
+    ASSERT_EQ(expectedContentOneWay, contentOneWay);
 }
 
 namespace {
