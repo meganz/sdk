@@ -2351,53 +2351,52 @@ void CommandEnumerateQuotaItems::procresult()
         return client->app->enumeratequotaitems_result((error)client->json.getint());
     }
 
-    handle product = UNDEF;
-    int prolevel = -1, gbstorage = -1, gbtransfer = -1, months = -1, type = -1;
-    unsigned amount = 0, amountMonth = 0;
-    const char* a = nullptr;
-    const char* c = nullptr;
-    const char* d = nullptr;
-    const char* m = nullptr;
-    const char* ios = nullptr;
-    const char* android = nullptr;
-    string currency;
-    string description;
-    string ios_id;
-    string android_id;
-
     while (client->json.enterobject())
     {
+        handle product = UNDEF;
+        int prolevel = -1, gbstorage = -1, gbtransfer = -1, months = -1, type = -1;
+        unsigned amount = 0, amountMonth = 0;
+        const char* amountStr = nullptr;
+        const char* amountMonthStr = nullptr;
+        const char* curr = nullptr;
+        const char* desc = nullptr;
+        const char* ios = nullptr;
+        const char* android = nullptr;
+        string currency;
+        string description;
+        string ios_id;
+        string android_id;
         bool finished = false;
         while (!finished)
         {
             switch (client->json.getnameid())
             {
                 case MAKENAMEID2('i', 't'):
-                    type = int(client->json.getint());
+                    type = static_cast<int>(client->json.getint());
                     break;
                 case MAKENAMEID2('i', 'd'):
                     product = client->json.gethandle(8);
                     break;
                 case MAKENAMEID2('a', 'l'):
-                    prolevel = int(client->json.getint());
+                    prolevel = static_cast<int>(client->json.getint());
                     break;
                 case 's':
-                    gbstorage = int(client->json.getint());
+                    gbstorage = static_cast<int>(client->json.getint());
                     break;
                 case 't':
-                    gbtransfer = int(client->json.getint());
+                    gbtransfer = static_cast<int>(client->json.getint());
                     break;
                 case 'm':
-                    months = int(client->json.getint());
+                    months = static_cast<int>(client->json.getint());
                     break;
                 case 'p':
-                    a = client->json.getvalue();
+                    amountStr = client->json.getvalue();
                     break;
                 case 'c':
-                    c = client->json.getvalue();
+                    curr = client->json.getvalue();
                     break;
                 case 'd':
-                    d = client->json.getvalue();
+                    desc = client->json.getvalue();
                     break;
                 case MAKENAMEID3('i', 'o', 's'):
                     ios = client->json.getvalue();
@@ -2406,7 +2405,7 @@ void CommandEnumerateQuotaItems::procresult()
                     android = client->json.getvalue();
                     break;
                 case MAKENAMEID3('m', 'b', 'p'):
-                    m = client->json.getvalue();
+                    amountMonthStr = client->json.getvalue();
                     break;
                 case EOO:
                     if (type < 0
@@ -2415,22 +2414,16 @@ void CommandEnumerateQuotaItems::procresult()
                             || (!type && gbstorage < 0)
                             || (!type && gbtransfer < 0)
                             || (months < 0)
-                            || !a
-                            || !c
-                            || !d
-                            || !m
-                            || !ios
-                            || !android)
+                            || !amountStr
+                            || !curr
+                            || !desc
+                            || !amountMonthStr
+                            || (!type && !ios)
+                            || (!type && !android))
                     {
                         return client->app->enumeratequotaitems_result(API_EINTERNAL);
                     }
 
-                    // If pricing plan is business, storage and bandwith are unlimited
-                    if (type == 1)
-                    {
-                        gbstorage = 0;
-                        gbtransfer = 0;
-                    }
                     finished = true;
                     break;
                 default:
@@ -2438,41 +2431,39 @@ void CommandEnumerateQuotaItems::procresult()
             }
         }
 
-
         client->json.leaveobject();
-        Node::copystring(&currency, c);
-        Node::copystring(&description, d);
+        Node::copystring(&currency, curr);
+        Node::copystring(&description, desc);
         Node::copystring(&ios_id, ios);
         Node::copystring(&android_id, android);
 
-
-        amount = atoi(a) * 100;
-        if ((c = strchr(a, '.')))
+        amount = atoi(amountStr) * 100;
+        if ((curr = strchr(amountStr, '.')))
         {
-            c++;
-            if ((*c >= '0') && (*c <= '9'))
+            curr++;
+            if ((*curr >= '0') && (*curr <= '9'))
             {
-                amount += (*c - '0') * 10;
+                amount += (*curr - '0') * 10;
             }
-            c++;
-            if ((*c >= '0') && (*c <= '9'))
+            curr++;
+            if ((*curr >= '0') && (*curr <= '9'))
             {
-                amount += *c - '0';
+                amount += *curr - '0';
             }
         }
 
-        amountMonth = atoi(m) * 100;
-        if ((c = strchr(m, '.')))
+        amountMonth = atoi(amountMonthStr) * 100;
+        if ((curr = strchr(amountMonthStr, '.')))
         {
-            c++;
-            if ((*c >= '0') && (*c <= '9'))
+            curr++;
+            if ((*curr >= '0') && (*curr <= '9'))
             {
-                amountMonth += (*c - '0') * 10;
+                amountMonth += (*curr - '0') * 10;
             }
-            c++;
-            if ((*c >= '0') && (*c <= '9'))
+            curr++;
+            if ((*curr >= '0') && (*curr <= '9'))
             {
-                amountMonth += *c - '0';
+                amountMonth += *curr - '0';
             }
         }
 
