@@ -97,14 +97,23 @@ public:
         }
     }
 
-    inline ~DBTableTransactionCommitter()
+    inline void commitNow()
     {
         if (mTable)
         {
             if (mStarted)
             {
                 mTable->commit();
+                mStarted = false;
             }
+        }
+    }
+
+    inline ~DBTableTransactionCommitter()
+    {
+        if (mTable)
+        {
+            commitNow();
             mTable->mCurrentTransactionCommiter = nullptr;
         }
     }

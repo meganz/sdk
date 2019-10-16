@@ -32,10 +32,9 @@
 
 namespace mega {
 
-TransferSlotFileAccess::TransferSlotFileAccess(FileAccess* p, Transfer* t) 
-    : transfer(t)
+TransferSlotFileAccess::TransferSlotFileAccess(std::unique_ptr<FileAccess>&& p, Transfer* t) 
+    : fa(move(p)), transfer(t)
 {
-    reset(p);
 }
 
 TransferSlotFileAccess::~TransferSlotFileAccess()
@@ -43,9 +42,9 @@ TransferSlotFileAccess::~TransferSlotFileAccess()
     reset();
 }
 
-void TransferSlotFileAccess::reset(FileAccess* p)
+void TransferSlotFileAccess::reset(std::unique_ptr<FileAccess>&& p)
 {
-    fa.reset(p);
+    fa = move(p);
 
     // transfer has no slot or slot has no fa: timer is enabled
     transfer->bt.enable(p == nullptr);

@@ -5115,6 +5115,7 @@ MegaApiImpl::~MegaApiImpl()
         delete it->second;
     }
 
+    delete client;    //  only delete client now that transfers that might refer to it are finally removed.
     delete gfxAccess;
     delete fsAccess;
     delete waiter;
@@ -6176,18 +6177,19 @@ void MegaApiImpl::loop()
             }
             sendPendingRequests();
             sendPendingScRequest();
-            if(threadExit)
-                break;
+            if (threadExit)
+            {
+                // The ~MegaApiImpl() destructor is responsible for deleting the client after join()ing the thread
+                // But first call locallogout() which may call back to the app (on this thread as usual) to close some requestMap items etc
+                client->locallogout();
+                return;
+            }
 
             sdkMutex.lock();
             client->exec();
             sdkMutex.unlock();
         }
     }
-
-    sdkMutex.lock();
-    delete client;
-    sdkMutex.unlock();
 }
 
 
@@ -18119,16 +18121,37 @@ void MegaApiImpl::sendPendingRequests()
 {
     int nextTag = 0;
 
-    while(true)
-    {
-        sdkMutex.lock();
+    SdkMutexGuard g(sdkMutex);
+    
+    // For multiple consecutive requests of the same type (eg. remove transfer) this committer will put all the database activity into a single commit
+    DBTableTransactionCommitter committer(client->tctable);
+    int lastRequestType = -1;
+    int lastRequestConsecutive = 0;
 
-        MegaRequestPrivate *request = requestQueue.pop();
+
+    while(MegaRequestPrivate *request = requestQueue.front())
+    {
+
+        // also we avoid yielding for consecutive transaction cancel operations (we used to yeild every time, but we need to keep the sdkMutex lock while the database transaction is ongoing)
+        if ((lastRequestType == -1 || lastRequestType == request->getType()) && lastRequestConsecutive < 1024)
+        {
+            ++lastRequestConsecutive;
+        }
+        else
+        {
+            committer.commitNow();
+            sdkMutex.unlock();
+            yield();
+            sdkMutex.lock();
+            lastRequestConsecutive = 0;
+        }
+
+        request = requestQueue.pop();
         if (!request)
         {
-            sdkMutex.unlock();
             break;
         }
+        lastRequestType = request->getType();
 
         if (!nextTag && request->getType() != MegaRequest::TYPE_LOGOUT)
         {
@@ -21463,9 +21486,6 @@ void MegaApiImpl::sendPendingRequests()
             LOG_err << "Error starting request: " << e;
             fireOnRequestFinish(request, MegaError(e));
         }
-
-        sdkMutex.unlock();
-        yield();
     }
 }
 

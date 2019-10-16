@@ -36,9 +36,9 @@ class TransferSlotFileAccess
     std::unique_ptr<FileAccess> fa;
     Transfer* transfer;
 public:
-    TransferSlotFileAccess(FileAccess* p, Transfer* t);
+    TransferSlotFileAccess(std::unique_ptr<FileAccess>&& p, Transfer* t);
     ~TransferSlotFileAccess();
-    void reset(FileAccess* p = nullptr);
+    void reset(std::unique_ptr<FileAccess>&& p = nullptr);
     inline operator bool() { return bool(fa); }
     inline FileAccess* operator->() { return fa.get(); }
     inline operator FileAccess* () { return fa.get(); }

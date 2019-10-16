@@ -589,7 +589,7 @@ unique_ptr<T> make_unique(constructorArgs&&... args)
     return (unique_ptr<T>(new T(std::forward<constructorArgs>(args)...)));
 }
 
-//#define MEGA_MEASURE_CODE   // uncomment this to track time spent in major subsystems, and log it every 2 minutes, with extra control from megacli
+#define MEGA_MEASURE_CODE   // uncomment this to track time spent in major subsystems, and log it every 2 minutes, with extra control from megacli
 
 namespace CodeCounter
 {
