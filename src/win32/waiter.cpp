@@ -102,7 +102,7 @@ int WinWaiter::wait()
     }
 
     addhandle(externalEvent, NEEDEXEC);
-    DWORD dwWaitResult = WaitForMultipleObjectsEx((DWORD)handles.size(), &handles.front(), FALSE, maxds * 100, TRUE);
+    DWORD dwWaitResult = WaitForMultipleObjectsEx((DWORD)index, &handles.front(), FALSE, maxds * 100, TRUE);
 
     if (pcsHTTP)
     {
@@ -125,8 +125,7 @@ int WinWaiter::wait()
         r |= flags[dwWaitResult - WAIT_OBJECT_0];
     }
 
-    handles.clear();
-    flags.clear();
+    index = 0;
 
     return r;
 }
@@ -135,8 +134,18 @@ int WinWaiter::wait()
 // return true if handle added
 bool WinWaiter::addhandle(HANDLE handle, int flag)
 {
-    handles.push_back(handle);
-    flags.push_back(flag);
+    assert(handles.size() == flags.size() && handles.size() >= index);
+    if (index < handles.size())
+    {
+        handles[index] = handle;
+        flags[index] = flag;
+    }
+    else
+    {
+        handles.push_back(handle);
+        flags.push_back(flag);
+    }
+    ++index;
 
     return true;
 }

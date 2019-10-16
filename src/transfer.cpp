@@ -499,8 +499,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
         bool success;
 
         // disconnect temp file from slot...
-        delete slot->fa;
-        slot->fa = NULL;
+        slot->fa.reset();
 
         // FIXME: multiple overwrite race conditions below (make copies
         // from open file instead of closing/reopening!)
@@ -517,7 +516,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 #endif
 
         // verify integrity of file
-        FileAccess* fa = client->fsaccess->newfileaccess();
+        auto fa = client->fsaccess->newfileaccess();
         FileFingerprint fingerprint;
         Node* n = nullptr;
         bool fixfingerprint = false;
@@ -546,7 +545,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 
         if (!fixedfingerprint && success && fa->fopen(&localfilename, true, false))
         {
-            fingerprint.genfingerprint(fa);
+            fingerprint.genfingerprint(fa.get());
             if (isvalid && !(fingerprint == *(FileFingerprint*)this))
             {
                 LOG_err << "Fingerprint mismatch";
@@ -555,7 +554,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                 if (syncxfer && (!badfp.isvalid || !(badfp == fingerprint)))
                 {
                     badfp = fingerprint;
-                    delete fa;
+                    fa.reset();
                     chunkmacs.clear();
                     client->fsaccess->unlinklocal(&localfilename);
                     return failed(API_EWRITE, committer);
@@ -588,7 +587,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
             }
         }
 #endif
-        delete fa;
+        fa.reset();
 
         char me64[12];
         Base64::btoa((const byte*)&client->me, MegaClient::USERHANDLE, me64);
@@ -734,8 +733,6 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                         transient_error = fa->retry;
                     }
 
-                    delete fa;
-
                     if (transient_error)
                     {
                         LOG_warn << "Transient error checking if the destination file exist";
@@ -877,8 +874,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
         else
         {
             // some files are still pending completion, close fa and set retry timer
-            delete slot->fa;
-            slot->fa = NULL;
+            slot->fa.reset();
 
             LOG_debug << "Files pending completion: " << files.size() << ". Waiting for a retry.";
             LOG_debug << "First pending file: " << files.front()->name;
@@ -901,15 +897,13 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                 client->reqtag = creqtag;
             }
 
-            delete slot->fa;
-            slot->fa = NULL;
+            slot->fa.reset();
         }
 
         // files must not change during a PUT transfer
         for (file_list::iterator it = files.begin(); it != files.end(); )
         {
             File *f = (*it);
-            FileAccess *fa = client->fsaccess->newfileaccess();
             string *localpath = &f->localname;
 
 #ifdef ENABLE_SYNC
@@ -927,6 +921,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
             }
 #endif
 
+            auto fa = client->fsaccess->newfileaccess();
             bool isOpen = fa->fopen(localpath);
             if (!isOpen)
             {
@@ -935,12 +930,11 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                     LOG_warn << "Retrying upload completion due to a transient error";
                     slot->retrying = true;
                     slot->retrybt.backoff(11);
-                    delete fa;
                     return;
                 }
             }
 
-            if (!isOpen || f->genfingerprint(fa))
+            if (!isOpen || f->genfingerprint(fa.get()))
             {
                 if (!isOpen)
                 {
@@ -967,7 +961,6 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
             {
                 it++;
             }
-            delete fa;
         }
 
         if (!files.size())

@@ -1803,7 +1803,7 @@ bool PosixDirNotify::fsstableids() const
         return true;
     }
 
-    LOG_info << "Filesystem type: 0x" << std::hex << statfsbuf.f_type;
+    LOG_info << "Filesystem type: " << statfsbuf.f_type;
 
 #ifdef __APPLE__
     return statfsbuf.f_type != 0x1c // FAT32
@@ -1814,9 +1814,9 @@ bool PosixDirNotify::fsstableids() const
 #endif
 }
 
-FileAccess* PosixFileSystemAccess::newfileaccess(bool followSymLinks)
+std::unique_ptr<FileAccess> PosixFileSystemAccess::newfileaccess(bool followSymLinks)
 {
-    return new PosixFileAccess(waiter, defaultfilepermissions, followSymLinks);
+    return std::unique_ptr<FileAccess>{new PosixFileAccess{waiter, defaultfilepermissions, followSymLinks}};
 }
 
 DirAccess* PosixFileSystemAccess::newdiraccess()

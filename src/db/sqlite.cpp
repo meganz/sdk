@@ -55,10 +55,10 @@ DbTable* SqliteDbAccess::open(PrnGen &rng, FileSystemAccess* fsaccess, string* n
     string currentdbpath = newoss.str();
 
     string locallegacydbpath;
-    FileAccess *fa = fsaccess->newfileaccess();
+    auto fa = fsaccess->newfileaccess();
     fsaccess->path2local(&legacydbpath, &locallegacydbpath);
     bool legacydbavailable = fa->fopen(&locallegacydbpath);
-    delete fa;
+    fa.reset();
 
     if (legacydbavailable)
     {

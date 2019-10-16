@@ -6948,6 +6948,8 @@ CommandContactLinkQuery::CommandContactLinkQuery(MegaClient *client, handle h)
 {
     cmd("clg");
     arg("cl", (byte*)&h, MegaClient::CONTACTLINKHANDLE);
+
+    arg("b", 1);    // return firstname/lastname in B64
     
     tag = client->reqtag;
 }

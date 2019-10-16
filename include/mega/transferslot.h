@@ -38,7 +38,7 @@ struct MEGA_API TransferSlot
     struct Transfer* transfer;
 
     // associated source/destination file
-    FileAccess* fa;
+    std::unique_ptr<FileAccess> fa;
 
     // command in flight to obtain temporary URL
     Command* pendingcmd;

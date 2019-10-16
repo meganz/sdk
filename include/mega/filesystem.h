@@ -242,7 +242,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
      * @param followSymLinks whether symlinks should be followed when opening a path (default: true)
      * @return
      */
-    virtual FileAccess* newfileaccess(bool followSymLinks = true) = 0;
+    virtual std::unique_ptr<FileAccess> newfileaccess(bool followSymLinks = true) = 0;
 
     // instantiate DirAccess object
     virtual DirAccess* newdiraccess() = 0;

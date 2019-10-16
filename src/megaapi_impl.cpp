@@ -8190,7 +8190,7 @@ int MegaApiImpl::syncPathState(string* path)
                 fsAccess->local2name(&name);
                 if (is_syncable(sync, name.c_str(), path))
                 {
-                    FileAccess *fa = fsAccess->newfileaccess();
+                    auto fa = fsAccess->newfileaccess();
                     if (fa->fopen(path, false, false) && (fa->type == FOLDERNODE || is_syncable(fa->size)))
                     {
                         state = MegaApi::STATE_PENDING;
@@ -8199,7 +8199,6 @@ int MegaApiImpl::syncPathState(string* path)
                     {
                         state = MegaApi::STATE_IGNORED;
                     }
-                    delete fa;
                 }
                 else
                 {
@@ -11192,14 +11191,13 @@ char *MegaApiImpl::getFingerprint(const char *filePath)
     string localpath;
     fsAccess->path2local(&path, &localpath);
 
-    FileAccess *fa = fsAccess->newfileaccess();
+    auto fa = fsAccess->newfileaccess();
     if(!fa->fopen(&localpath, true, false))
         return NULL;
 
     FileFingerprint fp;
-    fp.genfingerprint(fa);
+    fp.genfingerprint(fa.get());
     m_off_t size = fa->size;
-    delete fa;
     if(fp.size < 0)
         return NULL;
 
@@ -11390,13 +11388,12 @@ char *MegaApiImpl::getCRC(const char *filePath)
     string localpath;
     fsAccess->path2local(&path, &localpath);
 
-    FileAccess *fa = fsAccess->newfileaccess();
+    auto fa = fsAccess->newfileaccess();
     if(!fa->fopen(&localpath, true, false))
         return NULL;
 
     FileFingerprint fp;
-    fp.genfingerprint(fa);
-    delete fa;
+    fp.genfingerprint(fa.get());
     if(fp.size < 0)
         return NULL;
 
@@ -12738,12 +12735,18 @@ bool MegaApiImpl::sync_syncable(Sync *sync, const char *name, string *localpath,
 
 bool MegaApiImpl::sync_syncable(Sync *sync, const char *name, string *localpath)
 {
-    static FileAccess* f = fsAccess->newfileaccess();
-    if (!sync || !sync->appData
-            || ((syncLowerSizeLimit || syncUpperSizeLimit)
-                && f->fopen(localpath) && !is_syncable(f->size)))
     {
-        return false;
+        std::lock_guard<std::mutex> g(mSyncable_fa_mutex);
+        if (!mSyncable_fa)
+        {
+            mSyncable_fa = fsAccess->newfileaccess();
+        }
+        if (!sync || !sync->appData
+            || ((syncLowerSizeLimit || syncUpperSizeLimit)
+                && mSyncable_fa->fopen(localpath) && !is_syncable(mSyncable_fa->size)))
+        {
+            return false;
+        }
     }
 
     sdkMutex.unlock();
@@ -13281,28 +13284,18 @@ void MegaApiImpl::fa_complete(handle, fatype, const char* data, uint32_t len)
 
         tag = int(request->getNumber());
 
-        FileAccess *f = client->fsaccess->newfileaccess();
+        auto f = client->fsaccess->newfileaccess();
         string filePath(request->getFile());
         string localPath;
         fsAccess->path2local(&filePath, &localPath);
-
         fsAccess->unlinklocal(&localPath);
-        if(!f->fopen(&localPath, false, true))
-        {
-            delete f;
-            fireOnRequestFinish(request, MegaError(API_EWRITE));
-            continue;
-        }
 
-        if(!f->fwrite((const byte*)data, len, 0))
-        {
-            delete f;
-            fireOnRequestFinish(request, MegaError(API_EWRITE));
-            continue;
-        }
+        bool success = f->fopen(&localPath, false, true)
+                    && f->fwrite((const byte*)data, len, 0);
 
-        delete f;
-        fireOnRequestFinish(request, MegaError(API_OK));
+        f.reset();
+
+        fireOnRequestFinish(request, MegaError(success ? API_OK : API_EWRITE));
     }
 }
 
@@ -13669,7 +13662,7 @@ void MegaApiImpl::http_result(error e, int httpCode, byte *data, int size)
         const char *file = request->getFile();
         if (file && e == API_OK)
         {
-            FileAccess *f = client->fsaccess->newfileaccess();
+            auto f = client->fsaccess->newfileaccess();
             string filePath(file);
             string localPath;
             fsAccess->path2local(&filePath, &localPath);
@@ -13677,21 +13670,15 @@ void MegaApiImpl::http_result(error e, int httpCode, byte *data, int size)
             fsAccess->unlinklocal(&localPath);
             if (!f->fopen(&localPath, false, true))
             {
-                delete f;
-                fireOnRequestFinish(request, MegaError(API_EWRITE));
-                return;
+                e = API_EWRITE;
             }
-
-            if (size)
+            else if (size)
             {
                 if (!f->fwrite((const byte*)data, size, 0))
                 {
-                    delete f;
-                    fireOnRequestFinish(request, MegaError(API_EWRITE));
-                    return;
+                    e = API_EWRITE;
                 }
             }
-            delete f;
         }
     }
     fireOnRequestFinish(request, MegaError(e));
@@ -14480,27 +14467,23 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
             if (len)
             {
 
-                FileAccess *f = client->fsaccess->newfileaccess();
+                auto f = client->fsaccess->newfileaccess();
                 string filePath(request->getFile());
                 string localPath;
                 fsAccess->path2local(&filePath, &localPath);
 
                 fsAccess->unlinklocal(&localPath);
-                if(!f->fopen(&localPath, false, true))
+                
+                bool success = f->fopen(&localPath, false, true)
+                            && f->fwrite((const byte*)data, len, 0);
+
+                f.reset();
+
+                if (!success)
                 {
-                    delete f;
                     fireOnRequestFinish(request, MegaError(API_EWRITE));
                     return;
                 }
-
-                if(!f->fwrite((const byte*)data, len, 0))
-                {
-                    delete f;
-                    fireOnRequestFinish(request, MegaError(API_EWRITE));
-                    return;
-                }
-
-                delete f;
             }
             else    // no data for the avatar
             {
@@ -14957,8 +14940,8 @@ void MegaApiImpl::contactlinkquery_result(error e, handle h, string *email, stri
     {
         request->setParentHandle(h);
         request->setEmail(email->c_str());
-        request->setName(firstname->c_str());
-        request->setText(lastname->c_str());
+        request->setName(Base64::atob(*firstname).c_str());
+        request->setText(Base64::atob(*lastname).c_str());
         request->setFile(avatar->c_str());
     }
     fireOnRequestFinish(request, e);
@@ -16410,7 +16393,7 @@ int naturalsorting_compare (const char *i, const char *j)
 
 std::function<bool (Node*, Node*)> MegaApiImpl::getComparatorFunction(int order, MegaClient& mc)
 {
-    switch(MegaApi::OrderType(order))
+    switch (order)
     {
         case MegaApi::ORDER_NONE: return nullptr;
         case MegaApi::ORDER_DEFAULT_ASC: return MegaApiImpl::nodeComparatorDefaultASC;
@@ -16421,8 +16404,8 @@ std::function<bool (Node*, Node*)> MegaApiImpl::getComparatorFunction(int order,
         case MegaApi::ORDER_CREATION_DESC: return MegaApiImpl::nodeComparatorCreationDESC;
         case MegaApi::ORDER_MODIFICATION_ASC: return MegaApiImpl::nodeComparatorModificationASC;
         case MegaApi::ORDER_MODIFICATION_DESC: return MegaApiImpl::nodeComparatorModificationDESC;
-        case MegaApi::ORDER_ALPHABETICAL_ASC: return MegaApiImpl::nodeComparatorAlphabeticalASC;
-        case MegaApi::ORDER_ALPHABETICAL_DESC: return MegaApiImpl::nodeComparatorAlphabeticalDESC;
+        case MegaApi::ORDER_ALPHABETICAL_ASC: return MegaApiImpl::nodeComparatorDefaultASC;
+        case MegaApi::ORDER_ALPHABETICAL_DESC: return MegaApiImpl::nodeComparatorDefaultDESC;
         case MegaApi::ORDER_PHOTO_ASC: return [&mc](Node* i, Node*j) { return MegaApiImpl::nodeComparatorPhotoASC(i, j, mc); };
         case MegaApi::ORDER_PHOTO_DESC: return [&mc](Node* i, Node*j) { return MegaApiImpl::nodeComparatorPhotoDESC(i, j, mc); };
         case MegaApi::ORDER_VIDEO_ASC: return [&mc](Node* i, Node*j) { return MegaApiImpl::nodeComparatorVideoASC(i, j, mc); };
@@ -16440,83 +16423,106 @@ void MegaApiImpl::sortByComparatorFunction(node_vector& v, int order, MegaClient
     }
 }
 
-bool MegaApiImpl::nodeComparatorDefaultASC(Node *i, Node *j)
+bool MegaApiImpl::nodeNaturalComparatorASC(Node *i, Node *j)
 {
-    if (i->type < j->type)
-    {
-        return 0;
-    }
-    if (i->type > j->type)
-    {
-        return 1;
-    }
-
     int r = naturalsorting_compare(i->displayname(), j->displayname());
     if (r < 0 || (!r && i < j))
     {
         return 1;
     }
     return 0;
+}
+
+bool MegaApiImpl::nodeNaturalComparatorDESC(Node *i, Node *j)
+{
+    int r = naturalsorting_compare(i->displayname(), j->displayname());
+    if (r < 0 || (!r && i < j))
+    {
+        return 0;
+    }
+    return 1;
+}
+
+bool MegaApiImpl::nodeComparatorDefaultASC(Node *i, Node *j)
+{
+    int t = typeComparator(i, j);
+    if (t >= 0)
+    {
+        return t;
+    }
+
+    return nodeNaturalComparatorASC(i, j);
 }
 
 bool MegaApiImpl::nodeComparatorDefaultDESC(Node *i, Node *j)
 {
-    if (i->type < j->type)
+    int t = typeComparator(i, j);
+    if (t >= 0)
     {
-        return 0;
-    }
-    if (i->type > j->type)
-    {
-        return 1;
+        return t;
     }
 
-    int r = naturalsorting_compare(i->displayname(), j->displayname());
-    if (r < 0 || (!r && i < j))
-    {
-        return 0;
-    }
-    return 1;
+    return nodeNaturalComparatorDESC(i, j);
 }
 
 bool MegaApiImpl::nodeComparatorSizeASC(Node *i, Node *j)
 {
-    if (i->type > FILENODE || j->type > FILENODE || i->size == j->size)
+    int t = typeComparator(i, j);
+    if (t >= 0)
     {
-        return nodeComparatorDefaultASC(i, j);
+        return t;
+    }
+
+    if (i->type != FILENODE) // Only file nodes have size
+    {
+        // If node doesn't have size, order alphabetically ascending
+        return nodeNaturalComparatorASC(i, j);
     }
 
     m_off_t r = i->size - j->size;
-    if (r < 0 || (!r && i < j))
+    if (r < 0)
     {
         return 1;
     }
-    return 0;
+    if (r > 0)
+    {
+        return 0;
+    }
+    return nodeNaturalComparatorASC(i, j);
 }
 
 bool MegaApiImpl::nodeComparatorSizeDESC(Node *i, Node *j)
 {
-    if (i->type > FILENODE || j->type > FILENODE || i->size == j->size)
+    int t = typeComparator(i, j);
+    if (t >= 0)
     {
-        return nodeComparatorDefaultASC(i, j);
+        return t;
+    }
+
+    if (i->type != FILENODE) // Only file nodes have size
+    {
+        // If node doesn't have size, order alphabetically ascending
+        return nodeNaturalComparatorASC(i, j);
     }
 
     m_off_t r = i->size - j->size;
-    if (r < 0 || (!r && i < j))
+    if (r < 0)
     {
         return 0;
     }
-    return 1;
+    if (r > 0)
+    {
+        return 1;
+    }
+    return nodeNaturalComparatorDESC(i, j);
 }
 
 bool MegaApiImpl::nodeComparatorCreationASC(Node *i, Node *j)
 {
-    if (i->type < j->type)
+    int t = typeComparator(i, j);
+    if (t >= 0)
     {
-        return 0;
-    }
-    if (i->type > j->type)
-    {
-        return 1;
+        return t;
     }
     if (i->ctime < j->ctime)
     {
@@ -16526,18 +16532,15 @@ bool MegaApiImpl::nodeComparatorCreationASC(Node *i, Node *j)
     {
         return 0;
     }
-    return nodeComparatorDefaultASC(i, j);
+    return nodeNaturalComparatorASC(i, j);
 }
 
 bool MegaApiImpl::nodeComparatorCreationDESC(Node *i, Node *j)
 {
-    if (i->type < j->type)
+    int t = typeComparator(i, j);
+    if (t >= 0)
     {
-        return 0;
-    }
-    if (i->type > j->type)
-    {
-        return 1;
+        return t;
     }
     if (i->ctime < j->ctime)
     {
@@ -16547,40 +16550,64 @@ bool MegaApiImpl::nodeComparatorCreationDESC(Node *i, Node *j)
     {
         return 1;
     }
-    return nodeComparatorDefaultASC(i, j);
+    return nodeNaturalComparatorDESC(i, j);
 }
 
 bool MegaApiImpl::nodeComparatorModificationASC(Node *i, Node *j)
 {
-    if (i->type > FILENODE || j->type > FILENODE || i->mtime == j->mtime)
+    int t = typeComparator(i, j);
+    if (t >= 0)
     {
-        return nodeComparatorDefaultASC(i, j);
+        return t;
+    }
+
+    if (i->type != FILENODE) // Only file nodes have last modified date
+    {
+        // If node doesn't have mtime, order alphabetically ascending
+        return nodeNaturalComparatorASC(i, j);
     }
 
     m_time_t r = i->mtime - j->mtime;
-    if (r < 0 || (!r && i < j))
+    if (r < 0)
     {
         return 1;
     }
-    return 0;
+    if (r > 0)
+    {
+        return 0;
+    }
+    return nodeNaturalComparatorASC(i, j);
 }
 
 bool MegaApiImpl::nodeComparatorModificationDESC(Node *i, Node *j)
 {
-    if (i->type > FILENODE || j->type > FILENODE || i->mtime == j->mtime)
+    int t = typeComparator(i, j);
+    if (t >= 0)
     {
-        return nodeComparatorDefaultASC(i, j);
+        return t;
+    }
+
+    if (i->type != FILENODE)
+    {
+        // If node doesn't have mtime, order alphabetically ascending
+        return nodeNaturalComparatorASC(i, j);
     }
 
     m_time_t r = i->mtime - j->mtime;
-    if (r < 0 || (!r && i < j))
+    if (r < 0)
     {
         return 0;
     }
-    return 1;
+    if (r > 0)
+    {
+        return 1;
+    }
+
+    return nodeNaturalComparatorDESC(i, j);
 }
 
-bool MegaApiImpl::nodeComparatorAlphabeticalASC(Node *i, Node *j)
+// Compare node types. Returns -1 if i==j, 0 if i goes first, +1 if j goes first.
+int MegaApiImpl::typeComparator(Node *i, Node *j)
 {
     if (i->type < j->type)
     {
@@ -16590,32 +16617,7 @@ bool MegaApiImpl::nodeComparatorAlphabeticalASC(Node *i, Node *j)
     {
         return 1;
     }
-
-    int r = strcasecmp(i->displayname(), j->displayname());
-    if (r < 0 || (!r && i < j))
-    {
-        return 1;
-    }
-    return 0;
-}
-
-bool MegaApiImpl::nodeComparatorAlphabeticalDESC(Node *i, Node *j)
-{
-    if (i->type < j->type)
-    {
-        return 0;
-    }
-    if (i->type > j->type)
-    {
-        return 1;
-    }
-
-    int r = strcasecmp(i->displayname(), j->displayname());
-    if (r < 0 || (!r && i < j))
-    {
-        return 0;
-    }
-    return 1;
+    return -1;
 }
 
 bool MegaApiImpl::nodeComparatorPhotoASC(Node *i, Node *j, MegaClient& mc)
@@ -17515,11 +17517,10 @@ unsigned MegaApiImpl::sendPendingTransfers()
                 string wLocalPath;
                 client->fsaccess->path2local(&tmpString, &wLocalPath);
 
-                FileAccess *fa = fsAccess->newfileaccess();
+                auto fa = fsAccess->newfileaccess();
                 if (!fa->fopen(&wLocalPath, true, false))
                 {
                     e = API_EREAD;
-                    delete fa;
                     break;
                 }
 
@@ -17528,9 +17529,9 @@ unsigned MegaApiImpl::sendPendingTransfers()
                 FileFingerprint fp;
                 if (type == FILENODE)
                 {
-                    fp.genfingerprint(fa);
+                    fp.genfingerprint(fa.get());
                 }
-                delete fa;
+                fa.reset();
 
                 if (type == FILENODE)
                 {
@@ -17779,7 +17780,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                     FileFingerprint *prevFp = NULL;
                     m_off_t size = 0;
                     fsAccess->path2local(&path, &wLocalPath);
-                    FileAccess *fa = fsAccess->newfileaccess();
+                    auto fa = fsAccess->newfileaccess();
                     if (fa->fopen(&wLocalPath, true, false))
                     {
                         if (node)
@@ -17798,7 +17799,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                         if (prevFp && prevFp->isvalid)
                         {
                             FileFingerprint fp;
-                            fp.genfingerprint(fa);
+                            fp.genfingerprint(fa.get());
                             if (fp == *prevFp)
                             {
                                 duplicate = true;
@@ -17834,11 +17835,10 @@ unsigned MegaApiImpl::sendPendingTransfers()
                             transfer->setMeanSpeed(0);
                             transfer->setState(MegaTransfer::STATE_COMPLETED);
                             fireOnTransferFinish(transfer, MegaError(API_OK), committer);
-                            delete fa;
                             break;
                         }
                     }
-                    delete fa;
+                    fa.reset();
 
                     currentTransfer = transfer;
                     if (node)
@@ -19037,21 +19037,19 @@ void MegaApiImpl::sendPendingRequests()
                     string localpath;
                     fsAccess->path2local(&path, &localpath);
 
-                    FileAccess *f = fsAccess->newfileaccess();
+                    auto f = fsAccess->newfileaccess();
                     if (!f->fopen(&localpath, 1, 0))
                     {
-                        delete f;
                         e = API_EREAD;
                         break;
                     }
 
                     if (!f->fread(&attrvalue, unsigned(f->size), 0, 0))
                     {
-                        delete f;
                         e = API_EREAD;
                         break;
                     }
-                    delete f;
+                    f.reset();
 
                     client->putua(type, (byte *)attrvalue.data(), unsigned(attrvalue.size()));
                     break;
@@ -23238,7 +23236,7 @@ void MegaFolderUploadController::onFolderAvailable(MegaHandle handle)
 
             localPath.append(localname);
 
-            FileAccess *fa = client->fsaccess->newfileaccess();
+            auto fa = client->fsaccess->newfileaccess();
             if (fa->fopen(&localPath, true, false))
             {
                 string name = localname;
@@ -23268,7 +23266,6 @@ void MegaFolderUploadController::onFolderAvailable(MegaHandle handle)
             }
 
             localPath.resize(t);
-            delete fa;
         }
     }
 
@@ -24033,7 +24030,7 @@ void MegaBackupController::onFolderAvailable(MegaHandle handle)
 
                 //TODO: add exclude filters here
 
-                FileAccess *fa = client->fsaccess->newfileaccess();
+                auto fa = client->fsaccess->newfileaccess();
                 if(fa->fopen(&localPath, true, false))
                 {
                     string name = localname;
@@ -24065,7 +24062,6 @@ void MegaBackupController::onFolderAvailable(MegaHandle handle)
                 }
 
                 localPath.resize(t);
-                delete fa;
             }
         }
 
@@ -24552,12 +24548,12 @@ void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, string *pa
 
     string localpath;
     client->fsaccess->path2local(path, &localpath);
-    FileAccess *da = client->fsaccess->newfileaccess();
+    auto da = client->fsaccess->newfileaccess();
     if (!da->fopen(&localpath, true, false))
     {
         if (!client->fsaccess->mkdirlocal(&localpath))
         {
-            delete da;
+            da.reset();
             LOG_err << "Unable to create folder: " << *path;
 
             recursive--;
@@ -24573,7 +24569,7 @@ void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, string *pa
     }
     else
     {
-        delete da;
+        da.reset();
         LOG_err << "Local file detected where there should be a folder: " << *path;
 
         recursive--;
@@ -24582,7 +24578,7 @@ void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, string *pa
         checkCompletion();
         return;
     }
-    delete da;
+    da.reset();
 
     localpath.append(client->fsaccess->localseparator);
     MegaNodeList *children = NULL;
@@ -27754,10 +27750,8 @@ MegaHTTPContext::MegaHTTPContext()
 MegaHTTPContext::~MegaHTTPContext()
 {
     delete node;
-    if (tmpFileAccess)
+    if (tmpFileName.size())
     {
-        delete tmpFileAccess;
-
         string localPath;
         server->fsAccess->path2local(&tmpFileName, &localPath);
         server->fsAccess->unlinklocal(&localPath);
@@ -30271,7 +30265,6 @@ MegaFTPDataContext::MegaFTPDataContext()
 MegaFTPDataContext::~MegaFTPDataContext()
 {
     delete transfer;
-    delete tmpFileAccess;
     delete node;
 }
 
