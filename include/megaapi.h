@@ -11976,6 +11976,12 @@ class MegaApi
         bool isScanning();
 
         /**
+         * @brief Check if any synchronization is in state syncing
+         * @return true if it is syncing, otherwise false
+         */
+        bool isSyncing();
+
+        /**
          * @brief Check if the MegaNode is synchronized with a local file
          * @param MegaNode to check
          * @return true if the node is synchronized, othewise false
