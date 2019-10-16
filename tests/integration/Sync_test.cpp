@@ -1,7 +1,4 @@
 /**
- * @file tests/synctests.cpp
- * @brief Mega SDK test file
- *
  * (c) 2018 by Mega Limited, Wellsford, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
@@ -1097,7 +1094,7 @@ struct StandardClient : public MegaApp
         }
         else
         {
-            cout << identifier << " after matching " << matched << " child nodes [";
+            cout << clientname << " " << identifier << " after matching " << matched << " child nodes [";
             for (auto& ml : matchedlist) cout << ml << " ";
             cout << "](with " << descendants << " descendants) in " << mn->path() << ", ended up with unmatched model nodes:";
             for (auto& m : ms) cout << " " << m.first;
@@ -1118,20 +1115,27 @@ struct StandardClient : public MegaApp
         return nullptr;
     }
 
-    bool confirmModel(int syncid, Model::ModelNode* mnode)
+    enum Confirm
+    {
+        CONFIRM_LOCAL = 0x01,
+        CONFIRM_REMOTE = 0x02,
+        CONFIRM_ALL = CONFIRM_LOCAL | CONFIRM_REMOTE,
+    };
+
+    bool confirmModel(int syncid, Model::ModelNode* mnode, const Confirm confirm)
     {
         auto si = syncSet.find(syncid);
         if (si == syncSet.end())
         {
-            cout << "syncid " << syncid << " not found " << endl;
+            cout << clientname << " syncid " << syncid << " not found " << endl;
             return false;
         }
 
         // compare model aganst nodes representing remote state
         int descendants = 0;
-        if (!recursiveConfirm(mnode, client.nodebyhandle(si->second.h), descendants, "Sync " + to_string(syncid), 0))
+        if (confirm & CONFIRM_REMOTE && !recursiveConfirm(mnode, client.nodebyhandle(si->second.h), descendants, "Sync " + to_string(syncid), 0))
         {
-            cout << "syncid " << syncid << " comparison against remote nodes failed" << endl;
+            cout << clientname <<  " syncid " << syncid << " comparison against remote nodes failed" << endl;
             return false;
         }
 
@@ -1139,18 +1143,18 @@ struct StandardClient : public MegaApp
         descendants = 0; 
         if (Sync* sync = syncByTag(syncid))
         {
-            if (!recursiveConfirm(mnode, &sync->localroot, descendants, "Sync " + to_string(syncid), 0))
+            if (confirm & CONFIRM_LOCAL && !recursiveConfirm(mnode, &sync->localroot, descendants, "Sync " + to_string(syncid), 0))
             {
-                cout << "syncid " << syncid << " comparison against LocalNodes failed" << endl;
+                cout << clientname << " syncid " << syncid << " comparison against LocalNodes failed" << endl;
                 return false;
             }
         }
 
         // compare model against local filesystem
         descendants = 0;
-        if (!recursiveConfirm(mnode, si->second.localpath, descendants, "Sync " + to_string(syncid), 0))
+        if (confirm & CONFIRM_LOCAL && !recursiveConfirm(mnode, si->second.localpath, descendants, "Sync " + to_string(syncid), 0))
         {
-            cout << "syncid " << syncid << " comparison against local filesystem failed" << endl;
+            cout << clientname << " syncid " << syncid << " comparison against local filesystem failed" << endl;
             return false;
         }
 
@@ -1351,7 +1355,7 @@ struct StandardClient : public MegaApp
         return true;
     }
 
-    bool login_reset_makeremotenodes(const string& user, const string& pw, const string& prefix, int depth, int fanout)
+    bool login_reset_makeremotenodes(const string& user, const string& pw, const string& prefix, int depth = 0, int fanout = 0)
     {
         if (!login_reset(user, pw))
         {
@@ -1432,11 +1436,16 @@ struct StandardClient : public MegaApp
         return fb.get();
     }
 
-    bool confirmModel_mainthread(Model::ModelNode* mnode, int syncid)
+    bool confirmModel_mainthread(Model::ModelNode* mnode, int syncid, const Confirm confirm = CONFIRM_ALL)
     {
         future<bool> fb;
-        fb = thread_do([syncid, mnode](StandardClient& sc, promise<bool>& pb) { pb.set_value(sc.confirmModel(syncid, mnode)); });
+        fb = thread_do([syncid, mnode, confirm](StandardClient& sc, promise<bool>& pb) { pb.set_value(sc.confirmModel(syncid, mnode, confirm)); });
         return fb.get();
+    }
+
+    void removeLocalDebris(int syncid)
+    {
+        fs::remove_all(syncSet[syncid].localpath / DEBRISFOLDER);
     }
 };
 
@@ -1543,6 +1552,10 @@ bool createFile(const fs::path &p, const string &filename)
 #else
     ofstream fs(fp.u8string()/*, ios::binary*/);
 #endif
+    if (!fs.is_open())
+    {
+        return false;
+    }
     fs << filename;
     if (fs.bad())
     {
@@ -1550,6 +1563,47 @@ bool createFile(const fs::path &p, const string &filename)
     }
     return true;
 }
+
+bool appendToFile(const fs::path &p, const string &filename, const string& data)
+{
+    fs::path fp = p / fs::u8path(filename);
+#if (__cplusplus >= 201700L)
+    ofstream fs(fp, std::ios_base::app);
+#else
+    ofstream fs(fp.u8string(), std::ios_base::app);
+#endif
+    if (!fs.is_open())
+    {
+        return false;
+    }
+    fs << data;
+    if (fs.bad())
+    {
+        return false;
+    }
+    return true;
+}
+
+bool readFileContents(std::string& content, const fs::path& p, const string& filename)
+{
+    fs::path fp = p / fs::u8path(filename);
+#if (__cplusplus >= 201700L)
+    ifstream fs(fp);
+#else
+    ifstream fs(fp.u8string());
+#endif
+    if (!fs.is_open())
+    {
+        return false;
+    }
+    content = std::string{std::istreambuf_iterator<char>{fs}, std::istreambuf_iterator<char>{}};
+    if (fs.bad())
+    {
+        return false;
+    }
+    return true;;
+}
+
 
 bool buildLocalFolders(fs::path targetfolder, const string& prefix, int n, int recurselevel, int filesperfolder)
 {
@@ -2397,7 +2451,29 @@ GTEST_TEST(Sync, DISABLED_BasicSync_moveAndDeleteLocalFile)
     ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
 }
 
-TEST(Sync, OneWay_Upload_syncDelFalse_OverwriteFalse_1)
+namespace {
+
+std::pair<std::unique_ptr<StandardClient>, std::unique_ptr<StandardClient>>
+setupOneWayTestClients(const SyncDescriptor desc)
+{
+    fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
+    auto cliTwoWay = std::make_unique<StandardClient>(localtestroot, "cliTwoWay");   // user 1 client 1 (two-way)
+    auto cliOneWay = std::make_unique<StandardClient>(localtestroot, "cliOneWay");   // user 1 client 2 (one-way)
+
+    EXPECT_TRUE(cliTwoWay->login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "f"));
+    EXPECT_TRUE(cliOneWay->login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
+    EXPECT_EQ(cliTwoWay->basefolderhandle, cliOneWay->basefolderhandle);
+
+    EXPECT_TRUE(cliTwoWay->setupSync_mainthread("sync1", "f", 0));
+    EXPECT_TRUE(cliOneWay->setupSync_mainthread(desc, "sync2", "f", 0));
+    waitonsyncs(4s, cliTwoWay.get(), cliOneWay.get());
+    cliTwoWay->logcb = cliOneWay->logcb = true;
+    return std::make_pair(std::move(cliTwoWay), std::move(cliOneWay));
+}
+
+} // anonymous
+
+TEST(Sync, OneWay_Upload_syncDelFalse_overwriteFalse_1)
 {
     /* Steps:
      * - Add remote file
@@ -2405,26 +2481,23 @@ TEST(Sync, OneWay_Upload_syncDelFalse_OverwriteFalse_1)
      */
     const SyncDescriptor desc{SyncDescriptor::TYPE_UP, false, false};
 
-    fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
-    StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1 (two-way)
-    StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2 (one-way)
+    auto [cliTwoWay, cliOneWay] = setupOneWayTestClients(desc);
 
-    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "f", 1, 1));
-    ASSERT_TRUE(clientA2.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
-    ASSERT_EQ(clientA1.basefolderhandle, clientA2.basefolderhandle);
+    ASSERT_TRUE(createFile(cliTwoWay->syncSet[0].localpath, "foo"));
 
-    ASSERT_TRUE(clientA1.setupSync_mainthread("sync1", "f", 1));
-    ASSERT_TRUE(clientA2.setupSync_mainthread(desc, "sync2", "f", 2));
-    waitonsyncs(4s, &clientA1, &clientA2);
-    clientA1.logcb = clientA2.logcb = true;
+    waitonsyncs(20s, cliTwoWay.get(), cliOneWay.get());
+
+    cliTwoWay->removeLocalDebris(0);
+    cliOneWay->removeLocalDebris(0);
 
     Model model;
-    model.root->addkid(model.buildModelSubdirs("f", 1, 1, 0));
-    ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
-    ASSERT_FALSE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
+    model.root->addkid(model.makeModelSubfile("foo"));
+    ASSERT_TRUE(cliTwoWay->confirmModel_mainthread(model.root.get(), 0));
+    ASSERT_TRUE(cliOneWay->confirmModel_mainthread(model.root.get(), 0, StandardClient::CONFIRM_REMOTE));
+    ASSERT_FALSE(cliOneWay->confirmModel_mainthread(model.root.get(), 0, StandardClient::CONFIRM_LOCAL));
 }
 
-TEST(Sync, OneWay_Upload_syncDelFalse_OverwriteFalse_2)
+TEST(Sync, OneWay_Upload_syncDelFalse_overwriteFalse_2)
 {
     /* Steps:
      * - Add local file
@@ -2432,28 +2505,78 @@ TEST(Sync, OneWay_Upload_syncDelFalse_OverwriteFalse_2)
      */
     const SyncDescriptor desc{SyncDescriptor::TYPE_UP, false, false};
 
-    fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
-    StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1 (two-way)
-    StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2 (one-way)
+    auto [cliTwoWay, cliOneWay] = setupOneWayTestClients(desc);
 
-    ASSERT_TRUE(clientA1.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
-    ASSERT_TRUE(clientA2.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
-    ASSERT_EQ(clientA1.basefolderhandle, clientA2.basefolderhandle);
+    ASSERT_TRUE(createFile(cliOneWay->syncSet[0].localpath, "foo"));
 
-    ASSERT_TRUE(clientA1.setupSync_mainthread("sync1", "f", 1));
-    ASSERT_TRUE(clientA2.setupSync_mainthread(desc, "sync2", "f", 2));
-    waitonsyncs(4s, &clientA1, &clientA2);
-    clientA1.logcb = clientA2.logcb = true;
+    waitonsyncs(20s, cliTwoWay.get(), cliOneWay.get());
 
-    fs::create_directory(clientA2.syncSet[2].localpath / "f_0" / "new_dir");
-
-    waitonsyncs(20s, &clientA1, &clientA2);
+    cliTwoWay->removeLocalDebris(0);
+    cliOneWay->removeLocalDebris(0);
 
     Model model;
-    model.root->addkid(model.buildModelSubdirs("f", 1, 1, 0));
-    model.makeModelSubfolder("f_0/new_dir");
-    ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
-    ASSERT_FALSE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
+    model.root->addkid(model.makeModelSubfile("foo"));
+    ASSERT_TRUE(cliTwoWay->confirmModel_mainthread(model.root.get(), 0));
+    ASSERT_TRUE(cliOneWay->confirmModel_mainthread(model.root.get(), 0));
+}
+
+TEST(Sync, OneWay_Upload_syncDelFalse_overwriteFalse_3)
+{
+    /* Steps:
+     * - Add local file
+     * - Wait for upload
+     * - Edit local file
+     * - Assert: Edited file uploaded
+     */
+    const SyncDescriptor desc{SyncDescriptor::TYPE_UP, false, false};
+
+    auto [cliTwoWay, cliOneWay] = setupOneWayTestClients(desc);
+
+    ASSERT_TRUE(createFile(cliOneWay->syncSet[0].localpath, "foo"));
+
+    waitonsyncs(20s, cliTwoWay.get(), cliOneWay.get());
+    // foo is now uploaded
+
+    ASSERT_TRUE(appendToFile(cliOneWay->syncSet[0].localpath, "foo", "blah"));
+
+    waitonsyncs(20s, cliTwoWay.get(), cliOneWay.get());
+
+    std::string content;
+    ASSERT_TRUE(readFileContents(content, cliTwoWay->syncSet[0].localpath, "foo"));
+
+    const std::string expectedContent = "fooblah";
+    ASSERT_EQ(expectedContent, content);
+}
+
+TEST(Sync, OneWay_Upload_syncDelFalse_overwriteFalse_4)
+{
+    /* Steps:
+     * - Add local file
+     * - Wait for upload
+     * - Remove local file
+     * - Assert: Remote file still there
+     */
+    const SyncDescriptor desc{SyncDescriptor::TYPE_UP, false, false};
+
+    auto [cliTwoWay, cliOneWay] = setupOneWayTestClients(desc);
+
+    ASSERT_TRUE(createFile(cliOneWay->syncSet[0].localpath, "foo"));
+
+    waitonsyncs(20s, cliTwoWay.get(), cliOneWay.get());
+    // foo is now uploaded
+
+    fs::remove(cliOneWay->syncSet[0].localpath / "foo");
+
+    waitonsyncs(20s, cliTwoWay.get(), cliOneWay.get());
+
+    cliTwoWay->removeLocalDebris(0);
+    cliOneWay->removeLocalDebris(0);
+
+    Model model;
+    model.root->addkid(model.makeModelSubfile("foo"));
+    ASSERT_TRUE(cliTwoWay->confirmModel_mainthread(model.root.get(), 0));
+    ASSERT_TRUE(cliOneWay->confirmModel_mainthread(model.root.get(), 0, StandardClient::CONFIRM_REMOTE));
+    ASSERT_FALSE(cliOneWay->confirmModel_mainthread(model.root.get(), 0, StandardClient::CONFIRM_LOCAL));
 }
 
 namespace {

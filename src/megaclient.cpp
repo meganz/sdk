@@ -13314,15 +13314,28 @@ void MegaClient::putnodes_sync_result(error e, NewNode* nn, int nni)
 // dupes)
 void MegaClient::movetosyncdebris(Node* dn, bool unlink)
 {
-    dn->syncdeleted = SYNCDEL_DELETED;
-
-    // detach node from LocalNode
     if (dn->localnode)
     {
-        dn->tag = dn->localnode->sync->tag;
+        const auto sync = dn->localnode->sync;
+
+        // detach node from LocalNode
+        dn->tag = sync->tag;
         dn->localnode->node = NULL;
         dn->localnode = NULL;
+
+        if (!sync->isUpSync())
+        {
+            LOG_debug << "synctype prevents moving to sync debris";
+            return;
+        }
+        if (!sync->syncDeletions())
+        {
+            LOG_debug << "not syncing deletions prevents moving to sync debris";
+            return;
+        }
     }
+
+    dn->syncdeleted = SYNCDEL_DELETED;
 
     Node* n = dn;
 
