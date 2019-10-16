@@ -7240,22 +7240,27 @@ void MegaApiImpl::abortPendingActions(error preverror)
         fireOnRequestFinish(request, preverror);
     }
 
-    while (!transferMap.empty())
     {
-        auto transfer = transferMap.begin()->second;
-        transfer->setState(MegaTransfer::STATE_FAILED);
-        // this call can be recursive and remove multiple, eg with MegaFolderUploadController
-        fireOnTransferFinish(transfer, preverror);
+        DBTableTransactionCommitter committer(client->tctable);
+        while (!transferMap.empty())
+        {
+            auto transfer = transferMap.begin()->second;
+            transfer->setState(MegaTransfer::STATE_FAILED);
+            // this call can be recursive and remove multiple, eg with MegaFolderUploadController
+            fireOnTransferFinish(transfer, preverror, committer);
+        }
+        assert(transferMap.empty());
     }
-    assert(transferMap.empty());
 
     requestMap.clear();
     transferMap.clear();
 
-    MegaTransferPrivate *transfer;
-    while ((transfer = transferQueue.pop()))
     {
-        delete transfer;
+        DBTableTransactionCommitter committer(client->tctable);
+        while (MegaTransferPrivate *transfer = transferQueue.pop())
+        {
+            delete transfer;   // committer needed here
+        }
     }
     MegaRequestPrivate *request;
     while ((request = requestQueue.pop()))
@@ -8185,7 +8190,7 @@ int MegaApiImpl::syncPathState(string* path)
                 fsAccess->local2name(&name);
                 if (is_syncable(sync, name.c_str(), path))
                 {
-                    FileAccess *fa = fsAccess->newfileaccess();
+                    auto fa = fsAccess->newfileaccess();
                     if (fa->fopen(path, false, false) && (fa->type == FOLDERNODE || is_syncable(fa->size)))
                     {
                         state = MegaApi::STATE_PENDING;
@@ -8194,7 +8199,6 @@ int MegaApiImpl::syncPathState(string* path)
                     {
                         state = MegaApi::STATE_IGNORED;
                     }
-                    delete fa;
                 }
                 else
                 {
@@ -11187,14 +11191,13 @@ char *MegaApiImpl::getFingerprint(const char *filePath)
     string localpath;
     fsAccess->path2local(&path, &localpath);
 
-    FileAccess *fa = fsAccess->newfileaccess();
+    auto fa = fsAccess->newfileaccess();
     if(!fa->fopen(&localpath, true, false))
         return NULL;
 
     FileFingerprint fp;
-    fp.genfingerprint(fa);
+    fp.genfingerprint(fa.get());
     m_off_t size = fa->size;
-    delete fa;
     if(fp.size < 0)
         return NULL;
 
@@ -11385,13 +11388,12 @@ char *MegaApiImpl::getCRC(const char *filePath)
     string localpath;
     fsAccess->path2local(&path, &localpath);
 
-    FileAccess *fa = fsAccess->newfileaccess();
+    auto fa = fsAccess->newfileaccess();
     if(!fa->fopen(&localpath, true, false))
         return NULL;
 
     FileFingerprint fp;
-    fp.genfingerprint(fa);
-    delete fa;
+    fp.genfingerprint(fa.get());
     if(fp.size < 0)
         return NULL;
 
@@ -11715,8 +11717,9 @@ File *MegaApiImpl::file_resume(string *d, direction_t *type)
                 if (node->parent == parent && !strcmp(node->displayname(), name))
                 {
                     // don't resume the upload if the node already exist in the target folder
+                    DBTableTransactionCommitter committer(client->tctable);
                     delete file;
-                    delete transfer;
+                    delete transfer;   // committer needed here
                     file = NULL;
                     break;
                 }
@@ -11768,7 +11771,8 @@ dstime MegaApiImpl::pread_failure(error e, int retry, void* param, dstime timeLe
         {
             transfer->setState(MegaTransfer::STATE_COMPLETED);
         }
-        fireOnTransferFinish(transfer, MegaError(e));
+        DBTableTransactionCommitter committer(client->tctable);
+        fireOnTransferFinish(transfer, MegaError(e), committer);
         return NEVER;
     }
 }
@@ -11791,7 +11795,8 @@ bool MegaApiImpl::pread_data(byte *buffer, m_off_t len, m_off_t, m_off_t speed, 
     if (!fireOnTransferData(transfer) || end)
     {
         transfer->setState(end ? MegaTransfer::STATE_COMPLETED : MegaTransfer::STATE_CANCELLED);
-        fireOnTransferFinish(transfer, end ? MegaError(API_OK) : MegaError(API_EINCOMPLETE));
+        DBTableTransactionCommitter committer(client->tctable);
+        fireOnTransferFinish(transfer, end ? MegaError(API_OK) : MegaError(API_EINCOMPLETE), committer);
         return end;
     }
     return true;
@@ -12730,12 +12735,18 @@ bool MegaApiImpl::sync_syncable(Sync *sync, const char *name, string *localpath,
 
 bool MegaApiImpl::sync_syncable(Sync *sync, const char *name, string *localpath)
 {
-    static FileAccess* f = fsAccess->newfileaccess();
-    if (!sync || !sync->appData
-            || ((syncLowerSizeLimit || syncUpperSizeLimit)
-                && f->fopen(localpath) && !is_syncable(f->size)))
     {
-        return false;
+        std::lock_guard<std::mutex> g(mSyncable_fa_mutex);
+        if (!mSyncable_fa)
+        {
+            mSyncable_fa = fsAccess->newfileaccess();
+        }
+        if (!sync || !sync->appData
+            || ((syncLowerSizeLimit || syncUpperSizeLimit)
+                && mSyncable_fa->fopen(localpath) && !is_syncable(mSyncable_fa->size)))
+        {
+            return false;
+        }
     }
 
     sdkMutex.unlock();
@@ -13087,7 +13098,8 @@ void MegaApiImpl::putnodes_result(error e, targettype_t t, NewNode* nn)
             transfer->setState(MegaTransfer::STATE_FAILED);
         }
 
-        fireOnTransferFinish(transfer, megaError);
+        DBTableTransactionCommitter committer(client->tctable);
+        fireOnTransferFinish(transfer, megaError, committer);
         delete [] nn;
         return;
     }
@@ -13272,28 +13284,18 @@ void MegaApiImpl::fa_complete(handle, fatype, const char* data, uint32_t len)
 
         tag = int(request->getNumber());
 
-        FileAccess *f = client->fsaccess->newfileaccess();
+        auto f = client->fsaccess->newfileaccess();
         string filePath(request->getFile());
         string localPath;
         fsAccess->path2local(&filePath, &localPath);
-
         fsAccess->unlinklocal(&localPath);
-        if(!f->fopen(&localPath, false, true))
-        {
-            delete f;
-            fireOnRequestFinish(request, MegaError(API_EWRITE));
-            continue;
-        }
 
-        if(!f->fwrite((const byte*)data, len, 0))
-        {
-            delete f;
-            fireOnRequestFinish(request, MegaError(API_EWRITE));
-            continue;
-        }
+        bool success = f->fopen(&localPath, false, true)
+                    && f->fwrite((const byte*)data, len, 0);
 
-        delete f;
-        fireOnRequestFinish(request, MegaError(API_OK));
+        f.reset();
+
+        fireOnRequestFinish(request, MegaError(success ? API_OK : API_EWRITE));
     }
 }
 
@@ -13660,7 +13662,7 @@ void MegaApiImpl::http_result(error e, int httpCode, byte *data, int size)
         const char *file = request->getFile();
         if (file && e == API_OK)
         {
-            FileAccess *f = client->fsaccess->newfileaccess();
+            auto f = client->fsaccess->newfileaccess();
             string filePath(file);
             string localPath;
             fsAccess->path2local(&filePath, &localPath);
@@ -13668,21 +13670,15 @@ void MegaApiImpl::http_result(error e, int httpCode, byte *data, int size)
             fsAccess->unlinklocal(&localPath);
             if (!f->fopen(&localPath, false, true))
             {
-                delete f;
-                fireOnRequestFinish(request, MegaError(API_EWRITE));
-                return;
+                e = API_EWRITE;
             }
-
-            if (size)
+            else if (size)
             {
                 if (!f->fwrite((const byte*)data, size, 0))
                 {
-                    delete f;
-                    fireOnRequestFinish(request, MegaError(API_EWRITE));
-                    return;
+                    e = API_EWRITE;
                 }
             }
-            delete f;
         }
     }
     fireOnRequestFinish(request, MegaError(e));
@@ -14471,27 +14467,23 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
             if (len)
             {
 
-                FileAccess *f = client->fsaccess->newfileaccess();
+                auto f = client->fsaccess->newfileaccess();
                 string filePath(request->getFile());
                 string localPath;
                 fsAccess->path2local(&filePath, &localPath);
 
                 fsAccess->unlinklocal(&localPath);
-                if(!f->fopen(&localPath, false, true))
+                
+                bool success = f->fopen(&localPath, false, true)
+                            && f->fwrite((const byte*)data, len, 0);
+
+                f.reset();
+
+                if (!success)
                 {
-                    delete f;
                     fireOnRequestFinish(request, MegaError(API_EWRITE));
                     return;
                 }
-
-                if(!f->fwrite((const byte*)data, len, 0))
-                {
-                    delete f;
-                    fireOnRequestFinish(request, MegaError(API_EWRITE));
-                    return;
-                }
-
-                delete f;
             }
             else    // no data for the avatar
             {
@@ -14948,8 +14940,8 @@ void MegaApiImpl::contactlinkquery_result(error e, handle h, string *email, stri
     {
         request->setParentHandle(h);
         request->setEmail(email->c_str());
-        request->setName(firstname->c_str());
-        request->setText(lastname->c_str());
+        request->setName(Base64::atob(*firstname).c_str());
+        request->setText(Base64::atob(*lastname).c_str());
         request->setFile(avatar->c_str());
     }
     fireOnRequestFinish(request, e);
@@ -15669,7 +15661,7 @@ void MegaApiImpl::fireOnTransferStart(MegaTransferPrivate *transfer)
     activeTransfer = NULL;
 }
 
-void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, MegaError e)
+void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, MegaError e, DBTableTransactionCommitter& committer)
 {
     MegaError *megaError = new MegaError(e);
     activeTransfer = transfer;
@@ -15708,7 +15700,7 @@ void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, MegaError 
 
     activeTransfer = NULL;
     activeError = NULL;
-    delete transfer;
+    delete transfer;  // committer needs to be present for this one, db updated
     delete megaError;
 }
 
@@ -16158,7 +16150,8 @@ void MegaApiImpl::processTransferComplete(Transfer *tr, MegaTransferPrivate *tra
         }
 
         transfer->setState(MegaTransfer::STATE_COMPLETED);
-        fireOnTransferFinish(transfer, MegaError(API_OK));
+        DBTableTransactionCommitter committer(client->tctable);
+        fireOnTransferFinish(transfer, MegaError(API_OK), committer);
     }
     else
     {
@@ -16220,7 +16213,8 @@ void MegaApiImpl::processTransferRemoved(Transfer *tr, MegaTransferPrivate *tran
     transfer->setUpdateTime(Waiter::ds);
     transfer->setState(e == API_EINCOMPLETE ? MegaTransfer::STATE_CANCELLED : MegaTransfer::STATE_FAILED);
     transfer->setPriority(tr->priority);
-    fireOnTransferFinish(transfer, e);
+    DBTableTransactionCommitter committer(client->tctable);
+    fireOnTransferFinish(transfer, e, committer);
 }
 
 MegaError MegaApiImpl::checkAccess(MegaNode* megaNode, int level)
@@ -17498,8 +17492,6 @@ unsigned MegaApiImpl::sendPendingTransfers()
 
     while(MegaTransferPrivate *transfer = transferQueue.pop())
     {
-        committer.beginOnce();
-
         error e = API_OK;
         int nextTag = client->nextreqtag();
         transfer->setState(MegaTransfer::STATE_QUEUED);
@@ -17525,11 +17517,10 @@ unsigned MegaApiImpl::sendPendingTransfers()
                 string wLocalPath;
                 client->fsaccess->path2local(&tmpString, &wLocalPath);
 
-                FileAccess *fa = fsAccess->newfileaccess();
+                auto fa = fsAccess->newfileaccess();
                 if (!fa->fopen(&wLocalPath, true, false))
                 {
                     e = API_EREAD;
-                    delete fa;
                     break;
                 }
 
@@ -17538,9 +17529,9 @@ unsigned MegaApiImpl::sendPendingTransfers()
                 FileFingerprint fp;
                 if (type == FILENODE)
                 {
-                    fp.genfingerprint(fa);
+                    fp.genfingerprint(fa.get());
                 }
-                delete fa;
+                fa.reset();
 
                 if (type == FILENODE)
                 {
@@ -17567,7 +17558,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                                 transfer->setSpeed(0);
                                 transfer->setMeanSpeed(0);
                                 transfer->setState(MegaTransfer::STATE_COMPLETED);
-                                fireOnTransferFinish(transfer, MegaError(API_OK));
+                                fireOnTransferFinish(transfer, MegaError(API_OK), committer);
                                 break;
                             }
                         }
@@ -17639,7 +17630,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                             transfer->setStartTime(Waiter::ds);
                             transfer->setUpdateTime(Waiter::ds);
                             transfer->setState(MegaTransfer::STATE_FAILED);
-                            fireOnTransferFinish(transfer, MegaError(API_EREAD));
+                            fireOnTransferFinish(transfer, MegaError(API_EREAD), committer);
                         }
                         else
                         {
@@ -17674,7 +17665,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                             transfer->setStartTime(Waiter::ds);
                             transfer->setUpdateTime(Waiter::ds);
                             transfer->setState(MegaTransfer::STATE_CANCELLED);
-                            fireOnTransferFinish(transfer, MegaError(API_EEXIST));
+                            fireOnTransferFinish(transfer, MegaError(API_EEXIST), committer);
                         }
                     }
                     currentTransfer = NULL;
@@ -17789,7 +17780,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                     FileFingerprint *prevFp = NULL;
                     m_off_t size = 0;
                     fsAccess->path2local(&path, &wLocalPath);
-                    FileAccess *fa = fsAccess->newfileaccess();
+                    auto fa = fsAccess->newfileaccess();
                     if (fa->fopen(&wLocalPath, true, false))
                     {
                         if (node)
@@ -17808,7 +17799,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                         if (prevFp && prevFp->isvalid)
                         {
                             FileFingerprint fp;
-                            fp.genfingerprint(fa);
+                            fp.genfingerprint(fa.get());
                             if (fp == *prevFp)
                             {
                                 duplicate = true;
@@ -17843,12 +17834,11 @@ unsigned MegaApiImpl::sendPendingTransfers()
                             transfer->setSpeed(0);
                             transfer->setMeanSpeed(0);
                             transfer->setState(MegaTransfer::STATE_COMPLETED);
-                            fireOnTransferFinish(transfer, MegaError(API_OK));
-                            delete fa;
+                            fireOnTransferFinish(transfer, MegaError(API_OK), committer);
                             break;
                         }
                     }
-                    delete fa;
+                    fa.reset();
 
                     currentTransfer = transfer;
                     if (node)
@@ -17881,7 +17871,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                         transfer->setStartTime(Waiter::ds);
                         transfer->setUpdateTime(Waiter::ds);
                         transfer->setState(MegaTransfer::STATE_CANCELLED);
-                        fireOnTransferFinish(transfer, MegaError(API_EEXIST));
+                        fireOnTransferFinish(transfer, MegaError(API_EEXIST), committer);
                     }
                 }
                 else
@@ -17955,25 +17945,12 @@ unsigned MegaApiImpl::sendPendingTransfers()
             transfer->setStartTime(Waiter::ds);
             transfer->setUpdateTime(Waiter::ds);
             transfer->setState(MegaTransfer::STATE_FAILED);
-            fireOnTransferFinish(transfer, MegaError(e));
+            fireOnTransferFinish(transfer, MegaError(e), committer);
         }
 
-        if (++count > 100 || std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count() > 50)
+        if (++count > 100 || std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count() > 100)
         {
             break;
-            //if (client->tctable && tableTransaction)
-            //{
-            //    client->tctable->commit();
-            //    tableTransaction = false;
-            //}
-
-            //// give the GUI a go from time to time, in case it needs to lock the mutex.  Also, return to main loop periodically so curl, API requests etc can progress
-            //guard.unlock();
-            //yield();
-            //t0 = std::chrono::steady_clock::now();
-            //count = 0;
-            //++batch;
-            //guard.lock();
         }
     }
     return count;
@@ -19060,21 +19037,19 @@ void MegaApiImpl::sendPendingRequests()
                     string localpath;
                     fsAccess->path2local(&path, &localpath);
 
-                    FileAccess *f = fsAccess->newfileaccess();
+                    auto f = fsAccess->newfileaccess();
                     if (!f->fopen(&localpath, 1, 0))
                     {
-                        delete f;
                         e = API_EREAD;
                         break;
                     }
 
                     if (!f->fread(&attrvalue, unsigned(f->size), 0, 0))
                     {
-                        delete f;
                         e = API_EREAD;
                         break;
                     }
-                    delete f;
+                    f.reset();
 
                     client->putua(type, (byte *)attrvalue.data(), unsigned(attrvalue.size()));
                     break;
@@ -20151,6 +20126,7 @@ void MegaApiImpl::sendPendingRequests()
 
                 megaTransfer->setLastError(MegaError(API_EINCOMPLETE));
 
+                DBTableTransactionCommitter committer(client->tctable); 
                 bool found = false;
                 file_list files = transfer->files;
                 file_list::iterator iterator = files.begin();
@@ -20163,7 +20139,7 @@ void MegaApiImpl::sendPendingRequests()
                         found = true;
                         if (!file->syncxfer)
                         {
-                            client->stopxfer(file);
+                            client->stopxfer(file, &committer);
                             fireOnRequestFinish(request, MegaError(API_OK));
                         }
                         else
@@ -23196,7 +23172,8 @@ void MegaFolderUploadController::start(MegaNode*)
     if(!parent)
     {
         transfer->setState(MegaTransfer::STATE_FAILED);
-        megaApi->fireOnTransferFinish(transfer, MegaError(API_EARGS));
+        DBTableTransactionCommitter committer(client->tctable);
+        megaApi->fireOnTransferFinish(transfer, MegaError(API_EARGS), committer);
     }
     else
     {
@@ -23230,7 +23207,8 @@ void MegaFolderUploadController::cancel()
     {
         auto subTransfer = *subTransfers.begin();
         subTransfer->setState(MegaTransfer::STATE_COMPLETED);
-        megaApi->fireOnTransferFinish(subTransfer, MegaError(API_EINCOMPLETE));
+        DBTableTransactionCommitter committer(client->tctable);
+        megaApi->fireOnTransferFinish(subTransfer, MegaError(API_EINCOMPLETE), committer);
     }
 }
 
@@ -23301,7 +23279,8 @@ void MegaFolderUploadController::checkCompletion()
         LOG_debug << "Folder transfer finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
         transfer->setState(MegaTransfer::STATE_COMPLETED);
         transfer->setLastError(mLastError);
-        megaApi->fireOnTransferFinish(transfer, !mIncompleteTransfers ? MegaError(API_OK) : MegaError(API_EINCOMPLETE));
+        DBTableTransactionCommitter committer(client->tctable);
+        megaApi->fireOnTransferFinish(transfer, !mIncompleteTransfers ? MegaError(API_OK) : MegaError(API_EINCOMPLETE), committer);
     }
 }
 
@@ -24047,7 +24026,7 @@ void MegaBackupController::onFolderAvailable(MegaHandle handle)
 
                 //TODO: add exclude filters here
 
-                FileAccess *fa = client->fsaccess->newfileaccess();
+                auto fa = client->fsaccess->newfileaccess();
                 if(fa->fopen(&localPath, true, false))
                 {
                     string name = localname;
@@ -24079,7 +24058,6 @@ void MegaBackupController::onFolderAvailable(MegaHandle handle)
                 }
 
                 localPath.resize(t);
-                delete fa;
             }
         }
 
@@ -24496,7 +24474,8 @@ void MegaFolderDownloadController::start(MegaNode *node)
         if (!node)
         {
             LOG_debug << "Folder download failed. Node not found";
-            megaApi->fireOnTransferFinish(transfer, MegaError(API_ENOENT));
+            DBTableTransactionCommitter committer(client->tctable);
+            megaApi->fireOnTransferFinish(transfer, MegaError(API_ENOENT), committer);
             return;
         }
         deleteNode = true;
@@ -24553,7 +24532,8 @@ void MegaFolderDownloadController::cancel()
     {
         auto subTransfer = *subTransfers.begin();
         subTransfer->setState(MegaTransfer::STATE_COMPLETED);
-        megaApi->fireOnTransferFinish(subTransfer, MegaError(API_EINCOMPLETE));
+        DBTableTransactionCommitter committer(client->tctable);
+        megaApi->fireOnTransferFinish(subTransfer, MegaError(API_EINCOMPLETE), committer);
     }
 }
 
@@ -24564,12 +24544,12 @@ void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, string *pa
 
     string localpath;
     client->fsaccess->path2local(path, &localpath);
-    FileAccess *da = client->fsaccess->newfileaccess();
+    auto da = client->fsaccess->newfileaccess();
     if (!da->fopen(&localpath, true, false))
     {
         if (!client->fsaccess->mkdirlocal(&localpath))
         {
-            delete da;
+            da.reset();
             LOG_err << "Unable to create folder: " << *path;
 
             recursive--;
@@ -24585,7 +24565,7 @@ void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, string *pa
     }
     else
     {
-        delete da;
+        da.reset();
         LOG_err << "Local file detected where there should be a folder: " << *path;
 
         recursive--;
@@ -24594,7 +24574,7 @@ void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, string *pa
         checkCompletion();
         return;
     }
-    delete da;
+    da.reset();
 
     localpath.append(client->fsaccess->localseparator);
     MegaNodeList *children = NULL;
@@ -24659,7 +24639,8 @@ void MegaFolderDownloadController::checkCompletion()
         LOG_debug << "Folder download finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
         transfer->setState(MegaTransfer::STATE_COMPLETED);
         transfer->setLastError(mLastError);
-        megaApi->fireOnTransferFinish(transfer, !mIncompleteTransfers ? MegaError(API_OK) : MegaError(API_EINCOMPLETE));
+        DBTableTransactionCommitter committer(client->tctable);
+        megaApi->fireOnTransferFinish(transfer, !mIncompleteTransfers ? MegaError(API_OK) : MegaError(API_EINCOMPLETE), committer);
     }
 }
 
@@ -27765,10 +27746,8 @@ MegaHTTPContext::MegaHTTPContext()
 MegaHTTPContext::~MegaHTTPContext()
 {
     delete node;
-    if (tmpFileAccess)
+    if (tmpFileName.size())
     {
-        delete tmpFileAccess;
-
         string localPath;
         server->fsAccess->path2local(&tmpFileName, &localPath);
         server->fsAccess->unlinklocal(&localPath);
@@ -30282,7 +30261,6 @@ MegaFTPDataContext::MegaFTPDataContext()
 MegaFTPDataContext::~MegaFTPDataContext()
 {
     delete transfer;
-    delete tmpFileAccess;
     delete node;
 }
 

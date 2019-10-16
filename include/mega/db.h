@@ -26,10 +26,18 @@
 
 namespace mega {
 // generic host transactional database access interface
+class DBTableTransactionCommitter;
+
 class MEGA_API DbTable
 {
     static const int IDSPACING = 16;
     PrnGen &rng;
+
+protected:
+    bool mCheckAlwaysTransacted = false;
+    DBTableTransactionCommitter* mCurrentTransactionCommiter = nullptr;
+    friend class DBTableTransactionCommitter;
+    void checkTransaction();
 
 public:
     // for a full sequential get: rewind to first record
@@ -65,39 +73,56 @@ public:
     // permanantly remove all database info
     virtual void remove() = 0;
 
+    void checkCommitter(DBTableTransactionCommitter*);
+
     // autoincrement
     uint32_t nextid;
 
-    DbTable(PrnGen &rng);
+    DbTable(PrnGen &rng, bool alwaysTransacted);
     virtual ~DbTable() { }
 };
 
-class DBTableTransactionCommitter
+class MEGA_API DBTableTransactionCommitter
 {
-    DbTable* table;
-    bool started = false;
+    DbTable* mTable;
+    bool mStarted = false;
 
 public:
     inline void beginOnce()
     {
-        if (table && !started)
+        if (mTable && !mStarted)
         {
-            table->begin();
-            started = true;
+            mTable->begin();
+            mStarted = true;
         }
     }
 
-    ~DBTableTransactionCommitter()
+    inline ~DBTableTransactionCommitter()
     {
-        if (started)
+        if (mTable)
         {
-            table->commit();
+            if (mStarted)
+            {
+                mTable->commit();
+            }
+            mTable->mCurrentTransactionCommiter = nullptr;
         }
     }
 
-    explicit DBTableTransactionCommitter(DbTable* t)
-        : table(t) 
+    explicit inline DBTableTransactionCommitter(DbTable* t)
+        : mTable(t)
     {
+        if (mTable)
+        {
+            if (mTable->mCurrentTransactionCommiter)
+            {
+                mTable = nullptr;  // we are nested; this one does nothing.  This can occur during eg. putnodes response when the core sdk and the intermediate layer both do db work.
+            }
+            else
+            {
+                mTable->mCurrentTransactionCommiter = this;
+            }
+        }
     }
 };
 
@@ -107,7 +132,7 @@ struct MEGA_API DbAccess
     static const int DB_VERSION = LEGACY_DB_VERSION + 1;
 
     DbAccess();
-    virtual DbTable* open(PrnGen &rng, FileSystemAccess*, string*, bool = false) = 0;
+    virtual DbTable* open(PrnGen &rng, FileSystemAccess*, string*, bool recycleLegacyDB, bool checkAlwaysTransacted) = 0;
 
     virtual ~DbAccess() { }
 

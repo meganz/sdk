@@ -45,7 +45,7 @@ File::~File()
     // if transfer currently running, stop
     if (transfer)
     {
-        transfer->client->stopxfer(this);
+        transfer->client->stopxfer(this, nullptr);
     }
     delete [] chatauth;
 }
@@ -504,8 +504,7 @@ void SyncFileGet::prepare()
             // back to the sync's root
             if (i < 0)
             {
-                delete sync->tmpfa;
-                sync->tmpfa = NULL;
+                sync->tmpfa.reset();
             }
         }
 

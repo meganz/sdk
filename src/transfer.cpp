@@ -100,7 +100,7 @@ Transfer::~Transfer()
     {
         if (finished)
         {
-            client->filecachedel(*it);
+            client->filecachedel(*it, nullptr);
         }
 
         (*it)->transfer = NULL;
@@ -136,7 +136,7 @@ Transfer::~Transfer()
         {
             client->fsaccess->unlinklocal(&localfilename);
         }
-        client->transfercachedel(this);
+        client->transfercachedel(this, nullptr);
     }
 }
 
@@ -542,7 +542,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 #endif
 
         // verify integrity of file
-        FileAccess* fa = client->fsaccess->newfileaccess();
+        auto fa = client->fsaccess->newfileaccess();
         FileFingerprint fingerprint;
         Node* n = nullptr;
         bool fixfingerprint = false;
@@ -571,7 +571,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 
         if (!fixedfingerprint && success && fa->fopen(&localfilename, true, false))
         {
-            fingerprint.genfingerprint(fa);
+            fingerprint.genfingerprint(fa.get());
             if (isvalid && !(fingerprint == *(FileFingerprint*)this))
             {
                 LOG_err << "Fingerprint mismatch";
@@ -580,7 +580,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                 if (syncxfer && (!badfp.isvalid || !(badfp == fingerprint)))
                 {
                     badfp = fingerprint;
-                    delete fa;
+                    fa.reset();
                     chunkmacs.clear();
                     client->fsaccess->unlinklocal(&localfilename);
                     return failed(API_EWRITE, committer);
@@ -613,7 +613,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
             }
         }
 #endif
-        delete fa;
+        fa.reset();
 
         char me64[12];
         Base64::btoa((const byte*)&client->me, MegaClient::USERHANDLE, me64);
@@ -759,8 +759,6 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                         transient_error = fa->retry;
                     }
 
-                    delete fa;
-
                     if (transient_error)
                     {
                         LOG_warn << "Transient error checking if the destination file exist";
@@ -844,7 +842,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                     if (success)
                     {
                         // prevent deletion of associated Transfer object in completed()
-                        client->filecachedel(*it);
+                        client->filecachedel(*it, &committer);
                         client->app->file_complete(*it);
                         (*it)->transfer = NULL;
                         (*it)->completed(this, NULL);
@@ -857,7 +855,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                         if (!success)
                         {
                             LOG_warn << "Unable to complete transfer due to a persistent error";
-                            client->filecachedel(f);
+                            client->filecachedel(f, &committer);
 #ifdef ENABLE_SYNC
                             if (f->syncxfer)
                             {
@@ -932,7 +930,6 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
         for (file_list::iterator it = files.begin(); it != files.end(); )
         {
             File *f = (*it);
-            FileAccess *fa = client->fsaccess->newfileaccess();
             string *localpath = &f->localname;
 
 #ifdef ENABLE_SYNC
@@ -950,6 +947,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
             }
 #endif
 
+            auto fa = client->fsaccess->newfileaccess();
             bool isOpen = fa->fopen(localpath);
             if (!isOpen)
             {
@@ -958,12 +956,11 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                     LOG_warn << "Retrying upload completion due to a transient error";
                     slot->retrying = true;
                     slot->retrybt.backoff(11);
-                    delete fa;
                     return;
                 }
             }
 
-            if (!isOpen || f->genfingerprint(fa))
+            if (!isOpen || f->genfingerprint(fa.get()))
             {
                 if (!isOpen)
                 {
@@ -980,7 +977,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                     client->syncdownrequired = true;
                 }
 #endif
-                client->filecachedel(f);
+                client->filecachedel(f, &committer);
                 files.erase(it++);
                 client->app->file_removed(f, API_EREAD);
                 f->transfer = NULL;
@@ -990,7 +987,6 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
             {
                 it++;
             }
-            delete fa;
         }
 
         if (!files.size())

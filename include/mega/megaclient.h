@@ -415,7 +415,7 @@ public:
 
     // start/stop/pause file transfer
     bool startxfer(direction_t, File*, DBTableTransactionCommitter&, bool skipdupes = false, bool startfirst = false, bool donotpersist = false);
-    void stopxfer(File* f);
+    void stopxfer(File* f, DBTableTransactionCommitter* committer);
     void pausexfers(direction_t, bool, bool = false);
 
     // maximum number of connections per transfer
@@ -951,7 +951,7 @@ public:
     DbTable* tctable;
 
     // during processing of request responses, transfer table updates can be wrapped up in a single begin/commit
-    DBTableTransactionCommitter* tctableRequestCommitter = nullptr;
+    DBTableTransactionCommitter* mTctableRequestCommitter = nullptr;
 
     // scsn as read from sctable
     handle cachedscsn;
@@ -1124,13 +1124,13 @@ public:
     void transfercacheadd(Transfer*, DBTableTransactionCommitter*);
 
     // remove a transfer from the persistent cache
-    void transfercachedel(Transfer*);
+    void transfercachedel(Transfer*, DBTableTransactionCommitter* committer);
 
     // add a file to the persistent cache
-    void filecacheadd(File*);
+    void filecacheadd(File*, DBTableTransactionCommitter& committer);
 
     // remove a file from the persistent cache
-    void filecachedel(File*);
+    void filecachedel(File*, DBTableTransactionCommitter* committer);
 
 #ifdef ENABLE_CHAT
     textchat_map chatnotify;
@@ -1271,7 +1271,7 @@ public:
 #endif
 
     // recursively cancel transfers in a subtree
-    void stopxfers(LocalNode*);
+    void stopxfers(LocalNode*, DBTableTransactionCommitter& committer);
 
     // update paths of all PUT transfers
     void updateputs();
@@ -1533,7 +1533,10 @@ public:
     bool versions_disabled;
 
     // the SDK is trying to log out
-    int loggingout;
+    int loggingout = 0;
+
+    // the logout request succeeded, time to clean up localy once returned from CS response processing
+    bool loggedout = false;
 
     // true if the account is a master business account, false if it's a sub-user account
     BizMode mBizMode;

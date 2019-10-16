@@ -55,7 +55,7 @@ void Request::get(string* req, bool& suppressSID) const
 void Request::process(MegaClient* client)
 {
     DBTableTransactionCommitter committer(client->tctable);
-    client->tctableRequestCommitter = &committer;
+    client->mTctableRequestCommitter = &committer;
 
     client->json = json;
     for (; processindex < cmds.size() && !stopProcessing; processindex++)
@@ -96,7 +96,7 @@ void Request::process(MegaClient* client)
     {
         clear();
     }
-    client->tctableRequestCommitter = nullptr;
+    client->mTctableRequestCommitter = nullptr;
 }
 
 void Request::serverresponse(std::string&& movestring, MegaClient* client)
