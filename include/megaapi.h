@@ -15777,11 +15777,11 @@ class MegaApi
 
 
         /**
-         * @brief Get an object that can lock the MegaApi, allowing multple quick synchronous calls.
+         * @brief Get an object that can lock the MegaApi, allowing multiple quick synchronous calls.
          *
          * This object must be used very carefully.  It is meant to be used  when the application is about 
          * to make a burst of synchronous calls (that return data immediately, without using a listener)
-         * to the API over a very short time period, which could otherwise be blocked multple times
+         * to the API over a very short time period, which could otherwise be blocked multiple times
          * interrupted by the MegaApi's operation.
          *
          * The MegaApiLock usual use is to request it already locked, and the caller must destroy it
