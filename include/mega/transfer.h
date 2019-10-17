@@ -29,6 +29,9 @@
 #include "raid.h"
 
 namespace mega {
+
+class DBTableTransactionCommitter;
+
 // pending/active up/download ordered by file fingerprint (size - mtime - sparse CRC)
 struct MEGA_API Transfer : public FileFingerprint
 {
@@ -88,10 +91,10 @@ struct MEGA_API Transfer : public FileFingerprint
     int tag;
 
     // signal failure
-    void failed(error, dstime = 0);
+    void failed(error, DBTableTransactionCommitter&, dstime = 0);
 
     // signal completion
-    void complete();
+    void complete(DBTableTransactionCommitter&);
     
     // execute completion
     void completefiles();
@@ -155,21 +158,21 @@ public:
     static const uint64_t PRIORITY_STEP  = 0x0000000000010000ull;
 
     TransferList();
-    void addtransfer(Transfer* transfer, bool startFirst = false);
+    void addtransfer(Transfer* transfer, DBTableTransactionCommitter&, bool startFirst = false);
     void removetransfer(Transfer *transfer);
-    void movetransfer(Transfer *transfer, Transfer *prevTransfer);
-    void movetransfer(Transfer *transfer, unsigned int position);
-    void movetransfer(Transfer *transfer, transfer_list::iterator dstit);
-    void movetransfer(transfer_list::iterator it, transfer_list::iterator dstit);
-    void movetofirst(Transfer *transfer);
-    void movetofirst(transfer_list::iterator it);
-    void movetolast(Transfer *transfer);
-    void movetolast(transfer_list::iterator it);
-    void moveup(Transfer *transfer);
-    void moveup(transfer_list::iterator it);
-    void movedown(Transfer *transfer);
-    void movedown(transfer_list::iterator it);
-    error pause(Transfer *transfer, bool enable);
+    void movetransfer(Transfer *transfer, Transfer *prevTransfer, DBTableTransactionCommitter& committer);
+    void movetransfer(Transfer *transfer, unsigned int position, DBTableTransactionCommitter& committer);
+    void movetransfer(Transfer *transfer, transfer_list::iterator dstit, DBTableTransactionCommitter&);
+    void movetransfer(transfer_list::iterator it, transfer_list::iterator dstit, DBTableTransactionCommitter&);
+    void movetofirst(Transfer *transfer, DBTableTransactionCommitter& committer);
+    void movetofirst(transfer_list::iterator it, DBTableTransactionCommitter& committer);
+    void movetolast(Transfer *transfer, DBTableTransactionCommitter& committer);
+    void movetolast(transfer_list::iterator it, DBTableTransactionCommitter& committer);
+    void moveup(Transfer *transfer, DBTableTransactionCommitter& committer);
+    void moveup(transfer_list::iterator it, DBTableTransactionCommitter& committer);
+    void movedown(Transfer *transfer, DBTableTransactionCommitter& committer);
+    void movedown(transfer_list::iterator it, DBTableTransactionCommitter& committer);
+    error pause(Transfer *transfer, bool enable, DBTableTransactionCommitter& committer);
     transfer_list::iterator begin(direction_t direction);
     transfer_list::iterator end(direction_t direction);
     transfer_list::iterator iterator(Transfer *transfer);
@@ -181,7 +184,7 @@ public:
     uint64_t currentpriority;
 
 private:
-    void prepareIncreasePriority(Transfer *transfer, transfer_list::iterator srcit, transfer_list::iterator dstit);
+    void prepareIncreasePriority(Transfer *transfer, transfer_list::iterator srcit, transfer_list::iterator dstit, DBTableTransactionCommitter& committer);
     void prepareDecreasePriority(Transfer *transfer, transfer_list::iterator it, transfer_list::iterator dstit);
     bool isReady(Transfer *transfer);
 };
