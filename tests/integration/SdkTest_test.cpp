@@ -3210,10 +3210,9 @@ TEST_F(SdkTest, SdkTestFingerprint)
         {
             m_time_t mtime = 0;
             {
-                FileAccess* nfa = fsa.newfileaccess();
+                auto nfa = fsa.newfileaccess();
                 nfa->fopen(&localname);
                 mtime = nfa->mtime;
-                delete nfa;
             }
 
             myMIS mis(name.c_str());
@@ -3793,7 +3792,7 @@ struct CheckStreamedFile_MegaTransferListener : public MegaTransferListener
     {
         ostringstream msg;
         msg << "onTransferTemporaryError: " << (error ? error->getErrorString() : "NULL") << endl;
-        api->log(MegaApi::LOG_LEVEL_WARNING, msg.str().c_str());   // only warning, otherwise the log level check causes the whole test to fail
+        api->log(MegaApi::LOG_LEVEL_WARNING, msg.str().c_str());
     }
     bool onTransferData(MegaApi *api, MegaTransfer *transfer, char *buffer, size_t size) override
     {
@@ -3952,7 +3951,7 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
 
         for (unsigned i = 0; p->comparedEqual; ++i)
         {
-            WaitMillisec(1000);
+            WaitMillisec(100);
             if (p->completedUnsuccessfully)
             {
                 ASSERT_FALSE(p->completedUnsuccessfully) << " on random run " << randomRunsDone << ", download failed: " << start << " to " << end << ", " 
@@ -3965,9 +3964,9 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
             {
                 break;
             }
-            else if (i > 60)
+            else if (i > maxTimeout * 10)
             {
-                ASSERT_TRUE(i <= 60) << "download took too long";
+                ASSERT_TRUE(i <= maxTimeout * 10) << "download took too long, more than " << maxTimeout << " seconds.  Is the free transfer quota exhausted?";
                 break;
             }
         }
@@ -3977,7 +3976,7 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
 
     }
 
-    ASSERT_TRUE(randomRunsDone > (gRunningInCI ? 10 : 100));
+    ASSERT_GT(randomRunsDone, (gRunningInCI ? 10 : 100));
 
     ostringstream msg;
     msg << "Streaming test downloaded " << randomRunsDone << " samples of the file from random places and sizes, " << randomRunsBytes << " bytes total" << endl;

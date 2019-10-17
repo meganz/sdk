@@ -36,9 +36,9 @@ class TransferSlotFileAccess
     std::unique_ptr<FileAccess> fa;
     Transfer* transfer;
 public:
-    TransferSlotFileAccess(FileAccess* p, Transfer* t);
+    TransferSlotFileAccess(std::unique_ptr<FileAccess>&& p, Transfer* t);
     ~TransferSlotFileAccess();
-    void reset(FileAccess* p = nullptr);
+    void reset(std::unique_ptr<FileAccess>&& p = nullptr);
     inline operator bool() { return bool(fa); }
     inline FileAccess* operator->() { return fa.get(); }
     inline operator FileAccess* () { return fa.get(); }
@@ -109,7 +109,7 @@ struct MEGA_API TransferSlot
     AsyncIOContext** asyncIO;
 
     // handle I/O for this slot
-    void doio(MegaClient*);
+    void doio(MegaClient*, DBTableTransactionCommitter&);
 
     // helper for doio to delay connection creation until we know if it's raid or non-raid
     bool createconnectionsonce();

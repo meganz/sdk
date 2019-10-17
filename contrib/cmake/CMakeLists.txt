@@ -67,7 +67,8 @@ endif()
 if (WIN32)
     message(STATUS "CMAKE_GENERATOR is ${CMAKE_GENERATOR}")
     message(STATUS "CMAKE_GENERATOR_PLATFORM is ${CMAKE_GENERATOR_PLATFORM}")
-    if ("${CMAKE_GENERATOR_PLATFORM}" MATCHES "(Win64|IA64|x64)")
+    if (("${CMAKE_GENERATOR_PLATFORM}" MATCHES "(Win64|IA64|x64)") OR
+        ("${CMAKE_GENERATOR}" MATCHES "(Win64|IA64|x64)"))
         SET(build_64_bit 1)
         message(STATUS "Building 64 bit")
     elseif(CMAKE_SIZEOF_VOID_P EQUAL 4)
@@ -179,6 +180,9 @@ if (WIN32)
 
     set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
     set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MP")
+    set (CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /Zi")
+    set (CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /Zi")
+
 
     # for inet_ntoa (which is available in XP)
     add_definitions( -D_WINSOCK_DEPRECATED_NO_WARNINGS )

@@ -1814,9 +1814,9 @@ bool PosixDirNotify::fsstableids() const
 #endif
 }
 
-FileAccess* PosixFileSystemAccess::newfileaccess(bool followSymLinks)
+std::unique_ptr<FileAccess> PosixFileSystemAccess::newfileaccess(bool followSymLinks)
 {
-    return new PosixFileAccess(waiter, defaultfilepermissions, followSymLinks);
+    return std::unique_ptr<FileAccess>{new PosixFileAccess{waiter, defaultfilepermissions, followSymLinks}};
 }
 
 DirAccess* PosixFileSystemAccess::newdiraccess()

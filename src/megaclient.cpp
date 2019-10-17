@@ -549,6 +549,30 @@ Node *MegaClient::getrootnode(Node *node)
     return n;
 }
 
+bool MegaClient::isPrivateNode(handle h)
+{
+    Node *node = nodebyhandle(h);
+    if (!node)
+    {
+        return false;
+    }
+
+    handle rootnode = getrootnode(node)->nodehandle;
+    return (rootnode == rootnodes[0] || rootnode == rootnodes[1] || rootnode == rootnodes[2]);
+}
+
+bool MegaClient::isForeignNode(handle h)
+{
+    Node *node = nodebyhandle(h);
+    if (!node)
+    {
+        return false;
+    }
+
+    handle rootnode = getrootnode(node)->nodehandle;
+    return (rootnode != rootnodes[0] && rootnode != rootnodes[1] && rootnode != rootnodes[2]);
+}
+
 // set server-client sequence number
 bool MegaClient::setscsn(JSON* j)
 {
@@ -1083,6 +1107,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     aplvp_enabled = false;
     mSmsVerificationState = SMS_STATE_UNKNOWN;
     loggingout = 0;
+    loggedout = false;
     cachedug = false;
     minstreamingrate = -1;
 
@@ -1714,6 +1739,13 @@ void MegaClient::exec()
                                         reqid[i] = 'a';
                                     }
                                 }
+
+                                if (loggedout)
+                                {
+                                    removecaches();
+                                    locallogout();
+                                    app->logout_result(API_OK);
+                                }
                             }
                             else
                             {
@@ -2128,18 +2160,21 @@ void MegaClient::exec()
         slotit = tslots.begin();
 
         // handle active unpaused transfers
-        while (slotit != tslots.end())
         {
-            transferslot_list::iterator it = slotit;
+            DBTableTransactionCommitter committer(tctable);
 
-            slotit++;
-
-            if (!xferpaused[(*it)->transfer->type] && (!(*it)->retrying || (*it)->retrybt.armed()))
+            while (slotit != tslots.end())
             {
-                (*it)->doio(this);
+                transferslot_list::iterator it = slotit;
+
+                slotit++;
+
+                if (!xferpaused[(*it)->transfer->type] && (!(*it)->retrying || (*it)->retrybt.armed()))
+                {
+                    (*it)->doio(this, committer);
+                }
             }
         }
-
 
 #ifdef ENABLE_SYNC
         // verify filesystem fingerprints, disable deviating syncs
@@ -2471,14 +2506,13 @@ void MegaClient::exec()
                         {
                             // ... execute all pending deletions
                             string path;
-                            FileAccess *fa = fsaccess->newfileaccess();
+                            auto fa = fsaccess->newfileaccess();
                             while (localsyncnotseen.size())
                             {
                                 LocalNode* l = *localsyncnotseen.begin();
-                                unlinkifexists(l, fa, &path);
+                                unlinkifexists(l, fa.get(), &path);
                                 delete l;
                             }
-                            delete fa;
                         }
 
                         // process filesystem notifications for active syncs unless we
@@ -3178,6 +3212,8 @@ bool MegaClient::dispatch(direction_t d)
         return false;
     }
 
+    DBTableTransactionCommitter committer(tctable);
+
     Transfer *nexttransfer;
     TransferSlot *ts = NULL;
 
@@ -3362,7 +3398,7 @@ bool MegaClient::dispatch(direction_t d)
                     {
                         LOG_warn << "Modification detected starting upload.   Size: " << nexttransfer->size << "  Mtime: " << nexttransfer->mtime
                                  << "    FaSize: " << ts->fa->size << "  FaMtime: " << ts->fa->mtime;
-                        nexttransfer->failed(API_EREAD);
+                        nexttransfer->failed(API_EREAD, committer);
                         continue;
                     }
 
@@ -3433,24 +3469,24 @@ bool MegaClient::dispatch(direction_t d)
                 if (d == GET)
                 {
                     LOG_err << "Error dispatching transfer. Temporary file not writable: " << utf8path;
-                    nexttransfer->failed(API_EWRITE);
+                    nexttransfer->failed(API_EWRITE, committer);
                 }
                 else if (!ts->fa->retry)
                 {
                     LOG_err << "Error dispatching transfer. Local file permanently unavailable: " << utf8path;
-                    nexttransfer->failed(API_EREAD);
+                    nexttransfer->failed(API_EREAD, committer);
                 }
                 else
                 {
                     LOG_warn << "Error dispatching transfer. Local file temporarily unavailable: " << utf8path;
-                    nexttransfer->failed(API_EREAD);
+                    nexttransfer->failed(API_EREAD, committer);
                 }
             }
         }
         else
         {
             LOG_err << "Error preparing transfer. No localfilename";
-            nexttransfer->failed(API_EREAD);
+            nexttransfer->failed(API_EREAD, committer);
         }
     }
 }
@@ -3532,6 +3568,7 @@ void MegaClient::checkfacompletion(handle th, Transfer* t)
 // clear transfer queue
 void MegaClient::freeq(direction_t d)
 {
+    DBTableTransactionCommitter committer(tctable);
     for (transfer_map::iterator it = transfers[d].begin(); it != transfers[d].end(); )
     {
         delete it++->second;
@@ -3668,6 +3705,7 @@ void MegaClient::locallogout()
     mSmsVerificationState = SMS_STATE_UNKNOWN;
     mSmsVerifiedPhone.clear();
     loggingout = 0;
+    loggedout = false;
     cachedug = false;
     minstreamingrate = -1;
 #ifdef USE_MEDIAINFO
@@ -4002,7 +4040,7 @@ bool MegaClient::procsc()
 
                         if (tctable && cachedfiles.size())
                         {
-                            tctable->begin();
+                            DBTableTransactionCommitter committer(tctable);
                             for (unsigned int i = 0; i < cachedfiles.size(); i++)
                             {
                                 direction_t type = NONE;
@@ -4014,7 +4052,7 @@ bool MegaClient::procsc()
                                 }
                                 nextreqtag();
                                 file->dbid = cachedfilesdbids.at(i);
-                                if (!startxfer(type, file))
+                                if (!startxfer(type, file, committer))
                                 {
                                     tctable->del(cachedfilesdbids.at(i));
                                     continue;
@@ -4022,7 +4060,6 @@ bool MegaClient::procsc()
                             }
                             cachedfiles.clear();
                             cachedfilesdbids.clear();
-                            tctable->commit();
                         }
 
                         WAIT_CLASS::bumpds();
@@ -8264,7 +8301,7 @@ void MegaClient::opensctable()
 
         if (dbname.size())
         {
-            sctable = dbaccess->open(rng, fsaccess, &dbname);
+            sctable = dbaccess->open(rng, fsaccess, &dbname, false, false);
             pendingsccommit = false;
         }
     }
@@ -9149,38 +9186,42 @@ void MegaClient::notifynode(Node* n)
     }
 }
 
-void MegaClient::transfercacheadd(Transfer *transfer)
+void MegaClient::transfercacheadd(Transfer *transfer, DBTableTransactionCommitter* committer)
 {
     if (tctable && !transfer->skipserialization)
     {
         LOG_debug << "Caching transfer";
+        tctable->checkCommitter(committer);
         tctable->put(MegaClient::CACHEDTRANSFER, transfer, &tckey);
     }
 }
 
-void MegaClient::transfercachedel(Transfer *transfer)
+void MegaClient::transfercachedel(Transfer *transfer, DBTableTransactionCommitter* committer)
 {
     if (tctable && transfer->dbid)
     {
         LOG_debug << "Removing cached transfer";
+        tctable->checkCommitter(committer);
         tctable->del(transfer->dbid);
     }
 }
 
-void MegaClient::filecacheadd(File *file)
+void MegaClient::filecacheadd(File *file, DBTableTransactionCommitter& committer)
 {
     if (tctable && !file->syncxfer)
     {
         LOG_debug << "Caching file";
+        tctable->checkCommitter(&committer);
         tctable->put(MegaClient::CACHEDFILE, file, &tckey);
     }
 }
 
-void MegaClient::filecachedel(File *file)
+void MegaClient::filecachedel(File *file, DBTableTransactionCommitter* committer)
 {
     if (tctable && !file->syncxfer)
     {
         LOG_debug << "Removing cached file";
+        tctable->checkCommitter(committer);
         tctable->del(file->dbid);
     }
 
@@ -10647,7 +10688,7 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
 
     dbname.insert(0, "transfers_");
 
-    tctable = dbaccess->open(rng, fsaccess, &dbname, true);
+    tctable = dbaccess->open(rng, fsaccess, &dbname, true, true);
     if (!tctable)
     {
         return;
@@ -10691,7 +10732,7 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
     // postpone the resumption until the filesystem is updated
     if ((!sid.size() && !loggedinfolderlink()) || statecurrent)
     {
-        tctable->begin();
+        DBTableTransactionCommitter committer(tctable);
         for (unsigned int i = 0; i < cachedfiles.size(); i++)
         {
             direction_t type = NONE;
@@ -10703,7 +10744,7 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
             }
             nextreqtag();
             file->dbid = cachedfilesdbids.at(i);
-            if (!startxfer(type, file))
+            if (!startxfer(type, file, committer))
             {
                 tctable->del(cachedfilesdbids.at(i));
                 continue;
@@ -10711,7 +10752,6 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
         }
         cachedfiles.clear();
         cachedfilesdbids.clear();
-        tctable->commit();
     }
 }
 
@@ -10741,7 +10781,7 @@ void MegaClient::disabletransferresumption(const char *loggedoutid)
     }
     dbname.insert(0, "transfers_");
 
-    tctable = dbaccess->open(rng, fsaccess, &dbname, true);
+    tctable = dbaccess->open(rng, fsaccess, &dbname, true, true);
     if (!tctable)
     {
         return;
@@ -11970,7 +12010,7 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
         return API_EFAILED;
     }
 
-    FileAccess* fa = fsaccess->newfileaccess();
+    auto fa = fsaccess->newfileaccess();
     if (fa->fopen(rootpath, true, false))
     {
         if (fa->type == FOLDERNODE)
@@ -11994,7 +12034,7 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
                 }
             }
 
-            if (sync->scan(rootpath, fa))
+            if (sync->scan(rootpath, fa.get()))
             {
                 syncsup = false;
                 e = API_OK;
@@ -12021,8 +12061,6 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
         e = fa->retry ? API_ETEMPUNAVAIL : API_ENOENT;
     }
 
-    delete fa;
-
     return e;
 #else
     return API_EINCOMPLETE;
@@ -12044,17 +12082,17 @@ handle MegaClient::nextsyncid()
 }
 
 // recursively stop all transfers
-void MegaClient::stopxfers(LocalNode* l)
+void MegaClient::stopxfers(LocalNode* l, DBTableTransactionCommitter& committer)
 {
     if (l->type != FILENODE)
     {
         for (localnode_map::iterator it = l->children.begin(); it != l->children.end(); it++)
         {
-            stopxfers(it->second);
+            stopxfers(it->second, committer);
         }
     }
   
-    stopxfer(l);
+    stopxfer(l, &committer);
 }
 
 // add child to nchildren hash (deterministically prefer newer/larger versions
@@ -12223,7 +12261,8 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                     if (rit->second->localnode && rit->second->localnode->transfer)
                     {
                         LOG_debug << "Stopping an unneeded upload";
-                        stopxfer(rit->second->localnode);
+                        DBTableTransactionCommitter committer(tctable);
+                        stopxfer(rit->second->localnode, &committer);  // TODO: can we have one transaction for recursing through syncdown() ?
                     }
 
                     rit->second->localnode = (LocalNode*)~0;
@@ -12257,19 +12296,17 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 
                 ll->getlocalpath(&tmplocalpath);
 
-                FileAccess* fa = fsaccess->newfileaccess(false);
+                auto fa = fsaccess->newfileaccess(false);
                 if (fa->fopen(&tmplocalpath, true, false))
                 {
                     FileFingerprint fp;
-                    fp.genfingerprint(fa);
+                    fp.genfingerprint(fa.get());
 
                     if (!(fp == *(FileFingerprint*)ll))
                     {
                         ll->deleted = false;
                     }
                 }
-
-                delete fa;
             }
 
             if (ll->deleted)
@@ -12366,7 +12403,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
             if (rit->second->type == FILENODE)
             {
                 bool download = true;
-                FileAccess *f = fsaccess->newfileaccess(false);
+                auto f = fsaccess->newfileaccess(false);
                 if (rit->second->localnode != (LocalNode*)~0
                         && (f->fopen(localpath) || f->type == FOLDERNODE))
                 {
@@ -12380,7 +12417,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                         download = false;
                     }
                 }
-                delete f;
+                f.reset();
                 rit->second->localnode = NULL;
 
                 // start fetching this node, unless fetch is already in progress
@@ -12394,14 +12431,15 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 
                     rit->second->syncget = new SyncFileGet(l->sync, rit->second, localpath);
                     nextreqtag();
-                    startxfer(GET, rit->second->syncget);
+                    DBTableTransactionCommitter committer(tctable); // TODO: use one committer for all files in the loop, without calling syncdown() recursively
+                    startxfer(GET, rit->second->syncget, committer);
                     syncactivity = true;
                 }
             }
             else
             {
                 LOG_debug << "Creating local folder";
-                FileAccess *f = fsaccess->newfileaccess(false);
+                auto f = fsaccess->newfileaccess(false);
                 if (f->fopen(localpath) || f->type == FOLDERNODE)
                 {
                     LOG_debug << "Skipping folder creation over an unscanned file/folder, or the file/folder is not to be synced (special attributes)";
@@ -12439,7 +12477,6 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                 {
                     LOG_debug << "Non transient error creating folder";
                 }
-                delete f;
             }
         }
 
@@ -12644,7 +12681,8 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                         if (ll->transfer)
                         {
                             LOG_debug << "Stopping unneeded upload";
-                            stopxfer(ll);
+                            DBTableTransactionCommitter committer(tctable);
+                            stopxfer(ll, &committer);  // todo:  can we use just one commiter for all of the recursive syncup() calls?
                         }
 
                         ll->treestate(TREESTATE_SYNCED);
@@ -12685,7 +12723,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                     if(ll->size == ll->node->size && !memcmp(ll->crc, ll->node->crc, sizeof(ll->crc)))
                     {
                         LOG_debug << "Modification time changed only";
-                        FileAccess *f = fsaccess->newfileaccess();
+                        auto f = fsaccess->newfileaccess();
                         string lpath;
                         ll->getlocalpath(&lpath);
                         string stream = lpath;
@@ -12710,7 +12748,6 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                                         ll->mtime = ll->node->mtime;
                                         ll->treestate(TREESTATE_SYNCED);
                                         RegCloseKey(hKey);
-                                        delete f;
                                         continue;
                                     }
                                 }
@@ -12722,11 +12759,8 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                         if (f->fopen(&lpath))
                         {
                             LOG_warn << "Windows Search detected";
-                            delete f;
                             continue;
                         }
-
-                        delete f;
                     }
 #endif
 
@@ -12853,7 +12887,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
 
                 string localpath;
                 bool t;
-                FileAccess* fa = fsaccess->newfileaccess(false);
+                auto fa = fsaccess->newfileaccess(false);
 
                 ll->getlocalpath(&localpath);
 
@@ -12864,7 +12898,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                     if (t)
                     {
                         ll->sync->localbytes -= ll->size;
-                        ll->genfingerprint(fa);
+                        ll->genfingerprint(fa.get());
                         ll->sync->localbytes += ll->size;                        
 
                         ll->sync->statecacheadd(ll);
@@ -12875,8 +12909,6 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                     LOG_debug << "Localnode not stable yet: " << ll->name << " " << t << " " << fa->size << " " << ll->size
                               << " " << fa->mtime << " " << ll->mtime << " " << ll->nagleds;
 
-                    delete fa;
-
                     if (ll->nagleds < *nds)
                     {
                         *nds = ll->nagleds;
@@ -12884,8 +12916,6 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
 
                     continue;
                 }
-
-                delete fa;
                 
                 ll->created = false;
             }
@@ -13011,6 +13041,7 @@ void MegaClient::syncupdate()
         // start uploads of new files
         nn = nnp = new NewNode[end - start];
 
+        DBTableTransactionCommitter committer(tctable);
         for (i = start; i < end; i++)
         {
             n = NULL;
@@ -13084,7 +13115,7 @@ void MegaClient::syncupdate()
                 string tmppath, tmplocalpath;
 
                 nextreqtag();
-                startxfer(PUT, l);
+                startxfer(PUT, l, committer);
 
                 l->getlocalpath(&tmplocalpath, true);
                 fsaccess->local2path(&tmplocalpath, &tmppath);
@@ -13450,7 +13481,7 @@ void MegaClient::putnodes_syncdebris_result(error, NewNode* nn)
 // inject file into transfer subsystem
 // if file's fingerprint is not valid, it will be obtained from the local file
 // (PUT) or the file's key (GET)
-bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes, bool startfirst, bool donotpersist)
+bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& committer, bool skipdupes, bool startfirst, bool donotpersist)
 {
     if (!f->transfer)
     {
@@ -13459,14 +13490,12 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes, bool startfir
             if (!f->isvalid)    // (sync LocalNodes always have this set)
             {
                 // missing FileFingerprint for local file - generate
-                FileAccess* fa = fsaccess->newfileaccess();
+                auto fa = fsaccess->newfileaccess();
 
                 if (fa->fopen(&f->localname, d == PUT, d == GET))
                 {
-                    f->genfingerprint(fa);
+                    f->genfingerprint(fa.get());
                 }
-
-                delete fa;
             }
 
             // if we are unable to obtain a valid file FileFingerprint, don't proceed
@@ -13516,23 +13545,23 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes, bool startfir
             f->tag = reqtag;
             if (!f->dbid && !donotpersist)
             {
-                filecacheadd(f);
+                filecacheadd(f, committer);
             }
             app->file_added(f);
 
             if (startfirst)
             {
-                transferlist.movetofirst(t);
+                transferlist.movetofirst(t, committer);
             }
 
             if (overquotauntil && overquotauntil > Waiter::ds)
             {
                 dstime timeleft = dstime(overquotauntil - Waiter::ds);
-                t->failed(API_EOVERQUOTA, timeleft);
+                t->failed(API_EOVERQUOTA, committer, timeleft);
             }
             else if (d == PUT && ststatus == STORAGE_RED)
             {
-                t->failed(API_EOVERQUOTA);
+                t->failed(API_EOVERQUOTA, committer);
             }
         }
         else
@@ -13558,7 +13587,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes, bool startfir
                     }
                 }
 
-                FileAccess* fa = fsaccess->newfileaccess();
+                auto fa = fsaccess->newfileaccess();
                 if (!fa->fopen(&t->localfilename))
                 {
                     if (d == PUT)
@@ -13583,7 +13612,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes, bool startfir
                 {
                     if (d == PUT)
                     {
-                        if (f->genfingerprint(fa))
+                        if (f->genfingerprint(fa.get()))
                         {
                             LOG_warn << "The local file has been modified";
                             t->tempurls.clear();
@@ -13605,7 +13634,6 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes, bool startfir
                         }
                     }
                 }
-                delete fa;
                 cachedtransfers[d].erase(it);
                 LOG_debug << "Transfer resumed";
             }
@@ -13627,10 +13655,10 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes, bool startfir
             f->transfer = t;
             if (!f->dbid && !donotpersist)
             {
-                filecacheadd(f);
+                filecacheadd(f, committer);
             }
 
-            transferlist.addtransfer(t, startfirst);
+            transferlist.addtransfer(t, committer, startfirst);
             app->transfer_added(t);
             app->file_added(f);
             looprequested = true;
@@ -13638,11 +13666,11 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes, bool startfir
             if (overquotauntil && overquotauntil > Waiter::ds)
             {
                 dstime timeleft = dstime(overquotauntil - Waiter::ds);
-                t->failed(API_EOVERQUOTA, timeleft);
+                t->failed(API_EOVERQUOTA, committer, timeleft);
             }
             else if (d == PUT && ststatus == STORAGE_RED)
             {
-                t->failed(API_EOVERQUOTA);
+                t->failed(API_EOVERQUOTA, committer);
             }
         }
     }
@@ -13651,7 +13679,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes, bool startfir
 }
 
 // remove file from transfer subsystem
-void MegaClient::stopxfer(File* f)
+void MegaClient::stopxfer(File* f, DBTableTransactionCommitter* committer)
 {
     if (f->transfer)
     {
@@ -13659,7 +13687,7 @@ void MegaClient::stopxfer(File* f)
 
         Transfer *transfer = f->transfer;
         transfer->files.erase(f->file_it);
-        filecachedel(f);
+        filecachedel(f, committer);
         app->file_removed(f, API_EINCOMPLETE);
         f->transfer = NULL;
         f->terminated();
@@ -13701,6 +13729,7 @@ void MegaClient::pausexfers(direction_t d, bool pause, bool hard)
     {
         WAIT_CLASS::bumpds();
 
+        DBTableTransactionCommitter committer(tctable);
         for (transferslot_list::iterator it = tslots.begin(); it != tslots.end(); )
         {
             if ((*it)->transfer->type == d)
@@ -13715,7 +13744,7 @@ void MegaClient::pausexfers(direction_t d, bool pause, bool hard)
                 else
                 {
                     (*it)->lastdata = Waiter::ds;
-                    (*it++)->doio(this);
+                    (*it++)->doio(this, committer);
                 }
             }
             else

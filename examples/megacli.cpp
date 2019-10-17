@@ -1906,19 +1906,14 @@ public:
 
 int loadfile(string* name, string* data)
 {
-    FileAccess* fa = client->fsaccess->newfileaccess();
+    auto fa = client->fsaccess->newfileaccess();
 
     if (fa->fopen(name, 1, 0))
     {
         data->resize(size_t(fa->size));
         fa->fread(data, unsigned(data->size()), 0, 0);
-        delete fa;
-
         return 1;
     }
-
-    delete fa;
-
     return 0;
 }
 
@@ -1926,6 +1921,7 @@ void xferq(direction_t d, int cancel)
 {
     string name;
 
+    DBTableTransactionCommitter committer(client->tctable);
     for (appfile_list::iterator it = appxferq[d].begin(); it != appxferq[d].end(); )
     {
         if (cancel < 0 || cancel == (*it)->seqno)
@@ -1964,7 +1960,7 @@ void xferq(direction_t d, int cancel)
 
                 if ((*it)->transfer)
                 {
-                    client->stopxfer(*it);
+                    client->stopxfer(*it, &committer);
                 }
                 delete *it++;
             }
@@ -2709,7 +2705,8 @@ bool recursiveget(fs::path&& localpath, Node* n, bool folders, unsigned& queued)
         {
             auto f = new AppFileGet(n, UNDEF, NULL, -1, 0, NULL, NULL, localpath.u8string());
             f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
-            client->startxfer(GET, f);
+            DBTableTransactionCommitter committer(client->tctable);
+            client->startxfer(GET, f, committer);
             queued += 1;
         }
     }
@@ -2749,6 +2746,7 @@ bool regexget(const string& expression, Node* n, unsigned& queued)
 
         if (n->type == FOLDERNODE || n->type == ROOTNODE)
         {
+            DBTableTransactionCommitter committer(client->tctable);
             for (node_list::iterator it = n->children.begin(); it != n->children.end(); it++)
             {
                 if ((*it)->type == FILENODE)
@@ -2757,7 +2755,7 @@ bool regexget(const string& expression, Node* n, unsigned& queued)
                     {
                         auto f = new AppFileGet(n);
                         f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
-                        client->startxfer(GET, f);
+                        client->startxfer(GET, f, committer);
                         queued += 1;
                     }
                 }
@@ -3479,12 +3477,12 @@ void exec_get(autocomplete::ACState& s)
             }
             else
             {
-                AppFile* f;
+                DBTableTransactionCommitter committer(client->tctable);
 
                 // queue specified file...
                 if (n->type == FILENODE)
                 {
-                    f = new AppFileGet(n);
+                    auto f = new AppFileGet(n);
 
                     string::size_type index = s.words[1].s.find(":");
                     // node from public folder link
@@ -3500,7 +3498,7 @@ void exec_get(autocomplete::ACState& s)
                     }
 
                     f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
-                    client->startxfer(GET, f);
+                    client->startxfer(GET, f, committer);
                 }
                 else
                 {
@@ -3509,9 +3507,9 @@ void exec_get(autocomplete::ACState& s)
                     {
                         if ((*it)->type == FILENODE)
                         {
-                            f = new AppFileGet(*it);
+                            auto f = new AppFileGet(*it);
                             f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
-                            client->startxfer(GET, f);
+                            client->startxfer(GET, f, committer);
                         }
                     }
                 }
@@ -3561,6 +3559,8 @@ void exec_put(autocomplete::ACState& s)
 
     if (da->dopen(&localname, NULL, true))
     {
+        DBTableTransactionCommitter committer(client->tctable);
+
         while (da->dnext(NULL, &localname, true, &type))
         {
             client->fsaccess->local2path(&localname, &name);
@@ -3571,11 +3571,11 @@ void exec_put(autocomplete::ACState& s)
 
             if (type == FILENODE)
             {
-                FileAccess *fa = client->fsaccess->newfileaccess();
+                auto fa = client->fsaccess->newfileaccess();
                 if (fa->fopen(&name, true, false))
                 {
                     FileFingerprint fp;
-                    fp.genfingerprint(fa);
+                    fp.genfingerprint(fa.get());
 
                     Node *previousNode = client->childnodebyname(n, name.c_str(), true);
                     if (previousNode && previousNode->type == type)
@@ -3583,16 +3583,15 @@ void exec_put(autocomplete::ACState& s)
                         if (fp.isvalid && previousNode->isvalid && fp == *((FileFingerprint *)previousNode))
                         {
                             cout << "Identical file already exist. Skipping transfer of " << name << endl;
-                            delete fa;
                             continue;
                         }
                     }
                 }
-                delete fa;
+                fa.reset();
 
                 f = new AppFilePut(&localname, target, targetuser.c_str());
                 f->appxfer_it = appxferq[PUT].insert(appxferq[PUT].end(), f);
-                client->startxfer(PUT, f);
+                client->startxfer(PUT, f, committer);
                 total++;
             }
         }
@@ -6668,9 +6667,10 @@ void DemoApp::checkfile_result(handle h, error e, byte* filekey, m_off_t size, m
     {
         cout << "Initiating download..." << endl;
 
+        DBTableTransactionCommitter committer(client->tctable);
         AppFileGet* f = new AppFileGet(NULL, h, filekey, size, tm, filename, fingerprint);
         f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
-        client->startxfer(GET, f);
+        client->startxfer(GET, f, committer);
     }
 }
 
@@ -6869,8 +6869,8 @@ void DemoApp::contactlinkquery_result(error e, handle h, string *email, string *
         cout << "Contact link created successfully: " << endl;
         cout << "\tUserhandle: " << LOG_HANDLE(h) << endl;
         cout << "\tEmail: " << *email << endl;
-        cout << "\tFirstname: " << *fn << endl;
-        cout << "\tLastname: " << *ln << endl;
+        cout << "\tFirstname: " << Base64::atob(*fn) << endl;
+        cout << "\tLastname: " << Base64::atob(*ln) << endl;
     }
 }
 
