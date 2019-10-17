@@ -382,7 +382,7 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
                  */
                 if (!timeleft && allForeignTargets)
                 {
-                    client->app->transfer_failed(this, e, NEVER);
+                    client->app->transfer_failed(this, e);
                 }
                 else
                 {
