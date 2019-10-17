@@ -67,6 +67,7 @@ struct Model
         enum nodetype { file, folder };
         nodetype type = folder;
         string name;
+        string content;
         vector<unique_ptr<ModelNode>> kids;
         ModelNode* parent = nullptr;
         string path() 
@@ -109,11 +110,12 @@ struct Model
         return n;
     }
 
-    unique_ptr<ModelNode> makeModelSubfile(const string& utf8Name)
+    unique_ptr<ModelNode> makeModelSubfile(const string& utf8Name, string content = {})
     {
         unique_ptr<ModelNode> n(new ModelNode);
         n->name = utf8Name;
         n->type = ModelNode::file;
+        n->content = content.empty() ? utf8Name : std::move(content);
         return n;
     }
 
@@ -944,7 +946,10 @@ struct StandardClient : public MegaApp
         {
             EXPECT_EQ(n->name, n_localname);
         }
-        EXPECT_TRUE(n->node != nullptr);
+        if (n->sync->isUpSync() && n->sync->isDownSync())
+        {
+            EXPECT_TRUE(n->node != nullptr);
+        }
         if (depth && n->node)
         {
             EXPECT_EQ(n->node->displayname(), n->name);
@@ -971,6 +976,12 @@ struct StandardClient : public MegaApp
         multimap<string, LocalNode*> ns;
         for (auto& m : mn->kids)
         {
+            if (m->parent && m->parent->type == Model::ModelNode::file)
+            {
+                // skip previous versions
+                assert(m->type == Model::ModelNode::file);
+                continue;
+            }
             ms.emplace(m->name, m.get());
         }
         for (auto& n2 : n->children)
@@ -1050,8 +1061,8 @@ struct StandardClient : public MegaApp
             ifstream fs(p, ios::binary);
             char filedata[1024];
             fs.read(filedata, sizeof(filedata));
-            EXPECT_EQ(fs.gcount(), p.filename().u8string().size()) << " file is not expected size " << p;
-            EXPECT_TRUE(!memcmp(filedata, p.filename().u8string().data(), p.filename().u8string().size())) << " file data mismatch " << p;
+            EXPECT_EQ(fs.gcount(), mn->content.size()) << " file is not expected size " << p;
+            EXPECT_TRUE(!memcmp(filedata, mn->content.data(), mn->content.size())) << " file data mismatch " << p;
         }
 
         if (pathtype != FOLDERNODE)
@@ -2504,11 +2515,14 @@ TEST(Sync, OneWay_Upload_syncDelFalse_overwriteFalse_1)
     cliTwoWay->removeLocalDebris(0);
     cliOneWay->removeLocalDebris(0);
 
-    Model model;
-    model.root->addkid(model.makeModelSubfile("foo"));
-    ASSERT_TRUE(cliTwoWay->confirmModel_mainthread(model.root.get(), 0));
-    ASSERT_TRUE(cliOneWay->confirmModel_mainthread(model.root.get(), 0, StandardClient::CONFIRM_REMOTE));
-    ASSERT_FALSE(cliOneWay->confirmModel_mainthread(model.root.get(), 0, StandardClient::CONFIRM_LOCAL));
+    Model localModel;
+
+    Model remoteModel;
+    remoteModel.root->addkid(remoteModel.makeModelSubfile("foo"));
+
+    ASSERT_TRUE(cliTwoWay->confirmModel_mainthread(remoteModel.root.get(), 0));
+    ASSERT_TRUE(cliOneWay->confirmModel_mainthread(remoteModel.root.get(), 0, StandardClient::CONFIRM_REMOTE));
+    ASSERT_TRUE(cliOneWay->confirmModel_mainthread(localModel.root.get(), 0, StandardClient::CONFIRM_LOCAL));
 }
 
 TEST(Sync, OneWay_Upload_syncDelFalse_overwriteFalse_2)
@@ -2555,11 +2569,16 @@ TEST(Sync, OneWay_Upload_syncDelFalse_overwriteFalse_3)
 
     waitonsyncs(20s, cliTwoWay.get(), cliOneWay.get());
 
-    std::string content;
-    ASSERT_TRUE(readFileContents(content, cliTwoWay->syncSet[0].localpath, "foo"));
+    cliTwoWay->removeLocalDebris(0);
+    cliOneWay->removeLocalDebris(0);
 
-    const std::string expectedContent = "fooblah";
-    ASSERT_EQ(expectedContent, content);
+    Model model;
+    auto fooNodeOld = model.makeModelSubfile("foo");
+    auto fooNode = model.makeModelSubfile("foo", "fooblah");
+    fooNode->addkid(std::move(fooNodeOld));
+    model.root->addkid(std::move(fooNode));
+    ASSERT_TRUE(cliTwoWay->confirmModel_mainthread(model.root.get(), 0));
+    ASSERT_TRUE(cliOneWay->confirmModel_mainthread(model.root.get(), 0));
 }
 
 TEST(Sync, OneWay_Upload_syncDelFalse_overwriteFalse_4)
@@ -2586,11 +2605,14 @@ TEST(Sync, OneWay_Upload_syncDelFalse_overwriteFalse_4)
     cliTwoWay->removeLocalDebris(0);
     cliOneWay->removeLocalDebris(0);
 
-    Model model;
-    model.root->addkid(model.makeModelSubfile("foo"));
-    ASSERT_TRUE(cliTwoWay->confirmModel_mainthread(model.root.get(), 0));
-    ASSERT_TRUE(cliOneWay->confirmModel_mainthread(model.root.get(), 0, StandardClient::CONFIRM_REMOTE));
-    ASSERT_FALSE(cliOneWay->confirmModel_mainthread(model.root.get(), 0, StandardClient::CONFIRM_LOCAL));
+    Model localModel;
+
+    Model remoteModel;
+    remoteModel.root->addkid(remoteModel.makeModelSubfile("foo"));
+
+    ASSERT_TRUE(cliTwoWay->confirmModel_mainthread(remoteModel.root.get(), 0));
+    ASSERT_TRUE(cliOneWay->confirmModel_mainthread(remoteModel.root.get(), 0, StandardClient::CONFIRM_REMOTE));
+    ASSERT_TRUE(cliOneWay->confirmModel_mainthread(localModel.root.get(), 0, StandardClient::CONFIRM_LOCAL));
 }
 
 TEST(Sync, OneWay_Upload_syncDelFalse_overwriteFalse_5)
@@ -2611,9 +2633,6 @@ TEST(Sync, OneWay_Upload_syncDelFalse_overwriteFalse_5)
     waitonsyncs(20s, cliTwoWay.get(), cliOneWay.get());
     // foo is now uploaded
 
-    ASSERT_TRUE(cliTwoWay->drillchildnodebyname(cliTwoWay->gettestbasenode(), "f/foo"));
-    ASSERT_TRUE(cliOneWay->drillchildnodebyname(cliOneWay->gettestbasenode(), "f/foo"));
-
     fs::remove(cliTwoWay->syncSet[0].localpath / "foo");
 
     waitonsyncs(20s, cliTwoWay.get(), cliOneWay.get());
@@ -2624,8 +2643,20 @@ TEST(Sync, OneWay_Upload_syncDelFalse_overwriteFalse_5)
     waitonsyncs(20s, cliTwoWay.get(), cliOneWay.get());
     // foo is now edited locally
 
-    ASSERT_FALSE(cliTwoWay->drillchildnodebyname(cliTwoWay->gettestbasenode(), "f/foo"));
-    ASSERT_FALSE(cliOneWay->drillchildnodebyname(cliOneWay->gettestbasenode(), "f/foo"));
+    cliTwoWay->removeLocalDebris(0);
+    cliOneWay->removeLocalDebris(0);
+
+    Model localModel;
+    auto localFooNodeOld = localModel.makeModelSubfile("foo");
+    auto localFooNode = localModel.makeModelSubfile("foo", "fooblah");
+    localFooNode->addkid(std::move(localFooNodeOld));
+    localModel.root->addkid(std::move(localFooNode));
+
+    Model remoteModel;
+
+    ASSERT_TRUE(cliTwoWay->confirmModel_mainthread(remoteModel.root.get(), 0));
+    ASSERT_TRUE(cliOneWay->confirmModel_mainthread(remoteModel.root.get(), 0, StandardClient::CONFIRM_REMOTE));
+    ASSERT_TRUE(cliOneWay->confirmModel_mainthread(localModel.root.get(), 0, StandardClient::CONFIRM_LOCAL));
 }
 
 TEST(Sync, OneWay_Upload_syncDelFalse_overwriteFalse_6)
@@ -2668,17 +2699,24 @@ TEST(Sync, OneWay_Upload_syncDelFalse_overwriteFalse_6)
     waitonsyncs(20s, cliTwoWay.get(), cliOneWay.get());
     // cliOneWay is now resumed
 
-    std::string contentTwoWay;
-    ASSERT_TRUE(readFileContents(contentTwoWay, cliTwoWay->syncSet[0].localpath, "foo"));
+    cliTwoWay->removeLocalDebris(0);
+    cliOneWay->removeLocalDebris(0);
 
-    const std::string expectedContentTwoWay = "foohalb";
-    ASSERT_EQ(expectedContentTwoWay, contentTwoWay);
+    Model localModel;
+    auto localFooNodeOld = localModel.makeModelSubfile("foo");
+    auto localFooNode = localModel.makeModelSubfile("foo", "fooblah");
+    localFooNode->addkid(std::move(localFooNodeOld));
+    localModel.root->addkid(std::move(localFooNode));
 
-    std::string contentOneWay;
-    ASSERT_TRUE(readFileContents(contentOneWay, cliOneWay->syncSet[0].localpath, "foo"));
+    Model remoteModel;
+    auto remoteFooNodeOld = remoteModel.makeModelSubfile("foo");
+    auto remoteFooNode = remoteModel.makeModelSubfile("foo", "foohalb");
+    remoteFooNode->addkid(std::move(remoteFooNodeOld));
+    remoteModel.root->addkid(std::move(remoteFooNode));
 
-    const std::string expectedContentOneWay = "fooblah";
-    ASSERT_EQ(expectedContentOneWay, contentOneWay);
+    ASSERT_TRUE(cliTwoWay->confirmModel_mainthread(remoteModel.root.get(), 0));
+    ASSERT_TRUE(cliOneWay->confirmModel_mainthread(remoteModel.root.get(), 0, StandardClient::CONFIRM_REMOTE));
+    ASSERT_TRUE(cliOneWay->confirmModel_mainthread(localModel.root.get(), 0, StandardClient::CONFIRM_LOCAL));
 }
 
 namespace {
