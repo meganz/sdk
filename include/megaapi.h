@@ -12783,15 +12783,20 @@ class MegaApi
         /**
          * @brief Get the user relative to an incoming share
          *
-         * This function will return NULL if the node is not found or doesn't represent
+         * This function will return NULL if the node is not found.
+         *
+         * If recurse is true, it will return NULL if the root corresponding to
+         * the node received as argument doesn't represent the root of an incoming share.
+         * Otherwise, it will return NULL if the node doesn't represent
          * the root of an incoming share.
          *
          * You take the ownership of the returned value
          *
-         * @param node Incoming share
+         * @param node Node to look for inshare user.
+         * @param recurse use root node corresponding to the node passed
          * @return MegaUser relative to the incoming share
          */
-        MegaUser *getUserFromInShare(MegaNode *node);
+        MegaUser *getUserFromInShare(MegaNode *node, bool recurse = false);
 
         /**
           * @brief Check if a MegaNode is being shared by/with your own user

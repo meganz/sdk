@@ -3323,9 +3323,9 @@ MegaShareList* MegaApi::getInSharesList(int order)
     return pImpl->getInSharesList(order);
 }
 
-MegaUser *MegaApi::getUserFromInShare(MegaNode *node)
+MegaUser *MegaApi::getUserFromInShare(MegaNode *node, bool recurse)
 {
-    return pImpl->getUserFromInShare(node);
+    return pImpl->getUserFromInShare(node, recurse);
 }
 
 bool MegaApi::isShared(MegaNode *node)
