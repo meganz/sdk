@@ -2496,6 +2496,72 @@ setupOneWayTestClients(const SyncDescriptor desc)
     return std::make_pair(std::move(cliTwoWay), std::move(cliOneWay));
 }
 
+// This fixture is intended for testing the one-way-sync functionality
+class OneWayFixture
+{
+public:
+    OneWayFixture(const SyncDescriptor::Type type, const bool syncDel, const bool overwrite)
+    : mDesc{type, false, false}
+    {
+        assert(type != SyncDescriptor::TYPE_DEFAULT);
+
+        const fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
+        mClientRef.reset(new StandardClient{localtestroot, "ClientRef"});   // user 1 client 1 (two-way)
+        mClientOneWay.reset(new StandardClient{localtestroot, "ClientOneWay"});   // user 1 client 2 (one-way)
+
+        EXPECT_TRUE(mClientRef->login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "f"));
+        EXPECT_TRUE(mClientOneWay->login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
+        EXPECT_EQ(mClientRef->basefolderhandle, mClientOneWay->basefolderhandle);
+
+        EXPECT_TRUE(mClientRef->setupSync_mainthread("sync", "f", 0));
+        EXPECT_TRUE(mClientOneWay->setupSync_mainthread(mDesc, "sync", "f", 0));
+        wait(4);
+        mClientRef->logcb = mClientOneWay->logcb = true;
+    }
+
+    const fs::path& refRootPath() const
+    {
+        return mClientRef->syncSet.at(0).localpath;
+    }
+
+    const fs::path& oneWayRootPath() const
+    {
+        return mClientOneWay->syncSet.at(0).localpath;
+    }
+
+    void wait(const int sec = 20) const
+    {
+        waitonsyncs(chrono::seconds{sec}, mClientRef.get(), mClientOneWay.get());
+    }
+
+    bool checkRef(const Model& model) const
+    {
+        mClientRef->removeLocalDebris(0);
+        return mClientRef->confirmModel_mainthread(model.root.get(), 0);
+    }
+
+    bool checkOneWay(const Model& model, const StandardClient::Confirm confirm = StandardClient::CONFIRM_ALL) const
+    {
+        mClientOneWay->removeLocalDebris(0);
+        return mClientOneWay->confirmModel_mainthread(model.root.get(), 0, confirm);
+    }
+
+    bool pauseOneWay()
+    {
+        return mClientOneWay->delSync_mainthread(0, true);
+    }
+
+    bool resumeOneWay()
+    {
+        return mClientOneWay->setupSync_mainthread(mDesc, "sync", "f", 0);
+    }
+
+private:
+    SyncDescriptor mDesc;
+    std::unique_ptr<StandardClient> mClientRef;
+    std::unique_ptr<StandardClient> mClientOneWay;
+};
+
 } // anonymous
 
 TEST(Sync, OneWay_Upload_syncDelFalse_overwriteFalse_1)
@@ -2504,25 +2570,21 @@ TEST(Sync, OneWay_Upload_syncDelFalse_overwriteFalse_1)
      * - Add remote file
      * - Assert: No local file
      */
-    const SyncDescriptor desc{SyncDescriptor::TYPE_UP, false, false};
+    const OneWayFixture fix{SyncDescriptor::TYPE_UP, false, false};
 
-    auto [cliTwoWay, cliOneWay] = setupOneWayTestClients(desc);
+    ASSERT_TRUE(createFile(fix.refRootPath(), "foo"));
 
-    ASSERT_TRUE(createFile(cliTwoWay->syncSet[0].localpath, "foo"));
-
-    waitonsyncs(20s, cliTwoWay.get(), cliOneWay.get());
-
-    cliTwoWay->removeLocalDebris(0);
-    cliOneWay->removeLocalDebris(0);
+    fix.wait();
+    // foo is now uploaded
 
     Model localModel;
 
     Model remoteModel;
     remoteModel.root->addkid(remoteModel.makeModelSubfile("foo"));
 
-    ASSERT_TRUE(cliTwoWay->confirmModel_mainthread(remoteModel.root.get(), 0));
-    ASSERT_TRUE(cliOneWay->confirmModel_mainthread(remoteModel.root.get(), 0, StandardClient::CONFIRM_REMOTE));
-    ASSERT_TRUE(cliOneWay->confirmModel_mainthread(localModel.root.get(), 0, StandardClient::CONFIRM_LOCAL));
+    ASSERT_TRUE(fix.checkRef(remoteModel));
+    ASSERT_TRUE(fix.checkOneWay(remoteModel, StandardClient::CONFIRM_REMOTE));
+    ASSERT_TRUE(fix.checkOneWay(localModel, StandardClient::CONFIRM_LOCAL));
 }
 
 TEST(Sync, OneWay_Upload_syncDelFalse_overwriteFalse_2)
@@ -2531,21 +2593,18 @@ TEST(Sync, OneWay_Upload_syncDelFalse_overwriteFalse_2)
      * - Add local file
      * - Assert: File uploaded
      */
-    const SyncDescriptor desc{SyncDescriptor::TYPE_UP, false, false};
+    const OneWayFixture fix{SyncDescriptor::TYPE_UP, false, false};
 
-    auto [cliTwoWay, cliOneWay] = setupOneWayTestClients(desc);
+    ASSERT_TRUE(createFile(fix.oneWayRootPath(), "foo"));
 
-    ASSERT_TRUE(createFile(cliOneWay->syncSet[0].localpath, "foo"));
-
-    waitonsyncs(20s, cliTwoWay.get(), cliOneWay.get());
-
-    cliTwoWay->removeLocalDebris(0);
-    cliOneWay->removeLocalDebris(0);
+    fix.wait();
+    // foo is now uploaded
 
     Model model;
     model.root->addkid(model.makeModelSubfile("foo"));
-    ASSERT_TRUE(cliTwoWay->confirmModel_mainthread(model.root.get(), 0));
-    ASSERT_TRUE(cliOneWay->confirmModel_mainthread(model.root.get(), 0));
+
+    ASSERT_TRUE(fix.checkRef(model));
+    ASSERT_TRUE(fix.checkOneWay(model));
 }
 
 TEST(Sync, OneWay_Upload_syncDelFalse_overwriteFalse_3)
@@ -2556,29 +2615,26 @@ TEST(Sync, OneWay_Upload_syncDelFalse_overwriteFalse_3)
      * - Edit local file
      * - Assert: Edited file uploaded
      */
-    const SyncDescriptor desc{SyncDescriptor::TYPE_UP, false, false};
+    const OneWayFixture fix{SyncDescriptor::TYPE_UP, false, false};
 
-    auto [cliTwoWay, cliOneWay] = setupOneWayTestClients(desc);
+    ASSERT_TRUE(createFile(fix.oneWayRootPath(), "foo"));
 
-    ASSERT_TRUE(createFile(cliOneWay->syncSet[0].localpath, "foo"));
-
-    waitonsyncs(20s, cliTwoWay.get(), cliOneWay.get());
+    fix.wait();
     // foo is now uploaded
 
-    ASSERT_TRUE(appendToFile(cliOneWay->syncSet[0].localpath, "foo", "blah"));
+    ASSERT_TRUE(appendToFile(fix.oneWayRootPath(), "foo", "blah"));
 
-    waitonsyncs(20s, cliTwoWay.get(), cliOneWay.get());
-
-    cliTwoWay->removeLocalDebris(0);
-    cliOneWay->removeLocalDebris(0);
+    fix.wait();
+    // new foo is now uploaded
 
     Model model;
     auto fooNodeOld = model.makeModelSubfile("foo");
     auto fooNode = model.makeModelSubfile("foo", "fooblah");
     fooNode->addkid(std::move(fooNodeOld));
     model.root->addkid(std::move(fooNode));
-    ASSERT_TRUE(cliTwoWay->confirmModel_mainthread(model.root.get(), 0));
-    ASSERT_TRUE(cliOneWay->confirmModel_mainthread(model.root.get(), 0));
+
+    ASSERT_TRUE(fix.checkRef(model));
+    ASSERT_TRUE(fix.checkOneWay(model));
 }
 
 TEST(Sync, OneWay_Upload_syncDelFalse_overwriteFalse_4)
@@ -2589,30 +2645,26 @@ TEST(Sync, OneWay_Upload_syncDelFalse_overwriteFalse_4)
      * - Remove local file
      * - Assert: Remote file still there
      */
-    const SyncDescriptor desc{SyncDescriptor::TYPE_UP, false, false};
+    const OneWayFixture fix{SyncDescriptor::TYPE_UP, false, false};
 
-    auto [cliTwoWay, cliOneWay] = setupOneWayTestClients(desc);
+    ASSERT_TRUE(createFile(fix.oneWayRootPath(), "foo"));
 
-    ASSERT_TRUE(createFile(cliOneWay->syncSet[0].localpath, "foo"));
-
-    waitonsyncs(20s, cliTwoWay.get(), cliOneWay.get());
+    fix.wait();
     // foo is now uploaded
 
-    fs::remove(cliOneWay->syncSet[0].localpath / "foo");
+    fs::remove(fix.oneWayRootPath() / "foo");
 
-    waitonsyncs(20s, cliTwoWay.get(), cliOneWay.get());
-
-    cliTwoWay->removeLocalDebris(0);
-    cliOneWay->removeLocalDebris(0);
+    fix.wait();
+    // foo is not deleted on the remote
 
     Model localModel;
 
     Model remoteModel;
     remoteModel.root->addkid(remoteModel.makeModelSubfile("foo"));
 
-    ASSERT_TRUE(cliTwoWay->confirmModel_mainthread(remoteModel.root.get(), 0));
-    ASSERT_TRUE(cliOneWay->confirmModel_mainthread(remoteModel.root.get(), 0, StandardClient::CONFIRM_REMOTE));
-    ASSERT_TRUE(cliOneWay->confirmModel_mainthread(localModel.root.get(), 0, StandardClient::CONFIRM_LOCAL));
+    ASSERT_TRUE(fix.checkRef(remoteModel));
+    ASSERT_TRUE(fix.checkOneWay(remoteModel, StandardClient::CONFIRM_REMOTE));
+    ASSERT_TRUE(fix.checkOneWay(localModel, StandardClient::CONFIRM_LOCAL));
 }
 
 TEST(Sync, OneWay_Upload_syncDelFalse_overwriteFalse_5)
@@ -2624,27 +2676,22 @@ TEST(Sync, OneWay_Upload_syncDelFalse_overwriteFalse_5)
      * - Edit local file
      * - Assert: Remote file still gone
      */
-    const SyncDescriptor desc{SyncDescriptor::TYPE_UP, false, false};
+    const OneWayFixture fix{SyncDescriptor::TYPE_UP, false, false};
 
-    auto [cliTwoWay, cliOneWay] = setupOneWayTestClients(desc);
+    ASSERT_TRUE(createFile(fix.oneWayRootPath(), "foo"));
 
-    ASSERT_TRUE(createFile(cliOneWay->syncSet[0].localpath, "foo"));
-
-    waitonsyncs(20s, cliTwoWay.get(), cliOneWay.get());
+    fix.wait();
     // foo is now uploaded
 
-    fs::remove(cliTwoWay->syncSet[0].localpath / "foo");
+    fs::remove(fix.refRootPath() / "foo");
 
-    waitonsyncs(20s, cliTwoWay.get(), cliOneWay.get());
+    fix.wait();
     // foo is now removed from remote
 
-    ASSERT_TRUE(appendToFile(cliOneWay->syncSet[0].localpath, "foo", "blah"));
+    ASSERT_TRUE(appendToFile(fix.oneWayRootPath(), "foo", "blah"));
 
-    waitonsyncs(20s, cliTwoWay.get(), cliOneWay.get());
-    // foo is now edited locally
-
-    cliTwoWay->removeLocalDebris(0);
-    cliOneWay->removeLocalDebris(0);
+    fix.wait();
+    // new foo is not uploaded
 
     Model localModel;
     auto localFooNodeOld = localModel.makeModelSubfile("foo");
@@ -2654,9 +2701,9 @@ TEST(Sync, OneWay_Upload_syncDelFalse_overwriteFalse_5)
 
     Model remoteModel;
 
-    ASSERT_TRUE(cliTwoWay->confirmModel_mainthread(remoteModel.root.get(), 0));
-    ASSERT_TRUE(cliOneWay->confirmModel_mainthread(remoteModel.root.get(), 0, StandardClient::CONFIRM_REMOTE));
-    ASSERT_TRUE(cliOneWay->confirmModel_mainthread(localModel.root.get(), 0, StandardClient::CONFIRM_LOCAL));
+    ASSERT_TRUE(fix.checkRef(remoteModel));
+    ASSERT_TRUE(fix.checkOneWay(remoteModel, StandardClient::CONFIRM_REMOTE));
+    ASSERT_TRUE(fix.checkOneWay(localModel, StandardClient::CONFIRM_LOCAL));
 }
 
 TEST(Sync, OneWay_Upload_syncDelFalse_overwriteFalse_6)
@@ -2670,37 +2717,29 @@ TEST(Sync, OneWay_Upload_syncDelFalse_overwriteFalse_6)
      * - Resume sync of cliOneWay
      * - Assert: New local is not uploaded (remote is newer)
      */
-    const SyncDescriptor desc{SyncDescriptor::TYPE_UP, false, false};
+    OneWayFixture fix{SyncDescriptor::TYPE_UP, false, false};
 
-    auto [cliTwoWay, cliOneWay] = setupOneWayTestClients(desc);
+    ASSERT_TRUE(createFile(fix.oneWayRootPath(), "foo"));
 
-    ASSERT_TRUE(createFile(cliOneWay->syncSet[0].localpath, "foo"));
-
-    waitonsyncs(20s, cliTwoWay.get(), cliOneWay.get());
+    fix.wait();
     // foo is now uploaded
 
-    ASSERT_TRUE(cliOneWay->delSync_mainthread(0, true));
+    ASSERT_TRUE(fix.pauseOneWay());
 
-    waitonsyncs(20s, cliTwoWay.get(), cliOneWay.get());
-    // cliOneWay is now paused
+    fix.wait();
+    // oneWay is now paused
 
-    ASSERT_TRUE(appendToFile(cliOneWay->syncSet[0].localpath, "foo", "blah"));
+    ASSERT_TRUE(appendToFile(fix.oneWayRootPath(), "foo", "blah"));
 
-    waitonsyncs(20s, cliTwoWay.get(), cliOneWay.get());
-    // foo is now edited locally
+    ASSERT_TRUE(appendToFile(fix.refRootPath(), "foo", "halb"));
 
-    ASSERT_TRUE(appendToFile(cliTwoWay->syncSet[0].localpath, "foo", "halb"));
+    fix.wait();
+    // new foo from ref is now uploaded
 
-    waitonsyncs(20s, cliTwoWay.get(), cliOneWay.get());
-    // foo is now edited remotely
+    fix.resumeOneWay();
 
-    ASSERT_TRUE(cliOneWay->setupSync_mainthread(desc, "sync", "f", 0));
-
-    waitonsyncs(20s, cliTwoWay.get(), cliOneWay.get());
-    // cliOneWay is now resumed
-
-    cliTwoWay->removeLocalDebris(0);
-    cliOneWay->removeLocalDebris(0);
+    fix.wait();
+    // oneWay is now resumed. New foo from oneWay is not uploaded (remote is newer)
 
     Model localModel;
     auto localFooNodeOld = localModel.makeModelSubfile("foo");
@@ -2714,9 +2753,9 @@ TEST(Sync, OneWay_Upload_syncDelFalse_overwriteFalse_6)
     remoteFooNode->addkid(std::move(remoteFooNodeOld));
     remoteModel.root->addkid(std::move(remoteFooNode));
 
-    ASSERT_TRUE(cliTwoWay->confirmModel_mainthread(remoteModel.root.get(), 0));
-    ASSERT_TRUE(cliOneWay->confirmModel_mainthread(remoteModel.root.get(), 0, StandardClient::CONFIRM_REMOTE));
-    ASSERT_TRUE(cliOneWay->confirmModel_mainthread(localModel.root.get(), 0, StandardClient::CONFIRM_LOCAL));
+    ASSERT_TRUE(fix.checkRef(remoteModel));
+    ASSERT_TRUE(fix.checkOneWay(remoteModel, StandardClient::CONFIRM_REMOTE));
+    ASSERT_TRUE(fix.checkOneWay(localModel, StandardClient::CONFIRM_LOCAL));
 }
 
 namespace {

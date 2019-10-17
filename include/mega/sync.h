@@ -29,7 +29,7 @@ namespace mega {
 
 struct SyncDescriptor
 {
-    enum
+    enum Type
     {
         TYPE_UP = 0x01, // sync up from local to remote
         TYPE_DOWN = 0x02, // sync down from remote to local
