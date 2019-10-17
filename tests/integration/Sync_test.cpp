@@ -2823,6 +2823,102 @@ TEST(Sync, OneWay_Upload_syncDelTrue_overwriteFalse_8)
     ASSERT_TRUE(fix.checkOneWay(localModel, StandardClient::CONFIRM_LOCAL));
 }
 
+TEST(Sync, OneWay_Upload_syncDelTrue_overwriteFalse_9)
+{
+    /* Steps:
+     * - Add local file
+     * - Wait for upload
+     * - Pause oneWay sync
+     * - Remove local file
+     * - Edit file via ref
+     * - Resume oneWay sync
+     * - Assert: New remote file still there
+     */
+    OneWayFixture fix{SyncDescriptor::TYPE_UP, true, false};
+
+    ASSERT_TRUE(createFile(fix.oneWayRootPath(), "foo"));
+
+    fix.wait();
+    // foo is now uploaded
+
+    fix.pauseOneWay();
+
+    fix.wait();
+    // oneWay is now paused
+
+    fs::remove(fix.oneWayRootPath() / "foo");
+
+    ASSERT_TRUE(appendToFile(fix.refRootPath(), "foo", "blah"));
+
+    fix.wait();
+    // new foo is now uploaded
+
+    fix.resumeOneWay();
+
+    fix.wait();
+    // foo is not deleted on the remote
+
+    Model localModel;
+
+    Model remoteModel;
+    auto remoteFooNodeOld = remoteModel.makeModelSubfile("foo");
+    auto remoteFooNode = remoteModel.makeModelSubfile("foo", "fooblah");
+    remoteFooNode->addkid(std::move(remoteFooNodeOld));
+    remoteModel.root->addkid(std::move(remoteFooNode));
+
+    ASSERT_TRUE(fix.checkRef(remoteModel));
+    ASSERT_TRUE(fix.checkOneWay(remoteModel, StandardClient::CONFIRM_REMOTE));
+    ASSERT_TRUE(fix.checkOneWay(localModel, StandardClient::CONFIRM_LOCAL));
+}
+
+TEST(Sync, OneWay_Upload_syncDelTrue_overwriteFalse_10)
+{
+    /* Steps:
+     * - Add local file
+     * - Wait for upload
+     * - Edit file via ref
+     * - Remove local file
+     * - Create new local foo
+     * - Assert: Remote has 3 foo versions (local new foo is most recent)
+     */
+    const OneWayFixture fix{SyncDescriptor::TYPE_UP, true, false};
+
+    ASSERT_TRUE(createFile(fix.oneWayRootPath(), "foo"));
+
+    fix.wait();
+    // foo is now uploaded
+
+    ASSERT_TRUE(appendToFile(fix.refRootPath(), "foo", "blah"));
+
+    fix.wait();
+    // new foo is now uploaded
+
+    fs::remove(fix.oneWayRootPath() / "foo");
+
+    fix.wait();
+    // foo is not deleted on the remote
+
+    ASSERT_TRUE(appendToFile(fix.oneWayRootPath(), "foo", "halb"));
+
+    fix.wait();
+    // new foo is now uploaded
+
+    Model localModel;
+    localModel.root->addkid(localModel.makeModelSubfile("foo", "halb"));
+
+    Model remoteModel;
+    auto remoteFooNodeOldOld = remoteModel.makeModelSubfile("foo");
+    auto remoteFooNodeOld = remoteModel.makeModelSubfile("foo", "blah");
+    auto remoteFooNode = remoteModel.makeModelSubfile("foo", "halb");
+    remoteFooNodeOld->addkid(std::move(remoteFooNodeOldOld));
+    remoteFooNode->addkid(std::move(remoteFooNodeOld));
+    remoteModel.root->addkid(std::move(remoteFooNode));
+
+    ASSERT_TRUE(fix.checkRef(remoteModel));
+    ASSERT_TRUE(fix.checkOneWay(remoteModel, StandardClient::CONFIRM_REMOTE));
+    ASSERT_TRUE(fix.checkOneWay(localModel, StandardClient::CONFIRM_LOCAL));
+}
+
 namespace {
 
 string makefa(const string& name, int fakecrc, int mtime)
