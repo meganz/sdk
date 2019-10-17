@@ -408,12 +408,6 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
         {
             if (client->isForeignNode((*it)->h))
             {
-#ifdef ENABLE_SYNC
-                if((*it)->syncxfer && e != API_EBUSINESSPASTDUE)
-                {
-                    client->syncdownrequired = true;
-                }
-#endif
                 client->app->file_removed(*it, e);
                 files.erase(it++);
                 continue;
@@ -467,7 +461,9 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
         for (file_list::iterator it = files.begin(); it != files.end(); it++)
         {
 #ifdef ENABLE_SYNC
-            if((*it)->syncxfer && e != API_EBUSINESSPASTDUE)
+            if((*it)->syncxfer
+                && e != API_EBUSINESSPASTDUE
+                && e != API_EOVERQUOTA)
             {
                 client->syncdownrequired = true;
             }
