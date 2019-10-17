@@ -21917,7 +21917,7 @@ long long MegaAccountDetailsPrivate::getTransferUsed()
 {
     long long total = details.transfer_srv_used + details.transfer_own_used + getTemporalBandwidth();
     // in case the total exceed the maximum allowance (due to the free IP-based quota)...
-    if (total > details.transfer_max)
+    if (details.transfer_max && total > details.transfer_max) //do not limit for free user (no max allowance configured)
     {
         total = details.transfer_max;
     }
