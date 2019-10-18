@@ -14044,17 +14044,14 @@ void MegaApiImpl::exportnode_result(handle h, handle ph)
 
     if ((n = client->nodebyhandle(h)))
     {
-        char node[9];
         char key[FILENODEKEYLENGTH*4/3+3];
-
-        Base64::btoa((byte*)&ph,MegaClient::NODEHANDLE,node);
 
         // the key
         if (n->type == FILENODE)
         {
             if(n->nodekey.size() >= FILENODEKEYLENGTH)
             {
-                Base64::btoa((const byte*)n->nodekey.data(),FILENODEKEYLENGTH,key);
+                Base64::btoa((const byte*)n->nodekey.data(), FILENODEKEYLENGTH, key);
             }
             else
             {
@@ -14063,7 +14060,7 @@ void MegaApiImpl::exportnode_result(handle h, handle ph)
         }
         else if (n->sharekey)
         {
-            Base64::btoa(n->sharekey->key,FOLDERNODEKEYLENGTH,key);
+            Base64::btoa(n->sharekey->key, FOLDERNODEKEYLENGTH, key);
         }
         else
         {
@@ -14071,12 +14068,7 @@ void MegaApiImpl::exportnode_result(handle h, handle ph)
             return;
         }
 
-        string link = "https://mega.nz/#";
-        link += (n->type ? "F" : "");
-        link += "!";
-        link += node;
-        link += "!";
-        link += key;
+        string link = client->getPublicLink(client->mNewLinkFormat, n->type, ph, key);
         request->setLink(link.c_str());
         fireOnRequestFinish(request, MegaError(MegaError::API_OK));
     }
