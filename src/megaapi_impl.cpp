@@ -14896,6 +14896,10 @@ void MegaApiImpl::whyamiblocked_result(int code)
         {
             reason = "Your account has been blocked pending verification via SMS.";
         }
+        else if (code == 700)
+        {
+            reason = "Your account has been temporarily suspended for your safety. Please verify your email and follow its steps to unlock your account.";
+        }
         //else if (code == 300) --> default reason
 
         request->setNumber(code);
