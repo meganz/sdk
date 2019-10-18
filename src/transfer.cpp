@@ -338,6 +338,16 @@ SymmCipher *Transfer::transfercipher()
     return &client->tmptransfercipher;
 }
 
+void Transfer::removeTransferFile(error e, File* f, DBTableTransactionCommitter* committer)
+{
+    Transfer *transfer = f->transfer;
+    client->filecachedel(f, committer);
+    transfer->files.erase(f->file_it);
+    client->app->file_removed(f, e);
+    f->transfer = NULL;
+    f->terminated();
+}
+
 // transfer attempt failed, notify all related files, collect request on
 // whether to abort the transfer, kill transfer if unanimous
 void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime timeleft)
@@ -406,14 +416,10 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
         // Remove files with foreign targets, if transfer failed with a (foreign) storage overquota
         if (e == API_EOVERQUOTA && !timeleft)
         {
-            File *f = (*it);
+            File *f = (*it++);
             if (client->isForeignNode(f->h))
             {
-                client->filecachedel(f, &committer);
-                files.erase(it++);
-                client->app->file_removed(f, e);
-                f->transfer = NULL;
-                f->terminated();
+                removeTransferFile(API_EOVERQUOTA, f, &committer);
                 continue;
             }
         }
@@ -995,11 +1001,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                     client->syncdownrequired = true;
                 }
 #endif
-                client->filecachedel(f, &committer);
-                files.erase(it++);
-                client->app->file_removed(f, API_EREAD);
-                f->transfer = NULL;
-                f->terminated();
+                removeTransferFile(API_EREAD, f, &committer);
             }
             else
             {
