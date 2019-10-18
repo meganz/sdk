@@ -414,14 +414,13 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
     for (file_list::iterator it = files.begin(); it != files.end();)
     {
         // Remove files with foreign targets, if transfer failed with a (foreign) storage overquota
-        if (e == API_EOVERQUOTA && !timeleft)
+        if (e == API_EOVERQUOTA
+                && !timeleft
+                && client->isForeignNode((*it)->h))
         {
             File *f = (*it++);
-            if (client->isForeignNode(f->h))
-            {
-                removeTransferFile(API_EOVERQUOTA, f, &committer);
-                continue;
-            }
+            removeTransferFile(API_EOVERQUOTA, f, &committer);
+            continue;
         }
 
         if (((*it)->failed(e) && (e != API_EBUSINESSPASTDUE))
