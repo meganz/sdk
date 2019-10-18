@@ -103,11 +103,11 @@ public:
     bool getextension(string*, char*, size_t) const override;
     bool expanselocalpath(string *path, string *absolutepath) override;
 
-    void addevents(Waiter*, int);
-    int checkevents(Waiter*);
+    void addevents(Waiter*, int) override;
+    int checkevents(Waiter*) override;
 
-    void osversion(string*) const;
-    void statsid(string*) const;
+    void osversion(string*) const override;
+    void statsid(string*) const override;
 
     static void emptydirlocal(string*, dev_t = 0);
 
