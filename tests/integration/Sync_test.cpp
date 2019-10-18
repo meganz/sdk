@@ -2529,7 +2529,7 @@ public:
         return mClientOneWay->syncSet.at(0).localpath;
     }
 
-    void wait(const int sec = 20) const
+    void wait(const int sec = 5) const
     {
         waitonsyncs(chrono::seconds{sec}, mClientRef.get(), mClientOneWay.get());
     }
@@ -2731,6 +2731,8 @@ TEST(Sync, OneWay_Upload_syncDelFalse_overwriteFalse_6)
 
     ASSERT_TRUE(appendToFile(fix.oneWayRootPath(), "foo", "blah"));
 
+    this_thread::sleep_for(chrono::seconds{3}); // wait a bit
+
     ASSERT_TRUE(appendToFile(fix.refRootPath(), "foo", "halb"));
 
     fix.wait();
@@ -2848,6 +2850,8 @@ TEST(Sync, OneWay_Upload_syncDelTrue_overwriteFalse_9)
 
     fs::remove(fix.oneWayRootPath() / "foo");
 
+    this_thread::sleep_for(chrono::seconds{3}); // wait a bit
+
     ASSERT_TRUE(appendToFile(fix.refRootPath(), "foo", "blah"));
 
     fix.wait();
@@ -2910,6 +2914,92 @@ TEST(Sync, OneWay_Upload_syncDelTrue_overwriteFalse_10)
     auto remoteFooNodeOldOld = remoteModel.makeModelSubfile("foo");
     auto remoteFooNodeOld = remoteModel.makeModelSubfile("foo", "blah");
     auto remoteFooNode = remoteModel.makeModelSubfile("foo", "halb");
+    remoteFooNodeOld->addkid(std::move(remoteFooNodeOldOld));
+    remoteFooNode->addkid(std::move(remoteFooNodeOld));
+    remoteModel.root->addkid(std::move(remoteFooNode));
+
+    ASSERT_TRUE(fix.checkRef(remoteModel));
+    ASSERT_TRUE(fix.checkOneWay(remoteModel, StandardClient::CONFIRM_REMOTE));
+    ASSERT_TRUE(fix.checkOneWay(localModel, StandardClient::CONFIRM_LOCAL));
+}
+
+TEST(Sync, OneWay_Upload_syncDelFalse_overwriteTrue_11)
+{
+    /* Steps:
+     * - Add local file
+     * - Wait for upload
+     * - Remove file via ref
+     * - Edit local file
+     * - Assert: New file is uploaded
+     */
+    const OneWayFixture fix{SyncDescriptor::TYPE_UP, false, true};
+
+    ASSERT_TRUE(createFile(fix.oneWayRootPath(), "foo"));
+
+    fix.wait();
+    // foo is now uploaded
+
+    fs::remove(fix.refRootPath() / "foo");
+
+    fix.wait();
+    // foo is deleted on the remote
+
+    ASSERT_TRUE(appendToFile(fix.oneWayRootPath(), "foo", "blah"));
+
+    fix.wait();
+    // new foo is now uploaded
+
+    Model model;
+    model.root->addkid(model.makeModelSubfile("foo", "fooblah"));
+
+    ASSERT_TRUE(fix.checkRef(model));
+    ASSERT_TRUE(fix.checkOneWay(model));
+}
+
+TEST(Sync, OneWay_Upload_syncDelFalse_overwriteTrue_12)
+{
+    /* Steps:
+     * - Add local file
+     * - Wait for upload
+     * - Pause oneWay
+     * - Edit local file
+     * - Edit file via ref
+     * - Resume oneWay
+     * - Assert: New local file is uploaded
+     */
+    OneWayFixture fix{SyncDescriptor::TYPE_UP, false, true};
+
+    ASSERT_TRUE(createFile(fix.oneWayRootPath(), "foo"));
+
+    fix.wait();
+    // foo is now uploaded
+
+    fix.pauseOneWay();
+
+    fix.wait();
+    // oneWay is paused
+
+    ASSERT_TRUE(appendToFile(fix.oneWayRootPath(), "foo", "blaha"));
+
+    this_thread::sleep_for(chrono::seconds{3}); // wait a bit
+
+    ASSERT_TRUE(appendToFile(fix.refRootPath(), "foo", "halb"));
+
+    fix.wait();
+    // new foo is uploaded from ref
+
+    fix.resumeOneWay();
+
+    fix.wait();
+    // oneWay is resumed
+
+    Model localModel;
+    localModel.root->addkid(localModel.makeModelSubfile("foo", "fooblaha"));
+
+    Model remoteModel;
+    auto remoteFooNodeOldOld = remoteModel.makeModelSubfile("foo");
+    auto remoteFooNodeOld = remoteModel.makeModelSubfile("foo", "foohalb");
+    auto remoteFooNode = remoteModel.makeModelSubfile("foo", "fooblaha");
     remoteFooNodeOld->addkid(std::move(remoteFooNodeOldOld));
     remoteFooNode->addkid(std::move(remoteFooNodeOld));
     remoteModel.root->addkid(std::move(remoteFooNode));
