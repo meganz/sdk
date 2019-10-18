@@ -2736,7 +2736,7 @@ CommandPutUAVer::CommandPutUAVer(MegaClient* client, attr_t at, const byte* av, 
     }
 
     const string *attrv = client->ownuser()->getattrversion(at);
-    if (attrv)
+    if (client->ownuser()->isattrvalid(at) && attrv)
     {
         element(attrv->c_str());
     }
@@ -2895,6 +2895,12 @@ void CommandGetUA::procresult()
     if (client->json.isnumeric())
     {
         error e = (error)client->json.getint();
+
+        if (e == API_ENOENT && u)
+        {
+            u->removeattr(at);
+        }
+
         client->app->getua_result(e);
 
         if (isFromChatPreview())    // if `mcuga` was sent, no need to do anything else
@@ -3158,6 +3164,8 @@ CommandDelUA::CommandDelUA(MegaClient *client, const char *an)
     cmd("upr");
     arg("ua", an);
 
+    arg("v", 1);    // returns the new version for the (removed) null value
+
     tag = client->reqtag;
 }
 
@@ -3165,32 +3173,36 @@ void CommandDelUA::procresult()
 {
     if (client->json.isnumeric())
     {
-        error e = (error)client->json.getint();
-        if (e == API_OK)
-        {
-            User *u = client->ownuser();
-            attr_t at = User::string2attr(an.c_str());
-            u->removeattr(at);
-
-            if (at == ATTR_KEYRING)
-            {
-                client->resetKeyring();
-            }
-            else if (User::isAuthring(at))
-            {
-                client->mAuthRings.emplace(at, AuthRing(at, TLVstore()));
-                client->getua(u, at, 0);
-            }
-
-            client->notifyuser(u);
-        }
-
-        client->app->delua_result(e);
+        client->app->delua_result((error)client->json.getint());
     }
     else
     {
-        client->json.storeobject();
-        client->app->delua_result(API_EINTERNAL);
+        const char* ptr;
+        const char* end;
+        if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
+        {
+            client->app->delua_result(API_EINTERNAL);
+            return;
+        }
+
+        User *u = client->ownuser();
+        attr_t at = User::string2attr(an.c_str());
+        string version(ptr, (end-ptr));
+
+        u->removeattr(at, &version); // store version to filter corresponding AP in order to avoid double onUsersUpdate()
+
+        if (at == ATTR_KEYRING)
+        {
+            client->resetKeyring();
+        }
+        else if (User::isAuthring(at))
+        {
+            client->mAuthRings.emplace(at, AuthRing(at, TLVstore()));
+            client->getua(u, at, 0);
+        }
+
+        client->notifyuser(u);
+        client->app->delua_result(API_OK);
     }
 }
 
@@ -3866,33 +3878,36 @@ void CommandGetUserQuota::procresult()
     details->pro_level = 0;
     details->subscription_type = 'O';
     details->subscription_renew = 0;
+    details->subscription_method.clear();
+    memset(details->subscription_cycle, 0, sizeof(details->subscription_cycle));
 
     details->pro_until = 0;
 
     details->storage_used = 0;
     details->storage_max = 0;
+
+    details->transfer_max = 0;
     details->transfer_own_used = 0;
     details->transfer_srv_used = 0;
-    details->transfer_max = 0;
-    details->transfer_own_reserved = 0;
-    details->transfer_srv_reserved = 0;
     details->srv_ratio = 0;
 
     details->transfer_hist_starttime = 0;
     details->transfer_hist_interval = 3600;
-    details->transfer_hist_valid = true;
     details->transfer_hist.clear();
+    details->transfer_hist_valid = true;
 
     details->transfer_reserved = 0;
-
-    details->transfer_limit = 0;
+    details->transfer_own_reserved = 0;
+    details->transfer_srv_reserved = 0;
 
     for (;;)
     {
         switch (client->json.getnameid())
         {
-            case MAKENAMEID2('b', 't'):                  // age of transfer
-                                                         // window start
+            case MAKENAMEID2('b', 't'):
+            // "Base time age", this is number of seconds since the start of the current quota buckets
+                // age of transfer
+                // window start
                 td = client->json.getint();
                 if (td != -1)
                 {
@@ -3900,11 +3915,8 @@ void CommandGetUserQuota::procresult()
                 }
                 break;
 
-            case MAKENAMEID3('b', 't', 'i'):
-                details->transfer_hist_interval = client->json.getint();
-                break;
-
             case MAKENAMEID3('t', 'a', 'h'):
+            // The free IP-based quota buckets, 6 entries for 6 hours
                 if (client->json.enterarray())
                 {
                     m_off_t t;
@@ -3919,36 +3931,29 @@ void CommandGetUserQuota::procresult()
                 break;
 
             case MAKENAMEID3('t', 'a', 'r'):
+            // IP transfer reserved
                 details->transfer_reserved = client->json.getint();
                 break;
 
-            case MAKENAMEID3('t', 'a', 'l'):
-                details->transfer_limit = client->json.getint();
-                break;
-
-            case MAKENAMEID3('t', 'u', 'a'):
-                details->transfer_own_used += client->json.getint();
-                break;
-
-            case MAKENAMEID3('t', 'u', 'o'):
-                details->transfer_srv_used += client->json.getint();
-                break;
-
             case MAKENAMEID3('r', 'u', 'a'):
+            // Actor reserved quota
                 details->transfer_own_reserved += client->json.getint();
                 break;
 
             case MAKENAMEID3('r', 'u', 'o'):
+            // Owner reserved quota
                 details->transfer_srv_reserved += client->json.getint();
                 break;
 
             case MAKENAMEID5('c', 's', 't', 'r', 'g'):
-                // storage used
+            // Your total account storage usage
                 details->storage_used = client->json.getint();
                 got_storage_used = true;
                 break;
 
             case MAKENAMEID6('c', 's', 't', 'r', 'g', 'n'):
+            // Storage breakdown of root nodes and shares for your account
+            // [bytes, numFiles, numFolders, versionedBytes, numVersionedFiles]
                 if (client->json.enterobject())
                 {
                     handle h;
@@ -3986,38 +3991,48 @@ void CommandGetUserQuota::procresult()
                 break;
 
             case MAKENAMEID5('m', 's', 't', 'r', 'g'):
-                // total storage quota
+            // maximum storage allowance
                 details->storage_max = client->json.getint();
                 got_storage = true;
                 break;
 
             case MAKENAMEID6('c', 'a', 'x', 'f', 'e', 'r'):
-                // own transfer quota used
+            // PRO transfer quota consumed by yourself
+                details->transfer_own_used += client->json.getint();
+                break;
+
+            case MAKENAMEID3('t', 'u', 'o'):
+            // Transfer usage by the owner on quotad which hasn't yet been committed back to the API DB. Supplements caxfer
                 details->transfer_own_used += client->json.getint();
                 break;
 
             case MAKENAMEID6('c', 's', 'x', 'f', 'e', 'r'):
-                // third-party transfer quota used
+            // PRO transfer quota served to others
+                details->transfer_srv_used += client->json.getint();
+                break;
+
+            case MAKENAMEID3('t', 'u', 'a'):
+            // Transfer usage served to other users which hasn't yet been committed back to the API DB. Supplements csxfer
                 details->transfer_srv_used += client->json.getint();
                 break;
 
             case MAKENAMEID5('m', 'x', 'f', 'e', 'r'):
-                // total transfer quota
+            // maximum transfer allowance
                 details->transfer_max = client->json.getint();
                 break;
 
             case MAKENAMEID8('s', 'r', 'v', 'r', 'a', 't', 'i', 'o'):
-                // percentage of transfer quota allocated to serving
+            // The ratio of your PRO transfer quota that is able to be served to others
                 details->srv_ratio = client->json.getfloat();
                 break;
 
             case MAKENAMEID5('u', 't', 'y', 'p', 'e'):
-                // Pro plan (0 == none)
+            // PRO type. 0 means Free; 4 is Pro Lite as it was added late; 100 indicates a business.
                 details->pro_level = (int)client->json.getint();
                 break;
 
             case MAKENAMEID5('s', 't', 'y', 'p', 'e'):
-                // subscription type
+            // Flag indicating if this is a recurring subscription or one-off. "O" is one off, "R" is recurring.
                 const char* ptr;
                 if ((ptr = client->json.getvalue()))
                 {
@@ -4035,6 +4050,7 @@ void CommandGetUserQuota::procresult()
                 break;
 
             case MAKENAMEID6('s', 'r', 'e', 'n', 'e', 'w'):
+            // Only provided for recurring subscriptions to indicate the best estimate of when the subscription will renew
                 if (client->json.enterarray())
                 {
                     details->subscription_renew = client->json.getint();
@@ -4061,12 +4077,12 @@ void CommandGetUserQuota::procresult()
                 break;
 
             case MAKENAMEID6('s', 'u', 'n', 't', 'i', 'l'):
-                // expiry of last active Pro plan (may be different from current one)
+            // Time the last active PRO plan will expire (may be different from current one)
                 details->pro_until = client->json.getint();
                 break;
 
             case MAKENAMEID7('b', 'a', 'l', 'a', 'n', 'c', 'e'):
-                // account balances
+            // Balance of your account
                 if (client->json.enterarray())
                 {
                     const char* cur;
@@ -4091,11 +4107,12 @@ void CommandGetUserQuota::procresult()
                 break;
 
             case MAKENAMEID4('u', 's', 'l', 'w'):
+            // The percentage (in 1000s) indicating the limit at which you are 'nearly' over. Currently 98% for PRO, 90% for free.
                 uslw = int(client->json.getint());
                 break;
 
             case EOO:
-                assert(!mStorage || (got_storage && got_storage_used));
+                assert(!mStorage || (got_storage && got_storage_used) || client->loggedinfolderlink());
 
                 if (mStorage)
                 {

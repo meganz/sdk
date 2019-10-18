@@ -74,7 +74,7 @@ void PosixAsyncIOContext::finish()
 }
 #endif
 
-PosixFileAccess::PosixFileAccess(Waiter *w, int defaultfilepermissions) : FileAccess(w)
+PosixFileAccess::PosixFileAccess(Waiter *w, int defaultfilepermissions, bool followSymLinks) : FileAccess(w)
 {
     fd = -1;
     this->defaultfilepermissions = defaultfilepermissions;
@@ -83,6 +83,7 @@ PosixFileAccess::PosixFileAccess(Waiter *w, int defaultfilepermissions) : FileAc
     dp = NULL;
 #endif
 
+    mFollowSymLinks = followSymLinks;
     fsidvalid = false;
 }
 
@@ -118,7 +119,8 @@ bool PosixFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
 #endif
 
     type = TYPE_UNKNOWN;
-    if (!stat(localname.c_str(), &statbuf))
+    mIsSymLink = !lstat(localname.c_str(), &statbuf) && S_ISLNK(statbuf.st_mode);
+    if (!(mFollowSymLinks? stat(localname.c_str(), &statbuf) : lstat(localname.c_str(), &statbuf)))
     {
         errorcode = 0;
         if (S_ISDIR(statbuf.st_mode))
@@ -458,20 +460,40 @@ bool PosixFileAccess::fopen(string* f, bool read, bool write)
     }
 #endif
 
+    bool statok = false;
+    mIsSymLink = !lstat(f->c_str(), &statbuf) && S_ISLNK(statbuf.st_mode);
+
+    if (mIsSymLink && !mFollowSymLinks)
+    {
+        statok = true; //we will use statbuf filled by lstat instead of fstat
+    }
+
     mode_t mode = 0;
     if (write)
     {
         mode = umask(0);
     }
 
-    if ((fd = open(f->c_str(), write ? (read ? O_RDWR : O_WRONLY | O_CREAT) : O_RDONLY, defaultfilepermissions)) >= 0)
+#ifndef O_PATH
+#define O_PATH 0
+// Notice in systems were O_PATH is not available, open will fail for links with O_NOFOLLOW
+#endif
+
+    // if mFollowSymLinks is true (open normally: it will open the targeted file/folder),
+    // otherwise, get the file descriptor for symlinks in case it is a sync link (notice O_PATH invalidates read/only flags)
+    if ((fd = open(f->c_str(), (!mFollowSymLinks && mIsSymLink) ? (O_PATH | O_NOFOLLOW) : (write ? (read ? O_RDWR : O_WRONLY | O_CREAT) : O_RDONLY) , defaultfilepermissions)) >= 0 || statok)
     {
         if (write)
         {
             umask(mode);
         }
 
-        if (!fstat(fd, &statbuf))
+        if (!statok)
+        {
+            statok = !fstat(fd, &statbuf);
+        }
+
+        if (statok)
         {
             #ifdef __MACH__
                 //If creation time equal to kMagicBusyCreationDate
@@ -486,6 +508,7 @@ bool PosixFileAccess::fopen(string* f, bool read, bool write)
             size = statbuf.st_size;
             mtime = statbuf.st_mtime;
             type = S_ISDIR(statbuf.st_mode) ? FOLDERNODE : FILENODE;
+            // in the future we might want to add LINKNODE to type and set it here using S_ISLNK
             fsid = (handle)statbuf.st_ino;
             fsidvalid = true;
 
@@ -1744,7 +1767,7 @@ void PosixDirNotify::delnotify(LocalNode* l)
 #endif
 }
 
-fsfp_t PosixDirNotify::fsfingerprint()
+fsfp_t PosixDirNotify::fsfingerprint() const
 {
     struct statfs statfsbuf;
 
@@ -1754,9 +1777,30 @@ fsfp_t PosixDirNotify::fsfingerprint()
     return *(fsfp_t*)&statfsbuf.f_fsid + 1;
 }
 
-FileAccess* PosixFileSystemAccess::newfileaccess()
+bool PosixDirNotify::fsstableids() const
 {
-    return new PosixFileAccess(waiter, defaultfilepermissions);
+    struct statfs statfsbuf;
+
+    if (statfs(localbasepath.c_str(), &statfsbuf))
+    {
+        LOG_err << "Failed to get filesystem type. Error code: " << errno;
+        return true;
+    }
+
+    LOG_info << "Filesystem type: 0x" << std::hex << statfsbuf.f_type;
+
+#ifdef __APPLE__
+    return statfsbuf.f_type != 0x1c // FAT32
+        && statfsbuf.f_type != 0x1d; // exFAT
+#else
+    return statfsbuf.f_type != 0x4d44 // FAT
+        && statfsbuf.f_type != 0x65735546; // FUSE
+#endif
+}
+
+FileAccess* PosixFileSystemAccess::newfileaccess(bool followSymLinks)
+{
+    return new PosixFileAccess(waiter, defaultfilepermissions, followSymLinks);
 }
 
 DirAccess* PosixFileSystemAccess::newdiraccess()

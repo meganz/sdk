@@ -421,7 +421,7 @@ void Transfer::failed(error e, dstime timeleft)
         for (file_list::iterator it = files.begin(); it != files.end(); it++)
         {
 #ifdef ENABLE_SYNC
-            if((*it)->syncxfer)
+            if((*it)->syncxfer && e != API_EBUSINESSPASTDUE)
             {
                 client->syncdownrequired = true;
             }

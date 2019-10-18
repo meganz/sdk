@@ -56,6 +56,11 @@ namespace ac = ::mega::autocomplete;
 
 #include <iomanip>
 
+// TODO: Remove this once OSX supports std::filesystem
+#ifdef __APPLE__
+#undef USE_FILESYSTEM
+#endif
+
 using namespace mega;
 using std::cout;
 using std::cerr;
@@ -6745,10 +6750,16 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
     {
         if (ad->transfer_max)
         {
+            long long transferFreeUsed = 0;
+            for (unsigned i = 0; i < ad->transfer_hist.size(); i++)
+            {
+                transferFreeUsed += ad->transfer_hist[i];
+            }
+
             cout << "\tTransfer in progress: " << ad->transfer_own_reserved << "/" << ad->transfer_srv_reserved << endl;
-            cout << "\tTransfer completed: " << ad->transfer_own_used << "/" << ad->transfer_srv_used << " of "
+            cout << "\tTransfer completed: " << ad->transfer_own_used << "/" << ad->transfer_srv_used << "/" << transferFreeUsed << " of "
                  << ad->transfer_max << " ("
-                 << (100 * (ad->transfer_own_used + ad->transfer_srv_used) / ad->transfer_max) << "%)" << endl;
+                 << (100 * (ad->transfer_own_used + ad->transfer_srv_used + transferFreeUsed) / ad->transfer_max) << "%)" << endl;
             cout << "\tServing bandwidth ratio: " << ad->srv_ratio << "%" << endl;
         }
 
@@ -6760,23 +6771,18 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
 
             for (unsigned i = 0; i < ad->transfer_hist.size(); i++)
             {
-                t -= ad->transfer_hist_interval;
                 cout << "\t\t" << t;
-                if (t < ad->transfer_hist_interval)
+                t -= ad->transfer_hist_interval;
+                if (t < 0)
                 {
                     cout << " second(s) ago until now: ";
                 }
                 else
                 {
-                    cout << "-" << t - ad->transfer_hist_interval << " second(s) ago: ";
+                    cout << "-" << t << " second(s) ago: ";
                 }
                 cout << ad->transfer_hist[i] << " byte(s)" << endl;
             }
-        }
-
-        if (ad->transfer_limit)
-        {
-            cout << "Per-IP transfer limit: " << ad->transfer_limit << endl;
         }
     }
 
@@ -7149,7 +7155,7 @@ void megacli()
 
 class MegaCLILogger : public ::mega::Logger {
 public:
-    void log(const char* time, int loglevel, const char* source, const char *message) override
+    void log(const char*, int loglevel, const char*, const char *message) override
     {
 #ifdef _WIN32
         OutputDebugStringA(message);
@@ -7157,7 +7163,13 @@ public:
 #else
         if (loglevel >= SimpleLogger::logCurrentLevel)
         {
-            std::cout << "[" << time << "] " << SimpleLogger::toStr(static_cast<LogLevel>(loglevel)) << ": " << message << " (" << source << ")" << std::endl;
+            auto t = std::time(NULL);
+            char ts[50];
+            if (!std::strftime(ts, sizeof(ts), "%H:%M:%S", std::localtime(&t)))
+            {
+                ts[0] = '\0';
+            }
+            std::cout << "[" << ts << "] " << SimpleLogger::toStr(static_cast<LogLevel>(loglevel)) << ": " << message << std::endl;
         }
 #endif
     }
