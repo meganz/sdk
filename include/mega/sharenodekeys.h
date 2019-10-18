@@ -37,7 +37,7 @@ class MEGA_API ShareNodeKeys
 
 public:
     void add(Node*, Node*, int);
-    void add(NodeCore*, Node*, int, const byte* = NULL, int = 0);
+    void add(const string& nodekey, handle nodehandle, Node*, int, const byte* = NULL, int = 0);
 
     void get(Command*, bool skiphandles = false);
 };

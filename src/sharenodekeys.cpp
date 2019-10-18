@@ -49,11 +49,11 @@ void ShareNodeKeys::add(Node* n, Node* sn, int specific)
         sn = n;
     }
 
-    add((NodeCore*)n, sn, specific);
+    add(n->nodekey(), n->nodehandle, sn, specific, NULL, 0);
 }
 
 // add a nodecore (!sn: all relevant shares, otherwise starting from sn, fixed: only sn)
-void ShareNodeKeys::add(NodeCore* n, Node* sn, int specific, const byte* item, int itemlen)
+void ShareNodeKeys::add(const string& nodekey, handle nodehandle, Node* sn, int specific, const byte* item, int itemlen)
 {
     char buf[96];
     char* ptr;
@@ -67,10 +67,10 @@ void ShareNodeKeys::add(NodeCore* n, Node* sn, int specific, const byte* item, i
         {
             sprintf(buf, ",%d,%d,\"", addshare(sn), (int)items.size());
 
-            sn->sharekey->ecb_encrypt((byte*)n->nodekey.data(), key, n->nodekey.size());
+            sn->sharekey->ecb_encrypt((byte*)nodekey.data(), key, nodekey.size());
 
             ptr = strchr(buf + 5, 0);
-            ptr += Base64::btoa(key, int(n->nodekey.size()), ptr);
+            ptr += Base64::btoa(key, int(nodekey.size()), ptr);
             *ptr++ = '"';
 
             keys.append(buf, ptr - buf);
@@ -88,7 +88,7 @@ void ShareNodeKeys::add(NodeCore* n, Node* sn, int specific, const byte* item, i
         }
         else
         {
-            items[items.size() - 1].assign((const char*)&n->nodehandle, MegaClient::NODEHANDLE);
+            items[items.size() - 1].assign((const char*)&nodehandle, MegaClient::NODEHANDLE);
         }
     }
 }

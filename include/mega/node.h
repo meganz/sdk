@@ -41,13 +41,9 @@ struct MEGA_API NodeCore
     // node type
     nodetype_t type;
 
-    // full folder/file key, symmetrically or asymmetrically encrypted
-    // node crypto keys (raw or cooked -
-    // cooked if size() == FOLDERNODEKEYLENGTH or FILEFOLDERNODEKEYLENGTH)
-    string nodekey;
-
     // node attributes
     string *attrstring;
+
 };
 
 // new node for putnodes()
@@ -55,6 +51,8 @@ struct MEGA_API NewNode : public NodeCore
 {
     static const int OLDUPLOADTOKENLEN = 27;
     static const int UPLOADTOKENLEN = 36;
+
+    string nodekey;
 
     newnodesource_t source;
 
@@ -111,6 +109,12 @@ private:
 struct MEGA_API Node : public NodeCore, FileFingerprint
 {
     MegaClient* client;
+
+    // supplies the nodekey (which is private to ensure we track changes to it)
+    const string& nodekey() const;
+
+    // check if the key is present and is the correct size for this node
+    bool keyApplied() const;
 
     // change parent node association
     bool setparent(Node*);
@@ -192,6 +196,8 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     
     void setkey(const byte* = NULL);
 
+    void setkeyfromjson(const char*);
+
     void setfingerprint();
 
     void faspec(string*);
@@ -244,7 +250,26 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     Node(MegaClient*, vector<Node*>*, handle, handle, nodetype_t, m_off_t, handle, const char*, m_time_t);
     ~Node();
+
+private:
+
+    // full folder/file key, symmetrically or asymmetrically encrypted
+    // node crypto keys (raw or cooked -
+    // cooked if size() == FOLDERNODEKEYLENGTH or FILEFOLDERNODEKEYLENGTH)
+    string nodekeydata;
 };
+
+inline const string& Node::nodekey() const
+{
+    assert(keyApplied());
+    return nodekeydata;
+}
+
+inline bool Node::keyApplied() const
+{
+    return nodekeydata.size() == size_t((type == FILENODE) ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH);
+}
+
 
 #ifdef ENABLE_SYNC
 struct MEGA_API LocalNode : public File

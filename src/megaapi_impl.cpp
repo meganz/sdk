@@ -387,7 +387,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
         this->attrstring.assign(node->attrstring->data(), node->attrstring->size());
     }
     this->fileattrstring = node->fileattrstring;
-    this->nodekey.assign(node->nodekey.data(),node->nodekey.size());
+    this->nodekey.assign(node->nodekey().data(),node->nodekey().size());
 
     this->changed = 0;
     if(node->changed.attrs)
@@ -4672,8 +4672,8 @@ MegaFileGet::MegaFileGet(MegaClient *client, Node *n, string dstPath) : MegaFile
     size = n->size;
     mtime = n->mtime;
 
-    if(n->nodekey.size()>=sizeof(filekey))
-        memcpy(filekey,n->nodekey.data(),sizeof filekey);
+    if(n->nodekey().size()>=sizeof(filekey))
+        memcpy(filekey,n->nodekey().data(),sizeof filekey);
 
     client->fsaccess->path2local(&finalPath, &localname);
     hprivate = true;
@@ -14042,9 +14042,9 @@ void MegaApiImpl::exportnode_result(handle h, handle ph)
         // the key
         if (n->type == FILENODE)
         {
-            if(n->nodekey.size() >= FILENODEKEYLENGTH)
+            if(n->nodekey().size() >= FILENODEKEYLENGTH)
             {
-                Base64::btoa((const byte*)n->nodekey.data(),FILENODEKEYLENGTH,key);
+                Base64::btoa((const byte*)n->nodekey().data(),FILENODEKEYLENGTH,key);
             }
             else
             {
@@ -17570,7 +17570,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                     if (!forceToUpload)
                     {
                         Node *samenode = client->nodebyfingerprint(&fp);
-                        if (samenode && samenode->nodekey.size() && !hasToForceUpload(*samenode, *transfer))
+                        if (samenode && samenode->nodekey().size() && !hasToForceUpload(*samenode, *transfer))
                         {
                             pendingUploads++;
                             transfer->setState(MegaTransfer::STATE_QUEUED);
@@ -18529,7 +18529,7 @@ void MegaApiImpl::sendPendingRequests()
                 unsigned nc;
                 TreeProcCopy tc;
 
-                if (!node->nodekey.size())
+                if (!node->nodekey().size())
                 {
                     e = API_EKEY;
                     break;
@@ -18652,11 +18652,11 @@ void MegaApiImpl::sendPendingRequests()
             newnode->nodehandle = version->nodehandle;
             newnode->parenthandle = UNDEF;
             newnode->ovhandle = current->nodehandle;
-            newnode->nodekey = version->nodekey;
+            newnode->nodekey = version->nodekey();
             newnode->attrstring = new string();
             if (newnode->nodekey.size())
             {
-                key.setkey((const byte*)version->nodekey.data(), version->type);
+                key.setkey((const byte*)version->nodekey().data(), version->type);
                 version->attrs.getjson(&attrstring);
                 client->makeattr(&key, newnode->attrstring, attrstring.c_str());
             }
@@ -18926,7 +18926,7 @@ void MegaApiImpl::sendPendingRequests()
             if (!fa)
             {
                 fileattrstring = node->fileattrstring;
-                key = node->nodekey;
+                key = node->nodekey();
             }
             else
             {
@@ -18940,7 +18940,7 @@ void MegaApiImpl::sendPendingRequests()
                 }
                 key.assign((const char *)nodekey, sizeof nodekey);
             }
-            e = client->getfa(h, &fileattrstring, &key, (fatype) type);
+            e = client->getfa(h, &fileattrstring, key, (fatype) type);
             if(e == API_EEXIST)
             {
                 e = API_OK;
@@ -21631,7 +21631,7 @@ void TreeProcCopy::proc(MegaClient* client, Node* n)
         t->parenthandle = n->parent ? n->parent->nodehandle : UNDEF;
 
         // copy key (if file) or generate new key (if folder)
-        if (n->type == FILENODE) t->nodekey = n->nodekey;
+        if (n->type == FILENODE) t->nodekey = n->nodekey();
         else
         {
             byte buf[FOLDERNODEKEYLENGTH];

@@ -1872,7 +1872,7 @@ public:
             // copy key (if file) or generate new key (if folder)
             if (n->type == FILENODE)
             {
-                t->nodekey = n->nodekey;
+                t->nodekey = n->nodekey();
             }
             else
             {
@@ -2058,7 +2058,7 @@ string showMediaInfo(Node* n, MediaFileInfo& /*mediaInfo*/, bool oneline)
 {
     if (n->hasfileattribute(fa_media))
     {
-        MediaProperties mp = MediaProperties::decodeMediaPropertiesAttributes(n->fileattrstring, (uint32_t*)(n->nodekey.data() + FILENODEKEYLENGTH / 2));
+        MediaProperties mp = MediaProperties::decodeMediaPropertiesAttributes(n->fileattrstring, (uint32_t*)(n->nodekey().data() + FILENODEKEYLENGTH / 2));
         return showMediaInfo(mp, client->mediaFileInfo, oneline);
     }
     return "The node has no mediainfo attribute";
@@ -2543,6 +2543,16 @@ void printAuthringInformation(handle userhandle)
     }
 }
 
+void exec_setmaxconnections(autocomplete::ACState& s)
+{
+    auto direction = s.words[1].s == "put" ? PUT : GET;
+    if (s.words.size() == 3)
+    {
+        client->setmaxconnections(direction, atoi(s.words[2].s.c_str()));
+    }
+    cout << "connections: " << (int)client->connections[direction] << endl;
+}
+
 autocomplete::ACN autocompleteSyntax()
 {
     using namespace autocomplete;
@@ -2691,6 +2701,8 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_getuserquota, sequence(text("getuserquota"), repeat(either(flag("-storage"), flag("-transfer"), flag("-pro")))));
 
     p->Add(exec_showattributes, sequence(text("showattributes"), remoteFSPath(client, &cwd)));
+
+    p->Add(exec_setmaxconnections, sequence(text("setmaxconnections"), either(text("put"), text("get")), opt(wholenumber(4))));
 
     return autocompleteTemplate = std::move(p);
 }
@@ -3256,7 +3268,7 @@ void exec_cp(autocomplete::ACState& s)
             unsigned nc;
             handle ovhandle = UNDEF;
 
-            if (!n->nodekey.size())
+            if (!n->keyApplied())
             {
                 cout << "Cannot copy a node without key" << endl;
                 return;
@@ -3494,7 +3506,7 @@ void exec_get(autocomplete::ACState& s)
                         f->pubauth = pubauth;
                         f->hprivate = true;
                         f->hforeign = true;
-                        memcpy(f->filekey, n->nodekey.data(), FILENODEKEYLENGTH);
+                        memcpy(f->filekey, n->nodekey().data(), FILENODEKEYLENGTH);
                     }
 
                     f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
@@ -4215,7 +4227,7 @@ void exec_getfa(autocomplete::ACState& s)
         {
             if (n->hasfileattribute(type))
             {
-                client->getfa(n->nodehandle, &n->fileattrstring, &n->nodekey, type, cancel);
+                client->getfa(n->nodehandle, &n->fileattrstring, n->nodekey(), type, cancel);
                 c++;
             }
         }
@@ -4225,7 +4237,7 @@ void exec_getfa(autocomplete::ACState& s)
             {
                 if ((*it)->type == FILENODE && (*it)->hasfileattribute(type))
                 {
-                    client->getfa((*it)->nodehandle, &(*it)->fileattrstring, &(*it)->nodekey, type, cancel);
+                    client->getfa((*it)->nodehandle, &(*it)->fileattrstring, (*it)->nodekey(), type, cancel);
                     c++;
                 }
             }
@@ -6429,7 +6441,7 @@ void DemoApp::exportnode_result(handle h, handle ph)
 
         if (n->type == FILENODE)
         {
-            cout << MegaClient::getPublicLink(client->mNewLinkFormat, n->type, ph, Base64Str<FILENODEKEYLENGTH>((const byte*)n->nodekey.data())) << endl;
+            cout << MegaClient::getPublicLink(client->mNewLinkFormat, n->type, ph, Base64Str<FILENODEKEYLENGTH>((const byte*)n->nodekey().data())) << endl;
         }
         else
         {
