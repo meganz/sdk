@@ -221,7 +221,7 @@ Node::~Node()
         {
             localnode->syncable = false;
         }
-        else
+        else if (localnode->sync->syncDeletions())
         {
             localnode->deleted = true;
         }

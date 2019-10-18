@@ -2760,7 +2760,7 @@ TEST(Sync, OneWay_Upload_syncDelFalse_overwriteFalse_6)
     ASSERT_TRUE(fix.checkOneWay(localModel, StandardClient::CONFIRM_LOCAL));
 }
 
-TEST(Sync, OneWay_Upload_syncDelTrue_overwriteFalse_7)
+TEST(Sync, OneWay_Upload_syncDelTrue_overwriteFalse_1)
 {
     /* Steps:
      * - Add local file
@@ -2786,7 +2786,7 @@ TEST(Sync, OneWay_Upload_syncDelTrue_overwriteFalse_7)
     ASSERT_TRUE(fix.checkOneWay(model));
 }
 
-TEST(Sync, OneWay_Upload_syncDelTrue_overwriteFalse_8)
+TEST(Sync, OneWay_Upload_syncDelTrue_overwriteFalse_2)
 {
     /* Steps:
      * - Add local file
@@ -2825,7 +2825,7 @@ TEST(Sync, OneWay_Upload_syncDelTrue_overwriteFalse_8)
     ASSERT_TRUE(fix.checkOneWay(localModel, StandardClient::CONFIRM_LOCAL));
 }
 
-TEST(Sync, OneWay_Upload_syncDelTrue_overwriteFalse_9)
+TEST(Sync, OneWay_Upload_syncDelTrue_overwriteFalse_3)
 {
     /* Steps:
      * - Add local file
@@ -2875,7 +2875,7 @@ TEST(Sync, OneWay_Upload_syncDelTrue_overwriteFalse_9)
     ASSERT_TRUE(fix.checkOneWay(localModel, StandardClient::CONFIRM_LOCAL));
 }
 
-TEST(Sync, OneWay_Upload_syncDelTrue_overwriteFalse_10)
+TEST(Sync, OneWay_Upload_syncDelTrue_overwriteFalse_4)
 {
     /* Steps:
      * - Add local file
@@ -2923,7 +2923,7 @@ TEST(Sync, OneWay_Upload_syncDelTrue_overwriteFalse_10)
     ASSERT_TRUE(fix.checkOneWay(localModel, StandardClient::CONFIRM_LOCAL));
 }
 
-TEST(Sync, OneWay_Upload_syncDelFalse_overwriteTrue_11)
+TEST(Sync, OneWay_Upload_syncDelFalse_overwriteTrue_1)
 {
     /* Steps:
      * - Add local file
@@ -2956,7 +2956,7 @@ TEST(Sync, OneWay_Upload_syncDelFalse_overwriteTrue_11)
     ASSERT_TRUE(fix.checkOneWay(model));
 }
 
-TEST(Sync, OneWay_Upload_syncDelFalse_overwriteTrue_12)
+TEST(Sync, OneWay_Upload_syncDelFalse_overwriteTrue_2)
 {
     /* Steps:
      * - Add local file
@@ -3003,6 +3003,153 @@ TEST(Sync, OneWay_Upload_syncDelFalse_overwriteTrue_12)
     remoteFooNodeOld->addkid(std::move(remoteFooNodeOldOld));
     remoteFooNode->addkid(std::move(remoteFooNodeOld));
     remoteModel.root->addkid(std::move(remoteFooNode));
+
+    ASSERT_TRUE(fix.checkRef(remoteModel));
+    ASSERT_TRUE(fix.checkOneWay(remoteModel, StandardClient::CONFIRM_REMOTE));
+    ASSERT_TRUE(fix.checkOneWay(localModel, StandardClient::CONFIRM_LOCAL));
+}
+
+TEST(Sync, OneWay_Upload_syncDelTrue_overwriteTrue_1)
+{
+    /* Steps:
+     * - Add local file
+     * - Wait for upload
+     * - Pause oneWay
+     * - Delete local file
+     * - Edit file via ref
+     * - Resume oneWay
+     * - Assert: Remote file is gone
+     */
+    OneWayFixture fix{SyncDescriptor::TYPE_UP, true, true};
+
+    ASSERT_TRUE(createFile(fix.oneWayRootPath(), "foo"));
+
+    fix.wait();
+    // foo is now uploaded
+
+    fix.pauseOneWay();
+
+    fix.wait();
+    // oneWay is paused
+
+    fs::remove(fix.oneWayRootPath() / "foo");
+
+    this_thread::sleep_for(chrono::seconds{3}); // wait a bit
+
+    ASSERT_TRUE(appendToFile(fix.refRootPath(), "foo", "blah"));
+
+    fix.wait();
+    // new foo is uploaded from ref
+
+    fix.resumeOneWay();
+
+    fix.wait();
+    // oneWay is resumed
+
+    Model model;
+
+    ASSERT_TRUE(fix.checkRef(model));
+    ASSERT_TRUE(fix.checkOneWay(model));
+}
+
+TEST(Sync, OneWay_Download_syncDelFalse_overwriteFalse_1)
+{
+    /* Steps:
+     * - Add local file
+     * - Assert: No remote file
+     */
+    const OneWayFixture fix{SyncDescriptor::TYPE_DOWN, false, false};
+
+    ASSERT_TRUE(createFile(fix.oneWayRootPath(), "foo"));
+
+    fix.wait();
+    // foo is not uploaded
+
+    Model localModel;
+    localModel.root->addkid(localModel.makeModelSubfile("foo"));
+
+    Model remoteModel;
+
+    ASSERT_TRUE(fix.checkRef(remoteModel));
+    ASSERT_TRUE(fix.checkOneWay(remoteModel, StandardClient::CONFIRM_REMOTE));
+    ASSERT_TRUE(fix.checkOneWay(localModel, StandardClient::CONFIRM_LOCAL));
+}
+
+TEST(Sync, OneWay_Download_syncDelFalse_overwriteFalse_2)
+{
+    /* Steps:
+     * - Add remote file
+     * - Wait for download
+     * - Assert: file downloaded
+     */
+    const OneWayFixture fix{SyncDescriptor::TYPE_DOWN, false, false};
+
+    ASSERT_TRUE(createFile(fix.refRootPath(), "foo"));
+
+    fix.wait();
+    // foo is downloaded
+
+    Model model;
+    model.root->addkid(model.makeModelSubfile("foo"));
+
+    ASSERT_TRUE(fix.checkRef(model));
+    ASSERT_TRUE(fix.checkOneWay(model));
+}
+
+TEST(Sync, OneWay_Download_syncDelFalse_overwriteFalse_3)
+{
+    /* Steps:
+     * - Add remote file
+     * - Wait for download
+     * - Edit remote file
+     * - Assert: New file downloaded
+     */
+    const OneWayFixture fix{SyncDescriptor::TYPE_DOWN, false, false};
+
+    ASSERT_TRUE(createFile(fix.refRootPath(), "foo"));
+
+    fix.wait();
+    // foo is downloaded
+
+    ASSERT_TRUE(appendToFile(fix.refRootPath(), "foo", "blah"));
+
+    fix.wait();
+    // new foo is downloaded
+
+    Model model;
+    auto fooNodeOld = model.makeModelSubfile("foo");
+    auto fooNode = model.makeModelSubfile("foo", "fooblah");
+    fooNode->addkid(std::move(fooNodeOld));
+    model.root->addkid(std::move(fooNode));
+
+    ASSERT_TRUE(fix.checkRef(model));
+    ASSERT_TRUE(fix.checkOneWay(model));
+}
+
+TEST(Sync, OneWay_Download_syncDelFalse_overwriteFalse_4)
+{
+    /* Steps:
+     * - Add remote file
+     * - Wait for download
+     * - Remove remote file
+     * - Assert: Local file still there
+     */
+    const OneWayFixture fix{SyncDescriptor::TYPE_DOWN, false, false};
+
+    ASSERT_TRUE(createFile(fix.refRootPath(), "foo"));
+
+    fix.wait();
+    // foo is downloaded
+
+    fs::remove(fix.refRootPath() / "foo");
+
+    fix.wait();
+    // foo is not deleted
+
+    Model localModel;
+    localModel.root->addkid(localModel.makeModelSubfile("foo"));
+
+    Model remoteModel;
 
     ASSERT_TRUE(fix.checkRef(remoteModel));
     ASSERT_TRUE(fix.checkOneWay(remoteModel, StandardClient::CONFIRM_REMOTE));

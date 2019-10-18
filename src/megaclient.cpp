@@ -9180,7 +9180,11 @@ void MegaClient::notifynode(Node* n)
                 }
             }
 
-            n->localnode->deleted = true;
+            const auto sync = n->localnode->sync;
+            if (sync->isDownSync() && sync->syncDeletions())
+            {
+                n->localnode->deleted = true;
+            }
             n->localnode->node = NULL;
             n->localnode = NULL;
         }
@@ -9195,7 +9199,7 @@ void MegaClient::notifynode(Node* n)
                 {
                     n->localnode->syncable = !n->changed.removed;
                 }
-                else
+                else if (n->localnode->sync->syncDeletions())
                 {
                     n->localnode->deleted = n->changed.removed;
                 }
@@ -9209,7 +9213,7 @@ void MegaClient::notifynode(Node* n)
                     {
                         n->localnode->syncable = !n->changed.removed;
                     }
-                    else
+                    else if (n->localnode->sync->syncDeletions())
                     {
                         n->localnode->deleted = n->changed.removed;
                     }

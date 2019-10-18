@@ -1757,11 +1757,6 @@ void Sync::deletemissing(LocalNode* l)
 
 bool Sync::movetolocaldebris(string* localpath)
 {
-    if (!syncDeletions())
-    {
-        return true;
-    }
-
     size_t t = localdebris.size();
     char buf[32];
     struct tm tms;
