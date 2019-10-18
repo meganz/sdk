@@ -226,7 +226,6 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
         changed = true;
     }
 
-    fa->closef();
     return changed;
 }
 

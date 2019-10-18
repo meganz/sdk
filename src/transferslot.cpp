@@ -771,12 +771,19 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                                     }
                                 }
 
-                                reqs[i]->prepare(finaltempurl.c_str(), transfer->transfercipher(),
-                                         &transfer->chunkmacs, transfer->ctriv,
-                                         asyncIO[i]->pos, npos);
-
-                                reqs[i]->pos = ChunkedHash::chunkfloor(asyncIO[i]->pos);
-                                reqs[i]->status = REQ_PREPARED;
+                                {
+                                    auto req = reqs[i];
+                                    auto tfr = transfer;
+                                    auto pos = asyncIO[i]->pos;
+                                    client->mAsyncQueue.push([req, tfr, finaltempurl, pos, npos](SymmCipher& sc)
+                                        {
+                                            sc.setkey(tfr->transferkey);
+                                            req->prepare(finaltempurl.c_str(), &sc, &tfr->chunkmacs, tfr->ctriv, pos, npos); 
+                                            req->pos = ChunkedHash::chunkfloor(pos);
+                                            req->status = REQ_PREPARED;
+                                        });
+                                }
+                                reqs[i]->status = REQ_ENCRYPTING;
                             }
                             else
                             {

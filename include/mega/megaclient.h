@@ -178,6 +178,69 @@ public:
     dstime timeToTransfersResumed;
 };
 
+
+// Helper class for MegaClient.  Executes independent tasks on a separate thread or threads.
+struct MegaClientAsyncQueue
+{
+    void push(std::function<void(SymmCipher&)>&& f)
+    {
+        std::lock_guard g(m);
+        q.emplace_back(std::move(f));
+        cv.notify_one();
+    }
+
+    MegaClientAsyncQueue(Waiter& w)
+        : waiter(w)
+        , asyncThread1([this]() { asyncThreadLoop(); })
+        , asyncThread2([this]() { asyncThreadLoop(); })
+        , asyncThread3([this]() { asyncThreadLoop(); })
+    {
+    }
+
+    ~MegaClientAsyncQueue()
+    {
+        {
+            std::lock_guard g(m);
+            q.clear();
+        }
+        push(nullptr);
+        asyncThread1.join();
+        asyncThread2.join();
+        asyncThread3.join();
+    }
+
+private:
+    Waiter& waiter;
+    std::mutex m;
+    std::condition_variable cv;
+    std::deque<std::function<void(SymmCipher&)>> q;
+    std::thread asyncThread1, asyncThread2, asyncThread3;
+
+    void asyncThreadLoop()
+    {
+        SymmCipher cipher;
+        std::unique_lock g(m);
+        for (;;)
+        {
+            cv.wait(g, [this]() {return !q.empty(); });
+            auto f = std::move(q.front());
+            if (f)
+            {
+                q.pop_front();
+                g.unlock();
+                f(cipher);
+                waiter.notify();
+                g.lock();
+            }
+            else
+            {
+                break;
+            }
+        }
+    }
+};
+
+
 class MEGA_API MegaClient
 {
 public:
@@ -1543,6 +1606,8 @@ public:
 
     // -1: expired, 0: inactive (no business subscription), 1: active, 2: grace-period
     BizStatus mBizStatus;
+
+    MegaClientAsyncQueue mAsyncQueue;
 
     // Keep track of high level operation counts and times, for performance analysis
     struct PerformanceStats

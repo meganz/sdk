@@ -687,6 +687,7 @@ void CurlHttpIO::processcurlevents(direction_t d)
         curl_multi_socket_action(curlm[d], CURL_SOCKET_TIMEOUT, 0, &dummy);
     }
 
+#ifndef WIN32
     for (SockInfoMap::iterator it = socketmap->begin(); it != socketmap->end();)
     {
         SockInfo &info = it->second;
@@ -699,6 +700,7 @@ void CurlHttpIO::processcurlevents(direction_t d)
             it++;
         }
     }
+#endif
 }
 
 CurlHttpIO::~CurlHttpIO()
@@ -2507,10 +2509,11 @@ int CurlHttpIO::socket_callback(CURL *, curl_socket_t s, int what, void *userp, 
     {
         LOG_debug << "Removing socket " << s;
 
+        socketmap[s].mode = 0;
 #if defined(_WIN32)
         socketmap[s].closeEvent();
+        socketmap.erase(s);
 #endif
-        socketmap[s].mode = 0;
     }
     else
     {
