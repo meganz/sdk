@@ -979,10 +979,7 @@
 					../../third_party/utf8proc,
 					3rdparty/webrtc/third_party/boringssl/src/include,
 				);
-				LIBRARY_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(PROJECT_DIR)/3rdparty/lib",
-				);
+				LIBRARY_SEARCH_PATHS = "$(inherited)";
 				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_NAME = MEGASDK;
 				SKIP_INSTALL = YES;
@@ -1006,10 +1003,7 @@
 					../../third_party/utf8proc,
 					3rdparty/webrtc/third_party/boringssl/src/include,
 				);
-				LIBRARY_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(PROJECT_DIR)/3rdparty/lib",
-				);
+				LIBRARY_SEARCH_PATHS = "$(inherited)";
 				OTHER_CFLAGS = "-DNDEBUG";
 				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_NAME = MEGASDK;
