@@ -38,10 +38,9 @@ Building
 
 For platforms with Autotools, the generic way to build and install it is:
 
-#Install dependent packages firstly!!!
+
     sudo apt install libcrypto++-dev libsqlite3-dev libc-ares-dev libcurl4-openssl-dev zlib1g-dev libfreeimage-dev libreadline-dev libsodium-dev
-    
-#Run building
+
     sh autogen.sh
     ./configure
     make
