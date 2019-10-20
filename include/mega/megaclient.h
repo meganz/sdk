@@ -1302,7 +1302,7 @@ public:
     dstime disconnecttimestamp;
 
     // process object arrays by the API server
-    int readnodes(JSON*, int, putsource_t = PUTNODES_APP, NewNode* = NULL, int = 0, int = 0);
+    int readnodes(JSON*, int, putsource_t = PUTNODES_APP, NewNode* = NULL, int = 0, int = 0, bool applykeys = false);
 
     void readok(JSON*);
     void readokelement(JSON*);
@@ -1404,7 +1404,10 @@ public:
     string clientname;
 
     // apply keys
-    int applykeys();
+    void applykeys();
+
+    // send andy key rewrites prepared when keys were applied
+    void sendkeyrewrites();
 
     // symmetric password challenge
     int checktsid(byte* sidbuf, unsigned len);
