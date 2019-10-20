@@ -7120,7 +7120,7 @@ uint64_t MegaClient::stringhash64(string* s, SymmCipher* c)
 }
 
 // read and add/verify node array
-int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, int nnsize, int tag)
+int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, int nnsize, int tag, bool applykeys)
 {
     if (!j->enterarray())
     {
@@ -7413,6 +7413,11 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
             if (notify)
             {
                 notifynode(n);
+            }
+
+            if (applykeys)
+            {
+                n->applykey();
             }
         }
     }
@@ -7870,7 +7875,7 @@ void MegaClient::procph(JSON *j)
     }
 }
 
-int MegaClient::applykeys()
+void MegaClient::applykeys()
 {
     CodeCounter::ScopeTimer ccst(performanceStats.applyKeys);
 
@@ -7892,6 +7897,11 @@ int MegaClient::applykeys()
         }
     }
 
+    sendkeyrewrites();
+}
+
+void MegaClient::sendkeyrewrites()
+{
     if (sharekeyrewrite.size())
     {
         reqs.add(new CommandShareKeyUpdate(this, &sharekeyrewrite));
@@ -7903,8 +7913,6 @@ int MegaClient::applykeys()
         reqs.add(new CommandNodeKeyUpdate(this, &nodekeyrewrite));
         nodekeyrewrite.clear();
     }
-
-    return t;
 }
 
 // user/contact list
