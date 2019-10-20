@@ -494,13 +494,13 @@ void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ std::strin
 
 #ifdef USE_MEDIAINFO
     char ext[8];
-    if (((type == PUT && size >= 16) || (node && node->nodekey.size() == FILENODEKEYLENGTH && node->size >= 16)) &&
+    if (((type == PUT && size >= 16) || (node && node->nodekey().size() == FILENODEKEYLENGTH && node->size >= 16)) &&
         client->fsaccess->getextension(&localpath, ext, sizeof(ext)) &&
         MediaProperties::isMediaFilenameExt(ext) &&
         !client->mediaFileInfo.mediaCodecsFailed)
     {
         // for upload, the key is in the transfer.  for download, the key is in the node.
-        uint32_t* attrKey = fileAttributeKeyPtr((type == PUT) ? filekey : (byte*)node->nodekey.data());
+        uint32_t* attrKey = fileAttributeKeyPtr((type == PUT) ? filekey : (byte*)node->nodekey().data());
 
         if (type == PUT || !node->hasfileattribute(fa_media) || client->mediaFileInfo.timeToRetryMediaPropertyExtraction(node->fileattrstring, attrKey))
         {
@@ -831,10 +831,10 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                     if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodebyhandle((*it)->h)))
                     {
                         if (!client->gfxdisabled && client->gfx && client->gfx->isgfx(&localname) &&
-                                keys.find(n->nodekey) == keys.end() &&    // this file hasn't been processed yet
+                                keys.find(n->nodekey()) == keys.end() &&    // this file hasn't been processed yet
                                 client->checkaccess(n, OWNER))
                         {
-                            keys.insert(n->nodekey);
+                            keys.insert(n->nodekey());
 
                             // check if restoration of missing attributes failed in the past (no access)
                             if (n->attrs.map.find('f') == n->attrs.map.end() || n->attrs.map['f'] != me64)

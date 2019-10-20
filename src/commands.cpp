@@ -1121,11 +1121,11 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
                 {
                     case NEW_PUBLIC:
                     case NEW_NODE:
-                        snk.add((NodeCore*)(nn + i), tn, 0);
+                        snk.add((nn + i)->nodekey, (nn + i)->nodehandle, tn, 0);
                         break;
 
                     case NEW_UPLOAD:
-                        snk.add((NodeCore*)(nn + i), tn, 0, nn[i].uploadtoken, (int)sizeof nn->uploadtoken);
+                        snk.add((nn + i)->nodekey, (nn + i)->nodehandle, tn, 0, nn[i].uploadtoken, (int)sizeof nn->uploadtoken);
                         break;
                 }
             }
@@ -3376,10 +3376,10 @@ CommandNodeKeyUpdate::CommandNodeKeyUpdate(MegaClient* client, handle_vector* v)
 
         if ((n = client->nodebyhandle(h)))
         {
-            client->key.ecb_encrypt((byte*)n->nodekey.data(), nodekey, n->nodekey.size());
+            client->key.ecb_encrypt((byte*)n->nodekey().data(), nodekey, n->nodekey().size());
 
             element(h, MegaClient::NODEHANDLE);
-            element(nodekey, int(n->nodekey.size()));
+            element(nodekey, int(n->nodekey().size()));
         }
     }
 

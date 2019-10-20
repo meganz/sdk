@@ -2410,7 +2410,7 @@ Node* makenode(MegaClient& mc, handle parent, ::mega::nodetype_t type, m_off_t s
     std::vector<Node*> dp;
     auto newnode = new Node(&mc, &dp, ++handlegenerator, parent, type, size, owner, nullptr, 1);
     
-    newnode->nodekey.assign((char*)key, type == FILENODE ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH);
+    newnode->setkey(key);
     newnode->attrstring = new string;
 
     SymmCipher sc;
