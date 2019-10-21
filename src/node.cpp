@@ -1331,6 +1331,13 @@ void LocalNode::bumpnagleds()
     nagleds = sync->client->waiter->ds + 11;
 }
 
+LocalNode::LocalNode()
+: deleted{false}
+, created{false}
+, reported{false}
+, checked{false}
+{}
+
 // initialize fresh LocalNode object - must be called exactly once
 void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, string* cfullpath)
 {
