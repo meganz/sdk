@@ -6588,7 +6588,7 @@ void DemoApp::folderlinkinfo_result(error e, handle owner, handle /*ph*/, string
     }
 
     handle ph;
-    byte folderkey[SymmCipher::KEYLENGTH];
+    byte folderkey[FOLDERNODEKEYLENGTH];
     error eaux = client->parsepubliclink(publiclink.c_str(), ph, folderkey, true);
     assert(eaux == API_OK);
 

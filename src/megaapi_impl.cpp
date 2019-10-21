@@ -21285,12 +21285,12 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             handle h = UNDEF;
-            byte folderkey[SymmCipher::KEYLENGTH];
+            byte folderkey[FOLDERNODEKEYLENGTH];
             e = client->parsepubliclink(link, h, folderkey, true);
             if (e == API_OK)
             {
                 request->setNodeHandle(h);
-                Base64Str<SymmCipher::KEYLENGTH> folderkeyB64(folderkey);
+                Base64Str<FOLDERNODEKEYLENGTH> folderkeyB64(folderkey);
                 request->setPrivateKey(folderkeyB64.chars);
                 client->getpubliclinkinfo(h);
             }

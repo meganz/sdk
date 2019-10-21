@@ -8066,7 +8066,7 @@ error MegaClient::parsepubliclink(const char* link, handle& ph, byte* key, bool 
         if (*ptr == '!' || *ptr == '#')
         {
             const char *k = ptr + 1;    // skip '!' or '#' separator
-            size_t keylen = isFolderLink ? SymmCipher::KEYLENGTH : FILENODEKEYLENGTH;
+            int keylen = isFolderLink ? FOLDERNODEKEYLENGTH : FILENODEKEYLENGTH;
             if (Base64::atob(k, key, keylen) == keylen)
             {
                 return API_OK;
@@ -8080,7 +8080,7 @@ error MegaClient::parsepubliclink(const char* link, handle& ph, byte* key, bool 
 error MegaClient::folderaccess(const char *folderlink)
 {
     handle h = UNDEF;
-    byte folderkey[SymmCipher::KEYLENGTH];
+    byte folderkey[FOLDERNODEKEYLENGTH];
 
     error e;
     if ((e = parsepubliclink(folderlink, h, folderkey, true)) == API_OK)
