@@ -7879,8 +7879,6 @@ void MegaClient::applykeys()
 {
     CodeCounter::ScopeTimer ccst(performanceStats.applyKeys);
 
-    int t = 0;
-
     // FIXME: rather than iterating through the whole node set, maintain subset
     // with missing keys
 
@@ -7888,12 +7886,9 @@ void MegaClient::applykeys()
 
     if (nodes.size() > size_t(mAppliedNodeKeyCount + noKeyExpected))
     {
-        for (node_map::iterator it = nodes.begin(); it != nodes.end(); it++)
+        for (auto& it : nodes)
         {
-            if (it->second->applykey())
-            {
-                t++;
-            }
+            it.second->applykey();
         }
     }
 

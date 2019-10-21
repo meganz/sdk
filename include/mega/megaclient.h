@@ -1100,6 +1100,7 @@ public:
     // total number of Node objects
     long long totalNodes;
 
+    // tracks how many nodes have had a successful applykey()
     long long mAppliedNodeKeyCount = 0;
 
     // server-client request sequence number

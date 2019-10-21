@@ -1121,11 +1121,11 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
                 {
                     case NEW_PUBLIC:
                     case NEW_NODE:
-                        snk.add((nn + i)->nodekey, (nn + i)->nodehandle, tn, 0);
+                        snk.add(nn[i].nodekey, nn[i].nodehandle, tn, 0);
                         break;
 
                     case NEW_UPLOAD:
-                        snk.add((nn + i)->nodekey, (nn + i)->nodehandle, tn, 0, nn[i].uploadtoken, (int)sizeof nn->uploadtoken);
+                        snk.add(nn[i].nodekey, nn[i].nodehandle, tn, 0, nn[i].uploadtoken, (int)sizeof nn->uploadtoken);
                         break;
                 }
             }
