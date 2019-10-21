@@ -24,7 +24,7 @@ pushd lib
 
 for ARCH in $ARCHS
 do
-$DEPOT_TOOLS_PATH/gn gen $ARCH --args='target_os="ios" target_cpu="'$ARCH'" rtc_include_tests=false rtc_build_examples=false treat_warnings_as_errors=false fatal_linker_warnings=false use_custom_libcxx=false'
+$DEPOT_TOOLS_PATH/gn gen $ARCH --args='target_os="ios" target_cpu="'$ARCH'" rtc_include_tests=false rtc_build_examples=false treat_warnings_as_errors=false fatal_linker_warnings=false use_custom_libcxx=false is_debug=false rtc_libvpx_build_vp9=false ios_deployment_target="10.0"' 
 pushd $ARCH
 $DEPOT_TOOLS_PATH/ninja -C .
 popd
