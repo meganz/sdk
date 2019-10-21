@@ -2424,11 +2424,6 @@ void CommandEnumerateQuotaItems::procresult()
                         return client->app->enumeratequotaitems_result(API_EINTERNAL);
                     }
 
-                    if (type == 1)
-                    {
-                        prolevel = 100; // legacy value returned by `utqa` with `f` instead of `nf`
-                    }
-
                     finished = true;
                     break;
                 default:
