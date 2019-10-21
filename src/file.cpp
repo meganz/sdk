@@ -45,7 +45,8 @@ File::~File()
     // if transfer currently running, stop
     if (transfer)
     {
-        transfer->client->stopxfer(this, nullptr);
+        DBTableTransactionCommitter committer(transfer->client->tctable);
+        transfer->client->stopxfer(this, &committer);
     }
     delete [] chatauth;
 }
