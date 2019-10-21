@@ -370,8 +370,8 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
         {
             if (!slot)
             {
-                client->activateoverquota(timeleft);
                 bt.backoff(timeleft ? timeleft : NEVER);
+                client->activateoverquota(timeleft);
                 client->app->transfer_failed(this, e, timeleft);
                 ++client->performanceStats.transferTempErrors;
             }
