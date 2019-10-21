@@ -8001,57 +8001,80 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
     return j->leavearray();
 }
 
-error MegaClient::parsefolderlink(const char *folderlink, handle &h, byte *key)
+// Supported formats:
+//   - file links:      #!<ph>[!<key>]
+//                      <ph>[!<key>]
+//                      /file/<ph>[<params>][#<key>]
+//
+//   - folder links:    #F!<ph>[!<key>]
+//                      /folder/<ph>[<params>][#<key>]
+error MegaClient::parsepubliclink(const char* link, handle& ph, byte* key, bool isFolderLink)
 {
-    // structure of public folder links: ...#F!<handle>!<key> or /folder/<handle>[<params>][#<key>]
+    bool isFolder;
+    const char* ptr = nullptr;
+    if ((ptr = strstr(link, "#F!")))
+    {
+        ptr += 3;
+        isFolder = true;
+    }
+    else if ((ptr = strstr(link, "folder/")))
+    {
+        ptr += 7;
+        isFolder = true;
+    }
+    else if ((ptr = strstr(link, "#!")))
+    {
+        ptr += 2;
+        isFolder = false;
+    }
+    else if ((ptr = strstr(link, "file/")))
+    {
+        ptr += 5;
+        isFolder = false;
+    }
+    else    // legacy file link format without '#'
+    {
+        ptr = link;
+        isFolder = false;
+    }
 
-    const char* ptr;
-    if (!((ptr = strstr(folderlink, "#F!")) && (strlen(ptr) >= 11)) &&
-            !((ptr = strstr(folderlink, "folder/")) && (strlen(ptr) >= 15)))
+    if (isFolder != isFolderLink)
+    {
+        return API_EARGS;   // type of link mismatch
+    }
+
+    if (strlen(ptr) < 8)  // no public handle in the link
     {
         return API_EARGS;
     }
 
-    const char *nodeHandleBegining = nullptr;
-    if (*ptr == 'f')
+    if (Base64::atob(ptr, (byte*)&ph, NODEHANDLE) == NODEHANDLE)
     {
-        nodeHandleBegining = ptr + 7;
-        ptr += 15;
-    }
-    else
-    {
-        nodeHandleBegining = ptr + 3;
-        ptr += 11;
+        ptr += 8;
+
+        // skip any tracking parameter introduced by third-party websites
+        while(*ptr && *ptr != '!' && *ptr != '#')
+        {
+            ptr++;
+        }
+
+        if (!*ptr || (*ptr == '#' && *(ptr + 1) == '\0'))   // no key provided
+        {
+            return API_EINCOMPLETE;
+        }
+
+        if (*ptr == '!' || *ptr == '#')
+        {
+            const char *k = ptr + 1;    // skip '!' or '#' separator
+            size_t keylen = isFolderLink ? SymmCipher::KEYLENGTH : FILENODEKEYLENGTH;
+            if (Base64::atob(k, key, keylen) == keylen)
+            {
+                return API_OK;
+            }
+        }
     }
 
-    // skip any tracking parameter introduced by third-party websites
-    while(*ptr && *ptr != '!' && *ptr != '#')
-    {
-        ptr++;
-    }
-
-    if (*ptr == '\0')    // no key provided, link is incomplete
-    {
-        return API_EINCOMPLETE;
-    }
-
-    // Node handle size is 6 Bytes, so we init with zeros to avoid comparison problems
-    handle auxh = 0;
-    if (Base64::atob(nodeHandleBegining, (byte*)&auxh, NODEHANDLE) != NODEHANDLE)
-    {
-        return API_EARGS;
-    }
-
-    byte auxkey[SymmCipher::KEYLENGTH];
-    const char *k = ptr + 1;    // skip '!' or '#' separator
-    if (Base64::atob(k, auxkey, sizeof auxkey) != sizeof auxkey)
-    {
-        return API_EARGS;
-    }
-
-    h = auxh;
-    memcpy(key, auxkey, sizeof auxkey);
-    return API_OK;
+    return API_EARGS;
 }
 
 error MegaClient::folderaccess(const char *folderlink)
@@ -8060,7 +8083,7 @@ error MegaClient::folderaccess(const char *folderlink)
     byte folderkey[SymmCipher::KEYLENGTH];
 
     error e;
-    if ((e = parsefolderlink(folderlink, h, folderkey)) == API_OK)
+    if ((e = parsepubliclink(folderlink, h, folderkey, true)) == API_OK)
     {
         setrootnode(h);
         key.setkey(folderkey);
@@ -9988,64 +10011,17 @@ void MegaClient::getpubliclink(Node* n, int del, m_time_t ets)
 
 // open exported file link
 // formats supported: ...#!publichandle!key, publichandle!key or file/<ph>[<params>][#<key>]
-error MegaClient::openfilelink(const char* link, int op)
+void MegaClient::openfilelink(handle ph, const byte *key, int op)
 {
-    const char* ptr = NULL;
-    handle ph = 0;
-    byte key[FILENODEKEYLENGTH];
-
-    if ((ptr = strstr(link, "#!")))
+    if (op)
     {
-        ptr += 2;
+        reqs.add(new CommandGetPH(this, ph, key, op));
     }
-    else if ((ptr = strstr(link, "file/")))
+    else
     {
-        ptr += 5;
+        assert(key);
+        reqs.add(new CommandGetFile(this, NULL, key, ph, false));
     }
-    else    // legacy format without '#'
-    {
-        ptr = link;
-    }
-
-    if (Base64::atob(ptr, (byte*)&ph, NODEHANDLE) == NODEHANDLE)
-    {
-        ptr += 8;
-
-        // skip any tracking parameter introduced by third-party websites
-        while(*ptr && *ptr != '!' && *ptr != '#')
-        {
-            ptr++;
-        }
-
-        if (*ptr == '!' || (*ptr == '#' && *(ptr + 1) != '\0'))
-        {
-            ptr++;
-
-            if (Base64::atob(ptr, key, sizeof key) == sizeof key)
-            {
-                if (op)
-                {
-                    reqs.add(new CommandGetPH(this, ph, key, op));
-                }
-                else
-                {
-                    reqs.add(new CommandGetFile(this, NULL, key, ph, false));
-                }
-
-                return API_OK;
-            }
-        }
-        else if (*ptr == '\0' || *ptr == '#')    // no key provided, check only the existence of the node
-        {
-            if (op)
-            {
-                reqs.add(new CommandGetPH(this, ph, NULL, op));
-                return API_OK;
-            }
-        }
-    }
-
-    return API_EARGS;
 }
 
 /* Format of password-protected links

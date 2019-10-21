@@ -330,14 +330,14 @@ public:
     void killsession(handle session);
     void killallsessions();
 
-    // extract public handle and key from folder link
-    error parsefolderlink(const char* folderlink, handle &h, byte *key);
+    // extract public handle and key from a public file/folder link
+    error parsepubliclink(const char *link, handle &ph, byte *key, bool isFolderLink);
 
     // set folder link: node, key
     error folderaccess(const char*folderlink);
 
-    // open exported file link
-    error openfilelink(const char*, int);
+    // open exported file link (op=0 -> download, op=1 fetch data)
+    void openfilelink(handle ph, const byte *key, int op);
 
     // decrypt password-protected public link
     // the caller takes the ownership of the returned value in decryptedLink parameter

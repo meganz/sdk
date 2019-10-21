@@ -18747,7 +18747,17 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            e = client->openfilelink(megaFileLink, 1);
+            handle ph = UNDEF;
+            byte key[FILENODEKEYLENGTH];
+            e = client->parsepubliclink(megaFileLink, ph, key, false);
+            if (e == API_OK)
+            {
+                client->openfilelink(ph, key, 1);
+            }
+            else if (e == API_EINCOMPLETE)  // no key provided, check only the existence of the node
+            {
+                client->openfilelink(ph, nullptr, 1);
+            }
             break;
         }
         case MegaRequest::TYPE_PASSWORD_LINK:
@@ -21276,7 +21286,7 @@ void MegaApiImpl::sendPendingRequests()
 
             handle h = UNDEF;
             byte folderkey[SymmCipher::KEYLENGTH];
-            e = client->parsefolderlink(link, h, folderkey);
+            e = client->parsepubliclink(link, h, folderkey, true);
             if (e == API_OK)
             {
                 request->setNodeHandle(h);

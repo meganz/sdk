@@ -455,7 +455,7 @@ public:
     void cancel();
     void procresult();
 
-    CommandGetFile(MegaClient *client, TransferSlot*, byte*, handle, bool, const char* = NULL, const char* = NULL, const char *chatauth = NULL);
+    CommandGetFile(MegaClient *client, TransferSlot*, const byte*, handle, bool, const char* = NULL, const char* = NULL, const char *chatauth = NULL);
 };
 
 class MEGA_API CommandPutFile : public Command
