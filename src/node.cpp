@@ -127,8 +127,8 @@ Node::~Node()
 {
     if (keyApplied())
     {
-        client->mApplieKeyNodeCount--;
-        assert(client->mApplieKeyNodeCount >= 0);
+        client->mAppliedKeyNodeCount--;
+        assert(client->mAppliedKeyNodeCount >= 0);
     }
 
     // abort pending direct reads
@@ -216,10 +216,10 @@ Node::~Node()
 
 void Node::setkeyfromjson(const char* k)
 {
-    if (keyApplied()) --client->mApplieKeyNodeCount;
+    if (keyApplied()) --client->mAppliedKeyNodeCount;
     Node::copystring(&nodekeydata, k);
-    if (keyApplied()) ++client->mApplieKeyNodeCount;
-    assert(client->mApplieKeyNodeCount >= 0);
+    if (keyApplied()) ++client->mAppliedKeyNodeCount;
+    assert(client->mAppliedKeyNodeCount >= 0);
 }
 
 // update node key and decrypt attributes
@@ -227,10 +227,10 @@ void Node::setkey(const byte* newkey)
 {
     if (newkey)
     {
-        if (keyApplied()) --client->mApplieKeyNodeCount;
+        if (keyApplied()) --client->mAppliedKeyNodeCount;
         nodekeydata.assign(reinterpret_cast<const char*>(newkey), (type == FILENODE) ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH);
-        if (keyApplied()) ++client->mApplieKeyNodeCount;
-        assert(client->mApplieKeyNodeCount >= 0);
+        if (keyApplied()) ++client->mAppliedKeyNodeCount;
+        assert(client->mAppliedKeyNodeCount >= 0);
     }
 
     setattr();
@@ -954,7 +954,7 @@ bool Node::applykey()
 
     if (client->decryptkey(k, key, keylength, sc, 0, nodehandle))
     {
-        client->mApplieKeyNodeCount++;
+        client->mAppliedKeyNodeCount++;
         nodekeydata.assign((const char*)key, keylength);
         setattr();
     }

@@ -1026,7 +1026,7 @@ void MegaClient::init()
     chunkfailed = false;
     statecurrent = false;
     totalNodes = 0;
-    mApplieKeyNodeCount = 0;
+    mAppliedKeyNodeCount = 0;
     faretrying = false;
 
 #ifdef ENABLE_SYNC
@@ -7884,7 +7884,7 @@ void MegaClient::applykeys()
 
     int noKeyExpected = (rootnodes[0] != UNDEF) + (rootnodes[1] != UNDEF) + (rootnodes[2] != UNDEF);
 
-    if (nodes.size() > size_t(mApplieKeyNodeCount + noKeyExpected))
+    if (nodes.size() > size_t(mAppliedKeyNodeCount + noKeyExpected))
     {
         for (auto& it : nodes)
         {

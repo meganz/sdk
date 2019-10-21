@@ -1101,7 +1101,7 @@ public:
     long long totalNodes;
 
     // tracks how many nodes have had a successful applykey()
-    long long mApplieKeyNodeCount = 0;
+    long long mAppliedKeyNodeCount = 0;
 
     // server-client request sequence number
     char scsn[12];
