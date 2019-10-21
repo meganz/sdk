@@ -2110,7 +2110,7 @@ class MegaApiImpl : public MegaApp
         void getUserAttr(const char* email_or_handle, int type, const char *dstFilePath, int number = 0, MegaRequestListener *listener = NULL);
         void getChatUserAttr(const char* email_or_handle, int type, const char *dstFilePath, const char *ph = NULL, int number = 0, MegaRequestListener *listener = NULL);
         void setUserAttribute(int type, const char* value, MegaRequestListener *listener = NULL);
-        void setUserAttribute(int type, const MegaStringMap* value, MegaRequestListener *listener = NULL);
+        void setUserAttribute(int type, const MegaStringMap* value, MegaRequestListener *listener = NULL, bool requestFlagValue = false);
         void getRubbishBinAutopurgePeriod(MegaRequestListener *listener = NULL);
         void setRubbishBinAutopurgePeriod(int days, MegaRequestListener *listener = NULL);
         void getUserEmail(MegaHandle handle, MegaRequestListener *listener = NULL);

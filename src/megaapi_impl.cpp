@@ -6521,12 +6521,13 @@ void MegaApiImpl::setUserAttribute(int type, const char *value, MegaRequestListe
     setUserAttr(type ? type : -1, value, listener);
 }
 
-void MegaApiImpl::setUserAttribute(int type, const MegaStringMap *value, MegaRequestListener *listener)
+void MegaApiImpl::setUserAttribute(int type, const MegaStringMap *value, MegaRequestListener *listener, bool requestFlagValue)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
 
     request->setMegaStringMap(value);
     request->setParamType(type);
+    request->setFlag(requestFlagValue); // needed for secondary camera folder setting
     requestQueue.push(request);
     waiter->notify();
 }
@@ -9956,7 +9957,7 @@ void MegaApiImpl::setCameraUploadsFolder(MegaHandle nodehandle, bool secondary, 
     MegaStringMapPrivate stringMap;
     const char *key = secondary ? "sh" : "h";
     stringMap.set(key, Base64Str<MegaClient::NODEHANDLE>(nodehandle));
-    setUserAttribute(MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER, &stringMap, listener);
+    setUserAttribute(MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER, &stringMap, listener, secondary);
 }
 
 void MegaApiImpl::getMyChatFilesFolder(MegaRequestListener *listener)
@@ -14329,6 +14330,12 @@ void MegaApiImpl::putua_result(error e)
     if (request->getParamType() == MegaApi::USER_ATTR_LANGUAGE && e == API_OK)
     {
         setLanguage(request->getText());
+    }
+    else  if (request->getParamType() == MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER && e == API_OK)
+    {
+        const string_map& newValuesMap = *static_cast<MegaStringMapPrivate*>(request->getMegaStringMap())->getMap();
+        auto it = newValuesMap.find(request->getFlag() ? "sh" : "h");
+        request->setNodeHandle(base64ToHandle(it == newValuesMap.end() ? nullptr : it->second.c_str()));
     }
 
     fireOnRequestFinish(request, megaError);
@@ -19093,8 +19100,8 @@ void MegaApiImpl::sendPendingRequests()
                     tlv.reset(new TLVstore);
                 }
 
-                const string_map *newValuesMap = static_cast<MegaStringMapPrivate*>(request->getMegaStringMap())->getMap();
-                if (User::mergeUserAttribute(type, *newValuesMap, *tlv.get()))
+                const string_map& newValuesMap = *static_cast<MegaStringMapPrivate*>(request->getMegaStringMap())->getMap();
+                if (User::mergeUserAttribute(type, newValuesMap, *tlv.get()))
                 {
                     // serialize and encrypt the TLV container
                     std::unique_ptr<string> container(tlv->tlvRecordsToContainer(client->rng, &client->key));
@@ -19104,6 +19111,11 @@ void MegaApiImpl::sendPendingRequests()
                 {
                     // no changes, current value equal to new value
                     LOG_debug << "Attribute " << User::attr2string(type) << " not changed, already up to date";
+                    if (type == ATTR_CAMERA_UPLOADS_FOLDER)
+                    {
+                        auto it = newValuesMap.find(request->getFlag() ? "sh" : "h");
+                        request->setNodeHandle(base64ToHandle(it == newValuesMap.end() ? nullptr : it->second.c_str()));
+                    }
                     fireOnRequestFinish(request, MegaError(API_OK));
                 }
                 break;
