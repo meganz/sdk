@@ -91,37 +91,17 @@ public:
 // Also, the enable() function can be used to exclude timers when they are not relevant, while keeping the timer settings.
 class MEGA_API BackoffTimerTracked
 {
-    bool isEnabled;
+    bool mIsEnabled;
     BackoffTimer bt;
-    BackoffTimerGroupTracker& tracker;
-    BackoffTimerGroupTracker::Iter trackerPos;
+    BackoffTimerGroupTracker& mTracker;
+    BackoffTimerGroupTracker::Iter mTrackerPos;
 
-    void untrack()
-    {
-        if (isEnabled && bt.nextset() != 0 && bt.nextset() != NEVER)
-        {
-            tracker.remove(trackerPos);
-            trackerPos = BackoffTimerGroupTracker::Iter();
-        }
-    }
-
-    void track()
-    {
-        if (isEnabled && bt.nextset() != 0 && bt.nextset() != NEVER)
-        {
-            trackerPos = tracker.add(this);
-        }
-    }
+    void untrack();
+    void track();
 
 public:
-    BackoffTimerTracked(PrnGen &rng, BackoffTimerGroupTracker& tr) : isEnabled(true), bt(rng), tracker(tr) 
-    { 
-        track(); 
-    }
-    ~BackoffTimerTracked() 
-    { 
-        untrack(); 
-    }
+    BackoffTimerTracked(PrnGen &rng, BackoffTimerGroupTracker& tr);
+    ~BackoffTimerTracked();
 
     inline bool arm()               { untrack(); bool result = bt.arm();   track(); return result; }
     inline void backoff()           { untrack(); bt.backoff();             track(); }
@@ -134,13 +114,40 @@ public:
     inline dstime nextset() const   { return bt.nextset(); };
     inline dstime retryin() const   { return bt.retryin(); }
 
-    inline void enable(bool b)      { untrack(); isEnabled = b; track(); }
-    inline bool enabled()           { return isEnabled; }
+    inline void enable(bool b)      { untrack(); mIsEnabled = b; track(); }
+    inline bool enabled()           { return mIsEnabled; }
 };
 
 inline auto BackoffTimerGroupTracker::add(BackoffTimerTracked* bt) -> Iter 
 { 
     return timeouts.emplace(bt->nextset() ? bt->nextset() : NEVER, bt); 
+}
+
+inline void BackoffTimerTracked::untrack()
+{
+    if (mIsEnabled && bt.nextset() != 0 && bt.nextset() != NEVER)
+    {
+        mTracker.remove(mTrackerPos);
+        mTrackerPos = BackoffTimerGroupTracker::Iter();
+    }
+}
+
+inline void BackoffTimerTracked::track()
+{
+    if (mIsEnabled && bt.nextset() != 0 && bt.nextset() != NEVER)
+    {
+        mTrackerPos = mTracker.add(this);
+    }
+}
+
+inline BackoffTimerTracked::BackoffTimerTracked(PrnGen &rng, BackoffTimerGroupTracker& tr) : mIsEnabled(true), bt(rng), mTracker(tr)
+{
+    track();
+}
+
+inline BackoffTimerTracked::~BackoffTimerTracked()
+{
+    untrack();
 }
 
 
