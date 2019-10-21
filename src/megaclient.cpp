@@ -8003,7 +8003,7 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
 
 error MegaClient::parsefolderlink(const char *folderlink, handle &h, byte *key)
 {
-    // structure of public folder links: https://mega.nz/#F!<handle>!<key> or https://mega.nz/folder/<handle>#<key>
+    // structure of public folder links: ...#F!<handle>!<key> or /folder/<handle>[<params>][#<key>]
 
     const char* ptr;
     if (!((ptr = strstr(folderlink, "#F!")) && (strlen(ptr) >= 11)) &&
@@ -8024,13 +8024,15 @@ error MegaClient::parsefolderlink(const char *folderlink, handle &h, byte *key)
         ptr += 11;
     }
 
+    // skip any tracking parameter introduced by third-party websites
+    while(*ptr && *ptr != '!' && *ptr != '#')
+    {
+        ptr++;
+    }
+
     if (*ptr == '\0')    // no key provided, link is incomplete
     {
         return API_EINCOMPLETE;
-    }
-    else if (*ptr != '!' && *ptr != '#')
-    {
-        return API_EARGS;
     }
 
     // Node handle size is 6 Bytes, so we init with zeros to avoid comparison problems
@@ -8041,7 +8043,7 @@ error MegaClient::parsefolderlink(const char *folderlink, handle &h, byte *key)
     }
 
     byte auxkey[SymmCipher::KEYLENGTH];
-    const char *k = ptr + 1;
+    const char *k = ptr + 1;    // skip '!' or '#' separator
     if (Base64::atob(k, auxkey, sizeof auxkey) != sizeof auxkey)
     {
         return API_EARGS;
@@ -9985,7 +9987,7 @@ void MegaClient::getpubliclink(Node* n, int del, m_time_t ets)
 }
 
 // open exported file link
-// formats supported: ...#!publichandle!key, publichandle!key or file/publichandle#key
+// formats supported: ...#!publichandle!key, publichandle!key or file/<ph>[<params>][#<key>]
 error MegaClient::openfilelink(const char* link, int op)
 {
     const char* ptr = NULL;
@@ -10008,6 +10010,13 @@ error MegaClient::openfilelink(const char* link, int op)
     if (Base64::atob(ptr, (byte*)&ph, NODEHANDLE) == NODEHANDLE)
     {
         ptr += 8;
+
+        // skip any tracking parameter introduced by third-party websites
+        while(*ptr && *ptr != '!' && *ptr != '#')
+        {
+            ptr++;
+        }
+
         if (*ptr == '!' || (*ptr == '#' && *(ptr + 1) != '\0'))
         {
             ptr++;
