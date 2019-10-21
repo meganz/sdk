@@ -3621,6 +3621,74 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
 - (void)setUserAttributeType:(MEGAUserAttribute)type value:(NSString *)value;
 
 /**
+ * @brief Gets the alias for an user
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type
+ * - [MEGARequest nodeHandle] - Returns the handle of the node as binary
+ * - [MEGARequest text] - Return the handle of the node as base 64 string.
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest name] - Returns the user alias.
+ *
+ * If the user alias doesn't exists the request will fail with the error code MEGAErrorTypeApiENoent
+ *
+ * @param handle Handle of the contact
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getUserAliasWithHandle:(uint64_t)handle delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Gets the alias for an user
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type
+ * - [MEGARequest nodeHandle] - Returns the handle of the node as binary
+ * - [MEGARequest text] - Return the handle of the node as base64 string.
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest name] - Returns the user alias.
+ *
+ * If the user alias doesn't exists the request will fail with the error code MEGAErrorTypeApiENoent
+ *
+ * @param handle Handle of the contact
+ */
+- (void)getUserAliasWithHandle:(uint64_t)handle;
+
+/**
+ * @brief Set or reset an alias for a user
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type
+ * - [MEGARequest nodeHandle] - Returns the handle of the node as binary
+ * - [MEGARequest text] - Return the handle of the node as base 64 string.
+ *
+ * @param alias the user alias, or null to reset the existing
+ * @param handle Handle of the contact
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)setUserAlias:(NSString *)alias forHandle:(uint64_t)handle delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Set or reset an alias for a user
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type
+ * - [MEGARequest nodeHandle] - Returns the handle of the node as binary
+ * - [MEGARequest text] - Return the handle of the node as base 64 string.
+ *
+ * @param alias the user alias, or null to reset the existing
+ * @param handle Handle of the contact
+ */
+- (void)setUserAlias:(NSString *)alias forHandle:(uint64_t)handle;
+
+/**
  * @brief Set an attribute of the current user.
  *
  * The associated request type with this request is MEGARequestTypeSetAttrUser

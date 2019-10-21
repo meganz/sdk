@@ -1076,6 +1076,24 @@ using namespace mega;
     self.megaApi->setUserAttribute((int)type, (value != nil) ? [value UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
+- (void)getUserAliasWithHandle:(uint64_t)handle delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getUserAlias(handle, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)getUserAliasWithHandle:(uint64_t)handle {
+    self.megaApi->getUserAlias(handle);
+}
+
+- (void)setUserAlias:(NSString *)alias forHandle:(uint64_t)handle delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->setUserAlias(handle,
+                               alias.UTF8String,
+                               [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)setUserAlias:(NSString *)alias forHandle:(uint64_t)handle {
+    self.megaApi->setUserAlias(handle, alias.UTF8String);
+}
+
 #pragma mark - Account management Requests
 
 - (void)getAccountDetailsWithDelegate:(id<MEGARequestDelegate>)delegate {
