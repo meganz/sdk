@@ -622,7 +622,7 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
             dbname.resize(sizeof tableid * 4 / 3 + 3);
             dbname.resize(Base64::btoa((byte*)tableid, sizeof tableid, (char*)dbname.c_str()));
 
-            statecachetable = client->dbaccess->open(client->rng, client->fsaccess, &dbname);
+            statecachetable = client->dbaccess->open(client->rng, client->fsaccess, &dbname, false, false);
 
             readstatecache();
         }
@@ -1280,7 +1280,8 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
 
                             client->app->syncupdate_local_file_change(this, l, path.c_str());
 
-                            client->stopxfer(l);
+                            DBTableTransactionCommitter committer(client->tctable);
+                            client->stopxfer(l, &committer); // TODO:  can we use one committer for all the files in the folder?  Or for the whole recursion?
                             l->bumpnagleds();
                             l->deleted = false;
 
@@ -1561,7 +1562,8 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                     else if (changed)
                     {
                         client->app->syncupdate_local_file_change(this, l, path.c_str());
-                        client->stopxfer(l);
+                        DBTableTransactionCommitter committer(client->tctable); // TODO:  can we use one committer for all the files in the folder?  Or for the whole recursion?
+                        client->stopxfer(l, &committer);
                     }
 
                     if (newnode || changed)
@@ -1603,7 +1605,8 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
             // immediately stop outgoing transfer, if any
             if (l->transfer)
             {
-                client->stopxfer(l);
+                DBTableTransactionCommitter committer(client->tctable); // TODO:  can we use one committer for all the files in the folder?  Or for the whole recursion?
+                client->stopxfer(l, &committer);
             }
 
             client->syncactivity = true;
