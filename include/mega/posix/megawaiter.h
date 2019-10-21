@@ -23,6 +23,7 @@
 #define WAIT_CLASS PosixWaiter
 
 #include "mega/waiter.h"
+#include <mutex>
 
 namespace mega {
 struct PosixWaiter : public Waiter
