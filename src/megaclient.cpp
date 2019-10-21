@@ -10151,70 +10151,18 @@ error MegaClient::decryptlink(const char *link, const char *pwd, string* decrypt
 
 error MegaClient::encryptlink(const char *link, const char *pwd, string *encryptedLink)
 {
-    if (!pwd || !link)
+    if (!pwd || !link || !encryptedLink)
     {
         LOG_err << "Empty link or empty password to encrypt link";
         return API_EARGS;
     }
 
-    const char* ptr = NULL;
-    const char* end = link + strlen(link);
-
-    if (!(ptr = strstr(link, "#")) || ptr >= end)
-    {
-        LOG_err << "Invalid format of public link or incomplete";
-        return API_EARGS;
-    }
-    ptr++;  // skip '#'
-
-    int isFolder;
-    if (*ptr == 'F')
-    {
-        isFolder = true;
-        ptr++;  // skip 'F'
-    }
-    else if (*ptr == '!')
-    {
-        isFolder = false;
-    }
-    else
-    {
-        LOG_err << "Invalid format of public link";
-        return API_EARGS;
-    }
-    ptr++;  // skip '!' separator
-
-    if (ptr + 8 >= end)
-    {
-        LOG_err << "Incomplete public link";
-        return API_EINCOMPLETE;
-    }
-
+    bool isFolder = (strstr(link, "#F!") || strstr(link, "folder/"));
     handle ph;
-    if (Base64::atob(ptr, (byte*)&ph, NODEHANDLE) != NODEHANDLE)
-    {
-        LOG_err << "Invalid format of public link";
-        return API_EARGS;
-    }
-    ptr += 8;   // skip public handle
-
-    if (ptr + 1 >= end || *ptr != '!')
-    {
-        LOG_err << "Invalid format of public link";
-        return API_EARGS;
-    }
-    ptr++;  // skip '!' separator
-
     size_t linkKeySize = isFolder ? FOLDERNODEKEYLENGTH : FILENODEKEYLENGTH;
-    string linkKey;
-    linkKey.resize(linkKeySize);
-    if ((size_t) Base64::atob(ptr, (byte *)linkKey.data(), int(linkKey.size())) != linkKeySize)
-    {
-        LOG_err << "Invalid encryption key in the public link";
-        return API_EKEY;
-    }
-
-    if (encryptedLink)
+    std::unique_ptr<byte[]> linkKey(new byte[linkKeySize]);
+    error e = parsepubliclink(link, ph, linkKey.get(), isFolder);
+    if (e == API_OK)
     {
         // Derive MAC key with salt+pwd
         byte derivedKey[64];
@@ -10283,7 +10231,7 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
         encryptedLink->append(encLink);
     }
 
-    return API_OK;
+    return e;
 }
 
 bool MegaClient::loggedinfolderlink()
