@@ -196,6 +196,7 @@ void BackoffTimerGroupTracker::update(dstime* waituntil, bool transfers)
         //    }
         //}
 
+        // put the ones to work on in a vector, as working on them changes their position in the map
         for (auto t : timeouts)
         {
             if (t.second->armed())
