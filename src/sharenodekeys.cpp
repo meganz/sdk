@@ -49,7 +49,7 @@ void ShareNodeKeys::add(Node* n, Node* sn, int specific)
         sn = n;
     }
 
-    add(n->nodekey(), n->nodehandle, sn, specific, NULL, 0);
+    add(n->nodekey(), n->nodehandle, sn, specific);
 }
 
 // add a nodecore (!sn: all relevant shares, otherwise starting from sn, fixed: only sn)
