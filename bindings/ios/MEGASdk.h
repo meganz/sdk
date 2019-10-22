@@ -106,7 +106,8 @@ typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
     MEGAUserAttributeGeolocation             = 22, // private - byte array
     MEGAUserAttributeCameraUploadsFolder     = 23, // private - byte array
     MEGAUserAttributeMyChatFilesFolder       = 24, // private - byte array
-    MEGAUserAttributePushSettings            = 25 // private - char array
+    MEGAUserAttributePushSettings            = 25, // private - char array
+    MEGAUserAttributeAlias                   = 27 // private - char array
 };
 
 typedef NS_ENUM(NSInteger, MEGANodeAttribute) {
@@ -3625,7 +3626,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  *
  * The associated request type with this request is MEGARequestTypeGetAttrUser
  * Valid data in the MEGARequest object received on callbacks:
- * - [MEGARequest paramType] - Returns the attribute type
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeAlias
  * - [MEGARequest nodeHandle] - Returns the handle of the node as binary
  * - [MEGARequest text] - Return the handle of the node as base 64 string.
  *
@@ -3645,7 +3646,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  *
  * The associated request type with this request is MEGARequestTypeGetAttrUser
  * Valid data in the MEGARequest object received on callbacks:
- * - [MEGARequest paramType] - Returns the attribute type
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeAlias
  * - [MEGARequest nodeHandle] - Returns the handle of the node as binary
  * - [MEGARequest text] - Return the handle of the node as base64 string.
  *
@@ -3664,7 +3665,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  *
  * The associated request type with this request is MEGARequestTypeGetAttrUser
  * Valid data in the MEGARequest object received on callbacks:
- * - [MEGARequest paramType] - Returns the attribute type
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeAlias
  * - [MEGARequest nodeHandle] - Returns the handle of the node as binary
  * - [MEGARequest text] - Return the handle of the node as base 64 string.
  *
@@ -3679,7 +3680,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  *
  * The associated request type with this request is MEGARequestTypeGetAttrUser
  * Valid data in the MEGARequest object received on callbacks:
- * - [MEGARequest paramType] - Returns the attribute type
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeAlias
  * - [MEGARequest nodeHandle] - Returns the handle of the node as binary
  * - [MEGARequest text] - Return the handle of the node as base 64 string.
  *
