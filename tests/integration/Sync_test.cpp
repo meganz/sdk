@@ -1139,7 +1139,7 @@ struct StandardClient : public MegaApp
         descendants = 0; 
         if (Sync* sync = syncByTag(syncid))
         {
-            if (!recursiveConfirm(mnode, &sync->localroot, descendants, "Sync " + to_string(syncid), 0))
+            if (!recursiveConfirm(mnode, sync->localroot.get(), descendants, "Sync " + to_string(syncid), 0))
             {
                 cout << "syncid " << syncid << " comparison against LocalNodes failed" << endl;
                 return false;

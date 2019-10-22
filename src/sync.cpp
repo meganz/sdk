@@ -411,7 +411,7 @@ int computeReversePathMatchScore(const string& path1, const string& path2, const
 bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, handlelocalnode_map& fsidnodes,
                          const string& localdebris, const string& localseparator)
 {
-    auto rootpath = sync.localroot.localname;
+    auto rootpath = sync.localroot->localname;
 
     auto fa = fsaccess.newfileaccess(false);
     if (!fa->fopen(&rootpath, true, false))
@@ -436,11 +436,11 @@ bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, h
     // Ensures that unmatched nodes (local nodes that don't have a fingerprint that's
     // the same as a file on disk) have invalid IDs.
     size_t invalidatedCount = 0;
-    invalidateFilesystemIds(fsidnodes, sync.localroot, invalidatedCount);
+    invalidateFilesystemIds(fsidnodes, *sync.localroot, invalidatedCount);
     LOG_info << "Number of invalidated fs IDs: " << invalidatedCount;
 
     FingerprintMap fingerprints;
-    collectAllFingerprints(fingerprints, sync.localroot);
+    collectAllFingerprints(fingerprints, *sync.localroot);
     LOG_info << "Number of fingerprints before assignment: " << fingerprints.size();
 
     bool success = true;
@@ -455,6 +455,7 @@ bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, h
 // and a full read of the subtree is initiated
 Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
            string* clocaldebris, Node* remotenode, fsfp_t cfsfp, bool cinshare, int ctag, void *cappdata)
+    : localroot(new LocalNode)
 {
     isnetwork = false;
     client = cclient;
@@ -511,8 +512,8 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
     LOG_info << "Filesystem IDs are stable: " << fsstableids;
     fsstableids = true; // TODO: Remove this once the fs ID assignment is working properly
 
-    localroot.init(this, FOLDERNODE, NULL, crootpath);
-    localroot.setnode(remotenode);
+    localroot->init(this, FOLDERNODE, NULL, crootpath);
+    localroot->setnode(remotenode);
 
 #ifdef __APPLE__
     if (macOSmajorVersion() >= 19) //macOS catalina+
@@ -579,16 +580,23 @@ Sync::~Sync()
     tmpfa.reset();
 
     // stop all active and pending downloads
-    if (localroot.node)
+    if (localroot->node)
     {
         TreeProcDelSyncGet tdsg;
-        client->proctree(localroot.node, &tdsg);
+        client->proctree(localroot->node, &tdsg);
     }
 
     delete statecachetable;
 
     client->syncs.erase(sync_it);
     client->syncactivity = true;
+
+    {
+        // now recursively delete all the associated LocalNodes, and their associated transfer and file objects. 
+        // If any have transactions in progress, the committer will ensure we update the transfer database in an efficient single commit.
+        DBTableTransactionCommitter committer(client->tctable);
+        localroot.reset();
+    }
 }
 
 void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, string* path, LocalNode *p, int maxdepth)
@@ -654,7 +662,7 @@ bool Sync::readstatecache()
         }
 
         // recursively build LocalNode tree, set scanseqnos to sync's current scanseqno
-        addstatecachechildren(0, &tmap, &localroot.localname, &localroot, 100);
+        addstatecachechildren(0, &tmap, &localroot->localname, localroot.get(), 100);
 
         // trigger a single-pass full scan to identify deleted nodes
         fullscan = true;
@@ -721,7 +729,7 @@ void Sync::cachenodes()
 
             for (set<LocalNode*>::iterator it = insertq.begin(); it != insertq.end(); )
             {
-                if ((*it)->parent->dbid || (*it)->parent == &localroot)
+                if ((*it)->parent->dbid || (*it)->parent == localroot.get())
                 {
                     statecachetable->put(MegaClient::CACHEDLOCALNODE, *it, &client->key);
                     insertq.erase(it++);
@@ -777,8 +785,8 @@ LocalNode* Sync::localnodebypath(LocalNode* l, string* localpath, LocalNode** pa
     {
         // verify matching localroot prefix - this should always succeed for
         // internal use
-        if (memcmp(ptr, localroot.localname.data(), localroot.localname.size())
-         || memcmp(ptr + localroot.localname.size(),
+        if (memcmp(ptr, localroot->localname.data(), localroot->localname.size())
+         || memcmp(ptr + localroot->localname.size(),
                    client->fsaccess->localseparator.data(),
                    separatorlen))
         {
@@ -790,7 +798,7 @@ LocalNode* Sync::localnodebypath(LocalNode* l, string* localpath, LocalNode** pa
             return NULL;
         }
 
-        l = &localroot;
+        l = localroot.get();
         ptr += l->localname.size() + client->fsaccess->localseparator.size();
     }
 
@@ -1028,7 +1036,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
             return NULL;
         }
 
-        isroot = l == &localroot && !newname.size();
+        isroot = l == localroot.get() && !newname.size();
     }
 
     LOG_verbose << "Scanning: " << path;
@@ -1052,7 +1060,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                      lastpart,
                      (localname ? *localpath : tmppath).size() - lastpart);
 
-        LocalNode* cl = (parent ? parent : &localroot)->childbyname(&fname);
+        LocalNode* cl = (parent ? parent : localroot.get())->childbyname(&fname);
         if (initializing && cl)
         {
             // the file seems to be still in the folder
@@ -1151,10 +1159,10 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                                             #ifdef _WIN32
                                                 // only consider fsid matches between different syncs for local drives with the
                                                 // same drive letter, to prevent problems with cloned Volume IDs
-                                                && (colon = strstr(parent->sync->localroot.name.c_str(), ":"))
-                                                && !memcmp(parent->sync->localroot.name.c_str(),
-                                                       it->second->sync->localroot.name.c_str(),
-                                                       colon - parent->sync->localroot.name.c_str())
+                                                && (colon = strstr(parent->sync->localroot->name.c_str(), ":"))
+                                                && !memcmp(parent->sync->localroot->name.c_str(),
+                                                       it->second->sync->localroot->name.c_str(),
+                                                       colon - parent->sync->localroot->name.c_str())
                                             #endif
                                                 )
                                             )
@@ -1275,10 +1283,10 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                         #ifdef _WIN32
                             // allow moves between different syncs only for local drives with the
                             // same drive letter, to prevent problems with cloned Volume IDs
-                            && (colon = strstr(parent->sync->localroot.name.c_str(), ":"))
-                            && !memcmp(parent->sync->localroot.name.c_str(),
-                                   it->second->sync->localroot.name.c_str(),
-                                   colon - parent->sync->localroot.name.c_str())
+                            && (colon = strstr(parent->sync->localroot->name.c_str(), ":"))
+                            && !memcmp(parent->sync->localroot->name.c_str(),
+                                   it->second->sync->localroot->name.c_str(),
+                                   colon - parent->sync->localroot->name.c_str())
                         #endif
                             )
                        )

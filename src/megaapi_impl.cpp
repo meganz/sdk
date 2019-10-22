@@ -8108,7 +8108,7 @@ bool MegaApiImpl::moveToLocalDebris(const char *path)
     Sync *sync = NULL;
     for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
     {
-        string *localroot = &((*it)->localroot.localname);
+        string *localroot = &((*it)->localroot->localname);
         if(((localroot->size()+fsAccess->localseparator.size())<localpath.size()) &&
             !memcmp(localroot->data(), localpath.data(), localroot->size()) &&
             !memcmp(fsAccess->localseparator.data(), localpath.data()+localroot->size(), fsAccess->localseparator.size()))
@@ -8166,8 +8166,8 @@ int MegaApiImpl::syncPathState(string* path)
     for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
     {
         Sync *sync = (*it);
-        size_t ssize = sync->localroot.localname.size();
-        if (path->size() < ssize || memcmp(path->data(), sync->localroot.localname.data(), ssize))
+        size_t ssize = sync->localroot->localname.size();
+        if (path->size() < ssize || memcmp(path->data(), sync->localroot->localname.data(), ssize))
         {
             continue;
         }
@@ -8185,7 +8185,7 @@ int MegaApiImpl::syncPathState(string* path)
 
         if (path->size() == ssize)
         {
-            state = sync->localroot.ts;
+            state = sync->localroot->ts;
             break;
         }
         else if (!memcmp(path->data()+ssize, client->fsaccess->localseparator.data(), client->fsaccess->localseparator.size()))
@@ -8231,10 +8231,10 @@ MegaNode *MegaApiImpl::getSyncedNode(string *path)
     for (sync_list::iterator it = client->syncs.begin(); (it != client->syncs.end()) && (node == NULL); it++)
     {
         Sync *sync = (*it);
-        if (path->size() == sync->localroot.localname.size() &&
-                !memcmp(path->data(), sync->localroot.localname.data(), path->size()))
+        if (path->size() == sync->localroot->localname.size() &&
+                !memcmp(path->data(), sync->localroot->localname.data(), path->size()))
         {
-            node = MegaNodePrivate::fromNode(sync->localroot.node);
+            node = MegaNodePrivate::fromNode(sync->localroot->node);
             break;
         }
 
@@ -12482,16 +12482,16 @@ void MegaApiImpl::syncupdate_state(Sync *sync, syncstate_t newstate)
     if(syncMap.find(sync->tag) == syncMap.end()) return;
     MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
     megaSync->setState(newstate);
-    LOG_debug << "Sync state change: " << newstate << " Path: " << sync->localroot.name;
+    LOG_debug << "Sync state change: " << newstate << " Path: " << sync->localroot->name;
     client->abortbackoff(false);
 
     if (newstate == SYNC_FAILED)
     {
         MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC);
 
-        if(sync->localroot.node)
+        if(sync->localroot->node)
         {
-            request->setNodeHandle(sync->localroot.node->nodehandle);
+            request->setNodeHandle(sync->localroot->node->nodehandle);
         }
 
         int nextTag = client->nextreqtag();
@@ -20419,11 +20419,11 @@ void MegaApiImpl::sendPendingRequests()
                 it++;
 
                 int tag = sync->tag;
-                if (!sync->localroot.node || sync->localroot.node->nodehandle == nodehandle)
+                if (!sync->localroot->node || sync->localroot->node->nodehandle == nodehandle)
                 {
                     string path;
-                    fsAccess->local2path(&sync->localroot.localname, &path);
-                    if (!request->getFile() || sync->localroot.node)
+                    fsAccess->local2path(&sync->localroot->localname, &path);
+                    if (!request->getFile() || sync->localroot->node)
                     {
                         request->setFile(path.c_str());
                     }
