@@ -1133,7 +1133,11 @@ void Node::setSyncable(bool syncable)
         {
             client->unsyncables.insert(nodehandle);
         }
-        client->nodenotify.push_back(this);
+        if (!notified)
+        {
+            notified = true;
+            client->nodenotify.push_back(this);
+        }
     }
 }
 
