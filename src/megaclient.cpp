@@ -8058,7 +8058,7 @@ error MegaClient::parsepubliclink(const char* link, handle& ph, byte* key, bool 
             ptr++;
         }
 
-        if (!*ptr || (*ptr == '#' && *(ptr + 1) == '\0'))   // no key provided
+        if (!*ptr || ((*ptr == '#' || *ptr == '!') && *(ptr + 1) == '\0'))   // no key provided
         {
             return API_EINCOMPLETE;
         }
