@@ -9953,10 +9953,17 @@ void MegaApiImpl::getCameraUploadsFolder(bool secondary, MegaRequestListener *li
 
 void MegaApiImpl::setCameraUploadsFolder(MegaHandle nodehandle, bool secondary, MegaRequestListener *listener)
 {
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
+
     MegaStringMapPrivate stringMap;
     const char *key = secondary ? "sh" : "h";
     stringMap.set(key, Base64Str<MegaClient::NODEHANDLE>(nodehandle));
-    setUserAttribute(MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER, &stringMap, listener);
+    request->setMegaStringMap(&stringMap);
+    request->setParamType(MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER);
+    request->setFlag(secondary);
+    request->setNodeHandle(nodehandle);
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 void MegaApiImpl::getMyChatFilesFolder(MegaRequestListener *listener)
