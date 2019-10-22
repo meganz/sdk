@@ -3642,11 +3642,11 @@ void MegaRequestPrivate::setTag(int tag)
     this->tag = tag;
 }
 
-void MegaRequestPrivate::addProduct(handle product, int proLevel, unsigned int gbStorage, unsigned int gbTransfer, int months, int amount, const char *currency, const char* description, const char* iosid, const char* androidid)
+void MegaRequestPrivate::addProduct(unsigned int type, handle product, int proLevel, int gbStorage, int gbTransfer, int months, int amount, int amountMonth, const char *currency, const char* description, const char* iosid, const char* androidid)
 {
     if (megaPricing)
     {
-        megaPricing->addProduct(product, proLevel, gbStorage, gbTransfer, months, amount, currency, description, iosid, androidid);
+        megaPricing->addProduct(type, product, proLevel, gbStorage, gbTransfer, months, amount, amountMonth, currency, description, iosid, androidid);
     }
 }
 
@@ -8108,7 +8108,7 @@ bool MegaApiImpl::moveToLocalDebris(const char *path)
     Sync *sync = NULL;
     for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
     {
-        string *localroot = &((*it)->localroot.localname);
+        string *localroot = &((*it)->localroot->localname);
         if(((localroot->size()+fsAccess->localseparator.size())<localpath.size()) &&
             !memcmp(localroot->data(), localpath.data(), localroot->size()) &&
             !memcmp(fsAccess->localseparator.data(), localpath.data()+localroot->size(), fsAccess->localseparator.size()))
@@ -8166,8 +8166,8 @@ int MegaApiImpl::syncPathState(string* path)
     for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
     {
         Sync *sync = (*it);
-        size_t ssize = sync->localroot.localname.size();
-        if (path->size() < ssize || memcmp(path->data(), sync->localroot.localname.data(), ssize))
+        size_t ssize = sync->localroot->localname.size();
+        if (path->size() < ssize || memcmp(path->data(), sync->localroot->localname.data(), ssize))
         {
             continue;
         }
@@ -8185,7 +8185,7 @@ int MegaApiImpl::syncPathState(string* path)
 
         if (path->size() == ssize)
         {
-            state = sync->localroot.ts;
+            state = sync->localroot->ts;
             break;
         }
         else if (!memcmp(path->data()+ssize, client->fsaccess->localseparator.data(), client->fsaccess->localseparator.size()))
@@ -8231,10 +8231,10 @@ MegaNode *MegaApiImpl::getSyncedNode(string *path)
     for (sync_list::iterator it = client->syncs.begin(); (it != client->syncs.end()) && (node == NULL); it++)
     {
         Sync *sync = (*it);
-        if (path->size() == sync->localroot.localname.size() &&
-                !memcmp(path->data(), sync->localroot.localname.data(), path->size()))
+        if (path->size() == sync->localroot->localname.size() &&
+                !memcmp(path->data(), sync->localroot->localname.data(), path->size()))
         {
-            node = MegaNodePrivate::fromNode(sync->localroot.node);
+            node = MegaNodePrivate::fromNode(sync->localroot->node);
             break;
         }
 
@@ -12482,16 +12482,16 @@ void MegaApiImpl::syncupdate_state(Sync *sync, syncstate_t newstate)
     if(syncMap.find(sync->tag) == syncMap.end()) return;
     MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
     megaSync->setState(newstate);
-    LOG_debug << "Sync state change: " << newstate << " Path: " << sync->localroot.name;
+    LOG_debug << "Sync state change: " << newstate << " Path: " << sync->localroot->name;
     client->abortbackoff(false);
 
     if (newstate == SYNC_FAILED)
     {
         MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC);
 
-        if(sync->localroot.node)
+        if(sync->localroot->node)
         {
-            request->setNodeHandle(sync->localroot.node->nodehandle);
+            request->setNodeHandle(sync->localroot->node->nodehandle);
         }
 
         int nextTag = client->nextreqtag();
@@ -13361,7 +13361,7 @@ void MegaApiImpl::putfa_result(handle h, fatype, const char *)
     fireOnRequestFinish(request, megaError);
 }
 
-void MegaApiImpl::enumeratequotaitems_result(handle product, unsigned prolevel, unsigned gbstorage, unsigned gbtransfer, unsigned months, unsigned amount, const char* currency, const char* description, const char* iosid, const char* androidid)
+void MegaApiImpl::enumeratequotaitems_result(unsigned type, handle product, unsigned prolevel, int gbstorage, int gbtransfer, unsigned months, unsigned amount, unsigned amountMonth, const char* currency, const char* description, const char* iosid, const char* androidid)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
@@ -13372,7 +13372,7 @@ void MegaApiImpl::enumeratequotaitems_result(handle product, unsigned prolevel, 
         return;
     }
 
-    request->addProduct(product, prolevel, gbstorage, gbtransfer, months, amount, currency, description, iosid, androidid);
+    request->addProduct(type, product, prolevel, gbstorage, gbtransfer, months, amount, amountMonth, currency, description, iosid, androidid);
 }
 
 void MegaApiImpl::enumeratequotaitems_result(error e)
@@ -20419,11 +20419,11 @@ void MegaApiImpl::sendPendingRequests()
                 it++;
 
                 int tag = sync->tag;
-                if (!sync->localroot.node || sync->localroot.node->nodehandle == nodehandle)
+                if (!sync->localroot->node || sync->localroot->node->nodehandle == nodehandle)
                 {
                     string path;
-                    fsAccess->local2path(&sync->localroot.localname, &path);
-                    if (!request->getFile() || sync->localroot.node)
+                    fsAccess->local2path(&sync->localroot->localname, &path);
+                    if (!request->getFile() || sync->localroot->node)
                     {
                         request->setFile(path.c_str());
                     }
@@ -22321,18 +22321,22 @@ int MegaPricingPrivate::getProLevel(int productIndex)
     return 0;
 }
 
-unsigned int MegaPricingPrivate::getGBStorage(int productIndex)
+int MegaPricingPrivate::getGBStorage(int productIndex)
 {
-    if((unsigned)productIndex < gbStorage.size())
-        return gbStorage[productIndex];
+    if (static_cast<size_t>(productIndex) < gbStorage.size())
+    {
+        return gbStorage[static_cast<size_t>(productIndex)];
+    }
 
     return 0;
 }
 
-unsigned int MegaPricingPrivate::getGBTransfer(int productIndex)
+int MegaPricingPrivate::getGBTransfer(int productIndex)
 {
-    if((unsigned)productIndex < gbTransfer.size())
-        return gbTransfer[productIndex];
+    if (static_cast<size_t>(productIndex) < gbTransfer.size())
+    {
+        return gbTransfer[static_cast<size_t>(productIndex)];
+    }
 
     return 0;
 }
@@ -22385,27 +22389,45 @@ const char *MegaPricingPrivate::getAndroidID(int productIndex)
     return NULL;
 }
 
+bool MegaPricingPrivate::isBusinessType(int productIndex)
+{
+    if((unsigned)productIndex < type.size())
+        return type[productIndex];
+
+    return false;
+}
+
+int MegaPricingPrivate::getAmountMonth(int productIndex)
+{
+    if((unsigned)productIndex < amountMonth.size())
+        return amountMonth[productIndex];
+
+    return 0;
+}
+
 MegaPricing *MegaPricingPrivate::copy()
 {
     MegaPricingPrivate *megaPricing = new MegaPricingPrivate();
     for(unsigned i=0; i<handles.size(); i++)
     {
-        megaPricing->addProduct(handles[i], proLevel[i], gbStorage[i], gbTransfer[i],
-                                months[i], amount[i], currency[i], description[i], iosId[i], androidId[i]);
+        megaPricing->addProduct(type[i], handles[i], proLevel[i], gbStorage[i], gbTransfer[i],
+                                months[i], amount[i], amountMonth[i], currency[i], description[i], iosId[i], androidId[i]);
     }
 
     return megaPricing;
 }
 
-void MegaPricingPrivate::addProduct(handle product, int proLevel, unsigned int gbStorage, unsigned int gbTransfer, int months, int amount, const char *currency,
-                                    const char* description, const char* iosid, const char* androidid)
+void MegaPricingPrivate::addProduct(unsigned int type, handle product, int proLevel, int gbStorage, int gbTransfer, int months, int amount, int amountMonth,
+                                    const char *currency, const char* description, const char* iosid, const char* androidid)
 {
+    this->type.push_back(type);
     this->handles.push_back(product);
     this->proLevel.push_back(proLevel);
     this->gbStorage.push_back(gbStorage);
     this->gbTransfer.push_back(gbTransfer);
     this->months.push_back(months);
     this->amount.push_back(amount);
+    this->amountMonth.push_back(amountMonth);
     this->currency.push_back(MegaApi::strdup(currency));
     this->description.push_back(MegaApi::strdup(description));
     this->iosId.push_back(MegaApi::strdup(iosid));
