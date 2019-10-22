@@ -1075,7 +1075,7 @@ public:
     transferslot_list tslots;
 
     // keep track of next transfer slot timeout
-    BackoffTimerGroupTracker tslotsbackoff;
+    BackoffTimerGroupTracker transferSlotsBackoff;
 
     // next TransferSlot to doio() on
     transferslot_list::iterator slotit;

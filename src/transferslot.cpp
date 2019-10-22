@@ -72,7 +72,7 @@ const m_off_t TransferSlot::MAX_UPLOAD_GAP = 62914560; // 60 MB (up to 63 chunks
 
 TransferSlot::TransferSlot(Transfer* ctransfer)
     : fa(ctransfer->client->fsaccess->newfileaccess(), ctransfer)
-    , retrybt(ctransfer->client->rng, ctransfer->client->tslotsbackoff)
+    , retrybt(ctransfer->client->rng, ctransfer->client->transferSlotsBackoff)
 {
     starttime = 0;
     lastprogressreport = 0;

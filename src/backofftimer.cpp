@@ -139,6 +139,11 @@ TimerWithBackoff::TimerWithBackoff(PrnGen &rng, int tag)
 
 void BackoffTimerGroupTracker::update(dstime* waituntil, bool transfers)
 {
+    // This function performs a similar action as calling BackoffTimer::update for all the timers in the group,
+    // which is to say, the `waituntil` parameter will be updated with the soonest time that we would need to 
+    // wake up from any of the timers in this group, should any of them be in a back-off state.
+    // There are also some side-effects specfic to transfers which are preserved from the old system.
+
     vector<BackoffTimerTracked*> v;
     v.reserve(timeouts.size());
 

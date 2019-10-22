@@ -2841,7 +2841,7 @@ int MegaClient::preparewait()
         nexttransferretry(GET, &nds);
 
         // retry transferslots
-        tslotsbackoff.update(&nds, false);
+        transferSlotsBackoff.update(&nds, false);
 
         for (pendinghttp_map::iterator it = pendinghttp.begin(); it != pendinghttp.end(); it++)
         {
