@@ -18757,6 +18757,7 @@ void MegaApiImpl::sendPendingRequests()
             else if (e == API_EINCOMPLETE)  // no key provided, check only the existence of the node
             {
                 client->openfilelink(ph, nullptr, 1);
+                e = API_OK;
             }
             break;
         }
