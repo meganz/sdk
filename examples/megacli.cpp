@@ -3825,10 +3825,10 @@ void exec_sync(autocomplete::ACState& s)
                     static const char* syncstatenames[] =
                     { "Initial scan, please wait", "Active", "Failed" };
 
-                    if ((*it)->localroot.node)
+                    if ((*it)->localroot->node)
                     {
-                        nodepath((*it)->localroot.node->nodehandle, &remotepath);
-                        client->fsaccess->local2path(&(*it)->localroot.localname, &localpath);
+                        nodepath((*it)->localroot->node->nodehandle, &remotepath);
+                        client->fsaccess->local2path(&(*it)->localroot->localname, &localpath);
 
                         cout << i++ << ": " << localpath << " to " << remotepath << " - "
                                 << syncstatenames[(*it)->state] << ", " << (*it)->localbytes
