@@ -6393,6 +6393,13 @@ void MegaApiImpl::getPublicNode(const char* megaFileLink, MegaRequestListener *l
     waiter->notify();
 }
 
+const char *MegaApiImpl::buildPublicLink(const char *publicHandle, const char *key, bool isFolder)
+{
+    handle ph = MegaApi::base64ToHandle(publicHandle);
+    string link = client->getPublicLink(client->mNewLinkFormat, isFolder ? FOLDERNODE : FILENODE, ph, key);
+    return MegaApi::strdup(link.c_str());
+}
+
 void MegaApiImpl::getThumbnail(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener)
 {
     getNodeAttribute(node, GfxProc::THUMBNAIL, dstFilePath, listener);

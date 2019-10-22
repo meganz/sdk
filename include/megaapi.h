@@ -8951,6 +8951,21 @@ class MegaApi
         void getPublicNode(const char* megaFileLink, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Build the URL for a public link
+         *
+         * @note This function does not create the public link itself. It simply builds the URL
+         * from the provided data.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param publicHandle Public handle of the link, in B64url encoding.
+         * @param key Encryption key of the link.
+         * @param isFolder True for folder links, false for file links.
+         * @return The public link for the provided data
+         */
+        const char *buildPublicLink(const char *publicHandle, const char *key, bool isFolder);
+
+        /**
          * @brief Get the thumbnail of a node
          *
          * If the node doesn't have a thumbnail the request fails with the MegaError::API_ENOENT
