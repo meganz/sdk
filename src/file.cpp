@@ -45,7 +45,7 @@ File::~File()
     // if transfer currently running, stop
     if (transfer)
     {
-        transfer->client->stopxfer(this);
+        transfer->client->stopxfer(this, nullptr);
     }
     delete [] chatauth;
 }

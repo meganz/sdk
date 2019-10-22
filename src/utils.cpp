@@ -1974,7 +1974,7 @@ int macOSmajorVersion()
                 long majorVersion = strtol(token, &endPtr, 10);
                 if (endPtr != token && errno != ERANGE && majorVersion >= INT_MIN && majorVersion <= INT_MAX)
                 {
-                    return majorVersion;
+                    return int(majorVersion);
                 }
             }
         }

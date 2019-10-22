@@ -354,7 +354,7 @@ struct MEGA_API LocalNode : public File
 
     void setnameparent(LocalNode*, string*);
 
-    LocalNode() = default;
+    LocalNode();
     void init(Sync*, nodetype_t, LocalNode*, string*);
 
     virtual bool serialize(string*);
