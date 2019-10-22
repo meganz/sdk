@@ -3003,7 +3003,7 @@ TEST(Sync, OneWay_Upload_syncDelTrue_overwriteTrue_1)
      * - Delete local file
      * - Edit file via ref
      * - Resume oneWay
-     * - Assert: Remote file is gone
+     * - Assert: Remote file still there
      */
     OneWayFixture fx{SyncDescriptor::TYPE_UP, true, true};
 
@@ -3031,10 +3031,17 @@ TEST(Sync, OneWay_Upload_syncDelTrue_overwriteTrue_1)
     fx.wait();
     // oneWay is resumed
 
-    Model model;
+    Model localModel;
 
-    ASSERT_TRUE(fx.checkRef(model));
-    ASSERT_TRUE(fx.checkOneWay(model));
+    Model remoteModel;
+    auto remoteFooNodeOld = remoteModel.makeModelSubfile("foo");
+    auto remoteFooNode = remoteModel.makeModelSubfile("foo", "fooblah");
+    remoteFooNode->addkid(std::move(remoteFooNodeOld));
+    remoteModel.root->addkid(std::move(remoteFooNode));
+
+    ASSERT_TRUE(fx.checkRef(remoteModel));
+    ASSERT_TRUE(fx.checkOneWay(remoteModel, StandardClient::CONFIRM_REMOTE));
+    ASSERT_TRUE(fx.checkOneWay(localModel, StandardClient::CONFIRM_LOCAL));
 }
 
 TEST(Sync, OneWay_Download_syncDelFalse_overwriteFalse_1)
