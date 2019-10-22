@@ -4836,6 +4836,10 @@ public:
      */
     virtual MegaHandle getMegaHandle() const;
 
+    /**
+     * @brief Returns the sync descriptor
+     * @return The sync descriptor
+     */
     virtual const MegaSyncDescriptor *getDescriptor() const;
 
     /**

@@ -1018,7 +1018,7 @@ public:
     virtual MegaHandle getMegaHandle() const;
     void setMegaHandle(MegaHandle handle);
     virtual const MegaSyncDescriptor *getMegaSyncDescriptor() const;
-    void setMegaSyncDescriptor( const MegaSyncDescriptor *descriptor);
+    void setMegaSyncDescriptor(const MegaSyncDescriptor *descriptor);
     virtual const char* getLocalFolder() const;
     void setLocalFolder(const char*path);
     virtual long long getLocalFingerprint() const;

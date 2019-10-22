@@ -227,8 +227,10 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // FIXME: merge todebris / tounlink
     node_set::iterator tounlink_it{};
 
+    // sets whether this node can be synced to the local tree
     void setSyncable(bool syncable);
 
+    // can this node be synced to the local tree?
     bool isSyncable() const;
 #endif
 
