@@ -3817,6 +3817,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_COUNTRY_CALLING_CODES: return "GET_COUNTRY_CALLING_CODES";
         case TYPE_VERIFY_CREDENTIALS: return "VERIFY_CREDENTIALS";
         case TYPE_GET_MISC_FLAGS: return "GET_MISC_FLAGS";
+        case TYPE_RESEND_VERIFICATION_EMAIL: return "RESEND_VERIFICATION_EMAIL";
     }
     return "UNKNOWN";
 }
@@ -6004,6 +6005,14 @@ void MegaApiImpl::confirmCancelAccount(const char *link, const char *pwd, MegaRe
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CONFIRM_CANCEL_LINK, listener);
     request->setLink(link);
     request->setPassword(pwd);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::resendVerificationEmail(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_RESEND_VERIFICATION_EMAIL);
+    request->setListener(listener);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -12017,6 +12026,15 @@ void MegaApiImpl::getemaillink_result(error e)
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_GET_CHANGE_EMAIL_LINK)) return;
+
+    fireOnRequestFinish(request, MegaError(e));
+}
+
+void MegaApiImpl::resendverificationemail_result(error e)
+{
+    if (requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate *request = requestMap.at(client->restag);
+    if (!request || (request->getType() != MegaRequest::TYPE_RESEND_VERIFICATION_EMAIL)) return;
 
     fireOnRequestFinish(request, MegaError(e));
 }
@@ -20639,6 +20657,11 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_GET_SESSION_TRANSFER_URL:
         {
             client->copysession();
+            break;
+        }
+        case MegaRequest::TYPE_RESEND_VERIFICATION_EMAIL:
+        {
+            client->resendverificationemail();
             break;
         }
         case MegaRequest::TYPE_CLEAN_RUBBISH_BIN:
