@@ -5921,6 +5921,22 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
 - (nullable MEGAUser *)userFromInShareNode:(MEGANode *)node;
 
 /**
+* @brief Get the user relative to an incoming share
+*
+* This function will return nil if the node is not found.
+*
+* If recurse is true, it will return nil if the root corresponding to
+* the node received as argument doesn't represent the root of an incoming share.
+* Otherwise, it will return nil if the node doesn't represent
+* the root of an incoming share.
+*
+* @param node Node to look for inshare user.
+* @param recurse use root node corresponding to the node passed
+* @return MegaUser relative to the incoming share
+*/
+- (nullable MEGAUser *)userFromInShareNode:(MEGANode *)node recurse:(BOOL)recurse;
+
+/**
  * @brief Check if a MEGANode is being shared.
  *
  * For nodes that are being shared, you can get a a list of MEGAShare

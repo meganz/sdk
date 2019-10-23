@@ -1692,6 +1692,10 @@ using namespace mega;
     return [[MEGAUser alloc] initWithMegaUser:self.megaApi->getUserFromInShare(node ? [node getCPtr] : NULL) cMemoryOwn:YES];
 }
 
+- (MEGAUser *)userFromInShareNode:(MEGANode *)node recurse:(BOOL)recurse {
+    return [MEGAUser.alloc initWithMegaUser:self.megaApi->getUserFromInShare(node ? [node getCPtr] : NULL, recurse) cMemoryOwn:YES];
+}
+
 - (BOOL)isSharedNode:(MEGANode *)node {
     if (!node) return NO;
     
