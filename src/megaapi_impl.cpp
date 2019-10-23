@@ -29100,6 +29100,13 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                 {
                     MegaNodeList *children = ftpctx->megaApi->getChildren(node);
                     assert(!ftpctx->ftpDataServer->resultmsj.size());
+
+                    if (ftpctx->command == FTP_CMD_LIST)
+                    {
+                        ftpctx->ftpDataServer->resultmsj.append(getListingLineFromNode(node,"."));
+                        ftpctx->ftpDataServer->resultmsj.append(crlfout);
+                    }
+
                     for (int i = 0; i < children->size(); i++)
                     {
                         MegaNode *child = children->get(i);
