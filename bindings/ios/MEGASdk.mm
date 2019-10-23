@@ -45,6 +45,7 @@
 #import "MEGADataInputStream.h"
 #import "MEGACancelToken+init.h"
 #import "MEGAPushNotificationSettings+init.h"
+#import "MEGAProxy+init.h"
 
 #import <set>
 #import <pthread.h>
@@ -537,6 +538,15 @@ using namespace mega;
 
 - (void)loginToFolderLink:(NSString *)folderLink {
     self.megaApi->loginToFolder((folderLink != nil) ? [folderLink UTF8String] : NULL);
+}
+
+- (void)setProxySettings:(MEGAProxy *)proxySettings {
+    self.megaApi->setProxySettings(proxySettings ? [proxySettings getCPtr] : NULL);
+}
+
+- (MEGAProxy *)getAutoProxySettings {
+    MegaProxy *proxy = self.megaApi->getAutoProxySettings();
+    return proxy ? [[MEGAProxy alloc] initWithMegaProxy:proxy cMemoryOwn:YES] : nil;
 }
 
 - (NSInteger)isLoggedIn {

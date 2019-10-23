@@ -30,7 +30,7 @@
 #include <winhttp.h>
 #endif
 
-#if defined(__APPLE__) && !(TARGET_OS_IPHONE)
+#if defined(__APPLE__)
 #include "mega/osx/osxutils.h"
 #endif
 
@@ -244,7 +244,7 @@ Proxy *HttpIO::getautoproxy()
     }    
 #endif
 
-#if defined(__APPLE__) && !(TARGET_OS_IPHONE)
+#if defined(__APPLE__)
     getOSXproxy(proxy);
 #endif
 

@@ -35,6 +35,7 @@
 #import "MEGANode.h"
 #import "MEGALoggerDelegate.h"
 #import "MEGAPricing.h"
+#import "MEGAProxy.h"
 #import "MEGARecentActionBucket.h"
 #import "MEGARequest.h"
 #import "MEGARequestDelegate.h"
@@ -1086,6 +1087,26 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @return Current session key.
  */
 - (nullable NSString *)dumpSession;
+
+/**
+ * @brief Set proxy settings
+ *
+ * The SDK will start using the provided proxy settings as soon as this function returns.
+ *
+ * @param proxySettings Proxy settings
+ * @see MEGAProxy
+ */
+- (void)setProxySettings:(MEGAProxy *)proxySettings;
+
+/**
+ * @brief Try to detect the system's proxy settings
+ *
+ * This fuction will return a MEGAProxy object
+ * of type MEGAProxyNone
+ *
+ * @return MEGAProxy object with the detected proxy settings
+ */
+- (MEGAProxy *)getAutoProxySettings;
 
 /**
  * @brief Check if the MEGASdk object is logged in.

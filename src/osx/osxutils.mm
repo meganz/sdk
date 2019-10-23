@@ -52,7 +52,7 @@ void path2localMac(string* path, string* local)
 #endif
 }
 
-#if defined(__APPLE__) && !(TARGET_OS_IPHONE)
+#if defined(__APPLE__)
 
 CFTypeRef getValueFromKey(CFDictionaryRef dict, const void *key, CFTypeID type)
 {
@@ -80,14 +80,25 @@ bool getProxyConfiguration(CFDictionaryRef dict, int proxyType, Proxy* proxy)
         return false;
     }
 
+#if TARGET_OS_IPHONE
+    CFStringRef proxyEnableKey = kCFNetworkProxiesHTTPEnable;
+    CFStringRef proxyHostKey   = kCFNetworkProxiesHTTPProxy;
+    CFStringRef portKey        = kCFNetworkProxiesHTTPPort;
+#else
     CFStringRef proxyEnableKey = proxyType == HTTP_PROXY ? kSCPropNetProxiesHTTPEnable : kSCPropNetProxiesHTTPSEnable;
     CFStringRef proxyHostKey   = proxyType == HTTP_PROXY ? kSCPropNetProxiesHTTPProxy : kSCPropNetProxiesHTTPSProxy;
     CFStringRef portKey        = proxyType == HTTP_PROXY ? kSCPropNetProxiesHTTPPort : kSCPropNetProxiesHTTPSPort;
-
+#endif
+    
     CFNumberRef proxyEnabledRef = (CFNumberRef)getValueFromKey(dict, proxyEnableKey, CFNumberGetTypeID());
     if (proxyEnabledRef && CFNumberGetValue(proxyEnabledRef, kCFNumberIntType, &isEnabled) && (isEnabled != 0))
     {
-        if ([(NSDictionary*)dict valueForKey: proxyType == HTTP_PROXY ? @"HTTPUser" : @"HTTPSUser"] != nil)
+#if TARGET_OS_IPHONE
+        id username = [(__bridge NSDictionary*)dict valueForKey: @"HTTPProxyUsername"];
+#else
+        id username = [(NSDictionary*)dict valueForKey: @"HTTPUser"];
+#endif
+        if (username)
         {
             // Username set, skip proxy configuration. We only allow proxies withouth user/pw credentials
             // to not have to request the password to the user to read the keychain
@@ -123,16 +134,24 @@ bool getProxyConfiguration(CFDictionaryRef dict, int proxyType, Proxy* proxy)
 void getOSXproxy(Proxy* proxy)
 {
     CFDictionaryRef proxySettings = NULL;
+#if TARGET_OS_IPHONE
+    proxySettings = CFNetworkCopySystemProxySettings();
+#else
     proxySettings = SCDynamicStoreCopyProxies(NULL);
+#endif
     if (!proxySettings)
     {
         return;
     }
 
+#if TARGET_OS_IPHONE
+    getProxyConfiguration(proxySettings, HTTP_PROXY, proxy);
+#else
     if (!getProxyConfiguration(proxySettings, HTTPS_PROXY, proxy))
     {
         getProxyConfiguration(proxySettings, HTTP_PROXY, proxy);
     }
+#endif
     CFRelease(proxySettings);
 }
 #endif

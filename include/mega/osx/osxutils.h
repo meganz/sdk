@@ -5,7 +5,7 @@
 
 void path2localMac(std::string* path, std::string* local);
 
-#if defined(__APPLE__) && !(TARGET_OS_IPHONE)
+#if defined(__APPLE__)
 void getOSXproxy(mega::Proxy* proxy);
 #endif
 
