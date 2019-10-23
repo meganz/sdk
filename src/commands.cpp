@@ -5460,12 +5460,12 @@ void CommandResendVerificationEmail::procresult()
 {
     if (client->json.isnumeric())
     {
-        return client->app->resendverificationemail_result((error)client->json.getint());
+        client->app->resendverificationemail_result((error)client->json.getint());
     }
     else
     {
         client->json.storeobject();
-        return client->app->resendverificationemail_result((error)API_EINTERNAL);
+        client->app->resendverificationemail_result((error)API_EINTERNAL);
     }
 }
 

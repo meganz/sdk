@@ -12032,9 +12032,10 @@ void MegaApiImpl::getemaillink_result(error e)
 
 void MegaApiImpl::resendverificationemail_result(error e)
 {
-    if (requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate *request = requestMap.at(client->restag);
-    if (!request || (request->getType() != MegaRequest::TYPE_RESEND_VERIFICATION_EMAIL)) return;
+    auto it = requestMap.find(client->restag);
+    if (it == requestMap.end()) return;
+    MegaRequestPrivate *request = it->second;
+    if (!request || ((request->getType() != MegaRequest::TYPE_RESEND_VERIFICATION_EMAIL))) return;
 
     fireOnRequestFinish(request, MegaError(e));
 }
