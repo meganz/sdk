@@ -529,7 +529,7 @@ void SyncFileGet::prepare()
         }
         else
         {
-            transfer->localfilename = sync->localroot.localname;
+            transfer->localfilename = sync->localroot->localname;
         }
 
         sync->client->fsaccess->tmpnamelocal(&tmpname);

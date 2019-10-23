@@ -213,9 +213,9 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
         }
     }
 
-    if (memcmp(crc.data(), newcrc.data(), sizeof crc))
+    if (crc != newcrc)
     {
-        memcpy(crc.data(), newcrc.data(), sizeof crc);
+        crc = newcrc;
         changed = true;
     }
 
@@ -335,9 +335,9 @@ bool FileFingerprint::genfingerprint(InputStreamAccess *is, m_time_t cmtime, boo
         }
     }
 
-    if (memcmp(crc.data(), newcrc.data(), sizeof crc))
+    if (crc != newcrc)
     {
-        memcpy(crc.data(), newcrc.data(), sizeof crc);
+        crc = newcrc;
         changed = true;
     }
 

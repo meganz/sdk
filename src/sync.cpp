@@ -361,7 +361,7 @@ size_t assignFilesystemIdsImpl(const FingerprintCache& fingerprints, Fingerprint
         for (auto nodeIt = nodeRange.first; nodeIt != nodeRange.second; ++nodeIt)
         {
             auto l = nodeIt->second;
-            if (l != &l->sync->localroot) // never assign fs ID to the root localnode
+            if (l != l->sync->localroot.get()) // never assign fs ID to the root localnode
             {
                 nodePath.clear();
                 l->getlocalpath(&nodePath, false, &localseparator);
@@ -464,7 +464,7 @@ int computeReversePathMatchScore(string& accumulated, const string& path1, const
 bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, handlelocalnode_map& fsidnodes,
                          const string& localdebris, const string& localseparator)
 {
-    const auto& rootpath = sync.localroot.localname;
+    const auto& rootpath = sync.localroot->localname;
     LOG_info << "Assigning fs IDs at rootpath: " << rootpath;
 
     auto fa = fsaccess.newfileaccess(false);
@@ -492,7 +492,7 @@ bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, h
     FingerprintCache fingerprints;
 
     FingerprintLocalNodeMap localnodes;
-    collectAllLocalNodes(fingerprints, localnodes, sync.localroot, fsidnodes, localseparator);
+    collectAllLocalNodes(fingerprints, localnodes, *sync.localroot, fsidnodes, localseparator);
     LOG_info << "Number of localnodes: " << localnodes.size();
 
     if (localnodes.empty())
@@ -516,6 +516,7 @@ bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, h
 Sync::Sync(MegaClient* cclient, SyncDescriptor descriptor, string* crootpath, const char* cdebris,
            string* clocaldebris, Node* remotenode, fsfp_t cfsfp, bool cinshare, int ctag, void *cappdata)
 : mDescriptor{std::move(descriptor)}
+, localroot{new LocalNode}
 {
     isnetwork = false;
     client = cclient;
@@ -571,8 +572,8 @@ Sync::Sync(MegaClient* cclient, SyncDescriptor descriptor, string* crootpath, co
     fsstableids = dirnotify->fsstableids();
     LOG_info << "Filesystem IDs are stable: " << fsstableids;
 
-    localroot.init(this, FOLDERNODE, NULL, crootpath);
-    localroot.setnode(remotenode);
+    localroot->init(this, FOLDERNODE, NULL, crootpath);
+    localroot->setnode(remotenode);
 
 #ifdef __APPLE__
     if (macOSmajorVersion() >= 19) //macOS catalina+
@@ -639,12 +640,12 @@ Sync::~Sync()
     tmpfa.reset();
 
     // stop all active and pending downloads
-    if (localroot.node)
+    if (localroot->node)
     {
         TreeProcDelSyncGet tdsg;
         if (client)
         {
-            client->proctree(localroot.node, &tdsg);
+            client->proctree(localroot->node, &tdsg);
         }
     }
 
@@ -654,6 +655,13 @@ Sync::~Sync()
     {
         client->syncs.erase(sync_it);
         client->syncactivity = true;
+
+        {
+            // now recursively delete all the associated LocalNodes, and their associated transfer and file objects. 
+            // If any have transactions in progress, the committer will ensure we update the transfer database in an efficient single commit.
+            DBTableTransactionCommitter committer(client->tctable);
+            localroot.reset();
+        }
     }
 }
 
@@ -686,7 +694,7 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, st
 
         l->parent_dbid = parent_dbid;
         l->size = size;
-        l->setfsid(fsid, l->sync->client->fsidnode);
+        l->setfsid(fsid, client->fsidnode);
         l->setnode(node);
 
         if (maxdepth)
@@ -720,7 +728,7 @@ bool Sync::readstatecache()
         }
 
         // recursively build LocalNode tree, set scanseqnos to sync's current scanseqno
-        addstatecachechildren(0, &tmap, &localroot.localname, &localroot, 100);
+        addstatecachechildren(0, &tmap, &localroot->localname, localroot.get(), 100);
 
         // trigger a single-pass full scan to identify deleted nodes
         fullscan = true;
@@ -821,7 +829,7 @@ void Sync::cachenodes()
 
             for (set<LocalNode*>::iterator it = insertq.begin(); it != insertq.end(); )
             {
-                if ((*it)->parent->dbid || (*it)->parent == &localroot)
+                if ((*it)->parent->dbid || (*it)->parent == localroot.get())
                 {
                     statecachetable->put(MegaClient::CACHEDLOCALNODE, *it, &client->key);
                     insertq.erase(it++);
@@ -877,8 +885,8 @@ LocalNode* Sync::localnodebypath(LocalNode* l, string* localpath, LocalNode** pa
     {
         // verify matching localroot prefix - this should always succeed for
         // internal use
-        if (memcmp(ptr, localroot.localname.data(), localroot.localname.size())
-         || memcmp(ptr + localroot.localname.size(),
+        if (memcmp(ptr, localroot->localname.data(), localroot->localname.size())
+         || memcmp(ptr + localroot->localname.size(),
                    client->fsaccess->localseparator.data(),
                    separatorlen))
         {
@@ -890,7 +898,7 @@ LocalNode* Sync::localnodebypath(LocalNode* l, string* localpath, LocalNode** pa
             return NULL;
         }
 
-        l = &localroot;
+        l = localroot.get();
         ptr += l->localname.size() + client->fsaccess->localseparator.size();
     }
 
@@ -1128,7 +1136,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
             return NULL;
         }
 
-        isroot = l == &localroot && !newname.size();
+        isroot = l == localroot.get() && !newname.size();
     }
 
     LOG_verbose << "Scanning: " << path;
@@ -1152,7 +1160,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                      lastpart,
                      (localname ? *localpath : tmppath).size() - lastpart);
 
-        LocalNode* cl = (parent ? parent : &localroot)->childbyname(&fname);
+        LocalNode* cl = (parent ? parent : localroot.get())->childbyname(&fname);
         if (initializing && cl)
         {
             // the file seems to be still in the folder
@@ -1251,10 +1259,10 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                                             #ifdef _WIN32
                                                 // only consider fsid matches between different syncs for local drives with the
                                                 // same drive letter, to prevent problems with cloned Volume IDs
-                                                && (colon = strstr(parent->sync->localroot.name.c_str(), ":"))
-                                                && !memcmp(parent->sync->localroot.name.c_str(),
-                                                       it->second->sync->localroot.name.c_str(),
-                                                       colon - parent->sync->localroot.name.c_str())
+                                                && (colon = strstr(parent->sync->localroot->name.c_str(), ":"))
+                                                && !memcmp(parent->sync->localroot->name.c_str(),
+                                                       it->second->sync->localroot->name.c_str(),
+                                                       colon - parent->sync->localroot->name.c_str())
                                             #endif
                                                 )
                                             )
@@ -1303,7 +1311,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                         {
                             if (fa->fsidvalid && l->fsid != fa->fsid)
                             {
-                                l->setfsid(fa->fsid, l->sync->client->fsidnode);
+                                l->setfsid(fa->fsid, client->fsidnode);
                             }
 
                             m_off_t dsize = l->size > 0 ? l->size : 0;
@@ -1342,7 +1350,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                         // content scan anyway)
                         if (fa->fsidvalid && fa->fsid != l->fsid)
                         {
-                            l->setfsid(fa->fsid, l->sync->client->fsidnode);
+                            l->setfsid(fa->fsid, client->fsidnode);
                             newnode = true;
                         }
                     }
@@ -1375,10 +1383,10 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                         #ifdef _WIN32
                             // allow moves between different syncs only for local drives with the
                             // same drive letter, to prevent problems with cloned Volume IDs
-                            && (colon = strstr(parent->sync->localroot.name.c_str(), ":"))
-                            && !memcmp(parent->sync->localroot.name.c_str(),
-                                   it->second->sync->localroot.name.c_str(),
-                                   colon - parent->sync->localroot.name.c_str())
+                            && (colon = strstr(parent->sync->localroot->name.c_str(), ":"))
+                            && !memcmp(parent->sync->localroot->name.c_str(),
+                                   it->second->sync->localroot->name.c_str(),
+                                   colon - parent->sync->localroot->name.c_str())
                         #endif
                             )
                        )
@@ -1529,7 +1537,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
 
                     if (fa->fsidvalid)
                     {
-                        l->setfsid(fa->fsid, l->sync->client->fsidnode);
+                        l->setfsid(fa->fsid, client->fsidnode);
                     }
 
                     newnode = true;
@@ -1570,7 +1578,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                 {
                     if (fa->fsidvalid && l->fsid != fa->fsid)
                     {
-                        l->setfsid(fa->fsid, l->sync->client->fsidnode);
+                        l->setfsid(fa->fsid, client->fsidnode);
                     }
 
                     if (l->size > 0)

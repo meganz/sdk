@@ -5277,12 +5277,12 @@ int MegaPricing::getProLevel(int)
     return 0;
 }
 
-unsigned int MegaPricing::getGBStorage(int)
+int MegaPricing::getGBStorage(int)
 {
     return 0;
 }
 
-unsigned int MegaPricing::getGBTransfer(int)
+int MegaPricing::getGBTransfer(int)
 {
     return 0;
 }
@@ -5315,6 +5315,16 @@ const char *MegaPricing::getIosID(int)
 const char *MegaPricing::getAndroidID(int)
 {
     return NULL;
+}
+
+bool MegaPricing::isBusinessType(int)
+{
+    return false;
+}
+
+int MegaPricing::getAmountMonth(int)
+{
+    return 0;
 }
 
 MegaPricing *MegaPricing::copy()

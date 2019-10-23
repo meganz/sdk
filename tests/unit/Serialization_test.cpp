@@ -231,7 +231,7 @@ TEST(Serialization, LocalNode_forFolder_withoutParent_withoutNode)
 {
     mega::handlelocalnode_map fsidnodes;
     auto sync = mt::makeSync("wicked", fsidnodes);
-    auto& l = sync->localroot;
+    auto& l = *sync->localroot;
     l.syncable = false;
     l.setfsid(10, fsidnodes);
     std::string data;
@@ -245,7 +245,7 @@ TEST(Serialization, LocalNode_forFile_withoutNode)
 {
     mega::handlelocalnode_map fsidnodes;
     auto sync = mt::makeSync("wicked", fsidnodes);
-    auto l = mt::makeLocalNode(*sync, sync->localroot, fsidnodes, mega::FILENODE, "sweet");
+    auto l = mt::makeLocalNode(*sync, *sync->localroot, fsidnodes, mega::FILENODE, "sweet");
     l->syncable = false;
     l->size = 124;
     l->setfsid(10, fsidnodes);
@@ -264,7 +264,7 @@ TEST(Serialization, LocalNode_forFile_withoutNode_withMaxMtime)
 {
     mega::handlelocalnode_map fsidnodes;
     auto sync = mt::makeSync("wicked", fsidnodes);
-    auto l = mt::makeLocalNode(*sync, sync->localroot, fsidnodes, mega::FILENODE, "sweet");
+    auto l = mt::makeLocalNode(*sync, *sync->localroot, fsidnodes, mega::FILENODE, "sweet");
     l->size = 124;
     l->setfsid(10, fsidnodes);
     l->parent->dbid = 13;
@@ -284,7 +284,7 @@ TEST(Serialization, LocalNode_forFolder_withoutParent)
     auto sync = mt::makeSync("wicked", fsidnodes);
     mega::Node n;
     n.nodehandle = 42;
-    auto& l = sync->localroot;
+    auto& l = *sync->localroot;
     l.setfsid(10, fsidnodes);
     l.node = &n;
     std::string data;
@@ -298,7 +298,7 @@ TEST(Serialization, LocalNode_forFolder)
 {
     mega::handlelocalnode_map fsidnodes;
     auto sync = mt::makeSync("wicked", fsidnodes);
-    auto l = mt::makeLocalNode(*sync, sync->localroot, fsidnodes, mega::FOLDERNODE, "sweet");
+    auto l = mt::makeLocalNode(*sync, *sync->localroot, fsidnodes, mega::FOLDERNODE, "sweet");
     l->syncable = false;
     l->parent->dbid = 13;
     l->parent_dbid = l->parent->dbid;
@@ -317,7 +317,7 @@ TEST(Serialization, LocalNode_withoutExtensionBytes_forFolder)
 {
     mega::handlelocalnode_map fsidnodes;
     auto sync = mt::makeSync("wicked", fsidnodes);
-    auto l = mt::makeLocalNode(*sync, sync->localroot, fsidnodes, mega::FOLDERNODE, "sweet");
+    auto l = mt::makeLocalNode(*sync, *sync->localroot, fsidnodes, mega::FOLDERNODE, "sweet");
     l->parent->dbid = 13;
     l->parent_dbid = l->parent->dbid;
     mega::Node n;
@@ -343,7 +343,7 @@ TEST(Serialization, LocalNode_forFile)
 {
     mega::handlelocalnode_map fsidnodes;
     auto sync = mt::makeSync("wicked", fsidnodes);
-    auto l = mt::makeLocalNode(*sync, sync->localroot, fsidnodes, mega::FILENODE, "sweet");
+    auto l = mt::makeLocalNode(*sync, *sync->localroot, fsidnodes, mega::FILENODE, "sweet");
     l->syncable = false;
     mega::Node n;
     n.nodehandle = 42;
@@ -365,7 +365,7 @@ TEST(Serialization, LocalNode_withoutExtensionBytes_forFile)
 {
     mega::handlelocalnode_map fsidnodes;
     auto sync = mt::makeSync("wicked", fsidnodes);
-    auto l = mt::makeLocalNode(*sync, sync->localroot, fsidnodes, mega::FILENODE, "sweet");
+    auto l = mt::makeLocalNode(*sync, *sync->localroot, fsidnodes, mega::FILENODE, "sweet");
     mega::Node n;
     n.nodehandle = 42;
     l->node = &n;

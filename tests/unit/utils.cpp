@@ -73,9 +73,10 @@ mega::handle nextFsId()
 std::unique_ptr<mega::Sync> makeSync(const std::string& localname, mega::handlelocalnode_map& fsidnodes)
 {
     auto sync = std::unique_ptr<mega::Sync>{new mega::Sync};
+    sync->localroot = std::unique_ptr<mega::LocalNode>{new mega::LocalNode};
     sync->state = mega::SYNC_CANCELED; // to avoid the asssertion in Sync::~Sync()
-    initializeLocalNode(sync->localroot, *sync, nullptr, fsidnodes,  mega::FOLDERNODE, localname, {});
-    sync->localdebris = sync->localroot.localname + "/" + mt::gLocalDebris;
+    initializeLocalNode(*sync->localroot, *sync, nullptr, fsidnodes,  mega::FOLDERNODE, localname, {});
+    sync->localdebris = sync->localroot->localname + "/" + mt::gLocalDebris;
     return sync;
 }
 

@@ -352,6 +352,8 @@ struct MEGA_API LocalNode : public File
 
     void setnotseen(int);
 
+    // set fsid - assume that an existing assignment of the same fsid is no longer current and revoke.
+    // fsidnodes is a map from fsid to LocalNode, keeping track of all fs ids.
     void setfsid(handle newfsid, handlelocalnode_map& fsidnodes);
 
     void setnameparent(LocalNode*, string*);
