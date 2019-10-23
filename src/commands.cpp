@@ -5450,6 +5450,25 @@ void CommandConfirmCancelLink::procresult()
     }
 }
 
+CommandResendVerificationEmail::CommandResendVerificationEmail(MegaClient *client)
+{
+    cmd("era");
+    tag = client->reqtag;
+}
+
+void CommandResendVerificationEmail::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        return client->app->resendverificationemail_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        return client->app->resendverificationemail_result((error)API_EINTERNAL);
+    }
+}
+
 CommandValidatePassword::CommandValidatePassword(MegaClient *client, const char *email, uint64_t emailhash)
 {
     cmd("us");

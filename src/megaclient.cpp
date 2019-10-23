@@ -8236,6 +8236,11 @@ int MegaClient::dumpsession(byte* session, size_t size)
     return int(size);
 }
 
+void MegaClient::resendverificationemail()
+{
+    reqs.add(new CommandResendVerificationEmail(this));
+}
+
 void MegaClient::copysession()
 {
     reqs.add(new CommandCopySession(this));
