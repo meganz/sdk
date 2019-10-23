@@ -618,7 +618,7 @@ void CurlHttpIO::processcurlevents(direction_t d)
     if (value >= 0 && value <= Waiter::ds)
     {
         *timeout = -1;
-        LOG_debug << "Disabling cURL timeout";
+        LOG_verbose << "Disabling cURL timeout";
         curl_multi_socket_action(curlm[d], CURL_SOCKET_TIMEOUT, 0, &dummy);
     }
 
@@ -1766,7 +1766,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     {
         if (dnsEntry && dnsEntry->ipv6.size() && !dnsEntry->isIPv6Expired())
         {
-            LOG_debug << "DNS cache hit for " << httpctx->hostname << " (IPv6) " << dnsEntry->ipv6;
+            LOG_verbose << "DNS cache hit for " << httpctx->hostname << " (IPv6) " << dnsEntry->ipv6;
             std::ostringstream oss;
             httpctx->isIPv6 = true;
             httpctx->isCachedIp = true;
@@ -1778,14 +1778,14 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
         }
 
         httpctx->ares_pending++;
-        LOG_debug << "Resolving IPv6 address for " << httpctx->hostname;
+        LOG_verbose << "Resolving IPv6 address for " << httpctx->hostname;
         ares_gethostbyname(ares, httpctx->hostname.c_str(), PF_INET6, ares_completed_callback, httpctx);
     }
     else
     {
         if (dnsEntry && dnsEntry->ipv4.size() && !dnsEntry->isIPv4Expired())
         {
-            LOG_debug << "DNS cache hit for " << httpctx->hostname << " (IPv4) " << dnsEntry->ipv4;
+            LOG_verbose << "DNS cache hit for " << httpctx->hostname << " (IPv4) " << dnsEntry->ipv4;
             httpctx->isIPv6 = false;
             httpctx->isCachedIp = true;
             httpctx->hostip = dnsEntry->ipv4;
@@ -1795,7 +1795,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
         }
     }
 
-    LOG_debug << "Resolving IPv4 address for " << httpctx->hostname;
+    LOG_verbose << "Resolving IPv4 address for " << httpctx->hostname;
     ares_gethostbyname(ares, httpctx->hostname.c_str(), PF_INET, ares_completed_callback, httpctx);
 }
 
@@ -2451,7 +2451,7 @@ int CurlHttpIO::socket_callback(CURL *, curl_socket_t s, int what, void *userp, 
     }
     else
     {
-        LOG_debug << "Adding/setting curl socket " << s << " to " << what;
+        LOG_verbose << "Adding/setting curl socket " << s << " to " << what;
         SockInfo info;
         info.fd = s;
         info.mode = what;
@@ -2525,7 +2525,7 @@ int CurlHttpIO::timer_callback(CURLM *, long timeout_ms, void *userp, direction_
         httpio->curltimeoutreset[d] = Waiter::ds + timeoutds;
     }
 
-    LOG_debug << "Set cURL timeout[" << d << "] to " << httpio->curltimeoutreset[d] << " ms from " << timeout_ms;
+    LOG_verbose << "Set cURL timeout[" << d << "] to " << httpio->curltimeoutreset[d] << " ms from " << timeout_ms;
     return 0;
 }
 

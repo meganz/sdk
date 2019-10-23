@@ -2087,7 +2087,7 @@ void MegaClient::exec()
             }
             pendingsc->posturl.append(auth);
             pendingsc->type = REQ_JSON;
-            LOG_debug << "Sending keep-alive to waitd";
+            LOG_verbose << "Sending keep-alive to waitd";
             pendingsc->post(this);
             jsonsc.pos = NULL;
         }
