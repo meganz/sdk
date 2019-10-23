@@ -2761,6 +2761,19 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
 - (void)publicNodeForMegaFileLink:(NSString *)megaFileLink;
 
 /**
+* @brief Build the URL for a public link
+*
+* @note This function does not create the public link itself. It simply builds the URL
+* from the provided data.
+*
+* @param publicHandle Public handle of the link, in B64url encoding.
+* @param key Encryption key of the link.
+* @param isFolder True for folder links, false for file links.
+* @return The public link for the provided data
+*/
+- (NSString *)buildPublicLinkForHandle:(NSString *)publicHandle key:(NSString *)key isFolder:(BOOL)isFolder;
+
+/**
  * @brief Set the GPS coordinates of image files as a node attribute.
  *
  * To remove the existing coordinates, set both the latitude and longitude to nil.
