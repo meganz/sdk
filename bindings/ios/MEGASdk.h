@@ -1757,6 +1757,40 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
 - (void)confirmCancelAccountWithLink:(NSString *)link password:(NSString *)password;
 
 /**
+* @brief Allow to resend the verification email for Weak Account Protection
+*
+* The verification email will be resent to the same address as it was previously sent to.
+*
+* This function can be called if the the reason for being blocked is:
+*      700: the account is supended for Weak Account Protection.
+*
+* If the logged in account is not suspended or is suspended for some other reason,
+* onRequestFinish will be called with the error code MEGAErrorTypeApiEAccess.
+*
+* If the logged in account has not been sent the unlock email before,
+* onRequestFinish will be called with the error code MEGAErrorTypeApiEArgs.
+*
+* @param delegate MEGARequestDelegate to track this request
+*/
+- (void)resendVerificationEmailWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+* @brief Allow to resend the verification email for Weak Account Protection
+*
+* The verification email will be resent to the same address as it was previously sent to.
+*
+* This function can be called if the the reason for being blocked is:
+*      700: the account is supended for Weak Account Protection.
+*
+* If the logged in account is not suspended or is suspended for some other reason,
+* onRequestFinish will be called with the error code MEGAErrorTypeApiEAccess.
+*
+* If the logged in account has not been sent the unlock email before,
+* onRequestFinish will be called with the error code MEGAErrorTypeApiEArgs.
+*/
+- (void)resendVerificationEmail;
+
+/**
  * @brief Initialize the change of the email address associated to the account.
  *
  * The associated request type with this request is MEGARequestTypeGetChangeEmailLink.

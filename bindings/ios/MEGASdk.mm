@@ -702,6 +702,14 @@ using namespace mega;
     self.megaApi->confirmCancelAccount((link != nil) ? [link UTF8String] : NULL, (password != nil) ? [password UTF8String] : NULL);
 }
 
+- (void)resendVerificationEmailWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->resendVerificationEmail([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)resendVerificationEmail {
+    self.megaApi->resendVerificationEmail();
+}
+
 - (void)changeEmail:(NSString *)email delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->changeEmail((email != nil) ? [email UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
