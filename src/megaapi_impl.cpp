@@ -387,7 +387,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
         this->attrstring.assign(node->attrstring->data(), node->attrstring->size());
     }
     this->fileattrstring = node->fileattrstring;
-    this->nodekey.assign(node->nodekey().data(),node->nodekey().size());
+    this->nodekey = node->nodekeyUnchecked();
 
     this->changed = 0;
     if(node->changed.attrs)
