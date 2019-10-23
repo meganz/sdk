@@ -75,11 +75,11 @@ struct MEGA_API LightFileFingerprint
 
     MEGA_DEFAULT_COPY_MOVE(LightFileFingerprint)
 
-    // Generates a new fingerprint not involving I/O
+    // Establishes a new fingerprint not involving I/O
     bool genfingerprint(m_off_t filesize, m_time_t filemtime);
 };
 
-// Orders light file fingerprints by size, mtime, and namehash in terms of "<"
+// Orders light file fingerprints by size and mtime in terms of "<"
 struct MEGA_API LightFileFingerprintCmp
 {
     bool operator()(const LightFileFingerprint* a, const LightFileFingerprint* b) const;
