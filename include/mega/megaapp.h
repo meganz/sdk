@@ -218,6 +218,9 @@ struct MEGA_API MegaApp
     // get change email link result
     virtual void getemaillink_result(error) {}
 
+    // resend verification email
+    virtual void resendverificationemail_result(error) {};
+
     // confirm change email link result
     virtual void confirmemaillink_result(error) {}
 
