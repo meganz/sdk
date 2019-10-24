@@ -2744,7 +2744,7 @@ class MegaRequest
             TYPE_GET_CLOUD_STORAGE_USED,
             TYPE_SEND_SMS_VERIFICATIONCODE, TYPE_CHECK_SMS_VERIFICATIONCODE,
             TYPE_GET_REGISTERED_CONTACTS, TYPE_GET_COUNTRY_CALLING_CODES,
-            TYPE_VERIFY_CREDENTIALS, TYPE_GET_MISC_FLAGS,
+            TYPE_VERIFY_CREDENTIALS, TYPE_GET_MISC_FLAGS, TYPE_RESEND_VERIFICATION_EMAIL,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -5183,7 +5183,7 @@ public:
         API_ERATELIMIT = -4,            ///< Too many requests, slow down.
         API_EFAILED = -5,               ///< Request failed permanently.
         API_ETOOMANY = -6,              ///< Too many requests for this resource.
-        API_ERANGE = -7,                ///< Resource access out of rage.
+        API_ERANGE = -7,                ///< Resource access out of range.
         API_EEXPIRED = -8,              ///< Resource expired.
         API_ENOENT = -9,                ///< Resource does not exist.
         API_ECIRCULAR = -10,            ///< Circular linkage.
@@ -8045,6 +8045,24 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void confirmCancelAccount(const char *link, const char *pwd, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Allow to resend the verification email for Weak Account Protection
+         *
+         * The verification email will be resent to the same address as it was previously sent to.
+         *
+         * This function can be called if the the reason for being blocked is:
+         *      700: the account is supended for Weak Account Protection.
+         *
+         * If the logged in account is not suspended or is suspended for some other reason,
+         * onRequestFinish will be called with the error code MegaError::API_EACCESS.
+         *
+         * If the logged in account has not been sent the unlock email before,
+         * onRequestFinish will be called with the error code MegaError::API_EARGS.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void resendVerificationEmail(MegaRequestListener *listener = NULL);
 
         /**
          * @brief Initialize the change of the email address associated to the account.
@@ -16422,16 +16440,20 @@ public:
     /**
      * @brief Get the number of GB of storage associated with the product
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
-     * @return number of GB of storage
+     * @note business plans have unlimited storage
+     * @return number of GB of storage, zero if index is invalid, or -1
+     * if pricing plan is a business plan
      */
-    virtual unsigned int getGBStorage(int productIndex);
+    virtual int getGBStorage(int productIndex);
 
     /**
      * @brief Get the number of GB of bandwidth associated with the product
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
-     * @return number of GB of bandwidth
+     * @note business plans have unlimited bandwidth
+     * @return number of GB of bandwidth, zero if index is invalid, or -1,
+     * if pricing plan is a business plan
      */
-    virtual unsigned int getGBTransfer(int productIndex);
+    virtual int getGBTransfer(int productIndex);
 
     /**
      * @brief Get the duration of the product (in months)
@@ -16441,7 +16463,7 @@ public:
     virtual int getMonths(int productIndex);
 
     /**
-     * @brief getAmount Get the price of the product (in cents)
+     * @brief Get the price of the product (in cents)
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
      * @return Price of the product (in cents)
      */
@@ -16476,7 +16498,8 @@ public:
      * the MegaPricing object is deleted.
      *
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
-     * @return iOS ID of the product
+     * @return iOS ID of the product, NULL if index is invalid or an empty string
+     * if pricing plan is a business plan.
      */
     virtual const char* getIosID(int productIndex);
 
@@ -16487,9 +16510,24 @@ public:
      * the MegaPricing object is deleted.
      *
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
-     * @return Android ID of the product
+     * @return Android ID of the product, NULL if index is invalid or an empty string
+     * if pricing plan is a business plan.
      */
     virtual const char* getAndroidID(int productIndex);
+
+    /**
+     * @brief Returns if the pricing plan is a business plan
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return true if the pricing plan is a business plan, otherwise return false
+     */
+    virtual bool isBusinessType(int productIndex);
+
+    /**
+     * @brief Get the monthly price of the product (in cents)
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return Monthly price of the product (in cents)
+     */
+    virtual int getAmountMonth(int productIndex);
 
     /**
      * @brief Creates a copy of this MegaPricing object.

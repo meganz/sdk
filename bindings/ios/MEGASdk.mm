@@ -44,6 +44,7 @@
 #import "MEGAFileInputStream.h"
 #import "MEGADataInputStream.h"
 #import "MEGACancelToken+init.h"
+#import "MEGAPushNotificationSettings+init.h"
 
 #import <set>
 #import <pthread.h>
@@ -699,6 +700,14 @@ using namespace mega;
 
 - (void)confirmCancelAccountWithLink:(NSString *)link password:(NSString *)password {
     self.megaApi->confirmCancelAccount((link != nil) ? [link UTF8String] : NULL, (password != nil) ? [password UTF8String] : NULL);
+}
+
+- (void)resendVerificationEmailWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->resendVerificationEmail([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)resendVerificationEmail {
+    self.megaApi->resendVerificationEmail();
 }
 
 - (void)changeEmail:(NSString *)email delegate:(id<MEGARequestDelegate>)delegate {
@@ -2208,6 +2217,26 @@ using namespace mega;
 
 - (void)checkSMSVerificationCode:(NSString *)verificationCode delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->checkSMSVerificationCode([verificationCode UTF8String], [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+#pragma mark - Push Notification Settings
+
+- (void)getPushNotificationSettingsWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getPushNotificationSettings([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)getPushNotificationSettings {
+    self.megaApi->getPushNotificationSettings();
+}
+
+- (void)setPushNotificationSettings:(MEGAPushNotificationSettings *)pushNotificationSettings
+                           delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->setPushNotificationSettings(pushNotificationSettings.getCPtr,
+                                              [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)setPushNotificationSettings:(MEGAPushNotificationSettings *)pushNotificationSettings {
+    self.megaApi->setPushNotificationSettings(pushNotificationSettings.getCPtr);
 }
 
 #pragma mark - Debug log messages
