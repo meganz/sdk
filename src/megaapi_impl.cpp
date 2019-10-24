@@ -3817,6 +3817,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_COUNTRY_CALLING_CODES: return "GET_COUNTRY_CALLING_CODES";
         case TYPE_VERIFY_CREDENTIALS: return "VERIFY_CREDENTIALS";
         case TYPE_GET_MISC_FLAGS: return "GET_MISC_FLAGS";
+        case TYPE_RESEND_VERIFICATION_EMAIL: return "RESEND_VERIFICATION_EMAIL";
     }
     return "UNKNOWN";
 }
@@ -6004,6 +6005,14 @@ void MegaApiImpl::confirmCancelAccount(const char *link, const char *pwd, MegaRe
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CONFIRM_CANCEL_LINK, listener);
     request->setLink(link);
     request->setPassword(pwd);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::resendVerificationEmail(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_RESEND_VERIFICATION_EMAIL);
+    request->setListener(listener);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -12028,6 +12037,16 @@ void MegaApiImpl::getemaillink_result(error e)
     fireOnRequestFinish(request, MegaError(e));
 }
 
+void MegaApiImpl::resendverificationemail_result(error e)
+{
+    auto it = requestMap.find(client->restag);
+    if (it == requestMap.end()) return;
+    MegaRequestPrivate *request = it->second;
+    if (!request || ((request->getType() != MegaRequest::TYPE_RESEND_VERIFICATION_EMAIL))) return;
+
+    fireOnRequestFinish(request, MegaError(e));
+}
+
 void MegaApiImpl::confirmemaillink_result(error e)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
@@ -14902,6 +14921,10 @@ void MegaApiImpl::whyamiblocked_result(int code)
         else if (code == 500)
         {
             reason = "Your account has been blocked pending verification via SMS.";
+        }
+        else if (code == 700)
+        {
+            reason = "Your account has been temporarily suspended for your safety. Please verify your email and follow its steps to unlock your account.";
         }
         //else if (code == 300) --> default reason
 
@@ -20642,6 +20665,11 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_GET_SESSION_TRANSFER_URL:
         {
             client->copysession();
+            break;
+        }
+        case MegaRequest::TYPE_RESEND_VERIFICATION_EMAIL:
+        {
+            client->resendverificationemail();
             break;
         }
         case MegaRequest::TYPE_CLEAN_RUBBISH_BIN:
