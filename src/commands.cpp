@@ -2509,7 +2509,6 @@ void CommandEnumerateQuotaItems::procresult()
                                                 gbtransfer, months, amount, amountMonth,
                                                 currency.c_str(), description.c_str(),
                                                 ios_id.c_str(), android_id.c_str());
-        client->json.leavearray();
     }
 
     client->app->enumeratequotaitems_result(API_OK);
