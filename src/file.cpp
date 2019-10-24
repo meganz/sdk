@@ -364,8 +364,8 @@ void File::completed(Transfer* t, LocalNode* l)
                 if (l->sync && !l->sync->isUpSync())
                 {
                     assert(false);
+                    LOG_err << "sync type prevents putnodes command";
                     send_put_nodes = false;
-                    LOG_debug << "sync type prevents putnodes command";
                 }
                 else
                 {
