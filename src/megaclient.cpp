@@ -6700,7 +6700,7 @@ void MegaClient::makeattr(SymmCipher* key, string* attrstring, const char* json,
 
 // update node attributes
 // (with speculative instant completion)
-error MegaClient::setattr(Node* n, const char *prevname)
+error MegaClient::setattr(Node* n, const char *prevattr)
 {
     if (!checkaccess(n, FULL))
     {
@@ -6719,7 +6719,7 @@ error MegaClient::setattr(Node* n, const char *prevname)
     notifynode(n);
 
     bool send_set_attr = true;
-    const bool is_rename = prevname != NULL;
+    const bool is_rename = prevattr != NULL;
     if (n->localnode && n->localnode->sync)
     {
         if (n->localnode->sync->isUpSync())
@@ -6739,7 +6739,7 @@ error MegaClient::setattr(Node* n, const char *prevname)
 
     if (send_set_attr)
     {
-        reqs.add(new CommandSetAttr(this, n, cipher, prevname));
+        reqs.add(new CommandSetAttr(this, n, cipher, prevattr));
     }
 
     return API_OK;
