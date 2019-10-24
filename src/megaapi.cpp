@@ -2150,9 +2150,9 @@ void MegaApi::confirmChangeEmail(const char *link, const char *pwd, MegaRequestL
     pImpl->confirmChangeEmail(link, pwd, listener);
 }
 
-void MegaApi::setProxySettings(MegaProxy *proxySettings)
+void MegaApi::setProxySettings(MegaProxy *proxySettings, MegaRequestListener *listener)
 {
-    pImpl->setProxySettings(proxySettings);
+    pImpl->setProxySettings(proxySettings, listener);
 }
 
 MegaProxy *MegaApi::getAutoProxySettings()
