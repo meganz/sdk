@@ -6726,12 +6726,14 @@ error MegaClient::setattr(Node* n, const char *prevattr)
         {
             if (is_rename && !n->localnode->sync->syncDeletions())
             {
+                assert(false);
                 LOG_debug << "not syncing deletions prevents setattr command";
                 send_set_attr = false;
             }
         }
         else
         {
+            assert(false);
             LOG_debug << "sync type prevents setattr command";
             send_set_attr = false;
         }
@@ -6941,12 +6943,14 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent)
             {
                 if (is_delete_op && !prevParent->localnode->sync->syncDeletions())
                 {
+                    assert(false);
                     LOG_debug << "not syncing deletions prevents movenode command";
                     send_move_node = false;
                 }
             }
             else
             {
+                assert(false);
                 LOG_debug << "sync type prevents movenode command";
                 send_move_node = false;
             }
@@ -6984,12 +6988,14 @@ error MegaClient::unlink(Node* n, bool keepversions)
         {
             if (!n->localnode->sync->syncDeletions())
             {
+                assert(false);
                 LOG_debug << "not syncing deletions prevents delnode command";
                 send_del_node = false;
             }
         }
         else
         {
+            assert(false);
             LOG_debug << "sync type prevents delnode command";
             send_del_node = false;
         }
@@ -13307,6 +13313,7 @@ void MegaClient::syncupdate()
 #ifdef ENABLE_SYNC
                 if (nn->localnode && nn->localnode->sync && !nn->localnode->sync->isUpSync())
                 {
+                    assert(false);
                     LOG_debug << "sync type prevents putnodes command";
                     send_put_nodes = false;
                 }
@@ -13647,6 +13654,7 @@ void MegaClient::execmovetosyncdebris()
 #ifdef ENABLE_SYNC
         if (nn->localnode && nn->localnode->sync && !nn->localnode->sync->isUpSync())
         {
+            assert(false);
             LOG_debug << "sync type prevents putnodes command";
             send_put_nodes = false;
         }
