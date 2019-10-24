@@ -13152,6 +13152,7 @@ void MegaClient::syncupdate()
             {
                 syncadding++;
 
+                assert(synccreate[start]->h == synccreate[start]->parent->node->nodehandle);
                 reqs.add(new CommandPutNodes(this,
                                                 synccreate[start]->parent->node->nodehandle,
                                                 NULL, nn, int(nnp - nn),
