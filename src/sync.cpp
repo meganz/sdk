@@ -640,7 +640,10 @@ Sync::~Sync()
 
     // Create a committer to ensure we update the transfer database in an efficient single commit,
     // if there are transactions in progress.
-    DBTableTransactionCommitter committer(client->tctable);
+    if (client)
+    {
+        DBTableTransactionCommitter committer(client->tctable);
+    }
 
     // stop all active and pending downloads
     if (localroot->node)
