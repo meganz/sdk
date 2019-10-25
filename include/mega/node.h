@@ -59,7 +59,7 @@ struct MEGA_API NewNode : public NodeCore
 
     handle ovhandle;
     handle uploadhandle;
-    byte uploadtoken[UPLOADTOKENLEN];
+    byte uploadtoken[UPLOADTOKENLEN]{};
 
     handle syncid;
     LocalNode* localnode;
@@ -283,42 +283,42 @@ inline bool Node::keyApplied() const
 #ifdef ENABLE_SYNC
 struct MEGA_API LocalNode : public File
 {
-    class Sync* sync;
+    class Sync* sync = nullptr;
 
     // parent linkage
-    LocalNode* parent;
+    LocalNode* parent = nullptr;
 
     // stored to rebuild tree after serialization => this must not be a pointer to parent->dbid
-    int32_t parent_dbid;
+    int32_t parent_dbid = 0;
 
     // children by name
     localnode_map children;
 
     // for botched filesystems with legacy secondary ("short") names
-    string *slocalname;
+    string* slocalname = nullptr;
     localnode_map schildren;
 
     // local filesystem node ID (inode...) for rename/move detection
-    handle fsid;
-    handlelocalnode_map::iterator fsid_it;
+    handle fsid = mega::UNDEF;
+    handlelocalnode_map::iterator fsid_it{};
 
     // related cloud node, if any
-    Node* node;
+    Node* node = nullptr;
 
     // related pending node creation or NULL
-    NewNode* newnode;
+    NewNode* newnode = nullptr;
 
     // FILENODE or FOLDERNODE
-    nodetype_t type;
+    nodetype_t type = TYPE_UNKNOWN;
 
     // detection of deleted filesystem records
-    int scanseqno;
+    int scanseqno = 0;
 
     // number of iterations since last seen
-    int notseen;
+    int notseen = 0;
 
     // global sync reference
-    handle syncid;
+    handle syncid = mega::UNDEF;
 
     struct
     {
@@ -336,7 +336,8 @@ struct MEGA_API LocalNode : public File
     };
 
     // current subtree sync state: current and displayed
-    treestate_t ts, dts;
+    treestate_t ts = TREESTATE_NONE;
+    treestate_t dts = TREESTATE_NONE;
 
     // update sync state all the way to the root node
     void treestate(treestate_t = TREESTATE_NONE);
@@ -345,14 +346,14 @@ struct MEGA_API LocalNode : public File
     treestate_t checkstate();
 
     // timer to delay upload start
-    dstime nagleds;
+    dstime nagleds = 0;
     void bumpnagleds();
 
     // if delage > 0, own iterator inside MegaClient::localsyncnotseen
-    localnode_set::iterator notseen_it;
+    localnode_set::iterator notseen_it{};
 
     // build full local path to this node
-    void getlocalpath(string*, bool sdisable = false) const;
+    void getlocalpath(string*, bool sdisable = false, const std::string* localseparator = nullptr) const;
     void getlocalsubpath(string*) const;
     string localnodedisplaypath(FileSystemAccess& fsa) const;
 
@@ -361,7 +362,7 @@ struct MEGA_API LocalNode : public File
 
 #ifdef USE_INOTIFY
     // node-specific DirNotify tag
-    handle dirnotifytag;
+    handle dirnotifytag = mega::UNDEF;
 #endif
 
     void prepare();
@@ -371,7 +372,9 @@ struct MEGA_API LocalNode : public File
 
     void setnotseen(int);
 
-    void setfsid(handle);
+    // set fsid - assume that an existing assignment of the same fsid is no longer current and revoke.
+    // fsidnodes is a map from fsid to LocalNode, keeping track of all fs ids.
+    void setfsid(handle newfsid, handlelocalnode_map& fsidnodes);
 
     void setnameparent(LocalNode*, string*);
 

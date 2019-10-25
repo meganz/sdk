@@ -146,7 +146,7 @@ struct MEGA_API MegaApp
     virtual void putfa_result(handle, fatype, const char*) { }
 
     // purchase transactions
-    virtual void enumeratequotaitems_result(handle, unsigned, unsigned, unsigned, unsigned, unsigned, const char*, const char*, const char*, const char*) { }
+    virtual void enumeratequotaitems_result(unsigned, handle, unsigned, int, int, unsigned, unsigned, unsigned, const char*, const char*, const char*, const char*) { }
     virtual void enumeratequotaitems_result(error) { }
     virtual void additem_result(error) { }
     virtual void checkout_result(const char*, error) { }
@@ -217,6 +217,9 @@ struct MEGA_API MegaApp
 
     // get change email link result
     virtual void getemaillink_result(error) {}
+
+    // resend verification email
+    virtual void resendverificationemail_result(error) {};
 
     // confirm change email link result
     virtual void confirmemaillink_result(error) {}
