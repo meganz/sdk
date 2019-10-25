@@ -13132,6 +13132,11 @@ void MegaClient::syncupdate()
                 // the overwrite will happen upon PUT completion
                 string tmppath, tmplocalpath;
 
+                if (l->parent->node)
+                {
+                    l->h = l->parent->node->nodehandle;
+                }
+
                 nextreqtag();
                 startxfer(PUT, l, committer);
 
@@ -13524,9 +13529,9 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
                 return false;
             }
 
-            #ifdef USE_MEDIAINFO
+#ifdef USE_MEDIAINFO
             mediaFileInfo.requestCodecMappingsOneTime(this, &f->localname);  
-            #endif
+#endif
         }
         else
         {
@@ -13692,6 +13697,8 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
                 t->failed(API_EOVERQUOTA, committer);
             }
         }
+
+        assert(!ISUNDEF(f->h) && nodebyhandle(f->h)); // target handle for the upload should be known at this time
     }
 
     return true;
