@@ -132,6 +132,8 @@ public:
         bool contactRequestUpdated;
         bool accountUpdated;
 
+        MegaHandle h;
+
 #ifdef ENABLE_CHAT
         bool chatUpdated;        // flags to monitor the updates of chats due to actionpackets
         map<handle, MegaTextChat*> chats;   //  runtime cache of fetched/updated chats
@@ -143,7 +145,6 @@ public:
     std::vector<std::unique_ptr<MegaApi>> megaApi;
 
     // relevant values received in response of requests
-    MegaHandle h;
     string link;
     MegaNode *publicNode;
     string attributeValue;
