@@ -54,9 +54,7 @@ public:
             }
             else
             {
-#ifdef _WIN32
-                OutputDebugStringA(os.str().c_str());
-#else
+#ifndef _WIN32
                 std::cout << os.str();
 #endif
                 if (!gTestingInvalidArgs)
@@ -64,6 +62,9 @@ public:
                     ASSERT_NE(loglevel, logError) << os.str();
                 }
             }
+#ifdef _WIN32
+            OutputDebugStringA(os.str().c_str());
+#endif
         }
     }
 
