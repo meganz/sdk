@@ -1711,6 +1711,7 @@ LocalNode::~LocalNode()
         // shutting down or sync is not an up-sync
         if (sync->state < SYNC_INITIALSCAN || !sync->isUpSync())
         {
+            node->tag = sync->tag;
             node->localnode = NULL;
         }
         else

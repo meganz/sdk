@@ -12612,6 +12612,12 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 // for creation
 bool MegaClient::syncup(LocalNode* l, dstime* nds)
 {
+    if (!l->sync->isUpSync())
+    {
+        LOG_debug << "sync type prevents syncup";
+        return false;
+    }
+
     bool insync = true;
 
     list<string> strings;
@@ -12687,7 +12693,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
     {
         LocalNode* ll = lit->second;
 
-        if (ll->sync->isUpSync() && !ll->sync->overwriteChanges() && !ll->syncable)
+        if (!ll->sync->overwriteChanges() && !ll->syncable)
         {
             LOG_debug << "LocalNode not syncable: " << ll->name;
             continue;
@@ -12890,7 +12896,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                     }
 
                     // if this node is being fetched, but has to be upsynced
-                    if (rit->second->syncget && ll->sync->isUpSync())
+                    if (rit->second->syncget)
                     {
                         LOG_debug << "Stopping unneeded download";
                         delete rit->second->syncget;
@@ -13107,23 +13113,16 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
             ll->created = true;
 
             assert (!isSymLink);
-            if (ll->sync->isUpSync())
+            if (ll->syncable || ll->sync->overwriteChanges())
             {
-                if (ll->syncable || ll->sync->overwriteChanges())
-                {
-                    // create remote folder or send file
-                    LOG_debug << "Adding local file to synccreate: " << ll->name << " " << synccreate.size();
-                    synccreate.push_back(ll);
-                    syncactivity = true;
-                }
-                else
-                {
-                    LOG_debug << "syncable prevents adding to synccreate";
-                }
+                // create remote folder or send file
+                LOG_debug << "Adding local file to synccreate: " << ll->name << " " << synccreate.size();
+                synccreate.push_back(ll);
+                syncactivity = true;
             }
             else
             {
-                LOG_debug << "sync type prevents adding to synccreate";
+                LOG_debug << "syncable prevents adding to synccreate";
             }
 
             if (synccreate.size() >= MAX_NEWNODES)
