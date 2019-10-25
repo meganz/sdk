@@ -733,12 +733,12 @@ void SdkTest::createFile(string filename, bool largeFile)
     }
 }
 
-size_t SdkTest::getFilesize(string filename)
+int64_t SdkTest::getFilesize(string filename)
 {
     struct stat stat_buf;
     int rc = stat(filename.c_str(), &stat_buf);
 
-    return rc == 0 ? stat_buf.st_size : -1;
+    return rc == 0 ? int64_t(stat_buf.st_size) : int64_t(-1);
 }
 
 void SdkTest::deleteFile(string filename)
@@ -902,7 +902,7 @@ void SdkTest::getContactRequest(unsigned int apiIndex, bool outgoing, int expect
     delete crl;
 }
 
-void SdkTest::createFolder(unsigned int apiIndex, char *name, MegaNode *n, int timeout)
+void SdkTest::createFolder(unsigned int apiIndex, const char *name, MegaNode *n, int timeout)
 {
     mApi[apiIndex].requestFlags[MegaRequest::TYPE_CREATE_FOLDER] = false;
     mApi[apiIndex].megaApi->createFolder(name, n);
@@ -1482,8 +1482,8 @@ TEST_F(SdkTest, SdkTestTransfers)
 
     // --- Get the size of a file ---
 
-    long long filesize = long long(getFilesize(filename1));
-    long long nodesize = megaApi[0]->getSize(n2);
+    int64_t filesize = getFilesize(filename1);
+    int64_t nodesize = megaApi[0]->getSize(n2);
     EXPECT_EQ(filesize, nodesize) << "Wrong size of uploaded file";
 
 
@@ -1802,8 +1802,8 @@ TEST_F(SdkTest, SdkTestContacts)
     ASSERT_NO_FATAL_FAILURE( getUserAttribute(u, MegaApi::USER_ATTR_AVATAR));
     ASSERT_STREQ( "Avatar changed", attributeValue.data()) << "Failed to change avatar";
 
-    size_t filesizeSrc = getFilesize(AVATARSRC);
-    size_t filesizeDst = getFilesize(AVATARDST);
+    int64_t filesizeSrc = getFilesize(AVATARSRC);
+    int64_t filesizeDst = getFilesize(AVATARDST);
     ASSERT_EQ(filesizeDst, filesizeSrc) << "Received avatar differs from uploaded avatar";
 
     delete u;
@@ -3843,7 +3843,7 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
 
     MegaNode *nonRaidNode = megaApi[0]->getNodeByHandle(mApi[0].h);
 
-    size_t filesize = getFilesize(filename2);
+    int64_t filesize = getFilesize(filename2);
     std::ifstream compareDecryptedFile(filename2.c_str(), ios::binary);
     ::mega::byte* compareDecryptedData = new ::mega::byte[filesize];
     compareDecryptedFile.read((char*)compareDecryptedData, filesize);

@@ -230,7 +230,7 @@ public:
     template<typename ... requestArgs> int doRequestLogout(int apiIndex, requestArgs... args) { RequestTracker rt; megaApi[apiIndex]->logout(args..., &rt); return rt.waitForResult(); }
 
     void createFile(string filename, bool largeFile = true);
-    size_t getFilesize(string filename);
+    int64_t getFilesize(string filename);
     void deleteFile(string filename);
 
     void getMegaApiAux(unsigned index = 1);
