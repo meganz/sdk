@@ -6719,24 +6719,11 @@ error MegaClient::setattr(Node* n, const char *prevattr)
     notifynode(n);
 
     bool send_set_attr = true;
-    const bool is_rename = prevattr != NULL;
-    if (n->localnode && n->localnode->sync)
+    if (n->localnode && n->localnode->sync && !n->localnode->sync->isUpSync())
     {
-        if (n->localnode->sync->isUpSync())
-        {
-            if (is_rename && !n->localnode->sync->syncDeletions())
-            {
-                assert(false);
-                LOG_err << "not syncing deletions prevents setattr command";
-                send_set_attr = false;
-            }
-        }
-        else
-        {
-            assert(false);
-            LOG_err << "sync type prevents setattr command";
-            send_set_attr = false;
-        }
+        assert(false);
+        LOG_err << "sync type prevents setattr command";
+        send_set_attr = false;
     }
 
     if (send_set_attr)
@@ -6936,24 +6923,11 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent)
 
         bool send_move_node = true;
 #ifdef ENABLE_SYNC
-        const bool is_delete_op = syncdel == SYNCDEL_BIN || syncdel == SYNCDEL_DEBRIS || syncdel == SYNCDEL_DEBRISDAY;
-        if (prevParent->localnode && prevParent->localnode->sync)
+        if (prevParent && prevParent->localnode && prevParent->localnode->sync && !prevParent->localnode->sync->isUpSync())
         {
-            if (prevParent->localnode->sync->isUpSync())
-            {
-                if (is_delete_op && !prevParent->localnode->sync->syncDeletions())
-                {
-                    assert(false);
-                    LOG_err << "not syncing deletions prevents movenode command";
-                    send_move_node = false;
-                }
-            }
-            else
-            {
-                assert(false);
-                LOG_err << "sync type prevents movenode command";
-                send_move_node = false;
-            }
+            assert(false);
+            LOG_err << "sync type prevents movenode command";
+            send_move_node = false;
         }
 #endif
 
@@ -6982,23 +6956,11 @@ error MegaClient::unlink(Node* n, bool keepversions)
 
     bool send_del_node = true;
 #ifdef ENABLE_SYNC
-    if (n->localnode && n->localnode->sync)
+    if (n->localnode && n->localnode->sync && !n->localnode->sync->isUpSync())
     {
-        if (n->localnode->sync->isUpSync())
-        {
-            if (!n->localnode->sync->syncDeletions())
-            {
-                assert(false);
-                LOG_err << "not syncing deletions prevents delnode command";
-                send_del_node = false;
-            }
-        }
-        else
-        {
-            assert(false);
-            LOG_err << "sync type prevents delnode command";
-            send_del_node = false;
-        }
+        assert(false);
+        LOG_err << "sync type prevents delnode command";
+        send_del_node = false;
     }
 #endif
 
