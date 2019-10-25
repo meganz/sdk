@@ -6034,7 +6034,7 @@ void MegaApiImpl::confirmChangeEmail(const char *link, const char *pwd, MegaRequ
     waiter->notify();
 }
 
-void MegaApiImpl::setProxySettings(MegaProxy *proxySettings)
+void MegaApiImpl::setProxySettings(MegaProxy *proxySettings, MegaRequestListener *listener)
 {
     Proxy *localProxySettings = new Proxy();
     localProxySettings->setProxyType(proxySettings->getProxyType());
@@ -6082,7 +6082,7 @@ void MegaApiImpl::setProxySettings(MegaProxy *proxySettings)
         localProxySettings->setCredentials(&localusername, &localpassword);
     }
 
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_PROXY);
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_PROXY, listener);
     request->setProxy(localProxySettings);
     requestQueue.push(request);
     waiter->notify();
