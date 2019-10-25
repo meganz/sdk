@@ -2553,6 +2553,45 @@ void exec_setmaxconnections(autocomplete::ACState& s)
     cout << "connections: " << (int)client->connections[direction] << endl;
 }
 
+
+class MegaCLILogger : public ::mega::Logger {
+public:
+    ofstream mLogFile;
+
+    void log(const char*, int loglevel, const char*, const char *message) override
+    {
+        if (mLogFile.is_open())
+        {
+            mLogFile << Waiter::ds << " " << SimpleLogger::toStr(static_cast<LogLevel>(loglevel)) << ": " << message << std::endl;
+        }
+        else
+        {
+#ifdef _WIN32
+            string s;
+            s.reserve(1024);
+            s += message;
+            s += "\r\n";
+            OutputDebugStringA(s.c_str());
+#else
+            if (loglevel >= SimpleLogger::logCurrentLevel)
+            {
+                auto t = std::time(NULL);
+                char ts[50];
+                if (!std::strftime(ts, sizeof(ts), "%H:%M:%S", std::localtime(&t)))
+                {
+                    ts[0] = '\0';
+                }
+                std::cout << "[" << ts << "] " << SimpleLogger::toStr(static_cast<LogLevel>(loglevel)) << ": " << message << std::endl;
+        }
+#endif
+        }
+    }
+};
+
+MegaCLILogger gLogger;
+
+
+
 autocomplete::ACN autocompleteSyntax()
 {
     using namespace autocomplete;
@@ -2637,7 +2676,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_locallogout, sequence(text("locallogout")));
     p->Add(exec_symlink, sequence(text("symlink")));
     p->Add(exec_version, sequence(text("version")));
-    p->Add(exec_debug, sequence(text("debug"), opt(either(flag("-on"), flag("-off")))));
+    p->Add(exec_debug, sequence(text("debug"), opt(either(flag("-on"), flag("-off"))), opt(localFSFile())));
     p->Add(exec_verbose, sequence(text("verbose"), opt(either(flag("-on"), flag("-off")))));
 #if defined(WIN32) && defined(NO_READLINE)
     p->Add(exec_clear, sequence(text("clear")));
@@ -4439,6 +4478,19 @@ void exec_debug(autocomplete::ACState& s)
 {
     bool turnon = s.extractflag("-on");
     bool turnoff = s.extractflag("-off");
+
+    if (s.words.size() > 1)
+    {
+        gLogger.mLogFile.close();
+        if (!s.words[1].s.empty())
+        {
+            gLogger.mLogFile.open(s.words[1].s.c_str());
+            if (!gLogger.mLogFile.is_open())
+            {
+                cout << "Log file open failed: '" << s.words[1].s << "'" << endl;
+            }
+        }
+    }
 
     bool state = client->debugstate();
     if ((turnon && !state) || (turnoff && state) || (!turnon && !turnoff))
@@ -7337,41 +7389,13 @@ void megacli()
     }
 }
 
-
-class MegaCLILogger : public ::mega::Logger {
-public:
-    void log(const char*, int loglevel, const char*, const char *message) override
-    {
-#ifdef _WIN32
-        string s;
-        s.reserve(1024);
-        s += message;
-        s += "\r\n";
-        OutputDebugStringA(s.c_str());
-#else
-        if (loglevel >= SimpleLogger::logCurrentLevel)
-        {
-            auto t = std::time(NULL);
-            char ts[50];
-            if (!std::strftime(ts, sizeof(ts), "%H:%M:%S", std::localtime(&t)))
-            {
-                ts[0] = '\0';
-            }
-            std::cout << "[" << ts << "] " << SimpleLogger::toStr(static_cast<LogLevel>(loglevel)) << ": " << message << std::endl;
-        }
-#endif
-    }
-};
-
-MegaCLILogger logger;
-
 int main()
 {
 #ifdef _WIN32
     SimpleLogger::setLogLevel(logMax);  // warning and stronger to console; info and weaker to VS output window
-    SimpleLogger::setOutputClass(&logger);
+    SimpleLogger::setOutputClass(&gLogger);
 #else
-    SimpleLogger::setOutputClass(&logger);
+    SimpleLogger::setOutputClass(&gLogger);
 #endif
 
     console = new CONSOLE_CLASS;
