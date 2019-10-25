@@ -2746,7 +2746,7 @@ class MegaRequest
             TYPE_GET_CLOUD_STORAGE_USED,
             TYPE_SEND_SMS_VERIFICATIONCODE, TYPE_CHECK_SMS_VERIFICATIONCODE,
             TYPE_GET_REGISTERED_CONTACTS, TYPE_GET_COUNTRY_CALLING_CODES,
-            TYPE_VERIFY_CREDENTIALS, TYPE_GET_MISC_FLAGS,
+            TYPE_VERIFY_CREDENTIALS, TYPE_GET_MISC_FLAGS, TYPE_RESEND_VERIFICATION_EMAIL,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -8092,6 +8092,24 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void confirmCancelAccount(const char *link, const char *pwd, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Allow to resend the verification email for Weak Account Protection
+         *
+         * The verification email will be resent to the same address as it was previously sent to.
+         *
+         * This function can be called if the the reason for being blocked is:
+         *      700: the account is supended for Weak Account Protection.
+         *
+         * If the logged in account is not suspended or is suspended for some other reason,
+         * onRequestFinish will be called with the error code MegaError::API_EACCESS.
+         *
+         * If the logged in account has not been sent the unlock email before,
+         * onRequestFinish will be called with the error code MegaError::API_EARGS.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void resendVerificationEmail(MegaRequestListener *listener = NULL);
 
         /**
          * @brief Initialize the change of the email address associated to the account.

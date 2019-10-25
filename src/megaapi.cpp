@@ -2135,6 +2135,11 @@ void MegaApi::confirmCancelAccount(const char *link, const char *pwd, MegaReques
     pImpl->confirmCancelAccount(link, pwd, listener);
 }
 
+void MegaApi::resendVerificationEmail(MegaRequestListener *listener)
+{
+    pImpl->resendVerificationEmail(listener);
+}
+
 void MegaApi::changeEmail(const char *email, MegaRequestListener *listener)
 {
     pImpl->changeEmail(email, listener);

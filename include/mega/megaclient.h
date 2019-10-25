@@ -323,6 +323,9 @@ public:
     // create a copy of the current session
     void copysession();
 
+    // resend the verification email to the same email address as it was previously sent to
+    void resendverificationemail();
+
     // get the data for a session transfer
     // the caller takes the ownership of the returned value
     // if the second parameter isn't NULL, it's used as session id instead of the current one
