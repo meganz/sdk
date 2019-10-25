@@ -251,7 +251,7 @@ public:
 
     void getContactRequest(unsigned int apiIndex, bool outgoing, int expectedSize = 1);
 
-    void createFolder(unsigned int apiIndex, char * name, MegaNode *n, int timeout = maxTimeout);
+    void createFolder(unsigned int apiIndex, const char * name, MegaNode *n, int timeout = maxTimeout);
 
     void getRegisteredContacts(const std::map<std::string, std::string>& contacts);
 
