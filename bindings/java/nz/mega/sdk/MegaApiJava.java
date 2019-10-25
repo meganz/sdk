@@ -1724,6 +1724,8 @@ public class MegaApiJava {
      *     300: suspension only for multiple copyright violations.
      *     400: the subuser account has been disabled.
      *     401: the subuser account has been removed.
+     *     500: The account needs to be verified by an SMS code.
+     *     700: the account is supended for Weak Account Protection.
      *
      * If the error code in the MegaRequest object received in onRequestFinish
      * is MegaError::API_OK, the user is not blocked.
@@ -1751,6 +1753,8 @@ public class MegaApiJava {
      *     300: suspension only for multiple copyright violations.
      *     400: the subuser account has been disabled.
      *     401: the subuser account has been removed.
+     *     500: The account needs to be verified by an SMS code.
+     *     700: the account is supended for Weak Account Protection.
      *
      * If the error code in the MegaRequest object received in onRequestFinish
      * is MegaError::API_OK, the user is not blocked.
