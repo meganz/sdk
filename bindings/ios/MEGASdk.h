@@ -1177,6 +1177,89 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  */
 - (BOOL)checkPassword:(NSString *)password;
 
+/**
+ * @brief Returns the credentials of the currently open account
+ *
+ * If the MEGASdk object isn't logged in or there's no signing key available,
+ * this function returns nil
+ *
+ * @return Fingerprint of the signing key of the current account
+ */
+- (NSString *)myCredentials;
+
+/**
+ * Returns the credentials of a given user
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest getParamType] - Returns MEGAUserAttributeED25519PublicKey
+ * - [MEGARequest getFlag] - Returns true
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest getPassword] - Returns the credentials in hexadecimal format
+ *
+ * @param user MEGAUser of the contact (@see [MEGASDK contactForEmail:]) to get the fingerprint
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getUserCredentials:(MEGAUser *)user delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Checks if credentials are verified for the given user
+ *
+ * @param user MEGAUser of the contact whose credentiasl want to be checked
+ * @return YES if verified, NO otherwise
+ */
+- (BOOL)areCredentialsVerifiedOfUser:(MEGAUser *)user;
+
+/**
+ * @brief Verify credentials of a given user
+ *
+ * This function allow to tag credentials of a user as verified. It should be called when the
+ * logged in user compares the fingerprint of the user (provided by an independent and secure
+ * method) with the fingerprint shown by the app (@see [MEGASDK getUserCredentials:]).
+ *
+ * The associated request type with this request is MEGARequestTypeVerifyCredentials
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest getNodeHandle] - Returns userhandle
+ *
+ * @param user MEGAUser of the contact whose credentials want to be verified
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)verifyCredentialsOfUser:(MEGAUser *)user delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Reset credentials of a given user
+ *
+ * Call this function to forget the existing authentication of keys and signatures for a given
+ * user. A full reload of the account will start the authentication process again.
+ *
+ * The associated request type with this request is MEGARequestTypeVerifyCredentials
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest  getNodeHandle] - Returns userhandle
+ * - [MEGARequest getFlag] - Returns true
+ *
+ * @param user MEGAUser of the contact whose credentials want to be reset
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)resetCredentialsOfUser:(MEGAUser *)user delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Reset credentials of a given user
+ *
+ * Call this function to forget the existing authentication of keys and signatures for a given
+ * user. A full reload of the account will start the authentication process again.
+ *
+ * The associated request type with this request is MEGARequestTypeVerifyCredentials
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest  getNodeHandle] - Returns userhandle
+ * - [MEGARequest getFlag] - Returns true
+ *
+ * @param user MEGAUser of the contact whose credentials want to be reset
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)resetCredentialsOfUser:(MEGAUser *)user delegate:(id<MEGARequestDelegate>)delegate;
+
 #pragma mark - Create account and confirm account Requests
 
 /**
