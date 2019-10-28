@@ -12803,10 +12803,10 @@ class MegaApi
          *
          * This function will return NULL if the node is not found
          *
-         * If recurse is true, it will return NULL if the root corresponding to
-         * the node received as argument doesn't represent the root of an incoming share.
-         * Otherwise, it will return NULL if the node doesn't represent
-         * the root of an incoming share.
+         * When recurse is true and the root of the specified node is not an incoming share,
+         * this function will return NULL.
+         * When recurse is false and the specified node doesn't represent the root of an
+         * incoming share, this function will return NULL.
          *
          * You take the ownership of the returned value
          *
