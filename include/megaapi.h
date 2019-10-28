@@ -5926,6 +5926,8 @@ class MegaGlobalListener
          *          300: suspension only for multiple copyright violations.
          *          400: the subuser account has been disabled.
          *          401: the subuser account has been removed.
+         *          500: The account needs to be verified by an SMS code.
+         *          700: the account is supended for Weak Account Protection.
          *
          * - MegaEvent::EVENT_STORAGE: when the status of the storage changes.
          *
@@ -6416,6 +6418,8 @@ class MegaListener
          *          300: suspension only for multiple copyright violations.
          *          400: the subuser account has been disabled.
          *          401: the subuser account has been removed.
+         *          500: The account needs to be verified by an SMS code.
+         *          700: the account is supended for Weak Account Protection.
          *
          * - MegaEvent::EVENT_STORAGE: when the status of the storage changes.
          *
@@ -8172,6 +8176,7 @@ class MegaApi
          *     400: the subuser account has been disabled.
          *     401: the subuser account has been removed.
          *     500: The account needs to be verified by an SMS code.
+         *     700: the account is supended for Weak Account Protection.
          *
          * If the error code in the MegaRequest object received in onRequestFinish
          * is MegaError::API_OK, the user is not blocked.
