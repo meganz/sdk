@@ -425,8 +425,9 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
         }
 
         /*
-         * If The transfer failed with API_EARGS and the file is part of a sync transfer,
-         * defer transfer, otherwise remove file from transfer.
+         * If the transfer failed with API_EARGS, the target handle is invalid. For a sync-transfer,
+         * the actionpacket will eventually remove the target and the sync-engine will force to
+         * disable the synchronization of the folder. For non-sync-transfers, remove the file directly.
          */
         if (e == API_EARGS)
         {
