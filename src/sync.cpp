@@ -638,19 +638,15 @@ Sync::~Sync()
     // unlock tmp lock
     tmpfa.reset();
 
-    // Create a committer to ensure we update the transfer database in an efficient single commit,
-    // if there are transactions in progress.
-    if (client)
-    {
-        DBTableTransactionCommitter committer(client->tctable);
-    }
-
     // stop all active and pending downloads
     if (localroot->node)
     {
         TreeProcDelSyncGet tdsg;
         if (client)
         {
+            // Create a committer to ensure we update the transfer database in an efficient single commit,
+            // if there are transactions in progress.
+            DBTableTransactionCommitter committer(client->tctable);
             client->proctree(localroot->node, &tdsg);
         }
     }
@@ -663,7 +659,8 @@ Sync::~Sync()
         client->syncactivity = true;
 
         {
-            // now recursively delete all the associated LocalNodes, and their associated transfer and file objects.
+            // Create a committer and recursively delete all the associated LocalNodes, and their associated transfer and file objects.
+            DBTableTransactionCommitter committer(client->tctable);
             localroot.reset();
         }
     }

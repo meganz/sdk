@@ -364,55 +364,52 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
         client->reqtag = creqtag;
     }
 
-    if (e != API_EBUSINESSPASTDUE)
+    if (e == API_EOVERQUOTA)
     {
-        if (e == API_EOVERQUOTA)
+        if (!slot)
         {
-            if (!slot)
-            {
-                bt.backoff(timeleft ? timeleft : NEVER);
-                client->activateoverquota(timeleft);
-                client->app->transfer_failed(this, e, timeleft);
-                ++client->performanceStats.transferTempErrors;
-            }
-            else
-            {
-                bool allForeignTargets = true;
-                for (auto &file : files)
-                {
-                    if (client->isPrivateNode(file->h))
-                    {
-                        allForeignTargets = false;
-                        break;
-                    }
-                }
-
-                /* If all targets are foreign and there's not a bandwidth overquota, transfer must fail.
-                 * Otherwise we need to activate overquota.
-                 */
-                if (!timeleft && allForeignTargets)
-                {
-                    client->app->transfer_failed(this, e);
-                }
-                else
-                {
-                    bt.backoff(timeleft ? timeleft : NEVER);
-                    client->activateoverquota(timeleft);
-                }
-            }
-        }
-        else if (e == API_EARGS)
-        {
-            client->app->transfer_failed(this, e);
+            bt.backoff(timeleft ? timeleft : NEVER);
+            client->activateoverquota(timeleft);
+            client->app->transfer_failed(this, e, timeleft);
+            ++client->performanceStats.transferTempErrors;
         }
         else
         {
-            bt.backoff();
-            state = TRANSFERSTATE_RETRYING;
-            client->app->transfer_failed(this, e, timeleft);
-            client->looprequested = true;
-            ++client->performanceStats.transferTempErrors;
+            bool allForeignTargets = true;
+            for (auto &file : files)
+            {
+                if (client->isPrivateNode(file->h))
+                {
+                    allForeignTargets = false;
+                    break;
+                }
+            }
+
+            /* If all targets are foreign and there's not a bandwidth overquota, transfer must fail.
+             * Otherwise we need to activate overquota.
+             */
+            if (!timeleft && allForeignTargets)
+            {
+                client->app->transfer_failed(this, e);
+            }
+            else
+            {
+                bt.backoff(timeleft ? timeleft : NEVER);
+                client->activateoverquota(timeleft);
+            }
         }
+    }
+    else if (e == API_EARGS)
+    {
+        client->app->transfer_failed(this, e);
+    }
+    else if (e != API_EBUSINESSPASTDUE)
+    {
+        bt.backoff();
+        state = TRANSFERSTATE_RETRYING;
+        client->app->transfer_failed(this, e, timeleft);
+        client->looprequested = true;
+        ++client->performanceStats.transferTempErrors;
     }
 
     for (file_list::iterator it = files.begin(); it != files.end();)
