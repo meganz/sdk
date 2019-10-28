@@ -2044,9 +2044,10 @@ class MegaApiImpl : public MegaApp
         void confirmResetPasswordLink(const char *link, const char *newPwd, const char *masterKey = NULL, MegaRequestListener *listener = NULL);
         void cancelAccount(MegaRequestListener *listener = NULL);
         void confirmCancelAccount(const char *link, const char *pwd, MegaRequestListener *listener = NULL);
+        void resendVerificationEmail(MegaRequestListener *listener = NULL);
         void changeEmail(const char *email, MegaRequestListener *listener = NULL);
         void confirmChangeEmail(const char *link, const char *pwd, MegaRequestListener *listener = NULL);
-        void setProxySettings(MegaProxy *proxySettings);
+        void setProxySettings(MegaProxy *proxySettings, MegaRequestListener *listener = NULL);
         MegaProxy *getAutoProxySettings();
         int isLoggedIn();
         void whyAmIBlocked(bool logout, MegaRequestListener *listener = NULL);
@@ -2882,6 +2883,7 @@ protected:
         void confirmrecoverylink_result(error) override;
         void confirmcancellink_result(error) override;
         void getemaillink_result(error) override;
+        void resendverificationemail_result(error) override;
         void confirmemaillink_result(error) override;
         void getversion_result(int, const char*, error) override;
         void getlocalsslcertificate_result(m_time_t, string *certdata, error) override;

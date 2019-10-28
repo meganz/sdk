@@ -327,7 +327,7 @@ CommandPutFile::CommandPutFile(MegaClient* client, TransferSlot* ctslot, int ms)
 
     // send minimum set of different tree's roots for API to check overquota
     set<handle> targetRoots;
-    beginarray("t");
+    bool begun = false;
     for (auto &file : tslot->transfer->files)
     {
         if (!ISUNDEF(file->h))
@@ -344,10 +344,18 @@ CommandPutFile::CommandPutFile(MegaClient* client, TransferSlot* ctslot, int ms)
                 targetRoots.insert(rootnode);
             }
 
+            if (!begun)
+            {
+                beginarray("t");
+                begun = true;
+            }
             element((byte*)&file->h, MegaClient::NODEHANDLE);
         }
     }
-    endarray();
+    if (begun)
+    {
+        endarray();
+    }
 }
 
 void CommandPutFile::cancel()
@@ -2501,7 +2509,6 @@ void CommandEnumerateQuotaItems::procresult()
                                                 gbtransfer, months, amount, amountMonth,
                                                 currency.c_str(), description.c_str(),
                                                 ios_id.c_str(), android_id.c_str());
-        client->json.leavearray();
     }
 
     client->app->enumeratequotaitems_result(API_OK);
@@ -5512,6 +5519,25 @@ void CommandConfirmCancelLink::procresult()
     {
         client->json.storeobject();
         return client->app->confirmcancellink_result((error)API_EINTERNAL);
+    }
+}
+
+CommandResendVerificationEmail::CommandResendVerificationEmail(MegaClient *client)
+{
+    cmd("era");
+    tag = client->reqtag;
+}
+
+void CommandResendVerificationEmail::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->resendverificationemail_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->resendverificationemail_result((error)API_EINTERNAL);
     }
 }
 

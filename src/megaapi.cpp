@@ -2130,6 +2130,11 @@ void MegaApi::confirmCancelAccount(const char *link, const char *pwd, MegaReques
     pImpl->confirmCancelAccount(link, pwd, listener);
 }
 
+void MegaApi::resendVerificationEmail(MegaRequestListener *listener)
+{
+    pImpl->resendVerificationEmail(listener);
+}
+
 void MegaApi::changeEmail(const char *email, MegaRequestListener *listener)
 {
     pImpl->changeEmail(email, listener);
@@ -2145,9 +2150,9 @@ void MegaApi::confirmChangeEmail(const char *link, const char *pwd, MegaRequestL
     pImpl->confirmChangeEmail(link, pwd, listener);
 }
 
-void MegaApi::setProxySettings(MegaProxy *proxySettings)
+void MegaApi::setProxySettings(MegaProxy *proxySettings, MegaRequestListener *listener)
 {
-    pImpl->setProxySettings(proxySettings);
+    pImpl->setProxySettings(proxySettings, listener);
 }
 
 MegaProxy *MegaApi::getAutoProxySettings()
