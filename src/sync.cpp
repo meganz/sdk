@@ -660,6 +660,7 @@ Sync::~Sync()
 
         {
             // Create a committer and recursively delete all the associated LocalNodes, and their associated transfer and file objects.
+            // If any have transactions in progress, the committer will ensure we update the transfer database in an efficient single commit.
             DBTableTransactionCommitter committer(client->tctable);
             localroot.reset();
         }
