@@ -401,6 +401,10 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
                 }
             }
         }
+        else if (e == API_EARGS)
+        {
+            client->app->transfer_failed(this, e);
+        }
         else
         {
             bt.backoff();
@@ -421,6 +425,24 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
             File *f = (*it++);
             removeTransferFile(API_EOVERQUOTA, f, &committer);
             continue;
+        }
+
+        /*
+         * If The transfer failed with API_EARGS and the file is part of a sync transfer,
+         * defer transfer, otherwise remove file from transfer.
+         */
+        if (e == API_EARGS)
+        {
+             File *f = (*it++);
+             if (f->syncxfer)
+             {
+                defer = true;
+             }
+             else
+             {
+                removeTransferFile(API_EARGS, f, &committer);
+             }
+             continue;
         }
 
         if (((*it)->failed(e) && (e != API_EBUSINESSPASTDUE))

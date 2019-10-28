@@ -321,6 +321,9 @@ public:
     // create a copy of the current session
     void copysession();
 
+    // resend the verification email to the same email address as it was previously sent to
+    void resendverificationemail();
+
     // get the data for a session transfer
     // the caller takes the ownership of the returned value
     // if the second parameter isn't NULL, it's used as session id instead of the current one
@@ -1302,7 +1305,7 @@ public:
     dstime disconnecttimestamp;
 
     // process object arrays by the API server
-    int readnodes(JSON*, int, putsource_t = PUTNODES_APP, NewNode* = NULL, int = 0, int = 0);
+    int readnodes(JSON*, int, putsource_t = PUTNODES_APP, NewNode* = NULL, int = 0, int = 0, bool applykeys = false);
 
     void readok(JSON*);
     void readokelement(JSON*);
@@ -1404,7 +1407,10 @@ public:
     string clientname;
 
     // apply keys
-    int applykeys();
+    void applykeys();
+
+    // send andy key rewrites prepared when keys were applied
+    void sendkeyrewrites();
 
     // symmetric password challenge
     int checktsid(byte* sidbuf, unsigned len);

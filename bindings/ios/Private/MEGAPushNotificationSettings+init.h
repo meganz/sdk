@@ -1,5 +1,8 @@
 /**
- * (c) 2019 by Mega Limited, Wellsford, New Zealand
+ * @file MEGAPushNotificationSettings+init.h
+ * @brief Private functions of MEGAPushNotificationSettings
+ *
+ * (c) 2019 - by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -16,10 +19,17 @@
  * program.
  */
 
-#include <gtest/gtest.h>
+#import "MEGAPushNotificationSettings.h"
+#import "MegaApi.h"
 
-int main (int argc, char *argv[])
-{
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}
+NS_ASSUME_NONNULL_BEGIN
+
+@interface MEGAPushNotificationSettings (init)
+
+- (instancetype)initWithMegaPushNotificationSettings:(mega::MegaPushNotificationSettings *)megaPushNotificationSettings cMemoryOwn:(BOOL)cMemoryOwn;
+- (mega::MegaPushNotificationSettings *)getCPtr;
+
+@end
+
+NS_ASSUME_NONNULL_END
+

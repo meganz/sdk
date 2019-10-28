@@ -47,6 +47,7 @@
 #import "MEGAUserList.h"
 #import "MEGABackgroundMediaUpload.h"
 #import "MEGACancelToken.h"
+#import "MEGAPushNotificationSettings.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -1754,6 +1755,40 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param password Password for the account.
  */
 - (void)confirmCancelAccountWithLink:(NSString *)link password:(NSString *)password;
+
+/**
+* @brief Allow to resend the verification email for Weak Account Protection
+*
+* The verification email will be resent to the same address as it was previously sent to.
+*
+* This function can be called if the the reason for being blocked is:
+*      700: the account is supended for Weak Account Protection.
+*
+* If the logged in account is not suspended or is suspended for some other reason,
+* onRequestFinish will be called with the error code MEGAErrorTypeApiEAccess.
+*
+* If the logged in account has not been sent the unlock email before,
+* onRequestFinish will be called with the error code MEGAErrorTypeApiEArgs.
+*
+* @param delegate MEGARequestDelegate to track this request
+*/
+- (void)resendVerificationEmailWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+* @brief Allow to resend the verification email for Weak Account Protection
+*
+* The verification email will be resent to the same address as it was previously sent to.
+*
+* This function can be called if the the reason for being blocked is:
+*      700: the account is supended for Weak Account Protection.
+*
+* If the logged in account is not suspended or is suspended for some other reason,
+* onRequestFinish will be called with the error code MEGAErrorTypeApiEAccess.
+*
+* If the logged in account has not been sent the unlock email before,
+* onRequestFinish will be called with the error code MEGAErrorTypeApiEArgs.
+*/
+- (void)resendVerificationEmail;
 
 /**
  * @brief Initialize the change of the email address associated to the account.
@@ -7228,6 +7263,64 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param listener MEGARequestDelegate to track this request
  */
 - (void)getRegisteredContacts:(NSArray<NSDictionary *> *)contacts delegate:(id<MEGARequestDelegate>)delegate;
+
+#pragma mark - Push Notification Settings
+
+/**
+ * @brief Get push notification settings
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributePushSettings
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest megaPushNotificationSettings] Returns settings for push notifications
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getPushNotificationSettingsWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get push notification settings
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributePushSettings
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest megaPushNotificationSettings] Returns settings for push notifications
+ */
+- (void)getPushNotificationSettings;
+
+/**
+ * @brief Set push notification settings.
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributePushSettings
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest megaPushNotificationSettings] Returns settings for push notifications
+ *
+ * @param pushNotificationSettings Push notification settings of the user. (An instance of MEGAPushNotificationSettings).
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)setPushNotificationSettings:(MEGAPushNotificationSettings *)pushNotificationSettings
+                           delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Set push notification settings.
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributePushSettings
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest megaPushNotificationSettings] Returns settings for push notifications
+ *
+ * @param pushNotificationSettings Push notification settings of the user. (An instance of MEGAPushNotificationSettings).
+ */
+- (void)setPushNotificationSettings:(MEGAPushNotificationSettings *)pushNotificationSettings;
 
 #pragma mark - Debug log messages
 
