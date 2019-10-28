@@ -12801,7 +12801,7 @@ class MegaApi
         /**
          * @brief Get the user relative to an incoming share
          *
-         * This function will return NULL if the node is not found.
+         * This function will return NULL if the node is not found
          *
          * If recurse is true, it will return NULL if the root corresponding to
          * the node received as argument doesn't represent the root of an incoming share.
