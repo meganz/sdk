@@ -766,6 +766,10 @@ using namespace mega;
     self.megaApi->keepMeAlive((int) type, enable);
 }
 
+- (void)whyAmIBlockedWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->whyAmIBlocked([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
 - (void)getPSAWithDelegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->getPSA([self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
