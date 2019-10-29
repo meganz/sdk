@@ -5308,6 +5308,28 @@ void CommandSendEvent::procresult()
     }
 }
 
+CommandSupportTicket::CommandSupportTicket(MegaClient *client, const char *message, int type)
+{
+    cmd("sse");
+    arg("t", type);
+    arg("m", message);
+
+    tag = client->reqtag;
+}
+
+void CommandSupportTicket::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->supportticket_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->supportticket_result(API_EINTERNAL);
+    }
+}
+
 CommandCleanRubbishBin::CommandCleanRubbishBin(MegaClient *client)
 {
     cmd("dr");
