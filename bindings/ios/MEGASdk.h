@@ -1620,7 +1620,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param masterKey Base64-encoded string containing the master key (optional).
  * @param delegate Delegate to track this request
  */
-- (void)confirmResetPasswordWithLink:(NSString *)link newPassword:(NSString *)newPassword masterKey:(NSString *)masterKey delegate:(id<MEGARequestDelegate>)delegate;
+- (void)confirmResetPasswordWithLink:(NSString *)link newPassword:(NSString *)newPassword masterKey:(nullable NSString *)masterKey delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Set a new password for the account pointed by the recovery link.
@@ -1645,7 +1645,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param newPassword The new password to be set.
  * @param masterKey Base64-encoded string containing the master key (optional).
  */
-- (void)confirmResetPasswordWithLink:(NSString *)link newPassword:(NSString *)newPassword masterKey:(NSString *)masterKey;
+- (void)confirmResetPasswordWithLink:(NSString *)link newPassword:(NSString *)newPassword masterKey:(nullable NSString *)masterKey;
 
 /**
  * @brief Initialize the cancellation of an account.
@@ -4946,7 +4946,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * The data in this parameter can be accessed using [MEGATransfer appData] in delegates
  * @param delegate Delegate to track this transfer.
  */
-- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(NSString *)appData delegate:(id<MEGATransferDelegate>)delegate;
+- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(nullable NSString *)appData delegate:(id<MEGATransferDelegate>)delegate;
 
 /**
  * @brief Upload a file with a custom name.
@@ -4960,7 +4960,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param appData Custom app data to save in the MEGATransfer object
  * The data in this parameter can be accessed using [MEGATransfer appData] in delegates
  */
-- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(NSString *)appData;
+- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(nullable NSString *)appData;
 
 /**
  * @brief Upload a file or a folder, saving custom app data during the transfer
@@ -4979,7 +4979,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * Use this parameter with caution. Set it to YES only if you are sure about what are you doing.
  * @param delegate MEGATransferDelegate to track this transfer
  */
-- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary delegate:(id<MEGATransferDelegate>)delegate;
+- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(nullable NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary delegate:(id<MEGATransferDelegate>)delegate;
 
 /**
  * @brief Upload a file or a folder, saving custom app data during the transfer
@@ -4997,7 +4997,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
  * Use this parameter with caution. Set it to YES only if you are sure about what are you doing.
  */
-- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary;
+- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(nullable NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary;
 
 /**
  * @brief Upload a file or a folder, putting the transfer on top of the upload queue
@@ -5016,7 +5016,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * Use this parameter with caution. Set it to YES only if you are sure about what are you doing.
  * @param delegate MEGATransferDelegate to track this transfer
  */
-- (void)startUploadTopPriorityWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary delegate:(id<MEGATransferDelegate>)delegate;
+- (void)startUploadTopPriorityWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(nullable NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary delegate:(id<MEGATransferDelegate>)delegate;
 
 /**
  * @brief Upload a file or a folder, putting the transfer on top of the upload queue
@@ -5035,7 +5035,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * Use this parameter with caution. Set it to YES only if you are sure about what are you doing.
 
  */
-- (void)startUploadTopPriorityWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary;
+- (void)startUploadTopPriorityWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(nullable NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary;
 
 /**
 * @brief Upload a file or a folder
@@ -5064,7 +5064,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
 */
 - (void)startUploadForChatWithLocalPath:(NSString *)localPath
                                  parent:(MEGANode *)parent
-                                appData:(NSString *)appData
+                                appData:(nullable NSString *)appData
                       isSourceTemporary:(BOOL)isSourceTemporary
                                delegate:(id<MEGATransferDelegate>)delegate;
 
@@ -5118,7 +5118,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  *
  * @param delegate Delegate to track this transfer.
  */
-- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath appData:(NSString *)appData delegate:(id<MEGATransferDelegate>)delegate;
+- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath appData:(nullable NSString *)appData delegate:(id<MEGATransferDelegate>)delegate;
 
 /**
  * @brief Download a file from MEGA.
@@ -5137,7 +5137,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * related to the transfer.
  *
  */
-- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath appData:(NSString *)appData;
+- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath appData:(nullable NSString *)appData;
 
 /**
  * @brief Download a file or a folder from MEGA, putting the transfer on top of the download queue.
@@ -5157,7 +5157,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  *
  * @param delegate Delegate to track this transfer.
  */
-- (void)startDownloadTopPriorityWithNode:(MEGANode *)node localPath:(NSString *)localPath appData:(NSString *)appData delegate:(id<MEGATransferDelegate>)delegate;
+- (void)startDownloadTopPriorityWithNode:(MEGANode *)node localPath:(NSString *)localPath appData:(nullable NSString *)appData delegate:(id<MEGATransferDelegate>)delegate;
 
 /**
  * @brief Download a file or a folder from MEGA, putting the transfer on top of the download queue.
@@ -5176,7 +5176,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * related to the transfer.
  *
  */
-- (void)startDownloadTopPriorityWithNode:(MEGANode *)node localPath:(NSString *)localPath appData:(NSString *)appData;
+- (void)startDownloadTopPriorityWithNode:(MEGANode *)node localPath:(NSString *)localPath appData:(nullable NSString *)appData;
 
 /**
  * @brief Start an streaming download for a file in MEGA
