@@ -1084,13 +1084,13 @@ using namespace mega;
     self.megaApi->getUserAlias(handle);
 }
 
-- (void)setUserAlias:(NSString *)alias forHandle:(uint64_t)handle delegate:(id<MEGARequestDelegate>)delegate {
+- (void)setUserAlias:(nullable NSString *)alias forHandle:(uint64_t)handle delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->setUserAlias(handle,
                                alias.UTF8String,
                                [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (void)setUserAlias:(NSString *)alias forHandle:(uint64_t)handle {
+- (void)setUserAlias:(nullable NSString *)alias forHandle:(uint64_t)handle {
     self.megaApi->setUserAlias(handle, alias.UTF8String);
 }
 

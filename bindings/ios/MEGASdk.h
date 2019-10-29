@@ -3673,7 +3673,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param handle Handle of the contact
  * @param delegate MEGARequestDelegate to track this request
  */
-- (void)setUserAlias:(NSString *)alias forHandle:(uint64_t)handle delegate:(id<MEGARequestDelegate>)delegate;
+- (void)setUserAlias:(nullable NSString *)alias forHandle:(uint64_t)handle delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Set or reset an alias for a user
@@ -3687,7 +3687,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param alias the user alias, or null to reset the existing
  * @param handle Handle of the contact
  */
-- (void)setUserAlias:(NSString *)alias forHandle:(uint64_t)handle;
+- (void)setUserAlias:(nullable NSString *)alias forHandle:(uint64_t)handle;
 
 /**
  * @brief Set an attribute of the current user.
