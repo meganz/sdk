@@ -1733,7 +1733,7 @@ public class MegaApiJava {
      *
      * @param listener MegaRequestListener to track this request
      */
-    void whyAmIBlocked(MegaRequestListenerInterface listener) {
+    public void whyAmIBlocked(MegaRequestListenerInterface listener) {
         megaApi.whyAmIBlocked(createDelegateRequestListener(listener));
     }
 
@@ -1760,7 +1760,7 @@ public class MegaApiJava {
      * If the error code in the MegaRequest object received in onRequestFinish
      * is MegaError::API_OK, the user is not blocked.
      */
-    void whyAmIBlocked() {
+    public void whyAmIBlocked() {
         megaApi.whyAmIBlocked();
     }
 
