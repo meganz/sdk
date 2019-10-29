@@ -10271,7 +10271,7 @@ MegaShareList* MegaApiImpl::getInSharesList(int order)
     return shareList;
 }
 
-MegaUser *MegaApiImpl::getUserFromInShare(MegaNode *megaNode)
+MegaUser *MegaApiImpl::getUserFromInShare(MegaNode *megaNode, bool recurse)
 {
     if (!megaNode)
     {
@@ -10283,6 +10283,11 @@ MegaUser *MegaApiImpl::getUserFromInShare(MegaNode *megaNode)
     sdkMutex.lock();
 
     Node *node = client->nodebyhandle(megaNode->getHandle());
+    if (recurse && node)
+    {
+        node = client->getrootnode(node);
+    }
+
     if (node && node->inshare && node->inshare->user)
     {
         user = MegaUserPrivate::fromUser(node->inshare->user);

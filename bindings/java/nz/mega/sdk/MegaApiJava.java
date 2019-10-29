@@ -6650,6 +6650,45 @@ public class MegaApiJava {
     }
 
     /**
+     * Get the user relative to an incoming share
+     *
+     * This function will return NULL if the node is not found.
+     *
+     * If recurse is true, it will return NULL if the root corresponding to
+     * the node received as argument doesn't represent the root of an incoming share.
+     * Otherwise, it will return NULL if the node doesn't represent
+     * the root of an incoming share.
+     *
+     * You take the ownership of the returned value
+     *
+     * @param node Node to look for inshare user.
+     * @param recurse use root node corresponding to the node passed
+     * @return MegaUser relative to the incoming share
+     */
+    public MegaUser getUserFromInShare(MegaNode node, boolean recurse) {
+        return megaApi.getUserFromInShare(node, recurse);
+    }
+
+    /**
+     * Get the user relative to an incoming share
+     *
+     * This function will return NULL if the node is not found.
+     *
+     * If recurse is true, it will return NULL if the root corresponding to
+     * the node received as argument doesn't represent the root of an incoming share.
+     * Otherwise, it will return NULL if the node doesn't represent
+     * the root of an incoming share.
+     *
+     * You take the ownership of the returned value
+     *
+     * @param node Node to look for inshare user.
+     * @return MegaUser relative to the incoming share
+     */
+    public MegaUser getUserFromInShare(MegaNode node) {
+        return megaApi.getUserFromInShare(node);
+    }
+
+    /**
      * Check if a MegaNode is being shared.
      * <p>
      * For nodes that are being shared, you can get a a list of MegaShare

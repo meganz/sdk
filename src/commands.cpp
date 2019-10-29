@@ -327,7 +327,7 @@ CommandPutFile::CommandPutFile(MegaClient* client, TransferSlot* ctslot, int ms)
 
     // send minimum set of different tree's roots for API to check overquota
     set<handle> targetRoots;
-    bool begun = false;
+    beginarray("t");
     for (auto &file : tslot->transfer->files)
     {
         if (!ISUNDEF(file->h))
@@ -344,18 +344,10 @@ CommandPutFile::CommandPutFile(MegaClient* client, TransferSlot* ctslot, int ms)
                 targetRoots.insert(rootnode);
             }
 
-            if (!begun)
-            {
-                beginarray("t");
-                begun = true;
-            }
             element((byte*)&file->h, MegaClient::NODEHANDLE);
         }
     }
-    if (begun)
-    {
-        endarray();
-    }
+    endarray();
 }
 
 void CommandPutFile::cancel()
