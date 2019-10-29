@@ -14881,7 +14881,9 @@ void MegaApiImpl::whyamiblocked_result(int code)
         return;
     }
 
-    if (request->getFlag() && code != 500)  // don't log out if we can be unblocked via sms verification
+    if (request->getFlag()
+            && code != 500  // don't log out if we can be unblocked via sms verification
+            && code != 700) // don't log out if we can be unblocked via verification email (weak account protection)
     {
         client->removecaches();
         client->locallogout();
