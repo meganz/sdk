@@ -1364,11 +1364,6 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, string* 
     if (cparent)
     {
         setnameparent(cparent, cfullpath);
-
-        if (parent->node)
-        {
-            h = parent->node->nodehandle;
-        }
     }
     else
     {

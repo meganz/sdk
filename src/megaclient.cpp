@@ -13713,7 +13713,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
             }
         }
 
-        assert(!ISUNDEF(f->h) && nodebyhandle(f->h)); // target handle for the upload should be known at this time
+        assert(!ISUNDEF(f->h) && (nodebyhandle(f->h) || d == GET)); // target handle for the upload should be known at this time
     }
 
     return true;
