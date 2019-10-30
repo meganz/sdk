@@ -543,6 +543,14 @@ using namespace mega;
     return self.megaApi->isLoggedIn();
 }
 
+- (void)fetchNodesWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->fetchNodes([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)fetchNodes {
+    self.megaApi->fetchNodes();
+}
+
 - (void)logoutWithDelegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->logout([self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
@@ -571,12 +579,43 @@ using namespace mega;
     return self.megaApi->checkPassword(password ? [password UTF8String] : NULL);
 }
 
-- (void)fetchNodesWithDelegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->fetchNodes([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+- (NSString *)myCredentials {
+    const char *val = self.megaApi->getMyCredentials();
+    if (val) {
+        NSString *ret = [NSString.alloc initWithUTF8String:val];
+        delete [] val;
+        return ret;
+    } else {
+        return nil;
+    }
 }
 
-- (void)fetchNodes {
-    self.megaApi->fetchNodes();
+- (void)getUserCredentials:(MEGAUser *)user delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getUserCredentials(user ? user.getCPtr : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)getUserCredentials:(MEGAUser *)user {
+    self.megaApi->getUserCredentials(user ? user.getCPtr : NULL);
+}
+
+- (BOOL)areCredentialsVerifiedOfUser:(MEGAUser *)user {
+    return self.megaApi->areCredentialsVerified(user ? user.getCPtr : NULL);
+}
+
+- (void)verifyCredentialsOfUser:(MEGAUser *)user delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->verifyCredentials(user ? user.getCPtr : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)verifyCredentialsOfUser:(MEGAUser *)user {
+    self.megaApi->verifyCredentials(user ? user.getCPtr : NULL);
+}
+
+- (void)resetCredentialsOfUser:(MEGAUser *)user delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->resetCredentials(user ? user.getCPtr : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)resetCredentialsOfUser:(MEGAUser *)user {
+    self.megaApi->resetCredentials(user ? user.getCPtr : NULL);
 }
 
 #pragma mark - Create account and confirm account Requests
