@@ -651,6 +651,7 @@ add_executable(test_unit
     ${MegaDir}/tests/unit/FileFingerprint_test.cpp
     ${MegaDir}/tests/unit/FsNode.cpp
     ${MegaDir}/tests/unit/FsNode.h
+    ${MegaDir}/tests/unit/Logging_test.cpp
     ${MegaDir}/tests/unit/main.cpp
     ${MegaDir}/tests/unit/MegaApi_test.cpp
     ${MegaDir}/tests/unit/NotImplemented.h

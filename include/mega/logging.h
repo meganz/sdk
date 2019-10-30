@@ -170,12 +170,12 @@ class SimpleLogger
 
     void outputBuffer()
     {
+        *mBufferIt = '\0';
         if (logger)
         {
-            *mBufferIt = 0;
             logger->log(nullptr, level, nullptr, mBuffer.data());
-            mBufferIt = mBuffer.begin();
         }
+        mBufferIt = mBuffer.begin();
     }
 
     template<typename T>

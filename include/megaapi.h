@@ -5973,6 +5973,8 @@ class MegaGlobalListener
          *          300: suspension only for multiple copyright violations.
          *          400: the subuser account has been disabled.
          *          401: the subuser account has been removed.
+         *          500: The account needs to be verified by an SMS code.
+         *          700: the account is supended for Weak Account Protection.
          *
          * - MegaEvent::EVENT_STORAGE: when the status of the storage changes.
          *
@@ -6463,6 +6465,8 @@ class MegaListener
          *          300: suspension only for multiple copyright violations.
          *          400: the subuser account has been disabled.
          *          401: the subuser account has been removed.
+         *          500: The account needs to be verified by an SMS code.
+         *          700: the account is supended for Weak Account Protection.
          *
          * - MegaEvent::EVENT_STORAGE: when the status of the storage changes.
          *
@@ -8177,9 +8181,10 @@ class MegaApi
          * The SDK will start using the provided proxy settings as soon as this function returns.
          *
          * @param proxySettings Proxy settings
+         * @param listener MegaRequestListener to track this request
          * @see MegaProxy
          */
-        void setProxySettings(MegaProxy *proxySettings);
+        void setProxySettings(MegaProxy *proxySettings, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Try to detect the system's proxy settings
@@ -8218,6 +8223,7 @@ class MegaApi
          *     400: the subuser account has been disabled.
          *     401: the subuser account has been removed.
          *     500: The account needs to be verified by an SMS code.
+         *     700: the account is supended for Weak Account Protection.
          *
          * If the error code in the MegaRequest object received in onRequestFinish
          * is MegaError::API_OK, the user is not blocked.
@@ -12852,15 +12858,20 @@ class MegaApi
         /**
          * @brief Get the user relative to an incoming share
          *
-         * This function will return NULL if the node is not found or doesn't represent
-         * the root of an incoming share.
+         * This function will return NULL if the node is not found
+         *
+         * When recurse is true and the root of the specified node is not an incoming share,
+         * this function will return NULL.
+         * When recurse is false and the specified node doesn't represent the root of an
+         * incoming share, this function will return NULL.
          *
          * You take the ownership of the returned value
          *
-         * @param node Incoming share
+         * @param node Node to look for inshare user.
+         * @param recurse use root node corresponding to the node passed
          * @return MegaUser relative to the incoming share
          */
-        MegaUser *getUserFromInShare(MegaNode *node);
+        MegaUser *getUserFromInShare(MegaNode *node, bool recurse = false);
 
         /**
           * @brief Check if a MegaNode is being shared by/with your own user
