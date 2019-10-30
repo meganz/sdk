@@ -1192,12 +1192,12 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  *
  * The associated request type with this request is MEGARequestTypeGetAttrUser
  * Valid data in the MEGARequest object received on callbacks:
- * - [MEGARequest getParamType] - Returns MEGAUserAttributeED25519PublicKey
- * - [MEGARequest getFlag] - Returns true
+ * - [MEGARequest paramType] - Returns MEGAUserAttributeED25519PublicKey
+ * - [MEGARequest flag] - Returns YES
  *
  * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
- * - [MEGARequest getPassword] - Returns the credentials in hexadecimal format
+ * - [MEGARequest password] - Returns the credentials in hexadecimal format
  *
  * @param user MEGAUser of the contact (@see [MEGASDK contactForEmail:]) to get the fingerprint
  * @param delegate MEGARequestDelegate to track this request
@@ -1221,7 +1221,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  *
  * The associated request type with this request is MEGARequestTypeVerifyCredentials
  * Valid data in the MEGARequest object received on callbacks:
- * - [MEGARequest getNodeHandle] - Returns userhandle
+ * - [MEGARequest nodeHandle] - Returns userhandle
  *
  * @param user MEGAUser of the contact whose credentials want to be verified
  * @param delegate MEGARequestDelegate to track this request
@@ -1236,8 +1236,8 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  *
  * The associated request type with this request is MEGARequestTypeVerifyCredentials
  * Valid data in the MEGARequest object received on callbacks:
- * - [MEGARequest  getNodeHandle] - Returns userhandle
- * - [MEGARequest getFlag] - Returns true
+ * - [MEGARequest  nodeHandle] - Returns userhandle
+ * - [MEGARequest flag] - Returns YES
  *
  * @param user MEGAUser of the contact whose credentials want to be reset
  * @param delegate MEGARequestDelegate to track this request
@@ -1252,8 +1252,8 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  *
  * The associated request type with this request is MEGARequestTypeVerifyCredentials
  * Valid data in the MEGARequest object received on callbacks:
- * - [MEGARequest  getNodeHandle] - Returns userhandle
- * - [MEGARequest getFlag] - Returns true
+ * - [MEGARequest  nodeHandle] - Returns userhandle
+ * - [MEGARequest flag] - Returns YES
  *
  * @param user MEGAUser of the contact whose credentials want to be reset
  * @param delegate MEGARequestDelegate to track this request
