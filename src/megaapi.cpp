@@ -2634,7 +2634,7 @@ void MegaApi::getUserAlias(MegaHandle uh, MegaRequestListener *listener)
 
 void MegaApi::setUserAlias(MegaHandle uh, const char *alias, MegaRequestListener *listener)
 {
-    pImpl->setUserAlias(uh, alias);
+    pImpl->setUserAlias(uh, alias, listener);
 }
 
 void MegaApi::getRubbishBinAutopurgePeriod(MegaRequestListener *listener)
