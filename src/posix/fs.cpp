@@ -902,11 +902,11 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
 
                 for (it = client->syncs.begin(); it != client->syncs.end(); it++)
                 {
-                    int rsize = (*it)->mFsEventsPath.size() ? (*it)->mFsEventsPath.size() : (*it)->localroot.localname.size();
+                    int rsize = (*it)->mFsEventsPath.size() ? (*it)->mFsEventsPath.size() : (*it)->localroot->localname.size();
                     int isize = (*it)->dirnotify->ignore.size();
 
                     if (psize >= rsize
-                      && !memcmp((*it)->mFsEventsPath.size() ? (*it)->mFsEventsPath.c_str() : (*it)->localroot.localname.c_str(), path, rsize)    // prefix match
+                      && !memcmp((*it)->mFsEventsPath.size() ? (*it)->mFsEventsPath.c_str() : (*it)->localroot->localname.c_str(), path, rsize)    // prefix match
                       && (!path[rsize] || path[rsize] == '/')               // at end: end of path or path separator
                       && (psize <= (rsize + isize)                          // not ignored
                           || (path[rsize + isize + 1] && path[rsize + isize + 1] != '/')
@@ -944,9 +944,9 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
             {
                 if (paths[i])
                 {
-                    LOG_debug << "Filesystem notification. Root: " << pathsync[i]->localroot.name << "   Path: " << paths[i];
+                    LOG_debug << "Filesystem notification. Root: " << pathsync[i]->localroot->name << "   Path: " << paths[i];
                     pathsync[i]->dirnotify->notify(DirNotify::DIREVENTS,
-                                                   &pathsync[i]->localroot,
+                                                   pathsync[i]->localroot.get(),
                                                    paths[i],
                                                    strlen(paths[i]));
 

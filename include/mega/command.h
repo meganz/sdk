@@ -806,6 +806,14 @@ public:
     CommandConfirmCancelLink(MegaClient *, const char *);
 };
 
+class MEGA_API CommandResendVerificationEmail : public Command
+{
+public:
+    void procresult();
+
+    CommandResendVerificationEmail(MegaClient *);
+};
+
 class MEGA_API CommandValidatePassword : public Command
 {
 public:

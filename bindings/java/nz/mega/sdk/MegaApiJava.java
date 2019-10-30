@@ -96,6 +96,7 @@ public class MegaApiJava {
     public final static int USER_ATTR_LAST_PSA = MegaApi.USER_ATTR_LAST_PSA;
     public final static int USER_ATTR_STORAGE_STATE = MegaApi.USER_ATTR_STORAGE_STATE;
     public final static int USER_ATTR_GEOLOCATION = MegaApi.USER_ATTR_GEOLOCATION;
+    public final static int USER_ATTR_CAMERA_UPLOADS_FOLDER = MegaApi.USER_ATTR_CAMERA_UPLOADS_FOLDER;
 
     public final static int NODE_ATTR_DURATION = MegaApi.NODE_ATTR_DURATION;
     public final static int NODE_ATTR_COORDINATES = MegaApi.NODE_ATTR_COORDINATES;
@@ -1573,6 +1574,44 @@ public class MegaApiJava {
     }
 
     /**
+     * Allow to resend the verification email for Weak Account Protection
+     *
+     * The verification email will be resent to the same address as it was previously sent to.
+     *
+     * This function can be called if the the reason for being blocked is:
+     *      700: the account is supended for Weak Account Protection.
+     *
+     * If the logged in account is not suspended or is suspended for some other reason,
+     * onRequestFinish will be called with the error code MegaError::API_EACCESS.
+     *
+     * If the logged in account has not been sent the unlock email before,
+     * onRequestFinish will be called with the error code MegaError::API_EARGS.
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void resendVerificationEmail(MegaRequestListenerInterface listener) {
+        megaApi.resendVerificationEmail(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Allow to resend the verification email for Weak Account Protection
+     *
+     * The verification email will be resent to the same address as it was previously sent to.
+     *
+     * This function can be called if the the reason for being blocked is:
+     *      700: the account is supended for Weak Account Protection.
+     *
+     * If the logged in account is not suspended or is suspended for some other reason,
+     * onRequestFinish will be called with the error code MegaError::API_EACCESS.
+     *
+     * If the logged in account has not been sent the unlock email before,
+     * onRequestFinish will be called with the error code MegaError::API_EARGS.
+     */
+    public void resendVerificationEmail() {
+        megaApi.resendVerificationEmail();
+    }
+
+    /**
      * Initialize the change of the email address associated to the account.
      *
      * The associated request type with this request is MegaRequest::TYPE_GET_CHANGE_EMAIL_LINK.
@@ -1686,13 +1725,15 @@ public class MegaApiJava {
      *     300: suspension only for multiple copyright violations.
      *     400: the subuser account has been disabled.
      *     401: the subuser account has been removed.
+     *     500: The account needs to be verified by an SMS code.
+     *     700: the account is supended for Weak Account Protection.
      *
      * If the error code in the MegaRequest object received in onRequestFinish
      * is MegaError::API_OK, the user is not blocked.
      *
      * @param listener MegaRequestListener to track this request
      */
-    void whyAmIBlocked(MegaRequestListenerInterface listener) {
+    public void whyAmIBlocked(MegaRequestListenerInterface listener) {
         megaApi.whyAmIBlocked(createDelegateRequestListener(listener));
     }
 
@@ -1713,11 +1754,13 @@ public class MegaApiJava {
      *     300: suspension only for multiple copyright violations.
      *     400: the subuser account has been disabled.
      *     401: the subuser account has been removed.
+     *     500: The account needs to be verified by an SMS code.
+     *     700: the account is supended for Weak Account Protection.
      *
      * If the error code in the MegaRequest object received in onRequestFinish
      * is MegaError::API_OK, the user is not blocked.
      */
-    void whyAmIBlocked() {
+    public void whyAmIBlocked() {
         megaApi.whyAmIBlocked();
     }
 
@@ -6607,6 +6650,45 @@ public class MegaApiJava {
     }
 
     /**
+     * Get the user relative to an incoming share
+     *
+     * This function will return NULL if the node is not found.
+     *
+     * If recurse is true, it will return NULL if the root corresponding to
+     * the node received as argument doesn't represent the root of an incoming share.
+     * Otherwise, it will return NULL if the node doesn't represent
+     * the root of an incoming share.
+     *
+     * You take the ownership of the returned value
+     *
+     * @param node Node to look for inshare user.
+     * @param recurse use root node corresponding to the node passed
+     * @return MegaUser relative to the incoming share
+     */
+    public MegaUser getUserFromInShare(MegaNode node, boolean recurse) {
+        return megaApi.getUserFromInShare(node, recurse);
+    }
+
+    /**
+     * Get the user relative to an incoming share
+     *
+     * This function will return NULL if the node is not found.
+     *
+     * If recurse is true, it will return NULL if the root corresponding to
+     * the node received as argument doesn't represent the root of an incoming share.
+     * Otherwise, it will return NULL if the node doesn't represent
+     * the root of an incoming share.
+     *
+     * You take the ownership of the returned value
+     *
+     * @param node Node to look for inshare user.
+     * @return MegaUser relative to the incoming share
+     */
+    public MegaUser getUserFromInShare(MegaNode node) {
+        return megaApi.getUserFromInShare(node);
+    }
+
+    /**
      * Check if a MegaNode is being shared.
      * <p>
      * For nodes that are being shared, you can get a a list of MegaShare
@@ -8650,5 +8732,73 @@ public class MegaApiJava {
      */
     public void cancelCreateAccount(MegaRequestListenerInterface listener){
         megaApi.cancelCreateAccount(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * @param nodehandle MegaHandle of the node to be used as primary target folder
+     * @param listener   MegaRequestListener to track this request
+     * @brief Set Camera Uploads primary target folder.
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
+     * - MegaRequest::getFlag - Returns false
+     * - MegaRequest::getNodehandle - Returns the provided node handle
+     */
+    public void setCameraUploadsFolder(long nodehandle, MegaRequestListenerInterface listener) {
+        megaApi.setCameraUploadsFolder(nodehandle, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * @param nodehandle MegaHandle of the node to be used as secondary target folder
+     * @param listener   MegaRequestListener to track this request
+     * @brief Set Camera Uploads secondary target folder.
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
+     * - MegaRequest::getFlag - Returns true
+     * - MegaRequest::getNodehandle - Returns the provided node handle
+     */
+    public void setCameraUploadsFolderSecondary(long nodehandle, MegaRequestListenerInterface listener) {
+        megaApi.setCameraUploadsFolderSecondary(nodehandle, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * @param listener MegaRequestListener to track this request
+     * @brief Gets Camera Uploads primary target folder.
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
+     * - MegaRequest::getFlag - Returns false
+     * <p>
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNodehandle - Returns the handle of the primary node where Camera Uploads files are stored
+     * <p>
+     * If the folder is not set, the request will fail with the error code MegaError::API_ENOENT.
+     */
+    public void getCameraUploadsFolder(MegaRequestListenerInterface listener) {
+        megaApi.getCameraUploadsFolder(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * @param listener MegaRequestListener to track this request
+     * @brief Gets Camera Uploads secondary target folder.
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
+     * - MegaRequest::getFlag - Returns true
+     * <p>
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNodehandle - Returns the handle of the secondary node where Camera Uploads files are stored
+     * <p>
+     * If the secondary folder is not set, the request will fail with the error code MegaError::API_ENOENT.
+     */
+    public void getCameraUploadsFolderSecondary(MegaRequestListenerInterface listener) {
+        megaApi.getCameraUploadsFolderSecondary(createDelegateRequestListener(listener));
     }
 }
