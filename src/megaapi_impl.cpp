@@ -1355,7 +1355,7 @@ bool MegaApiImpl::isSyncing()
 
     for (auto & sync : client->syncs)
     {
-        if (sync->localroot->ts == TREESTATE_SYNCING)
+        if (sync->localroot->ts == TREESTATE_SYNCING || sync->localroot->ts == TREESTATE_PENDING)
         {
             return true;
         }

@@ -12016,7 +12016,7 @@ class MegaApi
         bool isScanning();
 
         /**
-         * @brief Check if any synchronization is in state syncing
+         * @brief Check if any synchronization is in state syncing or pending
          * @return true if it is syncing, otherwise false
          */
         bool isSyncing();
