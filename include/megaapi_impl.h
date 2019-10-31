@@ -646,6 +646,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         void setSourceFileTemporary(bool temporary);
         void setStartFirst(bool startFirst);
         void setBackupTransfer(bool backupTransfer);
+        void setForeignOverquota(bool backupTransfer);
         void setStreamingTransfer(bool streamingTransfer);
         void setLastBytes(char *lastBytes);
         void setLastError(MegaError e);
@@ -685,6 +686,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         virtual bool isSourceFileTemporary() const;
         virtual bool shouldStartFirst() const;
         virtual bool isBackupTransfer() const;
+        virtual bool isForeignOverquota() const;
         virtual char *getLastBytes() const;
         virtual MegaError getLastError() const;
         virtual bool isFolderTransfer() const;
@@ -715,6 +717,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
             bool temporarySourceFile : 1;
             bool startFirst : 1;
             bool backupTransfer : 1;
+            bool foreignOverquota : 1;
         };
 
         int64_t startTime;
@@ -1055,8 +1058,8 @@ class MegaRequestPrivate : public MegaRequest
         void setTotalBytes(long long totalBytes);
         void setTransferredBytes(long long transferredBytes);
         void setTag(int tag);
-        void addProduct(handle product, int proLevel, unsigned int gbStorage, unsigned int gbTransfer,
-                        int months, int amount, const char *currency, const char *description, const char *iosid, const char *androidid);
+        void addProduct(unsigned int type, handle product, int proLevel, int gbStorage, int gbTransfer,
+                        int months, int amount, int amountMonth, const char *currency, const char *description, const char *iosid, const char *androidid);
         void setProxy(Proxy *proxy);
         Proxy *getProxy();
         void setTimeZoneDetails(MegaTimeZoneDetails *timeZoneDetails);
@@ -1331,25 +1334,29 @@ public:
     virtual int getNumProducts();
     virtual MegaHandle getHandle(int productIndex);
     virtual int getProLevel(int productIndex);
-    virtual unsigned int getGBStorage(int productIndex);
-    virtual unsigned int getGBTransfer(int productIndex);
+    virtual int getGBStorage(int productIndex);
+    virtual int getGBTransfer(int productIndex);
     virtual int getMonths(int productIndex);
     virtual int getAmount(int productIndex);
     virtual const char* getCurrency(int productIndex);
     virtual const char* getDescription(int productIndex);
     virtual const char* getIosID(int productIndex);
     virtual const char* getAndroidID(int productIndex);
+    virtual bool isBusinessType(int productIndex);
+    virtual int getAmountMonth(int productIndex);
     virtual MegaPricing *copy();
 
-    void addProduct(handle product, int proLevel, unsigned int gbStorage, unsigned int gbTransfer,
-                    int months, int amount, const char *currency, const char *description, const char *iosid, const char *androidid);
+    void addProduct(unsigned int type, handle product, int proLevel, int gbStorage, int gbTransfer,
+                    int months, int amount, int amountMonth, const char *currency, const char *description, const char *iosid, const char *androidid);
 private:
+    vector<unsigned int> type;
     vector<handle> handles;
     vector<int> proLevel;
-    vector<unsigned int> gbStorage;
-    vector<unsigned int> gbTransfer;
+    vector<int> gbStorage;
+    vector<int> gbTransfer;
     vector<int> months;
     vector<int> amount;
+    vector<int> amountMonth;
     vector<const char *> currency;
     vector<const char *> description;
     vector<const char *> iosId;
@@ -1834,7 +1841,7 @@ class SearchTreeProcessor : public TreeProcessor
 class OutShareProcessor : public TreeProcessor
 {
     public:
-        OutShareProcessor();
+        OutShareProcessor(MegaClient&);
         virtual bool processNode(Node* node);
         virtual ~OutShareProcessor() {}
         vector<Share *> getShares();
@@ -1843,6 +1850,7 @@ class OutShareProcessor : public TreeProcessor
     protected:
         vector<Share *> mShares;
         node_vector mNodes;
+        MegaClient& mClient;
 };
 
 class PendingOutShareProcessor : public TreeProcessor
@@ -2036,9 +2044,10 @@ class MegaApiImpl : public MegaApp
         void confirmResetPasswordLink(const char *link, const char *newPwd, const char *masterKey = NULL, MegaRequestListener *listener = NULL);
         void cancelAccount(MegaRequestListener *listener = NULL);
         void confirmCancelAccount(const char *link, const char *pwd, MegaRequestListener *listener = NULL);
+        void resendVerificationEmail(MegaRequestListener *listener = NULL);
         void changeEmail(const char *email, MegaRequestListener *listener = NULL);
         void confirmChangeEmail(const char *link, const char *pwd, MegaRequestListener *listener = NULL);
-        void setProxySettings(MegaProxy *proxySettings);
+        void setProxySettings(MegaProxy *proxySettings, MegaRequestListener *listener = NULL);
         MegaProxy *getAutoProxySettings();
         int isLoggedIn();
         void whyAmIBlocked(bool logout, MegaRequestListener *listener = NULL);
@@ -2284,7 +2293,7 @@ class MegaApiImpl : public MegaApp
         MegaNodeList *getInShares(MegaUser* user, int order);
         MegaNodeList *getInShares(int order);
         MegaShareList *getInSharesList(int order);
-        MegaUser *getUserFromInShare(MegaNode *node);
+        MegaUser *getUserFromInShare(MegaNode *node, bool recurse = false);
         bool isPendingShare(MegaNode *node);
         MegaShareList *getOutShares(int order);
         MegaShareList *getOutShares(MegaNode *node);
@@ -2389,7 +2398,10 @@ class MegaApiImpl : public MegaApp
         void pauseActionPackets();
         void resumeActionPackets();
 
-        static std::function<bool (Node*, Node*)>getComparatorFunction(int order);
+        static std::function<bool (Node*, Node*)>getComparatorFunction(int order, MegaClient& mc);
+        static void sortByComparatorFunction(node_vector&, int order, MegaClient& mc);
+        static bool nodeNaturalComparatorASC(Node *i, Node *j);
+        static bool nodeNaturalComparatorDESC(Node *i, Node *j);
         static bool nodeComparatorDefaultASC  (Node *i, Node *j);
         static bool nodeComparatorDefaultDESC (Node *i, Node *j);
         static bool nodeComparatorSizeASC  (Node *i, Node *j);
@@ -2398,8 +2410,11 @@ class MegaApiImpl : public MegaApp
         static bool nodeComparatorCreationDESC  (Node *i, Node *j);
         static bool nodeComparatorModificationASC  (Node *i, Node *j);
         static bool nodeComparatorModificationDESC  (Node *i, Node *j);
-        static bool nodeComparatorAlphabeticalASC  (Node *i, Node *j);
-        static bool nodeComparatorAlphabeticalDESC  (Node *i, Node *j);
+        static bool nodeComparatorPhotoASC(Node *i, Node *j, MegaClient& mc);
+        static bool nodeComparatorPhotoDESC(Node *i, Node *j, MegaClient& mc);
+        static bool nodeComparatorVideoASC(Node *i, Node *j, MegaClient& mc);
+        static bool nodeComparatorVideoDESC(Node *i, Node *j, MegaClient& mc);
+        static int typeComparator(Node *i, Node *j);
         static bool userComparatorDefaultASC (User *i, User *j);
 
         char* escapeFsIncompatible(const char *filename);
@@ -2547,7 +2562,7 @@ class MegaApiImpl : public MegaApp
         void getCountryCallingCodes(MegaRequestListener *listener = NULL);
 
         void fireOnTransferStart(MegaTransferPrivate *transfer);
-        void fireOnTransferFinish(MegaTransferPrivate *transfer, MegaError e);
+        void fireOnTransferFinish(MegaTransferPrivate *transfer, MegaError e, DBTableTransactionCommitter& committer);
         void fireOnTransferUpdate(MegaTransferPrivate *transfer);
         void fireOnTransferTemporaryError(MegaTransferPrivate *transfer, MegaError e);
         map<int, MegaTransferPrivate *> transferMap;
@@ -2802,8 +2817,8 @@ protected:
         void putfa_result(handle, fatype, const char*) override;
 
         // purchase transactions
-        void enumeratequotaitems_result(handle product, unsigned prolevel, unsigned gbstorage, unsigned gbtransfer,
-                                                unsigned months, unsigned amount, const char* currency, const char* description, const char* iosid, const char* androidid) override;
+        void enumeratequotaitems_result(unsigned type, handle product, unsigned prolevel, int gbstorage, int gbtransfer,
+                                                unsigned months, unsigned amount, unsigned amountMonth, const char* currency, const char* description, const char* iosid, const char* androidid) override;
         void enumeratequotaitems_result(error e) override;
         void additem_result(error) override;
         void checkout_result(const char*, error) override;
@@ -2868,6 +2883,7 @@ protected:
         void confirmrecoverylink_result(error) override;
         void confirmcancellink_result(error) override;
         void getemaillink_result(error) override;
+        void resendverificationemail_result(error) override;
         void confirmemaillink_result(error) override;
         void getversion_result(int, const char*, error) override;
         void getlocalsslcertificate_result(m_time_t, string *certdata, error) override;
@@ -2924,6 +2940,10 @@ protected:
         bool sync_syncable(Sync *, const char*, string *, Node *) override;
         bool sync_syncable(Sync *, const char*, string *) override;
         void syncupdate_local_lockretry(bool) override;
+
+        // for the exclusive use of sync_syncable
+        unique_ptr<FileAccess> mSyncable_fa;
+        std::mutex mSyncable_fa_mutex;
 #endif
 
 protected:
@@ -2962,7 +2982,7 @@ protected:
 
         void sendPendingScRequest();
         void sendPendingRequests();
-        void sendPendingTransfers();
+        unsigned sendPendingTransfers();
         void updateBackups();
         char *stringToArray(string &buffer);
 
@@ -3256,7 +3276,7 @@ public:
     std::string host;
     std::string destination;
     bool overwrite;
-    FileAccess *tmpFileAccess;
+    std::unique_ptr<FileAccess> tmpFileAccess;
     std::string tmpFileName;
     std::string newname; //newname for moved node
     MegaHandle nodeToMove; //node to be moved after delete
@@ -3528,7 +3548,7 @@ public:
     m_off_t rangeWritten;
 
     std::string tmpFileName;
-    FileAccess* tmpFileAccess;
+    std::unique_ptr<FileAccess> tmpFileAccess;
     size_t tmpFileSize;
 
     bool controlRespondedElsewhere;

@@ -321,6 +321,9 @@ public:
     // create a copy of the current session
     void copysession();
 
+    // resend the verification email to the same email address as it was previously sent to
+    void resendverificationemail();
+
     // get the data for a session transfer
     // the caller takes the ownership of the returned value
     // if the second parameter isn't NULL, it's used as session id instead of the current one
@@ -414,8 +417,8 @@ public:
     error rename(Node*, Node*, syncdel_t = SYNCDEL_NONE, handle = UNDEF);
 
     // start/stop/pause file transfer
-    bool startxfer(direction_t, File*, bool skipdupes = false, bool startfirst = false, bool donotpersist = false);
-    void stopxfer(File* f);
+    bool startxfer(direction_t, File*, DBTableTransactionCommitter&, bool skipdupes = false, bool startfirst = false, bool donotpersist = false);
+    void stopxfer(File* f, DBTableTransactionCommitter* committer);
     void pausexfers(direction_t, bool, bool = false);
 
     // maximum number of connections per transfer
@@ -952,6 +955,10 @@ public:
 
     // transfer cache table
     DbTable* tctable;
+
+    // during processing of request responses, transfer table updates can be wrapped up in a single begin/commit
+    DBTableTransactionCommitter* mTctableRequestCommitter = nullptr;
+
     // scsn as read from sctable
     handle cachedscsn;
 
@@ -1115,16 +1122,16 @@ public:
     void notifynode(Node*);
 
     // update transfer in the persistent cache
-    void transfercacheadd(Transfer*);
+    void transfercacheadd(Transfer*, DBTableTransactionCommitter*);
 
     // remove a transfer from the persistent cache
-    void transfercachedel(Transfer*);
+    void transfercachedel(Transfer*, DBTableTransactionCommitter* committer);
 
     // add a file to the persistent cache
-    void filecacheadd(File*);
+    void filecacheadd(File*, DBTableTransactionCommitter& committer);
 
     // remove a file from the persistent cache
-    void filecachedel(File*);
+    void filecachedel(File*, DBTableTransactionCommitter* committer);
 
 #ifdef ENABLE_CHAT
     textchat_map chatnotify;
@@ -1152,6 +1159,9 @@ public:
 
     // get a vector of recent actions in the account
     recentactions_vector getRecentActions(unsigned maxcount, m_time_t since);
+
+    // determine if the file is a video, photo, or media (video or photo).  If the extension (with trailing .) is not precalculated, pass null
+    bool nodeIsMedia(const Node*, bool* isphoto, bool* isvideo) const;
 
     // generate & return upload handle
     handle getuploadhandle();
@@ -1262,7 +1272,7 @@ public:
 #endif
 
     // recursively cancel transfers in a subtree
-    void stopxfers(LocalNode*);
+    void stopxfers(LocalNode*, DBTableTransactionCommitter& committer);
 
     // update paths of all PUT transfers
     void updateputs();
@@ -1295,7 +1305,7 @@ public:
     dstime disconnecttimestamp;
 
     // process object arrays by the API server
-    int readnodes(JSON*, int, putsource_t = PUTNODES_APP, NewNode* = NULL, int = 0, int = 0);
+    int readnodes(JSON*, int, putsource_t = PUTNODES_APP, NewNode* = NULL, int = 0, int = 0, bool applykeys = false);
 
     void readok(JSON*);
     void readokelement(JSON*);
@@ -1397,7 +1407,10 @@ public:
     string clientname;
 
     // apply keys
-    int applykeys();
+    void applykeys();
+
+    // send andy key rewrites prepared when keys were applied
+    void sendkeyrewrites();
 
     // symmetric password challenge
     int checktsid(byte* sidbuf, unsigned len);
@@ -1439,6 +1452,12 @@ public:
 
     //returns the top-level node for a node
     Node *getrootnode(Node*);
+
+    //returns true if the node referenced by the handle belongs to the logged-in account
+    bool isPrivateNode(handle h);
+
+    //returns true if the node referenced by the handle belongs to other account than the logged-in account
+    bool isForeignNode(handle h);
 
     // process node subtree
     void proctree(Node*, TreeProc*, bool skipinshares = false, bool skipversions = false);
@@ -1523,13 +1542,38 @@ public:
     bool versions_disabled;
 
     // the SDK is trying to log out
-    int loggingout;
+    int loggingout = 0;
+
+    // the logout request succeeded, time to clean up localy once returned from CS response processing
+    bool loggedout = false;
 
     // true if the account is a master business account, false if it's a sub-user account
     BizMode mBizMode;
 
     // -1: expired, 0: inactive (no business subscription), 1: active, 2: grace-period
     BizStatus mBizStatus;
+
+    // Keep track of high level operation counts and times, for performance analysis
+    struct PerformanceStats
+    {
+        CodeCounter::ScopeStats execFunction = { "MegaClient_exec" };
+        CodeCounter::ScopeStats transferslotDoio = { "TransferSlot_doio" };
+        CodeCounter::ScopeStats execdirectreads = { "execdirectreads" };
+        CodeCounter::ScopeStats transferComplete = { "transfer_complete" };
+        CodeCounter::ScopeStats prepareWait = { "MegaClient_prepareWait" };
+        CodeCounter::ScopeStats doWait = { "MegaClient_doWait" };
+        CodeCounter::ScopeStats checkEvents = { "MegaClient_checkEvents" };
+        CodeCounter::ScopeStats applyKeys = { "MegaClient_applyKeys" };
+        CodeCounter::ScopeStats dispatchTransfers = { "dispatchTransfers" };
+        CodeCounter::ScopeStats csResponseProcessingTime = { "cs batch response processing" };
+        CodeCounter::ScopeStats scProcessingTime = { "sc processing" };
+        uint64_t transferStarts = 0, transferFinishes = 0;
+        uint64_t transferTempErrors = 0, transferFails = 0;
+        uint64_t prepwaitImmediate = 0, prepwaitZero = 0, prepwaitHttpio = 0, prepwaitFsaccess = 0, nonzeroWait = 0;
+        CodeCounter::DurationSum csRequestWaitTime;
+        CodeCounter::DurationSum transfersActiveTime;
+        std::string report(bool reset, HttpIO* httpio, Waiter* waiter);
+    } performanceStats;
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
     ~MegaClient();

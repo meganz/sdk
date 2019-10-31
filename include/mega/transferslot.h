@@ -28,6 +28,9 @@
 #include "raid.h"
 
 namespace mega {
+
+class DBTableTransactionCommitter;
+
 // active transfer
 struct MEGA_API TransferSlot
 {
@@ -35,7 +38,7 @@ struct MEGA_API TransferSlot
     struct Transfer* transfer;
 
     // associated source/destination file
-    FileAccess* fa;
+    std::unique_ptr<FileAccess> fa;
 
     // command in flight to obtain temporary URL
     Command* pendingcmd;
@@ -91,7 +94,7 @@ struct MEGA_API TransferSlot
     AsyncIOContext** asyncIO;
 
     // handle I/O for this slot
-    void doio(MegaClient*);
+    void doio(MegaClient*, DBTableTransactionCommitter&);
 
     // helper for doio to delay connection creation until we know if it's raid or non-raid
     bool createconnectionsonce();

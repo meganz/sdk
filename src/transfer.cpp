@@ -75,7 +75,7 @@ Transfer::~Transfer()
     {
         if (finished)
         {
-            client->filecachedel(*it);
+            client->filecachedel(*it, nullptr);
         }
 
         (*it)->transfer = NULL;
@@ -111,7 +111,7 @@ Transfer::~Transfer()
         {
             client->fsaccess->unlinklocal(&localfilename);
         }
-        client->transfercachedel(this);
+        client->transfercachedel(this, nullptr);
     }
 }
 
@@ -338,9 +338,19 @@ SymmCipher *Transfer::transfercipher()
     return &client->tmptransfercipher;
 }
 
+void Transfer::removeTransferFile(error e, File* f, DBTableTransactionCommitter* committer)
+{
+    Transfer *transfer = f->transfer;
+    client->filecachedel(f, committer);
+    transfer->files.erase(f->file_it);
+    client->app->file_removed(f, e);
+    f->transfer = NULL;
+    f->terminated();
+}
+
 // transfer attempt failed, notify all related files, collect request on
 // whether to abort the transfer, kill transfer if unanimous
-void Transfer::failed(error e, dstime timeleft)
+void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime timeleft)
 {
     bool defer = false;
 
@@ -354,29 +364,86 @@ void Transfer::failed(error e, dstime timeleft)
         client->reqtag = creqtag;
     }
 
-    if (e != API_EBUSINESSPASTDUE)
+    if (e == API_EOVERQUOTA)
     {
-        if (e != API_EOVERQUOTA)
-        {
-            bt.backoff();
-            state = TRANSFERSTATE_RETRYING;
-            client->app->transfer_failed(this, e, timeleft);
-            client->looprequested = true;
-        }
-        else
+        if (!slot)
         {
             bt.backoff(timeleft ? timeleft : NEVER);
             client->activateoverquota(timeleft);
-            if (!slot)
+            client->app->transfer_failed(this, e, timeleft);
+            ++client->performanceStats.transferTempErrors;
+        }
+        else
+        {
+            bool allForeignTargets = true;
+            for (auto &file : files)
             {
-                client->app->transfer_failed(this, e, timeleft);
+                if (client->isPrivateNode(file->h))
+                {
+                    allForeignTargets = false;
+                    break;
+                }
+            }
+
+            /* If all targets are foreign and there's not a bandwidth overquota, transfer must fail.
+             * Otherwise we need to activate overquota.
+             */
+            if (!timeleft && allForeignTargets)
+            {
+                client->app->transfer_failed(this, e);
+            }
+            else
+            {
+                bt.backoff(timeleft ? timeleft : NEVER);
+                client->activateoverquota(timeleft);
             }
         }
     }
-
-    for (file_list::iterator it = files.begin(); it != files.end(); it++)
+    else if (e == API_EARGS)
     {
-        if ( ((*it)->failed(e) && (e != API_EBUSINESSPASTDUE))
+        client->app->transfer_failed(this, e);
+    }
+    else if (e != API_EBUSINESSPASTDUE)
+    {
+        bt.backoff();
+        state = TRANSFERSTATE_RETRYING;
+        client->app->transfer_failed(this, e, timeleft);
+        client->looprequested = true;
+        ++client->performanceStats.transferTempErrors;
+    }
+
+    for (file_list::iterator it = files.begin(); it != files.end();)
+    {
+        // Remove files with foreign targets, if transfer failed with a (foreign) storage overquota
+        if (e == API_EOVERQUOTA
+                && !timeleft
+                && client->isForeignNode((*it)->h))
+        {
+            File *f = (*it++);
+            removeTransferFile(API_EOVERQUOTA, f, &committer);
+            continue;
+        }
+
+        /*
+         * If the transfer failed with API_EARGS, the target handle is invalid. For a sync-transfer,
+         * the actionpacket will eventually remove the target and the sync-engine will force to
+         * disable the synchronization of the folder. For non-sync-transfers, remove the file directly.
+         */
+        if (e == API_EARGS)
+        {
+             File *f = (*it++);
+             if (f->syncxfer)
+             {
+                defer = true;
+             }
+             else
+             {
+                removeTransferFile(API_EARGS, f, &committer);
+             }
+             continue;
+        }
+
+        if (((*it)->failed(e) && (e != API_EBUSINESSPASTDUE))
                 || (e == API_ENOENT // putnodes returned -9, file-storage server unavailable
                     && type == PUT
                     && tempurls.empty()
@@ -384,6 +451,8 @@ void Transfer::failed(error e, dstime timeleft)
         {
             defer = true;
         }
+
+        it++;
     }
 
     tempurls.clear();
@@ -408,7 +477,7 @@ void Transfer::failed(error e, dstime timeleft)
         failcount++;
         delete slot;
         slot = NULL;
-        client->transfercacheadd(this);
+        client->transfercacheadd(this, &committer);
 
         LOG_debug << "Deferring transfer " << failcount << " during " << (bt.retryin() * 100) << " ms";
     }
@@ -421,7 +490,9 @@ void Transfer::failed(error e, dstime timeleft)
         for (file_list::iterator it = files.begin(); it != files.end(); it++)
         {
 #ifdef ENABLE_SYNC
-            if((*it)->syncxfer && e != API_EBUSINESSPASTDUE)
+            if((*it)->syncxfer
+                && e != API_EBUSINESSPASTDUE
+                && e != API_EOVERQUOTA)
             {
                 client->syncdownrequired = true;
             }
@@ -429,6 +500,7 @@ void Transfer::failed(error e, dstime timeleft)
             client->app->file_removed(*it, e);
         }
         client->app->transfer_removed(this);
+        ++client->performanceStats.transferFails;
         delete this;
     }
 }
@@ -479,8 +551,10 @@ void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ std::strin
 
 // transfer completion: copy received file locally, set timestamp(s), verify
 // fingerprint, notify app, notify files
-void Transfer::complete()
+void Transfer::complete(DBTableTransactionCommitter& committer)
 {
+    CodeCounter::ScopeTimer ccst(client->performanceStats.transferComplete);
+
     state = TRANSFERSTATE_COMPLETING;
     client->app->transfer_update(this);
 
@@ -494,8 +568,7 @@ void Transfer::complete()
         bool success;
 
         // disconnect temp file from slot...
-        delete slot->fa;
-        slot->fa = NULL;
+        slot->fa.reset();
 
         // FIXME: multiple overwrite race conditions below (make copies
         // from open file instead of closing/reopening!)
@@ -512,7 +585,7 @@ void Transfer::complete()
 #endif
 
         // verify integrity of file
-        FileAccess* fa = client->fsaccess->newfileaccess();
+        auto fa = client->fsaccess->newfileaccess();
         FileFingerprint fingerprint;
         Node* n = nullptr;
         bool fixfingerprint = false;
@@ -541,7 +614,7 @@ void Transfer::complete()
 
         if (!fixedfingerprint && success && fa->fopen(&localfilename, true, false))
         {
-            fingerprint.genfingerprint(fa);
+            fingerprint.genfingerprint(fa.get());
             if (isvalid && !(fingerprint == *(FileFingerprint*)this))
             {
                 LOG_err << "Fingerprint mismatch";
@@ -550,10 +623,10 @@ void Transfer::complete()
                 if (syncxfer && (!badfp.isvalid || !(badfp == fingerprint)))
                 {
                     badfp = fingerprint;
-                    delete fa;
+                    fa.reset();
                     chunkmacs.clear();
                     client->fsaccess->unlinklocal(&localfilename);
-                    return failed(API_EWRITE);
+                    return failed(API_EWRITE, committer);
                 }
                 else
                 {
@@ -583,7 +656,7 @@ void Transfer::complete()
             }
         }
 #endif
-        delete fa;
+        fa.reset();
 
         char me64[12];
         Base64::btoa((const byte*)&client->me, MegaClient::USERHANDLE, me64);
@@ -729,8 +802,6 @@ void Transfer::complete()
                         transient_error = fa->retry;
                     }
 
-                    delete fa;
-
                     if (transient_error)
                     {
                         LOG_warn << "Transient error checking if the destination file exist";
@@ -814,7 +885,7 @@ void Transfer::complete()
                     if (success)
                     {
                         // prevent deletion of associated Transfer object in completed()
-                        client->filecachedel(*it);
+                        client->filecachedel(*it, &committer);
                         client->app->file_complete(*it);
                         (*it)->transfer = NULL;
                         (*it)->completed(this, NULL);
@@ -827,7 +898,7 @@ void Transfer::complete()
                         if (!success)
                         {
                             LOG_warn << "Unable to complete transfer due to a persistent error";
-                            client->filecachedel(f);
+                            client->filecachedel(f, &committer);
 #ifdef ENABLE_SYNC
                             if (f->syncxfer)
                             {
@@ -872,8 +943,7 @@ void Transfer::complete()
         else
         {
             // some files are still pending completion, close fa and set retry timer
-            delete slot->fa;
-            slot->fa = NULL;
+            slot->fa.reset();
 
             LOG_debug << "Files pending completion: " << files.size() << ". Waiting for a retry.";
             LOG_debug << "First pending file: " << files.front()->name;
@@ -896,16 +966,13 @@ void Transfer::complete()
                 client->reqtag = creqtag;
             }
 
-            delete slot->fa;
-            slot->fa = NULL;
+            slot->fa.reset();
         }
 
         // files must not change during a PUT transfer
         for (file_list::iterator it = files.begin(); it != files.end(); )
         {
             File *f = (*it);
-            bool isOpen = true;
-            FileAccess *fa = client->fsaccess->newfileaccess();
             string *localpath = &f->localname;
 
 #ifdef ENABLE_SYNC
@@ -923,20 +990,20 @@ void Transfer::complete()
             }
 #endif
 
-            if (!fa->fopen(localpath))
+            auto fa = client->fsaccess->newfileaccess();
+            bool isOpen = fa->fopen(localpath);
+            if (!isOpen)
             {
-                isOpen = false;
                 if (client->fsaccess->transient_error)
                 {
                     LOG_warn << "Retrying upload completion due to a transient error";
                     slot->retrying = true;
                     slot->retrybt.backoff(11);
-                    delete fa;
                     return;
                 }
             }
 
-            if (!isOpen || f->genfingerprint(fa))
+            if (!isOpen || f->genfingerprint(fa.get()))
             {
                 if (!isOpen)
                 {
@@ -953,22 +1020,17 @@ void Transfer::complete()
                     client->syncdownrequired = true;
                 }
 #endif
-                client->filecachedel(f);
-                files.erase(it++);
-                client->app->file_removed(f, API_EREAD);
-                f->transfer = NULL;
-                f->terminated();
+                removeTransferFile(API_EREAD, f, &committer);
             }
             else
             {
                 it++;
             }
-            delete fa;
         }
 
         if (!files.size())
         {
-            return failed(API_EREAD);
+            return failed(API_EREAD, committer);
         }
 
 
@@ -1546,7 +1608,7 @@ TransferList::TransferList()
     currentpriority = PRIORITY_START;
 }
 
-void TransferList::addtransfer(Transfer *transfer, bool startFirst)
+void TransferList::addtransfer(Transfer *transfer, DBTableTransactionCommitter& committer, bool startFirst)
 {
     if (transfer->state != TRANSFERSTATE_PAUSED)
     {
@@ -1559,7 +1621,7 @@ void TransferList::addtransfer(Transfer *transfer, bool startFirst)
         {
             transfer_list::iterator dstit = transfers[transfer->type].begin();
             transfer->priority = (*dstit)->priority - PRIORITY_STEP;
-            prepareIncreasePriority(transfer, transfers[transfer->type].end(), dstit);
+            prepareIncreasePriority(transfer, transfers[transfer->type].end(), dstit, committer);
             transfers[transfer->type].push_front(transfer);
         }
         else
@@ -1570,7 +1632,7 @@ void TransferList::addtransfer(Transfer *transfer, bool startFirst)
             transfers[transfer->type].push_back(transfer);
         }
 
-        client->transfercacheadd(transfer);
+        client->transfercacheadd(transfer, &committer);
     }
     else
     {
@@ -1589,17 +1651,17 @@ void TransferList::removetransfer(Transfer *transfer)
     }
 }
 
-void TransferList::movetransfer(Transfer *transfer, Transfer *prevTransfer)
+void TransferList::movetransfer(Transfer *transfer, Transfer *prevTransfer, DBTableTransactionCommitter& committer)
 {
     transfer_list::iterator dstit = iterator(prevTransfer);
     if (dstit == transfers[prevTransfer->type].end())
     {
         return;
     }
-    movetransfer(transfer, dstit);
+    movetransfer(transfer, dstit, committer);
 }
 
-void TransferList::movetransfer(Transfer *transfer, unsigned int position)
+void TransferList::movetransfer(Transfer *transfer, unsigned int position, DBTableTransactionCommitter& committer)
 {
     transfer_list::iterator it = iterator(transfer);
     if (it == transfers[transfer->type].end())
@@ -1617,20 +1679,20 @@ void TransferList::movetransfer(Transfer *transfer, unsigned int position)
         dstit = transfers[transfer->type].begin() + position;
     }
 
-    movetransfer(it, dstit);
+    movetransfer(it, dstit, committer);
 }
 
-void TransferList::movetransfer(Transfer *transfer, transfer_list::iterator dstit)
+void TransferList::movetransfer(Transfer *transfer, transfer_list::iterator dstit, DBTableTransactionCommitter& committer)
 {
     transfer_list::iterator it = iterator(transfer);
     if (it == transfers[transfer->type].end())
     {
         return;
     }
-    movetransfer(it, dstit);
+    movetransfer(it, dstit, committer);
 }
 
-void TransferList::movetransfer(transfer_list::iterator it, transfer_list::iterator dstit)
+void TransferList::movetransfer(transfer_list::iterator it, transfer_list::iterator dstit, DBTableTransactionCommitter& committer)
 {
     if (it == dstit)
     {
@@ -1655,7 +1717,7 @@ void TransferList::movetransfer(transfer_list::iterator it, transfer_list::itera
         transfer->priority = currentpriority;
         assert(!transfers[transfer->type].size() || transfers[transfer->type][transfers[transfer->type].size() - 1]->priority < transfer->priority);
         transfers[transfer->type].push_back(transfer);
-        client->transfercacheadd(transfer);
+        client->transfercacheadd(transfer, &committer);
         client->app->transfer_update(transfer);
         return;
     }
@@ -1690,7 +1752,7 @@ void TransferList::movetransfer(transfer_list::iterator it, transfer_list::itera
             Transfer *t = transfers[transfer->type][i];
             LOG_debug << "Adjusting priority of transfer " << i << " to " << fixedPriority;
             t->priority = fixedPriority;
-            client->transfercacheadd(t);
+            client->transfercacheadd(t, &committer);
             client->app->transfer_update(t);
             fixedPriority += PRIORITY_STEP;
         }
@@ -1701,7 +1763,7 @@ void TransferList::movetransfer(transfer_list::iterator it, transfer_list::itera
     transfer->priority = newpriority;
     if (srcindex > dstindex)
     {
-        prepareIncreasePriority(transfer, it, dstit);
+        prepareIncreasePriority(transfer, it, dstit, committer);
     }
     else
     {
@@ -1713,33 +1775,33 @@ void TransferList::movetransfer(transfer_list::iterator it, transfer_list::itera
     transfer_list::iterator fit = transfers[transfer->type].begin() + dstindex;
     assert(fit == transfers[transfer->type].end() || (*fit)->priority != transfer->priority);
     transfers[transfer->type].insert(fit, transfer);
-    client->transfercacheadd(transfer);
+    client->transfercacheadd(transfer, &committer);
     client->app->transfer_update(transfer);
 }
 
-void TransferList::movetofirst(Transfer *transfer)
+void TransferList::movetofirst(Transfer *transfer, DBTableTransactionCommitter& committer)
 {
-    movetransfer(transfer, transfers[transfer->type].begin());
+    movetransfer(transfer, transfers[transfer->type].begin(), committer);
 }
 
-void TransferList::movetofirst(transfer_list::iterator it)
-{
-    Transfer *transfer = (*it);
-    movetransfer(it, transfers[transfer->type].begin());
-}
-
-void TransferList::movetolast(Transfer *transfer)
-{
-    movetransfer(transfer, transfers[transfer->type].end());
-}
-
-void TransferList::movetolast(transfer_list::iterator it)
+void TransferList::movetofirst(transfer_list::iterator it, DBTableTransactionCommitter& committer)
 {
     Transfer *transfer = (*it);
-    movetransfer(it, transfers[transfer->type].end());
+    movetransfer(it, transfers[transfer->type].begin(), committer);
 }
 
-void TransferList::moveup(Transfer *transfer)
+void TransferList::movetolast(Transfer *transfer, DBTableTransactionCommitter& committer)
+{
+    movetransfer(transfer, transfers[transfer->type].end(), committer);
+}
+
+void TransferList::movetolast(transfer_list::iterator it, DBTableTransactionCommitter& committer)
+{
+    Transfer *transfer = (*it);
+    movetransfer(it, transfers[transfer->type].end(), committer);
+}
+
+void TransferList::moveup(Transfer *transfer, DBTableTransactionCommitter& committer)
 {
     transfer_list::iterator it = iterator(transfer);
     if (it == transfers[transfer->type].begin())
@@ -1747,10 +1809,10 @@ void TransferList::moveup(Transfer *transfer)
         return;
     }
     transfer_list::iterator dstit = it - 1;
-    movetransfer(it, dstit);
+    movetransfer(it, dstit, committer);
 }
 
-void TransferList::moveup(transfer_list::iterator it)
+void TransferList::moveup(transfer_list::iterator it, DBTableTransactionCommitter& committer)
 {
     if (it == transfers[(*it)->type].begin())
     {
@@ -1758,10 +1820,10 @@ void TransferList::moveup(transfer_list::iterator it)
     }
 
     transfer_list::iterator dstit = it - 1;
-    movetransfer(it, dstit);
+    movetransfer(it, dstit, committer);
 }
 
-void TransferList::movedown(Transfer *transfer)
+void TransferList::movedown(Transfer *transfer, DBTableTransactionCommitter& committer)
 {
     transfer_list::iterator it = iterator(transfer);
     if (it == transfers[transfer->type].end())
@@ -1776,10 +1838,10 @@ void TransferList::movedown(Transfer *transfer)
     }
 
     dstit++;
-    movetransfer(it, dstit);
+    movetransfer(it, dstit, committer);
 }
 
-void TransferList::movedown(transfer_list::iterator it)
+void TransferList::movedown(transfer_list::iterator it, DBTableTransactionCommitter& committer)
 {
     if (it == transfers[(*it)->type].end())
     {
@@ -1787,10 +1849,10 @@ void TransferList::movedown(transfer_list::iterator it)
     }
 
     transfer_list::iterator dstit = it + 1;
-    movetransfer(it, dstit);
+    movetransfer(it, dstit, committer);
 }
 
-error TransferList::pause(Transfer *transfer, bool enable)
+error TransferList::pause(Transfer *transfer, bool enable, DBTableTransactionCommitter& committer)
 {
     if (!transfer)
     {
@@ -1807,8 +1869,8 @@ error TransferList::pause(Transfer *transfer, bool enable)
     {
         transfer_list::iterator it = iterator(transfer);
         transfer->state = TRANSFERSTATE_QUEUED;
-        prepareIncreasePriority(transfer, it, it);
-        client->transfercacheadd(transfer);
+        prepareIncreasePriority(transfer, it, it, committer);
+        client->transfercacheadd(transfer, &committer);
         client->app->transfer_update(transfer);
         return API_OK;
     }
@@ -1827,7 +1889,7 @@ error TransferList::pause(Transfer *transfer, bool enable)
             transfer->slot = NULL;
         }
         transfer->state = TRANSFERSTATE_PAUSED;
-        client->transfercacheadd(transfer);
+        client->transfercacheadd(transfer, &committer);
         client->app->transfer_update(transfer);
         return API_OK;
     }
@@ -1886,7 +1948,7 @@ Transfer *TransferList::transferat(direction_t direction, unsigned int position)
     return NULL;
 }
 
-void TransferList::prepareIncreasePriority(Transfer *transfer, transfer_list::iterator /*srcit*/, transfer_list::iterator dstit)
+void TransferList::prepareIncreasePriority(Transfer *transfer, transfer_list::iterator /*srcit*/, transfer_list::iterator dstit, DBTableTransactionCommitter& committer)
 {
     if (dstit == transfers[transfer->type].end())
     {
@@ -1917,7 +1979,7 @@ void TransferList::prepareIncreasePriority(Transfer *transfer, transfer_list::it
             delete lastActiveTransfer->slot; 
             lastActiveTransfer->slot = NULL;
             lastActiveTransfer->state = TRANSFERSTATE_QUEUED;
-            client->transfercacheadd(lastActiveTransfer);
+            client->transfercacheadd(lastActiveTransfer, &committer);
             client->app->transfer_update(lastActiveTransfer);
         }
     }

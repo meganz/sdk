@@ -31,7 +31,7 @@ class MEGA_API SqliteDbAccess : public DbAccess
     string dbpath;
 
 public:
-    DbTable* open(PrnGen &rng, FileSystemAccess*, string*, bool = false);
+    DbTable* open(PrnGen &rng, FileSystemAccess*, string*, bool recycleLegacyDB, bool checkAlwaysTransacted) override;
 
     SqliteDbAccess(string* = NULL);
     ~SqliteDbAccess();
@@ -56,7 +56,7 @@ public:
     void abort();
     void remove();
 
-    SqliteDbTable(PrnGen &rng, sqlite3*, FileSystemAccess *fs, string *filepath);
+    SqliteDbTable(PrnGen &rng, sqlite3*, FileSystemAccess *fs, string *filepath, bool checkAlwaysTransacted);
     ~SqliteDbTable();
 };
 } // namespace

@@ -1175,6 +1175,11 @@ bool MegaTransfer::isBackupTransfer() const
     return false;
 }
 
+bool MegaTransfer::isForeignOverquota() const
+{
+    return false;
+}
+
 char *MegaTransfer::getLastBytes() const
 {
     return NULL;
@@ -2125,6 +2130,11 @@ void MegaApi::confirmCancelAccount(const char *link, const char *pwd, MegaReques
     pImpl->confirmCancelAccount(link, pwd, listener);
 }
 
+void MegaApi::resendVerificationEmail(MegaRequestListener *listener)
+{
+    pImpl->resendVerificationEmail(listener);
+}
+
 void MegaApi::changeEmail(const char *email, MegaRequestListener *listener)
 {
     pImpl->changeEmail(email, listener);
@@ -2140,9 +2150,9 @@ void MegaApi::confirmChangeEmail(const char *link, const char *pwd, MegaRequestL
     pImpl->confirmChangeEmail(link, pwd, listener);
 }
 
-void MegaApi::setProxySettings(MegaProxy *proxySettings)
+void MegaApi::setProxySettings(MegaProxy *proxySettings, MegaRequestListener *listener)
 {
-    pImpl->setProxySettings(proxySettings);
+    pImpl->setProxySettings(proxySettings, listener);
 }
 
 MegaProxy *MegaApi::getAutoProxySettings()
@@ -2624,7 +2634,7 @@ void MegaApi::getUserAlias(MegaHandle uh, MegaRequestListener *listener)
 
 void MegaApi::setUserAlias(MegaHandle uh, const char *alias, MegaRequestListener *listener)
 {
-    pImpl->setUserAlias(uh, alias);
+    pImpl->setUserAlias(uh, alias, listener);
 }
 
 void MegaApi::getRubbishBinAutopurgePeriod(MegaRequestListener *listener)
@@ -3318,9 +3328,9 @@ MegaShareList* MegaApi::getInSharesList(int order)
     return pImpl->getInSharesList(order);
 }
 
-MegaUser *MegaApi::getUserFromInShare(MegaNode *node)
+MegaUser *MegaApi::getUserFromInShare(MegaNode *node, bool recurse)
 {
-    return pImpl->getUserFromInShare(node);
+    return pImpl->getUserFromInShare(node, recurse);
 }
 
 bool MegaApi::isShared(MegaNode *node)
@@ -5257,12 +5267,12 @@ int MegaPricing::getProLevel(int)
     return 0;
 }
 
-unsigned int MegaPricing::getGBStorage(int)
+int MegaPricing::getGBStorage(int)
 {
     return 0;
 }
 
-unsigned int MegaPricing::getGBTransfer(int)
+int MegaPricing::getGBTransfer(int)
 {
     return 0;
 }
@@ -5295,6 +5305,16 @@ const char *MegaPricing::getIosID(int)
 const char *MegaPricing::getAndroidID(int)
 {
     return NULL;
+}
+
+bool MegaPricing::isBusinessType(int)
+{
+    return false;
+}
+
+int MegaPricing::getAmountMonth(int)
+{
+    return 0;
 }
 
 MegaPricing *MegaPricing::copy()

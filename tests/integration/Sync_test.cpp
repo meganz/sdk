@@ -21,6 +21,7 @@
 
 // Many of these tests are still being worked on.
 // The file uses some C++17 mainly for the very convenient std::filesystem library, though the main SDK must still build with C++11 (and prior)
+#ifdef ENABLE_SYNC
 
 #include "test.h"
 #include <mega.h>
@@ -31,6 +32,8 @@
 //#include <mega/tsthooks.h>
 #include <fstream>
 #include <atomic>
+
+#include <megaapi_impl.h>
 
 using namespace ::mega;
 using namespace ::std;
@@ -1137,7 +1140,7 @@ struct StandardClient : public MegaApp
         descendants = 0; 
         if (Sync* sync = syncByTag(syncid))
         {
-            if (!recursiveConfirm(mnode, &sync->localroot, descendants, "Sync " + to_string(syncid), 0))
+            if (!recursiveConfirm(mnode, sync->localroot.get(), descendants, "Sync " + to_string(syncid), 0))
             {
                 cout << "syncid " << syncid << " comparison against LocalNodes failed" << endl;
                 return false;
@@ -2385,6 +2388,90 @@ GTEST_TEST(Sync, DISABLED_BasicSync_moveAndDeleteLocalFile)
     ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
 }
 
+namespace {
+
+string makefa(const string& name, int fakecrc, int mtime)
+{
+    AttrMap attrs;
+    attrs.map['n'] = name;
+
+    FileFingerprint ff;
+    ff.crc[0] = ff.crc[1] = ff.crc[2] = ff.crc[3] = fakecrc;
+    ff.mtime = mtime;
+    ff.serializefingerprint(&attrs.map['c']);
+
+    string attrjson;
+    attrs.getjson(&attrjson);
+    return attrjson;
+}
+
+Node* makenode(MegaClient& mc, handle parent, ::mega::nodetype_t type, m_off_t size, handle owner, const string& attrs, ::mega::byte* key)
+{
+    static handle handlegenerator = 10;
+    std::vector<Node*> dp;
+    auto newnode = new Node(&mc, &dp, ++handlegenerator, parent, type, size, owner, nullptr, 1);
+    
+    newnode->nodekey.assign((char*)key, type == FILENODE ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH);
+    newnode->attrstring = new string;
+
+    SymmCipher sc;
+    sc.setkey(key, type);
+    mc.makeattr(&sc, newnode->attrstring, attrs.c_str());
+
+    int attrlen = int(newnode->attrstring->size());
+    string base64attrstring;
+    base64attrstring.resize(static_cast<size_t>(attrlen * 4 / 3 + 4));
+    base64attrstring.resize(static_cast<size_t>(Base64::btoa((::mega::byte *)newnode->attrstring->data(), int(newnode->attrstring->size()), (char *)base64attrstring.data())));
+
+    *newnode->attrstring = base64attrstring;
+
+    return newnode;
+}
+
+} // anonymous
+
+GTEST_TEST(Sync, NodeSorting_forPhotosAndVideos)
+{
+    fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
+    StandardClient standardclient(localtestroot, "sortOrderTests");
+    auto& client = standardclient.client;
+
+    handle owner = 99999;
+
+    ::mega::byte key[] = { 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04, 0x01, 0x02, 0x03, 0x04 };
+
+    // first 3 are root nodes:
+    auto cloudroot = makenode(client, UNDEF, ROOTNODE, -1, owner, makefa("root", 1, 1), key);
+    makenode(client, UNDEF, INCOMINGNODE, -1, owner, makefa("inbox", 1, 1), key);
+    makenode(client, UNDEF, RUBBISHNODE, -1, owner, makefa("bin", 1, 1), key);
+
+    // now some files to sort
+    auto photo1 = makenode(client, cloudroot->nodehandle, FILENODE, 9999, owner, makefa("abc.jpg", 1, 1570673890), key);
+    auto photo2 = makenode(client, cloudroot->nodehandle, FILENODE, 9999, owner, makefa("cba.png", 1, 1570673891), key);
+    auto video1 = makenode(client, cloudroot->nodehandle, FILENODE, 9999, owner, makefa("xyz.mov", 1, 1570673892), key);
+    auto video2 = makenode(client, cloudroot->nodehandle, FILENODE, 9999, owner, makefa("zyx.mp4", 1, 1570673893), key);
+    auto otherfile = makenode(client, cloudroot->nodehandle, FILENODE, 9999, owner, makefa("ASDF.fsda", 1, 1570673894), key);
+    auto otherfolder = makenode(client, cloudroot->nodehandle, FOLDERNODE, -1, owner, makefa("myfolder", 1, 1570673895), key);
+
+    node_vector v{ photo1, photo2, video1, video2, otherfolder, otherfile };
+    for (auto n : v) n->setkey(key);
+
+    MegaApiImpl::sortByComparatorFunction(v, MegaApi::ORDER_PHOTO_ASC, client);
+    node_vector v2{ photo1, photo2, video1, video2, otherfolder, otherfile };
+    ASSERT_EQ(v, v2);
+
+    MegaApiImpl::sortByComparatorFunction(v, MegaApi::ORDER_PHOTO_DESC, client);
+    node_vector v3{ photo2, photo1, video2, video1, otherfolder, otherfile };
+    ASSERT_EQ(v, v3);
+
+    MegaApiImpl::sortByComparatorFunction(v, MegaApi::ORDER_VIDEO_ASC, client);
+    node_vector v4{ video1, video2, photo1, photo2, otherfolder, otherfile };
+    ASSERT_EQ(v, v4);
+
+    MegaApiImpl::sortByComparatorFunction(v, MegaApi::ORDER_VIDEO_DESC, client);
+    node_vector v5{ video2, video1, photo2, photo1, otherfolder, otherfile };
+    ASSERT_EQ(v, v5);
+}
 
 #ifndef _WIN32
 #define DEFAULWAIT 20s
@@ -2593,5 +2680,7 @@ GTEST_TEST(Sync, BasicSync_CreateAndReplaceLinkUponSyncDown)
     //check client 2 is as expected
     ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
 }
+
+#endif
 
 #endif

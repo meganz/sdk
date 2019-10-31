@@ -56,11 +56,6 @@ namespace ac = ::mega::autocomplete;
 
 #include <iomanip>
 
-// TODO: Remove this once OSX supports std::filesystem
-#ifdef __APPLE__
-#undef USE_FILESYSTEM
-#endif
-
 using namespace mega;
 using std::cout;
 using std::cerr;
@@ -74,6 +69,8 @@ using std::dec;
 
 MegaClient* client;
 MegaClient* clientFolder;
+
+bool gVerboseMode = false;
 
 
 // new account signup e-mail address and name
@@ -291,22 +288,28 @@ void DemoApp::transfer_failed(Transfer* t, error e, dstime)
 
 void DemoApp::transfer_complete(Transfer* t)
 {
-    displaytransferdetails(t, "completed, ");
+    if (gVerboseMode)
+    {
+        displaytransferdetails(t, "completed, ");
 
-    if (t->slot)
-    {
-        cout << t->slot->progressreported * 10 / (1024 * (Waiter::ds - t->slot->starttime + 1)) << " KB/s" << endl;
-    }
-    else
-    {
-        cout << "delayed" << endl;
+        if (t->slot)
+        {
+            cout << t->slot->progressreported * 10 / (1024 * (Waiter::ds - t->slot->starttime + 1)) << " KB/s" << endl;
+        }
+        else
+        {
+            cout << "delayed" << endl;
+        }
     }
 }
 
 // transfer about to start - make final preparations (determine localfilename, create thumbnail for image upload)
 void DemoApp::transfer_prepare(Transfer* t)
 {
-    displaytransferdetails(t, "starting\n");
+    if (gVerboseMode)
+    {
+        displaytransferdetails(t, "starting\n");
+    }
 
     if (t->type == GET)
     {
@@ -511,7 +514,7 @@ AppFileGet::AppFileGet(Node* n, handle ch, byte* cfilekey, m_off_t csize, m_time
 
         if (!cfingerprint->size() || !unserializefingerprint(cfingerprint))
         {
-            memcpy(crc, filekey, sizeof crc);
+            memcpy(crc.data(), filekey, sizeof crc);
         }
 
         name = *cfilename;
@@ -1193,13 +1196,16 @@ void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
         return;
     }
 
-    cout << "Received " << l << " byte(s) of user attribute: ";
-    fwrite(data, 1, l, stdout);
-    cout << endl;
-
-    if (type == ATTR_ED25519_PUBK)
+    if (gVerboseMode)
     {
-        cout << "Credentials: " << AuthRing::fingerprint(string((const char*)data, l), true) << endl;
+        cout << "Received " << l << " byte(s) of user attribute: ";
+        fwrite(data, 1, l, stdout);
+        cout << endl;
+
+        if (type == ATTR_ED25519_PUBK)
+        {
+            cout << "Credentials: " << AuthRing::fingerprint(string((const char*)data, l), true) << endl;
+        }
     }
 }
 
@@ -1214,7 +1220,7 @@ void DemoApp::getua_result(TLVstore *tlv, attr_t type)
     {
         cout << "Error getting private user attribute" << endl;
     }
-    else
+    else if (!gVerboseMode)
     {
         cout << "Received a TLV with " << tlv->size() << " item(s) of user attribute: " << endl;
 
@@ -1900,19 +1906,14 @@ public:
 
 int loadfile(string* name, string* data)
 {
-    FileAccess* fa = client->fsaccess->newfileaccess();
+    auto fa = client->fsaccess->newfileaccess();
 
     if (fa->fopen(name, 1, 0))
     {
         data->resize(size_t(fa->size));
         fa->fread(data, unsigned(data->size()), 0, 0);
-        delete fa;
-
         return 1;
     }
-
-    delete fa;
-
     return 0;
 }
 
@@ -1920,6 +1921,7 @@ void xferq(direction_t d, int cancel)
 {
     string name;
 
+    DBTableTransactionCommitter committer(client->tctable);
     for (appfile_list::iterator it = appxferq[d].begin(); it != appxferq[d].end(); )
     {
         if (cancel < 0 || cancel == (*it)->seqno)
@@ -1958,7 +1960,7 @@ void xferq(direction_t d, int cancel)
 
                 if ((*it)->transfer)
                 {
-                    client->stopxfer(*it);
+                    client->stopxfer(*it, &committer);
                 }
                 delete *it++;
             }
@@ -2339,6 +2341,42 @@ Node* nodeFromRemotePath(const string& s)
     return n;
 }
 
+#ifdef MEGA_MEASURE_CODE
+
+void exec_deferRequests(autocomplete::ACState& s)
+{
+    // cause all the API requests of this type to be gathered up so they will be sent in a single batch, for timing purposes
+    bool putnodes = s.extractflag("-putnodes");
+    bool movenode = s.extractflag("-movenode");
+    bool delnode = s.extractflag("-delnode");
+
+    client->reqs.deferRequests =    [=](Command* c)
+                                    { 
+                                        return  (putnodes && dynamic_cast<CommandPutNodes*>(c)) ||
+                                                (movenode && dynamic_cast<CommandMoveNode*>(c)) ||
+                                                (delnode && dynamic_cast<CommandDelNode*>(c));
+                                    };
+}
+
+void exec_sendDeferred(autocomplete::ACState& s)
+{
+    // send those gathered up commands, and optionally reset the gathering 
+    client->reqs.sendDeferred();
+    
+    if (s.extractflag("-reset"))
+    {
+        client->reqs.deferRequests = nullptr;
+    }
+}
+
+void exec_codeTimings(autocomplete::ACState& s)
+{
+    bool reset = s.extractflag("-reset");
+    cout << client->performanceStats.report(reset, client->httpio, client->waiter) << flush;
+}
+
+#endif
+
 #ifdef USE_FILESYSTEM
 fs::path pathFromLocalPath(const string& s, bool mustexist)
 {
@@ -2360,6 +2398,58 @@ void exec_treecompare(autocomplete::ACState& s)
         recursiveCompare(n, p);
     }
 }
+
+
+bool buildLocalFolders(fs::path targetfolder, const string& prefix, int foldersperfolder, int recurselevel, int filesperfolder, int filesize, int& totalfilecount, int& totalfoldercount)
+{
+    fs::path p = targetfolder / fs::u8path(prefix);
+    if (!fs::create_directory(p))
+        return false;
+    ++totalfoldercount;
+
+    for (int i = 0; i < filesperfolder; ++i)
+    {
+        string filename = prefix + "_file_" + std::to_string(++totalfilecount);
+        fs::path fp = p / fs::u8path(filename);
+        ofstream fs(fp.u8string(), std::ios::binary);
+        
+        for (unsigned j = filesize / sizeof(int); j--; )
+        {
+            fs.write((char*)&totalfilecount, sizeof(int));
+        }
+        fs.write((char*)&totalfilecount, filesize % sizeof(int));
+    }
+
+    if (recurselevel > 1)
+    {
+        for (int i = 0; i < foldersperfolder; ++i)
+        {
+            if (!buildLocalFolders(p, prefix + "_" + std::to_string(i), foldersperfolder, recurselevel - 1, filesperfolder, filesize, totalfilecount, totalfoldercount))
+                return false;
+        }
+    }
+    return true;
+}
+
+void exec_generatetestfilesfolders(autocomplete::ACState& s)
+{
+    string param, nameprefix = "test";
+    int folderdepth = 1, folderwidth = 1, filecount = 100, filesize = 1024;
+    if (s.extractflagparam("-folderdepth", param)) folderdepth = atoi(param.c_str());
+    if (s.extractflagparam("-folderwidth", param)) folderwidth = atoi(param.c_str());
+    if (s.extractflagparam("-filecount", param)) filecount = atoi(param.c_str());
+    if (s.extractflagparam("-filesize", param)) filesize = atoi(param.c_str());
+    if (s.extractflagparam("-nameprefix", param)) nameprefix = param;
+
+    fs::path p = pathFromLocalPath(s.words[1].s, true);
+    if (!p.empty())
+    {
+        int totalfilecount = 0, totalfoldercount = 0;
+        buildLocalFolders(p, nameprefix, folderwidth, folderdepth, filecount, filesize, totalfilecount, totalfoldercount);
+        cout << "created " << totalfilecount << " files and " << totalfoldercount << " folders";
+    }
+}
+
 #endif
 
 void exec_getcloudstorageused(autocomplete::ACState& s)
@@ -2496,7 +2586,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_smsverify, sequence(text("smsverify"), either(sequence(text("send"), param("phonenumber"), opt(param("reverifywhitelisted"))), sequence(text("code"), param("verificationcode")))));
     p->Add(exec_verifiedphonenumber, sequence(text("verifiedphone")));
     p->Add(exec_mkdir, sequence(text("mkdir"), remoteFSFolder(client, &cwd)));
-    p->Add(exec_rm, sequence(text("rm"), remoteFSPath(client, &cwd)));
+    p->Add(exec_rm, sequence(text("rm"), remoteFSPath(client, &cwd), opt(sequence(flag("-regexchild"), param("regex")))));
     p->Add(exec_mv, sequence(text("mv"), remoteFSPath(client, &cwd, "src"), remoteFSPath(client, &cwd, "dst")));
     p->Add(exec_cp, sequence(text("cp"), remoteFSPath(client, &cwd, "src"), either(remoteFSPath(client, &cwd, "dst"), param("dstemail"))));
     p->Add(exec_du, sequence(text("du"), remoteFSPath(client, &cwd)));
@@ -2537,7 +2627,8 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_locallogout, sequence(text("locallogout")));
     p->Add(exec_symlink, sequence(text("symlink")));
     p->Add(exec_version, sequence(text("version")));
-    p->Add(exec_debug, sequence(text("debug")));
+    p->Add(exec_debug, sequence(text("debug"), opt(either(flag("-on"), flag("-off")))));
+    p->Add(exec_verbose, sequence(text("verbose"), opt(either(flag("-on"), flag("-off")))));
 #if defined(WIN32) && defined(NO_READLINE)
     p->Add(exec_clear, sequence(text("clear")));
     p->Add(exec_codepage, sequence(text("codepage"), opt(sequence(wholenumber(65001), opt(wholenumber(65001))))));
@@ -2580,8 +2671,20 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_quit, either(text("quit"), text("q"), text("exit")));
 
     p->Add(exec_find, sequence(text("find"), text("raided")));
+
+#ifdef MEGA_MEASURE_CODE
+    p->Add(exec_deferRequests, sequence(text("deferrequests"), repeat(either(flag("-putnodes")))));
+    p->Add(exec_sendDeferred, sequence(text("senddeferred"), opt(flag("-reset"))));
+    p->Add(exec_codeTimings, sequence(text("codetimings"), opt(flag("-reset"))));
+#endif
+
 #ifdef USE_FILESYSTEM
     p->Add(exec_treecompare, sequence(text("treecompare"), localFSPath(), remoteFSPath(client, &cwd)));
+    p->Add(exec_generatetestfilesfolders, sequence(text("generatetestfilesfolders"), repeat(either(sequence(flag("-folderdepth"), param("depth")), 
+                                                                                                   sequence(flag("-folderwidth"), param("width")), 
+                                                                                                   sequence(flag("-filecount"), param("count")), 
+                                                                                                   sequence(flag("-filesize"), param("size")), 
+                                                                                                   sequence(flag("-nameprefix"), param("prefix")))), localFSFolder("parent")));
 #endif
     p->Add(exec_querytransferquota, sequence(text("querytransferquota"), param("filesize")));
     p->Add(exec_getcloudstorageused, sequence(text("getcloudstorageused")));
@@ -2602,7 +2705,8 @@ bool recursiveget(fs::path&& localpath, Node* n, bool folders, unsigned& queued)
         {
             auto f = new AppFileGet(n, UNDEF, NULL, -1, 0, NULL, NULL, localpath.u8string());
             f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
-            client->startxfer(GET, f);
+            DBTableTransactionCommitter committer(client->tctable);
+            client->startxfer(GET, f, committer);
             queued += 1;
         }
     }
@@ -2642,6 +2746,7 @@ bool regexget(const string& expression, Node* n, unsigned& queued)
 
         if (n->type == FOLDERNODE || n->type == ROOTNODE)
         {
+            DBTableTransactionCommitter committer(client->tctable);
             for (node_list::iterator it = n->children.begin(); it != n->children.end(); it++)
             {
                 if ((*it)->type == FILENODE)
@@ -2650,7 +2755,7 @@ bool regexget(const string& expression, Node* n, unsigned& queued)
                     {
                         auto f = new AppFileGet(n);
                         f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
-                        client->startxfer(GET, f);
+                        client->startxfer(GET, f, committer);
                         queued += 1;
                     }
                 }
@@ -2922,28 +3027,48 @@ void exec_cd(autocomplete::ACState& s)
 
 void exec_rm(autocomplete::ACState& s)
 {
-    if (s.words.size() > 1)
-    {
-        if (Node* n = nodebypath(s.words[1].s.c_str()))
-        {
-            if (client->checkaccess(n, FULL))
-            {
-                error e = client->unlink(n);
+    string childregexstring;
+    bool useregex = s.extractflagparam("-regexchild", childregexstring);
 
-                if (e)
-                {
-                    cout << s.words[1].s << ": Deletion failed (" << errorstring(e) << ")" << endl;
-                }
-            }
-            else
+    if (Node* n = nodebypath(s.words[1].s.c_str()))
+    {
+        vector<Node*> v;
+        if (useregex)
+        {
+            std::regex re(childregexstring);
+            for (Node* c : n->children)
             {
-                cout << s.words[1].s << ": Access denied" << endl;
+                if (std::regex_match(c->displayname(), re))
+                {
+                    v.push_back(c);
+                }
             }
         }
         else
         {
-            cout << s.words[1].s << ": No such file or directory" << endl;
+            v.push_back(n);
         }
+
+        for (auto d : v)
+        {
+            if (client->checkaccess(d, FULL))
+            {
+                error e = client->unlink(d);
+
+                if (e)
+                {
+                    cout << d->displaypath() << ": Deletion failed (" << errorstring(e) << ")" << endl;
+                }
+            }
+            else
+            {
+                cout << d->displaypath() << ": Access denied" << endl;
+            }
+        }
+    }
+    else
+    {
+        cout << s.words[1].s << ": No such file or directory" << endl;
     }
 }
 
@@ -3352,12 +3477,12 @@ void exec_get(autocomplete::ACState& s)
             }
             else
             {
-                AppFile* f;
+                DBTableTransactionCommitter committer(client->tctable);
 
                 // queue specified file...
                 if (n->type == FILENODE)
                 {
-                    f = new AppFileGet(n);
+                    auto f = new AppFileGet(n);
 
                     string::size_type index = s.words[1].s.find(":");
                     // node from public folder link
@@ -3373,7 +3498,7 @@ void exec_get(autocomplete::ACState& s)
                     }
 
                     f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
-                    client->startxfer(GET, f);
+                    client->startxfer(GET, f, committer);
                 }
                 else
                 {
@@ -3382,9 +3507,9 @@ void exec_get(autocomplete::ACState& s)
                     {
                         if ((*it)->type == FILENODE)
                         {
-                            f = new AppFileGet(*it);
+                            auto f = new AppFileGet(*it);
                             f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
-                            client->startxfer(GET, f);
+                            client->startxfer(GET, f, committer);
                         }
                     }
                 }
@@ -3434,18 +3559,23 @@ void exec_put(autocomplete::ACState& s)
 
     if (da->dopen(&localname, NULL, true))
     {
+        DBTableTransactionCommitter committer(client->tctable);
+
         while (da->dnext(NULL, &localname, true, &type))
         {
             client->fsaccess->local2path(&localname, &name);
-            cout << "Queueing " << name << "..." << endl;
+            if (gVerboseMode)
+            {
+                cout << "Queueing " << name << "..." << endl;
+            }
 
             if (type == FILENODE)
             {
-                FileAccess *fa = client->fsaccess->newfileaccess();
+                auto fa = client->fsaccess->newfileaccess();
                 if (fa->fopen(&name, true, false))
                 {
                     FileFingerprint fp;
-                    fp.genfingerprint(fa);
+                    fp.genfingerprint(fa.get());
 
                     Node *previousNode = client->childnodebyname(n, name.c_str(), true);
                     if (previousNode && previousNode->type == type)
@@ -3453,16 +3583,15 @@ void exec_put(autocomplete::ACState& s)
                         if (fp.isvalid && previousNode->isvalid && fp == *((FileFingerprint *)previousNode))
                         {
                             cout << "Identical file already exist. Skipping transfer of " << name << endl;
-                            delete fa;
                             continue;
                         }
                     }
                 }
-                delete fa;
+                fa.reset();
 
                 f = new AppFilePut(&localname, target, targetuser.c_str());
                 f->appxfer_it = appxferq[PUT].insert(appxferq[PUT].end(), f);
-                client->startxfer(PUT, f);
+                client->startxfer(PUT, f, committer);
                 total++;
             }
         }
@@ -3696,10 +3825,10 @@ void exec_sync(autocomplete::ACState& s)
                     static const char* syncstatenames[] =
                     { "Initial scan, please wait", "Active", "Failed" };
 
-                    if ((*it)->localroot.node)
+                    if ((*it)->localroot->node)
                     {
-                        nodepath((*it)->localroot.node->nodehandle, &remotepath);
-                        client->fsaccess->local2path(&(*it)->localroot.localname, &localpath);
+                        nodepath((*it)->localroot->node->nodehandle, &remotepath);
+                        client->fsaccess->local2path(&(*it)->localroot->localname, &localpath);
 
                         cout << i++ << ": " << localpath << " to " << remotepath << " - "
                                 << syncstatenames[(*it)->state] << ", " << (*it)->localbytes
@@ -4296,7 +4425,36 @@ void exec_pause(autocomplete::ACState& s)
 
 void exec_debug(autocomplete::ACState& s)
 {
-    cout << "Debug mode " << (client->toggledebug() ? "on" : "off") << endl;
+    bool turnon = s.extractflag("-on");
+    bool turnoff = s.extractflag("-off");
+
+    bool state = client->debugstate();
+    if ((turnon && !state) || (turnoff && state) || (!turnon && !turnoff))
+    {
+        client->toggledebug();
+    }
+
+    cout << "Debug mode " << (client->debugstate() ? "on" : "off") << endl;
+}
+
+void exec_verbose(autocomplete::ACState& s)
+{
+    bool turnon = s.extractflag("-on");
+    bool turnoff = s.extractflag("-off");
+
+    if (turnon)
+    {
+        gVerboseMode = true;
+    }
+    else if (turnoff)
+    {
+        gVerboseMode = false;
+    }
+    else
+    {
+        gVerboseMode = !gVerboseMode;
+    }
+    cout << "Verbose mode " << (gVerboseMode ? "on" : "off") << endl;
 }
 
 #if defined(WIN32) && defined(NO_READLINE)
@@ -6509,9 +6667,10 @@ void DemoApp::checkfile_result(handle h, error e, byte* filekey, m_off_t size, m
     {
         cout << "Initiating download..." << endl;
 
+        DBTableTransactionCommitter committer(client->tctable);
         AppFileGet* f = new AppFileGet(NULL, h, filekey, size, tm, filename, fingerprint);
         f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
-        client->startxfer(GET, f);
+        client->startxfer(GET, f, committer);
     }
 }
 
@@ -6632,7 +6791,7 @@ void DemoApp::notify_confirmation(const char *email)
     }
 }
 
-void DemoApp::enumeratequotaitems_result(handle, unsigned, unsigned, unsigned, unsigned, unsigned, const char*, const char*, const char*, const char*)
+void DemoApp::enumeratequotaitems_result(unsigned, handle, unsigned, int, int, unsigned, unsigned, unsigned, const char*, const char*, const char*, const char*)
 {
     // FIXME: implement
 }
@@ -6710,8 +6869,8 @@ void DemoApp::contactlinkquery_result(error e, handle h, string *email, string *
         cout << "Contact link created successfully: " << endl;
         cout << "\tUserhandle: " << LOG_HANDLE(h) << endl;
         cout << "\tEmail: " << *email << endl;
-        cout << "\tFirstname: " << *fn << endl;
-        cout << "\tLastname: " << *ln << endl;
+        cout << "\tFirstname: " << Base64::atob(*fn) << endl;
+        cout << "\tLastname: " << Base64::atob(*ln) << endl;
     }
 }
 
@@ -7142,8 +7301,22 @@ void megacli()
             }
         }
 
+
+        auto puts = appxferq[PUT].size();
+        auto gets = appxferq[GET].size();
+
         // pass the CPU to the engine (nonblocking)
         client->exec();
+
+        if (puts && !appxferq[PUT].size())
+        {
+            cout << "Uploads complete" << endl;
+        }
+        if (gets && !appxferq[GET].size())
+        {
+            cout << "Downloads complete" << endl;
+        }
+
 
         if (clientFolder)
         {
@@ -7158,8 +7331,11 @@ public:
     void log(const char*, int loglevel, const char*, const char *message) override
     {
 #ifdef _WIN32
-        OutputDebugStringA(message);
-        OutputDebugStringA("\r\n");
+        string s;
+        s.reserve(1024);
+        s += message;
+        s += "\r\n";
+        OutputDebugStringA(s.c_str());
 #else
         if (loglevel >= SimpleLogger::logCurrentLevel)
         {

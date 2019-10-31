@@ -1309,14 +1309,8 @@ TLVstore * TLVstore::containerToTLVrecords(const string *data)
         pos = data->find('\0', offset);
         typelen = pos - offset;
 
-        if (pos == string::npos)
-        {
-            LOG_warn << "Invalid record in the TLV";
-            return tlv;
-        }
-
         // if no valid TLV record in the container, but remaining bytes...
-        if (offset + typelen + 3 > datalen)
+        if (pos == string::npos || offset + typelen + 3 > datalen)
         {
             delete tlv;
             return NULL;
@@ -1980,7 +1974,7 @@ int macOSmajorVersion()
                 long majorVersion = strtol(token, &endPtr, 10);
                 if (endPtr != token && errno != ERANGE && majorVersion >= INT_MIN && majorVersion <= INT_MAX)
                 {
-                    return majorVersion;
+                    return int(majorVersion);
                 }
             }
         }

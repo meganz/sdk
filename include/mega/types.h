@@ -74,6 +74,7 @@ typedef unsigned char byte;
 
 #include <memory>
 #include <string>
+#include <chrono>
 
 namespace mega {
 
@@ -190,7 +191,7 @@ typedef enum ErrorCodes
     API_ERATELIMIT = -4,            ///< Too many requests, slow down.
     API_EFAILED = -5,               ///< Request failed permanently.
     API_ETOOMANY = -6,              ///< Too many requests for this resource.
-    API_ERANGE = -7,                ///< Resource access out of rage.
+    API_ERANGE = -7,                ///< Resource access out of range.
     API_EEXPIRED = -8,              ///< Resource expired.
     API_ENOENT = -9,                ///< Resource does not exist.
     API_ECIRCULAR = -10,            ///< Circular linkage.
@@ -585,6 +586,88 @@ template<class T, class... constructorArgs>
 unique_ptr<T> make_unique(constructorArgs&&... args)
 {
     return (unique_ptr<T>(new T(std::forward<constructorArgs>(args)...)));
+}
+
+//#define MEGA_MEASURE_CODE   // uncomment this to track time spent in major subsystems, and log it every 2 minutes, with extra control from megacli
+
+namespace CodeCounter
+{
+    // Some classes that allow us to easily measure the number of times a block of code is called, and the sum of the time it takes.
+    // Only enabled if MEGA_MEASURE_CODE is turned on.
+    // Usage generally doesn't need to be protected by the macro as the classes and methods will be empty when not enabled.
+
+    using namespace std::chrono;
+
+    struct ScopeStats
+    {
+#ifdef MEGA_MEASURE_CODE
+        uint64_t count = 0;
+        uint64_t starts = 0;
+        uint64_t finishes = 0;
+        high_resolution_clock::duration timeSpent{};
+        std::string name;
+        ScopeStats(std::string s) : name(std::move(s)) {}
+
+        inline string report(bool reset = false) 
+        { 
+            string s = " " + name + ": " + std::to_string(count) + " " + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(timeSpent).count()); 
+            if (reset)
+            {
+                count = 0;
+                starts -= finishes;
+                finishes = 0;
+                timeSpent = high_resolution_clock::duration{};
+            }
+            return s;
+        }
+#else
+        ScopeStats(std::string s) {}
+#endif
+    };
+
+    struct DurationSum
+    {
+#ifdef MEGA_MEASURE_CODE
+        high_resolution_clock::duration sum{ 0 };
+        high_resolution_clock::time_point deltaStart;
+        bool started = false;
+        inline void start(bool b = true) { if (b && !started) { deltaStart = high_resolution_clock::now(); started = true; }  }
+        inline void stop(bool b = true) { if (b && started) { sum += high_resolution_clock::now() - deltaStart; started = false; } }
+        inline bool inprogress() { return started; }
+        inline string report(bool reset = false) 
+        { 
+            string s = std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(sum).count()); 
+            if (reset) sum = high_resolution_clock::duration{ 0 };
+            return s;
+        }
+#else
+        inline void start(bool = true) {  }
+        inline void stop(bool = true) {  }
+#endif
+    };
+
+    struct ScopeTimer
+    {
+#ifdef MEGA_MEASURE_CODE
+        ScopeStats& scope;
+        high_resolution_clock::time_point blockStart;
+
+        ScopeTimer(ScopeStats& sm) : scope(sm), blockStart(high_resolution_clock::now())
+        {
+            ++scope.starts;
+        }
+        ~ScopeTimer()
+        {
+            ++scope.count;
+            ++scope.finishes;
+            scope.timeSpent += high_resolution_clock::now() - blockStart;
+        }
+#else
+        ScopeTimer(ScopeStats& sm)
+        {
+        }
+#endif
+    };
 }
 
 } // namespace

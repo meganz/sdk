@@ -62,7 +62,7 @@ struct MEGA_API ConsoleModel
     size_t insertPos = 0;
 
     // we can receive multiple newlines in a single key event. All these must be consumed before we check for more keypresses
-    unsigned newlinesBuffered = 0;
+    bool newlinesBuffered = false;
 
     // remember the last N commands executed 
     std::deque<std::wstring> inputHistory;

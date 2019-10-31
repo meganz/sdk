@@ -45,7 +45,7 @@ File::~File()
     // if transfer currently running, stop
     if (transfer)
     {
-        transfer->client->stopxfer(this);
+        transfer->client->stopxfer(this, nullptr);
     }
     delete [] chatauth;
 }
@@ -337,10 +337,10 @@ void File::completed(Transfer* t, LocalNode* l)
         {
             handle th = h;
 
-            // inaccessible target folder - use / instead
+            // inaccessible target folder - use //bin instead
             if (!t->client->nodebyhandle(th))
             {
-                th = t->client->rootnodes[0];
+                th = t->client->rootnodes[RUBBISHNODE - ROOTNODE];
             }
 #ifdef ENABLE_SYNC            
             if (l)
@@ -504,8 +504,7 @@ void SyncFileGet::prepare()
             // back to the sync's root
             if (i < 0)
             {
-                delete sync->tmpfa;
-                sync->tmpfa = NULL;
+                sync->tmpfa.reset();
             }
         }
 
@@ -517,7 +516,7 @@ void SyncFileGet::prepare()
         }
         else
         {
-            transfer->localfilename = sync->localroot.localname;
+            transfer->localfilename = sync->localroot->localname;
         }
 
         sync->client->fsaccess->tmpnamelocal(&tmpname);

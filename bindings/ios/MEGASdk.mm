@@ -44,6 +44,7 @@
 #import "MEGAFileInputStream.h"
 #import "MEGADataInputStream.h"
 #import "MEGACancelToken+init.h"
+#import "MEGAPushNotificationSettings+init.h"
 
 #import <set>
 #import <pthread.h>
@@ -542,6 +543,14 @@ using namespace mega;
     return self.megaApi->isLoggedIn();
 }
 
+- (void)fetchNodesWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->fetchNodes([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)fetchNodes {
+    self.megaApi->fetchNodes();
+}
+
 - (void)logoutWithDelegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->logout([self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
@@ -570,12 +579,43 @@ using namespace mega;
     return self.megaApi->checkPassword(password ? [password UTF8String] : NULL);
 }
 
-- (void)fetchNodesWithDelegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->fetchNodes([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+- (NSString *)myCredentials {
+    const char *val = self.megaApi->getMyCredentials();
+    if (val) {
+        NSString *ret = [NSString.alloc initWithUTF8String:val];
+        delete [] val;
+        return ret;
+    } else {
+        return nil;
+    }
 }
 
-- (void)fetchNodes {
-    self.megaApi->fetchNodes();
+- (void)getUserCredentials:(MEGAUser *)user delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getUserCredentials(user ? user.getCPtr : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)getUserCredentials:(MEGAUser *)user {
+    self.megaApi->getUserCredentials(user ? user.getCPtr : NULL);
+}
+
+- (BOOL)areCredentialsVerifiedOfUser:(MEGAUser *)user {
+    return self.megaApi->areCredentialsVerified(user ? user.getCPtr : NULL);
+}
+
+- (void)verifyCredentialsOfUser:(MEGAUser *)user delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->verifyCredentials(user ? user.getCPtr : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)verifyCredentialsOfUser:(MEGAUser *)user {
+    self.megaApi->verifyCredentials(user ? user.getCPtr : NULL);
+}
+
+- (void)resetCredentialsOfUser:(MEGAUser *)user delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->resetCredentials(user ? user.getCPtr : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)resetCredentialsOfUser:(MEGAUser *)user {
+    self.megaApi->resetCredentials(user ? user.getCPtr : NULL);
 }
 
 #pragma mark - Create account and confirm account Requests
@@ -669,11 +709,11 @@ using namespace mega;
     self.megaApi->queryResetPasswordLink((link != nil) ? [link UTF8String] : NULL);
 }
 
-- (void)confirmResetPasswordWithLink:(NSString *)link newPassword:(NSString *)newPassword masterKey:(NSString *)masterKey delegate:(id<MEGARequestDelegate>)delegate {
+- (void)confirmResetPasswordWithLink:(NSString *)link newPassword:(NSString *)newPassword masterKey:(nullable NSString *)masterKey delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->confirmResetPassword((link != nil) ? [link UTF8String] : NULL, (newPassword != nil) ? [newPassword UTF8String] : NULL, (masterKey != nil) ? [masterKey UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (void)confirmResetPasswordWithLink:(NSString *)link newPassword:(NSString *)newPassword masterKey:(NSString *)masterKey {
+- (void)confirmResetPasswordWithLink:(NSString *)link newPassword:(NSString *)newPassword masterKey:(nullable NSString *)masterKey {
     self.megaApi->confirmResetPassword((link != nil) ? [link UTF8String] : NULL, (newPassword != nil) ? [newPassword UTF8String] : NULL, (masterKey != nil) ? [masterKey UTF8String] : NULL);
 }
 
@@ -699,6 +739,14 @@ using namespace mega;
 
 - (void)confirmCancelAccountWithLink:(NSString *)link password:(NSString *)password {
     self.megaApi->confirmCancelAccount((link != nil) ? [link UTF8String] : NULL, (password != nil) ? [password UTF8String] : NULL);
+}
+
+- (void)resendVerificationEmailWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->resendVerificationEmail([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)resendVerificationEmail {
+    self.megaApi->resendVerificationEmail();
 }
 
 - (void)changeEmail:(NSString *)email delegate:(id<MEGARequestDelegate>)delegate {
@@ -1394,33 +1442,33 @@ using namespace mega;
     self.megaApi->startUpload((localPath != nil) ? [localPath UTF8String] : NULL, (parent != nil) ? [parent getCPtr] : NULL, (filename != nil) ? [filename UTF8String] : NULL);
 }
 
-- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(NSString *)appData delegate:(id<MEGATransferDelegate>)delegate {
+- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(nullable NSString *)appData delegate:(id<MEGATransferDelegate>)delegate {
     self.megaApi->startUploadWithData((localPath != nil) ? [localPath UTF8String] : NULL, (parent != nil) ? [parent getCPtr] : NULL, (appData !=nil) ? [appData UTF8String] : NULL, [self createDelegateMEGATransferListener:delegate singleListener:YES]);
 }
 
-- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(NSString *)appData {
+- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(nullable NSString *)appData {
     self.megaApi->startUploadWithData((localPath != nil) ? [localPath UTF8String] : NULL, (parent != nil) ? [parent getCPtr] : NULL, (appData !=nil) ? [appData UTF8String] : NULL);
 }
 
-- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary delegate:(id<MEGATransferDelegate>)delegate {
+- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(nullable NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary delegate:(id<MEGATransferDelegate>)delegate {
     self.megaApi->startUploadWithData((localPath != nil) ? [localPath UTF8String] : NULL, (parent != nil) ? [parent getCPtr] : NULL, (appData !=nil) ? [appData UTF8String] : NULL, isSourceTemporary, [self createDelegateMEGATransferListener:delegate singleListener:YES]);
 }
 
-- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary {    
+- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(nullable NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary {
     self.megaApi->startUploadWithData((localPath != nil) ? [localPath UTF8String] : NULL, (parent != nil) ? [parent getCPtr] : NULL, (appData !=nil) ? [appData UTF8String] : NULL, isSourceTemporary);
 }
 
-- (void)startUploadTopPriorityWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary delegate:(id<MEGATransferDelegate>)delegate {
+- (void)startUploadTopPriorityWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(nullable NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary delegate:(id<MEGATransferDelegate>)delegate {
     self.megaApi->startUploadWithTopPriority((localPath != nil) ? [localPath UTF8String] : NULL, (parent != nil) ? [parent getCPtr] : NULL, (appData !=nil) ? [appData UTF8String] : NULL, isSourceTemporary, [self createDelegateMEGATransferListener:delegate singleListener:YES]);
 }
 
-- (void)startUploadTopPriorityWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary {
+- (void)startUploadTopPriorityWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(nullable NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary {
     self.megaApi->startUploadWithTopPriority((localPath != nil) ? [localPath UTF8String] : NULL, (parent != nil) ? [parent getCPtr] : NULL, (appData !=nil) ? [appData UTF8String] : NULL, isSourceTemporary);
 }
 
 - (void)startUploadForChatWithLocalPath:(NSString *)localPath
                                  parent:(MEGANode *)parent
-                                appData:(NSString *)appData
+                                appData:(nullable NSString *)appData
                       isSourceTemporary:(BOOL)isSourceTemporary
                                delegate:(id<MEGATransferDelegate>)delegate {
     self.megaApi->startUploadForChat(localPath.UTF8String,
@@ -1438,19 +1486,19 @@ using namespace mega;
     self.megaApi->startDownload((node != nil) ? [node getCPtr] : NULL, (localPath != nil) ? [localPath UTF8String] : NULL);
 }
 
-- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath appData:(NSString *)appData {
+- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath appData:(nullable NSString *)appData {
     self.megaApi->startDownloadWithData((node != nil) ? [node getCPtr] : NULL, (localPath != nil) ? [localPath UTF8String] : NULL, (appData != nil) ? [appData UTF8String] : NULL);
 }
 
-- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath appData:(NSString *)appData delegate:(id<MEGATransferDelegate>)delegate{
+- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath appData:(nullable NSString *)appData delegate:(id<MEGATransferDelegate>)delegate{
     self.megaApi->startDownloadWithData((node != nil) ? [node getCPtr] : NULL, (localPath != nil) ? [localPath UTF8String] : NULL, (appData != nil) ? [appData UTF8String] : NULL, [self createDelegateMEGATransferListener:delegate singleListener:YES]);
 }
 
-- (void)startDownloadTopPriorityWithNode:(MEGANode *)node localPath:(NSString *)localPath appData:(NSString *)appData delegate:(id<MEGATransferDelegate>)delegate {
+- (void)startDownloadTopPriorityWithNode:(MEGANode *)node localPath:(NSString *)localPath appData:(nullable NSString *)appData delegate:(id<MEGATransferDelegate>)delegate {
     self.megaApi->startDownloadWithTopPriority((node != nil) ? [node getCPtr] : NULL, (localPath != nil) ? [localPath UTF8String] : NULL, (appData != nil) ? [appData UTF8String] : NULL, [self createDelegateMEGATransferListener:delegate singleListener:YES]);
 }
 
-- (void)startDownloadTopPriorityWithNode:(MEGANode *)node localPath:(NSString *)localPath appData:(NSString *)appData {
+- (void)startDownloadTopPriorityWithNode:(MEGANode *)node localPath:(NSString *)localPath appData:(nullable NSString *)appData {
     self.megaApi->startDownloadWithTopPriority((node != nil) ? [node getCPtr] : NULL, (localPath != nil) ? [localPath UTF8String] : NULL, (appData != nil) ? [appData UTF8String] : NULL);
 }
 
@@ -1692,6 +1740,10 @@ using namespace mega;
     return [[MEGAUser alloc] initWithMegaUser:self.megaApi->getUserFromInShare(node ? [node getCPtr] : NULL) cMemoryOwn:YES];
 }
 
+- (MEGAUser *)userFromInShareNode:(MEGANode *)node recurse:(BOOL)recurse {
+    return [MEGAUser.alloc initWithMegaUser:self.megaApi->getUserFromInShare(node ? [node getCPtr] : NULL, recurse) cMemoryOwn:YES];
+}
+
 - (BOOL)isSharedNode:(MEGANode *)node {
     if (!node) return NO;
     
@@ -1865,10 +1917,6 @@ using namespace mega;
 
 - (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString recursive:(BOOL)recursive {
     return [[MEGANodeList alloc] initWithNodeList:self.megaApi->search((node != nil) ? [node getCPtr] : NULL, (searchString != nil) ? [searchString UTF8String] : NULL, recursive) cMemoryOwn:YES];
-}
-
-- (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString cancelToken:(MEGACancelToken *)cancelToken recursive:(BOOL)recursive {
-    return [MEGANodeList.alloc initWithNodeList:self.megaApi->search(node ? [node getCPtr] : NULL, searchString.UTF8String, cancelToken ? [cancelToken getCPtr] : NULL, recursive) cMemoryOwn:YES];
 }
 
 - (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString cancelToken:(MEGACancelToken *)cancelToken recursive:(BOOL)recursive order:(MEGASortOrderType)order {
@@ -2208,6 +2256,26 @@ using namespace mega;
 
 - (void)checkSMSVerificationCode:(NSString *)verificationCode delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->checkSMSVerificationCode([verificationCode UTF8String], [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+#pragma mark - Push Notification Settings
+
+- (void)getPushNotificationSettingsWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getPushNotificationSettings([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)getPushNotificationSettings {
+    self.megaApi->getPushNotificationSettings();
+}
+
+- (void)setPushNotificationSettings:(MEGAPushNotificationSettings *)pushNotificationSettings
+                           delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->setPushNotificationSettings(pushNotificationSettings.getCPtr,
+                                              [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)setPushNotificationSettings:(MEGAPushNotificationSettings *)pushNotificationSettings {
+    self.megaApi->setPushNotificationSettings(pushNotificationSettings.getCPtr);
 }
 
 #pragma mark - Debug log messages
