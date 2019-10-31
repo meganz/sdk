@@ -811,28 +811,7 @@ m_off_t& TransferBufferManager::transferPos(unsigned connectionNum)
     return isRaid() ? RaidBufferManager::transferPos(connectionNum) : transfer->pos;
 }
 
-m_off_t TransferBufferManager::nextTransferPos()
-{
-    assert(!isRaid());
-    chunkmac_map& chunkmacs = transfer->chunkmacs;
-    chunkmac_map::const_iterator it = chunkmacs.find(ChunkedHash::chunkfloor(transfer->pos));
-    while (it != chunkmacs.end())
-    {
-        if (it->second.finished)
-        {
-            transfer->pos = ChunkedHash::chunkceil(transfer->pos);
-        }
-        else
-        {
-            transfer->pos += it->second.offset;
-            break;
-        }
-        it = chunkmacs.find(ChunkedHash::chunkfloor(transfer->pos));
-    }
-    return transfer->pos;
-}
-
-std::pair<m_off_t, m_off_t> TransferBufferManager::nextNPosForConnection(unsigned connectionNum, m_off_t maxRequestSize, unsigned connectionCount, bool& newInputBufferSupplied, bool& pauseConnectionForRaid)
+std::pair<m_off_t, m_off_t> TransferBufferManager::nextNPosForConnection(unsigned connectionNum, m_off_t maxRequestSize, unsigned connectionCount, bool& newInputBufferSupplied, bool& pauseConnectionForRaid, m_off_t uploadSpeed)
 {
     // returning a pair for clarity - specifying the beginning and end position of the next data block, as the 'current pos' may be updated during this function
     newInputBufferSupplied = false;
@@ -844,10 +823,34 @@ std::pair<m_off_t, m_off_t> TransferBufferManager::nextNPosForConnection(unsigne
     }
     else
     {
-        m_off_t npos = ChunkedHash::chunkceil(nextTransferPos(), transfer->size);
+        transfer->pos = transfer->chunkmacs.nextUnprocessedPosFrom(transfer->pos);
+        m_off_t npos = ChunkedHash::chunkceil(transfer->pos, transfer->size);
         if (!transfer->size)
         {
             transfer->pos = 0;
+        }
+
+        if (transfer->type == PUT)
+        {
+            if (transfer->pos < 1024 * 1024)
+            {
+                npos = ChunkedHash::chunkceil(npos, transfer->size);
+            }
+
+            // choose upload chunks that are big enough to saturate the connection, so we don't start HTTP PUT request too frequently
+            // make them smaller at the end of the file so we still have the last parts delivered in parallel
+            m_off_t maxsize = 32 * 1024 * 1024;
+            if (npos + 2 * maxsize > transfer->size) maxsize /= 2;
+            if (npos + maxsize > transfer->size) maxsize /= 2;
+            if (npos + maxsize > transfer->size) maxsize /= 2;
+            m_off_t speedsize = std::min<m_off_t>(maxsize, uploadSpeed * 2 / 3);    // two seconds of data over 3 connections
+            m_off_t sizesize = transfer->size > 32 * 1024 * 1024 ? 8 * 1024 * 1024 : 0;  // start with large-ish portions for large files.
+            m_off_t targetsize = std::max<m_off_t>(sizesize, speedsize);
+            
+            while (npos < transfer->pos + targetsize && npos < transfer->size)
+            {
+                npos = ChunkedHash::chunkceil(npos, transfer->size);
+            }
         }
 
         if (transfer->type == GET && transfer->size && npos > transfer->pos)
@@ -873,20 +876,24 @@ std::pair<m_off_t, m_off_t> TransferBufferManager::nextNPosForConnection(unsigne
                 maxReqSize = 0;
             }
 
-            chunkmac_map::iterator it = transfer->chunkmacs.find(npos);
-            m_off_t reqSize = npos - transfer->pos;
-            while (npos < transfer->size
-                && reqSize <= maxReqSize
-                && (it == transfer->chunkmacs.end()
-                    || (!it->second.finished && !it->second.offset)))
-            {
-                npos = ChunkedHash::chunkceil(npos, transfer->size);
-                reqSize = npos - transfer->pos;
-                it = transfer->chunkmacs.find(npos);
-            }
-            LOG_debug << "Downloading chunk of size " << reqSize;
+            npos = transfer->chunkmacs.expandPiece(transfer->pos, npos, transfer->size, maxReqSize);
+            LOG_debug << "Downloading chunk of size " << npos - transfer->pos;
             assert(reqSize > 0);
         }
+
+        // code from prior to raid - for consideration
+        //if (transfer->type == PUT && (npos - progresscontiguous) > TransferSlot::MAX_UPLOAD_GAP)
+        //{
+        //    if (!delayedchunk)
+        //    {
+        //        int creqtag = client->reqtag;
+        //        client->reqtag = 0;
+        //        client->sendevent(99441, "Management of delayed chunks active");
+        //        client->reqtag = creqtag;
+        //        delayedchunk = true;
+        //    }
+        //}
+
         return std::make_pair(transfer->pos, npos);
     }
 }

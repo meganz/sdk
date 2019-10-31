@@ -153,7 +153,7 @@ bool Transfer::serialize(string *d)
     d->append((const char*)filekey, sizeof(filekey));
     d->append((const char*)&ctriv, sizeof(ctriv));
     d->append((const char*)&metamac, sizeof(metamac));
-    d->append((const char*)transferkey, sizeof (transferkey));
+    d->append((const char*)transferkey.data(), sizeof (transferkey));
 
     chunkmacs.serialize(*d);
 
@@ -243,7 +243,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     t->metamac = MemAccess::get<int64_t>(ptr);
     ptr += sizeof(int64_t);
 
-    memcpy(t->transferkey, ptr, SymmCipher::KEYLENGTH);
+    memcpy(t->transferkey.data(), ptr, SymmCipher::KEYLENGTH);
     ptr += SymmCipher::KEYLENGTH;
 
     t->localfilename.assign(filepath, ll);
@@ -359,7 +359,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
 
 SymmCipher *Transfer::transfercipher()
 {
-    client->tmptransfercipher.setkey(transferkey);
+    client->tmptransfercipher.setkey(transferkey.data());
     return &client->tmptransfercipher;
 }
 
@@ -1032,24 +1032,6 @@ void Transfer::completefiles()
         files.erase(it++);
     }
     ids.push_back(dbid);
-}
-
-m_off_t Transfer::nextpos()
-{
-    while (chunkmacs.find(ChunkedHash::chunkfloor(pos)) != chunkmacs.end() && pos < size)
-    {    
-        if (chunkmacs[ChunkedHash::chunkfloor(pos)].finished)
-        {
-            pos = ChunkedHash::chunkceil(pos, size);
-        }
-        else
-        {
-            pos += chunkmacs[ChunkedHash::chunkfloor(pos)].offset;
-            break;
-        }
-    }
-
-    return pos;
 }
 
 DirectReadNode::DirectReadNode(MegaClient* cclient, handle ch, bool cp, SymmCipher* csymmcipher, int64_t cctriv, const char *privauth, const char *pubauth, const char *cauth)

@@ -177,6 +177,9 @@ public:
     void serialize(string& d) const;
     bool unserialize(const char*& ptr, const char* end);
     void calcprogress(m_off_t size, m_off_t& chunkpos, m_off_t& completedprogress, m_off_t* lastblockprogress = nullptr);
+    m_off_t nextUnprocessedPosFrom(m_off_t pos);
+    m_off_t expandPiece(m_off_t pos, m_off_t npos, m_off_t fileSize, m_off_t maxReqSize);
+    void finishedUploadChunks(m_off_t pos, m_off_t size, chunkmac_map& macs);
 };
 
 /**

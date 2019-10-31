@@ -13725,7 +13725,6 @@ void MegaApiImpl::request_error(error e)
 
     if (e == API_ESID)
     {
-        client->removecaches();
         client->locallogout();
     }
     requestQueue.push(request);
@@ -14855,7 +14854,6 @@ void MegaApiImpl::whyamiblocked_result(int code)
 
     if (request->getFlag() && code != 500)  // don't log out if we can be unblocked via sms verification
     {
-        client->removecaches();
         client->locallogout();
 
         MegaRequestPrivate *logoutRequest = new MegaRequestPrivate(MegaRequest::TYPE_LOGOUT);

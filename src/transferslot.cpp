@@ -395,7 +395,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
     }
 
     retrying = false;
-    retrybt.reset();  // in case we don't delete the slot, and in case retrybt.next=1
+    retrybt.set(0);  // in case we don't delete the slot, and in case retrybt.next=1.  Also don't reset the delta, so that we do back off more and more if problems continue.
     transfer->state = TRANSFERSTATE_ACTIVE;
 
     if (!createconnectionsonce())   // don't use connections, reqs, or asyncIO before this point.
@@ -459,6 +459,13 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                             reqs[i]->status = REQ_READY;
                         }
                     }
+
+                    if (reqs[i]->lastdata > lastdata)
+                    {
+                        // prevent overall timeout if all channels are busy with big chunks for a while
+                        lastdata = reqs[i]->lastdata;
+                    }
+
                     break;
 
                 case REQ_SUCCESS:
@@ -515,19 +522,12 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                                     errorcount = 0;
                                     transfer->failcount = 0;
 
-                                    m_off_t startpos = reqs[i]->pos;
-                                    m_off_t finalpos = startpos + reqs[i]->size;
-                                    while (startpos < finalpos)
-                                    {
-                                        transfer->chunkmacs[startpos].finished = true;
-                                        LOG_verbose << "Upload chunk completed: " << startpos;
-                                        startpos = ChunkedHash::chunkceil(startpos, finalpos);
-                                    }
+                                    transfer->chunkmacs.finishedUploadChunks(reqs[i]->pos, reqs[i]->size, static_cast<HttpReqUL*>(reqs[i])->mChunkmacs);
 
                                     updatecontiguousprogress();
 
                                     transfer->progresscompleted += reqs[i]->size;
-                                    memcpy(transfer->filekey, transfer->transferkey, sizeof transfer->transferkey);
+                                    memcpy(transfer->filekey, transfer->transferkey.data(), sizeof transfer->transferkey);
                                     ((int64_t*)transfer->filekey)[2] = transfer->ctriv;
                                     ((int64_t*)transfer->filekey)[3] = macsmac(&transfer->chunkmacs);
                                     SymmCipher::xorblock(transfer->filekey + SymmCipher::KEYLENGTH, transfer->filekey);
@@ -555,10 +555,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                             error e = (error)atoi(reqs[i]->in.c_str());
                             if (e == API_EKEY)
                             {
-                                int creqtag = client->reqtag;
-                                client->reqtag = 0;
-                                client->sendevent(99429, "Integrity check failed in upload");
-                                client->reqtag = creqtag;
+                                client->sendevent(99429, "Integrity check failed in upload", 0);
 
                                 lasterror = e;
                                 errorcount++;
@@ -566,24 +563,21 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                                 break;
                             }
 
-                            if (e == API_ERATELIMIT || (reqs[i]->contenttype.find("text/html") != string::npos
-                                    && !memcmp(reqs[i]->posturl.c_str(), "http:", 5)))
+                            if (e == API_ERATELIMIT)
+                            {
+                                client->sendevent(99440, "Retry requested by storage server", 0);
+                                reqs[i]->status = REQ_PREPARED;
+                                reqs[i]->bt.backoff();
+                                break;
+                            }
+                            else if (reqs[i]->contenttype.find("text/html") != string::npos
+                                    && !memcmp(reqs[i]->posturl.c_str(), "http:", 5))
                             {
                                 client->usehttps = true;
                                 client->app->notify_change_to_https();
 
-                                int creqtag = client->reqtag;
-                                client->reqtag = 0;
-                                if (e == API_ERATELIMIT)
-                                {
-                                    client->sendevent(99440, "Retry requested by storage server");
-                                }
-                                else
-                                {
-                                    LOG_warn << "Invalid Content-Type detected during upload: " << reqs[i]->contenttype;
-                                }
-                                client->sendevent(99436, "Automatic change to HTTPS");
-                                client->reqtag = creqtag;
+                                LOG_warn << "Invalid Content-Type detected during upload: " << reqs[i]->contenttype;
+                                client->sendevent(99436, "Automatic change to HTTPS", 0);
 
                                 return transfer->failed(API_EAGAIN, committer);
                             }
@@ -592,14 +586,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                             return transfer->failed(e, committer);
                         }
 
-                        m_off_t startpos = reqs[i]->pos;
-                        m_off_t finalpos = startpos + reqs[i]->size;
-                        while (startpos < finalpos)
-                        {
-                            transfer->chunkmacs[startpos].finished = true;
-                            LOG_verbose << "Upload chunk completed: " << startpos;
-                            startpos = ChunkedHash::chunkceil(startpos, finalpos);
-                        }
+                        transfer->chunkmacs.finishedUploadChunks(reqs[i]->pos, reqs[i]->size, static_cast<HttpReqUL*>(reqs[i])->mChunkmacs);
                         transfer->progresscompleted += reqs[i]->size;
 
                         updatecontiguousprogress();
@@ -771,19 +758,19 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                                     }
                                 }
 
-                                {
-                                    auto req = reqs[i];
-                                    auto tfr = transfer;
-                                    auto pos = asyncIO[i]->pos;
-                                    client->mAsyncQueue.push([req, tfr, finaltempurl, pos, npos](SymmCipher& sc)
-                                        {
-                                            sc.setkey(tfr->transferkey);
-                                            req->prepare(finaltempurl.c_str(), &sc, &tfr->chunkmacs, tfr->ctriv, pos, npos); 
-                                            req->pos = ChunkedHash::chunkfloor(pos);
-                                            req->status = REQ_PREPARED;
-                                        });
-                                }
-                                reqs[i]->status = REQ_ENCRYPTING;
+                                auto pos = asyncIO[i]->pos;
+                                auto req = reqs[i];
+                                auto transferkey = transfer->transferkey;
+                                auto ctriv = transfer->ctriv;
+                                req->pos = pos;
+                                req->status = REQ_ENCRYPTING;
+
+                                client->mAsyncQueue.push([req, transferkey, ctriv, finaltempurl, pos, npos](SymmCipher& sc)
+                                    {
+                                        sc.setkey(transferkey.data());
+                                        req->prepare(finaltempurl.c_str(), &sc, ctriv, pos, npos); 
+                                        req->status = REQ_PREPARED;
+                                    });
                             }
                             else
                             {
@@ -970,7 +957,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
             {
                 bool newInputBufferSupplied = false;
                 bool pauseConnectionInputForRaid = false;
-                std::pair<m_off_t, m_off_t> posrange = transferbuf.nextNPosForConnection(i, maxRequestSize, connections, newInputBufferSupplied, pauseConnectionInputForRaid);
+                std::pair<m_off_t, m_off_t> posrange = transferbuf.nextNPosForConnection(i, maxRequestSize, connections, newInputBufferSupplied, pauseConnectionInputForRaid, client->httpio->uploadSpeed);
 
                 // we might have a raid-reassembled block to write, or a previously loaded block, or a skip block to process.
                 bool newOutputBufferSupplied = false;
@@ -993,7 +980,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
 
                     if (!reqs[i])
                     {
-                        reqs[i] = transfer->type == PUT ? (HttpReqXfer*)new HttpReqUL() : (HttpReqXfer*)new HttpReqDL();
+                        reqs[i] = transfer->type == PUT ? (HttpReqXfer*)new HttpReqUL(client->rng) : (HttpReqXfer*)new HttpReqDL(client->rng);
                     }
 
                     bool prepare = true;
@@ -1072,9 +1059,9 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                         }
 
                         reqs[i]->prepare(finaltempurl.c_str(), transfer->transfercipher(),
-                                                               &transfer->chunkmacs, transfer->ctriv,
+                                                               transfer->ctriv,
                                                                posrange.first, posrange.second);
-                        reqs[i]->pos = ChunkedHash::chunkfloor(posrange.first);
+                        reqs[i]->pos = posrange.first;
                         reqs[i]->status = REQ_PREPARED;
                     }
 
@@ -1098,7 +1085,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                 }
             }
 
-            if (reqs[i] && (reqs[i]->status == REQ_PREPARED))
+            if (reqs[i] && reqs[i]->status == REQ_PREPARED && reqs[i]->bt.armed())
             {
                 reqs[i]->minspeed = true;
                 reqs[i]->post(client);
@@ -1139,7 +1126,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
 
     if (Waiter::ds - lastdata >= XFERTIMEOUT && !failure)
     {
-        LOG_warn << "Failed chunk due to a timeout";
+        LOG_warn << "Failed chunk(s) due to a timeout: no data moved for " << (XFERTIMEOUT/10) << " seconds" ;
         failure = true;
         bool changeport = false;
 

@@ -268,6 +268,46 @@ void chunkmac_map::calcprogress(m_off_t size, m_off_t& chunkpos, m_off_t& progre
     }
 }
 
+m_off_t chunkmac_map::expandPiece(m_off_t pos, m_off_t npos, m_off_t fileSize, m_off_t maxReqSize)
+{
+    for (iterator it = find(npos);
+        npos < fileSize && (npos - pos) <= maxReqSize && (it == end() || (!it->second.finished && !it->second.offset));
+        it = find(npos))
+    {
+        npos = ChunkedHash::chunkceil(npos, fileSize);
+    }
+    return npos;
+}
+
+m_off_t chunkmac_map::nextUnprocessedPosFrom(m_off_t pos)
+{
+    for (const_iterator it = find(ChunkedHash::chunkfloor(pos));
+        it != end();
+        it = find(ChunkedHash::chunkfloor(pos)))
+    {
+        if (it->second.finished)
+        {
+            pos = ChunkedHash::chunkceil(pos);
+        }
+        else
+        {
+            pos += it->second.offset;
+            break;
+        }
+    }
+    return pos;
+}
+
+void chunkmac_map::finishedUploadChunks(m_off_t pos, m_off_t size, chunkmac_map& macs)
+{
+    for (auto& m : macs)
+    {
+        m.second.finished = true;
+        (*this)[m.first] = m.second;
+        LOG_verbose << "Upload chunk completed: " << m.first;
+    }
+}
+
 bool CacheableReader::unserializechunkmacs(chunkmac_map& m)
 {
     if (m.unserialize(ptr, end))   // ptr is adjusted by reference

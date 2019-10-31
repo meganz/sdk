@@ -378,19 +378,23 @@ public:
 struct MEGA_API HttpReqXfer : public HttpReq
 {
     unsigned size;
+    BackoffTimer bt;
 
-    virtual void prepare(const char*, SymmCipher*, chunkmac_map*, uint64_t, m_off_t, m_off_t) = 0;
+    virtual void prepare(const char*, SymmCipher*, uint64_t, m_off_t, m_off_t) = 0;
 
-    HttpReqXfer() : HttpReq(true), size(0) { }
+    HttpReqXfer(PrnGen &rng) : HttpReq(true), bt(rng), size(0) { }
 };
 
 // file chunk upload
 struct MEGA_API HttpReqUL : public HttpReqXfer
 {
-    void prepare(const char*, SymmCipher*, chunkmac_map*, uint64_t, m_off_t, m_off_t);
+    chunkmac_map mChunkmacs;
+
+    void prepare(const char*, SymmCipher*, uint64_t, m_off_t, m_off_t);
 
     m_off_t transferred(MegaClient*);
 
+    HttpReqUL(PrnGen &rng) : HttpReqXfer(rng) { }
     ~HttpReqUL() { }
 };
 
@@ -400,9 +404,9 @@ struct MEGA_API HttpReqDL : public HttpReqXfer
     m_off_t dlpos;
     bool buffer_released;
 
-    void prepare(const char*, SymmCipher*, chunkmac_map*, uint64_t, m_off_t, m_off_t);
+    void prepare(const char*, SymmCipher*, uint64_t, m_off_t, m_off_t);
 
-    HttpReqDL();
+    HttpReqDL(PrnGen &rng);
     ~HttpReqDL() { }
 };
 

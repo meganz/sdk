@@ -189,16 +189,13 @@ namespace mega {
         m_off_t& transferPos(unsigned connectionNum) override;
 
         // Get the file position to upload/download to on the specified connection
-        std::pair<m_off_t, m_off_t> nextNPosForConnection(unsigned connectionNum, m_off_t maxDownloadRequestSize, unsigned connectionCount, bool& newBufferSupplied, bool& pauseConnectionForRaid);
+        std::pair<m_off_t, m_off_t> nextNPosForConnection(unsigned connectionNum, m_off_t maxDownloadRequestSize, unsigned connectionCount, bool& newBufferSupplied, bool& pauseConnectionForRaid, m_off_t uploadspeed);
 
         TransferBufferManager();
 
     private:
 
         Transfer* transfer;
-
-        // get the next pos to start transferring from/to on this connection, for non-raid
-        m_off_t nextTransferPos();
 
         // decrypt and mac downloaded chunk
         void finalize(FilePiece& r) override;
@@ -220,9 +217,6 @@ namespace mega {
     private:
 
         DirectRead* directRead;
-
-        // get the next pos to start transferring from/to on this connection, for non-raid
-        m_off_t nextTransferPos();
 
         // decrypt and mac downloaded chunk
         void finalize(FilePiece& r) override;

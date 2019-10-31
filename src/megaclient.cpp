@@ -1721,7 +1721,6 @@ void MegaClient::exec()
 
                                 if (loggedout)
                                 {
-                                    removecaches();
                                     locallogout();
                                     app->logout_result(API_OK);
                                 }
@@ -3304,7 +3303,7 @@ void MegaClient::dispatchTransfers()
                     // generate fresh random encryption key/CTR IV for this file
                     byte keyctriv[SymmCipher::KEYLENGTH + sizeof(int64_t)];
                     rng.genblock(keyctriv, sizeof keyctriv);
-                    memcpy(nexttransfer->transferkey, keyctriv, SymmCipher::KEYLENGTH);
+                    memcpy(nexttransfer->transferkey.data(), keyctriv, SymmCipher::KEYLENGTH);
                     nexttransfer->ctriv = MemAccess::get<uint64_t>((const char*)keyctriv + SymmCipher::KEYLENGTH);
                 }
                 else
@@ -3334,8 +3333,8 @@ void MegaClient::dispatchTransfers()
 
                         if (k)
                         {
-                            memcpy(nexttransfer->transferkey, k, SymmCipher::KEYLENGTH);
-                            SymmCipher::xorblock(k + SymmCipher::KEYLENGTH, nexttransfer->transferkey);
+                            memcpy(nexttransfer->transferkey.data(), k, SymmCipher::KEYLENGTH);
+                            SymmCipher::xorblock(k + SymmCipher::KEYLENGTH, nexttransfer->transferkey.data());
                             nexttransfer->ctriv = MemAccess::get<int64_t>((const char*)k + SymmCipher::KEYLENGTH);
                             nexttransfer->metamac = MemAccess::get<int64_t>((const char*)k + SymmCipher::KEYLENGTH + sizeof(int64_t));
                             break;
@@ -3738,7 +3737,6 @@ void MegaClient::logout()
 {
     if (loggedin() != FULLACCOUNT)
     {
-        removecaches();
         locallogout();
 
         restag = reqtag;
@@ -3752,6 +3750,10 @@ void MegaClient::logout()
 
 void MegaClient::locallogout()
 {
+    mAsyncQueue.shutdown();
+
+    removecaches();
+
     delete sctable;
     sctable = NULL;
     pendingsccommit = false;

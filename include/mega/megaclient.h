@@ -199,6 +199,11 @@ struct MegaClientAsyncQueue
 
     ~MegaClientAsyncQueue()
     {
+        shutdown();
+    }
+
+    void shutdown()
+    {
         {
             std::lock_guard g(m);
             q.clear();
