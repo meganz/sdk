@@ -1347,11 +1347,15 @@ bool MegaApiImpl::isIndexing()
 
 bool MegaApiImpl::isSyncing()
 {
+    if (!client->syncs.size())
+    {
+        return false;
+    }
     SdkMutexGuard g(sdkMutex);
 
     for (auto & sync : client->syncs)
     {
-        if (sync->localroot.ts == TREESTATE_SYNCING)
+        if (sync->localroot->ts == TREESTATE_SYNCING)
         {
             return true;
         }
