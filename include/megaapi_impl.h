@@ -646,6 +646,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         void setSourceFileTemporary(bool temporary);
         void setStartFirst(bool startFirst);
         void setBackupTransfer(bool backupTransfer);
+        void setForeignOverquota(bool backupTransfer);
         void setStreamingTransfer(bool streamingTransfer);
         void setLastBytes(char *lastBytes);
         void setLastError(MegaError e);
@@ -685,6 +686,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         virtual bool isSourceFileTemporary() const;
         virtual bool shouldStartFirst() const;
         virtual bool isBackupTransfer() const;
+        virtual bool isForeignOverquota() const;
         virtual char *getLastBytes() const;
         virtual MegaError getLastError() const;
         virtual bool isFolderTransfer() const;
@@ -715,6 +717,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
             bool temporarySourceFile : 1;
             bool startFirst : 1;
             bool backupTransfer : 1;
+            bool foreignOverquota : 1;
         };
 
         int64_t startTime;
@@ -1055,8 +1058,8 @@ class MegaRequestPrivate : public MegaRequest
         void setTotalBytes(long long totalBytes);
         void setTransferredBytes(long long transferredBytes);
         void setTag(int tag);
-        void addProduct(handle product, int proLevel, unsigned int gbStorage, unsigned int gbTransfer,
-                        int months, int amount, const char *currency, const char *description, const char *iosid, const char *androidid);
+        void addProduct(unsigned int type, handle product, int proLevel, int gbStorage, int gbTransfer,
+                        int months, int amount, int amountMonth, const char *currency, const char *description, const char *iosid, const char *androidid);
         void setProxy(Proxy *proxy);
         Proxy *getProxy();
         void setTimeZoneDetails(MegaTimeZoneDetails *timeZoneDetails);
@@ -1331,25 +1334,29 @@ public:
     virtual int getNumProducts();
     virtual MegaHandle getHandle(int productIndex);
     virtual int getProLevel(int productIndex);
-    virtual unsigned int getGBStorage(int productIndex);
-    virtual unsigned int getGBTransfer(int productIndex);
+    virtual int getGBStorage(int productIndex);
+    virtual int getGBTransfer(int productIndex);
     virtual int getMonths(int productIndex);
     virtual int getAmount(int productIndex);
     virtual const char* getCurrency(int productIndex);
     virtual const char* getDescription(int productIndex);
     virtual const char* getIosID(int productIndex);
     virtual const char* getAndroidID(int productIndex);
+    virtual bool isBusinessType(int productIndex);
+    virtual int getAmountMonth(int productIndex);
     virtual MegaPricing *copy();
 
-    void addProduct(handle product, int proLevel, unsigned int gbStorage, unsigned int gbTransfer,
-                    int months, int amount, const char *currency, const char *description, const char *iosid, const char *androidid);
+    void addProduct(unsigned int type, handle product, int proLevel, int gbStorage, int gbTransfer,
+                    int months, int amount, int amountMonth, const char *currency, const char *description, const char *iosid, const char *androidid);
 private:
+    vector<unsigned int> type;
     vector<handle> handles;
     vector<int> proLevel;
-    vector<unsigned int> gbStorage;
-    vector<unsigned int> gbTransfer;
+    vector<int> gbStorage;
+    vector<int> gbTransfer;
     vector<int> months;
     vector<int> amount;
+    vector<int> amountMonth;
     vector<const char *> currency;
     vector<const char *> description;
     vector<const char *> iosId;
@@ -2037,9 +2044,10 @@ class MegaApiImpl : public MegaApp
         void confirmResetPasswordLink(const char *link, const char *newPwd, const char *masterKey = NULL, MegaRequestListener *listener = NULL);
         void cancelAccount(MegaRequestListener *listener = NULL);
         void confirmCancelAccount(const char *link, const char *pwd, MegaRequestListener *listener = NULL);
+        void resendVerificationEmail(MegaRequestListener *listener = NULL);
         void changeEmail(const char *email, MegaRequestListener *listener = NULL);
         void confirmChangeEmail(const char *link, const char *pwd, MegaRequestListener *listener = NULL);
-        void setProxySettings(MegaProxy *proxySettings);
+        void setProxySettings(MegaProxy *proxySettings, MegaRequestListener *listener = NULL);
         MegaProxy *getAutoProxySettings();
         int isLoggedIn();
         void whyAmIBlocked(bool logout, MegaRequestListener *listener = NULL);
@@ -2287,7 +2295,7 @@ class MegaApiImpl : public MegaApp
         MegaNodeList *getInShares(MegaUser* user, int order);
         MegaNodeList *getInShares(int order);
         MegaShareList *getInSharesList(int order);
-        MegaUser *getUserFromInShare(MegaNode *node);
+        MegaUser *getUserFromInShare(MegaNode *node, bool recurse = false);
         bool isPendingShare(MegaNode *node);
         MegaShareList *getOutShares(int order);
         MegaShareList *getOutShares(MegaNode *node);
@@ -2811,8 +2819,8 @@ protected:
         void putfa_result(handle, fatype, const char*) override;
 
         // purchase transactions
-        void enumeratequotaitems_result(handle product, unsigned prolevel, unsigned gbstorage, unsigned gbtransfer,
-                                                unsigned months, unsigned amount, const char* currency, const char* description, const char* iosid, const char* androidid) override;
+        void enumeratequotaitems_result(unsigned type, handle product, unsigned prolevel, int gbstorage, int gbtransfer,
+                                                unsigned months, unsigned amount, unsigned amountMonth, const char* currency, const char* description, const char* iosid, const char* androidid) override;
         void enumeratequotaitems_result(error e) override;
         void additem_result(error) override;
         void checkout_result(const char*, error) override;
@@ -2877,6 +2885,7 @@ protected:
         void confirmrecoverylink_result(error) override;
         void confirmcancellink_result(error) override;
         void getemaillink_result(error) override;
+        void resendverificationemail_result(error) override;
         void confirmemaillink_result(error) override;
         void getversion_result(int, const char*, error) override;
         void getlocalsslcertificate_result(m_time_t, string *certdata, error) override;

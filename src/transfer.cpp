@@ -338,6 +338,16 @@ SymmCipher *Transfer::transfercipher()
     return &client->tmptransfercipher;
 }
 
+void Transfer::removeTransferFile(error e, File* f, DBTableTransactionCommitter* committer)
+{
+    Transfer *transfer = f->transfer;
+    client->filecachedel(f, committer);
+    transfer->files.erase(f->file_it);
+    client->app->file_removed(f, e);
+    f->transfer = NULL;
+    f->terminated();
+}
+
 // transfer attempt failed, notify all related files, collect request on
 // whether to abort the transfer, kill transfer if unanimous
 void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime timeleft)
@@ -354,31 +364,86 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
         client->reqtag = creqtag;
     }
 
-    if (e != API_EBUSINESSPASTDUE)
+    if (e == API_EOVERQUOTA)
     {
-        if (e != API_EOVERQUOTA)
+        if (!slot)
         {
-            bt.backoff();
-            state = TRANSFERSTATE_RETRYING;
+            bt.backoff(timeleft ? timeleft : NEVER);
+            client->activateoverquota(timeleft);
             client->app->transfer_failed(this, e, timeleft);
-            client->looprequested = true;
             ++client->performanceStats.transferTempErrors;
         }
         else
         {
-            bt.backoff(timeleft ? timeleft : NEVER);
-            client->activateoverquota(timeleft);
-            if (!slot)
+            bool allForeignTargets = true;
+            for (auto &file : files)
             {
-                client->app->transfer_failed(this, e, timeleft);
-                ++client->performanceStats.transferTempErrors;
+                if (client->isPrivateNode(file->h))
+                {
+                    allForeignTargets = false;
+                    break;
+                }
+            }
+
+            /* If all targets are foreign and there's not a bandwidth overquota, transfer must fail.
+             * Otherwise we need to activate overquota.
+             */
+            if (!timeleft && allForeignTargets)
+            {
+                client->app->transfer_failed(this, e);
+            }
+            else
+            {
+                bt.backoff(timeleft ? timeleft : NEVER);
+                client->activateoverquota(timeleft);
             }
         }
     }
-
-    for (file_list::iterator it = files.begin(); it != files.end(); it++)
+    else if (e == API_EARGS)
     {
-        if ( ((*it)->failed(e) && (e != API_EBUSINESSPASTDUE))
+        client->app->transfer_failed(this, e);
+    }
+    else if (e != API_EBUSINESSPASTDUE)
+    {
+        bt.backoff();
+        state = TRANSFERSTATE_RETRYING;
+        client->app->transfer_failed(this, e, timeleft);
+        client->looprequested = true;
+        ++client->performanceStats.transferTempErrors;
+    }
+
+    for (file_list::iterator it = files.begin(); it != files.end();)
+    {
+        // Remove files with foreign targets, if transfer failed with a (foreign) storage overquota
+        if (e == API_EOVERQUOTA
+                && !timeleft
+                && client->isForeignNode((*it)->h))
+        {
+            File *f = (*it++);
+            removeTransferFile(API_EOVERQUOTA, f, &committer);
+            continue;
+        }
+
+        /*
+         * If the transfer failed with API_EARGS, the target handle is invalid. For a sync-transfer,
+         * the actionpacket will eventually remove the target and the sync-engine will force to
+         * disable the synchronization of the folder. For non-sync-transfers, remove the file directly.
+         */
+        if (e == API_EARGS)
+        {
+             File *f = (*it++);
+             if (f->syncxfer)
+             {
+                defer = true;
+             }
+             else
+             {
+                removeTransferFile(API_EARGS, f, &committer);
+             }
+             continue;
+        }
+
+        if (((*it)->failed(e) && (e != API_EBUSINESSPASTDUE))
                 || (e == API_ENOENT // putnodes returned -9, file-storage server unavailable
                     && type == PUT
                     && tempurls.empty()
@@ -386,6 +451,8 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
         {
             defer = true;
         }
+
+        it++;
     }
 
     tempurls.clear();
@@ -423,7 +490,9 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
         for (file_list::iterator it = files.begin(); it != files.end(); it++)
         {
 #ifdef ENABLE_SYNC
-            if((*it)->syncxfer && e != API_EBUSINESSPASTDUE)
+            if((*it)->syncxfer
+                && e != API_EBUSINESSPASTDUE
+                && e != API_EOVERQUOTA)
             {
                 client->syncdownrequired = true;
             }
@@ -951,11 +1020,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                     client->syncdownrequired = true;
                 }
 #endif
-                client->filecachedel(f, &committer);
-                files.erase(it++);
-                client->app->file_removed(f, API_EREAD);
-                f->transfer = NULL;
-                f->terminated();
+                removeTransferFile(API_EREAD, f, &committer);
             }
             else
             {

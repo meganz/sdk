@@ -2177,6 +2177,7 @@ MegaTransferPrivate::MegaTransferPrivate(int type, MegaTransferListener *listene
     this->temporarySourceFile = false;
     this->startFirst = false;
     this->backupTransfer = false;
+    this->foreignOverquota = false;
     this->lastError = API_OK;
     this->folderTransferTag = 0;
     this->appData = NULL;
@@ -2225,6 +2226,7 @@ MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
     this->setSourceFileTemporary(transfer->isSourceFileTemporary());
     this->setStartFirst(transfer->shouldStartFirst());
     this->setBackupTransfer(transfer->isBackupTransfer());
+    this->setForeignOverquota(transfer->isForeignOverquota());
     this->setLastError(transfer->getLastError());
     this->setFolderTransferTag(transfer->getFolderTransferTag());
     this->setAppData(transfer->getAppData());
@@ -2304,6 +2306,11 @@ bool MegaTransferPrivate::isFinished() const
 bool MegaTransferPrivate::isBackupTransfer() const
 {
     return backupTransfer;
+}
+
+bool MegaTransferPrivate::isForeignOverquota() const
+{
+    return foreignOverquota;
 }
 
 bool MegaTransferPrivate::isSourceFileTemporary() const
@@ -2704,6 +2711,11 @@ void MegaTransferPrivate::setStartFirst(bool startFirst)
 void MegaTransferPrivate::setBackupTransfer(bool backupTransfer)
 {
     this->backupTransfer = backupTransfer;
+}
+
+void MegaTransferPrivate::setForeignOverquota(bool foreignOverquota)
+{
+    this->foreignOverquota = foreignOverquota;
 }
 
 void MegaTransferPrivate::setStreamingTransfer(bool streamingTransfer)
@@ -3644,11 +3656,11 @@ void MegaRequestPrivate::setTag(int tag)
     this->tag = tag;
 }
 
-void MegaRequestPrivate::addProduct(handle product, int proLevel, unsigned int gbStorage, unsigned int gbTransfer, int months, int amount, const char *currency, const char* description, const char* iosid, const char* androidid)
+void MegaRequestPrivate::addProduct(unsigned int type, handle product, int proLevel, int gbStorage, int gbTransfer, int months, int amount, int amountMonth, const char *currency, const char* description, const char* iosid, const char* androidid)
 {
     if (megaPricing)
     {
-        megaPricing->addProduct(product, proLevel, gbStorage, gbTransfer, months, amount, currency, description, iosid, androidid);
+        megaPricing->addProduct(type, product, proLevel, gbStorage, gbTransfer, months, amount, amountMonth, currency, description, iosid, androidid);
     }
 }
 
@@ -3819,6 +3831,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_COUNTRY_CALLING_CODES: return "GET_COUNTRY_CALLING_CODES";
         case TYPE_VERIFY_CREDENTIALS: return "VERIFY_CREDENTIALS";
         case TYPE_GET_MISC_FLAGS: return "GET_MISC_FLAGS";
+        case TYPE_RESEND_VERIFICATION_EMAIL: return "RESEND_VERIFICATION_EMAIL";
     }
     return "UNKNOWN";
 }
@@ -6010,6 +6023,14 @@ void MegaApiImpl::confirmCancelAccount(const char *link, const char *pwd, MegaRe
     waiter->notify();
 }
 
+void MegaApiImpl::resendVerificationEmail(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_RESEND_VERIFICATION_EMAIL);
+    request->setListener(listener);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::changeEmail(const char *email, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_CHANGE_EMAIL_LINK, listener);
@@ -6027,7 +6048,7 @@ void MegaApiImpl::confirmChangeEmail(const char *link, const char *pwd, MegaRequ
     waiter->notify();
 }
 
-void MegaApiImpl::setProxySettings(MegaProxy *proxySettings)
+void MegaApiImpl::setProxySettings(MegaProxy *proxySettings, MegaRequestListener *listener)
 {
     Proxy *localProxySettings = new Proxy();
     localProxySettings->setProxyType(proxySettings->getProxyType());
@@ -6075,7 +6096,7 @@ void MegaApiImpl::setProxySettings(MegaProxy *proxySettings)
         localProxySettings->setCredentials(&localusername, &localpassword);
     }
 
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_PROXY);
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_PROXY, listener);
     request->setProxy(localProxySettings);
     requestQueue.push(request);
     waiter->notify();
@@ -8110,7 +8131,7 @@ bool MegaApiImpl::moveToLocalDebris(const char *path)
     Sync *sync = NULL;
     for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
     {
-        string *localroot = &((*it)->localroot.localname);
+        string *localroot = &((*it)->localroot->localname);
         if(((localroot->size()+fsAccess->localseparator.size())<localpath.size()) &&
             !memcmp(localroot->data(), localpath.data(), localroot->size()) &&
             !memcmp(fsAccess->localseparator.data(), localpath.data()+localroot->size(), fsAccess->localseparator.size()))
@@ -8168,8 +8189,8 @@ int MegaApiImpl::syncPathState(string* path)
     for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
     {
         Sync *sync = (*it);
-        size_t ssize = sync->localroot.localname.size();
-        if (path->size() < ssize || memcmp(path->data(), sync->localroot.localname.data(), ssize))
+        size_t ssize = sync->localroot->localname.size();
+        if (path->size() < ssize || memcmp(path->data(), sync->localroot->localname.data(), ssize))
         {
             continue;
         }
@@ -8187,7 +8208,7 @@ int MegaApiImpl::syncPathState(string* path)
 
         if (path->size() == ssize)
         {
-            state = sync->localroot.ts;
+            state = sync->localroot->ts;
             break;
         }
         else if (!memcmp(path->data()+ssize, client->fsaccess->localseparator.data(), client->fsaccess->localseparator.size()))
@@ -8233,10 +8254,10 @@ MegaNode *MegaApiImpl::getSyncedNode(string *path)
     for (sync_list::iterator it = client->syncs.begin(); (it != client->syncs.end()) && (node == NULL); it++)
     {
         Sync *sync = (*it);
-        if (path->size() == sync->localroot.localname.size() &&
-                !memcmp(path->data(), sync->localroot.localname.data(), path->size()))
+        if (path->size() == sync->localroot->localname.size() &&
+                !memcmp(path->data(), sync->localroot->localname.data(), path->size()))
         {
-            node = MegaNodePrivate::fromNode(sync->localroot.node);
+            node = MegaNodePrivate::fromNode(sync->localroot->node);
             break;
         }
 
@@ -9955,10 +9976,17 @@ void MegaApiImpl::getCameraUploadsFolder(bool secondary, MegaRequestListener *li
 
 void MegaApiImpl::setCameraUploadsFolder(MegaHandle nodehandle, bool secondary, MegaRequestListener *listener)
 {
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
+
     MegaStringMapPrivate stringMap;
     const char *key = secondary ? "sh" : "h";
     stringMap.set(key, Base64Str<MegaClient::NODEHANDLE>(nodehandle));
-    setUserAttribute(MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER, &stringMap, listener);
+    request->setMegaStringMap(&stringMap);
+    request->setParamType(MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER);
+    request->setFlag(secondary);
+    request->setNodeHandle(nodehandle);
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 void MegaApiImpl::getMyChatFilesFolder(MegaRequestListener *listener)
@@ -10257,7 +10285,7 @@ MegaShareList* MegaApiImpl::getInSharesList(int order)
     return shareList;
 }
 
-MegaUser *MegaApiImpl::getUserFromInShare(MegaNode *megaNode)
+MegaUser *MegaApiImpl::getUserFromInShare(MegaNode *megaNode, bool recurse)
 {
     if (!megaNode)
     {
@@ -10269,6 +10297,11 @@ MegaUser *MegaApiImpl::getUserFromInShare(MegaNode *megaNode)
     sdkMutex.lock();
 
     Node *node = client->nodebyhandle(megaNode->getHandle());
+    if (recurse && node)
+    {
+        node = client->getrootnode(node);
+    }
+
     if (node && node->inshare && node->inshare->user)
     {
         user = MegaUserPrivate::fromUser(node->inshare->user);
@@ -11413,7 +11446,7 @@ char *MegaApiImpl::getCRC(const char *filePath)
 
     string result;
     result.resize((sizeof fp.crc) * 4 / 3 + 4);
-    result.resize(Base64::btoa((const byte *)fp.crc, sizeof fp.crc, (char*)result.c_str()));
+    result.resize(Base64::btoa((const byte *)fp.crc.data(), sizeof fp.crc, (char*)result.c_str()));
     return MegaApi::strdup(result.c_str());
 }
 
@@ -11427,7 +11460,7 @@ char *MegaApiImpl::getCRCFromFingerprint(const char *fingerprint)
     
     string result;
     result.resize((sizeof fp->crc) * 4 / 3 + 4);
-    result.resize(Base64::btoa((const byte *)fp->crc, sizeof fp->crc,(char*)result.c_str()));
+    result.resize(Base64::btoa((const byte *)fp->crc.data(), sizeof fp->crc,(char*)result.c_str()));
     delete fp;
 
     return MegaApi::strdup(result.c_str());
@@ -11447,7 +11480,7 @@ char *MegaApiImpl::getCRC(MegaNode *n)
 
     string result;
     result.resize((sizeof node->crc) * 4 / 3 + 4);
-    result.resize(Base64::btoa((const byte *)node->crc, sizeof node->crc, (char*)result.c_str()));
+    result.resize(Base64::btoa((const byte *)node->crc.data(), sizeof node->crc.data(), (char*)result.c_str()));
 
     sdkMutex.unlock();
     return MegaApi::strdup(result.c_str());
@@ -11471,7 +11504,7 @@ MegaNode *MegaApiImpl::getNodeByCRC(const char *crc, MegaNode *parent)
     for (node_list::iterator it = node->children.begin(); it != node->children.end(); it++)
     {
         Node *child = (*it);
-        if(!memcmp(child->crc, binarycrc, sizeof(node->crc)))
+        if(!memcmp(child->crc.data(), binarycrc, sizeof(node->crc)))
         {
             MegaNode *result = MegaNodePrivate::fromNode(child);
             sdkMutex.unlock();
@@ -12023,6 +12056,16 @@ void MegaApiImpl::getemaillink_result(error e)
     fireOnRequestFinish(request, MegaError(e));
 }
 
+void MegaApiImpl::resendverificationemail_result(error e)
+{
+    auto it = requestMap.find(client->restag);
+    if (it == requestMap.end()) return;
+    MegaRequestPrivate *request = it->second;
+    if (!request || ((request->getType() != MegaRequest::TYPE_RESEND_VERIFICATION_EMAIL))) return;
+
+    fireOnRequestFinish(request, MegaError(e));
+}
+
 void MegaApiImpl::confirmemaillink_result(error e)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
@@ -12484,16 +12527,16 @@ void MegaApiImpl::syncupdate_state(Sync *sync, syncstate_t newstate)
     if(syncMap.find(sync->tag) == syncMap.end()) return;
     MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
     megaSync->setState(newstate);
-    LOG_debug << "Sync state change: " << newstate << " Path: " << sync->localroot.name;
+    LOG_debug << "Sync state change: " << newstate << " Path: " << sync->localroot->name;
     client->abortbackoff(false);
 
     if (newstate == SYNC_FAILED)
     {
         MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC);
 
-        if(sync->localroot.node)
+        if(sync->localroot->node)
         {
-            request->setNodeHandle(sync->localroot.node->nodehandle);
+            request->setNodeHandle(sync->localroot->node->nodehandle);
         }
 
         int nextTag = client->nextreqtag();
@@ -13363,7 +13406,7 @@ void MegaApiImpl::putfa_result(handle h, fatype, const char *)
     fireOnRequestFinish(request, megaError);
 }
 
-void MegaApiImpl::enumeratequotaitems_result(handle product, unsigned prolevel, unsigned gbstorage, unsigned gbtransfer, unsigned months, unsigned amount, const char* currency, const char* description, const char* iosid, const char* androidid)
+void MegaApiImpl::enumeratequotaitems_result(unsigned type, handle product, unsigned prolevel, int gbstorage, int gbtransfer, unsigned months, unsigned amount, unsigned amountMonth, const char* currency, const char* description, const char* iosid, const char* androidid)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
@@ -13374,7 +13417,7 @@ void MegaApiImpl::enumeratequotaitems_result(handle product, unsigned prolevel, 
         return;
     }
 
-    request->addProduct(product, prolevel, gbstorage, gbtransfer, months, amount, currency, description, iosid, androidid);
+    request->addProduct(type, product, prolevel, gbstorage, gbtransfer, months, amount, amountMonth, currency, description, iosid, androidid);
 }
 
 void MegaApiImpl::enumeratequotaitems_result(error e)
@@ -14046,17 +14089,14 @@ void MegaApiImpl::exportnode_result(handle h, handle ph)
 
     if ((n = client->nodebyhandle(h)))
     {
-        char node[9];
         char key[FILENODEKEYLENGTH*4/3+3];
-
-        Base64::btoa((byte*)&ph,MegaClient::NODEHANDLE,node);
 
         // the key
         if (n->type == FILENODE)
         {
             if(n->nodekey.size() >= FILENODEKEYLENGTH)
             {
-                Base64::btoa((const byte*)n->nodekey.data(),FILENODEKEYLENGTH,key);
+                Base64::btoa((const byte*)n->nodekey.data(), FILENODEKEYLENGTH, key);
             }
             else
             {
@@ -14065,7 +14105,7 @@ void MegaApiImpl::exportnode_result(handle h, handle ph)
         }
         else if (n->sharekey)
         {
-            Base64::btoa(n->sharekey->key,FOLDERNODEKEYLENGTH,key);
+            Base64::btoa(n->sharekey->key, FOLDERNODEKEYLENGTH, key);
         }
         else
         {
@@ -14073,12 +14113,7 @@ void MegaApiImpl::exportnode_result(handle h, handle ph)
             return;
         }
 
-        string link = "https://mega.nz/#";
-        link += (n->type ? "F" : "");
-        link += "!";
-        link += node;
-        link += "!";
-        link += key;
+        string link = client->getPublicLink(client->mNewLinkFormat, n->type, ph, key);
         request->setLink(link.c_str());
         fireOnRequestFinish(request, MegaError(MegaError::API_OK));
     }
@@ -14865,7 +14900,9 @@ void MegaApiImpl::whyamiblocked_result(int code)
         return;
     }
 
-    if (request->getFlag() && code != 500)  // don't log out if we can be unblocked via sms verification
+    if (request->getFlag()
+            && code != 500  // don't log out if we can be unblocked via sms verification
+            && code != 700) // don't log out if we can be unblocked via verification email (weak account protection)
     {
         client->removecaches();
         client->locallogout();
@@ -14905,6 +14942,10 @@ void MegaApiImpl::whyamiblocked_result(int code)
         else if (code == 500)
         {
             reason = "Your account has been blocked pending verification via SMS.";
+        }
+        else if (code == 700)
+        {
+            reason = "Your account has been temporarily suspended for your safety. Please verify your email and follow its steps to unlock your account.";
         }
         //else if (code == 300) --> default reason
 
@@ -16188,6 +16229,7 @@ void MegaApiImpl::processTransferFailed(Transfer *tr, MegaTransferPrivate *trans
     transfer->setLastError(megaError);
     transfer->setPriority(tr->priority);
     transfer->setState(MegaTransfer::STATE_RETRYING);
+    transfer->setForeignOverquota(e == API_EOVERQUOTA && client->isForeignNode(transfer->getParentHandle()));
     fireOnTransferTemporaryError(transfer, megaError);
 }
 
@@ -20428,11 +20470,11 @@ void MegaApiImpl::sendPendingRequests()
                 it++;
 
                 int tag = sync->tag;
-                if (!sync->localroot.node || sync->localroot.node->nodehandle == nodehandle)
+                if (!sync->localroot->node || sync->localroot->node->nodehandle == nodehandle)
                 {
                     string path;
-                    fsAccess->local2path(&sync->localroot.localname, &path);
-                    if (!request->getFile() || sync->localroot.node)
+                    fsAccess->local2path(&sync->localroot->localname, &path);
+                    if (!request->getFile() || sync->localroot->node)
                     {
                         request->setFile(path.c_str());
                     }
@@ -20644,6 +20686,11 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_GET_SESSION_TRANSFER_URL:
         {
             client->copysession();
+            break;
+        }
+        case MegaRequest::TYPE_RESEND_VERIFICATION_EMAIL:
+        {
+            client->resendverificationemail();
             break;
         }
         case MegaRequest::TYPE_CLEAN_RUBBISH_BIN:
@@ -21918,7 +21965,7 @@ long long MegaAccountDetailsPrivate::getTransferUsed()
 {
     long long total = details.transfer_srv_used + details.transfer_own_used + getTemporalBandwidth();
     // in case the total exceed the maximum allowance (due to the free IP-based quota)...
-    if (total > details.transfer_max)
+    if (details.transfer_max && total > details.transfer_max) //do not limit for free user (no max allowance configured)
     {
         total = details.transfer_max;
     }
@@ -22330,18 +22377,22 @@ int MegaPricingPrivate::getProLevel(int productIndex)
     return 0;
 }
 
-unsigned int MegaPricingPrivate::getGBStorage(int productIndex)
+int MegaPricingPrivate::getGBStorage(int productIndex)
 {
-    if((unsigned)productIndex < gbStorage.size())
-        return gbStorage[productIndex];
+    if (static_cast<size_t>(productIndex) < gbStorage.size())
+    {
+        return gbStorage[static_cast<size_t>(productIndex)];
+    }
 
     return 0;
 }
 
-unsigned int MegaPricingPrivate::getGBTransfer(int productIndex)
+int MegaPricingPrivate::getGBTransfer(int productIndex)
 {
-    if((unsigned)productIndex < gbTransfer.size())
-        return gbTransfer[productIndex];
+    if (static_cast<size_t>(productIndex) < gbTransfer.size())
+    {
+        return gbTransfer[static_cast<size_t>(productIndex)];
+    }
 
     return 0;
 }
@@ -22394,27 +22445,45 @@ const char *MegaPricingPrivate::getAndroidID(int productIndex)
     return NULL;
 }
 
+bool MegaPricingPrivate::isBusinessType(int productIndex)
+{
+    if((unsigned)productIndex < type.size())
+        return type[productIndex];
+
+    return false;
+}
+
+int MegaPricingPrivate::getAmountMonth(int productIndex)
+{
+    if((unsigned)productIndex < amountMonth.size())
+        return amountMonth[productIndex];
+
+    return 0;
+}
+
 MegaPricing *MegaPricingPrivate::copy()
 {
     MegaPricingPrivate *megaPricing = new MegaPricingPrivate();
     for(unsigned i=0; i<handles.size(); i++)
     {
-        megaPricing->addProduct(handles[i], proLevel[i], gbStorage[i], gbTransfer[i],
-                                months[i], amount[i], currency[i], description[i], iosId[i], androidId[i]);
+        megaPricing->addProduct(type[i], handles[i], proLevel[i], gbStorage[i], gbTransfer[i],
+                                months[i], amount[i], amountMonth[i], currency[i], description[i], iosId[i], androidId[i]);
     }
 
     return megaPricing;
 }
 
-void MegaPricingPrivate::addProduct(handle product, int proLevel, unsigned int gbStorage, unsigned int gbTransfer, int months, int amount, const char *currency,
-                                    const char* description, const char* iosid, const char* androidid)
+void MegaPricingPrivate::addProduct(unsigned int type, handle product, int proLevel, int gbStorage, int gbTransfer, int months, int amount, int amountMonth,
+                                    const char *currency, const char* description, const char* iosid, const char* androidid)
 {
+    this->type.push_back(type);
     this->handles.push_back(product);
     this->proLevel.push_back(proLevel);
     this->gbStorage.push_back(gbStorage);
     this->gbTransfer.push_back(gbTransfer);
     this->months.push_back(months);
     this->amount.push_back(amount);
+    this->amountMonth.push_back(amountMonth);
     this->currency.push_back(MegaApi::strdup(currency));
     this->description.push_back(MegaApi::strdup(description));
     this->iosId.push_back(MegaApi::strdup(iosid));
@@ -29080,6 +29149,13 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                 {
                     MegaNodeList *children = ftpctx->megaApi->getChildren(node);
                     assert(!ftpctx->ftpDataServer->resultmsj.size());
+
+                    if (ftpctx->command == FTP_CMD_LIST)
+                    {
+                        ftpctx->ftpDataServer->resultmsj.append(getListingLineFromNode(node,"."));
+                        ftpctx->ftpDataServer->resultmsj.append(crlfout);
+                    }
+
                     for (int i = 0; i < children->size(); i++)
                     {
                         MegaNode *child = children->get(i);
