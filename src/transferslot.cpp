@@ -563,21 +563,25 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                                 break;
                             }
 
-                            if (e == DAEMON_EFAILED)
-                            {
-                                client->sendevent(99440, "Retry requested by storage server", 0);
-                                reqs[i]->status = REQ_PREPARED;
-                                reqs[i]->bt.backoff();
-                                break;
-                            }
-                            else if (reqs[i]->contenttype.find("text/html") != string::npos
-                                    && !memcmp(reqs[i]->posturl.c_str(), "http:", 5))
+                            if (e == DAEMON_EFAILED || (reqs[i]->contenttype.find("text/html") != string::npos
+                                    && !memcmp(reqs[i]->posturl.c_str(), "http:", 5)))
                             {
                                 client->usehttps = true;
                                 client->app->notify_change_to_https();
 
-                                LOG_warn << "Invalid Content-Type detected during upload: " << reqs[i]->contenttype;
-                                client->sendevent(99436, "Automatic change to HTTPS", 0);
+                                int creqtag = client->reqtag;
+                                client->reqtag = 0;
+                                if (e == DAEMON_EFAILED)
+                                {
+                                    // megad returning -4 should result in restarting the transfer
+                                    client->sendevent(99440, "Retry requested by storage server");
+                                }
+                                else
+                                {
+                                    LOG_warn << "Invalid Content-Type detected during upload: " << reqs[i]->contenttype;
+                                }
+                                client->sendevent(99436, "Automatic change to HTTPS");
+                                client->reqtag = creqtag;
 
                                 return transfer->failed(API_EAGAIN, committer);
                             }
