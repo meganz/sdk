@@ -199,19 +199,18 @@ struct MegaClientAsyncQueue
 
     ~MegaClientAsyncQueue()
     {
-        shutdown();
-    }
-
-    void shutdown()
-    {
-        {
-            std::lock_guard g(m);
-            q.clear();
-        }
+        clearQueue();
         push(nullptr);
+        cv.notify_all();
         asyncThread1.join();
         asyncThread2.join();
         asyncThread3.join();
+    }
+
+    void clearQueue()
+    {
+        std::lock_guard g(m);
+        q.clear();
     }
 
 private:

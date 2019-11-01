@@ -563,7 +563,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                                 break;
                             }
 
-                            if (e == API_ERATELIMIT)
+                            if (e == DAEMON_EFAILED)
                             {
                                 client->sendevent(99440, "Retry requested by storage server", 0);
                                 reqs[i]->status = REQ_PREPARED;

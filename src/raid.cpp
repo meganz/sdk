@@ -878,7 +878,7 @@ std::pair<m_off_t, m_off_t> TransferBufferManager::nextNPosForConnection(unsigne
 
             npos = transfer->chunkmacs.expandPiece(transfer->pos, npos, transfer->size, maxReqSize);
             LOG_debug << "Downloading chunk of size " << npos - transfer->pos;
-            assert(reqSize > 0);
+            assert(npos > transfer->pos);
         }
 
         // code from prior to raid - for consideration

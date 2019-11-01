@@ -3774,7 +3774,7 @@ void MegaClient::logout()
 
 void MegaClient::locallogout()
 {
-    mAsyncQueue.shutdown();
+    mAsyncQueue.clearQueue();
 
     removecaches();
 

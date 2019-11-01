@@ -191,8 +191,9 @@ typedef enum ErrorCodes
     API_EINTERNAL = -1,             ///< Internal error.
     API_EARGS = -2,                 ///< Bad arguments.
     API_EAGAIN = -3,                ///< Request failed, retry with exponential backoff.
-    API_ERATELIMIT = -4,            ///< Too many requests, slow down.
-    API_EFAILED = -5,               ///< Request failed permanently.
+    DAEMON_EFAILED = -4,            ///< If returned from the daemon: EFAILED
+    API_ERATELIMIT = -4,            ///< If returned from the API: Too many requests, slow down.
+    API_EFAILED = -5,               ///< Request failed permanently.  This one is only produced by the API, only per command (not batch level)
     API_ETOOMANY = -6,              ///< Too many requests for this resource.
     API_ERANGE = -7,                ///< Resource access out of range.
     API_EEXPIRED = -8,              ///< Resource expired.
