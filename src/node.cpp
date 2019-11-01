@@ -127,8 +127,8 @@ Node::~Node()
 {
     if (keyApplied())
     {
-        client->mAppliedNodeKeyCount--;
-        assert(client->mAppliedNodeKeyCount >= 0);
+        client->mAppliedKeyNodeCount--;
+        assert(client->mAppliedKeyNodeCount >= 0);
     }
 
     // abort pending direct reads
@@ -216,15 +216,10 @@ Node::~Node()
 
 void Node::setkeyfromjson(const char* k)
 {
-    int adjust = keyApplied() ? -1 : 0;
+    if (keyApplied()) --client->mAppliedKeyNodeCount;
     Node::copystring(&nodekeydata, k);
-    adjust += keyApplied() ? 1 : 0;
-
-    if (adjust)
-    {
-        client->mAppliedNodeKeyCount += adjust;
-        assert(client->mAppliedNodeKeyCount >= 0);
-    }
+    if (keyApplied()) ++client->mAppliedKeyNodeCount;
+    assert(client->mAppliedKeyNodeCount >= 0);
 }
 
 // update node key and decrypt attributes
@@ -232,15 +227,10 @@ void Node::setkey(const byte* newkey)
 {
     if (newkey)
     {
-        int adjust = keyApplied() ? -1 : 0;
-        nodekeydata.assign((char*)newkey, (type == FILENODE) ? FILENODEKEYLENGTH + 0 : FOLDERNODEKEYLENGTH + 0);
-        adjust += keyApplied() ? 1 : 0;
-
-        if (adjust)
-        {
-            client->mAppliedNodeKeyCount += adjust;
-            assert(client->mAppliedNodeKeyCount >= 0);
-        }
+        if (keyApplied()) --client->mAppliedKeyNodeCount;
+        nodekeydata.assign(reinterpret_cast<const char*>(newkey), (type == FILENODE) ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH);
+        if (keyApplied()) ++client->mAppliedKeyNodeCount;
+        assert(client->mAppliedKeyNodeCount >= 0);
     }
 
     setattr();
@@ -308,7 +298,7 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
 
     if ((t == FILENODE) || (t == FOLDERNODE))
     {
-        int keylen = ((t == FILENODE) ? FILENODEKEYLENGTH + 0 : FOLDERNODEKEYLENGTH + 0);
+        int keylen = ((t == FILENODE) ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH);
 
         if (ptr + keylen + 8 + sizeof(short) > end)
         {
@@ -885,10 +875,6 @@ int Node::hasfileattribute(const string *fileattrstring, fatype t)
 // attempt to apply node key - sets nodekey to a raw key if successful
 bool Node::applykey()
 {
-    unsigned int keylength = (type == FILENODE)
-                   ? FILENODEKEYLENGTH + 0
-                   : FOLDERNODEKEYLENGTH + 0;
-
     if (type > FOLDERNODE)
     {
         //Root nodes contain an empty attrstring
@@ -896,7 +882,7 @@ bool Node::applykey()
         attrstring = NULL;
     }
 
-    if (nodekeydata.size() == keylength || !nodekeydata.size())
+    if (keyApplied() || !nodekeydata.size())
     {
         return false;
     }
@@ -964,14 +950,16 @@ bool Node::applykey()
     }
 
     byte key[FILENODEKEYLENGTH];
+    unsigned keylength = (type == FILENODE) ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH;
 
     if (client->decryptkey(k, key, keylength, sc, 0, nodehandle))
     {
-        client->mAppliedNodeKeyCount++;
+        client->mAppliedKeyNodeCount++;
         nodekeydata.assign((const char*)key, keylength);
         setattr();
     }
 
+    assert(keyApplied());
     return true;
 }
 

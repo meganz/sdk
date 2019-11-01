@@ -387,7 +387,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
         this->attrstring.assign(node->attrstring->data(), node->attrstring->size());
     }
     this->fileattrstring = node->fileattrstring;
-    this->nodekey.assign(node->nodekey().data(),node->nodekey().size());
+    this->nodekey = node->nodekeyUnchecked();
 
     this->changed = 0;
     if(node->changed.attrs)
@@ -14083,7 +14083,7 @@ void MegaApiImpl::exportnode_result(handle h, handle ph)
         {
             if(n->nodekey().size() >= FILENODEKEYLENGTH)
             {
-                Base64::btoa((const byte*)n->nodekey().data(),FILENODEKEYLENGTH,key);
+                Base64::btoa((const byte*)n->nodekey().data(), FILENODEKEYLENGTH, key);
             }
             else
             {

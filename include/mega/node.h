@@ -1,3 +1,4 @@
+
 /**
  * @file mega/node.h
  * @brief Classes for accessing local and remote nodes
@@ -112,6 +113,9 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     // supplies the nodekey (which is private to ensure we track changes to it)
     const string& nodekey() const;
+
+    // Also returns the key but does not assert that the key has been applied.  Only use it where we don't need the node to be readable.
+    const string& nodekeyUnchecked() const;
 
     // check if the key is present and is the correct size for this node
     bool keyApplied() const;
@@ -261,7 +265,12 @@ private:
 
 inline const string& Node::nodekey() const
 {
-    assert(keyApplied());
+    assert(keyApplied() || type == ROOTNODE || type == INCOMINGNODE || type == RUBBISHNODE);
+    return nodekeydata;
+}
+
+inline const string& Node::nodekeyUnchecked() const
+{
     return nodekeydata;
 }
 
