@@ -8358,7 +8358,7 @@ void MegaApiImpl::resumeSync(const MegaSyncDescriptor *syncDescriptor, const cha
         sync->setRegExp(regExp);
 
         SyncDescriptor descriptor;
-        descriptor.mSyncType = request->getMegaSyncDescriptor()->getSyncType();
+        descriptor.mSyncType = static_cast<SyncDescriptor::Type>(request->getMegaSyncDescriptor()->getSyncType());
         descriptor.mSyncDeletions = request->getMegaSyncDescriptor()->getSyncDeletions();
         descriptor.mOverwriteChanges = request->getMegaSyncDescriptor()->getOverwriteChanges();
         e = client->addsync(descriptor, &localname, DEBRISFOLDER, NULL, node, localfp, -nextTag, sync);
@@ -20442,7 +20442,7 @@ void MegaApiImpl::sendPendingRequests()
             sync->setRegExp(request->getRegExp());
 
             SyncDescriptor descriptor;
-            descriptor.mSyncType = request->getMegaSyncDescriptor()->getSyncType();
+            descriptor.mSyncType = static_cast<SyncDescriptor::Type>(request->getMegaSyncDescriptor()->getSyncType());
             descriptor.mSyncDeletions = request->getMegaSyncDescriptor()->getSyncDeletions();
             descriptor.mOverwriteChanges = request->getMegaSyncDescriptor()->getOverwriteChanges();
             e = client->addsync(descriptor, &localname, DEBRISFOLDER, NULL, node, 0, -nextTag, sync);

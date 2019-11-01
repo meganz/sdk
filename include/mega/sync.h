@@ -37,7 +37,7 @@ struct SyncDescriptor
     };
 
     // type of the sync, defaults to bidirectional
-    int mSyncType = TYPE_DEFAULT;
+    Type mSyncType = TYPE_DEFAULT;
 
     // whether deletions are synced (only relevant for one-way-sync)
     bool mSyncDeletions = false;

@@ -3880,7 +3880,7 @@ void exec_syncconfig(autocomplete::ACState& s)
     }
     else if (s.words.size() == 4)
     {
-        syncDesc.mSyncType = atoi(s.words[1].s.c_str());
+        syncDesc.mSyncType = static_cast<SyncDescriptor::Type>(atoi(s.words[1].s.c_str()));
         syncDesc.mSyncDeletions = atoi(s.words[2].s.c_str());
         syncDesc.mOverwriteChanges = atoi(s.words[3].s.c_str());
         cout << "Successfully applied new sync config!" << endl;

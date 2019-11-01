@@ -2933,10 +2933,7 @@ TEST(Sync, OneWay_Upload_syncDelFalse_overwriteTrue_1)
     // new foo is now uploaded
 
     Model model;
-    auto fooNodeOld = model.makeModelSubfile("foo");
-    auto fooNode = model.makeModelSubfile("foo", "fooblah");
-    fooNode->addkid(std::move(fooNodeOld));
-    model.root->addkid(std::move(fooNode));
+    model.root->addkid(model.makeModelSubfile("foo", "fooblah"));
 
     ASSERT_TRUE(fx.checkRef(model));
     ASSERT_TRUE(fx.checkOneWay(model));

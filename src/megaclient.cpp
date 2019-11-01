@@ -12512,9 +12512,12 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
         else
         {
             LOG_debug << "doesn't have a previous localnode";
-            if (rit->second->isSyncable() || l->sync->overwriteChanges())
+            if (l->sync->overwriteChanges())
             {
                 rit->second->setSyncable(true);
+            }
+            if (rit->second->isSyncable())
+            {
                 // missing node is not associated with an existing LocalNode
                 if (rit->second->type == FILENODE)
                 {
@@ -12571,6 +12574,11 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 
                             ll->setnode(rit->second);
                             ll->sync->statecacheadd(ll);
+
+                            if (ll->sync->overwriteChanges())
+                            {
+                                ll->syncable = true;
+                            }
 
                             if (!syncdown(ll, localpath, rubbish) && success)
                             {
@@ -12698,7 +12706,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
     {
         LocalNode* ll = lit->second;
 
-        if (!ll->sync->overwriteChanges() && !ll->syncable)
+        if (!ll->syncable)
         {
             LOG_debug << "LocalNode not syncable: " << ll->name;
             continue;
@@ -13118,7 +13126,11 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
             ll->created = true;
 
             assert (!isSymLink);
-            if (ll->syncable || ll->sync->overwriteChanges())
+            if (ll->sync->overwriteChanges())
+            {
+                ll->syncable = true;
+            }
+            if (ll->syncable)
             {
                 // create remote folder or send file
                 LOG_debug << "Adding local file to synccreate: " << ll->name << " " << synccreate.size();
@@ -13293,8 +13305,6 @@ void MegaClient::syncupdate()
 
                 if (send_put_nodes)
                 {
-                    assert(localNode->type == FOLDERNODE
-                           || localNode->h == localNode->parent->node->nodehandle); // if it's a file, it should match
                     reqs.add(new CommandPutNodes(this,
                                                     localNode->parent->node->nodehandle,
                                                     NULL, nn, int(nnp - nn),
