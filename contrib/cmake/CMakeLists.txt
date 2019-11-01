@@ -67,7 +67,8 @@ endif()
 if (WIN32)
     message(STATUS "CMAKE_GENERATOR is ${CMAKE_GENERATOR}")
     message(STATUS "CMAKE_GENERATOR_PLATFORM is ${CMAKE_GENERATOR_PLATFORM}")
-    if ("${CMAKE_GENERATOR_PLATFORM}" MATCHES "(Win64|IA64|x64)")
+    if (("${CMAKE_GENERATOR_PLATFORM}" MATCHES "(Win64|IA64|x64)") OR
+        ("${CMAKE_GENERATOR}" MATCHES "(Win64|IA64|x64)"))
         SET(build_64_bit 1)
         message(STATUS "Building 64 bit")
     elseif(CMAKE_SIZEOF_VOID_P EQUAL 4)
@@ -610,19 +611,67 @@ if(WIN32)
 target_link_libraries(Mega PUBLIC crypt32.lib)
 endif(WIN32)
 
+OPTION( ENABLE_CODECOVERAGE "Enable code coverage testing support" )
+
+if ( ENABLE_CODECOVERAGE )
+
+    if ( NOT CMAKE_BUILD_TYPE STREQUAL "Debug" )
+        message( WARNING "Code coverage results with an optimised (non-Debug) build may be misleading" )
+    endif ( NOT CMAKE_BUILD_TYPE STREQUAL "Debug" )
+
+    if ( NOT DEFINED CODECOV_OUTPUTFILE )
+        set( CODECOV_OUTPUTFILE cmake_coverage.output )
+    endif ( NOT DEFINED CODECOV_OUTPUTFILE )
+
+    if ( NOT DEFINED CODECOV_HTMLOUTPUTDIR )
+        set( CODECOV_HTMLOUTPUTDIR coverage_results )
+    endif ( NOT DEFINED CODECOV_HTMLOUTPUTDIR )
+
+    if ( CMAKE_COMPILER_IS_GNUCXX OR CMAKE_COMPILER_IS_GNUCXX )
+        find_program( CODECOV_GCOV gcov )
+        find_program( CODECOV_LCOV lcov )
+        find_program( CODECOV_GENHTML genhtml )
+        add_definitions( -fprofile-arcs -ftest-coverage )
+        link_libraries( gcov )
+        set( CMAKE_EXE_LINKER_FLAGS ${CMAKE_EXE_LINKER_FLAGS} --coverage )
+        add_custom_target( coverage_init ALL ${CODECOV_LCOV} --base-directory .  --directory ${CMAKE_BINARY_DIR} --output-file ${CODECOV_OUTPUTFILE} --capture --initial )
+        add_custom_target( coverage ${CODECOV_LCOV} --base-directory .  --directory ${CMAKE_BINARY_DIR} --output-file ${CODECOV_OUTPUTFILE} --capture COMMAND genhtml -o ${CODECOV_HTMLOUTPUTDIR} ${CODECOV_OUTPUTFILE} )
+endif ( CMAKE_COMPILER_IS_GNUCXX )
+
+endif (ENABLE_CODECOVERAGE )
+
 #test apps
-add_executable(test_unit            ${MegaDir}/tests/unit/Commands_test.cpp
-                                    ${MegaDir}/tests/unit/Crypto_test.cpp
-                                    ${MegaDir}/tests/unit/Serialization_test.cpp
-                                    ${MegaDir}/tests/unit/main.cpp
-                                    ${MegaDir}/tests/unit/MegaApi_test.cpp
-                                    ${MegaDir}/tests/unit/PayCrypter_test.cpp)
+add_executable(test_unit
+    ${MegaDir}/tests/unit/Commands_test.cpp
+    ${MegaDir}/tests/unit/constants.h
+    ${MegaDir}/tests/unit/Crypto_test.cpp
+    ${MegaDir}/tests/unit/DefaultedDirAccess.h
+    ${MegaDir}/tests/unit/DefaultedFileAccess.h
+    ${MegaDir}/tests/unit/DefaultedFileSystemAccess.h
+    ${MegaDir}/tests/unit/FileFingerprint_test.cpp
+    ${MegaDir}/tests/unit/FsNode.cpp
+    ${MegaDir}/tests/unit/FsNode.h
+    ${MegaDir}/tests/unit/Logging_test.cpp
+    ${MegaDir}/tests/unit/main.cpp
+    ${MegaDir}/tests/unit/MegaApi_test.cpp
+    ${MegaDir}/tests/unit/NotImplemented.h
+    ${MegaDir}/tests/unit/PayCrypter_test.cpp
+    ${MegaDir}/tests/unit/Serialization_test.cpp
+    ${MegaDir}/tests/unit/Sync_test.cpp
+    ${MegaDir}/tests/unit/utils.cpp
+    ${MegaDir}/tests/unit/utils.h
+    ${MegaDir}/tests/unit/utils_test.cpp
+)
 
-add_executable(test_integration     ${MegaDir}/tests/integration/main.cpp
-                                    ${MegaDir}/tests/integration/SdkTest_test.cpp
-                                    ${MegaDir}/tests/integration/Sync_test.cpp)
+add_executable(test_integration
+    ${MegaDir}/tests/integration/main.cpp
+    ${MegaDir}/tests/integration/SdkTest_test.cpp
+    ${MegaDir}/tests/integration/Sync_test.cpp
+)
 
-add_executable(tool_purge_account   ${MegaDir}/tests/tool/purge_account.cpp)
+add_executable(tool_purge_account
+    ${MegaDir}/tests/tool/purge_account.cpp
+)
 
 target_compile_definitions(test_unit PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
 target_compile_definitions(test_integration PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)

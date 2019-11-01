@@ -514,7 +514,7 @@ AppFileGet::AppFileGet(Node* n, handle ch, byte* cfilekey, m_off_t csize, m_time
 
         if (!cfingerprint->size() || !unserializefingerprint(cfingerprint))
         {
-            memcpy(crc, filekey, sizeof crc);
+            memcpy(crc.data(), filekey, sizeof crc);
         }
 
         name = *cfilename;
@@ -3876,10 +3876,10 @@ void exec_sync(autocomplete::ACState& s)
                     static const char* syncstatenames[] =
                     { "Initial scan, please wait", "Active", "Failed" };
 
-                    if ((*it)->localroot.node)
+                    if ((*it)->localroot->node)
                     {
-                        nodepath((*it)->localroot.node->nodehandle, &remotepath);
-                        client->fsaccess->local2path(&(*it)->localroot.localname, &localpath);
+                        nodepath((*it)->localroot->node->nodehandle, &remotepath);
+                        client->fsaccess->local2path(&(*it)->localroot->localname, &localpath);
 
                         cout << i++ << ": " << localpath << " to " << remotepath << " - "
                                 << syncstatenames[(*it)->state] << ", " << (*it)->localbytes
@@ -6855,7 +6855,7 @@ void DemoApp::notify_confirmation(const char *email)
     }
 }
 
-void DemoApp::enumeratequotaitems_result(handle, unsigned, unsigned, unsigned, unsigned, unsigned, const char*, const char*, const char*, const char*)
+void DemoApp::enumeratequotaitems_result(unsigned, handle, unsigned, int, int, unsigned, unsigned, unsigned, const char*, const char*, const char*, const char*)
 {
     // FIXME: implement
 }

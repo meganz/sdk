@@ -21,6 +21,7 @@
 
 // Many of these tests are still being worked on.
 // The file uses some C++17 mainly for the very convenient std::filesystem library, though the main SDK must still build with C++11 (and prior)
+#ifdef ENABLE_SYNC
 
 #include "test.h"
 #include <mega.h>
@@ -1139,7 +1140,7 @@ struct StandardClient : public MegaApp
         descendants = 0; 
         if (Sync* sync = syncByTag(syncid))
         {
-            if (!recursiveConfirm(mnode, &sync->localroot, descendants, "Sync " + to_string(syncid), 0))
+            if (!recursiveConfirm(mnode, sync->localroot.get(), descendants, "Sync " + to_string(syncid), 0))
             {
                 cout << "syncid " << syncid << " comparison against LocalNodes failed" << endl;
                 return false;
@@ -2679,5 +2680,7 @@ GTEST_TEST(Sync, BasicSync_CreateAndReplaceLinkUponSyncDown)
     //check client 2 is as expected
     ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
 }
+
+#endif
 
 #endif

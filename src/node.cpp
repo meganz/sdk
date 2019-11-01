@@ -763,7 +763,7 @@ void Node::setfingerprint()
         // size and client timestamp instead
         if (!isvalid)
         {
-            memcpy(crc, nodekeydata.data(), sizeof crc);
+            memcpy(crc.data(), nodekey.data(), sizeof crc);
             mtime = ctime;
         }
 
@@ -1360,7 +1360,9 @@ void LocalNode::bumpnagleds()
 }
 
 LocalNode::LocalNode()
-: sync{nullptr}
+: deleted{false}
+, created{false}
+, reported{false}
 , checked{false}
 {}
 
@@ -1526,7 +1528,7 @@ void LocalNode::setnotseen(int newnotseen)
 }
 
 // set fsid - assume that an existing assignment of the same fsid is no longer current and revoke
-void LocalNode::setfsid(handle newfsid)
+void LocalNode::setfsid(handle newfsid, handlelocalnode_map& fsidnodes)
 {
     if (!sync)
     {
@@ -1535,26 +1537,26 @@ void LocalNode::setfsid(handle newfsid)
         return;
     }
 
-    if (fsid_it != sync->client->fsidnode.end())
+    if (fsid_it != fsidnodes.end())
     {
         if (newfsid == fsid)
         {
             return;
         }
 
-        sync->client->fsidnode.erase(fsid_it);
+        fsidnodes.erase(fsid_it);
     }
 
     fsid = newfsid;
 
-    pair<handlelocalnode_map::iterator, bool> r = sync->client->fsidnode.insert(pair<handle, LocalNode*>(fsid, this));
+    pair<handlelocalnode_map::iterator, bool> r = fsidnodes.insert(std::make_pair(fsid, this));
 
     fsid_it = r.first;
 
     if (!r.second)
     {
         // remove previous fsid assignment (the node is likely about to be deleted)
-        fsid_it->second->fsid_it = sync->client->fsidnode.end();
+        fsid_it->second->fsid_it = fsidnodes.end();
         fsid_it->second = this;
     }
 }
@@ -1565,6 +1567,11 @@ LocalNode::~LocalNode()
     {
         LOG_err << "LocalNode::init() was never called";
         assert(false);
+        return;
+    }
+
+    if (!sync->client)
+    {
         return;
     }
 
@@ -1658,7 +1665,7 @@ LocalNode::~LocalNode()
     }
 }
 
-void LocalNode::getlocalpath(string* path, bool sdisable) const
+void LocalNode::getlocalpath(string* path, bool sdisable, const std::string* localseparator) const
 {
     if (!sync)
     {
@@ -1686,7 +1693,7 @@ void LocalNode::getlocalpath(string* path, bool sdisable) const
 
         if ((l = l->parent))
         {
-            path->insert(0, sync->client->fsaccess->localseparator);
+            path->insert(0, localseparator ? *localseparator : sync->client->fsaccess->localseparator);
         }
 
         if (sdisable)
@@ -1807,7 +1814,7 @@ bool LocalNode::serialize(string* d)
 
     if (type == FILENODE)
     {
-        d->append((const char*)crc, sizeof crc);
+        d->append((const char*)crc.data(), sizeof crc);
 
         byte buf[sizeof mtime+1];
 
@@ -1904,7 +1911,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
     l->name.assign(localname, localnamelen);
     sync->client->fsaccess->local2name(&l->name);
 
-    memcpy(l->crc, crc, sizeof crc);
+    memcpy(l->crc.data(), crc, sizeof crc);
     l->mtime = mtime;
     l->isvalid = 1;
 

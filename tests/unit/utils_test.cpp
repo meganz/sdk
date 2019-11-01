@@ -16,10 +16,16 @@
  * program.
  */
 
+#include <array>
+#include <tuple>
+
 #include <gtest/gtest.h>
 
-int main (int argc, char *argv[])
+#include <mega/utils.h>
+
+TEST(utils, hashCombine_integer)
 {
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    size_t hash = 0;
+    mega::hashCombine(hash, 42);
+    ASSERT_EQ(sizeof(hash) == 4 ? 286246808u : 2654435811u, hash);
 }

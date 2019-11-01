@@ -459,7 +459,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
             // b) have we just lost full access to the subtree a sync is in?
             for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
             {
-                if ((*it)->inshare && ((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN) && !checkaccess((*it)->localroot.node, FULL))
+                if ((*it)->inshare && ((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN) && !checkaccess((*it)->localroot->node, FULL))
                 {
                     LOG_warn << "Existing inbound share sync lost full access";
                     (*it)->errorcode = API_EACCESS;
@@ -547,6 +547,30 @@ Node *MegaClient::getrootnode(Node *node)
         n = n->parent;
     }
     return n;
+}
+
+bool MegaClient::isPrivateNode(handle h)
+{
+    Node *node = nodebyhandle(h);
+    if (!node)
+    {
+        return false;
+    }
+
+    handle rootnode = getrootnode(node)->nodehandle;
+    return (rootnode == rootnodes[0] || rootnode == rootnodes[1] || rootnode == rootnodes[2]);
+}
+
+bool MegaClient::isForeignNode(handle h)
+{
+    Node *node = nodebyhandle(h);
+    if (!node)
+    {
+        return false;
+    }
+
+    handle rootnode = getrootnode(node)->nodehandle;
+    return (rootnode != rootnodes[0] && rootnode != rootnodes[1] && rootnode != rootnodes[2]);
 }
 
 // set server-client sequence number
@@ -2345,7 +2369,7 @@ void MegaClient::exec()
                                         if (!syncadding)
                                         {
                                             LOG_debug << "Running syncup to create missing folders";
-                                            syncup(&sync->localroot, &nds);
+                                            syncup(sync->localroot.get(), &nds);
                                             sync->cachenodes();
                                         }
 
@@ -2362,7 +2386,7 @@ void MegaClient::exec()
                                     // scan for items that were deleted while the sync was stopped
                                     // FIXME: defer this until RETRY queue is processed
                                     sync->scanseqno++;
-                                    sync->deletemissing(&sync->localroot);
+                                    sync->deletemissing(sync->localroot.get());
                                 }
                             }
                         }
@@ -2451,7 +2475,7 @@ void MegaClient::exec()
                     for (it = syncs.begin(); it != syncs.end(); it++)
                     {
                         // make sure that the remote synced folder still exists
-                        if (!(*it)->localroot.node)
+                        if (!(*it)->localroot->node)
                         {
                             LOG_err << "The remote root node doesn't exist";
                             (*it)->errorcode = API_ENOENT;
@@ -2511,7 +2535,7 @@ void MegaClient::exec()
                                     && !syncadding && syncuprequired && !syncnagleretry)
                                 {
                                     LOG_debug << "Running syncup on demand";
-                                    repeatsyncup |= !syncup(&(*it)->localroot, &nds);
+                                    repeatsyncup |= !syncup((*it)->localroot.get(), &nds);
                                     syncupdone = true;
                                     (*it)->cachenodes();
                                 }
@@ -2561,7 +2585,7 @@ void MegaClient::exec()
                                         if (sync->fullscan)
                                         {
                                             // recursively delete all LocalNodes that were deleted (not moved or renamed!)
-                                            sync->deletemissing(&sync->localroot);
+                                            sync->deletemissing(sync->localroot.get());
                                             sync->cachenodes();
                                         }
 
@@ -2585,7 +2609,7 @@ void MegaClient::exec()
                                                 }
                                                 scanfailed = true;
 
-                                                sync->scan(&sync->localroot.localname, NULL);
+                                                sync->scan(&sync->localroot->localname, NULL);
                                                 sync->dirnotify->error = 0;
                                                 sync->fullscan = true;
                                                 sync->scanseqno++;
@@ -2638,7 +2662,7 @@ void MegaClient::exec()
                     for (it = syncs.begin(); it != syncs.end(); it++)
                     {
                         // make sure that the remote synced folder still exists
-                        if (!(*it)->localroot.node)
+                        if (!(*it)->localroot->node)
                         {
                             LOG_err << "The remote root node doesn't exist";
                             (*it)->errorcode = API_ENOENT;
@@ -2646,11 +2670,11 @@ void MegaClient::exec()
                         }
                         else
                         {
-                            string localpath = (*it)->localroot.localname;
+                            string localpath = (*it)->localroot->localname;
                             if ((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN)
                             {
                                 LOG_debug << "Running syncdown on demand";
-                                if (!syncdown(&(*it)->localroot, &localpath, true))
+                                if (!syncdown((*it)->localroot.get(), &localpath, true))
                                 {
                                     // a local filesystem item was locked - schedule periodic retry
                                     // and force a full rescan afterwards as the local item may
@@ -6447,7 +6471,7 @@ void MegaClient::notifypurge(void)
         for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
         {
             if (((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN)
-             && (*it)->localroot.node->changed.removed)
+             && (*it)->localroot->node->changed.removed)
             {
                 delsync(*it);
             }
@@ -8241,6 +8265,11 @@ int MegaClient::dumpsession(byte* session, size_t size)
     memcpy(session + sizeof key.key, sid.data(), sid.size());
     
     return int(size);
+}
+
+void MegaClient::resendverificationemail()
+{
+    reqs.add(new CommandResendVerificationEmail(this));
 }
 
 void MegaClient::copysession()
@@ -11930,7 +11959,7 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare)
     {
         if ((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN)
         {
-            n = (*it)->localroot.node;
+            n = (*it)->localroot->node;
 
             do {
                 if (n == remotenode)
@@ -11949,7 +11978,7 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare)
         for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
         {
             if (((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN)
-             && n == (*it)->localroot.node)
+             && n == (*it)->localroot->node)
             {
                 return API_EEXIST;
             }
@@ -12146,7 +12175,7 @@ void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, list
     if (!*npp
      || n->mtime > (*npp)->mtime
      || (n->mtime == (*npp)->mtime && n->size > (*npp)->size)
-     || (n->mtime == (*npp)->mtime && n->size == (*npp)->size && memcmp(n->crc, (*npp)->crc, sizeof n->crc) > 0))
+     || (n->mtime == (*npp)->mtime && n->size == (*npp)->size && memcmp(n->crc.data(), (*npp)->crc.data(), sizeof n->crc) > 0))
     {
         *npp = n;
     }
@@ -12263,7 +12292,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                 }
                 else if (ll->mtime == rit->second->mtime
                          && (ll->size > rit->second->size
-                             || (ll->size == rit->second->size && memcmp(ll->crc, rit->second->crc, sizeof ll->crc) > 0)))
+                             || (ll->size == rit->second->size && memcmp(ll->crc.data(), rit->second->crc.data(), sizeof ll->crc) > 0)))
 
                 {
                     if (ll->size < rit->second->size)
@@ -12732,7 +12761,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                             continue;
                         }
 
-                        if (ll->size == rit->second->size && memcmp(ll->crc, rit->second->crc, sizeof ll->crc) < 0)
+                        if (ll->size == rit->second->size && memcmp(ll->crc.data(), rit->second->crc.data(), sizeof ll->crc) < 0)
                         {
                             LOG_warn << "Syncup. Same mtime and size, but lower CRC: " << ll->name
                                      << " mtime: " << ll->mtime << " size: " << ll->size << " Nhandle: " << LOG_NODEHANDLE(rit->second->nodehandle);
@@ -12745,7 +12774,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                               << " NSize: " << rit->second->size << " Nmtime: " << rit->second->mtime << " Nhandle: " << LOG_NODEHANDLE(rit->second->nodehandle);
 
 #ifdef WIN32
-                    if(ll->size == ll->node->size && !memcmp(ll->crc, ll->node->crc, sizeof(ll->crc)))
+                    if(ll->size == ll->node->size && !memcmp(ll->crc.data(), ll->node->crc.data(), sizeof(ll->crc)))
                     {
                         LOG_debug << "Modification time changed only";
                         auto f = fsaccess->newfileaccess();
@@ -13139,6 +13168,11 @@ void MegaClient::syncupdate()
                 // the overwrite will happen upon PUT completion
                 string tmppath, tmplocalpath;
 
+                if (l->parent->node)
+                {
+                    l->h = l->parent->node->nodehandle;
+                }
+
                 nextreqtag();
                 startxfer(PUT, l, committer);
 
@@ -13155,14 +13189,17 @@ void MegaClient::syncupdate()
         else
         {
             // add nodes unless parent node has been deleted
-            if (synccreate[start]->parent->node)
+            LocalNode *localNode = synccreate[start];
+            if (localNode->parent->node)
             {
                 syncadding++;
 
+                assert(localNode->type == FOLDERNODE
+                       || localNode->h == localNode->parent->node->nodehandle); // if it's a file, it should match
                 reqs.add(new CommandPutNodes(this,
-                                                synccreate[start]->parent->node->nodehandle,
+                                                localNode->parent->node->nodehandle,
                                                 NULL, nn, int(nnp - nn),
-                                                synccreate[start]->sync->tag,
+                                                localNode->sync->tag,
                                                 PUTNODES_SYNC));
 
                 syncactivity = true;
@@ -13530,16 +13567,16 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
                 return false;
             }
 
-            #ifdef USE_MEDIAINFO
+#ifdef USE_MEDIAINFO
             mediaFileInfo.requestCodecMappingsOneTime(this, &f->localname);  
-            #endif
+#endif
         }
         else
         {
             if (!f->isvalid)
             {
                 // no valid fingerprint: use filekey as its replacement
-                memcpy(f->crc, f->filekey, sizeof f->crc);
+                memcpy(f->crc.data(), f->filekey, sizeof f->crc);
             }
         }
 
@@ -13698,6 +13735,8 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
                 t->failed(API_EOVERQUOTA, committer);
             }
         }
+
+        assert(!ISUNDEF(f->h) && (nodebyhandle(f->h) || d == GET)); // target handle for the upload should be known at this time
     }
 
     return true;
@@ -13711,11 +13750,7 @@ void MegaClient::stopxfer(File* f, DBTableTransactionCommitter* committer)
         LOG_debug << "Stopping transfer: " << f->name;
 
         Transfer *transfer = f->transfer;
-        transfer->files.erase(f->file_it);
-        filecachedel(f, committer);
-        app->file_removed(f, API_EINCOMPLETE);
-        f->transfer = NULL;
-        f->terminated();
+        transfer->removeTransferFile(API_EINCOMPLETE, f, committer);
 
         // last file for this transfer removed? shut down transfer.
         if (!transfer->files.size())

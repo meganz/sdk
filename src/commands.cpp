@@ -324,6 +324,30 @@ CommandPutFile::CommandPutFile(MegaClient* client, TransferSlot* ctslot, int ms)
     arg("v", 2);
     arg("s", tslot->fa->size);
     arg("ms", ms);
+
+    // send minimum set of different tree's roots for API to check overquota
+    set<handle> targetRoots;
+    beginarray("t");
+    for (auto &file : tslot->transfer->files)
+    {
+        if (!ISUNDEF(file->h))
+        {
+            Node *node = client->nodebyhandle(file->h);
+            if (node)
+            {
+                handle rootnode = client->getrootnode(node)->nodehandle;
+                if (targetRoots.find(rootnode) != targetRoots.end())
+                {
+                    continue;
+                }
+
+                targetRoots.insert(rootnode);
+            }
+
+            element((byte*)&file->h, MegaClient::NODEHANDLE);
+        }
+    }
+    endarray();
 }
 
 void CommandPutFile::cancel()
@@ -2346,8 +2370,8 @@ void CommandUpdatePendingContact::procresult()
 CommandEnumerateQuotaItems::CommandEnumerateQuotaItems(MegaClient* client)
 {
     cmd("utqa");
-    arg("f", 1);
-
+    arg("nf", 1);
+    arg("b", 1);
     tag = client->reqtag;
 }
 
@@ -2358,62 +2382,126 @@ void CommandEnumerateQuotaItems::procresult()
         return client->app->enumeratequotaitems_result((error)client->json.getint());
     }
 
-    handle product;
-    int prolevel, gbstorage, gbtransfer, months;
-    unsigned amount;
-    const char* a;
-    const char* c;
-    const char* d;
-    const char* ios;
-    const char* android;
-    string currency;
-    string description;
-    string ios_id;
-    string android_id;
-
-    while (client->json.enterarray())
+    while (client->json.enterobject())
     {
-        if (ISUNDEF((product = client->json.gethandle(8)))
-                || ((prolevel = int(client->json.getint())) < 0)
-                || ((gbstorage = int(client->json.getint())) < 0)
-                || ((gbtransfer = int(client->json.getint())) < 0)
-                || ((months = int(client->json.getint())) < 0)
-                || !(a = client->json.getvalue())
-                || !(c = client->json.getvalue())
-                || !(d = client->json.getvalue())
-                || !(ios = client->json.getvalue())
-                || !(android = client->json.getvalue()))
+        handle product = UNDEF;
+        int prolevel = -1, gbstorage = -1, gbtransfer = -1, months = -1, type = -1;
+        unsigned amount = 0, amountMonth = 0;
+        const char* amountStr = nullptr;
+        const char* amountMonthStr = nullptr;
+        const char* curr = nullptr;
+        const char* desc = nullptr;
+        const char* ios = nullptr;
+        const char* android = nullptr;
+        string currency;
+        string description;
+        string ios_id;
+        string android_id;
+        bool finished = false;
+        while (!finished)
         {
-            return client->app->enumeratequotaitems_result(API_EINTERNAL);
+            switch (client->json.getnameid())
+            {
+                case MAKENAMEID2('i', 't'):
+                    type = static_cast<int>(client->json.getint());
+                    break;
+                case MAKENAMEID2('i', 'd'):
+                    product = client->json.gethandle(8);
+                    break;
+                case MAKENAMEID2('a', 'l'):
+                    prolevel = static_cast<int>(client->json.getint());
+                    break;
+                case 's':
+                    gbstorage = static_cast<int>(client->json.getint());
+                    break;
+                case 't':
+                    gbtransfer = static_cast<int>(client->json.getint());
+                    break;
+                case 'm':
+                    months = static_cast<int>(client->json.getint());
+                    break;
+                case 'p':
+                    amountStr = client->json.getvalue();
+                    break;
+                case 'c':
+                    curr = client->json.getvalue();
+                    break;
+                case 'd':
+                    desc = client->json.getvalue();
+                    break;
+                case MAKENAMEID3('i', 'o', 's'):
+                    ios = client->json.getvalue();
+                    break;
+                case MAKENAMEID6('g', 'o', 'o', 'g', 'l', 'e'):
+                    android = client->json.getvalue();
+                    break;
+                case MAKENAMEID3('m', 'b', 'p'):
+                    amountMonthStr = client->json.getvalue();
+                    break;
+                case EOO:
+                    if (type < 0
+                            || ISUNDEF(product)
+                            || (prolevel < 0)
+                            || (!type && gbstorage < 0)
+                            || (!type && gbtransfer < 0)
+                            || (months < 0)
+                            || !amountStr
+                            || !curr
+                            || !desc
+                            || !amountMonthStr
+                            || (!type && !ios)
+                            || (!type && !android))
+                    {
+                        return client->app->enumeratequotaitems_result(API_EINTERNAL);
+                    }
+
+                    finished = true;
+                    break;
+                default:
+                    return client->app->enumeratequotaitems_result(API_EINTERNAL);
+            }
         }
 
-
-        Node::copystring(&currency, c);
-        Node::copystring(&description, d);
+        client->json.leaveobject();
+        Node::copystring(&currency, curr);
+        Node::copystring(&description, desc);
         Node::copystring(&ios_id, ios);
         Node::copystring(&android_id, android);
 
-
-        amount = atoi(a) * 100;
-        if ((c = strchr(a, '.')))
+        amount = atoi(amountStr) * 100;
+        if ((curr = strchr(amountStr, '.')))
         {
-            c++;
-            if ((*c >= '0') && (*c <= '9'))
+            curr++;
+            if ((*curr >= '0') && (*curr <= '9'))
             {
-                amount += (*c - '0') * 10;
+                amount += (*curr - '0') * 10;
             }
-            c++;
-            if ((*c >= '0') && (*c <= '9'))
+            curr++;
+            if ((*curr >= '0') && (*curr <= '9'))
             {
-                amount += *c - '0';
+                amount += *curr - '0';
             }
         }
 
-        client->app->enumeratequotaitems_result(product, prolevel, gbstorage,
-                                                gbtransfer, months, amount,
+        amountMonth = atoi(amountMonthStr) * 100;
+        if ((curr = strchr(amountMonthStr, '.')))
+        {
+            curr++;
+            if ((*curr >= '0') && (*curr <= '9'))
+            {
+                amountMonth += (*curr - '0') * 10;
+            }
+            curr++;
+            if ((*curr >= '0') && (*curr <= '9'))
+            {
+                amountMonth += *curr - '0';
+            }
+        }
+
+        client->app->enumeratequotaitems_result(type, product, prolevel, gbstorage,
+                                                gbtransfer, months, amount, amountMonth,
                                                 currency.c_str(), description.c_str(),
                                                 ios_id.c_str(), android_id.c_str());
-        client->json.leavearray();
     }
 
     client->app->enumeratequotaitems_result(API_OK);
@@ -5424,6 +5512,25 @@ void CommandConfirmCancelLink::procresult()
     {
         client->json.storeobject();
         return client->app->confirmcancellink_result((error)API_EINTERNAL);
+    }
+}
+
+CommandResendVerificationEmail::CommandResendVerificationEmail(MegaClient *client)
+{
+    cmd("era");
+    tag = client->reqtag;
+}
+
+void CommandResendVerificationEmail::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->resendverificationemail_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->resendverificationemail_result((error)API_EINTERNAL);
     }
 }
 
