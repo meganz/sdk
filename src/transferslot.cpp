@@ -90,7 +90,6 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
     fileattrsmutable = 0;
 
     connections = 0;
-    reqs = NULL;
     asyncIO = NULL;
     pendingcmd = NULL;
 
@@ -144,7 +143,7 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
 bool TransferSlot::createconnectionsonce()
 {
     // delay creating these until we know if it's raid or non-raid
-    if (!(connections || reqs || asyncIO))
+    if (!(connections || reqs.size() || asyncIO))
     {
         if (transferbuf.tempUrlVector().empty())
         {
@@ -153,7 +152,7 @@ bool TransferSlot::createconnectionsonce()
 
         connections = transferbuf.isRaid() ? RAIDPARTS : (transfer->size > 131072 ? transfer->client->connections[transfer->type] : 1);
         LOG_debug << "Populating transfer slot with " << connections << " connections, max request size of " << maxRequestSize << " bytes";
-        reqs = new HttpReqXfer*[connections]();
+        reqs.resize(connections);
         asyncIO = new AsyncIOContext*[connections]();
     }
     return true;
@@ -202,7 +201,7 @@ TransferSlot::~TransferSlot()
 
         for (int i = 0; i < connections; i++)
         {
-            HttpReqDL *downloadRequest = static_cast<HttpReqDL*>(reqs[i]);
+            HttpReqDL *downloadRequest = static_cast<HttpReqDL*>(reqs[i].get());
             if (fa && downloadRequest && downloadRequest->status == REQ_INFLIGHT
                     && downloadRequest->contentlength == downloadRequest->size   
                     && downloadRequest->bufpos >= SymmCipher::BLOCKSIZE)
@@ -277,11 +276,9 @@ TransferSlot::~TransferSlot()
     while (connections--)
     {
         delete asyncIO[connections];
-        delete reqs[connections];
     }
 
     delete[] asyncIO;
-    delete[] reqs;
 }
 
 void TransferSlot::toggleport(HttpReqXfer *req)
@@ -420,8 +417,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
             if (transfer->type == GET && reqs[i]->contentlength == reqs[i]->size && transferbuf.detectSlowestRaidConnection(i, slowestConnection))
             {
                 LOG_debug << "Connection " << slowestConnection << " is the slowest to reply, using the other 5.";
-                delete reqs[slowestConnection];
-                reqs[slowestConnection] = NULL;
+                reqs[slowestConnection].reset();
                 transferbuf.resetPart(slowestConnection);
                 i = connections; 
                 continue;
@@ -430,7 +426,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
             if (reqs[i]->status == REQ_FAILURE && reqs[i]->httpstatus == 200 && transfer->type == GET && transferbuf.isRaid())  // the request started out successfully, hence status==200 in the reply headers
             {
                 // check if we got some data and the failure occured partway through the part chunk.  If so, best not to waste it, convert to success case with less data
-                HttpReqDL *downloadRequest = static_cast<HttpReqDL*>(reqs[i]);
+                HttpReqDL *downloadRequest = static_cast<HttpReqDL*>(reqs[i].get());
                 LOG_debug << "Connection " << i << " received " << downloadRequest->bufpos << " before failing, processing data.";
                 if (downloadRequest->contentlength == downloadRequest->size && downloadRequest->bufpos >= RAIDSECTOR)
                 {
@@ -469,7 +465,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                     break;
 
                 case REQ_SUCCESS:
-                    if (client->orderdownloadedchunks && transfer->type == GET && !transferbuf.isRaid() && transfer->progresscompleted != static_cast<HttpReqDL*>(reqs[i])->dlpos)
+                    if (client->orderdownloadedchunks && transfer->type == GET && !transferbuf.isRaid() && transfer->progresscompleted != static_cast<HttpReqDL*>(reqs[i].get())->dlpos)
                     {
                         // postponing unsorted chunk
                         p += reqs[i]->size;
@@ -522,7 +518,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                                     errorcount = 0;
                                     transfer->failcount = 0;
 
-                                    transfer->chunkmacs.finishedUploadChunks(reqs[i]->pos, reqs[i]->size, static_cast<HttpReqUL*>(reqs[i])->mChunkmacs);
+                                    transfer->chunkmacs.finishedUploadChunks(reqs[i]->pos, reqs[i]->size, static_cast<HttpReqUL*>(reqs[i].get())->mChunkmacs);
 
                                     updatecontiguousprogress();
 
@@ -590,7 +586,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                             return transfer->failed(e, committer);
                         }
 
-                        transfer->chunkmacs.finishedUploadChunks(reqs[i]->pos, reqs[i]->size, static_cast<HttpReqUL*>(reqs[i])->mChunkmacs);
+                        transfer->chunkmacs.finishedUploadChunks(reqs[i]->pos, reqs[i]->size, static_cast<HttpReqUL*>(reqs[i].get())->mChunkmacs);
                         transfer->progresscompleted += reqs[i]->size;
 
                         updatecontiguousprogress();
@@ -612,7 +608,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                     }
                     else   // GET
                     {
-                        HttpReqDL *downloadRequest = static_cast<HttpReqDL*>(reqs[i]);
+                        HttpReqDL *downloadRequest = static_cast<HttpReqDL*>(reqs[i].get());
                         if (reqs[i]->size == reqs[i]->bufpos || downloadRequest->buffer_released)   // downloadRequest->buffer_released being true indicates we're retrying this asyncIO
                         {
 
@@ -763,7 +759,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                                 }
 
                                 auto pos = asyncIO[i]->pos;
-                                auto req = reqs[i];
+                                auto req = reqs[i];    // shared_ptr so no object is deleted out from under the worker
                                 auto transferkey = transfer->transferkey;
                                 auto ctriv = transfer->ctriv;
                                 req->pos = pos;
@@ -944,7 +940,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
 
                             if (changeport)
                             {
-                                toggleport(reqs[i]);
+                                toggleport(reqs[i].get());
                             }
                         }
                         reqs[i]->status = REQ_PREPARED;
@@ -970,7 +966,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                 {
                     // set up to do the actual write on the next loop, as if it was a retry
                     reqs[i]->status = REQ_SUCCESS;
-                    static_cast<HttpReqDL*>(reqs[i])->buffer_released = true;
+                    static_cast<HttpReqDL*>(reqs[i].get())->buffer_released = true;
                     newOutputBufferSupplied = true;
                 }
 
@@ -984,7 +980,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
 
                     if (!reqs[i])
                     {
-                        reqs[i] = transfer->type == PUT ? (HttpReqXfer*)new HttpReqUL(client->rng) : (HttpReqXfer*)new HttpReqDL(client->rng);
+                        reqs[i].reset(transfer->type == PUT ? (HttpReqXfer*)new HttpReqUL(client->rng) : (HttpReqXfer*)new HttpReqDL(client->rng));
                     }
 
                     bool prepare = true;
@@ -1083,7 +1079,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                         {
                             // set up to do the actual write on the next loop, as if it was a retry
                             reqs[i]->status = REQ_SUCCESS;
-                            static_cast<HttpReqDL*>(reqs[i])->buffer_released = true;
+                            static_cast<HttpReqDL*>(reqs[i].get())->buffer_released = true;
                         }
                     }
                 }
@@ -1158,7 +1154,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
 
                 if (changeport)
                 {
-                    toggleport(reqs[i]);
+                    toggleport(reqs[i].get());
                 }
 
                 reqs[i]->status = REQ_PREPARED;
