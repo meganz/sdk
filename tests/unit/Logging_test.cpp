@@ -124,10 +124,25 @@ TEST(Logging, forPointer)
     }
 }
 
+TEST(Logging, forNullPointer)
+{
+    for (int level = 0; level < mega::LogLevel::logMax; ++level)
+    {
+        MockLogger logger;
+        const std::string file = "file.cpp";
+        const int line = 13;
+        const double* obj = nullptr;
+        mega::SimpleLogger{static_cast<mega::LogLevel>(level), file.c_str(), line} << obj;
+        logger.checkLogLevel(level);
+        ASSERT_EQ(1, logger.mMessage.size());
+        ASSERT_EQ(expMsg(file, line, "(NULL)"), logger.mMessage[0]);
+    }
+}
+
 namespace {
 
 template<typename Type>
-void test_forNumber()
+void test_forIntegerNumber()
 {
     for (int level = 0; level < mega::LogLevel::logMax; ++level)
     {
@@ -142,36 +157,63 @@ void test_forNumber()
     }
 }
 
+template<typename Type>
+void test_forFloatingNumber()
+{
+    for (int level = 0; level < mega::LogLevel::logMax; ++level)
+    {
+        MockLogger logger;
+        const std::string file = "file.cpp";
+        const int line = 13;
+        const auto obj = static_cast<Type>(42.123);
+        mega::SimpleLogger{static_cast<mega::LogLevel>(level), file.c_str(), line} << obj;
+        logger.checkLogLevel(level);
+        EXPECT_EQ(1, logger.mMessage.size());
+        const auto msg = expMsg(file, line, "42.123");
+        EXPECT_NE(logger.mMessage[0].find(msg), std::string::npos);
+    }
+}
+
 }
 
 TEST(Logging, forInt)
 {
-    test_forNumber<int>();
+    test_forIntegerNumber<int>();
 }
 
 TEST(Logging, forLong)
 {
-    test_forNumber<long>();
+    test_forIntegerNumber<long>();
 }
 
 TEST(Logging, forLongLong)
 {
-    test_forNumber<long long>();
+    test_forIntegerNumber<long long>();
 }
 
 TEST(Logging, forUnsignedInt)
 {
-    test_forNumber<unsigned int>();
+    test_forIntegerNumber<unsigned int>();
 }
 
 TEST(Logging, forUnsignedLong)
 {
-    test_forNumber<unsigned long>();
+    test_forIntegerNumber<unsigned long>();
 }
 
 TEST(Logging, forUnsignedLongLong)
 {
-    test_forNumber<unsigned long long>();
+    test_forIntegerNumber<unsigned long long>();
+}
+
+TEST(Logging, forFloat)
+{
+    test_forFloatingNumber<float>();
+}
+
+TEST(Logging, forDouble)
+{
+    test_forFloatingNumber<double>();
 }
 
 TEST(Logging, withMessageLargeThanLogBuffer)
@@ -219,5 +261,15 @@ TEST(Logging, withHugeMessage_butNoLogger)
         mega::SimpleLogger{static_cast<mega::LogLevel>(level), file.c_str(), line} << message;
         // ensure no crash or other funny business
     }
+}
+
+TEST(Logging, toStr)
+{
+    ASSERT_EQ(0, std::strcmp("verbose", mega::SimpleLogger::toStr(mega::LogLevel::logMax)));
+    ASSERT_EQ(0, std::strcmp("debug", mega::SimpleLogger::toStr(mega::LogLevel::logDebug)));
+    ASSERT_EQ(0, std::strcmp("info", mega::SimpleLogger::toStr(mega::LogLevel::logInfo)));
+    ASSERT_EQ(0, std::strcmp("warn", mega::SimpleLogger::toStr(mega::LogLevel::logWarning)));
+    ASSERT_EQ(0, std::strcmp("err", mega::SimpleLogger::toStr(mega::LogLevel::logError)));
+    ASSERT_EQ(0, std::strcmp("FATAL", mega::SimpleLogger::toStr(mega::LogLevel::logFatal)));
 }
 #endif
