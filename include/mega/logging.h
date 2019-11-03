@@ -350,7 +350,7 @@ public:
     SimpleLogger& operator<<(T* obj)
     {
 #ifdef ENABLE_LOG_PERFORMANCE
-        if (obj != NULL)
+        if (obj)
         {
             logValue(obj);
         }
@@ -359,7 +359,7 @@ public:
             copyToBuffer("(NULL)", 6);
         }
 #else
-        if (obj != NULL)
+        if (obj)
         {
             ostr << obj;
         }
@@ -374,6 +374,7 @@ public:
     template <typename T, typename = typename std::enable_if<std::is_scalar<T>::value>::type>
     SimpleLogger& operator<<(const T obj)
     {
+        static_assert(!std::is_same<T, nullptr_t>::value, "T cannot be nullptr_t");
 #ifdef ENABLE_LOG_PERFORMANCE
         logValue(obj);
 #else
