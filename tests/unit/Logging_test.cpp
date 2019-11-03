@@ -262,6 +262,48 @@ TEST(Logging, performanceMode_withHugeMessage_butNoLogger)
         // ensure no crash or other funny business
     }
 }
+
+#else
+
+namespace {
+
+class MockLogger : public mega::Logger
+{
+public:
+
+    MockLogger()
+    {
+        mega::SimpleLogger::logger = this;
+    }
+
+    ~MockLogger()
+    {
+        mega::SimpleLogger::logger = nullptr;
+    }
+
+    void log(const char *time, int loglevel, const char *source, const char *message) override
+    {
+        EXPECT_NE(nullptr, time);
+        EXPECT_NE(nullptr, source);
+        EXPECT_NE(nullptr, message);
+        mLogLevel.insert(loglevel);
+        mMessage.push_back(message);
+    }
+
+    void checkLogLevel(const int expLogLevel) const
+    {
+        EXPECT_EQ(1, mLogLevel.size());
+        EXPECT_EQ(expLogLevel, *mLogLevel.begin());
+    }
+
+    std::vector<std::string> mMessage;
+
+private:
+    std::set<int> mLogLevel;
+};
+
+}
+
 #endif
 
 TEST(Logging, toStr)
