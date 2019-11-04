@@ -3139,6 +3139,11 @@ bool MegaApi::isScanning()
     return pImpl->isIndexing();
 }
 
+bool MegaApi::isSyncing()
+{
+    return pImpl->isSyncing();
+}
+
 bool MegaApi::isSynced(MegaNode *n)
 {
     return pImpl->isSynced(n);

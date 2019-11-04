@@ -1345,6 +1345,24 @@ bool MegaApiImpl::isIndexing()
     return indexing;
 }
 
+bool MegaApiImpl::isSyncing()
+{
+    if (!client->syncs.size())
+    {
+        return false;
+    }
+    SdkMutexGuard g(sdkMutex);
+
+    for (auto & sync : client->syncs)
+    {
+        if (sync->localroot->ts == TREESTATE_SYNCING || sync->localroot->ts == TREESTATE_PENDING)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 MegaSync *MegaApiImpl::getSyncByTag(int tag)
 {
     sdkMutex.lock();
