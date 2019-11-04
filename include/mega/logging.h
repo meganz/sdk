@@ -374,7 +374,7 @@ public:
     template <typename T, typename = typename std::enable_if<std::is_scalar<T>::value>::type>
     SimpleLogger& operator<<(const T obj)
     {
-        static_assert(!std::is_same<T, nullptr_t>::value, "T cannot be nullptr_t");
+        static_assert(!std::is_same<T, std::nullptr_t>::value, "T cannot be nullptr_t");
 #ifdef ENABLE_LOG_PERFORMANCE
         logValue(obj);
 #else
