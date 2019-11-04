@@ -19,6 +19,10 @@
  * program.
  */
 
+#ifdef _WIN32
+#define NOMINMAX // Prevents windows defining its own min/max as macros
+#endif
+
 #define _LARGE_FILES
 
 #define _GNU_SOURCE 1
@@ -27561,7 +27565,7 @@ int MegaHTTPServer::streamNode(MegaHTTPContext *httpctx)
 
     if (httpctx->rangeEnd >= 0)
     {
-        end = min(totalSize - 1, httpctx->rangeEnd);
+        end = std::min(totalSize - 1, httpctx->rangeEnd);
     }
     httpctx->rangeEnd = end + 1;
 
