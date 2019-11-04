@@ -2059,8 +2059,35 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  *
  * If the error code in the MEGARequest object received in onRequestFinish
  * is MEGAErrorTypeApiOk, the user is not blocked.
+ *
+ * @param delegate MEGARequestDelegate to track this request
  */
 - (void)whyAmIBlockedWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Check the reason of being blocked.
+ *
+ * The associated request type with this request is MEGARequestTypeWhyAmIBlocked.
+ *
+ * This request can be sent internally at anytime (whenever an account gets blocked), so
+ * a MEGAGlobalListener should process the result, show the reason and logout.
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - MEGARequest.text - Returns the reason string (in English)
+ * - MEGARequest.number - Returns the reason code. Possible values:
+ *     0: The account is not blocked
+ *     200: suspension message for any type of suspension, but copyright suspension.
+ *     300: suspension only for multiple copyright violations.
+ *     400: the subuser account has been disabled.
+ *     401: the subuser account has been removed.
+ *     500: The account needs to be verified by an SMS code.
+ *     700: the account is supended for Weak Account Protection.
+ *
+ * If the error code in the MEGARequest object received in onRequestFinish
+ * is MEGAErrorTypeApiOk, the user is not blocked.
+*/
+- (void)whyAmIBlocked;
 
 /**
  * @brief Get the next PSA (Public Service Announcement) that should be shown to the user

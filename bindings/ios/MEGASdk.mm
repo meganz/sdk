@@ -770,6 +770,10 @@ using namespace mega;
     self.megaApi->whyAmIBlocked([self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
+- (void)whyAmIBlocked {
+    self.megaApi->whyAmIBlocked();
+}
+
 - (void)getPSAWithDelegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->getPSA([self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
