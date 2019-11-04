@@ -2040,13 +2040,13 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
 /**
  * @brief Check the reason of being blocked.
  *
- * The associated request type with this request is MegaRequest::TYPE_WHY_AM_I_BLOCKED.
+ * The associated request type with this request is MEGARequestTypeWhyAmIBlocked.
  *
  * This request can be sent internally at anytime (whenever an account gets blocked), so
- * a MegaGlobalListener should process the result, show the reason and logout.
+ * a MEGAGlobalListener should process the result, show the reason and logout.
  *
  * Valid data in the MegaRequest object received in onRequestFinish when the error code
- * is MegaError::API_OK:
+ * is MEGAErrorTypeApiOk:
  * - MEGARequest.text - Returns the reason string (in English)
  * - MEGARequest.number - Returns the reason code. Possible values:
  *     0: The account is not blocked
@@ -2058,7 +2058,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  *     700: the account is supended for Weak Account Protection.
  *
  * If the error code in the MEGARequest object received in onRequestFinish
- * is MegaError::API_OK, the user is not blocked.
+ * is MEGAErrorTypeApiOk, the user is not blocked.
  */
 - (void)whyAmIBlockedWithDelegate:(id<MEGARequestDelegate>)delegate;
 
