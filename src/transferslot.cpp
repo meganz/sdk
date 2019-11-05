@@ -340,6 +340,42 @@ int64_t TransferSlot::macsmac(chunkmac_map* m)
     return m->macsmac(transfer->transfercipher());
 }
 
+bool TransferSlot::checkTransferFinished(DBTableTransactionCommitter& committer, MegaClient* client)
+{
+    if (transfer->progresscompleted == transfer->size)
+    {
+        if (transfer->progresscompleted)
+        {
+            transfer->currentmetamac = macsmac(&transfer->chunkmacs);
+            transfer->hascurrentmetamac = true;
+        }
+
+        // verify meta MAC
+        if (!transfer->progresscompleted
+            || (transfer->currentmetamac == transfer->metamac))
+        {
+            client->transfercacheadd(transfer, &committer);
+            if (transfer->progresscompleted != progressreported)
+            {
+                progressreported = transfer->progresscompleted;
+                lastdata = Waiter::ds;
+
+                progress();
+            }
+
+            transfer->complete(committer);
+        }
+        else
+        {
+            client->sendevent(99431, "MAC verification failed", 0);
+            transfer->chunkmacs.clear();
+            transfer->failed(API_EKEY, committer);
+        }
+        return true;
+    }
+    return false;
+}
+
 // file transfer state machine
 void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committer)
 {
@@ -621,81 +657,27 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                             TransferBufferManager::FilePiece* outputPiece = transferbuf.getAsyncOutputBufferPointer(i);
                             if (outputPiece)
                             {
+                                bool parallelNeeded = outputPiece->finalize(false, transfer->size, transfer->ctriv, transfer->transfercipher(), &transfer->chunkmacs);
 
-                                if (fa->asyncavailable())
+                                if (parallelNeeded)
                                 {
-                                    if (asyncIO[i])
+                                    // do full chunk (and chunk-remainder) decryption on a thread for throughput and to minimize mutex lock times.
+                                    auto req = reqs[i];   // shared_ptr for shutdown safety
+                                    auto transferkey = transfer->transferkey;
+                                    auto ctriv = transfer->ctriv;
+                                    auto filesize = transfer->size;
+                                    req->status = REQ_DECRYPTING;
+
+                                    client->mAsyncQueue.push([req, outputPiece, transferkey, ctriv, filesize](SymmCipher& sc)
                                     {
-                                        LOG_warn << "Retrying failed async write";
-                                        delete asyncIO[i];
-                                        asyncIO[i] = NULL;
-                                    }
-
-                                    p += outputPiece->buf.datalen();
-
-                                    LOG_debug << "Writing data asynchronously at " << outputPiece->pos << " to " << (outputPiece->pos + outputPiece->buf.datalen());
-                                    asyncIO[i] = fa->asyncfwrite(outputPiece->buf.datastart(), static_cast<unsigned>(outputPiece->buf.datalen()), outputPiece->pos);
-                                    reqs[i]->status = REQ_ASYNCIO;
+                                        sc.setkey(transferkey.data());
+                                        outputPiece->finalize(true, filesize, ctriv, &sc, nullptr);
+                                        req->status = REQ_DECRYPTED;
+                                    });
                                 }
                                 else
                                 {
-                                    if (fa->fwrite(outputPiece->buf.datastart(), static_cast<unsigned>(outputPiece->buf.datalen()), outputPiece->pos))
-                                    {
-                                        LOG_verbose << "Sync write succeeded";
-                                        transferbuf.bufferWriteCompleted(i, true);
-                                        errorcount = 0;
-                                        transfer->failcount = 0;
-                                        updatecontiguousprogress();
-                                    }
-                                    else
-                                    {
-                                        LOG_err << "Error saving finished chunk";
-                                        if (!fa->retry)
-                                        {
-                                            transferbuf.bufferWriteCompleted(i, false);  // discard failed data so we don't retry on slot deletion
-                                            return transfer->failed(API_EWRITE, committer);
-                                        }
-                                        lasterror = API_EWRITE;
-                                        backoff = 2;
-                                        break;
-                                    }
-
-                                    if (transfer->progresscompleted == transfer->size)
-                                    {
-                                        if (transfer->progresscompleted)
-                                        {
-                                            transfer->currentmetamac = macsmac(&transfer->chunkmacs);
-                                            transfer->hascurrentmetamac = true;
-                                        }
-
-                                        // verify meta MAC
-                                        if (!transfer->progresscompleted
-                                            || (transfer->currentmetamac == transfer->metamac))
-                                        {
-                                            client->transfercacheadd(transfer, &committer);
-                                            if (transfer->progresscompleted != progressreported)
-                                            {
-                                                progressreported = transfer->progresscompleted;
-                                                lastdata = Waiter::ds;
-
-                                                progress();
-                                            }
-
-                                            return transfer->complete(committer);
-                                        }
-                                        else
-                                        {
-                                            int creqtag = client->reqtag;
-                                            client->reqtag = 0;
-                                            client->sendevent(99431, "MAC verification failed");
-                                            client->reqtag = creqtag;
-
-                                            transfer->chunkmacs.clear();
-                                            return transfer->failed(API_EKEY, committer);
-                                        }
-                                    }
-                                    client->transfercacheadd(transfer, &committer);
-                                    reqs[i]->status = REQ_READY;
+                                    reqs[i]->status = REQ_DECRYPTED;
                                 }
                             }
                             else if (transferbuf.isRaid())
@@ -734,6 +716,60 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                             errorcount++;
                             reqs[i]->status = REQ_PREPARED;
                             break;
+                        }
+                    }
+                    break;
+
+                case REQ_DECRYPTED:
+                    {
+                        // this must return the same piece we just decrypted, since we have not asked the transferbuf to discard it yet.
+                        TransferBufferManager::FilePiece* outputPiece = transferbuf.getAsyncOutputBufferPointer(i);
+                        
+                        if (fa->asyncavailable())
+                        {
+                            if (asyncIO[i])
+                            {
+                                LOG_warn << "Retrying failed async write";
+                                delete asyncIO[i];
+                                asyncIO[i] = NULL;
+                            }
+
+                            p += outputPiece->buf.datalen();
+
+                            LOG_debug << "Writing data asynchronously at " << outputPiece->pos << " to " << (outputPiece->pos + outputPiece->buf.datalen());
+                            asyncIO[i] = fa->asyncfwrite(outputPiece->buf.datastart(), static_cast<unsigned>(outputPiece->buf.datalen()), outputPiece->pos);
+                            reqs[i]->status = REQ_ASYNCIO;
+                        }
+                        else
+                        {
+                            if (fa->fwrite(outputPiece->buf.datastart(), static_cast<unsigned>(outputPiece->buf.datalen()), outputPiece->pos))
+                            {
+                                LOG_verbose << "Sync write succeeded";
+                                transferbuf.bufferWriteCompleted(i, true);
+                                errorcount = 0;
+                                transfer->failcount = 0;
+                                updatecontiguousprogress();
+                            }
+                            else
+                            {
+                                LOG_err << "Error saving finished chunk";
+                                if (!fa->retry)
+                                {
+                                    transferbuf.bufferWriteCompleted(i, false);  // discard failed data so we don't retry on slot deletion
+                                    return transfer->failed(API_EWRITE, committer);
+                                }
+                                lasterror = API_EWRITE;
+                                backoff = 2;
+                                break;
+                            }
+
+                            if (checkTransferFinished(committer, client))
+                            {
+                                return;
+                            }
+
+                            client->transfercacheadd(transfer, &committer);
+                            reqs[i]->status = REQ_READY;
                         }
                     }
                     break;
@@ -781,39 +817,9 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
 
                                 updatecontiguousprogress();
 
-                                if (transfer->progresscompleted == transfer->size)
+                                if (checkTransferFinished(committer, client))
                                 {
-                                    if (transfer->progresscompleted)
-                                    {
-                                        transfer->currentmetamac = macsmac(&transfer->chunkmacs);
-                                        transfer->hascurrentmetamac = true;
-                                    }
-
-                                    // verify meta MAC
-                                    if (!transfer->progresscompleted
-                                            || (transfer->currentmetamac == transfer->metamac))
-                                    {
-                                        client->transfercacheadd(transfer, &committer);
-                                        if (transfer->progresscompleted != progressreported)
-                                        {
-                                            progressreported = transfer->progresscompleted;
-                                            lastdata = Waiter::ds;
-
-                                            progress();
-                                        }
-
-                                        return transfer->complete(committer);
-                                    }
-                                    else
-                                    {
-                                        int creqtag = client->reqtag;
-                                        client->reqtag = 0;
-                                        client->sendevent(99431, "MAC verification failed");
-                                        client->reqtag = creqtag;
-
-                                        transfer->chunkmacs.clear();
-                                        return transfer->failed(API_EKEY, committer);
-                                    }
+                                    return;
                                 }
 
                                 client->transfercacheadd(transfer, &committer);

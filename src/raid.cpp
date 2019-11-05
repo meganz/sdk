@@ -641,36 +641,51 @@ m_off_t TransferBufferManager::calcOutputChunkPos(m_off_t acquiredpos)
 }
 
 // decrypt, mac downloaded chunk
-void TransferBufferManager::finalize(FilePiece& r)
+bool RaidBufferManager::FilePiece::finalize(bool parallel, m_off_t filesize, int64_t ctriv, SymmCipher *cipher, chunkmac_map* source_chunkmacs)
 {
-    byte *chunkstart = r.buf.datastart();
-    m_off_t startpos = r.pos;
-    m_off_t finalpos = startpos + r.buf.datalen();
-    assert(finalpos <= transfer->size);
-    if (finalpos != transfer->size)
+    bool queueParallel = false;
+
+    byte *chunkstart = buf.datastart();
+    m_off_t startpos = pos;
+    m_off_t finalpos = startpos + buf.datalen();
+    assert(finalpos <= filesize);
+    if (finalpos != filesize)
     {
         finalpos &= -SymmCipher::BLOCKSIZE;
     }
 
     m_off_t endpos = ChunkedHash::chunkceil(startpos, finalpos);
     unsigned chunksize = static_cast<unsigned>(endpos - startpos);
-    SymmCipher *cipher = transfer->transfercipher();
+    
     while (chunksize)
     {
         m_off_t chunkid = ChunkedHash::chunkfloor(startpos);
-        ChunkMAC &chunkmac = r.chunkmacs[chunkid];
+        ChunkMAC &chunkmac = chunkmacs[chunkid];
         if (!chunkmac.finished)
         {
-            chunkmac = transfer->chunkmacs[chunkid];
-            cipher->ctr_crypt(chunkstart, chunksize, startpos, transfer->ctriv, chunkmac.mac, false, !chunkmac.finished && !chunkmac.offset);
-            if (endpos == ChunkedHash::chunkceil(chunkid, transfer->size))
+            if (source_chunkmacs)
             {
-                LOG_debug << "Finished chunk: " << startpos << " - " << endpos << "   Size: " << chunksize;
-                chunkmac.finished = true;
-                chunkmac.offset = 0;
+                chunkmac = (*source_chunkmacs)[chunkid];
             }
-            else
+            if (endpos == ChunkedHash::chunkceil(chunkid, filesize))
             {
+                if (parallel)
+                {
+                    // these parts can be done on a thread - they are independent chunks, or the earlier part of the chunk is already done.
+                    cipher->ctr_crypt(chunkstart, chunksize, startpos, ctriv, chunkmac.mac, false, !chunkmac.finished && !chunkmac.offset);
+                    LOG_debug << "Finished chunk: " << startpos << " - " << endpos << "   Size: " << chunksize;
+                    chunkmac.finished = true;
+                    chunkmac.offset = 0;
+                }
+                else
+                {
+                    queueParallel = true;
+                }
+            }
+            else if (!parallel)
+            {
+                // these part chunks must be done serially (and first), since later parts of a chunk need the mac of earlier parts as input.
+                cipher->ctr_crypt(chunkstart, chunksize, startpos, ctriv, chunkmac.mac, false, !chunkmac.finished && !chunkmac.offset);
                 LOG_debug << "Decrypted partial chunk: " << startpos << " - " << endpos << "   Size: " << chunksize;
                 chunkmac.finished = false;
                 chunkmac.offset += chunksize;
@@ -681,6 +696,12 @@ void TransferBufferManager::finalize(FilePiece& r)
         endpos = ChunkedHash::chunkceil(startpos, finalpos);
         chunksize = static_cast<unsigned>(endpos - startpos);
     }
+    return queueParallel;
+}
+
+void TransferBufferManager::finalize(FilePiece& r)
+{
+    // for transfers (as opposed to DirectRead), decrypt/mac is now done on threads
 }
 
 

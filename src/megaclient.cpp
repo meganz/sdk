@@ -46,10 +46,10 @@ string MegaClient::GELBURL = "https://gelb.karere.mega.nz/";
 string MegaClient::CHATSTATSURL = "https://stats.karere.mega.nz";
 
 // maximum number of concurrent transfers (uploads + downloads)
-const unsigned MegaClient::MAXTOTALTRANSFERS = 768;
+const unsigned MegaClient::MAXTOTALTRANSFERS = 48;
 
 // maximum number of concurrent transfers (uploads or downloads)
-const unsigned MegaClient::MAXTRANSFERS = 512;
+const unsigned MegaClient::MAXTRANSFERS = 32;
 
 // maximum number of queued putfa before halting the upload queue
 const int MegaClient::MAXQUEUEDFA = 30;
