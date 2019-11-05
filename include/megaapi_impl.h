@@ -646,6 +646,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         void setSourceFileTemporary(bool temporary);
         void setStartFirst(bool startFirst);
         void setBackupTransfer(bool backupTransfer);
+        void setForeignOverquota(bool backupTransfer);
         void setStreamingTransfer(bool streamingTransfer);
         void setLastBytes(char *lastBytes);
         void setLastError(MegaError e);
@@ -685,6 +686,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         virtual bool isSourceFileTemporary() const;
         virtual bool shouldStartFirst() const;
         virtual bool isBackupTransfer() const;
+        virtual bool isForeignOverquota() const;
         virtual char *getLastBytes() const;
         virtual MegaError getLastError() const;
         virtual bool isFolderTransfer() const;
@@ -715,6 +717,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
             bool temporarySourceFile : 1;
             bool startFirst : 1;
             bool backupTransfer : 1;
+            bool foreignOverquota : 1;
         };
 
         int64_t startTime;
@@ -1834,7 +1837,7 @@ class SearchTreeProcessor : public TreeProcessor
 class OutShareProcessor : public TreeProcessor
 {
     public:
-        OutShareProcessor();
+        OutShareProcessor(MegaClient&);
         virtual bool processNode(Node* node);
         virtual ~OutShareProcessor() {}
         vector<Share *> getShares();
@@ -1843,6 +1846,7 @@ class OutShareProcessor : public TreeProcessor
     protected:
         vector<Share *> mShares;
         node_vector mNodes;
+        MegaClient& mClient;
 };
 
 class PendingOutShareProcessor : public TreeProcessor
@@ -2389,7 +2393,10 @@ class MegaApiImpl : public MegaApp
         void pauseActionPackets();
         void resumeActionPackets();
 
-        static std::function<bool (Node*, Node*)>getComparatorFunction(int order);
+        static std::function<bool (Node*, Node*)>getComparatorFunction(int order, MegaClient& mc);
+        static void sortByComparatorFunction(node_vector&, int order, MegaClient& mc);
+        static bool nodeNaturalComparatorASC(Node *i, Node *j);
+        static bool nodeNaturalComparatorDESC(Node *i, Node *j);
         static bool nodeComparatorDefaultASC  (Node *i, Node *j);
         static bool nodeComparatorDefaultDESC (Node *i, Node *j);
         static bool nodeComparatorSizeASC  (Node *i, Node *j);
@@ -2398,8 +2405,11 @@ class MegaApiImpl : public MegaApp
         static bool nodeComparatorCreationDESC  (Node *i, Node *j);
         static bool nodeComparatorModificationASC  (Node *i, Node *j);
         static bool nodeComparatorModificationDESC  (Node *i, Node *j);
-        static bool nodeComparatorAlphabeticalASC  (Node *i, Node *j);
-        static bool nodeComparatorAlphabeticalDESC  (Node *i, Node *j);
+        static bool nodeComparatorPhotoASC(Node *i, Node *j, MegaClient& mc);
+        static bool nodeComparatorPhotoDESC(Node *i, Node *j, MegaClient& mc);
+        static bool nodeComparatorVideoASC(Node *i, Node *j, MegaClient& mc);
+        static bool nodeComparatorVideoDESC(Node *i, Node *j, MegaClient& mc);
+        static int typeComparator(Node *i, Node *j);
         static bool userComparatorDefaultASC (User *i, User *j);
 
         char* escapeFsIncompatible(const char *filename);
@@ -2547,7 +2557,7 @@ class MegaApiImpl : public MegaApp
         void getCountryCallingCodes(MegaRequestListener *listener = NULL);
 
         void fireOnTransferStart(MegaTransferPrivate *transfer);
-        void fireOnTransferFinish(MegaTransferPrivate *transfer, MegaError e);
+        void fireOnTransferFinish(MegaTransferPrivate *transfer, MegaError e, DBTableTransactionCommitter& committer);
         void fireOnTransferUpdate(MegaTransferPrivate *transfer);
         void fireOnTransferTemporaryError(MegaTransferPrivate *transfer, MegaError e);
         map<int, MegaTransferPrivate *> transferMap;
@@ -2924,6 +2934,10 @@ protected:
         bool sync_syncable(Sync *, const char*, string *, Node *) override;
         bool sync_syncable(Sync *, const char*, string *) override;
         void syncupdate_local_lockretry(bool) override;
+
+        // for the exclusive use of sync_syncable
+        unique_ptr<FileAccess> mSyncable_fa;
+        std::mutex mSyncable_fa_mutex;
 #endif
 
 protected:
@@ -2962,7 +2976,7 @@ protected:
 
         void sendPendingScRequest();
         void sendPendingRequests();
-        void sendPendingTransfers();
+        unsigned sendPendingTransfers();
         void updateBackups();
         char *stringToArray(string &buffer);
 
@@ -3256,7 +3270,7 @@ public:
     std::string host;
     std::string destination;
     bool overwrite;
-    FileAccess *tmpFileAccess;
+    std::unique_ptr<FileAccess> tmpFileAccess;
     std::string tmpFileName;
     std::string newname; //newname for moved node
     MegaHandle nodeToMove; //node to be moved after delete
@@ -3528,7 +3542,7 @@ public:
     m_off_t rangeWritten;
 
     std::string tmpFileName;
-    FileAccess* tmpFileAccess;
+    std::unique_ptr<FileAccess> tmpFileAccess;
     size_t tmpFileSize;
 
     bool controlRespondedElsewhere;

@@ -102,12 +102,19 @@ int WinWaiter::wait()
     }
 
     addhandle(externalEvent, NEEDEXEC);
-    DWORD dwWaitResult = WaitForMultipleObjectsEx((DWORD)handles.size(), &handles.front(), FALSE, maxds * 100, TRUE);
+    DWORD dwWaitResult = WaitForMultipleObjectsEx((DWORD)index, &handles.front(), FALSE, maxds * 100, TRUE);
 
     if (pcsHTTP)
     {
         EnterCriticalSection(pcsHTTP);
     }
+
+#ifdef MEGA_MEASURE_CODE
+    if (dwWaitResult == WAIT_TIMEOUT && maxds > 0) ++performanceStats.waitTimedoutNonzero;
+    else if (dwWaitResult == WAIT_TIMEOUT && maxds == 0) ++performanceStats.waitTimedoutZero;
+    else if (dwWaitResult == WAIT_IO_COMPLETION) ++performanceStats.waitIOCompleted;
+    else if (dwWaitResult >= WAIT_OBJECT_0) ++performanceStats.waitSignalled;
+#endif
 
     if ((dwWaitResult == WAIT_TIMEOUT) || (dwWaitResult == WAIT_IO_COMPLETION) || maxds == 0)
     {
@@ -118,8 +125,7 @@ int WinWaiter::wait()
         r |= flags[dwWaitResult - WAIT_OBJECT_0];
     }
 
-    handles.clear();
-    flags.clear();
+    index = 0;
 
     return r;
 }
@@ -128,8 +134,18 @@ int WinWaiter::wait()
 // return true if handle added
 bool WinWaiter::addhandle(HANDLE handle, int flag)
 {
-    handles.push_back(handle);
-    flags.push_back(flag);
+    assert(handles.size() == flags.size() && handles.size() >= index);
+    if (index < handles.size())
+    {
+        handles[index] = handle;
+        flags[index] = flag;
+    }
+    else
+    {
+        handles.push_back(handle);
+        flags.push_back(flag);
+    }
+    ++index;
 
     return true;
 }

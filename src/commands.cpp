@@ -324,6 +324,30 @@ CommandPutFile::CommandPutFile(MegaClient* client, TransferSlot* ctslot, int ms)
     arg("v", 2);
     arg("s", tslot->fa->size);
     arg("ms", ms);
+
+    // send minimum set of different tree's roots for API to check overquota
+    set<handle> targetRoots;
+    beginarray("t");
+    for (auto &file : tslot->transfer->files)
+    {
+        if (!ISUNDEF(file->h))
+        {
+            Node *node = client->nodebyhandle(file->h);
+            if (node)
+            {
+                handle rootnode = client->getrootnode(node)->nodehandle;
+                if (targetRoots.find(rootnode) != targetRoots.end())
+                {
+                    continue;
+                }
+
+                targetRoots.insert(rootnode);
+            }
+
+            element((byte*)&file->h, MegaClient::NODEHANDLE);
+        }
+    }
+    endarray();
 }
 
 void CommandPutFile::cancel()
@@ -348,7 +372,7 @@ void CommandPutFile::procresult()
     {
         if (!canceled)
         {
-            tslot->transfer->failed(error(client->json.getint()));
+            tslot->transfer->failed(error(client->json.getint()), *client->mTctableRequestCommitter);
         }
        
         return;
@@ -376,7 +400,7 @@ void CommandPutFile::procresult()
                 }
                 else
                 {
-                    return tslot->transfer->failed(API_EINTERNAL);
+                    return tslot->transfer->failed(API_EINTERNAL, *client->mTctableRequestCommitter);
                 }
 
             default:
@@ -384,7 +408,7 @@ void CommandPutFile::procresult()
                 {
                     if (!canceled)
                     {
-                        tslot->transfer->failed(API_EINTERNAL);
+                        tslot->transfer->failed(API_EINTERNAL, *client->mTctableRequestCommitter);
                     }
 
                     return;
@@ -652,7 +676,7 @@ void CommandGetFile::procresult()
 
         if (tslot)
         {
-            return tslot->transfer->failed(e);
+            return tslot->transfer->failed(e, *client->mTctableRequestCommitter);
         }
 
         return client->app->checkfile_result(ph, e);
@@ -759,7 +783,7 @@ void CommandGetFile::procresult()
 
                     if (tslot)
                     {
-                        return tslot->transfer->failed(e);
+                        return tslot->transfer->failed(e, *client->mTctableRequestCommitter);
                     }
 
                     return client->app->checkfile_result(ph, e);
@@ -790,7 +814,7 @@ void CommandGetFile::procresult()
 
                                         if (tslot)
                                         {
-                                            return tslot->transfer->failed(API_EINTERNAL);
+                                            return tslot->transfer->failed(API_EINTERNAL, *client->mTctableRequestCommitter);
                                         }
 
                                         return client->app->checkfile_result(ph, API_EINTERNAL);
@@ -804,7 +828,7 @@ void CommandGetFile::procresult()
 
                                         if (tslot)
                                         {
-                                            return tslot->transfer->failed(API_EINTERNAL);
+                                            return tslot->transfer->failed(API_EINTERNAL, *client->mTctableRequestCommitter);
                                         }
 
                                         return client->app->checkfile_result(ph, API_EINTERNAL);
@@ -854,8 +878,8 @@ void CommandGetFile::procresult()
                                             // default retry interval
                                             tl = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS;
                                         }
-
-                                        return tslot->transfer->failed(e, e == API_EOVERQUOTA ? tl * 10 : 0);
+                                        
+                                        return tslot->transfer->failed(e, *client->mTctableRequestCommitter, e == API_EOVERQUOTA ? tl * 10 : 0);
                                     }
                                     else
                                     {
@@ -872,7 +896,7 @@ void CommandGetFile::procresult()
 
                                         if (tslot)
                                         {
-                                            return tslot->transfer->failed(API_EINTERNAL);
+                                            return tslot->transfer->failed(API_EINTERNAL, *client->mTctableRequestCommitter);
                                         }
                                         else
                                         {
@@ -890,7 +914,7 @@ void CommandGetFile::procresult()
 
                     if (tslot)
                     {
-                        return tslot->transfer->failed(API_EKEY);
+                        return tslot->transfer->failed(API_EKEY, *client->mTctableRequestCommitter);
                     }
                     else
                     {
@@ -903,7 +927,7 @@ void CommandGetFile::procresult()
                 {
                     if (tslot)
                     {
-                        return tslot->transfer->failed(API_EINTERNAL);
+                        return tslot->transfer->failed(API_EINTERNAL, *client->mTctableRequestCommitter);
                     }
                     else
                     {
@@ -1123,7 +1147,6 @@ void CommandPutNodes::procresult()
     {
         if (client->tctable)
         {
-            client->tctable->begin();
             vector<uint32_t> &ids = it->second;
             for (unsigned int i = 0; i < ids.size(); i++)
             {
@@ -1132,7 +1155,6 @@ void CommandPutNodes::procresult()
                     client->tctable->del(ids[i]);
                 }
             }
-            client->tctable->commit();
         }
         client->pendingtcids.erase(it);
     }
@@ -1570,6 +1592,8 @@ CommandLogout::CommandLogout(MegaClient *client)
 {
     cmd("sml");
 
+    batchSeparately = true;
+
     tag = client->reqtag;
 }
 
@@ -1577,13 +1601,19 @@ void CommandLogout::procresult()
 {
     error e = (error)client->json.getint();
     MegaApp *app = client->app;
-    client->loggingout--;
+    if (client->loggingout > 0)
+    {
+        client->loggingout--;
+    }
     if(!e)
     {
-        client->removecaches();
-        client->locallogout();
+        // notify client after cache removal, as before
+        client->loggedout = true;
     }
-    app->logout_result(e);
+    else
+    {
+        app->logout_result(e);
+    }
 }
 
 CommandPrelogin::CommandPrelogin(MegaClient* client, const char* email)
@@ -6942,6 +6972,8 @@ CommandContactLinkQuery::CommandContactLinkQuery(MegaClient *client, handle h)
 {
     cmd("clg");
     arg("cl", (byte*)&h, MegaClient::CONTACTLINKHANDLE);
+
+    arg("b", 1);    // return firstname/lastname in B64
     
     tag = client->reqtag;
 }

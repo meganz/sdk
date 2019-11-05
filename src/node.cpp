@@ -1721,7 +1721,7 @@ void LocalNode::prepare()
     getlocalpath(&transfer->localfilename, true);
 
     // is this transfer in progress? update file's filename.
-    if (transfer->slot && transfer->slot->fa && transfer->slot->fa->localname.size())
+    if (transfer->slot && transfer->slot->fa && transfer->slot->fa->nonblocking_localname.size())
     {
         transfer->slot->fa->updatelocalname(&transfer->localfilename);
     }

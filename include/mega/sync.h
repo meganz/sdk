@@ -128,7 +128,7 @@ public:
     string debris, localdebris;
 
     // permanent lock on the debris/tmp folder
-    FileAccess* tmpfa;
+    std::unique_ptr<FileAccess> tmpfa;
 
     // state cache table
     DbTable* statecachetable;

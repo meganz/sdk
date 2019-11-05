@@ -75,6 +75,7 @@ class MEGA_API GfxProc
     WAIT_CLASS waiter;
     std::mutex mutex;
     THREAD_CLASS thread;
+    SymmCipher mCheckEventsKey;
     GfxJobQueue requests;
     GfxJobQueue responses;
     static void *threadEntryPoint(void *param);

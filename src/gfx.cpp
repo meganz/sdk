@@ -179,7 +179,6 @@ int GfxProc::checkevents(Waiter *)
 
     GfxJob *job = NULL;
     bool needexec = false;
-    SymmCipher key;
     while ((job = responses.pop()))
     {
         for (unsigned i = 0; i < job->images.size(); i++)
@@ -191,10 +190,10 @@ int GfxProc::checkevents(Waiter *)
                 // store the file attribute data - it will be attached to the file
                 // immediately if the upload has already completed; otherwise, once
                 // the upload completes
-                key.setkey(job->key);
+                mCheckEventsKey.setkey(job->key);
                 int creqtag = client->reqtag;
                 client->reqtag = 0;
-                client->putfa(job->h, job->imagetypes[i], &key, job->images[i], job->flag);
+                client->putfa(job->h, job->imagetypes[i], &mCheckEventsKey, job->images[i], job->flag);
                 client->reqtag = creqtag;
             }
             else
@@ -350,21 +349,18 @@ bool GfxProc::savefa(string *localfilepath, int width, int height, string *local
         return false;
     }
 
-    FileAccess *f = client->fsaccess->newfileaccess();
+    auto f = client->fsaccess->newfileaccess();
     client->fsaccess->unlinklocal(localdstpath);
     if (!f->fopen(localdstpath, false, true))
     {
-        delete f;
         return false;
     }
 
     if (!f->fwrite((const byte*)jpeg.data(), unsigned(jpeg.size()), 0))
     {
-        delete f;
         return false;
     }
 
-    delete f;
     return true;
 }
 

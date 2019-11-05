@@ -94,15 +94,17 @@ struct MEGA_API FileAccess
     int errorcode;
 
     // for files "opened" in nonblocking mode, the current local filename
-    string localname;
+    string nonblocking_localname;
 
     // waiter to notify on filesystem events
     Waiter *waiter;
 
-    // open for reading, writing or reading and writing
+    // blocking mode: open for reading, writing or reading and writing.
+    // This one really does open the file, and openf(), closef() will have no effect
     virtual bool fopen(string*, bool, bool) = 0;
 
-    // open by name only. returns false for folders setting type to FOLDERNODE
+    // nonblocking open: Only prepares for opening.  Actually stats the file/folder, getting mtime, size, type.
+    // Call openf() afterwards to actually open it if required.  For folders, returns false with type==FOLDERNODE.
     bool fopen(string*);
 
     // check if a local path is a folder
@@ -115,20 +117,18 @@ struct MEGA_API FileAccess
     bool fread(string *, unsigned, unsigned, m_off_t);
 
     // absolute position read to byte buffer
-    bool frawread(byte *, unsigned, m_off_t);
+    bool frawread(byte *, unsigned, m_off_t, bool caller_opened = false);
 
-    // non-locking ops: open/close temporary hFile
+    // After a successful nonblocking fopen(), call openf() to really open the file (by localname)
+    // (this is a lazy-type approach in case we don't actually need to open the file after finding out type/size/mtime).
+    // If the size or mtime changed, it will fail.
     bool openf();
+
+    // After calling openf(), make sure to close the file again quickly with closef().
     void closef();
 
     // absolute position write
     virtual bool fwrite(const byte *, unsigned, m_off_t) = 0;
-
-    // system-specific raw read/open/close
-    virtual bool sysread(byte *, unsigned, m_off_t) = 0;
-    virtual bool sysstat(m_time_t*, m_off_t*) = 0;
-    virtual bool sysopen(bool async = false) = 0;
-    virtual void sysclose() = 0;
 
     FileAccess(Waiter *waiter);
     virtual ~FileAccess();
@@ -142,13 +142,8 @@ struct MEGA_API FileAccess
     void asyncclosef();
 
     AsyncIOContext *asyncfopen(string *, bool, bool, m_off_t = 0);
-    virtual void asyncsysopen(AsyncIOContext*);
-
     AsyncIOContext* asyncfread(string *, unsigned, unsigned, m_off_t);
-    virtual void asyncsysread(AsyncIOContext*);
-
     AsyncIOContext* asyncfwrite(const byte *, unsigned, m_off_t);
-    virtual void asyncsyswrite(AsyncIOContext*);
 
 
 protected:
@@ -156,6 +151,15 @@ protected:
     static void asyncopfinished(void *param);
     bool isAsyncOpened;
     int numAsyncReads;
+
+    // system-specific raw read/open/close to be provided by platform implementation.   fopen / openf / fread etc are implemented by calling these.
+    virtual bool sysread(byte *, unsigned, m_off_t) = 0;
+    virtual bool sysstat(m_time_t*, m_off_t*) = 0;
+    virtual bool sysopen(bool async = false) = 0;
+    virtual void sysclose() = 0;
+    virtual void asyncsysopen(AsyncIOContext*);
+    virtual void asyncsysread(AsyncIOContext*);
+    virtual void asyncsyswrite(AsyncIOContext*);
 };
 
 struct MEGA_API InputStreamAccess
@@ -238,7 +242,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
      * @param followSymLinks whether symlinks should be followed when opening a path (default: true)
      * @return
      */
-    virtual FileAccess* newfileaccess(bool followSymLinks = true) = 0;
+    virtual std::unique_ptr<FileAccess> newfileaccess(bool followSymLinks = true) = 0;
 
     // instantiate DirAccess object
     virtual DirAccess* newdiraccess() = 0;

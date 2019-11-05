@@ -184,7 +184,7 @@ void ConsoleModel::addInputChar(wchar_t c)
     {
         buffer.push_back(c);
         insertPos = buffer.size();
-        newlinesBuffered += 1;
+        newlinesBuffered = true;
         consoleNewlineNeeded = true;
         searchingHistory = false;
         historySearchString.clear();
@@ -211,7 +211,10 @@ void ConsoleModel::addInputChar(wchar_t c)
 void ConsoleModel::getHistory(int index, int offset)
 {
     if (inputHistory.empty() && offset == 1)
+    {
         buffer.clear();
+        newlinesBuffered = false;
+    }
     else
     {
         index = clamp<int>(index, 0, (int)inputHistory.size() - 1) + (enteredHistory ? offset : (offset == -1 ? -1 : 0));
@@ -222,6 +225,7 @@ void ConsoleModel::getHistory(int index, int offset)
         inputHistoryIndex = index;
         buffer = inputHistory[inputHistoryIndex];
         enteredHistory = true;
+        newlinesBuffered = false;
     }
     insertPos = buffer.size();
     redrawInputLineNeeded = true;
@@ -259,6 +263,7 @@ void ConsoleModel::updateHistoryMatch(bool forwards, bool increment)
                 enteredHistory = true;
                 buffer = inputHistory[index];
                 insertPos = buffer.size();
+                newlinesBuffered = false;
                 redrawInputLineNeeded = true;
                 break;
             }
@@ -317,6 +322,7 @@ void ConsoleModel::autoComplete(bool forwards, unsigned consoleWidth)
 
         autocomplete::applyCompletion(autocompleteState, forwards, consoleWidth, redrawInputLineConsoleFeedback);
         buffer = WinConsole::toUtf16String(autocompleteState.line);
+        newlinesBuffered = false;
         size_t u16InsertPos = WinConsole::toUtf16String(autocompleteState.line.substr(0, autocompleteState.wordPos.second)).size();
         insertPos = clamp<size_t>(u16InsertPos, 0, buffer.size());
         redrawInputLineNeeded = true;
@@ -346,6 +352,7 @@ void ConsoleModel::deleteCharRange(int start, int end)
     if (start < end)
     {
         buffer.erase(start, end - start);
+        newlinesBuffered = buffer.find(13) != string::npos;
         redrawInputLine(start);
     }
 }
@@ -398,7 +405,7 @@ bool ConsoleModel::checkForCompletedInputLine(std::wstring& ws)
         ws.assign(buffer.begin(), newlinePos);
         buffer.erase(buffer.begin(), newlinePos + 1);
         insertPos = 0;
-        newlinesBuffered -= 1;
+        newlinesBuffered = buffer.find(13) != string::npos;
         bool sameAsLastCommand = !inputHistory.empty() && inputHistory[0] == ws;
         bool sameAsChosenHistory = !inputHistory.empty() &&
             inputHistoryIndex >= 0 && inputHistoryIndex < inputHistory.size() &&
@@ -415,6 +422,7 @@ bool ConsoleModel::checkForCompletedInputLine(std::wstring& ws)
         enteredHistory = false;
         return true;
     }
+    newlinesBuffered = false;
     return false;
 }
 
@@ -613,7 +621,8 @@ bool WinConsole::consolePeekNonBlocking()
             {
                 model.addInputChar(ir.Event.KeyEvent.uChar.UnicodeChar);
             }
-            if (model.newlinesBuffered)  // todo: address case where multiple newlines were added from this one record (as we may get stuck in wait())
+
+            if (model.newlinesBuffered)
             {
                 break;
             }
@@ -908,7 +917,7 @@ bool WinConsole::consoleGetch(wchar_t& c)
     {
         c = model.buffer.front();
         model.buffer.erase(0, 1);
-        model.newlinesBuffered -= c == 13;
+        model.newlinesBuffered = model.buffer.find(13) != string::npos;
         return true;
     }
     return false;

@@ -158,6 +158,10 @@ public class MegaApiJava {
     public final static int ORDER_MODIFICATION_DESC = MegaApi.ORDER_MODIFICATION_DESC;
     public final static int ORDER_ALPHABETICAL_ASC = MegaApi.ORDER_ALPHABETICAL_ASC;
     public final static int ORDER_ALPHABETICAL_DESC = MegaApi.ORDER_ALPHABETICAL_DESC;
+    public final static int ORDER_PHOTO_ASC = MegaApi.ORDER_PHOTO_ASC;
+    public final static int ORDER_PHOTO_DESC = MegaApi.ORDER_PHOTO_DESC;
+    public final static int ORDER_VIDEO_ASC = MegaApi.ORDER_VIDEO_ASC;
+    public final static int ORDER_VIDEO_DESC = MegaApi.ORDER_VIDEO_DESC;
 
     public final static int TCP_SERVER_DENY_ALL = MegaApi.TCP_SERVER_DENY_ALL;
     public final static int TCP_SERVER_ALLOW_ALL = MegaApi.TCP_SERVER_ALLOW_ALL;

@@ -32,6 +32,8 @@ class MEGA_API WinWaiter : public Waiter
     vector<HANDLE> handles;
     vector<int> flags;
 
+    size_t index = 0;
+
 public:
     PCRITICAL_SECTION pcsHTTP;
 
@@ -43,6 +45,15 @@ public:
     WinWaiter();
     ~WinWaiter();
 
+#ifdef MEGA_MEASURE_CODE
+    struct PerformanceStats
+    {
+        uint64_t waitTimedoutNonzero = 0;
+        uint64_t waitTimedoutZero = 0;
+        uint64_t waitIOCompleted = 0;
+        uint64_t waitSignalled= 0;
+    } performanceStats;
+#endif
 
 protected:
     HANDLE externalEvent;

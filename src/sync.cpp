@@ -42,7 +42,7 @@ namespace {
 set<string> collectAllPathsInFolder(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, string localpath,
                                     const string& localdebris, const string& localseparator)
 {
-    auto fa = std::unique_ptr<FileAccess>{fsaccess.newfileaccess(false)};
+    auto fa = fsaccess.newfileaccess(false);
     if (!fa->fopen(&localpath, true, false))
     {
         LOG_err << "Unable to open path: " << localpath;
@@ -134,7 +134,7 @@ void combinedFingerprint(FileFingerprint& ffp, FileSystemAccess& fsaccess, const
     ffp.isvalid = false;
     for (const auto& path : paths)
     {
-        auto fa = std::unique_ptr<FileAccess>{fsaccess.newfileaccess(false)};
+        auto fa = fsaccess.newfileaccess(false);
         if (!fa->fopen(const_cast<string*>(&path), true, false))
         {
             LOG_err << "Unable to open path: " << path;
@@ -296,7 +296,7 @@ void assignFilesystemIdsImpl(bool& success, Sync& sync, MegaApp& app, handleloca
                              FileSystemAccess& fsaccess, string localpath, const string& localdebris,
                              const string& localseparator, FingerprintMap& fingerprints)
 {
-    auto fa = std::unique_ptr<FileAccess>{fsaccess.newfileaccess(false)};
+    auto fa = fsaccess.newfileaccess(false);
     if (!(success = fa->fopen(&localpath, true, false)))
     {
         LOG_err << "Unable to open path: " << localpath;
@@ -413,7 +413,7 @@ bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, h
 {
     auto rootpath = sync.localroot.localname;
 
-    auto fa = std::unique_ptr<FileAccess>{fsaccess.newfileaccess(false)};
+    auto fa = fsaccess.newfileaccess(false);
     if (!fa->fopen(&rootpath, true, false))
     {
         LOG_err << "Unable to open rootpath";
@@ -508,7 +508,8 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
     }
 
     fsstableids = dirnotify->fsstableids();
-    LOG_info << "Filesystem IDs are stable: " << std::boolalpha << fsstableids;
+    LOG_info << "Filesystem IDs are stable: " << fsstableids;
+    fsstableids = true; // TODO: Remove this once the fs ID assignment is working properly
 
     localroot.init(this, FOLDERNODE, NULL, crootpath);
     localroot.setnode(remotenode);
@@ -551,7 +552,7 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
         handle tableid[3];
         string dbname;
 
-        FileAccess *fas = client->fsaccess->newfileaccess(false);
+        auto fas = client->fsaccess->newfileaccess(false);
 
         if (fas->fopen(crootpath, true, false))
         {
@@ -562,12 +563,10 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
             dbname.resize(sizeof tableid * 4 / 3 + 3);
             dbname.resize(Base64::btoa((byte*)tableid, sizeof tableid, (char*)dbname.c_str()));
 
-            statecachetable = client->dbaccess->open(client->rng, client->fsaccess, &dbname);
+            statecachetable = client->dbaccess->open(client->rng, client->fsaccess, &dbname, false, false);
 
             readstatecache();
         }
-
-        delete fas;
     }
 }
 
@@ -577,7 +576,7 @@ Sync::~Sync()
     assert(state == SYNC_CANCELED || state == SYNC_FAILED);
 
     // unlock tmp lock
-    delete tmpfa;
+    tmpfa.reset();
 
     // stop all active and pending downloads
     if (localroot.node)
@@ -869,7 +868,10 @@ bool Sync::assignfsids()
 // localpath must be prefixed with Sync
 bool Sync::scan(string* localpath, FileAccess* fa)
 {
-    assert(fa->type == FOLDERNODE);
+    if (fa)
+    {
+        assert(fa->type == FOLDERNODE);
+    }
     if (isPathSyncable(*localpath, localdebris, client->fsaccess->localseparator))
     {
         DirAccess* da;
@@ -947,7 +949,6 @@ bool Sync::scan(string* localpath, FileAccess* fa)
 LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, dstime *backoffds, bool wejustcreatedthisfolder)
 {
     LocalNode* ll = l;
-    FileAccess* fa;
     bool newnode = false, changed = false;
     bool isroot;
 
@@ -1040,7 +1041,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
     }
 
     // attempt to open/type this file
-    fa = client->fsaccess->newfileaccess(false);
+    auto fa = client->fsaccess->newfileaccess(false);
 
     if (initializing || fullscan)
     {
@@ -1081,14 +1082,13 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
 
                     if (l->type == FOLDERNODE)
                     {
-                        scan(localname ? localpath : &tmppath, fa);
+                        scan(localname ? localpath : &tmppath, fa.get());
                     }
                     else
                     {
                         localbytes += l->size;
                     }
 
-                    delete fa;
                     return l;
                 }
             }
@@ -1109,11 +1109,9 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
             {
                 LOG_verbose << "New file. FaType: " << fa->type << "  FaSize: " << fa->size << "  FaMtime: " << fa->mtime;
             }
-            delete fa;
             return NULL;
         }
 
-        delete fa;
         fa = client->fsaccess->newfileaccess(false);
     }
 
@@ -1190,7 +1188,6 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
 
                                         statecacheadd(it->second);
 
-                                        delete fa;
                                         return it->second;
                                     }
                                 }
@@ -1211,14 +1208,15 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
 
                             m_off_t dsize = l->size > 0 ? l->size : 0;
 
-                            if (l->genfingerprint(fa) && l->size >= 0)
+                            if (l->genfingerprint(fa.get()) && l->size >= 0)
                             {
                                 localbytes -= dsize - l->size;
                             }
 
                             client->app->syncupdate_local_file_change(this, l, path.c_str());
 
-                            client->stopxfer(l);
+                            DBTableTransactionCommitter committer(client->tctable);
+                            client->stopxfer(l, &committer); // TODO:  can we use one committer for all the files in the folder?  Or for the whole recursion?
                             l->bumpnagleds();
                             l->deleted = false;
 
@@ -1226,7 +1224,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
 
                             statecacheadd(l);
 
-                            delete fa;
+                            fa.reset();
 
                             if (isnetwork && l->type == FILENODE)
                             {
@@ -1307,7 +1305,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                                 string local;
                                 bool waitforupdate = false;
                                 it->second->getlocalpath(&local, true);
-                                FileAccess *prevfa = client->fsaccess->newfileaccess(false);
+                                auto prevfa = client->fsaccess->newfileaccess(false);
 
                                 bool exists = prevfa->fopen(&local);
                                 if (exists)
@@ -1380,11 +1378,8 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                                 {
                                     LOG_debug << "Possible file update detected.";
                                     *backoffds = FILE_UPDATE_DELAY_DS;
-                                    delete prevfa;
-                                    delete fa;
                                     return NULL;
                                 }
-                                delete prevfa;
                             }
                             else
                             {
@@ -1417,7 +1412,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                     // immediately scan folder to detect deviations from cached state
                     if (fullscan && fa->type == FOLDERNODE)
                     {
-                        scan(localname ? localpath : &tmppath, fa);
+                        scan(localname ? localpath : &tmppath, fa.get());
                     }
                 }
                 else if (fa->mIsSymLink)
@@ -1449,7 +1444,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
             {
                 if (newnode)
                 {
-                    scan(localname ? localpath : &tmppath, fa);
+                    scan(localname ? localpath : &tmppath, fa.get());
                     client->app->syncupdate_local_folder_addition(this, l, path.c_str());
 
                     if (!isroot)
@@ -1483,7 +1478,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                         localbytes -= l->size;
                     }
 
-                    if (l->genfingerprint(fa))
+                    if (l->genfingerprint(fa.get()))
                     {
                         changed = true;
                         l->bumpnagleds();
@@ -1502,7 +1497,8 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                     else if (changed)
                     {
                         client->app->syncupdate_local_file_change(this, l, path.c_str());
-                        client->stopxfer(l);
+                        DBTableTransactionCommitter committer(client->tctable); // TODO:  can we use one committer for all the files in the folder?  Or for the whole recursion?
+                        client->stopxfer(l, &committer);
                     }
 
                     if (newnode || changed)
@@ -1544,7 +1540,8 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
             // immediately stop outgoing transfer, if any
             if (l->transfer)
             {
-                client->stopxfer(l);
+                DBTableTransactionCommitter committer(client->tctable); // TODO:  can we use one committer for all the files in the folder?  Or for the whole recursion?
+                client->stopxfer(l, &committer);
             }
 
             client->syncactivity = true;
@@ -1559,8 +1556,6 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
 
         l = NULL;
     }
-
-    delete fa;
 
     return l;
 }
@@ -1643,7 +1638,7 @@ dstime Sync::procscanq(int q)
 void Sync::deletemissing(LocalNode* l)
 {
     string path;
-    FileAccess *fa = NULL;
+    std::unique_ptr<FileAccess> fa;
     for (localnode_map::iterator it = l->children.begin(); it != l->children.end(); )
     {
         if (scanseqno-it->second->scanseqno > 1)
@@ -1652,7 +1647,7 @@ void Sync::deletemissing(LocalNode* l)
             {
                 fa = client->fsaccess->newfileaccess();
             }
-            client->unlinkifexists(it->second, fa, &path);
+            client->unlinkifexists(it->second, fa.get(), &path);
             delete it++->second;
         }
         else
@@ -1661,7 +1656,6 @@ void Sync::deletemissing(LocalNode* l)
             it++;
         }
     }
-    delete fa;
 }
 
 bool Sync::movetolocaldebris(string* localpath)

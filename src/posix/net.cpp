@@ -364,6 +364,7 @@ void CurlHttpIO::filterDNSservers()
 
 void CurlHttpIO::addaresevents(Waiter *waiter)
 {
+    CodeCounter::ScopeTimer ccst(countAddAresEventsCode);
     closearesevents();
 
     ares_socket_t socks[ARES_GETSOCK_MAXNUM];
@@ -433,6 +434,7 @@ void CurlHttpIO::addaresevents(Waiter *waiter)
 
 void CurlHttpIO::addcurlevents(Waiter *waiter, direction_t d)
 {
+    CodeCounter::ScopeTimer ccst(countAddCurlEventsCode);
     SockInfoMap &socketmap = curlsockets[d];
     for (SockInfoMap::iterator it = socketmap.begin(); it != socketmap.end(); it++)
     {
@@ -521,6 +523,7 @@ void CurlHttpIO::closecurlevents(direction_t d)
 
 void CurlHttpIO::processaresevents()
 {
+    CodeCounter::ScopeTimer ccst(countProcessAresEventsCode);
 #ifndef _WIN32
     fd_set *rfds = &((PosixWaiter *)waiter)->rfds;
     fd_set *wfds = &((PosixWaiter *)waiter)->wfds;
@@ -566,6 +569,8 @@ void CurlHttpIO::processaresevents()
 
 void CurlHttpIO::processcurlevents(direction_t d)
 {
+    CodeCounter::ScopeTimer ccst(countProcessCurlEventsCode);
+
 #ifndef _WIN32
     fd_set *rfds = &((PosixWaiter *)waiter)->rfds;
     fd_set *wfds = &((PosixWaiter *)waiter)->wfds;
@@ -785,6 +790,8 @@ m_off_t CurlHttpIO::getmaxuploadspeed()
 // wake up from cURL I/O
 void CurlHttpIO::addevents(Waiter* w, int)
 {
+    CodeCounter::ScopeTimer ccst(countCurlHttpIOAddevents);
+
     waiter = (WAIT_CLASS*)w;
     long curltimeoutms = -1;
 

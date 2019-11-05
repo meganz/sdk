@@ -88,6 +88,15 @@ public:
     void servererror(error, MegaClient*);
 
     void clear();
+
+#ifdef MEGA_MEASURE_CODE
+    Request deferredRequests;
+    std::function<bool(Command*)> deferRequests;
+    void sendDeferred();
+    uint64_t csRequestsSent = 0, csRequestsCompleted = 0;
+    uint64_t csBatchesSent = 0, csBatchesReceived = 0;
+#endif
+
 };
 
 } // namespace
