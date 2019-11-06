@@ -188,7 +188,7 @@ class SimpleLogger
     {
         NumBuf buf;
         const auto size = snprintf(buf.data(), buf.size(), "%d", static_cast<int>(value));
-        copyToBuffer(buf.data(), size);
+        copyToBuffer(buf.data(), std::min(size, static_cast<int>(buf.size()) - 1));
     }
 
     template<typename T>
@@ -197,7 +197,7 @@ class SimpleLogger
     {
         NumBuf buf;
         const auto size = snprintf(buf.data(), buf.size(), "%p", reinterpret_cast<const void*>(value));
-        copyToBuffer(buf.data(), size);
+        copyToBuffer(buf.data(), std::min(size, static_cast<int>(buf.size()) - 1));
     }
 
     template<typename T>
@@ -207,7 +207,7 @@ class SimpleLogger
     {
         NumBuf buf;
         const auto size = snprintf(buf.data(), buf.size(), "%d", value);
-        copyToBuffer(buf.data(), size);
+        copyToBuffer(buf.data(), std::min(size, static_cast<int>(buf.size()) - 1));
     }
 
     template<typename T>
@@ -217,7 +217,7 @@ class SimpleLogger
     {
         NumBuf buf;
         const auto size = snprintf(buf.data(), buf.size(), "%ld", value);
-        copyToBuffer(buf.data(), size);
+        copyToBuffer(buf.data(), std::min(size, static_cast<int>(buf.size()) - 1));
     }
 
     template<typename T>
@@ -227,7 +227,7 @@ class SimpleLogger
     {
         NumBuf buf;
         const auto size = snprintf(buf.data(), buf.size(), "%lld", value);
-        copyToBuffer(buf.data(), size);
+        copyToBuffer(buf.data(), std::min(size, static_cast<int>(buf.size()) - 1));
     }
 
     template<typename T>
@@ -237,7 +237,7 @@ class SimpleLogger
     {
         NumBuf buf;
         const auto size = snprintf(buf.data(), buf.size(), "%u", value);
-        copyToBuffer(buf.data(), size);
+        copyToBuffer(buf.data(), std::min(size, static_cast<int>(buf.size()) - 1));
     }
 
     template<typename T>
@@ -247,7 +247,7 @@ class SimpleLogger
     {
         NumBuf buf;
         const auto size = snprintf(buf.data(), buf.size(), "%lu", value);
-        copyToBuffer(buf.data(), size);
+        copyToBuffer(buf.data(), std::min(size, static_cast<int>(buf.size()) - 1));
     }
 
     template<typename T>
@@ -257,7 +257,7 @@ class SimpleLogger
     {
         NumBuf buf;
         const auto size = snprintf(buf.data(), buf.size(), "%llu", value);
-        copyToBuffer(buf.data(), size);
+        copyToBuffer(buf.data(), std::min(size, static_cast<int>(buf.size()) - 1));
     }
 
     template<typename T>
@@ -266,7 +266,7 @@ class SimpleLogger
     {
         NumBuf buf;
         const auto size = snprintf(buf.data(), buf.size(), "%g", value);
-        copyToBuffer(buf.data(), size);
+        copyToBuffer(buf.data(), std::min(size, static_cast<int>(buf.size()) - 1));
     }
 
     void logValue(const char* value)
