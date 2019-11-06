@@ -1256,9 +1256,8 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * - [MEGARequest flag] - Returns YES
  *
  * @param user MEGAUser of the contact whose credentials want to be reset
- * @param delegate MEGARequestDelegate to track this request
  */
-- (void)resetCredentialsOfUser:(MEGAUser *)user delegate:(id<MEGARequestDelegate>)delegate;
+- (void)resetCredentialsOfUser:(MEGAUser *)user;
 
 #pragma mark - Create account and confirm account Requests
 
