@@ -1054,6 +1054,7 @@ public:
 
     // transfer queues (PUT/GET)
     transfer_map transfers[2];
+    BackoffTimerGroupTracker transferRetryBackoffs[2];
 
     // transfer list to manage the priority of transfers
     TransferList transferlist;
@@ -1075,6 +1076,9 @@ public:
 
     // transfer tslots
     transferslot_list tslots;
+
+    // keep track of next transfer slot timeout
+    BackoffTimerGroupTracker transferSlotsBackoff;
 
     // next TransferSlot to doio() on
     transferslot_list::iterator slotit;

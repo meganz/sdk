@@ -2841,13 +2841,7 @@ int MegaClient::preparewait()
         nexttransferretry(GET, &nds);
 
         // retry transferslots
-        for (transferslot_list::iterator it = tslots.begin(); it != tslots.end(); it++)
-        {
-            if (!(*it)->retrybt.armed())
-            {
-                (*it)->retrybt.update(&nds);
-            }
-        }
+        transferSlotsBackoff.update(&nds, false);
 
         for (pendinghttp_map::iterator it = pendinghttp.begin(); it != pendinghttp.end(); it++)
         {
@@ -3416,7 +3410,7 @@ bool MegaClient::dispatch(direction_t d)
                         if (!gfxdisabled && gfx && gfx->isgfx(&nexttransfer->localfilename))
                         {
                             // we want all imagery to be safely tucked away before completing the upload, so we bump minfa
-                            nexttransfer->minfa += gfx->gendimensionsputfa(ts->fa.get(), &nexttransfer->localfilename, nexttransfer->uploadhandle, nexttransfer->transfercipher(), -1, false);
+                            nexttransfer->minfa += gfx->gendimensionsputfa(ts->fa, &nexttransfer->localfilename, nexttransfer->uploadhandle, nexttransfer->transfercipher(), -1, false);
                         }
                     }
                 }
@@ -3582,23 +3576,11 @@ void MegaClient::freeq(direction_t d)
 }
 
 // determine next scheduled transfer retry
-// FIXME: make this an ordered set and only check the first element instead of
-// scanning the full map!
 void MegaClient::nexttransferretry(direction_t d, dstime* dsmin)
 {
-    for (transfer_map::iterator it = transfers[d].begin(); it != transfers[d].end(); it++)
+    if (!xferpaused[d])   // avoid setting the timer's next=1 if it won't be processed
     {
-        if ((!it->second->slot || !it->second->slot->fa)
-         && it->second->bt.nextset())
-        {
-            it->second->bt.update(dsmin);
-            if (it->second->bt.armed())
-            {
-                // fire the timer only once but keeping it armed
-                it->second->bt.set(0);
-                LOG_debug << "Disabling armed transfer backoff";
-            }
-        }
+        transferRetryBackoffs[d].update(dsmin, true);
     }
 }
 
