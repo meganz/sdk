@@ -221,7 +221,7 @@ TransferSlot::~TransferSlot()
             {
                 // synchronous writes for all remaining outstanding data (for raid, there can be a sequence of output pieces.  for non-raid, one piece per connection)
                 // check each connection first and then all that were not yet on a connection
-                TransferBufferManager::FilePiece* outputPiece = transferbuf.getAsyncOutputBufferPointer(i);
+                auto outputPiece = transferbuf.getAsyncOutputBufferPointer(i);
                 if (outputPiece)
                 {
                     anyData = true;
@@ -655,7 +655,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                                 downloadRequest->buffer_released = true;
                             }
 
-                            TransferBufferManager::FilePiece* outputPiece = transferbuf.getAsyncOutputBufferPointer(i);
+                            auto outputPiece = transferbuf.getAsyncOutputBufferPointer(i);
                             if (outputPiece)
                             {
                                 bool parallelNeeded = outputPiece->finalize(false, transfer->size, transfer->ctriv, transfer->transfercipher(), &transfer->chunkmacs);
@@ -724,7 +724,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                 case REQ_DECRYPTED:
                     {
                         // this must return the same piece we just decrypted, since we have not asked the transferbuf to discard it yet.
-                        TransferBufferManager::FilePiece* outputPiece = transferbuf.getAsyncOutputBufferPointer(i);
+                        auto outputPiece = transferbuf.getAsyncOutputBufferPointer(i);
                         
                         if (fa->asyncavailable())
                         {
@@ -968,7 +968,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
 
                 // we might have a raid-reassembled block to write, or a previously loaded block, or a skip block to process.
                 bool newOutputBufferSupplied = false;
-                TransferBufferManager::FilePiece* outputPiece = transferbuf.getAsyncOutputBufferPointer(i);
+                auto outputPiece = transferbuf.getAsyncOutputBufferPointer(i);
                 if (outputPiece && reqs[i])
                 {
                     // set up to do the actual write on the next loop, as if it was a retry
@@ -1081,7 +1081,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                     if (transfer->type == GET)
                     {
                         // raid reassembly can have several chunks to complete at the end of the file - keep processing till they are all done
-                        TransferBufferManager::FilePiece* outputPiece = transferbuf.getAsyncOutputBufferPointer(i);
+                        auto outputPiece = transferbuf.getAsyncOutputBufferPointer(i);
                         if (outputPiece)
                         {
                             // set up to do the actual write on the next loop, as if it was a retry

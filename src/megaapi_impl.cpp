@@ -20041,16 +20041,16 @@ void MegaApiImpl::sendPendingRequests()
 
             if(direction == -1)
             {
-                client->pausexfers(PUT, pause);
-                client->pausexfers(GET, pause);
+                client->pausexfers(PUT, pause, false, committer);
+                client->pausexfers(GET, pause, false, committer);
             }
             else if(direction == MegaTransfer::TYPE_DOWNLOAD)
             {
-                client->pausexfers(GET, pause);
+                client->pausexfers(GET, pause, false, committer);
             }
             else
             {
-                client->pausexfers(PUT, pause);
+                client->pausexfers(PUT, pause, false, committer);
             }
 
             fireOnRequestFinish(request, MegaError(API_OK));

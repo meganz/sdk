@@ -1301,7 +1301,7 @@ void DirectReadNode::enqueue(m_off_t offset, m_off_t count, int reqtag, void* ap
 bool DirectReadSlot::processAnyOutputPieces()
 {
     bool continueDirectRead = true;
-    TransferBufferManager::FilePiece* outputPiece;
+    std::shared_ptr<TransferBufferManager::FilePiece> outputPiece;
     while (continueDirectRead && (outputPiece = dr->drbuf.getAsyncOutputBufferPointer(0)))
     {
         size_t len = outputPiece->buf.datalen();

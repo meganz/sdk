@@ -288,7 +288,7 @@ void RaidBufferManager::submitBuffer(unsigned connectionNum, FilePiece* piece)
     {
         finalize(*piece);
         assert(asyncoutputbuffers.find(connectionNum) == asyncoutputbuffers.end() || !asyncoutputbuffers[connectionNum]);
-        asyncoutputbuffers[connectionNum] = piece;
+        asyncoutputbuffers[connectionNum].reset(piece);
     }
 }
 
@@ -501,7 +501,7 @@ void RaidBufferManager::combineRaidParts(unsigned connectionNum)
         if (outputrec->buf.datalen() > 0)
         {
             finalize(*outputrec);
-            asyncoutputbuffers[connectionNum] = outputrec;
+            asyncoutputbuffers[connectionNum].reset(outputrec);
         }
         else
         {
