@@ -168,10 +168,6 @@ RaidBufferManager::~RaidBufferManager()
     {
         clearOwningFilePieces(raidinputparts[i]);
     }
-    for (std::map<unsigned, FilePiece*>::iterator i = asyncoutputbuffers.begin(); i != asyncoutputbuffers.end(); ++i)
-    {
-        delete i->second;
-    }
 }
 
 void RaidBufferManager::setIsRaid(const std::vector<std::string>& tempUrls, m_off_t resumepos, m_off_t readtopos, m_off_t filesize, m_off_t maxRequestSize)
@@ -296,9 +292,9 @@ void RaidBufferManager::submitBuffer(unsigned connectionNum, FilePiece* piece)
     }
 }
 
-RaidBufferManager::FilePiece* RaidBufferManager::getAsyncOutputBufferPointer(unsigned connectionNum)
+std::shared_ptr<RaidBufferManager::FilePiece> RaidBufferManager::getAsyncOutputBufferPointer(unsigned connectionNum)
 {
-    std::map<unsigned, FilePiece*>::iterator i = asyncoutputbuffers.find(connectionNum);
+    auto i = asyncoutputbuffers.find(connectionNum);
     if (isRaid() && (i == asyncoutputbuffers.end() || !i->second))
     {
         combineRaidParts(connectionNum);
@@ -310,7 +306,7 @@ RaidBufferManager::FilePiece* RaidBufferManager::getAsyncOutputBufferPointer(uns
 
 void RaidBufferManager::bufferWriteCompleted(unsigned connectionNum, bool success)
 {
-    std::map<unsigned, FilePiece*>::iterator aob = asyncoutputbuffers.find(connectionNum);
+    auto aob = asyncoutputbuffers.find(connectionNum);
     if (aob != asyncoutputbuffers.end())
     {
         assert(aob->second);
@@ -321,8 +317,7 @@ void RaidBufferManager::bufferWriteCompleted(unsigned connectionNum, bool succes
                 bufferWriteCompletedAction(*aob->second);
             }
 
-            delete aob->second;
-            aob->second = NULL;
+            aob->second.reset();
         }
     }
 }

@@ -69,7 +69,7 @@ namespace mega {
         void submitBuffer(unsigned connectionNum, FilePiece* piece);
 
         // get the file output data to write to the filesystem, on the asyncIO associated with a particular connection (or synchronously).  Buffer ownership is retained here.
-        FilePiece* getAsyncOutputBufferPointer(unsigned connectionNum);
+        std::shared_ptr<RaidBufferManager::FilePiece> getAsyncOutputBufferPointer(unsigned connectionNum);
 
         // indicate that the buffer written by asyncIO (or synchronously) can now be discarded.
         void bufferWriteCompleted(unsigned connectionNum, bool succeeded);
@@ -143,7 +143,7 @@ namespace mega {
         std::deque<FilePiece*> raidinputparts[RAIDPARTS];
 
         // the data to output currently, per connection, raid or non-raid.  re-accessible in case retries are needed
-        std::map<unsigned, FilePiece*> asyncoutputbuffers;
+        std::map<unsigned, std::shared_ptr<FilePiece>> asyncoutputbuffers;
         
         // piece to carry over to the next combine operation, when we don't get pieces that match the chunkceil boundaries
         FilePiece leftoverchunk;

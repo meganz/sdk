@@ -20067,7 +20067,6 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            DBTableTransactionCommitter committer(client->tctable);
             e = client->transferlist.pause(megaTransfer->getTransfer(), pause, committer);
             if (!e)
             {
@@ -20103,7 +20102,6 @@ void MegaApiImpl::sendPendingRequests()
 
             if (automove)
             {
-                DBTableTransactionCommitter committer(client->tctable);
                 switch (number)
                 {
                     case MegaTransfer::MOVE_TYPE_UP:
@@ -20132,7 +20130,6 @@ void MegaApiImpl::sendPendingRequests()
                     break;
                 }
 
-                DBTableTransactionCommitter committer(client->tctable);
                 Transfer *prevTransfer = prevMegaTransfer->getTransfer();
                 if (!prevTransfer)
                 {
@@ -20232,7 +20229,6 @@ void MegaApiImpl::sendPendingRequests()
 
                 megaTransfer->setLastError(MegaError(API_EINCOMPLETE));
 
-                DBTableTransactionCommitter committer(client->tctable); 
                 bool found = false;
                 file_list files = transfer->files;
                 file_list::iterator iterator = files.begin();
@@ -20761,7 +20757,6 @@ void MegaApiImpl::sendPendingRequests()
                         Transfer *t = it->second;
                         if (t->slot)
                         {
-                            DBTableTransactionCommitter committer(client->tctable);
                             t->failed(API_EAGAIN, committer);
                         }
                     }

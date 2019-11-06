@@ -326,6 +326,7 @@ CurlHttpIO::CurlHttpIO()
     curlsh = curl_share_init();
     curl_share_setopt(curlsh, CURLSHOPT_SHARE, CURL_LOCK_DATA_DNS);
     curl_share_setopt(curlsh, CURLSHOPT_SHARE, CURL_LOCK_DATA_SSL_SESSION);
+    //TODO: maybe curl_share_setopt(curlsh, CURLSHOPT_SHARE, CURL_LOCK_DATA_CONNECT);  // connection reuse across thread / multi
 
     contenttypejson = curl_slist_append(NULL, "Content-Type: application/json");
     contenttypejson = curl_slist_append(contenttypejson, "Expect:");
