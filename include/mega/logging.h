@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file mega/logging.h
  * @brief Logging class
  *
@@ -104,6 +104,8 @@
     #include <QString>
 #endif
 
+#include "mega/utils.h"
+
 namespace mega {
 
 // available log levels
@@ -150,14 +152,16 @@ class SimpleLogger
 #else
     std::array<char, 256> mBuffer; // will be stack-allocated since SimpleLogger is stack-allocated
     std::array<char, 256>::iterator mBufferIt;
+    using DiffType = std::array<char, 256>::difference_type;
+    using NumBuf = std::array<char, 24>;
 
     template<typename DataIterator>
-    void copyToBuffer(const DataIterator dataIt, size_t currentSize)
+    void copyToBuffer(const DataIterator dataIt, DiffType currentSize)
     {
-        size_t start = 0;
+        DiffType start = 0;
         while (currentSize > 0)
         {
-            const auto size = std::min(currentSize, static_cast<size_t>(std::distance(mBufferIt, mBuffer.end() - 1)));
+            const auto size = std::min(currentSize, std::distance(mBufferIt, mBuffer.end() - 1));
             mBufferIt = std::copy(dataIt + start, dataIt + start + size, mBufferIt);
             if (mBufferIt == mBuffer.end() - 1)
             {
@@ -182,18 +186,18 @@ class SimpleLogger
     typename std::enable_if<std::is_enum<T>::value>::type
     logValue(const T value)
     {
-        char str[20];
-        const auto size = std::sprintf(str, "%d", static_cast<int>(value));
-        copyToBuffer(str, size);
+        NumBuf buf;
+        const auto size = snprintf(buf.data(), buf.size(), "%d", static_cast<int>(value));
+        copyToBuffer(buf.data(), std::min(size, static_cast<int>(buf.size()) - 1));
     }
 
     template<typename T>
     typename std::enable_if<std::is_pointer<T>::value && !std::is_same<T, char*>::value>::type
     logValue(const T value)
     {
-        char str[20];
-        const auto size = std::sprintf(str, "%p", reinterpret_cast<const void*>(value));
-        copyToBuffer(str, size);
+        NumBuf buf;
+        const auto size = snprintf(buf.data(), buf.size(), "%p", reinterpret_cast<const void*>(value));
+        copyToBuffer(buf.data(), std::min(size, static_cast<int>(buf.size()) - 1));
     }
 
     template<typename T>
@@ -201,9 +205,9 @@ class SimpleLogger
                             && !std::is_same<T, long>::value && !std::is_same<T, long long>::value>::type
     logValue(const T value)
     {
-        char str[20];
-        const auto size = std::sprintf(str, "%d", value);
-        copyToBuffer(str, size);
+        NumBuf buf;
+        const auto size = snprintf(buf.data(), buf.size(), "%d", value);
+        copyToBuffer(buf.data(), std::min(size, static_cast<int>(buf.size()) - 1));
     }
 
     template<typename T>
@@ -211,9 +215,9 @@ class SimpleLogger
                             && std::is_same<T, long>::value && !std::is_same<T, long long>::value>::type
     logValue(const T value)
     {
-        char str[20];
-        const auto size = std::sprintf(str, "%ld", value);
-        copyToBuffer(str, size);
+        NumBuf buf;
+        const auto size = snprintf(buf.data(), buf.size(), "%ld", value);
+        copyToBuffer(buf.data(), std::min(size, static_cast<int>(buf.size()) - 1));
     }
 
     template<typename T>
@@ -221,9 +225,9 @@ class SimpleLogger
                             && !std::is_same<T, long>::value && std::is_same<T, long long>::value>::type
     logValue(const T value)
     {
-        char str[20];
-        const auto size = std::sprintf(str, "%lld", value);
-        copyToBuffer(str, size);
+        NumBuf buf;
+        const auto size = snprintf(buf.data(), buf.size(), "%lld", value);
+        copyToBuffer(buf.data(), std::min(size, static_cast<int>(buf.size()) - 1));
     }
 
     template<typename T>
@@ -231,9 +235,9 @@ class SimpleLogger
                             && !std::is_same<T, unsigned long>::value && !std::is_same<T, unsigned long long>::value>::type
     logValue(const T value)
     {
-        char str[20];
-        const auto size = std::sprintf(str, "%u", value);
-        copyToBuffer(str, size);
+        NumBuf buf;
+        const auto size = snprintf(buf.data(), buf.size(), "%u", value);
+        copyToBuffer(buf.data(), std::min(size, static_cast<int>(buf.size()) - 1));
     }
 
     template<typename T>
@@ -241,9 +245,9 @@ class SimpleLogger
                             && std::is_same<T, unsigned long>::value && !std::is_same<T, unsigned long long>::value>::type
     logValue(const T value)
     {
-        char str[20];
-        const auto size = std::sprintf(str, "%lu", value);
-        copyToBuffer(str, size);
+        NumBuf buf;
+        const auto size = snprintf(buf.data(), buf.size(), "%lu", value);
+        copyToBuffer(buf.data(), std::min(size, static_cast<int>(buf.size()) - 1));
     }
 
     template<typename T>
@@ -251,28 +255,28 @@ class SimpleLogger
                             && !std::is_same<T, unsigned long>::value && std::is_same<T, unsigned long long>::value>::type
     logValue(const T value)
     {
-        char str[20];
-        const auto size = std::sprintf(str, "%llu", value);
-        copyToBuffer(str, size);
+        NumBuf buf;
+        const auto size = snprintf(buf.data(), buf.size(), "%llu", value);
+        copyToBuffer(buf.data(), std::min(size, static_cast<int>(buf.size()) - 1));
     }
 
     template<typename T>
     typename std::enable_if<std::is_floating_point<T>::value>::type
     logValue(const T value)
     {
-        char str[20];
-        const auto size = std::sprintf(str, "%f", value);
-        copyToBuffer(str, size);
+        NumBuf buf;
+        const auto size = snprintf(buf.data(), buf.size(), "%g", value);
+        copyToBuffer(buf.data(), std::min(size, static_cast<int>(buf.size()) - 1));
     }
 
     void logValue(const char* value)
     {
-        copyToBuffer(value, std::strlen(value));
+        copyToBuffer(value, static_cast<DiffType>(std::strlen(value)));
     }
 
     void logValue(const std::string& value)
     {
-        copyToBuffer(value.begin(), value.size());
+        copyToBuffer(value.begin(), static_cast<DiffType>(value.size()));
     }
 #endif
 
@@ -350,7 +354,7 @@ public:
     SimpleLogger& operator<<(T* obj)
     {
 #ifdef ENABLE_LOG_PERFORMANCE
-        if (obj != NULL)
+        if (obj)
         {
             logValue(obj);
         }
@@ -359,7 +363,7 @@ public:
             copyToBuffer("(NULL)", 6);
         }
 #else
-        if (obj != NULL)
+        if (obj)
         {
             ostr << obj;
         }
@@ -374,6 +378,7 @@ public:
     template <typename T, typename = typename std::enable_if<std::is_scalar<T>::value>::type>
     SimpleLogger& operator<<(const T obj)
     {
+        static_assert(!std::is_same<T, std::nullptr_t>::value, "T cannot be nullptr_t");
 #ifdef ENABLE_LOG_PERFORMANCE
         logValue(obj);
 #else

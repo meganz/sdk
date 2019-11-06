@@ -23,7 +23,6 @@
 #define MEGA_BACKOFF_TIMER_H 1
 
 #include "types.h"
-#include <set>
 
 namespace mega {
 // generic timer facility with exponential backoff
@@ -70,18 +69,20 @@ public:
 
 class MEGA_API BackoffTimerTracked;
 
-// Just like a backoff timer, but is part of a group where we want to know the soonest timeout in the group quickly
+// This class keeps track of a group of BackoffTimerTracked, which register and deregister themselves.
+// Timers are in the multimap when they have non-0 non-NEVER timeouts set, giving us a much smaller group should we need to iterate it.
 class MEGA_API BackoffTimerGroupTracker
 {
     std::multimap<dstime, BackoffTimerTracked*> timeouts;
 
 public:
-
     typedef std::multimap<dstime, BackoffTimerTracked*>::iterator Iter;
 
-    inline Iter add(BackoffTimerTracked* bt);// { return timeouts.emplace(bt->nextset() ? bt->nextset() : NEVER, bt); }
+    inline Iter add(BackoffTimerTracked* bt);
     inline void remove(Iter i) { timeouts.erase(i); }
 
+    // Find out the soonest (non-0 and non-NEVER) timeout in the group.
+    // For transfers, it calls set(0) on any timed out timers, as the old code did.
     void update(dstime* waituntil, bool transfers);
 };
 
@@ -90,37 +91,17 @@ public:
 // Also, the enable() function can be used to exclude timers when they are not relevant, while keeping the timer settings.
 class MEGA_API BackoffTimerTracked
 {
-    bool isEnabled;
+    bool mIsEnabled;
     BackoffTimer bt;
-    BackoffTimerGroupTracker& tracker;
-    BackoffTimerGroupTracker::Iter trackerPos;
+    BackoffTimerGroupTracker& mTracker;
+    BackoffTimerGroupTracker::Iter mTrackerPos;
 
-    void untrack()
-    {
-        if (isEnabled && bt.nextset() != 0 && bt.nextset() != NEVER)
-        {
-            tracker.remove(trackerPos);
-            trackerPos = BackoffTimerGroupTracker::Iter();
-        }
-    }
-
-    void track()
-    {
-        if (isEnabled && bt.nextset() != 0 && bt.nextset() != NEVER)
-        {
-            trackerPos = tracker.add(this);
-        }
-    }
+    void untrack();
+    void track();
 
 public:
-    BackoffTimerTracked(PrnGen &rng, BackoffTimerGroupTracker& tr) : isEnabled(true), bt(rng), tracker(tr) 
-    { 
-        track(); 
-    }
-    ~BackoffTimerTracked() 
-    { 
-        untrack(); 
-    }
+    BackoffTimerTracked(PrnGen &rng, BackoffTimerGroupTracker& tr);
+    ~BackoffTimerTracked();
 
     inline bool arm()               { untrack(); bool result = bt.arm();   track(); return result; }
     inline void backoff()           { untrack(); bt.backoff();             track(); }
@@ -133,13 +114,40 @@ public:
     inline dstime nextset() const   { return bt.nextset(); };
     inline dstime retryin() const   { return bt.retryin(); }
 
-    void enable(bool b)             { untrack(); isEnabled = b; track(); }
-    bool enabled()                { return isEnabled; }
+    inline void enable(bool b)      { untrack(); mIsEnabled = b; track(); }
+    inline bool enabled()           { return mIsEnabled; }
 };
 
 inline auto BackoffTimerGroupTracker::add(BackoffTimerTracked* bt) -> Iter 
 { 
     return timeouts.emplace(bt->nextset() ? bt->nextset() : NEVER, bt); 
+}
+
+inline void BackoffTimerTracked::untrack()
+{
+    if (mIsEnabled && bt.nextset() != 0 && bt.nextset() != NEVER)
+    {
+        mTracker.remove(mTrackerPos);
+        mTrackerPos = BackoffTimerGroupTracker::Iter();
+    }
+}
+
+inline void BackoffTimerTracked::track()
+{
+    if (mIsEnabled && bt.nextset() != 0 && bt.nextset() != NEVER)
+    {
+        mTrackerPos = mTracker.add(this);
+    }
+}
+
+inline BackoffTimerTracked::BackoffTimerTracked(PrnGen &rng, BackoffTimerGroupTracker& tr) : mIsEnabled(true), bt(rng), mTracker(tr)
+{
+    track();
+}
+
+inline BackoffTimerTracked::~BackoffTimerTracked()
+{
+    untrack();
 }
 
 

@@ -107,7 +107,7 @@ FileFingerprint *FileFingerprint::unserialize(string *d)
 FileFingerprint::FileFingerprint(const FileFingerprint& other)
 : size{other.size}
 , mtime{other.mtime}
-, crc{other.crc}
+, crc(other.crc)
 , isvalid{other.isvalid}
 {}
 

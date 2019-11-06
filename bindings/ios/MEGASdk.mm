@@ -805,6 +805,14 @@ using namespace mega;
     self.megaApi->keepMeAlive((int) type, enable);
 }
 
+- (void)whyAmIBlockedWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->whyAmIBlocked([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)whyAmIBlocked {
+    self.megaApi->whyAmIBlocked();
+}
+
 - (void)getPSAWithDelegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->getPSA([self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
@@ -960,6 +968,16 @@ using namespace mega;
 
 - (void)publicNodeForMegaFileLink:(NSString *)megaFileLink {
     self.megaApi->getPublicNode((megaFileLink != nil) ? [megaFileLink UTF8String] : NULL);
+}
+
+- (NSString *)buildPublicLinkForHandle:(NSString *)publicHandle key:(NSString *)key isFolder:(BOOL)isFolder {
+    const char *link = self.megaApi->buildPublicLink(publicHandle.UTF8String, key.UTF8String, isFolder);
+    
+    if (!link) return nil;
+    NSString *stringLink = [NSString.alloc initWithUTF8String:link];
+    
+    delete [] link;
+    return stringLink;
 }
 
 - (void)setNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude delegate:(id<MEGARequestDelegate>)delegate {
@@ -1122,6 +1140,24 @@ using namespace mega;
 
 - (void)setUserAttributeType:(MEGAUserAttribute)type value:(NSString *)value delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->setUserAttribute((int)type, (value != nil) ? [value UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)getUserAliasWithHandle:(uint64_t)handle delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getUserAlias(handle, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)getUserAliasWithHandle:(uint64_t)handle {
+    self.megaApi->getUserAlias(handle);
+}
+
+- (void)setUserAlias:(nullable NSString *)alias forHandle:(uint64_t)handle delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->setUserAlias(handle,
+                               alias.UTF8String,
+                               [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)setUserAlias:(nullable NSString *)alias forHandle:(uint64_t)handle {
+    self.megaApi->setUserAlias(handle, alias.UTF8String);
 }
 
 #pragma mark - Account management Requests

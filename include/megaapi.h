@@ -7300,8 +7300,10 @@ class MegaApi
         /**
          * @brief Check if server-side Rubbish Bin autopurging is enabled for the current account
          *
-         * Before using this function, it's needed to:
-         *  - If you are logged-in: call to MegaApi::login and MegaApi::fetchNodes.
+         * This function will NOT return a valid value until the callback onEvent with
+         * type MegaApi::EVENT_MISC_FLAGS_READY is received. You can also rely on the completion of
+         * a fetchnodes to check this value, but only when it follows a login with user and password,
+         * not when an existing session is resumed.
          *
          * @return True if this feature is enabled. Otherwise false.
          */
@@ -7310,8 +7312,10 @@ class MegaApi
         /**
          * @brief Check if the account has VOIP push enabled
          *
-         * Before using this function, it's needed to:
-         *  - If you are logged-in: call to MegaApi::login and MegaApi::fetchNodes.
+         * This function will NOT return a valid value until the callback onEvent with
+         * type MegaApi::EVENT_MISC_FLAGS_READY is received. You can also rely on the completion of
+         * a fetchnodes to check this value, but only when it follows a login with user and password,
+         * not when an existing session is resumed.
          *
          * @return True if this feature is enabled. Otherwise false.
          */
@@ -7320,9 +7324,12 @@ class MegaApi
         /**
          * @brief Check if the new format for public links is enabled
          *
-         * Before using this function, it's needed to:
-         *  - If you are logged-in: call to MegaApi::login and MegaApi::fetchNodes.
-         *  - If you are not logged-in: call to MegaApi::getMiscFlags.
+         * This function will NOT return a valid value until the callback onEvent with
+         * type MegaApi::EVENT_MISC_FLAGS_READY is received. You can also rely on the completion of
+         * a fetchnodes to check this value, but only when it follows a login with user and password,
+         * not when an existing session is resumed.
+         *
+         * For not logged-in mode, you need to call MegaApi::getMiscFlags first.
          *
          * @return True if this feature is enabled. Otherwise, false.
          */
@@ -7333,9 +7340,12 @@ class MegaApi
          *
          * The result indicated whether the MegaApi::sendSMSVerificationCode function can be used.
          *
-         * Before using this function, it's needed to:
-         *  - If you are logged-in: call to MegaApi::login and MegaApi::fetchNodes.
-         *  - If you are not logged-in: call to MegaApi::getMiscFlags.
+         * This function will NOT return a valid value until the callback onEvent with
+         * type MegaApi::EVENT_MISC_FLAGS_READY is received. You can also rely on the completion of
+         * a fetchnodes to check this value, but only when it follows a login with user and password,
+         * not when an existing session is resumed.
+         *
+         * For not logged-in mode, you need to call MegaApi::getMiscFlags first.
          *
          * @return 2 = Opt-in and unblock SMS allowed.  1 = Only unblock SMS allowed.  0 = No SMS allowed
          */
@@ -7356,9 +7366,12 @@ class MegaApi
         /**
          * @brief Check if multi-factor authentication can be enabled for the current account.
          *
-         * Before using this function, it's needed to:
-         *  - If you are logged-in: call to MegaApi::login and MegaApi::fetchNodes.
-         *  - If you are not logged-in: call to MegaApi::getMiscFlags.
+         * This function will NOT return a valid value until the callback onEvent with
+         * type MegaApi::EVENT_MISC_FLAGS_READY is received. You can also rely on the completion of
+         * a fetchnodes to check this value, but only when it follows a login with user and password,
+         * not when an existing session is resumed.
+         *
+         * For not logged-in mode, you need to call MegaApi::getMiscFlags first.
          *
          * @return True if multi-factor authentication can be enabled for the current account, otherwise false.
          */
@@ -8973,6 +8986,21 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getPublicNode(const char* megaFileLink, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Build the URL for a public link
+         *
+         * @note This function does not create the public link itself. It simply builds the URL
+         * from the provided data.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param publicHandle Public handle of the link, in B64url encoding.
+         * @param key Encryption key of the link.
+         * @param isFolder True for folder links, false for file links.
+         * @return The public link for the provided data
+         */
+        const char *buildPublicLink(const char *publicHandle, const char *key, bool isFolder);
 
         /**
          * @brief Get the thumbnail of a node
@@ -12014,6 +12042,12 @@ class MegaApi
          * @return true if it is scanning, otherwise false
          */
         bool isScanning();
+
+        /**
+         * @brief Check if any synchronization is in state syncing or pending
+         * @return true if it is syncing, otherwise false
+         */
+        bool isSyncing();
 
         /**
          * @brief Check if the MegaNode is synchronized with a local file

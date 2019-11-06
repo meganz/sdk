@@ -2683,7 +2683,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_codepage, sequence(text("codepage"), opt(sequence(wholenumber(65001), opt(wholenumber(65001))))));
     p->Add(exec_log, sequence(text("log"), either(text("utf8"), text("utf16"), text("codepage")), localFSFile()));
 #endif
-    p->Add(exec_test, sequence(text("test")));
+    p->Add(exec_test, sequence(text("test"), opt(param("data"))));
 #ifdef ENABLE_CHAT
     p->Add(exec_chats, sequence(text("chats")));
     p->Add(exec_chatc, sequence(text("chatc"), param("group"), repeat(opt(sequence(contactEmail(client), either(text("ro"), text("sta"), text("mod")))))));
@@ -3505,9 +3505,12 @@ void exec_get(autocomplete::ACState& s)
     }
     else
     {
-        if (client->openfilelink(s.words[1].s.c_str(), 0) == API_OK)
+        handle ph = UNDEF;
+        byte key[FILENODEKEYLENGTH];
+        if (client->parsepubliclink(s.words[1].s.c_str(), ph, key, false) == API_OK)
         {
             cout << "Checking link..." << endl;
+            client->openfilelink(ph, key, 0);
             return;
         }
 
@@ -5182,9 +5185,13 @@ void exec_export(autocomplete::ACState& s)
 
 void exec_import(autocomplete::ACState& s)
 {
-    if (client->openfilelink(s.words[1].s.c_str(), 1) == API_OK)
+    handle ph = UNDEF;
+    byte key[FILENODEKEYLENGTH];
+    error e = client->parsepubliclink(s.words[1].s.c_str(), ph, key, false);
+    if (e == API_OK)
     {
         cout << "Opening link..." << endl;
+        client->openfilelink(ph, key, 1);
     }
     else
     {
@@ -5198,7 +5205,7 @@ void exec_folderlinkinfo(autocomplete::ACState& s)
 
     handle ph = UNDEF;
     byte folderkey[SymmCipher::KEYLENGTH];
-    if (client->parsefolderlink(publiclink.c_str(), ph, folderkey) == API_OK)
+    if (client->parsepubliclink(publiclink.c_str(), ph, folderkey, true) == API_OK)
     {
         cout << "Loading public folder link info..." << endl;
         client->getpubliclinkinfo(ph);
@@ -6645,8 +6652,8 @@ void DemoApp::folderlinkinfo_result(error e, handle owner, handle /*ph*/, string
     }
 
     handle ph;
-    byte folderkey[SymmCipher::KEYLENGTH];
-    error eaux = client->parsefolderlink(publiclink.c_str(), ph, folderkey);
+    byte folderkey[FOLDERNODEKEYLENGTH];
+    error eaux = client->parsepubliclink(publiclink.c_str(), ph, folderkey, true);
     assert(eaux == API_OK);
 
     // Decrypt nodekey with the key of the folder link

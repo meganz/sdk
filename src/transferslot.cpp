@@ -33,8 +33,9 @@
 namespace mega {
 
 TransferSlotFileAccess::TransferSlotFileAccess(std::unique_ptr<FileAccess>&& p, Transfer* t) 
-    : fa(move(p)), transfer(t)
+    : transfer(t)
 {
+    reset(std::move(p));
 }
 
 TransferSlotFileAccess::~TransferSlotFileAccess()
@@ -44,10 +45,10 @@ TransferSlotFileAccess::~TransferSlotFileAccess()
 
 void TransferSlotFileAccess::reset(std::unique_ptr<FileAccess>&& p)
 {
-    fa = move(p);
+    fa = std::move(p);
 
     // transfer has no slot or slot has no fa: timer is enabled
-    transfer->bt.enable(p == nullptr);
+    transfer->bt.enable(!!p);
 }
 
 
@@ -70,8 +71,8 @@ const dstime TransferSlot::PROGRESSTIMEOUT = 10;
 const m_off_t TransferSlot::MAX_UPLOAD_GAP = 62914560; // 60 MB (up to 63 chunks)
 
 TransferSlot::TransferSlot(Transfer* ctransfer)
-    : retrybt(ctransfer->client->rng, ctransfer->client->tslotsbackoff)
-    , fa(ctransfer->client->fsaccess->newfileaccess(), ctransfer)
+    : fa(ctransfer->client->fsaccess->newfileaccess(), ctransfer)
+    , retrybt(ctransfer->client->rng, ctransfer->client->transferSlotsBackoff)
 {
     starttime = 0;
     lastprogressreport = 0;
@@ -1180,15 +1181,10 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
         }
     }
 
-    if (!failure)
+    if (!failure && backoff > 0)
     {
-        if (!backoff && (Waiter::ds - lastdata) < XFERTIMEOUT)
-        {
-            // no other backoff: check again at XFERMAXFAIL
-            backoff = XFERTIMEOUT - (Waiter::ds - lastdata);
-        }
-
         retrybt.backoff(backoff);
+        retrying = true;  // we don't bother checking the `retrybt` before calling `doio` unless `retrying` is set.
     }
 }
 
