@@ -2260,6 +2260,11 @@ void MegaApi::getPublicNode(const char* megaFileLink, MegaRequestListener *liste
     pImpl->getPublicNode(megaFileLink, listener);
 }
 
+const char *MegaApi::buildPublicLink(const char *publicHandle, const char *key, bool isFolder)
+{
+    return pImpl->buildPublicLink(publicHandle, key, isFolder);
+}
+
 void MegaApi::getThumbnail(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener)
 {
     pImpl->getThumbnail(node, dstFilePath, listener);

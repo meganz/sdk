@@ -6424,6 +6424,13 @@ void MegaApiImpl::getPublicNode(const char* megaFileLink, MegaRequestListener *l
     waiter->notify();
 }
 
+const char *MegaApiImpl::buildPublicLink(const char *publicHandle, const char *key, bool isFolder)
+{
+    handle ph = MegaApi::base64ToHandle(publicHandle);
+    string link = client->getPublicLink(client->mNewLinkFormat, isFolder ? FOLDERNODE : FILENODE, ph, key);
+    return MegaApi::strdup(link.c_str());
+}
+
 void MegaApiImpl::getThumbnail(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener)
 {
     getNodeAttribute(node, GfxProc::THUMBNAIL, dstFilePath, listener);
@@ -18806,7 +18813,18 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            e = client->openfilelink(megaFileLink, 1);
+            handle ph = UNDEF;
+            byte key[FILENODEKEYLENGTH];
+            e = client->parsepubliclink(megaFileLink, ph, key, false);
+            if (e == API_OK)
+            {
+                client->openfilelink(ph, key, 1);
+            }
+            else if (e == API_EINCOMPLETE)  // no key provided, check only the existence of the node
+            {
+                client->openfilelink(ph, nullptr, 1);
+                e = API_OK;
+            }
             break;
         }
         case MegaRequest::TYPE_PASSWORD_LINK:
@@ -21339,12 +21357,12 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             handle h = UNDEF;
-            byte folderkey[SymmCipher::KEYLENGTH];
-            e = client->parsefolderlink(link, h, folderkey);
+            byte folderkey[FOLDERNODEKEYLENGTH];
+            e = client->parsepubliclink(link, h, folderkey, true);
             if (e == API_OK)
             {
                 request->setNodeHandle(h);
-                Base64Str<SymmCipher::KEYLENGTH> folderkeyB64(folderkey);
+                Base64Str<FOLDERNODEKEYLENGTH> folderkeyB64(folderkey);
                 request->setPrivateKey(folderkeyB64.chars);
                 client->getpubliclinkinfo(h);
             }
