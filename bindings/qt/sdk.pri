@@ -498,6 +498,8 @@ win32 {
     }
 
     LIBS += -lshlwapi -lws2_32 -luser32 -lsodium -lcryptopp -lzlibstat
+
+    DEFINES += NOMINMAX
 }
 
 unix:!macx {
