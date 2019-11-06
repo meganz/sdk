@@ -978,7 +978,6 @@
 					3rdparty/include,
 					../../third_party/utf8proc,
 					3rdparty/webrtc/third_party/boringssl/src/include,
-					../../include,
 				);
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1006,7 +1005,6 @@
 					3rdparty/include,
 					../../third_party/utf8proc,
 					3rdparty/webrtc/third_party/boringssl/src/include,
-					../../include,
 				);
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
