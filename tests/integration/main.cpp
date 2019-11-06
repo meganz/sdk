@@ -65,7 +65,6 @@ public:
 #ifdef _WIN32
             OutputDebugStringA(os.str().c_str());
 #endif
-
         }
     }
 
