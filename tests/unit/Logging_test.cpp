@@ -142,34 +142,36 @@ TEST(Logging, performanceMode_forNullPointer)
 namespace {
 
 template<typename Type>
-void test_forIntegerNumber()
+void test_forIntegerNumber(const Type number)
 {
     for (int level = 0; level <= mega::LogLevel::logMax; ++level)
     {
         MockLogger logger;
         const std::string file = "file.cpp";
         const int line = 13;
-        const Type obj = 42;
-        mega::SimpleLogger{static_cast<mega::LogLevel>(level), file.c_str(), line} << obj;
+        mega::SimpleLogger{static_cast<mega::LogLevel>(level), file.c_str(), line} << number;
         logger.checkLogLevel(level);
         EXPECT_EQ(1, logger.mMessage.size());
-        EXPECT_EQ(expMsg(file, line, "42"), logger.mMessage[0]);
+        std::ostringstream expected;
+        expected << number;
+        EXPECT_EQ(expMsg(file, line, expected.str()), logger.mMessage[0]);
     }
 }
 
 template<typename Type>
-void test_forFloatingNumber()
+void test_forFloatingNumber(const Type number)
 {
     for (int level = 0; level <= mega::LogLevel::logMax; ++level)
     {
         MockLogger logger;
         const std::string file = "file.cpp";
         const int line = 13;
-        const auto obj = static_cast<Type>(42.123);
-        mega::SimpleLogger{static_cast<mega::LogLevel>(level), file.c_str(), line} << obj;
+        mega::SimpleLogger{static_cast<mega::LogLevel>(level), file.c_str(), line} << number;
         logger.checkLogLevel(level);
         EXPECT_EQ(1, logger.mMessage.size());
-        const auto msg = expMsg(file, line, "42.123");
+        std::ostringstream expected;
+        expected << number;
+        const auto msg = expMsg(file, line, expected.str());
         EXPECT_NE(logger.mMessage[0].find(msg), std::string::npos);
     }
 }
@@ -178,42 +180,73 @@ void test_forFloatingNumber()
 
 TEST(Logging, performanceMode_forInt)
 {
-    test_forIntegerNumber<int>();
+    test_forIntegerNumber<int>(0);
+    test_forIntegerNumber<int>(42);
+    test_forIntegerNumber<int>(-42);
+    test_forIntegerNumber<int>(std::numeric_limits<int>::lowest());
+    test_forIntegerNumber<int>(std::numeric_limits<int>::max());
 }
 
 TEST(Logging, performanceMode_forLong)
 {
-    test_forIntegerNumber<long>();
+    test_forIntegerNumber<long>(0);
+    test_forIntegerNumber<long>(42);
+    test_forIntegerNumber<long>(-42);
+    test_forIntegerNumber<long>(std::numeric_limits<long>::lowest());
+    test_forIntegerNumber<long>(std::numeric_limits<long>::max());
 }
 
 TEST(Logging, performanceMode_forLongLong)
 {
-    test_forIntegerNumber<long long>();
+    test_forIntegerNumber<long long>(0);
+    test_forIntegerNumber<long long>(42);
+    test_forIntegerNumber<long long>(-42);
+    test_forIntegerNumber<long long>(std::numeric_limits<long long>::lowest());
+    test_forIntegerNumber<long long>(std::numeric_limits<long long>::max());
 }
 
 TEST(Logging, performanceMode_forUnsignedInt)
 {
-    test_forIntegerNumber<unsigned int>();
+    test_forIntegerNumber<unsigned int>(0);
+    test_forIntegerNumber<unsigned int>(42);
+    test_forIntegerNumber<unsigned int>(std::numeric_limits<unsigned int>::lowest());
+    test_forIntegerNumber<unsigned int>(std::numeric_limits<unsigned int>::max());
 }
 
 TEST(Logging, performanceMode_forUnsignedLong)
 {
-    test_forIntegerNumber<unsigned long>();
+    test_forIntegerNumber<unsigned long>(0);
+    test_forIntegerNumber<unsigned long>(42);
+    test_forIntegerNumber<unsigned long>(std::numeric_limits<unsigned long>::lowest());
+    test_forIntegerNumber<unsigned long>(std::numeric_limits<unsigned long>::max());
 }
 
 TEST(Logging, performanceMode_forUnsignedLongLong)
 {
-    test_forIntegerNumber<unsigned long long>();
+    test_forIntegerNumber<unsigned long long>(0);
+    test_forIntegerNumber<unsigned long long>(42);
+    test_forIntegerNumber<unsigned long long>(std::numeric_limits<unsigned long long>::lowest());
+    test_forIntegerNumber<unsigned long long>(std::numeric_limits<unsigned long long>::max());
 }
 
 TEST(Logging, performanceMode_forFloat)
 {
-    test_forFloatingNumber<float>();
+    test_forFloatingNumber<float>(0.f);
+    test_forFloatingNumber<float>(42.123f);
+    test_forFloatingNumber<float>(-42.123f);
+    test_forFloatingNumber<float>(std::numeric_limits<float>::lowest());
+    test_forFloatingNumber<float>(std::numeric_limits<float>::min());
+    test_forFloatingNumber<float>(std::numeric_limits<float>::max());
 }
 
 TEST(Logging, performanceMode_forDouble)
 {
-    test_forFloatingNumber<double>();
+    test_forFloatingNumber<double>(0.);
+    test_forFloatingNumber<double>(42.123);
+    test_forFloatingNumber<double>(-42.123);
+    test_forFloatingNumber<double>(std::numeric_limits<double>::lowest());
+    test_forFloatingNumber<double>(std::numeric_limits<double>::min());
+    test_forFloatingNumber<double>(std::numeric_limits<double>::max());
 }
 
 TEST(Logging, performanceMode_withMessageLargeThanLogBuffer)
