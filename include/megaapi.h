@@ -10722,6 +10722,19 @@ class MegaApi
         ///////////////////   TRANSFERS ///////////////////
 
         /**
+         * @brief Upload a file to support
+         *
+         * If the status of the business account is expired, onTransferFinish will be called with the error
+         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+         * "Your business account is overdue, please contact your administrator."
+         *
+         * @param localPath Local path of the file or folder
+         * @param listener MegaTransferListener to track this transfer
+         */
+        void startUploadForSupport(const char* localPath, MegaTransferListener *listener=NULL);
+
+
+        /**
          * @brief Upload a file or a folder
          *
          * If the status of the business account is expired, onTransferFinish will be called with the error

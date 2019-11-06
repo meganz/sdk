@@ -3560,6 +3560,13 @@ void CommandPubKeyRequest::procresult()
                     if (!ISUNDEF(uh))
                     {
                         client->mapuser(uh, u->email.c_str());
+                        if (u->isTemporary && u->uid == u->email)
+                        {
+                            char uid[12];
+                            Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
+                            uid[11] = '\0';
+                            u->uid = uid;
+                        }
                     }
 
                     if (client->fetchingkeys && u->userhandle == client->me && len_pubk)
