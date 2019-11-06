@@ -19,10 +19,6 @@
  * program.
  */
 
-#ifdef _WIN32
-#define NOMINMAX // Prevents windows defining its own min/max as macros
-#endif
-
 #define _LARGE_FILES
 
 #define _GNU_SOURCE 1
