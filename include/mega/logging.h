@@ -104,6 +104,8 @@
     #include <QString>
 #endif
 
+#include <mega/utils.h>
+
 namespace mega {
 
 // available log levels
@@ -184,7 +186,7 @@ class SimpleLogger
     logValue(const T value)
     {
         NumBuf buf;
-        const auto size = std::snprintf(buf.data(), buf.size(), "%d", static_cast<int>(value));
+        const auto size = snprintf(buf.data(), buf.size(), "%d", static_cast<int>(value));
         copyToBuffer(buf.data(), size);
     }
 
@@ -193,7 +195,7 @@ class SimpleLogger
     logValue(const T value)
     {
         NumBuf buf;
-        const auto size = std::snprintf(buf.data(), buf.size(), "%p", reinterpret_cast<const void*>(value));
+        const auto size = snprintf(buf.data(), buf.size(), "%p", reinterpret_cast<const void*>(value));
         copyToBuffer(buf.data(), size);
     }
 
@@ -203,7 +205,7 @@ class SimpleLogger
     logValue(const T value)
     {
         NumBuf buf;
-        const auto size = std::snprintf(buf.data(), buf.size(), "%d", value);
+        const auto size = snprintf(buf.data(), buf.size(), "%d", value);
         copyToBuffer(buf.data(), size);
     }
 
@@ -213,7 +215,7 @@ class SimpleLogger
     logValue(const T value)
     {
         NumBuf buf;
-        const auto size = std::snprintf(buf.data(), buf.size(), "%ld", value);
+        const auto size = snprintf(buf.data(), buf.size(), "%ld", value);
         copyToBuffer(buf.data(), size);
     }
 
@@ -223,7 +225,7 @@ class SimpleLogger
     logValue(const T value)
     {
         NumBuf buf;
-        const auto size = std::snprintf(buf.data(), buf.size(), "%lld", value);
+        const auto size = snprintf(buf.data(), buf.size(), "%lld", value);
         copyToBuffer(buf.data(), size);
     }
 
@@ -233,7 +235,7 @@ class SimpleLogger
     logValue(const T value)
     {
         NumBuf buf;
-        const auto size = std::snprintf(buf.data(), buf.size(), "%u", value);
+        const auto size = snprintf(buf.data(), buf.size(), "%u", value);
         copyToBuffer(buf.data(), size);
     }
 
@@ -243,7 +245,7 @@ class SimpleLogger
     logValue(const T value)
     {
         NumBuf buf;
-        const auto size = std::snprintf(buf.data(), buf.size(), "%lu", value);
+        const auto size = snprintf(buf.data(), buf.size(), "%lu", value);
         copyToBuffer(buf.data(), size);
     }
 
@@ -253,7 +255,7 @@ class SimpleLogger
     logValue(const T value)
     {
         NumBuf buf;
-        const auto size = std::snprintf(buf.data(), buf.size(), "%llu", value);
+        const auto size = snprintf(buf.data(), buf.size(), "%llu", value);
         copyToBuffer(buf.data(), size);
     }
 
@@ -262,7 +264,7 @@ class SimpleLogger
     logValue(const T value)
     {
         NumBuf buf;
-        const auto size = std::snprintf(buf.data(), buf.size(), "%g", value);
+        const auto size = snprintf(buf.data(), buf.size(), "%g", value);
         copyToBuffer(buf.data(), size);
     }
 
