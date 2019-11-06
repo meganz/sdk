@@ -15,6 +15,7 @@
  * You should have received a copy of the license along with this
  * program.
  */
+#ifdef ENABLE_SYNC
 
 #include <memory>
 
@@ -1036,4 +1037,6 @@ TEST(Sync, assignFilesystemIds_whenFileTypeIsUnexpected_hittingAssert)
 
     ASSERT_FALSE(success);
 }
+#endif
+
 #endif

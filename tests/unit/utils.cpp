@@ -43,6 +43,7 @@ void collectAllFsNodesImpl(std::map<std::string, const mt::FsNode*>& nodes, cons
     }
 }
 
+#ifdef ENABLE_SYNC
 void initializeLocalNode(mega::LocalNode& l, mega::Sync& sync, mega::LocalNode* parent, mega::handlelocalnode_map& fsidnodes,
                          mega::nodetype_t type, const std::string& name, const mega::FileFingerprint& ffp)
 {
@@ -61,6 +62,7 @@ void initializeLocalNode(mega::LocalNode& l, mega::Sync& sync, mega::LocalNode* 
     }
     static_cast<mega::FileFingerprint&>(l) = ffp;
 }
+#endif
 
 } // anonymous
 
@@ -70,6 +72,7 @@ mega::handle nextFsId()
     return fsId++;
 }
 
+#ifdef ENABLE_SYNC
 std::unique_ptr<mega::Sync> makeSync(const std::string& localname, mega::handlelocalnode_map& fsidnodes)
 {
     auto sync = std::unique_ptr<mega::Sync>{new mega::Sync};
@@ -89,6 +92,7 @@ std::unique_ptr<mega::LocalNode> makeLocalNode(mega::Sync& sync, mega::LocalNode
     initializeLocalNode(*l, sync, &parent, fsidnodes, type, name, ffp);
     return l;
 }
+#endif
 
 void collectAllFsNodes(std::map<std::string, const mt::FsNode*>& nodes, const mt::FsNode& node)
 {

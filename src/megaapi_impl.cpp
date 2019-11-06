@@ -19,6 +19,10 @@
  * program.
  */
 
+#ifdef _WIN32
+#define NOMINMAX // Prevents windows defining its own min/max as macros
+#endif
+
 #define _LARGE_FILES
 
 #define _GNU_SOURCE 1
@@ -1343,6 +1347,24 @@ bool MegaApiImpl::isIndexing()
     }
     sdkMutex.unlock();
     return indexing;
+}
+
+bool MegaApiImpl::isSyncing()
+{
+    if (!client->syncs.size())
+    {
+        return false;
+    }
+    SdkMutexGuard g(sdkMutex);
+
+    for (auto & sync : client->syncs)
+    {
+        if (sync->localroot->ts == TREESTATE_SYNCING || sync->localroot->ts == TREESTATE_PENDING)
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 MegaSync *MegaApiImpl::getSyncByTag(int tag)
@@ -6034,7 +6056,7 @@ void MegaApiImpl::confirmChangeEmail(const char *link, const char *pwd, MegaRequ
     waiter->notify();
 }
 
-void MegaApiImpl::setProxySettings(MegaProxy *proxySettings)
+void MegaApiImpl::setProxySettings(MegaProxy *proxySettings, MegaRequestListener *listener)
 {
     Proxy *localProxySettings = new Proxy();
     localProxySettings->setProxyType(proxySettings->getProxyType());
@@ -6082,7 +6104,7 @@ void MegaApiImpl::setProxySettings(MegaProxy *proxySettings)
         localProxySettings->setCredentials(&localusername, &localpassword);
     }
 
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_PROXY);
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_PROXY, listener);
     request->setProxy(localProxySettings);
     requestQueue.push(request);
     waiter->notify();
@@ -10271,7 +10293,7 @@ MegaShareList* MegaApiImpl::getInSharesList(int order)
     return shareList;
 }
 
-MegaUser *MegaApiImpl::getUserFromInShare(MegaNode *megaNode)
+MegaUser *MegaApiImpl::getUserFromInShare(MegaNode *megaNode, bool recurse)
 {
     if (!megaNode)
     {
@@ -10283,6 +10305,11 @@ MegaUser *MegaApiImpl::getUserFromInShare(MegaNode *megaNode)
     sdkMutex.lock();
 
     Node *node = client->nodebyhandle(megaNode->getHandle());
+    if (recurse && node)
+    {
+        node = client->getrootnode(node);
+    }
+
     if (node && node->inshare && node->inshare->user)
     {
         user = MegaUserPrivate::fromUser(node->inshare->user);
@@ -14881,7 +14908,9 @@ void MegaApiImpl::whyamiblocked_result(int code)
         return;
     }
 
-    if (request->getFlag() && code != 500)  // don't log out if we can be unblocked via sms verification
+    if (request->getFlag()
+            && code != 500  // don't log out if we can be unblocked via sms verification
+            && code != 700) // don't log out if we can be unblocked via verification email (weak account protection)
     {
         client->removecaches();
         client->locallogout();

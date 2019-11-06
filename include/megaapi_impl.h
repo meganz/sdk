@@ -2047,7 +2047,7 @@ class MegaApiImpl : public MegaApp
         void resendVerificationEmail(MegaRequestListener *listener = NULL);
         void changeEmail(const char *email, MegaRequestListener *listener = NULL);
         void confirmChangeEmail(const char *link, const char *pwd, MegaRequestListener *listener = NULL);
-        void setProxySettings(MegaProxy *proxySettings);
+        void setProxySettings(MegaProxy *proxySettings, MegaRequestListener *listener = NULL);
         MegaProxy *getAutoProxySettings();
         int isLoggedIn();
         void whyAmIBlocked(bool logout, MegaRequestListener *listener = NULL);
@@ -2239,6 +2239,8 @@ class MegaApiImpl : public MegaApp
         bool is_syncable(long long size);
         int isNodeSyncable(MegaNode *megaNode);
         bool isIndexing();
+        bool isSyncing();
+
         MegaSync *getSyncByTag(int tag);
         MegaSync *getSyncByNode(MegaNode *node);
         MegaSync *getSyncByPath(const char * localPath);
@@ -2293,7 +2295,7 @@ class MegaApiImpl : public MegaApp
         MegaNodeList *getInShares(MegaUser* user, int order);
         MegaNodeList *getInShares(int order);
         MegaShareList *getInSharesList(int order);
-        MegaUser *getUserFromInShare(MegaNode *node);
+        MegaUser *getUserFromInShare(MegaNode *node, bool recurse = false);
         bool isPendingShare(MegaNode *node);
         MegaShareList *getOutShares(int order);
         MegaShareList *getOutShares(MegaNode *node);

@@ -644,6 +644,9 @@ Sync::~Sync()
         TreeProcDelSyncGet tdsg;
         if (client)
         {
+            // Create a committer to ensure we update the transfer database in an efficient single commit,
+            // if there are transactions in progress.
+            DBTableTransactionCommitter committer(client->tctable);
             client->proctree(localroot->node, &tdsg);
         }
     }
@@ -656,7 +659,7 @@ Sync::~Sync()
         client->syncactivity = true;
 
         {
-            // now recursively delete all the associated LocalNodes, and their associated transfer and file objects. 
+            // Create a committer and recursively delete all the associated LocalNodes, and their associated transfer and file objects.
             // If any have transactions in progress, the committer will ensure we update the transfer database in an efficient single commit.
             DBTableTransactionCommitter committer(client->tctable);
             localroot.reset();

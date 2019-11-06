@@ -1177,6 +1177,89 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  */
 - (BOOL)checkPassword:(NSString *)password;
 
+/**
+ * @brief Returns the credentials of the currently open account
+ *
+ * If the MEGASdk object isn't logged in or there's no signing key available,
+ * this function returns nil
+ *
+ * @return Fingerprint of the signing key of the current account
+ */
+- (NSString *)myCredentials;
+
+/**
+ * Returns the credentials of a given user
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns MEGAUserAttributeED25519PublicKey
+ * - [MEGARequest flag] - Returns YES
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest password] - Returns the credentials in hexadecimal format
+ *
+ * @param user MEGAUser of the contact (@see [MEGASDK contactForEmail:]) to get the fingerprint
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getUserCredentials:(MEGAUser *)user delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Checks if credentials are verified for the given user
+ *
+ * @param user MEGAUser of the contact whose credentiasl want to be checked
+ * @return YES if verified, NO otherwise
+ */
+- (BOOL)areCredentialsVerifiedOfUser:(MEGAUser *)user;
+
+/**
+ * @brief Verify credentials of a given user
+ *
+ * This function allow to tag credentials of a user as verified. It should be called when the
+ * logged in user compares the fingerprint of the user (provided by an independent and secure
+ * method) with the fingerprint shown by the app (@see [MEGASDK getUserCredentials:]).
+ *
+ * The associated request type with this request is MEGARequestTypeVerifyCredentials
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns userhandle
+ *
+ * @param user MEGAUser of the contact whose credentials want to be verified
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)verifyCredentialsOfUser:(MEGAUser *)user delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Reset credentials of a given user
+ *
+ * Call this function to forget the existing authentication of keys and signatures for a given
+ * user. A full reload of the account will start the authentication process again.
+ *
+ * The associated request type with this request is MEGARequestTypeVerifyCredentials
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest  nodeHandle] - Returns userhandle
+ * - [MEGARequest flag] - Returns YES
+ *
+ * @param user MEGAUser of the contact whose credentials want to be reset
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)resetCredentialsOfUser:(MEGAUser *)user delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Reset credentials of a given user
+ *
+ * Call this function to forget the existing authentication of keys and signatures for a given
+ * user. A full reload of the account will start the authentication process again.
+ *
+ * The associated request type with this request is MEGARequestTypeVerifyCredentials
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest  nodeHandle] - Returns userhandle
+ * - [MEGARequest flag] - Returns YES
+ *
+ * @param user MEGAUser of the contact whose credentials want to be reset
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)resetCredentialsOfUser:(MEGAUser *)user delegate:(id<MEGARequestDelegate>)delegate;
+
 #pragma mark - Create account and confirm account Requests
 
 /**
@@ -1620,7 +1703,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param masterKey Base64-encoded string containing the master key (optional).
  * @param delegate Delegate to track this request
  */
-- (void)confirmResetPasswordWithLink:(NSString *)link newPassword:(NSString *)newPassword masterKey:(NSString *)masterKey delegate:(id<MEGARequestDelegate>)delegate;
+- (void)confirmResetPasswordWithLink:(NSString *)link newPassword:(NSString *)newPassword masterKey:(nullable NSString *)masterKey delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Set a new password for the account pointed by the recovery link.
@@ -1645,7 +1728,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param newPassword The new password to be set.
  * @param masterKey Base64-encoded string containing the master key (optional).
  */
-- (void)confirmResetPasswordWithLink:(NSString *)link newPassword:(NSString *)newPassword masterKey:(NSString *)masterKey;
+- (void)confirmResetPasswordWithLink:(NSString *)link newPassword:(NSString *)newPassword masterKey:(nullable NSString *)masterKey;
 
 /**
  * @brief Initialize the cancellation of an account.
@@ -4946,7 +5029,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * The data in this parameter can be accessed using [MEGATransfer appData] in delegates
  * @param delegate Delegate to track this transfer.
  */
-- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(NSString *)appData delegate:(id<MEGATransferDelegate>)delegate;
+- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(nullable NSString *)appData delegate:(id<MEGATransferDelegate>)delegate;
 
 /**
  * @brief Upload a file with a custom name.
@@ -4960,7 +5043,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param appData Custom app data to save in the MEGATransfer object
  * The data in this parameter can be accessed using [MEGATransfer appData] in delegates
  */
-- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(NSString *)appData;
+- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(nullable NSString *)appData;
 
 /**
  * @brief Upload a file or a folder, saving custom app data during the transfer
@@ -4979,7 +5062,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * Use this parameter with caution. Set it to YES only if you are sure about what are you doing.
  * @param delegate MEGATransferDelegate to track this transfer
  */
-- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary delegate:(id<MEGATransferDelegate>)delegate;
+- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(nullable NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary delegate:(id<MEGATransferDelegate>)delegate;
 
 /**
  * @brief Upload a file or a folder, saving custom app data during the transfer
@@ -4997,7 +5080,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
  * Use this parameter with caution. Set it to YES only if you are sure about what are you doing.
  */
-- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary;
+- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(nullable NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary;
 
 /**
  * @brief Upload a file or a folder, putting the transfer on top of the upload queue
@@ -5016,7 +5099,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * Use this parameter with caution. Set it to YES only if you are sure about what are you doing.
  * @param delegate MEGATransferDelegate to track this transfer
  */
-- (void)startUploadTopPriorityWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary delegate:(id<MEGATransferDelegate>)delegate;
+- (void)startUploadTopPriorityWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(nullable NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary delegate:(id<MEGATransferDelegate>)delegate;
 
 /**
  * @brief Upload a file or a folder, putting the transfer on top of the upload queue
@@ -5035,7 +5118,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * Use this parameter with caution. Set it to YES only if you are sure about what are you doing.
 
  */
-- (void)startUploadTopPriorityWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary;
+- (void)startUploadTopPriorityWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(nullable NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary;
 
 /**
 * @brief Upload a file or a folder
@@ -5064,7 +5147,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
 */
 - (void)startUploadForChatWithLocalPath:(NSString *)localPath
                                  parent:(MEGANode *)parent
-                                appData:(NSString *)appData
+                                appData:(nullable NSString *)appData
                       isSourceTemporary:(BOOL)isSourceTemporary
                                delegate:(id<MEGATransferDelegate>)delegate;
 
@@ -5118,7 +5201,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  *
  * @param delegate Delegate to track this transfer.
  */
-- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath appData:(NSString *)appData delegate:(id<MEGATransferDelegate>)delegate;
+- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath appData:(nullable NSString *)appData delegate:(id<MEGATransferDelegate>)delegate;
 
 /**
  * @brief Download a file from MEGA.
@@ -5137,7 +5220,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * related to the transfer.
  *
  */
-- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath appData:(NSString *)appData;
+- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath appData:(nullable NSString *)appData;
 
 /**
  * @brief Download a file or a folder from MEGA, putting the transfer on top of the download queue.
@@ -5157,7 +5240,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  *
  * @param delegate Delegate to track this transfer.
  */
-- (void)startDownloadTopPriorityWithNode:(MEGANode *)node localPath:(NSString *)localPath appData:(NSString *)appData delegate:(id<MEGATransferDelegate>)delegate;
+- (void)startDownloadTopPriorityWithNode:(MEGANode *)node localPath:(NSString *)localPath appData:(nullable NSString *)appData delegate:(id<MEGATransferDelegate>)delegate;
 
 /**
  * @brief Download a file or a folder from MEGA, putting the transfer on top of the download queue.
@@ -5176,7 +5259,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * related to the transfer.
  *
  */
-- (void)startDownloadTopPriorityWithNode:(MEGANode *)node localPath:(NSString *)localPath appData:(NSString *)appData;
+- (void)startDownloadTopPriorityWithNode:(MEGANode *)node localPath:(NSString *)localPath appData:(nullable NSString *)appData;
 
 /**
  * @brief Start an streaming download for a file in MEGA
@@ -5954,6 +6037,22 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @return MEGAUser relative to the incoming share
  */
 - (nullable MEGAUser *)userFromInShareNode:(MEGANode *)node;
+
+/**
+* @brief Get the user relative to an incoming share
+*
+* This function will return nil if the node is not found.
+*
+* If recurse is true, it will return nil if the root corresponding to
+* the node received as argument doesn't represent the root of an incoming share.
+* Otherwise, it will return nil if the node doesn't represent
+* the root of an incoming share.
+*
+* @param node Node to look for inshare user.
+* @param recurse use root node corresponding to the node passed
+* @return MegaUser relative to the incoming share
+*/
+- (nullable MEGAUser *)userFromInShareNode:(MEGANode *)node recurse:(BOOL)recurse;
 
 /**
  * @brief Check if a MEGANode is being shared.

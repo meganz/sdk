@@ -2150,9 +2150,9 @@ void MegaApi::confirmChangeEmail(const char *link, const char *pwd, MegaRequestL
     pImpl->confirmChangeEmail(link, pwd, listener);
 }
 
-void MegaApi::setProxySettings(MegaProxy *proxySettings)
+void MegaApi::setProxySettings(MegaProxy *proxySettings, MegaRequestListener *listener)
 {
-    pImpl->setProxySettings(proxySettings);
+    pImpl->setProxySettings(proxySettings, listener);
 }
 
 MegaProxy *MegaApi::getAutoProxySettings()
@@ -2634,7 +2634,7 @@ void MegaApi::getUserAlias(MegaHandle uh, MegaRequestListener *listener)
 
 void MegaApi::setUserAlias(MegaHandle uh, const char *alias, MegaRequestListener *listener)
 {
-    pImpl->setUserAlias(uh, alias);
+    pImpl->setUserAlias(uh, alias, listener);
 }
 
 void MegaApi::getRubbishBinAutopurgePeriod(MegaRequestListener *listener)
@@ -3139,6 +3139,11 @@ bool MegaApi::isScanning()
     return pImpl->isIndexing();
 }
 
+bool MegaApi::isSyncing()
+{
+    return pImpl->isSyncing();
+}
+
 bool MegaApi::isSynced(MegaNode *n)
 {
     return pImpl->isSynced(n);
@@ -3328,9 +3333,9 @@ MegaShareList* MegaApi::getInSharesList(int order)
     return pImpl->getInSharesList(order);
 }
 
-MegaUser *MegaApi::getUserFromInShare(MegaNode *node)
+MegaUser *MegaApi::getUserFromInShare(MegaNode *node, bool recurse)
 {
-    return pImpl->getUserFromInShare(node);
+    return pImpl->getUserFromInShare(node, recurse);
 }
 
 bool MegaApi::isShared(MegaNode *node)

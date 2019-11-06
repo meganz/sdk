@@ -27,6 +27,7 @@ SOURCES += \
 ../../../../tests/unit/Crypto_test.cpp \
 ../../../../tests/unit/FileFingerprint_test.cpp \
 ../../../../tests/unit/FsNode.cpp \
+../../../../tests/unit/Logging_test.cpp \
 ../../../../tests/unit/main.cpp \
 ../../../../tests/unit/MegaApi_test.cpp \
 ../../../../tests/unit/PayCrypter_test.cpp \

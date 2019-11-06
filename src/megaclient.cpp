@@ -13146,6 +13146,11 @@ void MegaClient::syncupdate()
                 // the overwrite will happen upon PUT completion
                 string tmppath, tmplocalpath;
 
+                if (l->parent->node)
+                {
+                    l->h = l->parent->node->nodehandle;
+                }
+
                 nextreqtag();
                 startxfer(PUT, l, committer);
 
@@ -13162,14 +13167,17 @@ void MegaClient::syncupdate()
         else
         {
             // add nodes unless parent node has been deleted
-            if (synccreate[start]->parent->node)
+            LocalNode *localNode = synccreate[start];
+            if (localNode->parent->node)
             {
                 syncadding++;
 
+                assert(localNode->type == FOLDERNODE
+                       || localNode->h == localNode->parent->node->nodehandle); // if it's a file, it should match
                 reqs.add(new CommandPutNodes(this,
-                                                synccreate[start]->parent->node->nodehandle,
+                                                localNode->parent->node->nodehandle,
                                                 NULL, nn, int(nnp - nn),
-                                                synccreate[start]->sync->tag,
+                                                localNode->sync->tag,
                                                 PUTNODES_SYNC));
 
                 syncactivity = true;
@@ -13537,9 +13545,9 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
                 return false;
             }
 
-            #ifdef USE_MEDIAINFO
+#ifdef USE_MEDIAINFO
             mediaFileInfo.requestCodecMappingsOneTime(this, &f->localname);  
-            #endif
+#endif
         }
         else
         {
@@ -13705,6 +13713,8 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
                 t->failed(API_EOVERQUOTA, committer);
             }
         }
+
+        assert(!ISUNDEF(f->h) && (nodebyhandle(f->h) || d == GET)); // target handle for the upload should be known at this time
     }
 
     return true;
@@ -13718,11 +13728,7 @@ void MegaClient::stopxfer(File* f, DBTableTransactionCommitter* committer)
         LOG_debug << "Stopping transfer: " << f->name;
 
         Transfer *transfer = f->transfer;
-        transfer->files.erase(f->file_it);
-        filecachedel(f, committer);
-        app->file_removed(f, API_EINCOMPLETE);
-        f->transfer = NULL;
-        f->terminated();
+        transfer->removeTransferFile(API_EINCOMPLETE, f, committer);
 
         // last file for this transfer removed? shut down transfer.
         if (!transfer->files.size())
