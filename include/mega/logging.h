@@ -104,7 +104,7 @@
     #include <QString>
 #endif
 
-#include <mega/utils.h>
+#include "mega/utils.h"
 
 namespace mega {
 
