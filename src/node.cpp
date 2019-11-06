@@ -125,6 +125,12 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
 
 Node::~Node()
 {
+    if (keyApplied())
+    {
+        client->mAppliedKeyNodeCount--;
+        assert(client->mAppliedKeyNodeCount >= 0);
+    }
+
     // abort pending direct reads
     client->preadabort(this);
 
@@ -208,12 +214,23 @@ Node::~Node()
 #endif
 }
 
+void Node::setkeyfromjson(const char* k)
+{
+    if (keyApplied()) --client->mAppliedKeyNodeCount;
+    Node::copystring(&nodekeydata, k);
+    if (keyApplied()) ++client->mAppliedKeyNodeCount;
+    assert(client->mAppliedKeyNodeCount >= 0);
+}
+
 // update node key and decrypt attributes
 void Node::setkey(const byte* newkey)
 {
     if (newkey)
     {
-        nodekey.assign((char*)newkey, (type == FILENODE) ? FILENODEKEYLENGTH + 0 : FOLDERNODEKEYLENGTH + 0);
+        if (keyApplied()) --client->mAppliedKeyNodeCount;
+        nodekeydata.assign(reinterpret_cast<const char*>(newkey), (type == FILENODE) ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH);
+        if (keyApplied()) ++client->mAppliedKeyNodeCount;
+        assert(client->mAppliedKeyNodeCount >= 0);
     }
 
     setattr();
@@ -281,7 +298,7 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
 
     if ((t == FILENODE) || (t == FOLDERNODE))
     {
-        int keylen = ((t == FILENODE) ? FILENODEKEYLENGTH + 0 : FOLDERNODEKEYLENGTH + 0);
+        int keylen = ((t == FILENODE) ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH);
 
         if (ptr + keylen + 8 + sizeof(short) > end)
         {
@@ -449,21 +466,21 @@ bool Node::serialize(string* d)
     switch (type)
     {
         case FILENODE:
-            if ((int)nodekey.size() != FILENODEKEYLENGTH)
+            if ((int)nodekeydata.size() != FILENODEKEYLENGTH)
             {
                 return false;
             }
             break;
 
         case FOLDERNODE:
-            if ((int)nodekey.size() != FOLDERNODEKEYLENGTH)
+            if ((int)nodekeydata.size() != FOLDERNODEKEYLENGTH)
             {
                 return false;
             }
             break;
 
         default:
-            if (nodekey.size())
+            if (nodekeydata.size())
             {
                 return false;
             }
@@ -497,7 +514,7 @@ bool Node::serialize(string* d)
     ts = (time_t)ctime; 
     d->append((char*)&ts, sizeof(ts));
 
-    d->append(nodekey);
+    d->append(nodekeydata);
 
     if (type == FILENODE)
     {
@@ -672,7 +689,7 @@ void Node::parseattr(byte *bufattr, AttrMap &attrs, m_off_t size, m_time_t &mtim
 // return temporary SymmCipher for this nodekey
 SymmCipher* Node::nodecipher()
 {
-    if (client->tmpnodecipher.setkey(&nodekey))
+    if (client->tmpnodecipher.setkey(&nodekeydata))
     {
         return &client->tmpnodecipher;
     }
@@ -718,7 +735,7 @@ void Node::setattr()
 // otherwise, the file's fingerprint is derived from the file's mtime/size/key
 void Node::setfingerprint()
 {
-    if (type == FILENODE && nodekey.size() >= sizeof crc)
+    if (type == FILENODE && nodekeydata.size() >= sizeof crc)
     {
         client->mFingerprints.remove(this);
 
@@ -736,7 +753,7 @@ void Node::setfingerprint()
         // size and client timestamp instead
         if (!isvalid)
         {
-            memcpy(crc.data(), nodekey.data(), sizeof crc);
+            memcpy(crc.data(), nodekeydata.data(), sizeof crc);
             mtime = ctime;
         }
 
@@ -858,10 +875,6 @@ int Node::hasfileattribute(const string *fileattrstring, fatype t)
 // attempt to apply node key - sets nodekey to a raw key if successful
 bool Node::applykey()
 {
-    unsigned int keylength = (type == FILENODE)
-                   ? FILENODEKEYLENGTH + 0
-                   : FOLDERNODEKEYLENGTH + 0;
-
     if (type > FOLDERNODE)
     {
         //Root nodes contain an empty attrstring
@@ -869,7 +882,7 @@ bool Node::applykey()
         attrstring = NULL;
     }
 
-    if (nodekey.size() == keylength || !nodekey.size())
+    if (keyApplied() || !nodekeydata.size())
     {
         return false;
     }
@@ -881,12 +894,12 @@ bool Node::applykey()
     SymmCipher* sc = &client->key;
     handle me = client->loggedin() ? client->me : *client->rootnodes;
 
-    while ((t = nodekey.find_first_of(':', t)) != string::npos)
+    while ((t = nodekeydata.find_first_of(':', t)) != string::npos)
     {
         // compound key: locate suitable subkey (always symmetric)
         h = 0;
 
-        l = Base64::atob(nodekey.c_str() + (nodekey.find_last_of('/', t) + 1), (byte*)&h, sizeof h);
+        l = Base64::atob(nodekeydata.c_str() + (nodekeydata.find_last_of('/', t) + 1), (byte*)&h, sizeof h);
         t++;
 
         if (l == MegaClient::USERHANDLE)
@@ -918,7 +931,7 @@ bool Node::applykey()
             }
         }
 
-        k = nodekey.c_str() + t;
+        k = nodekeydata.c_str() + t;
         break;
     }
 
@@ -928,7 +941,7 @@ bool Node::applykey()
     {
         if (l < 0)
         {
-            k = nodekey.c_str();
+            k = nodekeydata.c_str();
         }
         else
         {
@@ -937,13 +950,16 @@ bool Node::applykey()
     }
 
     byte key[FILENODEKEYLENGTH];
+    unsigned keylength = (type == FILENODE) ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH;
 
     if (client->decryptkey(k, key, keylength, sc, 0, nodehandle))
     {
-        nodekey.assign((const char*)key, keylength);
+        client->mAppliedKeyNodeCount++;
+        nodekeydata.assign((const char*)key, keylength);
         setattr();
     }
 
+    assert(keyApplied());
     return true;
 }
 

@@ -1026,6 +1026,7 @@ void MegaClient::init()
     chunkfailed = false;
     statecurrent = false;
     totalNodes = 0;
+    mAppliedKeyNodeCount = 0;
     faretrying = false;
 
 #ifdef ENABLE_SYNC
@@ -3254,7 +3255,7 @@ bool MegaClient::dispatch(direction_t d)
                         // MegaClient::moretransfers()
                         if ((n = nodebyhandle((*it)->h)) && n->type == FILENODE)
                         {
-                            k = (const byte*)n->nodekey.data();
+                            k = (const byte*)n->nodekey().data();
                             nexttransfer->size = n->size;
                         }
                     }
@@ -4576,7 +4577,7 @@ void MegaClient::finalizesc(bool complete)
 }
 
 // queue node file attribute for retrieval or cancel retrieval
-error MegaClient::getfa(handle h, string *fileattrstring, string *nodekey, fatype t, int cancel)
+error MegaClient::getfa(handle h, string *fileattrstring, const string &nodekey, fatype t, int cancel)
 {
     // locate this file attribute type in the nodes's attribute string
     handle fah;
@@ -4655,7 +4656,7 @@ error MegaClient::getfa(handle h, string *fileattrstring, string *nodekey, fatyp
 
             if (!*fafp)
             {
-                *fafp = new FileAttributeFetch(h, *nodekey, t, reqtag);
+                *fafp = new FileAttributeFetch(h, nodekey, t, reqtag);
             }
             else
             {
@@ -6457,7 +6458,7 @@ void MegaClient::notifypurge(void)
             Node* n = nodenotify[i];
             if (n->attrstring)
             {
-                LOG_err << "NO_KEY node: " << n->type << " " << n->size << " " << n->nodehandle << " " << n->nodekey.size();
+                LOG_err << "NO_KEY node: " << n->type << " " << n->size << " " << n->nodehandle << " " << n->nodekeyUnchecked().size();
 #ifdef ENABLE_SYNC
                 if (n->localnode)
                 {
@@ -7283,7 +7284,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                 {
                     LOG_warn << "Updating the key of a NO_KEY node";
                     Node::copystring(n->attrstring, a);
-                    Node::copystring(&n->nodekey, k);
+                    n->setkeyfromjson(k);
                 }
             }
             else
@@ -7341,7 +7342,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
 
                 n->attrstring = new string;
                 Node::copystring(n->attrstring, a);
-                Node::copystring(&n->nodekey, k);
+                n->setkeyfromjson(k);
 
                 if (!ISUNDEF(su))
                 {
@@ -7860,15 +7861,13 @@ void MegaClient::applykeys()
 {
     CodeCounter::ScopeTimer ccst(performanceStats.applyKeys);
 
-    int t = 0;
+    int noKeyExpected = (rootnodes[0] != UNDEF) + (rootnodes[1] != UNDEF) + (rootnodes[2] != UNDEF);
 
-    // FIXME: rather than iterating through the whole node set, maintain subset
-    // with missing keys
-    for (node_map::iterator it = nodes.begin(); it != nodes.end(); it++)
+    if (nodes.size() > size_t(mAppliedKeyNodeCount + noKeyExpected))
     {
-        if (it->second->applykey())
+        for (auto& it : nodes)
         {
-            t++;
+            it.second->applykey();
         }
     }
 
@@ -9122,8 +9121,8 @@ void MegaClient::notifynode(Node* n)
         {
             // report a "NO_KEY" event
 
-            char* buf = new char[n->nodekey.size() * 4 / 3 + 4];
-            Base64::btoa((byte *)n->nodekey.data(), int(n->nodekey.size()), buf);
+            char* buf = new char[n->nodekey().size() * 4 / 3 + 4];
+            Base64::btoa((byte *)n->nodekey().data(), int(n->nodekey().size()), buf);
 
             int changed = 0;
             changed |= (int)n->changed.removed;
@@ -9413,8 +9412,8 @@ void MegaClient::procsnk(JSON* j)
                 if (n && n->isbelow(sn))
                 {
                     byte keybuf[FILENODEKEYLENGTH];
-                    size_t keysize = n->nodekey.size();
-                    sn->sharekey->ecb_encrypt((byte*)n->nodekey.data(), keybuf, keysize);
+                    size_t keysize = n->nodekey().size();
+                    sn->sharekey->ecb_encrypt((byte*)n->nodekey().data(), keybuf, keysize);
                     reqs.add(new CommandSingleKeyCR(sh, nh, keybuf, keysize));
                 }
             }
@@ -9869,9 +9868,9 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
             {
                 if (setkey >= 0)
                 {
-                    if (setkey == (int)n->nodekey.size())
+                    if (setkey == (int)n->nodekey().size())
                     {
-                        sn->sharekey->ecb_decrypt(keybuf, n->nodekey.size());
+                        sn->sharekey->ecb_decrypt(keybuf, n->nodekey().size());
                         n->setkey(keybuf);
                         setkey = -1;
                     }
@@ -9879,7 +9878,7 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
                 else
                 {
                     n->applykey();
-                    int keysize = int(n->nodekey.size());
+                    int keysize = int(n->nodekey().size());
                     if (sn->sharekey && keysize == (n->type == FILENODE ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH))
                     {
                         unsigned nsi, nni;
@@ -9890,7 +9889,7 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
                         sprintf(buf, "\",%u,%u,\"", nsi, nni);
 
                         // generate & queue share nodekey
-                        sn->sharekey->ecb_encrypt((byte*)n->nodekey.data(), keybuf, size_t(keysize));
+                        sn->sharekey->ecb_encrypt((byte*)n->nodekey().data(), keybuf, size_t(keysize));
                         Base64::btoa(keybuf, keysize, strchr(buf + 7, 0));
                         crkeys.append(buf);
                     }
@@ -11676,7 +11675,7 @@ void MegaClient::purgenodesusersabortsc()
 // request direct read by node pointer
 void MegaClient::pread(Node* n, m_off_t count, m_off_t offset, void* appdata)
 {
-    queueread(n->nodehandle, true, n->nodecipher(), MemAccess::get<int64_t>((const char*)n->nodekey.data() + SymmCipher::KEYLENGTH), count, offset, appdata);
+    queueread(n->nodehandle, true, n->nodecipher(), MemAccess::get<int64_t>((const char*)n->nodekey().data() + SymmCipher::KEYLENGTH), count, offset, appdata);
 }
 
 // request direct read by exported handle / key
@@ -12470,8 +12469,8 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                 {
                     if (!l->reported)
                     {
-                        char* buf = new char[(*it)->nodekey.size() * 4 / 3 + 4];
-                        Base64::btoa((byte *)(*it)->nodekey.data(), int((*it)->nodekey.size()), buf);
+                        char* buf = new char[(*it)->nodekey().size() * 4 / 3 + 4];
+                        Base64::btoa((byte *)(*it)->nodekey().data(), int((*it)->nodekey().size()), buf);
 
                         LOG_warn << "Sync: Undecryptable child node. " << buf;
 
@@ -13024,7 +13023,7 @@ void MegaClient::syncupdate()
                     // this is a file - copy, use original key & attributes
                     // FIXME: move instead of creating a copy if it is in
                     // rubbish to reduce node creation load
-                    nnp->nodekey = n->nodekey;
+                    nnp->nodekey = n->nodekey();
                     tattrs.map = n->attrs.map;
 
                     nameid rrname = AttrMap::string2nameid("rr");
@@ -13805,12 +13804,12 @@ namespace action_bucket_compare
 
     bool nodeIsVideo(const Node* n, char ext[12], const MegaClient& mc)
     {
-        if (n->hasfileattribute(fa_media) && n->nodekey.size() == FILENODEKEYLENGTH)
+        if (n->hasfileattribute(fa_media) && n->nodekey().size() == FILENODEKEYLENGTH)
         {
 #ifdef USE_MEDIAINFO
             if (mc.mediaFileInfo.mediaCodecsReceived)
             {
-                MediaProperties mp = MediaProperties::decodeMediaPropertiesAttributes(n->fileattrstring, (uint32_t*)(n->nodekey.data() + FILENODEKEYLENGTH / 2));
+                MediaProperties mp = MediaProperties::decodeMediaPropertiesAttributes(n->fileattrstring, (uint32_t*)(n->nodekey().data() + FILENODEKEYLENGTH / 2));
                 unsigned videocodec = mp.videocodecid;
                 if (!videocodec && mp.shortformat)
                 {

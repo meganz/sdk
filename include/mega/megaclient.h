@@ -465,7 +465,7 @@ public:
     void putfa(handle, fatype, SymmCipher*, string*, bool checkAccess = true);
 
     // queue file attribute retrieval
-    error getfa(handle h, string *fileattrstring, string *nodekey, fatype, int = 0);
+    error getfa(handle h, string *fileattrstring, const string &nodekey, fatype, int = 0);
     
     // notify delayed upload completion subsystem about new file attribute
     void checkfacompletion(handle, Transfer* = NULL);
@@ -1106,6 +1106,9 @@ public:
 
     // total number of Node objects
     long long totalNodes;
+
+    // tracks how many nodes have had a successful applykey()
+    long long mAppliedKeyNodeCount = 0;
 
     // server-client request sequence number
     char scsn[12];
