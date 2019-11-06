@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file mega/logging.h
  * @brief Logging class
  *
@@ -152,15 +152,16 @@ class SimpleLogger
 #else
     std::array<char, 256> mBuffer; // will be stack-allocated since SimpleLogger is stack-allocated
     std::array<char, 256>::iterator mBufferIt;
+    using DiffType = std::array<char, 256>::difference_type;
     using NumBuf = std::array<char, 24>;
 
     template<typename DataIterator>
-    void copyToBuffer(const DataIterator dataIt, size_t currentSize)
+    void copyToBuffer(const DataIterator dataIt, DiffType currentSize)
     {
-        size_t start = 0;
+        DiffType start = 0;
         while (currentSize > 0)
         {
-            const auto size = std::min(currentSize, static_cast<size_t>(std::distance(mBufferIt, mBuffer.end() - 1)));
+            const auto size = std::min(currentSize, std::distance(mBufferIt, mBuffer.end() - 1));
             mBufferIt = std::copy(dataIt + start, dataIt + start + size, mBufferIt);
             if (mBufferIt == mBuffer.end() - 1)
             {
@@ -270,12 +271,12 @@ class SimpleLogger
 
     void logValue(const char* value)
     {
-        copyToBuffer(value, std::strlen(value));
+        copyToBuffer(value, static_cast<DiffType>(std::strlen(value)));
     }
 
     void logValue(const std::string& value)
     {
-        copyToBuffer(value.begin(), value.size());
+        copyToBuffer(value.begin(), static_cast<DiffType>(value.size()));
     }
 #endif
 
