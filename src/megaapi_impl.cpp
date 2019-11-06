@@ -19,6 +19,10 @@
  * program.
  */
 
+#ifdef _WIN32
+#define NOMINMAX // Prevents windows defining its own min/max as macros
+#endif
+
 #define _LARGE_FILES
 
 #define _GNU_SOURCE 1
@@ -1343,6 +1347,24 @@ bool MegaApiImpl::isIndexing()
     }
     sdkMutex.unlock();
     return indexing;
+}
+
+bool MegaApiImpl::isSyncing()
+{
+    if (!client->syncs.size())
+    {
+        return false;
+    }
+    SdkMutexGuard g(sdkMutex);
+
+    for (auto & sync : client->syncs)
+    {
+        if (sync->localroot->ts == TREESTATE_SYNCING || sync->localroot->ts == TREESTATE_PENDING)
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 MegaSync *MegaApiImpl::getSyncByTag(int tag)
@@ -6414,6 +6436,13 @@ void MegaApiImpl::getPublicNode(const char* megaFileLink, MegaRequestListener *l
     request->setLink(megaFileLink);
     requestQueue.push(request);
     waiter->notify();
+}
+
+const char *MegaApiImpl::buildPublicLink(const char *publicHandle, const char *key, bool isFolder)
+{
+    handle ph = MegaApi::base64ToHandle(publicHandle);
+    string link = client->getPublicLink(client->mNewLinkFormat, isFolder ? FOLDERNODE : FILENODE, ph, key);
+    return MegaApi::strdup(link.c_str());
 }
 
 void MegaApiImpl::getThumbnail(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener)
@@ -18818,7 +18847,18 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            e = client->openfilelink(megaFileLink, 1);
+            handle ph = UNDEF;
+            byte key[FILENODEKEYLENGTH];
+            e = client->parsepubliclink(megaFileLink, ph, key, false);
+            if (e == API_OK)
+            {
+                client->openfilelink(ph, key, 1);
+            }
+            else if (e == API_EINCOMPLETE)  // no key provided, check only the existence of the node
+            {
+                client->openfilelink(ph, nullptr, 1);
+                e = API_OK;
+            }
             break;
         }
         case MegaRequest::TYPE_PASSWORD_LINK:
@@ -21356,12 +21396,12 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             handle h = UNDEF;
-            byte folderkey[SymmCipher::KEYLENGTH];
-            e = client->parsefolderlink(link, h, folderkey);
+            byte folderkey[FOLDERNODEKEYLENGTH];
+            e = client->parsepubliclink(link, h, folderkey, true);
             if (e == API_OK)
             {
                 request->setNodeHandle(h);
-                Base64Str<SymmCipher::KEYLENGTH> folderkeyB64(folderkey);
+                Base64Str<FOLDERNODEKEYLENGTH> folderkeyB64(folderkey);
                 request->setPrivateKey(folderkeyB64.chars);
                 client->getpubliclinkinfo(h);
             }

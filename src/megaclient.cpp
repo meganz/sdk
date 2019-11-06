@@ -2841,13 +2841,7 @@ int MegaClient::preparewait()
         nexttransferretry(GET, &nds);
 
         // retry transferslots
-        for (transferslot_list::iterator it = tslots.begin(); it != tslots.end(); it++)
-        {
-            if (!(*it)->retrybt.armed())
-            {
-                (*it)->retrybt.update(&nds);
-            }
-        }
+        transferSlotsBackoff.update(&nds, false);
 
         for (pendinghttp_map::iterator it = pendinghttp.begin(); it != pendinghttp.end(); it++)
         {
@@ -3416,7 +3410,7 @@ bool MegaClient::dispatch(direction_t d)
                         if (!gfxdisabled && gfx && gfx->isgfx(&nexttransfer->localfilename))
                         {
                             // we want all imagery to be safely tucked away before completing the upload, so we bump minfa
-                            nexttransfer->minfa += gfx->gendimensionsputfa(ts->fa.get(), &nexttransfer->localfilename, nexttransfer->uploadhandle, nexttransfer->transfercipher(), -1, false);
+                            nexttransfer->minfa += gfx->gendimensionsputfa(ts->fa, &nexttransfer->localfilename, nexttransfer->uploadhandle, nexttransfer->transfercipher(), -1, false);
                         }
                     }
                 }
@@ -3582,23 +3576,11 @@ void MegaClient::freeq(direction_t d)
 }
 
 // determine next scheduled transfer retry
-// FIXME: make this an ordered set and only check the first element instead of
-// scanning the full map!
 void MegaClient::nexttransferretry(direction_t d, dstime* dsmin)
 {
-    for (transfer_map::iterator it = transfers[d].begin(); it != transfers[d].end(); it++)
+    if (!xferpaused[d])   // avoid setting the timer's next=1 if it won't be processed
     {
-        if ((!it->second->slot || !it->second->slot->fa)
-         && it->second->bt.nextset())
-        {
-            it->second->bt.update(dsmin);
-            if (it->second->bt.armed())
-            {
-                // fire the timer only once but keeping it armed
-                it->second->bt.set(0);
-                LOG_debug << "Disabling armed transfer backoff";
-            }
-        }
+        transferRetryBackoffs[d].update(dsmin, true);
     }
 }
 
@@ -8039,64 +8021,89 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
     return j->leavearray();
 }
 
-error MegaClient::parsefolderlink(const char *folderlink, handle &h, byte *key)
+// Supported formats:
+//   - file links:      #!<ph>[!<key>]
+//                      <ph>[!<key>]
+//                      /file/<ph>[<params>][#<key>]
+//
+//   - folder links:    #F!<ph>[!<key>]
+//                      /folder/<ph>[<params>][#<key>]
+error MegaClient::parsepubliclink(const char* link, handle& ph, byte* key, bool isFolderLink)
 {
-    // structure of public folder links: https://mega.nz/#F!<handle>!<key> or https://mega.nz/folder/<handle>#<key>
+    bool isFolder;
+    const char* ptr = nullptr;
+    if ((ptr = strstr(link, "#F!")))
+    {
+        ptr += 3;
+        isFolder = true;
+    }
+    else if ((ptr = strstr(link, "folder/")))
+    {
+        ptr += 7;
+        isFolder = true;
+    }
+    else if ((ptr = strstr(link, "#!")))
+    {
+        ptr += 2;
+        isFolder = false;
+    }
+    else if ((ptr = strstr(link, "file/")))
+    {
+        ptr += 5;
+        isFolder = false;
+    }
+    else    // legacy file link format without '#'
+    {
+        ptr = link;
+        isFolder = false;
+    }
 
-    const char* ptr;
-    if (!((ptr = strstr(folderlink, "#F!")) && (strlen(ptr) >= 11)) &&
-            !((ptr = strstr(folderlink, "folder/")) && (strlen(ptr) >= 15)))
+    if (isFolder != isFolderLink)
+    {
+        return API_EARGS;   // type of link mismatch
+    }
+
+    if (strlen(ptr) < 8)  // no public handle in the link
     {
         return API_EARGS;
     }
 
-    const char *nodeHandleBegining = nullptr;
-    if (*ptr == 'f')
+    if (Base64::atob(ptr, (byte*)&ph, NODEHANDLE) == NODEHANDLE)
     {
-        nodeHandleBegining = ptr + 7;
-        ptr += 15;
-    }
-    else
-    {
-        nodeHandleBegining = ptr + 3;
-        ptr += 11;
+        ptr += 8;
+
+        // skip any tracking parameter introduced by third-party websites
+        while(*ptr && *ptr != '!' && *ptr != '#')
+        {
+            ptr++;
+        }
+
+        if (!*ptr || ((*ptr == '#' || *ptr == '!') && *(ptr + 1) == '\0'))   // no key provided
+        {
+            return API_EINCOMPLETE;
+        }
+
+        if (*ptr == '!' || *ptr == '#')
+        {
+            const char *k = ptr + 1;    // skip '!' or '#' separator
+            int keylen = isFolderLink ? FOLDERNODEKEYLENGTH : FILENODEKEYLENGTH;
+            if (Base64::atob(k, key, keylen) == keylen)
+            {
+                return API_OK;
+            }
+        }
     }
 
-    if (*ptr == '\0')    // no key provided, link is incomplete
-    {
-        return API_EINCOMPLETE;
-    }
-    else if (*ptr != '!' && *ptr != '#')
-    {
-        return API_EARGS;
-    }
-
-    // Node handle size is 6 Bytes, so we init with zeros to avoid comparison problems
-    handle auxh = 0;
-    if (Base64::atob(nodeHandleBegining, (byte*)&auxh, NODEHANDLE) != NODEHANDLE)
-    {
-        return API_EARGS;
-    }
-
-    byte auxkey[SymmCipher::KEYLENGTH];
-    const char *k = ptr + 1;
-    if (Base64::atob(k, auxkey, sizeof auxkey) != sizeof auxkey)
-    {
-        return API_EARGS;
-    }
-
-    h = auxh;
-    memcpy(key, auxkey, sizeof auxkey);
-    return API_OK;
+    return API_EARGS;
 }
 
 error MegaClient::folderaccess(const char *folderlink)
 {
     handle h = UNDEF;
-    byte folderkey[SymmCipher::KEYLENGTH];
+    byte folderkey[FOLDERNODEKEYLENGTH];
 
     error e;
-    if ((e = parsefolderlink(folderlink, h, folderkey)) == API_OK)
+    if ((e = parsepubliclink(folderlink, h, folderkey, true)) == API_OK)
     {
         setrootnode(h);
         key.setkey(folderkey);
@@ -10046,58 +10053,18 @@ void MegaClient::getpubliclink(Node* n, int del, m_time_t ets)
 }
 
 // open exported file link
-// formats supported: ...#!publichandle!key, publichandle!key or file/publichandle#key
-error MegaClient::openfilelink(const char* link, int op)
+// formats supported: ...#!publichandle!key, publichandle!key or file/<ph>[<params>][#<key>]
+void MegaClient::openfilelink(handle ph, const byte *key, int op)
 {
-    const char* ptr = NULL;
-    handle ph = 0;
-    byte key[FILENODEKEYLENGTH];
-
-    if ((ptr = strstr(link, "#!")))
+    if (op)
     {
-        ptr += 2;
+        reqs.add(new CommandGetPH(this, ph, key, op));
     }
-    else if ((ptr = strstr(link, "file/")))
+    else
     {
-        ptr += 5;
+        assert(key);
+        reqs.add(new CommandGetFile(this, NULL, key, ph, false));
     }
-    else    // legacy format without '#'
-    {
-        ptr = link;
-    }
-
-    if (Base64::atob(ptr, (byte*)&ph, NODEHANDLE) == NODEHANDLE)
-    {
-        ptr += 8;
-        if (*ptr == '!' || (*ptr == '#' && *(ptr + 1) != '\0'))
-        {
-            ptr++;
-
-            if (Base64::atob(ptr, key, sizeof key) == sizeof key)
-            {
-                if (op)
-                {
-                    reqs.add(new CommandGetPH(this, ph, key, op));
-                }
-                else
-                {
-                    reqs.add(new CommandGetFile(this, NULL, key, ph, false));
-                }
-
-                return API_OK;
-            }
-        }
-        else if (*ptr == '\0' || *ptr == '#')    // no key provided, check only the existence of the node
-        {
-            if (op)
-            {
-                reqs.add(new CommandGetPH(this, ph, NULL, op));
-                return API_OK;
-            }
-        }
-    }
-
-    return API_EARGS;
 }
 
 /* Format of password-protected links
@@ -10227,70 +10194,18 @@ error MegaClient::decryptlink(const char *link, const char *pwd, string* decrypt
 
 error MegaClient::encryptlink(const char *link, const char *pwd, string *encryptedLink)
 {
-    if (!pwd || !link)
+    if (!pwd || !link || !encryptedLink)
     {
         LOG_err << "Empty link or empty password to encrypt link";
         return API_EARGS;
     }
 
-    const char* ptr = NULL;
-    const char* end = link + strlen(link);
-
-    if (!(ptr = strstr(link, "#")) || ptr >= end)
-    {
-        LOG_err << "Invalid format of public link or incomplete";
-        return API_EARGS;
-    }
-    ptr++;  // skip '#'
-
-    int isFolder;
-    if (*ptr == 'F')
-    {
-        isFolder = true;
-        ptr++;  // skip 'F'
-    }
-    else if (*ptr == '!')
-    {
-        isFolder = false;
-    }
-    else
-    {
-        LOG_err << "Invalid format of public link";
-        return API_EARGS;
-    }
-    ptr++;  // skip '!' separator
-
-    if (ptr + 8 >= end)
-    {
-        LOG_err << "Incomplete public link";
-        return API_EINCOMPLETE;
-    }
-
+    bool isFolder = (strstr(link, "#F!") || strstr(link, "folder/"));
     handle ph;
-    if (Base64::atob(ptr, (byte*)&ph, NODEHANDLE) != NODEHANDLE)
-    {
-        LOG_err << "Invalid format of public link";
-        return API_EARGS;
-    }
-    ptr += 8;   // skip public handle
-
-    if (ptr + 1 >= end || *ptr != '!')
-    {
-        LOG_err << "Invalid format of public link";
-        return API_EARGS;
-    }
-    ptr++;  // skip '!' separator
-
     size_t linkKeySize = isFolder ? FOLDERNODEKEYLENGTH : FILENODEKEYLENGTH;
-    string linkKey;
-    linkKey.resize(linkKeySize);
-    if ((size_t) Base64::atob(ptr, (byte *)linkKey.data(), int(linkKey.size())) != linkKeySize)
-    {
-        LOG_err << "Invalid encryption key in the public link";
-        return API_EKEY;
-    }
-
-    if (encryptedLink)
+    std::unique_ptr<byte[]> linkKey(new byte[linkKeySize]);
+    error e = parsepubliclink(link, ph, linkKey.get(), isFolder);
+    if (e == API_OK)
     {
         // Derive MAC key with salt+pwd
         byte derivedKey[64];
@@ -10359,7 +10274,7 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
         encryptedLink->append(encLink);
     }
 
-    return API_OK;
+    return e;
 }
 
 bool MegaClient::loggedinfolderlink()

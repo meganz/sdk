@@ -2117,6 +2117,7 @@ class MegaApiImpl : public MegaApp
         void decryptPasswordProtectedLink(const char* link, const char* password, MegaRequestListener *listener = NULL);
         void encryptLinkWithPassword(const char* link, const char* password, MegaRequestListener *listener = NULL);
         void getPublicNode(const char* megaFileLink, MegaRequestListener *listener = NULL);
+        const char *buildPublicLink(const char *publicHandle, const char *key, bool isFolder);
         void getThumbnail(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener = NULL);
 		void cancelGetThumbnail(MegaNode* node, MegaRequestListener *listener = NULL);
         void setThumbnail(MegaNode* node, const char *srcFilePath, MegaRequestListener *listener = NULL);
@@ -2265,6 +2266,8 @@ class MegaApiImpl : public MegaApp
         bool is_syncable(long long size);
         int isNodeSyncable(MegaNode *megaNode);
         bool isIndexing();
+        bool isSyncing();
+
         MegaSync *getSyncByTag(int tag);
         MegaSync *getSyncByNode(MegaNode *node);
         MegaSync *getSyncByPath(const char * localPath);

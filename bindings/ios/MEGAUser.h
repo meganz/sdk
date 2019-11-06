@@ -50,7 +50,7 @@ typedef NS_ENUM(NSInteger, MEGAUserChangeType) {
     MEGAUserChangeTypeRubbishTime             = 0x40000,
     MEGAUserChangeTypeStorageState            = 0x80000,
     MEGAUserChangeTypeGeolocation             = 0x100000,
-    
+    MEGAUserChangeTypeUserAlias               = 0x1000000
 };
 
 /**

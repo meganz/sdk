@@ -33,7 +33,7 @@
 namespace mega {
 
 Transfer::Transfer(MegaClient* cclient, direction_t ctype)
-    : bt(cclient->rng)
+    : bt(cclient->rng, cclient->transferRetryBackoffs[ctype])
 {
     type = ctype;
     client = cclient;

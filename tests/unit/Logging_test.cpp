@@ -64,9 +64,9 @@ std::string expMsg(const std::string& file, const int line, const std::string& m
 
 }
 
-TEST(Logging, forStdString)
+TEST(Logging, performanceMode_forStdString)
 {
-    for (int level = 0; level < mega::LogLevel::logMax; ++level)
+    for (int level = 0; level <= mega::LogLevel::logMax; ++level)
     {
         MockLogger logger;
         const std::string file = "file.cpp";
@@ -79,9 +79,9 @@ TEST(Logging, forStdString)
     }
 }
 
-TEST(Logging, forCString)
+TEST(Logging, performanceMode_forCString)
 {
-    for (int level = 0; level < mega::LogLevel::logMax; ++level)
+    for (int level = 0; level <= mega::LogLevel::logMax; ++level)
     {
         MockLogger logger;
         const std::string file = "file.cpp";
@@ -94,9 +94,9 @@ TEST(Logging, forCString)
     }
 }
 
-TEST(Logging, forEnum)
+TEST(Logging, performanceMode_forEnum)
 {
-    for (int level = 0; level < mega::LogLevel::logMax; ++level)
+    for (int level = 0; level <= mega::LogLevel::logMax; ++level)
     {
         MockLogger logger;
         const std::string file = "file.cpp";
@@ -109,9 +109,9 @@ TEST(Logging, forEnum)
     }
 }
 
-TEST(Logging, forPointer)
+TEST(Logging, performanceMode_forPointer)
 {
-    for (int level = 0; level < mega::LogLevel::logMax; ++level)
+    for (int level = 0; level <= mega::LogLevel::logMax; ++level)
     {
         MockLogger logger;
         const std::string file = "file.cpp";
@@ -124,59 +124,134 @@ TEST(Logging, forPointer)
     }
 }
 
-namespace {
-
-template<typename Type>
-void test_forNumber()
+TEST(Logging, performanceMode_forNullPointer)
 {
-    for (int level = 0; level < mega::LogLevel::logMax; ++level)
+    for (int level = 0; level <= mega::LogLevel::logMax; ++level)
     {
         MockLogger logger;
         const std::string file = "file.cpp";
         const int line = 13;
-        const Type obj = 42;
+        const double* obj = nullptr;
         mega::SimpleLogger{static_cast<mega::LogLevel>(level), file.c_str(), line} << obj;
         logger.checkLogLevel(level);
+        ASSERT_EQ(1, logger.mMessage.size());
+        ASSERT_EQ(expMsg(file, line, "(NULL)"), logger.mMessage[0]);
+    }
+}
+
+namespace {
+
+template<typename Type>
+void test_forIntegerNumber(const Type number)
+{
+    for (int level = 0; level <= mega::LogLevel::logMax; ++level)
+    {
+        MockLogger logger;
+        const std::string file = "file.cpp";
+        const int line = 13;
+        mega::SimpleLogger{static_cast<mega::LogLevel>(level), file.c_str(), line} << number;
+        logger.checkLogLevel(level);
         EXPECT_EQ(1, logger.mMessage.size());
-        EXPECT_EQ(expMsg(file, line, "42"), logger.mMessage[0]);
+        std::ostringstream expected;
+        expected << number;
+        EXPECT_EQ(expMsg(file, line, expected.str()), logger.mMessage[0]);
+    }
+}
+
+template<typename Type>
+void test_forFloatingNumber(const Type number)
+{
+    for (int level = 0; level <= mega::LogLevel::logMax; ++level)
+    {
+        MockLogger logger;
+        const std::string file = "file.cpp";
+        const int line = 13;
+        mega::SimpleLogger{static_cast<mega::LogLevel>(level), file.c_str(), line} << number;
+        logger.checkLogLevel(level);
+        EXPECT_EQ(1, logger.mMessage.size());
+        std::ostringstream expected;
+        expected << number;
+        const auto msg = expMsg(file, line, expected.str());
+        EXPECT_NE(logger.mMessage[0].find(msg), std::string::npos);
     }
 }
 
 }
 
-TEST(Logging, forInt)
+TEST(Logging, performanceMode_forInt)
 {
-    test_forNumber<int>();
+    test_forIntegerNumber<int>(0);
+    test_forIntegerNumber<int>(42);
+    test_forIntegerNumber<int>(-42);
+    test_forIntegerNumber<int>(std::numeric_limits<int>::lowest());
+    test_forIntegerNumber<int>(std::numeric_limits<int>::max());
 }
 
-TEST(Logging, forLong)
+TEST(Logging, performanceMode_forLong)
 {
-    test_forNumber<long>();
+    test_forIntegerNumber<long>(0);
+    test_forIntegerNumber<long>(42);
+    test_forIntegerNumber<long>(-42);
+    test_forIntegerNumber<long>(std::numeric_limits<long>::lowest());
+    test_forIntegerNumber<long>(std::numeric_limits<long>::max());
 }
 
-TEST(Logging, forLongLong)
+TEST(Logging, performanceMode_forLongLong)
 {
-    test_forNumber<long long>();
+    test_forIntegerNumber<long long>(0);
+    test_forIntegerNumber<long long>(42);
+    test_forIntegerNumber<long long>(-42);
+    test_forIntegerNumber<long long>(std::numeric_limits<long long>::lowest());
+    test_forIntegerNumber<long long>(std::numeric_limits<long long>::max());
 }
 
-TEST(Logging, forUnsignedInt)
+TEST(Logging, performanceMode_forUnsignedInt)
 {
-    test_forNumber<unsigned int>();
+    test_forIntegerNumber<unsigned int>(0);
+    test_forIntegerNumber<unsigned int>(42);
+    test_forIntegerNumber<unsigned int>(std::numeric_limits<unsigned int>::lowest());
+    test_forIntegerNumber<unsigned int>(std::numeric_limits<unsigned int>::max());
 }
 
-TEST(Logging, forUnsignedLong)
+TEST(Logging, performanceMode_forUnsignedLong)
 {
-    test_forNumber<unsigned long>();
+    test_forIntegerNumber<unsigned long>(0);
+    test_forIntegerNumber<unsigned long>(42);
+    test_forIntegerNumber<unsigned long>(std::numeric_limits<unsigned long>::lowest());
+    test_forIntegerNumber<unsigned long>(std::numeric_limits<unsigned long>::max());
 }
 
-TEST(Logging, forUnsignedLongLong)
+TEST(Logging, performanceMode_forUnsignedLongLong)
 {
-    test_forNumber<unsigned long long>();
+    test_forIntegerNumber<unsigned long long>(0);
+    test_forIntegerNumber<unsigned long long>(42);
+    test_forIntegerNumber<unsigned long long>(std::numeric_limits<unsigned long long>::lowest());
+    test_forIntegerNumber<unsigned long long>(std::numeric_limits<unsigned long long>::max());
 }
 
-TEST(Logging, withMessageLargeThanLogBuffer)
+TEST(Logging, performanceMode_forFloat)
 {
-    for (int level = 0; level < mega::LogLevel::logMax; ++level)
+    test_forFloatingNumber<float>(0.f);
+    test_forFloatingNumber<float>(42.123f);
+    test_forFloatingNumber<float>(-42.123f);
+    test_forFloatingNumber<float>(std::numeric_limits<float>::lowest());
+    test_forFloatingNumber<float>(std::numeric_limits<float>::min());
+    test_forFloatingNumber<float>(std::numeric_limits<float>::max());
+}
+
+TEST(Logging, performanceMode_forDouble)
+{
+    test_forFloatingNumber<double>(0.);
+    test_forFloatingNumber<double>(42.123);
+    test_forFloatingNumber<double>(-42.123);
+    test_forFloatingNumber<double>(std::numeric_limits<double>::lowest());
+    test_forFloatingNumber<double>(std::numeric_limits<double>::min());
+    test_forFloatingNumber<double>(std::numeric_limits<double>::max());
+}
+
+TEST(Logging, performanceMode_withMessageLargeThanLogBuffer)
+{
+    for (int level = 0; level <= mega::LogLevel::logMax; ++level)
     {
         MockLogger logger;
         const std::string file = "file.cpp";
@@ -192,9 +267,9 @@ TEST(Logging, withMessageLargeThanLogBuffer)
     }
 }
 
-TEST(Logging, withHugeMessage)
+TEST(Logging, performanceMode_withHugeMessage)
 {
-    for (int level = 0; level < mega::LogLevel::logMax; ++level)
+    for (int level = 0; level <= mega::LogLevel::logMax; ++level)
     {
         MockLogger logger;
         const std::string file = "file.cpp";
@@ -208,9 +283,9 @@ TEST(Logging, withHugeMessage)
     }
 }
 
-TEST(Logging, withHugeMessage_butNoLogger)
+TEST(Logging, performanceMode_withHugeMessage_butNoLogger)
 {
-    for (int level = 0; level < mega::LogLevel::logMax; ++level)
+    for (int level = 0; level <= mega::LogLevel::logMax; ++level)
     {
         mega::SimpleLogger::logger = nullptr;
         const std::string file = "file.cpp";
@@ -220,4 +295,187 @@ TEST(Logging, withHugeMessage_butNoLogger)
         // ensure no crash or other funny business
     }
 }
+
+#else
+
+namespace {
+
+class MockLogger : public mega::Logger
+{
+public:
+
+    MockLogger()
+    {
+        mega::SimpleLogger::logger = this;
+    }
+
+    ~MockLogger()
+    {
+        mega::SimpleLogger::logger = nullptr;
+    }
+
+    void log(const char *time, int loglevel, const char *source, const char *message) override
+    {
+        EXPECT_NE(nullptr, time);
+        EXPECT_NE(nullptr, source);
+        EXPECT_NE(nullptr, message);
+        mLogLevel.insert(loglevel);
+        mMessage.push_back(message);
+    }
+
+    void checkLogLevel(const int expLogLevel) const
+    {
+        EXPECT_EQ(1, mLogLevel.size());
+        EXPECT_EQ(expLogLevel, *mLogLevel.begin());
+    }
+
+    std::vector<std::string> mMessage;
+
+private:
+    std::set<int> mLogLevel;
+};
+
+}
+
 #endif
+
+TEST(Logging, toStr)
+{
+    ASSERT_EQ(0, std::strcmp("verbose", mega::SimpleLogger::toStr(mega::LogLevel::logMax)));
+    ASSERT_EQ(0, std::strcmp("debug", mega::SimpleLogger::toStr(mega::LogLevel::logDebug)));
+    ASSERT_EQ(0, std::strcmp("info", mega::SimpleLogger::toStr(mega::LogLevel::logInfo)));
+    ASSERT_EQ(0, std::strcmp("warn", mega::SimpleLogger::toStr(mega::LogLevel::logWarning)));
+    ASSERT_EQ(0, std::strcmp("err", mega::SimpleLogger::toStr(mega::LogLevel::logError)));
+    ASSERT_EQ(0, std::strcmp("FATAL", mega::SimpleLogger::toStr(mega::LogLevel::logFatal)));
+}
+
+#ifdef NDEBUG
+TEST(Logging, toStr_withBadLogLevel)
+{
+    ASSERT_EQ(0, std::strcmp("", mega::SimpleLogger::toStr(static_cast<mega::LogLevel>(42))));
+}
+#endif
+
+TEST(Logging, macroVerbose)
+{
+    for (int level = 0; level <= mega::LogLevel::logMax; ++level)
+    {
+        MockLogger logger;
+        mega::SimpleLogger::setLogLevel(static_cast<mega::LogLevel>(level));
+        const std::string msg = "foobar";
+        LOG_verbose << msg;
+        const auto currentLevel = mega::LogLevel::logMax;
+        if (level >= currentLevel)
+        {
+            logger.checkLogLevel(currentLevel);
+            ASSERT_EQ(1, logger.mMessage.size());
+            EXPECT_NE(logger.mMessage[0].find(msg), std::string::npos);
+        }
+        else
+        {
+            ASSERT_EQ(0, logger.mMessage.size());
+        }
+    }
+}
+
+TEST(Logging, macroDebug)
+{
+    for (int level = 0; level <= mega::LogLevel::logMax; ++level)
+    {
+        MockLogger logger;
+        mega::SimpleLogger::setLogLevel(static_cast<mega::LogLevel>(level));
+        const std::string msg = "foobar";
+        LOG_debug << msg;
+        const auto currentLevel = mega::LogLevel::logDebug;
+        if (level >= currentLevel)
+        {
+            logger.checkLogLevel(currentLevel);
+            ASSERT_EQ(1, logger.mMessage.size());
+            EXPECT_NE(logger.mMessage[0].find(msg), std::string::npos);
+        }
+        else
+        {
+            ASSERT_EQ(0, logger.mMessage.size());
+        }
+    }
+}
+
+TEST(Logging, macroInfo)
+{
+    for (int level = 0; level <= mega::LogLevel::logMax; ++level)
+    {
+        MockLogger logger;
+        mega::SimpleLogger::setLogLevel(static_cast<mega::LogLevel>(level));
+        const std::string msg = "foobar";
+        LOG_info << msg;
+        const auto currentLevel = mega::LogLevel::logInfo;
+        if (level >= currentLevel)
+        {
+            logger.checkLogLevel(currentLevel);
+            ASSERT_EQ(1, logger.mMessage.size());
+            EXPECT_NE(logger.mMessage[0].find(msg), std::string::npos);
+        }
+        else
+        {
+            ASSERT_EQ(0, logger.mMessage.size());
+        }
+    }
+}
+
+TEST(Logging, macroWarn)
+{
+    for (int level = 0; level <= mega::LogLevel::logMax; ++level)
+    {
+        MockLogger logger;
+        mega::SimpleLogger::setLogLevel(static_cast<mega::LogLevel>(level));
+        const std::string msg = "foobar";
+        LOG_warn << msg;
+        const auto currentLevel = mega::LogLevel::logWarning;
+        if (level >= currentLevel)
+        {
+            logger.checkLogLevel(currentLevel);
+            ASSERT_EQ(1, logger.mMessage.size());
+            EXPECT_NE(logger.mMessage[0].find(msg), std::string::npos);
+        }
+        else
+        {
+            ASSERT_EQ(0, logger.mMessage.size());
+        }
+    }
+}
+
+TEST(Logging, macroErr)
+{
+    for (int level = 0; level <= mega::LogLevel::logMax; ++level)
+    {
+        MockLogger logger;
+        mega::SimpleLogger::setLogLevel(static_cast<mega::LogLevel>(level));
+        const std::string msg = "foobar";
+        LOG_err << msg;
+        const auto currentLevel = mega::LogLevel::logError;
+        if (level >= currentLevel)
+        {
+            logger.checkLogLevel(currentLevel);
+            ASSERT_EQ(1, logger.mMessage.size());
+            EXPECT_NE(logger.mMessage[0].find(msg), std::string::npos);
+        }
+        else
+        {
+            ASSERT_EQ(0, logger.mMessage.size());
+        }
+    }
+}
+
+TEST(Logging, macroFatal)
+{
+    for (int level = 0; level <= mega::LogLevel::logMax; ++level)
+    {
+        MockLogger logger;
+        mega::SimpleLogger::setLogLevel(static_cast<mega::LogLevel>(level));
+        const std::string msg = "foobar";
+        LOG_fatal << msg;
+        logger.checkLogLevel(mega::LogLevel::logFatal);
+        ASSERT_EQ(1, logger.mMessage.size());
+        EXPECT_NE(logger.mMessage[0].find(msg), std::string::npos);
+    }
+}

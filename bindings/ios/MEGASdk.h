@@ -107,7 +107,8 @@ typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
     MEGAUserAttributeGeolocation             = 22, // private - byte array
     MEGAUserAttributeCameraUploadsFolder     = 23, // private - byte array
     MEGAUserAttributeMyChatFilesFolder       = 24, // private - byte array
-    MEGAUserAttributePushSettings            = 25 // private - char array
+    MEGAUserAttributePushSettings            = 25, // private - char array
+    MEGAUserAttributeAlias                   = 27 // private - char array
 };
 
 typedef NS_ENUM(NSInteger, MEGANodeAttribute) {
@@ -1256,9 +1257,8 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * - [MEGARequest flag] - Returns YES
  *
  * @param user MEGAUser of the contact whose credentials want to be reset
- * @param delegate MEGARequestDelegate to track this request
  */
-- (void)resetCredentialsOfUser:(MEGAUser *)user delegate:(id<MEGARequestDelegate>)delegate;
+- (void)resetCredentialsOfUser:(MEGAUser *)user;
 
 #pragma mark - Create account and confirm account Requests
 
@@ -2121,6 +2121,58 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
 - (void)keepMeAliveWithType:(KeepMeAlive)type enable:(BOOL)enable;
 
 /**
+ * @brief Check the reason of being blocked.
+ *
+ * The associated request type with this request is MEGARequestTypeWhyAmIBlocked.
+ *
+ * This request can be sent internally at anytime (whenever an account gets blocked), so
+ * a MEGAGlobalListener should process the result, show the reason and logout.
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - MEGARequest.text - Returns the reason string (in English)
+ * - MEGARequest.number - Returns the reason code. Possible values:
+ *     0: The account is not blocked
+ *     200: suspension message for any type of suspension, but copyright suspension.
+ *     300: suspension only for multiple copyright violations.
+ *     400: the subuser account has been disabled.
+ *     401: the subuser account has been removed.
+ *     500: The account needs to be verified by an SMS code.
+ *     700: the account is supended for Weak Account Protection.
+ *
+ * If the error code in the MEGARequest object received in onRequestFinish
+ * is MEGAErrorTypeApiOk, the user is not blocked.
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)whyAmIBlockedWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Check the reason of being blocked.
+ *
+ * The associated request type with this request is MEGARequestTypeWhyAmIBlocked.
+ *
+ * This request can be sent internally at anytime (whenever an account gets blocked), so
+ * a MEGAGlobalListener should process the result, show the reason and logout.
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - MEGARequest.text - Returns the reason string (in English)
+ * - MEGARequest.number - Returns the reason code. Possible values:
+ *     0: The account is not blocked
+ *     200: suspension message for any type of suspension, but copyright suspension.
+ *     300: suspension only for multiple copyright violations.
+ *     400: the subuser account has been disabled.
+ *     401: the subuser account has been removed.
+ *     500: The account needs to be verified by an SMS code.
+ *     700: the account is supended for Weak Account Protection.
+ *
+ * If the error code in the MEGARequest object received in onRequestFinish
+ * is MEGAErrorTypeApiOk, the user is not blocked.
+*/
+- (void)whyAmIBlocked;
+
+/**
  * @brief Get the next PSA (Public Service Announcement) that should be shown to the user
  *
  * After the PSA has been accepted or dismissed by the user, app should
@@ -2876,6 +2928,19 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param megaFileLink Public link to a file in MEGA.
  */
 - (void)publicNodeForMegaFileLink:(NSString *)megaFileLink;
+
+/**
+* @brief Build the URL for a public link
+*
+* @note This function does not create the public link itself. It simply builds the URL
+* from the provided data.
+*
+* @param publicHandle Public handle of the link, in B64url encoding.
+* @param key Encryption key of the link.
+* @param isFolder True for folder links, false for file links.
+* @return The public link for the provided data
+*/
+- (NSString *)buildPublicLinkForHandle:(NSString *)publicHandle key:(NSString *)key isFolder:(BOOL)isFolder;
 
 /**
  * @brief Set the GPS coordinates of image files as a node attribute.
@@ -3737,6 +3802,74 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param value New attribute value
  */
 - (void)setUserAttributeType:(MEGAUserAttribute)type value:(NSString *)value;
+
+/**
+ * @brief Gets the alias for an user
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeAlias
+ * - [MEGARequest nodeHandle] - Returns the handle of the node as binary
+ * - [MEGARequest text] - Return the handle of the node as base 64 string.
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest name] - Returns the user alias.
+ *
+ * If the user alias doesn't exists the request will fail with the error code MEGAErrorTypeApiENoent
+ *
+ * @param handle Handle of the contact
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getUserAliasWithHandle:(uint64_t)handle delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Gets the alias for an user
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeAlias
+ * - [MEGARequest nodeHandle] - Returns the handle of the node as binary
+ * - [MEGARequest text] - Return the handle of the node as base64 string.
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest name] - Returns the user alias.
+ *
+ * If the user alias doesn't exists the request will fail with the error code MEGAErrorTypeApiENoent
+ *
+ * @param handle Handle of the contact
+ */
+- (void)getUserAliasWithHandle:(uint64_t)handle;
+
+/**
+ * @brief Set or reset an alias for a user
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeAlias
+ * - [MEGARequest nodeHandle] - Returns the handle of the node as binary
+ * - [MEGARequest text] - Return the handle of the node as base 64 string.
+ *
+ * @param alias the user alias, or null to reset the existing
+ * @param handle Handle of the contact
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)setUserAlias:(nullable NSString *)alias forHandle:(uint64_t)handle delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Set or reset an alias for a user
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeAlias
+ * - [MEGARequest nodeHandle] - Returns the handle of the node as binary
+ * - [MEGARequest text] - Return the handle of the node as base 64 string.
+ *
+ * @param alias the user alias, or null to reset the existing
+ * @param handle Handle of the contact
+ */
+- (void)setUserAlias:(nullable NSString *)alias forHandle:(uint64_t)handle;
 
 /**
  * @brief Set an attribute of the current user.
