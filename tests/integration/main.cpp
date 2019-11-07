@@ -82,16 +82,24 @@ int main (int argc, char *argv[])
         return 1;
     }
 
-    vector<char*> myargv(argv, argv + argc);
+    vector<char*> myargv1(argv, argv + argc);
+    vector<char*> myargv2;
 
-    for (auto it = myargv.begin(); it != myargv.end(); ++it)
+    for (auto it = myargv1.begin(); it != myargv1.end(); ++it)
     {
         if (string(*it) == "--CI")
         {
             gRunningInCI = true;
-            myargv.erase(it);
             argc -= 1;
-            break;
+        }
+        else if (string(*it).substr(0, 12) == "--USERAGENT:")
+        {
+            USER_AGENT = string(*it).substr(12);
+            argc -= 1;
+        }
+        else
+        {
+            myargv2.push_back(*it);
         }
     }
 
@@ -105,6 +113,6 @@ int main (int argc, char *argv[])
     wc->setShellConsole();
 #endif
 
-    ::testing::InitGoogleTest(&argc, myargv.data());
+    ::testing::InitGoogleTest(&argc, myargv2.data());
     return RUN_ALL_TESTS();
 }
