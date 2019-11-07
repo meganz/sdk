@@ -34,6 +34,62 @@ namespace mega {
 // FIXME: instead of copying nodes, move if the source is in the rubbish to reduce node creation load on the servers
 // FIXME: prevent synced folder from being moved into another synced folder
 
+
+void MegaClientAsyncQueue::push(std::function<void(SymmCipher&)>&& f)
+{
+    std::lock_guard g(m);
+    q.emplace_back(std::move(f));
+    cv.notify_one();
+}
+
+MegaClientAsyncQueue::MegaClientAsyncQueue(Waiter& w)
+    : waiter(w)
+    , asyncThread1([this]() { asyncThreadLoop(); })
+    , asyncThread2([this]() { asyncThreadLoop(); })
+    , asyncThread3([this]() { asyncThreadLoop(); })
+{
+}
+
+MegaClientAsyncQueue::~MegaClientAsyncQueue()
+{
+    clearQueue();
+    push(nullptr);
+    cv.notify_all();
+    asyncThread1.join();
+    asyncThread2.join();
+    asyncThread3.join();
+}
+
+void MegaClientAsyncQueue::clearQueue()
+{
+    std::lock_guard g(m);
+    q.clear();
+}
+
+void MegaClientAsyncQueue::asyncThreadLoop()
+{
+    SymmCipher cipher;
+    std::unique_lock g(m);
+    for (;;)
+    {
+        cv.wait(g, [this]() {return !q.empty(); });
+        auto f = std::move(q.front());
+        if (f)
+        {
+            q.pop_front();
+            g.unlock();
+            f(cipher);
+            waiter.notify();
+            g.lock();
+        }
+        else
+        {
+            break;
+        }
+    }
+}
+
+
 bool MegaClient::disablepkp = false;
 
 // root URL for API access
