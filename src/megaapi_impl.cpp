@@ -5146,6 +5146,7 @@ MegaApiImpl::~MegaApiImpl()
         delete it->second;
     }
 
+    delete client;    //  only delete client now that transfers that might refer to it are finally removed.
     delete gfxAccess;
     delete fsAccess;
     delete waiter;
@@ -6215,18 +6216,19 @@ void MegaApiImpl::loop()
             }
             sendPendingRequests();
             sendPendingScRequest();
-            if(threadExit)
-                break;
+            if (threadExit)
+            {
+                // The ~MegaApiImpl() destructor is responsible for deleting the client after join()ing the thread
+                // But first call locallogout() which may call back to the app (on this thread as usual) to close some requestMap items etc
+                client->locallogout(false);
+                return;
+            }
 
             sdkMutex.lock();
             client->exec();
             sdkMutex.unlock();
         }
     }
-
-    sdkMutex.lock();
-    delete client;
-    sdkMutex.unlock();
 }
 
 
@@ -13791,8 +13793,7 @@ void MegaApiImpl::request_error(error e)
 
     if (e == API_ESID)
     {
-        client->removecaches();
-        client->locallogout();
+        client->locallogout(true);
     }
     requestQueue.push(request);
     waiter->notify();
@@ -14915,8 +14916,7 @@ void MegaApiImpl::whyamiblocked_result(int code)
             && code != 500  // don't log out if we can be unblocked via sms verification
             && code != 700) // don't log out if we can be unblocked via verification email (weak account protection)
     {
-        client->removecaches();
-        client->locallogout();
+        client->locallogout(true);
 
         MegaRequestPrivate *logoutRequest = new MegaRequestPrivate(MegaRequest::TYPE_LOGOUT);
         logoutRequest->setFlag(false);
@@ -17683,6 +17683,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                     currentTransfer = transfer;                    
                     string wFileName = fileName;
                     MegaFilePut *f = new MegaFilePut(client, &wLocalPath, &wFileName, transfer->getParentHandle(), "", mtime, isSourceTemporary);
+                    *static_cast<FileFingerprint*>(f) = fp;  // deliberate slicing - startxfer would re-fingerprint if we don't supply this info
                     f->setTransfer(transfer);
                     bool started = client->startxfer(PUT, f, committer, true, startFirst, transfer->isBackupTransfer());
                     if (!started)
@@ -18246,7 +18247,7 @@ void MegaApiImpl::sendPendingRequests()
 
             requestMap[request->getTag()]=request;
 
-            client->locallogout();
+            client->locallogout(false);
             if (sessionKey)
             {
                 byte session[MAX_SESSION_LENGTH];
@@ -18954,7 +18955,7 @@ void MegaApiImpl::sendPendingRequests()
             }
             else
             {
-                client->locallogout();
+                client->locallogout(false);
                 client->restag = nextTag;
                 logout_result(API_OK);
             }
@@ -19673,7 +19674,7 @@ void MegaApiImpl::sendPendingRequests()
 
                 requestMap[reqtag] = request;
 
-                client->locallogout();
+                client->locallogout(false);
 
                 if (resumeProcess)
                 {
@@ -23332,7 +23333,8 @@ void MegaFolderUploadController::onFolderAvailable(MegaHandle handle)
     {
         size_t t = localPath.size();
 
-        while (da->dnext(&localPath, &localname, client->followsymlinks))
+        nodetype_t dirEntryType;
+        while (da->dnext(&localPath, &localname, client->followsymlinks, &dirEntryType))
         {
             if (t)
             {
@@ -23341,35 +23343,30 @@ void MegaFolderUploadController::onFolderAvailable(MegaHandle handle)
 
             localPath.append(localname);
 
-            auto fa = client->fsaccess->newfileaccess();
-            if (fa->fopen(&localPath, true, false))
+            string name = localname;
+            client->fsaccess->local2name(&name);
+            if (dirEntryType == FILENODE)
             {
-                string name = localname;
-                client->fsaccess->local2name(&name);
-                if (fa->type == FILENODE)
-                {
-                    pendingTransfers++;
-                    string utf8path;
-                    client->fsaccess->local2path(&localPath, &utf8path);
+                pendingTransfers++;
+                string utf8path;
+                client->fsaccess->local2path(&localPath, &utf8path);
                     megaApi->startUpload(false, utf8path.c_str(), parent, (const char *)NULL, -1, tag, false, NULL, false, false, this);
+            }
+            else if (dirEntryType == FOLDERNODE)
+            {
+                MegaNode *child = megaApi->getChildNode(parent, name.c_str());
+                if(!child || !child->isFolder())
+                {
+                    pendingFolders.push_back(localPath);
+                    megaApi->createFolder(name.c_str(), parent, this);
                 }
                 else
                 {
-                    MegaNode *child = megaApi->getChildNode(parent, name.c_str());
-                    if(!child || !child->isFolder())
-                    {
-                        pendingFolders.push_back(localPath);
-                        megaApi->createFolder(name.c_str(), parent, this);
-                    }
-                    else
-                    {
-                        pendingFolders.push_front(localPath);
-                        onFolderAvailable(child->getHandle());
-                    }
-                    delete child;
+                    pendingFolders.push_front(localPath);
+                    onFolderAvailable(child->getHandle());
                 }
+                delete child;
             }
-
             localPath.resize(t);
         }
     }
