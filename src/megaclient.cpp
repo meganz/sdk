@@ -2791,7 +2791,7 @@ void MegaClient::exec()
     if (Waiter::ds > lasttime + 1200)
     {
         lasttime = Waiter::ds;
-        LOG_info << performanceStats.report(false, httpio, waiter);
+        LOG_info << performanceStats.report(false, httpio, waiter, reqs);
     }
 #endif
 }
@@ -14264,7 +14264,7 @@ void MegaClient::getwelcomepdf()
 }
 
 #ifdef MEGA_MEASURE_CODE
-std::string MegaClient::PerformanceStats::report(bool reset, HttpIO* httpio, Waiter* waiter)
+std::string MegaClient::PerformanceStats::report(bool reset, HttpIO* httpio, Waiter* waiter, const RequestDispatcher& reqs)
 {
     std::ostringstream s;
     s << prepareWait.report(reset) << "\n"
@@ -14279,6 +14279,7 @@ std::string MegaClient::PerformanceStats::report(bool reset, HttpIO* httpio, Wai
         << scProcessingTime.report(reset) << "\n"
         << csResponseProcessingTime.report(reset) << "\n"
         << " cs Request waiting time: " << csRequestWaitTime.report(reset) << "\n"
+        << " cs requests sent/received: " << reqs.csRequestsSent << "/" << reqs.csRequestsCompleted << " batches: " << reqs.csBatchesSent << "/" << reqs.csBatchesReceived << "\n"
         << " transfers active time: " << transfersActiveTime.report(reset) << "\n"
         << " transfer starts/finishes: " << transferStarts << " " << transferFinishes << "\n"
         << " transfer temperror/fails: " << transferTempErrors << " " << transferFails << "\n"

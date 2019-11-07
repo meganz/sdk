@@ -167,14 +167,20 @@ if (WIN32)
     add_definitions( -DNOMINMAX )
 
     IF (NOT USE_PREBUILT_3RDPARTY)
-        #Link against the static C/C++ libraries on windows
+        #Link against the static C/C++ libraries on windows. Though, if linking with prebuilt QT we need dynamic CRT
         foreach(flag_var
                 CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE 
                 CMAKE_C_FLAGS CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE
                 CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
-           if(${flag_var} MATCHES "/MD")
-              string(REGEX REPLACE "/MD" "/MT" ${flag_var} "${${flag_var}}")
-           endif(${flag_var} MATCHES "/MD")
+            if (MEGA_LINK_DYNAMIC_CRT)
+                if(${flag_var} MATCHES "/MT")
+                    string(REGEX REPLACE "/MT" "/MD" ${flag_var} "${${flag_var}}")
+                endif()
+            else ()
+                if(${flag_var} MATCHES "/MD")
+                    string(REGEX REPLACE "/MD" "/MT" ${flag_var} "${${flag_var}}")
+                endif()
+            endif ()
         endforeach(flag_var)
     ENDIF()
 
