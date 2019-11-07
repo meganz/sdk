@@ -5312,6 +5312,7 @@ CommandSupportTicket::CommandSupportTicket(MegaClient *client, const char *messa
 {
     cmd("sse");
     arg("t", type);
+    arg("b", 1);    // base64 encoding for `msg`
     arg("m", (const byte*)message, int(strlen(message)));
 
     tag = client->reqtag;
