@@ -7978,7 +7978,7 @@ void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, const cha
 
 void MegaApiImpl::startUploadForSupport(const char *localPath, MegaTransferListener *listener)
 {
-    return startUpload(false, localPath, nullptr, nullptr, "supportdrop@mega.nz", -1, 0, false, nullptr, false, false, listener);
+    return startUpload(true, localPath, nullptr, nullptr, "supportdrop@mega.nz", -1, 0, false, nullptr, true, false, listener);
 }
 
 void MegaApiImpl::startDownload(bool startFirst, MegaNode *node, const char* localPath, int folderTransferTag, const char *appData, MegaTransferListener *listener)
@@ -17663,7 +17663,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
 
                     currentTransfer = transfer;                    
                     string wFileName = fileName;
-                    MegaFilePut *f = new MegaFilePut(client, &wLocalPath, &wFileName, transfer->getParentHandle(), transfer->getParentPath()?transfer->getParentPath():"", mtime, isSourceTemporary);
+                    MegaFilePut *f = new MegaFilePut(client, &wLocalPath, &wFileName, transfer->getParentHandle(), transfer->getParentPath() ? transfer->getParentPath() : "", mtime, isSourceTemporary);
                     f->setTransfer(transfer);
                     bool started = client->startxfer(PUT, f, committer, true, startFirst, transfer->isBackupTransfer());
                     if (!started)
