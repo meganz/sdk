@@ -124,7 +124,6 @@ mega::Node& makeNode(mega::MegaClient& client, const mega::nodetype_t type, cons
     }
     assert(client.nodes.find(n->nodehandle) == client.nodes.end());
     client.nodes[n->nodehandle] = n;
-    n->setkey();
     n->setkey(reinterpret_cast<const mega::byte*>(std::string((type == mega::FILENODE) ? mega::FILENODEKEYLENGTH : mega::FOLDERNODEKEYLENGTH, 'X').c_str()));
     return *n;
 }

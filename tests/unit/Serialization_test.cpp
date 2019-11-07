@@ -194,6 +194,7 @@ TEST(Serialization, CacheableReaderWriter)
     ASSERT_EQ(mp2.no_audio, false);
 }
 
+#ifdef ENABLE_SYNC
 namespace {
 
 void checkDeserializedLocalNode(const mega::LocalNode& dl, const mega::LocalNode& ref)
@@ -389,6 +390,7 @@ TEST(Serialization, LocalNode_withoutExtensionBytes_forFile)
     auto dl = std::unique_ptr<mega::LocalNode>{mega::LocalNode::unserialize(sync.get(), &data)};
     checkDeserializedLocalNode(*dl, *l);
 }
+#endif
 
 namespace {
 
