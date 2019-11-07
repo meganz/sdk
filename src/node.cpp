@@ -48,9 +48,15 @@ NewNode::~NewNode()
     delete fileattributes;
 }
 
+Node::Node()
+{
+    memset(&changed, -1, sizeof(changed));
+    changed.removed = false;
+}
 
 Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
            nodetype_t t, m_off_t s, handle u, const char* fa, m_time_t ts)
+: Node{}
 {
     client = cclient;
     outshares = NULL;
@@ -87,40 +93,34 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
 
     plink = NULL;
 
-    memset(&changed,-1,sizeof changed);
-    changed.removed = false;
+    Node* p;
 
-    if (client)
+    client->nodes[h] = this;
+
+    // folder link access: first returned record defines root node and
+    // identity
+    if (ISUNDEF(*client->rootnodes))
     {
-        Node* p;
-
-        client->nodes[h] = this;
-
-        // folder link access: first returned record defines root node and
-        // identity
-        if (ISUNDEF(*client->rootnodes))
-        {
-            *client->rootnodes = h;
-        }
-
-        if (t >= ROOTNODE && t <= RUBBISHNODE)
-        {
-            client->rootnodes[t - ROOTNODE] = h;
-        }
-
-        // set parent linkage or queue for delayed parent linkage in case of
-        // out-of-order delivery
-        if ((p = client->nodebyhandle(ph)))
-        {
-            setparent(p);
-        }
-        else
-        {
-            dp->push_back(this);
-        }
-
-        client->mFingerprints.newnode(this);
+        *client->rootnodes = h;
     }
+
+    if (t >= ROOTNODE && t <= RUBBISHNODE)
+    {
+        client->rootnodes[t - ROOTNODE] = h;
+    }
+
+    // set parent linkage or queue for delayed parent linkage in case of
+    // out-of-order delivery
+    if ((p = client->nodebyhandle(ph)))
+    {
+        setparent(p);
+    }
+    else
+    {
+        dp->push_back(this);
+    }
+
+    client->mFingerprints.newnode(this);
 }
 
 Node::~Node()
@@ -338,7 +338,10 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     hasLinkCreationTs = MemAccess::get<char>(ptr);
     ptr += sizeof(hasLinkCreationTs);
 
-    for (i = 6; i--;)
+    const bool syncable = MemAccess::get<bool>(ptr);
+    ptr += sizeof(syncable);
+
+    for (i = 5; i--;)
     {
         if (ptr + (unsigned char)*ptr < end)
         {
@@ -370,6 +373,7 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     }
 
     n = new Node(client, dp, h, ph, t, s, u, fa, ts);
+    n->setSyncable(syncable);
 
     if (k)
     {
@@ -518,7 +522,7 @@ bool Node::serialize(string* d)
 
     if (type == FILENODE)
     {
-        ll = (short)fileattrstring.size() + 1;
+        ll = static_cast<unsigned short>(fileattrstring.size() + 1);
         d->append((char*)&ll, sizeof ll);
         d->append(fileattrstring.c_str(), ll);
     }
@@ -529,7 +533,9 @@ bool Node::serialize(string* d)
     char hasLinkCreationTs = plink ? 1 : 0;
     d->append((char*)&hasLinkCreationTs, 1);
 
-    d->append("\0\0\0\0\0", 6);
+    d->append((char*)&mSyncable, sizeof(mSyncable));
+
+    d->append("\0\0\0\0", 5); // Use these bytes for extensions
 
     if (inshare)
     {
@@ -1077,6 +1083,18 @@ Node* Node::firstancestor()
     }
     return n;
 }
+
+#ifdef ENABLE_SYNC
+void Node::setSyncable(const bool syncable)
+{
+    mSyncable = syncable;
+}
+
+bool Node::isSyncable() const
+{
+    return mSyncable;
+}
+#endif
 
 // returns 1 if n is under p, 0 otherwise
 bool Node::isbelow(Node* p) const
@@ -1772,6 +1790,13 @@ void LocalNode::completed(Transfer* t, LocalNode*)
     File::completed(t, this);
 }
 
+namespace {
+
+// Need this to read old caches that don't have extension bytes
+constexpr m_off_t LOCALNODE_EXTENSION_BYTES_FLAG = -1000;
+
+}
+
 // serialize/unserialize the following LocalNode properties:
 // - type/size
 // - fsid
@@ -1781,6 +1806,8 @@ void LocalNode::completed(Transfer* t, LocalNode*)
 // - fingerprint crc/mtime (filenodes only)
 bool LocalNode::serialize(string* d)
 {
+    d->append((const char*)&LOCALNODE_EXTENSION_BYTES_FLAG, sizeof(LOCALNODE_EXTENSION_BYTES_FLAG));
+
     m_off_t s = type ? -type : size;
 
     d->append((const char*)&s, sizeof s);
@@ -1800,6 +1827,10 @@ bool LocalNode::serialize(string* d)
     d->append((char*)&ll, sizeof ll);
     d->append(localname.data(), ll);
 
+    d->append((char*)&syncable, sizeof(syncable));
+
+    d->append("\0\0\0\0\0\0", 7); // Use these bytes for extensions
+
     if (type == FILENODE)
     {
         d->append((const char*)crc.data(), sizeof crc);
@@ -1812,7 +1843,7 @@ bool LocalNode::serialize(string* d)
     return true;
 }
 
-LocalNode* LocalNode::unserialize(Sync* sync, string* d)
+LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
 {
     if (d->size() < sizeof(m_off_t)         // type/size combo
                   + sizeof(handle)          // fsid
@@ -1830,6 +1861,13 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
     nodetype_t type;
     m_off_t size = MemAccess::get<m_off_t>(ptr);
     ptr += sizeof(m_off_t);
+
+    const bool hasExtensionBytes = size == LOCALNODE_EXTENSION_BYTES_FLAG;
+    if (hasExtensionBytes)
+    {
+        size = MemAccess::get<m_off_t>(ptr);
+        ptr += sizeof(m_off_t);
+    }
 
     if (size < 0 && size >= -FOLDERNODE)
     {
@@ -1863,6 +1901,22 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
 
     const char* localname = ptr;
     ptr += localnamelen;
+
+    bool syncable = true;
+    if (hasExtensionBytes)
+    {
+        syncable = MemAccess::get<bool>(ptr);
+        ptr += sizeof(syncable);
+
+        for (int i = 7; i--;)
+        {
+            if (ptr + (unsigned char)*ptr < end)
+            {
+                ptr += (unsigned char)*ptr + 1;
+            }
+        }
+    }
+
     uint64_t mtime = 0;
     int32_t crc[4];
     memset(crc, 0, sizeof crc);
@@ -1878,11 +1932,17 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
         memcpy(crc, ptr, sizeof crc);
         ptr += sizeof crc;
 
-        if (Serialize64::unserialize((byte*)ptr, static_cast<int>(end - ptr), &mtime) < 0)
+        auto mtimeSize = static_cast<int>(end - ptr);
+        if ((mtimeSize = Serialize64::unserialize((byte*)ptr, mtimeSize, &mtime)) < 0)
         {
             LOG_err << "LocalNode unserialization failed - malformed fingerprint mtime";
             return NULL;
         }
+        assert(ptr + mtimeSize == end);
+    }
+    else
+    {
+        assert(ptr == end);
     }
 
     LocalNode* l = new LocalNode();
@@ -1895,22 +1955,23 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
     l->fsid = fsid;
 
     l->localname.assign(localname, localnamelen);
-    l->slocalname = NULL;
+    l->slocalname = nullptr;
     l->name.assign(localname, localnamelen);
     sync->client->fsaccess->local2name(&l->name);
 
     memcpy(l->crc.data(), crc, sizeof crc);
     l->mtime = mtime;
-    l->isvalid = 1;
+    l->isvalid = true;
 
     l->node = sync->client->nodebyhandle(h);
-    l->parent = NULL;
+    l->parent = nullptr;
     l->sync = sync;
+    l->syncable = syncable;
 
     // FIXME: serialize/unserialize
     l->created = false;
     l->reported = false;
-    l->checked = h != UNDEF;
+    l->checked = h != UNDEF; // TODO: Is this a bug? h will never be UNDEF
 
     return l;
 }

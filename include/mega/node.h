@@ -109,7 +109,7 @@ private:
 // filesystem node
 struct MEGA_API Node : public NodeCore, FileFingerprint
 {
-    MegaClient* client;
+    MegaClient* client = nullptr;
 
     // supplies the nodekey (which is private to ensure we track changes to it)
     const string& nodekey() const;
@@ -148,10 +148,10 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     AttrMap attrs;
 
     // owner
-    handle owner;
+    handle owner = mega::UNDEF;
 
     // actual time this node was created (cannot be set by user)
-    m_time_t ctime;
+    m_time_t ctime = 0;
 
     // file attributes
     string fileattrstring;
@@ -167,21 +167,21 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     static void parseattr(byte*, AttrMap&, m_off_t, m_time_t&, string&, string&, FileFingerprint&);
 
     // inbound share
-    Share* inshare;
+    Share* inshare = nullptr;
 
     // outbound shares by user
-    share_map *outshares;
+    share_map* outshares = nullptr;
 
     // outbound pending shares
-    share_map *pendingshares;
+    share_map* pendingshares = nullptr;
 
     // incoming/outgoing share key
-    SymmCipher* sharekey;
+    SymmCipher* sharekey = nullptr;
 
     // app-private pointer
-    void* appdata;
+    void* appdata = nullptr;
 
-    bool foreignkey;
+    bool foreignkey = false;
 
     struct
     {
@@ -209,53 +209,62 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     NodeCounter subnodeCounts() const;
 
     // parent
-    Node* parent;
+    Node* parent = nullptr;
 
     // children
     node_list children;
 
     // own position in parent's children
-    node_list::iterator child_it;
+    node_list::iterator child_it{};
 
     // own position in fingerprint set (only valid for file nodes)
-    Fingerprints::iterator fingerprint_it;
+    Fingerprints::iterator fingerprint_it{};
 
 #ifdef ENABLE_SYNC
     // related synced item or NULL
-    LocalNode* localnode;
+    LocalNode* localnode = nullptr;
 
     // active sync get
-    struct SyncFileGet* syncget;
+    struct SyncFileGet* syncget = nullptr;
 
     // state of removal to //bin / SyncDebris
-    syncdel_t syncdeleted;
+    syncdel_t syncdeleted = SYNCDEL_NONE;
 
     // location in the todebris node_set
-    node_set::iterator todebris_it;
+    node_set::iterator todebris_it{};
 
     // location in the tounlink node_set
     // FIXME: merge todebris / tounlink
-    node_set::iterator tounlink_it;
+    node_set::iterator tounlink_it{};
+
+    // sets whether this node can be synced to the local tree
+    void setSyncable(bool syncable);
+
+    // can this node be synced to the local tree?
+    bool isSyncable() const;
 #endif
 
     // source tag
-    int tag;
+    int tag = 0;
 
     // check if node is below this node
     bool isbelow(Node*) const;
 
     // handle of public link for the node
-    PublicLink *plink;
+    PublicLink* plink = nullptr;
 
     void setpubliclink(handle, m_time_t, m_time_t, bool);
 
     bool serialize(string*);
     static Node* unserialize(MegaClient*, string*, node_vector*);
 
+    Node();
     Node(MegaClient*, vector<Node*>*, handle, handle, nodetype_t, m_off_t, handle, const char*, m_time_t);
     ~Node();
 
 private:
+    // whether this node can be synced to the local tree
+    bool mSyncable = true;
 
     // full folder/file key, symmetrically or asymmetrically encrypted
     // node crypto keys (raw or cooked -
@@ -290,6 +299,9 @@ struct MEGA_API LocalNode : public File
 
     // stored to rebuild tree after serialization => this must not be a pointer to parent->dbid
     int32_t parent_dbid = 0;
+
+    // whether this node can be synced to the remote tree
+    bool syncable = true;
 
     // children by name
     localnode_map children;
@@ -382,7 +394,7 @@ struct MEGA_API LocalNode : public File
     void init(Sync*, nodetype_t, LocalNode*, string*);
 
     virtual bool serialize(string*);
-    static LocalNode* unserialize( Sync* sync, string* sData );
+    static LocalNode* unserialize( Sync* sync, const string* sData );
 
     ~LocalNode();
 };

@@ -20,7 +20,10 @@
 
 #include <random>
 
+#include <mega/megaapp.h>
+
 #include "constants.h"
+#include "DefaultedFileSystemAccess.h"
 #include "FsNode.h"
 
 namespace mt {
@@ -52,7 +55,7 @@ void initializeLocalNode(mega::LocalNode& l, mega::Sync& sync, mega::LocalNode* 
     l.type = type;
     l.name = name;
     l.localname = name;
-    l.slocalname = &l.localname;
+    l.slocalname = new std::string{name};
     l.fsid_it = fsidnodes.end();
     l.setfsid(nextFsId(), fsidnodes);
     if (parent)
@@ -72,24 +75,75 @@ mega::handle nextFsId()
     return fsId++;
 }
 
+std::shared_ptr<mega::MegaClient> makeClient(mega::MegaApp& app, mega::FileSystemAccess& fsaccess)
+{
+    struct HttpIo : mega::HttpIO
+    {
+        void addevents(mega::Waiter*, int) override {}
+        void post(struct mega::HttpReq*, const char* = NULL, unsigned = 0) override {}
+        void cancel(mega::HttpReq*) override {}
+        m_off_t postpos(void*) override { return {}; }
+        bool doio(void) override { return {}; }
+        void setuseragent(std::string*) override {}
+    };
+
+    auto httpio = new HttpIo;
+
+    auto deleter = [httpio](mega::MegaClient* client)
+    {
+        delete client;
+        delete httpio;
+    };
+
+    std::shared_ptr<mega::MegaClient> client{new mega::MegaClient{
+            &app, nullptr, httpio, &fsaccess, nullptr, nullptr, "XXX", "unit_test"
+        }, deleter};
+
+    return client;
+}
+
+mega::Node& makeNode(mega::MegaClient& client, const mega::nodetype_t type, const mega::handle handle, mega::Node* const parent)
+{
+    auto n = new mega::Node; // owned by the client
+    n->type = type;
+    n->client = &client;
+    n->todebris_it = client.todebris.end();
+    n->tounlink_it = client.tounlink.end();
+    client.mFingerprints.add(n);
+    n->nodehandle = handle;
+    if (parent)
+    {
+        n->parenthandle = parent->nodehandle;
+        parent->children.push_front(n);
+        n->child_it = parent->children.begin();
+        n->parent = parent;
+    }
+    assert(client.nodes.find(n->nodehandle) == client.nodes.end());
+    client.nodes[n->nodehandle] = n;
+    n->setkey(reinterpret_cast<const mega::byte*>(std::string((type == mega::FILENODE) ? mega::FILENODEKEYLENGTH : mega::FOLDERNODEKEYLENGTH, 'X').c_str()));
+    return *n;
+}
+
 #ifdef ENABLE_SYNC
-std::unique_ptr<mega::Sync> makeSync(const std::string& localname, mega::handlelocalnode_map& fsidnodes)
+std::unique_ptr<mega::Sync> makeSync(mega::MegaClient& client, const std::string& localname)
 {
     auto sync = std::unique_ptr<mega::Sync>{new mega::Sync};
     sync->localroot = std::unique_ptr<mega::LocalNode>{new mega::LocalNode};
     sync->state = mega::SYNC_CANCELED; // to avoid the asssertion in Sync::~Sync()
-    initializeLocalNode(*sync->localroot, *sync, nullptr, fsidnodes,  mega::FOLDERNODE, localname, {});
+    initializeLocalNode(*sync->localroot, *sync, nullptr, client.fsidnode,  mega::FOLDERNODE, localname, {});
     sync->localdebris = sync->localroot->localname + "/" + mt::gLocalDebris;
+    sync->client = &client;
+    client.syncs.push_front(sync.get());
+    sync->sync_it = client.syncs.begin();
     return sync;
 }
 
 std::unique_ptr<mega::LocalNode> makeLocalNode(mega::Sync& sync, mega::LocalNode& parent,
-                                               mega::handlelocalnode_map& fsidnodes,
                                                mega::nodetype_t type, const std::string& name,
                                                const mega::FileFingerprint& ffp)
 {
     auto l = std::unique_ptr<mega::LocalNode>{new mega::LocalNode};
-    initializeLocalNode(*l, sync, &parent, fsidnodes, type, name, ffp);
+    initializeLocalNode(*l, sync, &parent, sync.client->fsidnode, type, name, ffp);
     return l;
 }
 #endif

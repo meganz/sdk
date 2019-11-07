@@ -50,12 +50,12 @@ public:
                 {
                     mLogFile.open("test_integration.log");
                 }
-                mLogFile << os.str();
+                mLogFile << os.str() << std::flush;
             }
             else
             {
 #ifndef _WIN32
-                std::cout << os.str();
+                std::cout << os.str() << std::flush;
 #endif
                 if (!gTestingInvalidArgs)
                 {
@@ -97,7 +97,7 @@ int main (int argc, char *argv[])
 
     MegaLogger megaLogger;
 
-    SimpleLogger::setLogLevel(logDebug);
+    SimpleLogger::setLogLevel(logMax);
     SimpleLogger::setOutputClass(&megaLogger);
 
 #if defined(_WIN32) && defined(NO_READLINE)
