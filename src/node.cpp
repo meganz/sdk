@@ -398,7 +398,7 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     }
 
 #ifdef ENABLE_SYNC
-    if (!syncable && client)
+    if (!syncable)
     {
         client->unsyncables.insert(h);
     }
@@ -432,13 +432,10 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     // the updated version of utf8proc doesn't provide
     // exactly the same output as the previous one that
     // we were using
-    if (client)
+    attr_map::iterator it = n->attrs.map.find('n');
+    if (it != n->attrs.map.end())
     {
-        attr_map::iterator it = n->attrs.map.find('n');
-        if (it != n->attrs.map.end())
-        {
-            client->fsaccess->normalize(&(it->second));
-        }
+        client->fsaccess->normalize(&(it->second));
     }
 
     PublicLink *plink = NULL;
@@ -492,11 +489,6 @@ bool Node::serialize(string* d)
     if (attrstring)
     {
         LOG_warn << "Trying to serialize an encrypted node";
-
-        if (!client)
-        {
-            return false;
-        }
 
         //Last attempt to decrypt the node
         applykey();

@@ -20,6 +20,7 @@
 
 #include <memory>
 
+#include <mega/megaclient.h>
 #include <mega/node.h>
 #include <mega/sync.h>
 #include <mega/filefingerprint.h>
@@ -29,6 +30,10 @@ namespace mt {
 class FsNode;
 
 mega::handle nextFsId();
+
+std::shared_ptr<mega::MegaClient> makeDefaultClient();
+
+mega::Node& makeNode(mega::MegaClient& client, mega::nodetype_t type, mega::handle handle, mega::Node* parent = nullptr);
 
 #ifdef ENABLE_SYNC
 std::unique_ptr<mega::Sync> makeSync(const std::string& localname, mega::handlelocalnode_map& fsidnodes);

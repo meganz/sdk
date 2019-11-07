@@ -20,7 +20,10 @@
 
 #include <random>
 
+#include <mega/megaapp.h>
+
 #include "constants.h"
+#include "DefaultedFileSystemAccess.h"
 #include "FsNode.h"
 
 namespace mt {
@@ -70,6 +73,60 @@ mega::handle nextFsId()
 {
     static mega::handle fsId{0};
     return fsId++;
+}
+
+std::shared_ptr<mega::MegaClient> makeDefaultClient()
+{
+    struct HttpIo : mega::HttpIO
+    {
+        void addevents(mega::Waiter*, int) override {}
+        void post(struct mega::HttpReq*, const char* = NULL, unsigned = 0) override {}
+        void cancel(mega::HttpReq*) override {}
+        m_off_t postpos(void*) override { return {}; }
+        bool doio(void) override { return {}; }
+        void setuseragent(std::string*) override {}
+    };
+
+    auto app = new mega::MegaApp;
+    auto fsaccess = new DefaultedFileSystemAccess;
+    auto httpio = new HttpIo;
+
+    auto deleter = [app, fsaccess, httpio](mega::MegaClient* client)
+    {
+        delete client;
+        delete httpio;
+        delete fsaccess;
+        delete app;
+    };
+
+    std::shared_ptr<mega::MegaClient> client{new mega::MegaClient{
+            app, nullptr, httpio, fsaccess, nullptr, nullptr, "XXX", "unit_test"
+        }, deleter};
+
+    return client;
+}
+
+mega::Node& makeNode(mega::MegaClient& client, const mega::nodetype_t type, const mega::handle handle, mega::Node* const parent)
+{
+    auto n = new mega::Node; // owned by the client
+    n->type = type;
+    n->client = &client;
+    n->todebris_it = client.todebris.end();
+    n->tounlink_it = client.tounlink.end();
+    client.mFingerprints.add(n);
+    n->nodehandle = handle;
+    if (parent)
+    {
+        n->parenthandle = parent->nodehandle;
+        parent->children.push_front(n);
+        n->child_it = parent->children.begin();
+        n->parent = parent;
+    }
+    assert(client.nodes.find(n->nodehandle) == client.nodes.end());
+    client.nodes[n->nodehandle] = n;
+    n->setkey();
+    n->setkey(reinterpret_cast<const mega::byte*>(std::string((type == mega::FILENODE) ? mega::FILENODEKEYLENGTH : mega::FOLDERNODEKEYLENGTH, 'X').c_str()));
+    return *n;
 }
 
 #ifdef ENABLE_SYNC
