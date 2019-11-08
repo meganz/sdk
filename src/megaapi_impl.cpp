@@ -17555,8 +17555,11 @@ unsigned MegaApiImpl::sendPendingTransfers()
                 Node *parent = client->nodebyhandle(transfer->getParentHandle());
                 bool startFirst = transfer->shouldStartFirst();
 
+                bool uploadToInbox = !parent && transfer->getParentPath() && strchr(transfer->getParentPath(), '@');
+                const char *inboxTarget = uploadToInbox ? transfer->getParentPath() : nullptr;
+
                 if (!localPath || !fileName || !(*fileName)
-                        || (!transfer->getParentPath() && (!parent || parent->type == FILENODE) ) )
+                        || (!inboxTarget && (!parent || parent->type == FILENODE) ) )
                 {
                     e = API_EARGS;
                     break;
@@ -17574,7 +17577,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                 }
 
                 nodetype_t type = fa->type;
-                if (type == FOLDERNODE && transfer->getParentPath())
+                if (type == FOLDERNODE && uploadToInbox)
                 {
                     //Folder upload is not possible when sending to Inbox:
                     //API won't return handle for folder creation, and even if that was the case
@@ -17659,9 +17662,9 @@ unsigned MegaApiImpl::sendPendingTransfers()
                                 tc.nn->ovhandle = client->getovhandle(parent, &sname);
                             }
 
-                            if (transfer->getParentPath())
+                            if (inboxTarget)
                             {
-                                client->putnodes(transfer->getParentPath(), tc.nn, nc);
+                                client->putnodes(inboxTarget, tc.nn, nc);
                             }
                             else
                             {
@@ -17680,7 +17683,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
 
                     currentTransfer = transfer;                    
                     string wFileName = fileName;
-                    MegaFilePut *f = new MegaFilePut(client, &wLocalPath, &wFileName, transfer->getParentHandle(), transfer->getParentPath() ? transfer->getParentPath() : "", mtime, isSourceTemporary);
+                    MegaFilePut *f = new MegaFilePut(client, &wLocalPath, &wFileName, transfer->getParentHandle(), inboxTarget ? inboxTarget : "", mtime, isSourceTemporary);
                     f->setTransfer(transfer);
                     bool started = client->startxfer(PUT, f, committer, true, startFirst, transfer->isBackupTransfer());
                     if (!started)
