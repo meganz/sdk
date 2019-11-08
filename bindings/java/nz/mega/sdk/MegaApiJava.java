@@ -3276,7 +3276,7 @@ public class MegaApiJava {
     }
 
     /**
-     * @brief Get an attribute of any user in MEGA.
+     * Get an attribute of any user in MEGA.
      *
      * User attributes can be private or public. Private attributes are accessible only by
      * your own user, while public ones are retrievable by any of your contacts.
@@ -3325,8 +3325,7 @@ public class MegaApiJava {
      * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
      * MegaApi::USER_ATTR_STORAGE_STATE = 21
      * Get the state of the storage (private non-encrypted)
-     * MegaApi::USER_ATTR_GEOLOCATION = 22
-     * Get whether the user has enabled send geolocation messages (private)
+     *
      * @param listener MegaRequestListener to track this request
      */
     public void getUserAttribute(String email_or_handle, int type, MegaRequestListenerInterface listener) {
@@ -3334,7 +3333,7 @@ public class MegaApiJava {
     }
 
     /**
-     * @brief Get an attribute of any user in MEGA.
+     * Get an attribute of any user in MEGA.
      *
      * User attributes can be private or public. Private attributes are accessible only by
      * your own user, while public ones are retrievable by any of your contacts.
@@ -3383,8 +3382,7 @@ public class MegaApiJava {
      * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
      * MegaApi::USER_ATTR_STORAGE_STATE = 21
      * Get the state of the storage (private non-encrypted)
-     * MegaApi::USER_ATTR_GEOLOCATION = 22
-     * Get whether the user has enabled send geolocation messages (private)
+     *
      */
     public void getUserAttribute(String email_or_handle, int type) {
     	megaApi.getUserAttribute(email_or_handle, type);
@@ -3441,6 +3439,9 @@ public class MegaApiJava {
      * Get the state of the storage (private non-encrypted)
      * MegaApi::USER_ATTR_GEOLOCATION = 22
      * Get whether the user has enabled send geolocation messages (private)
+     * MegaApi::USER_ATTR_PUSH_SETTINGS = 23
+     * Get the settings for push notifications (private non-encrypted)
+     *
      * @param listener MegaRequestListener to track this request
      */
     public void getUserAttribute(int type, MegaRequestListenerInterface listener) {
@@ -3448,7 +3449,7 @@ public class MegaApiJava {
     }
 
     /**
-     * @brief Get an attribute of the current account.
+     * Get an attribute of the current account.
      *
      * User attributes can be private or public. Private attributes are accessible only by
      * your own user, while public ones are retrievable by any of your contacts.
@@ -3498,6 +3499,9 @@ public class MegaApiJava {
      * Get the state of the storage (private non-encrypted)
      * MegaApi::USER_ATTR_GEOLOCATION = 22
      * Get whether the user has enabled send geolocation messages (private)
+     * MegaApi::USER_ATTR_PUSH_SETTINGS = 23
+     * Get the settings for push notifications (private non-encrypted)
+     *
      */
     public void getUserAttribute(int type) {
         megaApi.getUserAttribute(type);
@@ -4780,6 +4784,112 @@ public class MegaApiJava {
      */
     public void isGeolocationEnabled(MegaRequestListenerInterface listener){
         megaApi.isGeolocationEnabled(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Set My Chat Files target folder.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER
+     *
+     * @param nodehandle MegaHandle of the node to be used as target folder
+     * @param listener MegaRequestListener to track this request
+     */
+    public void setMyChatFilesFolder(long nodehandle, MegaRequestListener listener) {
+        megaApi.setMyChatFilesFolder(nodehandle, listener);
+    }
+
+    /**
+     * Gets My chat files target folder.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNodehandle - Returns the handle of the node where My Chat Files are stored
+     *
+     * If the folder is not set, the request will fail with the error code MegaError::API_ENOENT.
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getMyChatFilesFolder(MegaRequestListener listener){
+        megaApi.getMyChatFilesFolder(listener);
+    }
+
+    /**
+     * Set Camera Uploads primary target folder.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
+     * - MegaRequest::getFlag - Returns false
+     * - MegaRequest::getNodehandle - Returns the provided node handle
+     *
+     * @param nodehandle MegaHandle of the node to be used as primary target folder
+     * @param listener MegaRequestListener to track this request
+     */
+    public void setCameraUploadsFolder(long nodehandle, MegaRequestListener listener){
+        megaApi.setCameraUploadsFolder(nodehandle, listener);
+    }
+
+    /**
+     * Set Camera Uploads secondary target folder.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
+     * - MegaRequest::getFlag - Returns true
+     * - MegaRequest::getNodehandle - Returns the provided node handle
+     *
+     * @param nodehandle MegaHandle of the node to be used as secondary target folder
+     * @param listener MegaRequestListener to track this request
+     */
+
+    public void setCameraUploadsFolderSecondary(long nodehandle, MegaRequestListener listener){
+        megaApi.setCameraUploadsFolderSecondary(nodehandle, listener);
+    }
+
+    /**
+     * Gets Camera Uploads primary target folder.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
+     * - MegaRequest::getFlag - Returns false
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNodehandle - Returns the handle of the primary node where Camera Uploads files are stored
+     *
+     * If the folder is not set, the request will fail with the error code MegaError::API_ENOENT.
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    void getCameraUploadsFolder(MegaRequestListener listener){
+        megaApi.getCameraUploadsFolder(listener);
+    }
+
+    /**
+     * Gets Camera Uploads secondary target folder.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
+     * - MegaRequest::getFlag - Returns true
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNodehandle - Returns the handle of the secondary node where Camera Uploads files are stored
+     *
+     * If the secondary folder is not set, the request will fail with the error code MegaError::API_ENOENT.
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    void getCameraUploadsFolderSecondary(MegaRequestListener listener){
+        megaApi.getCameraUploadsFolderSecondary(listener);
     }
 
     /**
