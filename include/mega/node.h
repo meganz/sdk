@@ -215,10 +215,10 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     node_list children;
 
     // own position in parent's children
-    node_list::iterator child_it{};
+    node_list::iterator child_it;
 
     // own position in fingerprint set (only valid for file nodes)
-    Fingerprints::iterator fingerprint_it{};
+    Fingerprints::iterator fingerprint_it;
 
 #ifdef ENABLE_SYNC
     // related synced item or NULL
@@ -231,11 +231,11 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     syncdel_t syncdeleted = SYNCDEL_NONE;
 
     // location in the todebris node_set
-    node_set::iterator todebris_it{};
+    node_set::iterator todebris_it;
 
     // location in the tounlink node_set
     // FIXME: merge todebris / tounlink
-    node_set::iterator tounlink_it{};
+    node_set::iterator tounlink_it;
 
     // sets whether this node can be synced to the local tree
     void setSyncable(bool syncable);
