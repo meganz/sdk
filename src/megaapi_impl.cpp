@@ -17720,7 +17720,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                     string wFileName = fileName;
                     MegaFilePut *f = new MegaFilePut(client, &wLocalPath, &wFileName, transfer->getParentHandle(), uploadToInbox ? inboxTarget : "", mtime, isSourceTemporary);
                     f->setTransfer(transfer);
-                    bool started = client->startxfer(PUT, f, committer, true, startFirst, transfer->isBackupTransfer());
+                    bool started = client->startxfer(PUT, f, committer, true, startFirst, transfer->isBackupTransfer(), uploadToInbox);
                     if (!started)
                     {
                         transfer->setState(MegaTransfer::STATE_QUEUED);

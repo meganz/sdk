@@ -13436,7 +13436,7 @@ void MegaClient::putnodes_syncdebris_result(error, NewNode* nn)
 // inject file into transfer subsystem
 // if file's fingerprint is not valid, it will be obtained from the local file
 // (PUT) or the file's key (GET)
-bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& committer, bool skipdupes, bool startfirst, bool donotpersist)
+bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& committer, bool skipdupes, bool startfirst, bool donotpersist, bool updateToInbox)
 {
     if (!f->transfer)
     {
@@ -13629,7 +13629,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
             }
         }
 
-        assert(!ISUNDEF(f->h) && (nodebyhandle(f->h) || d == GET)); // target handle for the upload should be known at this time
+        assert(updateToInbox || (!ISUNDEF(f->h) && (nodebyhandle(f->h) || d == GET) )); // target handle for the upload should be known at this time (except for inbox uploads)
     }
 
     return true;
