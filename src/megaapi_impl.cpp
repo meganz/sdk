@@ -17559,7 +17559,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                 const char *inboxTarget = uploadToInbox ? transfer->getParentPath() : nullptr;
 
                 if (!localPath || !fileName || !(*fileName)
-                        || (!inboxTarget && (!parent || parent->type == FILENODE) ) )
+                        || (!uploadToInbox && (!parent || parent->type == FILENODE) ) )
                 {
                     e = API_EARGS;
                     break;
@@ -17662,7 +17662,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                                 tc.nn->ovhandle = client->getovhandle(parent, &sname);
                             }
 
-                            if (inboxTarget)
+                            if (uploadToInbox)
                             {
                                 client->putnodes(inboxTarget, tc.nn, nc);
                             }
@@ -17683,7 +17683,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
 
                     currentTransfer = transfer;                    
                     string wFileName = fileName;
-                    MegaFilePut *f = new MegaFilePut(client, &wLocalPath, &wFileName, transfer->getParentHandle(), inboxTarget ? inboxTarget : "", mtime, isSourceTemporary);
+                    MegaFilePut *f = new MegaFilePut(client, &wLocalPath, &wFileName, transfer->getParentHandle(), uploadToInbox ? inboxTarget : "", mtime, isSourceTemporary);
                     f->setTransfer(transfer);
                     bool started = client->startxfer(PUT, f, committer, true, startFirst, transfer->isBackupTransfer());
                     if (!started)
