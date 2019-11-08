@@ -7941,7 +7941,7 @@ void MegaApiImpl::startTimer( int64_t period, MegaRequestListener *listener)
     waiter->notify();
 }
 
-void MegaApiImpl::startUpload(bool startFirst, const char *localPath, MegaNode *parent, const char *fileName, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, MegaTransferListener *listener)
+void MegaApiImpl::startUpload(bool startFirst, const char *localPath, MegaNode *parent, const char *fileName, const char *targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, MegaTransferListener *listener)
 {
     MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_UPLOAD, listener);
     if(localPath)
@@ -7957,6 +7957,11 @@ void MegaApiImpl::startUpload(bool startFirst, const char *localPath, MegaNode *
     if(parent)
     {
         transfer->setParentHandle(parent->getHandle());
+    }
+
+    if (targetUser)
+    {
+        transfer->setParentPath(targetUser);
     }
 
     transfer->setMaxRetries(maxRetries);
@@ -7984,6 +7989,9 @@ void MegaApiImpl::startUpload(bool startFirst, const char *localPath, MegaNode *
     waiter->notify();
 }
 
+void MegaApiImpl::startUpload(bool startFirst, const char *localPath, MegaNode *parent, const char *fileName, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, MegaTransferListener *listener)
+{ return startUpload(startFirst, localPath, parent, fileName, nullptr, mtime, folderTransferTag, isBackup, appData, isSourceFileTemporary, forceNewUpload, listener); }
+
 void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, MegaTransferListener *listener)
 { return startUpload(false, localPath, parent, (const char *)NULL, -1, 0, false, NULL, false, false, listener); }
 
@@ -7992,6 +8000,11 @@ void MegaApiImpl::startUpload(const char *localPath, MegaNode *parent, int64_t m
 
 void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener)
 { return startUpload(false, localPath, parent, fileName, -1, 0, false, NULL, false, false, listener); }
+
+void MegaApiImpl::startUploadForSupport(const char *localPath, MegaTransferListener *listener)
+{
+    return startUpload(true, localPath, nullptr, nullptr, "supportdrop@mega.nz", -1, 0, false, nullptr, false, false, listener);
+}
 
 void MegaApiImpl::startDownload(bool startFirst, MegaNode *node, const char* localPath, int folderTransferTag, const char *appData, MegaTransferListener *listener)
 {
@@ -17577,7 +17590,11 @@ unsigned MegaApiImpl::sendPendingTransfers()
                 Node *parent = client->nodebyhandle(transfer->getParentHandle());
                 bool startFirst = transfer->shouldStartFirst();
 
-                if (!localPath || !parent || parent->type == FILENODE || !fileName || !(*fileName))
+                bool uploadToInbox = !parent && transfer->getParentPath() && strchr(transfer->getParentPath(), '@');
+                const char *inboxTarget = uploadToInbox ? transfer->getParentPath() : nullptr;
+
+                if (!localPath || !fileName || !(*fileName)
+                        || (!uploadToInbox && (!parent || parent->type == FILENODE) ) )
                 {
                     e = API_EARGS;
                     break;
@@ -17595,6 +17612,14 @@ unsigned MegaApiImpl::sendPendingTransfers()
                 }
 
                 nodetype_t type = fa->type;
+                if (type == FOLDERNODE && uploadToInbox)
+                {
+                    //Folder upload is not possible when sending to Inbox:
+                    //API won't return handle for folder creation, and even if that was the case
+                    //doing a put nodes with t = userhandle & the corresponding handle as parent p, API returns EACCESS
+                    e = API_EREAD;
+                    break;
+                }
                 m_off_t size = fa->size;
                 FileFingerprint fp;
                 if (type == FILENODE)
@@ -17671,7 +17696,15 @@ unsigned MegaApiImpl::sendPendingTransfers()
                             {
                                 tc.nn->ovhandle = client->getovhandle(parent, &sname);
                             }
-                            client->putnodes(parent->nodehandle, tc.nn, nc);
+
+                            if (uploadToInbox)
+                            {
+                                client->putnodes(inboxTarget, tc.nn, nc);
+                            }
+                            else
+                            {
+                                client->putnodes(parent->nodehandle, tc.nn, nc);
+                            }
 
                             transfer->setDeltaSize(size);
                             transfer->setSpeed(0);
@@ -17685,7 +17718,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
 
                     currentTransfer = transfer;                    
                     string wFileName = fileName;
-                    MegaFilePut *f = new MegaFilePut(client, &wLocalPath, &wFileName, transfer->getParentHandle(), "", mtime, isSourceTemporary);
+                    MegaFilePut *f = new MegaFilePut(client, &wLocalPath, &wFileName, transfer->getParentHandle(), uploadToInbox ? inboxTarget : "", mtime, isSourceTemporary);
                     f->setTransfer(transfer);
                     bool started = client->startxfer(PUT, f, committer, true, startFirst, transfer->isBackupTransfer());
                     if (!started)
