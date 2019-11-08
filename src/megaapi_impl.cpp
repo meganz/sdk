@@ -13057,11 +13057,13 @@ void MegaApiImpl::fetchnodes_result(error e)
             // set names silently...
             int creqtag = client->reqtag;
             client->reqtag = 0;
-            if (request->getName())
+            string firstname = request->getName() ? request->getName() : "";
+            if (!firstname.empty())
             {
                 client->putua(ATTR_FIRSTNAME, (const byte*) request->getName(), int(strlen(request->getName())));
             }
-            if (request->getText())
+            string lastname = request->getText() ? request->getText() : "";
+            if (!lastname.empty())
             {
                 client->putua(ATTR_LASTNAME, (const byte*) request->getText(), int(strlen(request->getText())));
             }
@@ -13073,7 +13075,8 @@ void MegaApiImpl::fetchnodes_result(error e)
             {
                 if (client->nsr_enabled)
                 {
-                    string derivedKey = client->sendsignuplink2(request->getEmail(), request->getPassword(), request->getName());
+                    string fullname = firstname + lastname;
+                    string derivedKey = client->sendsignuplink2(request->getEmail(), request->getPassword(), fullname.c_str());
                     string b64derivedKey;
                     Base64::btoa(derivedKey, b64derivedKey);
                     request->setPrivateKey(b64derivedKey.c_str());
