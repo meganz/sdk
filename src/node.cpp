@@ -338,8 +338,8 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     hasLinkCreationTs = MemAccess::get<char>(ptr);
     ptr += sizeof(hasLinkCreationTs);
 
-    const bool syncable = MemAccess::get<bool>(ptr);
-    ptr += sizeof(syncable);
+    const auto syncableInt = MemAccess::get<int8_t>(ptr);
+    ptr += 1;
 
     for (i = 5; i--;)
     {
@@ -373,7 +373,7 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     }
 
     n = new Node(client, dp, h, ph, t, s, u, fa, ts);
-    n->setSyncable(syncable);
+    n->setSyncable(syncableInt);
 
     if (k)
     {
@@ -533,7 +533,8 @@ bool Node::serialize(string* d)
     char hasLinkCreationTs = plink ? 1 : 0;
     d->append((char*)&hasLinkCreationTs, 1);
 
-    d->append((char*)&mSyncable, sizeof(mSyncable));
+    const auto syncableInt = static_cast<int8_t>(mSyncable);
+    d->append((char*)&syncableInt, 1);
 
     d->append("\0\0\0\0", 5); // Use these bytes for extensions
 
@@ -1827,7 +1828,8 @@ bool LocalNode::serialize(string* d)
     d->append((char*)&ll, sizeof ll);
     d->append(localname.data(), ll);
 
-    d->append((char*)&syncable, sizeof(syncable));
+    const auto syncableInt = static_cast<int8_t>(syncable);
+    d->append((char*)&syncableInt, 1);
 
     d->append("\0\0\0\0\0\0", 7); // Use these bytes for extensions
 
@@ -1902,11 +1904,11 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     const char* localname = ptr;
     ptr += localnamelen;
 
-    bool syncable = true;
+    int8_t syncableInt = 1;
     if (hasExtensionBytes)
     {
-        syncable = MemAccess::get<bool>(ptr);
-        ptr += sizeof(syncable);
+        syncableInt = MemAccess::get<int8_t>(ptr);
+        ptr += 1;
 
         for (int i = 7; i--;)
         {
@@ -1966,7 +1968,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     l->node = sync->client->nodebyhandle(h);
     l->parent = nullptr;
     l->sync = sync;
-    l->syncable = syncable;
+    l->syncable = syncableInt;
 
     // FIXME: serialize/unserialize
     l->created = false;
