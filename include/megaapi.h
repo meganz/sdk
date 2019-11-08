@@ -7834,7 +7834,7 @@ class MegaApi
          * The associated request type with this request is MegaRequest::TYPE_SEND_SIGNUP_LINK.
          *
          * @param email Email for the account
-         * @param name Fullname of the user (firstname + fullname)
+         * @param name Fullname of the user (firstname + lastname)
          * @param password Password for the account
          * @param listener MegaRequestListener to track this request
          */
@@ -7847,7 +7847,7 @@ class MegaApi
          * email address, in case the user mistyped the email at the registration form.
          *
          * @param email Email for the account
-         * @param name Fullname of the user (firstname + fullname)
+         * @param name Fullname of the user (firstname + lastname)
          * @param base64pwkey Private key returned by MegaRequest::getPrivateKey in the onRequestFinish callback of createAccount
          * @param listener MegaRequestListener to track this request
          *
