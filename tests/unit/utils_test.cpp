@@ -27,5 +27,5 @@ TEST(utils, hashCombine_integer)
 {
     size_t hash = 0;
     mega::hashCombine(hash, 42);
-    ASSERT_EQ(sizeof(hash) == 4 ? 286246808u : 2654435811u, hash);
+    ASSERT_EQ(sizeof(hash) == 4 ? 286246808u : 10203658983813110072u, hash);
 }

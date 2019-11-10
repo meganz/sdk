@@ -104,22 +104,24 @@ std::shared_ptr<mega::MegaClient> makeClient(mega::MegaApp& app, mega::FileSyste
 
 mega::Node& makeNode(mega::MegaClient& client, const mega::nodetype_t type, const mega::handle handle, mega::Node* const parent)
 {
-    auto n = new mega::Node; // owned by the client
-    n->type = type;
-    n->client = &client;
-    n->todebris_it = client.todebris.end();
-    n->tounlink_it = client.tounlink.end();
-    client.mFingerprints.add(n);
-    n->nodehandle = handle;
+    ::mega::node_vector dp;
+    assert(client.nodes.find(handle) == client.nodes.end());
+    auto n = new mega::Node(&client, &dp, handle, parent ? parent->nodehandle : ::mega::UNDEF, type, -1, client.me, "\",", 0); // owned by the client
+    assert(client.nodes.find(n->nodehandle) != client.nodes.end());
+    assert(n->type == type);
+    assert(n->client == &client);
+    assert(n->todebris_it == client.todebris.end());
+    assert(n->tounlink_it == client.tounlink.end());
+    //client.mFingerprints.add(n);
+    assert(n->nodehandle == handle);
     if (parent)
     {
-        n->parenthandle = parent->nodehandle;
-        parent->children.push_front(n);
-        n->child_it = parent->children.begin();
-        n->parent = parent;
+        assert(n->parenthandle == parent->nodehandle);
+    //    parent->children.push_front(n);
+    //    n->child_it = parent->children.begin();
+        assert(n->parent == parent);
     }
-    assert(client.nodes.find(n->nodehandle) == client.nodes.end());
-    client.nodes[n->nodehandle] = n;
+    assert(client.nodes[n->nodehandle] == n);
     n->setkey(reinterpret_cast<const mega::byte*>(std::string((type == mega::FILENODE) ? mega::FILENODEKEYLENGTH : mega::FOLDERNODEKEYLENGTH, 'X').c_str()));
     return *n;
 }

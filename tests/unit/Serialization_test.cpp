@@ -435,7 +435,7 @@ void checkDeserializedNode(const mega::Node& dl, const mega::Node& ref, bool ign
 TEST(Serialization, Node_whenNodeIsEncrypted)
 {
     MockClient client;
-    mega::Node n;
+    auto& n = mt::makeNode(*client.cli, mega::TYPE_UNKNOWN, 42);
     n.client = client.cli.get();
     client.cli->mFingerprints.add(&n);
     n.todebris_it = client.cli->todebris.end();
