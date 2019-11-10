@@ -435,11 +435,7 @@ void checkDeserializedNode(const mega::Node& dl, const mega::Node& ref, bool ign
 TEST(Serialization, Node_whenNodeIsEncrypted)
 {
     MockClient client;
-    mega::Node n;
-    n.client = client.cli.get();
-    client.cli->mFingerprints.add(&n);
-    n.todebris_it = client.cli->todebris.end();
-    n.tounlink_it = client.cli->tounlink.end();
+    auto& n = mt::makeNode(*client.cli, mega::FILENODE, 42);
     n.attrstring = new std::string; // owned by Node
     std::string data;
     ASSERT_FALSE(n.serialize(&data));

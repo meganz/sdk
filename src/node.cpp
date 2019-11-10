@@ -48,15 +48,9 @@ NewNode::~NewNode()
     delete fileattributes;
 }
 
-Node::Node()
-{
-    memset(&changed, -1, sizeof(changed));
-    changed.removed = false;
-}
 
 Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
            nodetype_t t, m_off_t s, handle u, const char* fa, m_time_t ts)
-: Node{}
 {
     client = cclient;
     outshares = NULL;
@@ -92,6 +86,9 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
     foreignkey = false;
 
     plink = NULL;
+
+    memset(&changed,-1,sizeof changed);
+    changed.removed = false;
 
     Node* p;
 
