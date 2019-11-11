@@ -90,37 +90,34 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
     memset(&changed,-1,sizeof changed);
     changed.removed = false;
 
-    if (client)
+    Node* p;
+
+    client->nodes[h] = this;
+
+    // folder link access: first returned record defines root node and
+    // identity
+    if (ISUNDEF(*client->rootnodes))
     {
-        Node* p;
-
-        client->nodes[h] = this;
-
-        // folder link access: first returned record defines root node and
-        // identity
-        if (ISUNDEF(*client->rootnodes))
-        {
-            *client->rootnodes = h;
-        }
-
-        if (t >= ROOTNODE && t <= RUBBISHNODE)
-        {
-            client->rootnodes[t - ROOTNODE] = h;
-        }
-
-        // set parent linkage or queue for delayed parent linkage in case of
-        // out-of-order delivery
-        if ((p = client->nodebyhandle(ph)))
-        {
-            setparent(p);
-        }
-        else
-        {
-            dp->push_back(this);
-        }
-
-        client->mFingerprints.newnode(this);
+        *client->rootnodes = h;
     }
+
+    if (t >= ROOTNODE && t <= RUBBISHNODE)
+    {
+        client->rootnodes[t - ROOTNODE] = h;
+    }
+
+    // set parent linkage or queue for delayed parent linkage in case of
+    // out-of-order delivery
+    if ((p = client->nodebyhandle(ph)))
+    {
+        setparent(p);
+    }
+    else
+    {
+        dp->push_back(this);
+    }
+
+    client->mFingerprints.newnode(this);
 }
 
 Node::~Node()
@@ -238,7 +235,7 @@ void Node::setkey(const byte* newkey)
 
 // parse serialized node and return Node object - updates nodes hash and parent
 // mismatch vector
-Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
+Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
 {
     handle h, ph;
     nodetype_t t;
@@ -338,7 +335,18 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     hasLinkCreationTs = MemAccess::get<char>(ptr);
     ptr += sizeof(hasLinkCreationTs);
 
-    for (i = 6; i--;)
+    int8_t syncableInt = 1;
+
+    const bool hasSyncableInt = (unsigned char)*ptr == sizeof(syncableInt);
+    ptr += 1;
+
+    if (hasSyncableInt)
+    {
+        syncableInt = MemAccess::get<int8_t>(ptr);
+        ptr += sizeof(syncableInt);
+    }
+
+    for (i = 5; i--;)
     {
         if (ptr + (unsigned char)*ptr < end)
         {
@@ -370,6 +378,7 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     }
 
     n = new Node(client, dp, h, ph, t, s, u, fa, ts);
+    n->setSyncable(syncableInt == 1);
 
     if (k)
     {
@@ -518,7 +527,7 @@ bool Node::serialize(string* d)
 
     if (type == FILENODE)
     {
-        ll = (short)fileattrstring.size() + 1;
+        ll = static_cast<unsigned short>(fileattrstring.size() + 1);
         d->append((char*)&ll, sizeof ll);
         d->append(fileattrstring.c_str(), ll);
     }
@@ -529,7 +538,12 @@ bool Node::serialize(string* d)
     char hasLinkCreationTs = plink ? 1 : 0;
     d->append((char*)&hasLinkCreationTs, 1);
 
-    d->append("\0\0\0\0\0", 6);
+    const int8_t syncableInt = mSyncable ? 1 : 0;
+    const int8_t syncableIntByteCount = sizeof(syncableInt);
+    d->append((char*)&syncableIntByteCount, 1);
+    d->append((char*)&syncableInt, syncableIntByteCount);
+
+    d->append("\0\0\0\0", 5); // Use these bytes for extensions
 
     if (inshare)
     {
@@ -1077,6 +1091,18 @@ Node* Node::firstancestor()
     }
     return n;
 }
+
+#ifdef ENABLE_SYNC
+void Node::setSyncable(const bool syncable)
+{
+    mSyncable = syncable;
+}
+
+bool Node::isSyncable() const
+{
+    return mSyncable;
+}
+#endif
 
 // returns 1 if n is under p, 0 otherwise
 bool Node::isbelow(Node* p) const
@@ -1809,10 +1835,17 @@ bool LocalNode::serialize(string* d)
         d->append((const char*)buf, Serialize64::serialize(buf, mtime));
     }
 
+    const int8_t syncableInt = syncable ? 1 : 0;
+    const int8_t syncableIntByteCount = sizeof(syncableInt);
+    d->append((char*)&syncableIntByteCount, 1);
+    d->append((char*)&syncableInt, syncableIntByteCount);
+
+    d->append("\0\0\0\0\0\0", 7); // Use these bytes for extensions
+
     return true;
 }
 
-LocalNode* LocalNode::unserialize(Sync* sync, string* d)
+LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
 {
     if (d->size() < sizeof(m_off_t)         // type/size combo
                   + sizeof(handle)          // fsid
@@ -1878,12 +1911,41 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
         memcpy(crc, ptr, sizeof crc);
         ptr += sizeof crc;
 
-        if (Serialize64::unserialize((byte*)ptr, static_cast<int>(end - ptr), &mtime) < 0)
+        int mtimeSize;
+        if ((mtimeSize = Serialize64::unserialize((byte*)ptr, static_cast<int>(end - ptr), &mtime)) < 0)
         {
             LOG_err << "LocalNode unserialization failed - malformed fingerprint mtime";
             return NULL;
         }
+        else
+        {
+            ptr += mtimeSize;
+        }
     }
+
+    int8_t syncableInt = 1;
+    if (ptr < end)
+    {
+        const bool hasSyncableInt = (unsigned char)*ptr == sizeof(syncableInt);
+        ptr += 1;
+
+        if (hasSyncableInt)
+        {
+            syncableInt = MemAccess::get<int8_t>(ptr);
+            ptr += sizeof(syncableInt);
+        }
+
+        // skip extension bytes
+        for (int i = 7; i--;)
+        {
+            if (ptr + (unsigned char)*ptr < end)
+            {
+                ptr += (unsigned char)*ptr + 1;
+            }
+        }
+    }
+
+    assert(ptr == end);
 
     LocalNode* l = new LocalNode();
 
@@ -1895,22 +1957,23 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
     l->fsid = fsid;
 
     l->localname.assign(localname, localnamelen);
-    l->slocalname = NULL;
+    l->slocalname = nullptr;
     l->name.assign(localname, localnamelen);
     sync->client->fsaccess->local2name(&l->name);
 
     memcpy(l->crc.data(), crc, sizeof crc);
     l->mtime = mtime;
-    l->isvalid = 1;
+    l->isvalid = true;
 
     l->node = sync->client->nodebyhandle(h);
-    l->parent = NULL;
+    l->parent = nullptr;
     l->sync = sync;
+    l->syncable = syncableInt == 1;
 
     // FIXME: serialize/unserialize
     l->created = false;
     l->reported = false;
-    l->checked = h != UNDEF;
+    l->checked = h != UNDEF; // TODO: Is this a bug? h will never be UNDEF
 
     return l;
 }
