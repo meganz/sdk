@@ -292,7 +292,15 @@ public:
 #endif
     {
 #ifdef ENABLE_LOG_PERFORMANCE
-        logValue(filename);
+        const char * actualFileName = strrchr(filename, '/'); //The project part of the path uses `/` for Windows too.
+        if (actualFileName)
+        {
+            logValue(actualFileName+1);
+        }
+        else
+        {
+            logValue(filename);
+        }
         copyToBuffer(":", 1);
         logValue(line);
         copyToBuffer(" ", 1);
