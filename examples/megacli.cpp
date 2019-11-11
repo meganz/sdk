@@ -5933,7 +5933,7 @@ void exec_locallogout(autocomplete::ACState& s)
     cout << "Logging off locally..." << endl;
 
     cwd = UNDEF;
-    client->locallogout();
+    client->locallogout(false);
 }
 
 void exec_recentnodes(autocomplete::ACState& s)
@@ -6025,7 +6025,7 @@ void DemoApp::request_error(error e)
     if ((e == API_ESID) || (e == API_ENOENT))   // Invalid session or Invalid folder handle
     {
         cout << "Invalid or expired session, logging out..." << endl;
-        client->locallogout();
+        client->locallogout(false);
         return;
     }
     else if (e == API_EBLOCKED)
@@ -6449,7 +6449,7 @@ void DemoApp::whyamiblocked_result(int code)
         if (code != 500)
         {
             cout << "Logging out..." << endl;
-            client->locallogout();
+            client->locallogout(false);
         }
     }
 }

@@ -3552,6 +3552,10 @@ void CommandPubKeyRequest::procresult()
                     if (!ISUNDEF(uh))
                     {
                         client->mapuser(uh, u->email.c_str());
+                        if (u->isTemporary && u->uid == u->email) //update uid with the received USERHANDLE (will be used as target for putnodes)
+                        {
+                            u->uid = Base64Str<MegaClient::USERHANDLE>(uh);
+                        }
                     }
 
                     if (client->fetchingkeys && u->userhandle == client->me && len_pubk)

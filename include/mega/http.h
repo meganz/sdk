@@ -25,6 +25,7 @@
 #include "types.h"
 #include "waiter.h"
 #include "backofftimer.h"
+#include "utils.h"
 
 #ifndef _WIN32
 #include <sys/types.h>
