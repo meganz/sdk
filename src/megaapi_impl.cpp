@@ -3836,6 +3836,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_VERIFY_CREDENTIALS: return "VERIFY_CREDENTIALS";
         case TYPE_GET_MISC_FLAGS: return "GET_MISC_FLAGS";
         case TYPE_RESEND_VERIFICATION_EMAIL: return "RESEND_VERIFICATION_EMAIL";
+        case TYPE_SUPPORT_TICKET: return "SUPPORT_TICKET";
     }
     return "UNKNOWN";
 }
@@ -6986,6 +6987,15 @@ void MegaApiImpl::sendEvent(int eventType, const char *message, MegaRequestListe
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SEND_EVENT, listener);
     request->setNumber(eventType);
+    request->setText(message);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::createSupportTicket(const char *message, int type, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SUPPORT_TICKET, listener);
+    request->setParamType(type);
     request->setText(message);
     requestQueue.push(request);
     waiter->notify();
@@ -13596,6 +13606,15 @@ void MegaApiImpl::sendevent_result(error e)
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_SEND_EVENT)) return;
+
+    fireOnRequestFinish(request, MegaError(e));
+}
+
+void MegaApiImpl::supportticket_result(error e)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_SUPPORT_TICKET)) return;
 
     fireOnRequestFinish(request, MegaError(e));
 }
@@ -20707,6 +20726,20 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             client->sendevent(number, text);
+            break;
+        }
+        case MegaRequest::TYPE_SUPPORT_TICKET:
+        {
+            int type = request->getParamType();
+            const char *message = request->getText();
+
+            if (type != 1 || !message)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            client->supportticket(message, type);
             break;
         }
         case MegaRequest::TYPE_GET_USER_DATA:

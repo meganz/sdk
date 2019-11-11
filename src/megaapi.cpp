@@ -2687,6 +2687,11 @@ void MegaApi::sendEvent(int eventType, const char *message, MegaRequestListener 
     pImpl->sendEvent(eventType, message, listener);
 }
 
+void MegaApi::createSupportTicket(const char *message, int type, MegaRequestListener *listener)
+{
+    pImpl->createSupportTicket(message, type, listener);
+}
+
 void MegaApi::reportDebugEvent(const char *text, MegaRequestListener *listener)
 {
     pImpl->reportEvent(text, listener);
