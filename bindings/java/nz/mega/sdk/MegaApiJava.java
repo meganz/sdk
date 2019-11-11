@@ -3214,6 +3214,9 @@ public class MegaApiJava {
      * Get the state of the storage (private non-encrypted)
      * MegaApi::USER_ATTR_GEOLOCATION = 22
      * Get whether the user has enabled send geolocation messages (private)
+     * MegaApi::USER_ATTR_PUSH_SETTINGS = 23
+     * Get the settings for push notifications (private non-encrypted)
+     *
      * @param listener MegaRequestListener to track this request
      */
     public void getUserAttribute(MegaUser user, int type, MegaRequestListenerInterface listener) {
@@ -3273,6 +3276,8 @@ public class MegaApiJava {
      * Get the state of the storage (private non-encrypted)
      * MegaApi::USER_ATTR_GEOLOCATION = 22
      * Get whether the user has enabled send geolocation messages (private)
+     * MegaApi::USER_ATTR_PUSH_SETTINGS = 23
+     * Get the settings for push notifications (private non-encrypted)
      */
     public void getUserAttribute(MegaUser user, int type) {
         megaApi.getUserAttribute(user, type);
@@ -3328,6 +3333,10 @@ public class MegaApiJava {
      * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
      * MegaApi::USER_ATTR_STORAGE_STATE = 21
      * Get the state of the storage (private non-encrypted)
+     * MegaApi::USER_ATTR_GEOLOCATION = 22
+     * Get whether the user has enabled send geolocation messages (private)
+     * MegaApi::USER_ATTR_PUSH_SETTINGS = 23
+     * Get the settings for push notifications (private non-encrypted)
      *
      * @param listener MegaRequestListener to track this request
      */
@@ -3385,6 +3394,10 @@ public class MegaApiJava {
      * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
      * MegaApi::USER_ATTR_STORAGE_STATE = 21
      * Get the state of the storage (private non-encrypted)
+     * MegaApi::USER_ATTR_GEOLOCATION = 22
+     * Get whether the user has enabled send geolocation messages (private)
+     * MegaApi::USER_ATTR_PUSH_SETTINGS = 23
+     * Get the settings for push notifications (private non-encrypted)
      *
      */
     public void getUserAttribute(String email_or_handle, int type) {
