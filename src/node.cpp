@@ -336,12 +336,15 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
     ptr += sizeof(hasLinkCreationTs);
 
     int8_t syncableInt = 1;
-    if ((unsigned char)*ptr == 1) // 1 byte means syncable flag is present
-    {
-        ptr += 1;
-        syncableInt = MemAccess::get<int8_t>(ptr);
-    }
+
+    const bool hasSyncableInt = (unsigned char)*ptr == sizeof(syncableInt);
     ptr += 1;
+
+    if (hasSyncableInt)
+    {
+        syncableInt = MemAccess::get<int8_t>(ptr);
+        ptr += sizeof(syncableInt);
+    }
 
     for (i = 5; i--;)
     {
@@ -535,10 +538,10 @@ bool Node::serialize(string* d)
     char hasLinkCreationTs = plink ? 1 : 0;
     d->append((char*)&hasLinkCreationTs, 1);
 
-    const int8_t syncableIntByteCount = 1;
-    d->append((char*)&syncableIntByteCount, 1);
     const int8_t syncableInt = mSyncable ? 1 : 0;
-    d->append((char*)&syncableInt, 1);
+    const int8_t syncableIntByteCount = sizeof(syncableInt);
+    d->append((char*)&syncableIntByteCount, 1);
+    d->append((char*)&syncableInt, syncableIntByteCount);
 
     d->append("\0\0\0\0", 5); // Use these bytes for extensions
 
@@ -1832,10 +1835,10 @@ bool LocalNode::serialize(string* d)
     d->append((char*)&ll, sizeof ll);
     d->append(localname.data(), ll);
 
-    const int8_t syncableIntByteCount = 1;
-    d->append((char*)&syncableIntByteCount, 1);
     const int8_t syncableInt = syncable ? 1 : 0;
-    d->append((char*)&syncableInt, 1);
+    const int8_t syncableIntByteCount = sizeof(syncableInt);
+    d->append((char*)&syncableIntByteCount, 1);
+    d->append((char*)&syncableInt, syncableIntByteCount);
 
     d->append("\0\0\0\0\0\0", 7); // Use these bytes for extensions
 
@@ -1913,12 +1916,14 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     int8_t syncableInt = 1;
     if (hasExtensionBytes)
     {
-        if ((unsigned char)*ptr == 1) // 1 byte means syncable flag is present
-        {
-            ptr += 1;
-            syncableInt = MemAccess::get<int8_t>(ptr);
-        }
+        const bool hasSyncableInt = (unsigned char)*ptr == sizeof(syncableInt);
         ptr += 1;
+
+        if (hasSyncableInt)
+        {
+            syncableInt = MemAccess::get<int8_t>(ptr);
+            ptr += sizeof(syncableInt);
+        }
 
         for (int i = 7; i--;)
         {
