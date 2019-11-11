@@ -526,10 +526,7 @@ public:
     void logout();
 
     // free all state information
-    void locallogout();
-
-    // remove caches
-    void removecaches();
+    void locallogout(bool removecaches);
 
     // SDK version
     const char* version();
@@ -600,6 +597,9 @@ public:
     // send event
     void sendevent(int, const char *);
     void sendevent(int, const char *, int tag);
+
+    // create support ticket
+    void supportticket(const char *message, int type);
 
     // clean rubbish bin
     void cleanrubbishbin();
@@ -882,6 +882,9 @@ private:
     void sc_ub();
 
     void init();
+
+    // remove caches
+    void removeCaches();
 
     // add node to vector and return index
     unsigned addnode(node_vector*, Node*) const;

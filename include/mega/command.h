@@ -758,6 +758,14 @@ public:
     CommandSendEvent(MegaClient*, int, const char *);
 };
 
+class MEGA_API CommandSupportTicket : public Command
+{
+public:
+    void procresult();
+
+    CommandSupportTicket(MegaClient*, const char *message, int type = 1);   // by default, 1:technical_issue
+};
+
 class MEGA_API CommandCleanRubbishBin : public Command
 {
 public:
