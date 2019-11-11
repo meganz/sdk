@@ -97,6 +97,9 @@ public class MegaApiJava {
     public final static int USER_ATTR_STORAGE_STATE = MegaApi.USER_ATTR_STORAGE_STATE;
     public final static int USER_ATTR_GEOLOCATION = MegaApi.USER_ATTR_GEOLOCATION;
     public final static int USER_ATTR_CAMERA_UPLOADS_FOLDER = MegaApi.USER_ATTR_CAMERA_UPLOADS_FOLDER;
+    public final static int USER_ATTR_MY_CHAT_FILES_FOLDER = MegaApi.USER_ATTR_MY_CHAT_FILES_FOLDER;
+    public final static int USER_ATTR_PUSH_SETTINGS = MegaApi.USER_ATTR_PUSH_SETTINGS;
+    public final static int USER_ATTR_ALIAS = MegaApi.USER_ATTR_ALIAS;
 
     public final static int NODE_ATTR_DURATION = MegaApi.NODE_ATTR_DURATION;
     public final static int NODE_ATTR_COORDINATES = MegaApi.NODE_ATTR_COORDINATES;
@@ -4796,8 +4799,8 @@ public class MegaApiJava {
      * @param nodehandle MegaHandle of the node to be used as target folder
      * @param listener MegaRequestListener to track this request
      */
-    public void setMyChatFilesFolder(long nodehandle, MegaRequestListener listener) {
-        megaApi.setMyChatFilesFolder(nodehandle, listener);
+    public void setMyChatFilesFolder(long nodehandle, MegaRequestListenerInterface listener) {
+        megaApi.setMyChatFilesFolder(nodehandle, createDelegateRequestListener(listener));
     }
 
     /**
@@ -4815,8 +4818,8 @@ public class MegaApiJava {
      *
      * @param listener MegaRequestListener to track this request
      */
-    public void getMyChatFilesFolder(MegaRequestListener listener){
-        megaApi.getMyChatFilesFolder(listener);
+    public void getMyChatFilesFolder(MegaRequestListenerInterface listener){
+        megaApi.getMyChatFilesFolder(createDelegateRequestListener(listener));
     }
 
     /**
@@ -4831,8 +4834,8 @@ public class MegaApiJava {
      * @param nodehandle MegaHandle of the node to be used as primary target folder
      * @param listener MegaRequestListener to track this request
      */
-    public void setCameraUploadsFolder(long nodehandle, MegaRequestListener listener){
-        megaApi.setCameraUploadsFolder(nodehandle, listener);
+    public void setCameraUploadsFolder(long nodehandle, MegaRequestListenerInterface listener){
+        megaApi.setCameraUploadsFolder(nodehandle, createDelegateRequestListener(listener));
     }
 
     /**
@@ -4848,8 +4851,8 @@ public class MegaApiJava {
      * @param listener MegaRequestListener to track this request
      */
 
-    public void setCameraUploadsFolderSecondary(long nodehandle, MegaRequestListener listener){
-        megaApi.setCameraUploadsFolderSecondary(nodehandle, listener);
+    public void setCameraUploadsFolderSecondary(long nodehandle, MegaRequestListenerInterface listener){
+        megaApi.setCameraUploadsFolderSecondary(nodehandle, createDelegateRequestListener(listener));
     }
 
     /**
@@ -4868,8 +4871,8 @@ public class MegaApiJava {
      *
      * @param listener MegaRequestListener to track this request
      */
-    void getCameraUploadsFolder(MegaRequestListener listener){
-        megaApi.getCameraUploadsFolder(listener);
+    void getCameraUploadsFolder(MegaRequestListenerInterface listener){
+        megaApi.getCameraUploadsFolder(createDelegateRequestListener(listener));
     }
 
     /**
@@ -4888,8 +4891,8 @@ public class MegaApiJava {
      *
      * @param listener MegaRequestListener to track this request
      */
-    void getCameraUploadsFolderSecondary(MegaRequestListener listener){
-        megaApi.getCameraUploadsFolderSecondary(listener);
+    void getCameraUploadsFolderSecondary(MegaRequestListenerInterface listener){
+        megaApi.getCameraUploadsFolderSecondary(createDelegateRequestListener(listener));
     }
 
     /**
@@ -8910,73 +8913,5 @@ public class MegaApiJava {
      */
     public void cancelCreateAccount(MegaRequestListenerInterface listener){
         megaApi.cancelCreateAccount(createDelegateRequestListener(listener));
-    }
-
-    /**
-     * @param nodehandle MegaHandle of the node to be used as primary target folder
-     * @param listener   MegaRequestListener to track this request
-     * @brief Set Camera Uploads primary target folder.
-     * <p>
-     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
-     * Valid data in the MegaRequest object received on callbacks:
-     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
-     * - MegaRequest::getFlag - Returns false
-     * - MegaRequest::getNodehandle - Returns the provided node handle
-     */
-    public void setCameraUploadsFolder(long nodehandle, MegaRequestListenerInterface listener) {
-        megaApi.setCameraUploadsFolder(nodehandle, createDelegateRequestListener(listener));
-    }
-
-    /**
-     * @param nodehandle MegaHandle of the node to be used as secondary target folder
-     * @param listener   MegaRequestListener to track this request
-     * @brief Set Camera Uploads secondary target folder.
-     * <p>
-     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
-     * Valid data in the MegaRequest object received on callbacks:
-     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
-     * - MegaRequest::getFlag - Returns true
-     * - MegaRequest::getNodehandle - Returns the provided node handle
-     */
-    public void setCameraUploadsFolderSecondary(long nodehandle, MegaRequestListenerInterface listener) {
-        megaApi.setCameraUploadsFolderSecondary(nodehandle, createDelegateRequestListener(listener));
-    }
-
-    /**
-     * @param listener MegaRequestListener to track this request
-     * @brief Gets Camera Uploads primary target folder.
-     * <p>
-     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
-     * Valid data in the MegaRequest object received on callbacks:
-     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
-     * - MegaRequest::getFlag - Returns false
-     * <p>
-     * Valid data in the MegaRequest object received in onRequestFinish when the error code
-     * is MegaError::API_OK:
-     * - MegaRequest::getNodehandle - Returns the handle of the primary node where Camera Uploads files are stored
-     * <p>
-     * If the folder is not set, the request will fail with the error code MegaError::API_ENOENT.
-     */
-    public void getCameraUploadsFolder(MegaRequestListenerInterface listener) {
-        megaApi.getCameraUploadsFolder(createDelegateRequestListener(listener));
-    }
-
-    /**
-     * @param listener MegaRequestListener to track this request
-     * @brief Gets Camera Uploads secondary target folder.
-     * <p>
-     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
-     * Valid data in the MegaRequest object received on callbacks:
-     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
-     * - MegaRequest::getFlag - Returns true
-     * <p>
-     * Valid data in the MegaRequest object received in onRequestFinish when the error code
-     * is MegaError::API_OK:
-     * - MegaRequest::getNodehandle - Returns the handle of the secondary node where Camera Uploads files are stored
-     * <p>
-     * If the secondary folder is not set, the request will fail with the error code MegaError::API_ENOENT.
-     */
-    public void getCameraUploadsFolderSecondary(MegaRequestListenerInterface listener) {
-        megaApi.getCameraUploadsFolderSecondary(createDelegateRequestListener(listener));
     }
 }
