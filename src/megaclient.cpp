@@ -9032,7 +9032,7 @@ void MegaClient::putua(userattr_map *attrs, int ctag)
 
     for (userattr_map::iterator it = attrs->begin(); it != attrs->end(); it++)
     {
-        attr_t type = it->first;;
+        attr_t type = it->first;
 
         if (User::needversioning(type) != 1)
         {

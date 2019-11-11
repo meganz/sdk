@@ -33,5 +33,5 @@ bool DelegateMEGATreeProcessorListener::processMegaNode(MegaNode *node) {
         return [listener processMEGANode:[[MEGANode alloc] initWithMegaNode:node cMemoryOwn:NO]];
     }
     
-    return false;;
+    return false;
 }

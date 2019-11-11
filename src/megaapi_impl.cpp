@@ -16405,7 +16405,7 @@ int naturalsorting_compare (const char *i, const char *j)
             while ( (char_i = *i) && (char_j = *j) )
             {
                 bool char_i_isDigit = isDigit(i);
-                bool char_j_isDigit = isDigit(j);;
+                bool char_j_isDigit = isDigit(j);
 
                 if (char_i_isDigit && char_j_isDigit)
                 {
@@ -23581,7 +23581,7 @@ MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, int fo
     }
     else
     {
-        this->state = MegaBackup::BACKUP_FAILED;;
+        this->state = MegaBackup::BACKUP_FAILED;
     }
 }
 
