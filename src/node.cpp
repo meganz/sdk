@@ -1798,13 +1798,6 @@ void LocalNode::completed(Transfer* t, LocalNode*)
     File::completed(t, this);
 }
 
-namespace {
-
-// Need this to read old caches that don't have extension bytes
-constexpr m_off_t LOCALNODE_EXTENSION_BYTES_FLAG = -1000;
-
-}
-
 // serialize/unserialize the following LocalNode properties:
 // - type/size
 // - fsid
@@ -1814,8 +1807,6 @@ constexpr m_off_t LOCALNODE_EXTENSION_BYTES_FLAG = -1000;
 // - fingerprint crc/mtime (filenodes only)
 bool LocalNode::serialize(string* d)
 {
-    d->append((const char*)&LOCALNODE_EXTENSION_BYTES_FLAG, sizeof(LOCALNODE_EXTENSION_BYTES_FLAG));
-
     m_off_t s = type ? -type : size;
 
     d->append((const char*)&s, sizeof s);
@@ -1835,13 +1826,6 @@ bool LocalNode::serialize(string* d)
     d->append((char*)&ll, sizeof ll);
     d->append(localname.data(), ll);
 
-    const int8_t syncableInt = syncable ? 1 : 0;
-    const int8_t syncableIntByteCount = sizeof(syncableInt);
-    d->append((char*)&syncableIntByteCount, 1);
-    d->append((char*)&syncableInt, syncableIntByteCount);
-
-    d->append("\0\0\0\0\0\0", 7); // Use these bytes for extensions
-
     if (type == FILENODE)
     {
         d->append((const char*)crc.data(), sizeof crc);
@@ -1850,6 +1834,13 @@ bool LocalNode::serialize(string* d)
 
         d->append((const char*)buf, Serialize64::serialize(buf, mtime));
     }
+
+    const int8_t syncableInt = syncable ? 1 : 0;
+    const int8_t syncableIntByteCount = sizeof(syncableInt);
+    d->append((char*)&syncableIntByteCount, 1);
+    d->append((char*)&syncableInt, syncableIntByteCount);
+
+    d->append("\0\0\0\0\0\0", 7); // Use these bytes for extensions
 
     return true;
 }
@@ -1872,13 +1863,6 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     nodetype_t type;
     m_off_t size = MemAccess::get<m_off_t>(ptr);
     ptr += sizeof(m_off_t);
-
-    const bool hasExtensionBytes = size == LOCALNODE_EXTENSION_BYTES_FLAG;
-    if (hasExtensionBytes)
-    {
-        size = MemAccess::get<m_off_t>(ptr);
-        ptr += sizeof(m_off_t);
-    }
 
     if (size < 0 && size >= -FOLDERNODE)
     {
@@ -1912,28 +1896,6 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
 
     const char* localname = ptr;
     ptr += localnamelen;
-
-    int8_t syncableInt = 1;
-    if (hasExtensionBytes)
-    {
-        const bool hasSyncableInt = (unsigned char)*ptr == sizeof(syncableInt);
-        ptr += 1;
-
-        if (hasSyncableInt)
-        {
-            syncableInt = MemAccess::get<int8_t>(ptr);
-            ptr += sizeof(syncableInt);
-        }
-
-        for (int i = 7; i--;)
-        {
-            if (ptr + (unsigned char)*ptr < end)
-            {
-                ptr += (unsigned char)*ptr + 1;
-            }
-        }
-    }
-
     uint64_t mtime = 0;
     int32_t crc[4];
     memset(crc, 0, sizeof crc);
@@ -1949,18 +1911,41 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
         memcpy(crc, ptr, sizeof crc);
         ptr += sizeof crc;
 
-        auto mtimeSize = static_cast<int>(end - ptr);
-        if ((mtimeSize = Serialize64::unserialize((byte*)ptr, mtimeSize, &mtime)) < 0)
+        int mtimeSize;
+        if ((mtimeSize = Serialize64::unserialize((byte*)ptr, static_cast<int>(end - ptr), &mtime)) < 0)
         {
             LOG_err << "LocalNode unserialization failed - malformed fingerprint mtime";
             return NULL;
         }
-        assert(ptr + mtimeSize == end);
+        else
+        {
+            ptr += mtimeSize;
+        }
     }
-    else
+
+    int8_t syncableInt = 1;
+    if (ptr < end)
     {
-        assert(ptr == end);
+        const bool hasSyncableInt = (unsigned char)*ptr == sizeof(syncableInt);
+        ptr += 1;
+
+        if (hasSyncableInt)
+        {
+            syncableInt = MemAccess::get<int8_t>(ptr);
+            ptr += sizeof(syncableInt);
+        }
+
+        // skip extension bytes
+        for (int i = 7; i--;)
+        {
+            if (ptr + (unsigned char)*ptr < end)
+            {
+                ptr += (unsigned char)*ptr + 1;
+            }
+        }
     }
+
+    assert(ptr == end);
 
     LocalNode* l = new LocalNode();
 

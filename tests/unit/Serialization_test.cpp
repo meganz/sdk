@@ -255,7 +255,7 @@ TEST(Serialization, LocalNode_forFolder_withoutParent_withoutNode)
     l.setfsid(10, client.cli->fsidnode);
     std::string data;
     ASSERT_TRUE(l.serialize(&data));
-    ASSERT_EQ(51, data.size());
+    ASSERT_EQ(43, data.size());
     auto dl = mega::LocalNode::unserialize(sync.get(), &data);
     checkDeserializedLocalNode(*dl, l);
 }
@@ -274,7 +274,7 @@ TEST(Serialization, LocalNode_forFile_withoutNode)
     std::iota(l->crc.begin(), l->crc.end(), 1);
     std::string data;
     ASSERT_TRUE(l->serialize(&data));
-    ASSERT_EQ(71, data.size());
+    ASSERT_EQ(63, data.size());
     auto dl = mega::LocalNode::unserialize(sync.get(), &data);
     checkDeserializedLocalNode(*dl, *l);
 }
@@ -292,7 +292,7 @@ TEST(Serialization, LocalNode_forFile_withoutNode_withMaxMtime)
     std::iota(l->crc.begin(), l->crc.end(), 1);
     std::string data;
     ASSERT_TRUE(l->serialize(&data));
-    ASSERT_EQ(75, data.size());
+    ASSERT_EQ(67, data.size());
     auto dl = mega::LocalNode::unserialize(sync.get(), &data);
     checkDeserializedLocalNode(*dl, *l);
 }
@@ -307,7 +307,7 @@ TEST(Serialization, LocalNode_forFolder_withoutParent)
     l.node = &n;
     std::string data;
     ASSERT_TRUE(l.serialize(&data));
-    ASSERT_EQ(51, data.size());
+    ASSERT_EQ(43, data.size());
     auto dl = mega::LocalNode::unserialize(sync.get(), &data);
     checkDeserializedLocalNode(*dl, l);
 }
@@ -325,12 +325,12 @@ TEST(Serialization, LocalNode_forFolder)
     l->node = &n;
     std::string data;
     ASSERT_TRUE(l->serialize(&data));
-    ASSERT_EQ(50, data.size());
+    ASSERT_EQ(42, data.size());
     auto dl = mega::LocalNode::unserialize(sync.get(), &data);
     checkDeserializedLocalNode(*dl, *l);
 }
 
-TEST(Serialization, LocalNode_withoutExtensionBytes_forFolder)
+TEST(Serialization, LocalNode_forFolder_oldLocalNodeWithoutSyncable)
 {
     MockClient client;
     auto sync = mt::makeSync(*client.cli, "wicked");
@@ -371,7 +371,7 @@ TEST(Serialization, LocalNode_forFile)
     std::iota(l->crc.begin(), l->crc.end(), 1);
     std::string data;
     ASSERT_TRUE(l->serialize(&data));
-    ASSERT_EQ(67, data.size());
+    ASSERT_EQ(59, data.size());
     auto dl = mega::LocalNode::unserialize(sync.get(), &data);
     checkDeserializedLocalNode(*dl, *l);
 }
