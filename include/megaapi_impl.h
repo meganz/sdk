@@ -732,7 +732,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         MegaHandle nodeHandle;
         MegaHandle parentHandle;
         const char* path;
-        const char* parentPath;
+        const char* parentPath; //used as targetUser for uploads
         const char* fileName;
         char *lastBytes;
         MegaNode *publicNode;
@@ -2174,6 +2174,8 @@ class MegaApiImpl : public MegaApp
         void startUpload(const char* localPath, MegaNode *parent, int64_t mtime, MegaTransferListener *listener=NULL);
         void startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener = NULL);
         void startUpload(bool startFirst, const char* localPath, MegaNode* parent, const char* fileName, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, MegaTransferListener *listener);
+        void startUpload(bool startFirst, const char* localPath, MegaNode* parent, const char* fileName, const char* targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, MegaTransferListener *listener);
+        void startUploadForSupport(const char *localPath, MegaTransferListener *listener=NULL);
         void startDownload(MegaNode* node, const char* localPath, MegaTransferListener *listener = NULL);
         void startDownload(bool startFirst, MegaNode *node, const char* target, int folderTransferTag, const char *appData, MegaTransferListener *listener);
         void startStreaming(MegaNode* node, m_off_t startPos, m_off_t size, MegaTransferListener *listener);
