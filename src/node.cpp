@@ -235,7 +235,7 @@ void Node::setkey(const byte* newkey)
 
 // parse serialized node and return Node object - updates nodes hash and parent
 // mismatch vector
-Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
+Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
 {
     handle h, ph;
     nodetype_t t;
@@ -370,7 +370,7 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     }
 
     n = new Node(client, dp, h, ph, t, s, u, fa, ts);
-    n->setSyncable(syncableInt);
+    n->setSyncable(syncableInt == 0);
 
     if (k)
     {
@@ -530,7 +530,7 @@ bool Node::serialize(string* d)
     char hasLinkCreationTs = plink ? 1 : 0;
     d->append((char*)&hasLinkCreationTs, 1);
 
-    const auto syncableInt = static_cast<int8_t>(mSyncable);
+    const auto syncableInt = static_cast<int8_t>(!mSyncable);
     d->append((char*)&syncableInt, 1);
 
     d->append("\0\0\0\0", 5); // Use these bytes for extensions
@@ -1825,7 +1825,7 @@ bool LocalNode::serialize(string* d)
     d->append((char*)&ll, sizeof ll);
     d->append(localname.data(), ll);
 
-    const auto syncableInt = static_cast<int8_t>(syncable);
+    const auto syncableInt = static_cast<int8_t>(!syncable);
     d->append((char*)&syncableInt, 1);
 
     d->append("\0\0\0\0\0\0", 7); // Use these bytes for extensions
@@ -1901,7 +1901,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     const char* localname = ptr;
     ptr += localnamelen;
 
-    int8_t syncableInt = 1;
+    int8_t syncableInt = 0;
     if (hasExtensionBytes)
     {
         syncableInt = MemAccess::get<int8_t>(ptr);
@@ -1965,7 +1965,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     l->node = sync->client->nodebyhandle(h);
     l->parent = nullptr;
     l->sync = sync;
-    l->syncable = syncableInt;
+    l->syncable = syncableInt == 0;
 
     // FIXME: serialize/unserialize
     l->created = false;

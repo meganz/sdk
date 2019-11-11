@@ -256,7 +256,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     void setpubliclink(handle, m_time_t, m_time_t, bool);
 
     bool serialize(string*);
-    static Node* unserialize(MegaClient*, string*, node_vector*);
+    static Node* unserialize(MegaClient*, const string*, node_vector*);
 
     Node(MegaClient*, vector<Node*>*, handle, handle, nodetype_t, m_off_t, handle, const char*, m_time_t);
     ~Node();
