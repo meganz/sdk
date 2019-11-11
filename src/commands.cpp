@@ -343,13 +343,30 @@ CommandPutFile::CommandPutFile(MegaClient* client, TransferSlot* ctslot, int ms)
 
                 targetRoots.insert(rootnode);
             }
-            if (!begun) beginarray("t");
-            begun = true;
+            if (!begun)
+            {
+                beginarray("t");
+                begun = true;
+            }
 
             element((byte*)&file->h, MegaClient::NODEHANDLE);
         }
+        // uncomment the following whenever API support userhandle targets
+//        else if (file->targetuser.size())
+//        {
+//            if (!begun)
+//            {
+//                beginarray("t");
+//                begun = true;
+//            }
+//            element(file->targetuser.c_str());
+//        }
     }
-    if (begun) endarray();
+
+    if (begun)
+    {
+        endarray();
+    }
 }
 
 void CommandPutFile::cancel()
