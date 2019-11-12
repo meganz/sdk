@@ -10781,9 +10781,12 @@ class MegaApi
          * For folders, onTransferFinish will be called with error MegaError:API_EARGS;
          *
          * @param localPath Local path of the file
+         * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
+         * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
+         * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
          * @param listener MegaTransferListener to track this transfer
          */
-        void startUploadForSupport(const char* localPath, MegaTransferListener *listener=NULL);
+        void startUploadForSupport(const char* localPath, bool isSourceTemporary = false, MegaTransferListener *listener=NULL);
 
 
         /**
