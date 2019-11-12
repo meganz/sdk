@@ -351,21 +351,23 @@ CommandPutFile::CommandPutFile(MegaClient* client, TransferSlot* ctslot, int ms)
 
             element((byte*)&file->h, MegaClient::NODEHANDLE);
         }
-        // uncomment the following whenever API support userhandle targets
-//        else if (file->targetuser.size())
-//        {
-//            if (!begun)
-//            {
-//                beginarray("t");
-//                begun = true;
-//            }
-//            element(file->targetuser.c_str());
-//        }
     }
 
     if (begun)
     {
         endarray();
+    }
+    else
+    {
+        // Target user goes alone, not inside an array. Note: we are skipping this if a)more than two b)the array had been created for node handles
+        for (auto &file : tslot->transfer->files)
+        {
+            if (ISUNDEF(file->h) && file->targetuser.size())
+            {
+                arg("t", file->targetuser.c_str());
+                break;
+            }
+        }
     }
 }
 
