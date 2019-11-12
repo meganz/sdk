@@ -1168,7 +1168,6 @@ void CommandPutNodes::procresult()
     {
         if (client->tctable)
         {
-            client->mTctableRequestCommitter->beginOnce();
             vector<uint32_t> &ids = it->second;
             for (unsigned int i = 0; i < ids.size(); i++)
             {
