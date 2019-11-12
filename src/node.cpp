@@ -378,7 +378,9 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
     }
 
     n = new Node(client, dp, h, ph, t, s, u, fa, ts);
+#ifdef ENABLE_SYNC
     n->setSyncable(syncableInt == 1);
+#endif
 
     if (k)
     {
