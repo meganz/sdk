@@ -372,7 +372,7 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
 
     n = new Node(client, dp, h, ph, t, s, u, fa, ts);
 #ifdef ENABLE_SYNC
-    n->setSyncable(isNotSyncable != 1);
+    n->setSyncable(!isNotSyncable);
 #endif
 
     if (k)
@@ -534,7 +534,7 @@ bool Node::serialize(string* d)
     d->append((char*)&hasLinkCreationTs, 1);
 
 #ifdef ENABLE_SYNC
-    char isNotSyncable = mNotSyncable ? 1 : 0;
+    char isNotSyncable = mSyncable ? 0 : 1;
 #else
     char isNotSyncable = 0;
 #endif
@@ -1092,12 +1092,12 @@ Node* Node::firstancestor()
 #ifdef ENABLE_SYNC
 void Node::setSyncable(const bool syncable)
 {
-    mNotSyncable = !syncable;
+    mSyncable = syncable;
 }
 
 bool Node::isSyncable() const
 {
-    return !mNotSyncable;
+    return mSyncable;
 }
 #endif
 
