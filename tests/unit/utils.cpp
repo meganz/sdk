@@ -95,7 +95,7 @@ std::unique_ptr<mega::LocalNode> makeLocalNode(mega::Sync& sync, mega::LocalNode
                                                const mega::FileFingerprint& ffp)
 {
     auto l = std::unique_ptr<mega::LocalNode>{new mega::LocalNode};
-    std::string path = name;
+    std::string path;
     parent.getlocalpath(&path);
     path += sync.client->fsaccess->localseparator + name;
     l->init(&sync, type, &parent, &path);
