@@ -2582,7 +2582,7 @@ public:
                     ts[0] = '\0';
                 }
                 std::cout << "[" << ts << "] " << SimpleLogger::toStr(static_cast<LogLevel>(loglevel)) << ": " << message << std::endl;
-        }
+            }
 #endif
         }
     }

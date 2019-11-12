@@ -252,6 +252,7 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
     int i;
     char isExported = '\0';
     char hasLinkCreationTs = '\0';
+    char isNodeSyncable = 1;
 
     if (ptr + sizeof s + 2 * MegaClient::NODEHANDLE + MegaClient::USERHANDLE + 2 * sizeof ts + sizeof ll > end)
     {
@@ -324,7 +325,7 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
         fa = NULL;
     }
 
-    if (ptr + sizeof isExported + sizeof hasLinkCreationTs > end)
+    if (ptr + sizeof isExported + sizeof hasLinkCreationTs + sizeof isNodeSyncable > end)
     {
         return NULL;
     }
@@ -335,16 +336,8 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
     hasLinkCreationTs = MemAccess::get<char>(ptr);
     ptr += sizeof(hasLinkCreationTs);
 
-    int8_t syncableInt = 1;
-
-    const bool hasSyncableInt = (unsigned char)*ptr == sizeof(syncableInt);
-    ptr += 1;
-
-    if (hasSyncableInt)
-    {
-        syncableInt = MemAccess::get<int8_t>(ptr);
-        ptr += sizeof(syncableInt);
-    }
+    isNodeSyncable = MemAccess::get<char>(ptr);
+    ptr += sizeof(isNodeSyncable);
 
     for (i = 5; i--;)
     {
@@ -379,7 +372,7 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
 
     n = new Node(client, dp, h, ph, t, s, u, fa, ts);
 #ifdef ENABLE_SYNC
-    n->setSyncable(syncableInt == 1);
+    n->setSyncable(isNodeSyncable);
 #endif
 
     if (k)
@@ -540,10 +533,12 @@ bool Node::serialize(string* d)
     char hasLinkCreationTs = plink ? 1 : 0;
     d->append((char*)&hasLinkCreationTs, 1);
 
-    const int8_t syncableInt = mSyncable ? 1 : 0;
-    const int8_t syncableIntByteCount = sizeof(syncableInt);
-    d->append((char*)&syncableIntByteCount, 1);
-    d->append((char*)&syncableInt, syncableIntByteCount);
+#ifdef ENABLE_SYNC
+    char isNodeSyncable = mSyncable ? 1 : 0;
+#else
+    char isNodeSyncable = 0;
+#endif
+    d->append((char*)&isNodeSyncable, 1);
 
     d->append("\0\0\0\0", 5); // Use these bytes for extensions
 
