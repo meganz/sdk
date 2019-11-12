@@ -139,7 +139,7 @@ struct MEGA_API TransferSlot
     TransferSlot(Transfer*);
     ~TransferSlot();
 
-protected:
+private:
     void toggleport(HttpReqXfer* req);
     bool tryRaidRecoveryFromHttpGetError(unsigned i);
     bool checkTransferFinished(DBTableTransactionCommitter& committer, MegaClient* client);
