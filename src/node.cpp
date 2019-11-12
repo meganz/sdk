@@ -252,7 +252,7 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
     int i;
     char isExported = '\0';
     char hasLinkCreationTs = '\0';
-    char isNodeSyncable = 1;
+    char isNotSyncable = '\0';
 
     if (ptr + sizeof s + 2 * MegaClient::NODEHANDLE + MegaClient::USERHANDLE + 2 * sizeof ts + sizeof ll > end)
     {
@@ -325,7 +325,7 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
         fa = NULL;
     }
 
-    if (ptr + sizeof isExported + sizeof hasLinkCreationTs + sizeof isNodeSyncable > end)
+    if (ptr + sizeof isExported + sizeof hasLinkCreationTs + sizeof isNotSyncable > end)
     {
         return NULL;
     }
@@ -336,8 +336,8 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
     hasLinkCreationTs = MemAccess::get<char>(ptr);
     ptr += sizeof(hasLinkCreationTs);
 
-    isNodeSyncable = MemAccess::get<char>(ptr);
-    ptr += sizeof(isNodeSyncable);
+    isNotSyncable = MemAccess::get<char>(ptr);
+    ptr += sizeof(isNotSyncable);
 
     for (i = 5; i--;)
     {
@@ -372,7 +372,7 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
 
     n = new Node(client, dp, h, ph, t, s, u, fa, ts);
 #ifdef ENABLE_SYNC
-    n->setSyncable(isNodeSyncable);
+    n->setSyncable(isNotSyncable != 1);
 #endif
 
     if (k)
@@ -534,11 +534,11 @@ bool Node::serialize(string* d)
     d->append((char*)&hasLinkCreationTs, 1);
 
 #ifdef ENABLE_SYNC
-    char isNodeSyncable = mSyncable ? 1 : 0;
+    char isNotSyncable = mNotSyncable ? 1 : 0;
 #else
-    char isNodeSyncable = 0;
+    char isNotSyncable = 0;
 #endif
-    d->append((char*)&isNodeSyncable, 1);
+    d->append((char*)&isNotSyncable, 1);
 
     d->append("\0\0\0\0", 5); // Use these bytes for extensions
 
@@ -1092,12 +1092,12 @@ Node* Node::firstancestor()
 #ifdef ENABLE_SYNC
 void Node::setSyncable(const bool syncable)
 {
-    mSyncable = syncable;
+    mNotSyncable = !syncable;
 }
 
 bool Node::isSyncable() const
 {
-    return mSyncable;
+    return !mNotSyncable;
 }
 #endif
 

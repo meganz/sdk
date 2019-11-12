@@ -263,8 +263,8 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
 private:
 #ifdef ENABLE_SYNC
-    // whether this node can be synced to the local tree
-    bool mSyncable = true;
+    // whether this node should be skipped from synchronization of the local tree
+    bool mNotSyncable = false;
 #endif
 
     // full folder/file key, symmetrically or asymmetrically encrypted
