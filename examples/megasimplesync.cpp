@@ -435,7 +435,7 @@ void SyncApp::fetchnodes_result(error e)
             }
             else
             {
-                error err = client->addsync(&localname, DEBRISFOLDER, NULL, n, 0);
+                error err = client->addsync(SyncConfig{}, &localname, DEBRISFOLDER, NULL, n, 0);
                 if (err)
                 {
                     LOG_err << "Sync could not be added! ";

@@ -44,6 +44,19 @@ bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, h
 class MEGA_API Sync
 {
 public:
+
+    // whether this is an up-sync from local to remote
+    bool isUpSync() const;
+
+    // whether this is a down-sync from remote to local
+    bool isDownSync() const;
+
+    // whether deletions are synced
+    bool syncDeletions() const;
+
+    // whether changes are overwritten irregardless of file properties
+    bool forceOverwrite() const;
+
     void* appData = nullptr;
 
     MegaClient* client = nullptr;
@@ -155,7 +168,7 @@ public:
     m_time_t updatedfileinitialts = 0;
 
     Sync() = default;
-    Sync(MegaClient*, string*, const char*, string*, Node*, fsfp_t, bool, int, void*);
+    Sync(MegaClient*, SyncConfig, string*, const char*, string*, Node*, fsfp_t, bool, int, void*);
     ~Sync();
 
     static const int SCANNING_DELAY_DS;
@@ -167,6 +180,8 @@ public:
 protected :
     bool readstatecache();
 
+private:
+    SyncConfig mConfig;
 };
 } // namespace
 

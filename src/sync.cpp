@@ -513,9 +513,10 @@ bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, h
 
 // new Syncs are automatically inserted into the session's syncs list
 // and a full read of the subtree is initiated
-Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
+Sync::Sync(MegaClient* cclient, SyncConfig config, string* crootpath, const char* cdebris,
            string* clocaldebris, Node* remotenode, fsfp_t cfsfp, bool cinshare, int ctag, void *cappdata)
-    : localroot(new LocalNode)
+: localroot{new LocalNode}
+, mConfig{config}
 {
     isnetwork = false;
     client = cclient;
@@ -659,6 +660,40 @@ Sync::~Sync()
         DBTableTransactionCommitter committer(client->tctable);
         localroot.reset();
     }
+}
+
+bool Sync::isUpSync() const
+{
+    return mConfig.syncType & SyncConfig::TYPE_UP;
+}
+
+bool Sync::isDownSync() const
+{
+    return mConfig.syncType & SyncConfig::TYPE_DOWN;
+}
+
+bool Sync::syncDeletions() const
+{
+    switch (mConfig.syncType)
+    {
+        case SyncConfig::TYPE_UP: return mConfig.syncDeletions;
+        case SyncConfig::TYPE_DOWN: return mConfig.syncDeletions;
+        case SyncConfig::TYPE_DEFAULT: return true;
+    }
+    assert(false);
+    return true;
+}
+
+bool Sync::forceOverwrite() const
+{
+    switch (mConfig.syncType)
+    {
+        case SyncConfig::TYPE_UP: return mConfig.forceOverwrite;
+        case SyncConfig::TYPE_DOWN: return mConfig.forceOverwrite;
+        case SyncConfig::TYPE_DEFAULT: return false;
+    }
+    assert(false);
+    return false;
 }
 
 void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, string* path, LocalNode *p, int maxdepth)
