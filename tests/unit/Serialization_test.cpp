@@ -418,7 +418,9 @@ void checkDeserializedNode(const mega::Node& dl, const mega::Node& ref, bool ign
     ASSERT_EQ(ref.nodekey(), dl.nodekey());
     ASSERT_EQ(ignore_fileattrstring ? "" : ref.fileattrstring, dl.fileattrstring);
     ASSERT_EQ(ref.attrs.map, dl.attrs.map);
+#ifdef ENABLE_SYNC
     ASSERT_EQ(ref.isSyncable(), dl.isSyncable());
+#endif
     if (ref.plink)
     {
         ASSERT_NE(nullptr, dl.plink);
@@ -456,7 +458,9 @@ TEST(Serialization, Node_forFile_withoutParent_withoutShares_withoutAttrs_withou
     n.size = 12;
     n.owner = 43;
     n.ctime = 44;
+#ifdef ENABLE_SYNC
     n.setSyncable(false);
+#endif
     std::string data;
     ASSERT_TRUE(n.serialize(&data));
     ASSERT_EQ(91, data.size());
@@ -472,7 +476,9 @@ TEST(Serialization, Node_forFolder_withoutParent_withoutShares_withoutAttrs_with
     n.size = -1;
     n.owner = 43;
     n.ctime = 44;
+#ifdef ENABLE_SYNC
     n.setSyncable(false);
+#endif
     std::string data;
     ASSERT_TRUE(n.serialize(&data));
     ASSERT_EQ(72, data.size());
@@ -489,7 +495,9 @@ TEST(Serialization, Node_forFile_withoutShares_withoutAttrs_withoutFileAttrStrin
     n.size = 12;
     n.owner = 88;
     n.ctime = 44;
+#ifdef ENABLE_SYNC
     n.setSyncable(false);
+#endif
     std::string data;
     ASSERT_TRUE(n.serialize(&data));
     ASSERT_EQ(91, data.size());
@@ -506,7 +514,9 @@ TEST(Serialization, Node_forFile_withoutShares_withoutFileAttrString_withoutPlin
     n.size = 12;
     n.owner = 88;
     n.ctime = 44;
+#ifdef ENABLE_SYNC
     n.setSyncable(false);
+#endif
     n.attrs.map = {
         {101, "foo"},
         {102, "bar"},
@@ -527,7 +537,9 @@ TEST(Serialization, Node_forFile_withoutShares_withoutPlink)
     n.size = 12;
     n.owner = 88;
     n.ctime = 44;
+#ifdef ENABLE_SYNC
     n.setSyncable(false);
+#endif
     n.attrs.map = {
         {101, "foo"},
         {102, "bar"},
@@ -549,7 +561,9 @@ TEST(Serialization, Node_forFile_withoutShares)
     n.size = 12;
     n.owner = 88;
     n.ctime = 44;
+#ifdef ENABLE_SYNC
     n.setSyncable(false);
+#endif
     n.attrs.map = {
         {101, "foo"},
         {102, "bar"},
@@ -572,7 +586,9 @@ TEST(Serialization, Node_forFolder_withoutShares_withoutAttrs_withoutFileAttrStr
     n.size = -1;
     n.owner = 88;
     n.ctime = 44;
+#ifdef ENABLE_SYNC
     n.setSyncable(false);
+#endif
     std::string data;
     ASSERT_TRUE(n.serialize(&data));
     ASSERT_EQ(72, data.size());
@@ -589,7 +605,9 @@ TEST(Serialization, Node_forFolder_withoutShares_withoutFileAttrString_withoutPl
     n.size = -1;
     n.owner = 88;
     n.ctime = 44;
+#ifdef ENABLE_SYNC
     n.setSyncable(false);
+#endif
     n.attrs.map = {
         {101, "foo"},
         {102, "bar"},
@@ -610,7 +628,9 @@ TEST(Serialization, Node_forFolder_withoutShares_withoutPlink)
     n.size = -1;
     n.owner = 88;
     n.ctime = 44;
+#ifdef ENABLE_SYNC
     n.setSyncable(false);
+#endif
     n.attrs.map = {
         {101, "foo"},
         {102, "bar"},
@@ -632,7 +652,9 @@ TEST(Serialization, Node_forFolder_withoutShares)
     n.size = -1;
     n.owner = 88;
     n.ctime = 44;
+#ifdef ENABLE_SYNC
     n.setSyncable(false);
+#endif
     n.attrs.map = {
         {101, "foo"},
         {102, "bar"},
