@@ -32,41 +32,6 @@ namespace {
 
 std::mt19937 gRandomGenerator{1};
 
-void collectAllFsNodesImpl(std::map<std::string, const mt::FsNode*>& nodes, const mt::FsNode& node)
-{
-    const auto path = node.getPath();
-    assert(nodes.find(path) == nodes.end());
-    nodes[path] = &node;
-    if (node.getType() == mega::FOLDERNODE)
-    {
-        for (const auto child : node.getChildren())
-        {
-            collectAllFsNodesImpl(nodes, *child);
-        }
-    }
-}
-
-#ifdef ENABLE_SYNC
-void initializeLocalNode(mega::LocalNode& l, mega::Sync& sync, mega::LocalNode* parent, mega::handlelocalnode_map& fsidnodes,
-                         mega::nodetype_t type, const std::string& name, const mega::FileFingerprint& ffp)
-{
-    l.sync = &sync;
-    l.parent = parent;
-    l.type = type;
-    l.name = name;
-    l.localname = name;
-    l.slocalname = new std::string{name};
-    l.fsid_it = fsidnodes.end();
-    l.setfsid(nextFsId(), fsidnodes);
-    if (parent)
-    {
-        assert(parent->children.find(&l.name) == parent->children.end());
-        parent->children[&l.name] = &l;
-    }
-    static_cast<mega::FileFingerprint&>(l) = ffp;
-}
-#endif
-
 } // anonymous
 
 mega::handle nextFsId()
@@ -115,15 +80,14 @@ mega::Node& makeNode(mega::MegaClient& client, const mega::nodetype_t type, cons
 #ifdef ENABLE_SYNC
 std::unique_ptr<mega::Sync> makeSync(mega::MegaClient& client, const std::string& localname)
 {
-    auto sync = std::unique_ptr<mega::Sync>{new mega::Sync};
-    sync->localroot = std::unique_ptr<mega::LocalNode>{new mega::LocalNode};
-    sync->state = mega::SYNC_CANCELED; // to avoid the asssertion in Sync::~Sync()
-    initializeLocalNode(*sync->localroot, *sync, nullptr, client.fsidnode,  mega::FOLDERNODE, localname, {});
-    sync->localdebris = sync->localroot->localname + "/" + mt::gLocalDebris;
-    sync->client = &client;
-    client.syncs.push_front(sync.get());
-    sync->sync_it = client.syncs.begin();
-    return sync;
+    std::string rootname = localname;
+    std::string localdebris = gLocalDebris;
+    auto& n = makeNode(client, mega::FOLDERNODE, std::hash<std::string>{}(localname));
+    auto sync = new mega::Sync{&client, &rootname,
+                               nullptr, &localdebris,
+                               &n, fsfp_t{}, false, 0, nullptr};
+    sync->state = mega::SYNC_CANCELED; // to avoid the assertion in Sync::~Sync()
+    return std::unique_ptr<mega::Sync>{sync};
 }
 
 std::unique_ptr<mega::LocalNode> makeLocalNode(mega::Sync& sync, mega::LocalNode& parent,
@@ -131,7 +95,12 @@ std::unique_ptr<mega::LocalNode> makeLocalNode(mega::Sync& sync, mega::LocalNode
                                                const mega::FileFingerprint& ffp)
 {
     auto l = std::unique_ptr<mega::LocalNode>{new mega::LocalNode};
-    initializeLocalNode(*l, sync, &parent, sync.client->fsidnode, type, name, ffp);
+    std::string path;
+    parent.getlocalpath(&path);
+    path += sync.client->fsaccess->localseparator + name;
+    l->init(&sync, type, &parent, &path);
+    l->setfsid(nextFsId(), sync.client->fsidnode);
+    static_cast<mega::FileFingerprint&>(*l) = ffp;
     return l;
 }
 #endif

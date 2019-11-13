@@ -1555,11 +1555,6 @@ LocalNode::~LocalNode()
         return;
     }
 
-    if (!sync->client)
-    {
-        return;
-    }
-
     if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
     {
         sync->statecachedel(this);

@@ -154,7 +154,6 @@ public:
     m_time_t updatedfilets = 0;
     m_time_t updatedfileinitialts = 0;
 
-    Sync() = default;
     Sync(MegaClient*, string*, const char*, string*, Node*, fsfp_t, bool, int, void*);
     ~Sync();
 

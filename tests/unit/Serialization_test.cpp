@@ -203,6 +203,11 @@ struct MockFileSystemAccess : mt::DefaultedFileSystemAccess
     {
         *path = *local;
     }
+
+    bool getsname(std::string*, std::string*) const override
+    {
+        return false;
+    }
 };
 
 struct MockClient
