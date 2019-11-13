@@ -68,6 +68,7 @@ class MegaRequest;
 class MegaEvent;
 class MegaTransfer;
 class MegaBackup;
+class MegaSyncConfig;
 class MegaSync;
 class MegaStringList;
 class MegaNodeList;
@@ -3425,6 +3426,20 @@ class MegaRequest
          * @return Object with information about the contents of a folder
          */
         virtual MegaBackgroundMediaUpload* getMegaBackgroundMediaUploadPtr() const;
+
+#ifdef ENABLE_SYNC
+
+        /**
+         * @brief Returns the sync config
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * @return The sync config
+         */
+        virtual const MegaSyncConfig* getMegaSyncConfig() const;
+
+#endif
 };
 
 /**
@@ -4763,6 +4778,42 @@ public:
 };
 
 /**
+ * @brief Carries the sync config. Can be extended with future config options
+ */
+class MegaSyncConfig
+{
+public:
+
+    enum
+    {
+        TYPE_UP = 0x01, // Sync up from local to remote
+        TYPE_DOWN = 0x02, // Sync down from remote to local
+        TYPE_DEFAULT = TYPE_UP | TYPE_DOWN, // Two-way sync
+    };
+
+    virtual ~MegaSyncConfig();
+
+    static MegaSyncConfig* createInstance(int syncType = TYPE_DEFAULT,
+                                          bool syncDeletions = false,
+                                          bool forceOverwrite = false);
+
+    virtual MegaSyncConfig* copy() const;
+
+    // Returns the type of the sync: TYPE_UP, TYPE_DOWN, or TYPE_DEFAULT
+    virtual int getSyncType() const;
+
+    // TYPE_UP: Deleted local files are deleted remotely (default: false)
+    // TYPE_DOWN: Deleted remote files are deleted locally (default: false)
+    // TYPE_DEFAULT: Always returns true. Deletions are synced for two-way sync
+    virtual bool getSyncDeletions() const;
+
+    // TYPE_UP: Overwrite remote changes with local changes (default: false)
+    // TYPE_DOWN: Overwrite local changes with remote changes (default: false)
+    // TYPE_DEFAULT: Always returns false. No force overwrite for two-way sync
+    virtual bool getForceOverwrite() const;
+};
+
+/**
  * @brief Provides information about a synchronization
  */
 class MegaSync
@@ -4790,6 +4841,12 @@ public:
      * @return Copy of the MegaError object
      */
     virtual MegaSync *copy();
+
+    /**
+     * @brief Returns the sync config
+     * @return The sync config
+     */
+    virtual const MegaSyncConfig* getConfig() const;
 
     /**
      * @brief Get the handle of the folder that is being synced
@@ -11896,6 +11953,30 @@ class MegaApi
         void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Synchronize a local folder and a folder in MEGA
+         *
+         * This function should be used to add a new synchronized folders. To resume a previously
+         * added synchronized folder, use MegaApi::resumeSync
+         *
+         * The associated request type with this request is MegaRequest::TYPE_ADD_SYNC
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
+         * - MegaRequest::getFile - Returns the path of the local folder
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNumber - Fingerprint of the local folder to resume the sync (MegaApi::resumeSync)
+         *
+         * @param syncConfig The sync config
+         * @param localFolder Local folder
+         * @param megaFolder MEGA folder
+         * @param listener MegaRequestListener to track this request
+         *
+         * @see MegaApi::resumeSync
+         */
+        void syncFolder(const MegaSyncConfig* syncConfig, const char *localFolder, MegaNode *megaFolder, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Resume a previously synced folder
          *
          * This function should be called in the onRequestFinish callback for MegaApi::fetchNodes, before the callback
@@ -11921,6 +12002,33 @@ class MegaApi
          */
         void resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRequestListener *listener = NULL);
 
+        /**
+         * @brief Resume a previously synced folder
+         *
+         * This function should be called in the onRequestFinish callback for MegaApi::fetchNodes, before the callback
+         * returns, to ensure that all changes made in the MEGA account while the synchronization was stopped
+         * are correctly applied.
+         *
+         * The third parameter allows to pass a fingerprint of the local folder to check if it has changed since
+         * the previous execution. That fingerprint can be obtained using MegaRequest::getParentHandle in the
+         * onRequestFinish callback if the MegaApi::syncFolder request. If the provided fingerprint doesn't match
+         * the current fingerprint of the local folder, this request will fail with the error code
+         * MegaError::API_EFAILED
+         *
+         * The associated request type with this request is MegaRequest::TYPE_ADD_SYNC
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
+         * - MegaRequest::getFile - Returns the path of the local folder
+         * - MegaRequest::getNumber - Returns the fingerprint of the local folder
+         *
+         * @param syncConfig The sync config
+         * @param localFolder Local folder
+         * @param megaFolder MEGA folder
+         * @param localfp Fingerprint of the local file
+         * @param listener MegaRequestListener to track this request
+         */
+        void resumeSync(const MegaSyncConfig* syncConfig, const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRequestListener *listener = NULL);
+
 #ifdef USE_PCRE
         /**
          * @brief Synchronize a local folder and a folder in MEGA, having an exclusion list
@@ -11945,6 +12053,32 @@ class MegaApi
          * @see MegaApi::resumeSync
          */
         void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener = NULL);
+
+
+        /**
+         * @brief Synchronize a local folder and a folder in MEGA, having an exclusion list
+         *
+         * This function should be used to add a new synchronized pair of folders. To resume a previously
+         * added synchronized folder, use MegaApi::resumeSync
+         *
+         * The associated request type with this request is MegaRequest::TYPE_ADD_SYNC
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
+         * - MegaRequest::getFile - Returns the path of the local folder
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNumber - Fingerprint of the local folder to resume the sync (MegaApi::resumeSync)
+         *
+         * @param syncConfig The sync config
+         * @param localFolder Local folder
+         * @param megaFolder MEGA folder
+         * @param regExp Regular expressions to handle excluded files/folders
+         * @param listener MegaRequestListener to track this request
+         *
+         * @see MegaApi::resumeSync
+         */
+        void syncFolder(const MegaSyncConfig* syncConfig, const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Resume a previously synced folder, having an exclusion list
@@ -11972,6 +12106,34 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRegExp *regExp, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Resume a previously synced folder, having an exclusion list
+         *
+         * This function should be called in the onRequestFinish callback for MegaApi::fetchNodes, before the callback
+         * returns, to ensure that all changes made in the MEGA account while the synchronization was stopped
+         * are correctly applied.
+         *
+         * The third parameter allows to pass a fingerprint of the local folder to check if it has changed since
+         * the previous execution. That fingerprint can be obtained using MegaRequest::getParentHandle in the
+         * onRequestFinish callback if the MegaApi::syncFolder request. If the provided fingerprint doesn't match
+         * the current fingerprint of the local folder, this request will fail with the error code
+         * MegaError::API_EFAILED
+         *
+         * The associated request type with this request is MegaRequest::TYPE_ADD_SYNC
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
+         * - MegaRequest::getFile - Returns the path of the local folder
+         * - MegaRequest::getNumber - Returns the fingerprint of the local folder
+         *
+         * @param syncConfig The sync config
+         * @param localFolder Local folder
+         * @param megaFolder MEGA folder
+         * @param localfp Fingerprint of the local file
+         * @param regExp Regular expressions to handle excluded files/folders
+         * @param listener MegaRequestListener to track this request
+         */
+        void resumeSync(const MegaSyncConfig* syncConfig, const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRegExp *regExp, MegaRequestListener *listener = NULL);
 #endif
 
         /**
