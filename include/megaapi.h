@@ -2551,6 +2551,11 @@ public:
     * @return Number of MegaUserAlert objects in the list
     */
     virtual int size() const;
+
+    /**
+     * @brief Removes all MegaUserAlert objects from the list (does not delete them)
+     */
+    virtual void clear();
 };
 
 
