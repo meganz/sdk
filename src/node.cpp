@@ -1895,7 +1895,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     char syncable = 1;
     if (ptr < end)
     {
-        if (ptr + sizeof(syncable) > end)
+        if (ptr + sizeof(syncable) + 8 > end)
         {
             LOG_err << "LocalNode unserialization failed - syncable flag";
             return NULL;
