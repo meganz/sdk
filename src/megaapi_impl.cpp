@@ -4336,7 +4336,7 @@ int MegaUserAlertListPrivate::size() const
 void MegaUserAlertListPrivate::clear()
 {
     delete[] list;
-    s=0;
+    s = 0;
     list = nullptr;
 }
 

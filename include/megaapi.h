@@ -2555,7 +2555,7 @@ public:
     /**
      * @brief Removes all MegaUserAlert objects from the list (does not delete them)
      */
-    virtual void clear() const;
+    virtual void clear();
 };
 
 
