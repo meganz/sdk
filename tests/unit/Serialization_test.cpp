@@ -227,7 +227,7 @@ void checkDeserializedLocalNode(const mega::LocalNode& dl, const mega::LocalNode
     ASSERT_EQ(true, dl.isvalid);
     ASSERT_EQ(nullptr, dl.parent);
     ASSERT_EQ(ref.sync, dl.sync);
-    ASSERT_EQ(ref.syncable, dl.syncable);
+    ASSERT_EQ(ref.mSyncable, dl.mSyncable);
     ASSERT_EQ(false, dl.created);
     ASSERT_EQ(false, dl.reported);
     ASSERT_EQ(true, dl.checked);
@@ -251,7 +251,7 @@ TEST(Serialization, LocalNode_forFolder_withoutParent_withoutNode)
     MockClient client;
     auto sync = mt::makeSync(*client.cli, "wicked");
     auto& l = *sync->localroot;
-    l.syncable = false;
+    l.mSyncable = false;
     l.setfsid(10, client.cli->fsidnode);
     std::string data;
     ASSERT_TRUE(l.serialize(&data));
@@ -265,7 +265,7 @@ TEST(Serialization, LocalNode_forFile_withoutNode)
     MockClient client;
     auto sync = mt::makeSync(*client.cli, "wicked");
     auto l = mt::makeLocalNode(*sync, *sync->localroot, mega::FILENODE, "sweet");
-    l->syncable = false;
+    l->mSyncable = false;
     l->size = 124;
     l->setfsid(10, client.cli->fsidnode);
     l->parent->dbid = 13;
@@ -317,7 +317,7 @@ TEST(Serialization, LocalNode_forFolder)
     MockClient client;
     auto sync = mt::makeSync(*client.cli, "wicked");
     auto l = mt::makeLocalNode(*sync, *sync->localroot, mega::FOLDERNODE, "sweet");
-    l->syncable = false;
+    l->mSyncable = false;
     l->parent->dbid = 13;
     l->parent_dbid = l->parent->dbid;
     auto& n = mt::makeNode(*client.cli, mega::FOLDERNODE, 42);
@@ -360,7 +360,7 @@ TEST(Serialization, LocalNode_forFile)
     MockClient client;
     auto sync = mt::makeSync(*client.cli, "wicked");
     auto l = mt::makeLocalNode(*sync, *sync->localroot, mega::FILENODE, "sweet");
-    l->syncable = false;
+    l->mSyncable = false;
     auto& n = mt::makeNode(*client.cli, mega::FILENODE, 42);
     l->node = &n;
     l->size = 1;

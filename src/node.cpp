@@ -1818,10 +1818,10 @@ bool LocalNode::serialize(string* d)
         d->append((const char*)buf, Serialize64::serialize(buf, mtime));
     }
 
-    const char syncableInt = syncable ? 1 : 0;
-    const char syncableIntByteCount = sizeof(syncableInt);
-    d->append(&syncableIntByteCount, 1);
-    d->append(&syncableInt, syncableIntByteCount);
+    const char syncable = mSyncable ? 1 : 0;
+    const char syncableByteCount = sizeof(syncable);
+    d->append(&syncableByteCount, 1);
+    d->append(&syncable, syncableByteCount);
 
     d->append("\0\0\0\0\0\0", 7); // Use these bytes for extensions
 
@@ -1906,16 +1906,16 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
         }
     }
 
-    char syncableInt = 1;
     if (ptr < end)
+    char syncable = 1;
     {
-        const bool hasSyncableInt = (unsigned char)*ptr == sizeof(syncableInt);
+        const bool hasSyncable = (unsigned char)*ptr == sizeof(syncable);
         ptr += 1;
 
         if (hasSyncableInt)
         {
-            syncableInt = MemAccess::get<char>(ptr);
-            ptr += sizeof(syncableInt);
+            syncable = MemAccess::get<char>(ptr);
+            ptr += sizeof(syncable);
         }
 
         // skip extension bytes
@@ -1951,7 +1951,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     l->node = sync->client->nodebyhandle(h);
     l->parent = nullptr;
     l->sync = sync;
-    l->syncable = syncableInt == 1;
+    l->mSyncable = syncable == 1;
 
     // FIXME: serialize/unserialize
     l->created = false;

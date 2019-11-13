@@ -301,7 +301,7 @@ struct MEGA_API LocalNode : public File
     int32_t parent_dbid = 0;
 
     // whether this node can be synced to the remote tree
-    bool syncable = true;
+    bool mSyncable = true;
 
     // children by name
     localnode_map children;
