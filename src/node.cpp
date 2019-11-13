@@ -1823,7 +1823,7 @@ bool LocalNode::serialize(string* d)
     d->append(&syncableByteCount, 1);
     d->append(&syncable, syncableByteCount);
 
-    d->append("\0\0\0\0\0\0", 7); // Use these bytes for extensions
+    d->append("\0\0\0\0\0\0", 8); // Use these bytes for extensions
 
     return true;
 }
@@ -1919,7 +1919,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
         }
 
         // skip extension bytes
-        for (int i = 7; i--;)
+        for (int i = 8; i--;)
         {
             if (ptr + (unsigned char)*ptr < end)
             {
