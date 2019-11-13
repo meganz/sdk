@@ -1909,8 +1909,8 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     char syncable = 1;
     if (ptr + 1 < end)
     {
-        const bool hasSyncable = (unsigned char)*ptr == sizeof(syncable);
-        ptr += 1;
+        const char hasSyncable = MemAccess::get<char>(ptr) == sizeof(syncable);
+        ptr += sizeof(hasSyncable);
 
         if (hasSyncable && ptr + 1 < end)
         {
