@@ -1069,6 +1069,7 @@ void MegaClient::init()
 
     jsonsc.pos = NULL;
     insca = false;
+    insca_notlast = false;
     scnotifyurl.clear();
     *scsn = 0;
 
@@ -1903,7 +1904,7 @@ void MegaClient::exec()
                         && pendingsc->in.size()
                         && pendingsc->in[0] == '0')
                 {
-                    LOG_debug << "Waitd keep-alive received";
+                    LOG_debug << "SC keep-alive received";
                     delete pendingsc;
                     pendingsc = NULL;
                     btsc.reset();
@@ -1912,6 +1913,8 @@ void MegaClient::exec()
 
                 if (*pendingsc->in.c_str() == '{')
                 {
+                    insca = false;
+                    insca_notlast = false;
                     jsonsc.begin(pendingsc->in.c_str());
                     jsonsc.enterobject();
                     break;
@@ -2087,7 +2090,6 @@ void MegaClient::exec()
             }
             pendingsc->posturl.append(auth);
             pendingsc->type = REQ_JSON;
-            LOG_debug << "Sending keep-alive to waitd";
             pendingsc->post(this);
             jsonsc.pos = NULL;
         }
@@ -3974,6 +3976,11 @@ bool MegaClient::procsc()
                     jsonsc.storeobject(&scnotifyurl);
                     break;
 
+                case MAKENAMEID2('i', 'r'):
+                    // when spoonfeeding is in action, there may still be more actionpackets to be delivered.
+                    insca_notlast = jsonsc.getint() == 1;
+                    break;
+
                 case MAKENAMEID2('s', 'n'):
                     // the sn element is guaranteed to be the last in sequence
                     setscsn(&jsonsc);
@@ -3996,11 +4003,11 @@ bool MegaClient::procsc()
                     break;
                     
                 case EOO:
-                    LOG_debug << "Processing of action packets finished";
+                    LOG_debug << "Processing of action packets finished.  More to follow: " << insca_notlast;
                     mergenewshares(1);
                     applykeys();
 
-                    if (!statecurrent)
+                    if (!statecurrent && !insca_notlast)   // with actionpacket spoonfeeding, just finishing a batch does not mean we are up to date yet - keep going while "ir":1
                     {
                         if (fetchingnodes)
                         {
@@ -4072,7 +4079,7 @@ bool MegaClient::procsc()
                         string report;
                         fnstats.toJsonArray(&report);
 
-                        sendevent(99426, report.c_str(), 0);
+                        sendevent(99426, report.c_str(), 0);    // Treeproc performance log
 
                         // NULL vector: "notify all elements"
                         app->nodes_updated(NULL, int(nodes.size()));
@@ -4094,7 +4101,11 @@ bool MegaClient::procsc()
                             useralerts.begincatchup = true;
                         }
                     }
-                    app->catchup_result();
+
+                    if (statecurrent && !insca_notlast)
+                    {
+                        app->catchup_result();
+                    }
                     return true;
 
                 case 'a':
@@ -10839,6 +10850,7 @@ void MegaClient::fetchnodes(bool nocache)
         jsonsc.pos = NULL;
         scnotifyurl.clear();
         insca = false;
+        insca_notlast = false;
         btsc.reset();
 
         // don't allow to start new sc requests yet
