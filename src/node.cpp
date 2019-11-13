@@ -1819,9 +1819,7 @@ bool LocalNode::serialize(string* d)
     }
 
     const char syncable = mSyncable ? 1 : 0;
-    const char syncableByteCount = sizeof(syncable);
-    d->append(&syncableByteCount, 1);
-    d->append(&syncable, syncableByteCount);
+    d->append(&syncable, sizeof(syncable));
 
     d->append("\0\0\0\0\0\0", 8); // Use these bytes for extensions
 
@@ -1907,16 +1905,16 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     }
 
     char syncable = 1;
-    if (ptr + 1 < end)
+    if (ptr < end)
     {
-        const char hasSyncable = MemAccess::get<char>(ptr) == sizeof(syncable);
-        ptr += sizeof(hasSyncable);
-
-        if (hasSyncable && ptr + 1 < end)
+        if (ptr + sizeof(syncable) > end)
         {
-            syncable = MemAccess::get<char>(ptr);
-            ptr += sizeof(syncable);
+            LOG_err << "LocalNode unserialization failed - syncable flag";
+            return NULL;
         }
+
+        syncable = MemAccess::get<char>(ptr);
+        ptr += sizeof(syncable);
 
         // skip extension bytes
         for (int i = 8; i--;)
