@@ -1075,18 +1075,6 @@ Node* Node::firstancestor()
     return n;
 }
 
-#ifdef ENABLE_SYNC
-void Node::setSyncable(const bool syncable)
-{
-    mSyncable = syncable;
-}
-
-bool Node::isSyncable() const
-{
-    return mSyncable;
-}
-#endif
-
 // returns 1 if n is under p, 0 otherwise
 bool Node::isbelow(Node* p) const
 {
