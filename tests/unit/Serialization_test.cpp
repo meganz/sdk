@@ -418,9 +418,6 @@ void checkDeserializedNode(const mega::Node& dl, const mega::Node& ref, bool ign
     ASSERT_EQ(ref.nodekey(), dl.nodekey());
     ASSERT_EQ(ignore_fileattrstring ? "" : ref.fileattrstring, dl.fileattrstring);
     ASSERT_EQ(ref.attrs.map, dl.attrs.map);
-#ifdef ENABLE_SYNC
-    ASSERT_EQ(ref.isSyncable(), dl.isSyncable());
-#endif
     if (ref.plink)
     {
         ASSERT_NE(nullptr, dl.plink);
@@ -458,12 +455,9 @@ TEST(Serialization, Node_forFile_withoutParent_withoutShares_withoutAttrs_withou
     n.size = 12;
     n.owner = 43;
     n.ctime = 44;
-#ifdef ENABLE_SYNC
-    n.setSyncable(false);
-#endif
     std::string data;
     ASSERT_TRUE(n.serialize(&data));
-    ASSERT_EQ(91, data.size());
+    ASSERT_EQ(90, data.size());
     mega::node_vector dp;
     auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
     checkDeserializedNode(*dn, n);
@@ -476,12 +470,9 @@ TEST(Serialization, Node_forFolder_withoutParent_withoutShares_withoutAttrs_with
     n.size = -1;
     n.owner = 43;
     n.ctime = 44;
-#ifdef ENABLE_SYNC
-    n.setSyncable(false);
-#endif
     std::string data;
     ASSERT_TRUE(n.serialize(&data));
-    ASSERT_EQ(72, data.size());
+    ASSERT_EQ(71, data.size());
     mega::node_vector dp;
     auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
     checkDeserializedNode(*dn, n);
@@ -495,12 +486,9 @@ TEST(Serialization, Node_forFile_withoutShares_withoutAttrs_withoutFileAttrStrin
     n.size = 12;
     n.owner = 88;
     n.ctime = 44;
-#ifdef ENABLE_SYNC
-    n.setSyncable(false);
-#endif
     std::string data;
     ASSERT_TRUE(n.serialize(&data));
-    ASSERT_EQ(91, data.size());
+    ASSERT_EQ(90, data.size());
     mega::node_vector dp;
     auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
     checkDeserializedNode(*dn, n);
@@ -514,16 +502,13 @@ TEST(Serialization, Node_forFile_withoutShares_withoutFileAttrString_withoutPlin
     n.size = 12;
     n.owner = 88;
     n.ctime = 44;
-#ifdef ENABLE_SYNC
-    n.setSyncable(false);
-#endif
     n.attrs.map = {
         {101, "foo"},
         {102, "bar"},
     };
     std::string data;
     ASSERT_TRUE(n.serialize(&data));
-    ASSERT_EQ(105, data.size());
+    ASSERT_EQ(104, data.size());
     mega::node_vector dp;
     auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
     checkDeserializedNode(*dn, n);
@@ -537,9 +522,6 @@ TEST(Serialization, Node_forFile_withoutShares_withoutPlink)
     n.size = 12;
     n.owner = 88;
     n.ctime = 44;
-#ifdef ENABLE_SYNC
-    n.setSyncable(false);
-#endif
     n.attrs.map = {
         {101, "foo"},
         {102, "bar"},
@@ -547,7 +529,7 @@ TEST(Serialization, Node_forFile_withoutShares_withoutPlink)
     n.fileattrstring = "blah";
     std::string data;
     ASSERT_TRUE(n.serialize(&data));
-    ASSERT_EQ(109, data.size());
+    ASSERT_EQ(108, data.size());
     mega::node_vector dp;
     auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
     checkDeserializedNode(*dn, n);
@@ -561,9 +543,6 @@ TEST(Serialization, Node_forFile_withoutShares)
     n.size = 12;
     n.owner = 88;
     n.ctime = 44;
-#ifdef ENABLE_SYNC
-    n.setSyncable(false);
-#endif
     n.attrs.map = {
         {101, "foo"},
         {102, "bar"},
@@ -572,7 +551,7 @@ TEST(Serialization, Node_forFile_withoutShares)
     n.plink = new mega::PublicLink{n.nodehandle, 1, 2, false};
     std::string data;
     ASSERT_TRUE(n.serialize(&data));
-    ASSERT_EQ(132, data.size());
+    ASSERT_EQ(131, data.size());
     mega::node_vector dp;
     auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
     checkDeserializedNode(*dn, n);
@@ -586,12 +565,9 @@ TEST(Serialization, Node_forFolder_withoutShares_withoutAttrs_withoutFileAttrStr
     n.size = -1;
     n.owner = 88;
     n.ctime = 44;
-#ifdef ENABLE_SYNC
-    n.setSyncable(false);
-#endif
     std::string data;
     ASSERT_TRUE(n.serialize(&data));
-    ASSERT_EQ(72, data.size());
+    ASSERT_EQ(71, data.size());
     mega::node_vector dp;
     auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
     checkDeserializedNode(*dn, n);
@@ -605,16 +581,13 @@ TEST(Serialization, Node_forFolder_withoutShares_withoutFileAttrString_withoutPl
     n.size = -1;
     n.owner = 88;
     n.ctime = 44;
-#ifdef ENABLE_SYNC
-    n.setSyncable(false);
-#endif
     n.attrs.map = {
         {101, "foo"},
         {102, "bar"},
     };
     std::string data;
     ASSERT_TRUE(n.serialize(&data));
-    ASSERT_EQ(86, data.size());
+    ASSERT_EQ(85, data.size());
     mega::node_vector dp;
     auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
     checkDeserializedNode(*dn, n);
@@ -628,9 +601,6 @@ TEST(Serialization, Node_forFolder_withoutShares_withoutPlink)
     n.size = -1;
     n.owner = 88;
     n.ctime = 44;
-#ifdef ENABLE_SYNC
-    n.setSyncable(false);
-#endif
     n.attrs.map = {
         {101, "foo"},
         {102, "bar"},
@@ -638,7 +608,7 @@ TEST(Serialization, Node_forFolder_withoutShares_withoutPlink)
     n.fileattrstring = "blah";
     std::string data;
     ASSERT_TRUE(n.serialize(&data));
-    ASSERT_EQ(86, data.size());
+    ASSERT_EQ(85, data.size());
     mega::node_vector dp;
     auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
     checkDeserializedNode(*dn, n, true);
@@ -652,9 +622,6 @@ TEST(Serialization, Node_forFolder_withoutShares)
     n.size = -1;
     n.owner = 88;
     n.ctime = 44;
-#ifdef ENABLE_SYNC
-    n.setSyncable(false);
-#endif
     n.attrs.map = {
         {101, "foo"},
         {102, "bar"},
@@ -663,44 +630,8 @@ TEST(Serialization, Node_forFolder_withoutShares)
     n.plink = new mega::PublicLink{n.nodehandle, 1, 2, false};
     std::string data;
     ASSERT_TRUE(n.serialize(&data));
-    ASSERT_EQ(109, data.size());
+    ASSERT_EQ(108, data.size());
     mega::node_vector dp;
     auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
     checkDeserializedNode(*dn, n, true);
-}
-
-TEST(Serialization, Node_forFile_withoutShares_oldNodeWithoutSyncable)
-{
-    MockClient client;
-    auto& parent = mt::makeNode(*client.cli, mega::FOLDERNODE, 43);
-    auto& n = mt::makeNode(*client.cli, mega::FILENODE, 42, &parent);
-    n.size = 12;
-    n.owner = 88;
-    n.ctime = 44;
-    n.attrs.map = {
-        {101, "foo"},
-        {102, "bar"},
-    };
-    n.fileattrstring = "blah";
-    n.plink = new mega::PublicLink{n.nodehandle, 1, 2, false};
-
-    // This array represents an old Node without syncable flag
-    const std::array<char, 131> rawData = {
-        0x0c, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2a, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x2b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x58, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x2c, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x58, 0x58, 0x58, 0x58,
-        0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58,
-        0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58,
-        0x58, 0x58, 0x58, 0x58, 0x05, 0x00, 0x62, 0x6c, 0x61, 0x68, 0x00, 0x01,
-        0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x65, 0x03,
-        0x00, 0x66, 0x6f, 0x6f, 0x01, 0x66, 0x03, 0x00, 0x62, 0x61, 0x72, 0x00,
-        0x2a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
-    };
-    const std::string data(rawData.data(), rawData.size());
-
-    mega::node_vector dp;
-    auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
-    checkDeserializedNode(*dn, n);
 }

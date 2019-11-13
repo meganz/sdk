@@ -252,7 +252,6 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
     int i;
     char isExported = '\0';
     char hasLinkCreationTs = '\0';
-    char syncableInt = 1;
 
     if (ptr + sizeof s + 2 * MegaClient::NODEHANDLE + MegaClient::USERHANDLE + 2 * sizeof ts + sizeof ll > end)
     {
@@ -325,7 +324,7 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
         fa = NULL;
     }
 
-    if (ptr + sizeof isExported + sizeof hasLinkCreationTs + 1 + sizeof syncableInt > end)
+    if (ptr + sizeof isExported + sizeof hasLinkCreationTs > end)
     {
         return NULL;
     }
@@ -336,16 +335,7 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
     hasLinkCreationTs = MemAccess::get<char>(ptr);
     ptr += sizeof(hasLinkCreationTs);
 
-    const bool hasSyncableInt = (unsigned char)*ptr == sizeof(syncableInt);
-    ptr += 1;
-
-    if (hasSyncableInt)
-    {
-        syncableInt = MemAccess::get<char>(ptr);
-        ptr += sizeof(syncableInt);
-    }
-
-    for (i = 5; i--;)
+    for (i = 6; i--;)
     {
         if (ptr + (unsigned char)*ptr < end)
         {
@@ -377,9 +367,6 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
     }
 
     n = new Node(client, dp, h, ph, t, s, u, fa, ts);
-#ifdef ENABLE_SYNC
-    n->setSyncable(syncableInt == 1);
-#endif
 
     if (k)
     {
@@ -539,16 +526,7 @@ bool Node::serialize(string* d)
     char hasLinkCreationTs = plink ? 1 : 0;
     d->append((char*)&hasLinkCreationTs, 1);
 
-#ifdef ENABLE_SYNC
-    const char syncableInt = mSyncable ? 1 : 0;
-#else
-    const char syncableInt = 1;
-#endif
-    const char syncableIntByteCount = sizeof(syncableInt);
-    d->append(&syncableIntByteCount, 1);
-    d->append(&syncableInt, syncableIntByteCount);
-
-    d->append("\0\0\0\0", 5); // Use these bytes for extensions
+    d->append("\0\0\0\0\0", 6); // Use these bytes for extensions
 
     if (inshare)
     {
