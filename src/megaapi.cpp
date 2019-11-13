@@ -2883,9 +2883,9 @@ void MegaApi::startUpload(const char* localPath, MegaNode* parent, MegaTransferL
     pImpl->startUpload(localPath, parent, listener);
 }
 
-void MegaApi::startUploadForSupport(const char* localPath, MegaTransferListener *listener)
+void MegaApi::startUploadForSupport(const char* localPath, bool isSourceTemporary, MegaTransferListener *listener)
 {
-    pImpl->startUploadForSupport(localPath, listener);
+    pImpl->startUploadForSupport(localPath, isSourceTemporary, listener);
 }
 
 MegaStringList *MegaApi::getBackupFolders(int backuptag) const
