@@ -1696,6 +1696,7 @@ public:
     virtual MegaUserAlertList *copy() const;
     virtual MegaUserAlert* get(int i) const;
     virtual int size() const;
+    virtual void clear();
 
 protected:
     MegaUserAlertListPrivate(MegaUserAlertListPrivate *userList);

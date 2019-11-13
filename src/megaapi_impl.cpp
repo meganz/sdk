@@ -4344,6 +4344,13 @@ int MegaUserAlertListPrivate::size() const
     return s;
 }
 
+void MegaUserAlertListPrivate::clear()
+{
+    delete[] list;
+    s = 0;
+    list = nullptr;
+}
+
 MegaRecentActionBucketPrivate::MegaRecentActionBucketPrivate(recentaction& ra, MegaClient* mc)
 {
     User* u = mc->finduser(ra.user);

@@ -279,6 +279,7 @@ int MegaUserAlertList::size() const
     return 0;
 }
 
+void MegaUserAlertList::clear() { }
 
 
 MegaRecentActionBucket::~MegaRecentActionBucket()

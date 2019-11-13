@@ -678,7 +678,7 @@ struct SyncConfig
     {
         TYPE_UP = 0x01, // sync up from local to remote
         TYPE_DOWN = 0x02, // sync down from remote to local
-        TYPE_DEFAULT = TYPE_UP | TYPE_DOWN,
+        TYPE_DEFAULT = TYPE_UP | TYPE_DOWN, // Two-way sync
     };
 
     // type of the sync, defaults to bidirectional

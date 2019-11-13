@@ -335,18 +335,7 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
     hasLinkCreationTs = MemAccess::get<char>(ptr);
     ptr += sizeof(hasLinkCreationTs);
 
-    int8_t syncableInt = 1;
-
-    const bool hasSyncableInt = (unsigned char)*ptr == sizeof(syncableInt);
-    ptr += 1;
-
-    if (hasSyncableInt)
-    {
-        syncableInt = MemAccess::get<int8_t>(ptr);
-        ptr += sizeof(syncableInt);
-    }
-
-    for (i = 5; i--;)
+    for (i = 6; i--;)
     {
         if (ptr + (unsigned char)*ptr < end)
         {
@@ -378,9 +367,6 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
     }
 
     n = new Node(client, dp, h, ph, t, s, u, fa, ts);
-#ifdef ENABLE_SYNC
-    n->setSyncable(syncableInt == 1);
-#endif
 
     if (k)
     {
@@ -540,12 +526,7 @@ bool Node::serialize(string* d)
     char hasLinkCreationTs = plink ? 1 : 0;
     d->append((char*)&hasLinkCreationTs, 1);
 
-    const int8_t syncableInt = mSyncable ? 1 : 0;
-    const int8_t syncableIntByteCount = sizeof(syncableInt);
-    d->append((char*)&syncableIntByteCount, 1);
-    d->append((char*)&syncableInt, syncableIntByteCount);
-
-    d->append("\0\0\0\0", 5); // Use these bytes for extensions
+    d->append("\0\0\0\0\0", 6); // Use these bytes for extensions
 
     if (inshare)
     {
@@ -1094,18 +1075,6 @@ Node* Node::firstancestor()
     return n;
 }
 
-#ifdef ENABLE_SYNC
-void Node::setSyncable(const bool syncable)
-{
-    mSyncable = syncable;
-}
-
-bool Node::isSyncable() const
-{
-    return mSyncable;
-}
-#endif
-
 // returns 1 if n is under p, 0 otherwise
 bool Node::isbelow(Node* p) const
 {
@@ -1586,11 +1555,6 @@ LocalNode::~LocalNode()
         return;
     }
 
-    if (!sync->client)
-    {
-        return;
-    }
-
     if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
     {
         sync->statecachedel(this);
@@ -1837,12 +1801,10 @@ bool LocalNode::serialize(string* d)
         d->append((const char*)buf, Serialize64::serialize(buf, mtime));
     }
 
-    const int8_t syncableInt = syncable ? 1 : 0;
-    const int8_t syncableIntByteCount = sizeof(syncableInt);
-    d->append((char*)&syncableIntByteCount, 1);
-    d->append((char*)&syncableInt, syncableIntByteCount);
+    const char syncable = mSyncable ? 1 : 0;
+    d->append(&syncable, sizeof(syncable));
 
-    d->append("\0\0\0\0\0\0", 7); // Use these bytes for extensions
+    d->append("\0\0\0\0\0\0", 8); // Use these bytes for extensions
 
     return true;
 }
@@ -1925,20 +1887,20 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
         }
     }
 
-    int8_t syncableInt = 1;
+    char syncable = 1;
     if (ptr < end)
     {
-        const bool hasSyncableInt = (unsigned char)*ptr == sizeof(syncableInt);
-        ptr += 1;
-
-        if (hasSyncableInt)
+        if (ptr + sizeof(syncable) + 8 > end)
         {
-            syncableInt = MemAccess::get<int8_t>(ptr);
-            ptr += sizeof(syncableInt);
+            LOG_err << "LocalNode unserialization failed - syncable flag";
+            return NULL;
         }
 
+        syncable = MemAccess::get<char>(ptr);
+        ptr += sizeof(syncable);
+
         // skip extension bytes
-        for (int i = 7; i--;)
+        for (int i = 8; i--;)
         {
             if (ptr + (unsigned char)*ptr < end)
             {
@@ -1970,7 +1932,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     l->node = sync->client->nodebyhandle(h);
     l->parent = nullptr;
     l->sync = sync;
-    l->syncable = syncableInt == 1;
+    l->mSyncable = syncable == 1;
 
     // FIXME: serialize/unserialize
     l->created = false;

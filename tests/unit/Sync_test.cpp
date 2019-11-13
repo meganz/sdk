@@ -217,6 +217,11 @@ public:
         return 0;
     }
 
+    bool getsname(std::string*, std::string*) const override
+    {
+        return false;
+    }
+
 private:
     std::map<std::string, const mt::FsNode*>& mFsNodes;
 };
