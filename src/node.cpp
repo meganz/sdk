@@ -146,6 +146,8 @@ Node::~Node()
     {
         client->tounlink.erase(tounlink_it);
     }
+
+    client->mUnsyncableNodes.erase(nodehandle);
 #endif
 
     if (outshares)
@@ -1626,6 +1628,13 @@ LocalNode::~LocalNode()
 
     if (node)
     {
+//        if (!sync->isUpSync()) // todocb
+        {
+            node->mSyncable = false;
+            sync->client->mUnsyncableNodes.insert(node->nodehandle);
+            sync->client->notifynode(node);
+        }
+
         // move associated node to SyncDebris unless the sync is currently
         // shutting down
         if (sync->state < SYNC_INITIALSCAN)

@@ -950,6 +950,20 @@ public:
     // DB access
     DbAccess* dbaccess;
 
+#ifdef ENABLE_SYNC
+    // table for caching remote nodes that are not syncable
+    std::unique_ptr<DbTable> mUnsyncableNodesTable;
+
+    // set of remote nodes that are not syncable
+    std::set<handle> mUnsyncableNodes;
+
+    // opens the unsyncablenodes table
+    void openUnsyncableNodesTable();
+
+    // loads the unsyncable nodes from table
+    void loadUnsyncableNodes();
+#endif
+
     // state cache table for logged in user
     DbTable* sctable;
 
