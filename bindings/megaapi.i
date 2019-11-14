@@ -10,22 +10,29 @@
 #endif
 
 #ifdef ENABLE_WEBRTC
-#include "webrtc/rtc_base/ssladapter.h"
-#include "webrtc/sdk/android/src/jni/classreferenceholder.h"
+#include "webrtc/modules/utility/include/jvm_android.h"
+#include "webrtc/rtc_base/logging.h"
+#include "webrtc/rtc_base/ssl_adapter.h"
+#include "webrtc/sdk/android/native_api/base/init.h"
+#include "webrtc/sdk/android/src/jni/class_reference_holder.h"
+#include "webrtc/sdk/android/src/jni/jni_generator_helper.h"
 #include "webrtc/sdk/android/src/jni/jni_helpers.h"
+#include "webrtc/sdk/android/native_api/jni/class_loader.h"
+#include <jni.h>
 
-namespace webrtc
-{
-    class JVM
-    {
-        public:
-            static void Initialize(JavaVM* jvm, jobject context);
-    };
-};
+//namespace webrtc
+//{
+//    class JVM
+//    {
+//        public:
+//            static void Initialize(JavaVM* jvm, jobject context);
+//    };
+//};
 #endif
 
 #ifdef SWIGJAVA
 JavaVM *MEGAjvm = NULL;
+JNIEnv* jenv = NULL;
 jstring strEncodeUTF8 = NULL;
 jclass clsString = NULL;
 jmethodID ctorString = NULL;
@@ -37,11 +44,14 @@ jmethodID stopVideoCaptureMID = NULL;
 jobject surfaceTextureHelper = NULL;
 
 
-JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
+extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 {
     MEGAjvm = jvm;
-    JNIEnv* jenv = NULL;
-    jvm->GetEnv((void**)&jenv, JNI_VERSION_1_4);
+    //webrtc::InitAndroid(MEGAjvm);
+    //webrtc::JVM::Initialize(MEGAjvm);
+    //rtc::InitializeSSL();
+
+    jvm->GetEnv((void**)&jenv, JNI_VERSION_1_6);
 
     jclass clsStringLocal = jenv->FindClass("java/lang/String");
     clsString = (jclass)jenv->NewGlobalRef(clsStringLocal);
@@ -52,8 +62,13 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
     strEncodeUTF8 = (jstring)jenv->NewGlobalRef(strEncodeUTF8Local);
     jenv->DeleteLocalRef(strEncodeUTF8Local);
 
+    //jclass checker = jenv->FindClass("org/webrtc/WebRtcClassLoader");
+    //assert(checker);
+
 #ifdef ENABLE_WEBRTC
     // Initialize WebRTC
+
+    jenv->ExceptionClear();
     jclass appGlobalsClass = jenv->FindClass("android/app/AppGlobals");
     if (appGlobalsClass)
     {
@@ -63,11 +78,9 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
             jobject context = jenv->CallStaticObjectMethod(appGlobalsClass, getInitialApplicationMID);
             if (context)
             {
-                webrtc::JVM::Initialize(MEGAjvm, context);
-                webrtc_jni::InitGlobalJniVariables(jvm);
+                webrtc::InitAndroid(MEGAjvm);
+                webrtc::JVM::Initialize(MEGAjvm);
                 rtc::InitializeSSL();
-                webrtc_jni::LoadGlobalClassReferenceHolder();
-                jenv->DeleteLocalRef(context);
             }
         }
         else
@@ -87,13 +100,13 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
         applicationClass = (jclass)jenv->NewGlobalRef(megaApplicationClass);
         jenv->DeleteLocalRef(megaApplicationClass);
 
-        startVideoCaptureMID = jenv->GetStaticMethodID(applicationClass, "startVideoCapture", "(JLorg/webrtc/SurfaceTextureHelper;)V");
+        startVideoCaptureMID = jenv->GetStaticMethodID(applicationClass, "startVideoCapture", "(Lorg/webrtc/SurfaceTextureHelper;Lorg/webrtc/CapturerObserver;)V");
         if (!startVideoCaptureMID)
         {
             jenv->ExceptionClear();
         }
 
-        startVideoCaptureWithParametersMID = jenv->GetStaticMethodID(applicationClass, "startVideoCaptureWithParameters", "(IIIJLorg/webrtc/SurfaceTextureHelper;)V");
+        startVideoCaptureWithParametersMID = jenv->GetStaticMethodID(applicationClass, "startVideoCaptureWithParameters", "(IIILorg/webrtc/SurfaceTextureHelper;Lorg/webrtc/CapturerObserver;)V");
         if (!startVideoCaptureWithParametersMID)
         {
             jenv->ExceptionClear();
@@ -141,7 +154,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
     ares_library_init_jvm(jvm);
 #endif
 
-    return JNI_VERSION_1_4;
+    return JNI_VERSION_1_6;
 }
 #endif
 %}
