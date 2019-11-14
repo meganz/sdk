@@ -3335,6 +3335,17 @@ MegaSyncListener *MegaRequestPrivate::getSyncListener() const
 {
     return syncListener;
 }
+
+void MegaRequestPrivate::setMegaSyncConfig(const MegaSyncConfig* syncConfig)
+{
+    this->syncConfig.reset(syncConfig);
+}
+
+const MegaSyncConfig* MegaRequestPrivate::getMegaSyncConfig() const
+{
+    return syncConfig.get();
+}
+
 MegaRegExp *MegaRequestPrivate::getRegExp() const
 {
     return regExp;
@@ -8313,7 +8324,13 @@ MegaNode *MegaApiImpl::getSyncedNode(string *path)
 
 void MegaApiImpl::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
 {
+    syncFolder(MegaSyncConfig::createInstance(), localFolder, megaFolder, regExp, listener);
+}
+
+void MegaApiImpl::syncFolder(const MegaSyncConfig* syncConfig, const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
+{
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC);
+    request->setMegaSyncConfig(syncConfig);
     if(megaFolder) request->setNodeHandle(megaFolder->getHandle());
     if(localFolder)
     {
@@ -8333,6 +8350,11 @@ void MegaApiImpl::syncFolder(const char *localFolder, MegaNode *megaFolder, Mega
 
 void MegaApiImpl::resumeSync(const char *localFolder, long long localfp, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
 {
+    resumeSync(MegaSyncConfig::createInstance(), localFolder, localfp, megaFolder, regExp, listener);
+}
+
+void MegaApiImpl::resumeSync(const MegaSyncConfig* syncConfig, const char *localFolder, long long localfp, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
+{
     sdkMutex.lock();
 
 #ifdef __APPLE__
@@ -8342,6 +8364,7 @@ void MegaApiImpl::resumeSync(const char *localFolder, long long localfp, MegaNod
     LOG_debug << "Resume sync";
 
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC);
+    request->setMegaSyncConfig(syncConfig);
     request->setListener(listener);
     request->setRegExp(regExp);
 
@@ -8380,11 +8403,16 @@ void MegaApiImpl::resumeSync(const char *localFolder, long long localfp, MegaNod
         client->fsaccess->path2local(&utf8name, &localname);
 
         MegaSyncPrivate *sync = new MegaSyncPrivate(utf8name.c_str(), node->nodehandle, -nextTag);
+        sync->setMegaSyncConfig(request->getMegaSyncConfig()->copy());
         sync->setListener(request->getSyncListener());
         sync->setLocalFingerprint(localfp);
         sync->setRegExp(regExp);
 
-        e = client->addsync(SyncConfig{}, &localname, DEBRISFOLDER, NULL, node, localfp, -nextTag, sync);
+        SyncConfig config;
+        config.syncType = static_cast<SyncConfig::Type>(request->getMegaSyncConfig()->getSyncType());
+        config.syncDeletions = request->getMegaSyncConfig()->getSyncDeletions();
+        config.forceOverwrite = request->getMegaSyncConfig()->getForceOverwrite();
+        e = client->addsync(config, &localname, DEBRISFOLDER, NULL, node, localfp, -nextTag, sync);
         if (!e)
         {
             Sync *s = client->syncs.back();
@@ -20502,10 +20530,15 @@ void MegaApiImpl::sendPendingRequests()
             client->fsaccess->path2local(&utf8name, &localname);
 
             MegaSyncPrivate *sync = new MegaSyncPrivate(utf8name.c_str(), node->nodehandle, -nextTag);
+            sync->setMegaSyncConfig(request->getMegaSyncConfig()->copy());
             sync->setListener(request->getSyncListener());
             sync->setRegExp(request->getRegExp());
 
-            e = client->addsync(SyncConfig{}, &localname, DEBRISFOLDER, NULL, node, 0, -nextTag, sync);
+            SyncConfig config;
+            config.syncType = static_cast<SyncConfig::Type>(request->getMegaSyncConfig()->getSyncType());
+            config.syncDeletions = request->getMegaSyncConfig()->getSyncDeletions();
+            config.forceOverwrite = request->getMegaSyncConfig()->getForceOverwrite();
+            e = client->addsync(config, &localname, DEBRISFOLDER, NULL, node, 0, -nextTag, sync);
             if (!e)
             {
                 Sync *s = client->syncs.back();
@@ -22590,6 +22623,35 @@ void MegaPricingPrivate::addProduct(unsigned int type, handle product, int proLe
 }
 
 #ifdef ENABLE_SYNC
+
+MegaSyncConfigPrivate::MegaSyncConfigPrivate(const int syncType,
+                                             const bool syncDeletions,
+                                             const bool forceOverwrite)
+: mSyncType{syncType}
+, mSyncDeletions{syncDeletions}
+, mForceOverwrite{forceOverwrite}
+{}
+
+MegaSyncConfig* MegaSyncConfigPrivate::copy() const
+{
+    return new MegaSyncConfigPrivate{mSyncType, mSyncDeletions, mForceOverwrite};
+}
+
+int MegaSyncConfigPrivate::getSyncType() const
+{
+    return mSyncType;
+}
+
+bool MegaSyncConfigPrivate::getSyncDeletions() const
+{
+    return mSyncDeletions;
+}
+
+bool MegaSyncConfigPrivate::getForceOverwrite() const
+{
+    return mForceOverwrite;
+}
+
 MegaSyncPrivate::MegaSyncPrivate(const char *path, handle nodehandle, int tag)
 {
     this->tag = tag;
@@ -22604,6 +22666,7 @@ MegaSyncPrivate::MegaSyncPrivate(const char *path, handle nodehandle, int tag)
 
 MegaSyncPrivate::MegaSyncPrivate(MegaSyncPrivate *sync)
 {
+    this->setMegaSyncConfig(sync->getMegaSyncConfig()->copy());
     this->regExp = NULL;
     this->localFolder = NULL;
     this->setTag(sync->getTag());
@@ -22624,6 +22687,16 @@ MegaSyncPrivate::~MegaSyncPrivate()
 MegaSync *MegaSyncPrivate::copy()
 {
     return new MegaSyncPrivate(this);
+}
+
+const MegaSyncConfig* MegaSyncPrivate::getMegaSyncConfig() const
+{
+    return megaSyncConfig.get();
+}
+
+void MegaSyncPrivate::setMegaSyncConfig(const MegaSyncConfig* syncConfig)
+{
+    this->megaSyncConfig.reset(syncConfig);
 }
 
 MegaHandle MegaSyncPrivate::getMegaHandle() const

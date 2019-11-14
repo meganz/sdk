@@ -1029,6 +1029,11 @@ MegaBackgroundMediaUpload* MegaRequest::getMegaBackgroundMediaUploadPtr() const
     return NULL;
 }
 
+const MegaSyncConfig* MegaRequest::getMegaSyncConfig() const
+{
+    return nullptr;
+}
+
 MegaTransfer::~MegaTransfer() { }
 
 MegaTransfer *MegaTransfer::copy()
@@ -3072,9 +3077,19 @@ void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequ
     pImpl->syncFolder(localFolder, megaFolder, NULL, listener);
 }
 
+void MegaApi::syncFolder(const MegaSyncConfig *syncConfig, const char *localFolder, MegaNode *megaFolder, MegaRequestListener *listener)
+{
+    pImpl->syncFolder(syncConfig, localFolder, megaFolder, NULL, listener);
+}
+
 void MegaApi::resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRequestListener *listener)
 {
     pImpl->resumeSync(localFolder, localfp, megaFolder, NULL, listener);
+}
+
+void MegaApi::resumeSync(const MegaSyncConfig *syncConfig, const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRequestListener *listener)
+{
+    pImpl->resumeSync(syncConfig, localFolder, localfp, megaFolder, NULL, listener);
 }
 
 #ifdef USE_PCRE
@@ -3083,9 +3098,19 @@ void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegE
     pImpl->syncFolder(localFolder, megaFolder, regExp, listener);
 }
 
+void MegaApi::syncFolder(const MegaSyncConfig *syncConfig, const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
+{
+    pImpl->syncFolder(syncConfig, localFolder, megaFolder, regExp, listener);
+}
+
 void MegaApi::resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRegExp *regExp, MegaRequestListener *listener)
 {
     pImpl->resumeSync(localFolder, localfp, megaFolder, regExp, listener);
+}
+
+void MegaApi::resumeSync(const MegaSyncConfig *syncConfig, const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRegExp *regExp, MegaRequestListener *listener)
+{
+    pImpl->resumeSync(syncConfig, localFolder, localfp, megaFolder, regExp, listener);
 }
 #endif
 
@@ -5343,11 +5368,47 @@ MegaPricing *MegaPricing::copy()
 }
 
 #ifdef ENABLE_SYNC
+
+MegaSyncConfig::~MegaSyncConfig()
+{}
+
+MegaSyncConfig* MegaSyncConfig::createInstance(const int syncType,
+                                               const bool syncDeletions,
+                                               const bool forceOverwrite)
+{
+    return new MegaSyncConfigPrivate{syncType, syncDeletions, forceOverwrite};
+}
+
+MegaSyncConfig* MegaSyncConfig::copy() const
+{
+    return nullptr;
+}
+
+int MegaSyncConfig::getSyncType() const
+{
+    return TYPE_DEFAULT;
+}
+
+bool MegaSyncConfig::getSyncDeletions() const
+{
+    return false;
+}
+
+bool MegaSyncConfig::getForceOverwrite() const
+{
+    return false;
+}
+
 MegaSync::~MegaSync() { }
 
 MegaSync *MegaSync::copy()
 {
     return NULL;
+}
+
+const MegaSyncConfig* MegaSync::getConfig() const
+{
+    return nullptr;
 }
 
 MegaHandle MegaSync::getMegaHandle() const

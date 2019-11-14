@@ -987,6 +987,24 @@ private:
 #endif
 };
 
+class MegaSyncConfigPrivate : public MegaSyncConfig
+{
+public:
+    MegaSyncConfigPrivate(int syncType,
+                          bool syncDeletions,
+                          bool forceOverwrite);
+
+    MegaSyncConfig* copy() const override;
+    int getSyncType() const override;
+    bool getSyncDeletions() const override;
+    bool getForceOverwrite() const override;
+
+private:
+    int mSyncType;
+    bool mSyncDeletions;
+    bool mForceOverwrite;
+};
+
 class MegaSyncPrivate : public MegaSync
 {  
 public:
@@ -997,6 +1015,8 @@ public:
 
     virtual MegaSync *copy();
 
+    virtual const MegaSyncConfig* getMegaSyncConfig() const;
+    void setMegaSyncConfig(const MegaSyncConfig* config);
     virtual MegaHandle getMegaHandle() const;
     void setMegaHandle(MegaHandle handle);
     virtual const char* getLocalFolder() const;
@@ -1013,6 +1033,7 @@ public:
     void setRegExp(MegaRegExp *regExp);
 
 protected:
+    std::unique_ptr<const MegaSyncConfig> megaSyncConfig;
     MegaHandle megaHandle;
     char *localFolder;
     MegaRegExp *regExp;
@@ -1122,6 +1143,8 @@ class MegaRequestPrivate : public MegaRequest
 #ifdef ENABLE_SYNC
         void setSyncListener(MegaSyncListener *syncListener);
         MegaSyncListener *getSyncListener() const;
+        void setMegaSyncConfig(const MegaSyncConfig *syncConfig);
+        virtual const MegaSyncConfig* getMegaSyncConfig() const;
         void setRegExp(MegaRegExp *regExp);
         virtual MegaRegExp *getRegExp() const;
 #endif
@@ -1155,6 +1178,7 @@ protected:
         MegaRequestListener *listener;
 #ifdef ENABLE_SYNC
         MegaSyncListener *syncListener;
+        std::unique_ptr<const MegaSyncConfig> syncConfig;
         MegaRegExp *regExp;
 #endif
         MegaBackupListener *backupListener;
@@ -2225,7 +2249,9 @@ class MegaApiImpl : public MegaApp
         int syncPathState(string *path);
         MegaNode *getSyncedNode(string *path);
         void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp = NULL, MegaRequestListener* listener = NULL);
+        void syncFolder(const MegaSyncConfig* syncConfig, const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp = NULL, MegaRequestListener* listener = NULL);
         void resumeSync(const char *localFolder, long long localfp, MegaNode *megaFolder, MegaRegExp *regExp = NULL, MegaRequestListener *listener = NULL);
+        void resumeSync(const MegaSyncConfig* syncConfig, const char *localFolder, long long localfp, MegaNode *megaFolder, MegaRegExp *regExp = NULL, MegaRequestListener *listener = NULL);
         void removeSync(handle nodehandle, MegaRequestListener *listener=NULL);
         void disableSync(handle nodehandle, MegaRequestListener *listener=NULL);
         int getNumActiveSyncs();
