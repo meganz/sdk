@@ -986,6 +986,33 @@ NodeCounter Node::subnodeCounts() const
     return nc;
 }
 
+#ifdef ENABLE_SYNC
+void Node::setSyncable(const bool syncable, const bool notify)
+{
+    if (syncable != mSyncable)
+    {
+        mSyncable = syncable;
+        if (notify)
+        {
+            if (mSyncable)
+            {
+                client->mUnsyncableNodes.erase(nodehandle);
+            }
+            else
+            {
+                client->mUnsyncableNodes.insert(nodehandle);
+            }
+            client->notifynode(this);
+        }
+    }
+}
+
+bool Node::isSyncable() const
+{
+    return mSyncable;
+}
+#endif
+
 // returns whether node was moved
 bool Node::setparent(Node* p)
 {
@@ -1022,6 +1049,15 @@ bool Node::setparent(Node* p)
     if (parent)
     {
         child_it = parent->children.insert(parent->children.end(), this);
+
+#ifdef ENABLE_SYNC
+        if (parent->type == FILENODE)
+        {
+            // copy syncable from child (old version) to parent (new version)
+            parent->setSyncable(isSyncable());
+            setSyncable(true); // set back to default
+        }
+#endif
     }
 
     Node* newancestor = firstancestor();
@@ -1628,11 +1664,9 @@ LocalNode::~LocalNode()
 
     if (node)
     {
-//        if (!sync->isUpSync()) // todocb
+        if (!sync->isUpSync())
         {
-            node->mSyncable = false;
-            sync->client->mUnsyncableNodes.insert(node->nodehandle);
-            sync->client->notifynode(node);
+            node->setSyncable(false);
         }
 
         // move associated node to SyncDebris unless the sync is currently

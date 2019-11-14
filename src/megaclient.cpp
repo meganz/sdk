@@ -4520,7 +4520,7 @@ void MegaClient::updatesc()
                         break;
                     }
 #ifdef ENABLE_SYNC
-                    if (!(*it)->mSyncable)
+                    if (!(*it)->isSyncable())
                     {
                         mUnsyncableNodes.insert((*it)->nodehandle);
                         auto nodehandle = std::to_string((*it)->nodehandle);
@@ -8370,11 +8370,6 @@ void MegaClient::loadUnsyncableNodes()
             mUnsyncableNodes.insert(std::stoull(nodehandle));
         }
     }
-    else
-    {
-        assert(false);
-        LOG_err << "unsyncablenodes table not open";
-    }
 }
 #endif
 
@@ -10539,7 +10534,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
 #ifdef ENABLE_SYNC
                     if (mUnsyncableNodes.find(n->nodehandle) != mUnsyncableNodes.end())
                     {
-                        n->mSyncable = false;
+                        n->setSyncable(false, false);
                     }
 #endif
                 }
