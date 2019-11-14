@@ -2567,8 +2567,17 @@ public:
         else
         {
 #ifdef _WIN32
+            auto t = std::time(NULL);
+            char ts[50];
+            if (!std::strftime(ts, sizeof(ts), "%H:%M:%S", std::localtime(&t)))
+            {
+                ts[0] = '\0';
+            }
+
             string s;
             s.reserve(1024);
+            s += ts;
+            s += " ";
             s += message;
             s += "\r\n";
             OutputDebugStringA(s.c_str());

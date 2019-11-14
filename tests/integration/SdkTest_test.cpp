@@ -2272,7 +2272,7 @@ TEST_F(SdkTest, SdkTestShareKeys)
     ASSERT_EQ(MegaError::API_OK, synchronousInviteContact(0, mApi[2].email.c_str(), "SdkTestShareKeys contact request A to C", MegaContactRequest::INVITE_ACTION_ADD));
 
     ASSERT_TRUE(WaitFor([this]() {return unique_ptr<MegaContactRequestList>(megaApi[1]->getIncomingContactRequests())->size() == 1 
-                                      && unique_ptr<MegaContactRequestList>(megaApi[2]->getIncomingContactRequests())->size() == 1;}, 3000));
+                                      && unique_ptr<MegaContactRequestList>(megaApi[2]->getIncomingContactRequests())->size() == 1;}, 60000));
     ASSERT_NO_FATAL_FAILURE(getContactRequest(1, false));
     ASSERT_NO_FATAL_FAILURE(getContactRequest(2, false));
     
@@ -2285,8 +2285,8 @@ TEST_F(SdkTest, SdkTestShareKeys)
     ASSERT_EQ(MegaError::API_OK, synchronousShare(0, shareFolderA.get(), mApi[1].email.c_str(), MegaShare::ACCESS_READ));
     ASSERT_EQ(MegaError::API_OK, synchronousShare(0, subFolderA.get(), mApi[2].email.c_str(), MegaShare::ACCESS_FULL));
 
-    WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 1 
-                           && unique_ptr<MegaShareList>(megaApi[2]->getInSharesList())->size() == 1; }, 3000);
+    ASSERT_TRUE(WaitFor([this]() { return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 1
+                           && unique_ptr<MegaShareList>(megaApi[2]->getInSharesList())->size() == 1; }, 60000));
 
     unique_ptr<MegaNodeList> nl1(megaApi[1]->getInShares(megaApi[1]->getContact(mApi[0].email.c_str())));
     unique_ptr<MegaNodeList> nl2(megaApi[2]->getInShares(megaApi[2]->getContact(mApi[0].email.c_str())));
@@ -2299,6 +2299,9 @@ TEST_F(SdkTest, SdkTestShareKeys)
 
     ASSERT_NO_FATAL_FAILURE(createFolder(2, "folderByC1", receivedShareNodeC));
     ASSERT_NO_FATAL_FAILURE(createFolder(2, "folderByC2", receivedShareNodeC));
+
+    ASSERT_TRUE(WaitFor([this, &subFolderA]() { unique_ptr<MegaNodeList> aView(megaApi[0]->getChildren(subFolderA.get()));
+                                   return aView->size() == 2; }, 60000));
 
     WaitMillisec(10000);  // make it shorter once we do actually get the keys (seems to need a bug fix)
 
