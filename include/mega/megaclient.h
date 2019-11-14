@@ -619,6 +619,9 @@ public:
     void sendevent(int, const char *);
     void sendevent(int, const char *, int tag);
 
+    // create support ticket
+    void supportticket(const char *message, int type);
+
     // clean rubbish bin
     void cleanrubbishbin();
 
@@ -1598,7 +1601,7 @@ public:
         uint64_t prepwaitImmediate = 0, prepwaitZero = 0, prepwaitHttpio = 0, prepwaitFsaccess = 0, nonzeroWait = 0;
         CodeCounter::DurationSum csRequestWaitTime;
         CodeCounter::DurationSum transfersActiveTime;
-        std::string report(bool reset, HttpIO* httpio, Waiter* waiter);
+        std::string report(bool reset, HttpIO* httpio, Waiter* waiter, const RequestDispatcher& reqs);
     } performanceStats;
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);

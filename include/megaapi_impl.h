@@ -1672,6 +1672,7 @@ public:
     virtual MegaUserAlertList *copy() const;
     virtual MegaUserAlert* get(int i) const;
     virtual int size() const;
+    virtual void clear();
 
 protected:
     MegaUserAlertListPrivate(MegaUserAlertListPrivate *userList);
@@ -2156,6 +2157,7 @@ class MegaApiImpl : public MegaApp
         void submitFeedback(int rating, const char *comment, MegaRequestListener *listener = NULL);
         void reportEvent(const char *details = NULL, MegaRequestListener *listener = NULL);
         void sendEvent(int eventType, const char* message, MegaRequestListener *listener = NULL);
+        void createSupportTicket(const char* message, int type = 1, MegaRequestListener *listener = NULL);
 
         void useHttpsOnly(bool httpsOnly, MegaRequestListener *listener = NULL);
         bool usingHttpsOnly();
@@ -2175,7 +2177,7 @@ class MegaApiImpl : public MegaApp
         void startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener = NULL);
         void startUpload(bool startFirst, const char* localPath, MegaNode* parent, const char* fileName, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, MegaTransferListener *listener);
         void startUpload(bool startFirst, const char* localPath, MegaNode* parent, const char* fileName, const char* targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, MegaTransferListener *listener);
-        void startUploadForSupport(const char *localPath, MegaTransferListener *listener=NULL);
+        void startUploadForSupport(const char *localPath, bool isSourceTemporary = false, MegaTransferListener *listener=NULL);
         void startDownload(MegaNode* node, const char* localPath, MegaTransferListener *listener = NULL);
         void startDownload(bool startFirst, MegaNode *node, const char* target, int folderTransferTag, const char *appData, MegaTransferListener *listener);
         void startStreaming(MegaNode* node, m_off_t startPos, m_off_t size, MegaTransferListener *listener);
@@ -2836,6 +2838,7 @@ protected:
 
         void userfeedbackstore_result(error) override;
         void sendevent_result(error) override;
+        void supportticket_result(error) override;
 
         void checkfile_result(handle h, error e) override;
         void checkfile_result(handle h, error e, byte* filekey, m_off_t size, m_time_t ts, m_time_t tm, string* filename, string* fingerprint, string* fileattrstring) override;

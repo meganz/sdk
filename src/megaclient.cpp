@@ -2848,7 +2848,7 @@ void MegaClient::exec()
     if (Waiter::ds > lasttime + 1200)
     {
         lasttime = Waiter::ds;
-        LOG_info << performanceStats.report(false, httpio, waiter);
+        LOG_info << performanceStats.report(false, httpio, waiter, reqs);
     }
 #endif
 }
@@ -9123,7 +9123,7 @@ void MegaClient::putua(userattr_map *attrs, int ctag)
 
     for (userattr_map::iterator it = attrs->begin(); it != attrs->end(); it++)
     {
-        attr_t type = it->first;;
+        attr_t type = it->first;
 
         if (User::needversioning(type) != 1)
         {
@@ -13723,7 +13723,8 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
             }
         }
 
-        assert(!ISUNDEF(f->h) && (nodebyhandle(f->h) || d == GET)); // target handle for the upload should be known at this time
+        assert( (ISUNDEF(f->h) && f->targetuser.size() && (f->targetuser.size() == 11 || f->targetuser.find("@")!=string::npos) ) // <- uploading to inbox
+                || (!ISUNDEF(f->h) && (nodebyhandle(f->h) || d == GET) )); // target handle for the upload should be known at this time (except for inbox uploads)
     }
 
     return true;
@@ -14192,6 +14193,11 @@ void MegaClient::sendevent(int event, const char *message, int tag)
     reqtag = creqtag;
 }
 
+void MegaClient::supportticket(const char *message, int type)
+{
+    reqs.add(new CommandSupportTicket(this, message, type));
+}
+
 void MegaClient::cleanrubbishbin()
 {
     reqs.add(new CommandCleanRubbishBin(this));
@@ -14357,7 +14363,7 @@ void MegaClient::getwelcomepdf()
 }
 
 #ifdef MEGA_MEASURE_CODE
-std::string MegaClient::PerformanceStats::report(bool reset, HttpIO* httpio, Waiter* waiter)
+std::string MegaClient::PerformanceStats::report(bool reset, HttpIO* httpio, Waiter* waiter, const RequestDispatcher& reqs)
 {
     std::ostringstream s;
     s << prepareWait.report(reset) << "\n"
@@ -14372,6 +14378,7 @@ std::string MegaClient::PerformanceStats::report(bool reset, HttpIO* httpio, Wai
         << scProcessingTime.report(reset) << "\n"
         << csResponseProcessingTime.report(reset) << "\n"
         << " cs Request waiting time: " << csRequestWaitTime.report(reset) << "\n"
+        << " cs requests sent/received: " << reqs.csRequestsSent << "/" << reqs.csRequestsCompleted << " batches: " << reqs.csBatchesSent << "/" << reqs.csBatchesReceived << "\n"
         << " transfers active time: " << transfersActiveTime.report(reset) << "\n"
         << " transfer starts/finishes: " << transferStarts << " " << transferFinishes << "\n"
         << " transfer temperror/fails: " << transferTempErrors << " " << transferFails << "\n"

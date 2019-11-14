@@ -113,7 +113,6 @@ struct MEGA_API Transfer : public FileFingerprint
     // remove file from transfer including in cache
     void removeTransferFile(error, File* f, DBTableTransactionCommitter* committer);
 
-
     // previous wrong fingerprint
     FileFingerprint badfp;
 

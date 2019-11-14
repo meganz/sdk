@@ -3836,6 +3836,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_VERIFY_CREDENTIALS: return "VERIFY_CREDENTIALS";
         case TYPE_GET_MISC_FLAGS: return "GET_MISC_FLAGS";
         case TYPE_RESEND_VERIFICATION_EMAIL: return "RESEND_VERIFICATION_EMAIL";
+        case TYPE_SUPPORT_TICKET: return "SUPPORT_TICKET";
     }
     return "UNKNOWN";
 }
@@ -4330,6 +4331,13 @@ MegaUserAlert *MegaUserAlertListPrivate::get(int i) const
 int MegaUserAlertListPrivate::size() const
 {
     return s;
+}
+
+void MegaUserAlertListPrivate::clear()
+{
+    delete[] list;
+    s = 0;
+    list = nullptr;
 }
 
 MegaRecentActionBucketPrivate::MegaRecentActionBucketPrivate(recentaction& ra, MegaClient* mc)
@@ -6991,6 +6999,15 @@ void MegaApiImpl::sendEvent(int eventType, const char *message, MegaRequestListe
     waiter->notify();
 }
 
+void MegaApiImpl::createSupportTicket(const char *message, int type, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SUPPORT_TICKET, listener);
+    request->setParamType(type);
+    request->setText(message);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::useHttpsOnly(bool usehttps, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_USE_HTTPS_ONLY, listener);
@@ -8003,9 +8020,9 @@ void MegaApiImpl::startUpload(const char *localPath, MegaNode *parent, int64_t m
 void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener)
 { return startUpload(false, localPath, parent, fileName, -1, 0, false, NULL, false, false, listener); }
 
-void MegaApiImpl::startUploadForSupport(const char *localPath, MegaTransferListener *listener)
+void MegaApiImpl::startUploadForSupport(const char *localPath, bool isSourceTemporary, MegaTransferListener *listener)
 {
-    return startUpload(true, localPath, nullptr, nullptr, "supportdrop@mega.nz", -1, 0, false, nullptr, false, false, listener);
+    return startUpload(true, localPath, nullptr, nullptr, "pGTOqu7_Fek", -1, 0, false, nullptr, isSourceTemporary, false, listener);
 }
 
 void MegaApiImpl::startDownload(bool startFirst, MegaNode *node, const char* localPath, int folderTransferTag, const char *appData, MegaTransferListener *listener)
@@ -13600,6 +13617,15 @@ void MegaApiImpl::sendevent_result(error e)
     fireOnRequestFinish(request, MegaError(e));
 }
 
+void MegaApiImpl::supportticket_result(error e)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_SUPPORT_TICKET)) return;
+
+    fireOnRequestFinish(request, MegaError(e));
+}
+
 void MegaApiImpl::creditcardstore_result(error e)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
@@ -16386,7 +16412,7 @@ int naturalsorting_compare (const char *i, const char *j)
             while ( (char_i = *i) && (char_j = *j) )
             {
                 bool char_i_isDigit = isDigit(i);
-                bool char_j_isDigit = isDigit(j);;
+                bool char_j_isDigit = isDigit(j);
 
                 if (char_i_isDigit && char_j_isDigit)
                 {
@@ -17590,7 +17616,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                 Node *parent = client->nodebyhandle(transfer->getParentHandle());
                 bool startFirst = transfer->shouldStartFirst();
 
-                bool uploadToInbox = !parent && transfer->getParentPath() && strchr(transfer->getParentPath(), '@');
+                bool uploadToInbox = ISUNDEF(transfer->getParentHandle()) && transfer->getParentPath() && (strchr(transfer->getParentPath(), '@') || (strlen(transfer->getParentPath()) == 11));
                 const char *inboxTarget = uploadToInbox ? transfer->getParentPath() : nullptr;
 
                 if (!localPath || !fileName || !(*fileName)
@@ -20726,6 +20752,20 @@ void MegaApiImpl::sendPendingRequests()
             client->sendevent(number, text);
             break;
         }
+        case MegaRequest::TYPE_SUPPORT_TICKET:
+        {
+            int type = request->getParamType();
+            const char *message = request->getText();
+
+            if (type != 1 || !message)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            client->supportticket(message, type);
+            break;
+        }
         case MegaRequest::TYPE_GET_USER_DATA:
         {
             const char *email = request->getEmail();
@@ -23561,7 +23601,7 @@ MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, int fo
     }
     else
     {
-        this->state = MegaBackup::BACKUP_FAILED;;
+        this->state = MegaBackup::BACKUP_FAILED;
     }
 }
 

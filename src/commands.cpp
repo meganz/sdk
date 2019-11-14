@@ -327,7 +327,7 @@ CommandPutFile::CommandPutFile(MegaClient* client, TransferSlot* ctslot, int ms)
 
     // send minimum set of different tree's roots for API to check overquota
     set<handle> targetRoots;
-    beginarray("t");
+    bool begun = false;
     for (auto &file : tslot->transfer->files)
     {
         if (!ISUNDEF(file->h))
@@ -343,11 +343,32 @@ CommandPutFile::CommandPutFile(MegaClient* client, TransferSlot* ctslot, int ms)
 
                 targetRoots.insert(rootnode);
             }
+            if (!begun)
+            {
+                beginarray("t");
+                begun = true;
+            }
 
             element((byte*)&file->h, MegaClient::NODEHANDLE);
         }
     }
-    endarray();
+
+    if (begun)
+    {
+        endarray();
+    }
+    else
+    {
+        // Target user goes alone, not inside an array. Note: we are skipping this if a)more than two b)the array had been created for node handles
+        for (auto &file : tslot->transfer->files)
+        {
+            if (ISUNDEF(file->h) && file->targetuser.size())
+            {
+                arg("t", file->targetuser.c_str());
+                break;
+            }
+        }
+    }
 }
 
 void CommandPutFile::cancel()
@@ -5302,6 +5323,29 @@ void CommandSendEvent::procresult()
     {
         client->json.storeobject();
         client->app->sendevent_result(API_EINTERNAL);
+    }
+}
+
+CommandSupportTicket::CommandSupportTicket(MegaClient *client, const char *message, int type)
+{
+    cmd("sse");
+    arg("t", type);
+    arg("b", 1);    // base64 encoding for `msg`
+    arg("m", (const byte*)message, int(strlen(message)));
+
+    tag = client->reqtag;
+}
+
+void CommandSupportTicket::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->supportticket_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->supportticket_result(API_EINTERNAL);
     }
 }
 

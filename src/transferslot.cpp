@@ -401,10 +401,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                 }
                 else
                 {
-                    int creqtag = client->reqtag;
-                    client->reqtag = 0;
-                    client->sendevent(99432, "MAC verification failed for cached download");
-                    client->reqtag = creqtag;
+                    client->sendevent(99432, "MAC verification failed for cached download", 0);
 
                     transfer->chunkmacs.clear();
                     return transfer->failed(API_EKEY, committer);
@@ -419,10 +416,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
         }
         else
         {
-            int creqtag = client->reqtag;
-            client->reqtag = 0;
-            client->sendevent(99410, "No upload token available");
-            client->reqtag = creqtag;
+            client->sendevent(99410, "No upload token available", 0);
 
             return transfer->failed(API_EINTERNAL, committer);
         }
@@ -602,19 +596,16 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                                 client->usehttps = true;
                                 client->app->notify_change_to_https();
 
-                                int creqtag = client->reqtag;
-                                client->reqtag = 0;
                                 if (e == DAEMON_EFAILED)
                                 {
                                     // megad returning -4 should result in restarting the transfer
-                                    client->sendevent(99440, "Retry requested by storage server");
+                                    client->sendevent(99440, "Retry requested by storage server", 0);
                                 }
                                 else
                                 {
                                     LOG_warn << "Invalid Content-Type detected during upload: " << reqs[i]->contenttype;
                                 }
-                                client->sendevent(99436, "Automatic change to HTTPS");
-                                client->reqtag = creqtag;
+                                client->sendevent(99436, "Automatic change to HTTPS", 0);
 
                                 return transfer->failed(API_EAGAIN, committer);
                             }
@@ -630,10 +621,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
 
                         if (transfer->progresscompleted == transfer->size)
                         {
-                            int creqtag = client->reqtag;
-                            client->reqtag = 0;
-                            client->sendevent(99409, "No upload token received");
-                            client->reqtag = creqtag;
+                            client->sendevent(99409, "No upload token received", 0);
 
                             return transfer->failed(API_EINTERNAL, committer);
                         }
@@ -699,18 +687,12 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                                 client->usehttps = true;
                                 client->app->notify_change_to_https();
 
-                                int creqtag = client->reqtag;
-                                client->reqtag = 0;
-                                client->sendevent(99436, "Automatic change to HTTPS");
-                                client->reqtag = creqtag;
+                                client->sendevent(99436, "Automatic change to HTTPS", 0);
 
                                 return transfer->failed(API_EAGAIN, committer);
                             }
 
-                            int creqtag = client->reqtag;
-                            client->reqtag = 0;
-                            client->sendevent(99430, "Invalid chunk size");
-                            client->reqtag = creqtag;
+                            client->sendevent(99430, "Invalid chunk size", 0);
 
                             LOG_warn << "Invalid chunk size: " << reqs[i]->size << " - " << reqs[i]->bufpos;
                             lasterror = API_EREAD;
@@ -878,10 +860,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                         client->usehttps = true;
                         client->app->notify_change_to_https();
 
-                        int creqtag = client->reqtag;
-                        client->reqtag = 0;
-                        client->sendevent(99436, "Automatic change to HTTPS");
-                        client->reqtag = creqtag;
+                        client->sendevent(99436, "Automatic change to HTTPS", 0);
 
                         return transfer->failed(API_EAGAIN, committer);
                     }
@@ -890,10 +869,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                     {
                         if (reqs[i]->timeleft < 0)
                         {
-                            int creqtag = client->reqtag;
-                            client->reqtag = 0;
-                            client->sendevent(99408, "Overquota without timeleft");
-                            client->reqtag = creqtag;
+                            client->sendevent(99408, "Overquota without timeleft", 0);
                         }
 
                         LOG_warn << "Bandwidth overquota from storage server";
@@ -1056,10 +1032,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                         unsigned size = (unsigned)(posrange.second - posrange.first);
                         if (size > 16777216)
                         {
-                            int creqtag = client->reqtag;
-                            client->reqtag = 0;
-                            client->sendevent(99434, "Invalid request size");
-                            client->reqtag = creqtag;
+                            client->sendevent(99434, "Invalid request size", 0);
 
                             transfer->chunkmacs.clear();
                             return transfer->failed(API_EINTERNAL, committer);

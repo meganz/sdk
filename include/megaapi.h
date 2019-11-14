@@ -2551,6 +2551,11 @@ public:
     * @return Number of MegaUserAlert objects in the list
     */
     virtual int size() const;
+
+    /**
+     * @brief Removes all MegaUserAlert objects from the list (does not delete them)
+     */
+    virtual void clear();
 };
 
 
@@ -2745,6 +2750,7 @@ class MegaRequest
             TYPE_SEND_SMS_VERIFICATIONCODE, TYPE_CHECK_SMS_VERIFICATIONCODE,
             TYPE_GET_REGISTERED_CONTACTS, TYPE_GET_COUNTRY_CALLING_CODES,
             TYPE_VERIFY_CREDENTIALS, TYPE_GET_MISC_FLAGS, TYPE_RESEND_VERIFICATION_EMAIL,
+            TYPE_SUPPORT_TICKET,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -10704,6 +10710,20 @@ class MegaApi
         void sendEvent(int eventType, const char* message, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Create a new ticket for support with attached description
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SUPPORT_TICKET
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the type of the ticket
+         * - MegaRequest::getText - Returns the description of the issue
+         *
+         * @param message Description of the issue for support
+         * @param eventType Event type (use 1 for support tickets)
+         * @param listener MegaRequestListener to track this request
+         */
+        void createSupportTicket(const char* message, int type = 1, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Send a debug report
          *
          * The User-Agent is used to identify the app. It can be set in MegaApi::MegaApi
@@ -10766,9 +10786,12 @@ class MegaApi
          * For folders, onTransferFinish will be called with error MegaError:API_EARGS;
          *
          * @param localPath Local path of the file
+         * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
+         * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
+         * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
          * @param listener MegaTransferListener to track this transfer
          */
-        void startUploadForSupport(const char* localPath, MegaTransferListener *listener=NULL);
+        void startUploadForSupport(const char* localPath, bool isSourceTemporary = false, MegaTransferListener *listener=NULL);
 
 
         /**

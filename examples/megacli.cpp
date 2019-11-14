@@ -2372,7 +2372,7 @@ void exec_sendDeferred(autocomplete::ACState& s)
 void exec_codeTimings(autocomplete::ACState& s)
 {
     bool reset = s.extractflag("-reset");
-    cout << client->performanceStats.report(reset, client->httpio, client->waiter) << flush;
+    cout << client->performanceStats.report(reset, client->httpio, client->waiter, client->reqs) << flush;
 }
 
 #endif

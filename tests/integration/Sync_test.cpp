@@ -378,7 +378,7 @@ struct StandardClient : public MegaApp
                 // logout stalls in windows due to the issue above
                 mc.purgenodesusersabortsc();
             #else
-                mc.locallogout();
+                mc.locallogout(false);
             #endif
         });
     }
