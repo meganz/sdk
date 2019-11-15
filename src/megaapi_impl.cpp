@@ -7350,7 +7350,7 @@ bool MegaApiImpl::hasToForceUpload(const Node &node, const MegaTransferPrivate &
     bool canForceUpload = transfer.isStreamingTransfer();
     bool isPdf = name.find(".pdf") != string::npos;
 
-    return canForceUpload && (isMedia || isPdf) && !hasPreview && !hasThumbnail;
+    return canForceUpload && (isMedia || isPdf) && !(hasPreview && hasThumbnail);
 }
 
 void MegaApiImpl::inviteContact(const char *email, const char *message, int action, MegaHandle contactLink, MegaRequestListener *listener)
@@ -8384,7 +8384,7 @@ void MegaApiImpl::resumeSync(const char *localFolder, long long localfp, MegaNod
         sync->setLocalFingerprint(localfp);
         sync->setRegExp(regExp);
 
-        e = client->addsync(&localname, DEBRISFOLDER, NULL, node, localfp, -nextTag, sync);
+        e = client->addsync(SyncConfig{}, &localname, DEBRISFOLDER, NULL, node, localfp, -nextTag, sync);
         if (!e)
         {
             Sync *s = client->syncs.back();
@@ -20505,7 +20505,7 @@ void MegaApiImpl::sendPendingRequests()
             sync->setListener(request->getSyncListener());
             sync->setRegExp(request->getRegExp());
 
-            e = client->addsync(&localname, DEBRISFOLDER, NULL, node, 0, -nextTag, sync);
+            e = client->addsync(SyncConfig{}, &localname, DEBRISFOLDER, NULL, node, 0, -nextTag, sync);
             if (!e)
             {
                 Sync *s = client->syncs.back();

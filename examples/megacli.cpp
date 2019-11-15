@@ -3837,7 +3837,7 @@ void exec_sync(autocomplete::ACState& s)
             }
             else
             {
-                error e = client->addsync(&localname, DEBRISFOLDER, NULL, n);
+                error e = client->addsync(SyncConfig{}, &localname, DEBRISFOLDER, NULL, n);
 
                 if (e)
                 {

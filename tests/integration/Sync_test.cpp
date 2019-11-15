@@ -832,7 +832,7 @@ struct StandardClient : public MegaApp
             {
                 string local, orig = localpath.u8string();
                 client.fsaccess->path2local(&orig, &local);
-                error e = client.addsync(&local, DEBRISFOLDER, NULL, m, 0, syncid);  // use syncid as tag
+                error e = client.addsync(SyncConfig{}, &local, DEBRISFOLDER, NULL, m, 0, syncid);  // use syncid as tag
                 if (!e)
                 {
                     syncSet[syncid] = SyncInfo{ m->nodehandle, localpath };
