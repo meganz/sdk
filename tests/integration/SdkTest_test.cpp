@@ -3409,6 +3409,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
     // cloudraid download with periodic full exit and resume from session ID
     // plain cloudraid download
     {
+        megaApi[0]->setMaxDownloadSpeed(32 * 1024 * 1024 * 8 / 120 / 2); // should take 1 minute (enough time for 3 exit/resume)
         mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
         megaApi[0]->startDownload(nimported, filename.c_str());
 
@@ -3431,6 +3432,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
                 mApi[0].megaApi = megaApi[0].get();
                 megaApi[0]->setLogLevel(MegaApi::LOG_LEVEL_DEBUG);
                 megaApi[0]->addListener(this);
+                megaApi[0]->setMaxDownloadSpeed(32 * 1024 * 1024 * 8 / 120 / 2); // should take 1 minute (enough time for 3 exit/resume)
 
                 ASSERT_NO_FATAL_FAILURE(resumeSession(sessionId.c_str()));
                 ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
