@@ -146,8 +146,6 @@ Node::~Node()
     {
         client->tounlink.erase(tounlink_it);
     }
-
-    client->mUnsyncableNodes.erase(nodehandle);
 #endif
 
     if (outshares)
