@@ -671,6 +671,26 @@ namespace CodeCounter
     };
 }
 
+// Holds the config of a sync. Can be extended with future config options
+struct SyncConfig
+{
+    enum Type
+    {
+        TYPE_UP = 0x01, // sync up from local to remote
+        TYPE_DOWN = 0x02, // sync down from remote to local
+        TYPE_DEFAULT = TYPE_UP | TYPE_DOWN, // Two-way sync
+    };
+
+    // type of the sync, defaults to bidirectional
+    Type syncType = TYPE_DEFAULT;
+
+    // whether deletions are synced (only relevant for one-way-sync)
+    bool syncDeletions = false;
+
+    // whether changes are overwritten irregardless of file properties (only relevant for one-way-sync)
+    bool forceOverwrite = false;
+};
+
 } // namespace
 
 #define MEGA_DISABLE_COPY(class_name) \
