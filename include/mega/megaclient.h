@@ -454,6 +454,9 @@ public:
     // generate & return next upload handle
     handle uploadhandle(int);
 
+    // helper function for preparing a putnodes call for new folders
+    void putnodes_prepareOneFolder(NewNode* newnode, std::string foldername);
+
     // add nodes to specified parent node (complete upload, copy files, make
     // folders)
     void putnodes(handle, NewNode*, int, const char * = NULL);
