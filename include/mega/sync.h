@@ -180,6 +180,8 @@ protected :
     bool readstatecache();
 
 private:
+    // The sync config is not to be used directly for sync decisions.
+    // Instead, public member functions of `Sync` should be used.
     SyncConfig mConfig;
 };
 } // namespace

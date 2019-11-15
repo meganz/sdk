@@ -515,8 +515,8 @@ bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, h
 // and a full read of the subtree is initiated
 Sync::Sync(MegaClient* cclient, SyncConfig config, string* crootpath, const char* cdebris,
            string* clocaldebris, Node* remotenode, fsfp_t cfsfp, bool cinshare, int ctag, void *cappdata)
-: localroot{new LocalNode}
-, mConfig{config}
+: localroot(new LocalNode)
+, mConfig(config)
 {
     isnetwork = false;
     client = cclient;
