@@ -114,6 +114,40 @@ int responseprogress = -1;
 //2FA pin attempts
 int attempts = 0;
 
+// sync config used when creating a new sync
+static SyncConfig syncConfig;
+
+// converts the sync config stored in `sync` to a string
+static std::string syncConfigToString(const Sync& sync)
+{
+    auto getOptions = [](const Sync& sync)
+    {
+        std::string desc;
+        desc += ", syncDeletions ";
+        desc += sync.syncDeletions() ? "ON" : "OFF";
+        desc += ", forceOverwrite ";
+        desc += sync.forceOverwrite() ? "ON" : "OFF";
+        return desc;
+    };
+
+    std::string description;
+    if (sync.isUpSync() && sync.isDownSync())
+    {
+        description = "Two-Way";
+    }
+    else if (sync.isUpSync())
+    {
+        description = "UP";
+        description += getOptions(sync);
+    }
+    else
+    {
+        description = "DOWN";
+        description += getOptions(sync);
+    }
+    return description;
+}
+
 static const char* getAccessLevelStr(int access)
 {
     switch(access)
@@ -2650,6 +2684,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_du, sequence(text("du"), remoteFSPath(client, &cwd)));
 #ifdef ENABLE_SYNC
     p->Add(exec_sync, sequence(text("sync"), opt(sequence(localFSPath(), either(remoteFSPath(client, &cwd, "dst"), param("cancelslot"))))));
+    p->Add(exec_syncconfig, sequence(text("syncconfig"), opt(sequence(param("type"), param("syncDeletions"), param("forceOverwrite")))));
 #endif
     p->Add(exec_export, sequence(text("export"), remoteFSPath(client, &cwd), opt(either(param("expiretime"), text("del")))));
     p->Add(exec_share, sequence(text("share"), opt(sequence(remoteFSPath(client, &cwd), opt(sequence(contactEmail(client), opt(either(text("r"), text("rw"), text("full"))), opt(param("origemail"))))))));
@@ -3846,7 +3881,7 @@ void exec_sync(autocomplete::ACState& s)
             }
             else
             {
-                error e = client->addsync(SyncConfig{}, &localname, DEBRISFOLDER, NULL, n);
+                error e = client->addsync(syncConfig, &localname, DEBRISFOLDER, NULL, n);
 
                 if (e)
                 {
@@ -3893,7 +3928,7 @@ void exec_sync(autocomplete::ACState& s)
                         nodepath((*it)->localroot->node->nodehandle, &remotepath);
                         client->fsaccess->local2path(&(*it)->localroot->localname, &localpath);
 
-                        cout << i++ << ": " << localpath << " to " << remotepath << " - "
+                        cout << i++ << " (" << syncConfigToString(**it) << "): " << localpath << " to " << remotepath << " - "
                                 << syncstatenames[(*it)->state] << ", " << (*it)->localbytes
                                 << " byte(s) in " << (*it)->localnodes[FILENODE] << " file(s) and "
                                 << (*it)->localnodes[FOLDERNODE] << " folder(s)" << endl;
@@ -3905,6 +3940,26 @@ void exec_sync(autocomplete::ACState& s)
         {
             cout << "No syncs active at this time." << endl;
         }
+    }
+}
+
+void exec_syncconfig(autocomplete::ACState& s)
+{
+    if (s.words.size() == 1)
+    {
+        cout << "Current sync config: " << syncConfig.syncType <<
+                " " << syncConfig.syncDeletions << " " << syncConfig.forceOverwrite << endl;
+    }
+    else if (s.words.size() == 4)
+    {
+        syncConfig.syncType = static_cast<SyncConfig::Type>(atoi(s.words[1].s.c_str()));
+        syncConfig.syncDeletions = atoi(s.words[2].s.c_str());
+        syncConfig.forceOverwrite = atoi(s.words[3].s.c_str());
+        cout << "Successfully applied new sync config!" << endl;
+    }
+    else
+    {
+        assert(false);
     }
 }
 #endif
