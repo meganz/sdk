@@ -8355,7 +8355,7 @@ void MegaClient::openUnsyncableNodesTable()
     {
         assert(!mUnsyncableNodesTable);
         string dbname = "unsyncablenodes";
-        mUnsyncableNodesTable = std::unique_ptr<DbTable>{dbaccess->open(rng, fsaccess, &dbname, false, false)};
+        mUnsyncableNodesTable.reset(dbaccess->open(rng, fsaccess, &dbname, false, false));
     }
 }
 
