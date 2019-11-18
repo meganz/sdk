@@ -7361,7 +7361,7 @@ bool MegaApiImpl::hasToForceUpload(const Node &node, const MegaTransferPrivate &
     bool canForceUpload = transfer.isStreamingTransfer();
     bool isPdf = name.find(".pdf") != string::npos;
 
-    return canForceUpload && (isMedia || isPdf) && !hasPreview && !hasThumbnail;
+    return canForceUpload && (isMedia || isPdf) && !(hasPreview && hasThumbnail);
 }
 
 void MegaApiImpl::inviteContact(const char *email, const char *message, int action, MegaHandle contactLink, MegaRequestListener *listener)
