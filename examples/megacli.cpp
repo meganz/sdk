@@ -70,7 +70,7 @@ using std::dec;
 MegaClient* client;
 MegaClient* clientFolder;
 
-int g_nextClientTag = 1;
+int gNextClientTag = 1;
 std::map<int, std::function<void(Node*)>> gOnPutNodeTag;
 
 bool gVerboseMode = false;
@@ -3634,7 +3634,7 @@ void uploadLocalPath(nodetype_t type, std::string name, std::string localname, N
             cout << "Can't open file: " << name << endl;
         }
     }
-    if (type == FOLDERNODE && recursive)
+    else if (type == FOLDERNODE && recursive)
     {
 
         if (previousNode)
@@ -3655,11 +3655,11 @@ void uploadLocalPath(nodetype_t type, std::string name, std::string localname, N
             auto nn = new NewNode[1];
             client->putnodes_prepareOneFolder(nn, name);
 
-            gOnPutNodeTag[g_nextClientTag] = [localname](Node* parent) {
+            gOnPutNodeTag[gNextClientTag] = [localname](Node* parent) {
                 uploadLocalFolderContent(localname, parent);
             };
 
-            client->reqtag = g_nextClientTag++;
+            client->reqtag = gNextClientTag++;
             client->putnodes(parent->nodehandle, nn, 1);
             client->reqtag = 0;
         }
@@ -3689,9 +3689,10 @@ void uploadLocalFolderContent(std::string localname, Node* cloudFolder)
     {
         DBTableTransactionCommitter committer(client->tctable);
 
+        int total = 0;
         nodetype_t type;
         string itemlocalleafname;
-        while (da->dnext(NULL, &itemlocalleafname, true, &type))
+        while (da->dnext(&localname, &itemlocalleafname, true, &type))
         {
             string leafNameUtf8 = localpathToUtf8Leaf(itemlocalleafname);
 
@@ -3699,8 +3700,11 @@ void uploadLocalFolderContent(std::string localname, Node* cloudFolder)
             {
                 cout << "Queueing " << leafNameUtf8 << "..." << endl;
             }
-            int total = 0;
             uploadLocalPath(type, leafNameUtf8, localname + client->fsaccess->localseparator + itemlocalleafname, cloudFolder, "", committer, total, true);
+        }
+        if (gVerboseMode)
+        {
+            cout << "Queued " << total << " more uploads from folder " << localpathToUtf8Leaf(localname) << endl;
         }
     }
 }

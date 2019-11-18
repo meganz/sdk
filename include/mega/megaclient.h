@@ -1481,6 +1481,7 @@ public:
     // convert hex digit to number
     static int hexval(char);
 
+    // Since it's quite expensive to create a SymmCipher, these are provided to use for quick operations - just set the key and use.
     SymmCipher tmpnodecipher;
     SymmCipher tmptransfercipher;
 
