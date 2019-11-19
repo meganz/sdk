@@ -6709,6 +6709,34 @@ error MegaClient::setattr(Node* n, const char *prevattr)
     return API_OK;
 }
 
+void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldername)
+{
+    string attrstring;
+    byte buf[FOLDERNODEKEYLENGTH];
+
+    // set up new node as folder node
+    newnode->source = NEW_NODE;
+    newnode->type = FOLDERNODE;
+    newnode->nodehandle = 0;
+    newnode->parenthandle = UNDEF;
+
+    // generate fresh random key for this folder node
+    rng.genblock(buf, FOLDERNODEKEYLENGTH);
+    newnode->nodekey.assign((char*)buf, FOLDERNODEKEYLENGTH);
+    tmpnodecipher.setkey(buf);
+
+    // generate fresh attribute object with the folder name
+    AttrMap attrs;
+
+    fsaccess->normalize(&foldername);
+    attrs.map['n'] = foldername;
+
+    // JSON-encode object and encrypt attribute string
+    attrs.getjson(&attrstring);
+    newnode->attrstring = new string;
+    makeattr(&tmpnodecipher, newnode->attrstring, attrstring.c_str());
+}
+
 // send new nodes to API for processing
 void MegaClient::putnodes(handle h, NewNode* newnodes, int numnodes, const char *cauth)
 {

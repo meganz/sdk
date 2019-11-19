@@ -70,6 +70,9 @@ using std::dec;
 MegaClient* client;
 MegaClient* clientFolder;
 
+int gNextClientTag = 1;
+std::map<int, std::function<void(Node*)>> gOnPutNodeTag;
+
 bool gVerboseMode = false;
 
 
@@ -1131,6 +1134,17 @@ void DemoApp::putnodes_result(error e, targettype_t t, NewNode* nn)
     if (e)
     {
         cout << "Node addition failed (" << errorstring(e) << ")" << endl;
+    }
+
+    auto i = gOnPutNodeTag.find(client->restag);
+    if (i != gOnPutNodeTag.end())
+    {
+        if (client->nodenotify.size())
+        {
+            Node* n = client->nodenotify.back();  // same trick as the intermediate layer - only works when puts are one node at a time.
+            i->second(n);
+            gOnPutNodeTag.erase(i);
+        }
     }
 }
 
@@ -2712,7 +2726,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_import, sequence(text("import"), exportedLink(true, false)));
     p->Add(exec_folderlinkinfo, sequence(text("folderlink"), opt(param("link"))));
     p->Add(exec_open, sequence(text("open"), exportedLink(false, true)));
-    p->Add(exec_put, sequence(text("put"), localFSPath("localpattern"), opt(either(remoteFSPath(client, &cwd, "dst"),param("dstemail")))));
+    p->Add(exec_put, sequence(text("put"), opt(flag("-r")), localFSPath("localpattern"), opt(either(remoteFSPath(client, &cwd, "dst"),param("dstemail")))));
     p->Add(exec_putq, sequence(text("putq"), opt(param("cancelslot"))));
 #ifdef USE_FILESYSTEM
     p->Add(exec_get, sequence(text("get"), opt(sequence(flag("-r"), opt(flag("-foldersonly")))), remoteFSPath(client, &cwd), opt(sequence(param("offset"), opt(param("length"))))));
@@ -3672,17 +3686,134 @@ void exec_get(autocomplete::ACState& s)
     }
 }
 
+void uploadLocalFolderContent(std::string localname, Node* cloudFolder);
+
+void uploadLocalPath(nodetype_t type, std::string name, std::string localname, Node* parent, const std::string targetuser, DBTableTransactionCommitter& committer, int& total, bool recursive)
+{
+
+    Node *previousNode = client->childnodebyname(parent, name.c_str(), false);
+
+    if (type == FILENODE)
+    {
+        auto fa = client->fsaccess->newfileaccess();
+        if (fa->fopen(&localname, true, false))
+        {
+            FileFingerprint fp;
+            fp.genfingerprint(fa.get());
+
+            if (previousNode)
+            {
+                if (previousNode->type == FILENODE)
+                {
+                    if (fp.isvalid && previousNode->isvalid && fp == *((FileFingerprint *)previousNode))
+                    {
+                        cout << "Identical file already exist. Skipping transfer of " << name << endl;
+                        return;
+                    }
+                }
+                else
+                {
+                    cout << "Can't upload file over the top of a folder with the same name: " << name << endl;
+                    return;
+                }
+            }
+            fa.reset();
+
+            AppFile* f = new AppFilePut(&localname, parent ? parent->nodehandle : UNDEF, targetuser.c_str());
+            *static_cast<FileFingerprint*>(f) = fp;
+            f->appxfer_it = appxferq[PUT].insert(appxferq[PUT].end(), f);
+            client->startxfer(PUT, f, committer);
+            total++;
+        }
+        else
+        {
+            cout << "Can't open file: " << name << endl;
+        }
+    }
+    else if (type == FOLDERNODE && recursive)
+    {
+
+        if (previousNode)
+        {
+            if (previousNode->type == FILENODE)
+            {
+                cout << "Can't upload a folder over the top of a file with the same name: " << name << endl;
+                return;
+            }
+            else
+            {
+                // upload into existing folder with the same name
+                uploadLocalFolderContent(localname, previousNode);
+            }
+        }
+        else
+        {
+            auto nn = new NewNode[1];
+            client->putnodes_prepareOneFolder(nn, name);
+
+            gOnPutNodeTag[gNextClientTag] = [localname](Node* parent) {
+                uploadLocalFolderContent(localname, parent);
+            };
+
+            client->reqtag = gNextClientTag++;
+            client->putnodes(parent->nodehandle, nn, 1);
+            client->reqtag = 0;
+        }
+    }
+}
+
+
+string localpathToUtf8Leaf(const string& itemlocalname)
+{
+    string::size_type pos = 0, testpos = 0;
+    while (string::npos != (testpos = itemlocalname.find(client->fsaccess->localseparator, pos)))
+    {
+        pos = testpos + client->fsaccess->localseparator.size();
+    }
+
+    string leafNameLocal = itemlocalname.substr(pos);
+    string leafNameUtf8;
+    client->fsaccess->local2path(&leafNameLocal, &leafNameUtf8);
+    return leafNameUtf8;
+}
+
+void uploadLocalFolderContent(std::string localname, Node* cloudFolder)
+{
+    DirAccess* da = client->fsaccess->newdiraccess();
+
+    if (da->dopen(&localname, NULL, false))
+    {
+        DBTableTransactionCommitter committer(client->tctable);
+
+        int total = 0;
+        nodetype_t type;
+        string itemlocalleafname;
+        while (da->dnext(&localname, &itemlocalleafname, true, &type))
+        {
+            string leafNameUtf8 = localpathToUtf8Leaf(itemlocalleafname);
+
+            if (gVerboseMode)
+            {
+                cout << "Queueing " << leafNameUtf8 << "..." << endl;
+            }
+            uploadLocalPath(type, leafNameUtf8, localname + client->fsaccess->localseparator + itemlocalleafname, cloudFolder, "", committer, total, true);
+        }
+        if (gVerboseMode)
+        {
+            cout << "Queued " << total << " more uploads from folder " << localpathToUtf8Leaf(localname) << endl;
+        }
+    }
+}
+
 void exec_put(autocomplete::ACState& s)
 {
-    AppFile* f;
     handle target = cwd;
     string targetuser;
     string newname;
     int total = 0;
-    string localname;
-    string name;
-    nodetype_t type;
     Node* n = NULL;
+
+    bool recursive = s.extractflag("-r");
 
     if (s.words.size() > 2)
     {
@@ -3703,6 +3834,12 @@ void exec_put(autocomplete::ACState& s)
         return;
     }
 
+    if (recursive && !targetuser.empty())
+    {
+        cout << "Sorry, can't send recursively to a user" << endl;
+    }
+
+    string localname;
     client->fsaccess->path2local(&s.words[1].s, &localname);
 
     DirAccess* da = client->fsaccess->newdiraccess();
@@ -3711,39 +3848,17 @@ void exec_put(autocomplete::ACState& s)
     {
         DBTableTransactionCommitter committer(client->tctable);
 
-        while (da->dnext(NULL, &localname, true, &type))
+        nodetype_t type;
+        string itemlocalname;
+        while (da->dnext(NULL, &itemlocalname, true, &type))
         {
-            client->fsaccess->local2path(&localname, &name);
+            string leafNameUtf8 = localpathToUtf8Leaf(itemlocalname);
+
             if (gVerboseMode)
             {
-                cout << "Queueing " << name << "..." << endl;
+                cout << "Queueing " << leafNameUtf8 << "..." << endl;
             }
-
-            if (type == FILENODE)
-            {
-                auto fa = client->fsaccess->newfileaccess();
-                if (fa->fopen(&name, true, false))
-                {
-                    FileFingerprint fp;
-                    fp.genfingerprint(fa.get());
-
-                    Node *previousNode = client->childnodebyname(n, name.c_str(), true);
-                    if (previousNode && previousNode->type == type)
-                    {
-                        if (fp.isvalid && previousNode->isvalid && fp == *((FileFingerprint *)previousNode))
-                        {
-                            cout << "Identical file already exist. Skipping transfer of " << name << endl;
-                            continue;
-                        }
-                    }
-                }
-                fa.reset();
-
-                f = new AppFilePut(&localname, target, targetuser.c_str());
-                f->appxfer_it = appxferq[PUT].insert(appxferq[PUT].end(), f);
-                client->startxfer(PUT, f, committer);
-                total++;
-            }
+            uploadLocalPath(type, leafNameUtf8, itemlocalname, n, targetuser, committer, total, recursive);
         }
     }
 
@@ -4325,35 +4440,9 @@ void exec_mkdir(autocomplete::ACState& s)
 
             if (newname.size())
             {
-                SymmCipher key;
-                string attrstring;
-                byte buf[FOLDERNODEKEYLENGTH];
-                NewNode* newnode = new NewNode[1];
-
-                // set up new node as folder node
-                newnode->source = NEW_NODE;
-                newnode->type = FOLDERNODE;
-                newnode->nodehandle = 0;
-                newnode->parenthandle = UNDEF;
-
-                // generate fresh random key for this folder node
-                client->rng.genblock(buf, FOLDERNODEKEYLENGTH);
-                newnode->nodekey.assign((char*)buf, FOLDERNODEKEYLENGTH);
-                key.setkey(buf);
-
-                // generate fresh attribute object with the folder name
-                AttrMap attrs;
-
-                client->fsaccess->normalize(&newname);
-                attrs.map['n'] = newname;
-
-                // JSON-encode object and encrypt attribute string
-                attrs.getjson(&attrstring);
-                newnode->attrstring = new string;
-                client->makeattr(&key, newnode->attrstring, attrstring.c_str());
-
-                // add the newly generated folder node
-                client->putnodes(n->nodehandle, newnode, 1);
+                auto nn = new NewNode[1];
+                client->putnodes_prepareOneFolder(nn, newname);
+                client->putnodes(n->nodehandle, nn, 1);
             }
             else
             {
