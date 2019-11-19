@@ -114,39 +114,9 @@ int responseprogress = -1;
 //2FA pin attempts
 int attempts = 0;
 
+#ifdef ENABLE_SYNC
 // sync config used when creating a new sync
 static SyncConfig syncConfig;
-
-// converts the sync config stored in `sync` to a string
-static std::string syncConfigToString(const Sync& sync)
-{
-    auto getOptions = [](const Sync& sync)
-    {
-        std::string desc;
-        desc += ", syncDeletions ";
-        desc += sync.syncDeletions() ? "ON" : "OFF";
-        desc += ", forceOverwrite ";
-        desc += sync.forceOverwrite() ? "ON" : "OFF";
-        return desc;
-    };
-
-    std::string description;
-    if (sync.isUpSync() && sync.isDownSync())
-    {
-        description = "TWOWAY";
-    }
-    else if (sync.isUpSync())
-    {
-        description = "UP";
-        description += getOptions(sync);
-    }
-    else
-    {
-        description = "DOWN";
-        description += getOptions(sync);
-    }
-    return description;
-}
 
 // converts the given sync config to a string
 static std::string syncConfigToString(const SyncConfig& config)
@@ -155,18 +125,18 @@ static std::string syncConfigToString(const SyncConfig& config)
     {
         std::string desc;
         desc += ", syncDeletions ";
-        desc += config.syncDeletions ? "ON" : "OFF";
+        desc += config.syncDeletions() ? "ON" : "OFF";
         desc += ", forceOverwrite ";
-        desc += config.forceOverwrite ? "ON" : "OFF";
+        desc += config.forceOverwrite() ? "ON" : "OFF";
         return desc;
     };
 
     std::string description;
-    if (config.syncType & SyncConfig::TYPE_UP && config.syncType & SyncConfig::TYPE_DOWN)
+    if (config.isUpSync() && config.isDownSync())
     {
         description = "TWOWAY";
     }
-    else if (config.syncType & SyncConfig::TYPE_UP)
+    else if (config.isUpSync())
     {
         description = "UP";
         description += getOptions(config);
@@ -193,22 +163,42 @@ static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::
     toLower(syncDel);
     toLower(overwrite);
 
-    SyncConfig config;
+    SyncConfig::Type syncType;
     if (type == "up") {
-        config.syncType = SyncConfig::TYPE_UP;
+        syncType = SyncConfig::TYPE_UP;
     } else if (type == "down") {
-        config.syncType = SyncConfig::TYPE_DOWN;
+        syncType = SyncConfig::TYPE_DOWN;
     } else if (type == "twoway") {
-        config.syncType = SyncConfig::TYPE_DEFAULT;
+        syncType = SyncConfig::TYPE_DEFAULT;
     } else {
-        return std::make_pair(false, config);
+        return std::make_pair(false, SyncConfig{});
     }
 
-    config.syncDeletions = syncDel == "on";
-    config.forceOverwrite = overwrite == "on";
+    bool syncDeletions = false;
+    bool forceOverwrite = false;
 
-    return std::make_pair(true, config);
+    if (syncType != SyncConfig::TYPE_DEFAULT)
+    {
+        if (syncDel == "on") {
+            syncDeletions = true;
+        } else if (syncDel == "off") {
+            syncDeletions = false;
+        } else {
+            return std::make_pair(false, SyncConfig{});
+        }
+
+        if (overwrite == "on") {
+            forceOverwrite = true;
+        } else if (overwrite == "off") {
+            forceOverwrite = false;
+        } else {
+            return std::make_pair(false, SyncConfig{});
+        }
+    }
+
+    return std::make_pair(true, SyncConfig{syncType, syncDeletions, forceOverwrite});
 }
+#endif
 
 static const char* getAccessLevelStr(int access)
 {
@@ -3990,7 +3980,7 @@ void exec_sync(autocomplete::ACState& s)
                         nodepath((*it)->localroot->node->nodehandle, &remotepath);
                         client->fsaccess->local2path(&(*it)->localroot->localname, &localpath);
 
-                        cout << i++ << " (" << syncConfigToString(**it) << "): " << localpath << " to " << remotepath << " - "
+                        cout << i++ << " (" << syncConfigToString((*it)->getConfig()) << "): " << localpath << " to " << remotepath << " - "
                                 << syncstatenames[(*it)->state] << ", " << (*it)->localbytes
                                 << " byte(s) in " << (*it)->localnodes[FILENODE] << " file(s) and "
                                 << (*it)->localnodes[FOLDERNODE] << " folder(s)" << endl;
