@@ -133,7 +133,7 @@ static std::string syncConfigToString(const Sync& sync)
     std::string description;
     if (sync.isUpSync() && sync.isDownSync())
     {
-        description = "Two-Way";
+        description = "TWOWAY";
     }
     else if (sync.isUpSync())
     {
@@ -146,6 +146,68 @@ static std::string syncConfigToString(const Sync& sync)
         description += getOptions(sync);
     }
     return description;
+}
+
+// converts the given sync config to a string
+static std::string syncConfigToString(const SyncConfig& config)
+{
+    auto getOptions = [](const SyncConfig& config)
+    {
+        std::string desc;
+        desc += ", syncDeletions ";
+        desc += config.syncDeletions ? "ON" : "OFF";
+        desc += ", forceOverwrite ";
+        desc += config.forceOverwrite ? "ON" : "OFF";
+        return desc;
+    };
+
+    std::string description;
+    if (config.syncType & SyncConfig::TYPE_UP && config.syncType & SyncConfig::TYPE_DOWN)
+    {
+        description = "TWOWAY";
+    }
+    else if (config.syncType & SyncConfig::TYPE_UP)
+    {
+        description = "UP";
+        description += getOptions(config);
+    }
+    else
+    {
+        description = "DOWN";
+        description += getOptions(config);
+    }
+    return description;
+}
+
+// creates a SyncConfig object from config options as strings.
+// returns a pair where `first` is success and `second` is the sync config.
+static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::string syncDel = {}, std::string overwrite = {})
+{
+    auto toLower = [](std::string& s)
+    {
+        std::transform(s.begin(), s.end(), s.begin(),
+                       [](const char c){ return std::tolower(c); });
+    };
+
+    toLower(type);
+    toLower(syncDel);
+    toLower(overwrite);
+
+    SyncConfig config;
+    if (type == "up") {
+        config.syncType = SyncConfig::TYPE_UP;
+    } else if (type == "down") {
+        config.syncType = SyncConfig::TYPE_DOWN;
+    } else if (type == "twoway") {
+        config.syncType = SyncConfig::TYPE_DEFAULT;
+    } else {
+        return std::make_pair(false, config);
+    }
+
+    config.syncDeletions = syncDel == "on";
+    config.forceOverwrite = overwrite == "on";
+
+    return std::make_pair(true, config);
 }
 
 static const char* getAccessLevelStr(int access)
@@ -2684,7 +2746,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_du, sequence(text("du"), remoteFSPath(client, &cwd)));
 #ifdef ENABLE_SYNC
     p->Add(exec_sync, sequence(text("sync"), opt(sequence(localFSPath(), either(remoteFSPath(client, &cwd, "dst"), param("cancelslot"))))));
-    p->Add(exec_syncconfig, sequence(text("syncconfig"), opt(sequence(param("type"), param("syncDeletions"), param("forceOverwrite")))));
+    p->Add(exec_syncconfig, sequence(text("syncconfig"), opt(sequence(param("type (TWOWAY/UP/DOWN)"), opt(sequence(param("syncDeletions (ON/OFF)"), param("forceOverwrite (ON/OFF)")))))));
 #endif
     p->Add(exec_export, sequence(text("export"), remoteFSPath(client, &cwd), opt(either(param("expiretime"), text("del")))));
     p->Add(exec_share, sequence(text("share"), opt(sequence(remoteFSPath(client, &cwd), opt(sequence(contactEmail(client), opt(either(text("r"), text("rw"), text("full"))), opt(param("origemail"))))))));
@@ -3947,15 +4009,22 @@ void exec_syncconfig(autocomplete::ACState& s)
 {
     if (s.words.size() == 1)
     {
-        cout << "Current sync config: " << syncConfig.syncType <<
-                " " << syncConfig.syncDeletions << " " << syncConfig.forceOverwrite << endl;
+        cout << "Current sync config: " << syncConfigToString(syncConfig) << endl;
     }
-    else if (s.words.size() == 4)
+    else if (s.words.size() == 2 || s.words.size() == 4)
     {
-        syncConfig.syncType = static_cast<SyncConfig::Type>(atoi(s.words[1].s.c_str()));
-        syncConfig.syncDeletions = atoi(s.words[2].s.c_str());
-        syncConfig.forceOverwrite = atoi(s.words[3].s.c_str());
-        cout << "Successfully applied new sync config!" << endl;
+        std::pair<bool, SyncConfig> pair;
+        if (s.words.size() == 2) {
+            pair = syncConfigFromStrings(s.words[1].s);
+        } else {
+            pair = syncConfigFromStrings(s.words[1].s, s.words[2].s, s.words[3].s);
+        }
+        if (pair.first) {
+            syncConfig = pair.second;
+            cout << "Successfully applied new sync config!" << endl;
+        } else {
+            cout << "Invalid parameters for syncconfig command." << endl;
+        }
     }
     else
     {
