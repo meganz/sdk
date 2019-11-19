@@ -1804,7 +1804,7 @@ bool LocalNode::serialize(string* d)
     const char syncable = mSyncable ? 1 : 0;
     d->append(&syncable, sizeof(syncable));
 
-    d->append("\0\0\0\0\0\0", 8); // Use these bytes for extensions
+    d->append("\0\0\0\0\0\0\0", 8); // Use these bytes for extensions
 
     return true;
 }
