@@ -148,7 +148,7 @@ typedef uint32_t dstime;
 #define TOSTRING(x) STRINGIFY(x)
 
 // HttpReq states
-typedef enum { REQ_READY, REQ_PREPARED, REQ_INFLIGHT, REQ_SUCCESS, REQ_FAILURE, REQ_DONE, REQ_ASYNCIO } reqstatus_t;
+typedef enum { REQ_READY, REQ_PREPARED, REQ_ENCRYPTING, REQ_DECRYPTING, REQ_DECRYPTED, REQ_INFLIGHT, REQ_SUCCESS, REQ_FAILURE, REQ_DONE, REQ_ASYNCIO } reqstatus_t;
 
 typedef enum { USER_HANDLE, NODE_HANDLE } targettype_t;
 
@@ -169,15 +169,7 @@ struct ChunkMAC
     bool finished;
 };
 
-// file chunk macs
-class chunkmac_map : public map<m_off_t, ChunkMAC>
-{
-public:
-    int64_t macsmac(SymmCipher *cipher);
-    void serialize(string& d) const;
-    bool unserialize(const char*& ptr, const char* end);
-    void calcprogress(m_off_t size, m_off_t& chunkpos, m_off_t& completedprogress, m_off_t* lastblockprogress = nullptr);
-};
+class chunkmac_map;
 
 /**
  * @brief Declaration of API error codes.

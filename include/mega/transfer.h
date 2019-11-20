@@ -66,7 +66,7 @@ struct MEGA_API Transfer : public FileFingerprint
     int64_t metamac;
 
     // file crypto key and shared cipher
-    byte transferkey[SymmCipher::KEYLENGTH];
+    std::array<byte, SymmCipher::KEYLENGTH> transferkey;
     SymmCipher *transfercipher();
 
     chunkmac_map chunkmacs;

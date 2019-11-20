@@ -34,6 +34,71 @@ namespace mega {
 // FIXME: instead of copying nodes, move if the source is in the rubbish to reduce node creation load on the servers
 // FIXME: prevent synced folder from being moved into another synced folder
 
+
+void MegaClientAsyncQueue::push(std::function<void(SymmCipher&)>&& f)
+{
+    std::lock_guard g(m);
+    if (asyncThreads.empty())
+    {
+        f(zeroThreadsCipher);
+    }
+    else
+    {
+        q.emplace_back(std::move(f));
+        cv.notify_one();
+    }
+}
+
+MegaClientAsyncQueue::MegaClientAsyncQueue(Waiter& w, unsigned threadCount)
+    : waiter(w)
+{
+    for (int i = threadCount; i--; )
+    {
+        asyncThreads.emplace_back([this]() { asyncThreadLoop(); });
+    }
+}
+
+MegaClientAsyncQueue::~MegaClientAsyncQueue()
+{
+    clearQueue();
+    push(nullptr);
+    cv.notify_all();
+    for (auto& t : asyncThreads)
+    {
+        t.join();
+    }
+}
+
+void MegaClientAsyncQueue::clearQueue()
+{
+    std::lock_guard g(m);
+    q.clear();
+}
+
+void MegaClientAsyncQueue::asyncThreadLoop()
+{
+    SymmCipher cipher;
+    std::unique_lock g(m);
+    for (;;)
+    {
+        cv.wait(g, [this]() {return !q.empty(); });
+        auto f = std::move(q.front());
+        if (f)
+        {
+            q.pop_front();
+            g.unlock();
+            f(cipher);
+            waiter.notify();
+            g.lock();
+        }
+        else
+        {
+            break;
+        }
+    }
+}
+
+
 bool MegaClient::disablepkp = false;
 
 // root URL for API access
@@ -1077,11 +1142,12 @@ void MegaClient::init()
     mNodeCounters = NodeCounterMap();
 }
 
-MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, DbAccess* d, GfxProc* g, const char* k, const char* u)
+MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, DbAccess* d, GfxProc* g, const char* k, const char* u, unsigned workerThreadCount)
     : useralerts(*this), btugexpiration(rng), btcs(rng), btbadhost(rng), btworkinglock(rng), btsc(rng), btpfa(rng)
 #ifdef ENABLE_SYNC
     ,syncfslockretrybt(rng), syncdownbt(rng), syncnaglebt(rng), syncextrabt(rng), syncscanbt(rng)
 #endif
+    , mAsyncQueue(*w, workerThreadCount)
 {
     sctable = NULL;
     pendingsccommit = false;
@@ -3236,7 +3302,7 @@ bool MegaClient::dispatch(direction_t d)
                 // generate fresh random encryption key/CTR IV for this file
                 byte keyctriv[SymmCipher::KEYLENGTH + sizeof(int64_t)];
                 rng.genblock(keyctriv, sizeof keyctriv);
-                memcpy(nexttransfer->transferkey, keyctriv, SymmCipher::KEYLENGTH);
+                memcpy(nexttransfer->transferkey.data(), keyctriv, SymmCipher::KEYLENGTH);
                 nexttransfer->ctriv = MemAccess::get<uint64_t>((const char*)keyctriv + SymmCipher::KEYLENGTH);
             }
             else
@@ -3266,8 +3332,8 @@ bool MegaClient::dispatch(direction_t d)
 
                     if (k)
                     {
-                        memcpy(nexttransfer->transferkey, k, SymmCipher::KEYLENGTH);
-                        SymmCipher::xorblock(k + SymmCipher::KEYLENGTH, nexttransfer->transferkey);
+                        memcpy(nexttransfer->transferkey.data(), k, SymmCipher::KEYLENGTH);
+                        SymmCipher::xorblock(k + SymmCipher::KEYLENGTH, nexttransfer->transferkey.data());
                         nexttransfer->ctriv = MemAccess::get<int64_t>((const char*)k + SymmCipher::KEYLENGTH);
                         nexttransfer->metamac = MemAccess::get<int64_t>((const char*)k + SymmCipher::KEYLENGTH + sizeof(int64_t));
                         break;
@@ -3682,6 +3748,8 @@ void MegaClient::logout()
 
 void MegaClient::locallogout(bool removecaches)
 {
+    mAsyncQueue.clearQueue();
+
     if (removecaches)
     {
         removeCaches();

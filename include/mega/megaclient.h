@@ -178,6 +178,31 @@ public:
     dstime timeToTransfersResumed;
 };
 
+
+// Helper class for MegaClient.  Executes independent tasks on a separate thread or threads.
+// The number of threads can be 0 (eg. for helper MegaApi) in which case something queued is 
+// immediately executed synchronously on the caller's thread
+// Queueing a nullptr instead of a function to execute will cause the threads to exit.
+struct MegaClientAsyncQueue
+{
+    void push(std::function<void(SymmCipher&)>&& f);
+    void clearQueue();
+
+    MegaClientAsyncQueue(Waiter& w, unsigned threadCount);
+    ~MegaClientAsyncQueue();
+
+private:
+    Waiter& waiter;
+    std::mutex m;
+    std::condition_variable cv;
+    std::deque<std::function<void(SymmCipher&)>> q;
+    std::vector<std::thread> asyncThreads;
+    SymmCipher zeroThreadsCipher;
+
+    void asyncThreadLoop();
+};
+
+
 class MEGA_API MegaClient
 {
 public:
@@ -1567,6 +1592,8 @@ public:
     // -1: expired, 0: inactive (no business subscription), 1: active, 2: grace-period
     BizStatus mBizStatus;
 
+    MegaClientAsyncQueue mAsyncQueue;
+
     // Keep track of high level operation counts and times, for performance analysis
     struct PerformanceStats
     {
@@ -1589,7 +1616,7 @@ public:
         std::string report(bool reset, HttpIO* httpio, Waiter* waiter, const RequestDispatcher& reqs);
     } performanceStats;
 
-    MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
+    MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
     ~MegaClient();
 };
 } // namespace

@@ -25,6 +25,7 @@
 #include "types.h"
 #include "waiter.h"
 #include "backofftimer.h"
+#include "utils.h"
 
 #ifndef _WIN32
 #include <sys/types.h>
@@ -379,7 +380,7 @@ struct MEGA_API HttpReqXfer : public HttpReq
 {
     unsigned size;
 
-    virtual void prepare(const char*, SymmCipher*, chunkmac_map*, uint64_t, m_off_t, m_off_t) = 0;
+    virtual void prepare(const char*, SymmCipher*, uint64_t, m_off_t, m_off_t) = 0;
 
     HttpReqXfer() : HttpReq(true), size(0) { }
 };
@@ -387,7 +388,9 @@ struct MEGA_API HttpReqXfer : public HttpReq
 // file chunk upload
 struct MEGA_API HttpReqUL : public HttpReqXfer
 {
-    void prepare(const char*, SymmCipher*, chunkmac_map*, uint64_t, m_off_t, m_off_t);
+    chunkmac_map mChunkmacs;
+
+    void prepare(const char*, SymmCipher*, uint64_t, m_off_t, m_off_t);
 
     m_off_t transferred(MegaClient*);
 
@@ -400,7 +403,7 @@ struct MEGA_API HttpReqDL : public HttpReqXfer
     m_off_t dlpos;
     bool buffer_released;
 
-    void prepare(const char*, SymmCipher*, chunkmac_map*, uint64_t, m_off_t, m_off_t);
+    void prepare(const char*, SymmCipher*, uint64_t, m_off_t, m_off_t);
 
     HttpReqDL();
     ~HttpReqDL() { }
