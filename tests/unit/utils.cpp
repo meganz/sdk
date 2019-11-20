@@ -61,7 +61,7 @@ std::shared_ptr<mega::MegaClient> makeClient(mega::MegaApp& app, mega::FileSyste
     };
 
     std::shared_ptr<mega::MegaClient> client{new mega::MegaClient{
-            &app, nullptr, httpio, &fsaccess, nullptr, nullptr, "XXX", "unit_test"
+            &app, nullptr, httpio, &fsaccess, nullptr, nullptr, "XXX", "unit_test", 0
         }, deleter};
 
     return client;

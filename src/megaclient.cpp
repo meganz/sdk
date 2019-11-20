@@ -37,7 +37,7 @@ namespace mega {
 
 void MegaClientAsyncQueue::push(std::function<void(SymmCipher&)>&& f)
 {
-    std::lock_guard g(m);
+    std::lock_guard<std::mutex> g(m);
     if (asyncThreads.empty())
     {
         f(zeroThreadsCipher);
@@ -71,14 +71,14 @@ MegaClientAsyncQueue::~MegaClientAsyncQueue()
 
 void MegaClientAsyncQueue::clearQueue()
 {
-    std::lock_guard g(m);
+    std::lock_guard<std::mutex> g(m);
     q.clear();
 }
 
 void MegaClientAsyncQueue::asyncThreadLoop()
 {
     SymmCipher cipher;
-    std::unique_lock g(m);
+    std::unique_lock<std::mutex> g(m);
     for (;;)
     {
         cv.wait(g, [this]() {return !q.empty(); });
