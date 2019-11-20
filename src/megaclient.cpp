@@ -4102,7 +4102,7 @@ bool MegaClient::procsc()
                         }
                     }
 
-                    if (statecurrent && !insca_notlast)
+                    if (!insca_notlast)
                     {
                         app->catchup_result();
                     }
