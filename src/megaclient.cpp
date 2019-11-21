@@ -38,8 +38,7 @@ namespace mega {
 
 void MegaClientAsyncQueue::push(std::function<void(SymmCipher&)> f)
 {
-    std::lock_guard<std::mutex> g(mMutex);
-    if (mAsyncThreads.empty())
+    if (mThreads.empty())
     {
         if (f)
         {
@@ -48,7 +47,10 @@ void MegaClientAsyncQueue::push(std::function<void(SymmCipher&)> f)
     }
     else
     {
-        mQueue.emplace_back(std::move(f));
+        {
+            std::lock_guard<std::mutex> g(mMutex);
+            mQueue.emplace_back(std::move(f));
+        }
         mConditionVariable.notify_one();
     }
 }
@@ -60,7 +62,7 @@ MegaClientAsyncQueue::MegaClientAsyncQueue(Waiter& w, unsigned threadCount)
     {
         try
         {
-            mAsyncThreads.emplace_back([this]()
+            mThreads.emplace_back([this]()
             {
                 asyncThreadLoop();
             });
@@ -71,7 +73,7 @@ MegaClientAsyncQueue::MegaClientAsyncQueue(Waiter& w, unsigned threadCount)
             break;
         }
     }
-    LOG_debug << "MegaClient Worker threads running: " << mAsyncThreads.size();
+    LOG_debug << "MegaClient Worker threads running: " << mThreads.size();
 }
 
 MegaClientAsyncQueue::~MegaClientAsyncQueue()
@@ -79,7 +81,7 @@ MegaClientAsyncQueue::~MegaClientAsyncQueue()
     clearQueue();
     push(nullptr);
     mConditionVariable.notify_all();
-    for (auto& t : mAsyncThreads)
+    for (auto& t : mThreads)
     {
         t.join();
     }
@@ -94,17 +96,18 @@ void MegaClientAsyncQueue::clearQueue()
 void MegaClientAsyncQueue::asyncThreadLoop()
 {
     SymmCipher cipher;
-    std::unique_lock<std::mutex> g(mMutex);
     for (;;)
     {
-        mConditionVariable.wait(g, [this]() { return !mQueue.empty(); });
-        auto f = std::move(mQueue.front());
-        if (!f) return;
-        mQueue.pop_front();
-        g.unlock();
+        std::function<void(SymmCipher&)> f;
+        {
+            std::unique_lock<std::mutex> g(mMutex);
+            mConditionVariable.wait(g, [this]() { return !mQueue.empty(); });
+            f = std::move(mQueue.front());
+            if (!f) return;   // nullptr is not popped, and causes all the threads to exit
+            mQueue.pop_front();
+        }
         f(cipher);
         mWaiter.notify();
-        g.lock();
     }
 }
 

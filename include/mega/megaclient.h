@@ -182,10 +182,10 @@ public:
 };
 
 
-// Helper class for MegaClient.  Executes independent tasks on a separate thread or threads.
-// The number of threads can be 0 (eg. for helper MegaApi) in which case something queued is 
+// Helper class for MegaClient.  
+// Maintains a small thread pool for executing independent operations such as encrypt/decrypt a block of data
+// The number of threads can be 0 (eg. for helper MegaApi that deals with public folder links) in which case something queued is 
 // immediately executed synchronously on the caller's thread
-// Queueing a nullptr instead of a function to execute will cause the threads to exit.
 struct MegaClientAsyncQueue
 {
     void push(std::function<void(SymmCipher&)> f);
@@ -199,7 +199,7 @@ private:
     std::mutex mMutex;
     std::condition_variable mConditionVariable;
     std::deque<std::function<void(SymmCipher&)>> mQueue;
-    std::vector<std::thread> mAsyncThreads;
+    std::vector<std::thread> mThreads;
     SymmCipher mZeroThreadsCipher;
 
     void asyncThreadLoop();
