@@ -1678,20 +1678,20 @@ bool MegaTreeProcessor::processMegaNode(MegaNode*)
 MegaTreeProcessor::~MegaTreeProcessor()
 { }
 
-MegaApi::MegaApi(const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent)
+MegaApi::MegaApi(const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, unsigned workerThreadCount)
 {
-    pImpl = new MegaApiImpl(this, appKey, processor, basePath, userAgent);
+    pImpl = new MegaApiImpl(this, appKey, processor, basePath, userAgent, workerThreadCount);
 }
 
-MegaApi::MegaApi(const char *appKey, const char *basePath, const char *userAgent)
+MegaApi::MegaApi(const char *appKey, const char *basePath, const char *userAgent, unsigned workerThreadCount)
 {
-    pImpl = new MegaApiImpl(this, appKey, basePath, userAgent);
+    pImpl = new MegaApiImpl(this, appKey, basePath, userAgent, workerThreadCount);
 }
 
 #ifdef ENABLE_SYNC
-MegaApi::MegaApi(const char *appKey, const char *basePath, const char *userAgent, int fseventsfd)
+MegaApi::MegaApi(const char *appKey, const char *basePath, const char *userAgent, int fseventsfd, unsigned workerThreadCount)
 {
-    pImpl = new MegaApiImpl(this, appKey, basePath, userAgent, fseventsfd);
+    pImpl = new MegaApiImpl(this, appKey, basePath, userAgent, fseventsfd, workerThreadCount);
 }
 #endif
 

@@ -346,7 +346,7 @@ struct StandardClient : public MegaApp
 #else
             NULL,
 #endif
-            "N9tSBJDC", "synctests", 1)
+            "N9tSBJDC", "synctests", THREADS_PER_MEGACLIENT )
         , clientname(name)
         , fsBasePath(basepath / fs::u8path(name))
         , clientthread([this]() { threadloop(); })

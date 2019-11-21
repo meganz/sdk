@@ -188,19 +188,19 @@ public:
 // Queueing a nullptr instead of a function to execute will cause the threads to exit.
 struct MegaClientAsyncQueue
 {
-    void push(std::function<void(SymmCipher&)>&& f);
+    void push(std::function<void(SymmCipher&)> f);
     void clearQueue();
 
     MegaClientAsyncQueue(Waiter& w, unsigned threadCount);
     ~MegaClientAsyncQueue();
 
 private:
-    Waiter& waiter;
-    std::mutex m;
-    std::condition_variable cv;
-    std::deque<std::function<void(SymmCipher&)>> q;
-    std::vector<std::thread> asyncThreads;
-    SymmCipher zeroThreadsCipher;
+    Waiter& mWaiter;
+    std::mutex mMutex;
+    std::condition_variable mConditionVariable;
+    std::deque<std::function<void(SymmCipher&)>> mQueue;
+    std::vector<std::thread> mAsyncThreads;
+    SymmCipher mZeroThreadsCipher;
 
     void asyncThreadLoop();
 };

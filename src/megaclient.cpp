@@ -23,6 +23,7 @@
 #include "mega/mediafileattribute.h"
 #include <cctype>
 #include <algorithm>
+#include <future>
 
 #undef min // avoid issues with std::min and std::max
 #undef max
@@ -35,35 +36,50 @@ namespace mega {
 // FIXME: prevent synced folder from being moved into another synced folder
 
 
-void MegaClientAsyncQueue::push(std::function<void(SymmCipher&)>&& f)
+void MegaClientAsyncQueue::push(std::function<void(SymmCipher&)> f)
 {
-    std::lock_guard<std::mutex> g(m);
-    if (asyncThreads.empty())
+    std::lock_guard<std::mutex> g(mMutex);
+    if (mAsyncThreads.empty())
     {
-        f(zeroThreadsCipher);
+        if (f)
+        {
+            f(mZeroThreadsCipher);
+        }
     }
     else
     {
-        q.emplace_back(std::move(f));
-        cv.notify_one();
+        mQueue.emplace_back(std::move(f));
+        mConditionVariable.notify_one();
     }
 }
 
 MegaClientAsyncQueue::MegaClientAsyncQueue(Waiter& w, unsigned threadCount)
-    : waiter(w)
+    : mWaiter(w)
 {
     for (int i = threadCount; i--; )
     {
-        asyncThreads.emplace_back([this]() { asyncThreadLoop(); });
+        try
+        {
+            mAsyncThreads.emplace_back([this]()
+            {
+                asyncThreadLoop();
+            });
+        }
+        catch (std::system_error& e)
+        {
+            LOG_err << "Failed to start worker thread: " << e.what();
+            break;
+        }
     }
+    LOG_debug << "MegaClient Worker threads running: " << mAsyncThreads.size();
 }
 
 MegaClientAsyncQueue::~MegaClientAsyncQueue()
 {
     clearQueue();
     push(nullptr);
-    cv.notify_all();
-    for (auto& t : asyncThreads)
+    mConditionVariable.notify_all();
+    for (auto& t : mAsyncThreads)
     {
         t.join();
     }
@@ -71,30 +87,24 @@ MegaClientAsyncQueue::~MegaClientAsyncQueue()
 
 void MegaClientAsyncQueue::clearQueue()
 {
-    std::lock_guard<std::mutex> g(m);
-    q.clear();
+    std::lock_guard<std::mutex> g(mMutex);
+    mQueue.clear();
 }
 
 void MegaClientAsyncQueue::asyncThreadLoop()
 {
     SymmCipher cipher;
-    std::unique_lock<std::mutex> g(m);
+    std::unique_lock<std::mutex> g(mMutex);
     for (;;)
     {
-        cv.wait(g, [this]() {return !q.empty(); });
-        auto f = std::move(q.front());
-        if (f)
-        {
-            q.pop_front();
-            g.unlock();
-            f(cipher);
-            waiter.notify();
-            g.lock();
-        }
-        else
-        {
-            break;
-        }
+        mConditionVariable.wait(g, [this]() { return !mQueue.empty(); });
+        auto f = std::move(mQueue.front());
+        if (!f) return;
+        mQueue.pop_front();
+        g.unlock();
+        f(cipher);
+        mWaiter.notify();
+        g.lock();
     }
 }
 
