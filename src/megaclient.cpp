@@ -8043,6 +8043,7 @@ error MegaClient::parsepubliclink(const char* link, handle& ph, byte* key, bool 
         return API_EARGS;
     }
 
+    ph = 0; //otherwise atob will give an unexpected result
     if (Base64::atob(ptr, (byte*)&ph, NODEHANDLE) == NODEHANDLE)
     {
         ptr += 8;
