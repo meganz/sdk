@@ -1089,6 +1089,19 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
 - (nullable NSString *)dumpSession;
 
 /**
+ * @brief Returns the current sequence number
+ *
+ * The sequence number indicates the state of a MEGA account known by the SDK.
+ * When external changes are received via actionpackets, the sequence number is
+ * updated and changes are commited to the local cache.
+ *
+ * You take the ownership of the returned value.
+ *
+ * @return The current sequence number
+*/
+- (nullable NSString *)sequenceNumber;
+
+/**
  * @brief Check if the MEGASdk object is logged in.
  * @return 0 if not logged in, Otherwise, a number >= 0.
  */
