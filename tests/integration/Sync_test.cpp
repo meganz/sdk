@@ -582,33 +582,8 @@ struct StandardClient : public MegaApp
 
     NewNode* makeSubfolder(const string& utf8Name)
     {
-        SymmCipher key;
-        string attrstring;
-        byte buf[FOLDERNODEKEYLENGTH];
         NewNode* newnode = new NewNode[1];
-
-        // set up new node as folder node
-        newnode->source = NEW_NODE;
-        newnode->type = FOLDERNODE;
-        newnode->nodehandle = 0;
-        newnode->parenthandle = UNDEF;
-
-        // generate fresh random key for this folder node
-        PrnGen prngen;
-        prngen.genblock(buf, FOLDERNODEKEYLENGTH);
-        newnode->nodekey.assign((char*)buf, FOLDERNODEKEYLENGTH);
-        key.setkey(buf);
-
-        // generate fresh attribute object with the folder name
-        AttrMap attrs;
-        string& n = attrs.map['n'];
-        client.fsaccess->normalize(&(n = utf8Name));
-
-        // JSON-encode object and encrypt attribute string
-        attrs.getjson(&attrstring);
-        newnode->attrstring = new string;
-        client.makeattr(&key, newnode->attrstring, attrstring.c_str());
-
+        client.putnodes_prepareOneFolder(newnode, utf8Name);
         return newnode;
     }
      
@@ -1368,7 +1343,7 @@ struct StandardClient : public MegaApp
         return true;
     }
 
-    bool login_fetchnodes(const string& user, const string& pw)
+    bool login_fetchnodes(const string& user, const string& pw, bool makeBaseFolder = false)
     {
         future<bool> p2;
         p2 = thread_do([=](StandardClient& sc, promise<bool>& pb) { sc.preloginFromEnv(user, pb); });
@@ -1377,7 +1352,7 @@ struct StandardClient : public MegaApp
         if (!waitonresults(&p2)) return false;
         p2 = thread_do([](StandardClient& sc, promise<bool>& pb) { sc.fetchnodes(pb); });
         if (!waitonresults(&p2)) return false;
-        p2 = thread_do([](StandardClient& sc, promise<bool>& pb) { sc.ensureTestBaseFolder(false, pb); });
+        p2 = thread_do([makeBaseFolder](StandardClient& sc, promise<bool>& pb) { sc.ensureTestBaseFolder(makeBaseFolder, pb); });
         if (!waitonresults(&p2)) return false;
         return true;
     }
@@ -2472,6 +2447,45 @@ GTEST_TEST(Sync, NodeSorting_forPhotosAndVideos)
     node_vector v5{ video2, video1, photo2, photo1, otherfolder, otherfile };
     ASSERT_EQ(v, v5);
 }
+
+
+GTEST_TEST(Sync, PutnodesForMultipleFolders)
+{
+    fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
+    StandardClient standardclient(localtestroot, "PutnodesForMultipleFolders");
+    ASSERT_TRUE(standardclient.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD", true));
+
+    NewNode* newnodes = new NewNode[4];
+    
+    standardclient.client.putnodes_prepareOneFolder(&newnodes[0], "folder1");
+    standardclient.client.putnodes_prepareOneFolder(&newnodes[1], "folder2");
+    standardclient.client.putnodes_prepareOneFolder(&newnodes[2], "folder2.1");
+    standardclient.client.putnodes_prepareOneFolder(&newnodes[3], "folder2.2");
+
+    newnodes[1].nodehandle = newnodes[2].parenthandle = newnodes[3].parenthandle = 2;
+
+    handle targethandle = standardclient.client.rootnodes[0];
+
+    std::atomic<bool> putnodesDone{false};
+    standardclient.resultproc.prepresult(StandardClient::PUTNODES, [&putnodesDone](error e) {
+        putnodesDone = true;
+    });
+
+    standardclient.client.putnodes(targethandle, newnodes, 4, nullptr);
+    
+    while (!putnodesDone)
+    {
+        WaitMillisec(100);
+    }
+
+    Node* cloudRoot = standardclient.client.nodebyhandle(targethandle);
+
+    ASSERT_TRUE(nullptr != standardclient.drillchildnodebyname(cloudRoot, "folder1"));
+    ASSERT_TRUE(nullptr != standardclient.drillchildnodebyname(cloudRoot, "folder2"));
+    ASSERT_TRUE(nullptr != standardclient.drillchildnodebyname(cloudRoot, "folder2/folder2.1"));
+    ASSERT_TRUE(nullptr != standardclient.drillchildnodebyname(cloudRoot, "folder2/folder2.2"));
+}
+
 
 #ifndef _WIN32
 #define DEFAULWAIT 20s
