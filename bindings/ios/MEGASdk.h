@@ -1095,8 +1095,6 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * When external changes are received via actionpackets, the sequence number is
  * updated and changes are commited to the local cache.
  *
- * You take the ownership of the returned value.
- *
  * @return The current sequence number
 */
 - (nullable NSString *)sequenceNumber;
