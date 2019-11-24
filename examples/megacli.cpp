@@ -1964,7 +1964,7 @@ void xferq(direction_t d, int cancel)
 
             if ((*it)->transfer && (*it)->transfer->slot)
             {
-                cout << " [ACTIVE]";
+                cout << " [ACTIVE] " << ((*it)->transfer->slot->progressreported * 100 / ((*it)->transfer->size ? (*it)->transfer->size : 1)) << "%";
             }
             cout << endl;
 
