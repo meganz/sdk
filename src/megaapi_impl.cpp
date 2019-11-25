@@ -20740,7 +20740,7 @@ void MegaApiImpl::sendPendingRequests()
             int type = request->getParamType();
             const char *message = request->getText();
 
-            if (type != 1 || !message)
+            if ((type < 0 || type > 7) || !message)
             {
                 e = API_EARGS;
                 break;
