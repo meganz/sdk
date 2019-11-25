@@ -42,7 +42,7 @@ bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, h
                          const string& localdebris, const string& localseparator);
 
 // A collection of unsyncable remote nodes stored by handle
-class UnsyncableNodeBag
+class MEGA_API UnsyncableNodeBag
 {
 public:
     UnsyncableNodeBag() = default;
