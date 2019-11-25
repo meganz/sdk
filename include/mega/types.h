@@ -686,9 +686,9 @@ public:
     SyncConfig() = default;
 
     SyncConfig(const Type syncType, const bool syncDeletions, const bool forceOverwrite)
-    : mSyncType{syncType}
-    , mSyncDeletions{syncDeletions}
-    , mForceOverwrite{forceOverwrite}
+        : mSyncType{syncType}
+        , mSyncDeletions{syncDeletions}
+        , mForceOverwrite{forceOverwrite}
     {}
 
     // whether this is an up-sync from local to remote

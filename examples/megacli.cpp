@@ -167,13 +167,20 @@ static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::
     toLower(overwrite);
 
     SyncConfig::Type syncType;
-    if (type == "up") {
+    if (type == "up")
+    {
         syncType = SyncConfig::TYPE_UP;
-    } else if (type == "down") {
+    }
+    else if (type == "down")
+    {
         syncType = SyncConfig::TYPE_DOWN;
-    } else if (type == "twoway") {
+    }
+    else if (type == "twoway")
+    {
         syncType = SyncConfig::TYPE_DEFAULT;
-    } else {
+    }
+    else
+    {
         return std::make_pair(false, SyncConfig{});
     }
 
@@ -182,19 +189,29 @@ static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::
 
     if (syncType != SyncConfig::TYPE_DEFAULT)
     {
-        if (syncDel == "on") {
+        if (syncDel == "on")
+        {
             syncDeletions = true;
-        } else if (syncDel == "off") {
+        }
+        else if (syncDel == "off")
+        {
             syncDeletions = false;
-        } else {
+        }
+        else
+        {
             return std::make_pair(false, SyncConfig{});
         }
 
-        if (overwrite == "on") {
+        if (overwrite == "on")
+        {
             forceOverwrite = true;
-        } else if (overwrite == "off") {
+        }
+        else if (overwrite == "off")
+        {
             forceOverwrite = false;
-        } else {
+        }
+        else
+        {
             return std::make_pair(false, SyncConfig{});
         }
     }
@@ -4119,15 +4136,22 @@ void exec_syncconfig(autocomplete::ACState& s)
     else if (s.words.size() == 2 || s.words.size() == 4)
     {
         std::pair<bool, SyncConfig> pair;
-        if (s.words.size() == 2) {
+        if (s.words.size() == 2)
+        {
             pair = syncConfigFromStrings(s.words[1].s);
-        } else {
+        }
+        else
+        {
             pair = syncConfigFromStrings(s.words[1].s, s.words[2].s, s.words[3].s);
         }
-        if (pair.first) {
+
+        if (pair.first)
+        {
             syncConfig = pair.second;
             cout << "Successfully applied new sync config!" << endl;
-        } else {
+        }
+        else
+        {
             cout << "Invalid parameters for syncconfig command." << endl;
         }
     }
