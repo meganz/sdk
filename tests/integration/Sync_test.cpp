@@ -2466,7 +2466,7 @@ GTEST_TEST(Sync, PutnodesForMultipleFolders)
 
     handle targethandle = standardclient.client.rootnodes[0];
 
-    std::atomic<bool> putnodesDone = false;
+    std::atomic<bool> putnodesDone{false};
     standardclient.resultproc.prepresult(StandardClient::PUTNODES, [&putnodesDone](error e) {
         putnodesDone = true;
     });

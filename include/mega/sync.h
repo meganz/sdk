@@ -45,17 +45,8 @@ class MEGA_API Sync
 {
 public:
 
-    // whether this is an up-sync from local to remote
-    bool isUpSync() const;
-
-    // whether this is a down-sync from remote to local
-    bool isDownSync() const;
-
-    // whether deletions are synced
-    bool syncDeletions() const;
-
-    // whether changes are overwritten irregardless of file properties
-    bool forceOverwrite() const;
+    // returns the sync config
+    const SyncConfig& getConfig() const;
 
     void* appData = nullptr;
 
@@ -180,9 +171,7 @@ protected :
     bool readstatecache();
 
 private:
-    // The sync config is not to be used directly for sync decisions.
-    // Instead, public member functions of `Sync` should be used.
-    SyncConfig mConfig;
+    const SyncConfig mConfig;
 };
 } // namespace
 

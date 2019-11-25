@@ -117,6 +117,109 @@ int responseprogress = -1;
 //2FA pin attempts
 int attempts = 0;
 
+#ifdef ENABLE_SYNC
+// sync config used when creating a new sync
+static SyncConfig syncConfig;
+
+// converts the given sync config to a string
+static std::string syncConfigToString(const SyncConfig& config)
+{
+    auto getOptions = [](const SyncConfig& config)
+    {
+        std::string desc;
+        desc += ", syncDeletions ";
+        desc += config.syncDeletions() ? "ON" : "OFF";
+        desc += ", forceOverwrite ";
+        desc += config.forceOverwrite() ? "ON" : "OFF";
+        return desc;
+    };
+
+    std::string description;
+    if (config.isUpSync() && config.isDownSync())
+    {
+        description = "TWOWAY";
+    }
+    else if (config.isUpSync())
+    {
+        description = "UP";
+        description += getOptions(config);
+    }
+    else
+    {
+        description = "DOWN";
+        description += getOptions(config);
+    }
+    return description;
+}
+
+// creates a SyncConfig object from config options as strings.
+// returns a pair where `first` is success and `second` is the sync config.
+static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::string syncDel = {}, std::string overwrite = {})
+{
+    auto toLower = [](std::string& s)
+    {
+        std::transform(s.begin(), s.end(), s.begin(),
+                       [](const char c){ return std::tolower(c); });
+    };
+
+    toLower(type);
+    toLower(syncDel);
+    toLower(overwrite);
+
+    SyncConfig::Type syncType;
+    if (type == "up")
+    {
+        syncType = SyncConfig::TYPE_UP;
+    }
+    else if (type == "down")
+    {
+        syncType = SyncConfig::TYPE_DOWN;
+    }
+    else if (type == "twoway")
+    {
+        syncType = SyncConfig::TYPE_DEFAULT;
+    }
+    else
+    {
+        return std::make_pair(false, SyncConfig{});
+    }
+
+    bool syncDeletions = false;
+    bool forceOverwrite = false;
+
+    if (syncType != SyncConfig::TYPE_DEFAULT)
+    {
+        if (syncDel == "on")
+        {
+            syncDeletions = true;
+        }
+        else if (syncDel == "off")
+        {
+            syncDeletions = false;
+        }
+        else
+        {
+            return std::make_pair(false, SyncConfig{});
+        }
+
+        if (overwrite == "on")
+        {
+            forceOverwrite = true;
+        }
+        else if (overwrite == "off")
+        {
+            forceOverwrite = false;
+        }
+        else
+        {
+            return std::make_pair(false, SyncConfig{});
+        }
+    }
+
+    return std::make_pair(true, SyncConfig{syncType, syncDeletions, forceOverwrite});
+}
+#endif
+
 static const char* getAccessLevelStr(int access)
 {
     switch(access)
@@ -2664,6 +2767,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_du, sequence(text("du"), remoteFSPath(client, &cwd)));
 #ifdef ENABLE_SYNC
     p->Add(exec_sync, sequence(text("sync"), opt(sequence(localFSPath(), either(remoteFSPath(client, &cwd, "dst"), param("cancelslot"))))));
+    p->Add(exec_syncconfig, sequence(text("syncconfig"), opt(sequence(param("type (TWOWAY/UP/DOWN)"), opt(sequence(param("syncDeletions (ON/OFF)"), param("forceOverwrite (ON/OFF)")))))));
 #endif
     p->Add(exec_export, sequence(text("export"), remoteFSPath(client, &cwd), opt(either(param("expiretime"), text("del")))));
     p->Add(exec_share, sequence(text("share"), opt(sequence(remoteFSPath(client, &cwd), opt(sequence(contactEmail(client), opt(either(text("r"), text("rw"), text("full"))), opt(param("origemail"))))))));
@@ -3961,7 +4065,7 @@ void exec_sync(autocomplete::ACState& s)
             }
             else
             {
-                error e = client->addsync(SyncConfig{}, &localname, DEBRISFOLDER, NULL, n);
+                error e = client->addsync(syncConfig, &localname, DEBRISFOLDER, NULL, n);
 
                 if (e)
                 {
@@ -4008,7 +4112,7 @@ void exec_sync(autocomplete::ACState& s)
                         nodepath((*it)->localroot->node->nodehandle, &remotepath);
                         client->fsaccess->local2path(&(*it)->localroot->localname, &localpath);
 
-                        cout << i++ << ": " << localpath << " to " << remotepath << " - "
+                        cout << i++ << " (" << syncConfigToString((*it)->getConfig()) << "): " << localpath << " to " << remotepath << " - "
                                 << syncstatenames[(*it)->state] << ", " << (*it)->localbytes
                                 << " byte(s) in " << (*it)->localnodes[FILENODE] << " file(s) and "
                                 << (*it)->localnodes[FOLDERNODE] << " folder(s)" << endl;
@@ -4020,6 +4124,40 @@ void exec_sync(autocomplete::ACState& s)
         {
             cout << "No syncs active at this time." << endl;
         }
+    }
+}
+
+void exec_syncconfig(autocomplete::ACState& s)
+{
+    if (s.words.size() == 1)
+    {
+        cout << "Current sync config: " << syncConfigToString(syncConfig) << endl;
+    }
+    else if (s.words.size() == 2 || s.words.size() == 4)
+    {
+        std::pair<bool, SyncConfig> pair;
+        if (s.words.size() == 2)
+        {
+            pair = syncConfigFromStrings(s.words[1].s);
+        }
+        else
+        {
+            pair = syncConfigFromStrings(s.words[1].s, s.words[2].s, s.words[3].s);
+        }
+
+        if (pair.first)
+        {
+            syncConfig = pair.second;
+            cout << "Successfully applied new sync config!" << endl;
+        }
+        else
+        {
+            cout << "Invalid parameters for syncconfig command." << endl;
+        }
+    }
+    else
+    {
+        assert(false);
     }
 }
 #endif
