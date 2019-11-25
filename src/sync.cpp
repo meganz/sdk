@@ -511,6 +511,66 @@ bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, h
     return success;
 }
 
+UnsyncableNodeBag::UnsyncableNodeBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, PrnGen& rng)
+{
+    std::string dbname = "unsyncablenodes";
+    mTable.reset(dbaccess.open(rng, &fsaccess, &dbname, false, false));
+    if (!mTable)
+    {
+        LOG_err << "Unable to open DB table: " << dbname;
+        return;
+    }
+
+    decltype(mNextTableId) id;
+    std::string nodeHandle;
+    while (mTable->next(&id, &nodeHandle))
+    {
+        mNodes[std::stoull(nodeHandle)] = id;
+        if (id > mNextTableId)
+        {
+            mNextTableId = id;
+        }
+    }
+    ++mNextTableId;
+}
+
+bool UnsyncableNodeBag::addNode(const handle nodeHandle)
+{
+    bool complete = true;
+    auto nodePair = mNodes.find(nodeHandle);
+    if (nodePair == mNodes.end())
+    {
+        mNodes[nodeHandle] = mNextTableId;
+        if (mTable)
+        {
+            auto data = std::to_string(nodeHandle);
+            complete = mTable->put(mNextTableId, &data);
+            ++mNextTableId;
+        }
+    }
+    return complete;
+}
+
+bool UnsyncableNodeBag::removeNode(const handle nodeHandle)
+{
+    bool complete = true;
+    auto nodePair = mNodes.find(nodeHandle);
+    if (nodePair != mNodes.end())
+    {
+        mNodes.erase(nodePair);
+        if (mTable)
+        {
+            complete = mTable->del(nodePair->second);
+        }
+    }
+    return complete;
+}
+
+bool UnsyncableNodeBag::isNodeSyncable(const handle nodeHandle) const
+{
+    return mNodes.find(nodeHandle) == mNodes.end();
+}
+
 // new Syncs are automatically inserted into the session's syncs list
 // and a full read of the subtree is initiated
 Sync::Sync(MegaClient* cclient, SyncConfig config, string* crootpath, const char* cdebris,

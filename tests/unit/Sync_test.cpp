@@ -28,6 +28,8 @@
 
 #include "constants.h"
 #include "FsNode.h"
+#include "DefaultedDbAccess.h"
+#include "DefaultedDbTable.h"
 #include "DefaultedDirAccess.h"
 #include "DefaultedFileAccess.h"
 #include "DefaultedFileSystemAccess.h"
@@ -1079,6 +1081,133 @@ TEST(Sync, SyncConfig_down_sync)
     ASSERT_TRUE(config.isDownSync());
     ASSERT_TRUE(config.syncDeletions());
     ASSERT_TRUE(config.forceOverwrite());
+}
+
+namespace {
+
+struct UnsyncableDbTable : mt::DefaultedDbTable
+{
+    using row_t = std::pair<uint32_t, std::string>;
+    std::vector<row_t>& mRecords;
+    size_t mCurrentIndex = 0;
+
+    UnsyncableDbTable(std::vector<row_t>& records)
+    : mRecords(records)
+    {}
+
+    void rewind() override
+    {
+        mCurrentIndex = 0;
+    }
+    bool next(uint32_t* id, std::string* data) override
+    {
+        if (mCurrentIndex >= mRecords.size())
+        {
+            rewind();
+            return false;
+        }
+        *id = mRecords[mCurrentIndex].first;
+        *data = mRecords[mCurrentIndex].second;
+        ++mCurrentIndex;
+        return true;
+    }
+    bool put(uint32_t id, char* data, unsigned) override
+    {
+        mRecords.emplace_back(id, std::string(data));
+        return true;
+    }
+    bool del(uint32_t id) override
+    {
+        mRecords.erase(std::remove_if(mRecords.begin(), mRecords.end(),
+                                      [id](const row_t& r) { return r.first == id; }), mRecords.end());
+        return true;
+    }
+};
+
+struct UnsyncableDbAccess : mt::DefaultedDbAccess
+{
+    std::vector<UnsyncableDbTable::row_t> mRecords;
+    mega::DbTable* open(mega::PrnGen&, mega::FileSystemAccess*, std::string*, bool, bool) override
+    {
+        return new UnsyncableDbTable{mRecords};
+    }
+};
+
+struct UnsyncableFsAccess : mt::DefaultedFileSystemAccess
+{
+};
+
+}
+
+TEST(Sync, UnsyncableNodeBag_withoutDbTable)
+{
+    const mega::handle nodeHandle = 42;
+    mega::UnsyncableNodeBag bag;
+    ASSERT_TRUE(bag.isNodeSyncable(nodeHandle));
+    ASSERT_TRUE(bag.addNode(nodeHandle));
+    ASSERT_FALSE(bag.isNodeSyncable(nodeHandle));
+    ASSERT_TRUE(bag.removeNode(nodeHandle));
+    ASSERT_TRUE(bag.isNodeSyncable(nodeHandle));
+}
+
+TEST(Sync, UnsyncableNodeBag)
+{
+    UnsyncableDbAccess dbaccess;
+    dbaccess.mRecords = {
+        {1, "42"},
+        {2, "13"},
+    };
+    UnsyncableFsAccess fsaccess;
+    mega::PrnGen prn;
+    const mega::handle nodeHandle = 123;
+    mega::UnsyncableNodeBag bag{dbaccess, fsaccess, prn};
+    ASSERT_FALSE(bag.isNodeSyncable(42));
+    ASSERT_FALSE(bag.isNodeSyncable(13));
+    ASSERT_TRUE(bag.isNodeSyncable(nodeHandle));
+    ASSERT_TRUE(bag.addNode(nodeHandle));
+
+    std::vector<UnsyncableDbTable::row_t> exp_records{
+        {1, "42"},
+        {2, "13"},
+        {3, "123"},
+    };
+    ASSERT_EQ(exp_records, dbaccess.mRecords);
+
+    ASSERT_FALSE(bag.isNodeSyncable(nodeHandle));
+    ASSERT_TRUE(bag.removeNode(nodeHandle));
+    ASSERT_TRUE(bag.isNodeSyncable(nodeHandle));
+
+    exp_records = {
+        {1, "42"},
+        {2, "13"},
+    };
+    ASSERT_EQ(exp_records, dbaccess.mRecords);
+
+    ASSERT_TRUE(bag.removeNode(42));
+    ASSERT_TRUE(bag.isNodeSyncable(42));
+
+    exp_records = {
+        {2, "13"},
+    };
+    ASSERT_EQ(exp_records, dbaccess.mRecords);
+
+    ASSERT_TRUE(bag.removeNode(13));
+    ASSERT_TRUE(bag.isNodeSyncable(13));
+    ASSERT_TRUE(dbaccess.mRecords.empty());
+}
+
+TEST(Sync, UnsyncableNodeBag_withoutRecords)
+{
+    UnsyncableDbAccess dbaccess;
+    UnsyncableFsAccess fsaccess;
+    mega::PrnGen prn;
+    const mega::handle nodeHandle = 123;
+    mega::UnsyncableNodeBag bag{dbaccess, fsaccess, prn};
+    ASSERT_TRUE(bag.isNodeSyncable(nodeHandle));
+    ASSERT_TRUE(bag.addNode(nodeHandle));
+    ASSERT_FALSE(bag.isNodeSyncable(nodeHandle));
+    ASSERT_TRUE(bag.removeNode(nodeHandle));
+    ASSERT_TRUE(bag.isNodeSyncable(nodeHandle));
 }
 
 #endif

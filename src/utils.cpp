@@ -2003,20 +2003,3 @@ void NodeCounter::operator -= (const NodeCounter& o)
 }
 
 } // namespace
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

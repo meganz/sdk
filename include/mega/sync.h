@@ -41,6 +41,31 @@ int computeReversePathMatchScore(string& accumulated, const string& path1, const
 bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, handlelocalnode_map& fsidnodes,
                          const string& localdebris, const string& localseparator);
 
+// A collection of unsyncable remote nodes stored by handle
+class UnsyncableNodeBag
+{
+public:
+    UnsyncableNodeBag() = default;
+
+    UnsyncableNodeBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, PrnGen& rng);
+
+    MEGA_DISABLE_COPY_MOVE(UnsyncableNodeBag)
+
+    // Adds a new node by handle
+    bool addNode(handle nodeHandle);
+
+    // Removes a node by handle
+    bool removeNode(handle nodeHandle);
+
+    // Returns whether a node is syncable
+    bool isNodeSyncable(handle nodeHandle) const;
+
+private:
+    uint32_t mNextTableId = 0; // the next table ID to use
+    std::unique_ptr<DbTable> mTable; // table for caching remote nodes that are not syncable
+    std::map<handle, decltype(mNextTableId)> mNodes; // map of remote node handles to table IDs
+};
+
 class MEGA_API Sync
 {
 public:

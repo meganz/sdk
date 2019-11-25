@@ -985,22 +985,27 @@ NodeCounter Node::subnodeCounts() const
 }
 
 #ifdef ENABLE_SYNC
-void Node::setSyncable(const bool syncable, const bool notify)
+void Node::setSyncable(const bool syncable, const bool cache)
 {
     if (syncable != mSyncable)
     {
         mSyncable = syncable;
-        if (notify)
+        if (cache)
         {
             if (mSyncable)
             {
-                client->mUnsyncableNodes.erase(nodehandle);
+                if (!client->unsyncables->addNode(nodehandle))
+                {
+                    LOG_err << "Incomplete database write for node: " << nodehandle;
+                }
             }
             else
             {
-                client->mUnsyncableNodes.insert(nodehandle);
+                if (!client->unsyncables->removeNode(nodehandle))
+                {
+                    LOG_err << "Incomplete database write for node: " << nodehandle;
+                }
             }
-            client->notifynode(this);
         }
     }
 }

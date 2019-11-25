@@ -24,6 +24,7 @@
 
 #include <type_traits>
 
+#include "db.h"
 #include "types.h"
 #include "mega/logging.h"
 

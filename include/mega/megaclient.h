@@ -41,6 +41,8 @@
 
 namespace mega {
 
+class UnsyncableNodeBag;
+
 class MEGA_API FetchNodesStats
 {
 public:
@@ -954,17 +956,8 @@ public:
     DbAccess* dbaccess;
 
 #ifdef ENABLE_SYNC
-    // table for caching remote nodes that are not syncable
-    std::unique_ptr<DbTable> mUnsyncableNodesTable;
-
-    // set of remote nodes that are not syncable
-    std::set<handle> mUnsyncableNodes;
-
-    // opens the unsyncablenodes table
-    void openUnsyncableNodesTable();
-
-    // loads the unsyncable nodes from table
-    void loadUnsyncableNodes();
+    // A collection of unsyncable remote nodes stored by handle
+    std::unique_ptr<UnsyncableNodeBag> unsyncables;
 #endif
 
     // state cache table for logged in user

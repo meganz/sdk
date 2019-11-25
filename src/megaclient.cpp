@@ -1225,9 +1225,14 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     h->setmaxuploadspeed(0);
 
 #ifdef ENABLE_SYNC
-    openUnsyncableNodesTable();
-
-    loadUnsyncableNodes();
+    if (dbaccess)
+    {
+        unsyncables.reset(new UnsyncableNodeBag{*dbaccess, *fsaccess, rng});
+    }
+    else
+    {
+        unsyncables.reset(new UnsyncableNodeBag);
+    }
 #endif
 }
 
@@ -4500,8 +4505,7 @@ void MegaClient::updatesc()
                     {
                         LOG_verbose << "Removing node from database: " << (Base64::btoa((byte*)&((*it)->nodehandle),MegaClient::NODEHANDLE,base64) ? base64 : "");
 #ifdef ENABLE_SYNC
-                        mUnsyncableNodes.erase((*it)->nodehandle);
-                        if (!(complete = mUnsyncableNodesTable->del((*it)->dbid)))
+                        if (!(complete = unsyncables->removeNode((*it)->nodehandle)))
                         {
                             break;
                         }
@@ -4522,9 +4526,7 @@ void MegaClient::updatesc()
 #ifdef ENABLE_SYNC
                     if (!(*it)->isSyncable())
                     {
-                        mUnsyncableNodes.insert((*it)->nodehandle);
-                        auto nodehandle = std::to_string((*it)->nodehandle);
-                        if (!(complete = mUnsyncableNodesTable->put((*it)->dbid, &nodehandle)))
+                        if (!(complete = unsyncables->addNode((*it)->nodehandle)))
                         {
                             break;
                         }
@@ -8376,31 +8378,6 @@ void MegaClient::killallsessions()
     reqs.add(new CommandKillSessions(this));
 }
 
-#ifdef ENABLE_SYNC
-void MegaClient::openUnsyncableNodesTable()
-{
-    if (dbaccess)
-    {
-        assert(!mUnsyncableNodesTable);
-        string dbname = "unsyncablenodes";
-        mUnsyncableNodesTable.reset(dbaccess->open(rng, fsaccess, &dbname, false, false));
-    }
-}
-
-void MegaClient::loadUnsyncableNodes()
-{
-    if (mUnsyncableNodesTable)
-    {
-        uint32_t id;
-        string nodehandle;
-        while (mUnsyncableNodesTable->next(&id, &nodehandle))
-        {
-            mUnsyncableNodes.insert(std::stoull(nodehandle));
-        }
-    }
-}
-#endif
-
 void MegaClient::opensctable()
 {
     if (dbaccess && !sctable)
@@ -10560,7 +10537,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
                 {
                     n->dbid = id;
 #ifdef ENABLE_SYNC
-                    if (mUnsyncableNodes.find(n->nodehandle) != mUnsyncableNodes.end())
+                    if (!unsyncables->isNodeSyncable(n->nodehandle))
                     {
                         n->setSyncable(false, false);
                     }

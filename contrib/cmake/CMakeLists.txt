@@ -651,6 +651,8 @@ add_executable(test_unit
     ${MegaDir}/tests/unit/Commands_test.cpp
     ${MegaDir}/tests/unit/constants.h
     ${MegaDir}/tests/unit/Crypto_test.cpp
+    ${MegaDir}/tests/unit/DefaultedDbAccess.h
+    ${MegaDir}/tests/unit/DefaultedDbTable.h
     ${MegaDir}/tests/unit/DefaultedDirAccess.h
     ${MegaDir}/tests/unit/DefaultedFileAccess.h
     ${MegaDir}/tests/unit/DefaultedFileSystemAccess.h
