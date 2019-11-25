@@ -177,7 +177,7 @@ static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::
     }
     else if (type == "twoway")
     {
-        syncType = SyncConfig::TYPE_DEFAULT;
+        syncType = SyncConfig::TYPE_TWOWAY;
     }
     else
     {
@@ -187,7 +187,7 @@ static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::
     bool syncDeletions = false;
     bool forceOverwrite = false;
 
-    if (syncType != SyncConfig::TYPE_DEFAULT)
+    if (syncType != SyncConfig::TYPE_TWOWAY)
     {
         if (syncDel == "on")
         {

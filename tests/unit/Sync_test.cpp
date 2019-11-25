@@ -1058,7 +1058,7 @@ TEST(Sync, SyncConfig_noparam_constructor)
 
 TEST(Sync, SyncConfig_default_sync)
 {
-    const mega::SyncConfig config{mega::SyncConfig::TYPE_DEFAULT, false, true};
+    const mega::SyncConfig config{mega::SyncConfig::TYPE_TWOWAY, false, true};
     ASSERT_TRUE(config.isUpSync());
     ASSERT_TRUE(config.isDownSync());
     ASSERT_TRUE(config.syncDeletions());

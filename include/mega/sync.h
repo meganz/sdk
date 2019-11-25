@@ -23,6 +23,9 @@
 #define MEGA_SYNC_H 1
 
 #ifdef ENABLE_SYNC
+
+#include <unordered_map>
+
 #include "megaclient.h"
 
 namespace mega {
@@ -63,7 +66,7 @@ public:
 private:
     uint32_t mNextTableId = 0; // the next table ID to use
     std::unique_ptr<DbTable> mTable; // table for caching remote nodes that are not syncable
-    std::map<handle, decltype(mNextTableId)> mNodes; // map of remote node handles to table IDs
+    std::unordered_map<handle, decltype(mNextTableId)> mNodes; // map of remote node handles to table IDs
 };
 
 class MEGA_API Sync

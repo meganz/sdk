@@ -680,7 +680,7 @@ public:
     {
         TYPE_UP = 0x01, // sync up from local to remote
         TYPE_DOWN = 0x02, // sync down from remote to local
-        TYPE_DEFAULT = TYPE_UP | TYPE_DOWN, // Two-way sync
+        TYPE_TWOWAY = TYPE_UP | TYPE_DOWN, // Two-way sync
     };
 
     SyncConfig() = default;
@@ -710,7 +710,7 @@ public:
         {
             case TYPE_UP: return mSyncDeletions;
             case TYPE_DOWN: return mSyncDeletions;
-            case TYPE_DEFAULT: return true;
+            case TYPE_TWOWAY: return true;
         }
         assert(false);
         return true;
@@ -723,7 +723,7 @@ public:
         {
             case TYPE_UP: return mForceOverwrite;
             case TYPE_DOWN: return mForceOverwrite;
-            case TYPE_DEFAULT: return false;
+            case TYPE_TWOWAY: return false;
         }
         assert(false);
         return false;
@@ -731,7 +731,7 @@ public:
 
 private:
     // type of the sync, defaults to bidirectional
-    Type mSyncType = TYPE_DEFAULT;
+    Type mSyncType = TYPE_TWOWAY;
 
     // whether deletions are synced (only relevant for one-way-sync)
     bool mSyncDeletions = false;

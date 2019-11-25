@@ -41,7 +41,9 @@
 
 namespace mega {
 
+#ifdef ENABLE_SYNC
 class UnsyncableNodeBag;
+#endif
 
 class MEGA_API FetchNodesStats
 {
