@@ -607,9 +607,6 @@ public:
     // clean rubbish bin
     void cleanrubbishbin();
 
-    // determine if more transfers fit in the pipeline
-    bool moretransfers(direction_t);
-
     // change the storage status
     bool setstoragestatus(storagestatus_t);
 
@@ -1101,9 +1098,6 @@ public:
 
     static const char* const EXPORTEDLINK;
 
-    // minimum number of bytes in transit for upload/download pipelining
-    static const int MINPIPELINE = 65536;
-
     // default number of seconds to wait after a bandwidth overquota
     static dstime DEFAULT_BW_OVERQUOTA_BACKOFF_SECS;
 
@@ -1293,11 +1287,8 @@ public:
     // determine if all transfer slots are full
     bool slotavail() const;
 
-    // dispatch as many queued transfers as possible
-    void dispatchmore(direction_t);
-
     // transfer queue dispatch/retry handling
-    bool dispatch(direction_t);
+    void dispatchTransfers();
 
     void defer(direction_t, int td, int = 0);
     void freeq(direction_t);
@@ -1316,6 +1307,7 @@ public:
 
     bool requestLock;
     dstime disconnecttimestamp;
+    dstime lastDispatchTransfersDs = 0;
 
     // process object arrays by the API server
     int readnodes(JSON*, int, putsource_t = PUTNODES_APP, NewNode* = NULL, int = 0, int = 0, bool applykeys = false);
