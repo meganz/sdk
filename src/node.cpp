@@ -985,34 +985,42 @@ NodeCounter Node::subnodeCounts() const
 }
 
 #ifdef ENABLE_SYNC
-void Node::setSyncable(const bool syncable, const bool cache)
+void Node::setSyncable(const bool syncable, const std::string& syncPath)
 {
-    if (syncable != mSyncable)
+    if (!syncable)
     {
-        mSyncable = syncable;
-        if (cache)
+        if (!client->unsyncables->addNode(nodehandle, syncPath))
         {
-            if (mSyncable)
-            {
-                if (!client->unsyncables->addNode(nodehandle))
-                {
-                    LOG_err << "Incomplete database write for node: " << nodehandle;
-                }
-            }
-            else
-            {
-                if (!client->unsyncables->removeNode(nodehandle))
-                {
-                    LOG_err << "Incomplete database write for node: " << nodehandle;
-                }
-            }
+            LOG_err << "Incomplete database write for node: " << nodehandle;
+        }
+    }
+    else
+    {
+        if (!client->unsyncables->removeNode(nodehandle))
+        {
+            LOG_err << "Incomplete database write for node: " << nodehandle;
         }
     }
 }
 
 bool Node::isSyncable() const
 {
-    return mSyncable;
+    if (localnode)
+    {
+        const auto syncPath = client->unsyncables->syncPath(nodehandle);
+        if (syncPath)
+        {
+            return *syncPath == localnode->sync->localroot->localname;
+        }
+        else
+        {
+            return true;
+        }
+    }
+    else
+    {
+        return true;
+    }
 }
 #endif
 
@@ -1056,9 +1064,13 @@ bool Node::setparent(Node* p)
 #ifdef ENABLE_SYNC
         if (parent->type == FILENODE)
         {
-            // copy syncable from child (old version) to parent (new version)
-            parent->setSyncable(isSyncable());
-            setSyncable(true); // set back to default
+            const auto syncPath = client->unsyncables->syncPath(nodehandle);
+            if (syncPath)
+            {
+                // if child (old version) is not syncable then parent must follow suit (new version)
+                parent->setSyncable(false, *syncPath);
+                setSyncable(true, *syncPath); // set old version back to default
+            }
         }
 #endif
     }
@@ -1667,19 +1679,18 @@ LocalNode::~LocalNode()
 
     if (node)
     {
-        if (!sync->getConfig().isUpSync())
-        {
-            node->setSyncable(false);
-        }
-
         // move associated node to SyncDebris unless the sync is currently
         // shutting down
         if (sync->state < SYNC_INITIALSCAN)
         {
             node->localnode = NULL;
         }
-        else
+        else // sync is active
         {
+            if (!sync->getConfig().isUpSync())
+            {
+                node->setSyncable(false, sync->localroot->localname);
+            }
             sync->client->movetosyncdebris(node, sync->inshare);
         }
     }

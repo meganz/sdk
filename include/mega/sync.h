@@ -44,7 +44,7 @@ int computeReversePathMatchScore(string& accumulated, const string& path1, const
 bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, handlelocalnode_map& fsidnodes,
                          const string& localdebris, const string& localseparator);
 
-// A collection of unsyncable remote nodes stored by handle
+// A collection of unsyncable remote nodes stored by node handle
 class MEGA_API UnsyncableNodeBag
 {
 public:
@@ -54,19 +54,26 @@ public:
 
     MEGA_DISABLE_COPY_MOVE(UnsyncableNodeBag)
 
-    // Adds a new node by handle
-    bool addNode(handle nodeHandle);
+    // Adds a new node by handle and sync path
+    bool addNode(handle nodeHandle, const std::string& syncPath);
 
     // Removes a node by handle
     bool removeNode(handle nodeHandle);
 
-    // Returns whether a node is syncable
-    bool isNodeSyncable(handle nodeHandle) const;
+    // Returns the sync path of the given node handle if the node is not syncable, null otherwise
+    const std::string* syncPath(handle nodeHandle) const;
 
 private:
     uint32_t mNextTableId = 0; // the next table ID to use
+
+    struct NodeData
+    {
+        std::string mSyncPath; // the sync that the node belongs to
+        decltype(mNextTableId) mTableId;
+    };
+
     std::unique_ptr<DbTable> mTable; // table for caching remote nodes that are not syncable
-    std::unordered_map<handle, decltype(mNextTableId)> mNodes; // map of remote node handles to table IDs
+    std::unordered_map<handle, NodeData> mNodes; // map of remote node handles to node data
 };
 
 class MEGA_API Sync

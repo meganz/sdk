@@ -517,36 +517,72 @@ UnsyncableNodeBag::UnsyncableNodeBag(DbAccess& dbaccess, FileSystemAccess& fsacc
     mTable.reset(dbaccess.open(rng, &fsaccess, &dbname, false, false));
     if (!mTable)
     {
+        assert(false);
         LOG_err << "Unable to open DB table: " << dbname;
         return;
     }
 
-    decltype(mNextTableId) id;
-    std::string nodeHandle;
-    while (mTable->next(&id, &nodeHandle))
+    decltype(mNextTableId) tableId;
+    std::string data;
+    while (mTable->next(&tableId, &data))
     {
-        mNodes[std::stoull(nodeHandle)] = id;
-        if (id > mNextTableId)
+        std::string syncPath;
+        handle nodeHandle;
+
+        CacheableReader reader{data};
+        if (!reader.unserializehandle(nodeHandle))
         {
-            mNextTableId = id;
+            assert(false);
+            LOG_err << "Unable to unserialize handle: " << data;
+            continue;
+        }
+        if (!reader.unserializestring(syncPath))
+        {
+            assert(false);
+            LOG_err << "Unable to unserialize string: " << data;
+            continue;
+        }
+
+        mNodes[nodeHandle] = NodeData{std::move(syncPath), tableId};
+        if (tableId > mNextTableId)
+        {
+            mNextTableId = tableId;
         }
     }
     ++mNextTableId;
 }
 
-bool UnsyncableNodeBag::addNode(const handle nodeHandle)
+bool UnsyncableNodeBag::addNode(const handle nodeHandle, const std::string& syncPath)
 {
     bool complete = true;
     auto nodePair = mNodes.find(nodeHandle);
     if (nodePair == mNodes.end())
     {
-        mNodes[nodeHandle] = mNextTableId;
+        mNodes[nodeHandle] = NodeData{syncPath, mNextTableId};
         if (mTable)
         {
-            auto data = std::to_string(nodeHandle);
+            std::string data;
+
+            CacheableWriter writer{data};
+            writer.serializehandle(nodeHandle);
+            writer.serializestring(syncPath);
+
             complete = mTable->put(mNextTableId, &data);
+            if (!complete)
+            {
+                assert(false);
+                LOG_err << "Incomplete database put for data: " << data;
+            }
             ++mNextTableId;
         }
+    }
+    else
+    {
+        if (!removeNode(nodeHandle))
+        {
+            return false;
+        }
+        return addNode(nodeHandle, syncPath);
     }
     return complete;
 }
@@ -560,15 +596,25 @@ bool UnsyncableNodeBag::removeNode(const handle nodeHandle)
         mNodes.erase(nodePair);
         if (mTable)
         {
-            complete = mTable->del(nodePair->second);
+            complete = mTable->del(nodePair->second.mTableId);
+            if (!complete)
+            {
+                assert(false);
+                LOG_err << "Incomplete database del at id: " << nodePair->second.mTableId;
+            }
         }
     }
     return complete;
 }
 
-bool UnsyncableNodeBag::isNodeSyncable(const handle nodeHandle) const
+const std::string* UnsyncableNodeBag::syncPath(const handle nodeHandle) const
 {
-    return mNodes.find(nodeHandle) == mNodes.end();
+    auto nodePair = mNodes.find(nodeHandle);
+    if (nodePair != mNodes.end())
+    {
+        return &nodePair->second.mSyncPath;
+    }
+    return nullptr;
 }
 
 // new Syncs are automatically inserted into the session's syncs list

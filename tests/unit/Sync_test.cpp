@@ -1111,9 +1111,9 @@ struct UnsyncableDbTable : mt::DefaultedDbTable
         ++mCurrentIndex;
         return true;
     }
-    bool put(uint32_t id, char* data, unsigned) override
+    bool put(uint32_t id, char* data, unsigned length) override
     {
-        mRecords.emplace_back(id, std::string(data));
+        mRecords.emplace_back(id, std::string(data, length));
         return true;
     }
     bool del(uint32_t id) override
@@ -1137,77 +1137,94 @@ struct UnsyncableFsAccess : mt::DefaultedFileSystemAccess
 {
 };
 
+std::string serializeUnsyncable(mega::handle nodeHandle, std::string syncPath)
+{
+    std::string data;
+    mega::CacheableWriter writer{data};
+    writer.serializehandle(nodeHandle);
+    writer.serializestring(syncPath);
+    return data;
+}
+
 }
 
 TEST(Sync, UnsyncableNodeBag_withoutDbTable)
 {
+    const std::string syncPath = "foo/bar";
     const mega::handle nodeHandle = 42;
     mega::UnsyncableNodeBag bag;
-    ASSERT_TRUE(bag.isNodeSyncable(nodeHandle));
-    ASSERT_TRUE(bag.addNode(nodeHandle));
-    ASSERT_FALSE(bag.isNodeSyncable(nodeHandle));
+    ASSERT_FALSE(bag.syncPath(nodeHandle));
+    ASSERT_TRUE(bag.addNode(nodeHandle, syncPath));
+    const auto path = bag.syncPath(nodeHandle);
+    ASSERT_TRUE(path && *path == syncPath);
     ASSERT_TRUE(bag.removeNode(nodeHandle));
-    ASSERT_TRUE(bag.isNodeSyncable(nodeHandle));
+    ASSERT_FALSE(bag.syncPath(nodeHandle));
 }
 
 TEST(Sync, UnsyncableNodeBag)
 {
+    const std::string syncPath = "foo/bar";
     UnsyncableDbAccess dbaccess;
     dbaccess.mRecords = {
-        {1, "42"},
-        {2, "13"},
+        {1, serializeUnsyncable(42, syncPath)},
+        {2, serializeUnsyncable(13, syncPath)},
     };
     UnsyncableFsAccess fsaccess;
     mega::PrnGen prn;
     const mega::handle nodeHandle = 123;
     mega::UnsyncableNodeBag bag{dbaccess, fsaccess, prn};
-    ASSERT_FALSE(bag.isNodeSyncable(42));
-    ASSERT_FALSE(bag.isNodeSyncable(13));
-    ASSERT_TRUE(bag.isNodeSyncable(nodeHandle));
-    ASSERT_TRUE(bag.addNode(nodeHandle));
+    auto path = bag.syncPath(42);
+    ASSERT_TRUE(path && *path == syncPath);
+    path = bag.syncPath(13);
+    ASSERT_TRUE(path && *path == syncPath);
+    ASSERT_FALSE(bag.syncPath(nodeHandle));
+    ASSERT_TRUE(bag.addNode(nodeHandle, syncPath));
 
     std::vector<UnsyncableDbTable::row_t> exp_records{
-        {1, "42"},
-        {2, "13"},
-        {3, "123"},
+        {1, serializeUnsyncable(42, syncPath)},
+        {2, serializeUnsyncable(13, syncPath)},
+        {3, serializeUnsyncable(123, syncPath)},
     };
     ASSERT_EQ(exp_records, dbaccess.mRecords);
 
-    ASSERT_FALSE(bag.isNodeSyncable(nodeHandle));
+    path = bag.syncPath(nodeHandle);
+    ASSERT_TRUE(path && *path == syncPath);
     ASSERT_TRUE(bag.removeNode(nodeHandle));
-    ASSERT_TRUE(bag.isNodeSyncable(nodeHandle));
+    ASSERT_FALSE(bag.syncPath(nodeHandle));
 
     exp_records = {
-        {1, "42"},
-        {2, "13"},
+        {1, serializeUnsyncable(42, syncPath)},
+        {2, serializeUnsyncable(13, syncPath)},
     };
     ASSERT_EQ(exp_records, dbaccess.mRecords);
 
     ASSERT_TRUE(bag.removeNode(42));
-    ASSERT_TRUE(bag.isNodeSyncable(42));
+    ASSERT_FALSE(bag.syncPath(nodeHandle));
 
     exp_records = {
-        {2, "13"},
+        {2, serializeUnsyncable(13, syncPath)},
     };
     ASSERT_EQ(exp_records, dbaccess.mRecords);
 
     ASSERT_TRUE(bag.removeNode(13));
-    ASSERT_TRUE(bag.isNodeSyncable(13));
+    ASSERT_FALSE(bag.syncPath(13));
     ASSERT_TRUE(dbaccess.mRecords.empty());
 }
 
 TEST(Sync, UnsyncableNodeBag_withoutRecords)
 {
+    const std::string syncPath = "foo/bar";
     UnsyncableDbAccess dbaccess;
     UnsyncableFsAccess fsaccess;
     mega::PrnGen prn;
     const mega::handle nodeHandle = 123;
     mega::UnsyncableNodeBag bag{dbaccess, fsaccess, prn};
-    ASSERT_TRUE(bag.isNodeSyncable(nodeHandle));
-    ASSERT_TRUE(bag.addNode(nodeHandle));
-    ASSERT_FALSE(bag.isNodeSyncable(nodeHandle));
+    ASSERT_FALSE(bag.syncPath(nodeHandle));
+    ASSERT_TRUE(bag.addNode(nodeHandle, syncPath));
+    auto path = bag.syncPath(nodeHandle);
+    ASSERT_TRUE(path && *path == syncPath);
     ASSERT_TRUE(bag.removeNode(nodeHandle));
-    ASSERT_TRUE(bag.isNodeSyncable(nodeHandle));
+    ASSERT_FALSE(bag.syncPath(nodeHandle));
 }
 
 #endif

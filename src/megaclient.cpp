@@ -4523,15 +4523,6 @@ void MegaClient::updatesc()
                     {
                         break;
                     }
-#ifdef ENABLE_SYNC
-                    if (!(*it)->isSyncable())
-                    {
-                        if (!(complete = unsyncables->addNode((*it)->nodehandle)))
-                        {
-                            break;
-                        }
-                    }
-#endif
                 }
             }
         }
@@ -10536,12 +10527,6 @@ bool MegaClient::fetchsc(DbTable* sctable)
                 if ((n = Node::unserialize(this, &data, &dp)))
                 {
                     n->dbid = id;
-#ifdef ENABLE_SYNC
-                    if (!unsyncables->isNodeSyncable(n->nodehandle))
-                    {
-                        n->setSyncable(false, false);
-                    }
-#endif
                 }
                 else
                 {
