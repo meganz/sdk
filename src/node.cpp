@@ -1005,22 +1005,16 @@ void Node::setSyncable(const bool syncable, const std::string& syncPath)
 
 bool Node::isSyncable() const
 {
-    if (localnode)
+    const auto syncPath = client->unsyncables->syncPath(nodehandle);
+    if (syncPath)
     {
-        const auto syncPath = client->unsyncables->syncPath(nodehandle);
-        if (syncPath)
+        if (localnode && localnode != (LocalNode*)~0)
         {
             return *syncPath == localnode->sync->localroot->localname;
         }
-        else
-        {
-            return true;
-        }
+        return false;
     }
-    else
-    {
-        return true;
-    }
+    return true;
 }
 #endif
 
