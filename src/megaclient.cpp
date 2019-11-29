@@ -9217,7 +9217,7 @@ void MegaClient::notifynode(Node* n)
                 }
             }
 
-            n->localnode->deleted = true;
+            n->localnode->reactToNodeChange(true);
             n->localnode->node = NULL;
             n->localnode = NULL;
         }
@@ -9228,14 +9228,14 @@ void MegaClient::notifynode(Node* n)
             // FIXME: aggregate subtrees!
             if (n->localnode && n->localnode->parent)
             {
-                n->localnode->deleted = n->changed.removed;
+                n->localnode->reactToNodeChange(n->changed.removed);
             }
 
             if (n->parent && n->parent->localnode && (!n->localnode || (n->localnode->parent != n->parent->localnode)))
             {
                 if (n->localnode)
                 {
-                    n->localnode->deleted = n->changed.removed;
+                    n->localnode->reactToNodeChange(n->changed.removed);
                 }
 
                 if (!n->changed.removed && n->changed.parent)
@@ -12133,6 +12133,12 @@ void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, list
 // returns false if any local fs op failed transiently
 bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 {
+    if (!l->sync->getConfig().isDownSync())
+    {
+        LOG_debug << "sync type prevents syncdown";
+        return true;
+    }
+
     // only use for LocalNodes with a corresponding and properly linked Node
     if (l->type != FOLDERNODE || !l->node || (l->parent && l->node->parent->localnode != l->parent))
     {
@@ -12219,38 +12225,47 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 
                 ll->setnode(rit->second);
 
+                bool overwriteLocalnode = true;
+
                 if (*ll == *(FileFingerprint*)rit->second)
                 {
+                    overwriteLocalnode = false;
                     // both files are identical
                     nchildren.erase(rit);
                 }
-                // file exists on both sides - do not overwrite if local version newer or same
-                else if (ll->mtime > rit->second->mtime)
+                else if (!ll->sync->getConfig().forceOverwrite())
                 {
-                    // local version is newer
-                    LOG_debug << "LocalNode is newer: " << ll->name << " LNmtime: " << ll->mtime << " Nmtime: " << rit->second->mtime;
-                    nchildren.erase(rit);
-                }
-                else if (ll->mtime == rit->second->mtime
-                         && (ll->size > rit->second->size
-                             || (ll->size == rit->second->size && memcmp(ll->crc.data(), rit->second->crc.data(), sizeof ll->crc) > 0)))
-
-                {
-                    if (ll->size < rit->second->size)
+                    // file exists on both sides - do not overwrite if local version newer or same
+                    if (ll->mtime > rit->second->mtime)
                     {
-                        LOG_warn << "Syncdown. Same mtime but lower size: " << ll->name
-                                 << " mtime: " << ll->mtime << " LNsize: " << ll->size << " Nsize: " << rit->second->size
-                                 << " Nhandle: " << LOG_NODEHANDLE(rit->second->nodehandle);
+                        overwriteLocalnode = false;
+                        // local version is newer
+                        LOG_debug << "LocalNode is newer: " << ll->name << " LNmtime: " << ll->mtime << " Nmtime: " << rit->second->mtime;
+                        nchildren.erase(rit);
                     }
-                    else
-                    {
-                        LOG_warn << "Syncdown. Same mtime and size, but bigger CRC: " << ll->name
-                                 << " mtime: " << ll->mtime << " size: " << ll->size << " Nhandle: " << LOG_NODEHANDLE(rit->second->nodehandle);
-                    }
+                    else if (ll->mtime == rit->second->mtime
+                             && (ll->size > rit->second->size
+                                 || (ll->size == rit->second->size && memcmp(ll->crc.data(), rit->second->crc.data(), sizeof ll->crc) > 0)))
 
-                    nchildren.erase(rit);
+                    {
+                        overwriteLocalnode = false;
+                        if (ll->size < rit->second->size)
+                        {
+                            LOG_warn << "Syncdown. Same mtime but lower size: " << ll->name
+                                     << " mtime: " << ll->mtime << " LNsize: " << ll->size << " Nsize: " << rit->second->size
+                                     << " Nhandle: " << LOG_NODEHANDLE(rit->second->nodehandle);
+                        }
+                        else
+                        {
+                            LOG_warn << "Syncdown. Same mtime and size, but bigger CRC: " << ll->name
+                                     << " mtime: " << ll->mtime << " size: " << ll->size << " Nhandle: " << LOG_NODEHANDLE(rit->second->nodehandle);
+                        }
+
+                        nchildren.erase(rit);
+                    }
                 }
-                else
+
+                if (overwriteLocalnode)
                 {
                     // means that the localnode is going to be overwritten
                     if (rit->second->localnode && rit->second->localnode->transfer)
@@ -12394,84 +12409,95 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
         else
         {
             LOG_debug << "doesn't have a previous localnode";
-            // missing node is not associated with an existing LocalNode
-            if (rit->second->type == FILENODE)
+            if (l->sync->getConfig().forceOverwrite())
             {
-                bool download = true;
-                auto f = fsaccess->newfileaccess(false);
-                if (rit->second->localnode != (LocalNode*)~0
-                        && (f->fopen(localpath) || f->type == FOLDERNODE))
+                rit->second->setSyncable(true, l->sync->localroot->localname);
+            }
+            if (rit->second->isSyncable())
+            {
+                // missing node is not associated with an existing LocalNode
+                if (rit->second->type == FILENODE)
                 {
-                    if (f->mIsSymLink && l->sync->movetolocaldebris(localpath))
+                    bool download = true;
+                    auto f = fsaccess->newfileaccess(false);
+                    if (rit->second->localnode != (LocalNode*)~0
+                            && (f->fopen(localpath) || f->type == FOLDERNODE))
                     {
-                        LOG_debug << "Found a link in localpath " << localpath;
+                        if (f->mIsSymLink && l->sync->movetolocaldebris(localpath))
+                        {
+                            LOG_debug << "Found a link in localpath " << localpath;
+                        }
+                        else
+                        {
+                            LOG_debug << "Skipping download over an unscanned file/folder, or the file/folder is not to be synced (special attributes)";
+                            download = false;
+                        }
                     }
-                    else
+                    f.reset();
+                    rit->second->localnode = NULL;
+
+                    // start fetching this node, unless fetch is already in progress
+                    // FIXME: to cover renames that occur during the
+                    // download, reconstruct localname in complete()
+                    if (download && !rit->second->syncget)
                     {
-                        LOG_debug << "Skipping download over an unscanned file/folder, or the file/folder is not to be synced (special attributes)";
-                        download = false;
+                        LOG_debug << "Start fetching file node";
+                        fsaccess->local2path(localpath, &localname);
+                        app->syncupdate_get(l->sync, rit->second, localname.c_str());
+
+                        rit->second->syncget = new SyncFileGet(l->sync, rit->second, localpath);
+                        nextreqtag();
+                        DBTableTransactionCommitter committer(tctable); // TODO: use one committer for all files in the loop, without calling syncdown() recursively
+                        startxfer(GET, rit->second->syncget, committer);
+                        syncactivity = true;
                     }
                 }
-                f.reset();
-                rit->second->localnode = NULL;
-
-                // start fetching this node, unless fetch is already in progress
-                // FIXME: to cover renames that occur during the
-                // download, reconstruct localname in complete()
-                if (download && !rit->second->syncget)
+                else
                 {
-                    LOG_debug << "Start fetching file node";
-                    fsaccess->local2path(localpath, &localname);
-                    app->syncupdate_get(l->sync, rit->second, localname.c_str());
+                    LOG_debug << "Creating local folder";
+                    auto f = fsaccess->newfileaccess(false);
+                    if (f->fopen(localpath) || f->type == FOLDERNODE)
+                    {
+                        LOG_debug << "Skipping folder creation over an unscanned file/folder, or the file/folder is not to be synced (special attributes)";
+                    }
+                    // create local path, add to LocalNodes and recurse
+                    else if (fsaccess->mkdirlocal(localpath))
+                    {
+                        LocalNode* ll = l->sync->checkpath(l, localpath, &localname, NULL, true);
 
-                    rit->second->syncget = new SyncFileGet(l->sync, rit->second, localpath);
-                    nextreqtag();
-                    DBTableTransactionCommitter committer(tctable); // TODO: use one committer for all files in the loop, without calling syncdown() recursively
-                    startxfer(GET, rit->second->syncget, committer);
-                    syncactivity = true;
+                        if (ll && ll != (LocalNode*)~0)
+                        {
+                            LOG_debug << "Local folder created, continuing syncdown";
+
+                            ll->setnode(rit->second);
+                            ll->sync->statecacheadd(ll);
+
+                            if (!syncdown(ll, localpath, rubbish) && success)
+                            {
+                                LOG_debug << "Syncdown not finished";
+                                success = false;
+                            }
+                        }
+                        else
+                        {
+                            LOG_debug << "Checkpath() failed " << (ll == NULL);
+                        }
+                    }
+                    else if (success && fsaccess->transient_error)
+                    {
+                        fsaccess->local2path(localpath, &blockedfile);
+                        LOG_debug << "Transient error creating folder " << blockedfile;
+                        success = false;
+                    }
+                    else if (!fsaccess->transient_error)
+                    {
+                        LOG_debug << "Non transient error creating folder";
+                    }
                 }
             }
             else
             {
-                LOG_debug << "Creating local folder";
-                auto f = fsaccess->newfileaccess(false);
-                if (f->fopen(localpath) || f->type == FOLDERNODE)
-                {
-                    LOG_debug << "Skipping folder creation over an unscanned file/folder, or the file/folder is not to be synced (special attributes)";
-                }
-                // create local path, add to LocalNodes and recurse
-                else if (fsaccess->mkdirlocal(localpath))
-                {
-                    LocalNode* ll = l->sync->checkpath(l, localpath, &localname, NULL, true);
-
-                    if (ll && ll != (LocalNode*)~0)
-                    {
-                        LOG_debug << "Local folder created, continuing syncdown";
-
-                        ll->setnode(rit->second);
-                        ll->sync->statecacheadd(ll);
-
-                        if (!syncdown(ll, localpath, rubbish) && success)
-                        {
-                            LOG_debug << "Syncdown not finished";
-                            success = false;
-                        }
-                    }
-                    else
-                    {
-                        LOG_debug << "Checkpath() failed " << (ll == NULL);
-                    }
-                }
-                else if (success && fsaccess->transient_error)
-                {
-                    fsaccess->local2path(localpath, &blockedfile);
-                    LOG_debug << "Transient error creating folder " << blockedfile;
-                    success = false;
-                }
-                else if (!fsaccess->transient_error)
-                {
-                    LOG_debug << "Non transient error creating folder";
-                }
+                LOG_debug << "Node not syncable: " << rit->second->nodehandle;
             }
         }
 
@@ -12491,6 +12517,12 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 // for creation
 bool MegaClient::syncup(LocalNode* l, dstime* nds)
 {
+    if (!l->sync->getConfig().isUpSync())
+    {
+        LOG_debug << "sync type prevents syncup";
+        return false;
+    }
+
     bool insync = true;
 
     list<string> strings;
@@ -12565,6 +12597,12 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
     for (localnode_map::iterator lit = l->children.begin(); lit != l->children.end(); lit++)
     {
         LocalNode* ll = lit->second;
+
+        if (!ll->mSyncable)
+        {
+            LOG_debug << "LocalNode not syncable: " << ll->name;
+            continue;
+        }
 
         if (ll->deleted)
         {
@@ -12684,80 +12722,83 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                         continue;
                     }
 
-                    // skip if remote file is newer
-                    if (ll->mtime < rit->second->mtime)
+                    if (!ll->sync->getConfig().forceOverwrite())
                     {
-                        LOG_debug << "LocalNode is older: " << ll->name << " LNmtime: " << ll->mtime << " Nmtime: " << rit->second->mtime;
-                        continue;
-                    }                           
-
-                    if (ll->mtime == rit->second->mtime)
-                    {
-                        if (ll->size < rit->second->size)
+                        // skip if remote file is newer
+                        if (ll->mtime < rit->second->mtime)
                         {
-                            LOG_warn << "Syncup. Same mtime but lower size: " << ll->name
-                                     << " LNmtime: " << ll->mtime << " LNsize: " << ll->size << " Nsize: " << rit->second->size
-                                     << " Nhandle: " << LOG_NODEHANDLE(rit->second->nodehandle) ;
-
+                            LOG_debug << "LocalNode is older: " << ll->name << " LNmtime: " << ll->mtime << " Nmtime: " << rit->second->mtime;
                             continue;
                         }
 
-                        if (ll->size == rit->second->size && memcmp(ll->crc.data(), rit->second->crc.data(), sizeof ll->crc) < 0)
+                        if (ll->mtime == rit->second->mtime)
                         {
-                            LOG_warn << "Syncup. Same mtime and size, but lower CRC: " << ll->name
-                                     << " mtime: " << ll->mtime << " size: " << ll->size << " Nhandle: " << LOG_NODEHANDLE(rit->second->nodehandle);
-
-                            continue;
-                        }
-                    }
-
-                    LOG_debug << "LocalNode change detected on syncupload: " << ll->name << " LNsize: " << ll->size << " LNmtime: " << ll->mtime
-                              << " NSize: " << rit->second->size << " Nmtime: " << rit->second->mtime << " Nhandle: " << LOG_NODEHANDLE(rit->second->nodehandle);
-
-#ifdef WIN32
-                    if(ll->size == ll->node->size && !memcmp(ll->crc.data(), ll->node->crc.data(), sizeof(ll->crc)))
-                    {
-                        LOG_debug << "Modification time changed only";
-                        auto f = fsaccess->newfileaccess();
-                        string lpath;
-                        ll->getlocalpath(&lpath);
-                        string stream = lpath;
-                        stream.append((const char *)(const wchar_t*)L":$CmdTcID:$DATA", 30);
-                        if (f->fopen(&stream))
-                        {
-                            LOG_warn << "COMODO detected";
-                            HKEY hKey;
-                            if (RegOpenKeyEx(HKEY_LOCAL_MACHINE,
-                                            L"SYSTEM\\CurrentControlSet\\Services\\CmdAgent\\CisConfigs\\0\\HIPS\\SBSettings",
-                                            0,
-                                            KEY_QUERY_VALUE,
-                                            &hKey ) == ERROR_SUCCESS)
+                            if (ll->size < rit->second->size)
                             {
-                                DWORD value = 0;
-                                DWORD size = sizeof(value);
-                                if (RegQueryValueEx(hKey, L"EnableSourceTracking", NULL, NULL, (LPBYTE)&value, &size) == ERROR_SUCCESS)
-                                {
-                                    if (value == 1 && fsaccess->setmtimelocal(&lpath, ll->node->mtime))
-                                    {
-                                        LOG_warn << "Fixed modification time probably changed by COMODO";
-                                        ll->mtime = ll->node->mtime;
-                                        ll->treestate(TREESTATE_SYNCED);
-                                        RegCloseKey(hKey);
-                                        continue;
-                                    }
-                                }
-                                RegCloseKey(hKey);
+                                LOG_warn << "Syncup. Same mtime but lower size: " << ll->name
+                                         << " LNmtime: " << ll->mtime << " LNsize: " << ll->size << " Nsize: " << rit->second->size
+                                         << " Nhandle: " << LOG_NODEHANDLE(rit->second->nodehandle) ;
+
+                                continue;
+                            }
+
+                            if (ll->size == rit->second->size && memcmp(ll->crc.data(), rit->second->crc.data(), sizeof ll->crc) < 0)
+                            {
+                                LOG_warn << "Syncup. Same mtime and size, but lower CRC: " << ll->name
+                                         << " mtime: " << ll->mtime << " size: " << ll->size << " Nhandle: " << LOG_NODEHANDLE(rit->second->nodehandle);
+
+                                continue;
                             }
                         }
 
-                        lpath.append((const char *)(const wchar_t*)L":OECustomProperty", 34);
-                        if (f->fopen(&lpath))
+                        LOG_debug << "LocalNode change detected on syncupload: " << ll->name << " LNsize: " << ll->size << " LNmtime: " << ll->mtime
+                                  << " NSize: " << rit->second->size << " Nmtime: " << rit->second->mtime << " Nhandle: " << LOG_NODEHANDLE(rit->second->nodehandle);
+
+#ifdef WIN32
+                        if(ll->size == ll->node->size && !memcmp(ll->crc.data(), ll->node->crc.data(), sizeof(ll->crc)))
                         {
-                            LOG_warn << "Windows Search detected";
-                            continue;
+                            LOG_debug << "Modification time changed only";
+                            auto f = fsaccess->newfileaccess();
+                            string lpath;
+                            ll->getlocalpath(&lpath);
+                            string stream = lpath;
+                            stream.append((const char *)(const wchar_t*)L":$CmdTcID:$DATA", 30);
+                            if (f->fopen(&stream))
+                            {
+                                LOG_warn << "COMODO detected";
+                                HKEY hKey;
+                                if (RegOpenKeyEx(HKEY_LOCAL_MACHINE,
+                                                L"SYSTEM\\CurrentControlSet\\Services\\CmdAgent\\CisConfigs\\0\\HIPS\\SBSettings",
+                                                0,
+                                                KEY_QUERY_VALUE,
+                                                &hKey ) == ERROR_SUCCESS)
+                                {
+                                    DWORD value = 0;
+                                    DWORD size = sizeof(value);
+                                    if (RegQueryValueEx(hKey, L"EnableSourceTracking", NULL, NULL, (LPBYTE)&value, &size) == ERROR_SUCCESS)
+                                    {
+                                        if (value == 1 && fsaccess->setmtimelocal(&lpath, ll->node->mtime))
+                                        {
+                                            LOG_warn << "Fixed modification time probably changed by COMODO";
+                                            ll->mtime = ll->node->mtime;
+                                            ll->treestate(TREESTATE_SYNCED);
+                                            RegCloseKey(hKey);
+                                            continue;
+                                        }
+                                    }
+                                    RegCloseKey(hKey);
+                                }
+                            }
+
+                            lpath.append((const char *)(const wchar_t*)L":OECustomProperty", 34);
+                            if (f->fopen(&lpath))
+                            {
+                                LOG_warn << "Windows Search detected";
+                                continue;
+                            }
                         }
-                    }
 #endif
+                    }
 
                     // if this node is being fetched, but has to be upsynced
                     if (rit->second->syncget)
@@ -12977,10 +13018,23 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
             ll->created = true;
 
             assert (!isSymLink);
-            // create remote folder or send file
-            LOG_debug << "Adding local file to synccreate: " << ll->name << " " << synccreate.size();
-            synccreate.push_back(ll);
-            syncactivity = true;
+
+            if (ll->sync->getConfig().forceOverwrite())
+            {
+                ll->mSyncable = true;
+            }
+
+            if (ll->mSyncable)
+            {
+                // create remote folder or send file
+                LOG_debug << "Adding local file to synccreate: " << ll->name << " " << synccreate.size();
+                synccreate.push_back(ll);
+                syncactivity = true;
+            }
+            else
+            {
+                LOG_debug << "syncable prevents adding to synccreate: " << ll->localname;
+            }
 
             if (synccreate.size() >= MAX_NEWNODES)
             {
@@ -13194,15 +13248,28 @@ void MegaClient::putnodes_sync_result(error e, NewNode* nn, int nni)
 // dupes)
 void MegaClient::movetosyncdebris(Node* dn, bool unlink)
 {
-    dn->syncdeleted = SYNCDEL_DELETED;
-
-    // detach node from LocalNode
     if (dn->localnode)
     {
-        dn->tag = dn->localnode->sync->tag;
+        const auto sync = dn->localnode->sync;
+
+        // detach node from LocalNode
+        dn->tag = sync->tag;
         dn->localnode->node = NULL;
         dn->localnode = NULL;
+
+        if (!sync->getConfig().isUpSync())
+        {
+            LOG_debug << "synctype prevents moving to sync debris";
+            return;
+        }
+        if (!sync->getConfig().syncDeletions())
+        {
+            LOG_debug << "not syncing deletions prevents moving to sync debris";
+            return;
+        }
     }
+
+    dn->syncdeleted = SYNCDEL_DELETED;
 
     Node* n = dn;
 

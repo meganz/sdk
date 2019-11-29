@@ -386,6 +386,9 @@ struct MEGA_API LocalNode : public File
 
     void setnameparent(LocalNode*, string*);
 
+    // react to a change of the corresponding remote node
+    void reactToNodeChange(bool nodeDeleted);
+
     LocalNode();
     void init(Sync*, nodetype_t, LocalNode*, string*);
 

@@ -1099,7 +1099,14 @@ bool Sync::scan(string* localpath, FileAccess* fa)
                             l = checkpath(NULL, localpath);
                         }
 
-                        if (!l || l == (LocalNode*)~0)
+                        if (l && l != (LocalNode*)~0)
+                        {
+                            if (l->sync->getConfig().forceOverwrite())
+                            {
+                                l->mSyncable = true;
+                            }
+                        }
+                        else
                         {
                             // new record: place in notification queue
                             dirnotify->notify(DirNotify::DIREVENTS, NULL, localpath->data(), localpath->size(), true);
@@ -1780,6 +1787,10 @@ dstime Sync::procscanq(int q)
             {
                 LOG_verbose << "Scanning deferred";
                 return 0;
+            }
+            else if (l && l->sync->getConfig().forceOverwrite())
+            {
+                l->mSyncable = true;
             }
         }
         else

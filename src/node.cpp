@@ -202,7 +202,7 @@ Node::~Node()
     // sync: remove reference from local filesystem node
     if (localnode)
     {
-        localnode->deleted = true;
+        localnode->reactToNodeChange(true);
         localnode->node = NULL;
     }
 
@@ -1381,6 +1381,18 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
     {
         LocalTreeProcUpdateTransfers tput;
         sync->client->proclocaltree(this, &tput);
+    }
+}
+
+void LocalNode::reactToNodeChange(const bool nodeDeleted)
+{
+    if (!sync->getConfig().isDownSync())
+    {
+        mSyncable = !nodeDeleted;
+    }
+    else if (sync->getConfig().syncDeletions())
+    {
+        deleted = nodeDeleted;
     }
 }
 
