@@ -158,8 +158,7 @@ static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::
 {
     auto toLower = [](std::string& s)
     {
-        std::transform(s.begin(), s.end(), s.begin(),
-                       [](const char c){ return std::tolower(c); });
+        for (char& c : s) { c = static_cast<char>(std::tolower(c)); };
     };
 
     toLower(type);
@@ -6889,7 +6888,10 @@ void DemoApp::folderlinkinfo_result(error e, handle owner, handle /*ph*/, string
 
     handle ph;
     byte folderkey[FOLDERNODEKEYLENGTH];
-    error eaux = client->parsepubliclink(publiclink.c_str(), ph, folderkey, true);
+    #ifndef NDEBUG
+    error eaux =
+    #endif
+    client->parsepubliclink(publiclink.c_str(), ph, folderkey, true);
     assert(eaux == API_OK);
 
     // Decrypt nodekey with the key of the folder link

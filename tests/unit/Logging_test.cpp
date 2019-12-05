@@ -325,7 +325,7 @@ public:
 
     void checkLogLevel(const int expLogLevel) const
     {
-        EXPECT_EQ(1, mLogLevel.size());
+        EXPECT_EQ(1u, mLogLevel.size());
         EXPECT_EQ(expLogLevel, *mLogLevel.begin());
     }
 
@@ -368,12 +368,12 @@ TEST(Logging, macroVerbose)
         if (level >= currentLevel)
         {
             logger.checkLogLevel(currentLevel);
-            ASSERT_EQ(1, logger.mMessage.size());
+            ASSERT_EQ(1u, logger.mMessage.size());
             EXPECT_NE(logger.mMessage[0].find(msg), std::string::npos);
         }
         else
         {
-            ASSERT_EQ(0, logger.mMessage.size());
+            ASSERT_EQ(0u, logger.mMessage.size());
         }
     }
 }
@@ -390,12 +390,12 @@ TEST(Logging, macroDebug)
         if (level >= currentLevel)
         {
             logger.checkLogLevel(currentLevel);
-            ASSERT_EQ(1, logger.mMessage.size());
+            ASSERT_EQ(1u, logger.mMessage.size());
             EXPECT_NE(logger.mMessage[0].find(msg), std::string::npos);
         }
         else
         {
-            ASSERT_EQ(0, logger.mMessage.size());
+            ASSERT_EQ(0u, logger.mMessage.size());
         }
     }
 }
@@ -412,12 +412,12 @@ TEST(Logging, macroInfo)
         if (level >= currentLevel)
         {
             logger.checkLogLevel(currentLevel);
-            ASSERT_EQ(1, logger.mMessage.size());
+            ASSERT_EQ(1u, logger.mMessage.size());
             EXPECT_NE(logger.mMessage[0].find(msg), std::string::npos);
         }
         else
         {
-            ASSERT_EQ(0, logger.mMessage.size());
+            ASSERT_EQ(0u, logger.mMessage.size());
         }
     }
 }
@@ -434,12 +434,12 @@ TEST(Logging, macroWarn)
         if (level >= currentLevel)
         {
             logger.checkLogLevel(currentLevel);
-            ASSERT_EQ(1, logger.mMessage.size());
+            ASSERT_EQ(1u, logger.mMessage.size());
             EXPECT_NE(logger.mMessage[0].find(msg), std::string::npos);
         }
         else
         {
-            ASSERT_EQ(0, logger.mMessage.size());
+            ASSERT_EQ(0u, logger.mMessage.size());
         }
     }
 }
@@ -456,12 +456,12 @@ TEST(Logging, macroErr)
         if (level >= currentLevel)
         {
             logger.checkLogLevel(currentLevel);
-            ASSERT_EQ(1, logger.mMessage.size());
+            ASSERT_EQ(1u, logger.mMessage.size());
             EXPECT_NE(logger.mMessage[0].find(msg), std::string::npos);
         }
         else
         {
-            ASSERT_EQ(0, logger.mMessage.size());
+            ASSERT_EQ(0u, logger.mMessage.size());
         }
     }
 }
@@ -475,7 +475,7 @@ TEST(Logging, macroFatal)
         const std::string msg = "foobar";
         LOG_fatal << msg;
         logger.checkLogLevel(mega::LogLevel::logFatal);
-        ASSERT_EQ(1, logger.mMessage.size());
+        ASSERT_EQ(1u, logger.mMessage.size());
         EXPECT_NE(logger.mMessage[0].find(msg), std::string::npos);
     }
 }
