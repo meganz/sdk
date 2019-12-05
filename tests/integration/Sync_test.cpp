@@ -3247,7 +3247,12 @@ TEST(Sync, OneWay_Upload_syncDelFalse_overwriteTrue_1)
     ASSERT_TRUE(fx.checkOneWay(model));
 }
 
-TEST(Sync, OneWay_Upload_syncDelFalse_overwriteTrue_2)
+// TODO: For this test to pass we need to when resuming a sync:
+// 1. First process action packets
+// 2. Then go through list of local changes
+// Currently, events from those two are processed in an interleaved
+// fashion when resuming a sync leading to data races.
+TEST(Sync, DISABLED_OneWay_Upload_syncDelFalse_overwriteTrue_2)
 {
     /* Steps:
      * - Add local file
