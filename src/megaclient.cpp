@@ -12466,6 +12466,11 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                             ll->setnode(rit->second);
                             ll->sync->statecacheadd(ll);
 
+                            if (ll->sync->getConfig().forceOverwrite())
+                            {
+                                ll->mSyncable = true;
+                            }
+
                             if (!syncdown(ll, localpath, rubbish) && success)
                             {
                                 LOG_debug << "Syncdown not finished";
