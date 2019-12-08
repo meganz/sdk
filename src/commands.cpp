@@ -4087,7 +4087,7 @@ void CommandGetUserQuota::procresult()
                         ns->files = uint32_t(client->json.getint());
                         ns->folders = uint32_t(client->json.getint());
                         ns->version_bytes = client->json.getint();
-                        ns->version_files = client->json.getint();
+                        ns->version_files = client->json.getint32();
 
 #ifdef _DEBUG
                         // TODO: remove this debugging block once local count is confirmed to work correctly 100%

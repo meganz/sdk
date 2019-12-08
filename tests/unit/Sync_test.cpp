@@ -44,6 +44,11 @@ public:
         return mNotSyncablePaths.find(*localpath) == mNotSyncablePaths.end();
     }
 
+    bool sync_syncable(mega::Sync*, const char*, std::string* localpath, mega::Node*) override
+    {
+        return mNotSyncablePaths.find(*localpath) == mNotSyncablePaths.end();
+    }
+
     void addNotSyncablePath(std::string path)
     {
         mNotSyncablePaths.insert(std::move(path));

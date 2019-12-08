@@ -105,7 +105,10 @@ std::string megaApiCacheFolder(int index)
     {
 
 #ifdef _WIN32
-        bool success = fs::create_directory(p);
+        #ifndef NDEBUG
+        bool success =
+        #endif
+        fs::create_directory(p);
         assert(success);
 #else
         mkdir(p.c_str(), S_IRWXU);
