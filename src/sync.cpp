@@ -522,6 +522,8 @@ UnsyncableNodeBag::UnsyncableNodeBag(DbAccess& dbaccess, FileSystemAccess& fsacc
         return;
     }
 
+    mTable->rewind();
+
     decltype(mNextTableId) tableId;
     std::string data;
     while (mTable->next(&tableId, &data))
