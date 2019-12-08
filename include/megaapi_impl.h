@@ -3060,7 +3060,7 @@ class StreamingBuffer
 public:
     StreamingBuffer();
     ~StreamingBuffer();
-    void init(unsigned int capacity);
+    void init(m_off_t capacity);
     unsigned int append(const char *buf, unsigned int len);
     unsigned int availableData();
     unsigned int availableSpace();
@@ -3197,7 +3197,7 @@ protected:
     void run();
     void initializeAndStartListening();
 
-    void answer(MegaTCPContext* tcpctx, const char *rsp, int rlen);
+    void answer(MegaTCPContext* tcpctx, const char *rsp, size_t rlen);
 
 
     //virtual methods:
