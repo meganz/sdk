@@ -1047,7 +1047,7 @@ bool Node::setparent(Node* p)
         child_it = parent->children.insert(parent->children.end(), this);
 
 #ifdef ENABLE_SYNC
-        if (parent->type == FILENODE && !parent->isSyncable())
+        if (parent->type == FILENODE && !isSyncable())
         {
             // if child (old version) is not syncable then parent must follow suit (new version)
             parent->setSyncable(false);
