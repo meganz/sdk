@@ -27,6 +27,20 @@
 #undef min // avoid issues with std::min and std::max
 #undef max
 
+namespace {
+
+// Removes `node` and all its children from `unsyncables`, making these nodes syncable
+void makeAllSyncable(mega::UnsyncableNodeBag& unsyncables, const mega::Node& node)
+{
+    unsyncables.removeNode(node.nodehandle);
+    for (auto n : node.children)
+    {
+        makeAllSyncable(unsyncables, *n);
+    }
+}
+
+}
+
 namespace mega {
 
 // FIXME: generate cr element for file imports
@@ -13462,6 +13476,12 @@ void MegaClient::delsync(Sync* sync, bool deletecache)
         sync->statecachetable->remove();
         delete sync->statecachetable;
         sync->statecachetable = NULL;
+
+        if (sync->localroot->node)
+        {
+            DBTableTransactionCommitter committer{unsyncables->getTable()};
+            makeAllSyncable(*unsyncables, *sync->localroot->node);
+        }
     }
 
     syncactivity = true;
