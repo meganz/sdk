@@ -30,17 +30,17 @@
 namespace {
 
 #ifdef ENABLE_SYNC
-// Removes `node` and all its children from `unsyncables`, making these nodes syncable
-void makeAllSyncable(mega::UnsyncableNodeBag& unsyncables, const mega::Node& node)
+// Makes `node` syncable along with all nodes under it
+void makeAllSyncable(mega::Node& node)
 {
-    unsyncables.removeNode(node.nodehandle);
+    node.setSyncable(true);
     if (node.type == mega::FILENODE)
     {
         return;
     }
     for (auto n : node.children)
     {
-        makeAllSyncable(unsyncables, *n);
+        makeAllSyncable(*n);
     }
 }
 #endif
@@ -13486,7 +13486,7 @@ void MegaClient::delsync(Sync* sync, bool deletecache)
         if (sync->localroot->node)
         {
             DBTableTransactionCommitter committer{unsyncables->getDbTable()};
-            makeAllSyncable(*unsyncables, *sync->localroot->node);
+            makeAllSyncable(*sync->localroot->node);
         }
     }
 
