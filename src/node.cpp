@@ -985,11 +985,11 @@ NodeCounter Node::subnodeCounts() const
 }
 
 #ifdef ENABLE_SYNC
-void Node::setSyncable(const bool syncable, const std::string& syncPath)
+void Node::setSyncable(const bool syncable)
 {
     if (!syncable)
     {
-        if (!client->unsyncables->addNode(nodehandle, syncPath))
+        if (!client->unsyncables->addNode(nodehandle))
         {
             LOG_err << "Incomplete database write for node: " << nodehandle;
         }
@@ -1005,16 +1005,7 @@ void Node::setSyncable(const bool syncable, const std::string& syncPath)
 
 bool Node::isSyncable() const
 {
-    const auto syncPath = client->unsyncables->syncPath(nodehandle);
-    if (syncPath)
-    {
-        if (localnode && localnode != (LocalNode*)~0)
-        {
-            return *syncPath == localnode->sync->localroot->localname;
-        }
-        return false;
-    }
-    return true;
+    return !client->unsyncables->containsNode(nodehandle);
 }
 #endif
 
@@ -1056,15 +1047,11 @@ bool Node::setparent(Node* p)
         child_it = parent->children.insert(parent->children.end(), this);
 
 #ifdef ENABLE_SYNC
-        if (parent->type == FILENODE)
+        if (parent->type == FILENODE && !parent->isSyncable())
         {
-            const auto syncPath = client->unsyncables->syncPath(nodehandle);
-            if (syncPath)
-            {
-                // if child (old version) is not syncable then parent must follow suit (new version)
-                parent->setSyncable(false, *syncPath);
-                setSyncable(true, *syncPath); // set old version back to default
-            }
+            // if child (old version) is not syncable then parent must follow suit (new version)
+            parent->setSyncable(false);
+            setSyncable(true); // set old version back to default
         }
 #endif
     }
@@ -1695,7 +1682,7 @@ LocalNode::~LocalNode()
         {
             if (!sync->getConfig().isUpSync())
             {
-                node->setSyncable(false, sync->localroot->localname);
+                node->setSyncable(false);
             }
             sync->client->movetosyncdebris(node, sync->inshare);
         }

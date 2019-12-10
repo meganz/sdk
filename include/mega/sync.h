@@ -54,21 +54,23 @@ public:
 
     MEGA_DISABLE_COPY_MOVE(UnsyncableNodeBag)
 
-    // Adds a new node by handle and sync path
-    bool addNode(handle nodeHandle, const std::string& syncPath);
+    // Returns the underlying db table. May be null
+    DbTable* getDbTable() const;
+
+    // Adds a new node by handle
+    bool addNode(handle nodeHandle);
 
     // Removes a node by handle
     bool removeNode(handle nodeHandle);
 
-    // Returns the sync path of the given node handle if the node is not syncable, null otherwise
-    const std::string* syncPath(handle nodeHandle) const;
+    // Is the node contained, i.e. not syncable?
+    bool containsNode(handle nodeHandle) const;
 
 private:
     uint32_t mNextTableId = 0; // the next table ID to use
 
     struct NodeData
     {
-        std::string mSyncPath; // the sync that the node belongs to
         decltype(mNextTableId) mTableId;
     };
 

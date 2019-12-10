@@ -786,7 +786,7 @@ struct StandardClient : public MegaApp
         else
         {
             vector<Node*> results, subnodes = client.childnodesbyname(n, path.c_str(), false);
-            for (int i = subnodes.size(); i--; )
+            for (size_t i = subnodes.size(); i--; )
             {
                 if (subnodes[i]->type != FILENODE)
                 {
@@ -1037,7 +1037,7 @@ struct StandardClient : public MegaApp
             ifstream fs(p, ios::binary);
             char filedata[1024];
             fs.read(filedata, sizeof(filedata));
-            EXPECT_EQ(fs.gcount(), mn->content.size()) << " file is not expected size " << p;
+            EXPECT_EQ(size_t(fs.gcount()), mn->content.size()) << " file is not expected size " << p;
             EXPECT_TRUE(!memcmp(filedata, mn->content.data(), mn->content.size())) << " file data mismatch " << p;
         }
 
@@ -1217,7 +1217,7 @@ struct StandardClient : public MegaApp
         }
         else
         {
-            for (int i = ns.size(); i--; )
+            for (size_t i = ns.size(); i--; )
             {
                 resultproc.prepresult(UNLINK, [this, &pb, i](error e) { if (!i) pb.set_value(!e); });
                 client.unlink(ns[i]);
@@ -1538,7 +1538,10 @@ fs::path makeNewTestRoot(fs::path p)
     {
         moveToTrash(p);
     }
-    bool b = fs::create_directory(p);
+    #ifndef NDEBUG
+    bool b =
+    #endif
+    fs::create_directory(p);
     assert(b);
     return p;
 }

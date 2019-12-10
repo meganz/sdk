@@ -41,15 +41,15 @@ TEST(Crypto, AES_GCM)
     unsigned tagLen = 16;
 
     string plainStr = "dGQhwoovwoHDr8OnwossdGI4DsK9w5M";
-    unsigned plainLen = plainStr.length();
+    auto plainLen = plainStr.length();
     byte* plainBytes = new byte[plainLen];
-    plainLen = Base64::atob(plainStr.data(), plainBytes, plainLen);
+    plainLen = Base64::atob(plainStr.data(), plainBytes, static_cast<int>(plainLen));
     string plainText((const char*)plainBytes, plainLen);
 
     string cipherStr = "L3zqVYAOsRk7zMg2KsNTVShcad8TjIQ7umfsvia21QO0XTj8vaeR";
-    unsigned cipherLen = cipherStr.length();
+    auto cipherLen = cipherStr.length();
     byte* cipherBytes = new byte[cipherLen];
-    cipherLen = Base64::atob(cipherStr.data(), cipherBytes, cipherLen);
+    cipherLen = Base64::atob(cipherStr.data(), cipherBytes, static_cast<int>(cipherLen));
     string cipherText((const char*)cipherBytes, cipherLen);
 
     SymmCipher key;
@@ -212,7 +212,7 @@ TEST(Crypto, Ed25519_Signing)
 
     string puEd255bin;
     puEd255bin.resize(puEd255str.size() * 3 / 4 + 3);
-    puEd255bin.resize(Base64::atob(puEd255str.data(), (byte*) puEd255bin.data(), puEd255bin.size()));
+    puEd255bin.resize(Base64::atob(puEd255str.data(), (byte*) puEd255bin.data(), static_cast<int>(puEd255bin.size())));
     ASSERT_TRUE(!memcmp(puEd255bin.data(), signkey.pubKey, EdDSA::PUBLIC_KEY_LENGTH))
             << "Public Ed25519 key doesn't match the derived public key";
 
@@ -222,11 +222,11 @@ TEST(Crypto, Ed25519_Signing)
 
     string pqbin;
     pqbin.resize(pqstr.size() * 3 / 4 + 3);
-    pqbin.resize(Base64::atob(pqstr.data(), (byte*) pqbin.data(), pqbin.size()));
+    pqbin.resize(Base64::atob(pqstr.data(), (byte*) pqbin.data(), static_cast<int>(pqbin.size())));
 
     string ebin;
     ebin.resize(estr.size() * 3 / 4 + 3);
-    ebin.resize(Base64::atob(estr.data(), (byte*) ebin.data(), ebin.size()));
+    ebin.resize(Base64::atob(estr.data(), (byte*) ebin.data(), static_cast<int>(ebin.size())));
 
     string pubRSAbin;
     pubRSAbin.append(pqbin.data(), pqbin.size());
@@ -238,7 +238,7 @@ TEST(Crypto, Ed25519_Signing)
 
     string sigRSAbin;
     sigRSAbin.resize(sigRSAstr.size() * 4 / 3 + 4);
-    sigRSAbin.resize(Base64::atob(sigRSAstr.data(), (byte *) sigRSAbin.data(), sigRSAbin.size()));
+    sigRSAbin.resize(Base64::atob(sigRSAstr.data(), (byte *) sigRSAbin.data(), static_cast<int>(sigRSAbin.size())));
 
 
     // ____ Check signature of RSA public key ____

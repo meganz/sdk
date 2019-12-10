@@ -27,6 +27,26 @@
 #undef min // avoid issues with std::min and std::max
 #undef max
 
+namespace {
+
+#ifdef ENABLE_SYNC
+// Makes `node` syncable along with all nodes under it
+void makeAllSyncable(mega::Node& node)
+{
+    node.setSyncable(true);
+    if (node.type == mega::FILENODE)
+    {
+        return;
+    }
+    for (auto n : node.children)
+    {
+        makeAllSyncable(*n);
+    }
+}
+#endif
+
+}
+
 namespace mega {
 
 // FIXME: generate cr element for file imports
@@ -12405,7 +12425,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
             LOG_debug << "doesn't have a previous localnode";
             if (l->sync->getConfig().forceOverwrite())
             {
-                rit->second->setSyncable(true, l->sync->localroot->localname);
+                rit->second->setSyncable(true);
             }
             if (rit->second->isSyncable())
             {
@@ -13534,6 +13554,12 @@ void MegaClient::delsync(Sync* sync, bool deletecache)
         sync->statecachetable->remove();
         delete sync->statecachetable;
         sync->statecachetable = NULL;
+
+        if (sync->localroot->node)
+        {
+            DBTableTransactionCommitter committer{unsyncables->getDbTable()};
+            makeAllSyncable(*sync->localroot->node);
+        }
     }
 
     syncactivity = true;
