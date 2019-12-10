@@ -1005,7 +1005,7 @@ void Node::setSyncable(const bool syncable)
 
 bool Node::isSyncable() const
 {
-    return client->unsyncables->containsNode(nodehandle);
+    return !client->unsyncables->containsNode(nodehandle);
 }
 #endif
 
