@@ -547,7 +547,7 @@ UnsyncableNodeBag::UnsyncableNodeBag(DbAccess& dbaccess, FileSystemAccess& fsacc
     ++mNextTableId;
 }
 
-DbTable* UnsyncableNodeBag::getTable() const
+DbTable* UnsyncableNodeBag::getDbTable() const
 {
     return mTable.get();
 }
@@ -600,12 +600,7 @@ bool UnsyncableNodeBag::removeNode(const handle nodeHandle)
 
 bool UnsyncableNodeBag::containsNode(const handle nodeHandle) const
 {
-    auto nodePair = mNodes.find(nodeHandle);
-    if (nodePair != mNodes.end())
-    {
-        return true;
-    }
-    return false;
+    mNodes.find(nodeHandle) != mNodes.end();
 }
 
 // new Syncs are automatically inserted into the session's syncs list

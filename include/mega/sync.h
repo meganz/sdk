@@ -55,7 +55,7 @@ public:
     MEGA_DISABLE_COPY_MOVE(UnsyncableNodeBag)
 
     // Returns the underlying db table. May be null
-    DbTable* getTable() const;
+    DbTable* getDbTable() const;
 
     // Adds a new node by handle
     bool addNode(handle nodeHandle);
