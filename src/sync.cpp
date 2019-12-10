@@ -600,7 +600,7 @@ bool UnsyncableNodeBag::removeNode(const handle nodeHandle)
 
 bool UnsyncableNodeBag::containsNode(const handle nodeHandle) const
 {
-    mNodes.find(nodeHandle) != mNodes.end();
+    return mNodes.find(nodeHandle) != mNodes.end();
 }
 
 // new Syncs are automatically inserted into the session's syncs list
