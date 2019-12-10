@@ -575,14 +575,6 @@ bool UnsyncableNodeBag::addNode(const handle nodeHandle)
             ++mNextTableId;
         }
     }
-    else
-    {
-        if (!removeNode(nodeHandle))
-        {
-            return false;
-        }
-        return addNode(nodeHandle);
-    }
     return complete;
 }
 

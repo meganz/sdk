@@ -29,6 +29,7 @@
 
 namespace {
 
+#ifdef ENABLE_SYNC
 // Removes `node` and all its children from `unsyncables`, making these nodes syncable
 void makeAllSyncable(mega::UnsyncableNodeBag& unsyncables, const mega::Node& node)
 {
@@ -38,6 +39,7 @@ void makeAllSyncable(mega::UnsyncableNodeBag& unsyncables, const mega::Node& nod
         makeAllSyncable(unsyncables, *n);
     }
 }
+#endif
 
 }
 
