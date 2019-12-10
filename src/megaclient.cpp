@@ -34,6 +34,10 @@ namespace {
 void makeAllSyncable(mega::UnsyncableNodeBag& unsyncables, const mega::Node& node)
 {
     unsyncables.removeNode(node.nodehandle);
+    if (node.type == mega::FILENODE)
+    {
+        return;
+    }
     for (auto n : node.children)
     {
         makeAllSyncable(unsyncables, *n);
