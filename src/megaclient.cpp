@@ -13483,7 +13483,7 @@ void MegaClient::delsync(Sync* sync, bool deletecache)
         delete sync->statecachetable;
         sync->statecachetable = NULL;
 
-        if (sync->localroot->node)
+        if (!sync->getConfig().isUpSync() && sync->localroot->node)
         {
             DBTableTransactionCommitter committer{unsyncables->getDbTable()};
             makeAllSyncable(*sync->localroot->node);
