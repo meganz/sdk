@@ -2765,7 +2765,8 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_cp, sequence(text("cp"), remoteFSPath(client, &cwd, "src"), either(remoteFSPath(client, &cwd, "dst"), param("dstemail"))));
     p->Add(exec_du, sequence(text("du"), remoteFSPath(client, &cwd)));
 #ifdef ENABLE_SYNC
-    p->Add(exec_sync, sequence(text("sync"), opt(sequence(localFSPath(), either(remoteFSPath(client, &cwd, "dst"), param("cancelslot"))))));
+    p->Add(exec_sync, sequence(text("sync"), opt(sequence(localFSPath(), remoteFSPath(client, &cwd, "dst")))));
+    p->Add(exec_delsync, sequence(text("delsync"), param("index"), opt(flag("-discardcache"))));
     p->Add(exec_syncconfig, sequence(text("syncconfig"), opt(sequence(param("type (TWOWAY/UP/DOWN)"), opt(sequence(param("syncDeletions (ON/OFF)"), param("forceOverwrite (ON/OFF)")))))));
 #endif
     p->Add(exec_export, sequence(text("export"), remoteFSPath(client, &cwd), opt(either(param("expiretime"), text("del")))));
@@ -4077,21 +4078,6 @@ void exec_sync(autocomplete::ACState& s)
             cout << s.words[2].s << ": Syncing requires full access to path." << endl;
         }
     }
-    else if (s.words.size() == 2)
-    {
-        int i = 0, cancel = atoi(s.words[1].s.c_str());
-
-        for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
-        {
-            if ((*it)->state > SYNC_CANCELED && i++ == cancel)
-            {
-                client->delsync(*it);
-
-                cout << "Sync " << cancel << " deactivated and removed." << endl;
-                break;
-            }
-        }
-    }
     else if (s.words.size() == 1)
     {
         if (client->syncs.size())
@@ -4122,6 +4108,32 @@ void exec_sync(autocomplete::ACState& s)
         else
         {
             cout << "No syncs active at this time." << endl;
+        }
+    }
+}
+
+void exec_delsync(autocomplete::ACState& s)
+{
+    const int index = atoi(s.words[1].s.c_str());
+    const bool discardCache = s.extractflag("-discardcache");
+
+    int i = 0;
+    for (const auto& sync : client->syncs)
+    {
+        if (sync->state > SYNC_CANCELED && i++ == index)
+        {
+            client->delsync(sync, !discardCache);
+
+            cout << "Sync " << index << " deleted. ";
+            if (discardCache)
+            {
+                cout << "Cache discarded." << endl;
+            }
+            else
+            {
+                cout << "Cache intact." << endl;
+            }
+            break;
         }
     }
 }
