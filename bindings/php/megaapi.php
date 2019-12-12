@@ -177,26 +177,26 @@ class MegaListenerPHP extends MegaListener
 
 class MegaRequestListenerPHP extends MegaRequestListener
 {
-	var $megaApi;
-	var $listener;
-	var $singleListener;
+    var $megaApi;
+    var $listener;
+    var $singleListener;
 
-	public function __construct($megaApi, $listener, $single)
-	{
+    public function __construct($megaApi, $listener, $single)
+    {
         parent::__construct();
 
         $this->megaApi = $megaApi;
         $this->listener = $listener;
         $this->singleListener = $single;
-	}
+    }
 
-	public function getUserListener()
-	{
+    public function getUserListener()
+    {
         return $this->listener;
-	}
+    }
 
-	public function onRequestStart($api, $request)
-	{
+    public function onRequestStart($api, $request)
+    {
         if ($this->listener != null)
         {
             $megaApi = $this->megaApi;
@@ -204,10 +204,10 @@ class MegaRequestListenerPHP extends MegaRequestListener
 
             $this->listener->onRequestStart($megaApi, $megaRequest);
         }
-	}
+    }
 
-	public function onRequestFinish($api, $request, $error)
-	{
+    public function onRequestFinish($api, $request, $error)
+    {
         if ($this->listener != null)
         {
             $megaApi = $this->megaApi;
@@ -221,10 +221,10 @@ class MegaRequestListenerPHP extends MegaRequestListener
                     $megaApi->privateFreeRequestListener($this);
             }
         }
-	}
+    }
 
-	public function onRequestTemporaryError($api, $request, $error)
-	{
+    public function onRequestTemporaryError($api, $request, $error)
+    {
         if ($this->listener != null)
         {
             $megaApi = $this->megaApi;
@@ -233,31 +233,31 @@ class MegaRequestListenerPHP extends MegaRequestListener
 
             $this->listener->onRequestTemporaryError($megaApi, $megaRequest, $megaError);
         }
-	}
+    }
 }
 
 class MegaTransferListenerPHP extends MegaTransferListener
 {
-	var $megaApi;
-	var $listener;
-	var $singleListener;
+    var $megaApi;
+    var $listener;
+    var $singleListener;
 
-	public function __construct($megaApi, $listener, $single)
-	{
+    public function __construct($megaApi, $listener, $single)
+    {
         parent::__construct();
 
         $this->megaApi = $megaApi;
         $this->listener = $listener;
         $this->singleListener = $single;
-	}
+    }
 
-	public function getUserListener()
-	{
+    public function getUserListener()
+    {
         return $this->listener;
-	}
+    }
 
-	public function onTransferStart($api, $transfer)
-	{
+    public function onTransferStart($api, $transfer)
+    {
         if ($this->listener != null)
         {
             $megaApi = $this->megaApi;
@@ -265,10 +265,10 @@ class MegaTransferListenerPHP extends MegaTransferListener
 
             $this->listener->onTransferStart($megaApi, $megaTransfer);
         }
-	}
+    }
 
-	public function onTransferFinish($api, $transfer, $error)
-	{
+    public function onTransferFinish($api, $transfer, $error)
+    {
         if ($this->listener != null)
         {
             $megaApi = $this->megaApi;
@@ -282,10 +282,10 @@ class MegaTransferListenerPHP extends MegaTransferListener
                 $megaApi->privateFreeTransferListener($this);
             }
         }
-	}
+    }
 
-	public function onTransferUpdate($api, $transfer)
-	{
+    public function onTransferUpdate($api, $transfer)
+    {
         if ($this->listener != null)
         {
             $megaApi = $this->megaApi;
@@ -293,10 +293,10 @@ class MegaTransferListenerPHP extends MegaTransferListener
 
             $this->listener->onTransferUpdate($megaApi, $megaTransfer);
         }
-	}
+    }
 
-	public function onTransferTemporaryError($api, $request, $error)
-	{
+    public function onTransferTemporaryError($api, $request, $error)
+    {
         if ($this->listener != null)
         {
             $megaApi = $this->megaApi;
@@ -305,29 +305,29 @@ class MegaTransferListenerPHP extends MegaTransferListener
 
             $this->listener->onTransferTemporaryError($megaApi, $megaTransfer, $megaError);
         }
-	}
+    }
 }
 
 class MegaGlobalListenerPHP extends MegaGlobalListener
 {
-	var $megaApi;
-	var $listener;
+    var $megaApi;
+    var $listener;
 
-	public function __construct($megaApi, $listener)
-	{
+    public function __construct($megaApi, $listener)
+    {
         parent::__construct();
 
         $this->megaApi = $megaApi;
         $this->listener = $listener;
-	}
+    }
 
-	public function getUserListener()
-	{
+    public function getUserListener()
+    {
         return $this->listener;
-	}
+    }
 
-	public function onUsersUpdate($api, $users)
-	{
+    public function onUsersUpdate($api, $users)
+    {
         if ($this->listener != null)
         {
             $megaApi = $this->megaApi;
@@ -342,10 +342,10 @@ class MegaGlobalListenerPHP extends MegaGlobalListener
 
             $this->listener->onUsersUpdate($megaApi, $megaUsers);
         }
-	}
+    }
 
-	public function onNodesUpdate($api, $nodes)
-	{
+    public function onNodesUpdate($api, $nodes)
+    {
         if ($this->listener != null)
         {
             $megaApi = $this->megaApi;
@@ -360,16 +360,16 @@ class MegaGlobalListenerPHP extends MegaGlobalListener
 
             $this->listener->onNodesUpdate ($megaApi, $megaNodes);
         }
-	}
+    }
 
-	public function onReloadNeeded($api)
-	{
+    public function onReloadNeeded($api)
+    {
         if ($this->listener != null)
         {
             $megaApi = $this->megaApi;
             $this->listener->onReloadNeeded ($megaApi);
         }
-	}
+    }
 }
 
 class MegaApiPHP extends MegaApi
