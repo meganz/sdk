@@ -218,7 +218,7 @@ class MegaRequestListenerPHP extends MegaRequestListener
 
             if ($this->singleListener == 1)
             {
-                    $megaApi->privateFreeRequestListener($this);
+                $megaApi->privateFreeRequestListener($this);
             }
         }
     }
@@ -556,7 +556,7 @@ class MegaApiPHP extends MegaApi
         return MegaApi::userHandleToBase64($handle);
     }
 
-    static function addEntropy($data, $size)
+    function addEntropy($data, $size)
     {
         $this->megaApi->addEntropy($data, $size);
     }
