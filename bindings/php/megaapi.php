@@ -1,8 +1,5 @@
 <?php
 
-set_include_path(get_include_path() . PATH_SEPARATOR . ".libs");
-dl('libmegaphp.so');
-
 include 'mega.php';
 
 interface MegaRequestListenerInterface
@@ -11,7 +8,7 @@ interface MegaRequestListenerInterface
     public function onRequestFinish($api, $request, $error);
     public function onRequestTemporaryError($api, $request, $error);
 }
-	
+
 interface MegaTransferListenerInterface
 {
     public function onTransferStart($api, $transfer);
@@ -27,22 +24,26 @@ interface MegaGlobalListenerInterface
     public function onReloadNeeded($api);
 }
 
-interface MegaListenerInterface extends MegaRequestListenerInterface, 
-MegaTransferListenerInterface, MegaGlobalListenerInterface { }
+interface MegaListenerInterface extends
+    MegaRequestListenerInterface,
+    MegaTransferListenerInterface,
+    MegaGlobalListenerInterface
+{
+}
 
 class MegaListenerPHP extends MegaListener
 {
     var $megaApi;
     var $listener;
-	
+
     public function __construct($megaApi, $listener)
     {
         parent::__construct();
-		
+
         $this->megaApi = $megaApi;
         $this->listener = $listener;
     }
-	
+
     public function getUserListener()
     {
         return $this->listener;
@@ -160,7 +161,7 @@ class MegaListenerPHP extends MegaListener
                 $megaNodes = null;
             }
 
-            $this->listener->onNodesUpdate ($megaApi, $megaNodes);
+            $this->listener->onNodesUpdate($megaApi, $megaNodes);
         }
     }
 
@@ -169,7 +170,7 @@ class MegaListenerPHP extends MegaListener
         if ($this->listener != null)
         {
             $megaApi = $this->megaApi;
-            $this->listener->onReloadNeeded ($megaApi);
+            $this->listener->onReloadNeeded($megaApi);
         }
     }
 }
@@ -182,56 +183,56 @@ class MegaRequestListenerPHP extends MegaRequestListener
 
 	public function __construct($megaApi, $listener, $single)
 	{
-            parent::__construct();
+        parent::__construct();
 
-            $this->megaApi = $megaApi;
-            $this->listener = $listener;
-            $this->singleListener = $single;
+        $this->megaApi = $megaApi;
+        $this->listener = $listener;
+        $this->singleListener = $single;
 	}
-	
+
 	public function getUserListener()
 	{
-            return $this->listener;
+        return $this->listener;
 	}
-	
+
 	public function onRequestStart($api, $request)
 	{
-            if ($this->listener != null)
-            {
-                $megaApi = $this->megaApi;
-                $megaRequest = $megaApi->getCurrentRequest()->copy();
+        if ($this->listener != null)
+        {
+            $megaApi = $this->megaApi;
+            $megaRequest = $megaApi->getCurrentRequest()->copy();
 
-                $this->listener->onRequestStart($megaApi, $megaRequest);
-            }
+            $this->listener->onRequestStart($megaApi, $megaRequest);
+        }
 	}
-		
+
 	public function onRequestFinish($api, $request, $error)
 	{
-            if ($this->listener != null)
+        if ($this->listener != null)
+        {
+            $megaApi = $this->megaApi;
+            $megaRequest = $megaApi->getCurrentRequest()->copy();
+            $megaError = $megaApi->getCurrentError()->copy();
+
+            $this->listener->onRequestFinish($megaApi, $megaRequest, $megaError);
+
+            if ($this->singleListener == 1)
             {
-                $megaApi = $this->megaApi;
-                $megaRequest = $megaApi->getCurrentRequest()->copy();
-                $megaError = $megaApi->getCurrentError()->copy();
-
-                $this->listener->onRequestFinish($megaApi, $megaRequest, $megaError);
-
-                if($this->singleListener == 1)
-                {
-                        $megaApi->privateFreeRequestListener($this);
-                }
+                    $megaApi->privateFreeRequestListener($this);
             }
+        }
 	}
 
 	public function onRequestTemporaryError($api, $request, $error)
-	{	
-            if ($this->listener != null)
-            {
-                $megaApi = $this->megaApi;
-                $megaRequest = $megaApi->getCurrentRequest()->copy();
-                $megaError = $megaApi->getCurrentError()->copy();
+	{
+        if ($this->listener != null)
+        {
+            $megaApi = $this->megaApi;
+            $megaRequest = $megaApi->getCurrentRequest()->copy();
+            $megaError = $megaApi->getCurrentError()->copy();
 
-                $this->listener->onRequestTemporaryError($megaApi, $megaRequest, $megaError);
-            }
+            $this->listener->onRequestTemporaryError($megaApi, $megaRequest, $megaError);
+        }
 	}
 }
 
@@ -243,67 +244,67 @@ class MegaTransferListenerPHP extends MegaTransferListener
 
 	public function __construct($megaApi, $listener, $single)
 	{
-            parent::__construct();
+        parent::__construct();
 
-            $this->megaApi = $megaApi;
-            $this->listener = $listener;
-            $this->singleListener = $single;
+        $this->megaApi = $megaApi;
+        $this->listener = $listener;
+        $this->singleListener = $single;
 	}
-	
+
 	public function getUserListener()
 	{
-            return $this->listener;
+        return $this->listener;
 	}
-	
+
 	public function onTransferStart($api, $transfer)
 	{
-            if($this->listener != null)
-            {
-                $megaApi = $this->megaApi;
-                $megaTransfer = $megaApi->getCurrentTransfer()->copy();
+        if ($this->listener != null)
+        {
+            $megaApi = $this->megaApi;
+            $megaTransfer = $megaApi->getCurrentTransfer()->copy();
 
-                $this->listener->onTransferStart($megaApi, $megaTransfer);
-            }
+            $this->listener->onTransferStart($megaApi, $megaTransfer);
+        }
 	}
-	
+
 	public function onTransferFinish($api, $transfer, $error)
-	{		
-            if ($this->listener != null)
+	{
+        if ($this->listener != null)
+        {
+            $megaApi = $this->megaApi;
+            $megaTransfer = $megaApi->getCurrentTransfer()->copy();
+            $megaError = $megaApi->getCurrentError()->copy();
+
+            $this->listener->onTransferFinish($megaApi, $megaTransfer, $megaError);
+
+            if ($this->singleListener == 1)
             {
-                $megaApi = $this->megaApi;
-                $megaTransfer = $megaApi->getCurrentTransfer()->copy();
-                $megaError = $megaApi->getCurrentError()->copy();
-
-                $this->listener->onTransferFinish($megaApi, $megaTransfer, $megaError);
-
-                if ($this->singleListener == 1)
-                {
-                    $megaApi->privateFreeTransferListener($this);
-                }
+                $megaApi->privateFreeTransferListener($this);
             }
+        }
 	}
-	
+
 	public function onTransferUpdate($api, $transfer)
 	{
-            if ($this->listener != null)
-            {
-                $megaApi = $this->megaApi;
-                $megaTransfer = $megaApi->getCurrentTransfer()->copy();
+        if ($this->listener != null)
+        {
+            $megaApi = $this->megaApi;
+            $megaTransfer = $megaApi->getCurrentTransfer()->copy();
 
-                $this->listener->onTransferUpdate($megaApi, $megaTransfer);
-            }
+            $this->listener->onTransferUpdate($megaApi, $megaTransfer);
+        }
 	}
-			
-	public function onTransferTemporaryError($api, $request, $error)
-	{		
-            if ($this->listener != null)
-            {
-                $megaApi = $this->megaApi;
-                $megaTransfer = $megaApi->getCurrentTransfer()->copy();
-                $megaError = $megaApi->getCurrentError()->copy();
 
-                $this->listener->onTransferTemporaryError($megaApi, $megaTransfer, $megaError);
-            }
+	public function onTransferTemporaryError($api, $request, $error)
+	{
+        if ($this->listener != null)
+        {
+            $megaApi = $this->megaApi;
+            $megaTransfer = $megaApi->getCurrentTransfer()->copy();
+            $megaError = $megaApi->getCurrentError()->copy();
+
+            $this->listener->onTransferTemporaryError($megaApi, $megaTransfer, $megaError);
+        }
 	}
 }
 
@@ -314,65 +315,65 @@ class MegaGlobalListenerPHP extends MegaGlobalListener
 
 	public function __construct($megaApi, $listener)
 	{
-            parent::__construct();
+        parent::__construct();
 
-            $this->megaApi = $megaApi;
-            $this->listener = $listener;
+        $this->megaApi = $megaApi;
+        $this->listener = $listener;
 	}
-	
+
 	public function getUserListener()
 	{
-            return $this->listener;
+        return $this->listener;
 	}
-	
+
 	public function onUsersUpdate($api, $users)
 	{
-            if ($this->listener != null)
+        if ($this->listener != null)
+        {
+            $megaApi = $this->megaApi;
+            if ($megaApi->getCurrentUsers() != null)
             {
-                $megaApi = $this->megaApi;
-                if($megaApi->getCurrentUsers() != null)
-                {
-                        $megaUsers = $megaApi->getCurrentUsers()->copy();
-                }
-                else
-                {
-                        $megaUsers = null;
-                }
-
-                $this->listener->onUsersUpdate($megaApi, $megaUsers);
+                $megaUsers = $megaApi->getCurrentUsers()->copy();
             }
+            else
+            {
+                $megaUsers = null;
+            }
+
+            $this->listener->onUsersUpdate($megaApi, $megaUsers);
+        }
 	}
 
 	public function onNodesUpdate($api, $nodes)
 	{
-            if ($this->listener != null)
+        if ($this->listener != null)
+        {
+            $megaApi = $this->megaApi;
+            if ($megaApi->getCurrentNodes() != null)
             {
-                $megaApi = $this->megaApi;
-                if ($megaApi->getCurrentNodes() != null)
-                {
-                        $megaNodes = $megaApi->getCurrentNodes()->copy();
-                }
-                else
-                {
-                        $megaNodes = null;
-                }
-
-                $this->listener->onNodesUpdate ($megaApi, $megaNodes);
+                $megaNodes = $megaApi->getCurrentNodes()->copy();
             }
+            else
+            {
+                $megaNodes = null;
+            }
+
+            $this->listener->onNodesUpdate ($megaApi, $megaNodes);
+        }
 	}
-	
+
 	public function onReloadNeeded($api)
 	{
-            if ($this->listener != null)
-            {
-                $megaApi = $this->megaApi;
-                $this->listener->onReloadNeeded ($megaApi);
-            }
+        if ($this->listener != null)
+        {
+            $megaApi = $this->megaApi;
+            $this->listener->onReloadNeeded ($megaApi);
+        }
 	}
 }
 
 class MegaApiPHP extends MegaApi
-{	
+{
     private $megaApi;
     private $activeMegaListeners = array();
     private $activeMegaRequestListeners = array();
@@ -470,13 +471,12 @@ class MegaApiPHP extends MegaApi
         $this->megaApi->addGlobalListener($this->createDelegateGlobalListener($listener));
     }
 
-
     function removeListener($listener)
     {
         sem_acquire($this->semaphore);
         foreach ($this->activeMegaListeners as $delegate)
         {
-            if($delegate->getUserListener() == $listener)
+            if ($delegate->getUserListener() == $listener)
             {
                 $this->megaApi->removeListener($delegate);
                 unset($this->activeMegaListeners[$delegate]);
@@ -523,9 +523,9 @@ class MegaApiPHP extends MegaApi
         {
             if ($delegate->getUserListener() == $listener)
             {
-                    $this->megaApi->removeGlobalListener($delegate);
-                    unset($this->activeMegaGlobalListeners[$delegate]);
-                    break;
+                $this->megaApi->removeGlobalListener($delegate);
+                unset($this->activeMegaGlobalListeners[$delegate]);
+                break;
             }
         }
         sem_release($this->semaphore);
@@ -558,7 +558,7 @@ class MegaApiPHP extends MegaApi
 
     static function addEntropy($data, $size)
     {
-        MegaApi::addEntropy($data, $size);
+        $this->megaApi->addEntropy($data, $size);
     }
 
     function retryPendingConnections($disconnect = false, $includexfers = false, $listener = null)
@@ -1112,4 +1112,3 @@ class MegaApiPHP extends MegaApi
         sem_remove($this->semaphore);
     }
 }
-?>
