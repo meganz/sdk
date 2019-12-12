@@ -398,6 +398,20 @@ IF(WIN32)
             SET(HAVE_LIBUV 1)
         ENDIF(USE_LIBUV)
 
+        IF(USE_PDFIUM)
+            if (build_64_bit)
+                ImportVcpkgLibrary(pdfium       "${Mega3rdPartyDir}/pdfium/pdfium/public" "${Mega3rdPartyDir}/pdfium/pdfium/build_x64/Debug/pdfium.lib" "${Mega3rdPartyDir}/pdfium/pdfium/build_x64/Release/pdfium.lib")
+                ImportVcpkgLibrary(freetype     "${Mega3rdPartyDir}/pdfium/pdfium/public" "${Mega3rdPartyDir}/pdfium/pdfium/third_party/freetype/src/build_x64/Debug/freetyped.lib" "${Mega3rdPartyDir}/pdfium/pdfium/third_party/freetype/src/build_x64/Release/freetype.lib")
+            else()
+                ImportVcpkgLibrary(pdfium       "${Mega3rdPartyDir}/pdfium/pdfium/public" "${Mega3rdPartyDir}/pdfium/pdfium/build_x86/Debug/pdfium.lib" "${Mega3rdPartyDir}/pdfium/pdfium/build_x86/Release/pdfium.lib")
+                ImportVcpkgLibrary(freetype     "${Mega3rdPartyDir}/pdfium/pdfium/public" "${Mega3rdPartyDir}/pdfium/pdfium/third_party/freetype/src/build_x86/Debug/freetyped.lib" "${Mega3rdPartyDir}/pdfium/pdfium/third_party/freetype/src/build_x86/Release/freetype.lib")
+            endif()
+            ImportVcpkgLibrary(icu           "${Mega3rdPartyDir}/pdfium/pdfium/public" "${vcpkg_dir}/debug/lib/icuucd.lib"  "${vcpkg_dir}/lib/icuuc.lib")
+            ImportVcpkgLibrary(lcms          "${Mega3rdPartyDir}/pdfium/pdfium/public" "${vcpkg_dir}/debug/lib/lcmsd.lib"  "${vcpkg_dir}/lib/lcms.lib")
+            ImportVcpkgLibrary(turbojpeg     "${Mega3rdPartyDir}/pdfium/pdfium/public" "${vcpkg_dir}/debug/lib/jpegd.lib"  "${vcpkg_dir}/lib/jpeg.lib")
+            ImportVcpkgLibrary(openjpeg      "${Mega3rdPartyDir}/pdfium/pdfium/public" "${vcpkg_dir}/debug/lib/openjp2.lib"  "${vcpkg_dir}/lib/openjp2.lib")
+        ENDIF(USE_PDFIUM)
+
     endif(USE_PREBUILT_3RDPARTY)
     
     add_definitions(-D_CRT_SECURE_NO_WARNINGS -DCURL_STATICLIB -DCARES_STATICLIB -DWIN32_LEAN_AND_MEAN -DUNICODE -DSODIUM_STATIC -DPCRE_STATICWIN32 -D_CONSOLE )
@@ -608,7 +622,7 @@ target_link_libraries(Mega PUBLIC z
                                               $<${USE_FREEIMAGE}:freeimage_webp> $<${USE_FREEIMAGE}:freeimage_webpdecoder>  $<${USE_FREEIMAGE}:freeimage_webpdemux>  $<${USE_FREEIMAGE}:freeimage_webpmux>                                               
                 $<${HAVE_FFMPEG}:ffmpeg_avformat> $<${HAVE_FFMPEG}:ffmpeg_avcodec> $<${HAVE_FFMPEG}:ffmpeg_avutil> $<${HAVE_FFMPEG}:ffmpeg_avfilter> $<${HAVE_FFMPEG}:ffmpeg_avdevice> $<${HAVE_FFMPEG}:ffmpeg_avdevice > 
                 $<${HAVE_FFMPEG}:ffmpeg_swscale>  $<${HAVE_FFMPEG}:ffmpeg_swresample>  
-                $<${USE_PDFIUM}:pdfium>
+                $<${USE_PDFIUM}:pdfium> $<${USE_PDFIUM}:freetype> $<${USE_PDFIUM}:icu> $<${USE_PDFIUM}:lcms> $<${USE_PDFIUM}:turbojpeg> $<${USE_PDFIUM}:openjpeg>
                 ${Mega_PlatformSpecificLibs})
 target_compile_definitions(Mega PUBLIC 
                 $<${USE_MEDIAINFO}:USE_MEDIAINFO> 
