@@ -105,7 +105,10 @@ std::string megaApiCacheFolder(int index)
     {
 
 #ifdef _WIN32
-        bool success = fs::create_directory(p);
+        #ifndef NDEBUG
+        bool success =
+        #endif
+        fs::create_directory(p);
         assert(success);
 #else
         mkdir(p.c_str(), S_IRWXU);
@@ -277,6 +280,10 @@ int SdkTest::getApiIndex(MegaApi* api)
 
 void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
 {
+    if (request->getType() == MegaRequest::TYPE_DELETE)
+    {
+        return;
+    }
     int apiIndex = getApiIndex(api);
     if (apiIndex < 0) return;
     mApi[apiIndex].requestFlags[request->getType()] = true;
