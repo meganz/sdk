@@ -678,6 +678,7 @@ add_executable(test_unit
     ${MegaDir}/tests/unit/NotImplemented.h
     ${MegaDir}/tests/unit/PayCrypter_test.cpp
     ${MegaDir}/tests/unit/Serialization_test.cpp
+    ${MegaDir}/tests/unit/Share_test.cpp
     ${MegaDir}/tests/unit/Sync_test.cpp
     ${MegaDir}/tests/unit/utils.cpp
     ${MegaDir}/tests/unit/utils.h
