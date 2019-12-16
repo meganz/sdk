@@ -44,9 +44,28 @@ TEST(Share, serialize_unserialize)
 
     mega::byte key[mega::SymmCipher::BLOCKSIZE];
     std::fill(key, key + mega::SymmCipher::BLOCKSIZE, 'X');
-    auto data = d.data();
+    auto data = d.c_str();
     auto newShare = mega::Share::unserialize(-1, 100, key, &data, d.data() + d.size());
 
     const mega::NewShare expectedNewShare{100, -1, user.userhandle, mega::RDONLY, 13, key, NULL, 123};
+    checkNewShares(expectedNewShare, *newShare);
+}
+
+TEST(Share, unserialize_32bit)
+{
+    // This is the result of serialization on 32bit Windows
+    const std::array<char, 26> rawData = {
+        0x2a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0d, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x7b, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00
+    };
+    const std::string d(rawData.data(), rawData.size());
+
+    mega::byte key[mega::SymmCipher::BLOCKSIZE];
+    std::fill(key, key + mega::SymmCipher::BLOCKSIZE, 'X');
+    auto data = d.c_str();
+    auto newShare = mega::Share::unserialize(-1, 100, key, &data, d.data() + d.size());
+
+    const mega::NewShare expectedNewShare{ 100, -1, 42, mega::RDONLY, 13, key, NULL, 123 };
     checkNewShares(expectedNewShare, *newShare);
 }
