@@ -36,3 +36,24 @@ TEST(AttrMap, serialize_unserialize)
 
     ASSERT_EQ(map.map, newMap.map);
 }
+
+TEST(AttrMap, unserialize_32bit)
+{
+    // This is the result of serialization on 32bit Windows
+    const std::array<char, 16> rawData = {
+        0x01, 0x0d, 0x03, 0x00, 0x66, 0x6f, 0x6f, 0x01, 0x2a, 0x04, 0x00, 0x62,
+        0x6c, 0x61, 0x68, 0x00
+    };
+    const std::string d(rawData.data(), rawData.size());
+
+    mega::AttrMap expMap;
+    expMap.map = {
+        {13, "foo"},
+        {42, "blah"},
+    };
+
+    mega::AttrMap newMap;
+    newMap.unserialize(d.c_str(), d.c_str() + d.size());
+
+    ASSERT_EQ(expMap.map, newMap.map);
+}
