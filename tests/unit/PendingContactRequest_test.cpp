@@ -46,3 +46,20 @@ TEST(PendingContactRequest, serialize_unserialize)
     auto newPcr = std::unique_ptr<mega::PendingContactRequest>{mega::PendingContactRequest::unserialize(&d)};
     checkPcrs(pcr, *newPcr);
 }
+
+TEST(PendingContactRequest, unserialize_32bit)
+{
+    mega::PendingContactRequest pcr{1, "blah", "foo", 2, 3, "hello", true};
+
+    // This is the result of serialization on 32bit Windows
+    const std::array<char, 40> rawData = {
+        0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x62, 0x6c, 0x61,
+        0x68, 0x03, 0x66, 0x6f, 0x6f, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x05, 0x68, 0x65,
+        0x6c, 0x6c, 0x6f, 0x01
+    };
+    std::string d(rawData.data(), rawData.size());
+
+    auto newPcr = std::unique_ptr<mega::PendingContactRequest>{mega::PendingContactRequest::unserialize(&d)};
+    checkPcrs(pcr, *newPcr);
+}
