@@ -45,7 +45,7 @@ TEST(Share, serialize_unserialize)
     mega::byte key[mega::SymmCipher::BLOCKSIZE];
     std::fill(key, key + mega::SymmCipher::BLOCKSIZE, 'X');
     auto data = d.c_str();
-    auto newShare = mega::Share::unserialize(-1, 100, key, &data, d.data() + d.size());
+    auto newShare = std::unique_ptr<mega::NewShare>{mega::Share::unserialize(-1, 100, key, &data, d.data() + d.size())};
 
     const mega::NewShare expectedNewShare{100, -1, user.userhandle, mega::RDONLY, 13, key, NULL, 123};
     checkNewShares(expectedNewShare, *newShare);
@@ -64,7 +64,7 @@ TEST(Share, unserialize_32bit)
     mega::byte key[mega::SymmCipher::BLOCKSIZE];
     std::fill(key, key + mega::SymmCipher::BLOCKSIZE, 'X');
     auto data = d.c_str();
-    auto newShare = mega::Share::unserialize(-1, 100, key, &data, d.data() + d.size());
+    auto newShare = std::unique_ptr<mega::NewShare>{mega::Share::unserialize(-1, 100, key, &data, d.data() + d.size())};
 
     const mega::NewShare expectedNewShare{100, -1, 42, mega::RDONLY, 13, key, NULL, 123};
     checkNewShares(expectedNewShare, *newShare);
