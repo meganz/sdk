@@ -685,6 +685,7 @@ add_executable(test_unit
     ${MegaDir}/tests/unit/Serialization_test.cpp
     ${MegaDir}/tests/unit/Share_test.cpp
     ${MegaDir}/tests/unit/Sync_test.cpp
+    ${MegaDir}/tests/unit/User_test.cpp
     ${MegaDir}/tests/unit/utils.cpp
     ${MegaDir}/tests/unit/utils.h
     ${MegaDir}/tests/unit/utils_test.cpp
