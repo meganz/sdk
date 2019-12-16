@@ -35,7 +35,6 @@ public:
     {
         return true;
     }
-
 };
 
 void checkFiles(const mega::File& exp, const mega::File& act)
@@ -53,6 +52,7 @@ void checkFiles(const mega::File& exp, const mega::File& act)
     ASSERT_TRUE(std::equal(exp.filekey, exp.filekey + mega::FILENODEKEYLENGTH, act.filekey));
     ASSERT_EQ(exp.targetuser, act.targetuser);
     ASSERT_EQ(nullptr, act.transfer);
+    ASSERT_EQ(static_cast<const mega::FileFingerprint&>(exp), static_cast<const mega::FileFingerprint&>(act));
 }
 
 }
@@ -88,11 +88,45 @@ TEST(File, serialize_unserialize)
 
 TEST(File, unserialize_32bit)
 {
-    // This is the result of serialization on 32bit Windows
-    const std::array<char, 16> rawData = {
-        0x01, 0x0d, 0x03, 0x00, 0x66, 0x6f, 0x6f, 0x01, 0x2a, 0x04, 0x00, 0x62,
-        0x6c, 0x61, 0x68, 0x00
-    };
-    const std::string d(rawData.data(), rawData.size());
+    mega::MegaApp app;
+    MockFileSystemAccess fsaccess;
+    auto client = mt::makeClient(app, fsaccess);
+    mega::File file;
+    file.name = "foo";
+    file.localname = "foo";
+    file.h = 42;
+    file.hprivate = true;
+    file.hforeign = true;
+    file.syncxfer = true;
+    file.temporaryfile = true;
+    file.privauth = "privauth";
+    file.pubauth = "pubauth";
+    file.chatauth = new char[4]{'b', 'a', 'r', '\0'}; // owned by file
+    std::fill(file.filekey, file.filekey + mega::FILENODEKEYLENGTH, 'X');
+    file.targetuser = "targetuser";
+    file.transfer = new mega::Transfer{client.get(), mega::NONE}; // owned by client
+    file.transfer->files.push_back(&file);
+    file.file_it = file.transfer->files.begin();
 
+    // This is the result of serialization on 32bit Windows
+    const std::array<char, 133> rawData = {
+        0x03, static_cast<char>(0xff), static_cast<char>(0xff), static_cast<char>(0xff),
+        static_cast<char>(0xff), static_cast<char>(0xff), static_cast<char>(0xff), 
+        static_cast<char>(0xff), static_cast<char>(0xff), 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x00,
+        0x66, 0x6f, 0x6f, 0x03, 0x00, 0x66, 0x6f, 0x6f, 0x0a, 0x00, 0x74, 0x61,
+        0x72, 0x67, 0x65, 0x74, 0x75, 0x73, 0x65, 0x72, 0x08, 0x00, 0x70, 0x72,
+        0x69, 0x76, 0x61, 0x75, 0x74, 0x68, 0x07, 0x00, 0x70, 0x75, 0x62, 0x61,
+        0x75, 0x74, 0x68, 0x2a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x58,
+        0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58,
+        0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58,
+        0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x01, 0x01, 0x01, 0x01, 0x01,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x62, 0x61,
+        0x72
+    };
+    std::string d(rawData.data(), rawData.size());
+
+    auto newFile = std::unique_ptr<mega::File>{mega::File::unserialize(&d)};
+    checkFiles(file, *newFile);
 }
