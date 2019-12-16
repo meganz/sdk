@@ -671,6 +671,7 @@ add_executable(test_unit
     ${MegaDir}/tests/unit/DefaultedFileAccess.h
     ${MegaDir}/tests/unit/DefaultedFileSystemAccess.h
     ${MegaDir}/tests/unit/FileFingerprint_test.cpp
+    ${MegaDir}/tests/unit/File_test.cpp
     ${MegaDir}/tests/unit/FsNode.cpp
     ${MegaDir}/tests/unit/FsNode.h
     ${MegaDir}/tests/unit/Logging_test.cpp
