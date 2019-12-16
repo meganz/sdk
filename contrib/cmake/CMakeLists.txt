@@ -663,6 +663,7 @@ endif (ENABLE_CODECOVERAGE )
 
 #test apps
 add_executable(test_unit
+    ${MegaDir}/tests/unit/AttrMap_test.cpp
     ${MegaDir}/tests/unit/Commands_test.cpp
     ${MegaDir}/tests/unit/constants.h
     ${MegaDir}/tests/unit/Crypto_test.cpp
