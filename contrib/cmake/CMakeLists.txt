@@ -676,6 +676,7 @@ add_executable(test_unit
     ${MegaDir}/tests/unit/FsNode.h
     ${MegaDir}/tests/unit/Logging_test.cpp
     ${MegaDir}/tests/unit/main.cpp
+    ${MegaDir}/tests/unit/MediaProperties_test.cpp
     ${MegaDir}/tests/unit/MegaApi_test.cpp
     ${MegaDir}/tests/unit/NotImplemented.h
     ${MegaDir}/tests/unit/PayCrypter_test.cpp
