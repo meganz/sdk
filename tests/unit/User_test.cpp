@@ -77,3 +77,36 @@ TEST(User, serialize_unserialize)
     auto newUser = mega::User::unserialize(client.get(), &d);
     checkUsers(user, *newUser);
 }
+
+TEST(User, unserialize_32bit)
+{
+    mega::MegaApp app;
+    MockFileSystemAccess fsaccess;
+    auto client = mt::makeClient(app, fsaccess);
+    const std::string email = "foo@bar.com";
+    mega::User user{email.c_str()};
+    user.userhandle = 13;
+    user.ctime = 14;
+    user.show = mega::VISIBLE;
+    std::string firstname1 = "f";
+    std::string firstname2 = "f2";
+    std::string lastname = "oo";
+    user.setattr(mega::ATTR_FIRSTNAME, &firstname1, &firstname2);
+    user.setattr(mega::ATTR_LASTNAME, &lastname, nullptr);
+    std::string key(1024, 'X');
+    user.pubk.setkey(mega::AsymmCipher::PUBKEY, reinterpret_cast<const mega::byte*>(key.c_str()), static_cast<int>(key.size()));
+
+    // This is the result of serialization on 32bit Windows
+    const std::array<char, 63> rawData = {
+        0x0d, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0e, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x0b, 0x66, 0x6f, 0x6f,
+        0x40, 0x62, 0x61, 0x72, 0x2e, 0x63, 0x6f, 0x6d, 0x31, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x02, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x66,
+        0x02, 0x00, 0x66, 0x32, 0x02, 0x00, 0x00, 0x00, 0x02, 0x00, 0x6f, 0x6f,
+        0x01, 0x00, 0x4e
+    };
+    std::string d(rawData.data(), rawData.size());
+
+    auto newUser = mega::User::unserialize(client.get(), &d);
+    checkUsers(user, *newUser);
+}
