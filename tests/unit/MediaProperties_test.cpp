@@ -16,6 +16,8 @@
  * program.
  */
 
+#include <array>
+
 #include <gtest/gtest.h>
 
 #include <mega/mediafileattribute.h>
@@ -53,8 +55,35 @@ TEST(MediaProperties, serialize_unserialize)
     mp.is_VFR = true;
     mp.no_audio = true;
 
-    const auto s = mp.serialize();
+    const auto d = mp.serialize();
 
-    const mega::MediaProperties newMp{s};
+    const mega::MediaProperties newMp{d};
+    checkMediaProperties(mp, newMp);
+}
+
+TEST(MediaProperties, unserialize_32bit)
+{
+    mega::MediaProperties mp;
+    mp.shortformat = 10;
+    mp.width = 11;
+    mp.height = 12;
+    mp.fps = 13;
+    mp.playtime = 14;
+    mp.containerid = 15;
+    mp.videocodecid = 16;
+    mp.audiocodecid = 17;
+    mp.is_VFR = true;
+    mp.no_audio = true;
+
+    // This is the result of serialization on 32bit Windows
+    const std::array<char, 39> rawData = {
+        0x0a, 0x0b, 0x00, 0x00, 0x00, 0x0c, 0x00, 0x00, 0x00, 0x0d, 0x00, 0x00,
+        0x00, 0x0e, 0x00, 0x00, 0x00, 0x0f, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00,
+        0x00, 0x11, 0x00, 0x00, 0x00, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00
+    };
+    const std::string d(rawData.data(), rawData.size());
+
+    const mega::MediaProperties newMp{d};
     checkMediaProperties(mp, newMp);
 }
