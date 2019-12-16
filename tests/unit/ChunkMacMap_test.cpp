@@ -54,3 +54,36 @@ TEST(ChunkMacMap, serialize_unserialize)
     ASSERT_TRUE(newMap.unserialize(data, d.c_str() + d.size()));
     EXPECT_EQ(map, newMap);
 }
+
+TEST(ChunkMacMap, unserialize_32bit)
+{
+    mega::ChunkMAC chunkMac1;
+    std::fill(chunkMac1.mac, chunkMac1.mac + mega::SymmCipher::BLOCKSIZE, 'X');
+    chunkMac1.offset = 13;
+    chunkMac1.finished = true;
+
+    mega::ChunkMAC chunkMac2;
+    std::fill(chunkMac2.mac, chunkMac2.mac + mega::SymmCipher::BLOCKSIZE, 'Y');
+    chunkMac2.offset = 14;
+    chunkMac2.finished = false;
+
+    mega::chunkmac_map map;
+    map[1] = chunkMac1;
+    map[2] = chunkMac2;
+
+    // This is the result of serialization on 32bit Windows
+    const std::array<char, 66> rawData = {
+        0x02, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x58, 0x58,
+        0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58,
+        0x58, 0x58, 0x0d, 0x00, 0x00, 0x00, 0x01, 0xcc, 0xcc, 0xcc, 0x02, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x59, 0x59, 0x59, 0x59, 0x59, 0x59,
+        0x59, 0x59, 0x59, 0x59, 0x59, 0x59, 0x59, 0x59, 0x59, 0x59, 0x0e, 0x00,
+        0x00, 0x00, 0x00, static_cast<char>(0xcc), static_cast<char>(0xcc), static_cast<char>(0xcc)
+    };
+    const std::string d(rawData.data(), rawData.size());
+
+    mega::chunkmac_map newMap;
+    auto data = d.c_str();
+    ASSERT_TRUE(newMap.unserialize(data, d.c_str() + d.size()));
+    EXPECT_EQ(map, newMap);
+}
