@@ -66,6 +66,6 @@ TEST(Share, unserialize_32bit)
     auto data = d.c_str();
     auto newShare = mega::Share::unserialize(-1, 100, key, &data, d.data() + d.size());
 
-    const mega::NewShare expectedNewShare{ 100, -1, 42, mega::RDONLY, 13, key, NULL, 123 };
+    const mega::NewShare expectedNewShare{100, -1, 42, mega::RDONLY, 13, key, NULL, 123};
     checkNewShares(expectedNewShare, *newShare);
 }
