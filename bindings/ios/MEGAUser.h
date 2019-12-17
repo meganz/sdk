@@ -50,7 +50,9 @@ typedef NS_ENUM(NSInteger, MEGAUserChangeType) {
     MEGAUserChangeTypeRubbishTime             = 0x40000,
     MEGAUserChangeTypeStorageState            = 0x80000,
     MEGAUserChangeTypeGeolocation             = 0x100000,
-    MEGAUserChangeTypeCameraUploadsFolder     = 0x200001,
+    MEGAUserChangeTypeCameraUploadsFolder     = 0x200000,
+    MEGAUserChangeTypeMyChatFilesFolder       = 0x400000,
+    MEGAUserChangeTypePushSettings            = 0x800000,
     MEGAUserChangeTypeUserAlias               = 0x1000000
 };
 
