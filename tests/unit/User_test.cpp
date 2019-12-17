@@ -57,6 +57,7 @@ TEST(User, serialize_unserialize)
     mega::MegaApp app;
     MockFileSystemAccess fsaccess;
     auto client = mt::makeClient(app, fsaccess);
+
     const std::string email = "foo@bar.com";
     mega::User user{email.c_str()};
     user.userhandle = 13;
@@ -67,8 +68,9 @@ TEST(User, serialize_unserialize)
     std::string lastname = "oo";
     user.setattr(mega::ATTR_FIRSTNAME, &firstname1, &firstname2);
     user.setattr(mega::ATTR_LASTNAME, &lastname, nullptr);
-    std::string key(1024, 'X');
+    std::string key(128, 1);
     user.pubk.setkey(mega::AsymmCipher::PUBKEY, reinterpret_cast<const mega::byte*>(key.c_str()), static_cast<int>(key.size()));
+    ASSERT_TRUE(user.pubk.isvalid(mega::AsymmCipher::PUBKEY));
 
     std::string d;
     ASSERT_TRUE(user.serialize(&d));
