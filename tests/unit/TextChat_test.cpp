@@ -15,7 +15,7 @@
  * You should have received a copy of the license along with this
  * program.
  */
-
+#ifdef ENABLE_CHAT
 #include <gtest/gtest.h>
 
 #include <mega/megaclient.h>
@@ -124,3 +124,4 @@ TEST(TextChat, unserialize_32bit)
     auto newTc = mega::TextChat::unserialize(client.get(), &d);
     checkTextChats(tc, *newTc);
 }
+#endif
