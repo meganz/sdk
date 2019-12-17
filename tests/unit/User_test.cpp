@@ -30,7 +30,6 @@ namespace
 
 class MockFileSystemAccess : public mt::DefaultedFileSystemAccess
 {
-public:
 };
 
 void checkUsers(mega::User& exp, mega::User& act)
