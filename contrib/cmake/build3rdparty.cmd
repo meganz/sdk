@@ -70,7 +70,7 @@ REM      c:\cmake\bin\cmake.exe --build build_x86 --config Release
 REM      c:\cmake\bin\cmake.exe --build build_x64 --config Debug
 REM      c:\cmake\bin\cmake.exe --build build_x64 --config Release
 REM - And then we also need to build its version of freetype:
-REM      cd third_party\freetype
+REM      cd third_party\freetype\src
 REM      mkdir build_x86
 REM      mkdir build_x64
 REM      c:\cmake\bin\cmake.exe -B build_x86 -G "Visual Studio 15 2017"         -DCMAKE_CONFIGURATION_TYPES="Debug;Release" .

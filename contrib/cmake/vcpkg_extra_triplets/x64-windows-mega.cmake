@@ -1,0 +1,9 @@
+set(VCPKG_TARGET_ARCHITECTURE x64)
+set(VCPKG_CRT_LINKAGE dynamic)
+set(VCPKG_LIBRARY_LINKAGE dynamic)
+
+if(PORT MATCHES "zlib" OR PORT MATCHES "sqlite" OR PORT MATCHES "libuv" OR PORT MATCHES "cryptopp" OR PORT MATCHES "libjpeg-turbo" OR PORT MATCHES "icu" OR PORT MATCHES "freetype" OR PORT MATCHES "lcms" OR PORT MATCHES "zlib" OR PORT MATCHES "openjpeg")
+	set(VCPKG_LIBRARY_LINKAGE static)
+else()
+    set(VCPKG_LIBRARY_LINKAGE dynamic)
+endif()
