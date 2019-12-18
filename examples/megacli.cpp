@@ -2407,8 +2407,18 @@ bool recursiveCompare(Node* mn, fs::path p)
 
     multimap<string, Node*> ms;
     multimap<string, fs::path> ps;
-    for (auto& m : mn->children) ms.emplace(m->displayname(), m);
-    for (fs::directory_iterator pi(p); pi != fs::directory_iterator(); ++pi) ps.emplace(pi->path().filename().u8string(), pi->path());
+    for (auto& m : mn->children)
+    {
+        string leafname = m->displayname();
+        client->fsaccess->escapefsincompatible(&leafname);
+        ms.emplace(leafname, m);
+    }
+    for (fs::directory_iterator pi(p); pi != fs::directory_iterator(); ++pi)
+    {
+        auto leafname = pi->path().filename().u8string();
+        client->fsaccess->escapefsincompatible(&leafname);
+        ps.emplace(leafname, pi->path());
+    }
 
     for (auto p_iter = ps.begin(); p_iter != ps.end(); )
     {
@@ -2497,6 +2507,9 @@ void exec_codeTimings(autocomplete::ACState& s)
 fs::path pathFromLocalPath(const string& s, bool mustexist)
 {
     fs::path p = s.empty() ? fs::current_path() : fs::u8path(s);
+#ifdef WIN32
+    p = fs::u8path("\\\\?\\" + p.u8string());
+#endif
     if (mustexist && !fs::exists(p))
     {
         cout << "local path not found: '" << s << "'";
