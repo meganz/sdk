@@ -4692,7 +4692,7 @@ MegaFile *MegaFile::unserialize(string *d)
 
 MegaFileGet::MegaFileGet(MegaClient *client, Node *n, string dstPath) : MegaFile()
 {
-    h = n->nodehandle;
+    setH(n->nodehandle);
     *(FileFingerprint*)this = *n;
 
     string securename = n->displayname();
@@ -4721,7 +4721,7 @@ MegaFileGet::MegaFileGet(MegaClient *client, Node *n, string dstPath) : MegaFile
 
 MegaFileGet::MegaFileGet(MegaClient *client, MegaNode *n, string dstPath) : MegaFile()
 {
-    h = n->getHandle();
+    setH(n->getHandle());
     name = n->getName();
     string finalPath;
     if(dstPath.size())
@@ -4888,7 +4888,7 @@ MegaFilePut::MegaFilePut(MegaClient *, string* clocalname, string *filename, han
     localname = *clocalname;
 
     // target parent node
-    h = ch;
+    setH(ch);
 
     // target user
     targetuser = ctargetuser;
@@ -11640,7 +11640,7 @@ void MegaApiImpl::file_added(File *f)
 
         if (t->type == GET)
         {
-            transfer->setNodeHandle(f->h);
+            transfer->setNodeHandle(f->getH());
         }
         else
         {
@@ -11653,7 +11653,7 @@ void MegaApiImpl::file_added(File *f)
             else
 #endif
             {
-                transfer->setParentHandle(f->h);
+                transfer->setParentHandle(f->getH());
             }
         }
 
@@ -17771,7 +17771,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                                 Transfer *t = it->second;
                                 for (file_list::iterator fi = t->files.begin(); fi != t->files.end(); fi++)
                                 {
-                                    if (f->h != UNDEF && f->h == (*fi)->h && !f->targetuser.size()
+                                    if (f->getH() != UNDEF && f->getH() == (*fi)->getH() && !f->targetuser.size()
                                             && !(*fi)->targetuser.size() && f->name == (*fi)->name)
                                     {
                                         prevTransfer = getMegaTransferPrivate((*fi)->tag);

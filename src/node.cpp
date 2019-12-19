@@ -1757,13 +1757,13 @@ void LocalNode::completed(Transfer* t, LocalNode*)
     // exist or is newer
     if (!parent || !parent->node || (node && mtime < node->mtime))
     {
-        h = t->client->rootnodes[RUBBISHNODE - ROOTNODE];
+        setH(t->client->rootnodes[RUBBISHNODE - ROOTNODE]);
     }
     else
     {
         // otherwise, overwrite node if it already exists and complete in its
         // place
-        h = parent->node->nodehandle;
+        setH(parent->node->nodehandle);
     }
 
     File::completed(t, this);

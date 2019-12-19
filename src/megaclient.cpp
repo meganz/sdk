@@ -3254,7 +3254,7 @@ bool MegaClient::dispatch(direction_t d)
                     {
                         // the size field must be valid right away for
                         // MegaClient::moretransfers()
-                        if ((n = nodebyhandle((*it)->h)) && n->type == FILENODE)
+                        if ((n = nodebyhandle((*it)->getH())) && n->type == FILENODE)
                         {
                             k = (const byte*)n->nodekey().data();
                             nexttransfer->size = n->size;
@@ -3421,9 +3421,9 @@ bool MegaClient::dispatch(direction_t d)
                     for (file_list::iterator it = nexttransfer->files.begin();
                          it != nexttransfer->files.end(); it++)
                     {
-                        if (!(*it)->hprivate || (*it)->hforeign || nodebyhandle((*it)->h))
+                        if (!(*it)->hprivate || (*it)->hforeign || nodebyhandle((*it)->getH()))
                         {
-                            h = (*it)->h;
+                            h = (*it)->getH();
                             hprivate = (*it)->hprivate;
                             privauth = (*it)->privauth.size() ? (*it)->privauth.c_str() : NULL;
                             pubauth = (*it)->pubauth.size() ? (*it)->pubauth.c_str() : NULL;
@@ -13079,7 +13079,7 @@ void MegaClient::syncupdate()
 
                 if (l->parent->node)
                 {
-                    l->h = l->parent->node->nodehandle;
+                    l->setH(l->parent->node->nodehandle);
                 }
 
                 nextreqtag();
@@ -13103,8 +13103,6 @@ void MegaClient::syncupdate()
             {
                 syncadding++;
 
-                assert(localNode->type == FOLDERNODE
-                       || localNode->h == localNode->parent->node->nodehandle); // if it's a file, it should match
                 reqs.add(new CommandPutNodes(this,
                                                 localNode->parent->node->nodehandle,
                                                 NULL, nn, int(nnp - nn),
@@ -13500,8 +13498,8 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
                 for (file_list::iterator fi = t->files.begin(); fi != t->files.end(); fi++)
                 {
                     if ((d == GET && f->localname == (*fi)->localname)
-                            || (d == PUT && f->h != UNDEF
-                                && f->h == (*fi)->h
+                            || (d == PUT && f->getH() != UNDEF
+                                && f->getH() == (*fi)->getH()
                                 && !f->targetuser.size()
                                 && !(*fi)->targetuser.size()
                                 && f->name == (*fi)->name))
@@ -13645,8 +13643,8 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
             }
         }
 
-        assert( (ISUNDEF(f->h) && f->targetuser.size() && (f->targetuser.size() == 11 || f->targetuser.find("@")!=string::npos) ) // <- uploading to inbox
-                || (!ISUNDEF(f->h) && (nodebyhandle(f->h) || d == GET) )); // target handle for the upload should be known at this time (except for inbox uploads)
+        assert( (ISUNDEF(f->getH()) && f->targetuser.size() && (f->targetuser.size() == 11 || f->targetuser.find("@")!=string::npos) ) // <- uploading to inbox
+                || (!ISUNDEF(f->getH()) && (nodebyhandle(f->getH()) || d == GET) )); // target handle for the upload should be known at this time (except for inbox uploads)
     }
 
     return true;

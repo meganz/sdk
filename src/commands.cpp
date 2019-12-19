@@ -330,9 +330,9 @@ CommandPutFile::CommandPutFile(MegaClient* client, TransferSlot* ctslot, int ms)
     bool begun = false;
     for (auto &file : tslot->transfer->files)
     {
-        if (!ISUNDEF(file->h))
+        if (!ISUNDEF(file->getH()))
         {
-            Node *node = client->nodebyhandle(file->h);
+            Node *node = client->nodebyhandle(file->getH());
             if (node)
             {
                 handle rootnode = client->getrootnode(node)->nodehandle;
@@ -349,7 +349,8 @@ CommandPutFile::CommandPutFile(MegaClient* client, TransferSlot* ctslot, int ms)
                 begun = true;
             }
 
-            element((byte*)&file->h, MegaClient::NODEHANDLE);
+            auto h = file->getH();
+            element((byte*)&h, MegaClient::NODEHANDLE);
         }
     }
 
@@ -362,7 +363,7 @@ CommandPutFile::CommandPutFile(MegaClient* client, TransferSlot* ctslot, int ms)
         // Target user goes alone, not inside an array. Note: we are skipping this if a)more than two b)the array had been created for node handles
         for (auto &file : tslot->transfer->files)
         {
-            if (ISUNDEF(file->h) && file->targetuser.size())
+            if (ISUNDEF(file->getH()) && file->targetuser.size())
             {
                 arg("t", file->targetuser.c_str());
                 break;

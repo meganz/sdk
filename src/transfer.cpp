@@ -378,7 +378,7 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
             bool allForeignTargets = true;
             for (auto &file : files)
             {
-                if (client->isPrivateNode(file->h))
+                if (client->isPrivateNode(file->getH()))
                 {
                     allForeignTargets = false;
                     break;
@@ -417,7 +417,7 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
         // Remove files with foreign targets, if transfer failed with a (foreign) storage overquota
         if (e == API_EOVERQUOTA
                 && !timeleft
-                && client->isForeignNode((*it)->h))
+                && client->isForeignNode((*it)->getH()))
         {
             File *f = (*it++);
             removeTransferFile(API_EOVERQUOTA, f, &committer);
@@ -560,7 +560,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 
     if (type == GET)
     {
-        LOG_debug << "Download complete: " << (files.size() ? LOG_NODEHANDLE(files.front()->h) : "NO_FILES") << " " << files.size();
+        LOG_debug << "Download complete: " << (files.size() ? LOG_NODEHANDLE(files.front()->getH()) : "NO_FILES") << " " << files.size();
 
         bool transient_error = false;
         string tmplocalname;
@@ -599,7 +599,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                 syncxfer = true;
             }
 
-            if (!fixedfingerprint && (n = client->nodebyhandle((*it)->h))
+            if (!fixedfingerprint && (n = client->nodebyhandle((*it)->getH()))
                  && !(*(FileFingerprint*)this == *(FileFingerprint*)n))
             {
                 LOG_debug << "Wrong fingerprint already fixed";
@@ -669,7 +669,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                 set<handle> nodes;
                 for (file_list::iterator it = files.begin(); it != files.end(); it++)
                 {
-                    if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodebyhandle((*it)->h))
+                    if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodebyhandle((*it)->getH()))
                             && nodes.find(n->nodehandle) == nodes.end())
                     {
                         nodes.insert(n->nodehandle);
@@ -853,7 +853,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                 if (success)
                 {
                     // set missing node attributes
-                    if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodebyhandle((*it)->h)))
+                    if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodebyhandle((*it)->getH())))
                     {
                         if (!client->gfxdisabled && client->gfx && client->gfx->isgfx(&localname) &&
                                 keys.find(n->nodekey()) == keys.end() &&    // this file hasn't been processed yet

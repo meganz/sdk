@@ -36,7 +36,7 @@ File::File()
     hforeign = false;
     syncxfer = false;
     temporaryfile = false;
-    h = UNDEF;
+    mH = UNDEF;
     tag = 0;
 }
 
@@ -84,7 +84,7 @@ bool File::serialize(string *d)
     d->append((char*)&ll, sizeof(ll));
     d->append(pubauth.data(), ll);
 
-    d->append((const char*)&h, sizeof(h));
+    d->append((const char*)&mH, sizeof(mH));
     d->append((const char*)filekey, sizeof(filekey));
 
     flag = hprivate;
@@ -211,7 +211,7 @@ File *File::unserialize(string *d)
     file->privauth.assign(privauth, privauthlen);
     file->pubauth.assign(pubauth, pubauthlen);
 
-    file->h = MemAccess::get<handle>(ptr);
+    file->setH(MemAccess::get<handle>(ptr));
     ptr += sizeof(handle);
 
     memcpy(file->filekey, ptr, FILENODEKEYLENGTH);
@@ -335,7 +335,7 @@ void File::completed(Transfer* t, LocalNode* l)
         }
         else
         {
-            handle th = h;
+            handle th = mH;
 
             // inaccessible target folder - use //bin instead
             if (!t->client->nodebyhandle(th))
@@ -430,7 +430,7 @@ void File::displayname(string* dname)
     {
         Node* n;
 
-        if ((n = transfer->client->nodebyhandle(h)))
+        if ((n = transfer->client->nodebyhandle(mH)))
         {
             *dname = n->displayname();
         }
@@ -447,7 +447,7 @@ SyncFileGet::SyncFileGet(Sync* csync, Node* cn, string* clocalname)
     sync = csync;
 
     n = cn;
-    h = n->nodehandle;
+    setH(n->nodehandle);
     *(FileFingerprint*)this = *n;
     localname = *clocalname;
 
