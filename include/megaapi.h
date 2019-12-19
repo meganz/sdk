@@ -2551,6 +2551,11 @@ public:
     * @return Number of MegaUserAlert objects in the list
     */
     virtual int size() const;
+
+    /**
+     * @brief Removes all MegaUserAlert objects from the list (does not delete them)
+     */
+    virtual void clear();
 };
 
 
@@ -2745,6 +2750,7 @@ class MegaRequest
             TYPE_SEND_SMS_VERIFICATIONCODE, TYPE_CHECK_SMS_VERIFICATIONCODE,
             TYPE_GET_REGISTERED_CONTACTS, TYPE_GET_COUNTRY_CALLING_CODES,
             TYPE_VERIFY_CREDENTIALS, TYPE_GET_MISC_FLAGS, TYPE_RESEND_VERIFICATION_EMAIL,
+            TYPE_SUPPORT_TICKET,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -3649,6 +3655,7 @@ class MegaTransfer
          * @brief Returns the parent path related to this request
          *
          * For uploads, this function returns the path to the folder containing the source file.
+         *  except when uploading files for support: it will return the support account then.
          * For downloads, it returns that path to the folder containing the destination file.
          *
          * The SDK retains the ownership of the returned value. It will be valid until
@@ -10703,6 +10710,20 @@ class MegaApi
         void sendEvent(int eventType, const char* message, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Create a new ticket for support with attached description
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SUPPORT_TICKET
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the type of the ticket
+         * - MegaRequest::getText - Returns the description of the issue
+         *
+         * @param message Description of the issue for support
+         * @param eventType Event type (use 1 for support tickets)
+         * @param listener MegaRequestListener to track this request
+         */
+        void createSupportTicket(const char* message, int type = 1, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Send a debug report
          *
          * The User-Agent is used to identify the app. It can be set in MegaApi::MegaApi
@@ -10754,6 +10775,24 @@ class MegaApi
         bool usingHttpsOnly();
 
         ///////////////////   TRANSFERS ///////////////////
+
+        /**
+         * @brief Upload a file to support
+         *
+         * If the status of the business account is expired, onTransferFinish will be called with the error
+         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+         * "Your business account is overdue, please contact your administrator."
+         *
+         * For folders, onTransferFinish will be called with error MegaError:API_EARGS;
+         *
+         * @param localPath Local path of the file
+         * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
+         * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
+         * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
+         * @param listener MegaTransferListener to track this transfer
+         */
+        void startUploadForSupport(const char* localPath, bool isSourceTemporary = false, MegaTransferListener *listener=NULL);
+
 
         /**
          * @brief Upload a file or a folder

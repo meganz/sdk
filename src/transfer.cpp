@@ -1073,24 +1073,6 @@ void Transfer::completefiles()
     ids.push_back(dbid);
 }
 
-m_off_t Transfer::nextpos()
-{
-    while (chunkmacs.find(ChunkedHash::chunkfloor(pos)) != chunkmacs.end() && pos < size)
-    {    
-        if (chunkmacs[ChunkedHash::chunkfloor(pos)].finished)
-        {
-            pos = ChunkedHash::chunkceil(pos, size);
-        }
-        else
-        {
-            pos += chunkmacs[ChunkedHash::chunkfloor(pos)].offset;
-            break;
-        }
-    }
-
-    return pos;
-}
-
 DirectReadNode::DirectReadNode(MegaClient* cclient, handle ch, bool cp, SymmCipher* csymmcipher, int64_t cctriv, const char *privauth, const char *pubauth, const char *cauth)
 {
     client = cclient;

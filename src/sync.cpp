@@ -513,9 +513,10 @@ bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, h
 
 // new Syncs are automatically inserted into the session's syncs list
 // and a full read of the subtree is initiated
-Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
+Sync::Sync(MegaClient* cclient, SyncConfig config, string* crootpath, const char* cdebris,
            string* clocaldebris, Node* remotenode, fsfp_t cfsfp, bool cinshare, int ctag, void *cappdata)
-    : localroot(new LocalNode)
+: localroot(new LocalNode)
+, mConfig(config)
 {
     isnetwork = false;
     client = cclient;
@@ -642,28 +643,22 @@ Sync::~Sync()
     if (localroot->node)
     {
         TreeProcDelSyncGet tdsg;
-        if (client)
-        {
-            // Create a committer to ensure we update the transfer database in an efficient single commit,
-            // if there are transactions in progress.
-            DBTableTransactionCommitter committer(client->tctable);
-            client->proctree(localroot->node, &tdsg);
-        }
+        // Create a committer to ensure we update the transfer database in an efficient single commit,
+        // if there are transactions in progress.
+        DBTableTransactionCommitter committer(client->tctable);
+        client->proctree(localroot->node, &tdsg);
     }
 
     delete statecachetable;
 
-    if (client)
-    {
-        client->syncs.erase(sync_it);
-        client->syncactivity = true;
+    client->syncs.erase(sync_it);
+    client->syncactivity = true;
 
-        {
-            // Create a committer and recursively delete all the associated LocalNodes, and their associated transfer and file objects.
-            // If any have transactions in progress, the committer will ensure we update the transfer database in an efficient single commit.
-            DBTableTransactionCommitter committer(client->tctable);
-            localroot.reset();
-        }
+    {
+        // Create a committer and recursively delete all the associated LocalNodes, and their associated transfer and file objects.
+        // If any have transactions in progress, the committer will ensure we update the transfer database in an efficient single commit.
+        DBTableTransactionCommitter committer(client->tctable);
+        localroot.reset();
     }
 }
 
@@ -740,6 +735,11 @@ bool Sync::readstatecache()
     }
 
     return false;
+}
+
+const SyncConfig& Sync::getConfig() const
+{
+    return mConfig;
 }
 
 // remove LocalNode from DB cache

@@ -314,6 +314,30 @@ TEST(FileFingerprint, serialize_unserialize)
     ASSERT_EQ(ffp2->isvalid, ffp.isvalid);
 }
 
+TEST(FileFingerprint, unserialize_32bit)
+{
+    mega::FileFingerprint ffp;
+    ffp.size = 1;
+    ffp.mtime = 2;
+    std::iota(ffp.crc.begin(), ffp.crc.end(), 3);
+    ffp.isvalid = true;
+
+    // This is the result of serialization on 32bit Windows
+    const std::array<char, 33> rawData = {
+        0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00,
+        0x05, 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00, 0x01
+    };
+    std::string data(rawData.data(), rawData.size());
+
+    auto ffp2 = std::unique_ptr<mega::FileFingerprint>{mega::FileFingerprint::unserialize(&data)};
+
+    ASSERT_EQ(ffp2->size, ffp.size);
+    ASSERT_EQ(ffp2->mtime, ffp.mtime);
+    ASSERT_EQ(ffp2->crc, ffp.crc);
+    ASSERT_EQ(ffp2->isvalid, ffp.isvalid);
+}
+
 TEST(FileFingerprint, unserialize_butStringTooShort)
 {
     std::string data = "blah";

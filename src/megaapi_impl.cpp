@@ -3836,6 +3836,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_VERIFY_CREDENTIALS: return "VERIFY_CREDENTIALS";
         case TYPE_GET_MISC_FLAGS: return "GET_MISC_FLAGS";
         case TYPE_RESEND_VERIFICATION_EMAIL: return "RESEND_VERIFICATION_EMAIL";
+        case TYPE_SUPPORT_TICKET: return "SUPPORT_TICKET";
     }
     return "UNKNOWN";
 }
@@ -4330,6 +4331,13 @@ MegaUserAlert *MegaUserAlertListPrivate::get(int i) const
 int MegaUserAlertListPrivate::size() const
 {
     return s;
+}
+
+void MegaUserAlertListPrivate::clear()
+{
+    delete[] list;
+    s = 0;
+    list = nullptr;
 }
 
 MegaRecentActionBucketPrivate::MegaRecentActionBucketPrivate(recentaction& ra, MegaClient* mc)
@@ -5146,6 +5154,7 @@ MegaApiImpl::~MegaApiImpl()
         delete it->second;
     }
 
+    delete client;    //  only delete client now that transfers that might refer to it are finally removed.
     delete gfxAccess;
     delete fsAccess;
     delete waiter;
@@ -6215,18 +6224,19 @@ void MegaApiImpl::loop()
             }
             sendPendingRequests();
             sendPendingScRequest();
-            if(threadExit)
-                break;
+            if (threadExit)
+            {
+                // The ~MegaApiImpl() destructor is responsible for deleting the client after join()ing the thread
+                // But first call locallogout() which may call back to the app (on this thread as usual) to close some requestMap items etc
+                client->locallogout(false);
+                return;
+            }
 
             sdkMutex.lock();
             client->exec();
             sdkMutex.unlock();
         }
     }
-
-    sdkMutex.lock();
-    delete client;
-    sdkMutex.unlock();
 }
 
 
@@ -6989,6 +6999,15 @@ void MegaApiImpl::sendEvent(int eventType, const char *message, MegaRequestListe
     waiter->notify();
 }
 
+void MegaApiImpl::createSupportTicket(const char *message, int type, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SUPPORT_TICKET, listener);
+    request->setParamType(type);
+    request->setText(message);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::useHttpsOnly(bool usehttps, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_USE_HTTPS_ONLY, listener);
@@ -7331,7 +7350,7 @@ bool MegaApiImpl::hasToForceUpload(const Node &node, const MegaTransferPrivate &
     bool canForceUpload = transfer.isStreamingTransfer();
     bool isPdf = name.find(".pdf") != string::npos;
 
-    return canForceUpload && (isMedia || isPdf) && !hasPreview && !hasThumbnail;
+    return canForceUpload && (isMedia || isPdf) && !(hasPreview && hasThumbnail);
 }
 
 void MegaApiImpl::inviteContact(const char *email, const char *message, int action, MegaHandle contactLink, MegaRequestListener *listener)
@@ -7941,7 +7960,7 @@ void MegaApiImpl::startTimer( int64_t period, MegaRequestListener *listener)
     waiter->notify();
 }
 
-void MegaApiImpl::startUpload(bool startFirst, const char *localPath, MegaNode *parent, const char *fileName, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, MegaTransferListener *listener)
+void MegaApiImpl::startUpload(bool startFirst, const char *localPath, MegaNode *parent, const char *fileName, const char *targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, MegaTransferListener *listener)
 {
     MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_UPLOAD, listener);
     if(localPath)
@@ -7957,6 +7976,11 @@ void MegaApiImpl::startUpload(bool startFirst, const char *localPath, MegaNode *
     if(parent)
     {
         transfer->setParentHandle(parent->getHandle());
+    }
+
+    if (targetUser)
+    {
+        transfer->setParentPath(targetUser);
     }
 
     transfer->setMaxRetries(maxRetries);
@@ -7984,6 +8008,9 @@ void MegaApiImpl::startUpload(bool startFirst, const char *localPath, MegaNode *
     waiter->notify();
 }
 
+void MegaApiImpl::startUpload(bool startFirst, const char *localPath, MegaNode *parent, const char *fileName, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, MegaTransferListener *listener)
+{ return startUpload(startFirst, localPath, parent, fileName, nullptr, mtime, folderTransferTag, isBackup, appData, isSourceFileTemporary, forceNewUpload, listener); }
+
 void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, MegaTransferListener *listener)
 { return startUpload(false, localPath, parent, (const char *)NULL, -1, 0, false, NULL, false, false, listener); }
 
@@ -7992,6 +8019,11 @@ void MegaApiImpl::startUpload(const char *localPath, MegaNode *parent, int64_t m
 
 void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener)
 { return startUpload(false, localPath, parent, fileName, -1, 0, false, NULL, false, false, listener); }
+
+void MegaApiImpl::startUploadForSupport(const char *localPath, bool isSourceTemporary, MegaTransferListener *listener)
+{
+    return startUpload(true, localPath, nullptr, nullptr, "pGTOqu7_Fek", -1, 0, false, nullptr, isSourceTemporary, false, listener);
+}
 
 void MegaApiImpl::startDownload(bool startFirst, MegaNode *node, const char* localPath, int folderTransferTag, const char *appData, MegaTransferListener *listener)
 {
@@ -8352,7 +8384,7 @@ void MegaApiImpl::resumeSync(const char *localFolder, long long localfp, MegaNod
         sync->setLocalFingerprint(localfp);
         sync->setRegExp(regExp);
 
-        e = client->addsync(&localname, DEBRISFOLDER, NULL, node, localfp, -nextTag, sync);
+        e = client->addsync(SyncConfig{}, &localname, DEBRISFOLDER, NULL, node, localfp, -nextTag, sync);
         if (!e)
         {
             Sync *s = client->syncs.back();
@@ -13585,6 +13617,15 @@ void MegaApiImpl::sendevent_result(error e)
     fireOnRequestFinish(request, MegaError(e));
 }
 
+void MegaApiImpl::supportticket_result(error e)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_SUPPORT_TICKET)) return;
+
+    fireOnRequestFinish(request, MegaError(e));
+}
+
 void MegaApiImpl::creditcardstore_result(error e)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
@@ -13794,8 +13835,7 @@ void MegaApiImpl::request_error(error e)
 
     if (e == API_ESID)
     {
-        client->removecaches();
-        client->locallogout();
+        client->locallogout(true);
     }
     requestQueue.push(request);
     waiter->notify();
@@ -14918,8 +14958,7 @@ void MegaApiImpl::whyamiblocked_result(int code)
             && code != 500  // don't log out if we can be unblocked via sms verification
             && code != 700) // don't log out if we can be unblocked via verification email (weak account protection)
     {
-        client->removecaches();
-        client->locallogout();
+        client->locallogout(true);
 
         MegaRequestPrivate *logoutRequest = new MegaRequestPrivate(MegaRequest::TYPE_LOGOUT);
         logoutRequest->setFlag(false);
@@ -16373,7 +16412,7 @@ int naturalsorting_compare (const char *i, const char *j)
             while ( (char_i = *i) && (char_j = *j) )
             {
                 bool char_i_isDigit = isDigit(i);
-                bool char_j_isDigit = isDigit(j);;
+                bool char_j_isDigit = isDigit(j);
 
                 if (char_i_isDigit && char_j_isDigit)
                 {
@@ -16496,7 +16535,7 @@ void MegaApiImpl::sortByComparatorFunction(node_vector& v, int order, MegaClient
 bool MegaApiImpl::nodeNaturalComparatorASC(Node *i, Node *j)
 {
     int r = naturalsorting_compare(i->displayname(), j->displayname());
-    if (r < 0 || (!r && i < j))
+    if (r < 0)
     {
         return 1;
     }
@@ -16506,7 +16545,7 @@ bool MegaApiImpl::nodeNaturalComparatorASC(Node *i, Node *j)
 bool MegaApiImpl::nodeNaturalComparatorDESC(Node *i, Node *j)
 {
     int r = naturalsorting_compare(i->displayname(), j->displayname());
-    if (r < 0 || (!r && i < j))
+    if (r <= 0)
     {
         return 0;
     }
@@ -17577,7 +17616,11 @@ unsigned MegaApiImpl::sendPendingTransfers()
                 Node *parent = client->nodebyhandle(transfer->getParentHandle());
                 bool startFirst = transfer->shouldStartFirst();
 
-                if (!localPath || !parent || parent->type == FILENODE || !fileName || !(*fileName))
+                bool uploadToInbox = ISUNDEF(transfer->getParentHandle()) && transfer->getParentPath() && (strchr(transfer->getParentPath(), '@') || (strlen(transfer->getParentPath()) == 11));
+                const char *inboxTarget = uploadToInbox ? transfer->getParentPath() : nullptr;
+
+                if (!localPath || !fileName || !(*fileName)
+                        || (!uploadToInbox && (!parent || parent->type == FILENODE) ) )
                 {
                     e = API_EARGS;
                     break;
@@ -17595,6 +17638,14 @@ unsigned MegaApiImpl::sendPendingTransfers()
                 }
 
                 nodetype_t type = fa->type;
+                if (type == FOLDERNODE && uploadToInbox)
+                {
+                    //Folder upload is not possible when sending to Inbox:
+                    //API won't return handle for folder creation, and even if that was the case
+                    //doing a put nodes with t = userhandle & the corresponding handle as parent p, API returns EACCESS
+                    e = API_EREAD;
+                    break;
+                }
                 m_off_t size = fa->size;
                 FileFingerprint fp;
                 if (type == FILENODE)
@@ -17671,7 +17722,15 @@ unsigned MegaApiImpl::sendPendingTransfers()
                             {
                                 tc.nn->ovhandle = client->getovhandle(parent, &sname);
                             }
-                            client->putnodes(parent->nodehandle, tc.nn, nc);
+
+                            if (uploadToInbox)
+                            {
+                                client->putnodes(inboxTarget, tc.nn, nc);
+                            }
+                            else
+                            {
+                                client->putnodes(parent->nodehandle, tc.nn, nc);
+                            }
 
                             transfer->setDeltaSize(size);
                             transfer->setSpeed(0);
@@ -17685,7 +17744,8 @@ unsigned MegaApiImpl::sendPendingTransfers()
 
                     currentTransfer = transfer;                    
                     string wFileName = fileName;
-                    MegaFilePut *f = new MegaFilePut(client, &wLocalPath, &wFileName, transfer->getParentHandle(), "", mtime, isSourceTemporary);
+                    MegaFilePut *f = new MegaFilePut(client, &wLocalPath, &wFileName, transfer->getParentHandle(), uploadToInbox ? inboxTarget : "", mtime, isSourceTemporary);
+                    *static_cast<FileFingerprint*>(f) = fp;  // deliberate slicing - startxfer would re-fingerprint if we don't supply this info
                     f->setTransfer(transfer);
                     bool started = client->startxfer(PUT, f, committer, true, startFirst, transfer->isBackupTransfer());
                     if (!started)
@@ -18249,7 +18309,7 @@ void MegaApiImpl::sendPendingRequests()
 
             requestMap[request->getTag()]=request;
 
-            client->locallogout();
+            client->locallogout(false);
             if (sessionKey)
             {
                 byte session[MAX_SESSION_LENGTH];
@@ -18957,7 +19017,7 @@ void MegaApiImpl::sendPendingRequests()
             }
             else
             {
-                client->locallogout();
+                client->locallogout(false);
                 client->restag = nextTag;
                 logout_result(API_OK);
             }
@@ -19676,7 +19736,7 @@ void MegaApiImpl::sendPendingRequests()
 
                 requestMap[reqtag] = request;
 
-                client->locallogout();
+                client->locallogout(false);
 
                 if (resumeProcess)
                 {
@@ -20445,7 +20505,7 @@ void MegaApiImpl::sendPendingRequests()
             sync->setListener(request->getSyncListener());
             sync->setRegExp(request->getRegExp());
 
-            e = client->addsync(&localname, DEBRISFOLDER, NULL, node, 0, -nextTag, sync);
+            e = client->addsync(SyncConfig{}, &localname, DEBRISFOLDER, NULL, node, 0, -nextTag, sync);
             if (!e)
             {
                 Sync *s = client->syncs.back();
@@ -20673,6 +20733,20 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             client->sendevent(number, text);
+            break;
+        }
+        case MegaRequest::TYPE_SUPPORT_TICKET:
+        {
+            int type = request->getParamType();
+            const char *message = request->getText();
+
+            if (type != 1 || !message)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            client->supportticket(message, type);
             break;
         }
         case MegaRequest::TYPE_GET_USER_DATA:
@@ -23335,7 +23409,8 @@ void MegaFolderUploadController::onFolderAvailable(MegaHandle handle)
     {
         size_t t = localPath.size();
 
-        while (da->dnext(&localPath, &localname, client->followsymlinks))
+        nodetype_t dirEntryType;
+        while (da->dnext(&localPath, &localname, client->followsymlinks, &dirEntryType))
         {
             if (t)
             {
@@ -23344,35 +23419,30 @@ void MegaFolderUploadController::onFolderAvailable(MegaHandle handle)
 
             localPath.append(localname);
 
-            auto fa = client->fsaccess->newfileaccess();
-            if (fa->fopen(&localPath, true, false))
+            string name = localname;
+            client->fsaccess->local2name(&name);
+            if (dirEntryType == FILENODE)
             {
-                string name = localname;
-                client->fsaccess->local2name(&name);
-                if (fa->type == FILENODE)
-                {
-                    pendingTransfers++;
-                    string utf8path;
-                    client->fsaccess->local2path(&localPath, &utf8path);
+                pendingTransfers++;
+                string utf8path;
+                client->fsaccess->local2path(&localPath, &utf8path);
                     megaApi->startUpload(false, utf8path.c_str(), parent, (const char *)NULL, -1, tag, false, NULL, false, false, this);
+            }
+            else if (dirEntryType == FOLDERNODE)
+            {
+                MegaNode *child = megaApi->getChildNode(parent, name.c_str());
+                if(!child || !child->isFolder())
+                {
+                    pendingFolders.push_back(localPath);
+                    megaApi->createFolder(name.c_str(), parent, this);
                 }
                 else
                 {
-                    MegaNode *child = megaApi->getChildNode(parent, name.c_str());
-                    if(!child || !child->isFolder())
-                    {
-                        pendingFolders.push_back(localPath);
-                        megaApi->createFolder(name.c_str(), parent, this);
-                    }
-                    else
-                    {
-                        pendingFolders.push_front(localPath);
-                        onFolderAvailable(child->getHandle());
-                    }
-                    delete child;
+                    pendingFolders.push_front(localPath);
+                    onFolderAvailable(child->getHandle());
                 }
+                delete child;
             }
-
             localPath.resize(t);
         }
     }
@@ -23518,7 +23588,7 @@ MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, int fo
     }
     else
     {
-        this->state = MegaBackup::BACKUP_FAILED;;
+        this->state = MegaBackup::BACKUP_FAILED;
     }
 }
 
@@ -24820,19 +24890,20 @@ StreamingBuffer::~StreamingBuffer()
     delete [] buffer;
 }
 
-void StreamingBuffer::init(unsigned int capacity)
+void StreamingBuffer::init(m_off_t capacity)
 {
+    assert(capacity > 0);
     if (capacity > maxBufferSize)
     {
         capacity = maxBufferSize;
     }
 
-    this->capacity = capacity;
-    this->buffer = new char[capacity];
+    this->capacity = static_cast<unsigned>(capacity);
+    this->buffer = new char[this->capacity];
     this->inpos = 0;
     this->outpos = 0;
     this->size = 0;
-    this->free = capacity;
+    this->free = this->capacity;
 }
 
 unsigned int StreamingBuffer::append(const char *buf, unsigned int len)
@@ -25574,7 +25645,7 @@ void MegaTCPServer::onNewClient(uv_stream_t* server_handle, int status)
 void MegaTCPServer::allocBuffer(uv_handle_t *, size_t suggested_size, uv_buf_t* buf)
 {
     // Reserve a buffer with the suggested size
-    *buf = uv_buf_init(new char[suggested_size], suggested_size);
+    *buf = uv_buf_init(new char[suggested_size], static_cast<unsigned>(suggested_size));
 }
 
 void MegaTCPServer::onDataReceived(uv_stream_t* tcp, ssize_t nread, const uv_buf_t * buf)
@@ -25613,7 +25684,7 @@ void MegaTCPServer::on_tcp_read(uv_stream_t *tcp, ssize_t nrd, const uv_buf_t *d
         return;
     }
 
-    evt_tls_feed_data(tcpctx->evt_tls, data->base, nrd);
+    evt_tls_feed_data(tcpctx->evt_tls, data->base, static_cast<int>(nrd));
     delete[] data->base;
 }
 #endif
@@ -26105,7 +26176,7 @@ int MegaHTTPServer::onUrlReceived(http_parser *parser, const char *url, size_t l
         return 0;
     }
 
-    unsigned int index = 9;
+    size_t index = 9;
     httpctx->nodehandle.assign(url + 1, 8);
     LOG_debug << "Node handle: " << httpctx->nodehandle;
 
@@ -26296,7 +26367,7 @@ int MegaHTTPServer::onBody(http_parser *parser, const char *b, size_t n)
             }
         }
 
-        if (!httpctx->tmpFileAccess->fwrite((const byte*)b, n, httpctx->messageBodySize))
+        if (!httpctx->tmpFileAccess->fwrite((const byte*)b, static_cast<unsigned>(n), httpctx->messageBodySize))
         {
             returnHttpCode(httpctx, 500);
             return 0;
@@ -27664,7 +27735,7 @@ int MegaHTTPServer::streamNode(MegaHTTPContext *httpctx)
 void MegaHTTPServer::sendHeaders(MegaHTTPContext *httpctx, string *headers)
 {
     LOG_debug << "Response headers: " << *headers;
-    httpctx->streamingBuffer.append(headers->data(), headers->size());
+    httpctx->streamingBuffer.append(headers->data(), static_cast<unsigned>(headers->size()));
     uv_buf_t resbuf = httpctx->streamingBuffer.nextBuffer();
     httpctx->size += headers->size();
     httpctx->lastBuffer = resbuf.base;
@@ -27894,13 +27965,13 @@ bool MegaHTTPContext::onTransferData(MegaApi *, MegaTransfer *transfer, char *bu
     uv_mutex_lock(&mutex);
     long long remaining = size + (transfer->getTotalBytes() - transfer->getTransferredBytes());
     long long availableSpace = streamingBuffer.availableSpace();
-    if (remaining > availableSpace && availableSpace < (2 * size))
+    if (remaining > availableSpace && availableSpace < (2 * m_off_t(size)))
     {
         LOG_debug << "Buffer full: " << availableSpace << " of "
                  << streamingBuffer.availableCapacity() << " bytes available only. Pausing streaming";
         pause = true;
     }
-    streamingBuffer.append(buffer, size);
+    streamingBuffer.append(buffer, static_cast<unsigned>(size));
     uv_mutex_unlock(&mutex);
 
     // notify the HTTP server
@@ -28669,7 +28740,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             parsed = petition.size();
             petition = petition.substr(0,psepend);
             command = petition.substr(0,psep);
-            transform(command.begin(), command.end(), command.begin(), ::toupper);
+            for (char& c : command) { c = static_cast<char>(toupper(c)); };
         }
 
         if (failed)
@@ -29062,8 +29133,8 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
         }
         case FTP_CMD_OPTS:
         {
-            transform(ftpctx->arg1.begin(), ftpctx->arg1.end(), ftpctx->arg1.begin(), ::toupper);
-            transform(ftpctx->arg2.begin(), ftpctx->arg2.end(), ftpctx->arg2.begin(), ::toupper);
+            for (char& c : ftpctx->arg1) { c = static_cast<char>(toupper(c)); };
+            for (char& c : ftpctx->arg2) { c = static_cast<char>(toupper(c)); };
             if (ftpctx->arg1 == "UTF8" && ftpctx->arg2 == "ON")
             {
                 response = "200 All good";
@@ -29618,11 +29689,11 @@ void MegaFTPServer::processOnAsyncEventClose(MegaTCPContext* tcpctx)
     LOG_verbose << "At MegaFTPServer::processOnAsyncEventClose";
 }
 
-void MegaTCPServer::answer(MegaTCPContext* tcpctx, const char *rsp, int rlen)
+void MegaTCPServer::answer(MegaTCPContext* tcpctx, const char *rsp, size_t rlen)
 {
     LOG_verbose << " answering in port " << tcpctx->server->port << " : " << string(rsp,rlen);
 
-    uv_buf_t resbuf = uv_buf_init((char *)rsp, rlen);
+    uv_buf_t resbuf = uv_buf_init((char *)rsp, static_cast<unsigned>(rlen));
 #ifdef ENABLE_EVT_TLS
     if (tcpctx->server->useTLS)
     {
@@ -30074,7 +30145,7 @@ void MegaFTPDataServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nrea
         if (nread > 0)
         {
             LOG_verbose << " Writing " << nread << " bytes " << " to temporal file: " << ftpdatactx->tmpFileName;
-            if (!ftpdatactx->tmpFileAccess->fwrite((const byte*)buf->base, nread, ftpdatactx->tmpFileSize) )
+            if (!ftpdatactx->tmpFileAccess->fwrite((const byte*)buf->base, static_cast<unsigned>(nread), ftpdatactx->tmpFileSize) )
             {
                 ftpdatactx->setControlCodeUponDataClose(450);
                 remotePathToUpload = ""; //empty, so that we don't read in the next connections
@@ -30414,13 +30485,13 @@ bool MegaFTPDataContext::onTransferData(MegaApi *, MegaTransfer *transfer, char 
     uv_mutex_lock(&mutex);
     long long remaining = size + (transfer->getTotalBytes() - transfer->getTransferredBytes());
     long long availableSpace = streamingBuffer.availableSpace();
-    if (remaining > availableSpace && availableSpace < (2 * size))
+    if (remaining > availableSpace && availableSpace < (2 * m_off_t(size)))
     {
         LOG_debug << "Buffer full: " << availableSpace << " of "
                  << streamingBuffer.availableCapacity() << " bytes available only. Pausing streaming";
         pause = true;
     }
-    streamingBuffer.append(buffer, size);
+    streamingBuffer.append(buffer, static_cast<unsigned>(size));
     uv_mutex_unlock(&mutex);
 
     // notify the HTTP server
