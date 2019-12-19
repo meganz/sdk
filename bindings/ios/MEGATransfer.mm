@@ -163,4 +163,8 @@ using namespace mega;
     return (MEGATransferState) (self.megaTransfer ? self.megaTransfer->getState() : 0);
 }
 
+- (unsigned long long)priority {
+    return (MEGATransferState) (self.megaTransfer ? self.megaTransfer->getPriority() : 0);
+}
+
 @end

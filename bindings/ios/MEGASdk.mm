@@ -1564,6 +1564,30 @@ using namespace mega;
     self.megaApi->cancelTransfer((transfer != nil) ? [transfer getCPtr] : NULL);
 }
 
+- (void)moveTransferToFirst:(MEGATransfer *)transfer delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->moveTransferToFirst((transfer != nil) ? [transfer getCPtr] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)moveTransferToFirst:(MEGATransfer *)transfer {
+    self.megaApi->moveTransferToFirst((transfer != nil) ? [transfer getCPtr] : NULL);
+}
+
+- (void)moveTransferToLast:(MEGATransfer *)transfer delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->moveTransferToLast((transfer != nil) ? [transfer getCPtr] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)moveTransferToLast:(MEGATransfer *)transfer {
+    self.megaApi->moveTransferToLast((transfer != nil) ? [transfer getCPtr] : NULL);
+}
+
+- (void)moveTransferBefore:(MEGATransfer *)transfer prevTransfer:(MEGATransfer *)prevTransfer delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->moveTransferBefore((transfer != nil) ? [transfer getCPtr] : NULL, (prevTransfer != nil) ? [prevTransfer getCPtr] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)moveTransferBefore:(MEGATransfer *)transfer prevTransfer:(MEGATransfer *)prevTransfer {
+    self.megaApi->moveTransferBefore((transfer != nil) ? [transfer getCPtr] : NULL, (prevTransfer != nil) ? [prevTransfer getCPtr] : NULL);
+}
+
 - (void)cancelTransfersForDirection:(NSInteger)direction delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->cancelTransfers((int)direction, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
