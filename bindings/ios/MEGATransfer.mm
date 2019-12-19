@@ -164,7 +164,7 @@ using namespace mega;
 }
 
 - (unsigned long long)priority {
-    return (MEGATransferState) (self.megaTransfer ? self.megaTransfer->getPriority() : 0);
+    return self.megaTransfer ? self.megaTransfer->getPriority() : 0;
 }
 
 @end
