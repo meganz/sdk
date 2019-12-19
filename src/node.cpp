@@ -376,11 +376,16 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
     if (numshares)
     {
         // read inshare, outshares, or pending shares
-        while (Share::unserialize(client,
-                                  (numshares > 0) ? -1 : 0,
-                                  h, skey, &ptr, end)
-               && numshares > 0
-               && --numshares);
+        for (;;)
+        {
+            auto newShare = Share::unserialize((numshares > 0) ? -1 : 0,
+                                               h, skey, &ptr, end);
+            if (!(newShare && numshares > 0 && --numshares))
+            {
+                break;
+            }
+            client->newshares.push_back(newShare);
+        }
     }
 
     ptr = n->attrs.unserialize(ptr, end);

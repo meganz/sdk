@@ -10519,8 +10519,9 @@ bool MegaClient::fetchsc(DbTable* sctable)
                 break;
 
             case CACHEDPCR:
-                if ((pcr = PendingContactRequest::unserialize(this, &data)))
+                if ((pcr = PendingContactRequest::unserialize(&data)))
                 {
+                    mappcr(pcr->id, pcr);
                     pcr->dbid = id;
                 }
                 else
