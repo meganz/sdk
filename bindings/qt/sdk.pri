@@ -281,7 +281,8 @@ CONFIG(USE_WEBRTC) {
     INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/webrtc/include \
                    $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/webrtc/include/webrtc \
                    $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/webrtc/include/third_party/boringssl/src/include \
-                   $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/webrtc/include/third_party/libyuv/include
+                   $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/webrtc/include/third_party/libyuv/include \
+                   $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/webrtc/include/third_party/abseil-cpp
     !macx {
     exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebrtc.a) {
         LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebrtc.a -ldl -lX11
@@ -526,7 +527,7 @@ unix:!macx {
    else {
     LIBS += -lssl
    }
-   
+
    exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcrypto.a) {
     LIBS +=  $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcrypto.a
    }
