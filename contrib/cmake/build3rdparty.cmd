@@ -51,16 +51,18 @@ CALL :build_one openjpeg
 REM ------ building pdifum - this is mostly manual, sorry - to be done after vcpkg builds finish ---------------
 REM - Set up your Depot Tools (this can be one time, reuse it for other builds etc)
 REM      Follow these instructions to get the depot_tools (download .zip, extract all, set variable, run gclient): https://chromium.googlesource.com/chromium/src/+/master/docs/windows_build_instructions.md#install
-REM - Then make a `pdfium` folder in your 3rdParty folder, and run these commands to get the pdfium source:
+REM - Then make a `pdfium` folder in your 3rdParty folder, and run these commands in it to get the pdfium source:
 REM      set DEPOT_TOOLS=<<<<your depot_tools path>>>>
 REM      set PATH=%DEPOT_TOOLS%;%PATH%
 REM      set DEPOT_TOOLS_WIN_TOOLCHAIN=0
+REM      mkdir pdfium
+REM      cd pdfium
 REM      gclient config --unmanaged https://pdfium.googlesource.com/pdfium.git
 REM      gclient sync
-REM - Copy the pdfium-CMakeLists.txt file from the SDK/contrib/cmake folder to your 3rdParty/pdfium folder
+REM - Copy the pdfium-CMakeLists.txt file from the SDK/contrib/cmake folder to your 3rdParty/pdfium/pdfium folder and rename as just CMakeLists.txt
 REM - Make this one small patch:
 REM      in pdfium\core\fxcrt\fx_memory_wrappers.h(26)   comment out the static_assert (uint8_t counts as an arithmentic type)
-REM - In that folder, run as required: 
+REM - In 3rdParty/pdfium/pdfium, run as required: 
 REM      mkdir build_x86
 REM      mkdir build_x64
 REM      c:\cmake\bin\cmake.exe -B build_x86 -G "Visual Studio 15 2017"         -DCMAKE_CONFIGURATION_TYPES="Debug;Release" .
