@@ -6110,6 +6110,7 @@ CommandChatURL::CommandChatURL(MegaClient *client, handle chatid)
     this->client = client;
 
     cmd("mcurl");
+    batchSeparately = true; // send this command in it's own batch in order to speed up the recovery of the chat url's
 
     arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
     arg("v", 1);
