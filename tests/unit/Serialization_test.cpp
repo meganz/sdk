@@ -827,6 +827,7 @@ TEST(Serialization, Node_forFolder_withoutShares)
     n.plink = new mega::PublicLink{n.nodehandle, 1, 2, false};
     std::string data;
     ASSERT_TRUE(n.serialize(&data));
+
     ASSERT_EQ(108u, data.size());
     mega::node_vector dp;
     auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
