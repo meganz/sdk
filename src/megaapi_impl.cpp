@@ -17666,6 +17666,8 @@ unsigned MegaApiImpl::sendPendingTransfers()
                             forceToUpload= hasToForceUpload(*previousNode, *transfer);
                             if (!forceToUpload)
                             {
+                                pendingUploads++;
+                                totalUploads++;
                                 transfer->setState(MegaTransfer::STATE_QUEUED);
                                 transferMap[nextTag] = transfer;
                                 transfer->setTag(nextTag);
@@ -17679,6 +17681,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                                 transfer->setSpeed(0);
                                 transfer->setMeanSpeed(0);
                                 transfer->setState(MegaTransfer::STATE_COMPLETED);
+                                pendingUploads--;
                                 fireOnTransferFinish(transfer, MegaError(API_OK), committer);
                                 break;
                             }
@@ -17692,6 +17695,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                         if (samenode && samenode->nodekey().size() && !hasToForceUpload(*samenode, *transfer))
                         {
                             pendingUploads++;
+                            totalUploads++;
                             transfer->setState(MegaTransfer::STATE_QUEUED);
                             transferMap[nextTag] = transfer;
                             transfer->setTag(nextTag);
