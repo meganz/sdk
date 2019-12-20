@@ -671,6 +671,75 @@ namespace CodeCounter
     };
 }
 
+// Holds the config of a sync. Can be extended with future config options
+class SyncConfig
+{
+public:
+
+    enum Type
+    {
+        TYPE_UP = 0x01, // sync up from local to remote
+        TYPE_DOWN = 0x02, // sync down from remote to local
+        TYPE_DEFAULT = TYPE_UP | TYPE_DOWN, // Two-way sync
+    };
+
+    SyncConfig() = default;
+
+    SyncConfig(const Type syncType, const bool syncDeletions, const bool forceOverwrite)
+        : mSyncType{syncType}
+        , mSyncDeletions{syncDeletions}
+        , mForceOverwrite{forceOverwrite}
+    {}
+
+    // whether this is an up-sync from local to remote
+    bool isUpSync() const
+    {
+        return mSyncType & TYPE_UP;
+    }
+
+    // whether this is a down-sync from remote to local
+    bool isDownSync() const
+    {
+        return mSyncType & TYPE_DOWN;
+    }
+
+    // whether deletions are synced
+    bool syncDeletions() const
+    {
+        switch (mSyncType)
+        {
+            case TYPE_UP: return mSyncDeletions;
+            case TYPE_DOWN: return mSyncDeletions;
+            case TYPE_DEFAULT: return true;
+        }
+        assert(false);
+        return true;
+    }
+
+    // whether changes are overwritten irregardless of file properties
+    bool forceOverwrite() const
+    {
+        switch (mSyncType)
+        {
+            case TYPE_UP: return mForceOverwrite;
+            case TYPE_DOWN: return mForceOverwrite;
+            case TYPE_DEFAULT: return false;
+        }
+        assert(false);
+        return false;
+    }
+
+private:
+    // type of the sync, defaults to bidirectional
+    Type mSyncType = TYPE_DEFAULT;
+
+    // whether deletions are synced (only relevant for one-way-sync)
+    bool mSyncDeletions = false;
+
+    // whether changes are overwritten irregardless of file properties (only relevant for one-way-sync)
+    bool mForceOverwrite = false;
+};
+
 } // namespace
 
 #define MEGA_DISABLE_COPY(class_name) \

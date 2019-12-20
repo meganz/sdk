@@ -6720,6 +6720,34 @@ error MegaClient::setattr(Node* n, const char *prevattr)
     return API_OK;
 }
 
+void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldername)
+{
+    string attrstring;
+    byte buf[FOLDERNODEKEYLENGTH];
+
+    // set up new node as folder node
+    newnode->source = NEW_NODE;
+    newnode->type = FOLDERNODE;
+    newnode->nodehandle = 0;
+    newnode->parenthandle = UNDEF;
+
+    // generate fresh random key for this folder node
+    rng.genblock(buf, FOLDERNODEKEYLENGTH);
+    newnode->nodekey.assign((char*)buf, FOLDERNODEKEYLENGTH);
+    tmpnodecipher.setkey(buf);
+
+    // generate fresh attribute object with the folder name
+    AttrMap attrs;
+
+    fsaccess->normalize(&foldername);
+    attrs.map['n'] = foldername;
+
+    // JSON-encode object and encrypt attribute string
+    attrs.getjson(&attrstring);
+    newnode->attrstring = new string;
+    makeattr(&tmpnodecipher, newnode->attrstring, attrstring.c_str());
+}
+
 // send new nodes to API for processing
 void MegaClient::putnodes(handle h, NewNode* newnodes, int numnodes, const char *cauth)
 {
@@ -10503,8 +10531,9 @@ bool MegaClient::fetchsc(DbTable* sctable)
                 break;
 
             case CACHEDPCR:
-                if ((pcr = PendingContactRequest::unserialize(this, &data)))
+                if ((pcr = PendingContactRequest::unserialize(&data)))
                 {
+                    mappcr(pcr->id, pcr);
                     pcr->dbid = id;
                 }
                 else
@@ -11948,7 +11977,7 @@ error MegaClient::addtimer(TimerWithBackoff *twb)
 // check sync path, add sync if folder
 // disallow nested syncs (there is only one LocalNode pointer per node)
 // (FIXME: perform the same check for local paths!)
-error MegaClient::addsync(string* rootpath, const char* debris, string* localdebris, Node* remotenode, fsfp_t fsfp, int tag, void *appData)
+error MegaClient::addsync(const SyncConfig syncConfig, string* rootpath, const char* debris, string* localdebris, Node* remotenode, fsfp_t fsfp, int tag, void *appData)
 {
 #ifdef ENABLE_SYNC
     bool inshare = false;
@@ -11982,7 +12011,7 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
             fsaccess->local2path(rootpath, &utf8path);
             LOG_debug << "Adding sync: " << utf8path;
 
-            Sync* sync = new Sync(this, rootpath, debris, localdebris, remotenode, fsfp, inshare, tag, appData);
+            Sync* sync = new Sync(this, syncConfig, rootpath, debris, localdebris, remotenode, fsfp, inshare, tag, appData);
             sync->isnetwork = isnetwork;
 
             if (!sync->fsstableids)
