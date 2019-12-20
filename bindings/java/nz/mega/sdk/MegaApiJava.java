@@ -4909,6 +4909,44 @@ public class MegaApiJava {
     }
 
     /**
+     * Gets the alias for an user
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_ALIAS
+     * - MegaRequest::getNodeHandle - user handle in binary
+     * - MegaRequest::getText - user handle encoded in B64
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getName - Returns the user alias
+     *
+     * If the user alias doesn't exists the request will fail with the error code MegaError::API_ENOENT.
+     *
+     * @param uh handle of the user in binary
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getUserAlias(long uh, MegaRequestListenerInterface listener) {
+        megaApi.getUserAlias(uh, createDelegateRequestListener(listener));
+    }
+    /**
+     * Set or reset an alias for a user
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_ALIAS
+     * - MegaRequest::getNodeHandle - Returns the user handle in binary
+     * - MegaRequest::getText - Returns the user alias
+     *
+     * @param uh handle of the user in binary
+     * @param alias the user alias, or null to reset the existing
+     * @param listener MegaRequestListener to track this request
+     */
+    public void setUserAlias(long uh, String alias, MegaRequestListenerInterface listener) {
+        megaApi.setUserAlias(uh, alias, createDelegateRequestListener(listener));
+    }
+
+    /**
      * Get the number of days for rubbish-bin cleaning scheduler
      *
      * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
