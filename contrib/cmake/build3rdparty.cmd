@@ -8,17 +8,22 @@ REM git clone https://github.com/Microsoft/vcpkg.git
 REM cd vcpkg
 REM .\bootstrap-vcpkg.bat
 REM
-REM For XP compatibility (which we had but we are deprecating), you can set up a vcpkg triplet to use VS2015 XP compatible toolset 
-REM with ` set(VCPKG_PLATFORM_TOOLSET "v140") ` in your vcpkg triplet file.
+REM Note that our current toolset for XP compatibility (which we had but we are deprecating), is VS2015 with v140 or v140_xp.  
+REM The triplet files ending -mega set v140, please adjust to your requirements.
 REM
 REM Another thing you might want to consider for developing, is turning off checked iterators in MSVC builds, since those extra tests can cause big delays
 REM in debug (eg. deleting the node tree on logout etc).  You can do that by setting set(VCPKG_CXX_FLAGS "${VCPKG_CXX_FLAGS} -D_ITERATOR_DEBUG_LEVEL=0")
-REM in your triplet file.  Another way is to edit the STL headers first, which can ensure that nested builds get the right flag.
+REM in your triplet file, though every library used must have that same setting.
+REM 
+REM Another way is to edit the STL headers first, which can ensure that nested builds get the right flag.
 REM 
 REM Copy the folders in contrib/cmake/vcpkg_extra_ports to your 3rdParty/vcpkg/ports folder.
+REM Copy the folders in contrib/cmake/vcpkg_extra_triplets to your 3rdParty/vcpkg/triplets folder.
+REM 
 REM Comment out any libraries that you won't use.
-REM Call this script from your vcpkg folder, with the desired triplet as the parameter.  (usually x64-windows-mega or x86-windows-mega)
-REM If using the x64-windows-mega or x86-windows-mega triplets (which select static or DLL libraries as used in MEGAsync), copy those from the contrib/cmake folder
+REM If using pdfium, follow the instructions below to get the source code
+REM 
+REM Copy this script to your 3rdParty/vcpkg folder, and run it with the desired triplet as the parameter.  (usually x64-windows-mega or x86-windows-mega)
 
 set TRIPLET=%1%
 
@@ -49,10 +54,10 @@ CALL :build_one lcms
 CALL :build_one libjpeg-turbo
 CALL :build_one openjpeg
 
-REM ------ building pdifum - this is mostly manual, sorry - to be done after vcpkg builds finish ---------------
+REM ------ building pdifum - this one needs some manual steps - these can be done before calling the script ---------------
 REM - Set up your Depot Tools (this can be one time, reuse it for other builds etc)
 REM      Follow these instructions to get the depot_tools (download .zip, extract all, set variable, run gclient): https://chromium.googlesource.com/chromium/src/+/master/docs/windows_build_instructions.md#install
-REM - Then make a `pdfium` folder in your 3rdParty folder, and run these commands in it to get the pdfium source:
+REM - Then in your 3rdParty folder, and run these commands in it to get the pdfium source:
 REM      set DEPOT_TOOLS=<<<<your depot_tools path>>>>
 REM      set PATH=%DEPOT_TOOLS%;%PATH%
 REM      set DEPOT_TOOLS_WIN_TOOLCHAIN=0
@@ -60,28 +65,14 @@ REM      mkdir pdfium
 REM      cd pdfium
 REM      gclient config --unmanaged https://pdfium.googlesource.com/pdfium.git
 REM      gclient sync
-REM - Copy the pdfium-CMakeLists.txt file from the SDK/contrib/cmake folder to your 3rdParty/pdfium/pdfium folder and rename as just CMakeLists.txt
-REM - Make this one small patch:
+REM      REM branch 3710 is compatibile with the VS 2015 compiler and v140 toolset  (or if you want to use the latest, see below)
+REM      git checkout chromium/3710
+REM      gclient sync
+REM - If using the latest Pdfium, use at least VS2017 and skip the branch checkout above, and substitute the pdfium-masterbranch-CMakeLists.txt in vcpkg/ports/pdfium and make this one small patch (other changes may be needed if the master branch has changed):
 REM      in pdfium\core\fxcrt\fx_memory_wrappers.h(26)   comment out the static_assert (uint8_t counts as an arithmentic type)
-REM - In 3rdParty/pdfium/pdfium, run as required: 
-REM      mkdir build_x86
-REM      mkdir build_x64
-REM      c:\cmake\bin\cmake.exe -B build_x86 -G "Visual Studio 15 2017"         -DCMAKE_CONFIGURATION_TYPES="Debug;Release" .
-REM      c:\cmake\bin\cmake.exe -B build_x64 -G "Visual Studio 15 2017 Win64"   -DCMAKE_CONFIGURATION_TYPES="Debug;Release" .
-REM      c:\cmake\bin\cmake.exe --build build_x86 --config Debug
-REM      c:\cmake\bin\cmake.exe --build build_x86 --config Release
-REM      c:\cmake\bin\cmake.exe --build build_x64 --config Debug
-REM      c:\cmake\bin\cmake.exe --build build_x64 --config Release
-REM - And then we also need to build its version of freetype:
-REM      cd third_party\freetype\src
-REM      mkdir build_x86
-REM      mkdir build_x64
-REM      c:\cmake\bin\cmake.exe -B build_x86 -G "Visual Studio 15 2017"         -DCMAKE_CONFIGURATION_TYPES="Debug;Release" .
-REM      c:\cmake\bin\cmake.exe -B build_x64 -G "Visual Studio 15 2017 Win64"   -DCMAKE_CONFIGURATION_TYPES="Debug;Release" .
-REM      c:\cmake\bin\cmake.exe --build build_x86 --config Debug
-REM      c:\cmake\bin\cmake.exe --build build_x86 --config Release
-REM      c:\cmake\bin\cmake.exe --build build_x64 --config Debug
-REM      c:\cmake\bin\cmake.exe --build build_x64 --config Release
+
+CALL :build_one pdfium
+CALL :build_one pdfium-freetype
 
 exit /b 0
 

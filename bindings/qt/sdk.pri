@@ -1,6 +1,18 @@
 
 MEGASDK_BASE_PATH = $$PWD/../../
 
+THIRDPARTY_VCPKG_PATH = $$THIRDPARTY_VCPKG_BASE_PATH/vcpkg/installed/$$VCPKG_TRIPLET
+exists($$THIRDPARTY_VCPKG_PATH) {
+   CONFIG += vcpkg
+}
+vcpkg:debug:message("Building DEBUG with VCPKG 3rdparty at $$THIRDPARTY_VCPKG_PATH")
+vcpkg:release:message("Building RELEASE with VCPKG 3rdparty at $$THIRDPARTY_VCPKG_PATH")
+
+debug:DEBUG_SUFFIX = "d"
+else:DEBUG_SUFFIX = ""
+debug:DASH_DEBUG_SUFFIX = "-d"
+else:DASH_DEBUG_SUFFIX = ""
+
 VPATH += $$MEGASDK_BASE_PATH
 SOURCES += src/attrmap.cpp \
     src/backofftimer.cpp \
@@ -106,11 +118,12 @@ CONFIG(ENABLE_CHAT) {
     CONFIG += USE_LIBUV
 
     !macx {
-        exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebsockets.a) {
+        !vcpkg:exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebsockets.a) {
         LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebsockets.a -lcap
         }
         else {
-        LIBS += -lwebsockets -lcap
+            vcpkg:LIBS += $$THIRDPARTY_VCPKG_PATH/lib/libwebsockets.a -lcap
+            !vcpkg:LIBS += -lwebsockets -lcap
         }
     }
     else {
@@ -126,7 +139,8 @@ CONFIG(ENABLE_CHAT) {
 CONFIG(USE_LIBUV) {
     SOURCES += src/mega_http_parser.cpp
     DEFINES += HAVE_LIBUV
-    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/libuv
+    vcpkg:INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/libuv
+    !vcpkg:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/libuv
     win32 {
         LIBS += -llibuv -lIphlpapi -lUserenv -lpsapi
     }
@@ -149,7 +163,8 @@ CONFIG(USE_MEDIAINFO) {
     DEFINES += USE_MEDIAINFO UNICODE
 
     win32 {
-        LIBS += -lMediaInfo -lZenLib -lzlibstat
+        vcpkg:LIBS += -lmediainfo$$DEBUG_SUFFIX -lzen$$DEBUG_SUFFIX -lzlib$$DEBUG_SUFFIX
+        else:LIBS += -lMediaInfo -lZenLib -lzlibstat
     }
 
     macx {
@@ -178,7 +193,8 @@ CONFIG(USE_LIBRAW) {
 
     win32 {
         DEFINES += LIBRAW_NODLL
-        LIBS += -llibraw
+        !vcpkg:LIBS += -llibraw
+        else:LIBS += -lraw$$DEBUG_SUFFIX -ljasper$$DEBUG_SUFFIX -ljpeg$$DEBUG_SUFFIX
     }
 
     macx {
@@ -209,10 +225,10 @@ CONFIG(USE_PDFIUM) {
     }
     else {#win/mac
         DEFINES += HAVE_PDFIUM
-        INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pdfium
-        macx {
-            LIBS += -lpdfium
-        }
+        vcpkg:INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/pdfium
+        else:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pdfium
+        vcpkg:LIBS += -lpdfium -llcms$$DEBUG_SUFFIX -licuuc$$DEBUG_SUFFIX -licuio$$DEBUG_SUFFIX -licuin$$DEBUG_SUFFIX -ljpeg$$DEBUG_SUFFIX -lopenjp2 -lfreetype$$DEBUG_SUFFIX -lGdi32
+        macx:!vcpkg:LIBS += -lpdfium
     }
 }
 
@@ -262,7 +278,8 @@ CONFIG(USE_FFMPEG) {
     }
     else { #win/mac
         DEFINES += HAVE_FFMPEG
-        INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/ffmpeg
+        vcpkg:INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/ffmpeg
+        else:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/ffmpeg
         LIBS += -lavcodec -lavformat -lavutil -lswscale
     }
 }
@@ -310,7 +327,8 @@ win32 {
             src/wincurl/waiter.cpp
         HEADERS += include/mega/wincurl/meganet.h
         DEFINES += USE_CURL USE_OPENSSL
-        LIBS +=  -llibcurl -lcares -llibeay32 -lssleay32
+        vcpkg:LIBS +=  -llibcurl$$DASH_DEBUG_SUFFIX -lcares -llibeay32 -lssleay32
+        else:LIBS +=  -llibcurl -lcares -llibeay32 -lssleay32
     }
     else {
         SOURCES += src/win32/net.cpp \
@@ -401,7 +419,7 @@ win32 {
             include/mega/win32/megafs.h  \
             include/mega/win32/megawaiter.h
 
-    SOURCES += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/sqlite3.c
+    !vcpkg:SOURCES += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/sqlite3.c
 }
 
 unix {
@@ -451,7 +469,8 @@ else {
 DEFINES += USE_SQLITE USE_CRYPTOPP ENABLE_SYNC ENABLE_CHAT
 INCLUDEPATH += $$MEGASDK_BASE_PATH/include
 INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt
-INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include
+vcpkg:INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include
+else:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include
 
 !release {
     DEFINES += SQLITE_DEBUG DEBUG
@@ -461,19 +480,26 @@ else {
 }
 
 win32 {
-    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/zlib
-    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/libsodium
+    vcpkg:INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/zlib
+    vcpkg:INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/libsodium
+    !vcpkg:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/zlib
+    !vcpkg:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/libsodium
 
     CONFIG(USE_CURL) {
         INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/wincurl
-        INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/openssl
-        INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/cares
+        vcpkg:INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/openssl
+        vcpkg:INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/cares
+        !vcpkg:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/openssl
+        !vcpkg:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/cares
     }
     else {
         INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/win32
     }
 
-    contains(CONFIG, BUILDX64) {
+    vcpkg:release:LIBS += -L"$$THIRDPARTY_VCPKG_PATH/lib"
+    vcpkg:debug:LIBS += -L"$$THIRDPARTY_VCPKG_PATH/debug/lib"
+
+    !vcpkg:contains(CONFIG, BUILDX64) {
        release {
             LIBS += -L"$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/x64"
         }
@@ -482,7 +508,7 @@ win32 {
         }
     }
 
-    !contains(CONFIG, BUILDX64) {
+    !vcpkg:!contains(CONFIG, BUILDX64) {
         release {
             LIBS += -L"$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/x32"
         }
@@ -492,12 +518,16 @@ win32 {
     }
 
     CONFIG(USE_PCRE) {
-     INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pcre
+     vcpkg:INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/pcre
+     else:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pcre
      DEFINES += PCRE_STATIC
      LIBS += -lpcre
     }
 
-    LIBS += -lshlwapi -lws2_32 -luser32 -lsodium -lcryptopp -lzlibstat
+    vcpkg:CONFIG(USE_PDFIUM):INCLUDEPATH += $$THIRDPARTY_VCPKG_BASE_PATH/pdfium/pdfium/public
+
+    vcpkg:LIBS += -lshlwapi -lws2_32 -luser32 -llibsodium -lcryptopp-static -lzlib$$DEBUG_SUFFIX -lsqlite3
+    else:LIBS += -lshlwapi -lws2_32 -luser32 -lsodium -lcryptopp -lzlibstat
 
     DEFINES += NOMINMAX
 }
