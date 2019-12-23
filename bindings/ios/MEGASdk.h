@@ -5482,6 +5482,116 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
 - (void)cancelTransfer:(MEGATransfer *)transfer;
 
 /**
+* @brief Move a transfer to the top of the transfer queue
+*
+* If the transfer is successfully moved, onTransferUpdate will be called
+* for the corresponding listeners of the moved transfer and the new priority
+* of the transfer will be available using [MEGATransfer priority]
+*
+* The associated request type with this request is MEGARequestTypeCancelTransfer.
+* Valid data in the MEGARequest object received on callbacks:
+* - [MEGARequest transferTag]  - Returns the tag of the transfer to move
+*
+* @param transfer MEGATransfer object that identifies the transfer.
+* You can get this object in any MEGATransferDelegate callback or any MEGADelegate callback
+* related to transfers.
+*
+* @param delegate Delegate to track this request.
+*/
+- (void)moveTransferToFirst:(MEGATransfer *)transfer delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Move a transfer to the top of the transfer queue
+ *
+ * If the transfer is successfully moved, onTransferUpdate will be called
+ * for the corresponding listeners of the moved transfer and the new priority
+ * of the transfer will be available using [MEGATransfer priority]
+ *
+ * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest transferTag]  - Returns the tag of the transfer to move
+ *
+ * @param transfer MEGATransfer object that identifies the transfer
+ */
+- (void)moveTransferToFirst:(MEGATransfer *)transfer;
+
+/**
+* @brief Move a transfer to the bottom of the transfer queue
+*
+* If the transfer is successfully moved, onTransferUpdate will be called
+* for the corresponding listeners of the moved transfer and the new priority
+* of the transfer will be available using [MEGATransfer priority]
+*
+* The associated request type with this request is MEGARequestTypeCancelTransfer.
+* Valid data in the MEGARequest object received on callbacks:
+* - [MEGARequest transferTag]  - Returns the tag of the transfer to move
+*
+* @param transfer MEGATransfer object that identifies the transfer.
+* You can get this object in any MEGATransferDelegate callback or any MEGADelegate callback
+* related to transfers.
+*
+* @param delegate Delegate to track this request.
+*/
+- (void)moveTransferToLast:(MEGATransfer *)transfer delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+* @brief Move a transfer to the bottom of the transfer queue
+*
+* If the transfer is successfully moved, onTransferUpdate will be called
+* for the corresponding listeners of the moved transfer and the new priority
+* of the transfer will be available using [MEGATransfer priority]
+*
+* The associated request type with this request is MEGARequestTypeCancelTransfer.
+* Valid data in the MEGARequest object received on callbacks:
+* - [MEGARequest transferTag]  - Returns the tag of the transfer to move
+*
+* @param transfer MEGATransfer object that identifies the transfer.
+* You can get this object in any MEGATransferDelegate callback or any MEGADelegate callback
+* related to transfers.
+*
+*/
+- (void)moveTransferToLast:(MEGATransfer *)transfer;
+
+/**
+* @brief Move a transfer before another one in the transfer queue
+*
+* If the transfer is successfully moved, onTransferUpdate will be called
+* for the corresponding listeners of the moved transfer and the new priority
+* of the transfer will be available using [MEGATransfer priority]
+*
+* The associated request type with this request is MEGARequestTypeCancelTransfer.
+* Valid data in the MEGARequest object received on callbacks:
+* - [MEGARequest transferTag]  - Returns the tag of the transfer to move
+*
+* @param transfer Transfer to move
+* @param prevTransfer Transfer with the target position
+* You can get this object in any MEGATransferDelegate callback or any MEGADelegate callback
+* related to transfers.
+*
+* @param delegate Delegate to track this request.
+*/
+- (void)moveTransferBefore:(MEGATransfer *)transfer prevTransfer:(MEGATransfer *)prevTransfer delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+* @brief Move a transfer before another one in the transfer queue
+*
+* If the transfer is successfully moved, onTransferUpdate will be called
+* for the corresponding listeners of the moved transfer and the new priority
+* of the transfer will be available using [MEGATransfer priority]
+*
+* The associated request type with this request is MEGARequestTypeCancelTransfer.
+* Valid data in the MEGARequest object received on callbacks:
+* - [MEGARequest transferTag]  - Returns the tag of the transfer to move
+*
+* @param transfer Transfer to move
+* @param prevTransfer Transfer with the target position
+* You can get this object in any MEGATransferDelegate callback or any MEGADelegate callback
+* related to transfers.
+*
+*/
+- (void)moveTransferBefore:(MEGATransfer *)transfer prevTransfer:(MEGATransfer *)prevTransfer;
+
+/**
  * @brief Cancel all transfers of the same type.
  *
  * The associated request type with this request is MEGARequestTypeCancelTransfers.
