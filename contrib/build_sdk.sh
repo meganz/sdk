@@ -429,10 +429,10 @@ sodium_pkg() {
     local install_dir=$2
     local name="Sodium"
     local sodium_ver="1.0.18"
-    local sodium_url="https://download.libsodium.org/libsodium/releases/libsodium-$sodium_ver-stable.tar.gz"
-    local sodium_md5="5b6006f1ca26910b88f6cf6902d2305c"
-    local sodium_file="sodium-$sodium_ver-stable.tar.gz"
-    local sodium_dir="libsodium-stable"
+    local sodium_url="https://download.libsodium.org/libsodium/releases/libsodium-$sodium_ver.tar.gz"
+    local sodium_md5="3ca9ebc13b6b4735acae0a6a4c4f9a95"
+    local sodium_file="sodium-$sodium_ver.tar.gz"
+    local sodium_dir="libsodium-$sodium_ver"
     if [ $use_dynamic -eq 1 ]; then
         local sodium_params="--enable-shared"
     else
