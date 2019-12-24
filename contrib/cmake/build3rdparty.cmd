@@ -24,22 +24,23 @@ set TRIPLET=%1%
 
 CALL :build_one zlib
 CALL :build_one cryptopp
-CALL :build_one c-ares
-CALL :build_one sqlite3
-CALL :build_one libevent
 CALL :build_one libsodium
-CALL :build_one ffmpeg
-CALL :build_one gtest
+CALL :build_one sqlite3
 CALL :build_one openssl
+CALL :build_one c-ares
 CALL :build_one curl
+CALL :build_one libevent
 CALL :build_one libzen
 CALL :build_one libmediainfo
+CALL :build_one ffmpeg
+CALL :build_one gtest
 
 REM freeimage is not needed for MEGASync (but might be for other projects)
 REM CALL :build_one freeimage
 
-REM MEGASync needs libuv
+REM MEGASync needs libuv and libraw
 CALL :build_one libuv
+CALL :build_one libraw
 
 REM MEGASync needs pdfium, and building it is quite tricky - we can build it statically though with its own CMakeLists.txt after getting the code per their instructions.  
 REM It in turn depends on these libs which are easier to build with vcpkg as part of our compatible static library set than as part of its own third_party dependencies
