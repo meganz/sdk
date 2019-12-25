@@ -1,8 +1,9 @@
 
 set(VCPKG_VISUAL_STUDIO_PATH "C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Professional")
+set(VCPKG_PLATFORM_TOOLSET v140)
 
 set(VCPKG_TARGET_ARCHITECTURE x86)
-set(VCPKG_CRT_LINKAGE dynamic)
+set(VCPKG_CRT_LINKAGE static)
 
 if(PORT MATCHES "ffmpeg" OR 
    PORT MATCHES "openssl" OR 

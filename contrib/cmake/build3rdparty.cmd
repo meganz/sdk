@@ -57,7 +57,7 @@ CALL :build_one openjpeg
 REM ------ building pdifum - this one needs some manual steps - these can be done before calling the script ---------------
 REM - Set up your Depot Tools (this can be one time, reuse it for other builds etc)
 REM      Follow these instructions to get the depot_tools (download .zip, extract all, set variable, run gclient): https://chromium.googlesource.com/chromium/src/+/master/docs/windows_build_instructions.md#install
-REM - Then in your 3rdParty folder, and run these commands in it to get the pdfium source:
+REM - Then in your 3rdParty/vcpkg folder, and run these commands in it to get the pdfium source:
 REM      set DEPOT_TOOLS=<<<<your depot_tools path>>>>
 REM      set PATH=%DEPOT_TOOLS%;%PATH%
 REM      set DEPOT_TOOLS_WIN_TOOLCHAIN=0
