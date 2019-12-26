@@ -16,11 +16,13 @@ add_definitions( -DUNICODE -DNOMINMAX -DUSE_LIBJPEG_TURBO -DPNG_PREFIX  -DUSE_SY
 
 set(PdfiumDir "${CMAKE_CURRENT_LIST_DIR}")
 
+#todo: figure out how to use the vckpg triplet here
 include_directories( 
     ${PdfiumDir}
     ${PdfiumDir}/third_party/freetype/src/include
     ${PdfiumDir}/../../installed/x86-windows-mega/include
     ${PdfiumDir}/../../installed/x64-windows-mega/include
+    ${PdfiumDir}/../../installed/x64-linux/include
 )
 
 message("include vcpkg: ${PdfiumDir}/../../vcpkg/installed/${TARGET_TRIPLET}/include")
