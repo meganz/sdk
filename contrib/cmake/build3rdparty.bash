@@ -25,7 +25,7 @@
 # 
 # Copy this script to your 3rdParty/vcpkg folder, and run it with the desired triplet as the parameter.  (usually x64-windows-mega or x86-windows-mega)
 
-set TRIPLET=x64-linux
+export TRIPLET=x64-linux
 
 build_one ()
 {
@@ -46,10 +46,10 @@ build_one libmediainfo
 build_one ffmpeg
 build_one gtest
 
-REM freeimage is not needed for MEGASync (but might be for other projects)
-REM build_one freeimage
+#REM freeimage is not needed for MEGASync (but might be for other projects)
+#REM build_one freeimage
 
-REM MEGASync needs libuv and libraw
+#REM MEGASync needs libuv and libraw
 build_one libuv
 build_one libraw
 

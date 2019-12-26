@@ -7,6 +7,7 @@ exists($$THIRDPARTY_VCPKG_PATH) {
 }
 vcpkg:debug:message("Building DEBUG with VCPKG 3rdparty at $$THIRDPARTY_VCPKG_PATH")
 vcpkg:release:message("Building RELEASE with VCPKG 3rdparty at $$THIRDPARTY_VCPKG_PATH")
+!vcpkg:message("vcpkg not used")
 
 debug:DEBUG_SUFFIX = "d"
 else:DEBUG_SUFFIX = ""
