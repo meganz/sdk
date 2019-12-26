@@ -338,7 +338,7 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             IF(USE_WEBRTC)
                 include_directories( "${WebRtcDir}/webrtc/src/third_party/boringssl/src/include" )
             ELSE()
-                ImportStdVcpkgLibrary(ssl         ssleay32 ssleay32 libssl32 libssl32)
+                ImportStdVcpkgLibrary(ssl         ssleay32 ssleay32 libssl libssl)
                 ImportStdVcpkgLibrary(crypto      libeay32 libeay32 libcrypto libcrypto)
             ENDIF()
         ENDIF()
@@ -392,21 +392,21 @@ if (USE_THIRDPARTY_FROM_VCPKG)
         ENDIF(HAVE_FFMPEG)
 
         IF(USE_SQLITE)
-            ImportStdVcpkgLibrary(sqlite3          sqlite3 sqlite3 sqlite3 sqlite3)
+            ImportStdVcpkgLibrary(sqlite3          sqlite3 sqlite3 libsqlite3 libsqlite3)
         ENDIF(USE_SQLITE)
 
         IF(USE_LIBUV)
-            ImportStdVcpkgLibrary(uv       libuv libuv libuv libuv)
+            ImportStdVcpkgLibrary(uv       libuv libuv liblibuv liblibuv)
             SET(HAVE_LIBUV 1)
         ENDIF(USE_LIBUV)
 
         IF(USE_PDFIUM)
-            ImportStdVcpkgLibrary(pdfium       pdfium pdfium pdfium pdfium)
-            ImportStdVcpkgLibrary(freetype     freetyped freetype freetyped freetype)
-            ImportStdVcpkgLibrary(icu          icuucd icuuc icuucd icuuc)
-            ImportStdVcpkgLibrary(lcms         lcmsd lcms lcmsd lcms)
-            ImportStdVcpkgLibrary(turbojpeg    jpegd jpeg jpeg jpeg)
-            ImportStdVcpkgLibrary(openjpeg     openjp2 openjp2 openjp2 openjp2)
+            ImportStdVcpkgLibrary(pdfium       pdfium pdfium libpdfium libpdfium)
+            ImportStdVcpkgLibrary(freetype     freetyped freetype libfreetyped libfreetype)
+            ImportStdVcpkgLibrary(icu          icuucd icuuc libicuucd libicuuc)
+            ImportStdVcpkgLibrary(lcms         lcmsd lcms liblcmsd liblcms)
+            ImportStdVcpkgLibrary(turbojpeg    jpegd jpeg libjpeg libjpeg)
+            ImportStdVcpkgLibrary(openjpeg     openjp2 openjp2 libopenjp2 libopenjp2)
         ENDIF(USE_PDFIUM)
 
 endif(USE_THIRDPARTY_FROM_VCPKG)
@@ -601,16 +601,16 @@ add_library(Mega STATIC
 
 target_include_directories(Mega PRIVATE ${MegaDir}/include ${Mega_PlatformSpecificIncludes})
 target_include_directories(Mega PUBLIC ${MegaDir}/include ${Mega_PlatformSpecificIncludes})
-target_link_libraries(Mega PUBLIC z 
+target_link_libraries(Mega PUBLIC 
                 $<${USE_CRYPTOPP}:cryptopp> 
                 $<${USE_SODIUM}:sodium> 
-                $<$<AND:${USE_OPENSSL},$<NOT:${USE_WEBRTC}>>:ssl> 
-                $<$<AND:${USE_OPENSSL},$<NOT:${USE_WEBRTC}>>:crypto> 
                 $<${USE_WEBRTC}:webrtc> 
+                $<${USE_MEDIAINFO}:mediainfo> $<${USE_MEDIAINFO}:zen> 
                 $<${USE_CURL}:curl>  
                 $<${USE_CURL}:cares> 
+                $<$<AND:${USE_OPENSSL},$<NOT:${USE_WEBRTC}>>:ssl> 
+                $<$<AND:${USE_OPENSSL},$<NOT:${USE_WEBRTC}>>:crypto> 
                 $<$<NOT:${USE_PREBUILT_3RDPARTY}>:$<${USE_SQLITE}:sqlite3>>
-                $<${USE_MEDIAINFO}:mediainfo> $<${USE_MEDIAINFO}:zen> 
                 $<${USE_LIBUV}:uv> 
                 $<${USE_FREEIMAGE}:freeimage> $<${USE_FREEIMAGE}:freeimage_IlmImf> $<${USE_FREEIMAGE}:freeimage_IlmImfUtil> $<${USE_FREEIMAGE}:freeimage_IlmThread> $<${USE_FREEIMAGE}:freeimage_Iex> $<${USE_FREEIMAGE}:freeimage_IexMath>
                                               $<${USE_FREEIMAGE}:freeimage_jpeg> $<${USE_FREEIMAGE}:freeimage_turbojpeg> $<${USE_FREEIMAGE}:freeimage_jpegxr> $<${USE_FREEIMAGE}:freeimage_jxrglue> $<${USE_FREEIMAGE}:freeimage_openjp2>
@@ -621,6 +621,7 @@ target_link_libraries(Mega PUBLIC z
                 $<${HAVE_FFMPEG}:ffmpeg_avformat> $<${HAVE_FFMPEG}:ffmpeg_avcodec> $<${HAVE_FFMPEG}:ffmpeg_avutil> $<${HAVE_FFMPEG}:ffmpeg_avfilter> $<${HAVE_FFMPEG}:ffmpeg_avdevice> $<${HAVE_FFMPEG}:ffmpeg_avdevice > 
                 $<${HAVE_FFMPEG}:ffmpeg_swscale>  $<${HAVE_FFMPEG}:ffmpeg_swresample>  
                 $<${USE_PDFIUM}:pdfium> $<${USE_PDFIUM}:freetype> $<${USE_PDFIUM}:icu> $<${USE_PDFIUM}:lcms> $<${USE_PDFIUM}:turbojpeg> $<${USE_PDFIUM}:openjpeg>
+                z
                 ${Mega_PlatformSpecificLibs})
 target_compile_definitions(Mega PUBLIC 
                 $<${USE_MEDIAINFO}:USE_MEDIAINFO> 
