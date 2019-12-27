@@ -343,18 +343,31 @@ CommandPutFile::CommandPutFile(MegaClient* client, TransferSlot* ctslot, int ms)
 
                 targetRoots.insert(rootnode);
             }
-
             if (!begun)
             {
                 beginarray("t");
                 begun = true;
             }
+
             element((byte*)&file->h, MegaClient::NODEHANDLE);
         }
     }
+
     if (begun)
     {
         endarray();
+    }
+    else
+    {
+        // Target user goes alone, not inside an array. Note: we are skipping this if a)more than two b)the array had been created for node handles
+        for (auto &file : tslot->transfer->files)
+        {
+            if (ISUNDEF(file->h) && file->targetuser.size())
+            {
+                arg("t", file->targetuser.c_str());
+                break;
+            }
+        }
     }
 }
 
@@ -622,7 +635,7 @@ void CommandDirectRead::procresult()
 }
 
 // request temporary source URL for full-file access (p == private node)
-CommandGetFile::CommandGetFile(MegaClient *client, TransferSlot* ctslot, byte* key, handle h, bool p, const char *privateauth, const char *publicauth, const char *chatauth)
+CommandGetFile::CommandGetFile(MegaClient *client, TransferSlot* ctslot, const byte* key, handle h, bool p, const char *privateauth, const char *publicauth, const char *chatauth)
 {
     cmd("g");
     arg(p ? "n" : "p", (byte*)&h, MegaClient::NODEHANDLE);
@@ -1129,11 +1142,11 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
                 {
                     case NEW_PUBLIC:
                     case NEW_NODE:
-                        snk.add((NodeCore*)(nn + i), tn, 0);
+                        snk.add(nn[i].nodekey, nn[i].nodehandle, tn, 0);
                         break;
 
                     case NEW_UPLOAD:
-                        snk.add((NodeCore*)(nn + i), tn, 0, nn[i].uploadtoken, (int)sizeof nn->uploadtoken);
+                        snk.add(nn[i].nodekey, nn[i].nodehandle, tn, 0, nn[i].uploadtoken, (int)sizeof nn->uploadtoken);
                         break;
                 }
             }
@@ -1155,6 +1168,7 @@ void CommandPutNodes::procresult()
     {
         if (client->tctable)
         {
+            client->mTctableRequestCommitter->beginOnce();
             vector<uint32_t> &ids = it->second;
             for (unsigned int i = 0; i < ids.size(); i++)
             {
@@ -3448,10 +3462,10 @@ CommandNodeKeyUpdate::CommandNodeKeyUpdate(MegaClient* client, handle_vector* v)
 
         if ((n = client->nodebyhandle(h)))
         {
-            client->key.ecb_encrypt((byte*)n->nodekey.data(), nodekey, n->nodekey.size());
+            client->key.ecb_encrypt((byte*)n->nodekey().data(), nodekey, n->nodekey().size());
 
             element(h, MegaClient::NODEHANDLE);
-            element(nodekey, int(n->nodekey.size()));
+            element(nodekey, int(n->nodekey().size()));
         }
     }
 
@@ -3559,6 +3573,10 @@ void CommandPubKeyRequest::procresult()
                     if (!ISUNDEF(uh))
                     {
                         client->mapuser(uh, u->email.c_str());
+                        if (u->isTemporary && u->uid == u->email) //update uid with the received USERHANDLE (will be used as target for putnodes)
+                        {
+                            u->uid = Base64Str<MegaClient::USERHANDLE>(uh);
+                        }
                     }
 
                     if (client->fetchingkeys && u->userhandle == client->me && len_pubk)
@@ -4069,7 +4087,7 @@ void CommandGetUserQuota::procresult()
                         ns->files = uint32_t(client->json.getint());
                         ns->folders = uint32_t(client->json.getint());
                         ns->version_bytes = client->json.getint();
-                        ns->version_files = client->json.getint();
+                        ns->version_files = client->json.getint32();
 
 #ifdef _DEBUG
                         // TODO: remove this debugging block once local count is confirmed to work correctly 100%
@@ -5305,6 +5323,29 @@ void CommandSendEvent::procresult()
     {
         client->json.storeobject();
         client->app->sendevent_result(API_EINTERNAL);
+    }
+}
+
+CommandSupportTicket::CommandSupportTicket(MegaClient *client, const char *message, int type)
+{
+    cmd("sse");
+    arg("t", type);
+    arg("b", 1);    // base64 encoding for `msg`
+    arg("m", (const byte*)message, int(strlen(message)));
+
+    tag = client->reqtag;
+}
+
+void CommandSupportTicket::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->supportticket_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->supportticket_result(API_EINTERNAL);
     }
 }
 

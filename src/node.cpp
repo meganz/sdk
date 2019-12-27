@@ -90,41 +90,44 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
     memset(&changed,-1,sizeof changed);
     changed.removed = false;
 
-    if (client)
+    Node* p;
+
+    client->nodes[h] = this;
+
+    // folder link access: first returned record defines root node and
+    // identity
+    if (ISUNDEF(*client->rootnodes))
     {
-        Node* p;
-
-        client->nodes[h] = this;
-
-        // folder link access: first returned record defines root node and
-        // identity
-        if (ISUNDEF(*client->rootnodes))
-        {
-            *client->rootnodes = h;
-        }
-
-        if (t >= ROOTNODE && t <= RUBBISHNODE)
-        {
-            client->rootnodes[t - ROOTNODE] = h;
-        }
-
-        // set parent linkage or queue for delayed parent linkage in case of
-        // out-of-order delivery
-        if ((p = client->nodebyhandle(ph)))
-        {
-            setparent(p);
-        }
-        else
-        {
-            dp->push_back(this);
-        }
-
-        client->mFingerprints.newnode(this);
+        *client->rootnodes = h;
     }
+
+    if (t >= ROOTNODE && t <= RUBBISHNODE)
+    {
+        client->rootnodes[t - ROOTNODE] = h;
+    }
+
+    // set parent linkage or queue for delayed parent linkage in case of
+    // out-of-order delivery
+    if ((p = client->nodebyhandle(ph)))
+    {
+        setparent(p);
+    }
+    else
+    {
+        dp->push_back(this);
+    }
+
+    client->mFingerprints.newnode(this);
 }
 
 Node::~Node()
 {
+    if (keyApplied())
+    {
+        client->mAppliedKeyNodeCount--;
+        assert(client->mAppliedKeyNodeCount >= 0);
+    }
+
     // abort pending direct reads
     client->preadabort(this);
 
@@ -208,12 +211,23 @@ Node::~Node()
 #endif
 }
 
+void Node::setkeyfromjson(const char* k)
+{
+    if (keyApplied()) --client->mAppliedKeyNodeCount;
+    Node::copystring(&nodekeydata, k);
+    if (keyApplied()) ++client->mAppliedKeyNodeCount;
+    assert(client->mAppliedKeyNodeCount >= 0);
+}
+
 // update node key and decrypt attributes
 void Node::setkey(const byte* newkey)
 {
     if (newkey)
     {
-        nodekey.assign((char*)newkey, (type == FILENODE) ? FILENODEKEYLENGTH + 0 : FOLDERNODEKEYLENGTH + 0);
+        if (keyApplied()) --client->mAppliedKeyNodeCount;
+        nodekeydata.assign(reinterpret_cast<const char*>(newkey), (type == FILENODE) ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH);
+        if (keyApplied()) ++client->mAppliedKeyNodeCount;
+        assert(client->mAppliedKeyNodeCount >= 0);
     }
 
     setattr();
@@ -221,7 +235,7 @@ void Node::setkey(const byte* newkey)
 
 // parse serialized node and return Node object - updates nodes hash and parent
 // mismatch vector
-Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
+Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
 {
     handle h, ph;
     nodetype_t t;
@@ -281,7 +295,7 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
 
     if ((t == FILENODE) || (t == FOLDERNODE))
     {
-        int keylen = ((t == FILENODE) ? FILENODEKEYLENGTH + 0 : FOLDERNODEKEYLENGTH + 0);
+        int keylen = ((t == FILENODE) ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH);
 
         if (ptr + keylen + 8 + sizeof(short) > end)
         {
@@ -362,11 +376,16 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     if (numshares)
     {
         // read inshare, outshares, or pending shares
-        while (Share::unserialize(client,
-                                  (numshares > 0) ? -1 : 0,
-                                  h, skey, &ptr, end)
-               && numshares > 0
-               && --numshares);
+        for (;;)
+        {
+            auto newShare = Share::unserialize((numshares > 0) ? -1 : 0,
+                                               h, skey, &ptr, end);
+            if (!(newShare && numshares > 0 && --numshares))
+            {
+                break;
+            }
+            client->newshares.push_back(newShare);
+        }
     }
 
     ptr = n->attrs.unserialize(ptr, end);
@@ -449,21 +468,21 @@ bool Node::serialize(string* d)
     switch (type)
     {
         case FILENODE:
-            if ((int)nodekey.size() != FILENODEKEYLENGTH)
+            if ((int)nodekeydata.size() != FILENODEKEYLENGTH)
             {
                 return false;
             }
             break;
 
         case FOLDERNODE:
-            if ((int)nodekey.size() != FOLDERNODEKEYLENGTH)
+            if ((int)nodekeydata.size() != FOLDERNODEKEYLENGTH)
             {
                 return false;
             }
             break;
 
         default:
-            if (nodekey.size())
+            if (nodekeydata.size())
             {
                 return false;
             }
@@ -497,11 +516,11 @@ bool Node::serialize(string* d)
     ts = (time_t)ctime; 
     d->append((char*)&ts, sizeof(ts));
 
-    d->append(nodekey);
+    d->append(nodekeydata);
 
     if (type == FILENODE)
     {
-        ll = (short)fileattrstring.size() + 1;
+        ll = static_cast<unsigned short>(fileattrstring.size() + 1);
         d->append((char*)&ll, sizeof ll);
         d->append(fileattrstring.c_str(), ll);
     }
@@ -512,7 +531,7 @@ bool Node::serialize(string* d)
     char hasLinkCreationTs = plink ? 1 : 0;
     d->append((char*)&hasLinkCreationTs, 1);
 
-    d->append("\0\0\0\0\0", 6);
+    d->append("\0\0\0\0\0", 6); // Use these bytes for extensions
 
     if (inshare)
     {
@@ -672,7 +691,7 @@ void Node::parseattr(byte *bufattr, AttrMap &attrs, m_off_t size, m_time_t &mtim
 // return temporary SymmCipher for this nodekey
 SymmCipher* Node::nodecipher()
 {
-    if (client->tmpnodecipher.setkey(&nodekey))
+    if (client->tmpnodecipher.setkey(&nodekeydata))
     {
         return &client->tmpnodecipher;
     }
@@ -718,7 +737,7 @@ void Node::setattr()
 // otherwise, the file's fingerprint is derived from the file's mtime/size/key
 void Node::setfingerprint()
 {
-    if (type == FILENODE && nodekey.size() >= sizeof crc)
+    if (type == FILENODE && nodekeydata.size() >= sizeof crc)
     {
         client->mFingerprints.remove(this);
 
@@ -736,7 +755,7 @@ void Node::setfingerprint()
         // size and client timestamp instead
         if (!isvalid)
         {
-            memcpy(crc.data(), nodekey.data(), sizeof crc);
+            memcpy(crc.data(), nodekeydata.data(), sizeof crc);
             mtime = ctime;
         }
 
@@ -858,10 +877,6 @@ int Node::hasfileattribute(const string *fileattrstring, fatype t)
 // attempt to apply node key - sets nodekey to a raw key if successful
 bool Node::applykey()
 {
-    unsigned int keylength = (type == FILENODE)
-                   ? FILENODEKEYLENGTH + 0
-                   : FOLDERNODEKEYLENGTH + 0;
-
     if (type > FOLDERNODE)
     {
         //Root nodes contain an empty attrstring
@@ -869,7 +884,7 @@ bool Node::applykey()
         attrstring = NULL;
     }
 
-    if (nodekey.size() == keylength || !nodekey.size())
+    if (keyApplied() || !nodekeydata.size())
     {
         return false;
     }
@@ -881,12 +896,12 @@ bool Node::applykey()
     SymmCipher* sc = &client->key;
     handle me = client->loggedin() ? client->me : *client->rootnodes;
 
-    while ((t = nodekey.find_first_of(':', t)) != string::npos)
+    while ((t = nodekeydata.find_first_of(':', t)) != string::npos)
     {
         // compound key: locate suitable subkey (always symmetric)
         h = 0;
 
-        l = Base64::atob(nodekey.c_str() + (nodekey.find_last_of('/', t) + 1), (byte*)&h, sizeof h);
+        l = Base64::atob(nodekeydata.c_str() + (nodekeydata.find_last_of('/', t) + 1), (byte*)&h, sizeof h);
         t++;
 
         if (l == MegaClient::USERHANDLE)
@@ -918,7 +933,7 @@ bool Node::applykey()
             }
         }
 
-        k = nodekey.c_str() + t;
+        k = nodekeydata.c_str() + t;
         break;
     }
 
@@ -928,7 +943,7 @@ bool Node::applykey()
     {
         if (l < 0)
         {
-            k = nodekey.c_str();
+            k = nodekeydata.c_str();
         }
         else
         {
@@ -937,13 +952,16 @@ bool Node::applykey()
     }
 
     byte key[FILENODEKEYLENGTH];
+    unsigned keylength = (type == FILENODE) ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH;
 
     if (client->decryptkey(k, key, keylength, sc, 0, nodehandle))
     {
-        nodekey.assign((const char*)key, keylength);
+        client->mAppliedKeyNodeCount++;
+        nodekeydata.assign((const char*)key, keylength);
         setattr();
     }
 
+    assert(keyApplied());
     return true;
 }
 
@@ -1542,11 +1560,6 @@ LocalNode::~LocalNode()
         return;
     }
 
-    if (!sync->client)
-    {
-        return;
-    }
-
     if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
     {
         sync->statecachedel(this);
@@ -1793,10 +1806,15 @@ bool LocalNode::serialize(string* d)
         d->append((const char*)buf, Serialize64::serialize(buf, mtime));
     }
 
+    const char syncable = mSyncable ? 1 : 0;
+    d->append(&syncable, sizeof(syncable));
+
+    d->append("\0\0\0\0\0\0\0", 8); // Use these bytes for extensions
+
     return true;
 }
 
-LocalNode* LocalNode::unserialize(Sync* sync, string* d)
+LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
 {
     if (d->size() < sizeof(m_off_t)         // type/size combo
                   + sizeof(handle)          // fsid
@@ -1862,12 +1880,41 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
         memcpy(crc, ptr, sizeof crc);
         ptr += sizeof crc;
 
-        if (Serialize64::unserialize((byte*)ptr, static_cast<int>(end - ptr), &mtime) < 0)
+        int mtimeSize;
+        if ((mtimeSize = Serialize64::unserialize((byte*)ptr, static_cast<int>(end - ptr), &mtime)) < 0)
         {
             LOG_err << "LocalNode unserialization failed - malformed fingerprint mtime";
             return NULL;
         }
+        else
+        {
+            ptr += mtimeSize;
+        }
     }
+
+    char syncable = 1;
+    if (ptr < end)
+    {
+        if (ptr + sizeof(syncable) + 8 > end)
+        {
+            LOG_err << "LocalNode unserialization failed - syncable flag";
+            return NULL;
+        }
+
+        syncable = MemAccess::get<char>(ptr);
+        ptr += sizeof(syncable);
+
+        // skip extension bytes
+        for (int i = 8; i--;)
+        {
+            if (ptr + (unsigned char)*ptr < end)
+            {
+                ptr += (unsigned char)*ptr + 1;
+            }
+        }
+    }
+
+    assert(ptr == end);
 
     LocalNode* l = new LocalNode();
 
@@ -1879,22 +1926,23 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
     l->fsid = fsid;
 
     l->localname.assign(localname, localnamelen);
-    l->slocalname = NULL;
+    l->slocalname = nullptr;
     l->name.assign(localname, localnamelen);
     sync->client->fsaccess->local2name(&l->name);
 
     memcpy(l->crc.data(), crc, sizeof crc);
     l->mtime = mtime;
-    l->isvalid = 1;
+    l->isvalid = true;
 
     l->node = sync->client->nodebyhandle(h);
-    l->parent = NULL;
+    l->parent = nullptr;
     l->sync = sync;
+    l->mSyncable = syncable == 1;
 
     // FIXME: serialize/unserialize
     l->created = false;
     l->reported = false;
-    l->checked = h != UNDEF;
+    l->checked = h != UNDEF; // TODO: Is this a bug? h will never be UNDEF
 
     return l;
 }

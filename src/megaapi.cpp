@@ -279,6 +279,7 @@ int MegaUserAlertList::size() const
     return 0;
 }
 
+void MegaUserAlertList::clear() { }
 
 
 MegaRecentActionBucket::~MegaRecentActionBucket()
@@ -2260,6 +2261,11 @@ void MegaApi::getPublicNode(const char* megaFileLink, MegaRequestListener *liste
     pImpl->getPublicNode(megaFileLink, listener);
 }
 
+const char *MegaApi::buildPublicLink(const char *publicHandle, const char *key, bool isFolder)
+{
+    return pImpl->buildPublicLink(publicHandle, key, isFolder);
+}
+
 void MegaApi::getThumbnail(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener)
 {
     pImpl->getThumbnail(node, dstFilePath, listener);
@@ -2634,7 +2640,7 @@ void MegaApi::getUserAlias(MegaHandle uh, MegaRequestListener *listener)
 
 void MegaApi::setUserAlias(MegaHandle uh, const char *alias, MegaRequestListener *listener)
 {
-    pImpl->setUserAlias(uh, alias);
+    pImpl->setUserAlias(uh, alias, listener);
 }
 
 void MegaApi::getRubbishBinAutopurgePeriod(MegaRequestListener *listener)
@@ -2680,6 +2686,11 @@ void MegaApi::submitFeedback(int rating, const char *comment, MegaRequestListene
 void MegaApi::sendEvent(int eventType, const char *message, MegaRequestListener *listener)
 {
     pImpl->sendEvent(eventType, message, listener);
+}
+
+void MegaApi::createSupportTicket(const char *message, int type, MegaRequestListener *listener)
+{
+    pImpl->createSupportTicket(message, type, listener);
 }
 
 void MegaApi::reportDebugEvent(const char *text, MegaRequestListener *listener)
@@ -2873,6 +2884,10 @@ void MegaApi::startUpload(const char* localPath, MegaNode* parent, MegaTransferL
     pImpl->startUpload(localPath, parent, listener);
 }
 
+void MegaApi::startUploadForSupport(const char* localPath, bool isSourceTemporary, MegaTransferListener *listener)
+{
+    pImpl->startUploadForSupport(localPath, isSourceTemporary, listener);
+}
 
 MegaStringList *MegaApi::getBackupFolders(int backuptag) const
 {
@@ -3139,6 +3154,11 @@ bool MegaApi::isScanning()
     return pImpl->isIndexing();
 }
 
+bool MegaApi::isSyncing()
+{
+    return pImpl->isSyncing();
+}
+
 bool MegaApi::isSynced(MegaNode *n)
 {
     return pImpl->isSynced(n);
@@ -3328,9 +3348,9 @@ MegaShareList* MegaApi::getInSharesList(int order)
     return pImpl->getInSharesList(order);
 }
 
-MegaUser *MegaApi::getUserFromInShare(MegaNode *node)
+MegaUser *MegaApi::getUserFromInShare(MegaNode *node, bool recurse)
 {
-    return pImpl->getUserFromInShare(node);
+    return pImpl->getUserFromInShare(node, recurse);
 }
 
 bool MegaApi::isShared(MegaNode *node)

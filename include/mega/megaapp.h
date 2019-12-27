@@ -156,8 +156,11 @@ struct MEGA_API MegaApp
     virtual void creditcardcancelsubscriptions_result(error) {}
     virtual void getpaymentmethods_result(int, error) {}
     virtual void copysession_result(string*, error) { }
+
+    // feedback from user/client
     virtual void userfeedbackstore_result(error) { }
     virtual void sendevent_result(error) { }
+    virtual void supportticket_result(error) { }
 
     // user invites/attributes
     virtual void removecontact_result(error) { }

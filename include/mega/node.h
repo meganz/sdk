@@ -1,3 +1,4 @@
+
 /**
  * @file mega/node.h
  * @brief Classes for accessing local and remote nodes
@@ -41,13 +42,9 @@ struct MEGA_API NodeCore
     // node type
     nodetype_t type;
 
-    // full folder/file key, symmetrically or asymmetrically encrypted
-    // node crypto keys (raw or cooked -
-    // cooked if size() == FOLDERNODEKEYLENGTH or FILEFOLDERNODEKEYLENGTH)
-    string nodekey;
-
     // node attributes
     string *attrstring;
+
 };
 
 // new node for putnodes()
@@ -55,6 +52,8 @@ struct MEGA_API NewNode : public NodeCore
 {
     static const int OLDUPLOADTOKENLEN = 27;
     static const int UPLOADTOKENLEN = 36;
+
+    string nodekey;
 
     newnodesource_t source;
 
@@ -110,7 +109,16 @@ private:
 // filesystem node
 struct MEGA_API Node : public NodeCore, FileFingerprint
 {
-    MegaClient* client;
+    MegaClient* client = nullptr;
+
+    // supplies the nodekey (which is private to ensure we track changes to it)
+    const string& nodekey() const;
+
+    // Also returns the key but does not assert that the key has been applied.  Only use it where we don't need the node to be readable.
+    const string& nodekeyUnchecked() const;
+
+    // check if the key is present and is the correct size for this node
+    bool keyApplied() const;
 
     // change parent node association
     bool setparent(Node*);
@@ -140,10 +148,10 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     AttrMap attrs;
 
     // owner
-    handle owner;
+    handle owner = mega::UNDEF;
 
     // actual time this node was created (cannot be set by user)
-    m_time_t ctime;
+    m_time_t ctime = 0;
 
     // file attributes
     string fileattrstring;
@@ -159,21 +167,21 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     static void parseattr(byte*, AttrMap&, m_off_t, m_time_t&, string&, string&, FileFingerprint&);
 
     // inbound share
-    Share* inshare;
+    Share* inshare = nullptr;
 
     // outbound shares by user
-    share_map *outshares;
+    share_map* outshares = nullptr;
 
     // outbound pending shares
-    share_map *pendingshares;
+    share_map* pendingshares = nullptr;
 
     // incoming/outgoing share key
-    SymmCipher* sharekey;
+    SymmCipher* sharekey = nullptr;
 
     // app-private pointer
-    void* appdata;
+    void* appdata = nullptr;
 
-    bool foreignkey;
+    bool foreignkey = false;
 
     struct
     {
@@ -192,6 +200,8 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     
     void setkey(const byte* = NULL);
 
+    void setkeyfromjson(const char*);
+
     void setfingerprint();
 
     void faspec(string*);
@@ -199,7 +209,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     NodeCounter subnodeCounts() const;
 
     // parent
-    Node* parent;
+    Node* parent = nullptr;
 
     // children
     node_list children;
@@ -212,13 +222,13 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
 #ifdef ENABLE_SYNC
     // related synced item or NULL
-    LocalNode* localnode;
+    LocalNode* localnode = nullptr;
 
     // active sync get
-    struct SyncFileGet* syncget;
+    struct SyncFileGet* syncget = nullptr;
 
     // state of removal to //bin / SyncDebris
-    syncdel_t syncdeleted;
+    syncdel_t syncdeleted = SYNCDEL_NONE;
 
     // location in the todebris node_set
     node_set::iterator todebris_it;
@@ -229,22 +239,45 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 #endif
 
     // source tag
-    int tag;
+    int tag = 0;
 
     // check if node is below this node
     bool isbelow(Node*) const;
 
     // handle of public link for the node
-    PublicLink *plink;
+    PublicLink* plink = nullptr;
 
     void setpubliclink(handle, m_time_t, m_time_t, bool);
 
     bool serialize(string*);
-    static Node* unserialize(MegaClient*, string*, node_vector*);
+    static Node* unserialize(MegaClient*, const string*, node_vector*);
 
     Node(MegaClient*, vector<Node*>*, handle, handle, nodetype_t, m_off_t, handle, const char*, m_time_t);
     ~Node();
+
+private:
+    // full folder/file key, symmetrically or asymmetrically encrypted
+    // node crypto keys (raw or cooked -
+    // cooked if size() == FOLDERNODEKEYLENGTH or FILEFOLDERNODEKEYLENGTH)
+    string nodekeydata;
 };
+
+inline const string& Node::nodekey() const
+{
+    assert(keyApplied() || type == ROOTNODE || type == INCOMINGNODE || type == RUBBISHNODE);
+    return nodekeydata;
+}
+
+inline const string& Node::nodekeyUnchecked() const
+{
+    return nodekeydata;
+}
+
+inline bool Node::keyApplied() const
+{
+    return nodekeydata.size() == size_t((type == FILENODE) ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH);
+}
+
 
 #ifdef ENABLE_SYNC
 struct MEGA_API LocalNode : public File
@@ -256,6 +289,9 @@ struct MEGA_API LocalNode : public File
 
     // stored to rebuild tree after serialization => this must not be a pointer to parent->dbid
     int32_t parent_dbid = 0;
+
+    // whether this node can be synced to the remote tree
+    bool mSyncable = true;
 
     // children by name
     localnode_map children;
@@ -348,7 +384,7 @@ struct MEGA_API LocalNode : public File
     void init(Sync*, nodetype_t, LocalNode*, string*);
 
     virtual bool serialize(string*);
-    static LocalNode* unserialize( Sync* sync, string* sData );
+    static LocalNode* unserialize( Sync* sync, const string* sData );
 
     ~LocalNode();
 };

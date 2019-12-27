@@ -1026,6 +1026,7 @@ void MegaClient::init()
     chunkfailed = false;
     statecurrent = false;
     totalNodes = 0;
+    mAppliedKeyNodeCount = 0;
     faretrying = false;
 
 #ifdef ENABLE_SYNC
@@ -1068,6 +1069,7 @@ void MegaClient::init()
 
     jsonsc.pos = NULL;
     insca = false;
+    insca_notlast = false;
     scnotifyurl.clear();
     *scsn = 0;
 
@@ -1226,7 +1228,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
 
 MegaClient::~MegaClient()
 {
-    locallogout();
+    locallogout(false);
 
     delete pendingcs;
     delete pendingsc;
@@ -1742,8 +1744,7 @@ void MegaClient::exec()
 
                                 if (loggedout)
                                 {
-                                    removecaches();
-                                    locallogout();
+                                    locallogout(true);
                                     app->logout_result(API_OK);
                                 }
                             }
@@ -1903,7 +1904,7 @@ void MegaClient::exec()
                         && pendingsc->in.size()
                         && pendingsc->in[0] == '0')
                 {
-                    LOG_debug << "Waitd keep-alive received";
+                    LOG_debug << "SC keep-alive received";
                     delete pendingsc;
                     pendingsc = NULL;
                     btsc.reset();
@@ -1912,6 +1913,8 @@ void MegaClient::exec()
 
                 if (*pendingsc->in.c_str() == '{')
                 {
+                    insca = false;
+                    insca_notlast = false;
                     jsonsc.begin(pendingsc->in.c_str());
                     jsonsc.enterobject();
                     break;
@@ -2087,7 +2090,6 @@ void MegaClient::exec()
             }
             pendingsc->posturl.append(auth);
             pendingsc->type = REQ_JSON;
-            LOG_debug << "Sending keep-alive to waitd";
             pendingsc->post(this);
             jsonsc.pos = NULL;
         }
@@ -2790,7 +2792,7 @@ void MegaClient::exec()
     if (Waiter::ds > lasttime + 1200)
     {
         lasttime = Waiter::ds;
-        LOG_info << performanceStats.report(false, httpio, waiter);
+        LOG_info << performanceStats.report(false, httpio, waiter, reqs);
     }
 #endif
 }
@@ -2841,13 +2843,7 @@ int MegaClient::preparewait()
         nexttransferretry(GET, &nds);
 
         // retry transferslots
-        for (transferslot_list::iterator it = tslots.begin(); it != tslots.end(); it++)
-        {
-            if (!(*it)->retrybt.armed())
-            {
-                (*it)->retrybt.update(&nds);
-            }
-        }
+        transferSlotsBackoff.update(&nds, false);
 
         for (pendinghttp_map::iterator it = pendinghttp.begin(); it != pendinghttp.end(); it++)
         {
@@ -3260,7 +3256,7 @@ bool MegaClient::dispatch(direction_t d)
                         // MegaClient::moretransfers()
                         if ((n = nodebyhandle((*it)->h)) && n->type == FILENODE)
                         {
-                            k = (const byte*)n->nodekey.data();
+                            k = (const byte*)n->nodekey().data();
                             nexttransfer->size = n->size;
                         }
                     }
@@ -3416,7 +3412,7 @@ bool MegaClient::dispatch(direction_t d)
                         if (!gfxdisabled && gfx && gfx->isgfx(&nexttransfer->localfilename))
                         {
                             // we want all imagery to be safely tucked away before completing the upload, so we bump minfa
-                            nexttransfer->minfa += gfx->gendimensionsputfa(ts->fa.get(), &nexttransfer->localfilename, nexttransfer->uploadhandle, nexttransfer->transfercipher(), -1, false);
+                            nexttransfer->minfa += gfx->gendimensionsputfa(ts->fa, &nexttransfer->localfilename, nexttransfer->uploadhandle, nexttransfer->transfercipher(), -1, false);
                         }
                     }
                 }
@@ -3582,23 +3578,11 @@ void MegaClient::freeq(direction_t d)
 }
 
 // determine next scheduled transfer retry
-// FIXME: make this an ordered set and only check the first element instead of
-// scanning the full map!
 void MegaClient::nexttransferretry(direction_t d, dstime* dsmin)
 {
-    for (transfer_map::iterator it = transfers[d].begin(); it != transfers[d].end(); it++)
+    if (!xferpaused[d])   // avoid setting the timer's next=1 if it won't be processed
     {
-        if ((!it->second->slot || !it->second->slot->fa)
-         && it->second->bt.nextset())
-        {
-            it->second->bt.update(dsmin);
-            if (it->second->bt.armed())
-            {
-                // fire the timer only once but keeping it armed
-                it->second->bt.set(0);
-                LOG_debug << "Disabling armed transfer backoff";
-            }
-        }
+        transferRetryBackoffs[d].update(dsmin, true);
     }
 }
 
@@ -3687,8 +3671,7 @@ void MegaClient::logout()
 {
     if (loggedin() != FULLACCOUNT)
     {
-        removecaches();
-        locallogout();
+        locallogout(true);
 
         restag = reqtag;
         app->logout_result(API_OK);
@@ -3699,8 +3682,13 @@ void MegaClient::logout()
     reqs.add(new CommandLogout(this));
 }
 
-void MegaClient::locallogout()
+void MegaClient::locallogout(bool removecaches)
 {
+    if (removecaches)
+    {
+        removeCaches();
+    }
+
     delete sctable;
     sctable = NULL;
     pendingsccommit = false;
@@ -3830,7 +3818,7 @@ void MegaClient::locallogout()
     fetchingkeys = false;
 }
 
-void MegaClient::removecaches()
+void MegaClient::removeCaches()
 {
     if (sctable)
     {
@@ -3988,6 +3976,11 @@ bool MegaClient::procsc()
                     jsonsc.storeobject(&scnotifyurl);
                     break;
 
+                case MAKENAMEID2('i', 'r'):
+                    // when spoonfeeding is in action, there may still be more actionpackets to be delivered.
+                    insca_notlast = jsonsc.getint() == 1;
+                    break;
+
                 case MAKENAMEID2('s', 'n'):
                     // the sn element is guaranteed to be the last in sequence
                     setscsn(&jsonsc);
@@ -4010,11 +4003,11 @@ bool MegaClient::procsc()
                     break;
                     
                 case EOO:
-                    LOG_debug << "Processing of action packets finished";
+                    LOG_debug << "Processing of action packets finished.  More to follow: " << insca_notlast;
                     mergenewshares(1);
                     applykeys();
 
-                    if (!statecurrent)
+                    if (!statecurrent && !insca_notlast)   // with actionpacket spoonfeeding, just finishing a batch does not mean we are up to date yet - keep going while "ir":1
                     {
                         if (fetchingnodes)
                         {
@@ -4086,7 +4079,7 @@ bool MegaClient::procsc()
                         string report;
                         fnstats.toJsonArray(&report);
 
-                        sendevent(99426, report.c_str(), 0);
+                        sendevent(99426, report.c_str(), 0);    // Treeproc performance log
 
                         // NULL vector: "notify all elements"
                         app->nodes_updated(NULL, int(nodes.size()));
@@ -4108,7 +4101,11 @@ bool MegaClient::procsc()
                             useralerts.begincatchup = true;
                         }
                     }
-                    app->catchup_result();
+
+                    if (!insca_notlast)
+                    {
+                        app->catchup_result();
+                    }
                     return true;
 
                 case 'a':
@@ -4594,7 +4591,7 @@ void MegaClient::finalizesc(bool complete)
 }
 
 // queue node file attribute for retrieval or cancel retrieval
-error MegaClient::getfa(handle h, string *fileattrstring, string *nodekey, fatype t, int cancel)
+error MegaClient::getfa(handle h, string *fileattrstring, const string &nodekey, fatype t, int cancel)
 {
     // locate this file attribute type in the nodes's attribute string
     handle fah;
@@ -4673,7 +4670,7 @@ error MegaClient::getfa(handle h, string *fileattrstring, string *nodekey, fatyp
 
             if (!*fafp)
             {
-                *fafp = new FileAttributeFetch(h, *nodekey, t, reqtag);
+                *fafp = new FileAttributeFetch(h, nodekey, t, reqtag);
             }
             else
             {
@@ -6475,7 +6472,7 @@ void MegaClient::notifypurge(void)
             Node* n = nodenotify[i];
             if (n->attrstring)
             {
-                LOG_err << "NO_KEY node: " << n->type << " " << n->size << " " << n->nodehandle << " " << n->nodekey.size();
+                LOG_err << "NO_KEY node: " << n->type << " " << n->size << " " << n->nodehandle << " " << n->nodekeyUnchecked().size();
 #ifdef ENABLE_SYNC
                 if (n->localnode)
                 {
@@ -6721,6 +6718,34 @@ error MegaClient::setattr(Node* n, const char *prevattr)
     reqs.add(new CommandSetAttr(this, n, cipher, prevattr));
 
     return API_OK;
+}
+
+void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldername)
+{
+    string attrstring;
+    byte buf[FOLDERNODEKEYLENGTH];
+
+    // set up new node as folder node
+    newnode->source = NEW_NODE;
+    newnode->type = FOLDERNODE;
+    newnode->nodehandle = 0;
+    newnode->parenthandle = UNDEF;
+
+    // generate fresh random key for this folder node
+    rng.genblock(buf, FOLDERNODEKEYLENGTH);
+    newnode->nodekey.assign((char*)buf, FOLDERNODEKEYLENGTH);
+    tmpnodecipher.setkey(buf);
+
+    // generate fresh attribute object with the folder name
+    AttrMap attrs;
+
+    fsaccess->normalize(&foldername);
+    attrs.map['n'] = foldername;
+
+    // JSON-encode object and encrypt attribute string
+    attrs.getjson(&attrstring);
+    newnode->attrstring = new string;
+    makeattr(&tmpnodecipher, newnode->attrstring, attrstring.c_str());
 }
 
 // send new nodes to API for processing
@@ -7301,7 +7326,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                 {
                     LOG_warn << "Updating the key of a NO_KEY node";
                     Node::copystring(n->attrstring, a);
-                    Node::copystring(&n->nodekey, k);
+                    n->setkeyfromjson(k);
                 }
             }
             else
@@ -7359,7 +7384,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
 
                 n->attrstring = new string;
                 Node::copystring(n->attrstring, a);
-                Node::copystring(&n->nodekey, k);
+                n->setkeyfromjson(k);
 
                 if (!ISUNDEF(su))
                 {
@@ -7878,15 +7903,13 @@ void MegaClient::applykeys()
 {
     CodeCounter::ScopeTimer ccst(performanceStats.applyKeys);
 
-    int t = 0;
+    int noKeyExpected = (rootnodes[0] != UNDEF) + (rootnodes[1] != UNDEF) + (rootnodes[2] != UNDEF);
 
-    // FIXME: rather than iterating through the whole node set, maintain subset
-    // with missing keys
-    for (node_map::iterator it = nodes.begin(); it != nodes.end(); it++)
+    if (nodes.size() > size_t(mAppliedKeyNodeCount + noKeyExpected))
     {
-        if (it->second->applykey())
+        for (auto& it : nodes)
         {
-            t++;
+            it.second->applykey();
         }
     }
 
@@ -8001,64 +8024,90 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
     return j->leavearray();
 }
 
-error MegaClient::parsefolderlink(const char *folderlink, handle &h, byte *key)
+// Supported formats:
+//   - file links:      #!<ph>[!<key>]
+//                      <ph>[!<key>]
+//                      /file/<ph>[<params>][#<key>]
+//
+//   - folder links:    #F!<ph>[!<key>]
+//                      /folder/<ph>[<params>][#<key>]
+error MegaClient::parsepubliclink(const char* link, handle& ph, byte* key, bool isFolderLink)
 {
-    // structure of public folder links: https://mega.nz/#F!<handle>!<key> or https://mega.nz/folder/<handle>#<key>
+    bool isFolder;
+    const char* ptr = nullptr;
+    if ((ptr = strstr(link, "#F!")))
+    {
+        ptr += 3;
+        isFolder = true;
+    }
+    else if ((ptr = strstr(link, "folder/")))
+    {
+        ptr += 7;
+        isFolder = true;
+    }
+    else if ((ptr = strstr(link, "#!")))
+    {
+        ptr += 2;
+        isFolder = false;
+    }
+    else if ((ptr = strstr(link, "file/")))
+    {
+        ptr += 5;
+        isFolder = false;
+    }
+    else    // legacy file link format without '#'
+    {
+        ptr = link;
+        isFolder = false;
+    }
 
-    const char* ptr;
-    if (!((ptr = strstr(folderlink, "#F!")) && (strlen(ptr) >= 11)) &&
-            !((ptr = strstr(folderlink, "folder/")) && (strlen(ptr) >= 15)))
+    if (isFolder != isFolderLink)
+    {
+        return API_EARGS;   // type of link mismatch
+    }
+
+    if (strlen(ptr) < 8)  // no public handle in the link
     {
         return API_EARGS;
     }
 
-    const char *nodeHandleBegining = nullptr;
-    if (*ptr == 'f')
+    ph = 0; //otherwise atob will give an unexpected result
+    if (Base64::atob(ptr, (byte*)&ph, NODEHANDLE) == NODEHANDLE)
     {
-        nodeHandleBegining = ptr + 7;
-        ptr += 15;
-    }
-    else
-    {
-        nodeHandleBegining = ptr + 3;
-        ptr += 11;
+        ptr += 8;
+
+        // skip any tracking parameter introduced by third-party websites
+        while(*ptr && *ptr != '!' && *ptr != '#')
+        {
+            ptr++;
+        }
+
+        if (!*ptr || ((*ptr == '#' || *ptr == '!') && *(ptr + 1) == '\0'))   // no key provided
+        {
+            return API_EINCOMPLETE;
+        }
+
+        if (*ptr == '!' || *ptr == '#')
+        {
+            const char *k = ptr + 1;    // skip '!' or '#' separator
+            int keylen = isFolderLink ? FOLDERNODEKEYLENGTH : FILENODEKEYLENGTH;
+            if (Base64::atob(k, key, keylen) == keylen)
+            {
+                return API_OK;
+            }
+        }
     }
 
-    if (*ptr == '\0')    // no key provided, link is incomplete
-    {
-        return API_EINCOMPLETE;
-    }
-    else if (*ptr != '!' && *ptr != '#')
-    {
-        return API_EARGS;
-    }
-
-    // Node handle size is 6 Bytes, so we init with zeros to avoid comparison problems
-    handle auxh = 0;
-    if (Base64::atob(nodeHandleBegining, (byte*)&auxh, NODEHANDLE) != NODEHANDLE)
-    {
-        return API_EARGS;
-    }
-
-    byte auxkey[SymmCipher::KEYLENGTH];
-    const char *k = ptr + 1;
-    if (Base64::atob(k, auxkey, sizeof auxkey) != sizeof auxkey)
-    {
-        return API_EARGS;
-    }
-
-    h = auxh;
-    memcpy(key, auxkey, sizeof auxkey);
-    return API_OK;
+    return API_EARGS;
 }
 
 error MegaClient::folderaccess(const char *folderlink)
 {
     handle h = UNDEF;
-    byte folderkey[SymmCipher::KEYLENGTH];
+    byte folderkey[FOLDERNODEKEYLENGTH];
 
     error e;
-    if ((e = parsefolderlink(folderlink, h, folderkey)) == API_OK)
+    if ((e = parsepubliclink(folderlink, h, folderkey, true)) == API_OK)
     {
         setrootnode(h);
         key.setkey(folderkey);
@@ -9023,7 +9072,7 @@ void MegaClient::putua(userattr_map *attrs, int ctag)
 
     for (userattr_map::iterator it = attrs->begin(); it != attrs->end(); it++)
     {
-        attr_t type = it->first;;
+        attr_t type = it->first;
 
         if (User::needversioning(type) != 1)
         {
@@ -9115,8 +9164,8 @@ void MegaClient::notifynode(Node* n)
         {
             // report a "NO_KEY" event
 
-            char* buf = new char[n->nodekey.size() * 4 / 3 + 4];
-            Base64::btoa((byte *)n->nodekey.data(), int(n->nodekey.size()), buf);
+            char* buf = new char[n->nodekey().size() * 4 / 3 + 4];
+            Base64::btoa((byte *)n->nodekey().data(), int(n->nodekey().size()), buf);
 
             int changed = 0;
             changed |= (int)n->changed.removed;
@@ -9406,8 +9455,8 @@ void MegaClient::procsnk(JSON* j)
                 if (n && n->isbelow(sn))
                 {
                     byte keybuf[FILENODEKEYLENGTH];
-                    size_t keysize = n->nodekey.size();
-                    sn->sharekey->ecb_encrypt((byte*)n->nodekey.data(), keybuf, keysize);
+                    size_t keysize = n->nodekey().size();
+                    sn->sharekey->ecb_encrypt((byte*)n->nodekey().data(), keybuf, keysize);
                     reqs.add(new CommandSingleKeyCR(sh, nh, keybuf, keysize));
                 }
             }
@@ -9862,9 +9911,9 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
             {
                 if (setkey >= 0)
                 {
-                    if (setkey == (int)n->nodekey.size())
+                    if (setkey == (int)n->nodekey().size())
                     {
-                        sn->sharekey->ecb_decrypt(keybuf, n->nodekey.size());
+                        sn->sharekey->ecb_decrypt(keybuf, n->nodekey().size());
                         n->setkey(keybuf);
                         setkey = -1;
                     }
@@ -9872,7 +9921,7 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
                 else
                 {
                     n->applykey();
-                    int keysize = int(n->nodekey.size());
+                    int keysize = int(n->nodekey().size());
                     if (sn->sharekey && keysize == (n->type == FILENODE ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH))
                     {
                         unsigned nsi, nni;
@@ -9883,7 +9932,7 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
                         sprintf(buf, "\",%u,%u,\"", nsi, nni);
 
                         // generate & queue share nodekey
-                        sn->sharekey->ecb_encrypt((byte*)n->nodekey.data(), keybuf, size_t(keysize));
+                        sn->sharekey->ecb_encrypt((byte*)n->nodekey().data(), keybuf, size_t(keysize));
                         Base64::btoa(keybuf, keysize, strchr(buf + 7, 0));
                         crkeys.append(buf);
                     }
@@ -9990,58 +10039,18 @@ void MegaClient::getpubliclink(Node* n, int del, m_time_t ets)
 }
 
 // open exported file link
-// formats supported: ...#!publichandle!key, publichandle!key or file/publichandle#key
-error MegaClient::openfilelink(const char* link, int op)
+// formats supported: ...#!publichandle!key, publichandle!key or file/<ph>[<params>][#<key>]
+void MegaClient::openfilelink(handle ph, const byte *key, int op)
 {
-    const char* ptr = NULL;
-    handle ph = 0;
-    byte key[FILENODEKEYLENGTH];
-
-    if ((ptr = strstr(link, "#!")))
+    if (op)
     {
-        ptr += 2;
+        reqs.add(new CommandGetPH(this, ph, key, op));
     }
-    else if ((ptr = strstr(link, "file/")))
+    else
     {
-        ptr += 5;
+        assert(key);
+        reqs.add(new CommandGetFile(this, NULL, key, ph, false));
     }
-    else    // legacy format without '#'
-    {
-        ptr = link;
-    }
-
-    if (Base64::atob(ptr, (byte*)&ph, NODEHANDLE) == NODEHANDLE)
-    {
-        ptr += 8;
-        if (*ptr == '!' || (*ptr == '#' && *(ptr + 1) != '\0'))
-        {
-            ptr++;
-
-            if (Base64::atob(ptr, key, sizeof key) == sizeof key)
-            {
-                if (op)
-                {
-                    reqs.add(new CommandGetPH(this, ph, key, op));
-                }
-                else
-                {
-                    reqs.add(new CommandGetFile(this, NULL, key, ph, false));
-                }
-
-                return API_OK;
-            }
-        }
-        else if (*ptr == '\0' || *ptr == '#')    // no key provided, check only the existence of the node
-        {
-            if (op)
-            {
-                reqs.add(new CommandGetPH(this, ph, NULL, op));
-                return API_OK;
-            }
-        }
-    }
-
-    return API_EARGS;
 }
 
 /* Format of password-protected links
@@ -10171,70 +10180,18 @@ error MegaClient::decryptlink(const char *link, const char *pwd, string* decrypt
 
 error MegaClient::encryptlink(const char *link, const char *pwd, string *encryptedLink)
 {
-    if (!pwd || !link)
+    if (!pwd || !link || !encryptedLink)
     {
         LOG_err << "Empty link or empty password to encrypt link";
         return API_EARGS;
     }
 
-    const char* ptr = NULL;
-    const char* end = link + strlen(link);
-
-    if (!(ptr = strstr(link, "#")) || ptr >= end)
-    {
-        LOG_err << "Invalid format of public link or incomplete";
-        return API_EARGS;
-    }
-    ptr++;  // skip '#'
-
-    int isFolder;
-    if (*ptr == 'F')
-    {
-        isFolder = true;
-        ptr++;  // skip 'F'
-    }
-    else if (*ptr == '!')
-    {
-        isFolder = false;
-    }
-    else
-    {
-        LOG_err << "Invalid format of public link";
-        return API_EARGS;
-    }
-    ptr++;  // skip '!' separator
-
-    if (ptr + 8 >= end)
-    {
-        LOG_err << "Incomplete public link";
-        return API_EINCOMPLETE;
-    }
-
+    bool isFolder = (strstr(link, "#F!") || strstr(link, "folder/"));
     handle ph;
-    if (Base64::atob(ptr, (byte*)&ph, NODEHANDLE) != NODEHANDLE)
-    {
-        LOG_err << "Invalid format of public link";
-        return API_EARGS;
-    }
-    ptr += 8;   // skip public handle
-
-    if (ptr + 1 >= end || *ptr != '!')
-    {
-        LOG_err << "Invalid format of public link";
-        return API_EARGS;
-    }
-    ptr++;  // skip '!' separator
-
     size_t linkKeySize = isFolder ? FOLDERNODEKEYLENGTH : FILENODEKEYLENGTH;
-    string linkKey;
-    linkKey.resize(linkKeySize);
-    if ((size_t) Base64::atob(ptr, (byte *)linkKey.data(), int(linkKey.size())) != linkKeySize)
-    {
-        LOG_err << "Invalid encryption key in the public link";
-        return API_EKEY;
-    }
-
-    if (encryptedLink)
+    std::unique_ptr<byte[]> linkKey(new byte[linkKeySize]);
+    error e = parsepubliclink(link, ph, linkKey.get(), isFolder);
+    if (e == API_OK)
     {
         // Derive MAC key with salt+pwd
         byte derivedKey[64];
@@ -10303,7 +10260,7 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
         encryptedLink->append(encLink);
     }
 
-    return API_OK;
+    return e;
 }
 
 bool MegaClient::loggedinfolderlink()
@@ -10574,8 +10531,9 @@ bool MegaClient::fetchsc(DbTable* sctable)
                 break;
 
             case CACHEDPCR:
-                if ((pcr = PendingContactRequest::unserialize(this, &data)))
+                if ((pcr = PendingContactRequest::unserialize(&data)))
                 {
+                    mappcr(pcr->id, pcr);
                     pcr->dbid = id;
                 }
                 else
@@ -10922,6 +10880,7 @@ void MegaClient::fetchnodes(bool nocache)
         jsonsc.pos = NULL;
         scnotifyurl.clear();
         insca = false;
+        insca_notlast = false;
         btsc.reset();
 
         // don't allow to start new sc requests yet
@@ -11761,7 +11720,7 @@ void MegaClient::purgenodesusersabortsc()
 // request direct read by node pointer
 void MegaClient::pread(Node* n, m_off_t count, m_off_t offset, void* appdata)
 {
-    queueread(n->nodehandle, true, n->nodecipher(), MemAccess::get<int64_t>((const char*)n->nodekey.data() + SymmCipher::KEYLENGTH), count, offset, appdata);
+    queueread(n->nodehandle, true, n->nodecipher(), MemAccess::get<int64_t>((const char*)n->nodekey().data() + SymmCipher::KEYLENGTH), count, offset, appdata);
 }
 
 // request direct read by exported handle / key
@@ -12018,7 +11977,7 @@ error MegaClient::addtimer(TimerWithBackoff *twb)
 // check sync path, add sync if folder
 // disallow nested syncs (there is only one LocalNode pointer per node)
 // (FIXME: perform the same check for local paths!)
-error MegaClient::addsync(string* rootpath, const char* debris, string* localdebris, Node* remotenode, fsfp_t fsfp, int tag, void *appData)
+error MegaClient::addsync(const SyncConfig syncConfig, string* rootpath, const char* debris, string* localdebris, Node* remotenode, fsfp_t fsfp, int tag, void *appData)
 {
 #ifdef ENABLE_SYNC
     bool inshare = false;
@@ -12052,7 +12011,7 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
             fsaccess->local2path(rootpath, &utf8path);
             LOG_debug << "Adding sync: " << utf8path;
 
-            Sync* sync = new Sync(this, rootpath, debris, localdebris, remotenode, fsfp, inshare, tag, appData);
+            Sync* sync = new Sync(this, syncConfig, rootpath, debris, localdebris, remotenode, fsfp, inshare, tag, appData);
             sync->isnetwork = isnetwork;
 
             if (!sync->fsstableids)
@@ -12555,8 +12514,8 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                 {
                     if (!l->reported)
                     {
-                        char* buf = new char[(*it)->nodekey.size() * 4 / 3 + 4];
-                        Base64::btoa((byte *)(*it)->nodekey.data(), int((*it)->nodekey.size()), buf);
+                        char* buf = new char[(*it)->nodekey().size() * 4 / 3 + 4];
+                        Base64::btoa((byte *)(*it)->nodekey().data(), int((*it)->nodekey().size()), buf);
 
                         LOG_warn << "Sync: Undecryptable child node. " << buf;
 
@@ -13080,6 +13039,11 @@ void MegaClient::syncupdate()
             n = NULL;
             l = synccreate[i];
 
+            if (l->type == FILENODE && l->parent->node)
+            {
+                l->h = l->parent->node->nodehandle;
+            }
+
             if (l->type == FOLDERNODE || (n = nodebyfingerprint(l)))
             {
                 // create remote folder or copy file if it already exists
@@ -13109,7 +13073,7 @@ void MegaClient::syncupdate()
                     // this is a file - copy, use original key & attributes
                     // FIXME: move instead of creating a copy if it is in
                     // rubbish to reduce node creation load
-                    nnp->nodekey = n->nodekey;
+                    nnp->nodekey = n->nodekey();
                     tattrs.map = n->attrs.map;
 
                     nameid rrname = AttrMap::string2nameid("rr");
@@ -13163,14 +13127,17 @@ void MegaClient::syncupdate()
         else
         {
             // add nodes unless parent node has been deleted
-            if (synccreate[start]->parent->node)
+            LocalNode *localNode = synccreate[start];
+            if (localNode->parent->node)
             {
                 syncadding++;
 
+                assert(localNode->type == FOLDERNODE
+                       || localNode->h == localNode->parent->node->nodehandle); // if it's a file, it should match
                 reqs.add(new CommandPutNodes(this,
-                                                synccreate[start]->parent->node->nodehandle,
+                                                localNode->parent->node->nodehandle,
                                                 NULL, nn, int(nnp - nn),
-                                                synccreate[start]->sync->tag,
+                                                localNode->sync->tag,
                                                 PUTNODES_SYNC));
 
                 syncactivity = true;
@@ -13538,9 +13505,9 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
                 return false;
             }
 
-            #ifdef USE_MEDIAINFO
+#ifdef USE_MEDIAINFO
             mediaFileInfo.requestCodecMappingsOneTime(this, &f->localname);  
-            #endif
+#endif
         }
         else
         {
@@ -13706,6 +13673,9 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
                 t->failed(API_EOVERQUOTA, committer);
             }
         }
+
+        assert( (ISUNDEF(f->h) && f->targetuser.size() && (f->targetuser.size() == 11 || f->targetuser.find("@")!=string::npos) ) // <- uploading to inbox
+                || (!ISUNDEF(f->h) && (nodebyhandle(f->h) || d == GET) )); // target handle for the upload should be known at this time (except for inbox uploads)
     }
 
     return true;
@@ -13719,11 +13689,7 @@ void MegaClient::stopxfer(File* f, DBTableTransactionCommitter* committer)
         LOG_debug << "Stopping transfer: " << f->name;
 
         Transfer *transfer = f->transfer;
-        transfer->files.erase(f->file_it);
-        filecachedel(f, committer);
-        app->file_removed(f, API_EINCOMPLETE);
-        f->transfer = NULL;
-        f->terminated();
+        transfer->removeTransferFile(API_EINCOMPLETE, f, committer);
 
         // last file for this transfer removed? shut down transfer.
         if (!transfer->files.size())
@@ -13884,12 +13850,12 @@ namespace action_bucket_compare
 
     bool nodeIsVideo(const Node* n, char ext[12], const MegaClient& mc)
     {
-        if (n->hasfileattribute(fa_media) && n->nodekey.size() == FILENODEKEYLENGTH)
+        if (n->hasfileattribute(fa_media) && n->nodekey().size() == FILENODEKEYLENGTH)
         {
 #ifdef USE_MEDIAINFO
             if (mc.mediaFileInfo.mediaCodecsReceived)
             {
-                MediaProperties mp = MediaProperties::decodeMediaPropertiesAttributes(n->fileattrstring, (uint32_t*)(n->nodekey.data() + FILENODEKEYLENGTH / 2));
+                MediaProperties mp = MediaProperties::decodeMediaPropertiesAttributes(n->fileattrstring, (uint32_t*)(n->nodekey().data() + FILENODEKEYLENGTH / 2));
                 unsigned videocodec = mp.videocodecid;
                 if (!videocodec && mp.shortformat)
                 {
@@ -14179,6 +14145,11 @@ void MegaClient::sendevent(int event, const char *message, int tag)
     reqtag = creqtag;
 }
 
+void MegaClient::supportticket(const char *message, int type)
+{
+    reqs.add(new CommandSupportTicket(this, message, type));
+}
+
 void MegaClient::cleanrubbishbin()
 {
     reqs.add(new CommandCleanRubbishBin(this));
@@ -14344,7 +14315,7 @@ void MegaClient::getwelcomepdf()
 }
 
 #ifdef MEGA_MEASURE_CODE
-std::string MegaClient::PerformanceStats::report(bool reset, HttpIO* httpio, Waiter* waiter)
+std::string MegaClient::PerformanceStats::report(bool reset, HttpIO* httpio, Waiter* waiter, const RequestDispatcher& reqs)
 {
     std::ostringstream s;
     s << prepareWait.report(reset) << "\n"
@@ -14359,6 +14330,7 @@ std::string MegaClient::PerformanceStats::report(bool reset, HttpIO* httpio, Wai
         << scProcessingTime.report(reset) << "\n"
         << csResponseProcessingTime.report(reset) << "\n"
         << " cs Request waiting time: " << csRequestWaitTime.report(reset) << "\n"
+        << " cs requests sent/received: " << reqs.csRequestsSent << "/" << reqs.csRequestsCompleted << " batches: " << reqs.csBatchesSent << "/" << reqs.csBatchesReceived << "\n"
         << " transfers active time: " << transfersActiveTime.report(reset) << "\n"
         << " transfer starts/finishes: " << transferStarts << " " << transferFinishes << "\n"
         << " transfer temperror/fails: " << transferTempErrors << " " << transferFails << "\n"

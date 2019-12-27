@@ -107,7 +107,7 @@ FileFingerprint *FileFingerprint::unserialize(string *d)
 FileFingerprint::FileFingerprint(const FileFingerprint& other)
 : size{other.size}
 , mtime{other.mtime}
-, crc{other.crc}
+, crc(other.crc)
 , isvalid{other.isvalid}
 {}
 
@@ -189,7 +189,7 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
         // large file: sparse coverage, four sparse CRC32s
         HashCRC32 crc32;
         byte block[4 * sizeof crc];
-        const unsigned blocks = MAXFULL / (sizeof block * crc.size());
+        const unsigned blocks = MAXFULL / unsigned(sizeof block * crc.size());
 
         for (unsigned i = 0; i < crc.size(); i++)
         {
@@ -295,7 +295,7 @@ bool FileFingerprint::genfingerprint(InputStreamAccess *is, m_time_t cmtime, boo
         // large file: sparse coverage, four sparse CRC32s
         HashCRC32 crc32;
         byte block[4 * sizeof crc];
-        const unsigned blocks = MAXFULL / (sizeof block * crc.size());
+        const unsigned blocks = MAXFULL / unsigned(sizeof block * crc.size());
         m_off_t current = 0;
 
         for (unsigned i = 0; i < crc.size(); i++)

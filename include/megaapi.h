@@ -2551,6 +2551,11 @@ public:
     * @return Number of MegaUserAlert objects in the list
     */
     virtual int size() const;
+
+    /**
+     * @brief Removes all MegaUserAlert objects from the list (does not delete them)
+     */
+    virtual void clear();
 };
 
 
@@ -2745,6 +2750,7 @@ class MegaRequest
             TYPE_SEND_SMS_VERIFICATIONCODE, TYPE_CHECK_SMS_VERIFICATIONCODE,
             TYPE_GET_REGISTERED_CONTACTS, TYPE_GET_COUNTRY_CALLING_CODES,
             TYPE_VERIFY_CREDENTIALS, TYPE_GET_MISC_FLAGS, TYPE_RESEND_VERIFICATION_EMAIL,
+            TYPE_SUPPORT_TICKET,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -3649,6 +3655,7 @@ class MegaTransfer
          * @brief Returns the parent path related to this request
          *
          * For uploads, this function returns the path to the folder containing the source file.
+         *  except when uploading files for support: it will return the support account then.
          * For downloads, it returns that path to the folder containing the destination file.
          *
          * The SDK retains the ownership of the returned value. It will be valid until
@@ -7300,8 +7307,10 @@ class MegaApi
         /**
          * @brief Check if server-side Rubbish Bin autopurging is enabled for the current account
          *
-         * Before using this function, it's needed to:
-         *  - If you are logged-in: call to MegaApi::login and MegaApi::fetchNodes.
+         * This function will NOT return a valid value until the callback onEvent with
+         * type MegaApi::EVENT_MISC_FLAGS_READY is received. You can also rely on the completion of
+         * a fetchnodes to check this value, but only when it follows a login with user and password,
+         * not when an existing session is resumed.
          *
          * @return True if this feature is enabled. Otherwise false.
          */
@@ -7310,8 +7319,10 @@ class MegaApi
         /**
          * @brief Check if the account has VOIP push enabled
          *
-         * Before using this function, it's needed to:
-         *  - If you are logged-in: call to MegaApi::login and MegaApi::fetchNodes.
+         * This function will NOT return a valid value until the callback onEvent with
+         * type MegaApi::EVENT_MISC_FLAGS_READY is received. You can also rely on the completion of
+         * a fetchnodes to check this value, but only when it follows a login with user and password,
+         * not when an existing session is resumed.
          *
          * @return True if this feature is enabled. Otherwise false.
          */
@@ -7320,9 +7331,12 @@ class MegaApi
         /**
          * @brief Check if the new format for public links is enabled
          *
-         * Before using this function, it's needed to:
-         *  - If you are logged-in: call to MegaApi::login and MegaApi::fetchNodes.
-         *  - If you are not logged-in: call to MegaApi::getMiscFlags.
+         * This function will NOT return a valid value until the callback onEvent with
+         * type MegaApi::EVENT_MISC_FLAGS_READY is received. You can also rely on the completion of
+         * a fetchnodes to check this value, but only when it follows a login with user and password,
+         * not when an existing session is resumed.
+         *
+         * For not logged-in mode, you need to call MegaApi::getMiscFlags first.
          *
          * @return True if this feature is enabled. Otherwise, false.
          */
@@ -7333,9 +7347,12 @@ class MegaApi
          *
          * The result indicated whether the MegaApi::sendSMSVerificationCode function can be used.
          *
-         * Before using this function, it's needed to:
-         *  - If you are logged-in: call to MegaApi::login and MegaApi::fetchNodes.
-         *  - If you are not logged-in: call to MegaApi::getMiscFlags.
+         * This function will NOT return a valid value until the callback onEvent with
+         * type MegaApi::EVENT_MISC_FLAGS_READY is received. You can also rely on the completion of
+         * a fetchnodes to check this value, but only when it follows a login with user and password,
+         * not when an existing session is resumed.
+         *
+         * For not logged-in mode, you need to call MegaApi::getMiscFlags first.
          *
          * @return 2 = Opt-in and unblock SMS allowed.  1 = Only unblock SMS allowed.  0 = No SMS allowed
          */
@@ -7356,9 +7373,12 @@ class MegaApi
         /**
          * @brief Check if multi-factor authentication can be enabled for the current account.
          *
-         * Before using this function, it's needed to:
-         *  - If you are logged-in: call to MegaApi::login and MegaApi::fetchNodes.
-         *  - If you are not logged-in: call to MegaApi::getMiscFlags.
+         * This function will NOT return a valid value until the callback onEvent with
+         * type MegaApi::EVENT_MISC_FLAGS_READY is received. You can also rely on the completion of
+         * a fetchnodes to check this value, but only when it follows a login with user and password,
+         * not when an existing session is resumed.
+         *
+         * For not logged-in mode, you need to call MegaApi::getMiscFlags first.
          *
          * @return True if multi-factor authentication can be enabled for the current account, otherwise false.
          */
@@ -7834,7 +7854,7 @@ class MegaApi
          * The associated request type with this request is MegaRequest::TYPE_SEND_SIGNUP_LINK.
          *
          * @param email Email for the account
-         * @param name Firstname of the user
+         * @param name Fullname of the user (firstname + lastname)
          * @param password Password for the account
          * @param listener MegaRequestListener to track this request
          */
@@ -7847,7 +7867,7 @@ class MegaApi
          * email address, in case the user mistyped the email at the registration form.
          *
          * @param email Email for the account
-         * @param name Firstname of the user
+         * @param name Fullname of the user (firstname + lastname)
          * @param base64pwkey Private key returned by MegaRequest::getPrivateKey in the onRequestFinish callback of createAccount
          * @param listener MegaRequestListener to track this request
          *
@@ -8973,6 +8993,21 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getPublicNode(const char* megaFileLink, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Build the URL for a public link
+         *
+         * @note This function does not create the public link itself. It simply builds the URL
+         * from the provided data.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param publicHandle Public handle of the link, in B64url encoding.
+         * @param key Encryption key of the link.
+         * @param isFolder True for folder links, false for file links.
+         * @return The public link for the provided data
+         */
+        const char *buildPublicLink(const char *publicHandle, const char *key, bool isFolder);
 
         /**
          * @brief Get the thumbnail of a node
@@ -10675,6 +10710,28 @@ class MegaApi
         void sendEvent(int eventType, const char* message, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Create a new ticket for support with attached description
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SUPPORT_TICKET
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the type of the ticket
+         * - MegaRequest::getText - Returns the description of the issue
+         *
+         * @param message Description of the issue for support
+         * @param type Ticket type. These are the available types:
+         *          0 for General Enquiry
+         *          1 for Technical Issue
+         *          2 for Payment Issue
+         *          3 for Forgotten Password
+         *          4 for Transfer Issue
+         *          5 for Contact/Sharing Issue
+         *          6 for MEGAsync Issue
+         *          7 for Missing/Invisible Data
+         * @param listener MegaRequestListener to track this request
+         */
+        void createSupportTicket(const char* message, int type = 1, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Send a debug report
          *
          * The User-Agent is used to identify the app. It can be set in MegaApi::MegaApi
@@ -10726,6 +10783,24 @@ class MegaApi
         bool usingHttpsOnly();
 
         ///////////////////   TRANSFERS ///////////////////
+
+        /**
+         * @brief Upload a file to support
+         *
+         * If the status of the business account is expired, onTransferFinish will be called with the error
+         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+         * "Your business account is overdue, please contact your administrator."
+         *
+         * For folders, onTransferFinish will be called with error MegaError:API_EARGS;
+         *
+         * @param localPath Local path of the file
+         * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
+         * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
+         * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
+         * @param listener MegaTransferListener to track this transfer
+         */
+        void startUploadForSupport(const char* localPath, bool isSourceTemporary = false, MegaTransferListener *listener=NULL);
+
 
         /**
          * @brief Upload a file or a folder
@@ -12016,6 +12091,12 @@ class MegaApi
         bool isScanning();
 
         /**
+         * @brief Check if any synchronization is in state syncing or pending
+         * @return true if it is syncing, otherwise false
+         */
+        bool isSyncing();
+
+        /**
          * @brief Check if the MegaNode is synchronized with a local file
          * @param MegaNode to check
          * @return true if the node is synchronized, othewise false
@@ -12807,15 +12888,20 @@ class MegaApi
         /**
          * @brief Get the user relative to an incoming share
          *
-         * This function will return NULL if the node is not found or doesn't represent
-         * the root of an incoming share.
+         * This function will return NULL if the node is not found
+         *
+         * When recurse is true and the root of the specified node is not an incoming share,
+         * this function will return NULL.
+         * When recurse is false and the specified node doesn't represent the root of an
+         * incoming share, this function will return NULL.
          *
          * You take the ownership of the returned value
          *
-         * @param node Incoming share
+         * @param node Node to look for inshare user.
+         * @param recurse use root node corresponding to the node passed
          * @return MegaUser relative to the incoming share
          */
-        MegaUser *getUserFromInShare(MegaNode *node);
+        MegaUser *getUserFromInShare(MegaNode *node, bool recurse = false);
 
         /**
           * @brief Check if a MegaNode is being shared by/with your own user

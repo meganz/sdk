@@ -428,9 +428,9 @@ sodium_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="Sodium"
-    local sodium_ver="1.0.16"
+    local sodium_ver="1.0.18"
     local sodium_url="https://download.libsodium.org/libsodium/releases/libsodium-$sodium_ver.tar.gz"
-    local sodium_md5="37b18839e57e7a62834231395c8e962b"
+    local sodium_md5="3ca9ebc13b6b4735acae0a6a4c4f9a95"
     local sodium_file="sodium-$sodium_ver.tar.gz"
     local sodium_dir="libsodium-$sodium_ver"
     if [ $use_dynamic -eq 1 ]; then

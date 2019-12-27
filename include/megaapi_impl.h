@@ -732,7 +732,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         MegaHandle nodeHandle;
         MegaHandle parentHandle;
         const char* path;
-        const char* parentPath;
+        const char* parentPath; //used as targetUser for uploads
         const char* fileName;
         char *lastBytes;
         MegaNode *publicNode;
@@ -1672,6 +1672,7 @@ public:
     virtual MegaUserAlertList *copy() const;
     virtual MegaUserAlert* get(int i) const;
     virtual int size() const;
+    virtual void clear();
 
 protected:
     MegaUserAlertListPrivate(MegaUserAlertListPrivate *userList);
@@ -2093,6 +2094,7 @@ class MegaApiImpl : public MegaApp
         void decryptPasswordProtectedLink(const char* link, const char* password, MegaRequestListener *listener = NULL);
         void encryptLinkWithPassword(const char* link, const char* password, MegaRequestListener *listener = NULL);
         void getPublicNode(const char* megaFileLink, MegaRequestListener *listener = NULL);
+        const char *buildPublicLink(const char *publicHandle, const char *key, bool isFolder);
         void getThumbnail(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener = NULL);
 		void cancelGetThumbnail(MegaNode* node, MegaRequestListener *listener = NULL);
         void setThumbnail(MegaNode* node, const char *srcFilePath, MegaRequestListener *listener = NULL);
@@ -2155,6 +2157,7 @@ class MegaApiImpl : public MegaApp
         void submitFeedback(int rating, const char *comment, MegaRequestListener *listener = NULL);
         void reportEvent(const char *details = NULL, MegaRequestListener *listener = NULL);
         void sendEvent(int eventType, const char* message, MegaRequestListener *listener = NULL);
+        void createSupportTicket(const char* message, int type = 1, MegaRequestListener *listener = NULL);
 
         void useHttpsOnly(bool httpsOnly, MegaRequestListener *listener = NULL);
         bool usingHttpsOnly();
@@ -2173,6 +2176,8 @@ class MegaApiImpl : public MegaApp
         void startUpload(const char* localPath, MegaNode *parent, int64_t mtime, MegaTransferListener *listener=NULL);
         void startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener = NULL);
         void startUpload(bool startFirst, const char* localPath, MegaNode* parent, const char* fileName, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, MegaTransferListener *listener);
+        void startUpload(bool startFirst, const char* localPath, MegaNode* parent, const char* fileName, const char* targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, MegaTransferListener *listener);
+        void startUploadForSupport(const char *localPath, bool isSourceTemporary = false, MegaTransferListener *listener=NULL);
         void startDownload(MegaNode* node, const char* localPath, MegaTransferListener *listener = NULL);
         void startDownload(bool startFirst, MegaNode *node, const char* target, int folderTransferTag, const char *appData, MegaTransferListener *listener);
         void startStreaming(MegaNode* node, m_off_t startPos, m_off_t size, MegaTransferListener *listener);
@@ -2239,6 +2244,8 @@ class MegaApiImpl : public MegaApp
         bool is_syncable(long long size);
         int isNodeSyncable(MegaNode *megaNode);
         bool isIndexing();
+        bool isSyncing();
+
         MegaSync *getSyncByTag(int tag);
         MegaSync *getSyncByNode(MegaNode *node);
         MegaSync *getSyncByPath(const char * localPath);
@@ -2293,7 +2300,7 @@ class MegaApiImpl : public MegaApp
         MegaNodeList *getInShares(MegaUser* user, int order);
         MegaNodeList *getInShares(int order);
         MegaShareList *getInSharesList(int order);
-        MegaUser *getUserFromInShare(MegaNode *node);
+        MegaUser *getUserFromInShare(MegaNode *node, bool recurse = false);
         bool isPendingShare(MegaNode *node);
         MegaShareList *getOutShares(int order);
         MegaShareList *getOutShares(MegaNode *node);
@@ -2831,6 +2838,7 @@ protected:
 
         void userfeedbackstore_result(error) override;
         void sendevent_result(error) override;
+        void supportticket_result(error) override;
 
         void checkfile_result(handle h, error e) override;
         void checkfile_result(handle h, error e, byte* filekey, m_off_t size, m_time_t ts, m_time_t tm, string* filename, string* fingerprint, string* fileattrstring) override;
@@ -3052,7 +3060,7 @@ class StreamingBuffer
 public:
     StreamingBuffer();
     ~StreamingBuffer();
-    void init(unsigned int capacity);
+    void init(m_off_t capacity);
     unsigned int append(const char *buf, unsigned int len);
     unsigned int availableData();
     unsigned int availableSpace();
@@ -3189,7 +3197,7 @@ protected:
     void run();
     void initializeAndStartListening();
 
-    void answer(MegaTCPContext* tcpctx, const char *rsp, int rlen);
+    void answer(MegaTCPContext* tcpctx, const char *rsp, size_t rlen);
 
 
     //virtual methods:
