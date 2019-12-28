@@ -92,6 +92,12 @@ else()
     message(STATUS "Building 64 bit")
 endif()
 
+if(APPLE)
+    set(CMAKE_CXX_STANDARD 11)
+    set(CMAKE_CXX_STANDARD_REQUIRED ON)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk" )
+endif()
+
 if ("${MEGA_PROJECT_NAME}" STREQUAL "")
     set(MEGA_PROJECT_NAME "MegaSDK" CACHE STRING "")
 endif()
@@ -411,9 +417,12 @@ if (USE_THIRDPARTY_FROM_VCPKG)
 
 endif(USE_THIRDPARTY_FROM_VCPKG)
 
+#we must compile with UNICODE defined or our link symbols won't match libmediainfo
+add_definitions( -DUNICODE  )
+
 if(WIN32)
     
-    add_definitions(-D_CRT_SECURE_NO_WARNINGS -DCURL_STATICLIB -DCARES_STATICLIB -DWIN32_LEAN_AND_MEAN -DUNICODE -DSODIUM_STATIC -DPCRE_STATICWIN32 -D_CONSOLE )
+    add_definitions(-D_CRT_SECURE_NO_WARNINGS -DCURL_STATICLIB -DCARES_STATICLIB -DWIN32_LEAN_AND_MEAN -DSODIUM_STATIC -DPCRE_STATICWIN32 -D_CONSOLE )
     SET(Mega_PlatformSpecificIncludes ${MegaDir}/include/mega/$<IF:${USE_CURL},wincurl,win32>)
     SET(Mega_PlatformSpecificLibs ws2_32 winhttp Shlwapi Secur32.lib  $<${USE_WEBRTC}:Wldap32.lib> )
 

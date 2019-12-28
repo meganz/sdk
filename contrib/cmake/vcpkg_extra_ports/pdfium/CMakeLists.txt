@@ -11,6 +11,12 @@ if(WIN32)
 	add_definitions(-DHAVE_BOOLEAN )
 endif()
 
+if(APPLE)
+    set(CMAKE_CXX_STANDARD 11)
+    set(CMAKE_CXX_STANDARD_REQUIRED ON)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk" )
+endif()
+
 add_definitions( -DUNICODE -DNOMINMAX -DUSE_LIBJPEG_TURBO -DPNG_PREFIX  -DUSE_SYSTEM_ICUUC -DUSE_SYSTEM_LIBJPEG -DUSE_SYSTEM_LCMS2 -DUSE_SYSTEM_ZLIB -DUSE_SYSTEM_LIBOPENJPEG2 -DOPJ_STATIC -DDEFINE_PS_TABLES)
 # no skia, V8, or xfa (xfa seems to require V8 anyway)
 
@@ -25,11 +31,26 @@ include_directories(
     ${PdfiumDir}/../../installed/x64-linux/include
 )
 
-message("include vcpkg: ${PdfiumDir}/../../vcpkg/installed/${TARGET_TRIPLET}/include")
+message("include vcpkg: ${PdfiumDir}/../../vcpkg/installed/${VCPKG_TARGET_TRIPLET}/include")
 
-set(WIN 1)
-set(APPLE 0)
-set(LINUX 0)
+if(WIN32)
+     set(WIN 1)
+else()
+     set(WIN 0)
+endif()
+
+if (APPLE)
+    set(MAC 1)
+else()
+    set(MAC 1)
+endif()
+
+if (NOT WIN32 AND NOT APPLE)
+    set(LINUX 1)
+else()
+    set(LINUX 0)
+endif()
+
 set(ANDROID 0)
 
 
@@ -432,9 +453,9 @@ ${PdfiumDir}/core/fxge/agg/fx_agg_driver.cpp
 ##$<${ANDROID}:${PdfiumDir}/core/fxge/android/cfpf_skiapathfont.cpp>
 $<${ANDROID}:${PdfiumDir}/core/fxge/android/cfx_androidfontinfo.cpp>
 $<${ANDROID}:${PdfiumDir}/core/fxge/android/fx_android_imp.cpp>
-$<${APPLE}:${PdfiumDir}/core/fxge/apple/fx_apple_platform.cpp>
-$<${APPLE}:${PdfiumDir}/core/fxge/apple/fx_mac_imp.cpp>
-$<${APPLE}:${PdfiumDir}/core/fxge/apple/fx_quartz_device.cpp>
+$<${MAC}:${PdfiumDir}/core/fxge/apple/fx_apple_platform.cpp>
+$<${MAC}:${PdfiumDir}/core/fxge/apple/fx_mac_imp.cpp>
+$<${MAC}:${PdfiumDir}/core/fxge/apple/fx_quartz_device.cpp>
 ${PdfiumDir}/core/fxge/cfx_cliprgn.cpp
 ${PdfiumDir}/core/fxge/cfx_color.cpp
 ${PdfiumDir}/core/fxge/cfx_facecache.cpp
