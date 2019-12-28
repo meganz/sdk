@@ -26,9 +26,7 @@ set(PdfiumDir "${CMAKE_CURRENT_LIST_DIR}")
 include_directories( 
     ${PdfiumDir}
     ${PdfiumDir}/third_party/freetype/src/include
-    ${PdfiumDir}/../../installed/x86-windows-mega/include
-    ${PdfiumDir}/../../installed/x64-windows-mega/include
-    ${PdfiumDir}/../../installed/x64-linux/include
+    ${PdfiumDir}/../../installed/${VCPKG_TARGET_TRIPLET}/include
 )
 
 message("include vcpkg: ${PdfiumDir}/../../vcpkg/installed/${VCPKG_TARGET_TRIPLET}/include")
