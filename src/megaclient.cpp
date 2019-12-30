@@ -11991,7 +11991,7 @@ error MegaClient::addtimer(TimerWithBackoff *twb)
 error MegaClient::addsync(SyncConfig syncConfig, const char* debris, string* localdebris, int tag, void *appData)
 {
 #ifdef ENABLE_SYNC
-    auto remotenode = nodebyhandle(syncConfig.remoteNode());
+    auto remotenode = nodebyhandle(syncConfig.getRemoteNode());
     bool inshare = false;
     error e = isnodesyncable(remotenode, &inshare);
     if (e)
@@ -11999,7 +11999,7 @@ error MegaClient::addsync(SyncConfig syncConfig, const char* debris, string* loc
         return e;
     }
 
-    auto localPath = syncConfig.localPath();
+    auto localPath = syncConfig.getLocalPath();
     string rootpath;
     fsaccess->path2local(&localPath, &rootpath);
 
@@ -12023,7 +12023,7 @@ error MegaClient::addsync(SyncConfig syncConfig, const char* debris, string* loc
     {
         if (fa->type == FOLDERNODE)
         {
-            LOG_debug << "Adding sync: " << syncConfig.localPath();
+            LOG_debug << "Adding sync: " << syncConfig.getLocalPath();
 
             Sync* sync = new Sync(this, std::move(syncConfig), debris, localdebris, remotenode, inshare, tag, appData);
             sync->isnetwork = isnetwork;

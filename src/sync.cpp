@@ -536,7 +536,7 @@ SyncConfigBag::SyncConfigBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, Prn
             continue;
         }
 
-        mSyncConfigs.insert(std::make_pair(syncConfig->localPath(), SyncConfigData{tableId, *syncConfig}));
+        mSyncConfigs.insert(std::make_pair(syncConfig->getLocalPath(), SyncConfigData{tableId, *syncConfig}));
         if (tableId > mNextTableId)
         {
             mNextTableId = tableId;
@@ -547,10 +547,10 @@ SyncConfigBag::SyncConfigBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, Prn
 
 void SyncConfigBag::add(const SyncConfig& syncConfig)
 {
-    auto syncConfigPair = mSyncConfigs.find(syncConfig.localPath());
+    auto syncConfigPair = mSyncConfigs.find(syncConfig.getLocalPath());
     if (syncConfigPair == mSyncConfigs.end())
     {
-        mSyncConfigs.insert(std::make_pair(syncConfig.localPath(), SyncConfigData{mNextTableId, syncConfig}));
+        mSyncConfigs.insert(std::make_pair(syncConfig.getLocalPath(), SyncConfigData{mNextTableId, syncConfig}));
         if (mTable)
         {
             auto data = syncConfig.serialize();
@@ -570,7 +570,7 @@ void SyncConfigBag::add(const SyncConfig& syncConfig)
 
 void SyncConfigBag::remove(const SyncConfig& syncConfig)
 {
-    auto syncConfigPair = mSyncConfigs.find(syncConfig.localPath());
+    auto syncConfigPair = mSyncConfigs.find(syncConfig.getLocalPath());
     if (syncConfigPair != mSyncConfigs.end())
     {
         if (mTable)
@@ -581,7 +581,7 @@ void SyncConfigBag::remove(const SyncConfig& syncConfig)
                 LOG_err << "Incomplete database del at id: " << syncConfigPair->second.mTableId;
             }
         }
-        mSyncConfigs.erase(syncConfig.localPath());
+        mSyncConfigs.erase(syncConfig.getLocalPath());
     }
     else
     {
@@ -591,7 +591,7 @@ void SyncConfigBag::remove(const SyncConfig& syncConfig)
 
 void SyncConfigBag::update(const SyncConfig& syncConfig)
 {
-    auto syncConfigPair = mSyncConfigs.find(syncConfig.localPath());
+    auto syncConfigPair = mSyncConfigs.find(syncConfig.getLocalPath());
     if (syncConfigPair != mSyncConfigs.end())
     {
         syncConfigPair->second.mSyncConfig = syncConfig;
@@ -657,7 +657,7 @@ Sync::Sync(MegaClient* cclient, SyncConfig config, const char* cdebris,
     fullscan = true;
     scanseqno = 0;
 
-    auto localpath = config.localPath();
+    auto localpath = config.getLocalPath();
     string crootpath;
     client->fsaccess->path2local(&localpath, &crootpath);
 
@@ -681,9 +681,9 @@ Sync::Sync(MegaClient* cclient, SyncConfig config, const char* cdebris,
     dirnotify->sync = this;
 
     // set specified fsfp or get from fs if none
-    if (config.localFingerprint() > 0)
+    if (config.getLocalFingerprint() > 0)
     {
-        fsfp = config.localFingerprint();
+        fsfp = config.getLocalFingerprint();
     }
     else
     {

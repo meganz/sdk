@@ -13067,12 +13067,12 @@ void MegaApiImpl::fetchnodes_result(error e)
             // resuming all active syncs
             for (const auto& syncConfig : client->syncConfigs->all())
             {
-                if (!syncConfig.active())
+                if (!syncConfig.isActive())
                 {
                     continue;
                 }
-                std::unique_ptr<MegaNode> node{MegaNodePrivate::fromNode(client->nodebyhandle(syncConfig.remoteNode()))};
-                const auto& regExps = syncConfig.regExps();
+                std::unique_ptr<MegaNode> node{MegaNodePrivate::fromNode(client->nodebyhandle(syncConfig.getRemoteNode()))};
+                const auto& regExps = syncConfig.getRegExps();
                 MegaRegExp* regExp = nullptr;
                 if (!regExps.empty())
                 {
@@ -13082,7 +13082,7 @@ void MegaApiImpl::fetchnodes_result(error e)
                         regExp->addRegExp(re.c_str());
                     }
                 }
-                resumeSync(syncConfig.localPath().c_str(), syncConfig.localFingerprint(), node.get(), regExp, request->getListener());
+                resumeSync(syncConfig.getLocalPath().c_str(), syncConfig.getLocalFingerprint(), node.get(), regExp, request->getListener());
             }
         }
 #endif

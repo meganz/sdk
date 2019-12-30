@@ -2035,7 +2035,7 @@ SyncConfig::SyncConfig(std::string localPath,
     , mForceOverwrite{forceOverwrite}
 {}
 
-bool SyncConfig::active() const
+bool SyncConfig::isActive() const
 {
     return mActive;
 }
@@ -2045,27 +2045,22 @@ void SyncConfig::setActive(bool active)
     mActive = active;
 }
 
-const std::string& SyncConfig::localPath() const
+const std::string& SyncConfig::getLocalPath() const
 {
     return mLocalPath;
 }
 
-std::string& SyncConfig::localPath()
-{
-    return mLocalPath;
-}
-
-handle SyncConfig::remoteNode() const
+handle SyncConfig::getRemoteNode() const
 {
     return mRemoteNode;
 }
 
-handle SyncConfig::localFingerprint() const
+handle SyncConfig::getLocalFingerprint() const
 {
     return mLocalFingerprint;
 }
 
-const std::vector<std::string>& SyncConfig::regExps() const
+const std::vector<std::string>& SyncConfig::getRegExps() const
 {
     return mRegExps;
 }

@@ -692,25 +692,22 @@ public:
                const bool forceOverwrite = false);
 
     // whether this sync is active
-    bool active() const;
+    bool isActive() const;
 
     // sets whether this sync is active
     void setActive(bool active);
 
-    // the local path of the sync
-    const std::string& localPath() const;
+    // returns the local path of the sync
+    const std::string& getLocalPath() const;
 
-    // the local path of the sync
-    std::string& localPath();
+    // returns the remote path of the sync
+    handle getRemoteNode() const;
 
-    // the remote path of the sync
-    handle remoteNode() const;
+    // returns the local fingerprint
+    fsfp_t getLocalFingerprint() const;
 
-    // the local fingerprint
-    fsfp_t localFingerprint() const;
-
-    // regular expressions
-    const std::vector<std::string>& regExps() const;
+    // returns the regular expressions
+    const std::vector<std::string>& getRegExps() const;
 
     // whether this is an up-sync from local to remote
     bool isUpSync() const;
