@@ -3019,6 +3019,11 @@ protected:
         bool hasToForceUpload(const Node &node, const MegaTransferPrivate &transfer) const;
 
         friend class MegaBackgroundMediaUploadPrivate;
+
+private:
+#ifdef ENABLE_SYNC
+        void resumeActiveSyncs(MegaRequestListener* listener);
+#endif
 };
 
 class MegaHashSignatureImpl

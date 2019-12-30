@@ -7363,6 +7363,31 @@ bool MegaApiImpl::hasToForceUpload(const Node &node, const MegaTransferPrivate &
     return canForceUpload && (isMedia || isPdf) && !(hasPreview && hasThumbnail);
 }
 
+#ifdef ENABLE_SYNC
+void MegaApiImpl::resumeActiveSyncs(MegaRequestListener* listener)
+{
+    for (const auto& syncConfig : client->syncConfigs->all())
+    {
+        if (!syncConfig.isActive())
+        {
+            continue;
+        }
+        std::unique_ptr<MegaNode> node{MegaNodePrivate::fromNode(client->nodebyhandle(syncConfig.getRemoteNode()))};
+        const auto& regExps = syncConfig.getRegExps();
+        MegaRegExp* regExp = nullptr;
+        if (!regExps.empty())
+        {
+            regExp = new MegaRegExp;
+            for (const auto& re : regExps)
+            {
+                regExp->addRegExp(re.c_str());
+            }
+        }
+        resumeSync(syncConfig.getLocalPath().c_str(), syncConfig.getLocalFingerprint(), node.get(), regExp, listener);
+    }
+}
+#endif
+
 void MegaApiImpl::inviteContact(const char *email, const char *message, int action, MegaHandle contactLink, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_INVITE_CONTACT, listener);
@@ -13059,31 +13084,12 @@ void MegaApiImpl::fetchnodes_result(error e)
             client->isNewSession = false;
         }
 
-        fireOnRequestFinish(request, megaError);
+        fireOnRequestFinish(new MegaRequestPrivate(request), megaError);
 
 #ifdef ENABLE_SYNC
         if (e == API_OK && resumeSyncs)
         {
-            // resuming all active syncs
-            for (const auto& syncConfig : client->syncConfigs->all())
-            {
-                if (!syncConfig.isActive())
-                {
-                    continue;
-                }
-                std::unique_ptr<MegaNode> node{MegaNodePrivate::fromNode(client->nodebyhandle(syncConfig.getRemoteNode()))};
-                const auto& regExps = syncConfig.getRegExps();
-                MegaRegExp* regExp = nullptr;
-                if (!regExps.empty())
-                {
-                    regExp = new MegaRegExp;
-                    for (const auto& re : regExps)
-                    {
-                        regExp->addRegExp(re.c_str());
-                    }
-                }
-                resumeSync(syncConfig.getLocalPath().c_str(), syncConfig.getLocalFingerprint(), node.get(), regExp, request->getListener());
-            }
+            resumeActiveSyncs(request->getListener());
         }
 #endif
         return;
@@ -13102,6 +13108,12 @@ void MegaApiImpl::fetchnodes_result(error e)
 
     if (request->getType() == MegaRequest::TYPE_FETCH_NODES)
     {
+#ifdef ENABLE_SYNC
+        const bool resumeSyncs = request->getFlag();
+        // resetting to default in case it was set by fetchNodes()
+        request->setFlag(false);
+#endif
+
         if (e == API_OK)
         {
             // check if we fetched a folder link and the key is invalid
@@ -13123,7 +13135,14 @@ void MegaApiImpl::fetchnodes_result(error e)
             client->isNewSession = false;
         }
 
-        fireOnRequestFinish(request, megaError);
+        fireOnRequestFinish(new MegaRequestPrivate(request), megaError);
+
+#ifdef ENABLE_SYNC
+        if (e == API_OK && resumeSyncs)
+        {
+            resumeActiveSyncs(request->getListener());
+        }
+#endif
     }
     else    // TYPE_CREATE_ACCOUNT
     {
