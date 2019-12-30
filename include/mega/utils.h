@@ -429,6 +429,7 @@ struct CacheableWriter
     void serializei64(int64_t field);
     void serializeu32(uint32_t field);
     void serializehandle(handle field);
+    void serializefsfp(fsfp_t field);
     void serializebool(bool field);
     void serializebyte(byte field);
     void serializedouble(double field);
@@ -455,6 +456,7 @@ struct CacheableReader
     bool unserializebyte(byte& s);
     bool unserializedouble(double& s);
     bool unserializehandle(handle& s);
+    bool unserializefsfp(handle& s);
     bool unserializebool(bool& s);
     bool unserializechunkmacs(chunkmac_map& m);
 

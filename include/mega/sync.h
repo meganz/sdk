@@ -41,12 +41,50 @@ int computeReversePathMatchScore(string& accumulated, const string& path1, const
 bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, handlelocalnode_map& fsidnodes,
                          const string& localdebris, const string& localseparator);
 
+// A collection of sync configs backed by a database table
+class MEGA_API SyncConfigBag
+{
+public:
+    SyncConfigBag() = default;
+
+    SyncConfigBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, PrnGen& rng);
+
+    MEGA_DISABLE_COPY_MOVE(SyncConfigBag)
+
+    // Adds a new sync config or updates if exists already
+    void add(const SyncConfig& syncConfig);
+
+    // Removes a sync config
+    void remove(const SyncConfig& syncConfig);
+
+    // Updates with a new sync config
+    void update(const SyncConfig& syncConfig);
+
+    // Returns all current sync configs
+    std::vector<SyncConfig> all() const;
+
+private:
+    uint32_t mNextTableId = 0; // the next table ID to use
+    std::unique_ptr<DbTable> mTable; // table for caching the sync configs
+
+    struct SyncConfigData
+    {
+        decltype(mNextTableId) mTableId;
+        SyncConfig mSyncConfig;
+    };
+
+    std::map<std::string, SyncConfigData> mSyncConfigs; // map of local paths to sync configs
+};
+
 class MEGA_API Sync
 {
 public:
 
     // returns the sync config
     const SyncConfig& getConfig() const;
+
+    // flags this sync as active/inactive (default is active)
+    void setActive(bool isActive);
 
     void* appData = nullptr;
 
@@ -158,7 +196,7 @@ public:
     m_time_t updatedfilets = 0;
     m_time_t updatedfileinitialts = 0;
 
-    Sync(MegaClient*, SyncConfig, string*, const char*, string*, Node*, fsfp_t, bool, int, void*);
+    Sync(MegaClient*, SyncConfig, const char*, string*, Node*, bool, int, void*);
     ~Sync();
 
     static const int SCANNING_DELAY_DS;
@@ -171,7 +209,7 @@ protected :
     bool readstatecache();
 
 private:
-    const SyncConfig mConfig;
+    SyncConfig mConfig;
 };
 } // namespace
 

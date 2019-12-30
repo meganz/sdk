@@ -511,10 +511,127 @@ bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, h
     return success;
 }
 
+SyncConfigBag::SyncConfigBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, PrnGen& rng)
+{
+    std::string dbname = "syncconfig";
+    mTable.reset(dbaccess.open(rng, &fsaccess, &dbname, false, false));
+    if (!mTable)
+    {
+        assert(false);
+        LOG_err << "Unable to open DB table: " << dbname;
+        return;
+    }
+
+    mTable->rewind();
+
+    decltype(mNextTableId) tableId;
+    std::string data;
+    while (mTable->next(&tableId, &data))
+    {
+        auto syncConfig = SyncConfig::unserialize(data);
+        if (!syncConfig)
+        {
+            assert(false);
+            LOG_err << "Unable to unserialize sync config at id: " << tableId;
+            continue;
+        }
+
+        mSyncConfigs.insert(std::make_pair(syncConfig->localPath(), SyncConfigData{tableId, *syncConfig}));
+        if (tableId > mNextTableId)
+        {
+            mNextTableId = tableId;
+        }
+    }
+    ++mNextTableId;
+}
+
+void SyncConfigBag::add(const SyncConfig& syncConfig)
+{
+    auto syncConfigPair = mSyncConfigs.find(syncConfig.localPath());
+    if (syncConfigPair == mSyncConfigs.end())
+    {
+        mSyncConfigs.insert(std::make_pair(syncConfig.localPath(), SyncConfigData{mNextTableId, syncConfig}));
+        if (mTable)
+        {
+            auto data = syncConfig.serialize();
+            if (!mTable->put(mNextTableId, &data))
+            {
+                assert(false);
+                LOG_err << "Incomplete database put at id: " << mNextTableId;
+            }
+            ++mNextTableId;
+        }
+    }
+    else
+    {
+        update(syncConfig);
+    }
+}
+
+void SyncConfigBag::remove(const SyncConfig& syncConfig)
+{
+    auto syncConfigPair = mSyncConfigs.find(syncConfig.localPath());
+    if (syncConfigPair != mSyncConfigs.end())
+    {
+        if (mTable)
+        {
+            if (!mTable->del(syncConfigPair->second.mTableId))
+            {
+                assert(false);
+                LOG_err << "Incomplete database del at id: " << syncConfigPair->second.mTableId;
+            }
+        }
+        mSyncConfigs.erase(syncConfig.localPath());
+    }
+    else
+    {
+        assert(false && "sync config does not exist");
+    }
+}
+
+void SyncConfigBag::update(const SyncConfig& syncConfig)
+{
+    auto syncConfigPair = mSyncConfigs.find(syncConfig.localPath());
+    if (syncConfigPair != mSyncConfigs.end())
+    {
+        syncConfigPair->second.mSyncConfig = syncConfig;
+        if (mTable)
+        {
+            DBTableTransactionCommitter committer{mTable.get()};
+            const auto tableId = syncConfigPair->second.mTableId;
+            if (!mTable->del(tableId))
+            {
+                assert(false);
+                LOG_err << "Incomplete database del at id: " << tableId;
+            }
+            auto data = syncConfig.serialize();
+            if (!mTable->put(tableId, &data))
+            {
+                assert(false);
+                LOG_err << "Incomplete database put at id: " << tableId;
+            }
+        }
+    }
+    else
+    {
+        assert(false && "sync config does not exist");
+    }
+}
+
+std::vector<SyncConfig> SyncConfigBag::all() const
+{
+    std::vector<SyncConfig> syncConfigs;
+    for (const auto& syncConfigPair : mSyncConfigs)
+    {
+        syncConfigs.push_back(syncConfigPair.second.mSyncConfig);
+    }
+    return syncConfigs;
+}
+
 // new Syncs are automatically inserted into the session's syncs list
 // and a full read of the subtree is initiated
-Sync::Sync(MegaClient* cclient, SyncConfig config, string* crootpath, const char* cdebris,
-           string* clocaldebris, Node* remotenode, fsfp_t cfsfp, bool cinshare, int ctag, void *cappdata)
+Sync::Sync(MegaClient* cclient, SyncConfig config, const char* cdebris,
+           string* clocaldebris, Node* remotenode, bool cinshare, int ctag, void *cappdata)
 : localroot(new LocalNode)
 , mConfig(config)
 {
@@ -540,29 +657,33 @@ Sync::Sync(MegaClient* cclient, SyncConfig config, string* crootpath, const char
     fullscan = true;
     scanseqno = 0;
 
+    auto localpath = config.localPath();
+    string crootpath;
+    client->fsaccess->path2local(&localpath, &crootpath);
+
     if (cdebris)
     {
         debris = cdebris;
         client->fsaccess->path2local(&debris, &localdebris);
 
-        dirnotify.reset(client->fsaccess->newdirnotify(crootpath, &localdebris));
+        dirnotify.reset(client->fsaccess->newdirnotify(&crootpath, &localdebris));
 
         localdebris.insert(0, client->fsaccess->localseparator);
-        localdebris.insert(0, *crootpath);
+        localdebris.insert(0, crootpath);
     }
     else
     {
         localdebris = *clocaldebris;
 
         // FIXME: pass last segment of localdebris
-        dirnotify.reset(client->fsaccess->newdirnotify(crootpath, &localdebris));
+        dirnotify.reset(client->fsaccess->newdirnotify(&crootpath, &localdebris));
     }
     dirnotify->sync = this;
 
     // set specified fsfp or get from fs if none
-    if (cfsfp)
+    if (config.localFingerprint() > 0)
     {
-        fsfp = cfsfp;
+        fsfp = config.localFingerprint();
     }
     else
     {
@@ -572,7 +693,7 @@ Sync::Sync(MegaClient* cclient, SyncConfig config, string* crootpath, const char
     fsstableids = dirnotify->fsstableids();
     LOG_info << "Filesystem IDs are stable: " << fsstableids;
 
-    localroot->init(this, FOLDERNODE, NULL, crootpath);
+    localroot->init(this, FOLDERNODE, NULL, &crootpath);
     localroot->setnode(remotenode);
 
 #ifdef __APPLE__
@@ -615,7 +736,7 @@ Sync::Sync(MegaClient* cclient, SyncConfig config, string* crootpath, const char
 
         auto fas = client->fsaccess->newfileaccess(false);
 
-        if (fas->fopen(crootpath, true, false))
+        if (fas->fopen(&crootpath, true, false))
         {
             tableid[0] = fas->fsid;
             tableid[1] = remotenode->nodehandle;
@@ -629,12 +750,20 @@ Sync::Sync(MegaClient* cclient, SyncConfig config, string* crootpath, const char
             readstatecache();
         }
     }
+
+    client->syncConfigs->add(mConfig);
 }
 
 Sync::~Sync()
 {
     // must be set to prevent remote mass deletion while rootlocal destructor runs
     assert(state == SYNC_CANCELED || state == SYNC_FAILED);
+
+    if (!statecachetable)
+    {
+        // if there's no localnode cache then remove the sync config
+        client->syncConfigs->remove(mConfig);
+    }
 
     // unlock tmp lock
     tmpfa.reset();
@@ -740,6 +869,12 @@ bool Sync::readstatecache()
 const SyncConfig& Sync::getConfig() const
 {
     return mConfig;
+}
+
+void Sync::setActive(bool isActive)
+{
+    mConfig.setActive(isActive);
+    client->syncConfigs->update(mConfig);
 }
 
 // remove LocalNode from DB cache

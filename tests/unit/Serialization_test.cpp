@@ -304,6 +304,11 @@ struct MockFileSystemAccess : mt::DefaultedFileSystemAccess
         *path = *local;
     }
 
+    void path2local(std::string* local, std::string* path) const override
+    {
+        *path = *local;
+    }
+
     bool getsname(std::string*, std::string*) const override
     {
         return false;

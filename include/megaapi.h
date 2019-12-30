@@ -9802,6 +9802,26 @@ class MegaApi
          */
         void fetchNodes(MegaRequestListener *listener = NULL);
 
+#ifdef ENABLE_SYNC
+        /**
+         * @brief Fetch the filesystem in MEGA
+         *
+         * The MegaApi object must be logged in in an account or a public folder
+         * to successfully complete this request.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_FETCH_NODES
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getFlag - Returns true if logged in into a folder and the provided key is invalid. Otherwise, false.
+         * - MegaRequest::getNodeHandle - Returns the public handle if logged into a public folder. Otherwise, INVALID_HANDLE
+         *
+         * @param resumeSyncs Denotes whether all active syncs should be resumed following a successful fetchnodes
+         * @param listener MegaRequestListener to track this request
+         */
+        void fetchNodes(bool resumeSyncs, MegaRequestListener *listener = NULL);
+#endif
+
         /**
          * @brief Get the sum of sizes of all the files stored in the MEGA cloud.
          *

@@ -2441,6 +2441,13 @@ void MegaApi::fetchNodes(MegaRequestListener *listener)
     pImpl->fetchNodes(listener);
 }
 
+#ifdef ENABLE_SYNC
+void MegaApi::fetchNodes(bool resumeSyncs, MegaRequestListener *listener)
+{
+    pImpl->fetchNodes(resumeSyncs, listener);
+}
+#endif
+
 void MegaApi::getCloudStorageUsed(MegaRequestListener *listener)
 {
     pImpl->getCloudStorageUsed(listener);

@@ -41,6 +41,8 @@
 
 namespace mega {
 
+class SyncConfigBag;
+
 class MEGA_API FetchNodesStats
 {
 public:
@@ -442,6 +444,9 @@ public:
 
     // indicates whether all startup syncs have been fully scanned
     bool syncsup;
+
+    // A collection of sync configs backed by a database table
+    std::unique_ptr<SyncConfigBag> syncConfigs;
 #endif
 
     // if set, symlinks will be followed except in recursive deletions
@@ -513,7 +518,7 @@ public:
     // add/delete sync
     error isnodesyncable(Node*, bool* = NULL);
 
-    error addsync(SyncConfig, string*, const char*, string*, Node*, fsfp_t = 0, int = 0, void* = NULL);
+    error addsync(SyncConfig, const char*, string*, int = 0, void* = NULL);
 
     void delsync(Sync*, bool = true);
 

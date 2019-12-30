@@ -680,58 +680,74 @@ public:
     {
         TYPE_UP = 0x01, // sync up from local to remote
         TYPE_DOWN = 0x02, // sync down from remote to local
-        TYPE_DEFAULT = TYPE_UP | TYPE_DOWN, // Two-way sync
+        TYPE_TWOWAY = TYPE_UP | TYPE_DOWN, // Two-way sync
     };
 
-    SyncConfig() = default;
+    SyncConfig(std::string localPath,
+               const handle remoteNode,
+               const fsfp_t localFingerprint,
+               std::vector<std::string> regExps = {},
+               const Type syncType = TYPE_TWOWAY,
+               const bool syncDeletions = false,
+               const bool forceOverwrite = false);
 
-    SyncConfig(const Type syncType, const bool syncDeletions, const bool forceOverwrite)
-        : mSyncType{syncType}
-        , mSyncDeletions{syncDeletions}
-        , mForceOverwrite{forceOverwrite}
-    {}
+    // whether this sync is active
+    bool active() const;
+
+    // sets whether this sync is active
+    void setActive(bool active);
+
+    // the local path of the sync
+    const std::string& localPath() const;
+
+    // the local path of the sync
+    std::string& localPath();
+
+    // the remote path of the sync
+    handle remoteNode() const;
+
+    // the local fingerprint
+    fsfp_t localFingerprint() const;
+
+    // regular expressions
+    const std::vector<std::string>& regExps() const;
 
     // whether this is an up-sync from local to remote
-    bool isUpSync() const
-    {
-        return mSyncType & TYPE_UP;
-    }
+    bool isUpSync() const;
 
     // whether this is a down-sync from remote to local
-    bool isDownSync() const
-    {
-        return mSyncType & TYPE_DOWN;
-    }
+    bool isDownSync() const;
 
     // whether deletions are synced
-    bool syncDeletions() const
-    {
-        switch (mSyncType)
-        {
-            case TYPE_UP: return mSyncDeletions;
-            case TYPE_DOWN: return mSyncDeletions;
-            case TYPE_DEFAULT: return true;
-        }
-        assert(false);
-        return true;
-    }
+    bool syncDeletions() const;
 
     // whether changes are overwritten irregardless of file properties
-    bool forceOverwrite() const
-    {
-        switch (mSyncType)
-        {
-            case TYPE_UP: return mForceOverwrite;
-            case TYPE_DOWN: return mForceOverwrite;
-            case TYPE_DEFAULT: return false;
-        }
-        assert(false);
-        return false;
-    }
+    bool forceOverwrite() const;
+
+    // serializes the object to a string
+    std::string serialize() const;
+
+    // deserializes the string to a SyncConfig object. Returns null in case of failure
+    static std::unique_ptr<SyncConfig> unserialize(const std::string& data);
 
 private:
+    // Whether the sync is active
+    bool mActive = true;
+
+    // the local path of the sync
+    std::string mLocalPath;
+
+    // the remote path of the sync
+    handle mRemoteNode = UNDEF;
+
+    // the local fingerprint
+    fsfp_t mLocalFingerprint = 0;
+
+    // list of regular expressions
+    std::vector<std::string> mRegExps;
+
     // type of the sync, defaults to bidirectional
-    Type mSyncType = TYPE_DEFAULT;
+    Type mSyncType = TYPE_TWOWAY;
 
     // whether deletions are synced (only relevant for one-way-sync)
     bool mSyncDeletions = false;
