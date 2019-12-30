@@ -33,7 +33,7 @@ namespace mega {
     // The preprocessor is used to ensure that code is not present for release builds, so it can't cause problems.
     // Additionally the hooks use std::function so a suitable compiler and library are needed to leverage those tests.
 
-#if defined(_DEBUG) 
+#ifdef DEBUG
 
     #define MEGASDK_DEBUG_TEST_HOOKS_ENABLED
 

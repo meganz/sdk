@@ -60,6 +60,8 @@ if (USE_WEBRTC)
     endif()
 endif()
 
+set (MEGA_LINK_DYNAMIC_CRT 1 CACHE STRING "")
+
 if (ENABLE_CHAT AND NOT USE_SODIUM)
     message(FATAL_ERROR "ENABLE_CHAT (${ENABLE_CHAT}) requires USE_SODIUM (${USE_SODIUM})")
 endif()
@@ -74,7 +76,15 @@ if (WIN32)
     elseif(CMAKE_SIZEOF_VOID_P EQUAL 4)
         SET(build_64_bit 0)
         message(STATUS "Building 32 bit")
+    elseif("${CMAKE_CXX_COMPILER}" MATCHES "x64/cl.exe" )
+        SET(build_64_bit 1)
+        message(STATUS "Building 64 bit")
+    elseif("${CMAKE_CXX_COMPILER}" MATCHES "x86/cl.exe" )
+        SET(build_64_bit 0)
+        message(STATUS "Building 32 bit")
     else()
+        message(STATUS "CMAKE_SIZEOF_VOID_P ${CMAKE_SIZEOF_VOID_P}")
+        message(STATUS "CMAKE_CXX_COMPILER ${CMAKE_CXX_COMPILER}")
         message(FATAL_ERROR "Can't tell if we should build 32 bit or 64 bit")
     endif()
 else()
@@ -167,14 +177,20 @@ if (WIN32)
     add_definitions( -DNOMINMAX )
 
     IF (NOT USE_PREBUILT_3RDPARTY)
-        #Link against the static C/C++ libraries on windows
+        #Link against the static C/C++ libraries on windows. Though, if linking with prebuilt QT we need dynamic CRT
         foreach(flag_var
                 CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE 
                 CMAKE_C_FLAGS CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE
                 CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
-           if(${flag_var} MATCHES "/MD")
-              string(REGEX REPLACE "/MD" "/MT" ${flag_var} "${${flag_var}}")
-           endif(${flag_var} MATCHES "/MD")
+            if (MEGA_LINK_DYNAMIC_CRT)
+                if(${flag_var} MATCHES "/MT")
+                    string(REGEX REPLACE "/MT" "/MD" ${flag_var} "${${flag_var}}")
+                endif()
+            else ()
+                if(${flag_var} MATCHES "/MD")
+                    string(REGEX REPLACE "/MD" "/MT" ${flag_var} "${${flag_var}}")
+                endif()
+            endif ()
         endforeach(flag_var)
     ENDIF()
 
@@ -289,11 +305,15 @@ IF(WIN32)
             ImportVcpkgLibrary(sodium          "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/libsodium.lib"  "${vcpkg_dir}/lib/libsodium.lib")
         ENDIF(USE_SODIUM)
 
+        ImportVcpkgLibrary(z               "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/zlibd.lib" "${vcpkg_dir}/lib/zlib.lib") 
+        #find_package(zlib CONFIG REQUIRED PATHS "${vcpkg_dir}/share/zlib" NO_DEFAULT_PATH )
+
         IF(USE_CURL)
             IF(USE_WEBRTC)
                 ImportVcpkgLibrary(curl         "${Mega3rdPartyDir}/curl/include" "${Mega3rdPartyDir}/curl/build32/lib/Debug/libcurl-d.lib" "${Mega3rdPartyDir}/curl/build32/lib/Release/libcurl.lib")
             ELSE()
-                ImportVcpkgLibrary(curl        "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/libcurl.lib"  "${vcpkg_dir}/lib/libcurl.lib")
+                ImportVcpkgLibrary(curl        "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/libcurl-d.lib"  "${vcpkg_dir}/lib/libcurl.lib")
+                #find_package(CURL CONFIG REQUIRED PATHS "${vcpkg_dir}/share/curl" NO_DEFAULT_PATH )
             ENDIF()
         ENDIF()
         IF(USE_CURL)
@@ -314,41 +334,42 @@ IF(WIN32)
             add_definitions( -DWEBRTC_WIN )
         ENDIF()
     
-        ImportVcpkgLibrary(z               "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/zlibd.lib" "${vcpkg_dir}/lib/zlib.lib") 
-
         ImportVcpkgLibrary(gtest           "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/gtestd.lib" "${vcpkg_dir}/lib/gtest.lib") 
 
         IF(USE_MEDIAINFO)
-            ImportStaticLibrary(mediainfo   "${Mega3rdPartyDir}/MediaInfoLib-mw/Source"
-                                            "${Mega3rdPartyDir}/MediaInfoLib-mw/Project/MSVC2017/Win32/Debug/MediaInfo-Static.lib" 
-                                            "${Mega3rdPartyDir}/MediaInfoLib-mw/Project/MSVC2017/Win32/Release/MediaInfo-Static.lib"
-                                            "${Mega3rdPartyDir}/MediaInfoLib-mw/Project/MSVC2017/x64/Debug/MediaInfo-Static.lib"
-                                            "${Mega3rdPartyDir}/MediaInfoLib-mw/Project/MSVC2017/x64/Release/MediaInfo-Static.lib")
+            ImportVcpkgLibrary(zen       "${vcpkg_dir}/include"  "${vcpkg_dir}/debug/lib/zend.lib" "${vcpkg_dir}/lib/zen.lib")
+            ImportVcpkgLibrary(mediainfo "${vcpkg_dir}/include"  "${vcpkg_dir}/debug/lib/mediainfod.lib" "${vcpkg_dir}/lib/mediainfo.lib")
 
-            ImportStaticLibrary(zen         "${Mega3rdPartyDir}/ZenLib/Source"
-                                            "${Mega3rdPartyDir}/MediaInfoLib-mw/Project/MSVC2017/Win32/Debug/ZenLib.lib"
-                                            "${Mega3rdPartyDir}/MediaInfoLib-mw/Project/MSVC2017/Win32/Release/ZenLib.lib"
-                                            "${Mega3rdPartyDir}/MediaInfoLib-mw/Project/MSVC2017/x64/Debug/ZenLib.lib"
-                                            "${Mega3rdPartyDir}/MediaInfoLib-mw/Project/MSVC2017/x64/Release/ZenLib.lib")
+#            ImportStaticLibrary(mediainfo   "${Mega3rdPartyDir}/MediaInfoLib-mw/Source"
+#                                            "${Mega3rdPartyDir}/MediaInfoLib-mw/Project/MSVC2017/Win32/Debug/MediaInfo-Static.lib"
+#                                            "${Mega3rdPartyDir}/MediaInfoLib-mw/Project/MSVC2017/Win32/Release/MediaInfo-Static.lib"
+#                                            "${Mega3rdPartyDir}/MediaInfoLib-mw/Project/MSVC2017/x64/Debug/MediaInfo-Static.lib"
+#                                            "${Mega3rdPartyDir}/MediaInfoLib-mw/Project/MSVC2017/x64/Release/MediaInfo-Static.lib")
+
+#            ImportStaticLibrary(zen         "${Mega3rdPartyDir}/ZenLib/Source"
+#                                            "${Mega3rdPartyDir}/MediaInfoLib-mw/Project/MSVC2017/Win32/Debug/ZenLib.lib"
+#                                            "${Mega3rdPartyDir}/MediaInfoLib-mw/Project/MSVC2017/Win32/Release/ZenLib.lib"
+#                                            "${Mega3rdPartyDir}/MediaInfoLib-mw/Project/MSVC2017/x64/Debug/ZenLib.lib"
+#                                            "${Mega3rdPartyDir}/MediaInfoLib-mw/Project/MSVC2017/x64/Release/ZenLib.lib")
         ENDIF(USE_MEDIAINFO)
 
         IF(USE_FREEIMAGE)
             ImportVcpkgLibrary(freeimage    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/FreeImaged.lib"  "${vcpkg_dir}/lib/FreeImage.lib")
-            ImportVcpkgLibrary(freeimage_Iex "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/Iex-2_2.lib"  "${vcpkg_dir}/lib/Iex-2_2.lib")
-            ImportVcpkgLibrary(freeimage_IexMath "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/IexMath-2_2.lib"  "${vcpkg_dir}/lib/IexMath-2_2.lib")
-            ImportVcpkgLibrary(freeimage_IlmImf "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/IlmImf-2_2.lib"  "${vcpkg_dir}/lib/IlmImf-2_2.lib")
-            ImportVcpkgLibrary(freeimage_IlmImfUtil "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/IlmImfUtil-2_2.lib"  "${vcpkg_dir}/lib/IlmImfUtil-2_2.lib")
-            ImportVcpkgLibrary(freeimage_IlmThread "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/IlmThread-2_2.lib"  "${vcpkg_dir}/lib/IlmThread-2_2.lib")
-            ImportVcpkgLibrary(freeimage_jpeg "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/jpeg.lib"  "${vcpkg_dir}/lib/jpeg.lib")
-            ImportVcpkgLibrary(freeimage_turbojpeg "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/turbojpeg.lib"  "${vcpkg_dir}/lib/turbojpeg.lib")
+            ImportVcpkgLibrary(freeimage_Iex "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/Iex-2_3_d.lib"  "${vcpkg_dir}/lib/Iex-2_3.lib")
+            ImportVcpkgLibrary(freeimage_IexMath "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/IexMath-2_3_d.lib"  "${vcpkg_dir}/lib/IexMath-2_3.lib")
+            ImportVcpkgLibrary(freeimage_IlmImf "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/IlmImf-2_3_d.lib"  "${vcpkg_dir}/lib/IlmImf-2_3.lib")
+            ImportVcpkgLibrary(freeimage_IlmImfUtil "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/IlmImfUtil-2_3_d.lib"  "${vcpkg_dir}/lib/IlmImfUtil-2_3.lib")
+            ImportVcpkgLibrary(freeimage_IlmThread "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/IlmThread-2_3_d.lib"  "${vcpkg_dir}/lib/IlmThread-2_3.lib")
+            ImportVcpkgLibrary(freeimage_jpeg "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/jpegd.lib"  "${vcpkg_dir}/lib/jpeg.lib")
+            ImportVcpkgLibrary(freeimage_turbojpeg "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/turbojpegd.lib"  "${vcpkg_dir}/lib/turbojpeg.lib")
             ImportVcpkgLibrary(freeimage_jpegxr "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/jpegxrd.lib"  "${vcpkg_dir}/lib/jpegxr.lib")
             ImportVcpkgLibrary(freeimage_jxrglue "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/jxrglued.lib"  "${vcpkg_dir}/lib/jxrglue.lib")
             ImportVcpkgLibrary(freeimage_openjp2 "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/openjp2.lib"  "${vcpkg_dir}/lib/openjp2.lib")
-            ImportVcpkgLibrary(freeimage_half "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/half.lib"  "${vcpkg_dir}/lib/half.lib")
-            ImportVcpkgLibrary(freeimage_jasper "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/jasper.lib"  "${vcpkg_dir}/lib/jasper.lib")
+            ImportVcpkgLibrary(freeimage_half "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/half-2_3_d.lib"  "${vcpkg_dir}/lib/half-2_3.lib")
+            ImportVcpkgLibrary(freeimage_jasper "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/jasperd.lib"  "${vcpkg_dir}/lib/jasper.lib")
             ImportVcpkgLibrary(freeimage_libpng "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/libpng16d.lib"  "${vcpkg_dir}/lib/libpng16.lib")
-            ImportVcpkgLibrary(freeimage_lzma    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/lzma.lib"  "${vcpkg_dir}/lib/lzma.lib")
-            ImportVcpkgLibrary(freeimage_lcms2    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/lcms2d.lib"  "${vcpkg_dir}/lib/lcms2.lib")
+            ImportVcpkgLibrary(freeimage_lzma    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/lzmad.lib"  "${vcpkg_dir}/lib/lzma.lib")
+            ImportVcpkgLibrary(freeimage_lcms2    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/lcmsd.lib"  "${vcpkg_dir}/lib/lcms.lib")
             ImportVcpkgLibrary(freeimage_raw    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/rawd.lib"  "${vcpkg_dir}/lib/raw.lib")
             ImportVcpkgLibrary(freeimage_tiff    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/tiffd.lib"  "${vcpkg_dir}/lib/tiff.lib")
             ImportVcpkgLibrary(freeimage_tiffxx    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/tiffxxd.lib"  "${vcpkg_dir}/lib/tiffxx.lib")
@@ -611,19 +632,76 @@ if(WIN32)
 target_link_libraries(Mega PUBLIC crypt32.lib)
 endif(WIN32)
 
+OPTION( ENABLE_CODECOVERAGE "Enable code coverage testing support" )
+
+if ( ENABLE_CODECOVERAGE )
+
+    if ( NOT CMAKE_BUILD_TYPE STREQUAL "Debug" )
+        message( WARNING "Code coverage results with an optimised (non-Debug) build may be misleading" )
+    endif ( NOT CMAKE_BUILD_TYPE STREQUAL "Debug" )
+
+    if ( NOT DEFINED CODECOV_OUTPUTFILE )
+        set( CODECOV_OUTPUTFILE cmake_coverage.output )
+    endif ( NOT DEFINED CODECOV_OUTPUTFILE )
+
+    if ( NOT DEFINED CODECOV_HTMLOUTPUTDIR )
+        set( CODECOV_HTMLOUTPUTDIR coverage_results )
+    endif ( NOT DEFINED CODECOV_HTMLOUTPUTDIR )
+
+    if ( CMAKE_COMPILER_IS_GNUCXX OR CMAKE_COMPILER_IS_GNUCXX )
+        find_program( CODECOV_GCOV gcov )
+        find_program( CODECOV_LCOV lcov )
+        find_program( CODECOV_GENHTML genhtml )
+        add_definitions( -fprofile-arcs -ftest-coverage )
+        link_libraries( gcov )
+        set( CMAKE_EXE_LINKER_FLAGS ${CMAKE_EXE_LINKER_FLAGS} --coverage )
+        add_custom_target( coverage_init ALL ${CODECOV_LCOV} --base-directory .  --directory ${CMAKE_BINARY_DIR} --output-file ${CODECOV_OUTPUTFILE} --capture --initial )
+        add_custom_target( coverage ${CODECOV_LCOV} --base-directory .  --directory ${CMAKE_BINARY_DIR} --output-file ${CODECOV_OUTPUTFILE} --capture COMMAND genhtml -o ${CODECOV_HTMLOUTPUTDIR} ${CODECOV_OUTPUTFILE} )
+endif ( CMAKE_COMPILER_IS_GNUCXX )
+
+endif (ENABLE_CODECOVERAGE )
+
 #test apps
-add_executable(test_unit            ${MegaDir}/tests/unit/Commands_test.cpp
-                                    ${MegaDir}/tests/unit/Crypto_test.cpp
-                                    ${MegaDir}/tests/unit/Serialization_test.cpp
-                                    ${MegaDir}/tests/unit/main.cpp
-                                    ${MegaDir}/tests/unit/MegaApi_test.cpp
-                                    ${MegaDir}/tests/unit/PayCrypter_test.cpp)
+add_executable(test_unit
+    ${MegaDir}/tests/unit/AttrMap_test.cpp
+    ${MegaDir}/tests/unit/ChunkMacMap_test.cpp
+    ${MegaDir}/tests/unit/Commands_test.cpp
+    ${MegaDir}/tests/unit/constants.h
+    ${MegaDir}/tests/unit/Crypto_test.cpp
+    ${MegaDir}/tests/unit/DefaultedDirAccess.h
+    ${MegaDir}/tests/unit/DefaultedFileAccess.h
+    ${MegaDir}/tests/unit/DefaultedFileSystemAccess.h
+    ${MegaDir}/tests/unit/FileFingerprint_test.cpp
+    ${MegaDir}/tests/unit/File_test.cpp
+    ${MegaDir}/tests/unit/FsNode.cpp
+    ${MegaDir}/tests/unit/FsNode.h
+    ${MegaDir}/tests/unit/Logging_test.cpp
+    ${MegaDir}/tests/unit/main.cpp
+    ${MegaDir}/tests/unit/MediaProperties_test.cpp
+    ${MegaDir}/tests/unit/MegaApi_test.cpp
+    ${MegaDir}/tests/unit/NotImplemented.h
+    ${MegaDir}/tests/unit/PayCrypter_test.cpp
+    ${MegaDir}/tests/unit/PendingContactRequest_test.cpp
+    ${MegaDir}/tests/unit/Serialization_test.cpp
+    ${MegaDir}/tests/unit/Share_test.cpp
+    ${MegaDir}/tests/unit/Sync_test.cpp
+    ${MegaDir}/tests/unit/TextChat_test.cpp
+    ${MegaDir}/tests/unit/Transfer_test.cpp
+    ${MegaDir}/tests/unit/User_test.cpp
+    ${MegaDir}/tests/unit/utils.cpp
+    ${MegaDir}/tests/unit/utils.h
+    ${MegaDir}/tests/unit/utils_test.cpp
+)
 
-add_executable(test_integration     ${MegaDir}/tests/integration/main.cpp
-                                    ${MegaDir}/tests/integration/SdkTest_test.cpp
-                                    ${MegaDir}/tests/integration/Sync_test.cpp)
+add_executable(test_integration
+    ${MegaDir}/tests/integration/main.cpp
+    ${MegaDir}/tests/integration/SdkTest_test.cpp
+    ${MegaDir}/tests/integration/Sync_test.cpp
+)
 
-add_executable(tool_purge_account   ${MegaDir}/tests/tool/purge_account.cpp)
+add_executable(tool_purge_account
+    ${MegaDir}/tests/tool/purge_account.cpp
+)
 
 target_compile_definitions(test_unit PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
 target_compile_definitions(test_integration PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)

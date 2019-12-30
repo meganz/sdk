@@ -192,16 +192,17 @@ AC_MSG_CHECKING([platform options])
 case $host in
   *-*-cygwin*)
     LIBS_EXTRA="-luser32 -lkernel32"
+    CXXFLAGS="$CXXFLAGS -DNOMINMAX"
     WIN32=yes
     ;;
   *-*-mingw*)
     LIBS_EXTRA="-lws2_32 -lcrypt32 -lole32 -lwinmm -lshlwapi -lshell32"
-    CXXFLAGS="$CXXFLAGS -DUNICODE -DWINVER=0x0501 -DHAVE_STRUCT_TIMESPEC"
+    CXXFLAGS="$CXXFLAGS -DUNICODE -DWINVER=0x0501 -DHAVE_STRUCT_TIMESPEC -DNOMINMAX"
     WIN32=yes
     ;;
    *-*-msys*)
     LIBS_EXTRA="-lws2_32 -lcrypt32 -lole32 -lwinmm -lshlwapi -lshell32"
-    CXXFLAGS="$CXXFLAGS -DUNICODE -DWINVER=0x0501 -DHAVE_STRUCT_TIMESPEC -Wl,-no-undefined"
+    CXXFLAGS="$CXXFLAGS -DUNICODE -DWINVER=0x0501 -DHAVE_STRUCT_TIMESPEC -DNOMINMAX -Wl,-no-undefined"
 	LIBMEGA_EXTRALDFLAGS="-no-undefined"
 	AC_SUBST(LIBMEGA_EXTRALDFLAGS)
     WIN32=yes

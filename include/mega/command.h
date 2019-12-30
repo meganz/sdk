@@ -455,7 +455,7 @@ public:
     void cancel();
     void procresult();
 
-    CommandGetFile(MegaClient *client, TransferSlot*, byte*, handle, bool, const char* = NULL, const char* = NULL, const char *chatauth = NULL);
+    CommandGetFile(MegaClient *client, TransferSlot*, const byte*, handle, bool, const char* = NULL, const char* = NULL, const char *chatauth = NULL);
 };
 
 class MEGA_API CommandPutFile : public Command
@@ -758,6 +758,14 @@ public:
     CommandSendEvent(MegaClient*, int, const char *);
 };
 
+class MEGA_API CommandSupportTicket : public Command
+{
+public:
+    void procresult();
+
+    CommandSupportTicket(MegaClient*, const char *message, int type = 1);   // by default, 1:technical_issue
+};
+
 class MEGA_API CommandCleanRubbishBin : public Command
 {
 public:
@@ -804,6 +812,14 @@ public:
     void procresult();
 
     CommandConfirmCancelLink(MegaClient *, const char *);
+};
+
+class MEGA_API CommandResendVerificationEmail : public Command
+{
+public:
+    void procresult();
+
+    CommandResendVerificationEmail(MegaClient *);
 };
 
 class MEGA_API CommandValidatePassword : public Command

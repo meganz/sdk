@@ -87,14 +87,14 @@ struct MEGA_API File: public FileFingerprint
     char *chatauth;
 
     // if !hprivate, filekey and size must be valid
-    byte filekey[FILENODEKEYLENGTH];
+    byte filekey[FILENODEKEYLENGTH]{};
 
     // for remote file drops: uid or e-mail address of recipient
     string targetuser;
 
     // transfer linkage
     Transfer* transfer;
-    file_list::iterator file_it;
+    file_list::iterator file_it{};
 
     File();
     virtual ~File();

@@ -279,6 +279,7 @@ int MegaUserAlertList::size() const
     return 0;
 }
 
+void MegaUserAlertList::clear() { }
 
 
 MegaRecentActionBucket::~MegaRecentActionBucket()
@@ -2130,6 +2131,11 @@ void MegaApi::confirmCancelAccount(const char *link, const char *pwd, MegaReques
     pImpl->confirmCancelAccount(link, pwd, listener);
 }
 
+void MegaApi::resendVerificationEmail(MegaRequestListener *listener)
+{
+    pImpl->resendVerificationEmail(listener);
+}
+
 void MegaApi::changeEmail(const char *email, MegaRequestListener *listener)
 {
     pImpl->changeEmail(email, listener);
@@ -2145,9 +2151,9 @@ void MegaApi::confirmChangeEmail(const char *link, const char *pwd, MegaRequestL
     pImpl->confirmChangeEmail(link, pwd, listener);
 }
 
-void MegaApi::setProxySettings(MegaProxy *proxySettings)
+void MegaApi::setProxySettings(MegaProxy *proxySettings, MegaRequestListener *listener)
 {
-    pImpl->setProxySettings(proxySettings);
+    pImpl->setProxySettings(proxySettings, listener);
 }
 
 MegaProxy *MegaApi::getAutoProxySettings()
@@ -2253,6 +2259,11 @@ void MegaApi::encryptLinkWithPassword(const char *link, const char *password, Me
 void MegaApi::getPublicNode(const char* megaFileLink, MegaRequestListener *listener)
 {
     pImpl->getPublicNode(megaFileLink, listener);
+}
+
+const char *MegaApi::buildPublicLink(const char *publicHandle, const char *key, bool isFolder)
+{
+    return pImpl->buildPublicLink(publicHandle, key, isFolder);
 }
 
 void MegaApi::getThumbnail(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener)
@@ -2629,7 +2640,7 @@ void MegaApi::getUserAlias(MegaHandle uh, MegaRequestListener *listener)
 
 void MegaApi::setUserAlias(MegaHandle uh, const char *alias, MegaRequestListener *listener)
 {
-    pImpl->setUserAlias(uh, alias);
+    pImpl->setUserAlias(uh, alias, listener);
 }
 
 void MegaApi::getRubbishBinAutopurgePeriod(MegaRequestListener *listener)
@@ -2675,6 +2686,11 @@ void MegaApi::submitFeedback(int rating, const char *comment, MegaRequestListene
 void MegaApi::sendEvent(int eventType, const char *message, MegaRequestListener *listener)
 {
     pImpl->sendEvent(eventType, message, listener);
+}
+
+void MegaApi::createSupportTicket(const char *message, int type, MegaRequestListener *listener)
+{
+    pImpl->createSupportTicket(message, type, listener);
 }
 
 void MegaApi::reportDebugEvent(const char *text, MegaRequestListener *listener)
@@ -2868,6 +2884,10 @@ void MegaApi::startUpload(const char* localPath, MegaNode* parent, MegaTransferL
     pImpl->startUpload(localPath, parent, listener);
 }
 
+void MegaApi::startUploadForSupport(const char* localPath, bool isSourceTemporary, MegaTransferListener *listener)
+{
+    pImpl->startUploadForSupport(localPath, isSourceTemporary, listener);
+}
 
 MegaStringList *MegaApi::getBackupFolders(int backuptag) const
 {
@@ -3134,6 +3154,11 @@ bool MegaApi::isScanning()
     return pImpl->isIndexing();
 }
 
+bool MegaApi::isSyncing()
+{
+    return pImpl->isSyncing();
+}
+
 bool MegaApi::isSynced(MegaNode *n)
 {
     return pImpl->isSynced(n);
@@ -3323,9 +3348,9 @@ MegaShareList* MegaApi::getInSharesList(int order)
     return pImpl->getInSharesList(order);
 }
 
-MegaUser *MegaApi::getUserFromInShare(MegaNode *node)
+MegaUser *MegaApi::getUserFromInShare(MegaNode *node, bool recurse)
 {
-    return pImpl->getUserFromInShare(node);
+    return pImpl->getUserFromInShare(node, recurse);
 }
 
 bool MegaApi::isShared(MegaNode *node)
@@ -5262,12 +5287,12 @@ int MegaPricing::getProLevel(int)
     return 0;
 }
 
-unsigned int MegaPricing::getGBStorage(int)
+int MegaPricing::getGBStorage(int)
 {
     return 0;
 }
 
-unsigned int MegaPricing::getGBTransfer(int)
+int MegaPricing::getGBTransfer(int)
 {
     return 0;
 }
@@ -5300,6 +5325,16 @@ const char *MegaPricing::getIosID(int)
 const char *MegaPricing::getAndroidID(int)
 {
     return NULL;
+}
+
+bool MegaPricing::isBusinessType(int)
+{
+    return false;
+}
+
+int MegaPricing::getAmountMonth(int)
+{
+    return 0;
 }
 
 MegaPricing *MegaPricing::copy()
