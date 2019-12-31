@@ -54,6 +54,9 @@ CALL :build_one lcms
 CALL :build_one libjpeg-turbo
 CALL :build_one openjpeg
 
+REM If building something that depends on MEGAchat you will also need libwebsockets:
+CALL :build_one libwebsockets
+
 REM ------ building pdifum - this one needs some manual steps - these can be done before calling the script ---------------
 REM - Set up your Depot Tools (this can be one time, reuse it for other builds etc)
 REM      Follow these instructions to get the depot_tools (download .zip, extract all, set variable, run gclient): https://chromium.googlesource.com/chromium/src/+/master/docs/windows_build_instructions.md#install

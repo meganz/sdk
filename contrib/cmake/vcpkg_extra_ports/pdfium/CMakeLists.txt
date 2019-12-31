@@ -40,7 +40,7 @@ endif()
 if (APPLE)
     set(MAC 1)
 else()
-    set(MAC 1)
+    set(MAC 0)
 endif()
 
 if (NOT WIN32 AND NOT APPLE)
