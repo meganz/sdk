@@ -15084,11 +15084,13 @@ void MegaApiImpl::fetchtimezone_result(error e, vector<std::string> *timezones, 
 
     if (requestMap.find(client->restag) == requestMap.end())
     {
+        delete tzDetails;
         return;
     }
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if (!request || ((request->getType() != MegaRequest::TYPE_FETCH_TIMEZONE)))
     {
+        delete tzDetails;
         return;
     }
 
