@@ -165,7 +165,7 @@ static std::string syncConfigToString(const NewSyncConfig& config)
     return description;
 }
 
-// creates a NewSync object from config options as strings.
+// creates a NewSyncConfig object from config options as strings.
 // returns a pair where `first` is success and `second` is the sync config.
 static std::pair<bool, NewSyncConfig> syncConfigFromStrings(std::string type, std::string syncDel = {}, std::string overwrite = {})
 {

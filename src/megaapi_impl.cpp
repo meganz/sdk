@@ -6684,7 +6684,6 @@ void MegaApiImpl::disableExport(MegaNode *node, MegaRequestListener *listener)
 void MegaApiImpl::fetchNodes(MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_NODES, listener);
-    request->setFlag(true);
     requestQueue.push(request);
     waiter->notify();
 }

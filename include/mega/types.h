@@ -737,7 +737,7 @@ private:
     // the local path of the sync
     std::string mLocalPath;
 
-    // the remote path of the sync
+    // the remote handle of the sync
     handle mRemoteNode;
 
     // the local fingerprint

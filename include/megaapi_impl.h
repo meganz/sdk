@@ -2127,9 +2127,6 @@ class MegaApiImpl : public MegaApp
         void exportNode(MegaNode *node, int64_t expireTime, MegaRequestListener *listener = NULL);
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
         void fetchNodes(MegaRequestListener *listener = NULL);
-#ifdef ENABLE_SYNC
-        void fetchNodes(bool, MegaRequestListener *listener = NULL);
-#endif
         void getPricing(MegaRequestListener *listener = NULL);
         void getPaymentId(handle productHandle, handle lastPublicHandle, MegaRequestListener *listener = NULL);
         void upgradeAccount(MegaHandle productHandle, int paymentMethod, MegaRequestListener *listener = NULL);
