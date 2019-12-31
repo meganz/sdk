@@ -732,7 +732,7 @@ public:
 
 private:
     // Whether the sync is active
-    bool mActive;
+    bool mActive = true;
 
     // the local path of the sync
     std::string mLocalPath;

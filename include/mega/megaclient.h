@@ -1595,6 +1595,10 @@ public:
         std::string report(bool reset, HttpIO* httpio, Waiter* waiter, const RequestDispatcher& reqs);
     } performanceStats;
 
+#ifdef ENABLE_SYNC
+    void resetSyncConfigs();
+#endif
+
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
     ~MegaClient();
 };

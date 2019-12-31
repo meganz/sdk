@@ -513,7 +513,7 @@ bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, h
 
 SyncConfigBag::SyncConfigBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, PrnGen& rng)
 {
-    std::string dbname = "syncconfig";
+    std::string dbname = "syncconfigs";
     mTable.reset(dbaccess.open(rng, &fsaccess, &dbname, false, false));
     if (!mTable)
     {
@@ -586,11 +586,6 @@ void SyncConfigBag::remove(const SyncConfig& syncConfig)
         }
         mSyncConfigs.erase(syncConfig.getLocalPath());
     }
-    else
-    {
-        assert(false);
-        LOG_err << "sync config does not exist";
-    }
 }
 
 void SyncConfigBag::update(const SyncConfig& syncConfig)
@@ -616,11 +611,6 @@ void SyncConfigBag::update(const SyncConfig& syncConfig)
                 LOG_err << "Incomplete database put at id: " << tableId;
             }
         }
-    }
-    else
-    {
-        assert(false);
-        LOG_err <<  "sync config does not exist";
     }
 }
 

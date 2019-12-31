@@ -1049,6 +1049,8 @@ void MegaClient::init()
         app->syncupdate_scanning(false);
         syncscanstate = false;
     }
+
+    resetSyncConfigs();
 #endif
 
     for (int i = sizeof rootnodes / sizeof *rootnodes; i--; )
@@ -1226,14 +1228,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     h->setmaxuploadspeed(0);
 
 #ifdef ENABLE_SYNC
-    if (dbaccess)
-    {
-        syncConfigs.reset(new SyncConfigBag{*dbaccess, *fsaccess, rng});
-    }
-    else
-    {
-        syncConfigs.reset(new SyncConfigBag);
-    }
+    resetSyncConfigs();
 #endif
 }
 
@@ -1249,6 +1244,20 @@ MegaClient::~MegaClient()
     delete tctable;
     delete dbaccess;
 }
+
+#ifdef ENABLE_SYNC
+void MegaClient::resetSyncConfigs()
+{
+    if (dbaccess)
+    {
+        syncConfigs.reset(new SyncConfigBag{*dbaccess, *fsaccess, rng});
+    }
+    else
+    {
+        syncConfigs.reset(new SyncConfigBag);
+    }
+}
+#endif
 
 std::string MegaClient::getPublicLink(bool newLinkFormat, nodetype_t type, handle ph, const char *key)
 {
