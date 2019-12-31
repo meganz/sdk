@@ -3849,6 +3849,10 @@ void MegaClient::removeCaches()
             (*it)->statecachetable = NULL;
         }
     }
+    if (syncConfigs)
+    {
+        syncConfigs->clear();
+    }
 #endif
 
     disabletransferresumption();

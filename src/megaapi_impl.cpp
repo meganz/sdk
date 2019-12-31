@@ -6684,19 +6684,10 @@ void MegaApiImpl::disableExport(MegaNode *node, MegaRequestListener *listener)
 void MegaApiImpl::fetchNodes(MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_NODES, listener);
+    request->setFlag(true);
     requestQueue.push(request);
     waiter->notify();
 }
-
-#ifdef ENABLE_SYNC
-void MegaApiImpl::fetchNodes(bool resumeSyncs, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_NODES, listener);
-    request->setFlag(resumeSyncs);
-    requestQueue.push(request);
-    waiter->notify();
-}
-#endif
 
 void MegaApiImpl::getPricing(MegaRequestListener *listener)
 {
@@ -13057,12 +13048,6 @@ void MegaApiImpl::fetchnodes_result(error e)
             request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_NODES);
         }
 
-#ifdef ENABLE_SYNC
-        const bool resumeSyncs = request->getFlag();
-        // resetting to default in case it was set by fetchNodes()
-        request->setFlag(false);
-#endif
-
         if (e == API_OK)
         {
             // check if we fetched a folder link and the key is invalid
@@ -13084,14 +13069,14 @@ void MegaApiImpl::fetchnodes_result(error e)
             client->isNewSession = false;
         }
 
-        fireOnRequestFinish(new MegaRequestPrivate(request), megaError);
-
 #ifdef ENABLE_SYNC
-        if (e == API_OK && resumeSyncs)
+        if (e == API_OK)
         {
             resumeActiveSyncs(request->getListener());
         }
 #endif
+
+        fireOnRequestFinish(request, megaError);
         return;
     }
 
@@ -13108,12 +13093,6 @@ void MegaApiImpl::fetchnodes_result(error e)
 
     if (request->getType() == MegaRequest::TYPE_FETCH_NODES)
     {
-#ifdef ENABLE_SYNC
-        const bool resumeSyncs = request->getFlag();
-        // resetting to default in case it was set by fetchNodes()
-        request->setFlag(false);
-#endif
-
         if (e == API_OK)
         {
             // check if we fetched a folder link and the key is invalid
@@ -13135,14 +13114,14 @@ void MegaApiImpl::fetchnodes_result(error e)
             client->isNewSession = false;
         }
 
-        fireOnRequestFinish(new MegaRequestPrivate(request), megaError);
-
 #ifdef ENABLE_SYNC
-        if (e == API_OK && resumeSyncs)
+        if (e == API_OK)
         {
             resumeActiveSyncs(request->getListener());
         }
 #endif
+
+        fireOnRequestFinish(request, megaError);
     }
     else    // TYPE_CREATE_ACCOUNT
     {

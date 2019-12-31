@@ -127,16 +127,7 @@ struct NewSyncConfig
 
     static NewSyncConfig from(const SyncConfig& config)
     {
-        auto type = SyncConfig::TYPE_TWOWAY;
-        if (config.isUpSync() && !config.isDownSync())
-        {
-            type = SyncConfig::TYPE_UP;
-        }
-        else if (!config.isUpSync() && config.isDownSync())
-        {
-            type = SyncConfig::TYPE_DOWN;
-        }
-        return NewSyncConfig{type, config.syncDeletions(), config.forceOverwrite()};
+        return NewSyncConfig{config.getType(), config.syncDeletions(), config.forceOverwrite()};
     }
 };
 

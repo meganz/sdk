@@ -2065,6 +2065,11 @@ const std::vector<std::string>& SyncConfig::getRegExps() const
     return mRegExps;
 }
 
+SyncConfig::Type SyncConfig::getType() const
+{
+    return mSyncType;
+}
+
 bool SyncConfig::isUpSync() const
 {
     return mSyncType & TYPE_UP;
@@ -2099,10 +2104,11 @@ bool SyncConfig::forceOverwrite() const
     return false;
 }
 
-std::string SyncConfig::serialize() const
+// This should be a const-method but can't be due to the broken Cacheable interface.
+// Do not mutate members in this function!
+bool SyncConfig::serialize(std::string* data)
 {
-    std::string data;
-    CacheableWriter writer{data};
+    CacheableWriter writer{*data};
     writer.serializebool(mActive);
     writer.serializestring(mLocalPath);
     writer.serializehandle(mRemoteNode);
@@ -2112,11 +2118,11 @@ std::string SyncConfig::serialize() const
     {
         writer.serializestring(regExp);
     }
-    writer.serializei64(mSyncType);
+    writer.serializeu32(static_cast<uint32_t>(mSyncType));
     writer.serializebool(mSyncDeletions);
     writer.serializebool(mForceOverwrite);
     writer.serializeexpansionflags();
-    return data;
+    return true;
 }
 
 std::unique_ptr<SyncConfig> SyncConfig::unserialize(const std::string& data)
@@ -2127,7 +2133,7 @@ std::unique_ptr<SyncConfig> SyncConfig::unserialize(const std::string& data)
     fsfp_t fingerprint;
     uint32_t regExpCount;
     std::vector<std::string> regExps;
-    int64_t syncType;
+    uint32_t syncType;
     bool syncDeletions;
     bool forceOverwrite;
 
@@ -2161,7 +2167,7 @@ std::unique_ptr<SyncConfig> SyncConfig::unserialize(const std::string& data)
         }
         regExps.push_back(std::move(regExp));
     }
-    if (!reader.unserializei64(syncType))
+    if (!reader.unserializeu32(syncType))
     {
         return {};
     }

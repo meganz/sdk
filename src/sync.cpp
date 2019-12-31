@@ -524,7 +524,7 @@ SyncConfigBag::SyncConfigBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, Prn
 
     mTable->rewind();
 
-    decltype(mNextTableId) tableId;
+    uint32_t tableId;
     std::string data;
     while (mTable->next(&tableId, &data))
     {
@@ -535,14 +535,15 @@ SyncConfigBag::SyncConfigBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, Prn
             LOG_err << "Unable to unserialize sync config at id: " << tableId;
             continue;
         }
+        syncConfig->dbid = static_cast<int32_t>(tableId);
 
-        mSyncConfigs.insert(std::make_pair(syncConfig->getLocalPath(), SyncConfigData{tableId, *syncConfig}));
-        if (tableId > mNextTableId)
+        mSyncConfigs.insert(std::make_pair(syncConfig->getLocalPath(), *syncConfig));
+        if (tableId > mTable->nextid)
         {
-            mNextTableId = tableId;
+            mTable->nextid = tableId;
         }
     }
-    ++mNextTableId;
+    ++mTable->nextid;
 }
 
 void SyncConfigBag::add(const SyncConfig& syncConfig)
@@ -550,16 +551,18 @@ void SyncConfigBag::add(const SyncConfig& syncConfig)
     auto syncConfigPair = mSyncConfigs.find(syncConfig.getLocalPath());
     if (syncConfigPair == mSyncConfigs.end())
     {
-        mSyncConfigs.insert(std::make_pair(syncConfig.getLocalPath(), SyncConfigData{mNextTableId, syncConfig}));
+        auto insertPair = mSyncConfigs.insert(std::make_pair(syncConfig.getLocalPath(), syncConfig));
         if (mTable)
         {
-            auto data = syncConfig.serialize();
-            if (!mTable->put(mNextTableId, &data))
+            insertPair.first->second.dbid = mTable->nextid;
+            std::string data;
+            const_cast<SyncConfig&>(syncConfig).serialize(&data);
+            if (!mTable->put(mTable->nextid, &data))
             {
                 assert(false);
-                LOG_err << "Incomplete database put at id: " << mNextTableId;
+                LOG_err << "Incomplete database put at id: " << mTable->nextid;
             }
-            ++mNextTableId;
+            ++mTable->nextid;
         }
     }
     else
@@ -575,17 +578,18 @@ void SyncConfigBag::remove(const SyncConfig& syncConfig)
     {
         if (mTable)
         {
-            if (!mTable->del(syncConfigPair->second.mTableId))
+            if (!mTable->del(static_cast<uint32_t>(syncConfigPair->second.dbid)))
             {
                 assert(false);
-                LOG_err << "Incomplete database del at id: " << syncConfigPair->second.mTableId;
+                LOG_err << "Incomplete database del at id: " << syncConfigPair->second.dbid;
             }
         }
         mSyncConfigs.erase(syncConfig.getLocalPath());
     }
     else
     {
-        assert(false && "sync config does not exist");
+        assert(false);
+        LOG_err << "sync config does not exist";
     }
 }
 
@@ -594,17 +598,18 @@ void SyncConfigBag::update(const SyncConfig& syncConfig)
     auto syncConfigPair = mSyncConfigs.find(syncConfig.getLocalPath());
     if (syncConfigPair != mSyncConfigs.end())
     {
-        syncConfigPair->second.mSyncConfig = syncConfig;
+        const auto tableId = static_cast<uint32_t>(syncConfigPair->second.dbid);
+        syncConfigPair->second = syncConfig;
         if (mTable)
         {
             DBTableTransactionCommitter committer{mTable.get()};
-            const auto tableId = syncConfigPair->second.mTableId;
             if (!mTable->del(tableId))
             {
                 assert(false);
                 LOG_err << "Incomplete database del at id: " << tableId;
             }
-            auto data = syncConfig.serialize();
+            std::string data;
+            const_cast<SyncConfig&>(syncConfig).serialize(&data);
             if (!mTable->put(tableId, &data))
             {
                 assert(false);
@@ -614,8 +619,16 @@ void SyncConfigBag::update(const SyncConfig& syncConfig)
     }
     else
     {
-        assert(false && "sync config does not exist");
+        assert(false);
+        LOG_err <<  "sync config does not exist";
     }
+}
+
+void SyncConfigBag::clear()
+{
+    mTable->truncate();
+    mTable->nextid = 0;
+    mSyncConfigs.clear();
 }
 
 std::vector<SyncConfig> SyncConfigBag::all() const
@@ -623,7 +636,7 @@ std::vector<SyncConfig> SyncConfigBag::all() const
     std::vector<SyncConfig> syncConfigs;
     for (const auto& syncConfigPair : mSyncConfigs)
     {
-        syncConfigs.push_back(syncConfigPair.second.mSyncConfig);
+        syncConfigs.push_back(syncConfigPair.second);
     }
     return syncConfigs;
 }

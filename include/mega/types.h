@@ -672,7 +672,7 @@ namespace CodeCounter
 }
 
 // Holds the config of a sync. Can be extended with future config options
-class SyncConfig
+class SyncConfig : public Cachable
 {
 public:
 
@@ -709,6 +709,9 @@ public:
     // returns the regular expressions
     const std::vector<std::string>& getRegExps() const;
 
+    // returns the type of the sync
+    Type getType() const;
+
     // whether this is an up-sync from local to remote
     bool isUpSync() const;
 
@@ -722,35 +725,35 @@ public:
     bool forceOverwrite() const;
 
     // serializes the object to a string
-    std::string serialize() const;
+    bool serialize(string* data) override;
 
     // deserializes the string to a SyncConfig object. Returns null in case of failure
     static std::unique_ptr<SyncConfig> unserialize(const std::string& data);
 
 private:
     // Whether the sync is active
-    bool mActive = true;
+    bool mActive;
 
     // the local path of the sync
     std::string mLocalPath;
 
     // the remote path of the sync
-    handle mRemoteNode = UNDEF;
+    handle mRemoteNode;
 
     // the local fingerprint
-    fsfp_t mLocalFingerprint = 0;
+    fsfp_t mLocalFingerprint;
 
     // list of regular expressions
     std::vector<std::string> mRegExps;
 
     // type of the sync, defaults to bidirectional
-    Type mSyncType = TYPE_TWOWAY;
+    Type mSyncType;
 
     // whether deletions are synced (only relevant for one-way-sync)
-    bool mSyncDeletions = false;
+    bool mSyncDeletions;
 
     // whether changes are overwritten irregardless of file properties (only relevant for one-way-sync)
-    bool mForceOverwrite = false;
+    bool mForceOverwrite;
 };
 
 } // namespace

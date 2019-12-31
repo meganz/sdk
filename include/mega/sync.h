@@ -60,20 +60,15 @@ public:
     // Updates with a new sync config
     void update(const SyncConfig& syncConfig);
 
+    // Removes all sync configs
+    void clear();
+
     // Returns all current sync configs
     std::vector<SyncConfig> all() const;
 
 private:
-    uint32_t mNextTableId = 0; // the next table ID to use
     std::unique_ptr<DbTable> mTable; // table for caching the sync configs
-
-    struct SyncConfigData
-    {
-        decltype(mNextTableId) mTableId;
-        SyncConfig mSyncConfig;
-    };
-
-    std::map<std::string, SyncConfigData> mSyncConfigs; // map of local paths to sync configs
+    std::map<std::string, SyncConfig> mSyncConfigs; // map of local paths to sync configs
 };
 
 class MEGA_API Sync

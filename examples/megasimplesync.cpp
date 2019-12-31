@@ -436,7 +436,7 @@ void SyncApp::fetchnodes_result(error e)
             else
             {
                 SyncConfig syncConfig{local_folder, n->nodehandle, 0};
-                error err = client->addsync(syncConfig, DEBRISFOLDER, NULL);
+                error err = client->addsync(std::move(syncConfig), DEBRISFOLDER, NULL);
                 if (err)
                 {
                     LOG_err << "Sync could not be added! ";
