@@ -6853,12 +6853,27 @@ public class MegaApiJava {
     /**
      * Get a list with all inbound shares from one MegaUser.
      * 
-     * @param user
-     *            MegaUser sharing folders with this account.
+     * @param user MegaUser sharing folders with this account.
      * @return List of MegaNode objects that this user is sharing with this account.
      */
     public ArrayList<MegaNode> getInShares(MegaUser user) {
         return nodeListToArray(megaApi.getInShares(user));
+    }
+
+    /**
+     * Get a list with all inbound shares from one MegaUser.
+     *
+     * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
+     * MegaApi::ORDER_DEFAULT_DESC
+     *
+     * You take the ownership of the returned value
+     *
+     * @param user MegaUser sharing folders with this account.
+     * @param order Sorting order to use
+     * @return List of MegaNode objects that this user is sharing with this account.
+     */
+    public ArrayList<MegaNode> getInShares(MegaUser user, int order) {
+        return nodeListToArray(megaApi.getInShares(user, order));
     }
 
     /**
@@ -6868,6 +6883,21 @@ public class MegaApiJava {
      */
     public ArrayList<MegaNode> getInShares() {
         return nodeListToArray(megaApi.getInShares());
+    }
+
+    /**
+     * Get a list with all inbound shares.
+     *
+     * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
+     * MegaApi::ORDER_DEFAULT_DESC
+     *
+     * You take the ownership of the returned value
+     *
+     * @param order Sorting order to use
+     * @return List of MegaNode objects that other users are sharing with this account.
+     */
+    public ArrayList<MegaNode> getInShares(int order) {
+        return nodeListToArray(megaApi.getInShares(order));
     }
     
     /**
@@ -6882,23 +6912,18 @@ public class MegaApiJava {
     }
 
     /**
-     * Get the user relative to an incoming share
+     * Get a list with all active inboud sharings
      *
-     * This function will return NULL if the node is not found.
-     *
-     * If recurse is true, it will return NULL if the root corresponding to
-     * the node received as argument doesn't represent the root of an incoming share.
-     * Otherwise, it will return NULL if the node doesn't represent
-     * the root of an incoming share.
+     * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
+     * MegaApi::ORDER_DEFAULT_DESC
      *
      * You take the ownership of the returned value
      *
-     * @param node Node to look for inshare user.
-     * @param recurse use root node corresponding to the node passed
-     * @return MegaUser relative to the incoming share
+     * @param order Sorting order to use
+     * @return List of MegaShare objects that other users are sharing with this account
      */
-    public MegaUser getUserFromInShare(MegaNode node, boolean recurse) {
-        return megaApi.getUserFromInShare(node, recurse);
+    public ArrayList<MegaShare> getInSharesList(int order) {
+        return shareListToArray(megaApi.getInSharesList(order));
     }
 
     /**
@@ -6921,14 +6946,36 @@ public class MegaApiJava {
     }
 
     /**
-     * Check if a MegaNode is being shared.
-     * <p>
+     * Get the user relative to an incoming share
+     *
+     * This function will return NULL if the node is not found.
+     *
+     * When recurse is true and the root of the specified node is not an incoming share,
+     * this function will return NULL.
+     * When recurse is false and the specified node doesn't represent the root of an
+     * incoming share, this function will return NULL.
+     *
+     * You take the ownership of the returned value
+     *
+     * @param node Node to look for inshare user.
+     * @param recurse use root node corresponding to the node passed
+     * @return MegaUser relative to the incoming share
+     */
+    public MegaUser getUserFromInShare(MegaNode node, boolean recurse) {
+        return megaApi.getUserFromInShare(node, recurse);
+    }
+
+    /**
+     * Check if a MegaNode is being shared by/with your own user
+     *
      * For nodes that are being shared, you can get a a list of MegaShare
-     * objects using MegaApiJava.getOutShares().
+     * objects using MegaApiJava.getOutShares(), or a list of MegaNode objects
+     * using MegaApi::getInShares
      * 
-     * @param node
-     *            Node to check.
+     * @param node Node to check.
      * @return true is the MegaNode is being shared, otherwise false.
+     * @deprecated This function is intended for debugging and internal purposes and will be probably removed in future updates.
+     * Use MegaNode::isShared instead
      */
     public boolean isShared(MegaNode node) {
         return megaApi.isShared(node);
@@ -6979,7 +7026,7 @@ public class MegaApiJava {
     }
 
     /**
-     * Get a list with all active outbound shares.
+     * Get a list with all active and pending outbound sharings
      * 
      * @return List of MegaShare objects.
      */
@@ -6988,12 +7035,28 @@ public class MegaApiJava {
     }
 
     /**
-     * Get a list with the active outbound shares for a MegaNode.
-     * <p>
-     * If the node does not exist in the account, this function returns an empty list.
-     * 
-     * @param node
-     *            MegaNode to check.
+     * Get a list with the active and pending outbound sharings for a MegaNode
+     *
+     * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
+     * MegaApi::ORDER_DEFAULT_DESC
+     *
+     * You take the ownership of the returned value
+     *
+     * @param order Sorting order to use
+     * @return List of MegaShare objects.
+     */
+    public ArrayList<MegaShare> getOutShares(int order) {
+        return shareListToArray(megaApi.getOutShares(order));
+    }
+
+    /**
+     * Get a list with the active and pending outbound sharings for a MegaNode
+     *
+     * If the node doesn't exist in the account, this function returns an empty list.
+     *
+     * You take the ownership of the returned value
+     *
+     * @param node MegaNode to check.
      * @return List of MegaShare objects.
      */
     public ArrayList<MegaShare> getOutShares(MegaNode node) {
@@ -7001,19 +7064,25 @@ public class MegaApiJava {
     }
 
     /**
-     * Get a list with all pending outbound shares.
+     * Get a list with all pending outbound sharings
      *
-     * @return List of MegaShare objects.
+     * You take the ownership of the returned value
+     *
+     * @return List of MegaShare objects
+     * @deprecated Use MegaNode::getOutShares instead of this function
      */
     public ArrayList<MegaShare> getPendingOutShares() {
         return shareListToArray(megaApi.getPendingOutShares());
     }
 
     /**
-     * Get a list with all pending outbound shares.
+     * Get a list with all pending outbound sharings
+     *
+     * You take the ownership of the returned value
      *
      * @param node MegaNode to check.
      * @return List of MegaShare objects.
+     * @deprecated Use MegaNode::getOutShares instead of this function
      */
     public ArrayList<MegaShare> getPendingOutShares(MegaNode node) {
         return shareListToArray(megaApi.getPendingOutShares(node));
@@ -7029,9 +7098,26 @@ public class MegaApiJava {
     public ArrayList<MegaNode> getPublicLinks() {
     	return nodeListToArray(megaApi.getPublicLinks());
     }
+
+    /**
+     * Get a list with all public links
+     *
+     * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
+     * MegaApi::ORDER_DEFAULT_DESC
+     *
+     * You take the ownership of the returned value
+     *
+     * @param order Sorting order to use
+     * @return List of MegaNode objects that are shared with everyone via public link
+     */
+    public ArrayList<MegaNode> getPublicLinks(int order) {
+        return nodeListToArray(megaApi.getPublicLinks(order));
+    }
     
     /**
      * Get a list with all incoming contact requests.
+     *
+     * You take the ownership of the returned value
      *
      * @return List of MegaContactRequest objects.
      */
@@ -7041,6 +7127,8 @@ public class MegaApiJava {
 
     /**
      * Get a list with all outgoing contact requests.
+     *
+     * You take the ownership of the returned value
      *
      * @return List of MegaContactRequest objects.
      */
