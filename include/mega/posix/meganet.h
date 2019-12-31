@@ -208,6 +208,9 @@ public:
     CurlHttpIO();
     ~CurlHttpIO();
 
+private:
+    static std::atomic<int> instanceCount;
+
     CodeCounter::ScopeStats countCurlHttpIOAddevents = { "curl-httpio-addevents" };
     CodeCounter::ScopeStats countAddAresEventsCode = { "ares-add-events" };
     CodeCounter::ScopeStats countAddCurlEventsCode = { "curl-add-events" };
