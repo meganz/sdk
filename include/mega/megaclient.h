@@ -240,6 +240,8 @@ public:
     textchat_map chats;
 #endif
 
+    bool offlineMode = false;
+
     // process API requests and HTTP I/O
     void exec();
 
@@ -292,7 +294,7 @@ public:
     void fastlogin(const char*, const byte*, uint64_t);
 
     // session login: binary session, bytecount
-    void login(const byte*, int);
+    void login(const byte*, int, const std::array<byte, SymmCipher::KEYLENGTH>* saved_sek = nullptr, handle* saved_me = nullptr);
 
     // check password
     error validatepwd(const byte *);

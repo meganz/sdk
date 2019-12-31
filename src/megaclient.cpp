@@ -1021,6 +1021,7 @@ vector<Node*> MegaClient::childnodesbyname(Node* p, const char* name, bool skipf
 
 void MegaClient::init()
 {
+    offlineMode = false;
     warned = false;
     csretrying = false;
     chunkfailed = false;
@@ -1272,6 +1273,18 @@ void MegaClient::exec()
     CodeCounter::ScopeTimer ccst(performanceStats.execFunction);
 
     WAIT_CLASS::bumpds();
+
+    if (offlineMode)
+    {
+        while (reqs.cmdspending())
+        {
+            string dummyStr;
+            bool dummyBool;
+            reqs.serverrequest(&dummyStr, dummyBool);
+            reqs.servererror(API_EARGS, this);
+        }
+        return;
+    }
 
     if (overquotauntil && overquotauntil < Waiter::ds)
     {
@@ -8176,8 +8189,9 @@ void MegaClient::getpubkey(const char *user)
 }
 
 // resume session - load state from local cache, if available
-void MegaClient::login(const byte* session, int size)
+void MegaClient::login(const byte* session, int size, const std::array<byte, SymmCipher::KEYLENGTH>* saved_sek, handle* saved_me)
 {   
+    assert((!saved_sek && !saved_me) || (saved_sek && saved_me));
     int sessionversion = 0;
     if (size == sizeof key.key + SIDLEN + 1)
     {
@@ -8208,12 +8222,29 @@ void MegaClient::login(const byte* session, int size)
             cachedscsn = MemAccess::get<handle>(t.data());
         }
 
-        byte sek[SymmCipher::KEYLENGTH];
-        rng.genblock(sek, sizeof sek);
+        if (!saved_sek)
+        {
+            byte sek[SymmCipher::KEYLENGTH];
+            rng.genblock(sek, sizeof sek);
 
-        reqs.add(new CommandLogin(this, NULL, NULL, 0, sek, sessionversion));
-        getuserdata();
-        fetchtimezone();
+            reqs.add(new CommandLogin(this, NULL, NULL, 0, sek, sessionversion));
+            getuserdata();
+            fetchtimezone();
+        }
+        else
+        {
+            // resume session offline
+            me = *saved_me;
+            std::array<byte, SymmCipher::KEYLENGTH> k;
+            memcpy(k.data(), session, sizeof(k));
+            key.setkey(&(*saved_sek)[0]);
+            key.ecb_decrypt(k.data());
+            key.setkey(&k[0]);
+            sessionkey.assign(reinterpret_cast<const char*>(session), SymmCipher::KEYLENGTH);
+            offlineMode = true;
+            restag = reqtag;
+            app->login_result(API_OK);
+        }
     }
     else
     {
@@ -10794,7 +10825,7 @@ void MegaClient::fetchnodes(bool nocache)
     }
 
     // only initial load from local cache
-    if (loggedin() == FULLACCOUNT && !nodes.size() && sctable && !ISUNDEF(cachedscsn) && fetchsc(sctable))
+    if ((offlineMode || loggedin() == FULLACCOUNT) && !nodes.size() && sctable && !ISUNDEF(cachedscsn) && fetchsc(sctable))
     {
         WAIT_CLASS::bumpds();
         fnstats.mode = FetchNodesStats::MODE_DB;
@@ -10853,6 +10884,10 @@ void MegaClient::fetchnodes(bool nocache)
 
         WAIT_CLASS::bumpds();
         fnstats.timeToSyncsResumed = Waiter::ds - fnstats.startTime;
+    }
+    else if (offlineMode)
+    {
+        app->fetchnodes_result(API_EREAD);
     }
     else if (!fetchingnodes)
     {

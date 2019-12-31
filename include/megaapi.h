@@ -7597,7 +7597,7 @@ class MegaApi
          * @param session Session key previously dumped with MegaApi::dumpSession
          * @param listener MegaRequestListener to track this request
          */
-        void fastLogin(const char* session, MegaRequestListener *listener = NULL);
+        void fastLogin(const char* session, bool offline = false, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Close a MEGA session
@@ -7691,7 +7691,7 @@ class MegaApi
          *
          * @return Current session key
          */
-        char *dumpSession();
+        char *dumpSession(bool forOfflineResume = false);
 
         /**
          * @brief Returns the current sequence number

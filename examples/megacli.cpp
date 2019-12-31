@@ -2723,12 +2723,12 @@ autocomplete::ACN autocompleteSyntax()
     std::unique_ptr<Either> p(new Either("      "));
 
     p->Add(exec_apiurl, sequence(text("apiurl"), opt(sequence(param("url"), opt(param("disablepkp"))))));
-    p->Add(exec_login, sequence(text("login"), either(sequence(param("email"), opt(param("password"))), exportedLink(false, true), param("session"), sequence(text("autoresume"), opt(param("id"))))));
+    p->Add(exec_login, sequence(text("login"), either(sequence(param("email"), opt(param("password"))), exportedLink(false, true), param("session"), sequence(either(text("autoresume"), text("autoresume_offline")), opt(param("id"))))));
     p->Add(exec_begin, sequence(text("begin"), opt(param("ephemeralhandle#ephemeralpw"))));
     p->Add(exec_signup, sequence(text("signup"), either(sequence(param("email"), param("name")), param("confirmationlink"))));
     p->Add(exec_cancelsignup, sequence(text("cancelsignup")));
     p->Add(exec_confirm, sequence(text("confirm")));
-    p->Add(exec_session, sequence(text("session"), opt(sequence(text("autoresume"), opt(param("id"))))));
+    p->Add(exec_session, sequence(text("session"), opt(sequence(either(text("autoresume"), text("autoresume_offline")), opt(param("id"))))));
     p->Add(exec_mount, sequence(text("mount")));
     p->Add(exec_ls, sequence(text("ls"), opt(flag("-R")), opt(remoteFSFolder(client, &cwd))));
     p->Add(exec_cd, sequence(text("cd"), opt(remoteFSFolder(client, &cwd))));
@@ -4194,21 +4194,34 @@ void exec_login(autocomplete::ACState& s)
     {
         if (s.words.size() > 1)
         {
-            if ((s.words.size() == 2 || s.words.size() == 3) && s.words[1].s == "autoresume")
+            if ((s.words.size() == 2 || s.words.size() == 3) && (s.words[1].s == "autoresume" || s.words[1].s == "autoresume_offline"))
             {
-                string filename = "megacli_autoresume_session" + (s.words.size() == 3 ? "_" + s.words[2].s : "");
+                bool offline = s.words[1].s == "autoresume_offline";
+                string filename = "megacli_autoresume_session" + string(offline ? "offline" : "") + (s.words.size() == 3 ? "_" + s.words[2].s : "");
                 ifstream file(filename.c_str());
                 string session;
                 file >> session;
                 if (file.is_open() && session.size())
                 {
-                    byte sessionraw[64];
+                    byte sessionraw[64 + 16 + 8];
                     if (session.size() < sizeof sessionraw * 4 / 3)
                     {
                         int size = Base64::atob(session.c_str(), sessionraw, sizeof sessionraw);
 
-                        cout << "Resuming session..." << endl;
-                        return client->login(sessionraw, size);
+                        if (offline)
+                        {
+                            cout << "Resuming session..." << endl;
+                            std::array<byte, 16> sessionsek;
+                            handle me;
+                            memcpy(sessionsek.data(), sessionraw, sizeof sessionsek);
+                            memcpy(&me, sessionraw + 16, 8);
+                            return client->login(sessionraw + sizeof sessionsek + sizeof me, size - sizeof sessionsek - sizeof me, &sessionsek, &me);
+                        }
+                        else
+                        {
+                            cout << "Resuming session..." << endl;
+                            return client->login(sessionraw, size);
+                        }
                     }
                 }
                 cout << "Failed to get a valid session id from file " << filename << endl;
@@ -5816,18 +5829,17 @@ void exec_recover(autocomplete::ACState& s)
 
 void exec_session(autocomplete::ACState& s)
 {
-    byte session[64];
+    byte session[64 + 16 + 8];
     int size;
 
     size = client->dumpsession(session, sizeof session);
 
     if (size > 0)
     {
-        Base64Str<sizeof session> buf(session, size);
-
-        if ((s.words.size() == 2 || s.words.size() == 3) && s.words[1].s == "autoresume")
+        if ((s.words.size() == 2 || s.words.size() == 3) && (s.words[1].s == "autoresume" || s.words[1].s == "autoresume_offline"))
         {
-            string filename = "megacli_autoresume_session" + (s.words.size() == 3 ? "_" + s.words[2].s : "");
+            bool offline = s.words[1].s == "autoresume_offline";
+            string filename = "megacli_autoresume_session" + string(offline ? "offline" : "") + (s.words.size() == 3 ? "_" + s.words[2].s : "");
             ofstream file(filename.c_str());
             if (file.fail() || !file.is_open())
             {
@@ -5835,13 +5847,23 @@ void exec_session(autocomplete::ACState& s)
             }
             else
             {
+                if (offline)
+                {
+                    assert(size + 16 + 8 <= sizeof(session));
+                    memmove(session + 16 + 8, session, size);
+                    memcpy(session, client->sessionkey.data(), 16);
+                    memcpy(session + 16, &client->me, 8);
+                    size += 16 + 8;
+                }
+
+                Base64Str<sizeof session> buf(session, size);
                 file << buf;
                 cout << "Your (secret) session is saved in file '" << filename << "'" << endl;
             }
         }
         else
         {
-            cout << "Your (secret) session is: " << buf << endl;
+            cout << "Your (secret) session is: " << Base64Str<sizeof session>(session, size) << endl;
         }
     }
     else if (!size)
@@ -6390,7 +6412,7 @@ void DemoApp::login_result(error e)
     {
         login.reset();
         cout << "Login successful, retrieving account..." << endl;
-        client->fetchnodes();
+        client->fetchnodes(false);
     }
     else if (e == API_EMFAREQUIRED)
     {

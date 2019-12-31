@@ -2016,13 +2016,13 @@ class MegaApiImpl : public MegaApp
 
         //API requests
         void login(const char* email, const char* password, MegaRequestListener *listener = NULL);
-        char *dumpSession();
+        char *dumpSession(bool forOfflineResume);
         char *getSequenceNumber();
         char *getAccountAuth();
         void setAccountAuth(const char* auth);
 
         void fastLogin(const char* email, const char *stringHash, const char *base64pwkey, MegaRequestListener *listener = NULL);
-        void fastLogin(const char* session, MegaRequestListener *listener = NULL);
+        void fastLogin(const char* session, bool offline, MegaRequestListener *listener = NULL);
         void killSession(MegaHandle sessionHandle, MegaRequestListener *listener = NULL);
         void getUserData(MegaRequestListener *listener = NULL);
         void getUserData(MegaUser *user, MegaRequestListener *listener = NULL);

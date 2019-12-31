@@ -2001,9 +2001,9 @@ void MegaApi::fastLogin(const char* email, const char *stringHash, const char *b
     pImpl->fastLogin(email, stringHash, base64pwkey,listener);
 }
 
-void MegaApi::fastLogin(const char *session, MegaRequestListener *listener)
+void MegaApi::fastLogin(const char *session, bool offline, MegaRequestListener *listener)
 {
-    pImpl->fastLogin(session, listener);
+    pImpl->fastLogin(session, offline, listener);
 }
 
 void MegaApi::killSession(MegaHandle sessionHandle, MegaRequestListener *listener)
@@ -2036,9 +2036,9 @@ void MegaApi::login(const char *login, const char *password, MegaRequestListener
     pImpl->login(login, password, listener);
 }
 
-char *MegaApi::dumpSession()
+char *MegaApi::dumpSession(bool forOfflineResume)
 {
-    return pImpl->dumpSession();
+    return pImpl->dumpSession(forOfflineResume);
 }
 
 char *MegaApi::getSequenceNumber()

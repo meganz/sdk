@@ -5785,10 +5785,11 @@ void MegaApiImpl::fastLogin(const char* email, const char *stringHash, const cha
     waiter->notify();
 }
 
-void MegaApiImpl::fastLogin(const char *session, MegaRequestListener *listener)
+void MegaApiImpl::fastLogin(const char *session, bool offline, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGIN, listener);
     request->setSessionKey(session);
+    request->setFlag(offline);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -5846,15 +5847,24 @@ void MegaApiImpl::login(const char *login, const char *password, MegaRequestList
     waiter->notify();
 }
 
-char *MegaApiImpl::dumpSession()
+char *MegaApiImpl::dumpSession(bool forOfflineResume)
 {
     sdkMutex.lock();
-    byte session[MAX_SESSION_LENGTH];
+    const unsigned extraForOffline = SymmCipher::KEYLENGTH + sizeof handle + 1;
+    byte session[MAX_SESSION_LENGTH + extraForOffline];
     char* buf = NULL;
     int size;
-    size = client->dumpsession(session, sizeof session);
+    size = client->dumpsession(session + (forOfflineResume ? extraForOffline : 0), MAX_SESSION_LENGTH);
     if (size > 0)
     {
+        if (forOfflineResume)
+        {
+            assert(size + extraForOffline <= sizeof(session));
+            session[0] = 127; // tag in case we add fields in future - and different from the byte at the beginning of dumpsession
+            memcpy(session + 1, client->sessionkey.data(), SymmCipher::KEYLENGTH);
+            memcpy(session + 1 + SymmCipher::KEYLENGTH, &client->me, sizeof handle);
+            size += extraForOffline;
+        }
         buf = new char[sizeof(session) * 4 / 3 + 4];
         Base64::btoa(session, size, buf);
     }
@@ -18288,6 +18298,7 @@ void MegaApiImpl::sendPendingRequests()
             const char* megaFolderLink = request->getLink();
             const char* base64pwkey = request->getPrivateKey();
             const char* sessionKey = request->getSessionKey();
+            bool offline = request->getFlag();
 
             if (!megaFolderLink && (!(login && password)) && !sessionKey && (!(login && base64pwkey)))
             {
@@ -18312,9 +18323,27 @@ void MegaApiImpl::sendPendingRequests()
             client->locallogout(false);
             if (sessionKey)
             {
-                byte session[MAX_SESSION_LENGTH];
+                const unsigned extraForOffline = SymmCipher::KEYLENGTH + sizeof handle + 1;
+                byte session[MAX_SESSION_LENGTH + extraForOffline];
                 int size = Base64::atob(sessionKey, (byte *)session, sizeof session);
-                client->login(session, size);
+                if (offline)
+                {
+                    if (size < extraForOffline || session[0] != 127)
+                    {
+                        e = API_EARGS;
+                        break;
+                    }
+                    std::array<byte, SymmCipher::KEYLENGTH> saved_sek;
+                    handle saved_me;
+                    memcpy(&saved_sek, session + 1, sizeof saved_sek);
+                    memcpy(&saved_me, session + 1 + sizeof saved_sek, sizeof saved_me);
+                    size -= extraForOffline;
+                    client->login(session + extraForOffline, size, &saved_sek, &saved_me);
+                }
+                else
+                {
+                    client->login(session, size);
+                }
             }
             else if (login && (base64pwkey || password))
             {
