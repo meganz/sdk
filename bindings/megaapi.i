@@ -41,7 +41,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 {
     MEGAjvm = jvm;
     JNIEnv* jenv = NULL;
-    jvm->GetEnv((void**)&jenv, JNI_VERSION_1_4);
+    jvm->GetEnv((void**)&jenv, JNI_VERSION_1_6);
 
     jclass clsStringLocal = jenv->FindClass("java/lang/String");
     clsString = (jclass)jenv->NewGlobalRef(clsStringLocal);
@@ -141,7 +141,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
     ares_library_init_jvm(jvm);
 #endif
 
-    return JNI_VERSION_1_4;
+    return JNI_VERSION_1_6;
 }
 #endif
 %}
