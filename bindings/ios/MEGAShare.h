@@ -84,6 +84,14 @@ typedef NS_ENUM (NSInteger, MEGAShareType) {
 @property (readonly, nonatomic) NSDate *timestamp;
 
 /**
+* @brief YES if the sharing is pending, otherwise NO.
+*
+* A sharing is pending when the folder has been shared with a user (or email) that
+* is not still a contact of this account.
+*/
+@property (nonatomic, readonly, getter=isPending) BOOL pending;
+
+/**
  * @brief Creates a copy of this MEGAShare object.
  *
  * The resulting object is fully independent of the source MEGAShare,
