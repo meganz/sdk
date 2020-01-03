@@ -7594,10 +7594,32 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getSessionKey - Returns the session key
          *
-         * @param session Session key previously dumped with MegaApi::dumpSession
+         * @param session Session key previously dumped with MegaApi::dumpSession (with forOfflineResume==false)
          * @param listener MegaRequestListener to track this request
          */
-        void fastLogin(const char* session, bool offline = false, MegaRequestListener *listener = NULL);
+        void fastLogin(const char* session, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Log in to a MEGA account using an offline session key
+         *
+         * An offline session allows an app to browse the previously downloaded node tree which could be useful
+         * for some apps that tend not to need online data very often (eg. a music player app).
+         * The tradeoff to be able to open the session offline is that the session state obtained from dumpSession
+         * contains enough information to derive the account master key, which is not the case for apps that always
+         * go online.  (In that case, a successful server reply to the session resume provides the last piece to 
+         * derive the master key, and if the session has been cancelled on the server side, resuming is impossible)
+         * If you use this method of offline resumption, you should inform the user of the tradeoff: cancelling 
+         * the session (eg. from the webclient) does not prevent the app starting up offline.  Also you must store 
+         * the session key data as securely as possible, to safeguard the account master key.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_LOGIN.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getSessionKey - Returns the session key
+         *
+         * @param session Session key previously dumped with MegaApi::dumpSession and forOfflineResume==true
+         * @param listener MegaRequestListener to track this request
+         */
+        void fastLoginOffline(const char* session, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Close a MEGA session
@@ -7686,6 +7708,20 @@ class MegaApi
          *
          * You have to be logged in to get a valid session key. Otherwise,
          * this function returns NULL.
+         *
+         * The usual way to use this function is to only allow for online session resumption, which means that
+         * the master key is not derivable from the session key returned by this function, and the app can be
+         * prevented from re-accessing the account data on startup by cancelling the session (eg. via the webclient).  
+         * If the forOfflineResume flag is set, both of those properties are lost, though cancelling the session
+         * will still mean that the app can't access any updates or do anything that requires server side activity.
+         *
+         * The tradeoff to be able to open the session offline is that the session state obtained from dumpSession
+         * contains enough information to derive the account master key, which is not the case for apps that always
+         * go online.  (In that case, a successful server reply to the session resume provides the last piece to 
+         * derive the master key, and if the session has been cancelled on the server side, resuming is impossible)
+         * If you use this method of offline resumption, you should inform the user of the tradeoff: cancelling 
+         * the session (eg. from the webclient) does not prevent the app starting up offline.  Also you must store 
+         * the session key data as securely as possible, to safeguard the account master key.
          *
          * You take the ownership of the returned value.
          *
