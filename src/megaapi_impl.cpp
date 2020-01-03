@@ -2102,7 +2102,7 @@ MegaShare *MegaSharePrivate::copy()
     return new MegaSharePrivate(this);
 }
 
-MegaSharePrivate::MegaSharePrivate(uint64_t handle, Share *share, bool pending)
+MegaSharePrivate::MegaSharePrivate(uint64_t handle, Share *share)
 {
     this->nodehandle = handle;
     this->user = share->user ? MegaApi::strdup(share->user->email.c_str()) : NULL;
@@ -2113,12 +2113,12 @@ MegaSharePrivate::MegaSharePrivate(uint64_t handle, Share *share, bool pending)
     }
     this->access = share->access;
     this->ts = share->ts;
-    this->pending = pending;
+    this->pending = share->pcr;
 }
 
-MegaShare *MegaSharePrivate::fromShare(uint64_t nodeuint64_t, Share *share, bool pending)
+MegaShare *MegaSharePrivate::fromShare(uint64_t nodeuint64_t, Share *share)
 {
-    return new MegaSharePrivate(nodeuint64_t, share, pending);
+    return new MegaSharePrivate(nodeuint64_t, share);
 }
 
 MegaSharePrivate::~MegaSharePrivate()
@@ -4467,14 +4467,16 @@ MegaShareListPrivate::MegaShareListPrivate()
     s = 0;
 }
 
-MegaShareListPrivate::MegaShareListPrivate(Share** newlist, uint64_t *uint64_tlist, int size, bool pending)
+MegaShareListPrivate::MegaShareListPrivate(Share** newlist, uint64_t *uint64_tlist, int size)
 {
     list = NULL; s = size;
     if(!size) return;
 
     list = new MegaShare*[size];
     for(int i=0; i<size; i++)
-        list[i] = MegaSharePrivate::fromShare(uint64_tlist[i], newlist[i], pending);
+    {
+        list[i] = MegaSharePrivate::fromShare(uint64_tlist[i], newlist[i]);
+    }
 }
 
 MegaShareListPrivate::~MegaShareListPrivate()
@@ -10440,7 +10442,7 @@ MegaShareList *MegaApiImpl::getPendingOutShares()
 
     PendingOutShareProcessor shareProcessor;
     processTree(client->nodebyhandle(client->rootnodes[0]), &shareProcessor, true);
-    MegaShareList *shareList = new MegaShareListPrivate(shareProcessor.getShares().data(), shareProcessor.getHandles().data(), int(shareProcessor.getShares().size()), true);
+    MegaShareList *shareList = new MegaShareListPrivate(shareProcessor.getShares().data(), shareProcessor.getHandles().data(), int(shareProcessor.getShares().size()));
 
     sdkMutex.unlock();
     return shareList;
@@ -10469,7 +10471,7 @@ MegaShareList *MegaApiImpl::getPendingOutShares(MegaNode *megaNode)
         vHandles.push_back(node->nodehandle);
     }
 
-    MegaShareList *shareList = new MegaShareListPrivate(vShares.data(), vHandles.data(), int(vShares.size()), true);
+    MegaShareList *shareList = new MegaShareListPrivate(vShares.data(), vHandles.data(), int(vShares.size()));
     sdkMutex.unlock();
     return shareList;
 }
@@ -22373,7 +22375,7 @@ bool OutShareProcessor::processNode(Node *node)
         for (share_map::iterator it = node->pendingshares->begin(); it != node->pendingshares->end(); it++)
         {
             Share *share = it->second;
-            if (share->user) // public links have no user
+            if (share->user || share->pcr) // public links have no user
             {
                 mShares.push_back(share);
                 mNodes.push_back(node);

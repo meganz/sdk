@@ -591,7 +591,7 @@ private:
 class MegaSharePrivate : public MegaShare
 {
 	public:
-        static MegaShare *fromShare(MegaHandle nodeMegaHandle, Share *share, bool pending = false);
+        static MegaShare *fromShare(MegaHandle nodeMegaHandle, Share *share);
         virtual MegaShare *copy();
         virtual ~MegaSharePrivate();
         virtual const char *getUser();
@@ -601,7 +601,7 @@ class MegaSharePrivate : public MegaShare
         virtual bool isPending();
 
 	protected:
-        MegaSharePrivate(MegaHandle nodehandle, Share *share, bool pending = false);
+        MegaSharePrivate(MegaHandle nodehandle, Share *share);
 		MegaSharePrivate(MegaShare *share);
 
 		MegaHandle nodehandle;
@@ -1622,7 +1622,7 @@ class MegaShareListPrivate : public MegaShareList
 {
 	public:
         MegaShareListPrivate();
-        MegaShareListPrivate(Share** newlist, MegaHandle *MegaHandlelist, int size, bool pending = false);
+        MegaShareListPrivate(Share** newlist, MegaHandle *MegaHandlelist, int size);
         virtual ~MegaShareListPrivate();
         virtual MegaShare* get(int i);
         virtual int size();
