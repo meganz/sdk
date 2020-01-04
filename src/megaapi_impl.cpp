@@ -5850,7 +5850,7 @@ void MegaApiImpl::login(const char *login, const char *password, MegaRequestList
 char *MegaApiImpl::dumpSession(bool forOfflineResume)
 {
     sdkMutex.lock();
-    const unsigned extraForOffline = SymmCipher::KEYLENGTH + sizeof handle + 1;
+    const unsigned extraForOffline = SymmCipher::KEYLENGTH + sizeof(handle) + 1;
     byte session[MAX_SESSION_LENGTH + extraForOffline];
     char* buf = NULL;
     int size;
@@ -5862,7 +5862,7 @@ char *MegaApiImpl::dumpSession(bool forOfflineResume)
             assert(size + extraForOffline <= sizeof(session));
             session[0] = 127; // tag in case we add fields in future - and different from the byte at the beginning of dumpsession
             memcpy(session + 1, client->sessionkey.data(), SymmCipher::KEYLENGTH);
-            memcpy(session + 1 + SymmCipher::KEYLENGTH, &client->me, sizeof handle);
+            memcpy(session + 1 + SymmCipher::KEYLENGTH, &client->me, sizeof(handle));
             size += extraForOffline;
         }
         buf = new char[sizeof(session) * 4 / 3 + 4];
@@ -18323,7 +18323,7 @@ void MegaApiImpl::sendPendingRequests()
             client->locallogout(false);
             if (sessionKey)
             {
-                const unsigned extraForOffline = SymmCipher::KEYLENGTH + sizeof handle + 1;
+                const unsigned extraForOffline = SymmCipher::KEYLENGTH + sizeof(handle) + 1;
                 byte session[MAX_SESSION_LENGTH + extraForOffline];
                 int size = Base64::atob(sessionKey, (byte *)session, sizeof session);
                 if (offline)

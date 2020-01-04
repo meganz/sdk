@@ -10887,6 +10887,7 @@ void MegaClient::fetchnodes(bool nocache)
     }
     else if (offlineMode)
     {
+        restag = reqtag;
         app->fetchnodes_result(API_EREAD);
     }
     else if (!fetchingnodes)
