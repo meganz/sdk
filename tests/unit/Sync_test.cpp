@@ -1055,41 +1055,144 @@ TEST(Sync, assignFilesystemIds_whenFileTypeIsUnexpected_hittingAssert)
 }
 #endif
 
-// cbtodo: write new tests
-//TEST(Sync, SyncConfig_noparam_constructor)
-//{
-//    const mega::SyncConfig config;
-//    ASSERT_TRUE(config.isUpSync());
-//    ASSERT_TRUE(config.isDownSync());
-//    ASSERT_TRUE(config.syncDeletions());
-//    ASSERT_FALSE(config.forceOverwrite());
-//}
+namespace
+{
 
-//TEST(Sync, SyncConfig_default_sync)
-//{
-//    const mega::SyncConfig config{mega::SyncConfig::TYPE_TWOWAY, false, true};
-//    ASSERT_TRUE(config.isUpSync());
-//    ASSERT_TRUE(config.isDownSync());
-//    ASSERT_TRUE(config.syncDeletions());
-//    ASSERT_FALSE(config.forceOverwrite());
-//}
+void test_SyncConfig_serialization(const mega::SyncConfig& config)
+{
+    std::string data;
+    const_cast<mega::SyncConfig&>(config).serialize(&data);
+    auto newConfig = mega::SyncConfig::unserialize(data);
+    ASSERT_EQ(config.isActive(), newConfig->isActive());
+    ASSERT_EQ(config.getLocalPath(), newConfig->getLocalPath());
+    ASSERT_EQ(config.getRemoteNode(), newConfig->getRemoteNode());
+    ASSERT_EQ(config.getLocalFingerprint(), newConfig->getLocalFingerprint());
+    ASSERT_EQ(config.getRegExps(), newConfig->getRegExps());
+    ASSERT_EQ(config.getType(), newConfig->getType());
+    ASSERT_EQ(config.isUpSync(), newConfig->isUpSync());
+    ASSERT_EQ(config.isDownSync(), newConfig->isDownSync());
+    ASSERT_EQ(config.syncDeletions(), newConfig->syncDeletions());
+    ASSERT_EQ(config.forceOverwrite(), newConfig->forceOverwrite());
+}
 
-//TEST(Sync, SyncConfig_up_sync)
-//{
-//    const mega::SyncConfig config{mega::SyncConfig::TYPE_UP, true, true};
-//    ASSERT_TRUE(config.isUpSync());
-//    ASSERT_FALSE(config.isDownSync());
-//    ASSERT_TRUE(config.syncDeletions());
-//    ASSERT_TRUE(config.forceOverwrite());
-//}
+}
 
-//TEST(Sync, SyncConfig_down_sync)
-//{
-//    const mega::SyncConfig config{mega::SyncConfig::TYPE_DOWN, true, true};
-//    ASSERT_FALSE(config.isUpSync());
-//    ASSERT_TRUE(config.isDownSync());
-//    ASSERT_TRUE(config.syncDeletions());
-//    ASSERT_TRUE(config.forceOverwrite());
-//}
+TEST(Sync, SyncConfig_defaultOptions)
+{
+    const mega::SyncConfig config{"foo", 42, 123};
+    ASSERT_TRUE(config.isActive());
+    ASSERT_EQ("foo", config.getLocalPath());
+    ASSERT_EQ(42, config.getRemoteNode());
+    ASSERT_EQ(123, config.getLocalFingerprint());
+    ASSERT_TRUE(config.getRegExps().empty());
+    ASSERT_EQ(mega::SyncConfig::TYPE_TWOWAY, config.getType());
+    ASSERT_TRUE(config.isUpSync());
+    ASSERT_TRUE(config.isDownSync());
+    ASSERT_TRUE(config.syncDeletions());
+    ASSERT_FALSE(config.forceOverwrite());
+    test_SyncConfig_serialization(config);
+}
+
+TEST(Sync, SyncConfig_defaultOptions_inactive)
+{
+    mega::SyncConfig config{"foo", 42, 123};
+    config.setActive(false);
+    ASSERT_FALSE(config.isActive());
+    ASSERT_EQ("foo", config.getLocalPath());
+    ASSERT_EQ(42, config.getRemoteNode());
+    ASSERT_EQ(123, config.getLocalFingerprint());
+    ASSERT_TRUE(config.getRegExps().empty());
+    ASSERT_EQ(mega::SyncConfig::TYPE_TWOWAY, config.getType());
+    ASSERT_TRUE(config.isUpSync());
+    ASSERT_TRUE(config.isDownSync());
+    ASSERT_TRUE(config.syncDeletions());
+    ASSERT_FALSE(config.forceOverwrite());
+    test_SyncConfig_serialization(config);
+}
+
+TEST(Sync, SyncConfig_defaultOptions_butWithRegExps)
+{
+    const std::vector<std::string> regExps{"aa", "bbb"};
+    const mega::SyncConfig config{"foo", 42, 123, regExps};
+    ASSERT_TRUE(config.isActive());
+    ASSERT_EQ("foo", config.getLocalPath());
+    ASSERT_EQ(42, config.getRemoteNode());
+    ASSERT_EQ(123, config.getLocalFingerprint());
+    ASSERT_EQ(regExps, config.getRegExps());
+    ASSERT_EQ(mega::SyncConfig::TYPE_TWOWAY, config.getType());
+    ASSERT_TRUE(config.isUpSync());
+    ASSERT_TRUE(config.isDownSync());
+    ASSERT_TRUE(config.syncDeletions());
+    ASSERT_FALSE(config.forceOverwrite());
+    test_SyncConfig_serialization(config);
+}
+
+TEST(Sync, SyncConfig_upSync_syncDelFalse_overwriteFalse)
+{
+    const std::vector<std::string> regExps{"aa", "bbb"};
+    const mega::SyncConfig config{"foo", 42, 123, regExps, mega::SyncConfig::TYPE_UP};
+    ASSERT_TRUE(config.isActive());
+    ASSERT_EQ("foo", config.getLocalPath());
+    ASSERT_EQ(42, config.getRemoteNode());
+    ASSERT_EQ(123, config.getLocalFingerprint());
+    ASSERT_EQ(regExps, config.getRegExps());
+    ASSERT_EQ(mega::SyncConfig::TYPE_UP, config.getType());
+    ASSERT_TRUE(config.isUpSync());
+    ASSERT_FALSE(config.isDownSync());
+    ASSERT_FALSE(config.syncDeletions());
+    ASSERT_FALSE(config.forceOverwrite());
+    test_SyncConfig_serialization(config);
+}
+
+TEST(Sync, SyncConfig_upSync_syncDelTrue_overwriteTrue)
+{
+    const std::vector<std::string> regExps{"aa", "bbb"};
+    const mega::SyncConfig config{"foo", 42, 123, regExps, mega::SyncConfig::TYPE_UP, true, true};
+    ASSERT_TRUE(config.isActive());
+    ASSERT_EQ("foo", config.getLocalPath());
+    ASSERT_EQ(42, config.getRemoteNode());
+    ASSERT_EQ(123, config.getLocalFingerprint());
+    ASSERT_EQ(regExps, config.getRegExps());
+    ASSERT_EQ(mega::SyncConfig::TYPE_UP, config.getType());
+    ASSERT_TRUE(config.isUpSync());
+    ASSERT_FALSE(config.isDownSync());
+    ASSERT_TRUE(config.syncDeletions());
+    ASSERT_TRUE(config.forceOverwrite());
+    test_SyncConfig_serialization(config);
+}
+
+TEST(Sync, SyncConfig_downSync_syncDelFalse_overwriteFalse)
+{
+    const std::vector<std::string> regExps{"aa", "bbb"};
+    const mega::SyncConfig config{"foo", 42, 123, regExps, mega::SyncConfig::TYPE_DOWN};
+    ASSERT_TRUE(config.isActive());
+    ASSERT_EQ("foo", config.getLocalPath());
+    ASSERT_EQ(42, config.getRemoteNode());
+    ASSERT_EQ(123, config.getLocalFingerprint());
+    ASSERT_EQ(regExps, config.getRegExps());
+    ASSERT_EQ(mega::SyncConfig::TYPE_DOWN, config.getType());
+    ASSERT_FALSE(config.isUpSync());
+    ASSERT_TRUE(config.isDownSync());
+    ASSERT_FALSE(config.syncDeletions());
+    ASSERT_FALSE(config.forceOverwrite());
+    test_SyncConfig_serialization(config);
+}
+
+TEST(Sync, SyncConfig_downSync_syncDelTrue_overwriteTrue)
+{
+    const std::vector<std::string> regExps{"aa", "bbb"};
+    const mega::SyncConfig config{"foo", 42, 123, regExps, mega::SyncConfig::TYPE_DOWN, true, true};
+    ASSERT_TRUE(config.isActive());
+    ASSERT_EQ("foo", config.getLocalPath());
+    ASSERT_EQ(42, config.getRemoteNode());
+    ASSERT_EQ(123, config.getLocalFingerprint());
+    ASSERT_EQ(regExps, config.getRegExps());
+    ASSERT_EQ(mega::SyncConfig::TYPE_DOWN, config.getType());
+    ASSERT_FALSE(config.isUpSync());
+    ASSERT_TRUE(config.isDownSync());
+    ASSERT_TRUE(config.syncDeletions());
+    ASSERT_TRUE(config.forceOverwrite());
+    test_SyncConfig_serialization(config);
+}
 
 #endif

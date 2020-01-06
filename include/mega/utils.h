@@ -456,7 +456,7 @@ struct CacheableReader
     bool unserializebyte(byte& s);
     bool unserializedouble(double& s);
     bool unserializehandle(handle& s);
-    bool unserializefsfp(handle& s);
+    bool unserializefsfp(fsfp_t& s);
     bool unserializebool(bool& s);
     bool unserializechunkmacs(chunkmac_map& m);
 
