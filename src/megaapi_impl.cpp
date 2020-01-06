@@ -15177,10 +15177,10 @@ void MegaApiImpl::multifactorauthdisable_result(error e)
 
 void MegaApiImpl::fetchtimezone_result(error e, vector<std::string> *timezones, vector<int> *timezoneoffsets, int defaulttz)
 {
-    MegaTimeZoneDetails *tzDetails = NULL;
+    unique_ptr<MegaTimeZoneDetails> tzDetails;
     if (!e)
     {
-        tzDetails = new MegaTimeZoneDetailsPrivate(timezones, timezoneoffsets, defaulttz);
+        tzDetails.reset(new MegaTimeZoneDetailsPrivate(timezones, timezoneoffsets, defaulttz));
 
         // update the cached timezones for notifications filtering
         delete mTimezones;
@@ -15197,8 +15197,7 @@ void MegaApiImpl::fetchtimezone_result(error e, vector<std::string> *timezones, 
         return;
     }
 
-    request->setTimeZoneDetails(tzDetails);
-    delete tzDetails;
+    request->setTimeZoneDetails(tzDetails.get());
     fireOnRequestFinish(request, MegaError(e));
 }
 
