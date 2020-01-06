@@ -275,9 +275,11 @@ CurlHttpIO::CurlHttpIO()
 
 #endif
 
-    curl_global_init(CURL_GLOBAL_DEFAULT);
-    ares_library_init(ARES_LIB_INIT_ALL);
-
+    if (++instanceCount == 1)
+    {
+        curl_global_init(CURL_GLOBAL_DEFAULT);
+        ares_library_init(ARES_LIB_INIT_ALL);
+    }
 
 #if defined(__ANDROID__) && ARES_VERSION >= 0x010F00
     initialize_android();
@@ -718,13 +720,18 @@ CurlHttpIO::~CurlHttpIO()
     closecurlevents(PUT);
 
     curlMutex.lock();
-    ares_library_cleanup();
-    curl_global_cleanup();
+    if (--instanceCount == 0)
+    {
+        ares_library_cleanup();
+        curl_global_cleanup();
+    }
     curlMutex.unlock();
 
     curl_slist_free_all(contenttypejson);
     curl_slist_free_all(contenttypebinary);
 }
+
+int CurlHttpIO::instanceCount = 0;
 
 void CurlHttpIO::setuseragent(string* u)
 {
