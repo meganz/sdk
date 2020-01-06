@@ -28,6 +28,7 @@
 
 #include "constants.h"
 #include "FsNode.h"
+#include "DefaultedDbTable.h"
 #include "DefaultedDirAccess.h"
 #include "DefaultedFileAccess.h"
 #include "DefaultedFileSystemAccess.h"
@@ -1063,16 +1064,8 @@ void test_SyncConfig_serialization(const mega::SyncConfig& config)
     std::string data;
     const_cast<mega::SyncConfig&>(config).serialize(&data);
     auto newConfig = mega::SyncConfig::unserialize(data);
-    ASSERT_EQ(config.isActive(), newConfig->isActive());
-    ASSERT_EQ(config.getLocalPath(), newConfig->getLocalPath());
-    ASSERT_EQ(config.getRemoteNode(), newConfig->getRemoteNode());
-    ASSERT_EQ(config.getLocalFingerprint(), newConfig->getLocalFingerprint());
-    ASSERT_EQ(config.getRegExps(), newConfig->getRegExps());
-    ASSERT_EQ(config.getType(), newConfig->getType());
-    ASSERT_EQ(config.isUpSync(), newConfig->isUpSync());
-    ASSERT_EQ(config.isDownSync(), newConfig->isDownSync());
-    ASSERT_EQ(config.syncDeletions(), newConfig->syncDeletions());
-    ASSERT_EQ(config.forceOverwrite(), newConfig->forceOverwrite());
+    ASSERT_TRUE(newConfig);
+    ASSERT_EQ(config, *newConfig);
 }
 
 }
@@ -1193,6 +1186,130 @@ TEST(Sync, SyncConfig_downSync_syncDelTrue_overwriteTrue)
     ASSERT_TRUE(config.syncDeletions());
     ASSERT_TRUE(config.forceOverwrite());
     test_SyncConfig_serialization(config);
+}
+
+namespace
+{
+
+void test_SyncConfigBag(mega::SyncConfigBag& bag)
+{
+    ASSERT_TRUE(bag.all().empty());
+    const mega::SyncConfig config1{"foo", 41, 122};
+    bag.add(config1);
+    const mega::SyncConfig config2{"bar", 42, 123};
+    bag.add(config2);
+    const std::vector<mega::SyncConfig> expConfigs1{config2, config1};
+    ASSERT_EQ(expConfigs1, bag.all());
+    bag.remove(config1);
+    const std::vector<mega::SyncConfig> expConfigs2{config2};
+    ASSERT_EQ(expConfigs2, bag.all());
+    const mega::SyncConfig config3{"bar", 43, 124};
+    bag.update(config3);
+    const std::vector<mega::SyncConfig> expConfigs3{config3};
+    ASSERT_EQ(expConfigs3, bag.all());
+    bag.add(config1);
+    bag.add(config2);
+    ASSERT_EQ(expConfigs1, bag.all());
+    bag.clear();
+    ASSERT_TRUE(bag.all().empty());
+}
+
+class MockDbTable : public mt::DefaultedDbTable
+{
+public:
+    using mt::DefaultedDbTable::DefaultedDbTable;
+    void rewind() override
+    {
+        mIndex = 0;
+    }
+    bool next(uint32_t* id, std::string* data) override
+    {
+        if (mIndex >= mData->size())
+        {
+            return false;
+        }
+        *id = (*mData)[mIndex].first;
+        *data = (*mData)[mIndex].second;
+        ++mIndex;
+        return true;
+    }
+    bool put(uint32_t id, char* data, unsigned size) override
+    {
+        mData->emplace_back(id, std::string{data, size});
+        return true;
+    }
+    bool del(uint32_t id) override
+    {
+        mData->erase(std::remove_if(mData->begin(), mData->end(),
+                                   [id](const std::pair<uint32_t, std::string>& p)
+                                   {
+                                       return p.first == id;
+                                   }),
+                     mData->end());
+        return true;
+    }
+    void truncate() override
+    {
+        mData->clear();
+    }
+
+    std::vector<std::pair<uint32_t, std::string>>* mData = nullptr;
+
+private:
+    size_t mIndex = 0;
+};
+
+class MockDbAccess : public mega::DbAccess
+{
+public:
+    MockDbAccess(std::vector<std::pair<uint32_t, std::string>>& data)
+        : mData{data}
+    {}
+    mega::DbTable* open(mega::PrnGen &rng, mega::FileSystemAccess*, std::string*, bool recycleLegacyDB, bool checkAlwaysTransacted) override
+    {
+        auto table = new MockDbTable{rng, checkAlwaysTransacted};
+        table->mData = &mData;
+        return table;
+    }
+
+private:
+    std::vector<std::pair<uint32_t, std::string>>& mData;
+};
+
+}
+
+TEST(Sync, SyncConfigBag_withoutTable)
+{
+    mega::SyncConfigBag bag;
+    test_SyncConfigBag(bag);
+}
+
+TEST(Sync, SyncConfigBag_withTable)
+{
+    std::vector<std::pair<uint32_t, std::string>> mData;
+    MockDbAccess dbaccess{mData};
+    mt::DefaultedFileSystemAccess fsaccess;
+    mega::PrnGen rng;
+    mega::SyncConfigBag bag{dbaccess, fsaccess, rng};
+    test_SyncConfigBag(bag);
+}
+
+TEST(Sync, SyncConfigBag_withTable_withPreviousState)
+{
+    std::vector<std::pair<uint32_t, std::string>> mData;
+    MockDbAccess dbaccess{mData};
+    mt::DefaultedFileSystemAccess fsaccess;
+    mega::PrnGen rng;
+
+    mega::SyncConfigBag bag1{dbaccess, fsaccess, rng};
+    const mega::SyncConfig config1{"foo", 41, 122};
+    bag1.add(config1);
+    const mega::SyncConfig config2{"bar", 42, 123};
+    bag1.add(config2);
+
+    const mega::SyncConfigBag bag2{dbaccess, fsaccess, rng};
+    const std::vector<mega::SyncConfig> expConfigs{config2, config1};
+    ASSERT_EQ(expConfigs, bag2.all());
 }
 
 #endif
