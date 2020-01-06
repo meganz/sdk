@@ -2187,4 +2187,9 @@ std::unique_ptr<SyncConfig> SyncConfig::unserialize(const std::string& data)
     return syncConfig;
 }
 
+bool operator==(const SyncConfig& lhs, const SyncConfig& rhs)
+{
+    return lhs.tie() == rhs.tie();
+}
+
 } // namespace

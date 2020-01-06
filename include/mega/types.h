@@ -731,6 +731,8 @@ public:
     static std::unique_ptr<SyncConfig> unserialize(const std::string& data);
 
 private:
+    friend bool operator==(const SyncConfig& lhs, const SyncConfig& rhs);
+
     // Whether the sync is active
     bool mActive = true;
 
@@ -754,7 +756,29 @@ private:
 
     // whether changes are overwritten irregardless of file properties (only relevant for one-way-sync)
     bool mForceOverwrite;
+
+    // this is very handy for defining comparison operators
+    std::tuple<const bool&,
+               const std::string&,
+               const handle&,
+               const fsfp_t&,
+               const std::vector<std::string>&,
+               const Type&,
+               const bool&,
+               const bool&> tie() const
+    {
+        return std::tie(mActive,
+                        mLocalPath,
+                        mRemoteNode,
+                        mLocalFingerprint,
+                        mRegExps,
+                        mSyncType,
+                        mSyncDeletions,
+                        mForceOverwrite);
+    }
 };
+
+bool operator==(const SyncConfig& lhs, const SyncConfig& rhs);
 
 } // namespace
 

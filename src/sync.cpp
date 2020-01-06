@@ -616,8 +616,11 @@ void SyncConfigBag::update(const SyncConfig& syncConfig)
 
 void SyncConfigBag::clear()
 {
-    mTable->truncate();
-    mTable->nextid = 0;
+    if (mTable)
+    {
+        mTable->truncate();
+        mTable->nextid = 0;
+    }
     mSyncConfigs.clear();
 }
 
