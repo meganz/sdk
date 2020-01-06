@@ -731,7 +731,7 @@ CurlHttpIO::~CurlHttpIO()
     curl_slist_free_all(contenttypebinary);
 }
 
-std::atomic<int> CurlHttpIO::instanceCount{ 0 };
+int CurlHttpIO::instanceCount = 0;
 
 void CurlHttpIO::setuseragent(string* u)
 {
