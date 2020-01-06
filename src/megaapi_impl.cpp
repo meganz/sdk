@@ -69,6 +69,23 @@
 
 #include "mega/mega_zxcvbn.h"
 
+namespace {
+
+std::vector<std::string> regExpToVector(mega::MegaRegExp* regExp)
+{
+    std::vector<std::string> regExps;
+    if (regExp)
+    {
+        for (int i = 0; i < regExp->getNumRegExp(); ++i)
+        {
+            regExps.push_back(regExp->getRegExp(i));
+        }
+    }
+    return regExps;
+}
+
+}
+
 namespace mega {
 
 MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime, uint64_t nodehandle,
@@ -8407,16 +8424,7 @@ void MegaApiImpl::resumeSync(const char *localFolder, long long localfp, MegaNod
         sync->setLocalFingerprint(localfp);
         sync->setRegExp(regExp);
 
-        std::vector<std::string> regExps;
-        if (regExp)
-        {
-            for (int i = 0; i < regExp->getNumRegExp(); ++i)
-            {
-                regExps.push_back(regExp->getRegExp(i));
-            }
-        }
-
-        SyncConfig syncConfig{localPath, request->getNodeHandle(), localfp, std::move(regExps)};
+        SyncConfig syncConfig{localPath, request->getNodeHandle(), localfp, regExpToVector(regExp)};
         e = client->addsync(std::move(syncConfig), DEBRISFOLDER, NULL, -nextTag, sync);
         if (!e)
         {
@@ -20551,16 +20559,7 @@ void MegaApiImpl::sendPendingRequests()
             sync->setListener(request->getSyncListener());
             sync->setRegExp(request->getRegExp());
 
-            std::vector<std::string> regExps;
-            if (request->getRegExp())
-            {
-                for (int i = 0; i < request->getRegExp()->getNumRegExp(); ++i)
-                {
-                    regExps.push_back(request->getRegExp()->getRegExp(i));
-                }
-            }
-
-            SyncConfig syncConfig{localPath, request->getNodeHandle(), 0, std::move(regExps)};
+            SyncConfig syncConfig{localPath, request->getNodeHandle(), 0, regExpToVector(request->getRegExp())};
             e = client->addsync(std::move(syncConfig), DEBRISFOLDER, NULL, -nextTag, sync);
             if (!e)
             {
