@@ -71,6 +71,7 @@
 
 namespace {
 
+#ifdef ENABLE_SYNC
 std::vector<std::string> regExpToVector(mega::MegaRegExp* regExp)
 {
     std::vector<std::string> regExps;
@@ -83,6 +84,7 @@ std::vector<std::string> regExpToVector(mega::MegaRegExp* regExp)
     }
     return regExps;
 }
+#endif
 
 }
 
