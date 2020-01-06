@@ -687,9 +687,10 @@ Sync::Sync(MegaClient* cclient, SyncConfig config, const char* cdebris,
     dirnotify->sync = this;
 
     // set specified fsfp or get from fs if none
-    if (config.getLocalFingerprint() > 0)
+    const auto cfsfp = config.getLocalFingerprint();
+    if (cfsfp)
     {
-        fsfp = config.getLocalFingerprint();
+        fsfp = cfsfp;
     }
     else
     {
@@ -877,7 +878,7 @@ const SyncConfig& Sync::getConfig() const
     return mConfig;
 }
 
-void Sync::setActive(bool isActive)
+void Sync::setActive(const bool isActive)
 {
     mConfig.setActive(isActive);
     client->syncConfigs->update(mConfig);
