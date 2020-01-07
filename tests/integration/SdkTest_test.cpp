@@ -584,20 +584,20 @@ void SdkTest::login(unsigned int apiIndex, int timeout)
     mApi[apiIndex].megaApi->login(mApi[apiIndex].email.data(), mApi[apiIndex].pwd.data());
 
     ASSERT_TRUE(waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_LOGIN], timeout))
-        << "Logging failed after " << timeout << " seconds";
-    ASSERT_EQ(MegaError::API_OK, mApi[apiIndex].lastError) << "Logging failed (error: " << mApi[apiIndex].lastError << ")";
-    ASSERT_TRUE(mApi[apiIndex].megaApi->isLoggedIn()) << "Not logged it";
+        << "Login failed after " << timeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, mApi[apiIndex].lastError) << "Login failed (error: " << mApi[apiIndex].lastError << ")";
+    ASSERT_TRUE(mApi[apiIndex].megaApi->isLoggedIn());
 }
 
 void SdkTest::loginBySessionId(unsigned int apiIndex, const std::string& sessionId, int timeout)
 {
     mApi[apiIndex].requestFlags[MegaRequest::TYPE_LOGIN] = false;
-    mApi[apiIndex].megaApi->login(mApi[apiIndex].email.data(), mApi[apiIndex].pwd.data());
+    mApi[apiIndex].megaApi->fastLogin(sessionId.c_str());
 
     ASSERT_TRUE(waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_LOGIN], timeout))
-        << "Logging failed after " << timeout << " seconds";
-    ASSERT_EQ(MegaError::API_OK, mApi[apiIndex].lastError) << "Logging failed (error: " << mApi[apiIndex].lastError << ")";
-    ASSERT_TRUE(mApi[apiIndex].megaApi->isLoggedIn()) << "Not logged it";
+        << "Login failed after " << timeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, mApi[apiIndex].lastError) << "Login failed (error: " << mApi[apiIndex].lastError << ")";
+    ASSERT_TRUE(mApi[apiIndex].megaApi->isLoggedIn());
 }
 
 void SdkTest::fetchnodes(unsigned int apiIndex, int timeout)
@@ -4149,3 +4149,130 @@ TEST_F(SdkTest, RecursiveDownloadWithLogout)
     fs::remove_all(uploadpath, ec);
     fs::remove_all(downloadpath, ec);
 }
+
+#ifdef ENABLE_SYNC
+TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
+{
+    const std::string session = dumpSession();
+
+    const fs::path basePath = "SyncResumptionAfterFetchNodes";
+    const auto sync1Path = fs::current_path() / basePath / "sync1"; // stays active
+    const auto sync2Path = fs::current_path() / basePath / "sync2"; // will be made inactive
+    const auto sync3Path = fs::current_path() / basePath / "sync3"; // will be deleted
+    const auto sync4Path = fs::current_path() / basePath / "sync4"; // stays active
+
+    fs::remove_all(basePath);
+    fs::create_directories(sync1Path);
+    fs::create_directories(sync2Path);
+    fs::create_directories(sync3Path);
+    fs::create_directories(sync4Path);
+
+    TransferTracker uploadListener;
+    megaApi[0]->startUpload(basePath.u8string().c_str(), megaApi[0]->getRootNode(), &uploadListener);
+    ASSERT_EQ(API_OK, uploadListener.waitForResult());
+
+    auto megaNode = [this, &basePath](const std::string& p)
+    {
+        const auto path = "/" + basePath.u8string() + "/" + p;
+        return megaApi[0]->getNodeByPath(path.c_str());
+    };
+
+    auto localFp = [this](const fs::path& p)
+    {
+        auto ps = p.u8string();
+        auto node = megaApi[0]->getSyncedNode(&ps);
+        auto sync = megaApi[0]->getSyncByNode(node);
+        return sync->getLocalFingerprint();
+    };
+
+    auto syncFolder = [this, &megaNode](const fs::path& p)
+    {
+        RequestTracker syncTracker;
+        megaApi[0]->syncFolder(p.u8string().c_str(), megaNode(p.filename().u8string()), &syncTracker);
+        ASSERT_EQ(API_OK, syncTracker.waitForResult());
+    };
+
+    auto disableSync = [this, &megaNode](const fs::path& p)
+    {
+        RequestTracker syncTracker;
+        megaApi[0]->disableSync(megaNode(p.filename().u8string()), &syncTracker);
+        ASSERT_EQ(API_OK, syncTracker.waitForResult());
+    };
+
+    auto resumeSync = [this, &megaNode](const fs::path& p, const long long localfp)
+    {
+        RequestTracker syncTracker;
+        megaApi[0]->resumeSync(p.u8string().c_str(), megaNode(p.filename().u8string()), localfp, &syncTracker);
+        ASSERT_EQ(API_OK, syncTracker.waitForResult());
+    };
+
+    auto removeSync = [this, &megaNode](const fs::path& p)
+    {
+        RequestTracker syncTracker;
+        megaApi[0]->removeSync(megaNode(p.filename().u8string()), &syncTracker);
+        ASSERT_EQ(API_OK, syncTracker.waitForResult());
+    };
+
+    auto checkSyncIsWorking = [this](const fs::path& p)
+    {
+        auto ps = p.u8string();
+        return megaApi[0]->getSyncedNode(&ps) != nullptr;
+    };
+
+    syncFolder(sync1Path);
+    syncFolder(sync2Path);
+    syncFolder(sync3Path);
+    syncFolder(sync4Path);
+    ASSERT_EQ(4, megaApi[0]->getNumActiveSyncs());
+
+    ASSERT_TRUE(checkSyncIsWorking(sync1Path));
+    ASSERT_TRUE(checkSyncIsWorking(sync2Path));
+    ASSERT_TRUE(checkSyncIsWorking(sync3Path));
+    ASSERT_TRUE(checkSyncIsWorking(sync4Path));
+    const auto sync2LocalFp = localFp(sync2Path); // need this for manual resume
+
+    disableSync(sync2Path);
+    removeSync(sync3Path);
+
+    ASSERT_EQ(2, megaApi[0]->getNumActiveSyncs());
+    ASSERT_TRUE(checkSyncIsWorking(sync1Path));
+    ASSERT_FALSE(checkSyncIsWorking(sync2Path));
+    ASSERT_FALSE(checkSyncIsWorking(sync3Path));
+    ASSERT_TRUE(checkSyncIsWorking(sync4Path));
+
+    megaApi[0].reset();
+
+    // recreate megaapi and logging in through existing session
+    megaApi[0].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str()));
+    mApi[0].megaApi = megaApi[0].get();
+    megaApi[0]->setLoggingName("0");
+    megaApi[0]->addListener(this);
+
+    loginBySessionId(0, session);
+
+    ASSERT_EQ(0, megaApi[0]->getNumActiveSyncs());
+    ASSERT_FALSE(checkSyncIsWorking(sync1Path));
+    ASSERT_FALSE(checkSyncIsWorking(sync2Path));
+    ASSERT_FALSE(checkSyncIsWorking(sync3Path));
+    ASSERT_FALSE(checkSyncIsWorking(sync4Path));
+
+    fetchnodes(0); // auto-resumes two active syncs
+
+    ASSERT_EQ(2, megaApi[0]->getNumActiveSyncs());
+    ASSERT_TRUE(checkSyncIsWorking(sync1Path));
+    ASSERT_FALSE(checkSyncIsWorking(sync2Path));
+    ASSERT_FALSE(checkSyncIsWorking(sync3Path));
+    ASSERT_TRUE(checkSyncIsWorking(sync4Path));
+
+    // check if we can still resume manually
+    resumeSync(sync2Path, sync2LocalFp);
+
+    ASSERT_EQ(3, megaApi[0]->getNumActiveSyncs());
+    ASSERT_TRUE(checkSyncIsWorking(sync1Path));
+    ASSERT_TRUE(checkSyncIsWorking(sync2Path));
+    ASSERT_FALSE(checkSyncIsWorking(sync3Path));
+    ASSERT_TRUE(checkSyncIsWorking(sync4Path));
+
+    releaseMegaApi(0);
+}
+#endif
