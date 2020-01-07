@@ -60,7 +60,7 @@ CALL :build_one libwebsockets
 REM ------ building pdifum - this one needs some manual steps - these can be done before calling the script ---------------
 REM - Set up your Depot Tools (this can be one time, reuse it for other builds etc)
 REM      Follow these instructions to get the depot_tools (download .zip, extract all, set variable, run gclient): https://chromium.googlesource.com/chromium/src/+/master/docs/windows_build_instructions.md#install
-REM - Then in your 3rdParty/vcpkg folder, and run these commands in it to get the pdfium source:
+REM - Then in your 3rdParty/vcpkg folder (make sure it is not a long path, or subst V: to it), and run these commands in it to get the pdfium source:
 REM      set DEPOT_TOOLS=<<<<your depot_tools path>>>>
 REM      set PATH=%DEPOT_TOOLS%;%PATH%
 REM      set DEPOT_TOOLS_WIN_TOOLCHAIN=0
@@ -69,8 +69,11 @@ REM      cd pdfium
 REM      gclient config --unmanaged https://pdfium.googlesource.com/pdfium.git
 REM      gclient sync
 REM      REM branch 3710 is compatibile with the VS 2015 compiler and v140 toolset  (or if you want to use the latest, see below)
+REM      cd pdfium
 REM      git checkout chromium/3710
-REM      gclient sync
+REM      cd ..
+REM      gclient sync --force
+REM - If using VS2015 compiler, find span.h and remove 'constexpr' from all the forwarding constructors.
 REM - If using the latest Pdfium, use at least VS2017 and skip the branch checkout above, and substitute the pdfium-masterbranch-CMakeLists.txt in vcpkg/ports/pdfium and make this one small patch (other changes may be needed if the master branch has changed):
 REM      in pdfium\core\fxcrt\fx_memory_wrappers.h(26)   comment out the static_assert (uint8_t counts as an arithmentic type)
 
