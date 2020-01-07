@@ -100,7 +100,7 @@ struct MEGA_API File: public FileFingerprint
     virtual ~File();
 
     // serialize the File object
-    virtual bool serialize(string*);
+    bool serialize(string*) const override;
 
     static File* unserialize(string*);
 

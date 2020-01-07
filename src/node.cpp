@@ -454,16 +454,16 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
 }
 
 // serialize node - nodes with pending or RSA keys are unsupported
-bool Node::serialize(string* d)
+bool Node::serialize(string* d) const
 {
     // do not serialize encrypted nodes
     if (attrstring)
     {
         LOG_warn << "Trying to serialize an encrypted node";
 
-        //Last attempt to decrypt the node
-        applykey();
-        setattr();
+        //Last attempt to decrypt the node. TODO: Move this outside of serialize()
+        const_cast<Node*>(this)->applykey();
+        const_cast<Node*>(this)->setattr();
 
         if (attrstring)
         {
@@ -1783,7 +1783,7 @@ void LocalNode::completed(Transfer* t, LocalNode*)
 // - corresponding Node handle
 // - local name
 // - fingerprint crc/mtime (filenodes only)
-bool LocalNode::serialize(string* d)
+bool LocalNode::serialize(string* d) const
 {
     m_off_t s = type ? -type : size;
 

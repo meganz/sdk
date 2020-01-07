@@ -50,12 +50,6 @@ string toHandle(handle h)
     return string(base64Handle);
 }
 
-Cachable::Cachable()
-{
-    dbid = 0;
-    notified = 0;
-}
-
 CacheableWriter::CacheableWriter(string& d)
     : dest(d)
 {
@@ -394,7 +388,7 @@ TextChat::~TextChat()
     delete userpriv;
 }
 
-bool TextChat::serialize(string *d)
+bool TextChat::serialize(string *d) const
 {
     unsigned short ll;
 
@@ -447,7 +441,7 @@ bool TextChat::serialize(string *d)
         ll = (unsigned short)attachedNodes.size();  // number of nodes with granted access
         d->append((char*)&ll, sizeof ll);
 
-        for (attachments_map::iterator it = attachedNodes.begin(); it != attachedNodes.end(); it++)
+        for (auto it = attachedNodes.cbegin(); it != attachedNodes.cend(); it++)
         {
             d->append((char*)&it->first, sizeof it->first); // nodehandle
 

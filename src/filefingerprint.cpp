@@ -65,7 +65,7 @@ bool operator==(const FileFingerprint& lhs, const FileFingerprint& rhs)
     return !memcmp(lhs.crc.data(), rhs.crc.data(), sizeof lhs.crc);
 }
 
-bool FileFingerprint::serialize(string *d)
+bool FileFingerprint::serialize(string *d) const
 {
     d->append((const char*)&size, sizeof(size));
     d->append((const char*)&mtime, sizeof(mtime));

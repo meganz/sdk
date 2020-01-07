@@ -492,7 +492,7 @@ char *MegaNodePrivate::serialize()
     return ret;
 }
 
-bool MegaNodePrivate::serialize(string *d)
+bool MegaNodePrivate::serialize(string *d) const
 {
     CacheableWriter w(*d);
     w.serializecstr(name, true);
@@ -2456,7 +2456,7 @@ long long MegaTransferPrivate::getNotificationNumber() const
     return notificationNumber;
 }
 
-bool MegaTransferPrivate::serialize(string *d)
+bool MegaTransferPrivate::serialize(string *d) const
 {
     d->append((const char*)&type, sizeof(type));
     d->append((const char*)&nodeHandle, sizeof(nodeHandle));
@@ -4622,7 +4622,7 @@ MegaTransferPrivate *MegaFile::getTransfer()
     return megaTransfer;
 }
 
-bool MegaFile::serialize(string *d)
+bool MegaFile::serialize(string *d) const
 {
     if (!megaTransfer)
     {
@@ -4768,7 +4768,7 @@ MegaFileGet::MegaFileGet(MegaClient *client, MegaNode *n, string dstPath) : Mega
     chatauth = n->getChatAuth() ? MegaApi::strdup(n->getChatAuth()) : NULL;
 }
 
-bool MegaFileGet::serialize(string *d)
+bool MegaFileGet::serialize(string *d) const
 {
     if (!MegaFile::serialize(d))
     {
@@ -4903,7 +4903,7 @@ MegaFilePut::MegaFilePut(MegaClient *, string* clocalname, string *filename, han
     temporaryfile = isSourceTemporary;
 }
 
-bool MegaFilePut::serialize(string *d)
+bool MegaFilePut::serialize(string *d) const
 {
     if (!MegaFile::serialize(d))
     {

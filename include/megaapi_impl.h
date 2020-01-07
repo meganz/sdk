@@ -372,7 +372,7 @@ public:
     void onTransferFinish(MegaApi*, MegaTransfer *t, MegaError *e) override;
 };
 
-class MegaNodePrivate : public MegaNode, public Cachable
+class MegaNodePrivate : public MegaNode, public Cacheable
 {
     public:
         MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime,
@@ -452,7 +452,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
         MegaNode *copy() override;
 
         char *serialize() override;
-        bool serialize(string*) override;
+        bool serialize(string*) const override;
         static MegaNodePrivate* unserialize(string*);
 
     protected:
@@ -611,7 +611,7 @@ class MegaSharePrivate : public MegaShare
         bool pending;
 };
 
-class MegaTransferPrivate : public MegaTransfer, public Cachable
+class MegaTransferPrivate : public MegaTransfer, public Cacheable
 {
 	public:
 		MegaTransferPrivate(int type, MegaTransferListener *listener = NULL);
@@ -699,7 +699,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         virtual unsigned long long getPriority() const;
         virtual long long getNotificationNumber() const;
 
-        virtual bool serialize(string*);
+        bool serialize(string*) const override;
         static MegaTransferPrivate* unserialize(string*);
 
         void startRecursiveOperation(unique_ptr<MegaRecursiveOperation>, MegaNode* node); // takes ownership of both
@@ -1776,7 +1776,7 @@ struct MegaFile : public File
 
     void setTransfer(MegaTransferPrivate *transfer);
     MegaTransferPrivate *getTransfer();
-    virtual bool serialize(string*);
+    bool serialize(string*) const override;
 
     static MegaFile* unserialize(string*);
 
@@ -1795,7 +1795,7 @@ struct MegaFileGet : public MegaFile
     MegaFileGet(MegaClient *client, MegaNode* n, string dstPath);
     ~MegaFileGet() {}
 
-    virtual bool serialize(string*);
+    bool serialize(string*) const override;
     static MegaFileGet* unserialize(string*);
 
 private:
@@ -1809,7 +1809,7 @@ struct MegaFilePut : public MegaFile
     MegaFilePut(MegaClient *client, string* clocalname, string *filename, handle ch, const char* ctargetuser, int64_t mtime = -1, bool isSourceTemporary = false);
     ~MegaFilePut() {}
 
-    virtual bool serialize(string*);
+    bool serialize(string*) const override;
     static MegaFilePut* unserialize(string*);
 
 protected:

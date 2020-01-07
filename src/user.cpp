@@ -73,7 +73,7 @@ bool User::mergeUserAttribute(attr_t type, const string_map &newValuesMap, TLVst
     return modified;
 }
 
-bool User::serialize(string* d)
+bool User::serialize(string* d) const
 {
     unsigned char l;
     unsigned short ll;
@@ -100,7 +100,7 @@ bool User::serialize(string* d)
     // serialization of attributes
     l = (unsigned char)attrs.size();
     d->append((char*)&l, sizeof l);
-    for (userattr_map::iterator it = attrs.begin(); it != attrs.end(); it++)
+    for (auto it = attrs.cbegin(); it != attrs.cend(); it++)
     {
         d->append((char*)&it->first, sizeof it->first);
 
@@ -108,11 +108,12 @@ bool User::serialize(string* d)
         d->append((char*)&ll, sizeof ll);
         d->append(it->second.data(), ll);
 
-        if (attrsv.find(it->first) != attrsv.end())
+        auto attrsvIt = attrsv.find(it->first);
+        if (attrsvIt != attrsv.cend())
         {
-            ll = (unsigned short)attrsv[it->first].size();
+            ll = (unsigned short)attrsvIt->second.size();
             d->append((char*)&ll, sizeof ll);
-            d->append(attrsv[it->first].data(), ll);
+            d->append(attrsvIt->second.data(), ll);
         }
         else
         {

@@ -299,7 +299,7 @@ public:
      *     (AsymmCipher::PRIVKEY or AsymmCipher::PUBKEY).
      * @return 0 on an invalid key pair.
      */
-    int isvalid(int keytype = PUBKEY);
+    int isvalid(int keytype = PUBKEY) const;
 
     /**
      * @brief Encrypts a randomly padded plain text into a buffer.
@@ -346,7 +346,7 @@ public:
      */
     unsigned rawdecrypt(const byte* cipher, size_t cipherlen, byte* buf, size_t buflen);
 
-    static void serializeintarray(CryptoPP::Integer*, int, std::string*, bool headers = true);
+    static void serializeintarray(const CryptoPP::Integer*, int, std::string*, bool headers = true);
 
     /**
      * @brief Serialises a key to a string.
@@ -356,7 +356,7 @@ public:
      *     (AsymmCipher::PRIVKEY or AsymmCipher::PUBKEY).
      * @return Void.
      */
-    void serializekey(std::string* d, int keytype);
+    void serializekey(std::string* d, int keytype) const;
 
     /**
      * @brief Serialize public key for compatibility with the webclient.

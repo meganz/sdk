@@ -115,7 +115,7 @@ Transfer::~Transfer()
     }
 }
 
-bool Transfer::serialize(string *d)
+bool Transfer::serialize(string *d) const
 {
     unsigned short ll;
 

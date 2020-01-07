@@ -29,7 +29,7 @@
 namespace mega {
 
 // sparse file fingerprint, including size and mtime
-struct MEGA_API FileFingerprint : public Cachable
+struct MEGA_API FileFingerprint : public Cacheable
 {
     m_off_t size = -1;
     m_time_t mtime = 0;
@@ -53,7 +53,7 @@ struct MEGA_API FileFingerprint : public Cachable
     FileFingerprint(const FileFingerprint&);
     FileFingerprint& operator=(const FileFingerprint& other);
 
-    virtual bool serialize(string* d);
+    virtual bool serialize(string* d) const override;
     static FileFingerprint* unserialize(string* d);
 };
 

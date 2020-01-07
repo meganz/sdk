@@ -248,16 +248,15 @@ const int FOLDERNODEKEYLENGTH = 16;
 typedef list<class Sync*> sync_list;
 
 // persistent resource cache storage
-struct Cachable
+class Cacheable
 {
-    virtual bool serialize(string*) = 0;
+public:
+    virtual ~Cacheable() = default;
 
-    int32_t dbid;
+    virtual bool serialize(string*) const = 0;
 
-    bool notified;
-
-    Cachable();
-    virtual ~Cachable() { }
+    uint32_t dbid = 0;
+    bool notified = false;
 };
 
 // numeric representation of string (up to 8 chars)
@@ -483,7 +482,7 @@ typedef enum { PRIV_UNKNOWN = -2, PRIV_RM = -1, PRIV_RO = 0, PRIV_STANDARD = 2, 
 typedef pair<handle, privilege_t> userpriv_pair;
 typedef vector< userpriv_pair > userpriv_vector;
 typedef map <handle, set <handle> > attachments_map;
-struct TextChat : public Cachable
+struct TextChat : public Cacheable
 {
     enum {
         FLAG_OFFSET_ARCHIVE = 0
@@ -510,7 +509,7 @@ public:
     TextChat();
     ~TextChat();
 
-    bool serialize(string *d);
+    bool serialize(string *d) const override;
     static TextChat* unserialize(class MegaClient *client, string *d);
 
     void setTag(int tag);

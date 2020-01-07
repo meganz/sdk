@@ -50,7 +50,7 @@ File::~File()
     delete [] chatauth;
 }
 
-bool File::serialize(string *d)
+bool File::serialize(string *d) const
 {
     char type = char(transfer->type);
     d->append((const char*)&type, sizeof(type));
