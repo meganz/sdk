@@ -756,6 +756,9 @@ private:
     // whether changes are overwritten irregardless of file properties (only relevant for one-way-sync)
     bool mForceOverwrite;
 
+    // need this to ensure serialization doesn't mutate state (Cacheable::serialize is non-const)
+    bool serialize(std::string& data) const;
+
     // this is very handy for defining comparison operators
     std::tuple<const bool&,
                const std::string&,

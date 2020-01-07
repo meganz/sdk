@@ -2099,24 +2099,10 @@ bool SyncConfig::forceOverwrite() const
 }
 
 // This should be a const-method but can't be due to the broken Cacheable interface.
-// Do not mutate members in this function!
+// Do not mutate members in this function! Hence, we forward to a private const-method.
 bool SyncConfig::serialize(std::string* data)
 {
-    CacheableWriter writer{*data};
-    writer.serializebool(mActive);
-    writer.serializestring(mLocalPath);
-    writer.serializehandle(mRemoteNode);
-    writer.serializefsfp(mLocalFingerprint);
-    writer.serializeu32(static_cast<uint32_t>(mRegExps.size()));
-    for (const auto& regExp : mRegExps)
-    {
-        writer.serializestring(regExp);
-    }
-    writer.serializeu32(static_cast<uint32_t>(mSyncType));
-    writer.serializebool(mSyncDeletions);
-    writer.serializebool(mForceOverwrite);
-    writer.serializeexpansionflags();
-    return true;
+    return const_cast<const SyncConfig*>(this)->serialize(*data);
 }
 
 std::unique_ptr<SyncConfig> SyncConfig::unserialize(const std::string& data)
@@ -2179,6 +2165,25 @@ std::unique_ptr<SyncConfig> SyncConfig::unserialize(const std::string& data)
                     static_cast<Type>(syncType), syncDeletions, forceOverwrite}};
     syncConfig->setActive(active);
     return syncConfig;
+}
+
+bool SyncConfig::serialize(std::string& data) const
+{
+    CacheableWriter writer{data};
+    writer.serializebool(mActive);
+    writer.serializestring(mLocalPath);
+    writer.serializehandle(mRemoteNode);
+    writer.serializefsfp(mLocalFingerprint);
+    writer.serializeu32(static_cast<uint32_t>(mRegExps.size()));
+    for (const auto& regExp : mRegExps)
+    {
+        writer.serializestring(regExp);
+    }
+    writer.serializeu32(static_cast<uint32_t>(mSyncType));
+    writer.serializebool(mSyncDeletions);
+    writer.serializebool(mForceOverwrite);
+    writer.serializeexpansionflags();
+    return true;
 }
 
 bool operator==(const SyncConfig& lhs, const SyncConfig& rhs)
