@@ -556,7 +556,7 @@ void SyncConfigBag::add(const SyncConfig& syncConfig)
         {
             insertPair.first->second.dbid = mTable->nextid;
             std::string data;
-            const_cast<SyncConfig&>(syncConfig).serialize(&data);
+            const_cast<SyncConfig&>(insertPair.first->second).serialize(&data);
             if (!mTable->put(mTable->nextid, &data))
             {
                 assert(false);
@@ -584,7 +584,7 @@ void SyncConfigBag::remove(const SyncConfig& syncConfig)
                 LOG_err << "Incomplete database del at id: " << syncConfigPair->second.dbid;
             }
         }
-        mSyncConfigs.erase(syncConfig.getLocalPath());
+        mSyncConfigs.erase(syncConfigPair);
     }
 }
 
@@ -597,6 +597,7 @@ void SyncConfigBag::update(const SyncConfig& syncConfig)
         syncConfigPair->second = syncConfig;
         if (mTable)
         {
+            syncConfigPair->second.dbid = static_cast<int32_t>(tableId);
             DBTableTransactionCommitter committer{mTable.get()};
             if (!mTable->del(tableId))
             {
@@ -604,7 +605,7 @@ void SyncConfigBag::update(const SyncConfig& syncConfig)
                 LOG_err << "Incomplete database del at id: " << tableId;
             }
             std::string data;
-            const_cast<SyncConfig&>(syncConfig).serialize(&data);
+            const_cast<SyncConfig&>(syncConfigPair->second).serialize(&data);
             if (!mTable->put(tableId, &data))
             {
                 assert(false);

@@ -1306,6 +1306,10 @@ TEST(Sync, SyncConfigBag_withTable_withPreviousState)
     bag1.add(config1);
     const mega::SyncConfig config2{"bar", 42, 123};
     bag1.add(config2);
+    const mega::SyncConfig config3{"blah", 43, 124};
+    bag1.add(config3);
+    bag1.update(config3);
+    bag1.remove(config3);
 
     const mega::SyncConfigBag bag2{dbaccess, fsaccess, rng};
     const std::vector<mega::SyncConfig> expConfigs{config2, config1};
