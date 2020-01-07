@@ -551,17 +551,23 @@ void SyncConfigBag::add(const SyncConfig& syncConfig)
     auto syncConfigPair = mSyncConfigs.find(syncConfig.getLocalPath());
     if (syncConfigPair == mSyncConfigs.end())
     {
-        auto insertPair = mSyncConfigs.insert(std::make_pair(syncConfig.getLocalPath(), syncConfig));
         if (mTable)
         {
-            insertPair.first->second.dbid = mTable->nextid;
             std::string data;
-            const_cast<SyncConfig&>(insertPair.first->second).serialize(&data);
+            const_cast<SyncConfig&>(syncConfig).serialize(&data);
+            DBTableTransactionCommitter committer{mTable.get()};
             if (!mTable->put(mTable->nextid, &data))
             {
                 assert(false);
                 LOG_err << "Incomplete database put at id: " << mTable->nextid;
+                mTable->abort();
+                return;
             }
+        }
+        auto insertPair = mSyncConfigs.insert(std::make_pair(syncConfig.getLocalPath(), syncConfig));
+        if (mTable)
+        {
+            insertPair.first->second.dbid = mTable->nextid;
             ++mTable->nextid;
         }
     }
@@ -578,10 +584,13 @@ void SyncConfigBag::remove(const SyncConfig& syncConfig)
     {
         if (mTable)
         {
+            DBTableTransactionCommitter committer{mTable.get()};
             if (!mTable->del(static_cast<uint32_t>(syncConfigPair->second.dbid)))
             {
                 assert(false);
                 LOG_err << "Incomplete database del at id: " << syncConfigPair->second.dbid;
+                mTable->abort();
+                return;
             }
         }
         mSyncConfigs.erase(syncConfigPair);
@@ -594,24 +603,28 @@ void SyncConfigBag::update(const SyncConfig& syncConfig)
     if (syncConfigPair != mSyncConfigs.end())
     {
         const auto tableId = static_cast<uint32_t>(syncConfigPair->second.dbid);
-        syncConfigPair->second = syncConfig;
         if (mTable)
         {
-            syncConfigPair->second.dbid = static_cast<int32_t>(tableId);
             DBTableTransactionCommitter committer{mTable.get()};
             if (!mTable->del(tableId))
             {
                 assert(false);
                 LOG_err << "Incomplete database del at id: " << tableId;
+                mTable->abort();
+                return;
             }
             std::string data;
-            const_cast<SyncConfig&>(syncConfigPair->second).serialize(&data);
+            const_cast<SyncConfig&>(syncConfig).serialize(&data);
             if (!mTable->put(tableId, &data))
             {
                 assert(false);
                 LOG_err << "Incomplete database put at id: " << tableId;
+                mTable->abort();
+                return;
             }
         }
+        syncConfigPair->second = syncConfig;
+        syncConfigPair->second.dbid = static_cast<int32_t>(tableId);
     }
 }
 
