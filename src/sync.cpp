@@ -535,7 +535,7 @@ SyncConfigBag::SyncConfigBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, Prn
             LOG_err << "Unable to unserialize sync config at id: " << tableId;
             continue;
         }
-        syncConfig->dbid = static_cast<int32_t>(tableId);
+        syncConfig->dbid = tableId;
 
         mSyncConfigs.insert(std::make_pair(syncConfig->getLocalPath(), *syncConfig));
         if (tableId > mTable->nextid)
@@ -585,7 +585,7 @@ void SyncConfigBag::remove(const SyncConfig& syncConfig)
         if (mTable)
         {
             DBTableTransactionCommitter committer{mTable.get()};
-            if (!mTable->del(static_cast<uint32_t>(syncConfigPair->second.dbid)))
+            if (!mTable->del(syncConfigPair->second.dbid))
             {
                 assert(false);
                 LOG_err << "Incomplete database del at id: " << syncConfigPair->second.dbid;
@@ -602,7 +602,7 @@ void SyncConfigBag::update(const SyncConfig& syncConfig)
     auto syncConfigPair = mSyncConfigs.find(syncConfig.getLocalPath());
     if (syncConfigPair != mSyncConfigs.end())
     {
-        const auto tableId = static_cast<uint32_t>(syncConfigPair->second.dbid);
+        const auto tableId = syncConfigPair->second.dbid;
         if (mTable)
         {
             DBTableTransactionCommitter committer{mTable.get()};
@@ -624,7 +624,7 @@ void SyncConfigBag::update(const SyncConfig& syncConfig)
             }
         }
         syncConfigPair->second = syncConfig;
-        syncConfigPair->second.dbid = static_cast<int32_t>(tableId);
+        syncConfigPair->second.dbid = tableId;
     }
 }
 

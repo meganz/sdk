@@ -671,7 +671,7 @@ namespace CodeCounter
 }
 
 // Holds the config of a sync. Can be extended with future config options
-class SyncConfig : public Cachable
+class SyncConfig : public Cacheable
 {
 public:
 
