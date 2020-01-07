@@ -8426,7 +8426,7 @@ void MegaApiImpl::resumeSync(const char *localFolder, long long localfp, MegaNod
         sync->setLocalFingerprint(localfp);
         sync->setRegExp(regExp);
 
-        SyncConfig syncConfig{localPath, request->getNodeHandle(), localfp, regExpToVector(regExp)};
+        SyncConfig syncConfig{localPath, request->getNodeHandle(), static_cast<fsfp_t>(localfp), regExpToVector(regExp)};
         e = client->addsync(std::move(syncConfig), DEBRISFOLDER, NULL, -nextTag, sync);
         if (!e)
         {

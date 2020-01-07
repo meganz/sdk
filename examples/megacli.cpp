@@ -122,8 +122,8 @@ int attempts = 0;
 struct NewSyncConfig
 {
     SyncConfig::Type type;
-    bool syncDeletions = false;
-    bool forceOverwrite = false;
+    bool syncDeletions;
+    bool forceOverwrite;
 
     static NewSyncConfig from(const SyncConfig& config)
     {
