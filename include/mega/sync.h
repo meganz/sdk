@@ -106,7 +106,7 @@ public:
     bool inshare = false;
     
     // deletion queue
-    set<int32_t> deleteq;
+    set<uint32_t> deleteq;
 
     // insertion/update queue
     localnode_set insertq;

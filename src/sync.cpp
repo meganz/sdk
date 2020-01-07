@@ -938,7 +938,7 @@ void Sync::cachenodes()
         statecachetable->begin();
 
         // deletions
-        for (set<int32_t>::iterator it = deleteq.begin(); it != deleteq.end(); it++)
+        for (set<uint32_t>::iterator it = deleteq.begin(); it != deleteq.end(); it++)
         {
             statecachetable->del(*it);
         }
