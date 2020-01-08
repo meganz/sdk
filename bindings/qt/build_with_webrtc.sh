@@ -66,7 +66,7 @@ mkdir -p ${CURRENTPATH}
 echo "* Setting up WebRTC"
 if [ ! -d "${CURRENTPATH}/webrtc" ]; then
 
-  if [ ! -e "${WEBRTC_SRC}/out/Release-${ARCH}/obj/webrtc/libwebrtc.a" ]; then
+  if [ ! -e "${WEBRTC_SRC}/out/Release-${ARCH}/obj/libwebrtc.a" ]; then
     pushd ${WEBRTC_SRC}
     gn gen "out/Release-${ARCH}" --args="is_debug=false is_component_build=false use_custom_libcxx=false is_clang=false use_sysroot=false treat_warnings_as_errors=false fatal_linker_warnings=false rtc_include_tests=false"  
     ninja -C "out/Release-${ARCH}" webrtc
@@ -111,13 +111,13 @@ if [ ! -e "${CURRENTPATH}/lib/libcurl.a" ]; then
 
   echo "Openssl prefix"
   echo ${OPENSSL_PREFIX}
-  echo "LIBS=-lpthread ./configure --prefix="${CURRENTPATH}" --enable-static --disable-shared --with-ssl=${OPENSSL_PREFIX} --with-zlib --disable-manual --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-proxy --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi --enable-ipv6 --disable-smb"
+  echo "CC=gcc -lstdc++ LIBS=-lpthread ./configure --prefix="${CURRENTPATH}" --enable-static --disable-shared --with-ssl=${OPENSSL_PREFIX} --with-zlib --disable-manual --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-proxy --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi --enable-ipv6 --disable-smb"
 
   if [[ $(uname) == 'Darwin' ]]; then
-	CC="gcc -lstdc++ -shared-libgcc -fpermissive" LIBS=-lpthread ./configure --prefix="${CURRENTPATH}" --enable-static --disable-shared --with-ssl=${OPENSSL_PREFIX} --with-zlib --disable-manual --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-proxy --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi --enable-ipv6 --disable-smb --without-libidn2
+	CC="gcc -lstdc++" LIBS=-lpthread ./configure --prefix="${CURRENTPATH}" --enable-static --disable-shared --with-ssl=${OPENSSL_PREFIX} --with-zlib --disable-manual --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-proxy --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi --enable-ipv6 --disable-smb --without-libidn2
     make -j `sysctl -n hw.physicalcpu`
   else
-	CC="gcc -lstdc++ -shared-libgcc -fpermissive" LIBS=-lpthread ./configure --prefix="${CURRENTPATH}" --enable-static --disable-shared --with-ssl=${OPENSSL_PREFIX} --with-zlib --disable-manual --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-proxy --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi --enable-ipv6 --disable-smb
+	CC="gcc -lstdc++" LIBS=-lpthread ./configure --prefix="${CURRENTPATH}" --enable-static --disable-shared --with-ssl=${OPENSSL_PREFIX} --with-zlib --disable-manual --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-proxy --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi --enable-ipv6 --disable-smb
     make -j `nproc`
   fi
   make install
