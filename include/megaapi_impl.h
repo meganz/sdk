@@ -3019,6 +3019,7 @@ protected:
 
 private:
 #ifdef ENABLE_SYNC
+        void resumeSyncImpl(const char *localFolder, long long localfp, handle nodeHandle, MegaRegExp *regExp, MegaRequestListener *listener);
         void resumeActiveSyncs(MegaRequestListener* listener);
 #endif
 };
