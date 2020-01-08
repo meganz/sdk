@@ -4161,7 +4161,8 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     const auto sync3Path = fs::current_path() / basePath / "sync3"; // will be deleted
     const auto sync4Path = fs::current_path() / basePath / "sync4"; // stays active
 
-    fs::remove_all(basePath);
+    std::error_code ignoredEc;
+    fs::remove_all(basePath, ignoredEc);
     fs::create_directories(sync1Path);
     fs::create_directories(sync2Path);
     fs::create_directories(sync3Path);
