@@ -21,14 +21,6 @@
 #include "modules/utility/include/jvm_android.h"
 #include <jni.h>
 
-//namespace webrtc
-//{
-//    class JVM
-//    {
-//        public:
-//            static void Initialize(JavaVM* jvm, jobject context);
-//    };
-//};
 #endif
 
 #ifdef SWIGJAVA
@@ -37,7 +29,6 @@ jstring strEncodeUTF8 = NULL;
 jclass clsString = NULL;
 jmethodID ctorString = NULL;
 jmethodID getBytes = NULL;
-
 jclass applicationClass = NULL;
 jmethodID startVideoCaptureMID = NULL;
 jmethodID stopVideoCaptureMID = NULL;
@@ -58,9 +49,6 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
     jstring strEncodeUTF8Local = jenv->NewStringUTF("UTF-8");
     strEncodeUTF8 = (jstring)jenv->NewGlobalRef(strEncodeUTF8Local);
     jenv->DeleteLocalRef(strEncodeUTF8Local);
-
-    //jclass checker = jenv->FindClass("org/webrtc/WebRtcClassLoader");
-    //assert(checker);
 
 #ifdef ENABLE_WEBRTC
     // Initialize WebRTC
