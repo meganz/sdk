@@ -4180,11 +4180,9 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
         return megaApi[0]->getNodeByPath(path.c_str());
     };
 
-    auto localFp = [this](const fs::path& p)
+    auto localFp = [this, &megaNode](const fs::path& p)
     {
-        auto ps = p.u8string();
-        auto node = megaApi[0]->getSyncedNode(&ps);
-        auto sync = megaApi[0]->getSyncByNode(node);
+        auto sync = megaApi[0]->getSyncByNode(megaNode(p.filename().u8string()));
         return sync->getLocalFingerprint();
     };
 
