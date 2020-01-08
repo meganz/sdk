@@ -13010,6 +13010,11 @@ void MegaClient::syncupdate()
             n = NULL;
             l = synccreate[i];
 
+            if (l->type == FILENODE && l->parent->node)
+            {
+                l->h = l->parent->node->nodehandle;
+            }
+
             if (l->type == FOLDERNODE || (n = nodebyfingerprint(l)))
             {
                 // create remote folder or copy file if it already exists
@@ -13076,11 +13081,6 @@ void MegaClient::syncupdate()
 
                 // the overwrite will happen upon PUT completion
                 string tmppath, tmplocalpath;
-
-                if (l->parent->node)
-                {
-                    l->h = l->parent->node->nodehandle;
-                }
 
                 nextreqtag();
                 startxfer(PUT, l, committer);
