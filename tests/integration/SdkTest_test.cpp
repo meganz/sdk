@@ -4153,6 +4153,8 @@ TEST_F(SdkTest, RecursiveDownloadWithLogout)
 #ifdef ENABLE_SYNC
 TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
 {
+    LOG_info << "___TEST SyncResumptionAfterFetchNodes___";
+
     const std::string session = dumpSession();
 
     const fs::path basePath = "SyncResumptionAfterFetchNodes";
@@ -4220,6 +4222,16 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
         return megaApi[0]->getSyncedNode(&ps) != nullptr;
     };
 
+    auto recreateMegaApi = [this, &session]()
+    {
+        megaApi[0].reset();
+        megaApi[0].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str()));
+        mApi[0].megaApi = megaApi[0].get();
+        megaApi[0]->setLoggingName("0");
+        megaApi[0]->addListener(this);
+        loginBySessionId(0, session);
+    };
+
     syncFolder(sync1Path);
     syncFolder(sync2Path);
     syncFolder(sync3Path);
@@ -4241,15 +4253,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     ASSERT_FALSE(checkSyncIsWorking(sync3Path));
     ASSERT_TRUE(checkSyncIsWorking(sync4Path));
 
-    megaApi[0].reset();
-
-    // recreate megaapi and logging in through existing session
-    megaApi[0].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str()));
-    mApi[0].megaApi = megaApi[0].get();
-    megaApi[0]->setLoggingName("0");
-    megaApi[0]->addListener(this);
-
-    loginBySessionId(0, session);
+    recreateMegaApi();
 
     ASSERT_EQ(0, megaApi[0]->getNumActiveSyncs());
     ASSERT_FALSE(checkSyncIsWorking(sync1Path));
@@ -4267,6 +4271,23 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
 
     // check if we can still resume manually
     resumeSync(sync2Path, sync2LocalFp);
+
+    ASSERT_EQ(3, megaApi[0]->getNumActiveSyncs());
+    ASSERT_TRUE(checkSyncIsWorking(sync1Path));
+    ASSERT_TRUE(checkSyncIsWorking(sync2Path));
+    ASSERT_FALSE(checkSyncIsWorking(sync3Path));
+    ASSERT_TRUE(checkSyncIsWorking(sync4Path));
+
+    // check if resumeSync re-activated the sync
+    recreateMegaApi();
+
+    ASSERT_EQ(0, megaApi[0]->getNumActiveSyncs());
+    ASSERT_FALSE(checkSyncIsWorking(sync1Path));
+    ASSERT_FALSE(checkSyncIsWorking(sync2Path));
+    ASSERT_FALSE(checkSyncIsWorking(sync3Path));
+    ASSERT_FALSE(checkSyncIsWorking(sync4Path));
+
+    fetchnodes(0); // auto-resumes three active syncs
 
     ASSERT_EQ(3, megaApi[0]->getNumActiveSyncs());
     ASSERT_TRUE(checkSyncIsWorking(sync1Path));
