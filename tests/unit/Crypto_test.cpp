@@ -1,8 +1,5 @@
 /**
- * @file tests/crypto_test.cpp
- * @brief Mega SDK test for cryptographic functions
- *
- * (c) 2016 by Mega Limited, Wellsford, New Zealand
+ * (c) 2019 by Mega Limited, Wellsford, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *

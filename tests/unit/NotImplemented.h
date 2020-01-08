@@ -16,10 +16,18 @@
  * program.
  */
 
-#include <gtest/gtest.h>
+#pragma once
 
-int main (int argc, char *argv[])
+#include <stdexcept>
+
+namespace mt {
+
+class NotImplemented : public std::runtime_error
 {
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}
+public:
+    NotImplemented(const std::string& function)
+    : std::runtime_error{"Function not implemented: " + function}
+    {}
+};
+
+} // mt

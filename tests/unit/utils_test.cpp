@@ -16,10 +16,21 @@
  * program.
  */
 
+#include <array>
+#include <tuple>
+
 #include <gtest/gtest.h>
 
-int main (int argc, char *argv[])
+#include <mega/utils.h>
+
+TEST(utils, hashCombine_integer)
 {
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    size_t hash = 0;
+    mega::hashCombine(hash, 42);
+#ifdef _WIN32
+    // MSVC's std::hash gives different values than that of gcc/clang
+    ASSERT_EQ(sizeof(hash) == 4 ? 286246808ul : 10203658983813110072ull, hash);
+#else
+    ASSERT_EQ(2654435811ull, hash);
+#endif
 }

@@ -16,10 +16,25 @@
  * program.
  */
 
-#include <gtest/gtest.h>
+#pragma once
 
-int main (int argc, char *argv[])
+#include <mega/filesystem.h>
+
+#include "NotImplemented.h"
+
+namespace mt {
+
+class DefaultedDirAccess : public mega::DirAccess
 {
-    testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}
+public:
+    bool dopen(std::string*, mega::FileAccess*, bool) override
+    {
+        throw NotImplemented{__func__};
+    }
+    bool dnext(std::string* localpath, std::string* localname, bool followsymlinks = true, mega::nodetype_t* = NULL) override
+    {
+        throw NotImplemented{__func__};
+    }
+};
+
+} // mt

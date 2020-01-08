@@ -337,10 +337,10 @@ void File::completed(Transfer* t, LocalNode* l)
         {
             handle th = h;
 
-            // inaccessible target folder - use / instead
+            // inaccessible target folder - use //bin instead
             if (!t->client->nodebyhandle(th))
             {
-                th = t->client->rootnodes[0];
+                th = t->client->rootnodes[RUBBISHNODE - ROOTNODE];
             }
 #ifdef ENABLE_SYNC            
             if (l)
@@ -516,7 +516,7 @@ void SyncFileGet::prepare()
         }
         else
         {
-            transfer->localfilename = sync->localroot.localname;
+            transfer->localfilename = sync->localroot->localname;
         }
 
         sync->client->fsaccess->tmpnamelocal(&tmpname);

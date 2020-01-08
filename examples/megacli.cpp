@@ -514,7 +514,7 @@ AppFileGet::AppFileGet(Node* n, handle ch, byte* cfilekey, m_off_t csize, m_time
 
         if (!cfingerprint->size() || !unserializefingerprint(cfingerprint))
         {
-            memcpy(crc, filekey, sizeof crc);
+            memcpy(crc.data(), filekey, sizeof crc);
         }
 
         name = *cfilename;
@@ -1872,7 +1872,7 @@ public:
             // copy key (if file) or generate new key (if folder)
             if (n->type == FILENODE)
             {
-                t->nodekey = n->nodekey;
+                t->nodekey = n->nodekey();
             }
             else
             {
@@ -2058,7 +2058,7 @@ string showMediaInfo(Node* n, MediaFileInfo& /*mediaInfo*/, bool oneline)
 {
     if (n->hasfileattribute(fa_media))
     {
-        MediaProperties mp = MediaProperties::decodeMediaPropertiesAttributes(n->fileattrstring, (uint32_t*)(n->nodekey.data() + FILENODEKEYLENGTH / 2));
+        MediaProperties mp = MediaProperties::decodeMediaPropertiesAttributes(n->fileattrstring, (uint32_t*)(n->nodekey().data() + FILENODEKEYLENGTH / 2));
         return showMediaInfo(mp, client->mediaFileInfo, oneline);
     }
     return "The node has no mediainfo attribute";
@@ -2372,7 +2372,7 @@ void exec_sendDeferred(autocomplete::ACState& s)
 void exec_codeTimings(autocomplete::ACState& s)
 {
     bool reset = s.extractflag("-reset");
-    cout << client->performanceStats.report(reset, client->httpio, client->waiter) << flush;
+    cout << client->performanceStats.report(reset, client->httpio, client->waiter, client->reqs) << flush;
 }
 
 #endif
@@ -2543,6 +2543,55 @@ void printAuthringInformation(handle userhandle)
     }
 }
 
+void exec_setmaxconnections(autocomplete::ACState& s)
+{
+    auto direction = s.words[1].s == "put" ? PUT : GET;
+    if (s.words.size() == 3)
+    {
+        client->setmaxconnections(direction, atoi(s.words[2].s.c_str()));
+    }
+    cout << "connections: " << (int)client->connections[direction] << endl;
+}
+
+
+class MegaCLILogger : public ::mega::Logger {
+public:
+    ofstream mLogFile;
+
+    void log(const char*, int loglevel, const char*, const char *message) override
+    {
+        if (mLogFile.is_open())
+        {
+            mLogFile << Waiter::ds << " " << SimpleLogger::toStr(static_cast<LogLevel>(loglevel)) << ": " << message << std::endl;
+        }
+        else
+        {
+#ifdef _WIN32
+            string s;
+            s.reserve(1024);
+            s += message;
+            s += "\r\n";
+            OutputDebugStringA(s.c_str());
+#else
+            if (loglevel >= SimpleLogger::logCurrentLevel)
+            {
+                auto t = std::time(NULL);
+                char ts[50];
+                if (!std::strftime(ts, sizeof(ts), "%H:%M:%S", std::localtime(&t)))
+                {
+                    ts[0] = '\0';
+                }
+                std::cout << "[" << ts << "] " << SimpleLogger::toStr(static_cast<LogLevel>(loglevel)) << ": " << message << std::endl;
+        }
+#endif
+        }
+    }
+};
+
+MegaCLILogger gLogger;
+
+
+
 autocomplete::ACN autocompleteSyntax()
 {
     using namespace autocomplete;
@@ -2627,14 +2676,14 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_locallogout, sequence(text("locallogout")));
     p->Add(exec_symlink, sequence(text("symlink")));
     p->Add(exec_version, sequence(text("version")));
-    p->Add(exec_debug, sequence(text("debug"), opt(either(flag("-on"), flag("-off")))));
+    p->Add(exec_debug, sequence(text("debug"), opt(either(flag("-on"), flag("-off"))), opt(localFSFile())));
     p->Add(exec_verbose, sequence(text("verbose"), opt(either(flag("-on"), flag("-off")))));
 #if defined(WIN32) && defined(NO_READLINE)
     p->Add(exec_clear, sequence(text("clear")));
     p->Add(exec_codepage, sequence(text("codepage"), opt(sequence(wholenumber(65001), opt(wholenumber(65001))))));
     p->Add(exec_log, sequence(text("log"), either(text("utf8"), text("utf16"), text("codepage")), localFSFile()));
 #endif
-    p->Add(exec_test, sequence(text("test")));
+    p->Add(exec_test, sequence(text("test"), opt(param("data"))));
 #ifdef ENABLE_CHAT
     p->Add(exec_chats, sequence(text("chats")));
     p->Add(exec_chatc, sequence(text("chatc"), param("group"), repeat(opt(sequence(contactEmail(client), either(text("ro"), text("sta"), text("mod")))))));
@@ -2691,6 +2740,8 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_getuserquota, sequence(text("getuserquota"), repeat(either(flag("-storage"), flag("-transfer"), flag("-pro")))));
 
     p->Add(exec_showattributes, sequence(text("showattributes"), remoteFSPath(client, &cwd)));
+
+    p->Add(exec_setmaxconnections, sequence(text("setmaxconnections"), either(text("put"), text("get")), opt(wholenumber(4))));
 
     return autocompleteTemplate = std::move(p);
 }
@@ -3256,7 +3307,7 @@ void exec_cp(autocomplete::ACState& s)
             unsigned nc;
             handle ovhandle = UNDEF;
 
-            if (!n->nodekey.size())
+            if (!n->keyApplied())
             {
                 cout << "Cannot copy a node without key" << endl;
                 return;
@@ -3454,9 +3505,12 @@ void exec_get(autocomplete::ACState& s)
     }
     else
     {
-        if (client->openfilelink(s.words[1].s.c_str(), 0) == API_OK)
+        handle ph = UNDEF;
+        byte key[FILENODEKEYLENGTH];
+        if (client->parsepubliclink(s.words[1].s.c_str(), ph, key, false) == API_OK)
         {
             cout << "Checking link..." << endl;
+            client->openfilelink(ph, key, 0);
             return;
         }
 
@@ -3494,7 +3548,7 @@ void exec_get(autocomplete::ACState& s)
                         f->pubauth = pubauth;
                         f->hprivate = true;
                         f->hforeign = true;
-                        memcpy(f->filekey, n->nodekey.data(), FILENODEKEYLENGTH);
+                        memcpy(f->filekey, n->nodekey().data(), FILENODEKEYLENGTH);
                     }
 
                     f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
@@ -3825,10 +3879,10 @@ void exec_sync(autocomplete::ACState& s)
                     static const char* syncstatenames[] =
                     { "Initial scan, please wait", "Active", "Failed" };
 
-                    if ((*it)->localroot.node)
+                    if ((*it)->localroot->node)
                     {
-                        nodepath((*it)->localroot.node->nodehandle, &remotepath);
-                        client->fsaccess->local2path(&(*it)->localroot.localname, &localpath);
+                        nodepath((*it)->localroot->node->nodehandle, &remotepath);
+                        client->fsaccess->local2path(&(*it)->localroot->localname, &localpath);
 
                         cout << i++ << ": " << localpath << " to " << remotepath << " - "
                                 << syncstatenames[(*it)->state] << ", " << (*it)->localbytes
@@ -4215,7 +4269,7 @@ void exec_getfa(autocomplete::ACState& s)
         {
             if (n->hasfileattribute(type))
             {
-                client->getfa(n->nodehandle, &n->fileattrstring, &n->nodekey, type, cancel);
+                client->getfa(n->nodehandle, &n->fileattrstring, n->nodekey(), type, cancel);
                 c++;
             }
         }
@@ -4225,7 +4279,7 @@ void exec_getfa(autocomplete::ACState& s)
             {
                 if ((*it)->type == FILENODE && (*it)->hasfileattribute(type))
                 {
-                    client->getfa((*it)->nodehandle, &(*it)->fileattrstring, &(*it)->nodekey, type, cancel);
+                    client->getfa((*it)->nodehandle, &(*it)->fileattrstring, (*it)->nodekey(), type, cancel);
                     c++;
                 }
             }
@@ -4427,6 +4481,19 @@ void exec_debug(autocomplete::ACState& s)
 {
     bool turnon = s.extractflag("-on");
     bool turnoff = s.extractflag("-off");
+
+    if (s.words.size() > 1)
+    {
+        gLogger.mLogFile.close();
+        if (!s.words[1].s.empty())
+        {
+            gLogger.mLogFile.open(s.words[1].s.c_str());
+            if (!gLogger.mLogFile.is_open())
+            {
+                cout << "Log file open failed: '" << s.words[1].s << "'" << endl;
+            }
+        }
+    }
 
     bool state = client->debugstate();
     if ((turnon && !state) || (turnoff && state) || (!turnon && !turnoff))
@@ -5118,9 +5185,13 @@ void exec_export(autocomplete::ACState& s)
 
 void exec_import(autocomplete::ACState& s)
 {
-    if (client->openfilelink(s.words[1].s.c_str(), 1) == API_OK)
+    handle ph = UNDEF;
+    byte key[FILENODEKEYLENGTH];
+    error e = client->parsepubliclink(s.words[1].s.c_str(), ph, key, false);
+    if (e == API_OK)
     {
         cout << "Opening link..." << endl;
+        client->openfilelink(ph, key, 1);
     }
     else
     {
@@ -5134,7 +5205,7 @@ void exec_folderlinkinfo(autocomplete::ACState& s)
 
     handle ph = UNDEF;
     byte folderkey[SymmCipher::KEYLENGTH];
-    if (client->parsefolderlink(publiclink.c_str(), ph, folderkey) == API_OK)
+    if (client->parsepubliclink(publiclink.c_str(), ph, folderkey, true) == API_OK)
     {
         cout << "Loading public folder link info..." << endl;
         client->getpubliclinkinfo(ph);
@@ -5862,7 +5933,7 @@ void exec_locallogout(autocomplete::ACState& s)
     cout << "Logging off locally..." << endl;
 
     cwd = UNDEF;
-    client->locallogout();
+    client->locallogout(false);
 }
 
 void exec_recentnodes(autocomplete::ACState& s)
@@ -5954,7 +6025,7 @@ void DemoApp::request_error(error e)
     if ((e == API_ESID) || (e == API_ENOENT))   // Invalid session or Invalid folder handle
     {
         cout << "Invalid or expired session, logging out..." << endl;
-        client->locallogout();
+        client->locallogout(false);
         return;
     }
     else if (e == API_EBLOCKED)
@@ -6378,7 +6449,7 @@ void DemoApp::whyamiblocked_result(int code)
         if (code != 500)
         {
             cout << "Logging out..." << endl;
-            client->locallogout();
+            client->locallogout(false);
         }
     }
 }
@@ -6429,7 +6500,7 @@ void DemoApp::exportnode_result(handle h, handle ph)
 
         if (n->type == FILENODE)
         {
-            cout << MegaClient::getPublicLink(client->mNewLinkFormat, n->type, ph, Base64Str<FILENODEKEYLENGTH>((const byte*)n->nodekey.data())) << endl;
+            cout << MegaClient::getPublicLink(client->mNewLinkFormat, n->type, ph, Base64Str<FILENODEKEYLENGTH>((const byte*)n->nodekey().data())) << endl;
         }
         else
         {
@@ -6581,8 +6652,8 @@ void DemoApp::folderlinkinfo_result(error e, handle owner, handle /*ph*/, string
     }
 
     handle ph;
-    byte folderkey[SymmCipher::KEYLENGTH];
-    error eaux = client->parsefolderlink(publiclink.c_str(), ph, folderkey);
+    byte folderkey[FOLDERNODEKEYLENGTH];
+    error eaux = client->parsepubliclink(publiclink.c_str(), ph, folderkey, true);
     assert(eaux == API_OK);
 
     // Decrypt nodekey with the key of the folder link
@@ -6791,7 +6862,7 @@ void DemoApp::notify_confirmation(const char *email)
     }
 }
 
-void DemoApp::enumeratequotaitems_result(handle, unsigned, unsigned, unsigned, unsigned, unsigned, const char*, const char*, const char*, const char*)
+void DemoApp::enumeratequotaitems_result(unsigned, handle, unsigned, int, int, unsigned, unsigned, unsigned, const char*, const char*, const char*, const char*)
 {
     // FIXME: implement
 }
@@ -7325,41 +7396,13 @@ void megacli()
     }
 }
 
-
-class MegaCLILogger : public ::mega::Logger {
-public:
-    void log(const char*, int loglevel, const char*, const char *message) override
-    {
-#ifdef _WIN32
-        string s;
-        s.reserve(1024);
-        s += message;
-        s += "\r\n";
-        OutputDebugStringA(s.c_str());
-#else
-        if (loglevel >= SimpleLogger::logCurrentLevel)
-        {
-            auto t = std::time(NULL);
-            char ts[50];
-            if (!std::strftime(ts, sizeof(ts), "%H:%M:%S", std::localtime(&t)))
-            {
-                ts[0] = '\0';
-            }
-            std::cout << "[" << ts << "] " << SimpleLogger::toStr(static_cast<LogLevel>(loglevel)) << ": " << message << std::endl;
-        }
-#endif
-    }
-};
-
-MegaCLILogger logger;
-
 int main()
 {
 #ifdef _WIN32
     SimpleLogger::setLogLevel(logMax);  // warning and stronger to console; info and weaker to VS output window
-    SimpleLogger::setOutputClass(&logger);
+    SimpleLogger::setOutputClass(&gLogger);
 #else
-    SimpleLogger::setOutputClass(&logger);
+    SimpleLogger::setOutputClass(&gLogger);
 #endif
 
     console = new CONSOLE_CLASS;
