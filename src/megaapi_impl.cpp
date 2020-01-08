@@ -8415,6 +8415,10 @@ void MegaApiImpl::resumeSync(const char *localFolder, long long localfp, MegaNod
 
     const char *localPath = request->getFile();
     Node *node = client->nodebyhandle(request->getNodeHandle());
+    if (!node)
+    {
+        LOG_err << "Node invalid for handle: " << request->getNodeHandle();
+    }
     if(!node || (node->type==FILENODE) || !localPath)
     {
         e = API_EARGS;
