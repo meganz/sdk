@@ -44,12 +44,12 @@ void Share::serialize(string* d)
     d->append((char*)&ph, sizeof ph);
 }
 
-NewShare* Share::unserialize(int direction, handle h,
+bool Share::unserialize(MegaClient* client, int direction, handle h,
                         const byte* key, const char** ptr, const char* end)
 {
     if (*ptr + sizeof(handle) + sizeof(m_time_t) + 2 > end)
     {
-        return nullptr;
+        return 0;
     }
 
     char version_flag =  (*ptr)[sizeof(handle) + sizeof(m_time_t) + 1];
@@ -59,9 +59,9 @@ NewShare* Share::unserialize(int direction, handle h,
         // Pending flag exists
         ph = MemAccess::get<handle>(*ptr + sizeof(handle) + sizeof(m_time_t) + 2);       
     }
-    auto newShare = new NewShare(h, direction, MemAccess::get<handle>(*ptr),
-                                 (accesslevel_t)(*ptr)[sizeof(handle) + sizeof(m_time_t)],
-                                 MemAccess::get<m_time_t>(*ptr + sizeof(handle)), key, NULL, ph);
+    client->newshares.push_back(new NewShare(h, direction, MemAccess::get<handle>(*ptr),
+                                             (accesslevel_t)(*ptr)[sizeof(handle) + sizeof(m_time_t)],
+                                             MemAccess::get<m_time_t>(*ptr + sizeof(handle)), key, NULL, ph));
 
     *ptr += sizeof(handle) + sizeof(m_time_t) + 2;
     if (version_flag >= 1)
@@ -69,7 +69,7 @@ NewShare* Share::unserialize(int direction, handle h,
         *ptr += sizeof(handle);
     }
 
-    return newShare;
+    return true;
 }
 
 void Share::update(accesslevel_t a, m_time_t t, PendingContactRequest* pending)

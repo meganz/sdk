@@ -143,14 +143,6 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypePublicLinkInformation,
     MEGARequestTypeGetBackgroundUploadURL,
     MEGARequestTypeCompleteBackgroundUpload,
-    MEGARequestTypeCloudStorageUsed,
-    MEGARequestTypeSendSMSVerificationCode,
-    MEGARequestTypeCheckSMSVerificationCode,
-    MEGARequestTypeGetRegisteredContacts,
-    MEGARequestTypeGetCountryCallingCodes,
-    MEGARequestTypeVerifyCredentials,
-    MEGARequestTypeGetMiscFlags,
-    MEGARequestTypeResendVerificationEmail,
     TotalOfRequestTypes
 };
 

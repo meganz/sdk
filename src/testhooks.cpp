@@ -33,4 +33,4 @@ namespace mega
     {
     }
 #endif
-}
+}; 

@@ -61,9 +61,8 @@ CPP_SOURCES= sdk/src/attrmap.cpp \
     sdk/src/logging.cpp \
     sdk/src/mega_http_parser.cpp \
     sdk/src/mega_zxcvbn.cpp \
-    sdk/src/mediafileattribute.cpp \
-    sdk/src/testhooks.cpp
-
+    sdk/src/mediafileattribute.cpp
+    
 C_SOURCES = sdk/src/mega_glob.c
 
 HEADERS= sdk/include/mega.h \

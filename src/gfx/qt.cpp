@@ -28,10 +28,6 @@
 
 #ifdef _WIN32
 #include <windows.h>
-#ifdef HAVE_FFMPEG
-#pragma warning(disable: 4996) // warning C4996: 'av_register_all': was declared deprecated
-#pragma warning(disable: 4242) // warning C4242: 'return': conversion from 'int' to 'uint8_t', possible loss of data
-#endif
 #endif
 
 #include <QFileInfo>

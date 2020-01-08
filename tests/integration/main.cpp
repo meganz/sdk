@@ -6,7 +6,6 @@
 
 bool gRunningInCI = false;
 bool gTestingInvalidArgs = false;
-std::string USER_AGENT = "Integration Tests with GoogleTest framework";
 
 using namespace mega;
 using namespace std;
@@ -51,21 +50,20 @@ public:
                 {
                     mLogFile.open("test_integration.log");
                 }
-                mLogFile << os.str() << std::flush;
+                mLogFile << os.str();
             }
             else
             {
-#ifndef _WIN32
-                std::cout << os.str() << std::flush;
+#ifdef _WIN32
+                OutputDebugStringA(os.str().c_str());
+#else
+                std::cout << os.str();
 #endif
                 if (!gTestingInvalidArgs)
                 {
                     ASSERT_NE(loglevel, logError) << os.str();
                 }
             }
-#ifdef _WIN32
-            OutputDebugStringA(os.str().c_str());
-#endif
         }
     }
 
@@ -83,30 +81,22 @@ int main (int argc, char *argv[])
         return 1;
     }
 
-    vector<char*> myargv1(argv, argv + argc);
-    vector<char*> myargv2;
+    vector<char*> myargv(argv, argv + argc);
 
-    for (auto it = myargv1.begin(); it != myargv1.end(); ++it)
+    for (auto it = myargv.begin(); it != myargv.end(); ++it)
     {
         if (string(*it) == "--CI")
         {
             gRunningInCI = true;
+            myargv.erase(it);
             argc -= 1;
-        }
-        else if (string(*it).substr(0, 12) == "--USERAGENT:")
-        {
-            USER_AGENT = string(*it).substr(12);
-            argc -= 1;
-        }
-        else
-        {
-            myargv2.push_back(*it);
+            break;
         }
     }
 
     MegaLogger megaLogger;
 
-    SimpleLogger::setLogLevel(logMax);
+    SimpleLogger::setLogLevel(logDebug);
     SimpleLogger::setOutputClass(&megaLogger);
 
 #if defined(_WIN32) && defined(NO_READLINE)
@@ -114,6 +104,6 @@ int main (int argc, char *argv[])
     wc->setShellConsole();
 #endif
 
-    ::testing::InitGoogleTest(&argc, myargv2.data());
+    ::testing::InitGoogleTest(&argc, myargv.data());
     return RUN_ALL_TESTS();
 }

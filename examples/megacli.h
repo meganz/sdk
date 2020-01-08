@@ -239,7 +239,7 @@ struct DemoApp : public MegaApp
 
     void userattr_update(User*, int, const char*) override;
 
-    void enumeratequotaitems_result(unsigned, handle, unsigned, int, int, unsigned, unsigned, unsigned, const char*, const char*, const char*, const char*) override;
+    void enumeratequotaitems_result(handle, unsigned, unsigned, unsigned, unsigned, unsigned, const char*, const char*, const char*, const char*) override;
     void enumeratequotaitems_result(error) override;
     void additem_result(error) override;
     void checkout_result(const char*, error) override;
@@ -305,7 +305,6 @@ void exec_mv(autocomplete::ACState& s);
 void exec_cp(autocomplete::ACState& s);
 void exec_du(autocomplete::ACState& s);
 void exec_sync(autocomplete::ACState& s);
-void exec_syncconfig(autocomplete::ACState& s);
 void exec_export(autocomplete::ACState& s);
 void exec_share(autocomplete::ACState& s);
 void exec_invite(autocomplete::ACState& s);

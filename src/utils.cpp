@@ -1511,7 +1511,7 @@ std::string Utils::hexToString(const std::string &input)
         const char* q = std::lower_bound(lut, lut + 16, b);
         if (*q != b) throw std::invalid_argument("not a hex digit");
 
-        output.push_back(static_cast<char>(((p - lut) << 4) | (q - lut)));
+        output.push_back(((p - lut) << 4) | (q - lut));
     }
     return output;
 }

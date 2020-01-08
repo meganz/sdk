@@ -47,7 +47,7 @@ struct MEGA_API Transfer : public FileFingerprint
 
     // failures/backoff
     unsigned failcount;
-    BackoffTimerTracked bt;
+    BackoffTimer bt;
 
     // representative local filename for this transfer
     string localfilename;
@@ -99,8 +99,8 @@ struct MEGA_API Transfer : public FileFingerprint
     // execute completion
     void completefiles();
 
-    // remove file from transfer including in cache
-    void removeTransferFile(error, File* f, DBTableTransactionCommitter* committer);
+    // next position to download/upload
+    m_off_t nextpos();
 
     // previous wrong fingerprint
     FileFingerprint badfp;

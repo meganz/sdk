@@ -62,7 +62,7 @@ struct MEGA_API PendingContactRequest : public Cachable
     } changed;
 
     bool serialize(string*);
-    static PendingContactRequest* unserialize(string*);
+    static PendingContactRequest* unserialize(class MegaClient *, string*);
 
     PendingContactRequest(const handle id, const char *oemail, const char *temail, const m_time_t ts, const m_time_t uts, const char *msg, bool outgoing);
     PendingContactRequest(const handle id); // for dummy requests during gettree/fetchnodes

@@ -16,7 +16,6 @@ CONFIG += USE_MEDIAINFO
 CONFIG += USE_LIBRAW
 CONFIG += USE_FFMPEG
 CONFIG -= qt
-CONFIG += object_parallel_to_source
 
 LIBS += -lgtest
 
@@ -28,10 +27,10 @@ CONFIG += c++17
 QMAKE_CXXFLAGS+=-std=c++17
 
 SOURCES += \
-../../../../tests/integration/main.cpp \
-../../../../tests/integration/SdkTest_test.cpp \
-../../../../tests/integration/Sync_test.cpp
+    ../../../../tests/integration/main.cpp \
+    ../../../../tests/integration/SdkTest_test.cpp \
+    ../../../../tests/integration/Sync_test.cpp
 
 HEADERS += \
-../../../../tests/integration/test.h \
-../../../../tests/integration/SdkTest_test.h
+    ../../../../tests/integration/test.h \
+    ../../../../tests/integration/SdkTest_test.h

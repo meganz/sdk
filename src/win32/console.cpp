@@ -639,10 +639,7 @@ bool WinConsole::consolePeekNonBlocking()
     if (model.consoleNewlineNeeded)
     {
         DWORD written = 0;
-        #ifndef NDEBUG
-        BOOL b =
-        #endif
-        WriteConsoleW(hOutput, L"\n", 1, &written, NULL);
+        BOOL b = WriteConsoleW(hOutput, L"\n", 1, &written, NULL);
         assert(b && written == 1);
     }
     model.redrawInputLineNeeded = false;
@@ -719,10 +716,7 @@ bool WinConsole::consolePeekBlocking()
     if (model.consoleNewlineNeeded)
     {
         DWORD written = 0;
-        #ifndef NDEBUG
-        BOOL b =
-        #endif
-        WriteConsoleW(hOutput, L"\n", 1, &written, NULL);
+        BOOL b = WriteConsoleW(hOutput, L"\n", 1, &written, NULL);
         assert(b && written == 1);
     }
     model.redrawInputLineNeeded = false;

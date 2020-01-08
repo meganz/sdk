@@ -178,7 +178,7 @@ using namespace mega;
 }
 
 - (BOOL)hasChangedType:(MEGANodeChangeType)changeType {
-    return self.megaNode ? self.megaNode->hasChanged(int(changeType)) : NO;
+    return self.megaNode ? self.megaNode->hasChanged(changeType) : NO;
 }
 
 - (MEGANodeChangeType)getChanges {

@@ -27,9 +27,6 @@
 #include "megaclient.h"
 
 namespace mega {
-
-struct NewShare;
-
 // share credentials
 struct MEGA_API Share
 {
@@ -42,7 +39,7 @@ struct MEGA_API Share
     void update(accesslevel_t, m_time_t, PendingContactRequest* = NULL);
 
     void serialize(string*);
-    static NewShare* unserialize(int, handle, const byte *, const char**, const char*);
+    static bool unserialize(MegaClient *, int, handle, const byte *, const char**, const char*);
 
     Share(User*, accesslevel_t, m_time_t, PendingContactRequest* = NULL);
 };
@@ -65,7 +62,6 @@ struct MEGA_API NewShare
 
     NewShare(handle, int, handle, accesslevel_t, m_time_t, const byte*, const byte* = NULL, handle = UNDEF, bool = false, bool = false);
 };
-
 } // namespace
 
 #endif
