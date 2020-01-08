@@ -4216,10 +4216,9 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
         ASSERT_EQ(API_OK, syncTracker.waitForResult());
     };
 
-    auto checkSyncIsWorking = [this](const fs::path& p)
+    auto checkSyncOK = [this, &megaNode](const fs::path& p)
     {
-        auto ps = p.u8string();
-        return megaApi[0]->getSyncedNode(&ps) != nullptr;
+        return megaApi[0]->getSyncByNode(megaNode(p.filename().u8string())) != nullptr;
     };
 
     auto recreateMegaApi = [this, &session]()
@@ -4236,64 +4235,57 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     syncFolder(sync2Path);
     syncFolder(sync3Path);
     syncFolder(sync4Path);
-    ASSERT_EQ(4, megaApi[0]->getNumActiveSyncs());
 
-    ASSERT_TRUE(checkSyncIsWorking(sync1Path));
-    ASSERT_TRUE(checkSyncIsWorking(sync2Path));
-    ASSERT_TRUE(checkSyncIsWorking(sync3Path));
-    ASSERT_TRUE(checkSyncIsWorking(sync4Path));
+    ASSERT_TRUE(checkSyncOK(sync1Path));
+    ASSERT_TRUE(checkSyncOK(sync2Path));
+    ASSERT_TRUE(checkSyncOK(sync3Path));
+    ASSERT_TRUE(checkSyncOK(sync4Path));
     const auto sync2LocalFp = localFp(sync2Path); // need this for manual resume
 
     disableSync(sync2Path);
     removeSync(sync3Path);
 
-    ASSERT_EQ(2, megaApi[0]->getNumActiveSyncs());
-    ASSERT_TRUE(checkSyncIsWorking(sync1Path));
-    ASSERT_FALSE(checkSyncIsWorking(sync2Path));
-    ASSERT_FALSE(checkSyncIsWorking(sync3Path));
-    ASSERT_TRUE(checkSyncIsWorking(sync4Path));
+    ASSERT_TRUE(checkSyncOK(sync1Path));
+    ASSERT_FALSE(checkSyncOK(sync2Path));
+    ASSERT_FALSE(checkSyncOK(sync3Path));
+    ASSERT_TRUE(checkSyncOK(sync4Path));
 
     recreateMegaApi();
 
-    ASSERT_EQ(0, megaApi[0]->getNumActiveSyncs());
-    ASSERT_FALSE(checkSyncIsWorking(sync1Path));
-    ASSERT_FALSE(checkSyncIsWorking(sync2Path));
-    ASSERT_FALSE(checkSyncIsWorking(sync3Path));
-    ASSERT_FALSE(checkSyncIsWorking(sync4Path));
+    ASSERT_FALSE(checkSyncOK(sync1Path));
+    ASSERT_FALSE(checkSyncOK(sync2Path));
+    ASSERT_FALSE(checkSyncOK(sync3Path));
+    ASSERT_FALSE(checkSyncOK(sync4Path));
 
     fetchnodes(0); // auto-resumes two active syncs
 
-    ASSERT_EQ(2, megaApi[0]->getNumActiveSyncs());
-    ASSERT_TRUE(checkSyncIsWorking(sync1Path));
-    ASSERT_FALSE(checkSyncIsWorking(sync2Path));
-    ASSERT_FALSE(checkSyncIsWorking(sync3Path));
-    ASSERT_TRUE(checkSyncIsWorking(sync4Path));
+    ASSERT_TRUE(checkSyncOK(sync1Path));
+    ASSERT_FALSE(checkSyncOK(sync2Path));
+    ASSERT_FALSE(checkSyncOK(sync3Path));
+    ASSERT_TRUE(checkSyncOK(sync4Path));
 
     // check if we can still resume manually
     resumeSync(sync2Path, sync2LocalFp);
 
-    ASSERT_EQ(3, megaApi[0]->getNumActiveSyncs());
-    ASSERT_TRUE(checkSyncIsWorking(sync1Path));
-    ASSERT_TRUE(checkSyncIsWorking(sync2Path));
-    ASSERT_FALSE(checkSyncIsWorking(sync3Path));
-    ASSERT_TRUE(checkSyncIsWorking(sync4Path));
+    ASSERT_TRUE(checkSyncOK(sync1Path));
+    ASSERT_TRUE(checkSyncOK(sync2Path));
+    ASSERT_FALSE(checkSyncOK(sync3Path));
+    ASSERT_TRUE(checkSyncOK(sync4Path));
 
     // check if resumeSync re-activated the sync
     recreateMegaApi();
 
-    ASSERT_EQ(0, megaApi[0]->getNumActiveSyncs());
-    ASSERT_FALSE(checkSyncIsWorking(sync1Path));
-    ASSERT_FALSE(checkSyncIsWorking(sync2Path));
-    ASSERT_FALSE(checkSyncIsWorking(sync3Path));
-    ASSERT_FALSE(checkSyncIsWorking(sync4Path));
+    ASSERT_FALSE(checkSyncOK(sync1Path));
+    ASSERT_FALSE(checkSyncOK(sync2Path));
+    ASSERT_FALSE(checkSyncOK(sync3Path));
+    ASSERT_FALSE(checkSyncOK(sync4Path));
 
     fetchnodes(0); // auto-resumes three active syncs
 
-    ASSERT_EQ(3, megaApi[0]->getNumActiveSyncs());
-    ASSERT_TRUE(checkSyncIsWorking(sync1Path));
-    ASSERT_TRUE(checkSyncIsWorking(sync2Path));
-    ASSERT_FALSE(checkSyncIsWorking(sync3Path));
-    ASSERT_TRUE(checkSyncIsWorking(sync4Path));
+    ASSERT_TRUE(checkSyncOK(sync1Path));
+    ASSERT_TRUE(checkSyncOK(sync2Path));
+    ASSERT_FALSE(checkSyncOK(sync3Path));
+    ASSERT_TRUE(checkSyncOK(sync4Path));
 
     releaseMegaApi(0);
 }
