@@ -14078,6 +14078,13 @@ void MegaApiImpl::login_result(error result)
         client->tsLogin = m_time();
     }
 
+#ifdef ENABLE_SYNC
+    if (result == API_OK)
+    {
+        client->resetSyncConfigs();
+    }
+#endif
+
     fireOnRequestFinish(request, megaError);
 }
 

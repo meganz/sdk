@@ -1226,10 +1226,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     h->setuseragent(&useragent);
     h->setmaxdownloadspeed(0);
     h->setmaxuploadspeed(0);
-
-#ifdef ENABLE_SYNC
-    resetSyncConfigs();
-#endif
 }
 
 MegaClient::~MegaClient()
@@ -1248,9 +1244,11 @@ MegaClient::~MegaClient()
 #ifdef ENABLE_SYNC
 void MegaClient::resetSyncConfigs()
 {
-    if (dbaccess)
+    if (dbaccess && !sid.empty())
     {
-        syncConfigs.reset(new SyncConfigBag{*dbaccess, *fsaccess, rng});
+        char buf[16];
+        Base64::btoa((const byte*)sid.data(),  MegaClient::SESSIONHANDLE, buf);
+        syncConfigs.reset(new SyncConfigBag{*dbaccess, *fsaccess, rng, buf});
     }
     else
     {

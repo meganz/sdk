@@ -511,14 +511,14 @@ bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, h
     return success;
 }
 
-SyncConfigBag::SyncConfigBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, PrnGen& rng)
+SyncConfigBag::SyncConfigBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, PrnGen& rng, const std::string& id)
 {
-    std::string dbname = "syncconfigs";
+    std::string dbname = "syncconfigs" + id;
     mTable.reset(dbaccess.open(rng, &fsaccess, &dbname, false, false));
     if (!mTable)
     {
-        assert(false);
         LOG_err << "Unable to open DB table: " << dbname;
+        assert(false);
         return;
     }
 
@@ -531,8 +531,8 @@ SyncConfigBag::SyncConfigBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, Prn
         auto syncConfig = SyncConfig::unserialize(data);
         if (!syncConfig)
         {
-            assert(false);
             LOG_err << "Unable to unserialize sync config at id: " << tableId;
+            assert(false);
             continue;
         }
         syncConfig->dbid = tableId;
@@ -558,8 +558,8 @@ void SyncConfigBag::add(const SyncConfig& syncConfig)
             DBTableTransactionCommitter committer{mTable.get()};
             if (!mTable->put(mTable->nextid, &data))
             {
-                assert(false);
                 LOG_err << "Incomplete database put at id: " << mTable->nextid;
+                assert(false);
                 mTable->abort();
                 return;
             }
@@ -587,8 +587,8 @@ void SyncConfigBag::remove(const SyncConfig& syncConfig)
             DBTableTransactionCommitter committer{mTable.get()};
             if (!mTable->del(syncConfigPair->second.dbid))
             {
-                assert(false);
                 LOG_err << "Incomplete database del at id: " << syncConfigPair->second.dbid;
+                assert(false);
                 mTable->abort();
                 return;
             }
@@ -608,8 +608,8 @@ void SyncConfigBag::update(const SyncConfig& syncConfig)
             DBTableTransactionCommitter committer{mTable.get()};
             if (!mTable->del(tableId))
             {
-                assert(false);
                 LOG_err << "Incomplete database del at id: " << tableId;
+                assert(false);
                 mTable->abort();
                 return;
             }
@@ -617,8 +617,8 @@ void SyncConfigBag::update(const SyncConfig& syncConfig)
             const_cast<SyncConfig&>(syncConfig).serialize(&data);
             if (!mTable->put(tableId, &data))
             {
-                assert(false);
                 LOG_err << "Incomplete database put at id: " << tableId;
+                assert(false);
                 mTable->abort();
                 return;
             }

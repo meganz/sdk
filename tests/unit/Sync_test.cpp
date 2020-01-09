@@ -1290,7 +1290,7 @@ TEST(Sync, SyncConfigBag_withTable)
     MockDbAccess dbaccess{mData};
     mt::DefaultedFileSystemAccess fsaccess;
     mega::PrnGen rng;
-    mega::SyncConfigBag bag{dbaccess, fsaccess, rng};
+    mega::SyncConfigBag bag{dbaccess, fsaccess, rng, "some_id"};
     test_SyncConfigBag(bag);
 }
 
@@ -1301,7 +1301,7 @@ TEST(Sync, SyncConfigBag_withTable_withPreviousState)
     mt::DefaultedFileSystemAccess fsaccess;
     mega::PrnGen rng;
 
-    mega::SyncConfigBag bag1{dbaccess, fsaccess, rng};
+    mega::SyncConfigBag bag1{dbaccess, fsaccess, rng, "some_id"};
     const mega::SyncConfig config1{"foo", 41, 122};
     bag1.add(config1);
     const mega::SyncConfig config2{"bar", 42, 123};
@@ -1311,7 +1311,7 @@ TEST(Sync, SyncConfigBag_withTable_withPreviousState)
     bag1.update(config3);
     bag1.remove(config3);
 
-    const mega::SyncConfigBag bag2{dbaccess, fsaccess, rng};
+    const mega::SyncConfigBag bag2{dbaccess, fsaccess, rng, "some_id"};
     const std::vector<mega::SyncConfig> expConfigs{config2, config1};
     ASSERT_EQ(expConfigs, bag2.all());
 }
