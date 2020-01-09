@@ -4168,7 +4168,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
         std::error_code ignoredEc;
         fs::remove_all(basePath, ignoredEc);
 
-        auto baseNode = megaApi[0]->getNodeByPath(basePath.c_str());
+        auto baseNode = megaApi[0]->getNodeByPath(("/" + basePath.u8string()).c_str());
         if (baseNode)
         {
             RequestTracker removeTracker;
