@@ -1244,10 +1244,10 @@ MegaClient::~MegaClient()
 #ifdef ENABLE_SYNC
 void MegaClient::resetSyncConfigs()
 {
-    if (dbaccess && !sid.empty())
+    if (dbaccess && me != UNDEF)
     {
         char buf[16];
-        Base64::btoa((const byte*)sid.data(),  MegaClient::SESSIONHANDLE, buf);
+        Base64::btoa((const byte*)&me,  MegaClient::USERHANDLE, buf);
         syncConfigs.reset(new SyncConfigBag{*dbaccess, *fsaccess, rng, buf});
     }
     else
