@@ -772,7 +772,10 @@ Sync::Sync(MegaClient* cclient, SyncConfig config, const char* cdebris,
         }
     }
 
-    client->syncConfigs->add(mConfig);
+    if (client->syncConfigs)
+    {
+        client->syncConfigs->add(mConfig);
+    }
 }
 
 Sync::~Sync()
@@ -780,7 +783,7 @@ Sync::~Sync()
     // must be set to prevent remote mass deletion while rootlocal destructor runs
     assert(state == SYNC_CANCELED || state == SYNC_FAILED);
 
-    if (!statecachetable)
+    if (!statecachetable && client->syncConfigs)
     {
         // if there's no localnode cache then remove the sync config
         client->syncConfigs->remove(mConfig);
@@ -895,7 +898,10 @@ const SyncConfig& Sync::getConfig() const
 void Sync::setActive(const bool isActive)
 {
     mConfig.setActive(isActive);
-    client->syncConfigs->update(mConfig);
+    if (client->syncConfigs)
+    {
+        client->syncConfigs->update(mConfig);
+    }
 }
 
 // remove LocalNode from DB cache

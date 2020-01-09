@@ -1278,13 +1278,7 @@ private:
 
 }
 
-TEST(Sync, SyncConfigBag_withoutTable)
-{
-    mega::SyncConfigBag bag;
-    test_SyncConfigBag(bag);
-}
-
-TEST(Sync, SyncConfigBag_withTable)
+TEST(Sync, SyncConfigBag)
 {
     std::vector<std::pair<uint32_t, std::string>> mData;
     MockDbAccess dbaccess{mData};
@@ -1294,7 +1288,7 @@ TEST(Sync, SyncConfigBag_withTable)
     test_SyncConfigBag(bag);
 }
 
-TEST(Sync, SyncConfigBag_withTable_withPreviousState)
+TEST(Sync, SyncConfigBag_withPreviousState)
 {
     std::vector<std::pair<uint32_t, std::string>> mData;
     MockDbAccess dbaccess{mData};

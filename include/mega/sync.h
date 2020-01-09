@@ -45,8 +45,6 @@ bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, h
 class MEGA_API SyncConfigBag
 {
 public:
-    SyncConfigBag() = default;
-
     SyncConfigBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, PrnGen& rng, const std::string& id);
 
     MEGA_DISABLE_COPY_MOVE(SyncConfigBag)

@@ -7448,6 +7448,10 @@ void MegaApiImpl::resumeSyncImpl(const char *localFolder, const long long localf
 
 void MegaApiImpl::resumeActiveSyncs(MegaRequestListener* listener)
 {
+    if (!client->syncConfigs)
+    {
+        return;
+    }
     for (const auto& syncConfig : client->syncConfigs->all())
     {
         if (!syncConfig.isActive())
