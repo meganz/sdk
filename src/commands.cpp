@@ -2553,7 +2553,7 @@ CommandPurchaseAddItem::CommandPurchaseAddItem(MegaClient* client, int itemclass
         {
             beginobject("aff");
             arg("id", (byte*)&lph, MegaClient::NODEHANDLE);
-            arg("ts", (byte*)&ts, sizeof ts);
+            arg("ts", ts);
             arg("t", phtype);   // 1=affiliate id, 2=file/folder link, 3=chat link
             endobject();
         }
@@ -5104,7 +5104,7 @@ CommandSubmitPurchaseReceipt::CommandSubmitPurchaseReceipt(MegaClient *client, i
         {
             beginobject("aff");
             arg("id", (byte*)&lph, MegaClient::NODEHANDLE);
-            arg("ts", (byte*)&ts, sizeof ts);
+            arg("ts", ts);
             arg("t", phtype);   // 1=affiliate id, 2=file/folder link, 3=chat link
             endobject();
         }
