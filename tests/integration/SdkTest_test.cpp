@@ -4168,11 +4168,11 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
         std::error_code ignoredEc;
         fs::remove_all(basePath, ignoredEc);
 
-        auto baseNode = megaApi[0]->getNodeByPath(("/" + basePath.u8string()).c_str());
+        std::unique_ptr<MegaNode> baseNode{megaApi[0]->getNodeByPath(("/" + basePath.u8string()).c_str())};
         if (baseNode)
         {
             RequestTracker removeTracker;
-            megaApi[0]->remove(baseNode, &removeTracker);
+            megaApi[0]->remove(baseNode.get(), &removeTracker);
             ASSERT_EQ(API_OK, removeTracker.waitForResult());
         }
     };
@@ -4191,46 +4191,52 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     auto megaNode = [this, &basePath](const std::string& p)
     {
         const auto path = "/" + basePath.u8string() + "/" + p;
-        return megaApi[0]->getNodeByPath(path.c_str());
+        return std::unique_ptr<MegaNode>{megaApi[0]->getNodeByPath(path.c_str())};
     };
 
     auto localFp = [this, &megaNode](const fs::path& p)
     {
-        auto sync = megaApi[0]->getSyncByNode(megaNode(p.filename().u8string()));
+        auto node = megaNode(p.filename().u8string());
+        auto sync = std::unique_ptr<MegaSync>{megaApi[0]->getSyncByNode(node.get())};
         return sync->getLocalFingerprint();
     };
 
     auto syncFolder = [this, &megaNode](const fs::path& p)
     {
         RequestTracker syncTracker;
-        megaApi[0]->syncFolder(p.u8string().c_str(), megaNode(p.filename().u8string()), &syncTracker);
+        auto node = megaNode(p.filename().u8string());
+        megaApi[0]->syncFolder(p.u8string().c_str(), node.get(), &syncTracker);
         ASSERT_EQ(API_OK, syncTracker.waitForResult());
     };
 
     auto disableSync = [this, &megaNode](const fs::path& p)
     {
         RequestTracker syncTracker;
-        megaApi[0]->disableSync(megaNode(p.filename().u8string()), &syncTracker);
+        auto node = megaNode(p.filename().u8string());
+        megaApi[0]->disableSync(node.get(), &syncTracker);
         ASSERT_EQ(API_OK, syncTracker.waitForResult());
     };
 
     auto resumeSync = [this, &megaNode](const fs::path& p, const long long localfp)
     {
         RequestTracker syncTracker;
-        megaApi[0]->resumeSync(p.u8string().c_str(), megaNode(p.filename().u8string()), localfp, &syncTracker);
+        auto node = megaNode(p.filename().u8string());
+        megaApi[0]->resumeSync(p.u8string().c_str(), node.get(), localfp, &syncTracker);
         ASSERT_EQ(API_OK, syncTracker.waitForResult());
     };
 
     auto removeSync = [this, &megaNode](const fs::path& p)
     {
         RequestTracker syncTracker;
-        megaApi[0]->removeSync(megaNode(p.filename().u8string()), &syncTracker);
+        auto node = megaNode(p.filename().u8string());
+        megaApi[0]->removeSync(node.get(), &syncTracker);
         ASSERT_EQ(API_OK, syncTracker.waitForResult());
     };
 
     auto checkSyncOK = [this, &megaNode](const fs::path& p)
     {
-        return megaApi[0]->getSyncByNode(megaNode(p.filename().u8string())) != nullptr;
+        auto node = megaNode(p.filename().u8string());
+        return std::unique_ptr<MegaSync>{megaApi[0]->getSyncByNode(node.get())} != nullptr;
     };
 
     auto recreateMegaApi = [this, &session]()
