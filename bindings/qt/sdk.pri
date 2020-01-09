@@ -229,7 +229,7 @@ CONFIG(USE_PDFIUM) {
         vcpkg:INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/pdfium
         else:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pdfium
         vcpkg:LIBS += -lpdfium -llcms$$DEBUG_SUFFIX -licuuc$$DEBUG_SUFFIX -licuio$$DEBUG_SUFFIX -licuin$$DEBUG_SUFFIX -ljpeg$$DEBUG_SUFFIX -lopenjp2 -lfreetype$$DEBUG_SUFFIX -lGdi32
-        macx:!vcpkg:LIBS += -lpdfium
+        else:LIBS += -lpdfium
     }
 }
 
