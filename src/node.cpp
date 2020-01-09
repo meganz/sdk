@@ -366,6 +366,7 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
         skey = NULL;
     }
 
+    LOG_debug << "Unserializing node with handle: " << h;
     n = new Node(client, dp, h, ph, t, s, u, fa, ts);
 
     if (k)
