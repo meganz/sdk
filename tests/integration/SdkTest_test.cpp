@@ -4163,8 +4163,22 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     const auto sync3Path = fs::current_path() / basePath / "sync3"; // will be deleted
     const auto sync4Path = fs::current_path() / basePath / "sync4"; // stays active
 
-    std::error_code ignoredEc;
-    fs::remove_all(basePath, ignoredEc);
+    auto cleanUp = [this, &basePath]()
+    {
+        std::error_code ignoredEc;
+        fs::remove_all(basePath, ignoredEc);
+
+        auto baseNode = megaApi[0]->getNodeByPath(basePath.c_str());
+        if (baseNode)
+        {
+            RequestTracker removeTracker;
+            megaApi[0]->remove(baseNode, &removeTracker);
+            ASSERT_EQ(API_OK, removeTracker.waitForResult());
+        }
+    };
+
+    cleanUp();
+
     fs::create_directories(sync1Path);
     fs::create_directories(sync2Path);
     fs::create_directories(sync3Path);
