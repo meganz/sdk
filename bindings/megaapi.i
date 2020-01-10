@@ -68,11 +68,11 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
         jenv->ExceptionClear();
     }
 
-    jclass megaApplicationClass = jenv->FindClass("mega/privacy/android/app/MegaApplication");
-    if (megaApplicationClass)
+    jclass videoCaptureUtilsClass = jenv->FindClass("mega/privacy/android/app/utils/VideoCaptureUtils");
+    if (videoCaptureUtilsClass)
     {
-        applicationClass = (jclass)jenv->NewGlobalRef(megaApplicationClass);
-        jenv->DeleteLocalRef(megaApplicationClass);
+        applicationClass = (jclass)jenv->NewGlobalRef(videoCaptureUtilsClass);
+        jenv->DeleteLocalRef(videoCaptureUtilsClass);
 
         deviceListMID = jenv->GetStaticMethodID(applicationClass, "deviceList", "()[Ljava/lang/String;");
         if (!deviceListMID)
