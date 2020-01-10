@@ -367,6 +367,7 @@ ${PdfiumDir}/core/fxcrt/cfx_bitstream.cpp
 #${PdfiumDir}/core/fxcrt/cfx_bitstream_unittest.cpp
 ${PdfiumDir}/core/fxcrt/cfx_datetime.cpp
 $<${LINUX}:${PdfiumDir}/core/fxcrt/cfx_fileaccess_posix.cpp>
+$<${MAC}:${PdfiumDir}/core/fxcrt/cfx_fileaccess_posix.cpp>
 $<${WIN}:${PdfiumDir}/core/fxcrt/cfx_fileaccess_windows.cpp>
 ${PdfiumDir}/core/fxcrt/cfx_memorystream.cpp
 #${PdfiumDir}/core/fxcrt/cfx_memorystream_unittest.cpp

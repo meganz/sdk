@@ -13,6 +13,12 @@ debug:DEBUG_SUFFIX = "d"
 else:DEBUG_SUFFIX = ""
 debug:DASH_DEBUG_SUFFIX = "-d"
 else:DASH_DEBUG_SUFFIX = ""
+debug:win32:DEBUG_SUFFIX_WO = "d"
+else:DEBUG_SUFFIX_WO = ""
+
+MI_DEBUG_SUFFIX = ""
+debug:macx:MI_DEBUG_SUFFIX = "_debug"
+debug:win32:MI_DEBUG_SUFFIX = "d"
 
 VPATH += $$MEGASDK_BASE_PATH
 SOURCES += src/attrmap.cpp \
@@ -156,23 +162,28 @@ CONFIG(USE_LIBUV) {
     }
 
     macx {
-        LIBS += -luv
+        vcpkg:LIBS += -llibuv
+        !vcpkg:LIBS += -luv
     }
 }
 
 CONFIG(USE_MEDIAINFO) {
     DEFINES += USE_MEDIAINFO UNICODE
 
-    win32 {
+    vcpkg:LIBS += -lmediainfo$$MI_DEBUG_SUFFIX -lzen$$MI_DEBUG_SUFFIX 
+    vcpkg:win32:LIBS += -lzlib$$DEBUG_SUFFIX
+    vcpkg:!win32:LIBS += -lz
+
+    !vcpkg:win32 {
         vcpkg:LIBS += -lmediainfo$$DEBUG_SUFFIX -lzen$$DEBUG_SUFFIX -lzlib$$DEBUG_SUFFIX
         else:LIBS += -lMediaInfo -lZenLib -lzlibstat
     }
 
-    macx {
+    !vcpkg:macx {
         LIBS += -lmediainfo -lzen -lz
     }
 
-    unix:!macx {
+    !vcpkg:unix:!macx {
 
        exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libmediainfo.a) {
         LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libmediainfo.a
@@ -192,17 +203,20 @@ CONFIG(USE_MEDIAINFO) {
 CONFIG(USE_LIBRAW) {
     DEFINES += HAVE_LIBRAW
 
+    vcpkg:LIBS += -lraw$$DEBUG_SUFFIX -ljasper$$DEBUG_SUFFIX
+    vcpkg:win32:LIBS += -ljpeg$$DEBUG_SUFFIX
+    vcpkg:!win32:LIBS += -ljpeg
+
     win32 {
         DEFINES += LIBRAW_NODLL
         !vcpkg:LIBS += -llibraw
-        else:LIBS += -lraw$$DEBUG_SUFFIX -ljasper$$DEBUG_SUFFIX -ljpeg$$DEBUG_SUFFIX
     }
 
-    macx {
+    !vcpkg:macx {
         LIBS += -lraw
     }
 
-    unix:!macx {
+    !vcpkg:unix:!macx {
         exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libraw.a) {
             LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libraw.a -fopenmp
         }
@@ -213,23 +227,34 @@ CONFIG(USE_LIBRAW) {
 }
 
 CONFIG(USE_PDFIUM) {
-    unix:!macx {
-        exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/lib/libpdfium.a) {
-            DEFINES += HAVE_PDFIUM
-            INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pdfium
-            LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/lib/libpdfium.a
+
+    vcpkg:INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/pdfium
+    vcpkg:LIBS += -lpdfium -llcms$$DEBUG_SUFFIX -licuuc$$DEBUG_SUFFIX_WO -licuio$$DEBUG_SUFFIX_WO -ljpeg$$DEBUG_SUFFIX_WO -lopenjp2 -lfreetype$$DEBUG_SUFFIX 
+    # is it needed? win has it, mac does not -licuin$$DEBUG_SUFFIX_WO
+    vcpkg:LIBS += -lGdi32
+    vcpkg:DEFINES += HAVE_PDFIUM
+
+    !vcpkg {
+        unix:!macx {
+            exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/lib/libpdfium.a) {
+                DEFINES += HAVE_PDFIUM
+                INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pdfium
+                LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/lib/libpdfium.a
+            }
+            else:exists(/usr/include/fpdfview.h) {
+                DEFINES += HAVE_PDFIUM
+                LIBS += -lpdfium
+            }
         }
-        else:exists(/usr/include/fpdfview.h) {
+        else {#win/mac
             DEFINES += HAVE_PDFIUM
-            LIBS += -lpdfium
+            vcpkg:INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/pdfium
+            else:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pdfium
+            vcpkg:LIBS += -lpdfium -llcms$$DEBUG_SUFFIX -licuuc$$DEBUG_SUFFIX -licuio$$DEBUG_SUFFIX  -ljpeg$$DEBUG_SUFFIX -lopenjp2 -lfreetype$$DEBUG_SUFFIX -lGdi32
+            vcpkg:win32:LIBS += -licuin$$DEBUG_SUFFIX
+            vcpkg:!win32:LIBS += -licutu$$DEBUG_SUFFIX
+            else:LIBS += -lpdfium
         }
-    }
-    else {#win/mac
-        DEFINES += HAVE_PDFIUM
-        vcpkg:INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/pdfium
-        else:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pdfium
-        vcpkg:LIBS += -lpdfium -llcms$$DEBUG_SUFFIX -licuuc$$DEBUG_SUFFIX -licuio$$DEBUG_SUFFIX -licuin$$DEBUG_SUFFIX -ljpeg$$DEBUG_SUFFIX -lopenjp2 -lfreetype$$DEBUG_SUFFIX -lGdi32
-        else:LIBS += -lpdfium
     }
 }
 
@@ -282,6 +307,7 @@ CONFIG(USE_FFMPEG) {
         vcpkg:INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/ffmpeg
         else:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/ffmpeg
         LIBS += -lavcodec -lavformat -lavutil -lswscale
+        macx:LIBS += -lbz2
     }
 }
 
@@ -328,8 +354,7 @@ win32 {
             src/wincurl/waiter.cpp
         HEADERS += include/mega/wincurl/meganet.h
         DEFINES += USE_CURL USE_OPENSSL
-        vcpkg:LIBS +=  -llibcurl$$DASH_DEBUG_SUFFIX -lcares -llibeay32 -lssleay32
-        else:LIBS +=  -llibcurl -lcares -llibeay32 -lssleay32
+        !vcpkg:LIBS +=  -llibcurl -lcares -llibeay32 -lssleay32
     }
     else {
         SOURCES += src/win32/net.cpp \
@@ -342,7 +367,7 @@ win32 {
     LIBS += -lwinhttp -ladvapi32
     DEFINES += _CRT_SECURE_NO_WARNINGS
 }
-
+else:CONFIG += USE_CURL
 
 unix {
 SOURCES += src/posix/net.cpp  \
@@ -485,13 +510,11 @@ vcpkg {
     INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/libsodium
 
     CONFIG(USE_CURL) {
-        INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/wincurl
         INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/openssl
         INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/cares
+        win32:LIBS +=  -llibcurl$$DASH_DEBUG_SUFFIX -lcares -llibeay32 -lssleay32
+        else:LIBS +=  -lcurl$$DASH_DEBUG_SUFFIX -lcares -lcrypto -lssl
     }
-
-    release:LIBS += -L"$$THIRDPARTY_VCPKG_PATH/lib"
-    debug:LIBS += -L"$$THIRDPARTY_VCPKG_PATH/debug/lib"
 
     CONFIG(USE_PCRE) {
         INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/pcre
@@ -501,7 +524,12 @@ vcpkg {
 
     CONFIG(USE_PDFIUM):INCLUDEPATH += $$THIRDPARTY_VCPKG_BASE_PATH/pdfium/pdfium/public
 
-    LIBS += -llibsodium -lcryptopp-static -lzlib$$DEBUG_SUFFIX -lsqlite3
+    release:LIBS += -L"$$THIRDPARTY_VCPKG_PATH/lib"
+    debug:LIBS += -L"$$THIRDPARTY_VCPKG_PATH/debug/lib"
+
+    win32:LIBS += -llibsodium -lcryptopp-static -lzlib$$DEBUG_SUFFIX
+    else:LIBS += -lsodium -lcryptopp -lz
+    LIBS += -lsqlite3
 }
 
 
@@ -645,4 +673,6 @@ macx {
    }
 
    LIBS += -framework SystemConfiguration
+   
+   LIBS += -liconv -framework CoreServices -framework CoreFoundation -framework AudioUnit -framework AudioToolbox -framework CoreAudio -framework CoreMedia -framework VideoToolbox -framework ImageIO -framework CoreVideo 
 }
