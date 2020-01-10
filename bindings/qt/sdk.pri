@@ -480,25 +480,43 @@ else {
     DEFINES += NDEBUG
 }
 
+vcpkg {
+    INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/zlib
+    INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/libsodium
+
+    CONFIG(USE_CURL) {
+        INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/wincurl
+        INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/openssl
+        INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/cares
+    }
+
+    release:LIBS += -L"$$THIRDPARTY_VCPKG_PATH/lib"
+    debug:LIBS += -L"$$THIRDPARTY_VCPKG_PATH/debug/lib"
+
+    CONFIG(USE_PCRE) {
+        INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/pcre
+        DEFINES += PCRE_STATIC
+        LIBS += -lpcre
+    }
+
+    CONFIG(USE_PDFIUM):INCLUDEPATH += $$THIRDPARTY_VCPKG_BASE_PATH/pdfium/pdfium/public
+
+    LIBS += -llibsodium -lcryptopp-static -lzlib$$DEBUG_SUFFIX -lsqlite3
+}
+
+
 win32 {
-    vcpkg:INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/zlib
-    vcpkg:INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/libsodium
     !vcpkg:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/zlib
     !vcpkg:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/libsodium
 
     CONFIG(USE_CURL) {
         INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/wincurl
-        vcpkg:INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/openssl
-        vcpkg:INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/cares
         !vcpkg:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/openssl
         !vcpkg:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/cares
     }
     else {
         INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/win32
     }
-
-    vcpkg:release:LIBS += -L"$$THIRDPARTY_VCPKG_PATH/lib"
-    vcpkg:debug:LIBS += -L"$$THIRDPARTY_VCPKG_PATH/debug/lib"
 
     !vcpkg:contains(CONFIG, BUILDX64) {
        release {
@@ -519,16 +537,13 @@ win32 {
     }
 
     CONFIG(USE_PCRE) {
-     vcpkg:INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/pcre
-     else:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pcre
+     INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pcre
      DEFINES += PCRE_STATIC
      LIBS += -lpcre
     }
 
-    vcpkg:CONFIG(USE_PDFIUM):INCLUDEPATH += $$THIRDPARTY_VCPKG_BASE_PATH/pdfium/pdfium/public
-
-    vcpkg:LIBS += -lshlwapi -lws2_32 -luser32 -llibsodium -lcryptopp-static -lzlib$$DEBUG_SUFFIX -lsqlite3
-    else:LIBS += -lshlwapi -lws2_32 -luser32 -lsodium -lcryptopp -lzlibstat
+    LIBS += -lshlwapi -lws2_32 -luser32 
+    !vcpkg:LIBS += -lsodium -lcryptopp -lzlibstat
 
     DEFINES += NOMINMAX
 }
@@ -603,16 +618,16 @@ macx {
 
    OBJECTIVE_SOURCES += $$MEGASDK_BASE_PATH/src/osx/osxutils.mm
 
-   SOURCES += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/sqlite3.c
+   !vcpkg:SOURCES += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/sqlite3.c
 
-   INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/curl
-   INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/libsodium
-   INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/cares
-   INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/mediainfo
-   INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/zenlib
-   INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pdfium
+   !vcpkg:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/curl
+   !vcpkg:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/libsodium
+   !vcpkg:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/cares
+   !vcpkg:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/mediainfo
+   !vcpkg:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/zenlib
+   !vcpkg:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pdfium
 
-   CONFIG(USE_PCRE) {
+   !vcpkg:CONFIG(USE_PCRE) {
     INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pcre
     DEFINES += PCRE_STATIC
     LIBS += -lpcre
@@ -620,15 +635,14 @@ macx {
 
    DEFINES += _DARWIN_FEATURE_64_BIT_INODE CRYPTOPP_DISABLE_ASM
 
-   LIBS += -L$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/ $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcares.a $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libsodium.a \
-            -lz -lcryptopp
-
-   CONFIG(USE_OPENSSL) {
+   !vcpkg:LIBS += -L$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/ $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcares.a $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a \
+                    $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libsodium.a -lcryptopp
+   LIBS += -lz
+   
+   !vcpkg:CONFIG(USE_OPENSSL) {
     INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/openssl
     LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libssl.a $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcrypto.a
    }
-
-
 
    LIBS += -framework SystemConfiguration
 }

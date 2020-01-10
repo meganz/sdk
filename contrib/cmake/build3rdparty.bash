@@ -22,6 +22,8 @@
 # 
 # Comment out any libraries that you won't use.
 # If using pdfium, follow the instructions below to get the source code
+#
+# On Mac, go to ports/libraw/CONTROL and comment out the freeglut dependency
 # 
 # Copy this script to your 3rdParty/vcpkg folder, and run it with the desired triplet as the parameter.  (usually x64-windows-mega or x86-windows-mega)
 
