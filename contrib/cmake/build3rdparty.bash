@@ -67,18 +67,19 @@ build_one libwebsockets
 
 # ------ building pdifum - this one needs some manual steps - these can be done before calling the script ---------------
 # - Set up your Depot Tools (this can be one time, reuse it for other builds etc)
-#      Follow these instructions to get the depot_tools (download .zip, extract all, set variable, run gclient): #ps://chromium.googlesource.com/chromium/src/+/master/docs/windows_build_instructions.md#install
+#      Follow these instructions to get the depot_tools: https://commondatastorage.googleapis.com/chrome-infra-docs/flat/depot_tools/docs/html/depot_tools_tutorial.html#_setting_up
 # - Then in your 3rdParty/vcpkg folder, and run these commands in it to get the pdfium source:
-#      set DEPOT_TOOLS=<<<<your depot_tools path>>>>
-#      set PATH=%DEPOT_TOOLS%;%PATH%
-#      set DEPOT_TOOLS_WIN_TOOLCHAIN=0
+#      export DEPOT_TOOLS=<<<<your depot_tools path>>>>
+#      export PATH=$DEPOT_TOOLS;$PATH
 #      mkdir pdfium
 #      cd pdfium
 #      gclient config --unmanaged https://pdfium.googlesource.com/pdfium.git
 #      gclient sync
-#      REM branch 3710 is compatibile with the VS 2015 compiler and v140 toolset  (or if you want to use the latest, see below)
+#      # branch 3710 is compatibile with the VS 2015 compiler and v140 toolset  (or if you want to use the latest, see below)
+#      cd pdfium
 #      git checkout chromium/3710
-#      gclient sync
+#      cd ..
+#      gclient sync --force
 # - If using the latest Pdfium, use at least VS2017 and skip the branch checkout above, and substitute the pdfium-masterbranch-CMakeLists.txt in vcpkg/ports/pdfium and make this one small patch (other changes may be needed if the master branch has changed):
 #      in pdfium\core\fxcrt\fx_memory_wrappers.h(26)   comment out the static_assert (uint8_t counts as an arithmentic type)
 

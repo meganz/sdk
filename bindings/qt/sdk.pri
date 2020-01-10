@@ -231,7 +231,7 @@ CONFIG(USE_PDFIUM) {
     vcpkg:INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/pdfium
     vcpkg:LIBS += -lpdfium -llcms$$DEBUG_SUFFIX -licuuc$$DEBUG_SUFFIX_WO -licuio$$DEBUG_SUFFIX_WO -ljpeg$$DEBUG_SUFFIX_WO -lopenjp2 -lfreetype$$DEBUG_SUFFIX 
     # is it needed? win has it, mac does not -licuin$$DEBUG_SUFFIX_WO
-    vcpkg:LIBS += -lGdi32
+    vcpkg:win32:LIBS += -lGdi32
     vcpkg:DEFINES += HAVE_PDFIUM
 
     !vcpkg {
@@ -248,12 +248,8 @@ CONFIG(USE_PDFIUM) {
         }
         else {#win/mac
             DEFINES += HAVE_PDFIUM
-            vcpkg:INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/pdfium
-            else:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pdfium
-            vcpkg:LIBS += -lpdfium -llcms$$DEBUG_SUFFIX -licuuc$$DEBUG_SUFFIX -licuio$$DEBUG_SUFFIX  -ljpeg$$DEBUG_SUFFIX -lopenjp2 -lfreetype$$DEBUG_SUFFIX -lGdi32
-            vcpkg:win32:LIBS += -licuin$$DEBUG_SUFFIX
-            vcpkg:!win32:LIBS += -licutu$$DEBUG_SUFFIX
-            else:LIBS += -lpdfium
+            INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pdfium
+            LIBS += -lpdfium
         }
     }
 }
@@ -281,7 +277,7 @@ CONFIG(USE_FFMPEG) {
         }
         else:packagesExist(ffmpeg)|packagesExist(libavcodec) {
             DEFINES += HAVE_FFMPEG
-            LIBS += -lavcodec -lavformat -lavutil -lswscale
+            LIBS += -lavcodec -lavformat -lavutil -lswscale -lswresample
         }
 
         FFMPEGSTATICLIBS = libavformat.a libavcodec.a libavutil.a libswscale.a
@@ -307,7 +303,7 @@ CONFIG(USE_FFMPEG) {
         vcpkg:INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/ffmpeg
         else:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/ffmpeg
         LIBS += -lavcodec -lavformat -lavutil -lswscale
-        macx:LIBS += -lbz2
+        vcpkg:macx:LIBS += -lswrescale -lbz2
     }
 }
 
