@@ -157,7 +157,8 @@ CONFIG(USE_LIBUV) {
         LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libuv.a
        }
        else {
-        LIBS += -luv
+        vcpkg:LIBS += -llibuv
+        else:LIBS += -luv
        }
     }
 
@@ -206,6 +207,7 @@ CONFIG(USE_LIBRAW) {
     vcpkg:LIBS += -lraw$$DEBUG_SUFFIX -ljasper$$DEBUG_SUFFIX
     vcpkg:win32:LIBS += -ljpeg$$DEBUG_SUFFIX
     vcpkg:!win32:LIBS += -ljpeg
+    vcpkg:unix:!macx:LIBS += -lgomp
 
     win32 {
         DEFINES += LIBRAW_NODLL
@@ -257,46 +259,49 @@ CONFIG(USE_PDFIUM) {
 CONFIG(USE_FFMPEG) {
 
     unix:!macx {
-        exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/ffmpeg):exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/lib/libavcodec.a) {
-        DEFINES += HAVE_FFMPEG
-            INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/ffmpeg
-            FFMPEGLIBPATH = $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/lib
-        }
-        else:exists(/usr/include/ffmpeg-mega) {
+    
+        vcpkg:LIBS += -lavformat -lavcodec -lavutil -lswscale -lswresample
+        else {
+            exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/ffmpeg):exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/lib/libavcodec.a) {
             DEFINES += HAVE_FFMPEG
-            INCLUDEPATH += /usr/include/ffmpeg-mega
-            exists(/usr/lib64/libavcodec.a) {
-                FFMPEGLIBPATH = /usr/lib64
+                INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/ffmpeg
+                FFMPEGLIBPATH = $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/lib
             }
-            else:exists(/usr/lib32/libavcodec.a) {
-                FFMPEGLIBPATH = /usr/lib32
+            else:exists(/usr/include/ffmpeg-mega) {
+                DEFINES += HAVE_FFMPEG
+                INCLUDEPATH += /usr/include/ffmpeg-mega
+                exists(/usr/lib64/libavcodec.a) {
+                    FFMPEGLIBPATH = /usr/lib64
+                }
+                else:exists(/usr/lib32/libavcodec.a) {
+                    FFMPEGLIBPATH = /usr/lib32
+                }
+                else {
+                   FFMPEGLIBPATH = /usr/lib
+                }
             }
-            else {
-               FFMPEGLIBPATH = /usr/lib
+            else:packagesExist(ffmpeg)|packagesExist(libavcodec) {
+                DEFINES += HAVE_FFMPEG
+                LIBS += -lavcodec -lavformat -lavutil -lswscale -lswresample
+            }
+
+            FFMPEGSTATICLIBS = libavformat.a libavcodec.a libavutil.a libswscale.a
+
+            for(ffmpeglib, FFMPEGSTATICLIBS) {
+                exists($$FFMPEGLIBPATH/$$ffmpeglib) {
+                    LIBS += $$FFMPEGLIBPATH/$$ffmpeglib
+                }
+            }
+
+            #particular distros requirements
+            exists(/usr/lib64/libbz2.so*)|exists(/usr/lib/libbz2.so*) {
+                LIBS += -lbz2 #required in fedora ffmpeg/arch compilation
+            }
+
+            exists(/usr/lib/liblzma.so*):exists(/etc/arch-release) {
+                LIBS += -llzma #required in arch ffmpeg compilation
             }
         }
-        else:packagesExist(ffmpeg)|packagesExist(libavcodec) {
-            DEFINES += HAVE_FFMPEG
-            LIBS += -lavcodec -lavformat -lavutil -lswscale -lswresample
-        }
-
-        FFMPEGSTATICLIBS = libavformat.a libavcodec.a libavutil.a libswscale.a
-
-        for(ffmpeglib, FFMPEGSTATICLIBS) {
-            exists($$FFMPEGLIBPATH/$$ffmpeglib) {
-                LIBS += $$FFMPEGLIBPATH/$$ffmpeglib
-            }
-        }
-
-        #particular distros requirements
-        exists(/usr/lib64/libbz2.so*)|exists(/usr/lib/libbz2.so*) {
-            LIBS += -lbz2 #required in fedora ffmpeg/arch compilation
-        }
-
-        exists(/usr/lib/liblzma.so*):exists(/etc/arch-release) {
-            LIBS += -llzma #required in arch ffmpeg compilation
-        }
-
     }
     else { #win/mac
         DEFINES += HAVE_FFMPEG
@@ -580,7 +585,8 @@ unix:!macx {
     LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a
    }
    else {
-    LIBS += -lcurl
+    vcpkg:LIBS += -lcurl$$DASH_DEBUG_SUFFIX
+    else:LIBS += -lcurl
    }
 
    exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libz.a) {
