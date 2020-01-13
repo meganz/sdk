@@ -44,13 +44,13 @@ if [ "$1" == "clean" ]; then
 fi
 
 pushd "${WEBRTC_SRC}" > /dev/null
-if [ "c1a58bae4196651d2f7af183be1878bb00d45a57" != "`git rev-parse HEAD`" ]; then
+if [ "9863f3d246e2da7a2e1f42bbc5757f6af5ec5682" != "`git rev-parse HEAD`" ]; then
   echo ""
   echo "* WARNING!!"
-  echo "* You are not using our recommended commit of WebRTC: c1a58bae4196651d2f7af183be1878bb00d45a57"
+  echo "* You are not using our recommended commit of WebRTC: 9863f3d246e2da7a2e1f42bbc5757f6af5ec5682 (branch-heads/m76)"
   echo "* Please consider to switch to that commit this way (in the src folder of WebRTC):"
   echo ""
-  echo "  git checkout c1a58bae4196651d2f7af183be1878bb00d45a57"
+  echo "  git checkout 9863f3d246e2da7a2e1f42bbc5757f6af5ec5682"
   echo "  gclient sync"
   echo ""
   read -p "* Do you want to continue anyway? (y|N) " -n 1 c
@@ -66,9 +66,9 @@ mkdir -p ${CURRENTPATH}
 echo "* Setting up WebRTC"
 if [ ! -d "${CURRENTPATH}/webrtc" ]; then
 
-  if [ ! -e "${WEBRTC_SRC}/out/Release-${ARCH}/obj/webrtc/libwebrtc.a" ]; then
+  if [ ! -e "${WEBRTC_SRC}/out/Release-${ARCH}/obj/libwebrtc.a" ]; then
     pushd ${WEBRTC_SRC}
-    gn gen "out/Release-${ARCH}" --args="is_debug=false is_component_build=false use_custom_libcxx=false is_clang=false use_sysroot=false treat_warnings_as_errors=false"
+    gn gen "out/Release-${ARCH}" --args="is_debug=false is_component_build=false use_custom_libcxx=false is_clang=false use_sysroot=false treat_warnings_as_errors=false fatal_linker_warnings=false rtc_include_tests=false"  
     ninja -C "out/Release-${ARCH}" webrtc
     popd
   fi
@@ -79,11 +79,10 @@ if [ ! -d "${CURRENTPATH}/webrtc" ]; then
   mkdir -p ${CURRENTPATH}/include
   rm -rf ${CURRENTPATH}/include/openssl
   ln -sf "${WEBRTC_SRC}/third_party/boringssl/src/include/openssl" ${CURRENTPATH}/include/openssl
-
   mkdir -p ${CURRENTPATH}/lib
-  ln -sf "${WEBRTC_SRC}/out/Release-${ARCH}/obj/webrtc/libwebrtc.a" ${CURRENTPATH}/lib/libssl.a
-  ln -sf "${WEBRTC_SRC}/out/Release-${ARCH}/obj/webrtc/libwebrtc.a" ${CURRENTPATH}/lib/libcrypto.a
-  ln -sf "${WEBRTC_SRC}/out/Release-${ARCH}/obj/webrtc/libwebrtc.a" ${CURRENTPATH}/lib/libwebrtc.a
+  ln -sf "${WEBRTC_SRC}/out/Release-${ARCH}/obj/libwebrtc.a" ${CURRENTPATH}/lib/libssl.a
+  ln -sf "${WEBRTC_SRC}/out/Release-${ARCH}/obj/libwebrtc.a" ${CURRENTPATH}/lib/libcrypto.a
+  ln -sf "${WEBRTC_SRC}/out/Release-${ARCH}/obj/libwebrtc.a" ${CURRENTPATH}/lib/libwebrtc.a
   echo "* WebRTC is ready"
 else
   echo "* WebRTC already configured"
@@ -110,11 +109,15 @@ if [ ! -e "${CURRENTPATH}/lib/libcurl.a" ]; then
   # Do not resolve IPs!!
   sed -i 's/\#define USE_RESOLVE_ON_IPS 1//' lib/curl_setup.h || sed -i'.bak' 's/\#define USE_RESOLVE_ON_IPS 1//' lib/curl_setup.h
 
+  echo "Openssl prefix"
+  echo ${OPENSSL_PREFIX}
+  echo "CC=gcc -lstdc++ LIBS=-lpthread ./configure --prefix="${CURRENTPATH}" --enable-static --disable-shared --with-ssl=${OPENSSL_PREFIX} --with-zlib --disable-manual --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-proxy --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi --enable-ipv6 --disable-smb"
+
   if [[ $(uname) == 'Darwin' ]]; then
-    LIBS=-lpthread ./configure --prefix="${CURRENTPATH}" --enable-static --disable-shared --with-ssl=${OPENSSL_PREFIX} --with-zlib --disable-manual --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-proxy --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi --enable-ipv6 --disable-smb --without-libidn2
+	CC="gcc -lstdc++" LIBS=-lpthread ./configure --prefix="${CURRENTPATH}" --enable-static --disable-shared --with-ssl=${OPENSSL_PREFIX} --with-zlib --disable-manual --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-proxy --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi --enable-ipv6 --disable-smb --without-libidn2
     make -j `sysctl -n hw.physicalcpu`
   else
-    LIBS=-lpthread ./configure --prefix="${CURRENTPATH}" --enable-static --disable-shared --with-ssl=${OPENSSL_PREFIX} --with-zlib --disable-manual --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-proxy --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi --enable-ipv6 --disable-smb
+	CC="gcc -lstdc++" LIBS=-lpthread ./configure --prefix="${CURRENTPATH}" --enable-static --disable-shared --with-ssl=${OPENSSL_PREFIX} --with-zlib --disable-manual --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-proxy --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi --enable-ipv6 --disable-smb
     make -j `nproc`
   fi
   make install
