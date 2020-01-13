@@ -10718,7 +10718,15 @@ class MegaApi
          * - MegaRequest::getText - Returns the description of the issue
          *
          * @param message Description of the issue for support
-         * @param eventType Event type (use 1 for support tickets)
+         * @param type Ticket type. These are the available types:
+         *          0 for General Enquiry
+         *          1 for Technical Issue
+         *          2 for Payment Issue
+         *          3 for Forgotten Password
+         *          4 for Transfer Issue
+         *          5 for Contact/Sharing Issue
+         *          6 for MEGAsync Issue
+         *          7 for Missing/Invisible Data
          * @param listener MegaRequestListener to track this request
          */
         void createSupportTicket(const char* message, int type = 1, MegaRequestListener *listener = NULL);
