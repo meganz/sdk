@@ -7414,6 +7414,7 @@ void MegaApiImpl::resumeSyncImpl(const char *localFolder, const long long localf
         char base64[12];
         auto nodeHandle = request->getNodeHandle();
         LOG_err << "Node invalid for handle: " << (Base64::btoa((byte*)&nodeHandle, MegaClient::NODEHANDLE, base64) ? base64 : "");
+        assert(false);
     }
     if(!node || (node->type==FILENODE) || !localPath)
     {
