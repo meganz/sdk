@@ -75,4 +75,8 @@ using namespace mega;
     return self.megaShare ? [[NSDate alloc] initWithTimeIntervalSince1970:self.megaShare->getTimestamp()] : nil;
 }
 
+- (BOOL)isPending {
+    return self.megaShare ? self.megaShare->isPending() : NO;
+}
+
 @end

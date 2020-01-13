@@ -513,9 +513,10 @@ bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, h
 
 // new Syncs are automatically inserted into the session's syncs list
 // and a full read of the subtree is initiated
-Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
+Sync::Sync(MegaClient* cclient, SyncConfig config, string* crootpath, const char* cdebris,
            string* clocaldebris, Node* remotenode, fsfp_t cfsfp, bool cinshare, int ctag, void *cappdata)
-    : localroot(new LocalNode)
+: localroot(new LocalNode)
+, mConfig(config)
 {
     isnetwork = false;
     client = cclient;
@@ -736,6 +737,11 @@ bool Sync::readstatecache()
     return false;
 }
 
+const SyncConfig& Sync::getConfig() const
+{
+    return mConfig;
+}
+
 // remove LocalNode from DB cache
 void Sync::statecachedel(LocalNode* l)
 {
@@ -776,7 +782,7 @@ void Sync::cachenodes()
         statecachetable->begin();
 
         // deletions
-        for (set<int32_t>::iterator it = deleteq.begin(); it != deleteq.end(); it++)
+        for (set<uint32_t>::iterator it = deleteq.begin(); it != deleteq.end(); it++)
         {
             statecachetable->del(*it);
         }

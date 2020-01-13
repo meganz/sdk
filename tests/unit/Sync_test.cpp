@@ -44,6 +44,11 @@ public:
         return mNotSyncablePaths.find(*localpath) == mNotSyncablePaths.end();
     }
 
+    bool sync_syncable(mega::Sync*, const char*, std::string* localpath, mega::Node*) override
+    {
+        return mNotSyncablePaths.find(*localpath) == mNotSyncablePaths.end();
+    }
+
     void addNotSyncablePath(std::string path)
     {
         mNotSyncablePaths.insert(std::move(path));
@@ -215,6 +220,11 @@ public:
             return ptr - localname->data() + 1;
         }
         return 0;
+    }
+
+    bool getsname(std::string*, std::string*) const override
+    {
+        return false;
     }
 
 private:
@@ -1039,5 +1049,41 @@ TEST(Sync, assignFilesystemIds_whenFileTypeIsUnexpected_hittingAssert)
     ASSERT_FALSE(success);
 }
 #endif
+
+TEST(Sync, SyncConfig_noparam_constructor)
+{
+    const mega::SyncConfig config;
+    ASSERT_TRUE(config.isUpSync());
+    ASSERT_TRUE(config.isDownSync());
+    ASSERT_TRUE(config.syncDeletions());
+    ASSERT_FALSE(config.forceOverwrite());
+}
+
+TEST(Sync, SyncConfig_default_sync)
+{
+    const mega::SyncConfig config{mega::SyncConfig::TYPE_DEFAULT, false, true};
+    ASSERT_TRUE(config.isUpSync());
+    ASSERT_TRUE(config.isDownSync());
+    ASSERT_TRUE(config.syncDeletions());
+    ASSERT_FALSE(config.forceOverwrite());
+}
+
+TEST(Sync, SyncConfig_up_sync)
+{
+    const mega::SyncConfig config{mega::SyncConfig::TYPE_UP, true, true};
+    ASSERT_TRUE(config.isUpSync());
+    ASSERT_FALSE(config.isDownSync());
+    ASSERT_TRUE(config.syncDeletions());
+    ASSERT_TRUE(config.forceOverwrite());
+}
+
+TEST(Sync, SyncConfig_down_sync)
+{
+    const mega::SyncConfig config{mega::SyncConfig::TYPE_DOWN, true, true};
+    ASSERT_FALSE(config.isUpSync());
+    ASSERT_TRUE(config.isDownSync());
+    ASSERT_TRUE(config.syncDeletions());
+    ASSERT_TRUE(config.forceOverwrite());
+}
 
 #endif
