@@ -24,6 +24,9 @@ REM Comment out any libraries that you won't use.
 REM If using pdfium, follow the instructions below to get the source code
 REM 
 REM Copy this script to your 3rdParty/vcpkg folder, and run it with the desired triplet as the parameter.  (usually x64-windows-mega or x86-windows-mega)
+REM
+REM Once built, optionally capture just the headers and build products with:
+REM vcpkg  export --triplet <YOUR_TRIPLET> --zip zlib cryptopp libsodium sqlite3 openssl c-ares curl libevent libzen libmediainfo ffmpeg gtest libuv libraw icu lcms libjpeg-turbo openjpeg libwebsockets pdfium pdfium-freetype
 
 set TRIPLET=%1%
 
