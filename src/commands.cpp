@@ -4917,6 +4917,9 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, bool nocache)
         arg("ca", 1);
     }
 
+    // The servers are more efficient with this command when it's the only one in the batch
+    batchSeparately = true;
+
     tag = client->reqtag;
 }
 
