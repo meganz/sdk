@@ -155,6 +155,8 @@ else
   echo "* libwebsockets already configured"
 fi
 
+patch -N ${WEBRTC_SRC}/api/jsep.h < ../../patches/webrtc_jsep_h.patch
+
 #link lib/* into libs if libs is not symlink
 if [ ! -L ${CURRENTPATH}/libs ]; then
   pushd ${CURRENTPATH}/libs

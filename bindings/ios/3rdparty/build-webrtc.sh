@@ -45,7 +45,7 @@ done
 popd # lib -> src
 
 pushd api
-patch < ../../../webrtc_jsep_h.patch
+patch < ../../../../../../patches/webrtc_jsep_h.patch
 popd # api -> src
 
 popd # src -> webrtc
