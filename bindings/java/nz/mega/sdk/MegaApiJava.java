@@ -152,6 +152,11 @@ public class MegaApiJava {
     public final static int BUSINESS_STATUS_ACTIVE = MegaApi.BUSINESS_STATUS_ACTIVE;
     public final static int BUSINESS_STATUS_GRACE_PERIOD = MegaApi.BUSINESS_STATUS_GRACE_PERIOD;
 
+    public final static int AFFILIATE_TYPE_INVALID = MegaApi.AFFILIATE_TYPE_INVALID;
+    public final static int AFFILIATE_TYPE_ID = MegaApi.AFFILIATE_TYPE_ID;
+    public final static int AFFILIATE_TYPE_FILE_FOLDER = MegaApi.AFFILIATE_TYPE_FILE_FOLDER;
+    public final static int AFFILIATE_TYPE_CHAT = MegaApi.AFFILIATE_TYPE_CHAT;
+
     public final static int ORDER_NONE = MegaApi.ORDER_NONE;
     public final static int ORDER_DEFAULT_ASC = MegaApi.ORDER_DEFAULT_ASC;
     public final static int ORDER_DEFAULT_DESC = MegaApi.ORDER_DEFAULT_DESC;
