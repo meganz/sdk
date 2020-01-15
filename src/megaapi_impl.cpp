@@ -2102,7 +2102,7 @@ MegaShare *MegaSharePrivate::copy()
     return new MegaSharePrivate(this);
 }
 
-MegaSharePrivate::MegaSharePrivate(uint64_t handle, Share *share, bool pending)
+MegaSharePrivate::MegaSharePrivate(uint64_t handle, Share *share)
 {
     this->nodehandle = handle;
     this->user = share->user ? MegaApi::strdup(share->user->email.c_str()) : NULL;
@@ -2113,12 +2113,12 @@ MegaSharePrivate::MegaSharePrivate(uint64_t handle, Share *share, bool pending)
     }
     this->access = share->access;
     this->ts = share->ts;
-    this->pending = pending;
+    this->pending = share->pcr;
 }
 
-MegaShare *MegaSharePrivate::fromShare(uint64_t nodeuint64_t, Share *share, bool pending)
+MegaShare *MegaSharePrivate::fromShare(uint64_t nodeuint64_t, Share *share)
 {
-    return new MegaSharePrivate(nodeuint64_t, share, pending);
+    return new MegaSharePrivate(nodeuint64_t, share);
 }
 
 MegaSharePrivate::~MegaSharePrivate()
@@ -4467,14 +4467,16 @@ MegaShareListPrivate::MegaShareListPrivate()
     s = 0;
 }
 
-MegaShareListPrivate::MegaShareListPrivate(Share** newlist, uint64_t *uint64_tlist, int size, bool pending)
+MegaShareListPrivate::MegaShareListPrivate(Share** newlist, uint64_t *uint64_tlist, int size)
 {
     list = NULL; s = size;
     if(!size) return;
 
     list = new MegaShare*[size];
     for(int i=0; i<size; i++)
-        list[i] = MegaSharePrivate::fromShare(uint64_tlist[i], newlist[i], pending);
+    {
+        list[i] = MegaSharePrivate::fromShare(uint64_tlist[i], newlist[i]);
+    }
 }
 
 MegaShareListPrivate::~MegaShareListPrivate()
@@ -6695,11 +6697,13 @@ void MegaApiImpl::getPricing(MegaRequestListener *listener)
     waiter->notify();
 }
 
-void MegaApiImpl::getPaymentId(handle productHandle, handle lastPublicHandle, MegaRequestListener *listener)
+void MegaApiImpl::getPaymentId(handle productHandle, handle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_PAYMENT_ID, listener);
     request->setNodeHandle(productHandle);
     request->setParentHandle(lastPublicHandle);
+    request->setParamType(lastPublicHandleType);
+    request->setTransferredBytes(lastAccessTimestamp);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -6713,12 +6717,14 @@ void MegaApiImpl::upgradeAccount(MegaHandle productHandle, int paymentMethod, Me
     waiter->notify();
 }
 
-void MegaApiImpl::submitPurchaseReceipt(int gateway, const char *receipt, MegaHandle lastPublicHandle, MegaRequestListener *listener)
+void MegaApiImpl::submitPurchaseReceipt(int gateway, const char *receipt, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT, listener);
     request->setNumber(gateway);
     request->setText(receipt);
     request->setNodeHandle(lastPublicHandle);
+    request->setParamType(lastPublicHandleType);
+    request->setTransferredBytes(lastAccessTimestamp);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -10440,7 +10446,7 @@ MegaShareList *MegaApiImpl::getPendingOutShares()
 
     PendingOutShareProcessor shareProcessor;
     processTree(client->nodebyhandle(client->rootnodes[0]), &shareProcessor, true);
-    MegaShareList *shareList = new MegaShareListPrivate(shareProcessor.getShares().data(), shareProcessor.getHandles().data(), int(shareProcessor.getShares().size()), true);
+    MegaShareList *shareList = new MegaShareListPrivate(shareProcessor.getShares().data(), shareProcessor.getHandles().data(), int(shareProcessor.getShares().size()));
 
     sdkMutex.unlock();
     return shareList;
@@ -10469,7 +10475,7 @@ MegaShareList *MegaApiImpl::getPendingOutShares(MegaNode *megaNode)
         vHandles.push_back(node->nodehandle);
     }
 
-    MegaShareList *shareList = new MegaShareListPrivate(vShares.data(), vHandles.data(), int(vShares.size()), true);
+    MegaShareList *shareList = new MegaShareListPrivate(vShares.data(), vHandles.data(), int(vShares.size()));
     sdkMutex.unlock();
     return shareList;
 }
@@ -13489,12 +13495,15 @@ void MegaApiImpl::enumeratequotaitems_result(error e)
         {
             if (pricing->getHandle(i) == request->getNodeHandle())
             {
+                int phtype = request->getParamType();
+                int64_t ts = request->getTransferredBytes();
                 requestMap.erase(request->getTag());
                 int nextTag = client->nextreqtag();
                 request->setTag(nextTag);
                 requestMap[nextTag]=request;
                 client->purchase_additem(0, request->getNodeHandle(), pricing->getAmount(i),
-                                         pricing->getCurrency(i), 0, NULL, request->getParentHandle());
+                                         pricing->getCurrency(i), 0, NULL, request->getParentHandle(),
+                                         phtype, ts);
                 break;
             }
         }
@@ -15175,10 +15184,10 @@ void MegaApiImpl::multifactorauthdisable_result(error e)
 
 void MegaApiImpl::fetchtimezone_result(error e, vector<std::string> *timezones, vector<int> *timezoneoffsets, int defaulttz)
 {
-    MegaTimeZoneDetails *tzDetails = NULL;
+    unique_ptr<MegaTimeZoneDetails> tzDetails;
     if (!e)
     {
-        tzDetails = new MegaTimeZoneDetailsPrivate(timezones, timezoneoffsets, defaulttz);
+        tzDetails.reset(new MegaTimeZoneDetailsPrivate(timezones, timezoneoffsets, defaulttz));
 
         // update the cached timezones for notifications filtering
         delete mTimezones;
@@ -15195,8 +15204,7 @@ void MegaApiImpl::fetchtimezone_result(error e, vector<std::string> *timezones, 
         return;
     }
 
-    request->setTimeZoneDetails(tzDetails);
-    delete tzDetails;
+    request->setTimeZoneDetails(tzDetails.get());
     fireOnRequestFinish(request, MegaError(e));
 }
 
@@ -16535,7 +16543,7 @@ void MegaApiImpl::sortByComparatorFunction(node_vector& v, int order, MegaClient
 bool MegaApiImpl::nodeNaturalComparatorASC(Node *i, Node *j)
 {
     int r = naturalsorting_compare(i->displayname(), j->displayname());
-    if (r < 0 || (!r && i < j))
+    if (r < 0)
     {
         return 1;
     }
@@ -16545,7 +16553,7 @@ bool MegaApiImpl::nodeNaturalComparatorASC(Node *i, Node *j)
 bool MegaApiImpl::nodeNaturalComparatorDESC(Node *i, Node *j)
 {
     int r = naturalsorting_compare(i->displayname(), j->displayname());
-    if (r < 0 || (!r && i < j))
+    if (r <= 0)
     {
         return 0;
     }
@@ -17666,6 +17674,8 @@ unsigned MegaApiImpl::sendPendingTransfers()
                             forceToUpload= hasToForceUpload(*previousNode, *transfer);
                             if (!forceToUpload)
                             {
+                                pendingUploads++;
+                                totalUploads++;
                                 transfer->setState(MegaTransfer::STATE_QUEUED);
                                 transferMap[nextTag] = transfer;
                                 transfer->setTag(nextTag);
@@ -17679,6 +17689,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                                 transfer->setSpeed(0);
                                 transfer->setMeanSpeed(0);
                                 transfer->setState(MegaTransfer::STATE_COMPLETED);
+                                pendingUploads--;
                                 fireOnTransferFinish(transfer, MegaError(API_OK), committer);
                                 break;
                             }
@@ -17692,6 +17703,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                         if (samenode && samenode->nodekey().size() && !hasToForceUpload(*samenode, *transfer))
                         {
                             pendingUploads++;
+                            totalUploads++;
                             transfer->setState(MegaTransfer::STATE_QUEUED);
                             transferMap[nextTag] = transfer;
                             transfer->setTag(nextTag);
@@ -20637,6 +20649,8 @@ void MegaApiImpl::sendPendingRequests()
             const char* receipt = request->getText();
             int type = int(request->getNumber());
             handle lph = request->getNodeHandle();
+            int phtype = request->getParamType();
+            int64_t ts = request->getTransferredBytes();
 
             if(!receipt || (type != MegaApi::PAYMENT_METHOD_GOOGLE_WALLET
                             && type != MegaApi::PAYMENT_METHOD_ITUNES
@@ -20665,7 +20679,7 @@ void MegaApiImpl::sendPendingRequests()
                 base64receipt = receipt;
             }
 
-            client->submitpurchasereceipt(type, base64receipt.c_str(), lph);
+            client->submitpurchasereceipt(type, base64receipt.c_str(), lph, phtype, ts);
             break;
         }
         case MegaRequest::TYPE_CREDIT_CARD_STORE:
@@ -22369,7 +22383,7 @@ bool OutShareProcessor::processNode(Node *node)
         for (share_map::iterator it = node->pendingshares->begin(); it != node->pendingshares->end(); it++)
         {
             Share *share = it->second;
-            if (share->user) // public links have no user
+            if (share->user || share->pcr) // public links have no user
             {
                 mShares.push_back(share);
                 mNodes.push_back(node);

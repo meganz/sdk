@@ -27,7 +27,7 @@
 namespace mega {
 
 // pending contact request
-struct MEGA_API PendingContactRequest : public Cachable
+struct MEGA_API PendingContactRequest : public Cacheable
 {
     // id of the request
     handle id;
@@ -61,8 +61,8 @@ struct MEGA_API PendingContactRequest : public Cachable
         bool reminded : 1;
     } changed;
 
-    bool serialize(string*);
-    static PendingContactRequest* unserialize(class MegaClient *, string*);
+    bool serialize(string*) override;
+    static PendingContactRequest* unserialize(string*);
 
     PendingContactRequest(const handle id, const char *oemail, const char *temail, const m_time_t ts, const m_time_t uts, const char *msg, bool outgoing);
     PendingContactRequest(const handle id); // for dummy requests during gettree/fetchnodes

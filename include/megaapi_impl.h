@@ -372,7 +372,7 @@ public:
     void onTransferFinish(MegaApi*, MegaTransfer *t, MegaError *e) override;
 };
 
-class MegaNodePrivate : public MegaNode, public Cachable
+class MegaNodePrivate : public MegaNode, public Cacheable
 {
     public:
         MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime,
@@ -591,7 +591,7 @@ private:
 class MegaSharePrivate : public MegaShare
 {
 	public:
-        static MegaShare *fromShare(MegaHandle nodeMegaHandle, Share *share, bool pending = false);
+        static MegaShare *fromShare(MegaHandle nodeMegaHandle, Share *share);
         virtual MegaShare *copy();
         virtual ~MegaSharePrivate();
         virtual const char *getUser();
@@ -601,7 +601,7 @@ class MegaSharePrivate : public MegaShare
         virtual bool isPending();
 
 	protected:
-        MegaSharePrivate(MegaHandle nodehandle, Share *share, bool pending = false);
+        MegaSharePrivate(MegaHandle nodehandle, Share *share);
 		MegaSharePrivate(MegaShare *share);
 
 		MegaHandle nodehandle;
@@ -611,7 +611,7 @@ class MegaSharePrivate : public MegaShare
         bool pending;
 };
 
-class MegaTransferPrivate : public MegaTransfer, public Cachable
+class MegaTransferPrivate : public MegaTransfer, public Cacheable
 {
 	public:
 		MegaTransferPrivate(int type, MegaTransferListener *listener = NULL);
@@ -699,7 +699,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         virtual unsigned long long getPriority() const;
         virtual long long getNotificationNumber() const;
 
-        virtual bool serialize(string*);
+        bool serialize(string*) override;
         static MegaTransferPrivate* unserialize(string*);
 
         void startRecursiveOperation(unique_ptr<MegaRecursiveOperation>, MegaNode* node); // takes ownership of both
@@ -1622,7 +1622,7 @@ class MegaShareListPrivate : public MegaShareList
 {
 	public:
         MegaShareListPrivate();
-        MegaShareListPrivate(Share** newlist, MegaHandle *MegaHandlelist, int size, bool pending = false);
+        MegaShareListPrivate(Share** newlist, MegaHandle *MegaHandlelist, int size);
         virtual ~MegaShareListPrivate();
         virtual MegaShare* get(int i);
         virtual int size();
@@ -1776,7 +1776,7 @@ struct MegaFile : public File
 
     void setTransfer(MegaTransferPrivate *transfer);
     MegaTransferPrivate *getTransfer();
-    virtual bool serialize(string*);
+    bool serialize(string*) override;
 
     static MegaFile* unserialize(string*);
 
@@ -1795,7 +1795,7 @@ struct MegaFileGet : public MegaFile
     MegaFileGet(MegaClient *client, MegaNode* n, string dstPath);
     ~MegaFileGet() {}
 
-    virtual bool serialize(string*);
+    bool serialize(string*) override;
     static MegaFileGet* unserialize(string*);
 
 private:
@@ -1809,7 +1809,7 @@ struct MegaFilePut : public MegaFile
     MegaFilePut(MegaClient *client, string* clocalname, string *filename, handle ch, const char* ctargetuser, int64_t mtime = -1, bool isSourceTemporary = false);
     ~MegaFilePut() {}
 
-    virtual bool serialize(string*);
+    bool serialize(string*) override;
     static MegaFilePut* unserialize(string*);
 
 protected:
@@ -2128,9 +2128,9 @@ class MegaApiImpl : public MegaApp
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
         void fetchNodes(MegaRequestListener *listener = NULL);
         void getPricing(MegaRequestListener *listener = NULL);
-        void getPaymentId(handle productHandle, handle lastPublicHandle, MegaRequestListener *listener = NULL);
+        void getPaymentId(handle productHandle, handle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener = NULL);
         void upgradeAccount(MegaHandle productHandle, int paymentMethod, MegaRequestListener *listener = NULL);
-        void submitPurchaseReceipt(int gateway, const char* receipt, MegaHandle lastPublicHandle, MegaRequestListener *listener = NULL);
+        void submitPurchaseReceipt(int gateway, const char *receipt, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener = NULL);
         void creditCardStore(const char* address1, const char* address2, const char* city,
                              const char* province, const char* country, const char *postalcode,
                              const char* firstname, const char* lastname, const char* creditcard,
