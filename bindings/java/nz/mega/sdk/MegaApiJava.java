@@ -62,6 +62,14 @@ public class MegaApiJava {
     static Set<DelegateMegaTreeProcessor> activeMegaTreeProcessors = Collections.synchronizedSet(new LinkedHashSet<DelegateMegaTreeProcessor>());
     static Set<DelegateMegaTransferListener> activeHttpServerListeners = Collections.synchronizedSet(new LinkedHashSet<DelegateMegaTransferListener>());
 
+    /**
+     * INVALID_HANDLE Invalid value for a handle
+     *
+     * This value is used to represent an invalid handle. Several MEGA objects can have
+     * a handle but it will never be INVALID_HANDLE.
+     */
+    public final static long INVALID_HANDLE = ~(long)0;
+
     // Very severe error event that will presumably lead the application to abort.
     public final static int LOG_LEVEL_FATAL = MegaApi.LOG_LEVEL_FATAL;
     // Error information but application will continue run.
