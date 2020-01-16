@@ -37,7 +37,7 @@ bool DbTable::put(uint32_t index, string* data)
 }
 
 // add or update record with padding and encryption
-bool DbTable::put(uint32_t type, Cachable* record, SymmCipher* key)
+bool DbTable::put(uint32_t type, Cacheable* record, SymmCipher* key)
 {
     string data;
 

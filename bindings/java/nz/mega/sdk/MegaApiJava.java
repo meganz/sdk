@@ -4157,36 +4157,23 @@ public class MegaApiJava {
     }
 
     /**
-     * Get the payment id for an upgrade.
-     * <p>
-     * The associated request type with this request is MegaRequest.TYPE_GET_PAYMENT_ID
-     * Valid data in the MegaRequest object received on callbacks: <br>
-     * - MegaRequest.getNodeHandle() - Returns the handle of the product.
-     * <p>
-     * Valid data in the MegaRequest object received in onRequestFinish() when the error code
-     * is MegaError.API_OK: <br>
-     * - MegaRequest.getLink() - Payment link.
-     * 
-     * @param productHandle
-     *            Handle of the product (see MegaApiJava.getPricing()).
-     * @param listener
-     *            MegaRequestListener to track this request.
-     * @see #getPricing()
+     * Get the payment URL for an upgrade
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_PAYMENT_ID
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the product
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getLink - Payment ID
+     *
+     * @param productHandle Handle of the product (see MegaApi::getPricing)
+     * @param listener MegaRequestListener to track this request
+     *
+     * @see MegaApi::getPricing
      */
     public void getPaymentId(long productHandle, MegaRequestListenerInterface listener) {
         megaApi.getPaymentId(productHandle, createDelegateRequestListener(listener));
-    }
-
-    /**
-     * Get the payment URL for an upgrade.
-     * 
-     * @param productHandle
-     *            Handle of the product (see MegaApiJava.getPricing()).
-     * 
-     * @see #getPricing()
-     */
-    public void getPaymentId(long productHandle) {
-        megaApi.getPaymentId(productHandle);
     }
 
     /**
@@ -4201,7 +4188,27 @@ public class MegaApiJava {
      * - MegaRequest::getLink - Payment ID
      *
      * @param productHandle Handle of the product (see MegaApi::getPricing)
-     * @param lastPublicHandle Last public handle accessed by the user in the last 24h
+     *
+     * @see MegaApi::getPricing
+     */
+    public void getPaymentId(long productHandle) {
+        megaApi.getPaymentId(productHandle);
+    }
+
+    /**
+     * Get the payment URL for an upgrade
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_PAYMENT_ID
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the product
+     * - MegaRequest::getParentHandle - Returns the last public node handle accessed
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getLink - Payment ID
+     *
+     * @param productHandle Handle of the product (see MegaApi::getPricing)
+     * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
      * @param listener MegaRequestListener to track this request
      *
      * @see MegaApi::getPricing
@@ -4216,18 +4223,78 @@ public class MegaApiJava {
      * The associated request type with this request is MegaRequest::TYPE_GET_PAYMENT_ID
      * Valid data in the MegaRequest object received on callbacks:
      * - MegaRequest::getNodeHandle - Returns the handle of the product
+     * - MegaRequest::getParentHandle - Returns the last public node handle accessed
      *
      * Valid data in the MegaRequest object received in onRequestFinish when the error code
      * is MegaError::API_OK:
      * - MegaRequest::getLink - Payment ID
      *
      * @param productHandle Handle of the product (see MegaApi::getPricing)
-     * @param lastPublicHandle Last public handle accessed by the user in the last 24h
+     * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
      *
      * @see MegaApi::getPricing
      */
     public void getPaymentId(long productHandle, long lastPublicHandle) {
         megaApi.getPaymentId(productHandle, lastPublicHandle);
+    }
+
+    /**
+     * Get the payment URL for an upgrade
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_PAYMENT_ID
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the product
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getLink - Payment ID
+     * - MegaRequest::getParentHandle - Returns the last public node handle accessed
+     * - MegaRequest::getParamType - Returns the type of lastPublicHandle
+     * - MegaRequest::getTransferredBytes - Returns the timestamp of the last access
+     *
+     * @param productHandle Handle of the product (see MegaApi::getPricing)
+     * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
+     * @param lastPublicHandleType Indicates the type of lastPublicHandle, valid values are:
+     *      - MegaApi::AFFILIATE_TYPE_ID = 1
+     *      - MegaApi::AFFILIATE_TYPE_FILE_FOLDER = 2
+     *      - MegaApi::AFFILIATE_TYPE_CHAT = 3
+     *
+     * @param lastAccessTimestamp Timestamp of the last access
+     * @param listener MegaRequestListener to track this request
+     * @see MegaApi::getPricing
+     */
+    public void getPaymentId(long productHandle, long lastPublicHandle, int lastPublicHandleType,
+                             long lastAccessTimestamp, MegaRequestListenerInterface listener) {
+        megaApi.getPaymentId(productHandle, lastPublicHandle, lastPublicHandleType,
+                lastAccessTimestamp, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Get the payment URL for an upgrade
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_PAYMENT_ID
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the product
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getLink - Payment ID
+     * - MegaRequest::getParentHandle - Returns the last public node handle accessed
+     * - MegaRequest::getParamType - Returns the type of lastPublicHandle
+     * - MegaRequest::getTransferredBytes - Returns the timestamp of the last access
+     *
+     * @param productHandle Handle of the product (see MegaApi::getPricing)
+     * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
+     * @param lastPublicHandleType Indicates the type of lastPublicHandle, valid values are:
+     *      - MegaApi::AFFILIATE_TYPE_ID = 1
+     *      - MegaApi::AFFILIATE_TYPE_FILE_FOLDER = 2
+     *      - MegaApi::AFFILIATE_TYPE_CHAT = 3
+     *
+     * @param lastAccessTimestamp Timestamp of the last access
+     * @see MegaApi::getPricing
+     */
+    public void getPaymentId(long productHandle, long lastPublicHandle, int lastPublicHandleType, long lastAccessTimestamp) {
+        megaApi.getPaymentId(productHandle, lastPublicHandle, lastPublicHandleType, lastAccessTimestamp);
     }
 
     /**
@@ -4279,33 +4346,12 @@ public class MegaApiJava {
     }
 
     /**
-     * Send the Google Play receipt after a correct purchase of a subscription.
-     * 
-     * @param receipt
-     *            String The complete receipt from Google Play.
-     * @param listener
-     *            MegaRequestListener to track this request.
-     * 
-     */
-    public void submitPurchaseReceipt(String receipt, MegaRequestListenerInterface listener) {
-        megaApi.submitPurchaseReceipt(receipt, createDelegateRequestListener(listener));
-    }
-
-    /**
-     * Send the Google Play receipt after a correct purchase of a subscription.
-     * 
-     * @param receipt
-     *            String The complete receipt from Google Play.
-     * 
-     */
-    public void submitPurchaseReceipt(String receipt) {
-        megaApi.submitPurchaseReceipt(receipt);
-    }
-
-    /**
      * Submit a purchase receipt for verification
      *
      * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNumber - Returns the payment gateway
+     * - MegaRequest::getText - Returns the purchase receipt
      *
      * @param gateway Payment gateway
      * Currently supported payment gateways are:
@@ -4324,6 +4370,9 @@ public class MegaApiJava {
      * Submit a purchase receipt for verification
      *
      * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNumber - Returns the payment gateway
+     * - MegaRequest::getText - Returns the purchase receipt
      *
      * @param gateway Payment gateway
      * Currently supported payment gateways are:
@@ -4341,6 +4390,10 @@ public class MegaApiJava {
      * Submit a purchase receipt for verification
      *
      * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNumber - Returns the payment gateway
+     * - MegaRequest::getText - Returns the purchase receipt
+     * - MegaRequest::getParentHandle - Returns the last public node handle accessed
      *
      * @param gateway Payment gateway
      * Currently supported payment gateways are:
@@ -4349,7 +4402,7 @@ public class MegaApiJava {
      * - MegaApi::PAYMENT_METHOD_WINDOWS_STORE = 13
      *
      * @param receipt Purchase receipt
-     * @param lastPublicHandle Last public handle accessed by the user in the last 24h
+     * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
      * @param listener MegaRequestListener to track this request
      */
     public void submitPurchaseReceipt(int gateway, String receipt, long lastPublicHandle, MegaRequestListenerInterface listener) {
@@ -4360,6 +4413,10 @@ public class MegaApiJava {
      * Submit a purchase receipt for verification
      *
      * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNumber - Returns the payment gateway
+     * - MegaRequest::getText - Returns the purchase receipt
+     * - MegaRequest::getParentHandle - Returns the last public node handle accessed
      *
      * @param gateway Payment gateway
      * Currently supported payment gateways are:
@@ -4368,10 +4425,73 @@ public class MegaApiJava {
      * - MegaApi::PAYMENT_METHOD_WINDOWS_STORE = 13
      *
      * @param receipt Purchase receipt
-     * @param lastPublicHandle Last public handle accessed by the user in the last 24h
+     * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
      */
     public void submitPurchaseReceipt(int gateway, String receipt, long lastPublicHandle) {
         megaApi.submitPurchaseReceipt(gateway, receipt, lastPublicHandle);
+    }
+
+    /**
+     * Submit a purchase receipt for verification
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNumber - Returns the payment gateway
+     * - MegaRequest::getText - Returns the purchase receipt
+     * - MegaRequest::getParentHandle - Returns the last public node handle accessed
+     * - MegaRequest::getParamType - Returns the type of lastPublicHandle
+     * - MegaRequest::getTransferredBytes - Returns the timestamp of the last access
+     *
+     * @param gateway Payment gateway
+     * Currently supported payment gateways are:
+     * - MegaApi::PAYMENT_METHOD_ITUNES = 2
+     * - MegaApi::PAYMENT_METHOD_GOOGLE_WALLET = 3
+     * - MegaApi::PAYMENT_METHOD_WINDOWS_STORE = 13
+     *
+     * @param receipt Purchase receipt
+     * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
+     * @param lastPublicHandleType Indicates the type of lastPublicHandle, valid values are:
+     *      - MegaApi::AFFILIATE_TYPE_ID = 1
+     *      - MegaApi::AFFILIATE_TYPE_FILE_FOLDER = 2
+     *      - MegaApi::AFFILIATE_TYPE_CHAT = 3
+     *
+     * @param lastAccessTimestamp Timestamp of the last access
+     * @param listener MegaRequestListener to track this request
+     */
+    public void submitPurchaseReceipt(int gateway, String receipt, long lastPublicHandle, int lastPublicHandleType,
+                               long lastAccessTimestamp, MegaRequestListenerInterface listener) {
+        megaApi.submitPurchaseReceipt(gateway, receipt, lastPublicHandle, lastPublicHandleType,
+                lastAccessTimestamp, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Submit a purchase receipt for verification
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNumber - Returns the payment gateway
+     * - MegaRequest::getText - Returns the purchase receipt
+     * - MegaRequest::getParentHandle - Returns the last public node handle accessed
+     * - MegaRequest::getParamType - Returns the type of lastPublicHandle
+     * - MegaRequest::getTransferredBytes - Returns the timestamp of the last access
+     *
+     * @param gateway Payment gateway
+     * Currently supported payment gateways are:
+     * - MegaApi::PAYMENT_METHOD_ITUNES = 2
+     * - MegaApi::PAYMENT_METHOD_GOOGLE_WALLET = 3
+     * - MegaApi::PAYMENT_METHOD_WINDOWS_STORE = 13
+     *
+     * @param receipt Purchase receipt
+     * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
+     * @param lastPublicHandleType Indicates the type of lastPublicHandle, valid values are:
+     *      - MegaApi::AFFILIATE_TYPE_ID = 1
+     *      - MegaApi::AFFILIATE_TYPE_FILE_FOLDER = 2
+     *      - MegaApi::AFFILIATE_TYPE_CHAT = 3
+     *
+     * @param lastAccessTimestamp Timestamp of the last access
+     */
+    public void submitPurchaseReceipt(int gateway, String receipt, long lastPublicHandle, int lastPublicHandleType, long lastAccessTimestamp) {
+        megaApi.submitPurchaseReceipt(gateway, receipt, lastPublicHandle, lastPublicHandleType, lastAccessTimestamp);
     }
 
     /**
@@ -4906,6 +5026,44 @@ public class MegaApiJava {
      */
     void getCameraUploadsFolderSecondary(MegaRequestListenerInterface listener){
         megaApi.getCameraUploadsFolderSecondary(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Gets the alias for an user
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_ALIAS
+     * - MegaRequest::getNodeHandle - user handle in binary
+     * - MegaRequest::getText - user handle encoded in B64
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getName - Returns the user alias
+     *
+     * If the user alias doesn't exists the request will fail with the error code MegaError::API_ENOENT.
+     *
+     * @param uh handle of the user in binary
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getUserAlias(long uh, MegaRequestListenerInterface listener) {
+        megaApi.getUserAlias(uh, createDelegateRequestListener(listener));
+    }
+    /**
+     * Set or reset an alias for a user
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_ALIAS
+     * - MegaRequest::getNodeHandle - Returns the user handle in binary
+     * - MegaRequest::getText - Returns the user alias
+     *
+     * @param uh handle of the user in binary
+     * @param alias the user alias, or null to reset the existing
+     * @param listener MegaRequestListener to track this request
+     */
+    public void setUserAlias(long uh, String alias, MegaRequestListenerInterface listener) {
+        megaApi.setUserAlias(uh, alias, createDelegateRequestListener(listener));
     }
 
     /**
@@ -6815,12 +6973,27 @@ public class MegaApiJava {
     /**
      * Get a list with all inbound shares from one MegaUser.
      * 
-     * @param user
-     *            MegaUser sharing folders with this account.
+     * @param user MegaUser sharing folders with this account.
      * @return List of MegaNode objects that this user is sharing with this account.
      */
     public ArrayList<MegaNode> getInShares(MegaUser user) {
         return nodeListToArray(megaApi.getInShares(user));
+    }
+
+    /**
+     * Get a list with all inbound shares from one MegaUser.
+     *
+     * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
+     * MegaApi::ORDER_DEFAULT_DESC
+     *
+     * You take the ownership of the returned value
+     *
+     * @param user MegaUser sharing folders with this account.
+     * @param order Sorting order to use
+     * @return List of MegaNode objects that this user is sharing with this account.
+     */
+    public ArrayList<MegaNode> getInShares(MegaUser user, int order) {
+        return nodeListToArray(megaApi.getInShares(user, order));
     }
 
     /**
@@ -6830,6 +7003,21 @@ public class MegaApiJava {
      */
     public ArrayList<MegaNode> getInShares() {
         return nodeListToArray(megaApi.getInShares());
+    }
+
+    /**
+     * Get a list with all inbound shares.
+     *
+     * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
+     * MegaApi::ORDER_DEFAULT_DESC
+     *
+     * You take the ownership of the returned value
+     *
+     * @param order Sorting order to use
+     * @return List of MegaNode objects that other users are sharing with this account.
+     */
+    public ArrayList<MegaNode> getInShares(int order) {
+        return nodeListToArray(megaApi.getInShares(order));
     }
     
     /**
@@ -6844,23 +7032,18 @@ public class MegaApiJava {
     }
 
     /**
-     * Get the user relative to an incoming share
+     * Get a list with all active inboud sharings
      *
-     * This function will return NULL if the node is not found.
-     *
-     * If recurse is true, it will return NULL if the root corresponding to
-     * the node received as argument doesn't represent the root of an incoming share.
-     * Otherwise, it will return NULL if the node doesn't represent
-     * the root of an incoming share.
+     * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
+     * MegaApi::ORDER_DEFAULT_DESC
      *
      * You take the ownership of the returned value
      *
-     * @param node Node to look for inshare user.
-     * @param recurse use root node corresponding to the node passed
-     * @return MegaUser relative to the incoming share
+     * @param order Sorting order to use
+     * @return List of MegaShare objects that other users are sharing with this account
      */
-    public MegaUser getUserFromInShare(MegaNode node, boolean recurse) {
-        return megaApi.getUserFromInShare(node, recurse);
+    public ArrayList<MegaShare> getInSharesList(int order) {
+        return shareListToArray(megaApi.getInSharesList(order));
     }
 
     /**
@@ -6883,14 +7066,36 @@ public class MegaApiJava {
     }
 
     /**
-     * Check if a MegaNode is being shared.
-     * <p>
+     * Get the user relative to an incoming share
+     *
+     * This function will return NULL if the node is not found.
+     *
+     * When recurse is true and the root of the specified node is not an incoming share,
+     * this function will return NULL.
+     * When recurse is false and the specified node doesn't represent the root of an
+     * incoming share, this function will return NULL.
+     *
+     * You take the ownership of the returned value
+     *
+     * @param node Node to look for inshare user.
+     * @param recurse use root node corresponding to the node passed
+     * @return MegaUser relative to the incoming share
+     */
+    public MegaUser getUserFromInShare(MegaNode node, boolean recurse) {
+        return megaApi.getUserFromInShare(node, recurse);
+    }
+
+    /**
+     * Check if a MegaNode is being shared by/with your own user
+     *
      * For nodes that are being shared, you can get a a list of MegaShare
-     * objects using MegaApiJava.getOutShares().
+     * objects using MegaApiJava.getOutShares(), or a list of MegaNode objects
+     * using MegaApi::getInShares
      * 
-     * @param node
-     *            Node to check.
+     * @param node Node to check.
      * @return true is the MegaNode is being shared, otherwise false.
+     * @deprecated This function is intended for debugging and internal purposes and will be probably removed in future updates.
+     * Use MegaNode::isShared instead
      */
     public boolean isShared(MegaNode node) {
         return megaApi.isShared(node);
@@ -6941,7 +7146,7 @@ public class MegaApiJava {
     }
 
     /**
-     * Get a list with all active outbound shares.
+     * Get a list with all active and pending outbound sharings
      * 
      * @return List of MegaShare objects.
      */
@@ -6950,12 +7155,28 @@ public class MegaApiJava {
     }
 
     /**
-     * Get a list with the active outbound shares for a MegaNode.
-     * <p>
-     * If the node does not exist in the account, this function returns an empty list.
-     * 
-     * @param node
-     *            MegaNode to check.
+     * Get a list with the active and pending outbound sharings for a MegaNode
+     *
+     * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
+     * MegaApi::ORDER_DEFAULT_DESC
+     *
+     * You take the ownership of the returned value
+     *
+     * @param order Sorting order to use
+     * @return List of MegaShare objects.
+     */
+    public ArrayList<MegaShare> getOutShares(int order) {
+        return shareListToArray(megaApi.getOutShares(order));
+    }
+
+    /**
+     * Get a list with the active and pending outbound sharings for a MegaNode
+     *
+     * If the node doesn't exist in the account, this function returns an empty list.
+     *
+     * You take the ownership of the returned value
+     *
+     * @param node MegaNode to check.
      * @return List of MegaShare objects.
      */
     public ArrayList<MegaShare> getOutShares(MegaNode node) {
@@ -6963,19 +7184,25 @@ public class MegaApiJava {
     }
 
     /**
-     * Get a list with all pending outbound shares.
+     * Get a list with all pending outbound sharings
      *
-     * @return List of MegaShare objects.
+     * You take the ownership of the returned value
+     *
+     * @return List of MegaShare objects
+     * @deprecated Use MegaNode::getOutShares instead of this function
      */
     public ArrayList<MegaShare> getPendingOutShares() {
         return shareListToArray(megaApi.getPendingOutShares());
     }
 
     /**
-     * Get a list with all pending outbound shares.
+     * Get a list with all pending outbound sharings
+     *
+     * You take the ownership of the returned value
      *
      * @param node MegaNode to check.
      * @return List of MegaShare objects.
+     * @deprecated Use MegaNode::getOutShares instead of this function
      */
     public ArrayList<MegaShare> getPendingOutShares(MegaNode node) {
         return shareListToArray(megaApi.getPendingOutShares(node));
@@ -6991,9 +7218,26 @@ public class MegaApiJava {
     public ArrayList<MegaNode> getPublicLinks() {
     	return nodeListToArray(megaApi.getPublicLinks());
     }
+
+    /**
+     * Get a list with all public links
+     *
+     * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
+     * MegaApi::ORDER_DEFAULT_DESC
+     *
+     * You take the ownership of the returned value
+     *
+     * @param order Sorting order to use
+     * @return List of MegaNode objects that are shared with everyone via public link
+     */
+    public ArrayList<MegaNode> getPublicLinks(int order) {
+        return nodeListToArray(megaApi.getPublicLinks(order));
+    }
     
     /**
      * Get a list with all incoming contact requests.
+     *
+     * You take the ownership of the returned value
      *
      * @return List of MegaContactRequest objects.
      */
@@ -7003,6 +7247,8 @@ public class MegaApiJava {
 
     /**
      * Get a list with all outgoing contact requests.
+     *
+     * You take the ownership of the returned value
      *
      * @return List of MegaContactRequest objects.
      */

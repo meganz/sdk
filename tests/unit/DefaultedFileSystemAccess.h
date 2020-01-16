@@ -27,6 +27,12 @@ namespace mt {
 class DefaultedFileSystemAccess : public mega::FileSystemAccess
 {
 public:
+    DefaultedFileSystemAccess()
+    {
+        notifyerr = false;
+        notifyfailed = true;
+        localseparator = "/";
+    }
     std::unique_ptr<mega::FileAccess> newfileaccess(bool followSymLinks = true) override
     {
         throw NotImplemented{__func__};

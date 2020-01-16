@@ -51,17 +51,26 @@ struct Base64Str
     char chars[STRLEN + 1]; // sizeof(chars) can be larger due to alignment etc
     Base64Str(const byte* b)
     {
-        int n = Base64::btoa(b, BINARYSIZE, chars);
+        #ifndef NDEBUG
+        int n = 
+        #endif
+        Base64::btoa(b, BINARYSIZE, chars);
         assert(static_cast<size_t>(n + 1) == sizeof(chars));
     }
     Base64Str(const byte* b, int size)
     {
-        int n = Base64::btoa(b, size, chars);
+        #ifndef NDEBUG
+        int n =
+        #endif
+        Base64::btoa(b, size, chars);
         assert(static_cast<size_t>(n + 1) <= sizeof(chars));
     }
     Base64Str(const handle& h)
     {
-        int n = Base64::btoa((const byte*)&h, BINARYSIZE, chars);
+        #ifndef NDEBUG
+        int n =
+        #endif
+        Base64::btoa((const byte*)&h, BINARYSIZE, chars);
         assert(static_cast<size_t>(n + 1) == sizeof(chars));
     }
     operator const char* () const
