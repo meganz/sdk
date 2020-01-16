@@ -2364,7 +2364,7 @@ using namespace mega;
     self.megaApi->setPushNotificationSettings(pushNotificationSettings.getCPtr);
 }
 
-#pragma mark - Debug log messages
+#pragma mark - Debug
 
 + (void)setLogLevel:(MEGALogLevel)logLevel {
     MegaApi::setLogLevel((int)logLevel);
@@ -2384,6 +2384,14 @@ using namespace mega;
 
 + (void)logWithLevel:(MEGALogLevel)logLevel message:(NSString *)message {
     MegaApi::log((int)logLevel, (message != nil) ? [message UTF8String] : NULL);
+}
+
+- (void)sendEvent:(NSInteger)eventType message:(NSString *)message delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->sendEvent((int)eventType, message.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)sendEvent:(NSInteger)eventType message:(NSString *)message {
+    self.megaApi->sendEvent((int)eventType, message.UTF8String);
 }
 
 #pragma mark - Private methods
