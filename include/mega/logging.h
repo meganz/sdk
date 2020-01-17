@@ -280,6 +280,13 @@ class SimpleLogger
     {
         copyToBuffer(value.begin(), static_cast<DiffType>(value.size()));
     }
+
+#ifdef _WIN32
+    void logValue(const std::wstring& value)
+    {
+        copyToBuffer(value.begin(), static_cast<DiffType>(value.size()));
+    }
+#endif
 #endif
 
 public:
