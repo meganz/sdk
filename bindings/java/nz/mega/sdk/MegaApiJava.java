@@ -62,6 +62,14 @@ public class MegaApiJava {
     static Set<DelegateMegaTreeProcessor> activeMegaTreeProcessors = Collections.synchronizedSet(new LinkedHashSet<DelegateMegaTreeProcessor>());
     static Set<DelegateMegaTransferListener> activeHttpServerListeners = Collections.synchronizedSet(new LinkedHashSet<DelegateMegaTransferListener>());
 
+    /**
+     * INVALID_HANDLE Invalid value for a handle
+     *
+     * This value is used to represent an invalid handle. Several MEGA objects can have
+     * a handle but it will never be INVALID_HANDLE.
+     */
+    public final static long INVALID_HANDLE = ~(long)0;
+
     // Very severe error event that will presumably lead the application to abort.
     public final static int LOG_LEVEL_FATAL = MegaApi.LOG_LEVEL_FATAL;
     // Error information but application will continue run.
@@ -151,6 +159,11 @@ public class MegaApiJava {
     public final static int BUSINESS_STATUS_INACTIVE = MegaApi.BUSINESS_STATUS_INACTIVE;
     public final static int BUSINESS_STATUS_ACTIVE = MegaApi.BUSINESS_STATUS_ACTIVE;
     public final static int BUSINESS_STATUS_GRACE_PERIOD = MegaApi.BUSINESS_STATUS_GRACE_PERIOD;
+
+    public final static int AFFILIATE_TYPE_INVALID = MegaApi.AFFILIATE_TYPE_INVALID;
+    public final static int AFFILIATE_TYPE_ID = MegaApi.AFFILIATE_TYPE_ID;
+    public final static int AFFILIATE_TYPE_FILE_FOLDER = MegaApi.AFFILIATE_TYPE_FILE_FOLDER;
+    public final static int AFFILIATE_TYPE_CHAT = MegaApi.AFFILIATE_TYPE_CHAT;
 
     public final static int ORDER_NONE = MegaApi.ORDER_NONE;
     public final static int ORDER_DEFAULT_ASC = MegaApi.ORDER_DEFAULT_ASC;
@@ -4157,36 +4170,23 @@ public class MegaApiJava {
     }
 
     /**
-     * Get the payment id for an upgrade.
-     * <p>
-     * The associated request type with this request is MegaRequest.TYPE_GET_PAYMENT_ID
-     * Valid data in the MegaRequest object received on callbacks: <br>
-     * - MegaRequest.getNodeHandle() - Returns the handle of the product.
-     * <p>
-     * Valid data in the MegaRequest object received in onRequestFinish() when the error code
-     * is MegaError.API_OK: <br>
-     * - MegaRequest.getLink() - Payment link.
-     * 
-     * @param productHandle
-     *            Handle of the product (see MegaApiJava.getPricing()).
-     * @param listener
-     *            MegaRequestListener to track this request.
-     * @see #getPricing()
+     * Get the payment URL for an upgrade
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_PAYMENT_ID
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the product
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getLink - Payment ID
+     *
+     * @param productHandle Handle of the product (see MegaApi::getPricing)
+     * @param listener MegaRequestListener to track this request
+     *
+     * @see MegaApi::getPricing
      */
     public void getPaymentId(long productHandle, MegaRequestListenerInterface listener) {
         megaApi.getPaymentId(productHandle, createDelegateRequestListener(listener));
-    }
-
-    /**
-     * Get the payment URL for an upgrade.
-     * 
-     * @param productHandle
-     *            Handle of the product (see MegaApiJava.getPricing()).
-     * 
-     * @see #getPricing()
-     */
-    public void getPaymentId(long productHandle) {
-        megaApi.getPaymentId(productHandle);
     }
 
     /**
@@ -4201,7 +4201,27 @@ public class MegaApiJava {
      * - MegaRequest::getLink - Payment ID
      *
      * @param productHandle Handle of the product (see MegaApi::getPricing)
-     * @param lastPublicHandle Last public handle accessed by the user in the last 24h
+     *
+     * @see MegaApi::getPricing
+     */
+    public void getPaymentId(long productHandle) {
+        megaApi.getPaymentId(productHandle);
+    }
+
+    /**
+     * Get the payment URL for an upgrade
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_PAYMENT_ID
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the product
+     * - MegaRequest::getParentHandle - Returns the last public node handle accessed
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getLink - Payment ID
+     *
+     * @param productHandle Handle of the product (see MegaApi::getPricing)
+     * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
      * @param listener MegaRequestListener to track this request
      *
      * @see MegaApi::getPricing
@@ -4216,18 +4236,78 @@ public class MegaApiJava {
      * The associated request type with this request is MegaRequest::TYPE_GET_PAYMENT_ID
      * Valid data in the MegaRequest object received on callbacks:
      * - MegaRequest::getNodeHandle - Returns the handle of the product
+     * - MegaRequest::getParentHandle - Returns the last public node handle accessed
      *
      * Valid data in the MegaRequest object received in onRequestFinish when the error code
      * is MegaError::API_OK:
      * - MegaRequest::getLink - Payment ID
      *
      * @param productHandle Handle of the product (see MegaApi::getPricing)
-     * @param lastPublicHandle Last public handle accessed by the user in the last 24h
+     * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
      *
      * @see MegaApi::getPricing
      */
     public void getPaymentId(long productHandle, long lastPublicHandle) {
         megaApi.getPaymentId(productHandle, lastPublicHandle);
+    }
+
+    /**
+     * Get the payment URL for an upgrade
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_PAYMENT_ID
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the product
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getLink - Payment ID
+     * - MegaRequest::getParentHandle - Returns the last public node handle accessed
+     * - MegaRequest::getParamType - Returns the type of lastPublicHandle
+     * - MegaRequest::getTransferredBytes - Returns the timestamp of the last access
+     *
+     * @param productHandle Handle of the product (see MegaApi::getPricing)
+     * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
+     * @param lastPublicHandleType Indicates the type of lastPublicHandle, valid values are:
+     *      - MegaApi::AFFILIATE_TYPE_ID = 1
+     *      - MegaApi::AFFILIATE_TYPE_FILE_FOLDER = 2
+     *      - MegaApi::AFFILIATE_TYPE_CHAT = 3
+     *
+     * @param lastAccessTimestamp Timestamp of the last access
+     * @param listener MegaRequestListener to track this request
+     * @see MegaApi::getPricing
+     */
+    public void getPaymentId(long productHandle, long lastPublicHandle, int lastPublicHandleType,
+                             long lastAccessTimestamp, MegaRequestListenerInterface listener) {
+        megaApi.getPaymentId(productHandle, lastPublicHandle, lastPublicHandleType,
+                lastAccessTimestamp, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Get the payment URL for an upgrade
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_PAYMENT_ID
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the product
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getLink - Payment ID
+     * - MegaRequest::getParentHandle - Returns the last public node handle accessed
+     * - MegaRequest::getParamType - Returns the type of lastPublicHandle
+     * - MegaRequest::getTransferredBytes - Returns the timestamp of the last access
+     *
+     * @param productHandle Handle of the product (see MegaApi::getPricing)
+     * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
+     * @param lastPublicHandleType Indicates the type of lastPublicHandle, valid values are:
+     *      - MegaApi::AFFILIATE_TYPE_ID = 1
+     *      - MegaApi::AFFILIATE_TYPE_FILE_FOLDER = 2
+     *      - MegaApi::AFFILIATE_TYPE_CHAT = 3
+     *
+     * @param lastAccessTimestamp Timestamp of the last access
+     * @see MegaApi::getPricing
+     */
+    public void getPaymentId(long productHandle, long lastPublicHandle, int lastPublicHandleType, long lastAccessTimestamp) {
+        megaApi.getPaymentId(productHandle, lastPublicHandle, lastPublicHandleType, lastAccessTimestamp);
     }
 
     /**
@@ -4279,33 +4359,12 @@ public class MegaApiJava {
     }
 
     /**
-     * Send the Google Play receipt after a correct purchase of a subscription.
-     * 
-     * @param receipt
-     *            String The complete receipt from Google Play.
-     * @param listener
-     *            MegaRequestListener to track this request.
-     * 
-     */
-    public void submitPurchaseReceipt(String receipt, MegaRequestListenerInterface listener) {
-        megaApi.submitPurchaseReceipt(receipt, createDelegateRequestListener(listener));
-    }
-
-    /**
-     * Send the Google Play receipt after a correct purchase of a subscription.
-     * 
-     * @param receipt
-     *            String The complete receipt from Google Play.
-     * 
-     */
-    public void submitPurchaseReceipt(String receipt) {
-        megaApi.submitPurchaseReceipt(receipt);
-    }
-
-    /**
      * Submit a purchase receipt for verification
      *
      * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNumber - Returns the payment gateway
+     * - MegaRequest::getText - Returns the purchase receipt
      *
      * @param gateway Payment gateway
      * Currently supported payment gateways are:
@@ -4324,6 +4383,9 @@ public class MegaApiJava {
      * Submit a purchase receipt for verification
      *
      * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNumber - Returns the payment gateway
+     * - MegaRequest::getText - Returns the purchase receipt
      *
      * @param gateway Payment gateway
      * Currently supported payment gateways are:
@@ -4341,6 +4403,10 @@ public class MegaApiJava {
      * Submit a purchase receipt for verification
      *
      * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNumber - Returns the payment gateway
+     * - MegaRequest::getText - Returns the purchase receipt
+     * - MegaRequest::getParentHandle - Returns the last public node handle accessed
      *
      * @param gateway Payment gateway
      * Currently supported payment gateways are:
@@ -4349,7 +4415,7 @@ public class MegaApiJava {
      * - MegaApi::PAYMENT_METHOD_WINDOWS_STORE = 13
      *
      * @param receipt Purchase receipt
-     * @param lastPublicHandle Last public handle accessed by the user in the last 24h
+     * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
      * @param listener MegaRequestListener to track this request
      */
     public void submitPurchaseReceipt(int gateway, String receipt, long lastPublicHandle, MegaRequestListenerInterface listener) {
@@ -4360,6 +4426,10 @@ public class MegaApiJava {
      * Submit a purchase receipt for verification
      *
      * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNumber - Returns the payment gateway
+     * - MegaRequest::getText - Returns the purchase receipt
+     * - MegaRequest::getParentHandle - Returns the last public node handle accessed
      *
      * @param gateway Payment gateway
      * Currently supported payment gateways are:
@@ -4368,10 +4438,73 @@ public class MegaApiJava {
      * - MegaApi::PAYMENT_METHOD_WINDOWS_STORE = 13
      *
      * @param receipt Purchase receipt
-     * @param lastPublicHandle Last public handle accessed by the user in the last 24h
+     * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
      */
     public void submitPurchaseReceipt(int gateway, String receipt, long lastPublicHandle) {
         megaApi.submitPurchaseReceipt(gateway, receipt, lastPublicHandle);
+    }
+
+    /**
+     * Submit a purchase receipt for verification
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNumber - Returns the payment gateway
+     * - MegaRequest::getText - Returns the purchase receipt
+     * - MegaRequest::getParentHandle - Returns the last public node handle accessed
+     * - MegaRequest::getParamType - Returns the type of lastPublicHandle
+     * - MegaRequest::getTransferredBytes - Returns the timestamp of the last access
+     *
+     * @param gateway Payment gateway
+     * Currently supported payment gateways are:
+     * - MegaApi::PAYMENT_METHOD_ITUNES = 2
+     * - MegaApi::PAYMENT_METHOD_GOOGLE_WALLET = 3
+     * - MegaApi::PAYMENT_METHOD_WINDOWS_STORE = 13
+     *
+     * @param receipt Purchase receipt
+     * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
+     * @param lastPublicHandleType Indicates the type of lastPublicHandle, valid values are:
+     *      - MegaApi::AFFILIATE_TYPE_ID = 1
+     *      - MegaApi::AFFILIATE_TYPE_FILE_FOLDER = 2
+     *      - MegaApi::AFFILIATE_TYPE_CHAT = 3
+     *
+     * @param lastAccessTimestamp Timestamp of the last access
+     * @param listener MegaRequestListener to track this request
+     */
+    public void submitPurchaseReceipt(int gateway, String receipt, long lastPublicHandle, int lastPublicHandleType,
+                               long lastAccessTimestamp, MegaRequestListenerInterface listener) {
+        megaApi.submitPurchaseReceipt(gateway, receipt, lastPublicHandle, lastPublicHandleType,
+                lastAccessTimestamp, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Submit a purchase receipt for verification
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNumber - Returns the payment gateway
+     * - MegaRequest::getText - Returns the purchase receipt
+     * - MegaRequest::getParentHandle - Returns the last public node handle accessed
+     * - MegaRequest::getParamType - Returns the type of lastPublicHandle
+     * - MegaRequest::getTransferredBytes - Returns the timestamp of the last access
+     *
+     * @param gateway Payment gateway
+     * Currently supported payment gateways are:
+     * - MegaApi::PAYMENT_METHOD_ITUNES = 2
+     * - MegaApi::PAYMENT_METHOD_GOOGLE_WALLET = 3
+     * - MegaApi::PAYMENT_METHOD_WINDOWS_STORE = 13
+     *
+     * @param receipt Purchase receipt
+     * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
+     * @param lastPublicHandleType Indicates the type of lastPublicHandle, valid values are:
+     *      - MegaApi::AFFILIATE_TYPE_ID = 1
+     *      - MegaApi::AFFILIATE_TYPE_FILE_FOLDER = 2
+     *      - MegaApi::AFFILIATE_TYPE_CHAT = 3
+     *
+     * @param lastAccessTimestamp Timestamp of the last access
+     */
+    public void submitPurchaseReceipt(int gateway, String receipt, long lastPublicHandle, int lastPublicHandleType, long lastAccessTimestamp) {
+        megaApi.submitPurchaseReceipt(gateway, receipt, lastPublicHandle, lastPublicHandleType, lastAccessTimestamp);
     }
 
     /**

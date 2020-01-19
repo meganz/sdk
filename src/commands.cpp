@@ -2535,7 +2535,8 @@ void CommandEnumerateQuotaItems::procresult()
 CommandPurchaseAddItem::CommandPurchaseAddItem(MegaClient* client, int itemclass,
                                                handle item, unsigned price,
                                                const char* currency, unsigned /*tax*/,
-                                               const char* /*country*/, handle lph)
+                                               const char* /*country*/, handle lph,
+                                               int phtype, int64_t ts)
 {
     string sprice;
     sprice.resize(128);
@@ -2548,7 +2549,18 @@ CommandPurchaseAddItem::CommandPurchaseAddItem(MegaClient* client, int itemclass
     arg("c", currency);
     if (!ISUNDEF(lph))
     {
-        arg("aff", (byte*)&lph, MegaClient::NODEHANDLE);
+        if (phtype == 0) // legacy mode
+        {
+            arg("aff", (byte*)&lph, MegaClient::NODEHANDLE);
+        }
+        else
+        {
+            beginobject("aff");
+            arg("id", (byte*)&lph, MegaClient::NODEHANDLE);
+            arg("ts", ts);
+            arg("t", phtype);   // 1=affiliate id, 2=file/folder link, 3=chat link
+            endobject();
+        }
     }
 
     tag = client->reqtag;
@@ -5071,7 +5083,7 @@ void CommandReportEvent::procresult()
     }
 }
 
-CommandSubmitPurchaseReceipt::CommandSubmitPurchaseReceipt(MegaClient *client, int type, const char *receipt, handle lph)
+CommandSubmitPurchaseReceipt::CommandSubmitPurchaseReceipt(MegaClient *client, int type, const char *receipt, handle lph, int phtype, int64_t ts)
 {
     cmd("vpay");
     arg("t", type);
@@ -5088,7 +5100,18 @@ CommandSubmitPurchaseReceipt::CommandSubmitPurchaseReceipt(MegaClient *client, i
 
     if (!ISUNDEF(lph))
     {
-        arg("aff", (byte*)&lph, MegaClient::NODEHANDLE);
+        if (phtype == 0) // legacy mode
+        {
+            arg("aff", (byte*)&lph, MegaClient::NODEHANDLE);
+        }
+        else
+        {
+            beginobject("aff");
+            arg("id", (byte*)&lph, MegaClient::NODEHANDLE);
+            arg("ts", ts);
+            arg("t", phtype);   // 1=affiliate id, 2=file/folder link, 3=chat link
+            endobject();
+        }
     }
 
     tag = client->reqtag;
