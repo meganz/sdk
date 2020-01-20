@@ -7459,7 +7459,7 @@ void MegaApiImpl::resumeActiveSyncs(MegaRequestListener* listener)
     }
     for (const auto& syncConfig : client->syncConfigs->all())
     {
-        if (!syncConfig.isActive())
+        if (!syncConfig.isResumable())
         {
             continue;
         }

@@ -895,9 +895,9 @@ const SyncConfig& Sync::getConfig() const
     return mConfig;
 }
 
-void Sync::setActive(const bool isActive)
+void Sync::setResumable(const bool isResumable)
 {
-    mConfig.setActive(isActive);
+    mConfig.setResumable(isResumable);
     if (client->syncConfigs)
     {
         client->syncConfigs->update(mConfig);

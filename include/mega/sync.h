@@ -76,8 +76,8 @@ public:
     // returns the sync config
     const SyncConfig& getConfig() const;
 
-    // flags this sync as active/inactive (default is active)
-    void setActive(bool isActive);
+    // sets whether this sync is resumable (default is true)
+    void setResumable(bool isResumable);
 
     void* appData = nullptr;
 

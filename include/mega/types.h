@@ -690,11 +690,11 @@ public:
                const bool syncDeletions = false,
                const bool forceOverwrite = false);
 
-    // whether this sync is active
-    bool isActive() const;
+    // whether this sync is resumable
+    bool isResumable() const;
 
-    // sets whether this sync is active
-    void setActive(bool active);
+    // sets whether this sync is resumable
+    void setResumable(bool active);
 
     // returns the local path of the sync
     const std::string& getLocalPath() const;
@@ -732,8 +732,8 @@ public:
 private:
     friend bool operator==(const SyncConfig& lhs, const SyncConfig& rhs);
 
-    // Whether the sync is active
-    bool mActive = true;
+    // Whether the sync is resumable
+    bool mResumable = true;
 
     // the local path of the sync
     std::string mLocalPath;
@@ -769,7 +769,7 @@ private:
                const bool&,
                const bool&> tie() const
     {
-        return std::tie(mActive,
+        return std::tie(mResumable,
                         mLocalPath,
                         mRemoteNode,
                         mLocalFingerprint,

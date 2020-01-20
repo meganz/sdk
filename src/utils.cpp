@@ -2029,14 +2029,14 @@ SyncConfig::SyncConfig(std::string localPath,
     , mForceOverwrite{forceOverwrite}
 {}
 
-bool SyncConfig::isActive() const
+bool SyncConfig::isResumable() const
 {
-    return mActive;
+    return mResumable;
 }
 
-void SyncConfig::setActive(bool active)
+void SyncConfig::setResumable(bool resumable)
 {
-    mActive = active;
+    mResumable = resumable;
 }
 
 const std::string& SyncConfig::getLocalPath() const
@@ -2107,7 +2107,7 @@ bool SyncConfig::serialize(std::string* data)
 
 std::unique_ptr<SyncConfig> SyncConfig::unserialize(const std::string& data)
 {
-    bool active;
+    bool resumable;
     std::string localPath;
     handle remoteNode;
     fsfp_t fingerprint;
@@ -2118,7 +2118,7 @@ std::unique_ptr<SyncConfig> SyncConfig::unserialize(const std::string& data)
     bool forceOverwrite;
 
     CacheableReader reader{data};
-    if (!reader.unserializebool(active))
+    if (!reader.unserializebool(resumable))
     {
         return {};
     }
@@ -2163,14 +2163,14 @@ std::unique_ptr<SyncConfig> SyncConfig::unserialize(const std::string& data)
     auto syncConfig = std::unique_ptr<SyncConfig>{new SyncConfig{std::move(localPath),
                     remoteNode, fingerprint, std::move(regExps),
                     static_cast<Type>(syncType), syncDeletions, forceOverwrite}};
-    syncConfig->setActive(active);
+    syncConfig->setResumable(resumable);
     return syncConfig;
 }
 
 bool SyncConfig::serialize(std::string& data) const
 {
     CacheableWriter writer{data};
-    writer.serializebool(mActive);
+    writer.serializebool(mResumable);
     writer.serializestring(mLocalPath);
     writer.serializehandle(mRemoteNode);
     writer.serializefsfp(mLocalFingerprint);

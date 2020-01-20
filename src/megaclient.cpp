@@ -13486,7 +13486,7 @@ void MegaClient::delsync(Sync* sync, bool deletecache)
 {
     sync->changestate(SYNC_CANCELED);
 
-    sync->setActive(false);
+    sync->setResumable(false);
 
     if (deletecache && sync->statecachetable)
     {
