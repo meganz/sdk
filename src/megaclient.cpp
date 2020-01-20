@@ -2202,7 +2202,7 @@ void MegaClient::exec()
             if ((*it)->fsfp)
             {
                 fsfp_t current = (*it)->dirnotify->fsfingerprint();
-                if (((*it)->state == SYNC_INITIALSCAN || (*it)->state == SYNC_ACTIVE) && (*it)->fsfp != current)
+                if ((*it)->state == SYNC_ACTIVE && (*it)->fsfp != current)
                 {
                     LOG_err << "Local fingerprint mismatch. Previous: " << (*it)->fsfp
                             << "  Current: " << current;
