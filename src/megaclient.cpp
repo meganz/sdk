@@ -2202,7 +2202,7 @@ void MegaClient::exec()
             if ((*it)->fsfp)
             {
                 fsfp_t current = (*it)->dirnotify->fsfingerprint();
-                if ((*it)->fsfp != current)
+                if (((*it)->state == SYNC_INITIALSCAN || (*it)->state == SYNC_ACTIVE) && (*it)->fsfp != current)
                 {
                     LOG_err << "Local fingerprint mismatch. Previous: " << (*it)->fsfp
                             << "  Current: " << current;
@@ -4419,6 +4419,8 @@ void MegaClient::initsc()
             // 3. write new or modified nodes, purge deleted nodes
             for (node_map::iterator it = nodes.begin(); it != nodes.end(); it++)
             {
+                char base64[12];
+                LOG_verbose << "Adding node to database: " << (Base64::btoa((byte*)&(it->second->nodehandle),MegaClient::NODEHANDLE,base64) ? base64 : "");
                 if (!(complete = sctable->put(CACHEDNODE, it->second, &key)))
                 {
                     break;
