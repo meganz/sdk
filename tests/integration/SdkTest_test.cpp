@@ -4249,6 +4249,11 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
         loginBySessionId(0, session);
     };
 
+    auto waitForSDKThread = []
+    {
+        std::this_thread::sleep_for(std::chrono::seconds(5));
+    };
+
     syncFolder(sync1Path);
     syncFolder(sync2Path);
     syncFolder(sync3Path);
@@ -4262,6 +4267,9 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
 
     disableSync(sync2Path);
     removeSync(sync3Path);
+
+    // we don't know when sync's are actually removed so need to wait
+    waitForSDKThread();
 
     ASSERT_TRUE(checkSyncOK(sync1Path));
     ASSERT_FALSE(checkSyncOK(sync2Path));
@@ -4304,6 +4312,15 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     ASSERT_TRUE(checkSyncOK(sync2Path));
     ASSERT_FALSE(checkSyncOK(sync3Path));
     ASSERT_TRUE(checkSyncOK(sync4Path));
+
+    removeSync(sync1Path);
+    removeSync(sync2Path);
+    removeSync(sync4Path);
+
+    // we don't know when sync's are actually removed so need to wait
+    waitForSDKThread();
+
+    cleanUp();
 
     releaseMegaApi(0);
 }
