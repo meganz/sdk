@@ -1073,7 +1073,7 @@ void test_SyncConfig_serialization(const mega::SyncConfig& config)
 TEST(Sync, SyncConfig_defaultOptions)
 {
     const mega::SyncConfig config{"foo", 42, 123};
-    ASSERT_TRUE(config.isActive());
+    ASSERT_TRUE(config.isResumable());
     ASSERT_EQ("foo", config.getLocalPath());
     ASSERT_EQ(42, config.getRemoteNode());
     ASSERT_EQ(123, config.getLocalFingerprint());
@@ -1089,8 +1089,8 @@ TEST(Sync, SyncConfig_defaultOptions)
 TEST(Sync, SyncConfig_defaultOptions_inactive)
 {
     mega::SyncConfig config{"foo", 42, 123};
-    config.setActive(false);
-    ASSERT_FALSE(config.isActive());
+    config.setResumable(false);
+    ASSERT_FALSE(config.isResumable());
     ASSERT_EQ("foo", config.getLocalPath());
     ASSERT_EQ(42, config.getRemoteNode());
     ASSERT_EQ(123, config.getLocalFingerprint());
@@ -1107,7 +1107,7 @@ TEST(Sync, SyncConfig_defaultOptions_butWithRegExps)
 {
     const std::vector<std::string> regExps{"aa", "bbb"};
     const mega::SyncConfig config{"foo", 42, 123, regExps};
-    ASSERT_TRUE(config.isActive());
+    ASSERT_TRUE(config.isResumable());
     ASSERT_EQ("foo", config.getLocalPath());
     ASSERT_EQ(42, config.getRemoteNode());
     ASSERT_EQ(123, config.getLocalFingerprint());
@@ -1124,7 +1124,7 @@ TEST(Sync, SyncConfig_upSync_syncDelFalse_overwriteFalse)
 {
     const std::vector<std::string> regExps{"aa", "bbb"};
     const mega::SyncConfig config{"foo", 42, 123, regExps, mega::SyncConfig::TYPE_UP};
-    ASSERT_TRUE(config.isActive());
+    ASSERT_TRUE(config.isResumable());
     ASSERT_EQ("foo", config.getLocalPath());
     ASSERT_EQ(42, config.getRemoteNode());
     ASSERT_EQ(123, config.getLocalFingerprint());
@@ -1141,7 +1141,7 @@ TEST(Sync, SyncConfig_upSync_syncDelTrue_overwriteTrue)
 {
     const std::vector<std::string> regExps{"aa", "bbb"};
     const mega::SyncConfig config{"foo", 42, 123, regExps, mega::SyncConfig::TYPE_UP, true, true};
-    ASSERT_TRUE(config.isActive());
+    ASSERT_TRUE(config.isResumable());
     ASSERT_EQ("foo", config.getLocalPath());
     ASSERT_EQ(42, config.getRemoteNode());
     ASSERT_EQ(123, config.getLocalFingerprint());
@@ -1158,7 +1158,7 @@ TEST(Sync, SyncConfig_downSync_syncDelFalse_overwriteFalse)
 {
     const std::vector<std::string> regExps{"aa", "bbb"};
     const mega::SyncConfig config{"foo", 42, 123, regExps, mega::SyncConfig::TYPE_DOWN};
-    ASSERT_TRUE(config.isActive());
+    ASSERT_TRUE(config.isResumable());
     ASSERT_EQ("foo", config.getLocalPath());
     ASSERT_EQ(42, config.getRemoteNode());
     ASSERT_EQ(123, config.getLocalFingerprint());
@@ -1175,7 +1175,7 @@ TEST(Sync, SyncConfig_downSync_syncDelTrue_overwriteTrue)
 {
     const std::vector<std::string> regExps{"aa", "bbb"};
     const mega::SyncConfig config{"foo", 42, 123, regExps, mega::SyncConfig::TYPE_DOWN, true, true};
-    ASSERT_TRUE(config.isActive());
+    ASSERT_TRUE(config.isResumable());
     ASSERT_EQ("foo", config.getLocalPath());
     ASSERT_EQ(42, config.getRemoteNode());
     ASSERT_EQ(123, config.getLocalFingerprint());
