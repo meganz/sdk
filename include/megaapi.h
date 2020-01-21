@@ -6849,7 +6849,8 @@ class MegaApi
             AFFILIATE_TYPE_INVALID = 0, // legacy mode
             AFFILIATE_TYPE_ID = 1,
             AFFILIATE_TYPE_FILE_FOLDER = 2,
-            AFFILIATE_TYPE_CHAT = 3
+            AFFILIATE_TYPE_CHAT = 3,
+            AFFILIATE_TYPE_CONTACT = 4,
         };
 
         /**
@@ -10003,6 +10004,7 @@ class MegaApi
          *      - MegaApi::AFFILIATE_TYPE_ID = 1
          *      - MegaApi::AFFILIATE_TYPE_FILE_FOLDER = 2
          *      - MegaApi::AFFILIATE_TYPE_CHAT = 3
+         *      - MegaApi::AFFILIATE_TYPE_CONTACT = 4
          *
          * @param lastAccessTimestamp Timestamp of the last access
          * @param listener MegaRequestListener to track this request
@@ -10115,6 +10117,7 @@ class MegaApi
          *      - MegaApi::AFFILIATE_TYPE_ID = 1
          *      - MegaApi::AFFILIATE_TYPE_FILE_FOLDER = 2
          *      - MegaApi::AFFILIATE_TYPE_CHAT = 3
+         *      - MegaApi::AFFILIATE_TYPE_CONTACT = 4
          *
          * @param lastAccessTimestamp Timestamp of the last access
          * @param listener MegaRequestListener to track this request
