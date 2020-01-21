@@ -18390,6 +18390,16 @@ void MegaApiImpl::sendPendingRequests()
             const char *name = request->getName();
             if(!name || !(*name) || !parent) { e = API_EARGS; break; }
 
+            // prevent to create a duplicate folder with same name in same path
+            Node *folder = client->childnodebyname(parent, name, false);
+            if (folder && folder->type == FOLDERNODE)
+            {
+                e = API_OK;
+                request->setNodeHandle(folder->nodehandle);
+                fireOnRequestFinish(request, MegaError(e));
+                break;
+            }
+
             NewNode *newnode = new NewNode[1];
             SymmCipher key;
             string attrstring;
