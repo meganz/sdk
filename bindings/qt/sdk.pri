@@ -208,6 +208,7 @@ CONFIG(USE_LIBRAW) {
     vcpkg:win32:LIBS += -ljpeg$$DEBUG_SUFFIX
     vcpkg:!win32:LIBS += -ljpeg
     vcpkg:unix:!macx:LIBS += -lgomp
+    vcpkg:!CONFIG(USE_PDFIUM):LIBS += -llcms2$$DEBUG_SUFFIX
 
     win32 {
         DEFINES += LIBRAW_NODLL
@@ -677,5 +678,5 @@ macx {
 
    LIBS += -framework SystemConfiguration
    
-   LIBS += -liconv -framework CoreServices -framework CoreFoundation -framework AudioUnit -framework AudioToolbox -framework CoreAudio -framework CoreMedia -framework VideoToolbox -framework ImageIO -framework CoreVideo 
+   vcpkg:LIBS += -liconv -framework CoreServices -framework CoreFoundation -framework AudioUnit -framework AudioToolbox -framework CoreAudio -framework CoreMedia -framework VideoToolbox -framework ImageIO -framework CoreVideo 
 }

@@ -6,7 +6,7 @@ REM mkdir 3rdParty
 REM cd 3rdParty
 REM git clone https://github.com/Microsoft/vcpkg.git
 REM cd vcpkg
-REM .\bootstrap-vcpkg.bat
+REM .\bootstrap-vcpkg.bat -disableMetrics
 REM
 REM Note that our current toolset for XP compatibility (which we had but we are deprecating), is VS2015 with v140 or v140_xp.  
 REM The triplet files ending -mega set v140, please adjust to your requirements.

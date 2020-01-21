@@ -6,28 +6,20 @@
 # cd 3rdParty
 # git clone https://github.com/Microsoft/vcpkg.git
 # cd vcpkg
-# .\bootstrap-vcpkg.bat
+# .\bootstrap-vcpkg.sh -disableMetrics
 #
-# Note that our current toolset for XP compatibility (which we had but we are deprecating), is VS2015 with v140 or v140_xp.  
-# The triplet files ending -mega set v140, please adjust to your requirements.
-#
-# Another thing you might want to consider for developing, is turning off checked iterators in MSVC builds, since those extra tests can cause big delays
-# in debug (eg. deleting the node tree on logout etc).  You can do that by setting set(VCPKG_CXX_FLAGS "${VCPKG_CXX_FLAGS} -D_ITERATOR_DEBUG_LEVEL=0")
-# in your triplet file, though every library used must have that same setting.
-# 
-# Another way is to edit the STL headers first, which can ensure that nested builds get the right flag.
-# 
-# Copy the folders in contrib/cmake/vcpkg_extra_ports to your 3rdParty/vcpkg/ports folder.
-# Copy the folders in contrib/cmake/vcpkg_extra_triplets to your 3rdParty/vcpkg/triplets folder.
-# 
 # Comment out any libraries that you won't use.
 # If using pdfium, follow the instructions below to get the source code
 #
 # On Mac, go to ports/libraw/CONTROL and comment out the freeglut dependency
 # 
-# Copy this script to your 3rdParty/vcpkg folder, and run it with the desired triplet as the parameter.  (usually x64-windows-mega or x86-windows-mega)
+# From your 3rdParty/vcpkg folder, run this script (in its proper location) with the desired triplet as the parameter.  (usually x64-linux or x64-osx)
 
-export TRIPLET=x64-linux
+export TRIPLET=$1
+
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+ln -sf $DIR/vcpkg_extra_ports/* ports/
+ln -sf $DIR/vcpkg_extra_triplets/* triplets/
 
 build_one ()
 {
