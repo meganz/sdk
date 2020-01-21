@@ -4155,6 +4155,14 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
 {
     LOG_info << "___TEST SyncResumptionAfterFetchNodes___";
 
+    // This test may currently fail for two reasons:
+    // 1. Syncs are deleted some time later leading to error messages (like local fingerprint mismatch).
+    //    Sync removals are not done after we get called back. The sync only gets flagged but
+    //    is deleted later. So we could wait for some time but that will just break eventually too,
+    //    also making the test very slow.
+    // 2. Remote nodes may not be committed to the sctable database in time for fetchnodes which
+    //    then fails adding syncs because the remotes are missing.
+
     const std::string session = dumpSession();
 
     const fs::path basePath = "SyncResumptionAfterFetchNodes";
