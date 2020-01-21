@@ -164,6 +164,7 @@ public class MegaApiJava {
     public final static int AFFILIATE_TYPE_ID = MegaApi.AFFILIATE_TYPE_ID;
     public final static int AFFILIATE_TYPE_FILE_FOLDER = MegaApi.AFFILIATE_TYPE_FILE_FOLDER;
     public final static int AFFILIATE_TYPE_CHAT = MegaApi.AFFILIATE_TYPE_CHAT;
+    public final static int AFFILIATE_TYPE_CONTACT = MegaApi.AFFILIATE_TYPE_CONTACT;
 
     public final static int ORDER_NONE = MegaApi.ORDER_NONE;
     public final static int ORDER_DEFAULT_ASC = MegaApi.ORDER_DEFAULT_ASC;
@@ -4271,6 +4272,7 @@ public class MegaApiJava {
      *      - MegaApi::AFFILIATE_TYPE_ID = 1
      *      - MegaApi::AFFILIATE_TYPE_FILE_FOLDER = 2
      *      - MegaApi::AFFILIATE_TYPE_CHAT = 3
+     *      - MegaApi::AFFILIATE_TYPE_CONTACT = 4
      *
      * @param lastAccessTimestamp Timestamp of the last access
      * @param listener MegaRequestListener to track this request
@@ -4302,6 +4304,7 @@ public class MegaApiJava {
      *      - MegaApi::AFFILIATE_TYPE_ID = 1
      *      - MegaApi::AFFILIATE_TYPE_FILE_FOLDER = 2
      *      - MegaApi::AFFILIATE_TYPE_CHAT = 3
+     *      - MegaApi::AFFILIATE_TYPE_CONTACT = 4
      *
      * @param lastAccessTimestamp Timestamp of the last access
      * @see MegaApi::getPricing
@@ -4467,6 +4470,7 @@ public class MegaApiJava {
      *      - MegaApi::AFFILIATE_TYPE_ID = 1
      *      - MegaApi::AFFILIATE_TYPE_FILE_FOLDER = 2
      *      - MegaApi::AFFILIATE_TYPE_CHAT = 3
+     *      - MegaApi::AFFILIATE_TYPE_CONTACT = 4
      *
      * @param lastAccessTimestamp Timestamp of the last access
      * @param listener MegaRequestListener to track this request
@@ -4500,6 +4504,7 @@ public class MegaApiJava {
      *      - MegaApi::AFFILIATE_TYPE_ID = 1
      *      - MegaApi::AFFILIATE_TYPE_FILE_FOLDER = 2
      *      - MegaApi::AFFILIATE_TYPE_CHAT = 3
+     *      - MegaApi::AFFILIATE_TYPE_CONTACT = 4
      *
      * @param lastAccessTimestamp Timestamp of the last access
      */
