@@ -4249,11 +4249,6 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
         loginBySessionId(0, session);
     };
 
-    auto waitForSDKThread = []
-    {
-        std::this_thread::sleep_for(std::chrono::seconds(10));
-    };
-
     syncFolder(sync1Path);
     syncFolder(sync2Path);
     syncFolder(sync3Path);
@@ -4267,9 +4262,6 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
 
     disableSync(sync2Path);
     removeSync(sync3Path);
-
-    // we don't know when sync's are actually removed so need to wait
-    waitForSDKThread();
 
     ASSERT_TRUE(checkSyncOK(sync1Path));
     ASSERT_FALSE(checkSyncOK(sync2Path));
@@ -4316,9 +4308,6 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     removeSync(sync1Path);
     removeSync(sync2Path);
     removeSync(sync4Path);
-
-    // we don't know when sync's are actually removed so need to wait
-    waitForSDKThread();
 
     cleanUp();
 
