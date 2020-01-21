@@ -18455,6 +18455,16 @@ void MegaApiImpl::sendPendingRequests()
             const char *name = request->getName();
             if(!name || !(*name) || !parent) { e = API_EARGS; break; }
 
+            // prevent to create a duplicate folder with same name in same path
+            Node *folder = client->childnodebyname(parent, name, false);
+            if (folder && folder->type == FOLDERNODE)
+            {
+                e = API_OK;
+                request->setNodeHandle(folder->nodehandle);
+                fireOnRequestFinish(request, MegaError(e));
+                break;
+            }
+
             NewNode *newnode = new NewNode[1];
             SymmCipher key;
             string attrstring;
@@ -20696,6 +20706,14 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_GET_PAYMENT_ID:
         case MegaRequest::TYPE_UPGRADE_ACCOUNT:
         {
+            if ((request->getType() == MegaRequest::TYPE_GET_PAYMENT_ID)
+                && (request->getParamType() < mega::MegaApi::AFFILIATE_TYPE_INVALID
+                    || request->getParamType() > mega::MegaApi::AFFILIATE_TYPE_CONTACT))
+            {
+               e = API_EARGS;
+               break;
+            }
+
             int method = int(request->getNumber());
             if(method != MegaApi::PAYMENT_METHOD_BALANCE && method != MegaApi::PAYMENT_METHOD_CREDIT_CARD)
             {
@@ -20713,6 +20731,13 @@ void MegaApiImpl::sendPendingRequests()
             handle lph = request->getNodeHandle();
             int phtype = request->getParamType();
             int64_t ts = request->getTransferredBytes();
+
+            if (request->getParamType() < mega::MegaApi::AFFILIATE_TYPE_INVALID
+                || request->getParamType() > mega::MegaApi::AFFILIATE_TYPE_CONTACT)
+            {
+               e = API_EARGS;
+               break;
+            }
 
             if(!receipt || (type != MegaApi::PAYMENT_METHOD_GOOGLE_WALLET
                             && type != MegaApi::PAYMENT_METHOD_ITUNES
