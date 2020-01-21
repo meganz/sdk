@@ -4710,13 +4710,13 @@ void MegaClient::pendingattrstring(handle h, string* fa)
 
 // attach file attribute to a file (th can be upload or node handle)
 // FIXME: to avoid unnecessary roundtrips to the attribute servers, also cache locally
-void MegaClient::putfa(handle th, fatype t, SymmCipher* key, string* data, bool checkAccess)
+void MegaClient::putfa(handle th, fatype t, SymmCipher* key, std::unique_ptr<string> data, bool checkAccess)
 {
     // CBC-encrypt attribute data (padded to next multiple of BLOCKSIZE)
     data->resize((data->size() + SymmCipher::BLOCKSIZE - 1) & -SymmCipher::BLOCKSIZE);
     key->cbc_encrypt((byte*)data->data(), data->size());
 
-    queuedfa.push_back(new HttpReqCommandPutFA(this, th, t, data, checkAccess));
+    queuedfa.push_back(new HttpReqCommandPutFA(this, th, t, std::move(data), checkAccess));
     LOG_debug << "File attribute added to queue - " << th << " : " << queuedfa.size() << " queued, " << activefa.size() << " active";
 
     // no other file attribute storage request currently in progress? POST this one.
@@ -13132,6 +13132,7 @@ void MegaClient::syncupdate()
             {
                 syncadding++;
 
+                // this assert fails for the case of two different files uploaded to the same path, and both putnodes occurring in the same exec()
                 assert(localNode->type == FOLDERNODE
                        || localNode->h == localNode->parent->node->nodehandle); // if it's a file, it should match
                 reqs.add(new CommandPutNodes(this,
