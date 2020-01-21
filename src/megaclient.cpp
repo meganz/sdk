@@ -4001,7 +4001,7 @@ bool MegaClient::procsc()
                     break;
 
                 case MAKENAMEID2('s', 'n'):
-                    // the sn element is guaranteed to be the last in sequence
+                    // the sn element is guaranteed to be the last in sequence (except for notification requests (c=50))
                     setscsn(&jsonsc);
                     notifypurge();
                     if (sctable)
