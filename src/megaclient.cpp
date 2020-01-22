@@ -2155,7 +2155,8 @@ void MegaClient::exec()
             // don't run this too often or it may use a lot of cpu without starting new transfers, if the list is long
             lastDispatchTransfersDs = Waiter::ds;
 
-            size_t lastCount = 0, transferCount = transfers[GET].size() + transfers[PUT].size();
+            size_t lastCount = 0;
+            size_t transferCount = transfers[GET].size() + transfers[PUT].size();
             do
             {
                 lastCount = transferCount;
@@ -3349,7 +3350,7 @@ void MegaClient::dispatchTransfers()
                             {
                                 missingPrivateNode = true;
                             }
-                            else if (n && n->type == FILENODE)
+                            else if (n->type == FILENODE)
                             {
                                 k = (const byte*)n->nodekey().data();
                                 nexttransfer->size = n->size;

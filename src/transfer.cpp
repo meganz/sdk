@@ -1933,7 +1933,7 @@ transfer_list::iterator TransferList::iterator(Transfer *transfer)
 
 std::array<vector<Transfer*>, 6> TransferList::nexttransfers(std::function<bool(Transfer*)>& continuefunction)
 {
-    std::array<vector<Transfer*>, 6> v;
+    std::array<vector<Transfer*>, 6> chosenTransfers;
 
     static direction_t putget[] = { PUT, GET };
 
@@ -1955,7 +1955,7 @@ std::array<vector<Transfer*>, 6> TransferList::nexttransfers(std::function<bool(
                     continueLarge = continuefunction(transfer);
                     if (continueLarge)
                     {
-                        v[tc.index()].push_back(transfer);
+                        chosenTransfers[tc.index()].push_back(transfer);
                     }
                 }
                 else if (tc.sizetype == SMALLFILE && continueSmall)
@@ -1963,7 +1963,7 @@ std::array<vector<Transfer*>, 6> TransferList::nexttransfers(std::function<bool(
                     continueSmall = continuefunction(transfer);
                     if (continueSmall)
                     {
-                        v[tc.index()].push_back(transfer);
+                        chosenTransfers[tc.index()].push_back(transfer);
                     }
                 }
                 if (!continueLarge && !continueSmall)
@@ -1973,7 +1973,7 @@ std::array<vector<Transfer*>, 6> TransferList::nexttransfers(std::function<bool(
             }
         }
     }
-    return v;
+    return chosenTransfers;
 }
 
 Transfer *TransferList::transferat(direction_t direction, unsigned int position)
