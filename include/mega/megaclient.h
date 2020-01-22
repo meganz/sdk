@@ -465,7 +465,7 @@ public:
     void putnodes(const char*, NewNode*, int);
 
     // attach file attribute to upload or node handle
-    void putfa(handle, fatype, SymmCipher*, string*, bool checkAccess = true);
+    void putfa(handle, fatype, SymmCipher*, std::unique_ptr<string>, bool checkAccess = true);
 
     // queue file attribute retrieval
     error getfa(handle h, string *fileattrstring, const string &nodekey, fatype, int = 0);
