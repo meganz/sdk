@@ -663,6 +663,8 @@ endif (ENABLE_CODECOVERAGE )
 
 #test apps
 add_executable(test_unit
+    ${MegaDir}/tests/unit/AttrMap_test.cpp
+    ${MegaDir}/tests/unit/ChunkMacMap_test.cpp
     ${MegaDir}/tests/unit/Commands_test.cpp
     ${MegaDir}/tests/unit/constants.h
     ${MegaDir}/tests/unit/Crypto_test.cpp
@@ -672,15 +674,22 @@ add_executable(test_unit
     ${MegaDir}/tests/unit/DefaultedFileAccess.h
     ${MegaDir}/tests/unit/DefaultedFileSystemAccess.h
     ${MegaDir}/tests/unit/FileFingerprint_test.cpp
+    ${MegaDir}/tests/unit/File_test.cpp
     ${MegaDir}/tests/unit/FsNode.cpp
     ${MegaDir}/tests/unit/FsNode.h
     ${MegaDir}/tests/unit/Logging_test.cpp
     ${MegaDir}/tests/unit/main.cpp
+    ${MegaDir}/tests/unit/MediaProperties_test.cpp
     ${MegaDir}/tests/unit/MegaApi_test.cpp
     ${MegaDir}/tests/unit/NotImplemented.h
     ${MegaDir}/tests/unit/PayCrypter_test.cpp
+    ${MegaDir}/tests/unit/PendingContactRequest_test.cpp
     ${MegaDir}/tests/unit/Serialization_test.cpp
+    ${MegaDir}/tests/unit/Share_test.cpp
     ${MegaDir}/tests/unit/Sync_test.cpp
+    ${MegaDir}/tests/unit/TextChat_test.cpp
+    ${MegaDir}/tests/unit/Transfer_test.cpp
+    ${MegaDir}/tests/unit/User_test.cpp
     ${MegaDir}/tests/unit/utils.cpp
     ${MegaDir}/tests/unit/utils.h
     ${MegaDir}/tests/unit/utils_test.cpp

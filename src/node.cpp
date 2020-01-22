@@ -373,14 +373,26 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
         n->setkey(k);
     }
 
-    if (numshares)
+    // read inshare, outshares, or pending shares
+    while (numshares)   // inshares: -1, outshare/s: num_shares
     {
-        // read inshare, outshares, or pending shares
-        while (Share::unserialize(client,
-                                  (numshares > 0) ? -1 : 0,
-                                  h, skey, &ptr, end)
-               && numshares > 0
-               && --numshares);
+        int direction = (numshares > 0) ? -1 : 0;
+        NewShare *newShare = Share::unserialize(direction, h, skey, &ptr, end);
+        if (!newShare)
+        {
+            LOG_err << "Failed to unserialize Share";
+            break;
+        }
+
+        client->newshares.push_back(newShare);
+        if (numshares > 0)  // outshare/s
+        {
+            numshares--;
+        }
+        else    // inshare
+        {
+            break;
+        }
     }
 
     ptr = n->attrs.unserialize(ptr, end);

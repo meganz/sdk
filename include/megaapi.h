@@ -6845,6 +6845,14 @@ class MegaApi
             BUSINESS_STATUS_GRACE_PERIOD = 2
         };
 
+        enum {
+            AFFILIATE_TYPE_INVALID = 0, // legacy mode
+            AFFILIATE_TYPE_ID = 1,
+            AFFILIATE_TYPE_FILE_FOLDER = 2,
+            AFFILIATE_TYPE_CHAT = 3,
+            AFFILIATE_TYPE_CONTACT = 4,
+        };
+
         /**
          * @brief Constructor suitable for most applications
          * @param appKey AppKey of your application
@@ -9962,6 +9970,7 @@ class MegaApi
          * The associated request type with this request is MegaRequest::TYPE_GET_PAYMENT_ID
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the product
+         * - MegaRequest::getParentHandle - Returns the last public node handle accessed
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -9974,6 +9983,34 @@ class MegaApi
          * @see MegaApi::getPricing
          */
         void getPaymentId(MegaHandle productHandle, MegaHandle lastPublicHandle, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get the payment URL for an upgrade
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_PAYMENT_ID
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the product
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getLink - Payment ID
+         * - MegaRequest::getParentHandle - Returns the last public node handle accessed
+         * - MegaRequest::getParamType - Returns the type of lastPublicHandle
+         * - MegaRequest::getTransferredBytes - Returns the timestamp of the last access
+         *
+         * @param productHandle Handle of the product (see MegaApi::getPricing)
+         * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
+         * @param lastPublicHandleType Indicates the type of lastPublicHandle, valid values are:
+         *      - MegaApi::AFFILIATE_TYPE_ID = 1
+         *      - MegaApi::AFFILIATE_TYPE_FILE_FOLDER = 2
+         *      - MegaApi::AFFILIATE_TYPE_CHAT = 3
+         *      - MegaApi::AFFILIATE_TYPE_CONTACT = 4
+         *
+         * @param lastAccessTimestamp Timestamp of the last access
+         * @param listener MegaRequestListener to track this request
+         * @see MegaApi::getPricing
+         */
+        void getPaymentId(MegaHandle productHandle, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Upgrade an account
@@ -10004,6 +10041,8 @@ class MegaApi
          * @brief Submit a purchase receipt for verification
          *
          * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getText - Returns the purchase receipt
          *
          * @param receipt Purchase receipt
          * @param listener MegaRequestListener to track this request
@@ -10019,6 +10058,9 @@ class MegaApi
          * @brief Submit a purchase receipt for verification
          *
          * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNumber - Returns the payment gateway
+         * - MegaRequest::getText - Returns the purchase receipt
          *
          * @param gateway Payment gateway
          * Currently supported payment gateways are:
@@ -10035,6 +10077,10 @@ class MegaApi
          * @brief Submit a purchase receipt for verification
          *
          * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNumber - Returns the payment gateway
+         * - MegaRequest::getText - Returns the purchase receipt
+         * - MegaRequest::getParentHandle - Returns the last public node handle accessed
          *
          * @param gateway Payment gateway
          * Currently supported payment gateways are:
@@ -10047,6 +10093,36 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void submitPurchaseReceipt(int gateway, const char* receipt, MegaHandle lastPublicHandle, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Submit a purchase receipt for verification
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNumber - Returns the payment gateway
+         * - MegaRequest::getText - Returns the purchase receipt
+         * - MegaRequest::getParentHandle - Returns the last public node handle accessed
+         * - MegaRequest::getParamType - Returns the type of lastPublicHandle
+         * - MegaRequest::getTransferredBytes - Returns the timestamp of the last access
+         *
+         * @param gateway Payment gateway
+         * Currently supported payment gateways are:
+         * - MegaApi::PAYMENT_METHOD_ITUNES = 2
+         * - MegaApi::PAYMENT_METHOD_GOOGLE_WALLET = 3
+         * - MegaApi::PAYMENT_METHOD_WINDOWS_STORE = 13
+         *
+         * @param receipt Purchase receipt
+         * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
+         * @param lastPublicHandleType Indicates the type of lastPublicHandle, valid values are:
+         *      - MegaApi::AFFILIATE_TYPE_ID = 1
+         *      - MegaApi::AFFILIATE_TYPE_FILE_FOLDER = 2
+         *      - MegaApi::AFFILIATE_TYPE_CHAT = 3
+         *      - MegaApi::AFFILIATE_TYPE_CONTACT = 4
+         *
+         * @param lastAccessTimestamp Timestamp of the last access
+         * @param listener MegaRequestListener to track this request
+         */
+        void submitPurchaseReceipt(int gateway, const char *receipt, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener =  NULL);
 
         /**
          * @brief Store a credit card
@@ -10718,7 +10794,15 @@ class MegaApi
          * - MegaRequest::getText - Returns the description of the issue
          *
          * @param message Description of the issue for support
-         * @param eventType Event type (use 1 for support tickets)
+         * @param type Ticket type. These are the available types:
+         *          0 for General Enquiry
+         *          1 for Technical Issue
+         *          2 for Payment Issue
+         *          3 for Forgotten Password
+         *          4 for Transfer Issue
+         *          5 for Contact/Sharing Issue
+         *          6 for MEGAsync Issue
+         *          7 for Missing/Invisible Data
          * @param listener MegaRequestListener to track this request
          */
         void createSupportTicket(const char* message, int type = 1, MegaRequestListener *listener = NULL);

@@ -275,9 +275,11 @@ CurlHttpIO::CurlHttpIO()
 
 #endif
 
-    curl_global_init(CURL_GLOBAL_DEFAULT);
-    ares_library_init(ARES_LIB_INIT_ALL);
-
+    if (++instanceCount == 1)
+    {
+        curl_global_init(CURL_GLOBAL_DEFAULT);
+        ares_library_init(ARES_LIB_INIT_ALL);
+    }
 
 #if defined(__ANDROID__) && ARES_VERSION >= 0x010F00
     initialize_android();
@@ -718,13 +720,18 @@ CurlHttpIO::~CurlHttpIO()
     closecurlevents(PUT);
 
     curlMutex.lock();
-    ares_library_cleanup();
-    curl_global_cleanup();
+    if (--instanceCount == 0)
+    {
+        ares_library_cleanup();
+        curl_global_cleanup();
+    }
     curlMutex.unlock();
 
     curl_slist_free_all(contenttypejson);
     curl_slist_free_all(contenttypebinary);
 }
+
+int CurlHttpIO::instanceCount = 0;
 
 void CurlHttpIO::setuseragent(string* u)
 {
@@ -2767,7 +2774,7 @@ void CurlHttpIO::initialize_android()
     try
     {
         JNIEnv *env;
-        int result = MEGAjvm->GetEnv((void **)&env, JNI_VERSION_1_4);
+        int result = MEGAjvm->GetEnv((void **)&env, JNI_VERSION_1_6);
         if (result == JNI_EDETACHED)
         {
             if (MEGAjvm->AttachCurrentThread(&env, NULL) != JNI_OK)
@@ -2879,7 +2886,9 @@ void CurlHttpIO::initialize_android()
             return;
         }
 
+        ares_library_init_jvm(MEGAjvm);
         ares_library_init_android(connectivityManager);
+        assert(ares_library_android_initialized() == ARES_SUCCESS);
 
         if (detach)
         {

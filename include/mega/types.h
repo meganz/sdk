@@ -248,16 +248,15 @@ const int FOLDERNODEKEYLENGTH = 16;
 typedef list<class Sync*> sync_list;
 
 // persistent resource cache storage
-struct Cachable
+class Cacheable
 {
+public:
+    virtual ~Cacheable() = default;
+
     virtual bool serialize(string*) = 0;
 
-    int32_t dbid;
-
-    bool notified;
-
-    Cachable();
-    virtual ~Cachable() { }
+    uint32_t dbid = 0;
+    bool notified = false;
 };
 
 // numeric representation of string (up to 8 chars)
@@ -384,6 +383,7 @@ typedef map<int, FileAttributeFetchChannel*> fafc_map;
 
 // transfer type
 typedef enum { GET = 0, PUT, API, NONE } direction_t;
+typedef enum { LARGEFILE = 0, SMALLFILE } filesizetype_t;
 
 struct StringCmp
 {
@@ -483,7 +483,7 @@ typedef enum { PRIV_UNKNOWN = -2, PRIV_RM = -1, PRIV_RO = 0, PRIV_STANDARD = 2, 
 typedef pair<handle, privilege_t> userpriv_pair;
 typedef vector< userpriv_pair > userpriv_vector;
 typedef map <handle, set <handle> > attachments_map;
-struct TextChat : public Cachable
+struct TextChat : public Cacheable
 {
     enum {
         FLAG_OFFSET_ARCHIVE = 0

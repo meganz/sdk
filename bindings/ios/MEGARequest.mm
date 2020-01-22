@@ -207,6 +207,21 @@ using namespace mega;
     return [dict copy];
 }
 
+- (NSDictionary<NSString *, NSString *> *)megaStringDictionary {
+    MegaStringMap *map = self.megaRequest->getMegaStringMap();
+    
+    NSMutableDictionary *dict = [NSMutableDictionary dictionaryWithCapacity:map->size()];
+    MegaStringList *keyList = map->getKeys();
+    
+    for (int i = 0; i < keyList->size(); i++) {
+        const char *key = keyList->get(i);
+        dict[@(key)] = @(map->get(key));
+    }
+    
+    delete keyList;
+    return [dict copy];
+}
+
 - (NSInteger)transferTag {
     return self.megaRequest ? self.megaRequest->getTransferTag() : 0;
 }
