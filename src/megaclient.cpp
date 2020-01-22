@@ -7959,7 +7959,7 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
                     v = (visibility_t)j->getint();
                     break;
 
-                case 'm':   // attributes
+                case 'm':   // email
                     m = j->getvalue();
                     break;
 
@@ -8008,6 +8008,11 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
                 {
                     if (u->show != v || u->ctime != ts)
                     {
+                        if (u->show == HIDDEN && v == VISIBLE)
+                        {
+                            u->invalidateattr(ATTR_FIRSTNAME);
+                            u->invalidateattr(ATTR_LASTNAME);
+                        }
                         u->set(v, ts);
                         notify = true;
                     }
