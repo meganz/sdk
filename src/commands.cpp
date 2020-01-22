@@ -32,10 +32,11 @@
 #include "mega/mediafileattribute.h"
 
 namespace mega {
-HttpReqCommandPutFA::HttpReqCommandPutFA(MegaClient* client, handle cth, fatype ctype, string* cdata, bool checkAccess)
+HttpReqCommandPutFA::HttpReqCommandPutFA(MegaClient* client, handle cth, fatype ctype, std::unique_ptr<string> cdata, bool checkAccess)
+    : data(move(cdata))
 {
     cmd("ufa");
-    arg("s", cdata->size());
+    arg("s", data->size());
 
     if (checkAccess)
     {
@@ -53,16 +54,10 @@ HttpReqCommandPutFA::HttpReqCommandPutFA(MegaClient* client, handle cth, fatype 
 
     th = cth;
     type = ctype;
-    data = cdata;
 
     binary = true;
 
     tag = client->reqtag;
-}
-
-HttpReqCommandPutFA::~HttpReqCommandPutFA()
-{
-    delete data;
 }
 
 void HttpReqCommandPutFA::procresult()

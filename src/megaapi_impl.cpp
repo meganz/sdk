@@ -19498,7 +19498,7 @@ void MegaApiImpl::sendPendingRequests()
                     break;
                 }
 
-                client->putfa(node ? node->nodehandle : INVALID_HANDLE, (fatype)type, bu ? bu->nodecipher(client) : node->nodecipher(), attributedata.release());
+                client->putfa(node ? node->nodehandle : INVALID_HANDLE, (fatype)type, bu ? bu->nodecipher(client) : node->nodecipher(), std::move(attributedata));
             }
             break;
         }

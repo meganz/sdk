@@ -197,7 +197,8 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
     AffiliateTypeInvalid = 0, // legacy mode
     AffiliateTypeId = 1,
     AffiliateTypeFileFolder = 2,
-    AffiliateTypeChat = 3
+    AffiliateTypeChat = 3,
+    AffiliateTypeContact = 4
 };
 
 /**
@@ -4050,6 +4051,7 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  *      - AffiliateTypeId = 1
  *      - AffiliateTypeFileFolder = 2
  *      - AffiliateTypeChat = 3
+ *      - AffiliateTypeContact = 4
  *
  * @param lastAccessTimestamp Timestamp of the last access
  * @param delegate Delegate to track this request
@@ -4078,6 +4080,7 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
 *      - AffiliateTypeId = 1
 *      - AffiliateTypeFileFolder = 2
 *      - AffiliateTypeChat = 3
+*      - AffiliateTypeContact = 4
 *
 * @param lastAccessTimestamp Timestamp of the last access
 *
@@ -4193,6 +4196,7 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  *      - AffiliateTypeId = 1
  *      - AffiliateTypeFileFolder = 2
  *      - AffiliateTypeChat = 3
+ *      - AffiliateTypeContact = 4
  *
  * @param lastAccessTimestamp Timestamp of the last access
  * @param delegate Delegate to track this request
@@ -4222,6 +4226,7 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  *      - AffiliateTypeId = 1
  *      - AffiliateTypeFileFolder = 2
  *      - AffiliateTypeChat = 3
+ *      - AffiliateTypeContact = 4
  *
  * @param lastAccessTimestamp Timestamp of the last access
  */
