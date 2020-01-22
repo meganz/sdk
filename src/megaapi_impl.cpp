@@ -7450,7 +7450,7 @@ void MegaApiImpl::resumeSyncImpl(const char *localFolder, const long long localf
     sdkMutex.unlock();
 }
 
-void MegaApiImpl::resumeActiveSyncs(MegaRequestListener* listener)
+void MegaApiImpl::resumeResumableSyncs(MegaRequestListener* listener)
 {
     if (!client->syncConfigs)
     {
@@ -13097,7 +13097,7 @@ void MegaApiImpl::fetchnodes_result(error e)
 #ifdef ENABLE_SYNC
         if (e == API_OK)
         {
-            resumeActiveSyncs(request->getListener());
+            resumeResumableSyncs(request->getListener());
         }
 #endif
 
@@ -13142,7 +13142,7 @@ void MegaApiImpl::fetchnodes_result(error e)
 #ifdef ENABLE_SYNC
         if (e == API_OK)
         {
-            resumeActiveSyncs(request->getListener());
+            resumeResumableSyncs(request->getListener());
         }
 #endif
 
