@@ -117,7 +117,7 @@ if [ ! -e "${CURRENTPATH}/lib/libcurl.a" ]; then
 	CC="gcc -lstdc++" LIBS=-lpthread ./configure --prefix="${CURRENTPATH}" --enable-static --disable-shared --with-ssl=${OPENSSL_PREFIX} --with-zlib --disable-manual --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-proxy --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi --enable-ipv6 --disable-smb --without-libidn2
     make -j `sysctl -n hw.physicalcpu`
   else
-	CC="gcc -lstdc++" LIBS=-lpthread ./configure --prefix="${CURRENTPATH}" --enable-static --disable-shared --with-ssl=${OPENSSL_PREFIX} --with-zlib --disable-manual --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-proxy --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi --enable-ipv6 --disable-smb
+	CC="gcc" LIBS="-lpthread -lstdc++" ./configure --prefix="${CURRENTPATH}" --enable-static --disable-shared --with-ssl=${OPENSSL_PREFIX} --with-zlib --disable-manual --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-proxy --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi --enable-ipv6 --disable-smb
     make -j `nproc`
   fi
   make install
@@ -153,6 +153,10 @@ if [ ! -e "${CURRENTPATH}/lib/libwebsockets.a" ]; then
 
 else
   echo "* libwebsockets already configured"
+fi
+
+if ! patch -R -p0 -s -f --dry-run ${WEBRTC_SRC}/api/jsep.h < ../../patches/webrtc_jsep_h.patch; then
+  patch -p0 ${WEBRTC_SRC}/api/jsep.h < ../../patches/webrtc_jsep_h.patch
 fi
 
 #link lib/* into libs if libs is not symlink
