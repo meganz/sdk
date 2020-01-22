@@ -156,6 +156,8 @@ public:
     m_off_t onTransferUpdate_progress;
     m_off_t onTransferUpdate_filesize;
 
+    std::mutex lastEventMutex;
+    std::unique_ptr<MegaEvent> lastEvent;
 
 protected:
     virtual void SetUp();
@@ -188,6 +190,7 @@ protected:
 #ifdef ENABLE_CHAT
     void onChatsUpdate(MegaApi *api, MegaTextChatList *chats) override;
 #endif
+    void onEvent(MegaApi* api, MegaEvent *event) override;
 
 public:
     void login(unsigned int apiIndex, int timeout = maxTimeout);

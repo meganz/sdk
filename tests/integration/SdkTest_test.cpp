@@ -562,6 +562,12 @@ void SdkTest::onChatsUpdate(MegaApi *api, MegaTextChatList *chats)
     mApi[apiIndex].chatUpdated = true;
 }
 
+void SdkTest::onEvent(MegaApi*, MegaEvent *event)
+{
+    std::lock_guard<std::mutex> lock{lastEventMutex};
+    lastEvent.reset(event->copy());
+}
+
 void SdkTest::createChat(bool group, MegaTextChatPeerList *peers, int timeout)
 {
     int apiIndex = 0;
@@ -4155,13 +4161,13 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
 {
     LOG_info << "___TEST SyncResumptionAfterFetchNodes___";
 
-    // This test may currently fail for two reasons:
-    // 1. Syncs are deleted some time later leading to error messages (like local fingerprint mismatch).
-    //    Sync removals are not done after we get called back. The sync only gets flagged but
-    //    is deleted later. So we could wait for some time but that will just break eventually too,
-    //    also making the test very slow.
-    // 2. Remote nodes may not be committed to the sctable database in time for fetchnodes which
-    //    then fails adding syncs because the remotes are missing.
+    // This test has several issues:
+    // 1. Remote nodes may not be committed to the sctable database in time for fetchnodes which
+    //    then fails adding syncs because the remotes are missing. For this reason we wait until
+    //    we receive the EVENT_COMMIT_DB event after transferring the nodes.
+    // 2. Syncs are deleted some time later leading to error messages (like local fingerprint mismatch)
+    //    if we don't wait for long enough after we get called back. A sync only gets flagged but
+    //    is deleted later.
 
     const std::string session = dumpSession();
 
@@ -4192,9 +4198,30 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     fs::create_directories(sync3Path);
     fs::create_directories(sync4Path);
 
+    {
+        std::lock_guard<std::mutex> lock{lastEventMutex};
+        lastEvent.reset();
+        // we're assuming we're not getting any unrelated db commits while the transfer is running
+    }
+
+    // transfer the folder and its subfolders
     TransferTracker uploadListener;
     megaApi[0]->startUpload(basePath.u8string().c_str(), megaApi[0]->getRootNode(), &uploadListener);
     ASSERT_EQ(API_OK, uploadListener.waitForResult());
+
+    // loop until we get a commit to the sctable to ensure we cached the new remote nodes
+    for (;;)
+    {
+        {
+            std::lock_guard<std::mutex> lock{lastEventMutex};
+            if (lastEvent && lastEvent->getType() == MegaEvent::EVENT_COMMIT_DB)
+            {
+                // we're assuming this event is the event for the whole batch of nodes
+                break;
+            }
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds{100});
+    }
 
     auto megaNode = [this, &basePath](const std::string& p)
     {
@@ -4271,6 +4298,9 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     disableSync(sync2Path);
     removeSync(sync3Path);
 
+    // wait for the sync removals to actually take place
+    std::this_thread::sleep_for(std::chrono::seconds{20});
+
     ASSERT_TRUE(checkSyncOK(sync1Path));
     ASSERT_FALSE(checkSyncOK(sync2Path));
     ASSERT_FALSE(checkSyncOK(sync3Path));
@@ -4316,6 +4346,9 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     removeSync(sync1Path);
     removeSync(sync2Path);
     removeSync(sync4Path);
+
+    // wait for the sync removals to actually take place
+    std::this_thread::sleep_for(std::chrono::seconds{20});
 
     cleanUp();
 
