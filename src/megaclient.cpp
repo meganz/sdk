@@ -7999,11 +7999,6 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
             {
                 mapuser(uh, m);
 
-                if (uh != me && !fetchingnodes) // new user --> fetch keys
-                {
-                    fetchContactKeys(u);
-                }
-
                 if (v != VISIBILITY_UNKNOWN)
                 {
                     if (u->show != v || u->ctime != ts)
@@ -8013,6 +8008,14 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
                             u->invalidateattr(ATTR_FIRSTNAME);
                             u->invalidateattr(ATTR_LASTNAME);
                         }
+                        else if (u->show == VISIBILITY_UNKNOWN && v == VISIBLE
+                                 && uh != me
+                                 && !fetchingnodes)
+                        {
+                            // new user --> fetch keys
+                            fetchContactKeys(u);
+                        }
+
                         u->set(v, ts);
                         notify = true;
                     }
