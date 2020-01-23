@@ -1371,6 +1371,7 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
             if (sync != parent->sync)
             {
                 LOG_debug << "Moving files between different syncs";
+                mSyncable = true;
                 oldsync = sync;
             }
 
