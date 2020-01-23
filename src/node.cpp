@@ -373,14 +373,26 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
         n->setkey(k);
     }
 
-    if (numshares)
+    // read inshare, outshares, or pending shares
+    while (numshares)   // inshares: -1, outshare/s: num_shares
     {
-        // read inshare, outshares, or pending shares
-        while (Share::unserialize(client,
-                                  (numshares > 0) ? -1 : 0,
-                                  h, skey, &ptr, end)
-               && numshares > 0
-               && --numshares);
+        int direction = (numshares > 0) ? -1 : 0;
+        NewShare *newShare = Share::unserialize(direction, h, skey, &ptr, end);
+        if (!newShare)
+        {
+            LOG_err << "Failed to unserialize Share";
+            break;
+        }
+
+        client->newshares.push_back(newShare);
+        if (numshares > 0)  // outshare/s
+        {
+            numshares--;
+        }
+        else    // inshare
+        {
+            break;
+        }
     }
 
     ptr = n->attrs.unserialize(ptr, end);
@@ -987,6 +999,10 @@ NodeCounter Node::subnodeCounts() const
 #ifdef ENABLE_SYNC
 void Node::setSyncable(const bool syncable)
 {
+    if (!client->unsyncables)
+    {
+        return;
+    }
     if (!syncable)
     {
         if (!client->unsyncables->addNode(nodehandle))
@@ -1005,6 +1021,10 @@ void Node::setSyncable(const bool syncable)
 
 bool Node::isSyncable() const
 {
+    if (!client->unsyncables)
+    {
+        return true;
+    }
     return !client->unsyncables->containsNode(nodehandle);
 }
 #endif
@@ -1038,6 +1058,63 @@ bool Node::setparent(Node* p)
 
 #ifdef ENABLE_SYNC
     Node *oldparent = parent;
+
+    if ((!localnode || !localnode->sync->getConfig().isUpSync()) && !isSyncable())
+    {
+        if (p) // p is the new parent
+        {
+            if (p->type == FILENODE)
+            {
+                // if child (old version) is not syncable then parent must follow suit (new version)
+                p->setSyncable(false);
+                setSyncable(true); // set old version back to default
+            }
+            else // p is a folder
+            {
+                // If the node is not syncable and was moved out of a sync then
+                // it becomes syncable again.
+
+                auto getSyncRoot = [this](const Node* n)
+                {
+                    while (n)
+                    {
+                        if (std::find_if(client->syncs.begin(), client->syncs.end(),
+                                         [n](const Sync* sync)
+                                         {
+                                             return sync->localroot->node &&
+                                                    sync->localroot->node->nodehandle == n->nodehandle;
+                                         }) != client->syncs.end())
+                        {
+                            return n->nodehandle;
+                        }
+                        n = n->parent;
+                    }
+                    return UNDEF;
+                };
+
+                const auto nSyncRoot = getSyncRoot(parent);
+                if (nSyncRoot != UNDEF)
+                {
+                    const auto pSyncRoot = getSyncRoot(p);
+                    // different sync roots means the node was moved out of a sync
+                    if (nSyncRoot != pSyncRoot)
+                    {
+                        setSyncable(true);
+                    }
+                }
+                else
+                {
+                    LOG_err << "Unsyncable node does not have a sync root: " << nodehandle;
+                    assert(false);
+                    setSyncable(true);
+                }
+            }
+        }
+        else
+        {
+            setSyncable(true);
+        }
+    }
 #endif
 
     parent = p;
@@ -1045,15 +1122,6 @@ bool Node::setparent(Node* p)
     if (parent)
     {
         child_it = parent->children.insert(parent->children.end(), this);
-
-#ifdef ENABLE_SYNC
-        if (parent->type == FILENODE && !isSyncable())
-        {
-            // if child (old version) is not syncable then parent must follow suit (new version)
-            parent->setSyncable(false);
-            setSyncable(true); // set old version back to default
-        }
-#endif
     }
 
     Node* newancestor = firstancestor();

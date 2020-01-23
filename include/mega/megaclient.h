@@ -446,6 +446,9 @@ public:
 
     // indicates whether all startup syncs have been fully scanned
     bool syncsup;
+
+    // A collection of unsyncable remote nodes stored by handle
+    std::unique_ptr<UnsyncableNodeBag> unsyncables;
 #endif
 
     // if set, symlinks will be followed except in recursive deletions
@@ -469,7 +472,7 @@ public:
     void putnodes(const char*, NewNode*, int);
 
     // attach file attribute to upload or node handle
-    void putfa(handle, fatype, SymmCipher*, string*, bool checkAccess = true);
+    void putfa(handle, fatype, SymmCipher*, std::unique_ptr<string>, bool checkAccess = true);
 
     // queue file attribute retrieval
     error getfa(handle h, string *fileattrstring, const string &nodekey, fatype, int = 0);
@@ -578,13 +581,13 @@ public:
     void purchase_begin();
 
     // add item to basket
-    void purchase_additem(int, handle, unsigned, const char *, unsigned, const char *, handle = UNDEF);
+    void purchase_additem(int, handle, unsigned, const char *, unsigned, const char *, handle = UNDEF, int = 0, int64_t = 0);
 
     // submit purchased products for payment
     void purchase_checkout(int);
 
     // submit purchase receipt for verification
-    void submitpurchasereceipt(int, const char*, handle lph = UNDEF);
+    void submitpurchasereceipt(int, const char*, handle lph = UNDEF, int phtype = 0, int64_t ts = 0);
 
     // store credit card
     error creditcardstore(const char *);
@@ -610,9 +613,6 @@ public:
 
     // clean rubbish bin
     void cleanrubbishbin();
-
-    // determine if more transfers fit in the pipeline
-    bool moretransfers(direction_t);
 
     // change the storage status
     bool setstoragestatus(storagestatus_t);
@@ -957,11 +957,6 @@ public:
     // DB access
     DbAccess* dbaccess;
 
-#ifdef ENABLE_SYNC
-    // A collection of unsyncable remote nodes stored by handle
-    std::unique_ptr<UnsyncableNodeBag> unsyncables;
-#endif
-
     // state cache table for logged in user
     DbTable* sctable;
 
@@ -1019,6 +1014,7 @@ public:
     // Server-MegaClient request JSON and processing state flag ("processing a element")
     JSON jsonsc;
     bool insca;
+    bool insca_notlast;
 
     // no two interrelated client instances should ever have the same sessionid
     char sessionid[10];
@@ -1109,9 +1105,6 @@ public:
     handle_vector sharekeyrewrite;
 
     static const char* const EXPORTEDLINK;
-
-    // minimum number of bytes in transit for upload/download pipelining
-    static const int MINPIPELINE = 65536;
 
     // default number of seconds to wait after a bandwidth overquota
     static dstime DEFAULT_BW_OVERQUOTA_BACKOFF_SECS;
@@ -1302,11 +1295,8 @@ public:
     // determine if all transfer slots are full
     bool slotavail() const;
 
-    // dispatch as many queued transfers as possible
-    void dispatchmore(direction_t);
-
     // transfer queue dispatch/retry handling
-    bool dispatch(direction_t);
+    void dispatchTransfers();
 
     void defer(direction_t, int td, int = 0);
     void freeq(direction_t);
@@ -1325,6 +1315,7 @@ public:
 
     bool requestLock;
     dstime disconnecttimestamp;
+    dstime lastDispatchTransfersDs = 0;
 
     // process object arrays by the API server
     int readnodes(JSON*, int, putsource_t = PUTNODES_APP, NewNode* = NULL, int = 0, int = 0, bool applykeys = false);
@@ -1597,6 +1588,10 @@ public:
         CodeCounter::DurationSum transfersActiveTime;
         std::string report(bool reset, HttpIO* httpio, Waiter* waiter, const RequestDispatcher& reqs);
     } performanceStats;
+
+#ifdef ENABLE_SYNC
+    void resetUnsyncables();
+#endif
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
     ~MegaClient();

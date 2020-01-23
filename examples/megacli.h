@@ -53,9 +53,10 @@ extern appfile_list appxferq[2];
 
 struct AppFileGet : public AppFile
 {
-    void start();
+    void start() override;
     void update();
-    void completed(Transfer*, LocalNode*);
+    void completed(Transfer*, LocalNode*) override;
+    void terminated() override;
 
     AppFileGet(Node*, handle = UNDEF, byte* = NULL, m_off_t = -1, m_time_t = 0, string* = NULL, string* = NULL, const string& targetfolder = "");
     ~AppFileGet();
@@ -63,9 +64,10 @@ struct AppFileGet : public AppFile
 
 struct AppFilePut : public AppFile
 {
-    void start();
+    void start() override;
     void update();
-    void completed(Transfer*, LocalNode*);
+    void completed(Transfer*, LocalNode*) override;
+    void terminated() override;
 
     void displayname(string*);
 
@@ -305,6 +307,7 @@ void exec_mv(autocomplete::ACState& s);
 void exec_cp(autocomplete::ACState& s);
 void exec_du(autocomplete::ACState& s);
 void exec_sync(autocomplete::ACState& s);
+void exec_delsync(autocomplete::ACState& s);
 void exec_syncconfig(autocomplete::ACState& s);
 void exec_export(autocomplete::ACState& s);
 void exec_share(autocomplete::ACState& s);

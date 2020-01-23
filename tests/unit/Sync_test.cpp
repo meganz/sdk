@@ -1152,17 +1152,6 @@ std::string serializeUnsyncable(mega::handle nodeHandle)
 
 }
 
-TEST(Sync, UnsyncableNodeBag_withoutDbTable)
-{
-    const mega::handle nodeHandle = 42;
-    mega::UnsyncableNodeBag bag;
-    ASSERT_FALSE(bag.containsNode(nodeHandle));
-    ASSERT_TRUE(bag.addNode(nodeHandle));
-    ASSERT_TRUE(bag.containsNode(nodeHandle));
-    ASSERT_TRUE(bag.removeNode(nodeHandle));
-    ASSERT_FALSE(bag.containsNode(nodeHandle));
-}
-
 TEST(Sync, UnsyncableNodeBag)
 {
     UnsyncableDbAccess dbaccess;
@@ -1173,7 +1162,7 @@ TEST(Sync, UnsyncableNodeBag)
     UnsyncableFsAccess fsaccess;
     mega::PrnGen prn;
     const mega::handle nodeHandle = 123;
-    mega::UnsyncableNodeBag bag{dbaccess, fsaccess, prn};
+    mega::UnsyncableNodeBag bag{dbaccess, fsaccess, prn, "id"};
     ASSERT_TRUE(bag.containsNode(42));
     ASSERT_TRUE(bag.containsNode(13));
     ASSERT_FALSE(bag.containsNode(nodeHandle));
@@ -1215,7 +1204,7 @@ TEST(Sync, UnsyncableNodeBag_withoutRecords)
     UnsyncableFsAccess fsaccess;
     mega::PrnGen prn;
     const mega::handle nodeHandle = 123;
-    mega::UnsyncableNodeBag bag{dbaccess, fsaccess, prn};
+    mega::UnsyncableNodeBag bag{dbaccess, fsaccess, prn, "id"};
     ASSERT_FALSE(bag.containsNode(nodeHandle));
     ASSERT_TRUE(bag.addNode(nodeHandle));
     ASSERT_TRUE(bag.containsNode(nodeHandle));
