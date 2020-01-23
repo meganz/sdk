@@ -999,6 +999,10 @@ NodeCounter Node::subnodeCounts() const
 #ifdef ENABLE_SYNC
 void Node::setSyncable(const bool syncable)
 {
+    if (!client->unsyncables)
+    {
+        return;
+    }
     if (!syncable)
     {
         if (!client->unsyncables->addNode(nodehandle))
@@ -1017,6 +1021,10 @@ void Node::setSyncable(const bool syncable)
 
 bool Node::isSyncable() const
 {
+    if (!client->unsyncables)
+    {
+        return true;
+    }
     return !client->unsyncables->containsNode(nodehandle);
 }
 #endif
