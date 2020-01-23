@@ -3552,6 +3552,26 @@ TEST(Sync, OneWay_Download_syncDelFalse_overwriteFalse_6)
     ASSERT_TRUE(fx.checkOneWay(localModel, StandardClient::CONFIRM_LOCAL));
 }
 
+TEST(Sync, OneWay_Download_syncDelFalse_overwriteFalse_7)
+{
+    /* Steps:
+     * - Add remote file
+     * - Wait for download
+     * - Remove local file
+     * - Move remote node outside the sync
+     * - Move remote node back
+     * - Assert: Local file is back (remote node became syncable again)
+     */
+    OneWayFixture fx{SyncConfig::TYPE_DOWN, false, false};
+
+    ASSERT_TRUE(createFile(fx.refRootPath(), "foo"));
+
+    fx.wait();
+    // foo is downloaded
+
+    // cbtodo: Finish writing this test
+}
+
 TEST(Sync, OneWay_Download_syncDelTrue_overwriteFalse_1)
 {
     /* Steps:
