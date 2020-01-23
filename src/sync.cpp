@@ -511,9 +511,9 @@ bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, h
     return success;
 }
 
-UnsyncableNodeBag::UnsyncableNodeBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, PrnGen& rng)
+UnsyncableNodeBag::UnsyncableNodeBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, PrnGen& rng, const std::string& id)
 {
-    std::string dbname = "unsyncablenodes";
+    std::string dbname = "unsyncablenodes" + id;
     mTable.reset(dbaccess.open(rng, &fsaccess, &dbname, false, false));
     if (!mTable)
     {
@@ -524,7 +524,7 @@ UnsyncableNodeBag::UnsyncableNodeBag(DbAccess& dbaccess, FileSystemAccess& fsacc
 
     mTable->rewind();
 
-    decltype(mNextTableId) tableId;
+    uint32_t tableId;
     std::string data;
     while (mTable->next(&tableId, &data))
     {
@@ -538,13 +538,13 @@ UnsyncableNodeBag::UnsyncableNodeBag(DbAccess& dbaccess, FileSystemAccess& fsacc
             continue;
         }
 
-        mNodes[nodeHandle] = NodeData{tableId};
-        if (tableId > mNextTableId)
+        mNodes[nodeHandle] = tableId;
+        if (tableId > mTable->nextid)
         {
-            mNextTableId = tableId;
+            mTable->nextid = tableId;
         }
     }
-    ++mNextTableId;
+    ++mTable->nextid;
 }
 
 DbTable* UnsyncableNodeBag::getDbTable() const
@@ -558,7 +558,7 @@ bool UnsyncableNodeBag::addNode(const handle nodeHandle)
     auto nodePair = mNodes.find(nodeHandle);
     if (nodePair == mNodes.end())
     {
-        mNodes[nodeHandle] = NodeData{mNextTableId};
+        mNodes[nodeHandle] = mTable->nextid;
         if (mTable)
         {
             std::string data;
@@ -566,13 +566,13 @@ bool UnsyncableNodeBag::addNode(const handle nodeHandle)
             CacheableWriter writer{data};
             writer.serializehandle(nodeHandle);
 
-            complete = mTable->put(mNextTableId, &data);
+            complete = mTable->put(mTable->nextid, &data);
             if (!complete)
             {
                 assert(false);
                 LOG_err << "Incomplete database put for data: " << data;
             }
-            ++mNextTableId;
+            ++mTable->nextid;
         }
     }
     return complete;
@@ -586,11 +586,11 @@ bool UnsyncableNodeBag::removeNode(const handle nodeHandle)
     {
         if (mTable)
         {
-            complete = mTable->del(nodePair->second.mTableId);
+            complete = mTable->del(nodePair->second);
             if (!complete)
             {
                 assert(false);
-                LOG_err << "Incomplete database del at id: " << nodePair->second.mTableId;
+                LOG_err << "Incomplete database del at id: " << nodePair->second;
             }
         }
         mNodes.erase(nodePair);
@@ -601,6 +601,16 @@ bool UnsyncableNodeBag::removeNode(const handle nodeHandle)
 bool UnsyncableNodeBag::containsNode(const handle nodeHandle) const
 {
     return mNodes.find(nodeHandle) != mNodes.end();
+}
+
+void UnsyncableNodeBag::clear()
+{
+    if (mTable)
+    {
+        mTable->truncate();
+        mTable->nextid = 0;
+    }
+    mNodes.clear();
 }
 
 // new Syncs are automatically inserted into the session's syncs list

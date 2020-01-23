@@ -48,9 +48,7 @@ bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, h
 class MEGA_API UnsyncableNodeBag
 {
 public:
-    UnsyncableNodeBag() = default;
-
-    UnsyncableNodeBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, PrnGen& rng);
+    UnsyncableNodeBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, PrnGen& rng, const std::string& id);
 
     MEGA_DISABLE_COPY_MOVE(UnsyncableNodeBag)
 
@@ -66,16 +64,12 @@ public:
     // Is the node contained, i.e. not syncable?
     bool containsNode(handle nodeHandle) const;
 
+    // Removes all node handles stored
+    void clear();
+
 private:
-    uint32_t mNextTableId = 0; // the next table ID to use
-
-    struct NodeData
-    {
-        decltype(mNextTableId) mTableId;
-    };
-
     std::unique_ptr<DbTable> mTable; // table for caching remote nodes that are not syncable
-    std::unordered_map<handle, NodeData> mNodes; // map of remote node handles to node data
+    std::unordered_map<handle, uint32_t> mNodes; // map of remote node handles to table ids
 };
 
 class MEGA_API Sync

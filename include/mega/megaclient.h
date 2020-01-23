@@ -446,6 +446,9 @@ public:
 
     // indicates whether all startup syncs have been fully scanned
     bool syncsup;
+
+    // A collection of unsyncable remote nodes stored by handle
+    std::unique_ptr<UnsyncableNodeBag> unsyncables;
 #endif
 
     // if set, symlinks will be followed except in recursive deletions
@@ -953,11 +956,6 @@ public:
     
     // DB access
     DbAccess* dbaccess;
-
-#ifdef ENABLE_SYNC
-    // A collection of unsyncable remote nodes stored by handle
-    std::unique_ptr<UnsyncableNodeBag> unsyncables;
-#endif
 
     // state cache table for logged in user
     DbTable* sctable;
@@ -1590,6 +1588,10 @@ public:
         CodeCounter::DurationSum transfersActiveTime;
         std::string report(bool reset, HttpIO* httpio, Waiter* waiter, const RequestDispatcher& reqs);
     } performanceStats;
+
+#ifdef ENABLE_SYNC
+    void resetUnsyncables();
+#endif
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
     ~MegaClient();

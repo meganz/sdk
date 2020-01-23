@@ -1938,6 +1938,10 @@ void CommandLogin::procresult()
                     client->sessionkey.assign((const char *)sek, sizeof(sek));
                 }
 
+#ifdef ENABLE_SYNC
+                client->resetUnsyncables();
+#endif
+
                 return client->app->login_result(API_OK);
 
             default:

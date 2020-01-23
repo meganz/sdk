@@ -1069,6 +1069,8 @@ void MegaClient::init()
         app->syncupdate_scanning(false);
         syncscanstate = false;
     }
+
+    resetUnsyncables();
 #endif
 
     for (int i = sizeof rootnodes / sizeof *rootnodes; i--; )
@@ -1097,6 +1099,19 @@ void MegaClient::init()
     mNotifiedSumSize = 0;
     mNodeCounters = NodeCounterMap();
 }
+
+#ifdef ENABLE_SYNC
+void MegaClient::resetUnsyncables()
+{
+    unsyncables.reset();
+    if (dbaccess && me != UNDEF)
+    {
+        char buf[16];
+        Base64::btoa((const byte*)&me,  MegaClient::USERHANDLE, buf);
+        unsyncables.reset(new UnsyncableNodeBag{*dbaccess, *fsaccess, rng, buf});
+    }
+}
+#endif
 
 MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, DbAccess* d, GfxProc* g, const char* k, const char* u)
     : useralerts(*this), btugexpiration(rng), btcs(rng), btbadhost(rng), btworkinglock(rng), btsc(rng), btpfa(rng)
@@ -1244,17 +1259,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     h->setuseragent(&useragent);
     h->setmaxdownloadspeed(0);
     h->setmaxuploadspeed(0);
-
-#ifdef ENABLE_SYNC
-    if (dbaccess)
-    {
-        unsyncables.reset(new UnsyncableNodeBag{*dbaccess, *fsaccess, rng});
-    }
-    else
-    {
-        unsyncables.reset(new UnsyncableNodeBag);
-    }
-#endif
 }
 
 MegaClient::~MegaClient()
@@ -3973,6 +3977,10 @@ void MegaClient::removeCaches()
             delete (*it)->statecachetable;
             (*it)->statecachetable = NULL;
         }
+    }
+    if (unsyncables)
+    {
+        unsyncables->clear();
     }
 #endif
 
