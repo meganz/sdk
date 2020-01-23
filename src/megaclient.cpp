@@ -38,7 +38,7 @@ void makeAllSyncable(mega::Node& node)
     {
         return;
     }
-    for (auto n : node.children)
+    for (const auto& n : node.children)
     {
         makeAllSyncable(*n);
     }
