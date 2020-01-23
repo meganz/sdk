@@ -1956,6 +1956,9 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest email] - Return the email associated with the link
  *
+ * If the account logged-in is different account than the one for which the link
+ * was generated, onRequestFinish will be called with the error code MEGAErrorTypeApiEAccess.
+ *
  * @param link Change-email link (#verify)
  */
 - (void)queryChangeEmailLink:(NSString *)link;
