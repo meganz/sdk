@@ -1228,7 +1228,7 @@ struct StandardClient : public MegaApp
     void movenode(string path, string newparentpath, promise<bool>& pb)
     {
         Node* n = drillchildnodebyname(gettestbasenode(), path);
-        Node* p = drillchildnodebyname(gettestbasenode(), path);
+        Node* p = drillchildnodebyname(gettestbasenode(), newparentpath);
         if (n && p)
         {
             resultproc.prepresult(MOVENODE, [this, &pb](error e) { pb.set_value(!e); }, n->nodehandle);
@@ -2803,12 +2803,12 @@ public:
         mClientRef.reset(new StandardClient{localtestroot, "ClientRef"});   // user 1 client 1 (two-way)
         mClientOneWay.reset(new StandardClient{localtestroot, "ClientOneWay"});   // user 1 client 2 (one-way)
 
-        EXPECT_TRUE(mClientRef->login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "f"));
+        EXPECT_TRUE(mClientRef->login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "f", 1, 2));
         EXPECT_TRUE(mClientOneWay->login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
         EXPECT_EQ(mClientRef->basefolderhandle, mClientOneWay->basefolderhandle);
 
-        EXPECT_TRUE(mClientRef->setupSync_mainthread("sync", "f", 0));
-        EXPECT_TRUE(mClientOneWay->setupSync_mainthread(mConfig, "sync", "f", 0));
+        EXPECT_TRUE(mClientRef->setupSync_mainthread("sync", "f/f_0", 0));
+        EXPECT_TRUE(mClientOneWay->setupSync_mainthread(mConfig, "sync", "f/f_0", 0));
         wait(4);
         mClientRef->logcb = mClientOneWay->logcb = true;
     }
@@ -2847,7 +2847,14 @@ public:
 
     bool resumeOneWay()
     {
-        return mClientOneWay->setupSync_mainthread(mConfig, "sync", "f", 0);
+        return mClientOneWay->setupSync_mainthread(mConfig, "sync", "f/f_0", 0);
+    }
+
+    bool remoteMove(const std::string& source, const std::string& target)
+    {
+        std::promise<bool> p;
+        mClientRef->movenode(source, target, p);
+        return p.get_future().get();
     }
 
 private:
@@ -3569,7 +3576,70 @@ TEST(Sync, OneWay_Download_syncDelFalse_overwriteFalse_7)
     fx.wait();
     // foo is downloaded
 
-    // cbtodo: Finish writing this test
+    fs::remove(fx.oneWayRootPath() / "foo");
+
+    fx.wait();
+
+    // move foo to f_1 in cloud
+    ASSERT_TRUE(fx.remoteMove("f/f_0/foo", "f/f_1"));
+
+    fx.wait();
+
+    // move foo back to f_0 in cloud
+    ASSERT_TRUE(fx.remoteMove("f/f_1/foo", "f/f_0"));
+
+    fx.wait();
+    // foo is re-downloaded
+
+    Model model;
+    model.root->addkid(model.makeModelSubfile("foo"));
+
+    ASSERT_TRUE(fx.checkRef(model));
+    ASSERT_TRUE(fx.checkOneWay(model));
+}
+
+TEST(Sync, OneWay_Download_syncDelFalse_overwriteFalse_8)
+{
+    /* Steps:
+     * - Add remote file
+     * - Wait for download
+     * - Remove local file
+     * - Rename remote file within same sync
+     * - Assert: No new local file (remote node still unsyncable)
+     */
+    OneWayFixture fx{SyncConfig::TYPE_DOWN, false, false};
+
+    ASSERT_TRUE(createFile(fx.refRootPath(), "foo"));
+
+    fx.wait();
+    // foo is downloaded
+
+    fs::remove(fx.oneWayRootPath() / "foo");
+
+    fx.wait();
+
+    fs::create_directory(fx.refRootPath() / "bar");
+
+    fx.wait();
+
+    // move foo within same sync in cloud
+    ASSERT_TRUE(fx.remoteMove("f/f_0/foo", "f/f_0/bar"));
+
+    fx.wait();
+    // foobar is not downloaded
+
+    Model localModel;
+    localModel.root->addkid(localModel.makeModelSubfolder("bar"));
+
+    Model remoteModel;
+    auto fooNode = remoteModel.makeModelSubfile("foo");
+    auto barFolder = remoteModel.makeModelSubfolder("bar");
+    barFolder->addkid(std::move(fooNode));
+    remoteModel.root->addkid(std::move(barFolder));
+
+    ASSERT_TRUE(fx.checkRef(remoteModel));
+    ASSERT_TRUE(fx.checkOneWay(remoteModel, StandardClient::CONFIRM_REMOTE));
+    ASSERT_TRUE(fx.checkOneWay(localModel, StandardClient::CONFIRM_LOCAL));
 }
 
 TEST(Sync, OneWay_Download_syncDelTrue_overwriteFalse_1)
