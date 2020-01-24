@@ -12581,7 +12581,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
             }
             else
             {
-                LOG_debug << "Node not syncable: " << rit->second->nodehandle;
+                LOG_debug << "Node not syncable: " << LOG_NODEHANDLE(rit->second->nodehandle);
             }
         }
 
