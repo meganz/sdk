@@ -154,6 +154,8 @@ class SimpleLogger
     std::array<char, 256>::iterator mBufferIt;
     using DiffType = std::array<char, 256>::difference_type;
     using NumBuf = std::array<char, 24>;
+    const char* filenameStr;
+    int lineNum;
 
     template<typename DataIterator>
     void copyToBuffer(const DataIterator dataIt, DiffType currentSize)
@@ -289,22 +291,11 @@ public:
     : level{ll}
 #ifdef ENABLE_LOG_PERFORMANCE
     , mBufferIt{mBuffer.begin()}
+    , filenameStr(filename)
+    , lineNum(line)
 #endif
     {
-#ifdef ENABLE_LOG_PERFORMANCE
-        const char * actualFileName = strrchr(filename, '/'); //The project part of the path uses `/` for Windows too.
-        if (actualFileName)
-        {
-            logValue(actualFileName+1);
-        }
-        else
-        {
-            logValue(filename);
-        }
-        copyToBuffer(":", 1);
-        logValue(line);
-        copyToBuffer(" ", 1);
-#else
+#ifndef ENABLE_LOG_PERFORMANCE
         if (!logger)
         {
             return;
@@ -324,6 +315,11 @@ public:
     ~SimpleLogger()
     {
 #ifdef ENABLE_LOG_PERFORMANCE
+        copyToBuffer(" [", 2);
+        logValue(filenameStr);  // put filename and line last, to keep the main text nicely column aligned
+        copyToBuffer(":", 1);
+        logValue(lineNum);
+        copyToBuffer("]", 1);
         outputBuffer();
 #else
         OutputStreams::iterator iter;
@@ -442,32 +438,71 @@ public:
 #endif
 };
 
+// compile-time calculated source file leaf name
+// Inspired by Scott Shurr's example at https://github.com/boostcon/cppnow_presentations_2012/blob/master/wed/schurr_cpp11_tools_for_class_authors.pdf?raw=true
+class log_file_leafname 
+{
+    const char* const leafname; 
+
+    constexpr const char* last(const char* a, size_t N)
+    {
+        for (size_t i = N; i--; )
+            if (a[i] == '/' || a[i] == '\\')
+            {
+                return &a[i + 1];
+            }
+        return a;
+    }
+
+
+public: 
+    // construct from fixed size char* literal
+    template<std::size_t N> constexpr log_file_leafname(const char(&wholepath)[N])
+        : leafname(last(wholepath, N))
+    {
+    } 
+
+    constexpr operator const char* ()
+    {
+        return leafname;
+    }
+};  
+
+#define MEGA_SETUP_LOGGER_USE ;//static leafname_str_const leaf__FILE__(__FILE__);
+
+//inline constexpr const char* log_file_leafname(const char* s)
+//{
+//    const char* last = s;
+//    for (; *s; ++s) if (*s == '/' || *s == '\\') last = s+1;
+//    return last;
+//}
+
 #define LOG_verbose \
     if (::mega::SimpleLogger::logCurrentLevel < ::mega::logMax) ;\
     else \
-        ::mega::SimpleLogger(::mega::logMax, __FILE__, __LINE__)
+        ::mega::SimpleLogger(::mega::logMax, log_file_leafname(__FILE__), __LINE__)
 
 #define LOG_debug \
     if (::mega::SimpleLogger::logCurrentLevel < ::mega::logDebug) ;\
     else \
-        ::mega::SimpleLogger(::mega::logDebug, __FILE__, __LINE__)
+        ::mega::SimpleLogger(::mega::logDebug, log_file_leafname(__FILE__), __LINE__)
 
 #define LOG_info \
     if (::mega::SimpleLogger::logCurrentLevel < ::mega::logInfo) ;\
     else \
-        ::mega::SimpleLogger(::mega::logInfo, __FILE__, __LINE__)
+        ::mega::SimpleLogger(::mega::logInfo, log_file_leafname(__FILE__), __LINE__)
 
 #define LOG_warn \
     if (::mega::SimpleLogger::logCurrentLevel < ::mega::logWarning) ;\
     else \
-        ::mega::SimpleLogger(::mega::logWarning, __FILE__, __LINE__)
+        ::mega::SimpleLogger(::mega::logWarning, log_file_leafname(__FILE__), __LINE__)
 
 #define LOG_err \
     if (::mega::SimpleLogger::logCurrentLevel < ::mega::logError) ;\
     else \
-        ::mega::SimpleLogger(::mega::logError, __FILE__, __LINE__)
+        ::mega::SimpleLogger(::mega::logError, log_file_leafname(__FILE__), __LINE__)
 
 #define LOG_fatal \
-    ::mega::SimpleLogger(::mega::logFatal, __FILE__, __LINE__)
+    ::mega::SimpleLogger(::mega::logFatal, log_file_leafname(__FILE__), __LINE__)
 
 } // namespace
