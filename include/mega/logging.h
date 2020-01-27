@@ -438,34 +438,12 @@ public:
 #endif
 };
 
-// compile-time calculated source file leaf name
-// Inspired by Scott Shurr's example at https://github.com/boostcon/cppnow_presentations_2012/blob/master/wed/schurr_cpp11_tools_for_class_authors.pdf?raw=true
-class log_file_leafname 
+// source file leaf name - maybe to be compile time calculated one day
+template<std::size_t N> inline const char* log_file_leafname(const char(&fullpath)[N])
 {
-    const char* const leafname; 
-
-    constexpr const char* last(const char* a, size_t N)
-    {
-        for (size_t i = N; i--; )
-            if (a[i] == '/' || a[i] == '\\')
-            {
-                return &a[i + 1];
-            }
-        return a;
-    }
-
-public: 
-    // construct from fixed size char* literal
-    template<std::size_t N> constexpr log_file_leafname(const char(&wholepath)[N])
-        : leafname(last(wholepath, N))
-    {
-    } 
-
-    constexpr operator const char* ()
-    {
-        return leafname;
-    }
-};  
+    for (auto i = N; i--; ) if (fullpath[i] == '/' || fullpath[i] == '\\') return &fullpath[i+1];
+    return fullpath;
+}
 
 #define LOG_verbose \
     if (::mega::SimpleLogger::logCurrentLevel < ::mega::logMax) ;\
