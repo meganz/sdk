@@ -13603,7 +13603,8 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
                 dstime timeleft = dstime(overquotauntil - Waiter::ds);
                 t->failed(API_EOVERQUOTA, committer, timeleft);
             }
-            else if (d == PUT && ststatus == STORAGE_RED)
+            else if ((d == PUT && ststatus == STORAGE_RED)
+                     && t->allLocalTargets())
             {
                 t->failed(API_EOVERQUOTA, committer);
             }
@@ -13712,7 +13713,8 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
                 dstime timeleft = dstime(overquotauntil - Waiter::ds);
                 t->failed(API_EOVERQUOTA, committer, timeleft);
             }
-            else if (d == PUT && ststatus == STORAGE_RED)
+            else if ((d == PUT && ststatus == STORAGE_RED)
+                     && t->allLocalTargets())
             {
                 t->failed(API_EOVERQUOTA, committer);
             }

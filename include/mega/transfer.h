@@ -161,6 +161,8 @@ struct MEGA_API Transfer : public FileFingerprint
 
     // examine a file on disk for video/audio attributes to attach to the file, on upload/download
     void addAnyMissingMediaFileAttributes(Node* node, std::string& localpath);
+    // returns true if all targets are local, otherwise return false
+    bool allLocalTargets();
 };
 
 class MEGA_API TransferList
