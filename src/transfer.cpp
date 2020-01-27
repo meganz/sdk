@@ -400,20 +400,12 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
         }
         else
         {
-            bool allForeignTargets = true;
-            for (auto &file : files)
-            {
-                if (client->isPrivateNode(file->h))
-                {
-                    allForeignTargets = false;
-                    break;
-                }
-            }
-
-            /* If all targets are foreign and there's not a bandwidth overquota, transfer must fail.
+            /* If all targets are foreign and there's not a bandwidth overquota, or
+             * overquota has been activated previously, transfer must fail.
              * Otherwise we need to activate overquota.
              */
-            if (!timeleft && allForeignTargets)
+            if ((!timeleft && allForeignTargets())
+                    || client->ststatus == STORAGE_RED)
             {
                 client->app->transfer_failed(this, e);
             }
@@ -537,6 +529,18 @@ static uint32_t* fileAttributeKeyPtr(byte filekey[FILENODEKEYLENGTH])
     return (uint32_t*)(filekey + FILENODEKEYLENGTH / 2);
 }
 #endif
+
+bool Transfer::allForeignTargets()
+{
+    for (auto &file : files)
+    {
+        if (client->isPrivateNode(file->h))
+        {
+            return false;
+        }
+    }
+    return true;
+}
 
 bool Transfer::allLocalTargets()
 {
