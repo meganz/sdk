@@ -4098,33 +4098,38 @@ void exec_sync(autocomplete::ACState& s)
     {
         Node* n = nodebypath(s.words[2].s.c_str());
 
-        if (client->checkaccess(n, FULL))
+        if (syncConfig.isUpSync() && !client->checkaccess(n, FULL))
         {
-            string localname;
+            cout << s.words[2].s << ": TWOWAY/UP sync requires full access to path." << endl;
+            return;
+        }
 
-            client->fsaccess->path2local(&s.words[1].s, &localname);
+        if (syncConfig.isDownSync() && !client->checkaccess(n, RDONLY))
+        {
+            cout << s.words[2].s << ": DOWN sync requires read access to path." << endl;
+            return;
+        }
 
-            if (!n)
-            {
-                cout << s.words[2].s << ": Not found." << endl;
-            }
-            else if (n->type == FILENODE)
-            {
-                cout << s.words[2].s << ": Remote sync root must be folder." << endl;
-            }
-            else
-            {
-                error e = client->addsync(syncConfig, &localname, DEBRISFOLDER, NULL, n);
+        string localname;
 
-                if (e)
-                {
-                    cout << "Sync could not be added: " << errorstring(e) << endl;
-                }
-            }
+        client->fsaccess->path2local(&s.words[1].s, &localname);
+
+        if (!n)
+        {
+            cout << s.words[2].s << ": Not found." << endl;
+        }
+        else if (n->type == FILENODE)
+        {
+            cout << s.words[2].s << ": Remote sync root must be folder." << endl;
         }
         else
         {
-            cout << s.words[2].s << ": Syncing requires full access to path." << endl;
+            error e = client->addsync(syncConfig, &localname, DEBRISFOLDER, NULL, n);
+
+            if (e)
+            {
+                cout << "Sync could not be added: " << errorstring(e) << endl;
+            }
         }
     }
     else if (s.words.size() == 1)

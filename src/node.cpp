@@ -1102,12 +1102,6 @@ bool Node::setparent(Node* p)
                         setSyncable(true);
                     }
                 }
-                else
-                {
-                    LOG_err << "Unsyncable node does not have a sync root: " << nodehandle;
-                    assert(false);
-                    setSyncable(true);
-                }
             }
         }
         else

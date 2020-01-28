@@ -1311,7 +1311,7 @@ int MegaApiImpl::isNodeSyncable(MegaNode *megaNode)
         return MegaError::API_ENOENT;
     }
 
-    error e = client->isnodesyncable(node);
+    error e = client->isnodesyncable(SyncConfig{}, node);
     sdkMutex.unlock();
     return e;
 }

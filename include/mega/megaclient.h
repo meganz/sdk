@@ -518,7 +518,7 @@ public:
     error addtimer(TimerWithBackoff *twb);
 
     // add/delete sync
-    error isnodesyncable(Node*, bool* = NULL);
+    error isnodesyncable(const SyncConfig& syncConfig, Node*, bool* = nullptr);
 
     error addsync(SyncConfig, string*, const char*, string*, Node*, fsfp_t = 0, int = 0, void* = NULL);
 

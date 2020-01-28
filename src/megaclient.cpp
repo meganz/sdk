@@ -6781,6 +6781,13 @@ void MegaClient::makeattr(SymmCipher* key, string* attrstring, const char* json,
 // (with speculative instant completion)
 error MegaClient::setattr(Node* n, const char *prevattr)
 {
+#ifdef ENABLE_SYNC
+    if (n->localnode && !n->localnode->sync->getConfig().isUpSync())
+    {
+        return API_OK;
+    }
+#endif
+
     if (!checkaccess(n, FULL))
     {
         return API_EACCESS;
@@ -11962,7 +11969,7 @@ void MegaClient::updateputs()
     }
 }
 
-error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare)
+error MegaClient::isnodesyncable(const SyncConfig& syncConfig, Node *remotenode, bool *isinshare)
 {
 #ifdef ENABLE_SYNC
     // cannot sync files, rubbish bins or inboxes
@@ -11994,6 +12001,8 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare)
     n = remotenode;
     inshare = false;
 
+    const auto minimumAccessLevel = syncConfig.isUpSync() ? FULL : RDONLY;
+
     do {
         for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
         {
@@ -12006,9 +12015,11 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare)
 
         if (n->inshare && !inshare)
         {
-            // we need FULL access to sync
-            // FIXME: allow downsyncing from RDONLY and limited syncing to RDWR shares
-            if (n->inshare->access != FULL) return API_EACCESS;
+            // FIXME: allow limited up-syncing to RDWR shares
+            if (n->inshare->access < minimumAccessLevel)
+            {
+                return API_EACCESS;
+            }
 
             inshare = true;
         }
@@ -12026,7 +12037,7 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare)
             {
                 for (handle_set::iterator sit = u->sharing.begin(); sit != u->sharing.end(); sit++)
                 {
-                    if ((n = nodebyhandle(*sit)) && n->inshare && n->inshare->access != FULL)
+                    if ((n = nodebyhandle(*sit)) && n->inshare && n->inshare->access < minimumAccessLevel)
                     {
                         do {
                             if (n == remotenode)
@@ -12063,7 +12074,7 @@ error MegaClient::addsync(const SyncConfig syncConfig, string* rootpath, const c
 {
 #ifdef ENABLE_SYNC
     bool inshare = false;
-    error e = isnodesyncable(remotenode, &inshare);
+    error e = isnodesyncable(syncConfig, remotenode, &inshare);
     if (e)
     {
         return e;
