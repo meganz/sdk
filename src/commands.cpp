@@ -1192,6 +1192,8 @@ void CommandPutNodes::procresult()
         LOG_debug << "Putnodes error " << e;
         if (e == API_EOVERQUOTA)
         {
+            // TODO: if API returns this error for foreign targets, do not activate storage overquota, but set the transfer as failed permanently
+            assert(!ISUNDEF(targethandle) && client->isPrivateNode(targethandle));
             client->activateoverquota(0);
         }
 #ifdef ENABLE_SYNC
