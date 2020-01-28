@@ -398,21 +398,36 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
             client->app->transfer_failed(this, e, timeleft);
             ++client->performanceStats.transferTempErrors;
         }
-        else
+        else    // already dispatched (slot != null)
         {
-            /* If all targets are foreign and there's not a bandwidth overquota, or
-             * overquota has been activated previously, transfer must fail.
-             * Otherwise we need to activate overquota.
-             */
-            if ((!timeleft && allForeignTargets())
-                    || client->ststatus == STORAGE_RED)
+            bool allForeignTargets = true;
+            for (const auto &file : files)
+            {
+                if (client->isPrivateNode(file->h))
+                {
+                    allForeignTargets = false;
+                    break;
+                }
+            }
+            if (!timeleft && allForeignTargets)   // storage overquota, but targets are foreign
             {
                 client->app->transfer_failed(this, e);
             }
-            else
+            else    // bandwidth overquota OR storage overquota for, at least, a private target
             {
                 bt.backoff(timeleft ? timeleft : NEVER);
-                client->activateoverquota(timeleft);
+                if (client->ststatus == STORAGE_RED && !timeleft)   // already in storage overquota, notify transfer error
+                {
+                    state = TRANSFERSTATE_RETRYING;
+                    slot->retrybt.backoff(NEVER);
+                    slot->retrying = true;
+                    client->app->transfer_failed(this, API_EOVERQUOTA, 0);
+                    ++client->performanceStats.transferTempErrors;
+                }
+                else    // if bandwidth overquota or transition to storage overquota
+                {
+                    client->activateoverquota(timeleft);
+                }
             }
         }
     }

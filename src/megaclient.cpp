@@ -13603,13 +13603,12 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
                 dstime timeleft = dstime(overquotauntil - Waiter::ds);
                 t->failed(API_EOVERQUOTA, committer, timeleft);
             }
-            else if ((d == PUT && ststatus == STORAGE_RED)
-                     && t->allLocalTargets())
+            else if (d == PUT && ststatus == STORAGE_RED && isPrivateNode(f->h))
             {
                 t->failed(API_EOVERQUOTA, committer);
             }
         }
-        else
+        else    // no existing Transfer, create a new one
         {
             it = cachedtransfers[d].find(f);
             if (it != cachedtransfers[d].end())
@@ -13713,8 +13712,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
                 dstime timeleft = dstime(overquotauntil - Waiter::ds);
                 t->failed(API_EOVERQUOTA, committer, timeleft);
             }
-            else if ((d == PUT && ststatus == STORAGE_RED)
-                     && t->allLocalTargets())
+            else if (d == PUT && ststatus == STORAGE_RED && isPrivateNode(f->h))
             {
                 t->failed(API_EOVERQUOTA, committer);
             }
