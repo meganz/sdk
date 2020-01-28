@@ -545,30 +545,6 @@ static uint32_t* fileAttributeKeyPtr(byte filekey[FILENODEKEYLENGTH])
 }
 #endif
 
-bool Transfer::allForeignTargets()
-{
-    for (auto &file : files)
-    {
-        if (client->isPrivateNode(file->h))
-        {
-            return false;
-        }
-    }
-    return true;
-}
-
-bool Transfer::allLocalTargets()
-{
-    for (auto &file : files)
-    {
-        if (!client->isPrivateNode(file->h))
-        {
-            return false;
-        }
-    }
-    return true;
-}
-
 void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ std::string& localpath)
 {
     assert(type == PUT || (node && node->type == FILENODE));
