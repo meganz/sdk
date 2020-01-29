@@ -15794,6 +15794,7 @@ void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, MegaError 
     notificationNumber++;
     transfer->setNotificationNumber(notificationNumber);
     transfer->setLastError(e);
+    transfer->setForeignOverquota(e.getErrorCode() == API_EOVERQUOTA && client->isForeignNode(transfer->getParentHandle()));
 
     if(e.getErrorCode())
     {
