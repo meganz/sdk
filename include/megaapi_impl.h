@@ -372,7 +372,7 @@ public:
     void onTransferFinish(MegaApi*, MegaTransfer *t, MegaError *e) override;
 };
 
-class MegaNodePrivate : public MegaNode, public Cachable
+class MegaNodePrivate : public MegaNode, public Cacheable
 {
     public:
         MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime,
@@ -591,7 +591,7 @@ private:
 class MegaSharePrivate : public MegaShare
 {
 	public:
-        static MegaShare *fromShare(MegaHandle nodeMegaHandle, Share *share, bool pending = false);
+        static MegaShare *fromShare(MegaHandle nodeMegaHandle, Share *share);
         virtual MegaShare *copy();
         virtual ~MegaSharePrivate();
         virtual const char *getUser();
@@ -601,7 +601,7 @@ class MegaSharePrivate : public MegaShare
         virtual bool isPending();
 
 	protected:
-        MegaSharePrivate(MegaHandle nodehandle, Share *share, bool pending = false);
+        MegaSharePrivate(MegaHandle nodehandle, Share *share);
 		MegaSharePrivate(MegaShare *share);
 
 		MegaHandle nodehandle;
@@ -611,14 +611,14 @@ class MegaSharePrivate : public MegaShare
         bool pending;
 };
 
-class MegaTransferPrivate : public MegaTransfer, public Cachable
+class MegaTransferPrivate : public MegaTransfer, public Cacheable
 {
 	public:
 		MegaTransferPrivate(int type, MegaTransferListener *listener = NULL);
         MegaTransferPrivate(const MegaTransferPrivate *transfer);
         virtual ~MegaTransferPrivate();
         
-        virtual MegaTransfer *copy();
+        MegaTransfer *copy() override;
 	    Transfer *getTransfer() const;
         void setTransfer(Transfer *transfer); 
         void setStartTime(int64_t startTime);
@@ -654,52 +654,52 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         void setNotificationNumber(long long notificationNumber);
         void setListener(MegaTransferListener *listener);
 
-        virtual int getType() const;
-        virtual const char * getTransferString() const;
-        virtual const char* toString() const;
-        virtual const char* __str__() const;
-        virtual const char* __toString() const;
-        virtual int64_t getStartTime() const;
-        virtual long long getTransferredBytes() const;
-        virtual long long getTotalBytes() const;
-        virtual const char* getPath() const;
-        virtual const char* getParentPath() const;
-        virtual MegaHandle getNodeHandle() const;
-        virtual MegaHandle getParentHandle() const;
-        virtual long long getStartPos() const;
-        virtual long long getEndPos() const;
-        virtual const char* getFileName() const;
-        virtual MegaTransferListener* getListener() const;
-        virtual int getNumRetry() const;
-        virtual int getMaxRetries() const;
+        int getType() const override;
+        const char * getTransferString() const override;
+        const char* toString() const override;
+        const char* __str__() const override;
+        const char* __toString() const override;
+        virtual int64_t getStartTime() const override;
+        long long getTransferredBytes() const override;
+        long long getTotalBytes() const override;
+        const char* getPath() const override;
+        const char* getParentPath() const override;
+        MegaHandle getNodeHandle() const override;
+        MegaHandle getParentHandle() const override;
+        long long getStartPos() const override;
+        long long getEndPos() const override;
+        const char* getFileName() const override;
+        MegaTransferListener* getListener() const override;
+        int getNumRetry() const override;
+        int getMaxRetries() const override;
         virtual int64_t getTime() const;
-        virtual int getTag() const;
-        virtual long long getSpeed() const;
-        virtual long long getMeanSpeed() const;
-        virtual long long getDeltaSize() const;
-        virtual int64_t getUpdateTime() const;
+        int getTag() const override;
+        long long getSpeed() const override;
+        long long getMeanSpeed() const override;
+        long long getDeltaSize() const override;
+        int64_t getUpdateTime() const override;
         virtual MegaNode *getPublicNode() const;
-        virtual MegaNode *getPublicMegaNode() const;
-        virtual bool isSyncTransfer() const;
-        virtual bool isStreamingTransfer() const;
-        virtual bool isFinished() const;
+        MegaNode *getPublicMegaNode() const override;
+        bool isSyncTransfer() const override;
+        bool isStreamingTransfer() const override;
+        bool isFinished() const override;
         virtual bool isSourceFileTemporary() const;
         virtual bool shouldStartFirst() const;
-        virtual bool isBackupTransfer() const;
-        virtual bool isForeignOverquota() const;
-        virtual char *getLastBytes() const;
-        virtual MegaError getLastError() const;
-        virtual bool isFolderTransfer() const;
-        virtual int getFolderTransferTag() const;
+        bool isBackupTransfer() const override;
+        bool isForeignOverquota() const override;
+        char *getLastBytes() const override;
+        MegaError getLastError() const override;
+        bool isFolderTransfer() const override;
+        int getFolderTransferTag() const override;
         virtual void setAppData(const char *data);
-        virtual const char* getAppData() const;
+        const char* getAppData() const override;
         virtual void setState(int state);
-        virtual int getState() const;
+        int getState() const override;
         virtual void setPriority(unsigned long long p);
-        virtual unsigned long long getPriority() const;
-        virtual long long getNotificationNumber() const;
+        unsigned long long getPriority() const override;
+        long long getNotificationNumber() const override;
 
-        virtual bool serialize(string*);
+        bool serialize(string*) override;
         static MegaTransferPrivate* unserialize(string*);
 
         void startRecursiveOperation(unique_ptr<MegaRecursiveOperation>, MegaNode* node); // takes ownership of both
@@ -1622,7 +1622,7 @@ class MegaShareListPrivate : public MegaShareList
 {
 	public:
         MegaShareListPrivate();
-        MegaShareListPrivate(Share** newlist, MegaHandle *MegaHandlelist, int size, bool pending = false);
+        MegaShareListPrivate(Share** newlist, MegaHandle *MegaHandlelist, int size);
         virtual ~MegaShareListPrivate();
         virtual MegaShare* get(int i);
         virtual int size();
@@ -1776,7 +1776,7 @@ struct MegaFile : public File
 
     void setTransfer(MegaTransferPrivate *transfer);
     MegaTransferPrivate *getTransfer();
-    virtual bool serialize(string*);
+    bool serialize(string*) override;
 
     static MegaFile* unserialize(string*);
 
@@ -1786,16 +1786,16 @@ protected:
 
 struct MegaFileGet : public MegaFile
 {
-    void prepare();
-    void updatelocalname();
-    void progress();
-    void completed(Transfer*, LocalNode*);
-    void terminated();
+    void prepare() override;
+    void updatelocalname() override;
+    void progress() override;
+    void completed(Transfer*, LocalNode*) override;
+    void terminated() override;
 	MegaFileGet(MegaClient *client, Node* n, string dstPath);
     MegaFileGet(MegaClient *client, MegaNode* n, string dstPath);
     ~MegaFileGet() {}
 
-    virtual bool serialize(string*);
+    bool serialize(string*) override;
     static MegaFileGet* unserialize(string*);
 
 private:
@@ -1804,12 +1804,12 @@ private:
 
 struct MegaFilePut : public MegaFile
 {
-    void completed(Transfer* t, LocalNode*);
-    void terminated();
+    void completed(Transfer* t, LocalNode*) override;
+    void terminated() override;
     MegaFilePut(MegaClient *client, string* clocalname, string *filename, handle ch, const char* ctargetuser, int64_t mtime = -1, bool isSourceTemporary = false);
     ~MegaFilePut() {}
 
-    virtual bool serialize(string*);
+    bool serialize(string*) override;
     static MegaFilePut* unserialize(string*);
 
 protected:
@@ -2128,9 +2128,9 @@ class MegaApiImpl : public MegaApp
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
         void fetchNodes(MegaRequestListener *listener = NULL);
         void getPricing(MegaRequestListener *listener = NULL);
-        void getPaymentId(handle productHandle, handle lastPublicHandle, MegaRequestListener *listener = NULL);
+        void getPaymentId(handle productHandle, handle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener = NULL);
         void upgradeAccount(MegaHandle productHandle, int paymentMethod, MegaRequestListener *listener = NULL);
-        void submitPurchaseReceipt(int gateway, const char* receipt, MegaHandle lastPublicHandle, MegaRequestListener *listener = NULL);
+        void submitPurchaseReceipt(int gateway, const char *receipt, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener = NULL);
         void creditCardStore(const char* address1, const char* address2, const char* city,
                              const char* province, const char* country, const char *postalcode,
                              const char* firstname, const char* lastname, const char* creditcard,
@@ -3060,7 +3060,7 @@ class StreamingBuffer
 public:
     StreamingBuffer();
     ~StreamingBuffer();
-    void init(unsigned int capacity);
+    void init(m_off_t capacity);
     unsigned int append(const char *buf, unsigned int len);
     unsigned int availableData();
     unsigned int availableSpace();
@@ -3197,7 +3197,7 @@ protected:
     void run();
     void initializeAndStartListening();
 
-    void answer(MegaTCPContext* tcpctx, const char *rsp, int rlen);
+    void answer(MegaTCPContext* tcpctx, const char *rsp, size_t rlen);
 
 
     //virtual methods:

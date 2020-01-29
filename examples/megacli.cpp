@@ -117,6 +117,108 @@ int responseprogress = -1;
 //2FA pin attempts
 int attempts = 0;
 
+#ifdef ENABLE_SYNC
+// sync config used when creating a new sync
+static SyncConfig syncConfig;
+
+// converts the given sync config to a string
+static std::string syncConfigToString(const SyncConfig& config)
+{
+    auto getOptions = [](const SyncConfig& config)
+    {
+        std::string desc;
+        desc += ", syncDeletions ";
+        desc += config.syncDeletions() ? "ON" : "OFF";
+        desc += ", forceOverwrite ";
+        desc += config.forceOverwrite() ? "ON" : "OFF";
+        return desc;
+    };
+
+    std::string description;
+    if (config.isUpSync() && config.isDownSync())
+    {
+        description = "TWOWAY";
+    }
+    else if (config.isUpSync())
+    {
+        description = "UP";
+        description += getOptions(config);
+    }
+    else
+    {
+        description = "DOWN";
+        description += getOptions(config);
+    }
+    return description;
+}
+
+// creates a SyncConfig object from config options as strings.
+// returns a pair where `first` is success and `second` is the sync config.
+static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::string syncDel = {}, std::string overwrite = {})
+{
+    auto toLower = [](std::string& s)
+    {
+        for (char& c : s) { c = static_cast<char>(tolower(c)); };
+    };
+
+    toLower(type);
+    toLower(syncDel);
+    toLower(overwrite);
+
+    SyncConfig::Type syncType;
+    if (type == "up")
+    {
+        syncType = SyncConfig::TYPE_UP;
+    }
+    else if (type == "down")
+    {
+        syncType = SyncConfig::TYPE_DOWN;
+    }
+    else if (type == "twoway")
+    {
+        syncType = SyncConfig::TYPE_DEFAULT;
+    }
+    else
+    {
+        return std::make_pair(false, SyncConfig{});
+    }
+
+    bool syncDeletions = false;
+    bool forceOverwrite = false;
+
+    if (syncType != SyncConfig::TYPE_DEFAULT)
+    {
+        if (syncDel == "on")
+        {
+            syncDeletions = true;
+        }
+        else if (syncDel == "off")
+        {
+            syncDeletions = false;
+        }
+        else
+        {
+            return std::make_pair(false, SyncConfig{});
+        }
+
+        if (overwrite == "on")
+        {
+            forceOverwrite = true;
+        }
+        else if (overwrite == "off")
+        {
+            forceOverwrite = false;
+        }
+        else
+        {
+            return std::make_pair(false, SyncConfig{});
+        }
+    }
+
+    return std::make_pair(true, SyncConfig{syncType, syncDeletions, forceOverwrite});
+}
+#endif
+
 static const char* getAccessLevelStr(int access)
 {
     switch(access)
@@ -220,11 +322,23 @@ void AppFileGet::completed(Transfer*, LocalNode*)
     delete this;
 }
 
+// transfer terminated - too many failures, or unrecoverable failure, or cancelled
+void AppFileGet::terminated()
+{
+    delete this;
+}
+
 void AppFilePut::completed(Transfer* t, LocalNode*)
 {
     // perform standard completion (place node in user filesystem etc.)
     File::completed(t, NULL);
 
+    delete this;
+}
+
+// transfer terminated - too many failures, or unrecoverable failure, or cancelled
+void AppFilePut::terminated()
+{
     delete this;
 }
 
@@ -1931,62 +2045,68 @@ int loadfile(string* name, string* data)
     return 0;
 }
 
-void xferq(direction_t d, int cancel)
+void xferq(direction_t d, int cancel, bool showActive, bool showAll, bool showCount)
 {
     string name;
+    int count = 0, activeCount = 0;
 
     DBTableTransactionCommitter committer(client->tctable);
     for (appfile_list::iterator it = appxferq[d].begin(); it != appxferq[d].end(); )
     {
         if (cancel < 0 || cancel == (*it)->seqno)
         {
+            bool active = (*it)->transfer && (*it)->transfer->slot;
             (*it)->displayname(&name);
 
-            cout << (*it)->seqno << ": " << name;
-
-            if (d == PUT)
+            if (active && showActive || showAll)
             {
-                AppFilePut* f = (AppFilePut*) *it;
+                cout << (*it)->seqno << ": " << name;
 
-                cout << " -> ";
-
-                if (f->targetuser.size())
+                if (d == PUT)
                 {
-                    cout << f->targetuser << ":";
-                }
-                else
-                {
-                    string path;
-                    nodepath(f->h, &path);
-                    cout << path;
-                }
-            }
+                    AppFilePut* f = (AppFilePut*)*it;
 
-            if ((*it)->transfer && (*it)->transfer->slot)
-            {
-                cout << " [ACTIVE] " << ((*it)->transfer->slot->progressreported * 100 / ((*it)->transfer->size ? (*it)->transfer->size : 1)) << "%";
+                    cout << " -> ";
+
+                    if (f->targetuser.size())
+                    {
+                        cout << f->targetuser << ":";
+                    }
+                    else
+                    {
+                        string path;
+                        nodepath(f->h, &path);
+                        cout << path;
+                    }
+                }
+
+                if (active)
+                {
+                    cout << " [ACTIVE] " << ((*it)->transfer->slot->progressreported * 100 / ((*it)->transfer->size ? (*it)->transfer->size : 1)) << "% of " << (*it)->transfer->size;
+                }
+                cout << endl;
             }
-            cout << endl;
 
             if (cancel >= 0)
             {
-                cout << "Canceling..." << endl;
+                cout << "Cancelling..." << endl;
+
 
                 if ((*it)->transfer)
                 {
-                    client->stopxfer(*it, &committer);
+                    client->stopxfer(*it++, &committer);  // stopping calls us back, we delete it, destructor removes it from the map
                 }
-                delete *it++;
+                continue;
             }
-            else
-            {
-                it++;
-            }
+
+            ++count;
+            activeCount += active ? 1 : 0;
         }
-        else
-        {
-            it++;
-        }
+        ++it;
+    }
+    if (showCount)
+    {
+        cout << "Transfer count: " << count << " active: " << activeCount << endl;
     }
 }
 
@@ -2305,8 +2425,18 @@ bool recursiveCompare(Node* mn, fs::path p)
 
     multimap<string, Node*> ms;
     multimap<string, fs::path> ps;
-    for (auto& m : mn->children) ms.emplace(m->displayname(), m);
-    for (fs::directory_iterator pi(p); pi != fs::directory_iterator(); ++pi) ps.emplace(pi->path().filename().u8string(), pi->path());
+    for (auto& m : mn->children)
+    {
+        string leafname = m->displayname();
+        client->fsaccess->escapefsincompatible(&leafname);
+        ms.emplace(leafname, m);
+    }
+    for (fs::directory_iterator pi(p); pi != fs::directory_iterator(); ++pi)
+    {
+        auto leafname = pi->path().filename().u8string();
+        client->fsaccess->escapefsincompatible(&leafname);
+        ps.emplace(leafname, pi->path());
+    }
 
     for (auto p_iter = ps.begin(); p_iter != ps.end(); )
     {
@@ -2395,6 +2525,9 @@ void exec_codeTimings(autocomplete::ACState& s)
 fs::path pathFromLocalPath(const string& s, bool mustexist)
 {
     fs::path p = s.empty() ? fs::current_path() : fs::u8path(s);
+#ifdef WIN32
+    p = fs::u8path("\\\\?\\" + p.u8string());
+#endif
     if (mustexist && !fs::exists(p))
     {
         cout << "local path not found: '" << s << "'";
@@ -2641,7 +2774,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_folderlinkinfo, sequence(text("folderlink"), opt(param("link"))));
     p->Add(exec_open, sequence(text("open"), exportedLink(false, true)));
     p->Add(exec_put, sequence(text("put"), opt(flag("-r")), localFSPath("localpattern"), opt(either(remoteFSPath(client, &cwd, "dst"),param("dstemail")))));
-    p->Add(exec_putq, sequence(text("putq"), opt(param("cancelslot"))));
+    p->Add(exec_putq, sequence(text("putq"), repeat(either(flag("-active"), flag("-all"), flag("-count"))), opt(param("cancelslot"))));
 #ifdef USE_FILESYSTEM
     p->Add(exec_get, sequence(text("get"), opt(sequence(flag("-r"), opt(flag("-foldersonly")))), remoteFSPath(client, &cwd), opt(sequence(param("offset"), opt(param("length"))))));
 #else
@@ -2649,7 +2782,7 @@ autocomplete::ACN autocompleteSyntax()
 #endif
     p->Add(exec_get, sequence(text("get"), flag("-re"), param("regularexpression")));
     p->Add(exec_get, sequence(text("get"), exportedLink(true, false), opt(sequence(param("offset"), opt(param("length"))))));
-    p->Add(exec_getq, sequence(text("getq"), opt(param("cancelslot"))));
+    p->Add(exec_getq, sequence(text("getq"), repeat(either(flag("-active"), flag("-all"), flag("-count"))), opt(param("cancelslot"))));
     p->Add(exec_pause, sequence(text("pause"), either(text("status"), sequence(opt(either(text("get"), text("put"))), opt(text("hard"))))));
     p->Add(exec_getfa, sequence(text("getfa"), wholenumber(1), opt(remoteFSPath(client, &cwd)), opt(text("cancel"))));
 #ifdef USE_MEDIAINFO
@@ -2657,13 +2790,14 @@ autocomplete::ACN autocompleteSyntax()
 #endif
     p->Add(exec_smsverify, sequence(text("smsverify"), either(sequence(text("send"), param("phonenumber"), opt(param("reverifywhitelisted"))), sequence(text("code"), param("verificationcode")))));
     p->Add(exec_verifiedphonenumber, sequence(text("verifiedphone")));
-    p->Add(exec_mkdir, sequence(text("mkdir"), remoteFSFolder(client, &cwd)));
+    p->Add(exec_mkdir, sequence(text("mkdir"), opt(flag("-allowduplicate")), remoteFSFolder(client, &cwd)));
     p->Add(exec_rm, sequence(text("rm"), remoteFSPath(client, &cwd), opt(sequence(flag("-regexchild"), param("regex")))));
     p->Add(exec_mv, sequence(text("mv"), remoteFSPath(client, &cwd, "src"), remoteFSPath(client, &cwd, "dst")));
     p->Add(exec_cp, sequence(text("cp"), remoteFSPath(client, &cwd, "src"), either(remoteFSPath(client, &cwd, "dst"), param("dstemail"))));
     p->Add(exec_du, sequence(text("du"), remoteFSPath(client, &cwd)));
 #ifdef ENABLE_SYNC
     p->Add(exec_sync, sequence(text("sync"), opt(sequence(localFSPath(), either(remoteFSPath(client, &cwd, "dst"), param("cancelslot"))))));
+    p->Add(exec_syncconfig, sequence(text("syncconfig"), opt(sequence(param("type (TWOWAY/UP/DOWN)"), opt(sequence(param("syncDeletions (ON/OFF)"), param("forceOverwrite (ON/OFF)")))))));
 #endif
     p->Add(exec_export, sequence(text("export"), remoteFSPath(client, &cwd), opt(either(param("expiretime"), text("del")))));
     p->Add(exec_share, sequence(text("share"), opt(sequence(remoteFSPath(client, &cwd), opt(sequence(contactEmail(client), opt(either(text("r"), text("rw"), text("full"))), opt(param("origemail"))))))));
@@ -3891,12 +4025,30 @@ void exec_log(autocomplete::ACState& s)
 
 void exec_putq(autocomplete::ACState& s)
 {
-    xferq(PUT, s.words.size() > 1 ? atoi(s.words[1].s.c_str()) : -1);
+    bool showActive = s.extractflag("-active");
+    bool showAll = s.extractflag("-all");
+    bool showCount = s.extractflag("-count");
+
+    if (!showActive && !showAll && !showCount)
+    {
+        showCount = true;
+    }
+
+    xferq(PUT, s.words.size() > 1 ? atoi(s.words[1].s.c_str()) : -1, showActive, showAll, showCount);
 }
 
 void exec_getq(autocomplete::ACState& s)
 {
-    xferq(GET, s.words.size() > 1 ? atoi(s.words[1].s.c_str()) : -1);
+    bool showActive = s.extractflag("-active");
+    bool showAll = s.extractflag("-all");
+    bool showCount = s.extractflag("-count");
+
+    if (!showActive && !showAll && !showCount)
+    {
+        showCount = true;
+    }
+
+    xferq(GET, s.words.size() > 1 ? atoi(s.words[1].s.c_str()) : -1, showActive, showAll, showCount);
 }
 
 void exec_open(autocomplete::ACState& s)
@@ -3962,7 +4114,7 @@ void exec_sync(autocomplete::ACState& s)
             }
             else
             {
-                error e = client->addsync(SyncConfig{}, &localname, DEBRISFOLDER, NULL, n);
+                error e = client->addsync(syncConfig, &localname, DEBRISFOLDER, NULL, n);
 
                 if (e)
                 {
@@ -4009,7 +4161,7 @@ void exec_sync(autocomplete::ACState& s)
                         nodepath((*it)->localroot->node->nodehandle, &remotepath);
                         client->fsaccess->local2path(&(*it)->localroot->localname, &localpath);
 
-                        cout << i++ << ": " << localpath << " to " << remotepath << " - "
+                        cout << i++ << " (" << syncConfigToString((*it)->getConfig()) << "): " << localpath << " to " << remotepath << " - "
                                 << syncstatenames[(*it)->state] << ", " << (*it)->localbytes
                                 << " byte(s) in " << (*it)->localnodes[FILENODE] << " file(s) and "
                                 << (*it)->localnodes[FOLDERNODE] << " folder(s)" << endl;
@@ -4021,6 +4173,40 @@ void exec_sync(autocomplete::ACState& s)
         {
             cout << "No syncs active at this time." << endl;
         }
+    }
+}
+
+void exec_syncconfig(autocomplete::ACState& s)
+{
+    if (s.words.size() == 1)
+    {
+        cout << "Current sync config: " << syncConfigToString(syncConfig) << endl;
+    }
+    else if (s.words.size() == 2 || s.words.size() == 4)
+    {
+        std::pair<bool, SyncConfig> pair;
+        if (s.words.size() == 2)
+        {
+            pair = syncConfigFromStrings(s.words[1].s);
+        }
+        else
+        {
+            pair = syncConfigFromStrings(s.words[1].s, s.words[2].s, s.words[3].s);
+        }
+
+        if (pair.first)
+        {
+            syncConfig = pair.second;
+            cout << "Successfully applied new sync config!" << endl;
+        }
+        else
+        {
+            cout << "Invalid parameters for syncconfig command." << endl;
+        }
+    }
+    else
+    {
+        assert(false);
     }
 }
 #endif
@@ -4312,6 +4498,8 @@ void exec_users(autocomplete::ACState& s)
 
 void exec_mkdir(autocomplete::ACState& s)
 {
+    bool allowDuplicate = s.extractflag("-allowduplicate");
+
     if (s.words.size() > 1)
     {
         string newname;
@@ -4330,6 +4518,16 @@ void exec_mkdir(autocomplete::ACState& s)
                 auto nn = new NewNode[1];
                 client->putnodes_prepareOneFolder(nn, newname);
                 client->putnodes(n->nodehandle, nn, 1);
+            }
+            else if (allowDuplicate && n->parent && n->parent->nodehandle != UNDEF)
+            {
+                // the leaf name already exists and was returned in n
+                auto leafname = s.words[1].s;
+                auto pos = leafname.find_last_of("/");
+                if (pos != string::npos) leafname.erase(0, pos + 1);
+                auto nn = new NewNode[1];
+                client->putnodes_prepareOneFolder(nn, leafname);
+                client->putnodes(n->parent->nodehandle, nn, 1);
             }
             else
             {
@@ -6752,7 +6950,10 @@ void DemoApp::folderlinkinfo_result(error e, handle owner, handle /*ph*/, string
 
     handle ph;
     byte folderkey[FOLDERNODEKEYLENGTH];
-    error eaux = client->parsepubliclink(publiclink.c_str(), ph, folderkey, true);
+    #ifndef NDEBUG
+    error eaux =
+    #endif
+    client->parsepubliclink(publiclink.c_str(), ph, folderkey, true);
     assert(eaux == API_OK);
 
     // Decrypt nodekey with the key of the folder link

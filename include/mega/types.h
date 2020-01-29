@@ -240,16 +240,15 @@ const int FOLDERNODEKEYLENGTH = 16;
 typedef list<class Sync*> sync_list;
 
 // persistent resource cache storage
-struct Cachable
+class Cacheable
 {
+public:
+    virtual ~Cacheable() = default;
+
     virtual bool serialize(string*) = 0;
 
-    int32_t dbid;
-
-    bool notified;
-
-    Cachable();
-    virtual ~Cachable() { }
+    uint32_t dbid = 0;
+    bool notified = false;
 };
 
 // numeric representation of string (up to 8 chars)
@@ -376,6 +375,7 @@ typedef map<int, FileAttributeFetchChannel*> fafc_map;
 
 // transfer type
 typedef enum { GET = 0, PUT, API, NONE } direction_t;
+typedef enum { LARGEFILE = 0, SMALLFILE } filesizetype_t;
 
 struct StringCmp
 {
@@ -475,7 +475,7 @@ typedef enum { PRIV_UNKNOWN = -2, PRIV_RM = -1, PRIV_RO = 0, PRIV_STANDARD = 2, 
 typedef pair<handle, privilege_t> userpriv_pair;
 typedef vector< userpriv_pair > userpriv_vector;
 typedef map <handle, set <handle> > attachments_map;
-struct TextChat : public Cachable
+struct TextChat : public Cacheable
 {
     enum {
         FLAG_OFFSET_ARCHIVE = 0
@@ -664,8 +664,10 @@ namespace CodeCounter
 }
 
 // Holds the config of a sync. Can be extended with future config options
-struct SyncConfig
+class SyncConfig
 {
+public:
+
     enum Type
     {
         TYPE_UP = 0x01, // sync up from local to remote
@@ -673,14 +675,61 @@ struct SyncConfig
         TYPE_DEFAULT = TYPE_UP | TYPE_DOWN, // Two-way sync
     };
 
+    SyncConfig() = default;
+
+    SyncConfig(const Type syncType, const bool syncDeletions, const bool forceOverwrite)
+        : mSyncType{syncType}
+        , mSyncDeletions{syncDeletions}
+        , mForceOverwrite{forceOverwrite}
+    {}
+
+    // whether this is an up-sync from local to remote
+    bool isUpSync() const
+    {
+        return mSyncType & TYPE_UP;
+    }
+
+    // whether this is a down-sync from remote to local
+    bool isDownSync() const
+    {
+        return mSyncType & TYPE_DOWN;
+    }
+
+    // whether deletions are synced
+    bool syncDeletions() const
+    {
+        switch (mSyncType)
+        {
+            case TYPE_UP: return mSyncDeletions;
+            case TYPE_DOWN: return mSyncDeletions;
+            case TYPE_DEFAULT: return true;
+        }
+        assert(false);
+        return true;
+    }
+
+    // whether changes are overwritten irregardless of file properties
+    bool forceOverwrite() const
+    {
+        switch (mSyncType)
+        {
+            case TYPE_UP: return mForceOverwrite;
+            case TYPE_DOWN: return mForceOverwrite;
+            case TYPE_DEFAULT: return false;
+        }
+        assert(false);
+        return false;
+    }
+
+private:
     // type of the sync, defaults to bidirectional
-    Type syncType = TYPE_DEFAULT;
+    Type mSyncType = TYPE_DEFAULT;
 
     // whether deletions are synced (only relevant for one-way-sync)
-    bool syncDeletions = false;
+    bool mSyncDeletions = false;
 
     // whether changes are overwritten irregardless of file properties (only relevant for one-way-sync)
-    bool forceOverwrite = false;
+    bool mForceOverwrite = false;
 };
 
 } // namespace

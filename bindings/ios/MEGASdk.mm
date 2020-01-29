@@ -515,6 +515,16 @@ using namespace mega;
     return ret;
 }
 
+- (NSString *)sequenceNumber {
+    const char *val = self.megaApi->getSequenceNumber();
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete [] val;
+    return ret;
+}
+
 - (void)fastLoginWithEmail:(NSString *)email stringHash:(NSString *)stringHash base64pwKey:(NSString *)base64pwKey {
     self.megaApi->fastLogin((email != nil) ? [email UTF8String] : NULL, (stringHash != nil) ? [stringHash UTF8String] : NULL, (base64pwKey != nil) ? [base64pwKey UTF8String] : NULL);
 }
@@ -1194,6 +1204,14 @@ using namespace mega;
     self.megaApi->getPaymentId(productHandle);
 }
 
+- (void)getPaymentIdForProductHandle:(uint64_t)productHandle lastPublicHandle:(uint64_t)lastPublicHandle lastPublicHandleType:(AffiliateType)lastPublicHandleType lastAccessTimestamp:(uint64_t)lastAccessTimestamp delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getPaymentId(productHandle, lastPublicHandle, (int)lastPublicHandleType, lastAccessTimestamp, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)getPaymentIdForProductHandle:(uint64_t)productHandle lastPublicHandle:(uint64_t)lastPublicHandle lastPublicHandleType:(AffiliateType)lastPublicHandleType lastAccessTimestamp:(uint64_t)lastAccessTimestamp {
+    self.megaApi->getPaymentId(productHandle, lastPublicHandle, (int)lastPublicHandleType, lastAccessTimestamp);
+}
+
 - (void)submitPurchase:(MEGAPaymentMethod)gateway receipt:(NSString *)receipt delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->submitPurchaseReceipt((int)gateway, (receipt != nil) ? [receipt UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
@@ -1208,6 +1226,14 @@ using namespace mega;
 
 - (void)submitPurchase:(MEGAPaymentMethod)gateway receipt:(NSString *)receipt lastPublicHandle:(uint64_t)lastPublicHandle {
     self.megaApi->submitPurchaseReceipt((int)gateway, (receipt != nil) ? [receipt UTF8String] : NULL, lastPublicHandle);
+}
+
+- (void)submitPurchase:(MEGAPaymentMethod)gateway receipt:(NSString *)receipt lastPublicHandle:(uint64_t)lastPublicHandle lastPublicHandleType:(AffiliateType)lastPublicHandleType lastAccessTimestamp:(uint64_t)lastAccessTimestamp delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->submitPurchaseReceipt((int)gateway, receipt.UTF8String, lastPublicHandle, (int)lastPublicHandleType, lastAccessTimestamp, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)submitPurchase:(MEGAPaymentMethod)gateway receipt:(NSString *)receipt lastPublicHandle:(uint64_t)lastPublicHandle lastPublicHandleType:(AffiliateType)lastPublicHandleType lastAccessTimestamp:(uint64_t)lastAccessTimestamp {
+    self.megaApi->submitPurchaseReceipt((int)gateway, receipt.UTF8String, lastPublicHandle, (int)lastPublicHandleType, lastAccessTimestamp);
 }
 
 - (void)changePassword:(NSString *)oldPassword newPassword:(NSString *)newPassword delegate:(id<MEGARequestDelegate>)delegate {
@@ -1552,6 +1578,30 @@ using namespace mega;
 
 - (void)cancelTransfer:(MEGATransfer *)transfer {
     self.megaApi->cancelTransfer((transfer != nil) ? [transfer getCPtr] : NULL);
+}
+
+- (void)moveTransferToFirst:(MEGATransfer *)transfer delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->moveTransferToFirst((transfer != nil) ? [transfer getCPtr] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)moveTransferToFirst:(MEGATransfer *)transfer {
+    self.megaApi->moveTransferToFirst((transfer != nil) ? [transfer getCPtr] : NULL);
+}
+
+- (void)moveTransferToLast:(MEGATransfer *)transfer delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->moveTransferToLast((transfer != nil) ? [transfer getCPtr] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)moveTransferToLast:(MEGATransfer *)transfer {
+    self.megaApi->moveTransferToLast((transfer != nil) ? [transfer getCPtr] : NULL);
+}
+
+- (void)moveTransferBefore:(MEGATransfer *)transfer prevTransfer:(MEGATransfer *)prevTransfer delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->moveTransferBefore((transfer != nil) ? [transfer getCPtr] : NULL, (prevTransfer != nil) ? [prevTransfer getCPtr] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)moveTransferBefore:(MEGATransfer *)transfer prevTransfer:(MEGATransfer *)prevTransfer {
+    self.megaApi->moveTransferBefore((transfer != nil) ? [transfer getCPtr] : NULL, (prevTransfer != nil) ? [prevTransfer getCPtr] : NULL);
 }
 
 - (void)cancelTransfersForDirection:(NSInteger)direction delegate:(id<MEGARequestDelegate>)delegate {
@@ -2314,7 +2364,7 @@ using namespace mega;
     self.megaApi->setPushNotificationSettings(pushNotificationSettings.getCPtr);
 }
 
-#pragma mark - Debug log messages
+#pragma mark - Debug
 
 + (void)setLogLevel:(MEGALogLevel)logLevel {
     MegaApi::setLogLevel((int)logLevel);
@@ -2334,6 +2384,14 @@ using namespace mega;
 
 + (void)logWithLevel:(MEGALogLevel)logLevel message:(NSString *)message {
     MegaApi::log((int)logLevel, (message != nil) ? [message UTF8String] : NULL);
+}
+
+- (void)sendEvent:(NSInteger)eventType message:(NSString *)message delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->sendEvent((int)eventType, message.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)sendEvent:(NSInteger)eventType message:(NSString *)message {
+    self.megaApi->sendEvent((int)eventType, message.UTF8String);
 }
 
 #pragma mark - Private methods

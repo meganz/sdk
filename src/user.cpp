@@ -1284,7 +1284,7 @@ AuthRing::AuthRing(attr_t type, const TLVstore &authring)
 
         handle userhandle;
         byte authFingerprint[20];
-        byte authMethod = AUTH_METHOD_UNKNOWN;
+        signed char authMethod = AUTH_METHOD_UNKNOWN;
 
         const char *ptr = authValue.data();
         const char *end = ptr + authValue.size();
@@ -1452,7 +1452,7 @@ std::string AuthRing::authMethodToStr(AuthMethod authMethod)
 std::string AuthRing::fingerprint(const std::string &pubKey, bool hexadecimal)
 {
     HashSHA256 hash;
-    hash.add((const byte *)pubKey.data(), pubKey.size());
+    hash.add((const byte *)pubKey.data(), static_cast<unsigned>(pubKey.size()));
 
     string result;
     hash.get(&result);

@@ -23,16 +23,25 @@ LIBS += -lgtest
 include(../../../../bindings/qt/sdk.pri)
 
 SOURCES += \
+../../../../tests/unit/AttrMap_test.cpp \
+../../../../tests/unit/ChunkMacMap_test.cpp \
 ../../../../tests/unit/Commands_test.cpp \
 ../../../../tests/unit/Crypto_test.cpp \
 ../../../../tests/unit/FileFingerprint_test.cpp \
+../../../../tests/unit/File_test.cpp \
 ../../../../tests/unit/FsNode.cpp \
 ../../../../tests/unit/Logging_test.cpp \
 ../../../../tests/unit/main.cpp \
+../../../../tests/unit/MediaProperties_test.cpp \
 ../../../../tests/unit/MegaApi_test.cpp \
 ../../../../tests/unit/PayCrypter_test.cpp \
+../../../../tests/unit/PendingContactRequest_test.cpp \
 ../../../../tests/unit/Serialization_test.cpp \
+../../../../tests/unit/Share_test.cpp \
 ../../../../tests/unit/Sync_test.cpp \
+../../../../tests/unit/TextChat_test.cpp \
+../../../../tests/unit/Transfer_test.cpp \
+../../../../tests/unit/User_test.cpp \
 ../../../../tests/unit/utils.cpp \
 ../../../../tests/unit/utils_test.cpp
 

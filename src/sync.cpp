@@ -662,40 +662,6 @@ Sync::~Sync()
     }
 }
 
-bool Sync::isUpSync() const
-{
-    return mConfig.syncType & SyncConfig::TYPE_UP;
-}
-
-bool Sync::isDownSync() const
-{
-    return mConfig.syncType & SyncConfig::TYPE_DOWN;
-}
-
-bool Sync::syncDeletions() const
-{
-    switch (mConfig.syncType)
-    {
-        case SyncConfig::TYPE_UP: return mConfig.syncDeletions;
-        case SyncConfig::TYPE_DOWN: return mConfig.syncDeletions;
-        case SyncConfig::TYPE_DEFAULT: return true;
-    }
-    assert(false);
-    return true;
-}
-
-bool Sync::forceOverwrite() const
-{
-    switch (mConfig.syncType)
-    {
-        case SyncConfig::TYPE_UP: return mConfig.forceOverwrite;
-        case SyncConfig::TYPE_DOWN: return mConfig.forceOverwrite;
-        case SyncConfig::TYPE_DEFAULT: return false;
-    }
-    assert(false);
-    return false;
-}
-
 void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, string* path, LocalNode *p, int maxdepth)
 {
     pair<idlocalnode_map::iterator,idlocalnode_map::iterator> range;
@@ -771,6 +737,11 @@ bool Sync::readstatecache()
     return false;
 }
 
+const SyncConfig& Sync::getConfig() const
+{
+    return mConfig;
+}
+
 // remove LocalNode from DB cache
 void Sync::statecachedel(LocalNode* l)
 {
@@ -811,7 +782,7 @@ void Sync::cachenodes()
         statecachetable->begin();
 
         // deletions
-        for (set<int32_t>::iterator it = deleteq.begin(); it != deleteq.end(); it++)
+        for (set<uint32_t>::iterator it = deleteq.begin(); it != deleteq.end(); it++)
         {
             statecachetable->del(*it);
         }

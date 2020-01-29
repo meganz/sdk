@@ -125,7 +125,8 @@ typedef NS_ENUM(NSInteger, MEGAPaymentMethod) {
     MEGAPaymentMethodUnionPay     = 5,
     MEGAPaymentMethodFortumo      = 6,
     MEGAPaymentMethodCreditCard   = 8,
-    MEGAPaymentMethodCentili      = 9
+    MEGAPaymentMethodCentili      = 9,
+    MEGAPaymentMethodWindowsStore = 13
 };
 
 typedef NS_ENUM(NSInteger, HTTPServer) {
@@ -183,6 +184,7 @@ typedef NS_ENUM(NSInteger, AccountSuspensionType) {
     AccountSuspensionTypeBusinessDisabled = 400, // the subuser of a business account has been disabled
     AccountSuspensionTypeBusinessRemoved = 401, // the subuser of a business account has been removed
     AccountSuspensionTypeSMSVerification = 500, // The account needs to be verified by an SMS code.
+    AccountSuspensionTypeEmailVerification = 700, // The account needs to be verified by password change trough email.
 };
 
 typedef NS_ENUM(NSInteger, BusinessStatus) {
@@ -190,6 +192,14 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
     BusinessStatusInactive = 0, // no business subscription
     BusinessStatusActive = 1,
     BusinessStatusGracePeriod = 2
+};
+
+typedef NS_ENUM(NSInteger, AffiliateType) {
+    AffiliateTypeInvalid = 0, // legacy mode
+    AffiliateTypeId = 1,
+    AffiliateTypeFileFolder = 2,
+    AffiliateTypeChat = 3,
+    AffiliateTypeContact = 4
 };
 
 /**
@@ -1089,6 +1099,17 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
 - (nullable NSString *)dumpSession;
 
 /**
+ * @brief Returns the current sequence number
+ *
+ * The sequence number indicates the state of a MEGA account known by the SDK.
+ * When external changes are received via actionpackets, the sequence number is
+ * updated and changes are commited to the local cache.
+ *
+ * @return The current sequence number
+*/
+- (nullable NSString *)sequenceNumber;
+
+/**
  * @brief Check if the MEGASdk object is logged in.
  * @return 0 if not logged in, Otherwise, a number >= 0.
  */
@@ -1935,6 +1956,9 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest email] - Return the email associated with the link
+ *
+ * If the account logged-in is different account than the one for which the link
+ * was generated, onRequestFinish will be called with the error code MEGAErrorTypeApiEAccess.
  *
  * @param link Change-email link (#verify)
  */
@@ -4012,6 +4036,63 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
 - (void)getPaymentIdForProductHandle:(uint64_t)productHandle delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
+ * @brief Get the payment URL for an upgrade
+ *
+ * The associated request type with this request is MEGARequestTypeGetPaymentId
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the product
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest link] - Payment ID
+ * - [MEGARequest parentHandle] - Returns the last public node handle accessed
+ * - [MEGARequest paramType] - Returns the type of lastPublicHandle
+ * - [MEGARequest transferredBytes] - Returns the timestamp of the last access
+ *
+ * @param productHandle Handle of the product (see [MEGASdk getPricing])
+ * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
+ * @param lastPublicHandleType Indicates the type of lastPublicHandle, valid values are:
+ *      - AffiliateTypeId = 1
+ *      - AffiliateTypeFileFolder = 2
+ *      - AffiliateTypeChat = 3
+ *      - AffiliateTypeContact = 4
+ *
+ * @param lastAccessTimestamp Timestamp of the last access
+ * @param delegate Delegate to track this request
+ *
+ * @see [MEGASdk getPricing]
+ */
+- (void)getPaymentIdForProductHandle:(uint64_t)productHandle lastPublicHandle:(uint64_t)lastPublicHandle lastPublicHandleType:(AffiliateType)lastPublicHandleType lastAccessTimestamp:(uint64_t)lastAccessTimestamp delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+* @brief Get the payment URL for an upgrade
+*
+* The associated request type with this request is MEGARequestTypeGetPaymentId
+* Valid data in the MEGARequest object received on callbacks:
+* - [MEGARequest nodeHandle] - Returns the handle of the product
+*
+* Valid data in the MEGARequest object received in onRequestFinish when the error code
+* is MEGAErrorTypeApiOk:
+* - [MEGARequest link] - Payment ID
+* - [MEGARequest parentHandle] - Returns the last public node handle accessed
+* - [MEGARequest paramType] - Returns the type of lastPublicHandle
+* - [MEGARequest transferredBytes] - Returns the timestamp of the last access
+*
+* @param productHandle Handle of the product (see [MEGASdk getPricing])
+* @param lastPublicHandle Last public node handle accessed by the user in the last 24h
+* @param lastPublicHandleType Indicates the type of lastPublicHandle, valid values are:
+*      - AffiliateTypeId = 1
+*      - AffiliateTypeFileFolder = 2
+*      - AffiliateTypeChat = 3
+*      - AffiliateTypeContact = 4
+*
+* @param lastAccessTimestamp Timestamp of the last access
+*
+* @see [MEGASdk getPricing]
+*/
+- (void)getPaymentIdForProductHandle:(uint64_t)productHandle lastPublicHandle:(uint64_t)lastPublicHandle lastPublicHandleType:(AffiliateType)lastPublicHandleType lastAccessTimestamp:(uint64_t)lastAccessTimestamp;
+
+/**
  * @brief Get the payment URL for an upgrade.
  *
  * The associated request type with this request is MEGARequestTypeGetPaymentId.
@@ -4032,11 +4113,16 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @brief Submit a purchase receipt for verification
  *
  * The associated request type with this request is MEGARequestTypeSubmitPurchaseReceipt.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest number] - Returns the payment gateway
+ * - [MEGARequest text] - Returns the purchase receipt
+ * - [MEGARequest parentHandle] - Returns the last public node handle accessed
  *
  * @param gateway Payment gateway
  * Currently supported payment gateways are:
  * - MEGAPaymentMethodItunes = 2
  * - MEGAPaymentMethodGoogleWallet = 3
+ * - MEGAPaymentMethodWindowsStore = 13
  *
  * @param receipt Purchase receipt
  * @param delegate Delegate to track this request
@@ -4045,10 +4131,16 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
 
 /**
  * @brief Submit a purchase receipt for verification
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest number] - Returns the payment gateway
+ * - [MEGARequest text] - Returns the purchase receipt
+ * - [MEGARequest parentHandle] - Returns the last public node handle accessed
+ *
  * @param gateway Payment gateway
  * Currently supported payment gateways are:
  * - MEGAPaymentMethodItunes = 2
  * - MEGAPaymentMethodGoogleWallet = 3
+ * - MEGAPaymentMethodWindowsStore = 13
  *
  * @param receipt Purchase receipt
  */
@@ -4084,6 +4176,65 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
  */
 - (void)submitPurchase:(MEGAPaymentMethod)gateway receipt:(NSString *)receipt lastPublicHandle:(uint64_t)lastPublicHandle;
+
+/**
+ * @brief Submit a purchase receipt for verification
+ *
+ * The associated request type with this request is MEGARequestTypeSubmitPurchaseReceipt
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest number] - Returns the payment gateway
+ * - [MEGARequest text] - Returns the purchase receipt
+ * - [MEGARequest parentHandle] - Returns the last public node handle accessed
+ * - [MEGARequest paramType] - Returns the type of lastPublicHandle
+ * - [MEGARequest transferredBytes] - Returns the timestamp of the last access
+ *
+ * @param gateway Payment gateway
+ * Currently supported payment gateways are:
+ * - MEGAPaymentMethodItunes = 2
+ * - MEGAPaymentMethodGoogleWallet = 3
+ * - MEGAPaymentMethodWindowsStore = 13
+ *
+ * @param receipt Purchase receipt
+ * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
+ * @param lastPublicHandleType Indicates the type of lastPublicHandle, valid values are:
+ *      - AffiliateTypeId = 1
+ *      - AffiliateTypeFileFolder = 2
+ *      - AffiliateTypeChat = 3
+ *      - AffiliateTypeContact = 4
+ *
+ * @param lastAccessTimestamp Timestamp of the last access
+ * @param delegate Delegate to track this request
+ */
+- (void)submitPurchase:(MEGAPaymentMethod)gateway receipt:(NSString *)receipt lastPublicHandle:(uint64_t)lastPublicHandle lastPublicHandleType:(AffiliateType)lastPublicHandleType lastAccessTimestamp:(uint64_t)lastAccessTimestamp delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Submit a purchase receipt for verification
+ *
+ * The associated request type with this request is MEGARequestTypeSubmitPurchaseReceipt
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest number] - Returns the payment gateway
+ * - [MEGARequest text] - Returns the purchase receipt
+ * - [MEGARequest parentHandle] - Returns the last public node handle accessed
+ * - [MEGARequest paramType] - Returns the type of lastPublicHandle
+ * - [MEGARequest transferredBytes] - Returns the timestamp of the last access
+ *
+ * @param gateway Payment gateway
+ * Currently supported payment gateways are:
+ * - MEGAPaymentMethodItunes = 2
+ * - MEGAPaymentMethodGoogleWallet = 3
+ * - MEGAPaymentMethodWindowsStore = 13
+ *
+ * @param receipt Purchase receipt
+ * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
+ * @param lastPublicHandleType Indicates the type of lastPublicHandle, valid values are:
+ *      - AffiliateTypeId = 1
+ *      - AffiliateTypeFileFolder = 2
+ *      - AffiliateTypeChat = 3
+ *      - AffiliateTypeContact = 4
+ *
+ * @param lastAccessTimestamp Timestamp of the last access
+ */
+- (void)submitPurchase:(MEGAPaymentMethod)gateway receipt:(NSString *)receipt lastPublicHandle:(uint64_t)lastPublicHandle lastPublicHandleType:(AffiliateType)lastPublicHandleType lastAccessTimestamp:(uint64_t)lastAccessTimestamp;
 
 /**
  * @brief Change the password of the MEGA account.
@@ -5469,6 +5620,116 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  *
  */
 - (void)cancelTransfer:(MEGATransfer *)transfer;
+
+/**
+* @brief Move a transfer to the top of the transfer queue
+*
+* If the transfer is successfully moved, onTransferUpdate will be called
+* for the corresponding listeners of the moved transfer and the new priority
+* of the transfer will be available using [MEGATransfer priority]
+*
+* The associated request type with this request is MEGARequestTypeCancelTransfer.
+* Valid data in the MEGARequest object received on callbacks:
+* - [MEGARequest transferTag]  - Returns the tag of the transfer to move
+*
+* @param transfer MEGATransfer object that identifies the transfer.
+* You can get this object in any MEGATransferDelegate callback or any MEGADelegate callback
+* related to transfers.
+*
+* @param delegate Delegate to track this request.
+*/
+- (void)moveTransferToFirst:(MEGATransfer *)transfer delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Move a transfer to the top of the transfer queue
+ *
+ * If the transfer is successfully moved, onTransferUpdate will be called
+ * for the corresponding listeners of the moved transfer and the new priority
+ * of the transfer will be available using [MEGATransfer priority]
+ *
+ * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest transferTag]  - Returns the tag of the transfer to move
+ *
+ * @param transfer MEGATransfer object that identifies the transfer
+ */
+- (void)moveTransferToFirst:(MEGATransfer *)transfer;
+
+/**
+* @brief Move a transfer to the bottom of the transfer queue
+*
+* If the transfer is successfully moved, onTransferUpdate will be called
+* for the corresponding listeners of the moved transfer and the new priority
+* of the transfer will be available using [MEGATransfer priority]
+*
+* The associated request type with this request is MEGARequestTypeCancelTransfer.
+* Valid data in the MEGARequest object received on callbacks:
+* - [MEGARequest transferTag]  - Returns the tag of the transfer to move
+*
+* @param transfer MEGATransfer object that identifies the transfer.
+* You can get this object in any MEGATransferDelegate callback or any MEGADelegate callback
+* related to transfers.
+*
+* @param delegate Delegate to track this request.
+*/
+- (void)moveTransferToLast:(MEGATransfer *)transfer delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+* @brief Move a transfer to the bottom of the transfer queue
+*
+* If the transfer is successfully moved, onTransferUpdate will be called
+* for the corresponding listeners of the moved transfer and the new priority
+* of the transfer will be available using [MEGATransfer priority]
+*
+* The associated request type with this request is MEGARequestTypeCancelTransfer.
+* Valid data in the MEGARequest object received on callbacks:
+* - [MEGARequest transferTag]  - Returns the tag of the transfer to move
+*
+* @param transfer MEGATransfer object that identifies the transfer.
+* You can get this object in any MEGATransferDelegate callback or any MEGADelegate callback
+* related to transfers.
+*
+*/
+- (void)moveTransferToLast:(MEGATransfer *)transfer;
+
+/**
+* @brief Move a transfer before another one in the transfer queue
+*
+* If the transfer is successfully moved, onTransferUpdate will be called
+* for the corresponding listeners of the moved transfer and the new priority
+* of the transfer will be available using [MEGATransfer priority]
+*
+* The associated request type with this request is MEGARequestTypeCancelTransfer.
+* Valid data in the MEGARequest object received on callbacks:
+* - [MEGARequest transferTag]  - Returns the tag of the transfer to move
+*
+* @param transfer Transfer to move
+* @param prevTransfer Transfer with the target position
+* You can get this object in any MEGATransferDelegate callback or any MEGADelegate callback
+* related to transfers.
+*
+* @param delegate Delegate to track this request.
+*/
+- (void)moveTransferBefore:(MEGATransfer *)transfer prevTransfer:(MEGATransfer *)prevTransfer delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+* @brief Move a transfer before another one in the transfer queue
+*
+* If the transfer is successfully moved, onTransferUpdate will be called
+* for the corresponding listeners of the moved transfer and the new priority
+* of the transfer will be available using [MEGATransfer priority]
+*
+* The associated request type with this request is MEGARequestTypeCancelTransfer.
+* Valid data in the MEGARequest object received on callbacks:
+* - [MEGARequest transferTag]  - Returns the tag of the transfer to move
+*
+* @param transfer Transfer to move
+* @param prevTransfer Transfer with the target position
+* You can get this object in any MEGATransferDelegate callback or any MEGADelegate callback
+* related to transfers.
+*
+*/
+- (void)moveTransferBefore:(MEGATransfer *)transfer prevTransfer:(MEGATransfer *)prevTransfer;
 
 /**
  * @brief Cancel all transfers of the same type.
@@ -7538,7 +7799,7 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  */
 - (void)setPushNotificationSettings:(MEGAPushNotificationSettings *)pushNotificationSettings;
 
-#pragma mark - Debug log messages
+#pragma mark - Debug
 
 /**
  * @brief Set the active log level
@@ -7612,6 +7873,55 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param message Message for the logging system
  */
 + (void)logWithLevel:(MEGALogLevel)logLevel message:(NSString *)message;
+
+/**
+ * @brief Send events to the stats server
+ *
+ * The associated request type with this request is MEGARequestTypeSendEvent
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest number] - Returns the event type
+ * - [MEGARequest text] - Returns the event message
+ *
+ * @param eventType Event type
+ * @param message Event message
+ * @param delegate Delegate to track this request
+ *
+ * @deprecated This function is for internal usage of MEGA apps for debug purposes. This info
+ * is sent to MEGA servers.
+ *
+ * @note Event types are restricted to the following ranges:
+ *  - MEGAchat:  [99000, 99150)
+ *  - Android:   [99200, 99300)
+ *  - iOS:       [99300, 99400)
+ *  - MEGA SDK:  [99400, 99500)
+ *  - MEGAsync:  [99500, 99600)
+ *  - Webclient: [99600, 99800]
+ */
+- (void)sendEvent:(NSInteger)eventType message:(NSString *)message delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+* @brief Send events to the stats server
+*
+* The associated request type with this request is MEGARequestTypeSendEvent
+* Valid data in the MEGARequest object received on callbacks:
+* - [MEGARequest number] - Returns the event type
+* - [MEGARequest text] - Returns the event message
+*
+* @param eventType Event type
+* @param message Event message
+*
+* @deprecated This function is for internal usage of MEGA apps for debug purposes. This info
+* is sent to MEGA servers.
+*
+* @note Event types are restricted to the following ranges:
+*  - MEGAchat:  [99000, 99150)
+*  - Android:   [99200, 99300)
+*  - iOS:       [99300, 99400)
+*  - MEGA SDK:  [99400, 99500)
+*  - MEGAsync:  [99500, 99600)
+*  - Webclient: [99600, 99800]
+*/
+- (void)sendEvent:(NSInteger)eventType message:(NSString *)message;
 
 @end
 

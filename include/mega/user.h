@@ -26,7 +26,7 @@
 
 namespace mega {
 // user/contact
-struct MEGA_API User : public Cachable
+struct MEGA_API User : public Cacheable
 {
     // user handle
     handle userhandle;
@@ -103,7 +103,7 @@ private:
 public:
     void set(visibility_t, m_time_t);
 
-    bool serialize(string*);
+    bool serialize(string*) override;
     static User* unserialize(class MegaClient *, string*);
 
     // attribute methods: set/get/invalidate...

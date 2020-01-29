@@ -195,6 +195,106 @@ TEST(Serialization, CacheableReaderWriter)
     ASSERT_EQ(mp2.no_audio, false);
 }
 
+TEST(Serialization, CacheableReader_32bit)
+{
+    // This is the result of serialization on 32bit Windows
+    const std::array<unsigned char, 125> rawData = {
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x00, 0x74, 0x65, 0x73, 0x74, 0x31,
+        0x00, 0x0d, 0x00, 0x74, 0x65, 0x73, 0x74, 0x32, 0x64, 0x69, 0x66, 0x66,
+        0x64, 0x61, 0x74, 0x61, 0x1f, 0x00, 0x64, 0x69, 0x66, 0x66, 0x73, 0x74,
+        0x72, 0x69, 0x6e, 0x67, 0x61, 0x67, 0x61, 0x69, 0x6e, 0x64, 0x65, 0x66,
+        0x69, 0x6e, 0x69, 0x74, 0x65, 0x6c, 0x79, 0x62, 0x69, 0x67, 0x67, 0x65,
+        0x72, 0x78, 0x56, 0x34, 0x12, 0x21, 0x43, 0x65, 0x87,
+        0x65, 0x87, 0x67, 0x87,
+        0x98, 0x09, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x05, 0x01,
+        0x00, 0x09, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xcd,
+        0xcd, 0xcd,
+        0xcd, 0xcd, 0xcd,
+        0xcd, 0xcd, 0xcd,
+        0xcd, 0xcd, 0xcd,
+        0xcd, 0xcd, 0xcd,
+        0xcd, 0x78, 0x03, 0x00, 0x00, 0x00,
+        0xcd, 0xcd, 0xcd,
+        0x01, 0x00, 0x01,
+        0x00, 0x00, 0x00, 0x01, 0x01
+    };
+    std::string writestring(reinterpret_cast<const char*>(rawData.data()), rawData.size());
+
+    writestring += "abc";
+
+    // now read the serialized data back
+    std::string readstring = writestring;
+    mega::CacheableReader r(readstring);
+
+    mega::byte binary[] = { 1, 2, 3, 4, 5 };
+    std::string cstr1("test1");
+    std::string cstr2("test2diffdata");
+    std::string stringtest("diffstringagaindefinitelybigger");
+    int64_t i64 = 0x8765432112345678;
+    uint32_t u32 = 0x87678765;
+    mega::handle handle1 = 0x998;
+    bool b = true;
+    mega::byte by = 5;
+    mega::chunkmac_map cm;
+    cm[777].offset = 888;
+
+    mega::byte check_binary[5];
+    std::string check_cstr1;
+    std::string check_cstr2;
+    std::string check_stringtest;
+    int64_t check_i64;
+    uint32_t check_u32;
+    mega::handle check_handle1;
+    bool check_b;
+    mega::byte check_by;
+    mega::chunkmac_map check_cm;
+
+    ASSERT_TRUE(r.unserializebinary(check_binary, sizeof(check_binary)));
+    ASSERT_EQ(0, memcmp(check_binary, binary, sizeof(binary)));
+
+    ASSERT_TRUE(r.unserializecstr(check_cstr1, true));
+    ASSERT_EQ(check_cstr1, cstr1);
+
+    ASSERT_TRUE(r.unserializecstr(check_cstr2, false));
+    ASSERT_EQ(check_cstr2, cstr2);
+
+    ASSERT_TRUE(r.unserializestring(check_stringtest));
+    ASSERT_EQ(check_stringtest, stringtest);
+
+    ASSERT_TRUE(r.unserializei64(check_i64));
+    ASSERT_EQ(check_i64, i64);
+
+    ASSERT_TRUE(r.unserializeu32(check_u32));
+    ASSERT_EQ(check_u32, u32);
+
+    ASSERT_TRUE(r.unserializehandle(check_handle1));
+    ASSERT_EQ(check_handle1, handle1);
+
+    ASSERT_TRUE(r.unserializebool(check_b));
+    ASSERT_EQ(check_b, b);
+
+    ASSERT_TRUE(r.unserializebyte(check_by));
+    ASSERT_EQ(check_by, by);
+
+    ASSERT_TRUE(r.unserializechunkmacs(check_cm));
+    ASSERT_EQ(check_cm[777].offset, cm[777].offset);
+
+    unsigned char expansions[8];
+    ASSERT_FALSE(r.unserializeexpansionflags(expansions, 7));
+    ASSERT_TRUE(r.unserializeexpansionflags(expansions, 8));
+    ASSERT_EQ(expansions[0], 1);
+    ASSERT_EQ(expansions[1], 0);
+    ASSERT_EQ(expansions[2], 1);
+    ASSERT_EQ(expansions[3], 0);
+    ASSERT_EQ(expansions[4], 0);
+    ASSERT_EQ(expansions[5], 0);
+    ASSERT_EQ(expansions[6], 1);
+    ASSERT_EQ(expansions[7], 1);
+
+    r.eraseused(readstring);
+    ASSERT_EQ(readstring, "abc");
+}
+
 namespace {
 
 struct MockFileSystemAccess : mt::DefaultedFileSystemAccess
@@ -260,7 +360,7 @@ TEST(Serialization, LocalNode_forFolder_withoutParent_withoutNode)
     l.setfsid(10, client.cli->fsidnode);
     std::string data;
     ASSERT_TRUE(l.serialize(&data));
-    ASSERT_EQ(43, data.size());
+    ASSERT_EQ(43u, data.size());
     auto dl = mega::LocalNode::unserialize(sync.get(), &data);
     checkDeserializedLocalNode(*dl, l);
 }
@@ -279,7 +379,7 @@ TEST(Serialization, LocalNode_forFile_withoutNode)
     std::iota(l->crc.begin(), l->crc.end(), 1);
     std::string data;
     ASSERT_TRUE(l->serialize(&data));
-    ASSERT_EQ(63, data.size());
+    ASSERT_EQ(63u, data.size());
     auto dl = mega::LocalNode::unserialize(sync.get(), &data);
     checkDeserializedLocalNode(*dl, *l);
 }
@@ -297,7 +397,7 @@ TEST(Serialization, LocalNode_forFile_withoutNode_withMaxMtime)
     std::iota(l->crc.begin(), l->crc.end(), 1);
     std::string data;
     ASSERT_TRUE(l->serialize(&data));
-    ASSERT_EQ(67, data.size());
+    ASSERT_EQ(67u, data.size());
     auto dl = mega::LocalNode::unserialize(sync.get(), &data);
     checkDeserializedLocalNode(*dl, *l);
 }
@@ -312,7 +412,7 @@ TEST(Serialization, LocalNode_forFolder_withoutParent)
     l.node = &n;
     std::string data;
     ASSERT_TRUE(l.serialize(&data));
-    ASSERT_EQ(43, data.size());
+    ASSERT_EQ(43u, data.size());
     auto dl = mega::LocalNode::unserialize(sync.get(), &data);
     checkDeserializedLocalNode(*dl, l);
 }
@@ -330,7 +430,34 @@ TEST(Serialization, LocalNode_forFolder)
     l->node = &n;
     std::string data;
     ASSERT_TRUE(l->serialize(&data));
-    ASSERT_EQ(42, data.size());
+    ASSERT_EQ(42u, data.size());
+    auto dl = mega::LocalNode::unserialize(sync.get(), &data);
+    checkDeserializedLocalNode(*dl, *l);
+}
+
+TEST(Serialization, LocalNode_forFolder_32bit)
+{
+    MockClient client;
+    auto sync = mt::makeSync(*client.cli, "wicked");
+    auto l = mt::makeLocalNode(*sync, *sync->localroot, mega::FOLDERNODE, "sweet");
+    l->mSyncable = false;
+    l->parent->dbid = 13;
+    l->parent_dbid = l->parent->dbid;
+    auto& n = mt::makeNode(*client.cli, mega::FOLDERNODE, 42);
+    l->setfsid(10, client.cli->fsidnode);
+    l->node = &n;
+
+    // This is the result of serialization on 32bit Windows
+    const std::array<unsigned char, 42> rawData = {
+        0xff, 0xff, 0xff,
+        0xff, 0xff, 0xff,
+        0xff, 0xff, 0x0a, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x0d, 0x00, 0x00, 0x00, 0x2a, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x05, 0x00, 0x73, 0x77, 0x65, 0x65, 0x74, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+    };
+    const std::string data(reinterpret_cast<const char*>(rawData.data()), rawData.size());
+
     auto dl = mega::LocalNode::unserialize(sync.get(), &data);
     checkDeserializedLocalNode(*dl, *l);
 }
@@ -347,14 +474,14 @@ TEST(Serialization, LocalNode_forFolder_oldLocalNodeWithoutSyncable)
     l->node = &n;
 
     // This array represents an old LocalNode without extension bytes
-    const std::array<char, 33> rawData = {
-      static_cast<char>(0xff), static_cast<char>(0xff), static_cast<char>(0xff),
-      static_cast<char>(0xff), static_cast<char>(0xff), static_cast<char>(0xff),
-      static_cast<char>(0xff), static_cast<char>(0xff), 0x0a, 0x00, 0x00, 0x00,
+    const std::array<unsigned char, 33> rawData = {
+      0xff, 0xff, 0xff,
+      0xff, 0xff, 0xff,
+      0xff, 0xff, 0x0a, 0x00, 0x00, 0x00,
       0x00, 0x00, 0x00, 0x00, 0x0d, 0x00, 0x00, 0x00, 0x2a, 0x00, 0x00, 0x00,
       0x00, 0x00, 0x05, 0x00, 0x73, 0x77, 0x65, 0x65, 0x74
     };
-    const std::string data(rawData.data(), rawData.size());
+    const std::string data(reinterpret_cast<const char*>(rawData.data()), rawData.size());
 
     auto dl = mega::LocalNode::unserialize(sync.get(), &data);
     checkDeserializedLocalNode(*dl, *l);
@@ -376,7 +503,7 @@ TEST(Serialization, LocalNode_forFile)
     std::iota(l->crc.begin(), l->crc.end(), 1);
     std::string data;
     ASSERT_TRUE(l->serialize(&data));
-    ASSERT_EQ(59, data.size());
+    ASSERT_EQ(59u, data.size());
     auto dl = mega::LocalNode::unserialize(sync.get(), &data);
     checkDeserializedLocalNode(*dl, *l);
 }
@@ -402,6 +529,35 @@ TEST(Serialization, LocalNode_forFiles_oldLocalNodeWithoutSyncable)
         0x00, 0x00, 0x05, 0x00, 0x73, 0x77, 0x65, 0x65, 0x74, 0x01, 0x00, 0x00,
         0x00, 0x02, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00,
         0x00, 0x00
+    };
+    const std::string data(rawData.data(), rawData.size());
+
+    auto dl = mega::LocalNode::unserialize(sync.get(), &data);
+    checkDeserializedLocalNode(*dl, *l);
+}
+
+TEST(Serialization, LocalNode_forFile_32bit)
+{
+    MockClient client;
+    auto sync = mt::makeSync(*client.cli, "wicked");
+    auto l = mt::makeLocalNode(*sync, *sync->localroot, mega::FILENODE, "sweet");
+    l->mSyncable = false;
+    auto& n = mt::makeNode(*client.cli, mega::FILENODE, 42);
+    l->node = &n;
+    l->size = 1;
+    l->setfsid(10, client.cli->fsidnode);
+    l->parent->dbid = 13;
+    l->parent_dbid = l->parent->dbid;
+    l->mtime = 0;
+    std::iota(l->crc.begin(), l->crc.end(), 1);
+
+    // This is the result of serialization on 32bit Windows
+    const std::array<char, 59> rawData = {
+        0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0a, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x0d, 0x00, 0x00, 0x00, 0x2a, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x05, 0x00, 0x73, 0x77, 0x65, 0x65, 0x74, 0x01, 0x00, 0x00,
+        0x00, 0x02, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
     };
     const std::string data(rawData.data(), rawData.size());
 
@@ -462,7 +618,7 @@ TEST(Serialization, Node_forFile_withoutParent_withoutShares_withoutAttrs_withou
     n.ctime = 44;
     std::string data;
     ASSERT_TRUE(n.serialize(&data));
-    ASSERT_EQ(90, data.size());
+    ASSERT_EQ(90u, data.size());
     mega::node_vector dp;
     auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
     checkDeserializedNode(*dn, n);
@@ -477,7 +633,7 @@ TEST(Serialization, Node_forFolder_withoutParent_withoutShares_withoutAttrs_with
     n.ctime = 44;
     std::string data;
     ASSERT_TRUE(n.serialize(&data));
-    ASSERT_EQ(71, data.size());
+    ASSERT_EQ(71u, data.size());
     mega::node_vector dp;
     auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
     checkDeserializedNode(*dn, n);
@@ -493,7 +649,7 @@ TEST(Serialization, Node_forFile_withoutShares_withoutAttrs_withoutFileAttrStrin
     n.ctime = 44;
     std::string data;
     ASSERT_TRUE(n.serialize(&data));
-    ASSERT_EQ(90, data.size());
+    ASSERT_EQ(90u, data.size());
     mega::node_vector dp;
     auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
     checkDeserializedNode(*dn, n);
@@ -513,7 +669,7 @@ TEST(Serialization, Node_forFile_withoutShares_withoutFileAttrString_withoutPlin
     };
     std::string data;
     ASSERT_TRUE(n.serialize(&data));
-    ASSERT_EQ(104, data.size());
+    ASSERT_EQ(104u, data.size());
     mega::node_vector dp;
     auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
     checkDeserializedNode(*dn, n);
@@ -534,7 +690,7 @@ TEST(Serialization, Node_forFile_withoutShares_withoutPlink)
     n.fileattrstring = "blah";
     std::string data;
     ASSERT_TRUE(n.serialize(&data));
-    ASSERT_EQ(108, data.size());
+    ASSERT_EQ(108u, data.size());
     mega::node_vector dp;
     auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
     checkDeserializedNode(*dn, n);
@@ -556,7 +712,43 @@ TEST(Serialization, Node_forFile_withoutShares)
     n.plink = new mega::PublicLink{n.nodehandle, 1, 2, false};
     std::string data;
     ASSERT_TRUE(n.serialize(&data));
-    ASSERT_EQ(131, data.size());
+    ASSERT_EQ(131u, data.size());
+    mega::node_vector dp;
+    auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
+    checkDeserializedNode(*dn, n);
+}
+
+TEST(Serialization, Node_forFile_withoutShares_32bit)
+{
+    MockClient client;
+    auto& parent = mt::makeNode(*client.cli, mega::FOLDERNODE, 43);
+    auto& n = mt::makeNode(*client.cli, mega::FILENODE, 42, &parent);
+    n.size = 12;
+    n.owner = 88;
+    n.ctime = 44;
+    n.attrs.map = {
+        {101, "foo"},
+        {102, "bar"},
+    };
+    n.fileattrstring = "blah";
+    n.plink = new mega::PublicLink{n.nodehandle, 1, 2, false};
+
+    // This is the result of serialization on 32bit Windows
+    const std::array<char, 131> rawData = {
+        0x0c, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2a, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x2b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x58, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x2c, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x58, 0x58, 0x58, 0x58,
+        0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58,
+        0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58,
+        0x58, 0x58, 0x58, 0x58, 0x05, 0x00, 0x62, 0x6c, 0x61, 0x68, 0x00, 0x01,
+        0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x65, 0x03,
+        0x00, 0x66, 0x6f, 0x6f, 0x01, 0x66, 0x03, 0x00, 0x62, 0x61, 0x72, 0x00,
+        0x2a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+    };
+    const std::string data(rawData.data(), rawData.size());
+
     mega::node_vector dp;
     auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
     checkDeserializedNode(*dn, n);
@@ -572,7 +764,7 @@ TEST(Serialization, Node_forFolder_withoutShares_withoutAttrs_withoutFileAttrStr
     n.ctime = 44;
     std::string data;
     ASSERT_TRUE(n.serialize(&data));
-    ASSERT_EQ(71, data.size());
+    ASSERT_EQ(71u, data.size());
     mega::node_vector dp;
     auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
     checkDeserializedNode(*dn, n);
@@ -592,7 +784,7 @@ TEST(Serialization, Node_forFolder_withoutShares_withoutFileAttrString_withoutPl
     };
     std::string data;
     ASSERT_TRUE(n.serialize(&data));
-    ASSERT_EQ(85, data.size());
+    ASSERT_EQ(85u, data.size());
     mega::node_vector dp;
     auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
     checkDeserializedNode(*dn, n);
@@ -613,7 +805,7 @@ TEST(Serialization, Node_forFolder_withoutShares_withoutPlink)
     n.fileattrstring = "blah";
     std::string data;
     ASSERT_TRUE(n.serialize(&data));
-    ASSERT_EQ(85, data.size());
+    ASSERT_EQ(85u, data.size());
     mega::node_vector dp;
     auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
     checkDeserializedNode(*dn, n, true);
@@ -635,7 +827,44 @@ TEST(Serialization, Node_forFolder_withoutShares)
     n.plink = new mega::PublicLink{n.nodehandle, 1, 2, false};
     std::string data;
     ASSERT_TRUE(n.serialize(&data));
-    ASSERT_EQ(108, data.size());
+
+    ASSERT_EQ(108u, data.size());
+    mega::node_vector dp;
+    auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
+    checkDeserializedNode(*dn, n, true);
+}
+
+TEST(Serialization, Node_forFolder_withoutShares_32bit)
+{
+    MockClient client;
+    auto& parent = mt::makeNode(*client.cli, mega::FOLDERNODE, 43);
+    auto& n = mt::makeNode(*client.cli, mega::FOLDERNODE, 42, &parent);
+    n.size = -1;
+    n.owner = 88;
+    n.ctime = 44;
+    n.attrs.map = {
+        {101, "foo"},
+        {102, "bar"},
+    };
+    n.fileattrstring = "blah";
+    n.plink = new mega::PublicLink{n.nodehandle, 1, 2, false};
+
+    // This is the result of serialization on 32bit Windows
+    const std::array<unsigned char, 108> rawData = {
+        0xff, 0xff, 0xff,
+        0xff, 0xff, 0xff,
+        0xff, 0xff, 0x2a, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x2b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x58, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x2c, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x58, 0x58, 0x58, 0x58,
+        0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58,
+        0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x65,
+        0x03, 0x00, 0x66, 0x6f, 0x6f, 0x01, 0x66, 0x03, 0x00, 0x62, 0x61, 0x72,
+        0x00, 0x2a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+    };
+    const std::string data(reinterpret_cast<const char*>(rawData.data()), rawData.size());
+
     mega::node_vector dp;
     auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
     checkDeserializedNode(*dn, n, true);

@@ -2102,7 +2102,7 @@ MegaShare *MegaSharePrivate::copy()
     return new MegaSharePrivate(this);
 }
 
-MegaSharePrivate::MegaSharePrivate(uint64_t handle, Share *share, bool pending)
+MegaSharePrivate::MegaSharePrivate(uint64_t handle, Share *share)
 {
     this->nodehandle = handle;
     this->user = share->user ? MegaApi::strdup(share->user->email.c_str()) : NULL;
@@ -2113,12 +2113,12 @@ MegaSharePrivate::MegaSharePrivate(uint64_t handle, Share *share, bool pending)
     }
     this->access = share->access;
     this->ts = share->ts;
-    this->pending = pending;
+    this->pending = share->pcr;
 }
 
-MegaShare *MegaSharePrivate::fromShare(uint64_t nodeuint64_t, Share *share, bool pending)
+MegaShare *MegaSharePrivate::fromShare(uint64_t nodeuint64_t, Share *share)
 {
-    return new MegaSharePrivate(nodeuint64_t, share, pending);
+    return new MegaSharePrivate(nodeuint64_t, share);
 }
 
 MegaSharePrivate::~MegaSharePrivate()
@@ -4467,14 +4467,16 @@ MegaShareListPrivate::MegaShareListPrivate()
     s = 0;
 }
 
-MegaShareListPrivate::MegaShareListPrivate(Share** newlist, uint64_t *uint64_tlist, int size, bool pending)
+MegaShareListPrivate::MegaShareListPrivate(Share** newlist, uint64_t *uint64_tlist, int size)
 {
     list = NULL; s = size;
     if(!size) return;
 
     list = new MegaShare*[size];
     for(int i=0; i<size; i++)
-        list[i] = MegaSharePrivate::fromShare(uint64_tlist[i], newlist[i], pending);
+    {
+        list[i] = MegaSharePrivate::fromShare(uint64_tlist[i], newlist[i]);
+    }
 }
 
 MegaShareListPrivate::~MegaShareListPrivate()
@@ -6695,11 +6697,13 @@ void MegaApiImpl::getPricing(MegaRequestListener *listener)
     waiter->notify();
 }
 
-void MegaApiImpl::getPaymentId(handle productHandle, handle lastPublicHandle, MegaRequestListener *listener)
+void MegaApiImpl::getPaymentId(handle productHandle, handle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_PAYMENT_ID, listener);
     request->setNodeHandle(productHandle);
     request->setParentHandle(lastPublicHandle);
+    request->setParamType(lastPublicHandleType);
+    request->setTransferredBytes(lastAccessTimestamp);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -6713,12 +6717,14 @@ void MegaApiImpl::upgradeAccount(MegaHandle productHandle, int paymentMethod, Me
     waiter->notify();
 }
 
-void MegaApiImpl::submitPurchaseReceipt(int gateway, const char *receipt, MegaHandle lastPublicHandle, MegaRequestListener *listener)
+void MegaApiImpl::submitPurchaseReceipt(int gateway, const char *receipt, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT, listener);
     request->setNumber(gateway);
     request->setText(receipt);
     request->setNodeHandle(lastPublicHandle);
+    request->setParamType(lastPublicHandleType);
+    request->setTransferredBytes(lastAccessTimestamp);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -10440,7 +10446,7 @@ MegaShareList *MegaApiImpl::getPendingOutShares()
 
     PendingOutShareProcessor shareProcessor;
     processTree(client->nodebyhandle(client->rootnodes[0]), &shareProcessor, true);
-    MegaShareList *shareList = new MegaShareListPrivate(shareProcessor.getShares().data(), shareProcessor.getHandles().data(), int(shareProcessor.getShares().size()), true);
+    MegaShareList *shareList = new MegaShareListPrivate(shareProcessor.getShares().data(), shareProcessor.getHandles().data(), int(shareProcessor.getShares().size()));
 
     sdkMutex.unlock();
     return shareList;
@@ -10469,7 +10475,7 @@ MegaShareList *MegaApiImpl::getPendingOutShares(MegaNode *megaNode)
         vHandles.push_back(node->nodehandle);
     }
 
-    MegaShareList *shareList = new MegaShareListPrivate(vShares.data(), vHandles.data(), int(vShares.size()), true);
+    MegaShareList *shareList = new MegaShareListPrivate(vShares.data(), vHandles.data(), int(vShares.size()));
     sdkMutex.unlock();
     return shareList;
 }
@@ -13489,12 +13495,15 @@ void MegaApiImpl::enumeratequotaitems_result(error e)
         {
             if (pricing->getHandle(i) == request->getNodeHandle())
             {
+                int phtype = request->getParamType();
+                int64_t ts = request->getTransferredBytes();
                 requestMap.erase(request->getTag());
                 int nextTag = client->nextreqtag();
                 request->setTag(nextTag);
                 requestMap[nextTag]=request;
                 client->purchase_additem(0, request->getNodeHandle(), pricing->getAmount(i),
-                                         pricing->getCurrency(i), 0, NULL, request->getParentHandle());
+                                         pricing->getCurrency(i), 0, NULL, request->getParentHandle(),
+                                         phtype, ts);
                 break;
             }
         }
@@ -15175,10 +15184,10 @@ void MegaApiImpl::multifactorauthdisable_result(error e)
 
 void MegaApiImpl::fetchtimezone_result(error e, vector<std::string> *timezones, vector<int> *timezoneoffsets, int defaulttz)
 {
-    MegaTimeZoneDetails *tzDetails = NULL;
+    unique_ptr<MegaTimeZoneDetails> tzDetails;
     if (!e)
     {
-        tzDetails = new MegaTimeZoneDetailsPrivate(timezones, timezoneoffsets, defaulttz);
+        tzDetails.reset(new MegaTimeZoneDetailsPrivate(timezones, timezoneoffsets, defaulttz));
 
         // update the cached timezones for notifications filtering
         delete mTimezones;
@@ -15195,8 +15204,7 @@ void MegaApiImpl::fetchtimezone_result(error e, vector<std::string> *timezones, 
         return;
     }
 
-    request->setTimeZoneDetails(tzDetails);
-    delete tzDetails;
+    request->setTimeZoneDetails(tzDetails.get());
     fireOnRequestFinish(request, MegaError(e));
 }
 
@@ -16535,7 +16543,7 @@ void MegaApiImpl::sortByComparatorFunction(node_vector& v, int order, MegaClient
 bool MegaApiImpl::nodeNaturalComparatorASC(Node *i, Node *j)
 {
     int r = naturalsorting_compare(i->displayname(), j->displayname());
-    if (r < 0 || (!r && i < j))
+    if (r < 0)
     {
         return 1;
     }
@@ -16545,7 +16553,7 @@ bool MegaApiImpl::nodeNaturalComparatorASC(Node *i, Node *j)
 bool MegaApiImpl::nodeNaturalComparatorDESC(Node *i, Node *j)
 {
     int r = naturalsorting_compare(i->displayname(), j->displayname());
-    if (r < 0 || (!r && i < j))
+    if (r <= 0)
     {
         return 0;
     }
@@ -17666,6 +17674,8 @@ unsigned MegaApiImpl::sendPendingTransfers()
                             forceToUpload= hasToForceUpload(*previousNode, *transfer);
                             if (!forceToUpload)
                             {
+                                pendingUploads++;
+                                totalUploads++;
                                 transfer->setState(MegaTransfer::STATE_QUEUED);
                                 transferMap[nextTag] = transfer;
                                 transfer->setTag(nextTag);
@@ -17679,6 +17689,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                                 transfer->setSpeed(0);
                                 transfer->setMeanSpeed(0);
                                 transfer->setState(MegaTransfer::STATE_COMPLETED);
+                                pendingUploads--;
                                 fireOnTransferFinish(transfer, MegaError(API_OK), committer);
                                 break;
                             }
@@ -17692,6 +17703,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                         if (samenode && samenode->nodekey().size() && !hasToForceUpload(*samenode, *transfer))
                         {
                             pendingUploads++;
+                            totalUploads++;
                             transfer->setState(MegaTransfer::STATE_QUEUED);
                             transferMap[nextTag] = transfer;
                             transfer->setTag(nextTag);
@@ -18377,6 +18389,16 @@ void MegaApiImpl::sendPendingRequests()
             Node *parent = client->nodebyhandle(request->getParentHandle());
             const char *name = request->getName();
             if(!name || !(*name) || !parent) { e = API_EARGS; break; }
+
+            // prevent to create a duplicate folder with same name in same path
+            Node *folder = client->childnodebyname(parent, name, false);
+            if (folder && folder->type == FOLDERNODE)
+            {
+                e = API_OK;
+                request->setNodeHandle(folder->nodehandle);
+                fireOnRequestFinish(request, MegaError(e));
+                break;
+            }
 
             NewNode *newnode = new NewNode[1];
             SymmCipher key;
@@ -19411,7 +19433,7 @@ void MegaApiImpl::sendPendingRequests()
                     break;
                 }
 
-                client->putfa(node ? node->nodehandle : INVALID_HANDLE, (fatype)type, bu ? bu->nodecipher(client) : node->nodecipher(), attributedata.release());
+                client->putfa(node ? node->nodehandle : INVALID_HANDLE, (fatype)type, bu ? bu->nodecipher(client) : node->nodecipher(), std::move(attributedata));
             }
             break;
         }
@@ -20622,6 +20644,14 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_GET_PAYMENT_ID:
         case MegaRequest::TYPE_UPGRADE_ACCOUNT:
         {
+            if ((request->getType() == MegaRequest::TYPE_GET_PAYMENT_ID)
+                && (request->getParamType() < mega::MegaApi::AFFILIATE_TYPE_INVALID
+                    || request->getParamType() > mega::MegaApi::AFFILIATE_TYPE_CONTACT))
+            {
+               e = API_EARGS;
+               break;
+            }
+
             int method = int(request->getNumber());
             if(method != MegaApi::PAYMENT_METHOD_BALANCE && method != MegaApi::PAYMENT_METHOD_CREDIT_CARD)
             {
@@ -20637,6 +20667,15 @@ void MegaApiImpl::sendPendingRequests()
             const char* receipt = request->getText();
             int type = int(request->getNumber());
             handle lph = request->getNodeHandle();
+            int phtype = request->getParamType();
+            int64_t ts = request->getTransferredBytes();
+
+            if (request->getParamType() < mega::MegaApi::AFFILIATE_TYPE_INVALID
+                || request->getParamType() > mega::MegaApi::AFFILIATE_TYPE_CONTACT)
+            {
+               e = API_EARGS;
+               break;
+            }
 
             if(!receipt || (type != MegaApi::PAYMENT_METHOD_GOOGLE_WALLET
                             && type != MegaApi::PAYMENT_METHOD_ITUNES
@@ -20665,7 +20704,7 @@ void MegaApiImpl::sendPendingRequests()
                 base64receipt = receipt;
             }
 
-            client->submitpurchasereceipt(type, base64receipt.c_str(), lph);
+            client->submitpurchasereceipt(type, base64receipt.c_str(), lph, phtype, ts);
             break;
         }
         case MegaRequest::TYPE_CREDIT_CARD_STORE:
@@ -20726,7 +20765,7 @@ void MegaApiImpl::sendPendingRequests()
             int number = int(request->getNumber());
             const char *text = request->getText();
 
-            if(number < 99000 || (number >= 99150 && (number < 99500 || number >= 99600)) || !text)
+            if(number < 99000 || (number >= 99150 && (number < 99200 || number >= 99600)) || !text)
             {
                 e = API_EARGS;
                 break;
@@ -20740,7 +20779,7 @@ void MegaApiImpl::sendPendingRequests()
             int type = request->getParamType();
             const char *message = request->getText();
 
-            if (type != 1 || !message)
+            if ((type < 0 || type > 7) || !message)
             {
                 e = API_EARGS;
                 break;
@@ -22369,7 +22408,7 @@ bool OutShareProcessor::processNode(Node *node)
         for (share_map::iterator it = node->pendingshares->begin(); it != node->pendingshares->end(); it++)
         {
             Share *share = it->second;
-            if (share->user) // public links have no user
+            if (share->user || share->pcr) // public links have no user
             {
                 mShares.push_back(share);
                 mNodes.push_back(node);
@@ -24890,19 +24929,20 @@ StreamingBuffer::~StreamingBuffer()
     delete [] buffer;
 }
 
-void StreamingBuffer::init(unsigned int capacity)
+void StreamingBuffer::init(m_off_t capacity)
 {
+    assert(capacity > 0);
     if (capacity > maxBufferSize)
     {
         capacity = maxBufferSize;
     }
 
-    this->capacity = capacity;
-    this->buffer = new char[capacity];
+    this->capacity = static_cast<unsigned>(capacity);
+    this->buffer = new char[this->capacity];
     this->inpos = 0;
     this->outpos = 0;
     this->size = 0;
-    this->free = capacity;
+    this->free = this->capacity;
 }
 
 unsigned int StreamingBuffer::append(const char *buf, unsigned int len)
@@ -25644,7 +25684,7 @@ void MegaTCPServer::onNewClient(uv_stream_t* server_handle, int status)
 void MegaTCPServer::allocBuffer(uv_handle_t *, size_t suggested_size, uv_buf_t* buf)
 {
     // Reserve a buffer with the suggested size
-    *buf = uv_buf_init(new char[suggested_size], suggested_size);
+    *buf = uv_buf_init(new char[suggested_size], static_cast<unsigned>(suggested_size));
 }
 
 void MegaTCPServer::onDataReceived(uv_stream_t* tcp, ssize_t nread, const uv_buf_t * buf)
@@ -25683,7 +25723,7 @@ void MegaTCPServer::on_tcp_read(uv_stream_t *tcp, ssize_t nrd, const uv_buf_t *d
         return;
     }
 
-    evt_tls_feed_data(tcpctx->evt_tls, data->base, nrd);
+    evt_tls_feed_data(tcpctx->evt_tls, data->base, static_cast<int>(nrd));
     delete[] data->base;
 }
 #endif
@@ -26175,7 +26215,7 @@ int MegaHTTPServer::onUrlReceived(http_parser *parser, const char *url, size_t l
         return 0;
     }
 
-    unsigned int index = 9;
+    size_t index = 9;
     httpctx->nodehandle.assign(url + 1, 8);
     LOG_debug << "Node handle: " << httpctx->nodehandle;
 
@@ -26366,7 +26406,7 @@ int MegaHTTPServer::onBody(http_parser *parser, const char *b, size_t n)
             }
         }
 
-        if (!httpctx->tmpFileAccess->fwrite((const byte*)b, n, httpctx->messageBodySize))
+        if (!httpctx->tmpFileAccess->fwrite((const byte*)b, static_cast<unsigned>(n), httpctx->messageBodySize))
         {
             returnHttpCode(httpctx, 500);
             return 0;
@@ -27734,7 +27774,7 @@ int MegaHTTPServer::streamNode(MegaHTTPContext *httpctx)
 void MegaHTTPServer::sendHeaders(MegaHTTPContext *httpctx, string *headers)
 {
     LOG_debug << "Response headers: " << *headers;
-    httpctx->streamingBuffer.append(headers->data(), headers->size());
+    httpctx->streamingBuffer.append(headers->data(), static_cast<unsigned>(headers->size()));
     uv_buf_t resbuf = httpctx->streamingBuffer.nextBuffer();
     httpctx->size += headers->size();
     httpctx->lastBuffer = resbuf.base;
@@ -27964,13 +28004,13 @@ bool MegaHTTPContext::onTransferData(MegaApi *, MegaTransfer *transfer, char *bu
     uv_mutex_lock(&mutex);
     long long remaining = size + (transfer->getTotalBytes() - transfer->getTransferredBytes());
     long long availableSpace = streamingBuffer.availableSpace();
-    if (remaining > availableSpace && availableSpace < (2 * size))
+    if (remaining > availableSpace && availableSpace < (2 * m_off_t(size)))
     {
         LOG_debug << "Buffer full: " << availableSpace << " of "
                  << streamingBuffer.availableCapacity() << " bytes available only. Pausing streaming";
         pause = true;
     }
-    streamingBuffer.append(buffer, size);
+    streamingBuffer.append(buffer, static_cast<unsigned>(size));
     uv_mutex_unlock(&mutex);
 
     // notify the HTTP server
@@ -28739,7 +28779,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             parsed = petition.size();
             petition = petition.substr(0,psepend);
             command = petition.substr(0,psep);
-            transform(command.begin(), command.end(), command.begin(), ::toupper);
+            for (char& c : command) { c = static_cast<char>(toupper(c)); };
         }
 
         if (failed)
@@ -29132,8 +29172,8 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
         }
         case FTP_CMD_OPTS:
         {
-            transform(ftpctx->arg1.begin(), ftpctx->arg1.end(), ftpctx->arg1.begin(), ::toupper);
-            transform(ftpctx->arg2.begin(), ftpctx->arg2.end(), ftpctx->arg2.begin(), ::toupper);
+            for (char& c : ftpctx->arg1) { c = static_cast<char>(toupper(c)); };
+            for (char& c : ftpctx->arg2) { c = static_cast<char>(toupper(c)); };
             if (ftpctx->arg1 == "UTF8" && ftpctx->arg2 == "ON")
             {
                 response = "200 All good";
@@ -29688,11 +29728,11 @@ void MegaFTPServer::processOnAsyncEventClose(MegaTCPContext* tcpctx)
     LOG_verbose << "At MegaFTPServer::processOnAsyncEventClose";
 }
 
-void MegaTCPServer::answer(MegaTCPContext* tcpctx, const char *rsp, int rlen)
+void MegaTCPServer::answer(MegaTCPContext* tcpctx, const char *rsp, size_t rlen)
 {
     LOG_verbose << " answering in port " << tcpctx->server->port << " : " << string(rsp,rlen);
 
-    uv_buf_t resbuf = uv_buf_init((char *)rsp, rlen);
+    uv_buf_t resbuf = uv_buf_init((char *)rsp, static_cast<unsigned>(rlen));
 #ifdef ENABLE_EVT_TLS
     if (tcpctx->server->useTLS)
     {
@@ -30144,7 +30184,7 @@ void MegaFTPDataServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nrea
         if (nread > 0)
         {
             LOG_verbose << " Writing " << nread << " bytes " << " to temporal file: " << ftpdatactx->tmpFileName;
-            if (!ftpdatactx->tmpFileAccess->fwrite((const byte*)buf->base, nread, ftpdatactx->tmpFileSize) )
+            if (!ftpdatactx->tmpFileAccess->fwrite((const byte*)buf->base, static_cast<unsigned>(nread), ftpdatactx->tmpFileSize) )
             {
                 ftpdatactx->setControlCodeUponDataClose(450);
                 remotePathToUpload = ""; //empty, so that we don't read in the next connections
@@ -30484,13 +30524,13 @@ bool MegaFTPDataContext::onTransferData(MegaApi *, MegaTransfer *transfer, char 
     uv_mutex_lock(&mutex);
     long long remaining = size + (transfer->getTotalBytes() - transfer->getTransferredBytes());
     long long availableSpace = streamingBuffer.availableSpace();
-    if (remaining > availableSpace && availableSpace < (2 * size))
+    if (remaining > availableSpace && availableSpace < (2 * m_off_t(size)))
     {
         LOG_debug << "Buffer full: " << availableSpace << " of "
                  << streamingBuffer.availableCapacity() << " bytes available only. Pausing streaming";
         pause = true;
     }
-    streamingBuffer.append(buffer, size);
+    streamingBuffer.append(buffer, static_cast<unsigned>(size));
     uv_mutex_unlock(&mutex);
 
     // notify the HTTP server
