@@ -902,7 +902,7 @@ void MegaClient::acknowledgeuseralerts()
 
 void MegaClient::activateoverquota(dstime timeleft, handle targetHandle)
 {
-    if (timeleft)
+    if (timeleft)   // Bandwidth overquota
     {
         LOG_warn << "Bandwidth overquota";
         overquotauntil = Waiter::ds + timeleft;
@@ -925,20 +925,41 @@ void MegaClient::activateoverquota(dstime timeleft, handle targetHandle)
             }
         }
     }
-    else
+    else    // Storage overquota
     {
-        setstoragestatus(STORAGE_RED);
-        for (transfer_map::iterator it = transfers[PUT].begin(); it != transfers[PUT].end(); it++)
+        if (isForeignNode(targetHandle))
         {
-            Transfer *t = it->second;
-            t->bt.backoff(NEVER);
-            if (t->slot && t->state != TRANSFERSTATE_RETRYING)
+            // If target is foreign, remove it from all transfers
+            for (transfer_map::iterator it = transfers[PUT].begin(); it != transfers[PUT].end(); it++)
             {
-                t->state = TRANSFERSTATE_RETRYING;
-                t->slot->retrybt.backoff(NEVER);
-                t->slot->retrying = true;
-                app->transfer_failed(t, API_EOVERQUOTA, 0, targetHandle);
-                ++performanceStats.transferTempErrors;
+                Transfer *t = it->second;
+                for (file_list::iterator it = t->files.begin(); it != t->files.end();)
+                {
+                   File *f = (*it++);
+                   if (f->h == targetHandle)
+                   {
+                       stopxfer(f, mTctableRequestCommitter, API_EOVERQUOTA);
+                       continue;
+                   }
+                }
+            }
+            return;
+        }
+        else
+        {
+            setstoragestatus(STORAGE_RED);
+            for (transfer_map::iterator it = transfers[PUT].begin(); it != transfers[PUT].end(); it++)
+            {
+                Transfer *t = it->second;
+                t->bt.backoff(NEVER);
+                if (t->slot && t->state != TRANSFERSTATE_RETRYING)
+                {
+                    t->state = TRANSFERSTATE_RETRYING;
+                    t->slot->retrybt.backoff(NEVER);
+                    t->slot->retrying = true;
+                    app->transfer_failed(t, API_EOVERQUOTA, 0, targetHandle);
+                    ++performanceStats.transferTempErrors;
+                }
             }
         }
     }
@@ -13727,14 +13748,14 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
 }
 
 // remove file from transfer subsystem
-void MegaClient::stopxfer(File* f, DBTableTransactionCommitter* committer)
+void MegaClient::stopxfer(File* f, DBTableTransactionCommitter* committer, error e)
 {
     if (f->transfer)
     {
         LOG_debug << "Stopping transfer: " << f->name;
 
         Transfer *transfer = f->transfer;
-        transfer->removeTransferFile(API_EINCOMPLETE, f, committer);
+        transfer->removeTransferFile(e, f, committer);
 
         // last file for this transfer removed? shut down transfer.
         if (!transfer->files.size())

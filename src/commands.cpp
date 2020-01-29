@@ -1190,7 +1190,7 @@ void CommandPutNodes::procresult()
     {
         e = (error)client->json.getint();
         LOG_debug << "Putnodes error " << e;
-        if (e == API_EOVERQUOTA && client->isPrivateNode(targethandle))
+        if (e == API_EOVERQUOTA)
         {
             client->activateoverquota(0, targethandle);
         }
