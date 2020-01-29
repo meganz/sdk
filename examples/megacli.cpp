@@ -158,7 +158,7 @@ static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::
 {
     auto toLower = [](std::string& s)
     {
-        for (char& c : s) { c = static_cast<char>(std::tolower(c)); };
+        for (char& c : s) { c = static_cast<char>(tolower(c)); };
     };
 
     toLower(type);
@@ -4484,11 +4484,12 @@ void exec_mkdir(autocomplete::ACState& s)
             }
             else if (allowDuplicate && n->parent && n->parent->nodehandle != UNDEF)
             {
-                newname = s.words[1].s;
-                auto pos = newname.find("/");
-                if (pos != string::npos) newname.erase(0, pos + 1);
+                // the leaf name already exists and was returned in n
+                auto leafname = s.words[1].s;
+                auto pos = leafname.find_last_of("/");
+                if (pos != string::npos) leafname.erase(0, pos + 1);
                 auto nn = new NewNode[1];
-                client->putnodes_prepareOneFolder(nn, newname);
+                client->putnodes_prepareOneFolder(nn, leafname);
                 client->putnodes(n->parent->nodehandle, nn, 1);
             }
             else
