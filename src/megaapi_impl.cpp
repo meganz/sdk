@@ -7381,7 +7381,7 @@ bool MegaApiImpl::hasToForceUpload(const Node &node, const MegaTransferPrivate &
 #ifdef ENABLE_SYNC
 void MegaApiImpl::resumeSyncImpl(const char *localFolder, const long long localfp, const handle nodeHandle, MegaRegExp *regExp, MegaRequestListener *listener)
 {
-    sdkMutex.lock();
+    SdkMutexGuard g(sdkMutex);
 
 #ifdef __APPLE__
     localfp = 0;
@@ -7415,9 +7415,7 @@ void MegaApiImpl::resumeSyncImpl(const char *localFolder, const long long localf
     Node *node = client->nodebyhandle(request->getNodeHandle());
     if (!node)
     {
-        char base64[12];
-        auto nodeHandle = request->getNodeHandle();
-        LOG_warn << "Node invalid for handle: " << (Base64::btoa((byte*)&nodeHandle, MegaClient::NODEHANDLE, base64) ? base64 : "");
+        LOG_warn << "Node invalid for handle: " << Base64Str<MegaClient::NODEHANDLE>{request->getNodeHandle()};
     }
     if(!node || (node->type==FILENODE) || !localPath)
     {
@@ -7447,7 +7445,6 @@ void MegaApiImpl::resumeSyncImpl(const char *localFolder, const long long localf
     }
 
     fireOnRequestFinish(request, MegaError(e));
-    sdkMutex.unlock();
 }
 
 void MegaApiImpl::resumeResumableSyncs(MegaRequestListener* listener)

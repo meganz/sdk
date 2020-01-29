@@ -1245,11 +1245,9 @@ MegaClient::~MegaClient()
 void MegaClient::resetSyncConfigs()
 {
     syncConfigs.reset();
-    if (dbaccess && me != UNDEF)
+    if (dbaccess && !uid.empty())
     {
-        char buf[16];
-        Base64::btoa((const byte*)&me,  MegaClient::USERHANDLE, buf);
-        syncConfigs.reset(new SyncConfigBag{*dbaccess, *fsaccess, rng, buf});
+        syncConfigs.reset(new SyncConfigBag{*dbaccess, *fsaccess, rng, uid});
     }
 }
 #endif
@@ -12042,7 +12040,7 @@ error MegaClient::addtimer(TimerWithBackoff *twb)
 error MegaClient::addsync(SyncConfig syncConfig, const char* debris, string* localdebris, int tag, void *appData)
 {
 #ifdef ENABLE_SYNC
-    auto remotenode = nodebyhandle(syncConfig.getRemoteNode());
+    Node* remotenode = nodebyhandle(syncConfig.getRemoteNode());
     bool inshare = false;
     error e = isnodesyncable(remotenode, &inshare);
     if (e)
@@ -12050,7 +12048,7 @@ error MegaClient::addsync(SyncConfig syncConfig, const char* debris, string* loc
         return e;
     }
 
-    auto localPath = syncConfig.getLocalPath();
+    string localPath = syncConfig.getLocalPath();
     string rootpath;
     fsaccess->path2local(&localPath, &rootpath);
 
