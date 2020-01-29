@@ -900,7 +900,7 @@ void MegaClient::acknowledgeuseralerts()
     useralerts.acknowledgeAll();
 }
 
-void MegaClient::activateoverquota(dstime timeleft)
+void MegaClient::activateoverquota(dstime timeleft, handle targetHandle)
 {
     if (timeleft)
     {
@@ -919,25 +919,25 @@ void MegaClient::activateoverquota(dstime timeleft)
                     t->state = TRANSFERSTATE_RETRYING;
                     t->slot->retrybt.backoff(timeleft);
                     t->slot->retrying = true;
-                    app->transfer_failed(t, API_EOVERQUOTA, timeleft);
+                    app->transfer_failed(t, API_EOVERQUOTA, timeleft, targetHandle);
                     ++performanceStats.transferTempErrors;
                 }
             }
         }
     }
-    else if (setstoragestatus(STORAGE_RED))
+    else
     {
-        LOG_warn << "Storage overquota";
+        setstoragestatus(STORAGE_RED);
         for (transfer_map::iterator it = transfers[PUT].begin(); it != transfers[PUT].end(); it++)
         {
             Transfer *t = it->second;
             t->bt.backoff(NEVER);
-            if (t->slot)
+            if (t->slot && t->state != TRANSFERSTATE_RETRYING)
             {
                 t->state = TRANSFERSTATE_RETRYING;
                 t->slot->retrybt.backoff(NEVER);
                 t->slot->retrying = true;
-                app->transfer_failed(t, API_EOVERQUOTA, 0);
+                app->transfer_failed(t, API_EOVERQUOTA, 0, targetHandle);
                 ++performanceStats.transferTempErrors;
             }
         }
@@ -4852,6 +4852,7 @@ bool MegaClient::setstoragestatus(storagestatus_t status)
         if (pststatus == STORAGE_RED)
         {
             abortbackoff(true);
+            LOG_warn << "Storage overquota";
         }
         return true;
     }

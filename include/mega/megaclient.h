@@ -1534,7 +1534,7 @@ public:
     void acknowledgeuseralerts();
 
     // manage overquota errors
-    void activateoverquota(dstime timeleft);
+    void activateoverquota(dstime timeleft, handle targetHandle = UNDEF);
 
     // achievements enabled for the account
     bool achievements_enabled;
