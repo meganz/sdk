@@ -95,9 +95,7 @@ TEST(Logging, performanceMode_forWStdString)
         const std::string file = "file.cpp";
         const int line = 13;
         const std::wstring message = L"\u039C\u03C5\u03C4\u03B9\u03BB\u03B7\u03BD\u03B1\u03AF\u03BF\u03C2\20\u0391\u03B2\u03C1\u03AC\u03C2"; //TODO: include \uwhatever
-
         mega::SimpleLogger{static_cast<mega::LogLevel>(level), file.c_str(), line} << message;
-        std::wcerr << message << std::endl;
         logger.checkLogLevel(level);
         ASSERT_EQ(1, logger.mMessage.size());
         ASSERT_EQ(expWMsg(file, line, message), logger.mMessage[0]);
