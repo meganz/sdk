@@ -6275,13 +6275,19 @@ bool MegaApiImpl::createLocalFolder(const char *path)
     return success;
 }
 
-void MegaApiImpl::moveNode(MegaNode *node, MegaNode *newParent, MegaRequestListener *listener)
+void MegaApiImpl::moveNode(MegaNode *node, MegaNode *newParent, const char *newName, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_MOVE, listener);
     if(node) request->setNodeHandle(node->getHandle());
     if(newParent) request->setParentHandle(newParent->getHandle());
+    request->setName(newName);
     requestQueue.push(request);
     waiter->notify();
+}
+
+void MegaApiImpl::moveNode(MegaNode *node, MegaNode *newParent, MegaRequestListener *listener)
+{
+    moveNode(node, newParent, nullptr, listener);
 }
 
 void MegaApiImpl::copyNode(MegaNode *node, MegaNode* target, MegaRequestListener *listener)
@@ -18425,6 +18431,7 @@ void MegaApiImpl::sendPendingRequests()
         {
             Node *node = client->nodebyhandle(request->getNodeHandle());
             Node *newParent = client->nodebyhandle(request->getParentHandle());
+            const char *name = request->getText();
             if (!node || !newParent)
             {
                 e = API_EARGS;
@@ -18497,10 +18504,22 @@ void MegaApiImpl::sendPendingRequests()
 
                 if (node->type == FILENODE)
                 {
-                    attr_map::iterator it = node->attrs.map.find('n');
-                    if (it != node->attrs.map.end())
+                    string newName;
+                    if (name)
                     {
-                        Node *ovn = client->childnodebyname(newParent, it->second.c_str(), true);
+                        newName.assign(name);
+                    }
+                    else
+                    {
+                        attr_map::iterator it = node->attrs.map.find('n');
+                        if (it != node->attrs.map.end())
+                        {
+                            newName = it->second;
+                        }
+                    }
+                    if (!newName.empty())
+                    {
+                        Node *ovn = client->childnodebyname(newParent, newName.c_str(), true);
                         if (ovn)
                         {
                             if (node->isvalid && ovn->isvalid && *(FileFingerprint*)node == *(FileFingerprint*)ovn)
@@ -18535,6 +18554,21 @@ void MegaApiImpl::sendPendingRequests()
 
                 tc.nn->parenthandle = UNDEF;
                 tc.nn->ovhandle = ovhandle;
+
+                if (name)   // move and rename
+                {
+                    SymmCipher key;
+                    AttrMap attrs;
+                    string attrstring;
+
+                    key.setkey((const byte*)tc.nn->nodekey.data(), node->type);
+                    attrs = node->attrs;
+
+                    attrs.map['n'] = name;
+
+                    attrs.getjson(&attrstring);
+                    client->makeattr(&key, tc.nn->attrstring, attrstring.c_str());
+                }
 
                 client->putnodes(newParent->nodehandle, tc.nn, nc);
                 e = API_OK;
