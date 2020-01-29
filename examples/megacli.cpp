@@ -158,7 +158,7 @@ static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::
 {
     auto toLower = [](std::string& s)
     {
-        for (char& c : s) { c = static_cast<char>(std::tolower(c)); };
+        for (char& c : s) { c = static_cast<char>(tolower(c)); };
     };
 
     toLower(type);
