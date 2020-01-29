@@ -11333,7 +11333,7 @@ void MegaApiImpl::transfer_failed(Transfer* t, error e, dstime timeleft, handle 
         // If a Transfer with multiple targets failed, only notify those targets who failed
         if (t->type == PUT
                 && (transfer->getParentHandle() != targetHandle
-                    || targetHandle != UNDEF))
+                    && targetHandle != UNDEF))
         {
             continue;
         }
