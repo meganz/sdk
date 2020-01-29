@@ -418,7 +418,7 @@ public:
 
     // start/stop/pause file transfer
     bool startxfer(direction_t, File*, DBTableTransactionCommitter&, bool skipdupes = false, bool startfirst = false, bool donotpersist = false);
-    void stopxfer(File* f, DBTableTransactionCommitter* committer, error e = API_EINCOMPLETE);
+    void stopxfer(File* f, DBTableTransactionCommitter* committer);
     void pausexfers(direction_t, bool, bool = false);
 
     // maximum number of connections per transfer

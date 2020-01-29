@@ -938,7 +938,6 @@ void MegaClient::activateoverquota(dstime timeleft, handle targetHandle)
                    File *f = (*it++);
                    if (f->h == targetHandle)
                    {
-                       stopxfer(f, mTctableRequestCommitter, API_EOVERQUOTA);
                        continue;
                    }
                 }
@@ -13748,14 +13747,14 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
 }
 
 // remove file from transfer subsystem
-void MegaClient::stopxfer(File* f, DBTableTransactionCommitter* committer, error e)
+void MegaClient::stopxfer(File* f, DBTableTransactionCommitter* committer)
 {
     if (f->transfer)
     {
         LOG_debug << "Stopping transfer: " << f->name;
 
         Transfer *transfer = f->transfer;
-        transfer->removeTransferFile(e, f, committer);
+        transfer->removeTransferFile(API_EINCOMPLETE, f, committer);
 
         // last file for this transfer removed? shut down transfer.
         if (!transfer->files.size())
