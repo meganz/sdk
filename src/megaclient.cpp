@@ -938,7 +938,19 @@ void MegaClient::activateoverquota(dstime timeleft, handle targetHandle)
                    File *f = (*it++);
                    if (f->h == targetHandle)
                    {
+                       app->transfer_failed(t, API_EOVERQUOTA, 0, targetHandle);
+                       t->removeTransferFile(API_EOVERQUOTA, f, mTctableRequestCommitter);
                        continue;
+
+                   }
+                   if (t->files.empty())
+                   {
+                       LOG_debug << "Removing transfer";
+                       t->state = TRANSFERSTATE_FAILED;
+                       t->finished = true;
+                       app->transfer_removed(t);
+                       ++performanceStats.transferTempErrors;
+                       delete t;
                    }
                 }
             }
