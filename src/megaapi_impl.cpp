@@ -18431,7 +18431,7 @@ void MegaApiImpl::sendPendingRequests()
         {
             Node *node = client->nodebyhandle(request->getNodeHandle());
             Node *newParent = client->nodebyhandle(request->getParentHandle());
-            const char *name = request->getText();
+            const char *name = request->getName();
             if (!node || !newParent)
             {
                 e = API_EARGS;
