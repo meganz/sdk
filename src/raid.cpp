@@ -826,7 +826,6 @@ m_off_t& TransferBufferManager::transferPos(unsigned connectionNum)
 {
     return isRaid() ? RaidBufferManager::transferPos(connectionNum) : transfer->pos;
 }
-
 std::pair<m_off_t, m_off_t> TransferBufferManager::nextNPosForConnection(unsigned connectionNum, m_off_t maxRequestSize, unsigned connectionCount, bool& newInputBufferSupplied, bool& pauseConnectionForRaid, m_off_t uploadSpeed)
 {
     // returning a pair for clarity - specifying the beginning and end position of the next data block, as the 'current pos' may be updated during this function

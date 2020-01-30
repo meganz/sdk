@@ -324,6 +324,8 @@ int64_t chunkmac_map::macsmac(SymmCipher *cipher)
 
     for (chunkmac_map::iterator it = begin(); it != end(); it++)
     {
+        assert(it->first == ChunkedHash::chunkfloor(it->first));
+        //LOG_debug << "macsmac input: " << it->first << ": " << Base64Str<sizeof it->second.mac>(it->second.mac);
         SymmCipher::xorblock(it->second.mac, mac);
         cipher->ecb_encrypt(mac);
     }
@@ -485,6 +487,13 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                             reqs[i]->status = REQ_READY;
                         }
                     }
+
+                    if (reqs[i]->lastdata > lastdata)
+                    {
+                        // prevent overall timeout if all channels are busy with big chunks for a while
+                        lastdata = reqs[i]->lastdata;
+                    }
+
                     break;
 
                 case REQ_SUCCESS:
