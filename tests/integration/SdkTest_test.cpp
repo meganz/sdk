@@ -37,8 +37,6 @@ using namespace std;
 
 MegaFileSystemAccess fileSystemAccess;
 
-string USER_AGENT = "Integration Tests with GoogleTest framework";
-
 #ifdef _WIN32
 #if (__cplusplus >= 201700L)
 namespace fs = std::filesystem;
