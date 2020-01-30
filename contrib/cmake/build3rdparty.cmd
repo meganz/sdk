@@ -28,64 +28,40 @@ REM
 REM Once built, optionally capture just the headers and build products with:
 REM vcpkg  export --triplet <YOUR_TRIPLET> --zip zlib cryptopp libsodium sqlite3 openssl c-ares curl libevent libzen libmediainfo ffmpeg gtest libuv libraw icu lcms libjpeg-turbo openjpeg libwebsockets pdfium pdfium-freetype
 
+
+REM TODO: allow for -d -p -t parameters. See build3rdparty.bash
+REM TODO: update docs (see build3rdparty.bash), and mention that vcpkg.exe has to be in PATH or in CWD
+
+echo off
+
+set DIR=%~dp0
+
+Setlocal
+
+set PORTS_FILE="%DIR%preferred-ports.txt"
+set DEPS_FILE="%DIR%3rdparty_deps.txt"
+set OVERLAYTRIPLETS=--overlay-triplets=%DIR%vcpkg_extra_triplets
+
+echo %PORTS_FILE%
+
 set TRIPLET=%1%
 
-CALL :build_one zlib
-CALL :build_one cryptopp
-CALL :build_one libsodium
-CALL :build_one sqlite3
-CALL :build_one openssl
-CALL :build_one c-ares
-CALL :build_one curl
-CALL :build_one libevent
-CALL :build_one libzen
-CALL :build_one libmediainfo
-CALL :build_one ffmpeg
-CALL :build_one gtest
+set "OVERLAYPORTS= "
 
-REM freeimage is not needed for MEGASync (but might be for other projects)
-REM CALL :build_one freeimage
+Setlocal EnableDelayedExpansion
+for /f "eol=# tokens=* delims=," %%l in ('type %PORTS_FILE%') do ^
+set "OVERLAYPORTS=--overlay-ports=%DIR%vcpkg_extra_ports/%%l !OVERLAYPORTS!"
 
-REM MEGASync needs libuv and libraw
-CALL :build_one libuv
-CALL :build_one libraw
+set VCPKG=vcpkg
+WHERE vcpkg >nul
+if %errorlevel% neq 0 set VCPKG=./vcpkg.exe
 
-REM MEGASync needs pdfium, and building it is quite tricky - we can build it statically though with its own CMakeLists.txt after getting the code per their instructions.  
-REM It in turn depends on these libs which are easier to build with vcpkg as part of our compatible static library set than as part of its own third_party dependencies
-CALL :build_one icu
-CALL :build_one lcms
-CALL :build_one libjpeg-turbo
-CALL :build_one openjpeg
 
-REM If building something that depends on MEGAchat you will also need libwebsockets:
-CALL :build_one libwebsockets
+for /f "eol=# tokens=* delims=," %%l in ('type %DEPS_FILE%') do ^
+call :build_one %%l
 
-REM ------ building pdifum - this one needs some manual steps - these can be done before calling the script ---------------
-REM - Set up your Depot Tools (this can be one time, reuse it for other builds etc)
-REM      Follow these instructions to get the depot_tools (download .zip, extract all, set variable, run gclient): https://chromium.googlesource.com/chromium/src/+/master/docs/windows_build_instructions.md#install
-REM - Then in your 3rdParty/vcpkg folder (make sure it is not a long path, or subst V: to it), and run these commands in it to get the pdfium source:
-REM      set DEPOT_TOOLS=<<<<your depot_tools path>>>>
-REM      set PATH=%DEPOT_TOOLS%;%PATH%
-REM      set DEPOT_TOOLS_WIN_TOOLCHAIN=0
-REM      mkdir pdfium
-REM      cd pdfium
-REM      gclient config --unmanaged https://pdfium.googlesource.com/pdfium.git
-REM      gclient sync
-REM      REM branch 3710 is compatibile with the VS 2015 compiler and v140 toolset  (or if you want to use the latest, see below)
-REM      cd pdfium
-REM      git checkout chromium/3710
-REM      cd ..
-REM      gclient sync --force
-REM - If using VS2015 compiler, find span.h and remove 'constexpr' from all the forwarding constructors.
-REM - If using the latest Pdfium, use at least VS2017 and skip the branch checkout above, and substitute the pdfium-masterbranch-CMakeLists.txt in vcpkg/ports/pdfium and make this one small patch (other changes may be needed if the master branch has changed):
-REM      in pdfium\core\fxcrt\fx_memory_wrappers.h(26)   comment out the static_assert (uint8_t counts as an arithmentic type)
-
-CALL :build_one pdfium
-CALL :build_one pdfium-freetype
-
-exit /b 0
 
 :build_one 
-.\vcpkg.exe install --triplet %TRIPLET% %1%
-echo %errorlevel% %1% %TRIPLET% >> buildlog
-exit /b 0
+%VCPKG% install --triplet %TRIPLET% %1% % %  %%OVERLAYPORTS%% %%OVERLAYTRIPLETS%%
+echo %errorlevel% %1% % % %%TRIPLET%% >> buildlog
+if %errorlevel% neq 0 exit %errorlevel%
