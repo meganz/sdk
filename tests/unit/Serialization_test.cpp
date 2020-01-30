@@ -406,10 +406,8 @@ TEST(Serialization, LocalNode_forFolder_withoutParent)
 {
     MockClient client;
     auto sync = mt::makeSync(*client.cli, "wicked");
-    auto& n = mt::makeNode(*client.cli, mega::FOLDERNODE, 42);
     auto& l = *sync->localroot;
     l.setfsid(10, client.cli->fsidnode);
-    l.node = &n;
     std::string data;
     ASSERT_TRUE(l.serialize(&data));
     ASSERT_EQ(43u, data.size());
