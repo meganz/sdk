@@ -810,28 +810,6 @@ m_off_t& TransferBufferManager::transferPos(unsigned connectionNum)
 {
     return isRaid() ? RaidBufferManager::transferPos(connectionNum) : transfer->pos;
 }
-
-m_off_t TransferBufferManager::nextTransferPos()
-{
-    assert(!isRaid());
-    chunkmac_map& chunkmacs = transfer->chunkmacs;
-    chunkmac_map::const_iterator it = chunkmacs.find(ChunkedHash::chunkfloor(transfer->pos));
-    while (it != chunkmacs.end())
-    {
-        if (it->second.finished)
-        {
-            transfer->pos = ChunkedHash::chunkceil(transfer->pos);
-        }
-        else
-        {
-            transfer->pos += it->second.offset;
-            break;
-        }
-        it = chunkmacs.find(ChunkedHash::chunkfloor(transfer->pos));
-    }
-    return transfer->pos;
-}
-
 std::pair<m_off_t, m_off_t> TransferBufferManager::nextNPosForConnection(unsigned connectionNum, m_off_t maxRequestSize, unsigned connectionCount, bool& newInputBufferSupplied, bool& pauseConnectionForRaid)
 {
     // returning a pair for clarity - specifying the beginning and end position of the next data block, as the 'current pos' may be updated during this function
@@ -844,7 +822,8 @@ std::pair<m_off_t, m_off_t> TransferBufferManager::nextNPosForConnection(unsigne
     }
     else
     {
-        m_off_t npos = ChunkedHash::chunkceil(nextTransferPos(), transfer->size);
+        transfer->pos = transfer->chunkmacs.nextUnprocessedPosFrom(transfer->pos);
+        m_off_t npos = ChunkedHash::chunkceil(transfer->pos, transfer->size);
         if (!transfer->size)
         {
             transfer->pos = 0;
@@ -873,19 +852,9 @@ std::pair<m_off_t, m_off_t> TransferBufferManager::nextNPosForConnection(unsigne
                 maxReqSize = 0;
             }
 
-            chunkmac_map::iterator it = transfer->chunkmacs.find(npos);
-            m_off_t reqSize = npos - transfer->pos;
-            while (npos < transfer->size
-                && reqSize <= maxReqSize
-                && (it == transfer->chunkmacs.end()
-                    || (!it->second.finished && !it->second.offset)))
-            {
-                npos = ChunkedHash::chunkceil(npos, transfer->size);
-                reqSize = npos - transfer->pos;
-                it = transfer->chunkmacs.find(npos);
-            }
-            LOG_debug << "Downloading chunk of size " << reqSize;
-            assert(reqSize > 0);
+            npos = transfer->chunkmacs.expandUnprocessedPiece(transfer->pos, npos, transfer->size, maxReqSize);
+            LOG_debug << "Downloading chunk of size " << npos - transfer->pos;
+            assert(npos > transfer->pos);
         }
         return std::make_pair(transfer->pos, npos);
     }

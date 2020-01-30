@@ -184,6 +184,7 @@ typedef NS_ENUM(NSInteger, AccountSuspensionType) {
     AccountSuspensionTypeBusinessDisabled = 400, // the subuser of a business account has been disabled
     AccountSuspensionTypeBusinessRemoved = 401, // the subuser of a business account has been removed
     AccountSuspensionTypeSMSVerification = 500, // The account needs to be verified by an SMS code.
+    AccountSuspensionTypeEmailVerification = 700, // The account needs to be verified by password change trough email.
 };
 
 typedef NS_ENUM(NSInteger, BusinessStatus) {
