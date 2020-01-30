@@ -1017,7 +1017,7 @@ struct StandardClient : public MegaApp
     }
 
 
-    bool recursiveConfirm(Model::ModelNode* mn, fs::path p, int& descendants, const string& identifier, int depth)
+    bool recursiveConfirm(Model::ModelNode* mn, fs::path p, int& descendants, const string& identifier, int depth, bool ignoreDebris)
     {
         if (!mn) return false;
         if (depth && mn->name != p.filename().u8string())
@@ -1051,6 +1051,11 @@ struct StandardClient : public MegaApp
         for (auto& m : mn->kids) ms.emplace(m->name, m.get());
         for (fs::directory_iterator pi(p); pi != fs::directory_iterator(); ++pi) ps.emplace(pi->path().filename().u8string(), pi->path());
 
+        if (ignoreDebris)
+        {
+            ps.erase(DEBRISFOLDER);
+        }
+
         int matched = 0;
         vector<string> matchedlist;
         for (auto m_iter = ms.begin(); m_iter != ms.end(); )
@@ -1062,7 +1067,7 @@ struct StandardClient : public MegaApp
             for (auto i = er.first; i != er.second; ++i)
             {
                 int rdescendants = 0; 
-                if (recursiveConfirm(m_iter->second, i->second, rdescendants, identifier, depth+1))
+                if (recursiveConfirm(m_iter->second, i->second, rdescendants, identifier, depth+1, ignoreDebris))
                 {
                     ++matched;
                     matchedlist.push_back(m_iter->first);
@@ -1117,7 +1122,7 @@ struct StandardClient : public MegaApp
         CONFIRM_ALL = CONFIRM_LOCAL | CONFIRM_REMOTE,
     };
 
-    bool confirmModel(int syncid, Model::ModelNode* mnode, const Confirm confirm)
+    bool confirmModel(int syncid, Model::ModelNode* mnode, const Confirm confirm, const bool ignoreDebris)
     {
         auto si = syncSet.find(syncid);
         if (si == syncSet.end())
@@ -1147,7 +1152,7 @@ struct StandardClient : public MegaApp
 
         // compare model against local filesystem
         descendants = 0;
-        if (confirm & CONFIRM_LOCAL && !recursiveConfirm(mnode, si->second.localpath, descendants, "Sync " + to_string(syncid), 0))
+        if (confirm & CONFIRM_LOCAL && !recursiveConfirm(mnode, si->second.localpath, descendants, "Sync " + to_string(syncid), 0, ignoreDebris))
         {
             cout << clientname << " syncid " << syncid << " comparison against local filesystem failed" << endl;
             return false;
@@ -1437,16 +1442,11 @@ struct StandardClient : public MegaApp
         return fb.get();
     }
 
-    bool confirmModel_mainthread(Model::ModelNode* mnode, int syncid, const Confirm confirm = CONFIRM_ALL)
+    bool confirmModel_mainthread(Model::ModelNode* mnode, int syncid, const bool ignoreDebris = false, const Confirm confirm = CONFIRM_ALL)
     {
         future<bool> fb;
-        fb = thread_do([syncid, mnode, confirm](StandardClient& sc, promise<bool>& pb) { pb.set_value(sc.confirmModel(syncid, mnode, confirm)); });
+        fb = thread_do([syncid, mnode, ignoreDebris, confirm](StandardClient& sc, promise<bool>& pb) { pb.set_value(sc.confirmModel(syncid, mnode, confirm, ignoreDebris)); });
         return fb.get();
-    }
-
-    void removeLocalDebris(int syncid)
-    {
-        fs::remove_all(syncSet[syncid].localpath / DEBRISFOLDER);
     }
 };
 
@@ -2836,14 +2836,12 @@ public:
 
     bool checkRef(const Model& model) const
     {
-        mClientRef->removeLocalDebris(0);
-        return mClientRef->confirmModel_mainthread(model.root.get(), 0);
+        return mClientRef->confirmModel_mainthread(model.root.get(), 0, true);
     }
 
     bool checkOneWay(const Model& model, const StandardClient::Confirm confirm = StandardClient::CONFIRM_ALL) const
     {
-        mClientOneWay->removeLocalDebris(0);
-        return mClientOneWay->confirmModel_mainthread(model.root.get(), 0, confirm);
+        return mClientOneWay->confirmModel_mainthread(model.root.get(), 0, true, confirm);
     }
 
     bool pauseOneWay()
