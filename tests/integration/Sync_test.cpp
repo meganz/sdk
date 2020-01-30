@@ -2813,6 +2813,12 @@ public:
         mClientRef->logcb = mClientOneWay->logcb = true;
     }
 
+    ~OneWayFixture()
+    {
+        mClientRef->localLogout();
+        mClientOneWay->localLogout();
+    }
+
     const fs::path& refRootPath() const
     {
         return mClientRef->syncSet.at(0).localpath;
