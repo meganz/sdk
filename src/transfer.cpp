@@ -375,7 +375,7 @@ void Transfer::removeTransferFile(error e, File* f, DBTableTransactionCommitter*
 
 // transfer attempt failed, notify all related files, collect request on
 // whether to abort the transfer, kill transfer if unanimous
-void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime timeleft)
+void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime timeleft, bool keepForeignTargets)
 {
     bool defer = false;
 
@@ -448,6 +448,7 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
     {
         // Remove files with foreign targets, if transfer failed with a (foreign) storage overquota
         if (e == API_EOVERQUOTA
+                && !keepForeignTargets
                 && !timeleft
                 && client->isForeignNode((*it)->h))
         {

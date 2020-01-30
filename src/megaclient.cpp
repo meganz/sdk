@@ -13638,7 +13638,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
             }
             else if (d == PUT && ststatus == STORAGE_RED && isPrivateNode(f->h))
             {
-                t->failed(API_EOVERQUOTA, committer);
+                t->failed(API_EOVERQUOTA, committer, true);
             }
         }
         else    // no existing Transfer, create a new one
