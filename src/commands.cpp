@@ -1943,6 +1943,9 @@ void CommandLogin::procresult()
                     client->sessionkey.assign((const char *)sek, sizeof(sek));
                 }
 
+                // fetch the unshareable key straight away, so we have it before fetchnodes-from-server completes .
+                client->reqs.add(new CommandUnshareableUA(client, true, 5));
+
                 return client->app->login_result(API_OK);
 
             default:

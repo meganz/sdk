@@ -10905,21 +10905,13 @@ void MegaClient::fetchnodes(bool nocache)
                 getuserdata();
             }
 
+            reqs.add(new CommandGetUA(this, uid.c_str(), ATTR_DISABLE_VERSIONS, NULL, 0));
+
             fetchtimezone();
             reqs.add(new CommandGetUA(this, uid.c_str(), ATTR_PUSH_SETTINGS, NULL, 0));
         }
 
         reqs.add(new CommandFetchNodes(this, nocache));
-
-        if (!loggedinfolderlink())
-        {
-            reqs.add(new CommandGetUA(this, uid.c_str(), ATTR_DISABLE_VERSIONS, NULL, 0));
-        }
-    }
-
-    if (unshareablekey.empty() && !loggedinfolderlink())
-    {
-        reqs.add(new CommandUnshareableUA(this, true, 5));
     }
 }
 
