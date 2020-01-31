@@ -962,7 +962,7 @@ void MegaClient::activateoverquota(dstime timeleft, handle targetHandle)
             {
                 Transfer *t = it->second;
                 t->bt.backoff(NEVER);
-                if (t->slot && t->state != TRANSFERSTATE_RETRYING)
+                if (!t->allForeignTargets() && t->slot && t->state != TRANSFERSTATE_RETRYING)
                 {
                     t->state = TRANSFERSTATE_RETRYING;
                     t->slot->retrybt.backoff(NEVER);

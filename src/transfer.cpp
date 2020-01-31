@@ -400,16 +400,7 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
         }
         else    // already dispatched (slot != null)
         {
-            bool allForeignTargets = true;
-            for (const auto &file : files)
-            {
-                if (client->isPrivateNode(file->h))
-                {
-                    allForeignTargets = false;
-                    break;
-                }
-            }
-            if (!timeleft && allForeignTargets)   // storage overquota, but targets are foreign
+            if (!timeleft && allForeignTargets())   // storage overquota, but targets are foreign
             {
                 client->app->transfer_failed(this, e);
             }
@@ -545,6 +536,19 @@ static uint32_t* fileAttributeKeyPtr(byte filekey[FILENODEKEYLENGTH])
     return (uint32_t*)(filekey + FILENODEKEYLENGTH / 2);
 }
 #endif
+
+
+bool Transfer::allForeignTargets()
+{
+    for (const auto &file : files)
+    {
+        if (client->isPrivateNode(file->h))
+        {
+            return false;
+        }
+    }
+    return true;
+}
 
 void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ std::string& localpath)
 {

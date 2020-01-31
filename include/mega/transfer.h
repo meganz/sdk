@@ -159,6 +159,9 @@ struct MEGA_API Transfer : public FileFingerprint
     // unserialize a Transfer and add it to the transfer map
     static Transfer* unserialize(MegaClient *, string*, transfer_map *);
 
+    // return true if all targets are foreign
+    bool allForeignTargets();
+
     // examine a file on disk for video/audio attributes to attach to the file, on upload/download
     void addAnyMissingMediaFileAttributes(Node* node, std::string& localpath);
 };
