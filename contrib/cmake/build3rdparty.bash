@@ -54,11 +54,7 @@ PORTS_FILE="$DIR"/preferred-ports.txt
 DEPS_FILE="$DIR"/3rdparty_deps.txt
 OVERLAYTRIPLETS=" --overlay-triplets=$DIR"/vcpkg_extra_triplets
 
-remove_megasync=0
-quit_machine=1
-require_change=0
-
-while getopts ":d:p:" opt; do
+while getopts ":d:p:t:" opt; do
   case $opt in
     p)
         PORTS_FOLDERS_FILE="$OPTARG"
@@ -92,7 +88,6 @@ fi
 set -e
 export TRIPLET=$1
 
-mv ports ports_original || true
 
 OVERLAYPORTS=" "
 for l in $(cat "$PORTS_FILE" | grep -v "^#" | grep [a-z0-9A-Z]); do
@@ -100,6 +95,8 @@ OVERLAYPORTS="--overlay-ports=$DIR/vcpkg_extra_ports/$l $OVERLAYPORTS"
 done
 
 VCPKG=$(hash vcpkg 2>/dev/null && echo "vcpkg" || echo "./vckpg")
+PARENTVCPKG=$(which vcpkg 2>/dev/null | awk -F '/' '{OFS="/"; $NF=""; print $0}')
+echo mv ${PARENTVCPKG}ports{,_moved} 2>/dev/null || true
 
 build_one ()
 {
