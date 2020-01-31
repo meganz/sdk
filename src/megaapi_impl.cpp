@@ -11330,7 +11330,7 @@ void MegaApiImpl::transfer_failed(Transfer* t, error e, dstime timeleft, handle 
             continue;
         }
 
-        // If a Transfer with multiple targets failed, only notify those targets who failed
+        // uploads with multiple targets may fail for some targets, but success for other ones --> only notify failed ones
         if (t->type == PUT
                 && (transfer->getParentHandle() != targetHandle
                     && targetHandle != UNDEF))
