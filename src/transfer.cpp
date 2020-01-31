@@ -375,7 +375,7 @@ void Transfer::removeTransferFile(error e, File* f, DBTableTransactionCommitter*
 
 // transfer attempt failed, notify all related files, collect request on
 // whether to abort the transfer, kill transfer if unanimous
-void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime timeleft, bool keepForeignTargets)
+void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime timeleft, bool keepForeignTargets, handle targetHandle)
 {
     bool defer = false;
 
@@ -412,12 +412,12 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
                     state = TRANSFERSTATE_RETRYING;
                     slot->retrybt.backoff(NEVER);
                     slot->retrying = true;
-                    client->app->transfer_failed(this, API_EOVERQUOTA, 0);
+                    client->app->transfer_failed(this, API_EOVERQUOTA, 0, targetHandle);
                     ++client->performanceStats.transferTempErrors;
                 }
                 else    // if bandwidth overquota or transition to storage overquota
                 {
-                    client->activateoverquota(timeleft);
+                    client->activateoverquota(timeleft, targetHandle);
                 }
             }
         }

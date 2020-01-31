@@ -103,7 +103,7 @@ struct MEGA_API Transfer : public FileFingerprint
     int tag;
 
     // signal failure
-    void failed(error, DBTableTransactionCommitter&, dstime = 0, bool keepForeignTargets = false);
+    void failed(error, DBTableTransactionCommitter&, dstime = 0, bool keepForeignTargets = false, handle targetHandle = UNDEF);
 
     // signal completion
     void complete(DBTableTransactionCommitter&);
