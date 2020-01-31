@@ -8685,7 +8685,7 @@ class MegaApi
          *
          * @param node Node to move
          * @param newParent New parent for the node
-         * @param newParent Parent for the new node
+         * @param newName Name for the new node
          * @param listener MegaRequestListener to track this request
          */
         void moveNode(MegaNode* node, MegaNode* newParent, const char* newName, MegaRequestListener *listener = NULL);
