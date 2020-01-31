@@ -32,10 +32,11 @@
 #include "mega/mediafileattribute.h"
 
 namespace mega {
-HttpReqCommandPutFA::HttpReqCommandPutFA(MegaClient* client, handle cth, fatype ctype, string* cdata, bool checkAccess)
+HttpReqCommandPutFA::HttpReqCommandPutFA(MegaClient* client, handle cth, fatype ctype, std::unique_ptr<string> cdata, bool checkAccess)
+    : data(move(cdata))
 {
     cmd("ufa");
-    arg("s", cdata->size());
+    arg("s", data->size());
 
     if (checkAccess)
     {
@@ -53,16 +54,10 @@ HttpReqCommandPutFA::HttpReqCommandPutFA(MegaClient* client, handle cth, fatype 
 
     th = cth;
     type = ctype;
-    data = cdata;
 
     binary = true;
 
     tag = client->reqtag;
-}
-
-HttpReqCommandPutFA::~HttpReqCommandPutFA()
-{
-    delete data;
 }
 
 void HttpReqCommandPutFA::procresult()
@@ -2554,7 +2549,7 @@ CommandPurchaseAddItem::CommandPurchaseAddItem(MegaClient* client, int itemclass
             beginobject("aff");
             arg("id", (byte*)&lph, MegaClient::NODEHANDLE);
             arg("ts", ts);
-            arg("t", phtype);   // 1=affiliate id, 2=file/folder link, 3=chat link
+            arg("t", phtype);   // 1=affiliate id, 2=file/folder link, 3=chat link, 4=contact link
             endobject();
         }
     }
@@ -5105,7 +5100,7 @@ CommandSubmitPurchaseReceipt::CommandSubmitPurchaseReceipt(MegaClient *client, i
             beginobject("aff");
             arg("id", (byte*)&lph, MegaClient::NODEHANDLE);
             arg("ts", ts);
-            arg("t", phtype);   // 1=affiliate id, 2=file/folder link, 3=chat link
+            arg("t", phtype);   // 1=affiliate id, 2=file/folder link, 3=chat link, 4=contact link
             endobject();
         }
     }

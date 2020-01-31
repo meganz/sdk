@@ -62,6 +62,14 @@ public class MegaApiJava {
     static Set<DelegateMegaTreeProcessor> activeMegaTreeProcessors = Collections.synchronizedSet(new LinkedHashSet<DelegateMegaTreeProcessor>());
     static Set<DelegateMegaTransferListener> activeHttpServerListeners = Collections.synchronizedSet(new LinkedHashSet<DelegateMegaTransferListener>());
 
+    /**
+     * INVALID_HANDLE Invalid value for a handle
+     *
+     * This value is used to represent an invalid handle. Several MEGA objects can have
+     * a handle but it will never be INVALID_HANDLE.
+     */
+    public final static long INVALID_HANDLE = ~(long)0;
+
     // Very severe error event that will presumably lead the application to abort.
     public final static int LOG_LEVEL_FATAL = MegaApi.LOG_LEVEL_FATAL;
     // Error information but application will continue run.
@@ -151,6 +159,12 @@ public class MegaApiJava {
     public final static int BUSINESS_STATUS_INACTIVE = MegaApi.BUSINESS_STATUS_INACTIVE;
     public final static int BUSINESS_STATUS_ACTIVE = MegaApi.BUSINESS_STATUS_ACTIVE;
     public final static int BUSINESS_STATUS_GRACE_PERIOD = MegaApi.BUSINESS_STATUS_GRACE_PERIOD;
+
+    public final static int AFFILIATE_TYPE_INVALID = MegaApi.AFFILIATE_TYPE_INVALID;
+    public final static int AFFILIATE_TYPE_ID = MegaApi.AFFILIATE_TYPE_ID;
+    public final static int AFFILIATE_TYPE_FILE_FOLDER = MegaApi.AFFILIATE_TYPE_FILE_FOLDER;
+    public final static int AFFILIATE_TYPE_CHAT = MegaApi.AFFILIATE_TYPE_CHAT;
+    public final static int AFFILIATE_TYPE_CONTACT = MegaApi.AFFILIATE_TYPE_CONTACT;
 
     public final static int ORDER_NONE = MegaApi.ORDER_NONE;
     public final static int ORDER_DEFAULT_ASC = MegaApi.ORDER_DEFAULT_ASC;
@@ -4258,6 +4272,7 @@ public class MegaApiJava {
      *      - MegaApi::AFFILIATE_TYPE_ID = 1
      *      - MegaApi::AFFILIATE_TYPE_FILE_FOLDER = 2
      *      - MegaApi::AFFILIATE_TYPE_CHAT = 3
+     *      - MegaApi::AFFILIATE_TYPE_CONTACT = 4
      *
      * @param lastAccessTimestamp Timestamp of the last access
      * @param listener MegaRequestListener to track this request
@@ -4289,6 +4304,7 @@ public class MegaApiJava {
      *      - MegaApi::AFFILIATE_TYPE_ID = 1
      *      - MegaApi::AFFILIATE_TYPE_FILE_FOLDER = 2
      *      - MegaApi::AFFILIATE_TYPE_CHAT = 3
+     *      - MegaApi::AFFILIATE_TYPE_CONTACT = 4
      *
      * @param lastAccessTimestamp Timestamp of the last access
      * @see MegaApi::getPricing
@@ -4454,6 +4470,7 @@ public class MegaApiJava {
      *      - MegaApi::AFFILIATE_TYPE_ID = 1
      *      - MegaApi::AFFILIATE_TYPE_FILE_FOLDER = 2
      *      - MegaApi::AFFILIATE_TYPE_CHAT = 3
+     *      - MegaApi::AFFILIATE_TYPE_CONTACT = 4
      *
      * @param lastAccessTimestamp Timestamp of the last access
      * @param listener MegaRequestListener to track this request
@@ -4487,6 +4504,7 @@ public class MegaApiJava {
      *      - MegaApi::AFFILIATE_TYPE_ID = 1
      *      - MegaApi::AFFILIATE_TYPE_FILE_FOLDER = 2
      *      - MegaApi::AFFILIATE_TYPE_CHAT = 3
+     *      - MegaApi::AFFILIATE_TYPE_CONTACT = 4
      *
      * @param lastAccessTimestamp Timestamp of the last access
      */
