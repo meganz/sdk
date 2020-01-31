@@ -60,13 +60,13 @@ while getopts ":d:p:t:" opt; do
         PORTS_FOLDERS_FILE="$OPTARG"
     ;;
     d)
-        PORTS_FOLDERS_FILE="$OPTARG"
+        DEPS_FILE="$OPTARG"
     ;;
     t)
         OVERLAYTRIPLETS=" --overlay-triplets=$OPTARG"
     ;;
     \?)
-        echo "Invalid option: -$OPTARG" >&2
+        echo "Invalid option: $opt -$OPTARG" >&2
         display_help $0
         exit
     ;;
@@ -79,28 +79,29 @@ done
 
 shift $(($OPTIND-1))
 
-if [ "$#" -ne 1 ]; then
-    echo "Illegal number of parameters"
+if [ "$#" -ne 1 ] && [ -z TRIPLET]; then
+    echo "Illegal number of parameters: $#"
     display_help $0
     exit
 fi
 
 set -e
-export TRIPLET=$1
+[ -z $TRIPLET ] && export TRIPLET=$1
 
 
-OVERLAYPORTS=" "
+OVERLAYPORTS=()
+
 for l in $(cat "$PORTS_FILE" | grep -v "^#" | grep [a-z0-9A-Z]); do
-OVERLAYPORTS="--overlay-ports=$DIR/vcpkg_extra_ports/$l $OVERLAYPORTS"
+OVERLAYPORTS=("--overlay-ports=$DIR/vcpkg_extra_ports/$l" "${OVERLAYPORTS[@]}")
 done
 
-VCPKG=$(hash vcpkg 2>/dev/null && echo "vcpkg" || echo "./vckpg")
+[ -z $VCPKG ] && VCPKG=$(hash vcpkg 2>/dev/null && echo "vcpkg" || echo "./vckpg")
 PARENTVCPKG=$(which vcpkg 2>/dev/null | awk -F '/' '{OFS="/"; $NF=""; print $0}')
 echo mv ${PARENTVCPKG}ports{,_moved} 2>/dev/null || true
 
 build_one ()
 {
-  $VCPKG install --triplet $TRIPLET $1 $OVERLAYPORTS $OVERLAYTRIPLETS
+  $VCPKG install --triplet $TRIPLET $1 "${OVERLAYPORTS[@]}" $OVERLAYTRIPLETS
   echo $? $1 $TRIPLET >> buildlog
 }
 
