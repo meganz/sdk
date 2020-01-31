@@ -18518,6 +18518,7 @@ void MegaApiImpl::sendPendingRequests()
                     if (name)
                     {
                         newName.assign(name);
+                        client->fsaccess->normalize(&newName);
                     }
                     else
                     {
@@ -18567,16 +18568,17 @@ void MegaApiImpl::sendPendingRequests()
 
                 if (name)   // move and rename
                 {
-                    SymmCipher key;
-                    AttrMap attrs;
+                    string newName(name);
+                    client->fsaccess->normalize(&newName);
+
+                    AttrMap attrs = node->attrs;
+                    attrs.map['n'] = newName;
+
                     string attrstring;
-
-                    key.setkey((const byte*)tc.nn->nodekey.data(), node->type);
-                    attrs = node->attrs;
-
-                    attrs.map['n'] = name;
-
                     attrs.getjson(&attrstring);
+
+                    SymmCipher key;
+                    key.setkey((const byte*)tc.nn->nodekey.data(), node->type);
                     client->makeattr(&key, tc.nn->attrstring, attrstring.c_str());
                 }
 
