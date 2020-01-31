@@ -919,7 +919,7 @@ void MegaClient::activateoverquota(dstime timeleft, handle targetHandle)
                     t->state = TRANSFERSTATE_RETRYING;
                     t->slot->retrybt.backoff(timeleft);
                     t->slot->retrying = true;
-                    app->transfer_failed(t, API_EOVERQUOTA, timeleft, targetHandle);
+                    app->transfer_failed(t, API_EOVERQUOTA, timeleft);
                     ++performanceStats.transferTempErrors;
                 }
             }
@@ -941,7 +941,6 @@ void MegaClient::activateoverquota(dstime timeleft, handle targetHandle)
                        app->transfer_failed(t, API_EOVERQUOTA, 0, targetHandle);
                        t->removeTransferFile(API_EOVERQUOTA, f, mTctableRequestCommitter);
                        continue;
-
                    }
                    if (t->files.empty())
                    {
