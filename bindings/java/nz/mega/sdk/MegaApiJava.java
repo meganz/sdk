@@ -2317,6 +2317,47 @@ public class MegaApiJava {
     }
 
     /**
+     * Move a node in the MEGA account changing the file name
+     *
+     * The associated request type with this request is MegaRequest::TYPE_MOVE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node to move
+     * - MegaRequest::getParentHandle - Returns the handle of the new parent for the node
+     * - MegaRequest::getName - Returns the name for the new node
+     *
+     * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * @param node Node to move
+     * @param newParent New parent for the node
+     * @param newName Name for the new node
+     * @param listener MegaRequestListener to track this request
+     */
+    void moveNode(MegaNode node, MegaNode newParent, String newName, MegaRequestListenerInterface listener) {
+        megaApi.moveNode(node, newParent, newName, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Move a node in the MEGA account changing the file name
+     *
+     * The associated request type with this request is MegaRequest::TYPE_MOVE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node to move
+     * - MegaRequest::getParentHandle - Returns the handle of the new parent for the node
+     * - MegaRequest::getName - Returns the name for the new node
+     *
+     * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * @param node Node to move
+     * @param newParent New parent for the node
+     * @param newName Name for the new node
+     */
+    void moveNode(MegaNode node, MegaNode newParent, String newName) {
+        megaApi.moveNode(node, newParent, newName);
+    }
+
+    /**
      * Copy a node in the MEGA account
      *
      * The associated request type with this request is MegaRequest::TYPE_COPY
