@@ -18587,6 +18587,22 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
+            // update node attributes
+            // (with speculative instant completion)
+            if (name)
+            {
+                string newName(name);
+                client->fsaccess->normalize(&newName);
+                node->attrs.map['n'] = newName;
+
+                string attrstring;
+                node->attrs.getjson(&attrstring);
+
+                SymmCipher key;
+                key.setkey((const byte*)node->nodekey().data(), node->type);
+                client->makeattr(&key, node->attrstring, attrstring.c_str());
+            }
+
             e = client->rename(node, newParent);
             break;
         }
