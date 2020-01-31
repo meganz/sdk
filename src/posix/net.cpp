@@ -2774,7 +2774,7 @@ void CurlHttpIO::initialize_android()
     try
     {
         JNIEnv *env;
-        int result = MEGAjvm->GetEnv((void **)&env, JNI_VERSION_1_4);
+        int result = MEGAjvm->GetEnv((void **)&env, JNI_VERSION_1_6);
         if (result == JNI_EDETACHED)
         {
             if (MEGAjvm->AttachCurrentThread(&env, NULL) != JNI_OK)
@@ -2886,7 +2886,9 @@ void CurlHttpIO::initialize_android()
             return;
         }
 
+        ares_library_init_jvm(MEGAjvm);
         ares_library_init_android(connectivityManager);
+        assert(ares_library_android_initialized() == ARES_SUCCESS);
 
         if (detach)
         {

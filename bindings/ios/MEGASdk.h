@@ -184,6 +184,7 @@ typedef NS_ENUM(NSInteger, AccountSuspensionType) {
     AccountSuspensionTypeBusinessDisabled = 400, // the subuser of a business account has been disabled
     AccountSuspensionTypeBusinessRemoved = 401, // the subuser of a business account has been removed
     AccountSuspensionTypeSMSVerification = 500, // The account needs to be verified by an SMS code.
+    AccountSuspensionTypeEmailVerification = 700, // The account needs to be verified by password change trough email.
 };
 
 typedef NS_ENUM(NSInteger, BusinessStatus) {
@@ -197,7 +198,8 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
     AffiliateTypeInvalid = 0, // legacy mode
     AffiliateTypeId = 1,
     AffiliateTypeFileFolder = 2,
-    AffiliateTypeChat = 3
+    AffiliateTypeChat = 3,
+    AffiliateTypeContact = 4
 };
 
 /**
@@ -1954,6 +1956,9 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest email] - Return the email associated with the link
+ *
+ * If the account logged-in is different account than the one for which the link
+ * was generated, onRequestFinish will be called with the error code MEGAErrorTypeApiEAccess.
  *
  * @param link Change-email link (#verify)
  */
@@ -4050,6 +4055,7 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  *      - AffiliateTypeId = 1
  *      - AffiliateTypeFileFolder = 2
  *      - AffiliateTypeChat = 3
+ *      - AffiliateTypeContact = 4
  *
  * @param lastAccessTimestamp Timestamp of the last access
  * @param delegate Delegate to track this request
@@ -4078,6 +4084,7 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
 *      - AffiliateTypeId = 1
 *      - AffiliateTypeFileFolder = 2
 *      - AffiliateTypeChat = 3
+*      - AffiliateTypeContact = 4
 *
 * @param lastAccessTimestamp Timestamp of the last access
 *
@@ -4193,6 +4200,7 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  *      - AffiliateTypeId = 1
  *      - AffiliateTypeFileFolder = 2
  *      - AffiliateTypeChat = 3
+ *      - AffiliateTypeContact = 4
  *
  * @param lastAccessTimestamp Timestamp of the last access
  * @param delegate Delegate to track this request
@@ -4222,6 +4230,7 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  *      - AffiliateTypeId = 1
  *      - AffiliateTypeFileFolder = 2
  *      - AffiliateTypeChat = 3
+ *      - AffiliateTypeContact = 4
  *
  * @param lastAccessTimestamp Timestamp of the last access
  */
@@ -7790,7 +7799,7 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  */
 - (void)setPushNotificationSettings:(MEGAPushNotificationSettings *)pushNotificationSettings;
 
-#pragma mark - Debug log messages
+#pragma mark - Debug
 
 /**
  * @brief Set the active log level
@@ -7864,6 +7873,55 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * @param message Message for the logging system
  */
 + (void)logWithLevel:(MEGALogLevel)logLevel message:(NSString *)message;
+
+/**
+ * @brief Send events to the stats server
+ *
+ * The associated request type with this request is MEGARequestTypeSendEvent
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest number] - Returns the event type
+ * - [MEGARequest text] - Returns the event message
+ *
+ * @param eventType Event type
+ * @param message Event message
+ * @param delegate Delegate to track this request
+ *
+ * @deprecated This function is for internal usage of MEGA apps for debug purposes. This info
+ * is sent to MEGA servers.
+ *
+ * @note Event types are restricted to the following ranges:
+ *  - MEGAchat:  [99000, 99150)
+ *  - Android:   [99200, 99300)
+ *  - iOS:       [99300, 99400)
+ *  - MEGA SDK:  [99400, 99500)
+ *  - MEGAsync:  [99500, 99600)
+ *  - Webclient: [99600, 99800]
+ */
+- (void)sendEvent:(NSInteger)eventType message:(NSString *)message delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+* @brief Send events to the stats server
+*
+* The associated request type with this request is MEGARequestTypeSendEvent
+* Valid data in the MEGARequest object received on callbacks:
+* - [MEGARequest number] - Returns the event type
+* - [MEGARequest text] - Returns the event message
+*
+* @param eventType Event type
+* @param message Event message
+*
+* @deprecated This function is for internal usage of MEGA apps for debug purposes. This info
+* is sent to MEGA servers.
+*
+* @note Event types are restricted to the following ranges:
+*  - MEGAchat:  [99000, 99150)
+*  - Android:   [99200, 99300)
+*  - iOS:       [99300, 99400)
+*  - MEGA SDK:  [99400, 99500)
+*  - MEGAsync:  [99500, 99600)
+*  - Webclient: [99600, 99800]
+*/
+- (void)sendEvent:(NSInteger)eventType message:(NSString *)message;
 
 @end
 
