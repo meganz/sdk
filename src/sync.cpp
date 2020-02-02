@@ -546,7 +546,7 @@ SyncConfigBag::SyncConfigBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, Prn
     ++mTable->nextid;
 }
 
-void SyncConfigBag::add(const SyncConfig& syncConfig)
+void SyncConfigBag::insert(const SyncConfig& syncConfig)
 {
     auto syncConfigPair = mSyncConfigs.find(syncConfig.getLocalPath());
     if (syncConfigPair == mSyncConfigs.end())
@@ -572,35 +572,6 @@ void SyncConfigBag::add(const SyncConfig& syncConfig)
         }
     }
     else
-    {
-        update(syncConfig);
-    }
-}
-
-void SyncConfigBag::remove(const SyncConfig& syncConfig)
-{
-    auto syncConfigPair = mSyncConfigs.find(syncConfig.getLocalPath());
-    if (syncConfigPair != mSyncConfigs.end())
-    {
-        if (mTable)
-        {
-            DBTableTransactionCommitter committer{mTable.get()};
-            if (!mTable->del(syncConfigPair->second.dbid))
-            {
-                LOG_err << "Incomplete database del at id: " << syncConfigPair->second.dbid;
-                assert(false);
-                mTable->abort();
-                return;
-            }
-        }
-        mSyncConfigs.erase(syncConfigPair);
-    }
-}
-
-void SyncConfigBag::update(const SyncConfig& syncConfig)
-{
-    auto syncConfigPair = mSyncConfigs.find(syncConfig.getLocalPath());
-    if (syncConfigPair != mSyncConfigs.end())
     {
         const auto tableId = syncConfigPair->second.dbid;
         if (mTable)
@@ -628,6 +599,36 @@ void SyncConfigBag::update(const SyncConfig& syncConfig)
     }
 }
 
+void SyncConfigBag::remove(const std::string& localPath)
+{
+    auto syncConfigPair = mSyncConfigs.find(localPath);
+    if (syncConfigPair != mSyncConfigs.end())
+    {
+        if (mTable)
+        {
+            DBTableTransactionCommitter committer{mTable.get()};
+            if (!mTable->del(syncConfigPair->second.dbid))
+            {
+                LOG_err << "Incomplete database del at id: " << syncConfigPair->second.dbid;
+                assert(false);
+                mTable->abort();
+                return;
+            }
+        }
+        mSyncConfigs.erase(syncConfigPair);
+    }
+}
+
+const SyncConfig* SyncConfigBag::get(const std::string& localPath) const
+{
+    auto syncConfigPair = mSyncConfigs.find(localPath);
+    if (syncConfigPair != mSyncConfigs.end())
+    {
+        return &syncConfigPair->second;
+    }
+    return nullptr;
+}
+
 void SyncConfigBag::clear()
 {
     if (mTable)
@@ -653,7 +654,6 @@ std::vector<SyncConfig> SyncConfigBag::all() const
 Sync::Sync(MegaClient* cclient, SyncConfig config, const char* cdebris,
            string* clocaldebris, Node* remotenode, bool cinshare, int ctag, void *cappdata)
 : localroot(new LocalNode)
-, mConfig(config)
 {
     isnetwork = false;
     client = cclient;
@@ -677,9 +677,9 @@ Sync::Sync(MegaClient* cclient, SyncConfig config, const char* cdebris,
     fullscan = true;
     scanseqno = 0;
 
-    auto localpath = config.getLocalPath();
+    mLocalPath = config.getLocalPath();
     string crootpath;
-    client->fsaccess->path2local(&localpath, &crootpath);
+    client->fsaccess->path2local(&mLocalPath, &crootpath);
 
     if (cdebris)
     {
@@ -774,7 +774,7 @@ Sync::Sync(MegaClient* cclient, SyncConfig config, const char* cdebris,
 
     if (client->syncConfigs)
     {
-        client->syncConfigs->add(mConfig);
+        client->syncConfigs->insert(config);
     }
 }
 
@@ -786,7 +786,7 @@ Sync::~Sync()
     if (!statecachetable && client->syncConfigs)
     {
         // if there's no localnode cache then remove the sync config
-        client->syncConfigs->remove(mConfig);
+        client->syncConfigs->remove(mLocalPath);
     }
 
     // unlock tmp lock
@@ -892,15 +892,30 @@ bool Sync::readstatecache()
 
 const SyncConfig& Sync::getConfig() const
 {
-    return mConfig;
+    if (client->syncConfigs)
+    {
+        const auto config = client->syncConfigs->get(mLocalPath);
+        assert(config);
+        return *config;
+    }
+    else
+    {
+        LOG_err << "No sync configs available";
+        assert(false);
+        static SyncConfig defaultConfig{mLocalPath, localroot->node->nodehandle, 0};
+        return defaultConfig;
+    }
 }
 
 void Sync::setResumable(const bool isResumable)
 {
-    mConfig.setResumable(isResumable);
     if (client->syncConfigs)
     {
-        client->syncConfigs->update(mConfig);
+        const auto config = client->syncConfigs->get(mLocalPath);
+        assert(config);
+        auto newConfig = *config;
+        newConfig.setResumable(isResumable);
+        client->syncConfigs->insert(newConfig);
     }
 }
 

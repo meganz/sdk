@@ -50,13 +50,13 @@ public:
     MEGA_DISABLE_COPY_MOVE(SyncConfigBag)
 
     // Adds a new sync config or updates if exists already
-    void add(const SyncConfig& syncConfig);
+    void insert(const SyncConfig& syncConfig);
 
-    // Removes a sync config
-    void remove(const SyncConfig& syncConfig);
+    // Removes a sync config at the given local path
+    void remove(const std::string& localPath);
 
-    // Updates with a new sync config
-    void update(const SyncConfig& syncConfig);
+    // Returns the sync config at the given local path
+    const SyncConfig* get(const std::string& localPath) const;
 
     // Removes all sync configs
     void clear();
@@ -202,7 +202,7 @@ protected :
     bool readstatecache();
 
 private:
-    SyncConfig mConfig;
+    std::string mLocalPath;
 };
 } // namespace
 

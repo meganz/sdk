@@ -1195,20 +1195,20 @@ void test_SyncConfigBag(mega::SyncConfigBag& bag)
 {
     ASSERT_TRUE(bag.all().empty());
     const mega::SyncConfig config1{"foo", 41, 122};
-    bag.add(config1);
+    bag.insert(config1);
     const mega::SyncConfig config2{"bar", 42, 123};
-    bag.add(config2);
+    bag.insert(config2);
     const std::vector<mega::SyncConfig> expConfigs1{config2, config1};
     ASSERT_EQ(expConfigs1, bag.all());
-    bag.remove(config1);
+    bag.remove(config1.getLocalPath());
     const std::vector<mega::SyncConfig> expConfigs2{config2};
     ASSERT_EQ(expConfigs2, bag.all());
     const mega::SyncConfig config3{"bar", 43, 124};
-    bag.update(config3);
+    bag.insert(config3); // update
     const std::vector<mega::SyncConfig> expConfigs3{config3};
     ASSERT_EQ(expConfigs3, bag.all());
-    bag.add(config1);
-    bag.add(config2);
+    bag.insert(config1);
+    bag.insert(config2);
     ASSERT_EQ(expConfigs1, bag.all());
     bag.clear();
     ASSERT_TRUE(bag.all().empty());
@@ -1297,13 +1297,13 @@ TEST(Sync, SyncConfigBag_withPreviousState)
 
     mega::SyncConfigBag bag1{dbaccess, fsaccess, rng, "some_id"};
     const mega::SyncConfig config1{"foo", 41, 122};
-    bag1.add(config1);
+    bag1.insert(config1);
     const mega::SyncConfig config2{"bar", 42, 123};
-    bag1.add(config2);
+    bag1.insert(config2);
     const mega::SyncConfig config3{"blah", 43, 124};
-    bag1.add(config3);
-    bag1.update(config3);
-    bag1.remove(config3);
+    bag1.insert(config3);
+    bag1.insert(config3); // update
+    bag1.remove(config3.getLocalPath());
 
     const mega::SyncConfigBag bag2{dbaccess, fsaccess, rng, "some_id"};
     const std::vector<mega::SyncConfig> expConfigs{config2, config1};
