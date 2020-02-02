@@ -171,7 +171,7 @@ static std::pair<bool, NewSyncConfig> syncConfigFromStrings(std::string type, st
 {
     auto toLower = [](std::string& s)
     {
-        for (char& c : s) { c = static_cast<char>(std::tolower(c)); };
+        for (char& c : s) { c = static_cast<char>(tolower(c)); };
     };
 
     toLower(type);
@@ -2803,7 +2803,7 @@ autocomplete::ACN autocompleteSyntax()
 #endif
     p->Add(exec_smsverify, sequence(text("smsverify"), either(sequence(text("send"), param("phonenumber"), opt(param("reverifywhitelisted"))), sequence(text("code"), param("verificationcode")))));
     p->Add(exec_verifiedphonenumber, sequence(text("verifiedphone")));
-    p->Add(exec_mkdir, sequence(text("mkdir"), remoteFSFolder(client, &cwd)));
+    p->Add(exec_mkdir, sequence(text("mkdir"), opt(flag("-allowduplicate")), remoteFSFolder(client, &cwd)));
     p->Add(exec_rm, sequence(text("rm"), remoteFSPath(client, &cwd), opt(sequence(flag("-regexchild"), param("regex")))));
     p->Add(exec_mv, sequence(text("mv"), remoteFSPath(client, &cwd, "src"), remoteFSPath(client, &cwd, "dst")));
     p->Add(exec_cp, sequence(text("cp"), remoteFSPath(client, &cwd, "src"), either(remoteFSPath(client, &cwd, "dst"), param("dstemail"))));
@@ -4509,6 +4509,8 @@ void exec_users(autocomplete::ACState& s)
 
 void exec_mkdir(autocomplete::ACState& s)
 {
+    bool allowDuplicate = s.extractflag("-allowduplicate");
+
     if (s.words.size() > 1)
     {
         string newname;
@@ -4527,6 +4529,16 @@ void exec_mkdir(autocomplete::ACState& s)
                 auto nn = new NewNode[1];
                 client->putnodes_prepareOneFolder(nn, newname);
                 client->putnodes(n->nodehandle, nn, 1);
+            }
+            else if (allowDuplicate && n->parent && n->parent->nodehandle != UNDEF)
+            {
+                // the leaf name already exists and was returned in n
+                auto leafname = s.words[1].s;
+                auto pos = leafname.find_last_of("/");
+                if (pos != string::npos) leafname.erase(0, pos + 1);
+                auto nn = new NewNode[1];
+                client->putnodes_prepareOneFolder(nn, leafname);
+                client->putnodes(n->parent->nodehandle, nn, 1);
             }
             else
             {

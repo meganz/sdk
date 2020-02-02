@@ -184,6 +184,7 @@ typedef NS_ENUM(NSInteger, AccountSuspensionType) {
     AccountSuspensionTypeBusinessDisabled = 400, // the subuser of a business account has been disabled
     AccountSuspensionTypeBusinessRemoved = 401, // the subuser of a business account has been removed
     AccountSuspensionTypeSMSVerification = 500, // The account needs to be verified by an SMS code.
+    AccountSuspensionTypeEmailVerification = 700, // The account needs to be verified by password change trough email.
 };
 
 typedef NS_ENUM(NSInteger, BusinessStatus) {
@@ -1955,6 +1956,9 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest email] - Return the email associated with the link
+ *
+ * If the account logged-in is different account than the one for which the link
+ * was generated, onRequestFinish will be called with the error code MEGAErrorTypeApiEAccess.
  *
  * @param link Change-email link (#verify)
  */

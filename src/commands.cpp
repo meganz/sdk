@@ -1942,6 +1942,9 @@ void CommandLogin::procresult()
                 client->resetSyncConfigs();
 #endif
 
+                // fetch the unshareable key straight away, so we have it before fetchnodes-from-server completes .
+                client->reqs.add(new CommandUnshareableUA(client, true, 5));
+
                 return client->app->login_result(API_OK);
 
             default:
@@ -4915,6 +4918,9 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, bool nocache)
     {
         arg("ca", 1);
     }
+
+    // The servers are more efficient with this command when it's the only one in the batch
+    batchSeparately = true;
 
     tag = client->reqtag;
 }
