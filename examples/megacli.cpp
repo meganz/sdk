@@ -322,11 +322,23 @@ void AppFileGet::completed(Transfer*, LocalNode*)
     delete this;
 }
 
+// transfer terminated - too many failures, or unrecoverable failure, or cancelled
+void AppFileGet::terminated()
+{
+    delete this;
+}
+
 void AppFilePut::completed(Transfer* t, LocalNode*)
 {
     // perform standard completion (place node in user filesystem etc.)
     File::completed(t, NULL);
 
+    delete this;
+}
+
+// transfer terminated - too many failures, or unrecoverable failure, or cancelled
+void AppFilePut::terminated()
+{
     delete this;
 }
 
@@ -2033,62 +2045,68 @@ int loadfile(string* name, string* data)
     return 0;
 }
 
-void xferq(direction_t d, int cancel)
+void xferq(direction_t d, int cancel, bool showActive, bool showAll, bool showCount)
 {
     string name;
+    int count = 0, activeCount = 0;
 
     DBTableTransactionCommitter committer(client->tctable);
     for (appfile_list::iterator it = appxferq[d].begin(); it != appxferq[d].end(); )
     {
         if (cancel < 0 || cancel == (*it)->seqno)
         {
+            bool active = (*it)->transfer && (*it)->transfer->slot;
             (*it)->displayname(&name);
 
-            cout << (*it)->seqno << ": " << name;
-
-            if (d == PUT)
+            if (active && showActive || showAll)
             {
-                AppFilePut* f = (AppFilePut*) *it;
+                cout << (*it)->seqno << ": " << name;
 
-                cout << " -> ";
-
-                if (f->targetuser.size())
+                if (d == PUT)
                 {
-                    cout << f->targetuser << ":";
-                }
-                else
-                {
-                    string path;
-                    nodepath(f->h, &path);
-                    cout << path;
-                }
-            }
+                    AppFilePut* f = (AppFilePut*)*it;
 
-            if ((*it)->transfer && (*it)->transfer->slot)
-            {
-                cout << " [ACTIVE]";
+                    cout << " -> ";
+
+                    if (f->targetuser.size())
+                    {
+                        cout << f->targetuser << ":";
+                    }
+                    else
+                    {
+                        string path;
+                        nodepath(f->h, &path);
+                        cout << path;
+                    }
+                }
+
+                if (active)
+                {
+                    cout << " [ACTIVE] " << ((*it)->transfer->slot->progressreported * 100 / ((*it)->transfer->size ? (*it)->transfer->size : 1)) << "% of " << (*it)->transfer->size;
+                }
+                cout << endl;
             }
-            cout << endl;
 
             if (cancel >= 0)
             {
-                cout << "Canceling..." << endl;
+                cout << "Cancelling..." << endl;
+
 
                 if ((*it)->transfer)
                 {
-                    client->stopxfer(*it, &committer);
+                    client->stopxfer(*it++, &committer);  // stopping calls us back, we delete it, destructor removes it from the map
                 }
-                delete *it++;
+                continue;
             }
-            else
-            {
-                it++;
-            }
+
+            ++count;
+            activeCount += active ? 1 : 0;
         }
-        else
-        {
-            it++;
-        }
+        ++it;
+    }
+    if (showCount)
+    {
+        cout << "Transfer count: " << count << " active: " << activeCount << endl;
     }
 }
 
@@ -2756,7 +2774,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_folderlinkinfo, sequence(text("folderlink"), opt(param("link"))));
     p->Add(exec_open, sequence(text("open"), exportedLink(false, true)));
     p->Add(exec_put, sequence(text("put"), opt(flag("-r")), localFSPath("localpattern"), opt(either(remoteFSPath(client, &cwd, "dst"),param("dstemail")))));
-    p->Add(exec_putq, sequence(text("putq"), opt(param("cancelslot"))));
+    p->Add(exec_putq, sequence(text("putq"), repeat(either(flag("-active"), flag("-all"), flag("-count"))), opt(param("cancelslot"))));
 #ifdef USE_FILESYSTEM
     p->Add(exec_get, sequence(text("get"), opt(sequence(flag("-r"), opt(flag("-foldersonly")))), remoteFSPath(client, &cwd), opt(sequence(param("offset"), opt(param("length"))))));
 #else
@@ -2764,7 +2782,7 @@ autocomplete::ACN autocompleteSyntax()
 #endif
     p->Add(exec_get, sequence(text("get"), flag("-re"), param("regularexpression")));
     p->Add(exec_get, sequence(text("get"), exportedLink(true, false), opt(sequence(param("offset"), opt(param("length"))))));
-    p->Add(exec_getq, sequence(text("getq"), opt(param("cancelslot"))));
+    p->Add(exec_getq, sequence(text("getq"), repeat(either(flag("-active"), flag("-all"), flag("-count"))), opt(param("cancelslot"))));
     p->Add(exec_pause, sequence(text("pause"), either(text("status"), sequence(opt(either(text("get"), text("put"))), opt(text("hard"))))));
     p->Add(exec_getfa, sequence(text("getfa"), wholenumber(1), opt(remoteFSPath(client, &cwd)), opt(text("cancel"))));
 #ifdef USE_MEDIAINFO
@@ -2772,7 +2790,7 @@ autocomplete::ACN autocompleteSyntax()
 #endif
     p->Add(exec_smsverify, sequence(text("smsverify"), either(sequence(text("send"), param("phonenumber"), opt(param("reverifywhitelisted"))), sequence(text("code"), param("verificationcode")))));
     p->Add(exec_verifiedphonenumber, sequence(text("verifiedphone")));
-    p->Add(exec_mkdir, sequence(text("mkdir"), remoteFSFolder(client, &cwd)));
+    p->Add(exec_mkdir, sequence(text("mkdir"), opt(flag("-allowduplicate")), remoteFSFolder(client, &cwd)));
     p->Add(exec_rm, sequence(text("rm"), remoteFSPath(client, &cwd), opt(sequence(flag("-regexchild"), param("regex")))));
     p->Add(exec_mv, sequence(text("mv"), remoteFSPath(client, &cwd, "src"), remoteFSPath(client, &cwd, "dst")));
     p->Add(exec_cp, sequence(text("cp"), remoteFSPath(client, &cwd, "src"), either(remoteFSPath(client, &cwd, "dst"), param("dstemail"))));
@@ -4007,12 +4025,30 @@ void exec_log(autocomplete::ACState& s)
 
 void exec_putq(autocomplete::ACState& s)
 {
-    xferq(PUT, s.words.size() > 1 ? atoi(s.words[1].s.c_str()) : -1);
+    bool showActive = s.extractflag("-active");
+    bool showAll = s.extractflag("-all");
+    bool showCount = s.extractflag("-count");
+
+    if (!showActive && !showAll && !showCount)
+    {
+        showCount = true;
+    }
+
+    xferq(PUT, s.words.size() > 1 ? atoi(s.words[1].s.c_str()) : -1, showActive, showAll, showCount);
 }
 
 void exec_getq(autocomplete::ACState& s)
 {
-    xferq(GET, s.words.size() > 1 ? atoi(s.words[1].s.c_str()) : -1);
+    bool showActive = s.extractflag("-active");
+    bool showAll = s.extractflag("-all");
+    bool showCount = s.extractflag("-count");
+
+    if (!showActive && !showAll && !showCount)
+    {
+        showCount = true;
+    }
+
+    xferq(GET, s.words.size() > 1 ? atoi(s.words[1].s.c_str()) : -1, showActive, showAll, showCount);
 }
 
 void exec_open(autocomplete::ACState& s)
@@ -4461,6 +4497,8 @@ void exec_users(autocomplete::ACState& s)
 
 void exec_mkdir(autocomplete::ACState& s)
 {
+    bool allowDuplicate = s.extractflag("-allowduplicate");
+
     if (s.words.size() > 1)
     {
         string newname;
@@ -4479,6 +4517,16 @@ void exec_mkdir(autocomplete::ACState& s)
                 auto nn = new NewNode[1];
                 client->putnodes_prepareOneFolder(nn, newname);
                 client->putnodes(n->nodehandle, nn, 1);
+            }
+            else if (allowDuplicate && n->parent && n->parent->nodehandle != UNDEF)
+            {
+                // the leaf name already exists and was returned in n
+                auto leafname = s.words[1].s;
+                auto pos = leafname.find_last_of("/");
+                if (pos != string::npos) leafname.erase(0, pos + 1);
+                auto nn = new NewNode[1];
+                client->putnodes_prepareOneFolder(nn, leafname);
+                client->putnodes(n->parent->nodehandle, nn, 1);
             }
             else
             {

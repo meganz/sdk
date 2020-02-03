@@ -438,71 +438,39 @@ public:
 #endif
 };
 
-// compile-time calculated source file leaf name
-// Inspired by Scott Shurr's example at https://github.com/boostcon/cppnow_presentations_2012/blob/master/wed/schurr_cpp11_tools_for_class_authors.pdf?raw=true
-class log_file_leafname 
+// source file leaf name - maybe to be compile time calculated one day
+template<std::size_t N> inline const char* log_file_leafname(const char(&fullpath)[N])
 {
-    const char* const leafname; 
-
-    constexpr const char* last(const char* a, size_t N)
-    {
-        for (size_t i = N; i--; )
-            if (a[i] == '/' || a[i] == '\\')
-            {
-                return &a[i + 1];
-            }
-        return a;
-    }
-
-
-public: 
-    // construct from fixed size char* literal
-    template<std::size_t N> constexpr log_file_leafname(const char(&wholepath)[N])
-        : leafname(last(wholepath, N))
-    {
-    } 
-
-    constexpr operator const char* ()
-    {
-        return leafname;
-    }
-};  
-
-#define MEGA_SETUP_LOGGER_USE ;//static leafname_str_const leaf__FILE__(__FILE__);
-
-//inline constexpr const char* log_file_leafname(const char* s)
-//{
-//    const char* last = s;
-//    for (; *s; ++s) if (*s == '/' || *s == '\\') last = s+1;
-//    return last;
-//}
+    for (auto i = N; i--; ) if (fullpath[i] == '/' || fullpath[i] == '\\') return &fullpath[i+1];
+    return fullpath;
+}
 
 #define LOG_verbose \
     if (::mega::SimpleLogger::logCurrentLevel < ::mega::logMax) ;\
     else \
-        ::mega::SimpleLogger(::mega::logMax, log_file_leafname(__FILE__), __LINE__)
+        ::mega::SimpleLogger(::mega::logMax, ::mega::log_file_leafname(__FILE__), __LINE__)
 
 #define LOG_debug \
     if (::mega::SimpleLogger::logCurrentLevel < ::mega::logDebug) ;\
     else \
-        ::mega::SimpleLogger(::mega::logDebug, log_file_leafname(__FILE__), __LINE__)
+        ::mega::SimpleLogger(::mega::logDebug, ::mega::log_file_leafname(__FILE__), __LINE__)
 
 #define LOG_info \
     if (::mega::SimpleLogger::logCurrentLevel < ::mega::logInfo) ;\
     else \
-        ::mega::SimpleLogger(::mega::logInfo, log_file_leafname(__FILE__), __LINE__)
+        ::mega::SimpleLogger(::mega::logInfo, ::mega::log_file_leafname(__FILE__), __LINE__)
 
 #define LOG_warn \
     if (::mega::SimpleLogger::logCurrentLevel < ::mega::logWarning) ;\
     else \
-        ::mega::SimpleLogger(::mega::logWarning, log_file_leafname(__FILE__), __LINE__)
+        ::mega::SimpleLogger(::mega::logWarning, ::mega::log_file_leafname(__FILE__), __LINE__)
 
 #define LOG_err \
     if (::mega::SimpleLogger::logCurrentLevel < ::mega::logError) ;\
     else \
-        ::mega::SimpleLogger(::mega::logError, log_file_leafname(__FILE__), __LINE__)
+        ::mega::SimpleLogger(::mega::logError, ::mega::log_file_leafname(__FILE__), __LINE__)
 
 #define LOG_fatal \
-    ::mega::SimpleLogger(::mega::logFatal, log_file_leafname(__FILE__), __LINE__)
+    ::mega::SimpleLogger(::mega::logFatal, ::mega::log_file_leafname(__FILE__), __LINE__)
 
 } // namespace

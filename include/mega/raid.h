@@ -23,6 +23,7 @@
 #define MEGA_RAID_H 1
 
 #include "http.h"
+#include "utils.h"
 
 namespace mega {
 
@@ -197,9 +198,6 @@ namespace mega {
 
         Transfer* transfer;
 
-        // get the next pos to start transferring from/to on this connection, for non-raid
-        m_off_t nextTransferPos();
-
         // decrypt and mac downloaded chunk
         void finalize(FilePiece& r) override;
         m_off_t calcOutputChunkPos(m_off_t acquiredpos) override;
@@ -220,9 +218,6 @@ namespace mega {
     private:
 
         DirectRead* directRead;
-
-        // get the next pos to start transferring from/to on this connection, for non-raid
-        m_off_t nextTransferPos();
 
         // decrypt and mac downloaded chunk
         void finalize(FilePiece& r) override;
