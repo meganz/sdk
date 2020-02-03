@@ -3695,6 +3695,28 @@ void MegaClient::freeq(direction_t d)
     }
 }
 
+void MegaClient::resumeResumableSyncs()
+{
+    if (!syncConfigs)
+    {
+        return;
+    }
+    for (const auto& config : syncConfigs->all())
+    {
+        if (!config.isResumable())
+        {
+            continue;
+        }
+        const auto e = addsync(config, DEBRISFOLDER, nullptr);
+        if (e == 0)
+        {
+            app->sync_added(config.getLocalPath(), config.getRemoteNode(),
+                            static_cast<long long>(config.getLocalFingerprint()),
+                            config.getRegExps());
+        }
+    }
+}
+
 // determine next scheduled transfer retry
 void MegaClient::nexttransferretry(direction_t d, dstime* dsmin)
 {
@@ -4148,6 +4170,7 @@ bool MegaClient::procsc()
                             fetchingnodes = false;
                             restag = fetchnodestag;
                             fetchnodestag = 0;
+                            resumeResumableSyncs();
                             app->fetchnodes_result(API_OK);
                             app->notify_dbcommit();
 
@@ -10885,6 +10908,7 @@ void MegaClient::fetchnodes(bool nocache)
         Base64::btoa((byte*)&cachedscsn, sizeof cachedscsn, scsn);
         LOG_info << "Session loaded from local cache. SCSN: " << scsn;
 
+        resumeResumableSyncs();
         app->fetchnodes_result(API_OK);
 
         // if don't know fileversioning is enabled or disabled...

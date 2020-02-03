@@ -313,6 +313,8 @@ struct MEGA_API MegaApp
         return true;
     }
 
+    virtual void sync_added(const string&, handle, long long, const std::vector<std::string>&) { }
+
     // suggest reload due to possible race condition with other clients
     virtual void reload(const char*) { }
 

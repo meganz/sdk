@@ -7378,102 +7378,6 @@ bool MegaApiImpl::hasToForceUpload(const Node &node, const MegaTransferPrivate &
     return canForceUpload && (isMedia || isPdf) && !(hasPreview && hasThumbnail);
 }
 
-#ifdef ENABLE_SYNC
-void MegaApiImpl::resumeSyncImpl(const char *localFolder, const long long localfp, const handle nodeHandle, MegaRegExp *regExp, MegaRequestListener *listener)
-{
-    SdkMutexGuard g(sdkMutex);
-
-#ifdef __APPLE__
-    localfp = 0;
-#endif
-
-    LOG_debug << "Resume sync";
-
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC);
-    request->setListener(listener);
-    request->setRegExp(regExp);
-    request->setNodeHandle(nodeHandle);
-
-    if (localFolder)
-    {
-        string path(localFolder);
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
-        if(!PathIsRelativeA(path.c_str()) && ((path.size()<2) || path.compare(0, 2, "\\\\")))
-            path.insert(0, "\\\\?\\");
-#endif
-        request->setFile(path.data());
-    }
-    request->setNumber(localfp);
-
-    int nextTag = client->nextreqtag();
-    request->setTag(nextTag);
-    requestMap[nextTag]=request;
-    error e = API_OK;
-    fireOnRequestStart(request);
-
-    const char *localPath = request->getFile();
-    Node *node = client->nodebyhandle(request->getNodeHandle());
-    if (!node)
-    {
-        LOG_warn << "Node invalid for handle: " << Base64Str<MegaClient::NODEHANDLE>{request->getNodeHandle()};
-    }
-    if(!node || (node->type==FILENODE) || !localPath)
-    {
-        e = API_EARGS;
-    }
-    else
-    {
-        MegaSyncPrivate *sync = new MegaSyncPrivate(localPath, node->nodehandle, -nextTag);
-        sync->setListener(request->getSyncListener());
-        sync->setLocalFingerprint(localfp);
-        sync->setRegExp(regExp);
-
-        SyncConfig syncConfig{localPath, request->getNodeHandle(), static_cast<fsfp_t>(localfp), regExpToVector(regExp)};
-        e = client->addsync(std::move(syncConfig), DEBRISFOLDER, NULL, -nextTag, sync);
-        if (!e)
-        {
-            Sync *s = client->syncs.back();
-            fsfp_t fsfp = s->fsfp;
-            sync->setState(s->state);
-            request->setNumber(fsfp);
-            syncMap[-nextTag] = sync;
-        }
-        else
-        {
-            delete sync;
-        }
-    }
-
-    fireOnRequestFinish(request, MegaError(e));
-}
-
-void MegaApiImpl::resumeResumableSyncs(MegaRequestListener* listener)
-{
-    if (!client->syncConfigs)
-    {
-        return;
-    }
-    for (const auto& syncConfig : client->syncConfigs->all())
-    {
-        if (!syncConfig.isResumable())
-        {
-            continue;
-        }
-        const auto& regExps = syncConfig.getRegExps();
-        MegaRegExp* regExp = nullptr;
-        if (!regExps.empty())
-        {
-            regExp = new MegaRegExp;
-            for (const auto& re : regExps)
-            {
-                regExp->addRegExp(re.c_str());
-            }
-        }
-        resumeSyncImpl(syncConfig.getLocalPath().c_str(), syncConfig.getLocalFingerprint(), syncConfig.getRemoteNode(), regExp, listener);
-    }
-}
-#endif
-
 void MegaApiImpl::inviteContact(const char *email, const char *message, int action, MegaHandle contactLink, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_INVITE_CONTACT, listener);
@@ -8454,7 +8358,74 @@ void MegaApiImpl::syncFolder(const char *localFolder, MegaNode *megaFolder, Mega
 
 void MegaApiImpl::resumeSync(const char *localFolder, long long localfp, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
 {
-    resumeSyncImpl(localFolder, localfp, megaFolder->getHandle(), regExp, listener);
+    SdkMutexGuard g(sdkMutex);
+
+#ifdef __APPLE__
+    localfp = 0;
+#endif
+
+    LOG_debug << "Resume sync";
+
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC);
+    request->setListener(listener);
+    request->setRegExp(regExp);
+
+    if (megaFolder)
+    {
+        request->setNodeHandle(megaFolder->getHandle());
+    }
+
+    if (localFolder)
+    {
+        string path(localFolder);
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+        if(!PathIsRelativeA(path.c_str()) && ((path.size()<2) || path.compare(0, 2, "\\\\")))
+            path.insert(0, "\\\\?\\");
+#endif
+        request->setFile(path.data());
+    }
+    request->setNumber(localfp);
+
+    int nextTag = client->nextreqtag();
+    request->setTag(nextTag);
+    requestMap[nextTag]=request;
+    error e = API_OK;
+    fireOnRequestStart(request);
+
+    const char *localPath = request->getFile();
+    Node *node = client->nodebyhandle(request->getNodeHandle());
+    if (!node)
+    {
+        LOG_warn << "Node invalid for handle: " << Base64Str<MegaClient::NODEHANDLE>{request->getNodeHandle()};
+    }
+    if(!node || (node->type==FILENODE) || !localPath)
+    {
+        e = API_EARGS;
+    }
+    else
+    {
+        MegaSyncPrivate *sync = new MegaSyncPrivate(localPath, node->nodehandle, -nextTag);
+        sync->setListener(request->getSyncListener());
+        sync->setLocalFingerprint(localfp);
+        sync->setRegExp(regExp);
+
+        SyncConfig syncConfig{localPath, request->getNodeHandle(), static_cast<fsfp_t>(localfp), regExpToVector(regExp)};
+        e = client->addsync(std::move(syncConfig), DEBRISFOLDER, NULL, -nextTag);
+        if (!e)
+        {
+            Sync *s = client->syncs.back();
+            fsfp_t fsfp = s->fsfp;
+            sync->setState(s->state);
+            request->setNumber(fsfp);
+            syncMap[-nextTag] = sync;
+        }
+        else
+        {
+            delete sync;
+        }
+    }
+
+    fireOnRequestFinish(request, MegaError(e));
 }
 
 void MegaApiImpl::removeSync(handle nodehandle, MegaRequestListener* listener)
@@ -12909,6 +12880,28 @@ bool MegaApiImpl::sync_syncable(Sync *sync, const char *name, string *localpath)
     return result;
 }
 
+void MegaApiImpl::sync_added(const string& localPath, const handle remoteNode, const long long localFp, const std::vector<std::string>& regExp)
+{
+    const int nextTag = client->nextreqtag();
+
+    MegaSyncPrivate *sync = new MegaSyncPrivate(localPath.c_str(), remoteNode, -nextTag);
+    sync->setLocalFingerprint(localFp);
+
+    if (!regExp.empty())
+    {
+        auto re = make_unique<MegaRegExp>();
+        for (const auto& v : regExp)
+        {
+            re->addRegExp(v.c_str());
+        }
+        sync->setRegExp(re.get());
+    }
+
+    Sync *s = client->syncs.back();
+    sync->setState(s->state);
+    syncMap[-nextTag] = sync;
+}
+
 void MegaApiImpl::syncupdate_local_lockretry(bool waiting)
 {
     if (waiting)
@@ -13091,13 +13084,6 @@ void MegaApiImpl::fetchnodes_result(error e)
             client->isNewSession = false;
         }
 
-#ifdef ENABLE_SYNC
-        if (e == API_OK)
-        {
-            resumeResumableSyncs(request->getListener());
-        }
-#endif
-
         fireOnRequestFinish(request, megaError);
         return;
     }
@@ -13135,13 +13121,6 @@ void MegaApiImpl::fetchnodes_result(error e)
             updatePwdReminderData(false, false, false, false, true);
             client->isNewSession = false;
         }
-
-#ifdef ENABLE_SYNC
-        if (e == API_OK)
-        {
-            resumeResumableSyncs(request->getListener());
-        }
-#endif
 
         fireOnRequestFinish(request, megaError);
     }

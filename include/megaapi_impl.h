@@ -2947,6 +2947,7 @@ protected:
         void syncupdate_treestate(LocalNode*) override;
         bool sync_syncable(Sync *, const char*, string *, Node *) override;
         bool sync_syncable(Sync *, const char*, string *) override;
+        void sync_added(const string& localPath, handle remoteNode, long long localFp, const std::vector<std::string>& regExp) override;
         void syncupdate_local_lockretry(bool) override;
 
         // for the exclusive use of sync_syncable
@@ -3016,12 +3017,6 @@ protected:
         bool hasToForceUpload(const Node &node, const MegaTransferPrivate &transfer) const;
 
         friend class MegaBackgroundMediaUploadPrivate;
-
-private:
-#ifdef ENABLE_SYNC
-        void resumeSyncImpl(const char *localFolder, long long localfp, handle nodeHandle, MegaRegExp *regExp, MegaRequestListener *listener);
-        void resumeResumableSyncs(MegaRequestListener* listener);
-#endif
 };
 
 class MegaHashSignatureImpl
