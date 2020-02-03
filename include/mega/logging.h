@@ -448,29 +448,29 @@ template<std::size_t N> inline const char* log_file_leafname(const char(&fullpat
 #define LOG_verbose \
     if (::mega::SimpleLogger::logCurrentLevel < ::mega::logMax) ;\
     else \
-        ::mega::SimpleLogger(::mega::logMax, log_file_leafname(__FILE__), __LINE__)
+        ::mega::SimpleLogger(::mega::logMax, ::mega::log_file_leafname(__FILE__), __LINE__)
 
 #define LOG_debug \
     if (::mega::SimpleLogger::logCurrentLevel < ::mega::logDebug) ;\
     else \
-        ::mega::SimpleLogger(::mega::logDebug, log_file_leafname(__FILE__), __LINE__)
+        ::mega::SimpleLogger(::mega::logDebug, ::mega::log_file_leafname(__FILE__), __LINE__)
 
 #define LOG_info \
     if (::mega::SimpleLogger::logCurrentLevel < ::mega::logInfo) ;\
     else \
-        ::mega::SimpleLogger(::mega::logInfo, log_file_leafname(__FILE__), __LINE__)
+        ::mega::SimpleLogger(::mega::logInfo, ::mega::log_file_leafname(__FILE__), __LINE__)
 
 #define LOG_warn \
     if (::mega::SimpleLogger::logCurrentLevel < ::mega::logWarning) ;\
     else \
-        ::mega::SimpleLogger(::mega::logWarning, log_file_leafname(__FILE__), __LINE__)
+        ::mega::SimpleLogger(::mega::logWarning, ::mega::log_file_leafname(__FILE__), __LINE__)
 
 #define LOG_err \
     if (::mega::SimpleLogger::logCurrentLevel < ::mega::logError) ;\
     else \
-        ::mega::SimpleLogger(::mega::logError, log_file_leafname(__FILE__), __LINE__)
+        ::mega::SimpleLogger(::mega::logError, ::mega::log_file_leafname(__FILE__), __LINE__)
 
 #define LOG_fatal \
-    ::mega::SimpleLogger(::mega::logFatal, log_file_leafname(__FILE__), __LINE__)
+    ::mega::SimpleLogger(::mega::logFatal, ::mega::log_file_leafname(__FILE__), __LINE__)
 
 } // namespace
