@@ -29,6 +29,7 @@
 #define SEMAPHORE_CLASS Win32Semaphore
 
 #include "mega/thread.h"
+#include "winsock2.h"
 #include <windows.h>
 
 namespace mega {
