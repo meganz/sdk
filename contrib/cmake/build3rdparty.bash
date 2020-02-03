@@ -1,3 +1,4 @@
+#!/bin/bash
 # This script is for getting and building the 3rd party libraries that the MEGA SDK uses (some are optional, and some are only needed only by MEGA apps too)
 # 
 # Your 3rdParty library builds should be outside the SDK repo.  We are moving to use vcpkg to build most of them. You can start it like this:
@@ -15,66 +16,96 @@
 # 
 # From your 3rdParty/vcpkg folder, run this script (in its proper location) with the desired triplet as the parameter.  (usually x64-linux or x64-osx)
 
-export TRIPLET=$1
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-ln -sf $DIR/vcpkg_extra_ports/* ports/
-ln -sf $DIR/vcpkg_extra_triplets/* triplets/
+
+
+display_help() {
+    local app=$(basename "$0")
+    echo ""
+    echo "This script is for getting and building the 3rd party libraries that the MEGA SDK uses (some are optional, and some are only needed only by MEGA apps too)"
+    echo ""
+    echo "Your 3rdParty library builds should be outside the SDK repo.  We are moving to use vcpkg to build most of them. You can start it like this:"
+    echo ""
+    echo "mkdir 3rdParty"
+    echo "cd 3rdParty"
+    echo "git clone https://github.com/Microsoft/vcpkg.git"
+    echo "cd vcpkg"
+    echo ".\bootstrap-vcpkg.sh -disableMetrics"
+    echo ""
+    echo "If using pdfium, follow the instructions in 3rdparty_deps.txt to get the source code"
+    echo ""
+    echo "From your 3rdParty/vcpkg folder (or with vcpkg in your PATH), run this script (in its proper location) with the desired TRIPLET as the parameter.  (usually x64-linux or x64-osx)"
+    echo ""
+    echo "Your packages will be installed in 3rdParty/vcpkg/installed"
+    echo ""
+    echo "Usage:"
+    echo " $app [-d deps_file] [-p ports_file] [-t triplets_path] TRIPLET"
+    echo ""
+    echo "Options:"
+    echo " -d : path to file listing dependencies. By default $DIR/3rdparty_deps.txt. Comment out any libraries that you won't use."
+    echo " -p : paths to ports file with dependencies/versions too look for. By default: $DIR/preferred-ports.txt"
+    echo " -t : overlay triplets path. By default $DIR/vcpkg_extra_triplets"
+    echo ""
+}
+
+
+PORTS_FILE="$DIR"/preferred-ports.txt
+DEPS_FILE="$DIR"/3rdparty_deps.txt
+OVERLAYTRIPLETS="--overlay-triplets=$DIR/vcpkg_extra_triplets"
+
+while getopts ":d:p:t:" opt; do
+  case $opt in
+    p)
+        PORTS_FOLDERS_FILE="$OPTARG"
+    ;;
+    d)
+        DEPS_FILE="$OPTARG"
+    ;;
+    t)
+        OVERLAYTRIPLETS="--overlay-triplets=$OPTARG"
+    ;;
+    \?)
+        echo "Invalid option: $opt -$OPTARG" >&2
+        display_help $0
+        exit
+    ;;
+    *)
+        display_help $0
+        exit
+    ;;
+  esac
+done
+
+shift $(($OPTIND-1))
+
+if [ "$#" -ne 1 ] && [ -z $TRIPLET ]; then
+    echo "Illegal number of parameters: $#"
+    display_help $0
+    exit
+fi
+
+set -e
+[ -z $TRIPLET ] && export TRIPLET=$1
+
+
+OVERLAYPORTS=()
+
+for l in $(cat "$PORTS_FILE" | grep -v "^#" | grep [a-z0-9A-Z]); do
+OVERLAYPORTS=("--overlay-ports=$DIR/vcpkg_extra_ports/$l" "${OVERLAYPORTS[@]}")
+done
+
+[ -z $VCPKG ] && VCPKG=$(hash vcpkg 2>/dev/null && echo "vcpkg" || echo "./vckpg")
+PARENTVCPKG=$(which vcpkg 2>/dev/null | awk -F '/' '{OFS="/"; $NF=""; print $0}')
+echo mv ${PARENTVCPKG}ports{,_moved} 2>/dev/null || true
 
 build_one ()
 {
-  ./vcpkg install --triplet $TRIPLET $1
+  $VCPKG install --triplet $TRIPLET $1 "${OVERLAYPORTS[@]}" "$OVERLAYTRIPLETS"
   echo $? $1 $TRIPLET >> buildlog
 }
 
-build_one zlib
-build_one cryptopp
-build_one libsodium
-build_one sqlite3
-build_one openssl
-build_one c-ares
-build_one curl
-build_one libevent
-build_one libzen
-build_one libmediainfo
-build_one ffmpeg
-build_one gtest
-
-#REM freeimage is not needed for MEGASync (but might be for other projects)
-#REM build_one freeimage
-
-#REM MEGASync needs libuv and libraw
-build_one libuv
-build_one libraw
-
-# MEGASync needs pdfium, and building it is quite tricky - we can build it statically though with its own CMakeLists.txt after getting the code per their instructions.  
-# It in turn depends on these libs which are easier to build with vcpkg as part of our compatible static library set than as part of its own third_party dependencies
-build_one icu
-build_one lcms
-build_one libjpeg-turbo
-build_one openjpeg
-
-# If building something that depends on MEGAchat you will also need libwebsockets:
-build_one libwebsockets
-
-# ------ building pdifum - this one needs some manual steps - these can be done before calling the script ---------------
-# - Set up your Depot Tools (this can be one time, reuse it for other builds etc)
-#      Follow these instructions to get the depot_tools: https://commondatastorage.googleapis.com/chrome-infra-docs/flat/depot_tools/docs/html/depot_tools_tutorial.html#_setting_up
-# - Then in your 3rdParty/vcpkg folder, and run these commands in it to get the pdfium source:
-#      export DEPOT_TOOLS=<<<<your depot_tools path>>>>
-#      export PATH=$DEPOT_TOOLS;$PATH
-#      mkdir pdfium
-#      cd pdfium
-#      gclient config --unmanaged https://pdfium.googlesource.com/pdfium.git
-#      gclient sync
-#      # branch 3710 is compatibile with the VS 2015 compiler and v140 toolset  (or if you want to use the latest, see below)
-#      cd pdfium
-#      git checkout chromium/3710
-#      cd ..
-#      gclient sync --force
-# - If using the latest Pdfium, use at least VS2017 and skip the branch checkout above, and substitute the pdfium-masterbranch-CMakeLists.txt in vcpkg/ports/pdfium and make this one small patch (other changes may be needed if the master branch has changed):
-#      in pdfium\core\fxcrt\fx_memory_wrappers.h(26)   comment out the static_assert (uint8_t counts as an arithmentic type)
-
-build_one pdfium
-build_one pdfium-freetype
+for dep in $(cat "$DEPS_FILE" | grep -v "^#" | grep [a-z0-9A-Z]); do
+build_one $dep
+done
 
