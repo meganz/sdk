@@ -51,7 +51,7 @@ if (WIN32)
 else(WIN32)
     set(NO_READLINE 0)
     set(USE_PREBUILT_3RDPARTY 0)
-    set(HAVE_LIBUV 0)
+    set (HAVE_LIBUV ${USE_LIBUV})
 endif(WIN32)
 
 if (USE_WEBRTC)
@@ -294,6 +294,7 @@ IF(WIN32)
         ENDIF(USE_MEDIAINFO)
         
         IF(HAVE_FFMPEG)
+        IF(WIN32)
             ImportVcpkgLibrary(ffmpeg_avformat "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avformat.lib" "${prebuilt_dir}/libs/x32/avformat.lib")
             ImportVcpkgLibrary(ffmpeg_avutil "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avutil.lib" "${prebuilt_dir}/libs/x32/avutil.lib")
             ImportVcpkgLibrary(ffmpeg_avcodec "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avcodec.lib" "${prebuilt_dir}/libs/x32/avcodec.lib")
@@ -301,6 +302,16 @@ IF(WIN32)
             ImportVcpkgLibrary(ffmpeg_avdevice "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avdevice.lib" "${prebuilt_dir}/libs/x32/avdevice.lib")
             ImportVcpkgLibrary(ffmpeg_swscale  "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/swscale.lib"  "${prebuilt_dir}/libs/x32/swscale.lib")
             ImportVcpkgLibrary(ffmpeg_swresample "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/swresample.lib"  "${prebuilt_dir}/libs/x32/swresample.lib")
+        else()
+            ImportVcpkgLibrary(avformat "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avformat.lib" "${prebuilt_dir}/libs/x32/avformat.lib")
+            ImportVcpkgLibrary(avutil "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avutil.lib" "${prebuilt_dir}/libs/x32/avutil.lib")
+            ImportVcpkgLibrary(avcodec "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avcodec.lib" "${prebuilt_dir}/libs/x32/avcodec.lib")
+            ImportVcpkgLibrary(avfilter "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avfilter.lib" "${prebuilt_dir}/libs/x32/avfilter.lib")
+            ImportVcpkgLibrary(avdevice "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avdevice.lib" "${prebuilt_dir}/libs/x32/avdevice.lib")
+            ImportVcpkgLibrary(swscale  "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/swscale.lib"  "${prebuilt_dir}/libs/x32/swscale.lib")
+            ImportVcpkgLibrary(swresample "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/swresample.lib"  "${prebuilt_dir}/libs/x32/swresample.lib")
+
+        endif()
         ENDIF(HAVE_FFMPEG)
         
         IF(USE_LIBUV)
@@ -432,7 +443,6 @@ if(WIN32)
     $<IF:${USE_CURL},${MegaDir}/src/posix/net.cpp,${MegaDir}/src/win32/net.cpp>
     ${MegaDir}/src/win32/waiter.cpp 
     $<${USE_CPPTHREAD}:${MegaDir}/src/thread/cppthread.cpp>
-    $<${USE_QT}:${MegaDir}/src/thread/qtthread.cpp >
     )
     
 ELSE(WIN32)
@@ -471,13 +481,17 @@ SET(Mega_CryptoFiles ${MegaDir}/src/crypto/cryptopp.cpp ${MegaDir}/src/crypto/so
 SET(Mega_DbFiles ${MegaDir}/src/db/sqlite.cpp ${MegaDir}/src/db/sqlite.cpp )
 SET(Mega_GfxFiles ${MegaDir}/src/gfx/external.cpp ${MegaDir}/src/gfx/freeimage.cpp ) 
 
+if(WIN32)
+    SET(WIN_EXTRA_INCLUDE $<${USE_PREBUILT_3RDPARTY}:${prebuilt_dir}/libs/sqlite3.c>)
+endif()
+
 add_library(Mega STATIC
             ${MegaDir}/include/megaapi.h
             ${MegaDir}/include/megaapi_impl.h
             ${MegaDir}/include/mega/osx/osxutils.h
             ${MegaDir}/include/mega/transferslot.h
             ${MegaDir}/include/mega/thread/qtthread.h
-            ${MegaDir}/include/mega/thread/win32thread.h
+            ${MegaDir}/include/mega/thread/win32thread.h #TODO:only win32
             ${MegaDir}/include/mega/thread/cppthread.h
             ${MegaDir}/include/mega/thread/posixthread.h
             ${MegaDir}/include/mega/thread/libuvthread.h
@@ -603,13 +617,16 @@ add_library(Mega STATIC
             ${MegaDir}/src/useralerts.cpp 
             ${MegaDir}/src/utils.cpp 
             ${MegaDir}/src/waiterbase.cpp 
-            ${Mega_PlatformSpecificFiles} ${Mega_CryptoFiles} ${Mega_DbFiles} ${Mega_GfxFiles}  
-            $<${USE_PREBUILT_3RDPARTY}:${prebuilt_dir}/libs/sqlite3.c>  
+            ${Mega_PlatformSpecificFiles} ${Mega_CryptoFiles} ${Mega_DbFiles} ${Mega_GfxFiles}
+            ${WIN_EXTRA_INCLUDE}
             $<${USE_LIBUV}:${MegaDir}/src/mega_evt_tls.cpp> 
-            $<${USE_QT}:${MegaDir}/src/gfx/qt.cpp>)
+            $<${USE_QT}:${MegaDir}/src/gfx/qt.cpp>
+            $<${USE_QT}:${MegaDir}/src/thread/qtthread.cpp >
+            )
 
 target_include_directories(Mega PRIVATE ${MegaDir}/include ${Mega_PlatformSpecificIncludes})
 target_include_directories(Mega PUBLIC ${MegaDir}/include ${Mega_PlatformSpecificIncludes})
+if (WIN32)
 target_link_libraries(Mega PUBLIC 
                 $<${USE_CRYPTOPP}:cryptopp> 
                 $<${USE_SODIUM}:sodium> 
@@ -632,6 +649,33 @@ target_link_libraries(Mega PUBLIC
                 $<${USE_PDFIUM}:pdfium> $<${USE_PDFIUM}:freetype> $<${USE_PDFIUM}:icu> $<${USE_PDFIUM}:lcms> $<${USE_PDFIUM}:turbojpeg> $<${USE_PDFIUM}:openjpeg>
                 z
                 ${Mega_PlatformSpecificLibs})
+    else()
+        target_link_libraries(Mega PUBLIC
+                        pthread
+                        sqlite3
+                        $<${USE_CRYPTOPP}:cryptopp>
+                        $<${USE_SODIUM}:sodium>
+                        $<${USE_WEBRTC}:webrtc>
+                        $<${USE_MEDIAINFO}:mediainfo> $<${USE_MEDIAINFO}:zen>
+                        $<${USE_CURL}:curl>
+                        $<${USE_CURL}:cares>
+                        $<$<AND:${USE_OPENSSL},$<NOT:${USE_WEBRTC}>>:ssl>
+                        $<$<AND:${USE_OPENSSL},$<NOT:${USE_WEBRTC}>>:crypto>
+                        $<$<NOT:${USE_PREBUILT_3RDPARTY}>:$<${USE_SQLITE}:sqlite3>>
+                        $<${USE_LIBUV}:uv>
+                        $<${USE_FREEIMAGE}:freeimage> $<${USE_FREEIMAGE}:freeimage_IlmImf> $<${USE_FREEIMAGE}:freeimage_IlmImfUtil> $<${USE_FREEIMAGE}:freeimage_IlmThread> $<${USE_FREEIMAGE}:freeimage_Iex> $<${USE_FREEIMAGE}:freeimage_IexMath>
+                                                      $<${USE_FREEIMAGE}:freeimage_jpeg> $<${USE_FREEIMAGE}:freeimage_turbojpeg> $<${USE_FREEIMAGE}:freeimage_jpegxr> $<${USE_FREEIMAGE}:freeimage_jxrglue> $<${USE_FREEIMAGE}:freeimage_openjp2>
+                                                      $<${USE_FREEIMAGE}:freeimage_lzma>  $<${USE_FREEIMAGE}:freeimage_lcms2>  $<${USE_FREEIMAGE}:freeimage_raw>
+                                                      $<${USE_FREEIMAGE}:freeimage_tiff>  $<${USE_FREEIMAGE}:freeimage_tiffxx>
+                                                      $<${USE_FREEIMAGE}:freeimage_jasper>  $<${USE_FREEIMAGE}:freeimage_libpng>  $<${USE_FREEIMAGE}:freeimage_half>
+                                                      $<${USE_FREEIMAGE}:freeimage_webp> $<${USE_FREEIMAGE}:freeimage_webpdecoder>  $<${USE_FREEIMAGE}:freeimage_webpdemux>  $<${USE_FREEIMAGE}:freeimage_webpmux>
+                                                      $<${HAVE_FFMPEG}:avformat> $<${HAVE_FFMPEG}:avcodec> $<${HAVE_FFMPEG}:avutil>
+                                                      $<${HAVE_FFMPEG}:swscale>  $<${HAVE_FFMPEG}:swresample>
+                        $<${USE_PDFIUM}:pdfium> $<${USE_PDFIUM}:freetype> $<${USE_PDFIUM}:icu> $<${USE_PDFIUM}:lcms> $<${USE_PDFIUM}:turbojpeg> $<${USE_PDFIUM}:openjpeg>
+                        z
+                        ${Mega_PlatformSpecificLibs})
+        endif(WIN32)
+
 target_compile_definitions(Mega PUBLIC 
                 $<${USE_MEDIAINFO}:USE_MEDIAINFO> 
                 $<${USE_SQLITE}:USE_SQLITE> 
@@ -650,7 +694,7 @@ target_compile_definitions(Mega PUBLIC
                 $<${USE_QT}:USE_QT>
                 $<${USE_PDFIUM}:HAVE_PDFIUM>)
 
-if(WIN32)
+if (WIN32)
 target_link_libraries(Mega PUBLIC crypt32.lib)
 endif(WIN32)
 
