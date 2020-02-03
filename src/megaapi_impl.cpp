@@ -18600,6 +18600,7 @@ void MegaApiImpl::sendPendingRequests()
 
                 SymmCipher key;
                 key.setkey((const byte*)node->nodekey().data(), node->type);
+                node->attrstring = new string;
                 client->makeattr(&key, node->attrstring, attrstring.c_str());
             }
 
