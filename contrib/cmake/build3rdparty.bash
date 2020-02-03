@@ -23,9 +23,6 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 display_help() {
     local app=$(basename "$0")
     echo ""
-    echo "Usage:"
-    echo " $app [-d deps_file] [-p ports_file] [-t triplets_path] TRIPLET"
-    echo ""
     echo "This script is for getting and building the 3rd party libraries that the MEGA SDK uses (some are optional, and some are only needed only by MEGA apps too)"
     echo ""
     echo "Your 3rdParty library builds should be outside the SDK repo.  We are moving to use vcpkg to build most of them. You can start it like this:"
@@ -42,6 +39,9 @@ display_help() {
     echo ""
     echo "Your packages will be installed in 3rdParty/vcpkg/installed"
     echo ""
+    echo "Usage:"
+    echo " $app [-d deps_file] [-p ports_file] [-t triplets_path] TRIPLET"
+    echo ""
     echo "Options:"
     echo " -d : path to file listing dependencies. By default $DIR/3rdparty_deps.txt. Comment out any libraries that you won't use."
     echo " -p : paths to ports file with dependencies/versions too look for. By default: $DIR/preferred-ports.txt"
@@ -52,7 +52,7 @@ display_help() {
 
 PORTS_FILE="$DIR"/preferred-ports.txt
 DEPS_FILE="$DIR"/3rdparty_deps.txt
-OVERLAYTRIPLETS=" --overlay-triplets=$DIR"/vcpkg_extra_triplets
+OVERLAYTRIPLETS="--overlay-triplets=$DIR/vcpkg_extra_triplets"
 
 while getopts ":d:p:t:" opt; do
   case $opt in
@@ -63,7 +63,7 @@ while getopts ":d:p:t:" opt; do
         DEPS_FILE="$OPTARG"
     ;;
     t)
-        OVERLAYTRIPLETS=" --overlay-triplets=$OPTARG"
+        OVERLAYTRIPLETS="--overlay-triplets=$OPTARG"
     ;;
     \?)
         echo "Invalid option: $opt -$OPTARG" >&2
@@ -79,7 +79,7 @@ done
 
 shift $(($OPTIND-1))
 
-if [ "$#" -ne 1 ] && [ -z TRIPLET]; then
+if [ "$#" -ne 1 ] && [ -z $TRIPLET ]; then
     echo "Illegal number of parameters: $#"
     display_help $0
     exit
@@ -101,7 +101,7 @@ echo mv ${PARENTVCPKG}ports{,_moved} 2>/dev/null || true
 
 build_one ()
 {
-  $VCPKG install --triplet $TRIPLET $1 "${OVERLAYPORTS[@]}" $OVERLAYTRIPLETS
+  $VCPKG install --triplet $TRIPLET $1 "${OVERLAYPORTS[@]}" "$OVERLAYTRIPLETS"
   echo $? $1 $TRIPLET >> buildlog
 }
 
