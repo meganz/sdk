@@ -1045,6 +1045,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                     client->syncdownrequired = true;
                 }
 #endif
+                it++; // the next line will remove the current item and invalidate that iterator
                 removeTransferFile(API_EREAD, f, &committer);
             }
             else
