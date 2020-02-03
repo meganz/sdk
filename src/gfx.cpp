@@ -193,7 +193,7 @@ int GfxProc::checkevents(Waiter *)
                 mCheckEventsKey.setkey(job->key);
                 int creqtag = client->reqtag;
                 client->reqtag = 0;
-                client->putfa(job->h, job->imagetypes[i], &mCheckEventsKey, job->images[i], job->flag);
+                client->putfa(job->h, job->imagetypes[i], &mCheckEventsKey, std::unique_ptr<string>(job->images[i]), job->flag);
                 client->reqtag = creqtag;
             }
             else

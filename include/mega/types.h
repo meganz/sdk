@@ -169,15 +169,7 @@ struct ChunkMAC
     bool finished;
 };
 
-// file chunk macs
-class chunkmac_map : public map<m_off_t, ChunkMAC>
-{
-public:
-    int64_t macsmac(SymmCipher *cipher);
-    void serialize(string& d) const;
-    bool unserialize(const char*& ptr, const char* end);
-    void calcprogress(m_off_t size, m_off_t& chunkpos, m_off_t& completedprogress, m_off_t* lastblockprogress = nullptr);
-};
+class chunkmac_map;
 
 /**
  * @brief Declaration of API error codes.
@@ -383,6 +375,7 @@ typedef map<int, FileAttributeFetchChannel*> fafc_map;
 
 // transfer type
 typedef enum { GET = 0, PUT, API, NONE } direction_t;
+typedef enum { LARGEFILE = 0, SMALLFILE } filesizetype_t;
 
 struct StringCmp
 {
