@@ -208,7 +208,7 @@ struct DemoApp : public MegaApp
     void transfer_added(Transfer*) override;
     void transfer_removed(Transfer*) override;
     void transfer_prepare(Transfer*) override;
-    void transfer_failed(Transfer*, error, dstime) override;
+    void transfer_failed(Transfer*, error, dstime, handle) override;
     void transfer_update(Transfer*) override;
     void transfer_complete(Transfer*) override;
 

@@ -397,7 +397,7 @@ void DemoApp::transfer_update(Transfer* /*t*/)
     // (this is handled in the prompt logic)
 }
 
-void DemoApp::transfer_failed(Transfer* t, error e, dstime)
+void DemoApp::transfer_failed(Transfer* t, error e, dstime, handle)
 {
     displaytransferdetails(t, "failed (");
     cout << errorstring(e) << ")" << endl;
