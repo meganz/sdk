@@ -11325,7 +11325,11 @@ void MegaApiImpl::transfer_failed(Transfer* t, error e, dstime timeleft, handle 
     for (file_list::iterator it = t->files.begin(); it != t->files.end(); it++)
     {
         MegaTransferPrivate* transfer = getMegaTransferPrivate((*it)->tag);
-        if (!transfer)
+
+        // uploads with multiple targets may fail for some targets, but success for other ones --> only notify failed ones
+        if (!transfer
+            || (t->type == PUT && targetHandle != UNDEF
+                    && (transfer->getParentHandle() != targetHandle)))
         {
             continue;
         }
