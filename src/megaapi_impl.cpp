@@ -11320,7 +11320,7 @@ char *MegaApiImpl::getFingerprint(MegaNode *n)
     return MegaApi::strdup(n->getFingerprint());
 }
 
-void MegaApiImpl::transfer_failed(Transfer* t, error e, dstime timeleft)
+void MegaApiImpl::transfer_failed(Transfer* t, error e, dstime timeleft, handle targetHandle)
 {
     for (file_list::iterator it = t->files.begin(); it != t->files.end(); it++)
     {

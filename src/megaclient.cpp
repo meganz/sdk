@@ -900,7 +900,6 @@ void MegaClient::acknowledgeuseralerts()
     useralerts.acknowledgeAll();
 }
 
-void MegaClient::activateoverquota(dstime timeleft)
 void MegaClient::processForeignOverquota(handle targetHandle)
 {
     assert(!ISUNDEF(targetHandle));
@@ -929,6 +928,7 @@ void MegaClient::processForeignOverquota(handle targetHandle)
     }
 }
 
+void MegaClient::activateoverquota(dstime timeleft, handle targetHandle)
 {
     if (timeleft)
     {

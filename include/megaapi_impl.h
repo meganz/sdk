@@ -2873,7 +2873,7 @@ protected:
         File* file_resume(string*, direction_t *type) override;
 
         void transfer_prepare(Transfer*) override;
-        void transfer_failed(Transfer*, error error, dstime timeleft) override;
+        void transfer_failed(Transfer*, error error, dstime timeleft, handle targetHandle = UNDEF) override;
         void transfer_update(Transfer*) override;
 
         dstime pread_failure(error, int, void*, dstime) override;

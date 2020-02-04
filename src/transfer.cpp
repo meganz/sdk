@@ -385,7 +385,7 @@ bool Transfer::isForeign()
 
 // transfer attempt failed, notify all related files, collect request on
 // whether to abort the transfer, kill transfer if unanimous
-void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime timeleft)
+void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime timeleft, handle targetHandle)
 {
     bool defer = false;
 

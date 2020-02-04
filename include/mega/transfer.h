@@ -106,7 +106,7 @@ struct MEGA_API Transfer : public FileFingerprint
     bool isForeign();
 
     // signal failure
-    void failed(error, DBTableTransactionCommitter&, dstime = 0);
+    void failed(error, DBTableTransactionCommitter&, dstime = 0, handle targetHandle = UNDEF);
 
     // signal completion
     void complete(DBTableTransactionCommitter&);
