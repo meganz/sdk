@@ -901,6 +901,34 @@ void MegaClient::acknowledgeuseralerts()
 }
 
 void MegaClient::activateoverquota(dstime timeleft)
+void MegaClient::processForeignOverquota(handle targetHandle)
+{
+    assert(!ISUNDEF(targetHandle));
+    for (transfer_map::iterator it = transfers[PUT].begin(); it != transfers[PUT].end(); it++)
+    {
+        Transfer *t = it->second;
+        for (file_list::iterator it = t->files.begin(); it != t->files.end();)
+        {
+            File *f = (*it++);
+            if (f->h == targetHandle)
+            {
+                app->transfer_failed(t, API_EOVERQUOTA, 0, targetHandle);
+                t->removeTransferFile(API_EOVERQUOTA, f, mTctableRequestCommitter);
+                continue;
+            }
+            if (t->files.empty())
+            {
+                LOG_debug << "Removing transfer";
+                t->state = TRANSFERSTATE_FAILED;
+                t->finished = true;
+                app->transfer_removed(t);
+                ++performanceStats.transferTempErrors;
+                delete t;
+            }
+        }
+    }
+}
+
 {
     if (timeleft)
     {
