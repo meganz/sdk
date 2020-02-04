@@ -513,7 +513,7 @@ bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, h
 
 SyncConfigBag::SyncConfigBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, PrnGen& rng, const std::string& id)
 {
-    std::string dbname = "syncconfigs" + id;
+    std::string dbname = "syncconfigs_" + id;
     mTable.reset(dbaccess.open(rng, &fsaccess, &dbname, false, false));
     if (!mTable)
     {
@@ -548,19 +548,28 @@ SyncConfigBag::SyncConfigBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, Prn
 
 void SyncConfigBag::insert(const SyncConfig& syncConfig)
 {
+    auto insertOrUpdate = [this](const uint32_t id, const SyncConfig& syncConfig)
+    {
+        std::string data;
+        const_cast<SyncConfig&>(syncConfig).serialize(&data);
+        DBTableTransactionCommitter committer{mTable.get()};
+        if (!mTable->put(id, &data)) // put either inserts or updates
+        {
+            LOG_err << "Incomplete database put at id: " << mTable->nextid;
+            assert(false);
+            mTable->abort();
+            return false;
+        }
+        return true;
+    };
+
     auto syncConfigPair = mSyncConfigs.find(syncConfig.getLocalPath());
-    if (syncConfigPair == mSyncConfigs.end())
+    if (syncConfigPair == mSyncConfigs.end()) // syncConfig is new
     {
         if (mTable)
         {
-            std::string data;
-            const_cast<SyncConfig&>(syncConfig).serialize(&data);
-            DBTableTransactionCommitter committer{mTable.get()};
-            if (!mTable->put(mTable->nextid, &data))
+            if (!insertOrUpdate(mTable->nextid, syncConfig))
             {
-                LOG_err << "Incomplete database put at id: " << mTable->nextid;
-                assert(false);
-                mTable->abort();
                 return;
             }
         }
@@ -571,26 +580,13 @@ void SyncConfigBag::insert(const SyncConfig& syncConfig)
             ++mTable->nextid;
         }
     }
-    else
+    else // syncConfig exists already
     {
         const auto tableId = syncConfigPair->second.dbid;
         if (mTable)
         {
-            DBTableTransactionCommitter committer{mTable.get()};
-            if (!mTable->del(tableId))
+            if (!insertOrUpdate(tableId, syncConfig))
             {
-                LOG_err << "Incomplete database del at id: " << tableId;
-                assert(false);
-                mTable->abort();
-                return;
-            }
-            std::string data;
-            const_cast<SyncConfig&>(syncConfig).serialize(&data);
-            if (!mTable->put(tableId, &data))
-            {
-                LOG_err << "Incomplete database put at id: " << tableId;
-                assert(false);
-                mTable->abort();
                 return;
             }
         }
