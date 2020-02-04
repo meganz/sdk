@@ -953,19 +953,26 @@ void MegaClient::activateoverquota(dstime timeleft, handle targetHandle)
             }
         }
     }
-    else if (setstoragestatus(STORAGE_RED))
+    else
     {
-        LOG_warn << "Storage overquota";
+        setstoragestatus(STORAGE_RED);
         for (transfer_map::iterator it = transfers[PUT].begin(); it != transfers[PUT].end(); it++)
         {
             Transfer *t = it->second;
             t->bt.backoff(NEVER);
-            if (t->slot)
+
+            // skip transfers with foreign targets
+            if (t->isForeign())
+            {
+                continue;
+            }
+
+            if (t->slot && t->state != TRANSFERSTATE_RETRYING)
             {
                 t->state = TRANSFERSTATE_RETRYING;
                 t->slot->retrybt.backoff(NEVER);
                 t->slot->retrying = true;
-                app->transfer_failed(t, API_EOVERQUOTA, 0);
+                app->transfer_failed(t, API_EOVERQUOTA, 0, targetHandle);
                 ++performanceStats.transferTempErrors;
             }
         }
