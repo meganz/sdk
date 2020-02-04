@@ -1192,7 +1192,9 @@ void CommandPutNodes::procresult()
         LOG_debug << "Putnodes error " << e;
         if (e == API_EOVERQUOTA)
         {
-            client->activateoverquota(0);
+            (client->isForeignNode(targethandle))
+                ? client->activateoverquota(0)
+                : client->processForeignOverquota(targethandle);
         }
 #ifdef ENABLE_SYNC
         if (source == PUTNODES_SYNC)
