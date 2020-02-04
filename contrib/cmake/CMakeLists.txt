@@ -31,6 +31,7 @@ set (USE_WEBRTC 0 CACHE STRING "")
 set (USE_LIBUV 0 CACHE STRING "")
 set (USE_QT 0 CACHE STRING "")
 set (USE_PDFIUM 0 CACHE STRING "")
+set (HAVE_LIBRAW 0 CACHE STRING "")
 
 if (USE_QT)
     set( USE_CPPTHREAD 0)
@@ -66,6 +67,7 @@ if (ENABLE_CHAT AND NOT USE_SODIUM)
     message(FATAL_ERROR "ENABLE_CHAT (${ENABLE_CHAT}) requires USE_SODIUM (${USE_SODIUM})")
 endif()
 
+message(STATUS, " Mega3rdPartyDir = ${Mega3rdPartyDir}")
 if (WIN32)
     message(STATUS "CMAKE_GENERATOR is ${CMAKE_GENERATOR}")
     message(STATUS "CMAKE_GENERATOR_PLATFORM is ${CMAKE_GENERATOR_PLATFORM}")
@@ -157,6 +159,12 @@ else (USE_PREBUILT_3RDPARTY)
             link_directories( "${vcpkg_dir}/lib" )
         else()
             include_directories( "${Mega3rdPartyDir}/include" )
+            include_directories( "${Mega3rdPartyDir}/include/curl" )
+            include_directories( "${Mega3rdPartyDir}/include/libsodium" )
+            include_directories( "${Mega3rdPartyDir}/include/cares" )
+            include_directories( "${Mega3rdPartyDir}/include/mediainfo" )
+            include_directories( "${Mega3rdPartyDir}/include/zenlib" )
+            include_directories( "${Mega3rdPartyDir}/include/pdfium" )
             link_directories( "${Mega3rdPartyDir}/lib" )
         endif()
     ENDIF(WIN32)
@@ -429,7 +437,8 @@ if (USE_THIRDPARTY_FROM_VCPKG)
 endif(USE_THIRDPARTY_FROM_VCPKG)
 
 #we must compile with UNICODE defined or our link symbols won't match libmediainfo
-add_definitions( -DUNICODE  )
+# Migration from autotools note: there was a check that determined if libmediainfo was compiled with UNICODE.
+set(UNICODE 1)
 
 if(WIN32)
     
@@ -447,7 +456,7 @@ if(WIN32)
     
 ELSE(WIN32)
 
-    add_definitions(-DUSE_PTHREAD )
+    set(USE_PTHREAD 1)
 
     check_include_file(glob.h HAVE_GLOB_H)
     if (HAVE_GLOB_H)
