@@ -373,6 +373,16 @@ void Transfer::removeTransferFile(error e, File* f, DBTableTransactionCommitter*
     f->terminated();
 }
 
+bool Transfer::isForeign()
+{
+    if (files.empty())
+    {
+        return false;
+    }
+
+    return client->isForeignNode((*files.begin())->h);
+}
+
 // transfer attempt failed, notify all related files, collect request on
 // whether to abort the transfer, kill transfer if unanimous
 void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime timeleft)

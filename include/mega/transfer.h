@@ -102,6 +102,9 @@ struct MEGA_API Transfer : public FileFingerprint
     MegaClient* client;
     int tag;
 
+    // returns true if the transfer contains any foreign target
+    bool isForeign();
+
     // signal failure
     void failed(error, DBTableTransactionCommitter&, dstime = 0);
 
