@@ -6446,6 +6446,7 @@ void MegaClient::sc_ub()
 {
     BizStatus status = BIZ_STATUS_UNKNOWN;
     BizMode mode = BIZ_MODE_UNKNOWN;
+    BizStatus prevBizStatus = mBizStatus;
     for (;;)
     {
         switch (jsonsc.getnameid())
@@ -6485,6 +6486,11 @@ void MegaClient::sc_ub()
                 }
 
                 app->notify_business_status(mBizStatus);
+                if (prevBizStatus == BIZ_STATUS_INACTIVE)
+                {
+                    app->account_updated();
+                }
+
                 return;
 
             default:
