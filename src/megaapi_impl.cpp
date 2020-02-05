@@ -12880,7 +12880,7 @@ bool MegaApiImpl::sync_syncable(Sync *sync, const char *name, string *localpath)
     return result;
 }
 
-void MegaApiImpl::sync_added(const string& localPath, const handle remoteNode, const long long localFp, const std::vector<std::string>& regExp)
+void MegaApiImpl::sync_auto_resumed(const string& localPath, const handle remoteNode, const long long localFp, const std::vector<std::string>& regExp)
 {
     const int nextTag = client->nextreqtag();
 
@@ -12898,6 +12898,7 @@ void MegaApiImpl::sync_added(const string& localPath, const handle remoteNode, c
     }
 
     Sync *s = client->syncs.back();
+    s->appData = sync;
     sync->setState(s->state);
     syncMap[-nextTag] = sync;
 }

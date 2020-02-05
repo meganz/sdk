@@ -3710,7 +3710,7 @@ void MegaClient::resumeResumableSyncs()
         const auto e = addsync(config, DEBRISFOLDER, nullptr);
         if (e == 0)
         {
-            app->sync_added(config.getLocalPath(), config.getRemoteNode(),
+            app->sync_auto_resumed(config.getLocalPath(), config.getRemoteNode(),
                             static_cast<long long>(config.getLocalFingerprint()),
                             config.getRegExps());
         }
