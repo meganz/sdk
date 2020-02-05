@@ -705,6 +705,7 @@ Sync::Sync(MegaClient* cclient, SyncConfig config, const char* cdebris,
     else
     {
         fsfp = dirnotify->fsfingerprint();
+        config.setLocalFingerprint(fsfp);
     }
 
     fsstableids = dirnotify->fsstableids();

@@ -2096,6 +2096,11 @@ handle SyncConfig::getLocalFingerprint() const
     return mLocalFingerprint;
 }
 
+void SyncConfig::setLocalFingerprint(fsfp_t fingerprint)
+{
+    mLocalFingerprint = fingerprint;
+}
+
 const std::vector<std::string>& SyncConfig::getRegExps() const
 {
     return mRegExps;

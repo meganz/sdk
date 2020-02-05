@@ -698,6 +698,9 @@ public:
     // returns the local fingerprint
     fsfp_t getLocalFingerprint() const;
 
+    // sets the local fingerprint
+    void setLocalFingerprint(fsfp_t fingerprint);
+
     // returns the regular expressions
     const std::vector<std::string>& getRegExps() const;
 
