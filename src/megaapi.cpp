@@ -2056,11 +2056,6 @@ void MegaApi::setAccountAuth(const char *auth)
     pImpl->setAccountAuth(auth);
 }
 
-void MegaApi::createAccount(const char* email, const char* password, const char* name, MegaRequestListener *listener)
-{
-    pImpl->createAccount(email, password, name, listener);
-}
-
 void MegaApi::createAccount(const char* email, const char* password, const char* firstname, const char*  lastname, MegaRequestListener *listener)
 {
     pImpl->createAccount(email, password, firstname, lastname, UNDEF, AFFILIATE_TYPE_INVALID, 0, listener);
