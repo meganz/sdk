@@ -210,6 +210,6 @@ typedef NS_ENUM(NSInteger, MEGASubscriptionStatus) {
  */
 - (long long)numberOfVersionFilesForHandle:(uint64_t)handle;
 
-
++ (NSString *)stringForAccountType:(MEGAAccountType)accountType;
 
 @end

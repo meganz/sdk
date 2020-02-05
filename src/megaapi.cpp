@@ -279,6 +279,7 @@ int MegaUserAlertList::size() const
     return 0;
 }
 
+void MegaUserAlertList::clear() { }
 
 
 MegaRecentActionBucket::~MegaRecentActionBucket()
@@ -2472,12 +2473,17 @@ void MegaApi::getPricing(MegaRequestListener *listener)
 
 void MegaApi::getPaymentId(MegaHandle productHandle, MegaRequestListener *listener)
 {
-    pImpl->getPaymentId(productHandle, UNDEF, listener);
+    pImpl->getPaymentId(productHandle, UNDEF, AFFILIATE_TYPE_INVALID, 0, listener);
 }
 
 void MegaApi::getPaymentId(MegaHandle productHandle, MegaHandle lastPublicHandle, MegaRequestListener *listener)
 {
-    pImpl->getPaymentId(productHandle, lastPublicHandle, listener);
+    pImpl->getPaymentId(productHandle, lastPublicHandle, AFFILIATE_TYPE_INVALID, 0, listener);
+}
+
+void MegaApi::getPaymentId(MegaHandle productHandle, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener)
+{
+    pImpl->getPaymentId(productHandle, lastPublicHandle, lastPublicHandleType, lastAccessTimestamp, listener);
 }
 
 void MegaApi::upgradeAccount(MegaHandle productHandle, int paymentMethod, MegaRequestListener *listener)
@@ -2487,17 +2493,22 @@ void MegaApi::upgradeAccount(MegaHandle productHandle, int paymentMethod, MegaRe
 
 void MegaApi::submitPurchaseReceipt(const char *receipt, MegaRequestListener *listener)
 {
-    pImpl->submitPurchaseReceipt(MegaApi::PAYMENT_METHOD_GOOGLE_WALLET, receipt, UNDEF, listener);
+    pImpl->submitPurchaseReceipt(MegaApi::PAYMENT_METHOD_GOOGLE_WALLET, receipt, UNDEF, AFFILIATE_TYPE_INVALID, 0, listener);
 }
 
 void MegaApi::submitPurchaseReceipt(int gateway, const char *receipt, MegaRequestListener *listener)
 {
-    pImpl->submitPurchaseReceipt(gateway, receipt, UNDEF, listener);
+    pImpl->submitPurchaseReceipt(gateway, receipt, UNDEF, AFFILIATE_TYPE_INVALID, 0, listener);
 }
 
 void MegaApi::submitPurchaseReceipt(int gateway, const char *receipt, MegaHandle lastPublicHandle, MegaRequestListener *listener)
 {
-    pImpl->submitPurchaseReceipt(gateway, receipt, lastPublicHandle, listener);
+    pImpl->submitPurchaseReceipt(gateway, receipt, lastPublicHandle, AFFILIATE_TYPE_INVALID, 0, listener);
+}
+
+void MegaApi::submitPurchaseReceipt(int gateway, const char *receipt, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener)
+{
+    pImpl->submitPurchaseReceipt(gateway, receipt, lastPublicHandle, lastPublicHandleType, lastAccessTimestamp, listener);
 }
 
 void MegaApi::creditCardStore(const char* address1, const char* address2, const char* city,
@@ -2685,6 +2696,11 @@ void MegaApi::submitFeedback(int rating, const char *comment, MegaRequestListene
 void MegaApi::sendEvent(int eventType, const char *message, MegaRequestListener *listener)
 {
     pImpl->sendEvent(eventType, message, listener);
+}
+
+void MegaApi::createSupportTicket(const char *message, int type, MegaRequestListener *listener)
+{
+    pImpl->createSupportTicket(message, type, listener);
 }
 
 void MegaApi::reportDebugEvent(const char *text, MegaRequestListener *listener)
@@ -2878,6 +2894,10 @@ void MegaApi::startUpload(const char* localPath, MegaNode* parent, MegaTransferL
     pImpl->startUpload(localPath, parent, listener);
 }
 
+void MegaApi::startUploadForSupport(const char* localPath, bool isSourceTemporary, MegaTransferListener *listener)
+{
+    pImpl->startUploadForSupport(localPath, isSourceTemporary, listener);
+}
 
 MegaStringList *MegaApi::getBackupFolders(int backuptag) const
 {

@@ -454,6 +454,9 @@ public:
     // generate & return next upload handle
     handle uploadhandle(int);
 
+    // helper function for preparing a putnodes call for new folders
+    void putnodes_prepareOneFolder(NewNode* newnode, std::string foldername);
+
     // add nodes to specified parent node (complete upload, copy files, make
     // folders)
     void putnodes(handle, NewNode*, int, const char * = NULL);
@@ -462,7 +465,7 @@ public:
     void putnodes(const char*, NewNode*, int);
 
     // attach file attribute to upload or node handle
-    void putfa(handle, fatype, SymmCipher*, string*, bool checkAccess = true);
+    void putfa(handle, fatype, SymmCipher*, std::unique_ptr<string>, bool checkAccess = true);
 
     // queue file attribute retrieval
     error getfa(handle h, string *fileattrstring, const string &nodekey, fatype, int = 0);
@@ -510,7 +513,7 @@ public:
     // add/delete sync
     error isnodesyncable(Node*, bool* = NULL);
 
-    error addsync(string*, const char*, string*, Node*, fsfp_t = 0, int = 0, void* = NULL);
+    error addsync(SyncConfig, string*, const char*, string*, Node*, fsfp_t = 0, int = 0, void* = NULL);
 
     void delsync(Sync*, bool = true);
 
@@ -526,10 +529,7 @@ public:
     void logout();
 
     // free all state information
-    void locallogout();
-
-    // remove caches
-    void removecaches();
+    void locallogout(bool removecaches);
 
     // SDK version
     const char* version();
@@ -574,13 +574,13 @@ public:
     void purchase_begin();
 
     // add item to basket
-    void purchase_additem(int, handle, unsigned, const char *, unsigned, const char *, handle = UNDEF);
+    void purchase_additem(int, handle, unsigned, const char *, unsigned, const char *, handle = UNDEF, int = 0, int64_t = 0);
 
     // submit purchased products for payment
     void purchase_checkout(int);
 
     // submit purchase receipt for verification
-    void submitpurchasereceipt(int, const char*, handle lph = UNDEF);
+    void submitpurchasereceipt(int, const char*, handle lph = UNDEF, int phtype = 0, int64_t ts = 0);
 
     // store credit card
     error creditcardstore(const char *);
@@ -601,11 +601,11 @@ public:
     void sendevent(int, const char *);
     void sendevent(int, const char *, int tag);
 
+    // create support ticket
+    void supportticket(const char *message, int type);
+
     // clean rubbish bin
     void cleanrubbishbin();
-
-    // determine if more transfers fit in the pipeline
-    bool moretransfers(direction_t);
 
     // change the storage status
     bool setstoragestatus(storagestatus_t);
@@ -883,6 +883,9 @@ private:
 
     void init();
 
+    // remove caches
+    void removeCaches();
+
     // add node to vector and return index
     unsigned addnode(node_vector*, Node*) const;
 
@@ -1004,6 +1007,7 @@ public:
     // Server-MegaClient request JSON and processing state flag ("processing a element")
     JSON jsonsc;
     bool insca;
+    bool insca_notlast;
 
     // no two interrelated client instances should ever have the same sessionid
     char sessionid[10];
@@ -1094,9 +1098,6 @@ public:
     handle_vector sharekeyrewrite;
 
     static const char* const EXPORTEDLINK;
-
-    // minimum number of bytes in transit for upload/download pipelining
-    static const int MINPIPELINE = 65536;
 
     // default number of seconds to wait after a bandwidth overquota
     static dstime DEFAULT_BW_OVERQUOTA_BACKOFF_SECS;
@@ -1287,11 +1288,8 @@ public:
     // determine if all transfer slots are full
     bool slotavail() const;
 
-    // dispatch as many queued transfers as possible
-    void dispatchmore(direction_t);
-
     // transfer queue dispatch/retry handling
-    bool dispatch(direction_t);
+    void dispatchTransfers();
 
     void defer(direction_t, int td, int = 0);
     void freeq(direction_t);
@@ -1310,6 +1308,7 @@ public:
 
     bool requestLock;
     dstime disconnecttimestamp;
+    dstime lastDispatchTransfersDs = 0;
 
     // process object arrays by the API server
     int readnodes(JSON*, int, putsource_t = PUTNODES_APP, NewNode* = NULL, int = 0, int = 0, bool applykeys = false);
@@ -1475,6 +1474,7 @@ public:
     // convert hex digit to number
     static int hexval(char);
 
+    // Since it's quite expensive to create a SymmCipher, these are provided to use for quick operations - just set the key and use.
     SymmCipher tmpnodecipher;
     SymmCipher tmptransfercipher;
 
@@ -1579,7 +1579,7 @@ public:
         uint64_t prepwaitImmediate = 0, prepwaitZero = 0, prepwaitHttpio = 0, prepwaitFsaccess = 0, nonzeroWait = 0;
         CodeCounter::DurationSum csRequestWaitTime;
         CodeCounter::DurationSum transfersActiveTime;
-        std::string report(bool reset, HttpIO* httpio, Waiter* waiter);
+        std::string report(bool reset, HttpIO* httpio, Waiter* waiter, const RequestDispatcher& reqs);
     } performanceStats;
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);

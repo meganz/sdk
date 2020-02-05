@@ -53,7 +53,7 @@ public:
     // update or add specific record
     virtual bool put(uint32_t, char*, unsigned) = 0;
     bool put(uint32_t, string*);
-    bool put(uint32_t, Cachable *, SymmCipher*);
+    bool put(uint32_t, Cacheable *, SymmCipher*);
 
     // delete specific record
     virtual bool del(uint32_t) = 0;

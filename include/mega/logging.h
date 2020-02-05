@@ -154,6 +154,8 @@ class SimpleLogger
     std::array<char, 256>::iterator mBufferIt;
     using DiffType = std::array<char, 256>::difference_type;
     using NumBuf = std::array<char, 24>;
+    const char* filenameStr;
+    int lineNum;
 
     template<typename DataIterator>
     void copyToBuffer(const DataIterator dataIt, DiffType currentSize)
@@ -278,6 +280,13 @@ class SimpleLogger
     {
         copyToBuffer(value.begin(), static_cast<DiffType>(value.size()));
     }
+
+#ifdef _WIN32
+    void logValue(const std::wstring& value)
+    {
+        copyToBuffer(value.begin(), static_cast<DiffType>(value.size()));
+    }
+#endif
 #endif
 
 public:
@@ -289,14 +298,11 @@ public:
     : level{ll}
 #ifdef ENABLE_LOG_PERFORMANCE
     , mBufferIt{mBuffer.begin()}
+    , filenameStr(filename)
+    , lineNum(line)
 #endif
     {
-#ifdef ENABLE_LOG_PERFORMANCE
-        logValue(filename);
-        copyToBuffer(":", 1);
-        logValue(line);
-        copyToBuffer(" ", 1);
-#else
+#ifndef ENABLE_LOG_PERFORMANCE
         if (!logger)
         {
             return;
@@ -316,6 +322,11 @@ public:
     ~SimpleLogger()
     {
 #ifdef ENABLE_LOG_PERFORMANCE
+        copyToBuffer(" [", 2);
+        logValue(filenameStr);  // put filename and line last, to keep the main text nicely column aligned
+        copyToBuffer(":", 1);
+        logValue(lineNum);
+        copyToBuffer("]", 1);
         outputBuffer();
 #else
         OutputStreams::iterator iter;
@@ -434,32 +445,39 @@ public:
 #endif
 };
 
+// source file leaf name - maybe to be compile time calculated one day
+template<std::size_t N> inline const char* log_file_leafname(const char(&fullpath)[N])
+{
+    for (auto i = N; i--; ) if (fullpath[i] == '/' || fullpath[i] == '\\') return &fullpath[i+1];
+    return fullpath;
+}
+
 #define LOG_verbose \
     if (::mega::SimpleLogger::logCurrentLevel < ::mega::logMax) ;\
     else \
-        ::mega::SimpleLogger(::mega::logMax, __FILE__, __LINE__)
+        ::mega::SimpleLogger(::mega::logMax, ::mega::log_file_leafname(__FILE__), __LINE__)
 
 #define LOG_debug \
     if (::mega::SimpleLogger::logCurrentLevel < ::mega::logDebug) ;\
     else \
-        ::mega::SimpleLogger(::mega::logDebug, __FILE__, __LINE__)
+        ::mega::SimpleLogger(::mega::logDebug, ::mega::log_file_leafname(__FILE__), __LINE__)
 
 #define LOG_info \
     if (::mega::SimpleLogger::logCurrentLevel < ::mega::logInfo) ;\
     else \
-        ::mega::SimpleLogger(::mega::logInfo, __FILE__, __LINE__)
+        ::mega::SimpleLogger(::mega::logInfo, ::mega::log_file_leafname(__FILE__), __LINE__)
 
 #define LOG_warn \
     if (::mega::SimpleLogger::logCurrentLevel < ::mega::logWarning) ;\
     else \
-        ::mega::SimpleLogger(::mega::logWarning, __FILE__, __LINE__)
+        ::mega::SimpleLogger(::mega::logWarning, ::mega::log_file_leafname(__FILE__), __LINE__)
 
 #define LOG_err \
     if (::mega::SimpleLogger::logCurrentLevel < ::mega::logError) ;\
     else \
-        ::mega::SimpleLogger(::mega::logError, __FILE__, __LINE__)
+        ::mega::SimpleLogger(::mega::logError, ::mega::log_file_leafname(__FILE__), __LINE__)
 
 #define LOG_fatal \
-    ::mega::SimpleLogger(::mega::logFatal, __FILE__, __LINE__)
+    ::mega::SimpleLogger(::mega::logFatal, ::mega::log_file_leafname(__FILE__), __LINE__)
 
 } // namespace

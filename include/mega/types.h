@@ -169,15 +169,7 @@ struct ChunkMAC
     bool finished;
 };
 
-// file chunk macs
-class chunkmac_map : public map<m_off_t, ChunkMAC>
-{
-public:
-    int64_t macsmac(SymmCipher *cipher);
-    void serialize(string& d) const;
-    bool unserialize(const char*& ptr, const char* end);
-    void calcprogress(m_off_t size, m_off_t& chunkpos, m_off_t& completedprogress, m_off_t* lastblockprogress = nullptr);
-};
+class chunkmac_map;
 
 /**
  * @brief Declaration of API error codes.
@@ -188,8 +180,9 @@ typedef enum ErrorCodes
     API_EINTERNAL = -1,             ///< Internal error.
     API_EARGS = -2,                 ///< Bad arguments.
     API_EAGAIN = -3,                ///< Request failed, retry with exponential backoff.
-    API_ERATELIMIT = -4,            ///< Too many requests, slow down.
-    API_EFAILED = -5,               ///< Request failed permanently.
+    DAEMON_EFAILED = -4,            ///< If returned from the daemon: EFAILED
+    API_ERATELIMIT = -4,            ///< If returned from the API: Too many requests, slow down.
+    API_EFAILED = -5,               ///< Request failed permanently.  This one is only produced by the API, only per command (not batch level)
     API_ETOOMANY = -6,              ///< Too many requests for this resource.
     API_ERANGE = -7,                ///< Resource access out of range.
     API_EEXPIRED = -8,              ///< Resource expired.
@@ -247,16 +240,15 @@ const int FOLDERNODEKEYLENGTH = 16;
 typedef list<class Sync*> sync_list;
 
 // persistent resource cache storage
-struct Cachable
+class Cacheable
 {
+public:
+    virtual ~Cacheable() = default;
+
     virtual bool serialize(string*) = 0;
 
-    int32_t dbid;
-
-    bool notified;
-
-    Cachable();
-    virtual ~Cachable() { }
+    uint32_t dbid = 0;
+    bool notified = false;
 };
 
 // numeric representation of string (up to 8 chars)
@@ -383,6 +375,7 @@ typedef map<int, FileAttributeFetchChannel*> fafc_map;
 
 // transfer type
 typedef enum { GET = 0, PUT, API, NONE } direction_t;
+typedef enum { LARGEFILE = 0, SMALLFILE } filesizetype_t;
 
 struct StringCmp
 {
@@ -482,7 +475,7 @@ typedef enum { PRIV_UNKNOWN = -2, PRIV_RM = -1, PRIV_RO = 0, PRIV_STANDARD = 2, 
 typedef pair<handle, privilege_t> userpriv_pair;
 typedef vector< userpriv_pair > userpriv_vector;
 typedef map <handle, set <handle> > attachments_map;
-struct TextChat : public Cachable
+struct TextChat : public Cacheable
 {
     enum {
         FLAG_OFFSET_ARCHIVE = 0
@@ -669,6 +662,75 @@ namespace CodeCounter
 #endif
     };
 }
+
+// Holds the config of a sync. Can be extended with future config options
+class SyncConfig
+{
+public:
+
+    enum Type
+    {
+        TYPE_UP = 0x01, // sync up from local to remote
+        TYPE_DOWN = 0x02, // sync down from remote to local
+        TYPE_DEFAULT = TYPE_UP | TYPE_DOWN, // Two-way sync
+    };
+
+    SyncConfig() = default;
+
+    SyncConfig(const Type syncType, const bool syncDeletions, const bool forceOverwrite)
+        : mSyncType{syncType}
+        , mSyncDeletions{syncDeletions}
+        , mForceOverwrite{forceOverwrite}
+    {}
+
+    // whether this is an up-sync from local to remote
+    bool isUpSync() const
+    {
+        return mSyncType & TYPE_UP;
+    }
+
+    // whether this is a down-sync from remote to local
+    bool isDownSync() const
+    {
+        return mSyncType & TYPE_DOWN;
+    }
+
+    // whether deletions are synced
+    bool syncDeletions() const
+    {
+        switch (mSyncType)
+        {
+            case TYPE_UP: return mSyncDeletions;
+            case TYPE_DOWN: return mSyncDeletions;
+            case TYPE_DEFAULT: return true;
+        }
+        assert(false);
+        return true;
+    }
+
+    // whether changes are overwritten irregardless of file properties
+    bool forceOverwrite() const
+    {
+        switch (mSyncType)
+        {
+            case TYPE_UP: return mForceOverwrite;
+            case TYPE_DOWN: return mForceOverwrite;
+            case TYPE_DEFAULT: return false;
+        }
+        assert(false);
+        return false;
+    }
+
+private:
+    // type of the sync, defaults to bidirectional
+    Type mSyncType = TYPE_DEFAULT;
+
+    // whether deletions are synced (only relevant for one-way-sync)
+    bool mSyncDeletions = false;
+
+    // whether changes are overwritten irregardless of file properties (only relevant for one-way-sync)
+    bool mForceOverwrite = false;
+};
 
 } // namespace
 

@@ -32,6 +32,31 @@
 
 namespace mega {
 
+TransferCategory::TransferCategory(direction_t d, filesizetype_t s) 
+    : direction(d)
+    , sizetype(s) 
+{
+}
+
+TransferCategory::TransferCategory(Transfer* t)
+    : direction(t->type)
+    , sizetype(t->size > 131072 ? LARGEFILE : SMALLFILE)  // Conservative starting point: 131072 is the smallest chunk, we will certainly only use one socket to upload/download
+{
+}
+
+unsigned TransferCategory::index() 
+{
+    assert(direction == GET || direction == PUT);
+    assert(sizetype == LARGEFILE || sizetype == SMALLFILE);
+    return 2 + direction * 2 + sizetype;
+}
+
+unsigned TransferCategory::directionIndex() 
+{
+    assert(direction == GET || direction == PUT);
+    return direction;
+}
+
 Transfer::Transfer(MegaClient* cclient, direction_t ctype)
     : bt(cclient->rng, cclient->transferRetryBackoffs[ctype])
 {
@@ -1020,6 +1045,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                     client->syncdownrequired = true;
                 }
 #endif
+                it++; // the next line will remove the current item and invalidate that iterator
                 removeTransferFile(API_EREAD, f, &committer);
             }
             else
@@ -1071,24 +1097,6 @@ void Transfer::completefiles()
         files.erase(it++);
     }
     ids.push_back(dbid);
-}
-
-m_off_t Transfer::nextpos()
-{
-    while (chunkmacs.find(ChunkedHash::chunkfloor(pos)) != chunkmacs.end() && pos < size)
-    {    
-        if (chunkmacs[ChunkedHash::chunkfloor(pos)].finished)
-        {
-            pos = ChunkedHash::chunkceil(pos, size);
-        }
-        else
-        {
-            pos += chunkmacs[ChunkedHash::chunkfloor(pos)].offset;
-            break;
-        }
-    }
-
-    return pos;
 }
 
 DirectReadNode::DirectReadNode(MegaClient* cclient, handle ch, bool cp, SymmCipher* csymmcipher, int64_t cctriv, const char *privauth, const char *pubauth, const char *cauth)
@@ -1924,19 +1932,49 @@ transfer_list::iterator TransferList::iterator(Transfer *transfer)
     return transfers[transfer->type].end();
 }
 
-Transfer *TransferList::nexttransfer(direction_t direction)
+std::array<vector<Transfer*>, 6> TransferList::nexttransfers(std::function<bool(Transfer*)>& continuefunction)
 {
-    for (transfer_list::iterator it = transfers[direction].begin(); it != transfers[direction].end(); it++)
+    std::array<vector<Transfer*>, 6> chosenTransfers;
+
+    static direction_t putget[] = { PUT, GET };
+
+    for (direction_t direction : putget)
     {
-        Transfer *transfer = (*it);
-        if ((!transfer->slot && isReady(transfer))
+        for (Transfer *transfer : transfers[direction])
+        {
+            bool continueLarge = true;
+            bool continueSmall = true;
+
+            if ((!transfer->slot && isReady(transfer))
                 || (transfer->asyncopencontext
                     && transfer->asyncopencontext->finished))
-        {
-            return transfer;
+            {
+                TransferCategory tc(transfer);
+                
+                if (tc.sizetype == LARGEFILE && continueLarge)
+                {
+                    continueLarge = continuefunction(transfer);
+                    if (continueLarge)
+                    {
+                        chosenTransfers[tc.index()].push_back(transfer);
+                    }
+                }
+                else if (tc.sizetype == SMALLFILE && continueSmall)
+                {
+                    continueSmall = continuefunction(transfer);
+                    if (continueSmall)
+                    {
+                        chosenTransfers[tc.index()].push_back(transfer);
+                    }
+                }
+                if (!continueLarge && !continueSmall)
+                {
+                    break;
+                }
+            }
         }
     }
-    return NULL;
+    return chosenTransfers;
 }
 
 Transfer *TransferList::transferat(direction_t direction, unsigned int position)

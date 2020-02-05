@@ -35,7 +35,6 @@ using namespace mega;
 using ::testing::Test;
 
 static const string APP_KEY     = "8QxzVRxD";
-static const string USER_AGENT  = "Integration Tests with GoogleTest framework";
 
 // IMPORTANT: the main account must be empty (Cloud & Rubbish) before starting the test and it will be purged at exit.
 // Both main and auxiliar accounts shouldn't be contacts yet and shouldn't have any pending contact requests.

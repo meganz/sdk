@@ -32,10 +32,11 @@
 #include "mega/mediafileattribute.h"
 
 namespace mega {
-HttpReqCommandPutFA::HttpReqCommandPutFA(MegaClient* client, handle cth, fatype ctype, string* cdata, bool checkAccess)
+HttpReqCommandPutFA::HttpReqCommandPutFA(MegaClient* client, handle cth, fatype ctype, std::unique_ptr<string> cdata, bool checkAccess)
+    : data(move(cdata))
 {
     cmd("ufa");
-    arg("s", cdata->size());
+    arg("s", data->size());
 
     if (checkAccess)
     {
@@ -53,16 +54,10 @@ HttpReqCommandPutFA::HttpReqCommandPutFA(MegaClient* client, handle cth, fatype 
 
     th = cth;
     type = ctype;
-    data = cdata;
 
     binary = true;
 
     tag = client->reqtag;
-}
-
-HttpReqCommandPutFA::~HttpReqCommandPutFA()
-{
-    delete data;
 }
 
 void HttpReqCommandPutFA::procresult()
@@ -327,7 +322,7 @@ CommandPutFile::CommandPutFile(MegaClient* client, TransferSlot* ctslot, int ms)
 
     // send minimum set of different tree's roots for API to check overquota
     set<handle> targetRoots;
-    beginarray("t");
+    bool begun = false;
     for (auto &file : tslot->transfer->files)
     {
         if (!ISUNDEF(file->h))
@@ -343,11 +338,32 @@ CommandPutFile::CommandPutFile(MegaClient* client, TransferSlot* ctslot, int ms)
 
                 targetRoots.insert(rootnode);
             }
+            if (!begun)
+            {
+                beginarray("t");
+                begun = true;
+            }
 
             element((byte*)&file->h, MegaClient::NODEHANDLE);
         }
     }
-    endarray();
+
+    if (begun)
+    {
+        endarray();
+    }
+    else
+    {
+        // Target user goes alone, not inside an array. Note: we are skipping this if a)more than two b)the array had been created for node handles
+        for (auto &file : tslot->transfer->files)
+        {
+            if (ISUNDEF(file->h) && file->targetuser.size())
+            {
+                arg("t", file->targetuser.c_str());
+                break;
+            }
+        }
+    }
 }
 
 void CommandPutFile::cancel()
@@ -1147,6 +1163,7 @@ void CommandPutNodes::procresult()
     {
         if (client->tctable)
         {
+            client->mTctableRequestCommitter->beginOnce();
             vector<uint32_t> &ids = it->second;
             for (unsigned int i = 0; i < ids.size(); i++)
             {
@@ -1921,6 +1938,9 @@ void CommandLogin::procresult()
                     client->sessionkey.assign((const char *)sek, sizeof(sek));
                 }
 
+                // fetch the unshareable key straight away, so we have it before fetchnodes-from-server completes .
+                client->reqs.add(new CommandUnshareableUA(client, true, 5));
+
                 return client->app->login_result(API_OK);
 
             default:
@@ -2509,7 +2529,8 @@ void CommandEnumerateQuotaItems::procresult()
 CommandPurchaseAddItem::CommandPurchaseAddItem(MegaClient* client, int itemclass,
                                                handle item, unsigned price,
                                                const char* currency, unsigned /*tax*/,
-                                               const char* /*country*/, handle lph)
+                                               const char* /*country*/, handle lph,
+                                               int phtype, int64_t ts)
 {
     string sprice;
     sprice.resize(128);
@@ -2522,7 +2543,18 @@ CommandPurchaseAddItem::CommandPurchaseAddItem(MegaClient* client, int itemclass
     arg("c", currency);
     if (!ISUNDEF(lph))
     {
-        arg("aff", (byte*)&lph, MegaClient::NODEHANDLE);
+        if (phtype == 0) // legacy mode
+        {
+            arg("aff", (byte*)&lph, MegaClient::NODEHANDLE);
+        }
+        else
+        {
+            beginobject("aff");
+            arg("id", (byte*)&lph, MegaClient::NODEHANDLE);
+            arg("ts", ts);
+            arg("t", phtype);   // 1=affiliate id, 2=file/folder link, 3=chat link, 4=contact link
+            endobject();
+        }
     }
 
     tag = client->reqtag;
@@ -3551,6 +3583,10 @@ void CommandPubKeyRequest::procresult()
                     if (!ISUNDEF(uh))
                     {
                         client->mapuser(uh, u->email.c_str());
+                        if (u->isTemporary && u->uid == u->email) //update uid with the received USERHANDLE (will be used as target for putnodes)
+                        {
+                            u->uid = Base64Str<MegaClient::USERHANDLE>(uh);
+                        }
                     }
 
                     if (client->fetchingkeys && u->userhandle == client->me && len_pubk)
@@ -4061,7 +4097,7 @@ void CommandGetUserQuota::procresult()
                         ns->files = uint32_t(client->json.getint());
                         ns->folders = uint32_t(client->json.getint());
                         ns->version_bytes = client->json.getint();
-                        ns->version_files = client->json.getint();
+                        ns->version_files = client->json.getint32();
 
 #ifdef _DEBUG
                         // TODO: remove this debugging block once local count is confirmed to work correctly 100%
@@ -4879,6 +4915,9 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, bool nocache)
         arg("ca", 1);
     }
 
+    // The servers are more efficient with this command when it's the only one in the batch
+    batchSeparately = true;
+
     tag = client->reqtag;
 }
 
@@ -5041,7 +5080,7 @@ void CommandReportEvent::procresult()
     }
 }
 
-CommandSubmitPurchaseReceipt::CommandSubmitPurchaseReceipt(MegaClient *client, int type, const char *receipt, handle lph)
+CommandSubmitPurchaseReceipt::CommandSubmitPurchaseReceipt(MegaClient *client, int type, const char *receipt, handle lph, int phtype, int64_t ts)
 {
     cmd("vpay");
     arg("t", type);
@@ -5058,7 +5097,18 @@ CommandSubmitPurchaseReceipt::CommandSubmitPurchaseReceipt(MegaClient *client, i
 
     if (!ISUNDEF(lph))
     {
-        arg("aff", (byte*)&lph, MegaClient::NODEHANDLE);
+        if (phtype == 0) // legacy mode
+        {
+            arg("aff", (byte*)&lph, MegaClient::NODEHANDLE);
+        }
+        else
+        {
+            beginobject("aff");
+            arg("id", (byte*)&lph, MegaClient::NODEHANDLE);
+            arg("ts", ts);
+            arg("t", phtype);   // 1=affiliate id, 2=file/folder link, 3=chat link, 4=contact link
+            endobject();
+        }
     }
 
     tag = client->reqtag;
@@ -5297,6 +5347,29 @@ void CommandSendEvent::procresult()
     {
         client->json.storeobject();
         client->app->sendevent_result(API_EINTERNAL);
+    }
+}
+
+CommandSupportTicket::CommandSupportTicket(MegaClient *client, const char *message, int type)
+{
+    cmd("sse");
+    arg("t", type);
+    arg("b", 1);    // base64 encoding for `msg`
+    arg("m", (const byte*)message, int(strlen(message)));
+
+    tag = client->reqtag;
+}
+
+void CommandSupportTicket::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->supportticket_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->supportticket_result(API_EINTERNAL);
     }
 }
 

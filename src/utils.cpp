@@ -50,12 +50,6 @@ string toHandle(handle h)
     return string(base64Handle);
 }
 
-Cachable::Cachable()
-{
-    dbid = 0;
-    notified = 0;
-}
-
 CacheableWriter::CacheableWriter(string& d)
     : dest(d)
 {
@@ -265,6 +259,48 @@ void chunkmac_map::calcprogress(m_off_t size, m_off_t& chunkpos, m_off_t& progre
                 *lastblockprogress += it->second.offset;
             }
         }
+    }
+}
+
+m_off_t chunkmac_map::nextUnprocessedPosFrom(m_off_t pos)
+{
+    for (const_iterator it = find(ChunkedHash::chunkfloor(pos));
+        it != end();
+        it = find(ChunkedHash::chunkfloor(pos)))
+    {
+        if (it->second.finished)
+        {
+            pos = ChunkedHash::chunkceil(pos);
+        }
+        else
+        {
+            pos += it->second.offset;
+            break;
+        }
+    }
+    return pos;
+}
+
+m_off_t chunkmac_map::expandUnprocessedPiece(m_off_t pos, m_off_t npos, m_off_t fileSize, m_off_t maxReqSize)
+{
+    for (iterator it = find(npos);
+        npos < fileSize && (npos - pos) <= maxReqSize && (it == end() || (!it->second.finished && !it->second.offset));
+        it = find(npos))
+    {
+        npos = ChunkedHash::chunkceil(npos, fileSize);
+    }
+    return npos;
+}
+
+void chunkmac_map::finishedUploadChunks(m_off_t pos, m_off_t size)
+{
+    m_off_t startpos = pos;
+    m_off_t finalpos = startpos + size;
+    while (startpos < finalpos)
+    {
+        (*this)[startpos].finished = true;
+        LOG_verbose << "Upload chunk completed: " << startpos;
+        startpos = ChunkedHash::chunkceil(startpos, finalpos);
     }
 }
 
@@ -1511,7 +1547,7 @@ std::string Utils::hexToString(const std::string &input)
         const char* q = std::lower_bound(lut, lut + 16, b);
         if (*q != b) throw std::invalid_argument("not a hex digit");
 
-        output.push_back(((p - lut) << 4) | (q - lut));
+        output.push_back(static_cast<char>(((p - lut) << 4) | (q - lut)));
     }
     return output;
 }
