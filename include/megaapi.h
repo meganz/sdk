@@ -10121,7 +10121,7 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNumber - Returns the payment gateway
          * - MegaRequest::getText - Returns the purchase receipt
-         * - MegaRequest::getParentHandle - Returns the last public node handle accessed
+         * - MegaRequest::getNodeHandle - Returns the last public node handle accessed
          *
          * @param gateway Payment gateway
          * Currently supported payment gateways are:
@@ -10142,7 +10142,7 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNumber - Returns the payment gateway
          * - MegaRequest::getText - Returns the purchase receipt
-         * - MegaRequest::getParentHandle - Returns the last public node handle accessed
+         * - MegaRequest::getNodeHandle - Returns the last public node handle accessed
          * - MegaRequest::getParamType - Returns the type of lastPublicHandle
          * - MegaRequest::getTransferredBytes - Returns the timestamp of the last access
          *
