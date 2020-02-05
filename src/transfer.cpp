@@ -380,6 +380,7 @@ bool Transfer::isForeign()
         return false;
     }
 
+    // only need to check one target, since all target should be foreign or private, but not a mix
     return client->isForeignNode((*files.begin())->h);
 }
 
@@ -404,20 +405,22 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
         if (!slot)
         {
             bt.backoff(timeleft ? timeleft : NEVER);
-            client->activateoverquota(timeleft);
-            client->app->transfer_failed(this, e, timeleft);
+            if (!isForeign())
+            {
+                client->activateoverquota(timeleft);
+            }
+            client->app->transfer_failed(this, e, timeleft, targetHandle);
             ++client->performanceStats.transferTempErrors;
         }
         else
         {
-            /* If any target is foreign (all have to be foreign) and there's not a bandwidth overquota, transfer must fail.
-             * Otherwise we need to activate overquota.
-             */
+            // if storage overquota and transfer with foreign targets, tranfer failed permanently
             if (!timeleft && isForeign())
             {
-                client->app->transfer_failed(this, e);
+                client->app->transfer_failed(this, API_EOVERQUOTA, 0, targetHandle);
+                ++client->performanceStats.transferTempErrors;
             }
-            else
+            else    // bandwidth overquota (only downloads) or storage overquota (but transfer with only private targets)
             {
                 bt.backoff(timeleft ? timeleft : NEVER);
                 if (client->ststatus == STORAGE_RED && !timeleft)   // already in storage overquota, notify transfer error
@@ -450,13 +453,16 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
 
     for (file_list::iterator it = files.begin(); it != files.end();)
     {
-        // Remove files with foreign targets, if transfer failed with a (foreign) storage overquota
-        if (e == API_EOVERQUOTA
-                && !timeleft
-                && client->isForeignNode((*it)->h))
+        // if transfer failed due to a (foreign) storage overquota, remove file/s
+        if (e == API_EOVERQUOTA && !timeleft && isForeign())
         {
             File *f = (*it++);
-            removeTransferFile(API_EOVERQUOTA, f, &committer);
+            if (ISUNDEF(targetHandle) || f->h == targetHandle)
+            {
+                // if `u` command returns -17, all target accounts are overquota and Transfer::failed()
+                // is called with a targetHandle == UNDEF
+                removeTransferFile(API_EOVERQUOTA, f, &committer);
+            }
             continue;
         }
 
@@ -523,21 +529,28 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
         state = TRANSFERSTATE_FAILED;
         finished = true;
 
-        for (file_list::iterator it = files.begin(); it != files.end(); it++)
+        if (!isForeign())   // transfers with foreign targets already removed the failed files/targets
         {
-#ifdef ENABLE_SYNC
-            if((*it)->syncxfer
-                && e != API_EBUSINESSPASTDUE
-                && e != API_EOVERQUOTA)
+            for (file_list::iterator it = files.begin(); it != files.end(); it++)
             {
-                client->syncdownrequired = true;
-            }
+#ifdef ENABLE_SYNC
+                if((*it)->syncxfer
+                        && e != API_EBUSINESSPASTDUE
+                        && e != API_EOVERQUOTA)
+                {
+                    client->syncdownrequired = true;
+                }
 #endif
-            client->app->file_removed(*it, e);
+                client->app->file_removed(*it, e);
+            }
         }
-        client->app->transfer_removed(this);
-        ++client->performanceStats.transferFails;
-        delete this;
+
+        if (files.empty())  // transfers with foreign targets may have some pending files/targets
+        {
+            client->app->transfer_removed(this);
+            ++client->performanceStats.transferFails;
+            delete this;
+        }
     }
 }
 

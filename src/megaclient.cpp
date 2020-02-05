@@ -903,26 +903,15 @@ void MegaClient::acknowledgeuseralerts()
 void MegaClient::processForeignOverquota(handle targetHandle)
 {
     assert(!ISUNDEF(targetHandle));
-    for (transfer_map::iterator it = transfers[PUT].begin(); it != transfers[PUT].end(); it++)
+    for (auto &itTransfers : transfers[PUT])
     {
-        Transfer *t = it->second;
-        for (file_list::iterator it = t->files.begin(); it != t->files.end();)
+        Transfer *transfer = itTransfers.second;
+        for (file_list::iterator itFiles = transfer->files.begin(); itFiles != transfer->files.end();)
         {
-            File *f = (*it++);
-            if (f->h == targetHandle)
+            File *file = (*itFiles++);
+            if (file->h == targetHandle)// && file->tag == transfer->tag)
             {
-                app->transfer_failed(t, API_EOVERQUOTA, 0, targetHandle);
-                t->removeTransferFile(API_EOVERQUOTA, f, mTctableRequestCommitter);
-                continue;
-            }
-            if (t->files.empty())
-            {
-                LOG_debug << "Removing transfer";
-                t->state = TRANSFERSTATE_FAILED;
-                t->finished = true;
-                app->transfer_removed(t);
-                ++performanceStats.transferTempErrors;
-                delete t;
+                transfer->failed(API_EOVERQUOTA, *mTctableRequestCommitter, 0, targetHandle);
             }
         }
     }
@@ -13601,7 +13590,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
         transfer_map::iterator it = transfers[d].find(f);
         bool foundTransfer = it != transfers[d].end();
 
-        if (foundTransfer) // Transfer found
+        if (foundTransfer)
         {
             t = it->second;
             if (skipdupes)
@@ -13644,9 +13633,10 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
                     dstime timeleft = dstime(overquotauntil - Waiter::ds);
                     t->failed(API_EOVERQUOTA, committer, timeleft);
                 }
-                else if (d == PUT && ststatus == STORAGE_RED && !isForeignNode(f->h))
+                else if (d == PUT && ststatus == STORAGE_RED && !t->isForeign())
                 {
-                    t->failed(API_EOVERQUOTA, committer);
+                    // only transfers with private targets should fail, since "foreign" transfers may not fail due to overquota
+                    t->failed(API_EOVERQUOTA, committer, 0, f->h);
                 }
             }
         }
@@ -13764,9 +13754,10 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
                 dstime timeleft = dstime(overquotauntil - Waiter::ds);
                 t->failed(API_EOVERQUOTA, committer, timeleft);
             }
-            else if (d == PUT && ststatus == STORAGE_RED && !isForeignNode(f->h))
+            else if (d == PUT && ststatus == STORAGE_RED && !t->isForeign())
             {
-                t->failed(API_EOVERQUOTA, committer);
+                // only transfers with private targets should fail, since "foreign" transfers may not fail due to overquota
+                t->failed(API_EOVERQUOTA, committer, 0, f->h);
             }
         }
 
