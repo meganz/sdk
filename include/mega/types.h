@@ -309,7 +309,7 @@ typedef list<struct TransferSlot*> transferslot_list;
 typedef list<HttpReqCommandPutFA*> putfa_list;
 
 // map a FileFingerprint to the transfer for that FileFingerprint
-typedef map<FileFingerprint*, Transfer*, FileFingerprintCmp> transfer_map;
+typedef multimap<FileFingerprint*, Transfer*, FileFingerprintCmp> transfer_map;
 
 typedef deque<Transfer*> transfer_list;
 

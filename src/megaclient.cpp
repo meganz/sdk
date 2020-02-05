@@ -13588,8 +13588,8 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
         Transfer* t = NULL;
         bool reuseTransfer = false;
         transfer_map::iterator it = transfers[d].find(f);
+        // TODO: need to find the corresponding transfer for the given target (the foreign one, or the private one)
         bool foundTransfer = it != transfers[d].end();
-
         if (foundTransfer)
         {
             t = it->second;
@@ -13643,6 +13643,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
         else // No transfer found
         {
             it = cachedtransfers[d].find(f);
+            // TODO: need to find the corresponding transfer for the given target (the foreign one, or the private one)
             if (it != cachedtransfers[d].end())
             {
                 LOG_debug << "Resumable transfer detected";
@@ -13735,7 +13736,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
             t->lastaccesstime = m_time();
             t->tag = reqtag;
             f->tag = reqtag;
-            t->transfers_it = transfers[d].insert(pair<FileFingerprint*, Transfer*>((FileFingerprint*)t, t)).first;
+            t->transfers_it = transfers[d].insert(pair<FileFingerprint*, Transfer*>((FileFingerprint*)t, t));
 
             f->file_it = t->files.insert(t->files.end(), f);
             f->transfer = t;
