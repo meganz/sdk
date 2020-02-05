@@ -18194,7 +18194,7 @@ void MegaApiImpl::sendPendingRequests()
     int lastRequestConsecutive = 0;
 
 
-    while(MegaRequestPrivate *request = requestQueue.front())
+    while(MegaRequestPrivate *request = requestQueue.pop())
     {
 
         // also we avoid yielding for consecutive transaction cancel operations (we used to yeild every time, but we need to keep the sdkMutex lock while the database transaction is ongoing)
@@ -18211,11 +18211,6 @@ void MegaApiImpl::sendPendingRequests()
             lastRequestConsecutive = 0;
         }
 
-        request = requestQueue.pop();
-        if (!request)
-        {
-            break;
-        }
         lastRequestType = request->getType();
 
         if (!nextTag && request->getType() != MegaRequest::TYPE_LOGOUT)
