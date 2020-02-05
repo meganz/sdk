@@ -889,19 +889,10 @@ bool Sync::readstatecache()
 
 const SyncConfig& Sync::getConfig() const
 {
-    if (client->syncConfigs)
-    {
-        const auto config = client->syncConfigs->get(mLocalPath);
-        assert(config);
-        return *config;
-    }
-    else
-    {
-        LOG_err << "No sync configs available";
-        assert(false);
-        static SyncConfig defaultConfig{mLocalPath, localroot->node->nodehandle, 0};
-        return defaultConfig;
-    }
+    assert(client->syncConfigs && "Calling getConfig() requires sync configs");
+    const auto config = client->syncConfigs->get(mLocalPath);
+    assert(config);
+    return *config;
 }
 
 void Sync::setResumable(const bool isResumable)
