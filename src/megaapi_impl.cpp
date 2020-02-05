@@ -13098,7 +13098,8 @@ void MegaApiImpl::fetchnodes_result(error e)
             string firstname = request->getName() ? request->getName() : "";
             if (!firstname.empty())
             {
-                client->putua(ATTR_FIRSTNAME, (const byte*) request->getName(), int(strlen(request->getName())));
+                client->putua(ATTR_FIRSTNAME, (const byte*) request->getName(), int(strlen(request->getName())), -1,
+                              request->getNodeHandle(), request->getParamType(), request->getTransferredBytes());
             }
             string lastname = request->getText() ? request->getText() : "";
             if (!lastname.empty())

@@ -9058,7 +9058,7 @@ error MegaClient::removecontact(const char* email, visibility_t show)
  * @param ctag Tag to identify the request at intermediate layer
 
  */
-void MegaClient::putua(attr_t at, const byte* av, unsigned avl, int ctag)
+void MegaClient::putua(attr_t at, const byte* av, unsigned avl, int ctag, handle lastPublicHandle, int phtype, int64_t ts)
 {
     string data;
 
@@ -9093,7 +9093,7 @@ void MegaClient::putua(attr_t at, const byte* av, unsigned avl, int ctag)
 
     if (!needversion)
     {
-        reqs.add(new CommandPutUA(this, at, av, avl, tag));
+        reqs.add(new CommandPutUA(this, at, av, avl, tag, lastPublicHandle, phtype, ts));
     }
     else
     {
