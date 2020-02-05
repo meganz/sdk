@@ -5921,13 +5921,16 @@ void MegaApiImpl::createAccount(const char* email, const char* password, const c
     waiter->notify();
 }
 
-void MegaApiImpl::createAccount(const char* email, const char* password, const char* firstname, const char* lastname, MegaRequestListener *listener)
+void MegaApiImpl::createAccount(const char* email, const char* password, const char* firstname, const char* lastname, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CREATE_ACCOUNT, listener);
     request->setEmail(email);
     request->setPassword(password);
     request->setName(firstname);
     request->setText(lastname);
+    request->setNodeHandle(lastPublicHandle);
+    request->setParamType(lastPublicHandleType);
+    request->setTransferredBytes(lastAccessTimestamp);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -19724,6 +19727,13 @@ void MegaApiImpl::sendPendingRequests()
             const char *sid = request->getSessionKey();
             bool resumeProcess = (request->getParamType() == 1);   // resume existing ephemeral account
             bool cancelProcess = (request->getParamType() == 2);
+
+            if (request->getParamType() < mega::MegaApi::AFFILIATE_TYPE_INVALID
+                    || request->getParamType() > mega::MegaApi::AFFILIATE_TYPE_CONTACT)
+            {
+                e = API_EARGS;
+                break;
+            }
 
             if ( (!resumeProcess && !cancelProcess && (!email || !name || (!password && !pwkey))) ||
                  (resumeProcess && !sid) )

@@ -7811,6 +7811,47 @@ class MegaApi
          */
         void createAccount(const char* email, const char* password, const char* firstname, const char* lastname, MegaRequestListener *listener = NULL);
 
+
+        /**
+         * @brief Initialize the creation of a new MEGA account, with firstname and lastname
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getEmail - Returns the email for the account
+         * - MegaRequest::getPassword - Returns the password for the account
+         * - MegaRequest::getName - Returns the firstname of the user
+         * - MegaRequest::getText - Returns the lastname of the user
+         * - MegaRequest::getNodeHandle - Returns the last public node handle accessed
+         * - MegaRequest::getParamType - Returns the type of lastPublicHandle
+         * - MegaRequest::getTransferredBytes - Returns the timestamp of the last access
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getSessionKey - Returns the session id to resume the process
+         *
+         * If this request succeeds, a new ephemeral session will be created for the new user
+         * and a confirmation email will be sent to the specified email address. The app may
+         * resume the create-account process by using MegaApi::resumeCreateAccount.
+         *
+         * If an account with the same email already exists, you will get the error code
+         * MegaError::API_EEXIST in onRequestFinish
+         *
+         * @param email Email for the account
+         * @param password Password for the account
+         * @param firstname Firstname of the user
+         * @param lastname Lastname of the user
+         * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
+         * @param lastPublicHandleType Indicates the type of lastPublicHandle, valid values are:
+         *      - MegaApi::AFFILIATE_TYPE_ID = 1
+         *      - MegaApi::AFFILIATE_TYPE_FILE_FOLDER = 2
+         *      - MegaApi::AFFILIATE_TYPE_CHAT = 3
+         *      - MegaApi::AFFILIATE_TYPE_CONTACT = 4
+         *
+         * @param lastAccessTimestamp Timestamp of the last access
+         * @param listener MegaRequestListener to track this request
+         */
+        void createAccount(const char* email, const char* password, const char* firstname, const char* lastname, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener = NULL);
+
         /**
          * @brief Resume a registration process
          *

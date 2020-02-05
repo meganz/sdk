@@ -2063,7 +2063,12 @@ void MegaApi::createAccount(const char* email, const char* password, const char*
 
 void MegaApi::createAccount(const char* email, const char* password, const char* firstname, const char*  lastname, MegaRequestListener *listener)
 {
-    pImpl->createAccount(email, password, firstname, lastname, listener);
+    pImpl->createAccount(email, password, firstname, lastname, UNDEF, AFFILIATE_TYPE_INVALID, 0, listener);
+}
+
+void MegaApi::createAccount(const char* email, const char* password, const char* firstname, const char* lastname, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener)
+{
+    pImpl->createAccount(email, password, firstname, lastname, lastPublicHandle, lastPublicHandleType, lastAccessTimestamp, listener);
 }
 
 void MegaApi::resumeCreateAccount(const char* sid, MegaRequestListener *listener)
