@@ -2436,9 +2436,9 @@ void MegaApi::disableExport(MegaNode *node, MegaRequestListener *listener)
     pImpl->disableExport(node, listener);
 }
 
-void MegaApi::fetchNodes(MegaRequestListener *listener)
+void MegaApi::fetchNodes(MegaRequestListener *listener, bool resumeSyncs)
 {
-    pImpl->fetchNodes(listener);
+    pImpl->fetchNodes(listener, resumeSyncs);
 }
 
 void MegaApi::getCloudStorageUsed(MegaRequestListener *listener)

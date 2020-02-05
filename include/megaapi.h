@@ -9807,8 +9807,9 @@ class MegaApi
          * - MegaRequest::getNodeHandle - Returns the public handle if logged into a public folder. Otherwise, INVALID_HANDLE
          *
          * @param listener MegaRequestListener to track this request
+         * @param resumeSyncs Whether to auto-resume syncs following a successful fetch
          */
-        void fetchNodes(MegaRequestListener *listener = NULL);
+        void fetchNodes(MegaRequestListener *listener = NULL, bool resumeSyncs = false);
 
         /**
          * @brief Get the sum of sizes of all the files stored in the MEGA cloud.

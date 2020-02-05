@@ -3711,8 +3711,8 @@ void MegaClient::resumeResumableSyncs()
         if (e == 0)
         {
             app->sync_auto_resumed(config.getLocalPath(), config.getRemoteNode(),
-                            static_cast<long long>(config.getLocalFingerprint()),
-                            config.getRegExps());
+                                   static_cast<long long>(config.getLocalFingerprint()),
+                                   config.getRegExps());
         }
     }
 }
@@ -4171,6 +4171,7 @@ bool MegaClient::procsc()
                             restag = fetchnodestag;
                             fetchnodestag = 0;
                             resumeResumableSyncs();
+
                             app->fetchnodes_result(API_OK);
                             app->notify_dbcommit();
 

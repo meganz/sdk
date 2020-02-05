@@ -6702,9 +6702,10 @@ void MegaApiImpl::disableExport(MegaNode *node, MegaRequestListener *listener)
     waiter->notify();
 }
 
-void MegaApiImpl::fetchNodes(MegaRequestListener *listener)
+void MegaApiImpl::fetchNodes(MegaRequestListener *listener, bool resumeSyncs)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_NODES, listener);
+    request->setNumber(resumeSyncs);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -18999,6 +19000,15 @@ void MegaApiImpl::sendPendingRequests()
                 nocache = false;
             }
 
+            const bool resumeSyncs = request->getNumber();
+            if (!resumeSyncs && client->syncConfigs)
+            {
+                for (auto config : client->syncConfigs->all())
+                {
+                    config.setResumable(false);
+                    client->syncConfigs->insert(config);
+                }
+            }
             client->fetchnodes();
             break;
         }
