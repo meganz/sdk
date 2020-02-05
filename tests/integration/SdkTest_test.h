@@ -198,7 +198,7 @@ public:
     void locallogout(int timeout = maxTimeout);
     void resumeSession(const char *session, int timeout = maxTimeout);
 
-    void purgeTree(MegaNode *p);
+    void purgeTree(MegaNode *p, bool depthfirst = true);
     bool waitForResponse(bool *responseReceived, unsigned int timeout = maxTimeout);
 
     bool synchronousRequest(int apiIndex, int type, std::function<void()> f, unsigned int timeout = maxTimeout);
