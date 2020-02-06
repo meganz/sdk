@@ -13531,6 +13531,7 @@ transfer_map::iterator MegaClient::getPutTransferByFileFingerprint(FileFingerpri
 {
     transfer_map &auxTransfers = cached ? cachedtransfers[PUT] : transfers[PUT];
     pair<transfer_map::iterator, transfer_map::iterator> itMultimap = auxTransfers.equal_range(f);
+    assert(std::distance(itMultimap.first, itMultimap.second) <= 2);
     for (transfer_map::iterator itTransfers = itMultimap.first; itTransfers != itMultimap.second; ++itTransfers)
     {
         if (itTransfers->second->isForeign() == foreign)

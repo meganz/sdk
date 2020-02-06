@@ -381,7 +381,7 @@ bool Transfer::isForeign()
     }
 
     // only need to check one target, since all target should be foreign or private, but not a mix
-    return client->isForeignNode((*files.begin())->h);
+    return client->isForeignNode(files.front()->h);
 }
 
 // transfer attempt failed, notify all related files, collect request on
