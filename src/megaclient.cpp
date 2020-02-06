@@ -900,23 +900,6 @@ void MegaClient::acknowledgeuseralerts()
     useralerts.acknowledgeAll();
 }
 
-void MegaClient::processForeignOverquota(handle targetHandle)
-{
-    assert(!ISUNDEF(targetHandle));
-    for (auto &itTransfers : transfers[PUT])
-    {
-        Transfer *transfer = itTransfers.second;
-        for (file_list::iterator itFiles = transfer->files.begin(); itFiles != transfer->files.end();)
-        {
-            File *file = (*itFiles++);
-            if (file->h == targetHandle)
-            {
-                transfer->failed(API_EOVERQUOTA, *mTctableRequestCommitter, 0, targetHandle);
-            }
-        }
-    }
-}
-
 void MegaClient::activateoverquota(dstime timeleft)
 {
     if (timeleft)

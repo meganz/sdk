@@ -1539,9 +1539,6 @@ public:
     // manage overquota errors
     void activateoverquota(dstime timeleft);
 
-    // manage a foreign overquota error
-    void processForeignOverquota(handle targetHandle);
-
     // achievements enabled for the account
     bool achievements_enabled;
 

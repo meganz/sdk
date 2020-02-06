@@ -1203,6 +1203,23 @@ void CommandPutNodes::procresult()
             {
                 client->activateoverquota(0);
             }
+//            else
+//            {
+//                // TBD: should ongoing foreign transfers fail in case we detect the target account is overquota?
+//                // It comes at the cost of iterate through all transfers upon EOVERQUOTA for any foreign target.
+//                for (auto &itTransfers : transfers[PUT])
+//                {
+//                    Transfer *transfer = itTransfers.second;
+//                    for (file_list::iterator itFiles = transfer->files.begin(); itFiles != transfer->files.end();)
+//                    {
+//                        File *file = (*itFiles++);
+//                        if (file->h == targetHandle)
+//                        {
+//                            transfer->failed(API_EOVERQUOTA, *mTctableRequestCommitter, 0, targetHandle);
+//                        }
+//                    }
+//                }
+//            }
         }
 #ifdef ENABLE_SYNC
         if (source == PUTNODES_SYNC)
