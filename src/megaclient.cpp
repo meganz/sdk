@@ -927,6 +927,7 @@ void MegaClient::activateoverquota(dstime timeleft)
     }
     else if (setstoragestatus(STORAGE_RED))
     {
+        LOG_warn << "Storage overquota";
         for (transfer_map::iterator it = transfers[PUT].begin(); it != transfers[PUT].end(); it++)
         {
             Transfer *t = it->second;
@@ -4857,7 +4858,6 @@ bool MegaClient::setstoragestatus(storagestatus_t status)
         app->notify_storage(ststatus);
         if (pststatus == STORAGE_RED)
         {
-            LOG_warn << "Storage overquota";
             abortbackoff(true);
         }
         return true;
