@@ -308,7 +308,10 @@ typedef list<struct TransferSlot*> transferslot_list;
 // FIXME: use forward_list instad (C++11)
 typedef list<HttpReqCommandPutFA*> putfa_list;
 
-// map a FileFingerprint to the transfer for that FileFingerprint
+/* maps a FileFingerprint to the transfer for that FileFingerprint,
+ * this map can contain two items for the same key (FileFingerprint)
+ * depending on the type of target (private/foreign) associated to the PUT transfers
+ */
 typedef multimap<FileFingerprint*, Transfer*, FileFingerprintCmp> transfer_map;
 
 typedef deque<Transfer*> transfer_list;

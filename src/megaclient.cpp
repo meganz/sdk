@@ -13545,6 +13545,21 @@ void MegaClient::putnodes_syncdebris_result(error, NewNode* nn)
 }
 #endif
 
+transfer_map::iterator MegaClient::getPutTransferByFileFingerprint(FileFingerprint *f, bool foreign, bool cached)
+{
+    transfer_map &auxTransfers = cached ? cachedtransfers[PUT] : transfers[PUT];
+    pair<transfer_map::iterator, transfer_map::iterator> itMultimap = auxTransfers.equal_range(f);
+    for (transfer_map::iterator itTransfers = itMultimap.first; itTransfers != itMultimap.second; ++itTransfers)
+    {
+        if (itTransfers->second->isForeign() == foreign)
+        {
+            return itTransfers;
+        }
+    }
+
+    return auxTransfers.end();
+}
+
 // inject file into transfer subsystem
 // if file's fingerprint is not valid, it will be obtained from the local file
 // (PUT) or the file's key (GET)
@@ -13587,8 +13602,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
 
         Transfer* t = NULL;
         bool reuseTransfer = false;
-        transfer_map::iterator it = transfers[d].find(f);
-        // TODO: need to find the corresponding transfer for the given target (the foreign one, or the private one)
+        transfer_map::iterator it = getPutTransferByFileFingerprint(f, isForeignNode(f->h));
         bool foundTransfer = it != transfers[d].end();
         if (foundTransfer)
         {
@@ -13642,8 +13656,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
         }
         else // No transfer found
         {
-            it = cachedtransfers[d].find(f);
-            // TODO: need to find the corresponding transfer for the given target (the foreign one, or the private one)
+            transfer_map::iterator it = getPutTransferByFileFingerprint(f, isForeignNode(f->h), true);
             if (it != cachedtransfers[d].end())
             {
                 LOG_debug << "Resumable transfer detected";

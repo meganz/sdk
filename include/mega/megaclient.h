@@ -416,6 +416,9 @@ public:
     // move node to new parent folder
     error rename(Node*, Node*, syncdel_t = SYNCDEL_NONE, handle = UNDEF);
 
+    // find a transfer by fingerprint and target type (private/foreign) in transfers or cached transfers
+    transfer_map::iterator getPutTransferByFileFingerprint(FileFingerprint *f, bool foreign, bool cached = false);
+
     // start/stop/pause file transfer
     bool startxfer(direction_t, File*, DBTableTransactionCommitter&, bool skipdupes = false, bool startfirst = false, bool donotpersist = false);
     void stopxfer(File* f, DBTableTransactionCommitter* committer);

@@ -17780,9 +17780,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                         else
                         {
                             MegaTransferPrivate* prevTransfer = NULL;
-                            transfer_map::iterator it = client->transfers[PUT].find(f);
-                            // TODO: need to find the corresponding transfer for the given target (the foreign one, or the private one)
-                            // transfer_map::iterator it = client->transfers[PUT].find(pair<FileFingerprint*, bool>(f, client->isForeignNode(f->h)));
+                            transfer_map::iterator it = client->getPutTransferByFileFingerprint(f, client->isForeignNode(f->h));
                             if (it != client->transfers[PUT].end())
                             {
                                 Transfer *t = it->second;
