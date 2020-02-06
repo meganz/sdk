@@ -942,9 +942,8 @@ void MegaClient::activateoverquota(dstime timeleft)
             }
         }
     }
-    else
+    else if (setstoragestatus(STORAGE_RED))
     {
-        setstoragestatus(STORAGE_RED);
         for (transfer_map::iterator it = transfers[PUT].begin(); it != transfers[PUT].end(); it++)
         {
             Transfer *t = it->second;
@@ -955,8 +954,8 @@ void MegaClient::activateoverquota(dstime timeleft)
                 continue;
             }
 
-            if (t->slot && t->state != TRANSFERSTATE_RETRYING)
             t->bt.backoff(NEVER);
+            if (t->slot)
             {
                 t->state = TRANSFERSTATE_RETRYING;
                 t->slot->retrybt.backoff(NEVER);
