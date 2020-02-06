@@ -1018,7 +1018,7 @@ void CommandSetAttr::procresult()
 // response)
 CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
                                  const char* userhandle, NewNode* newnodes,
-                                 int numnodes, int ctag, putsource_t csource, const char *cauth)
+                                 int numnodes, int ctag, putsource_t csource, const char *cauth, Transfer *aTransfer)
 {
     byte key[FILENODEKEYLENGTH];
     int i;
@@ -1027,6 +1027,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
     nnsize = numnodes;
     type = userhandle ? USER_HANDLE : NODE_HANDLE;
     source = csource;
+    transfer = aTransfer;
 
     cmd("p");
     notself(client);
@@ -1192,11 +1193,13 @@ void CommandPutNodes::procresult()
         LOG_debug << "Putnodes error " << e;
         if (e == API_EOVERQUOTA)
         {
-            if (client->isForeignNode(targethandle))
+            if (transfer)
             {
-                client->processForeignOverquota(targethandle);
+                transfer->failed(e, *client->mTctableRequestCommitter, 0, targethandle);
+                // Transfer::failed() will activate overquota if appropriate
             }
-            else
+
+            if (client->isPrivateNode(targethandle))
             {
                 client->activateoverquota(0);
             }
