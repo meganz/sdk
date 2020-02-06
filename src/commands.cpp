@@ -1367,11 +1367,10 @@ void CommandMoveNode::procresult()
     if (client->json.isnumeric())
     {
         error e = (error)client->json.getint();
-        if (e == API_EOVERQUOTA)
-        {
-            assert(client->isPrivateNode(np));  // moves not allowed
-            client->activateoverquota(0);
-        }
+
+        // movements should not result on overquota error
+        // (also, a movement between different accounts is not allowed, but performed by copy+delete)
+        assert(e != API_EOVERQUOTA);
 
 #ifdef ENABLE_SYNC
         if (syncdel != SYNCDEL_NONE)
