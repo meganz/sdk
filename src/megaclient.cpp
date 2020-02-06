@@ -948,7 +948,6 @@ void MegaClient::activateoverquota(dstime timeleft)
         for (transfer_map::iterator it = transfers[PUT].begin(); it != transfers[PUT].end(); it++)
         {
             Transfer *t = it->second;
-            t->bt.backoff(NEVER);
 
             // skip transfers with foreign targets
             if (t->isForeign())
@@ -957,6 +956,7 @@ void MegaClient::activateoverquota(dstime timeleft)
             }
 
             if (t->slot && t->state != TRANSFERSTATE_RETRYING)
+            t->bt.backoff(NEVER);
             {
                 t->state = TRANSFERSTATE_RETRYING;
                 t->slot->retrybt.backoff(NEVER);
