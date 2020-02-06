@@ -1349,6 +1349,7 @@ void CommandMoveNode::procresult()
         error e = (error)client->json.getint();
         if (e == API_EOVERQUOTA)
         {
+            assert(client->isPrivateNode(np));  // moves not allowed
             client->activateoverquota(0);
         }
 

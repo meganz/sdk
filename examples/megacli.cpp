@@ -3779,7 +3779,6 @@ void uploadLocalPath(nodetype_t type, std::string name, std::string localname, N
     }
     else if (type == FOLDERNODE && recursive)
     {
-
         if (previousNode)
         {
             if (previousNode->type == FILENODE)

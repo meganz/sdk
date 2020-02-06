@@ -1537,7 +1537,7 @@ public:
     void acknowledgeuseralerts();
 
     // manage overquota errors
-    void activateoverquota(dstime timeleft, handle targetHandle = UNDEF);
+    void activateoverquota(dstime timeleft);
 
     // manage a foreign overquota error
     void processForeignOverquota(handle targetHandle);

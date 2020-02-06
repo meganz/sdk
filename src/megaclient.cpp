@@ -917,7 +917,7 @@ void MegaClient::processForeignOverquota(handle targetHandle)
     }
 }
 
-void MegaClient::activateoverquota(dstime timeleft, handle targetHandle)
+void MegaClient::activateoverquota(dstime timeleft)
 {
     if (timeleft)
     {
@@ -961,7 +961,7 @@ void MegaClient::activateoverquota(dstime timeleft, handle targetHandle)
                 t->state = TRANSFERSTATE_RETRYING;
                 t->slot->retrybt.backoff(NEVER);
                 t->slot->retrying = true;
-                app->transfer_failed(t, API_EOVERQUOTA, 0, targetHandle);
+                app->transfer_failed(t, API_EOVERQUOTA, 0);
                 ++performanceStats.transferTempErrors;
             }
         }
