@@ -13527,11 +13527,11 @@ void MegaClient::putnodes_syncdebris_result(error, NewNode* nn)
 }
 #endif
 
-transfer_map::iterator MegaClient::getPutTransferByFileFingerprint(FileFingerprint *f, bool foreign, bool cached)
+transfer_map::iterator MegaClient::getTransferByFileFingerprint(FileFingerprint *f, direction_t d, bool foreign, bool cached)
 {
-    transfer_map &auxTransfers = cached ? cachedtransfers[PUT] : transfers[PUT];
+    transfer_map &auxTransfers = cached ? cachedtransfers[d] : transfers[d];
     pair<transfer_map::iterator, transfer_map::iterator> itMultimap = auxTransfers.equal_range(f);
-    assert(std::distance(itMultimap.first, itMultimap.second) <= 2);
+    assert(d != PUT || std::distance(itMultimap.first, itMultimap.second) <= 2);
     for (transfer_map::iterator itTransfers = itMultimap.first; itTransfers != itMultimap.second; ++itTransfers)
     {
         if (itTransfers->second->isForeign() == foreign)
@@ -13585,7 +13585,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
 
         Transfer* t = NULL;
         bool reuseTransfer = false;
-        transfer_map::iterator it = getPutTransferByFileFingerprint(f, isForeignNode(f->h));
+        transfer_map::iterator it = getTransferByFileFingerprint(f, d, isForeignNode(f->h));
         bool foundTransfer = it != transfers[d].end();
         if (foundTransfer)
         {
@@ -13639,7 +13639,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
         }
         else // No transfer found
         {
-            transfer_map::iterator it = getPutTransferByFileFingerprint(f, isForeignNode(f->h), true);
+            transfer_map::iterator it = getTransferByFileFingerprint(f, d, isForeignNode(f->h), true);
             if (it != cachedtransfers[d].end())
             {
                 LOG_debug << "Resumable transfer detected";

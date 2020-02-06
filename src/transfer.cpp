@@ -414,7 +414,7 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
         }
         else
         {
-            // if storage overquota and transfer with foreign targets, tranfer failed permanently
+            // if storage overquota and transfer with foreign targets, transfer failed permanently
             if (!timeleft && isForeign())
             {
                 client->app->transfer_failed(this, API_EOVERQUOTA, 0, targetHandle);
