@@ -35,6 +35,18 @@ set (HAVE_LIBRAW 0 CACHE STRING "")
 
 if (USE_QT)
     set( USE_CPPTHREAD 0)
+    if (NOT Qt5_FOUND)
+        #For convenience, added some default qt paths if none is specified by CMAKE_PREFIX_PATH
+        if (CMAKE_HOST_WIN32 AND (NOT DEFINED CMAKE_PREFIX_PATH) )
+            if (build_64_bit)
+                set(CMAKE_PREFIX_PATH "C:/Qt/Qt5.6.3_64/5.6.3/msvc2015_64;${CMAKE_PREFIX_PATH}")
+            else()
+                set(CMAKE_PREFIX_PATH "C:/Qt/Qt5.6.3_64/5.6.3/msvc2015;${CMAKE_PREFIX_PATH}")
+            ENDIF()
+        ENDIF()
+        find_package(Qt5 COMPONENTS Core Widgets)
+    endif()
+    set(QTCOMPONENTS Qt5::Core Qt5::Widgets)
 else()
     set( USE_CPPTHREAD 1)
 ENDIF()
@@ -660,6 +672,8 @@ target_link_libraries(Mega PUBLIC
                 ${Mega_PlatformSpecificLibs})
     else()
         target_link_libraries(Mega PUBLIC
+                        ${QTCOMPONENTS}
+
                         pthread
                         sqlite3
                         $<${USE_CRYPTOPP}:cryptopp>
