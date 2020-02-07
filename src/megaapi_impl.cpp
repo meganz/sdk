@@ -5919,7 +5919,7 @@ void MegaApiImpl::createAccount(const char* email, const char* password, const c
     request->setName(firstname);
     request->setText(lastname);
     request->setNodeHandle(lastPublicHandle);
-    request->setParamType(lastPublicHandleType);
+    request->setAccess(lastPublicHandleType);
     request->setTransferredBytes(lastAccessTimestamp);
     requestQueue.push(request);
     waiter->notify();
@@ -13092,7 +13092,7 @@ void MegaApiImpl::fetchnodes_result(error e)
             if (!firstname.empty())
             {
                 client->putua(ATTR_FIRSTNAME, (const byte*) request->getName(), int(strlen(request->getName())), -1,
-                              request->getNodeHandle(), request->getParamType(), request->getTransferredBytes());
+                              request->getNodeHandle(), request->getAccess(), request->getTransferredBytes());
             }
             string lastname = request->getText() ? request->getText() : "";
             if (!lastname.empty())

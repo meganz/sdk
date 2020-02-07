@@ -7786,7 +7786,7 @@ class MegaApi
          * - MegaRequest::getName - Returns the firstname of the user
          * - MegaRequest::getText - Returns the lastname of the user
          * - MegaRequest::getNodeHandle - Returns the last public node handle accessed
-         * - MegaRequest::getParamType - Returns the type of lastPublicHandle
+         * - MegaRequest::getAccess - Returns the type of lastPublicHandle
          * - MegaRequest::getTransferredBytes - Returns the timestamp of the last access
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
