@@ -17780,7 +17780,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                         else
                         {
                             MegaTransferPrivate* prevTransfer = NULL;
-                            transfer_map::iterator it = client->getTransferByFileFingerprint(f, PUT, client->isForeignNode(f->h));
+                            transfer_map::iterator it = client->getTransferByFileFingerprint(f, client->transfers[PUT], client->isForeignNode(f->h));
                             if (it != client->transfers[PUT].end())
                             {
                                 Transfer *t = it->second;

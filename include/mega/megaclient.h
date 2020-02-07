@@ -417,7 +417,7 @@ public:
     error rename(Node*, Node*, syncdel_t = SYNCDEL_NONE, handle = UNDEF);
 
     // find a transfer by fingerprint and target type (private/foreign) in transfers or cached transfers
-    transfer_map::iterator getTransferByFileFingerprint(FileFingerprint *f, direction_t d, bool foreign, bool cached = false);
+    transfer_map::iterator getTransferByFileFingerprint(FileFingerprint *f, transfer_map &transfers, bool foreign);
 
     // start/stop/pause file transfer
     bool startxfer(direction_t, File*, DBTableTransactionCommitter&, bool skipdupes = false, bool startfirst = false, bool donotpersist = false);
