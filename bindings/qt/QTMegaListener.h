@@ -1,5 +1,4 @@
-﻿#ifndef QTMEGALISTENER_H
-#define QTMEGALISTENER_H
+﻿#pragma once
 
 #include <QObject>
 #include "megaapi.h"
@@ -42,5 +41,3 @@ protected:
 	MegaListener *listener;
 };
 }
-
-#endif // QTMEGALISTENER_H
