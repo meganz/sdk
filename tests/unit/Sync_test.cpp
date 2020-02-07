@@ -1235,6 +1235,7 @@ public:
     }
     bool put(uint32_t id, char* data, unsigned size) override
     {
+        del(id);
         mData->emplace_back(id, std::string{data, size});
         return true;
     }
@@ -1298,12 +1299,17 @@ TEST(Sync, SyncConfigBag_withPreviousState)
     mega::SyncConfigBag bag1{dbaccess, fsaccess, rng, "some_id"};
     const mega::SyncConfig config1{"foo", 41, 122};
     bag1.insert(config1);
+    ASSERT_EQ(1, mData.size());
     const mega::SyncConfig config2{"bar", 42, 123};
     bag1.insert(config2);
+    ASSERT_EQ(2, mData.size());
     const mega::SyncConfig config3{"blah", 43, 124};
     bag1.insert(config3);
+    ASSERT_EQ(3, mData.size());
     bag1.insert(config3); // update
+    ASSERT_EQ(3, mData.size());
     bag1.remove(config3.getLocalPath());
+    ASSERT_EQ(2, mData.size());
 
     const mega::SyncConfigBag bag2{dbaccess, fsaccess, rng, "some_id"};
     const std::vector<mega::SyncConfig> expConfigs{config2, config1};
