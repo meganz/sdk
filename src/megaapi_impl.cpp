@@ -19717,9 +19717,14 @@ void MegaApiImpl::sendPendingRequests()
             const char *sid = request->getSessionKey();
             bool resumeProcess = (request->getParamType() == 1);   // resume existing ephemeral account
             bool cancelProcess = (request->getParamType() == 2);
+            handle lastPublicHandle = request->getNodeHandle();
+            int lastPublicHandleType = request->getAccess();
+            int64_t lastAccessTimestamp =request->getTransferredBytes();
 
-            if (request->getParamType() < mega::MegaApi::AFFILIATE_TYPE_INVALID
-                    || request->getParamType() > mega::MegaApi::AFFILIATE_TYPE_CONTACT)
+            if (!ISUNDEF(lastPublicHandle)
+                    && ((lastPublicHandleType <= mega::MegaApi::AFFILIATE_TYPE_INVALID
+                            || lastPublicHandleType > mega::MegaApi::AFFILIATE_TYPE_CONTACT)
+                        || !lastAccessTimestamp))
             {
                 e = API_EARGS;
                 break;
