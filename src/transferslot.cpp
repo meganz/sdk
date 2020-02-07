@@ -68,8 +68,6 @@ const dstime TransferSlot::PROGRESSTIMEOUT = 10;
     const m_off_t TransferSlot::MAX_REQ_SIZE = 4194304; // 4 MB
 #endif
 
-const m_off_t TransferSlot::MAX_UPLOAD_GAP = 62914560; // 60 MB (up to 63 chunks)
-
 TransferSlot::TransferSlot(Transfer* ctransfer)
     : fa(ctransfer->client->fsaccess->newfileaccess(), ctransfer)
     , retrybt(ctransfer->client->rng, ctransfer->client->transferSlotsBackoff)
@@ -79,7 +77,6 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
     progressreported = 0;
     speed = meanSpeed = 0;
     progresscontiguous = 0;
-    delayedchunk = false;
 
     lastdata = Waiter::ds;
     errorcount = 0;

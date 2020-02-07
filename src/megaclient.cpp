@@ -6921,7 +6921,7 @@ error MegaClient::checkmove(Node* fn, Node* tn)
 
 // move node to new parent node (for changing the filename, use setattr and
 // modify the 'n' attribute)
-error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent)
+error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent, const char *newName)
 {
     error e;
 
@@ -6942,7 +6942,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent)
 
     if (n->setparent(p))
     {
-        bool setrr = false;
+        bool updateNodeAttributes = false;
         if (prevParent)
         {
             Node *prevRoot = getrootnode(prevParent);
@@ -6960,7 +6960,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent)
                 {
                     LOG_debug << "Adding rr attribute";
                     n->attrs.map[rrname] = base64Handle;
-                    setrr = true;
+                    updateNodeAttributes = true;
                 }
             }
             else if (prevRoot->nodehandle == rubbishHandle
@@ -6972,9 +6972,17 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent)
                 {
                     LOG_debug << "Removing rr attribute";
                     n->attrs.map.erase(it);
-                    setattr(n);
+                    updateNodeAttributes = true;
                 }
             }
+        }
+
+        if (newName)
+        {
+            string name(newName);
+            fsaccess->normalize(&name);
+            n->attrs.map['n'] = name;
+            updateNodeAttributes = true;
         }
 
         n->changed.parent = true;
@@ -6985,7 +6993,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent)
         rewriteforeignkeys(n);
 
         reqs.add(new CommandMoveNode(this, n, p, syncdel, prevparent));
-        if (setrr)
+        if (updateNodeAttributes)
         {
             setattr(n);
         }
@@ -13736,14 +13744,6 @@ void MegaClient::stopxfer(File* f, DBTableTransactionCommitter* committer)
         // last file for this transfer removed? shut down transfer.
         if (!transfer->files.size())
         {
-            if (transfer->slot && transfer->slot->delayedchunk)
-            {
-                int creqtag = reqtag;
-                reqtag = 0;
-                sendevent(99444, "Upload with delayed chunks cancelled");
-                reqtag = creqtag;
-            }
-
             looprequested = true;
             transfer->finished = true;
             transfer->state = TRANSFERSTATE_CANCELLED;
