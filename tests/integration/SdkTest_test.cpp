@@ -4274,13 +4274,9 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
         return std::unique_ptr<MegaSync>{megaApi[0]->getSyncByNode(node.get())} != nullptr;
     };
 
-    auto recreateMegaApi = [this, &session]()
+    auto reloginViaSession = [this, &session]()
     {
-        megaApi[0].reset();
-        megaApi[0].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str()));
-        mApi[0].megaApi = megaApi[0].get();
-        megaApi[0]->setLoggingName("0");
-        megaApi[0]->addListener(this);
+        locallogout();
         loginBySessionId(0, session);
     };
 
@@ -4306,7 +4302,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     ASSERT_FALSE(checkSyncOK(sync3Path));
     ASSERT_TRUE(checkSyncOK(sync4Path));
 
-    recreateMegaApi();
+    reloginViaSession();
 
     ASSERT_FALSE(checkSyncOK(sync1Path));
     ASSERT_FALSE(checkSyncOK(sync2Path));
@@ -4329,7 +4325,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     ASSERT_TRUE(checkSyncOK(sync4Path));
 
     // check if resumeSync re-activated the sync
-    recreateMegaApi();
+    reloginViaSession();
 
     ASSERT_FALSE(checkSyncOK(sync1Path));
     ASSERT_FALSE(checkSyncOK(sync2Path));
@@ -4351,7 +4347,5 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     std::this_thread::sleep_for(std::chrono::seconds{20});
 
     cleanUp();
-
-    releaseMegaApi(0);
 }
 #endif

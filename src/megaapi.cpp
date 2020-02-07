@@ -3084,7 +3084,7 @@ void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequ
 
 void MegaApi::resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRequestListener *listener)
 {
-    pImpl->resumeSync(localFolder, localfp, megaFolder, NULL, listener);
+    pImpl->syncFolder(localFolder, megaFolder, NULL, listener, localfp);
 }
 
 #ifdef USE_PCRE
