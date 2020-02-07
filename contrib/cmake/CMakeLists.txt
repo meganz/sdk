@@ -17,7 +17,13 @@ project(MegaSDK)
 
 #indicate which dependent libraries to use in the build
 set (USE_CRYPTOPP 1 CACHE STRING "")
-set (USE_OPENSSL 1 CACHE STRING "")
+
+if (CMAKE_HOST_APPLE)
+    set (USE_OPENSSL 0 CACHE STRING "")
+else()
+    set (USE_OPENSSL 1 CACHE STRING "")
+ENDIF()
+
 set (USE_CURL 1 CACHE STRING "")
 set (USE_SQLITE 1 CACHE STRING "")
 set (USE_MEDIAINFO 1 CACHE STRING "")
@@ -46,7 +52,7 @@ if (USE_QT)
         ENDIF()
         find_package(Qt5 COMPONENTS Core Widgets)
     endif()
-    set(QTCOMPONENTS Qt5::Core Qt5::Widgets)
+    set(QTCOMPONENTS "Qt5::Core" "Qt5::Widgets")
 else()
     set( USE_CPPTHREAD 1)
 ENDIF()
@@ -170,14 +176,16 @@ else (USE_PREBUILT_3RDPARTY)
             include_directories( "${vcpkg_dir}/include" )
             link_directories( "${vcpkg_dir}/lib" )
         else()
-            include_directories( "${Mega3rdPartyDir}/include" )
-            include_directories( "${Mega3rdPartyDir}/include/curl" )
-            include_directories( "${Mega3rdPartyDir}/include/libsodium" )
-            include_directories( "${Mega3rdPartyDir}/include/cares" )
-            include_directories( "${Mega3rdPartyDir}/include/mediainfo" )
-            include_directories( "${Mega3rdPartyDir}/include/zenlib" )
-            include_directories( "${Mega3rdPartyDir}/include/pdfium" )
-            link_directories( "${Mega3rdPartyDir}/lib" )
+            include_directories( "${Mega3rdPartyDir}/include"
+                $<${USE_CURL}:${Mega3rdPartyDir}/include/curl>
+                $<${USE_SODIUM}:${Mega3rdPartyDir}/include/libsodium>
+                "${Mega3rdPartyDir}/include/cares"
+                $<${USE_MEDIAINFO}:${Mega3rdPartyDir}/include/mediainfo>
+                $<${USE_MEDIAINFO}:${Mega3rdPartyDir}/include/zenlib>
+                $<${USE_PDFIUM}:${Mega3rdPartyDir}/include/pdfium>
+                $<${USE_LIBUV}:${Mega3rdPartyDir}/include/libuv>
+                $<${USE_FFMPEG}:${Mega3rdPartyDir}/include/ffmpeg>)
+            link_directories( "${Mega3rdPartyDir}/libs" )
         endif()
     ENDIF(WIN32)
 endif()
@@ -482,11 +490,11 @@ ELSE(WIN32)
         SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles} ${MegaDir}/src/osx/osxutils.mm )
     ENDIF()
     SET(Mega_PlatformSpecificIncludes ${MegaDir}/include/mega/posix)
-    SET(Mega_PlatformSpecificLibs crypto pthread z dl termcap)
+    SET(Mega_PlatformSpecificLibs pthread z dl termcap)
     IF(APPLE)
-        SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} "-framework Cocoa -framework SystemConfiguration")
+        SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} "-framework Cocoa -framework SystemConfiguration -framework Security")
     ELSE()
-        SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} rt stdc++fs)
+        SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} crypto rt stdc++fs)
     ENDIF()
     IF(USE_WEBRTC)
         ImportVcpkgLibrary(webrtc "${WebRtcDir}/include" "${WebRtcDir}/lib/webrtc.lib" "${WebRtcDir}/lib/webrtc.lib")
@@ -693,7 +701,7 @@ target_link_libraries(Mega PUBLIC
                                                       $<${USE_FREEIMAGE}:freeimage_jasper>  $<${USE_FREEIMAGE}:freeimage_libpng>  $<${USE_FREEIMAGE}:freeimage_half>
                                                       $<${USE_FREEIMAGE}:freeimage_webp> $<${USE_FREEIMAGE}:freeimage_webpdecoder>  $<${USE_FREEIMAGE}:freeimage_webpdemux>  $<${USE_FREEIMAGE}:freeimage_webpmux>
                                                       $<${HAVE_FFMPEG}:avformat> $<${HAVE_FFMPEG}:avcodec> $<${HAVE_FFMPEG}:avutil>
-                                                      $<${HAVE_FFMPEG}:swscale>  $<${HAVE_FFMPEG}:swresample>
+                                                      $<${HAVE_FFMPEG}:swscale>
                         $<${USE_PDFIUM}:pdfium> $<${USE_PDFIUM}:freetype> $<${USE_PDFIUM}:icu> $<${USE_PDFIUM}:lcms> $<${USE_PDFIUM}:turbojpeg> $<${USE_PDFIUM}:openjpeg>
                         z
                         ${Mega_PlatformSpecificLibs})
