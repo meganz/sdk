@@ -474,7 +474,7 @@ public:
     void checkfacompletion(handle, Transfer* = NULL);
 
     // attach/update/delete a user attribute
-    void putua(attr_t at, const byte* av = NULL, unsigned avl = 0, int ctag = -1);
+    void putua(attr_t at, const byte* av = NULL, unsigned avl = 0, int ctag = -1, handle lastPublicHandle = UNDEF, int phtype = 0, int64_t ts = 0);
 
     // attach/update multiple versioned user attributes at once
     void putua(userattr_map *attrs, int ctag = -1);

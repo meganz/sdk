@@ -2928,7 +2928,7 @@ void CommandPutUAVer::procresult()
     }
 }
 
-CommandPutUA::CommandPutUA(MegaClient* /*client*/, attr_t at, const byte* av, unsigned avl, int ctag)
+CommandPutUA::CommandPutUA(MegaClient* /*client*/, attr_t at, const byte* av, unsigned avl, int ctag, handle lph, int phtype, int64_t ts)
 {
     this->at = at;
     this->av.assign((const char*)av, avl);
@@ -2945,6 +2945,15 @@ CommandPutUA::CommandPutUA(MegaClient* /*client*/, attr_t at, const byte* av, un
     else
     {
         arg(an.c_str(), av, avl);
+    }
+
+    if (!ISUNDEF(lph))
+    {
+        beginobject("aff");
+        arg("id", (byte*)&lph, MegaClient::NODEHANDLE);
+        arg("ts", ts);
+        arg("t", phtype);   // 1=affiliate id, 2=file/folder link, 3=chat link, 4=contact link
+        endobject();
     }
 
     tag = ctag;

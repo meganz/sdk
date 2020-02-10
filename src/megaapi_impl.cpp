@@ -5911,23 +5911,16 @@ void MegaApiImpl::setAccountAuth(const char *auth)
     sdkMutex.unlock();
 }
 
-void MegaApiImpl::createAccount(const char* email, const char* password, const char* name, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CREATE_ACCOUNT, listener);
-    request->setEmail(email);
-    request->setPassword(password);
-    request->setName(name);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::createAccount(const char* email, const char* password, const char* firstname, const char* lastname, MegaRequestListener *listener)
+void MegaApiImpl::createAccount(const char* email, const char* password, const char* firstname, const char* lastname, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CREATE_ACCOUNT, listener);
     request->setEmail(email);
     request->setPassword(password);
     request->setName(firstname);
     request->setText(lastname);
+    request->setNodeHandle(lastPublicHandle);
+    request->setAccess(lastPublicHandleType);
+    request->setTransferredBytes(lastAccessTimestamp);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -13104,7 +13097,8 @@ void MegaApiImpl::fetchnodes_result(error e)
             string firstname = request->getName() ? request->getName() : "";
             if (!firstname.empty())
             {
-                client->putua(ATTR_FIRSTNAME, (const byte*) request->getName(), int(strlen(request->getName())));
+                client->putua(ATTR_FIRSTNAME, (const byte*) request->getName(), int(strlen(request->getName())), -1,
+                              request->getNodeHandle(), request->getAccess(), request->getTransferredBytes());
             }
             string lastname = request->getText() ? request->getText() : "";
             if (!lastname.empty())
@@ -19759,6 +19753,18 @@ void MegaApiImpl::sendPendingRequests()
             const char *sid = request->getSessionKey();
             bool resumeProcess = (request->getParamType() == 1);   // resume existing ephemeral account
             bool cancelProcess = (request->getParamType() == 2);
+            handle lastPublicHandle = request->getNodeHandle();
+            int lastPublicHandleType = request->getAccess();
+            int64_t lastAccessTimestamp =request->getTransferredBytes();
+
+            if (!ISUNDEF(lastPublicHandle)
+                    && ((lastPublicHandleType <= mega::MegaApi::AFFILIATE_TYPE_INVALID
+                            || lastPublicHandleType > mega::MegaApi::AFFILIATE_TYPE_CONTACT)
+                        || !lastAccessTimestamp))
+            {
+                e = API_EARGS;
+                break;
+            }
 
             if ( (!resumeProcess && !cancelProcess && (!email || !name || (!password && !pwkey))) ||
                  (resumeProcess && !sid) )
