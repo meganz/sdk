@@ -4008,7 +4008,7 @@ struct OneWaySymmetryCase
         ASSERT_TRUE(!!n);
 
         bool syncsetup = state.client.setupSync_mainthread(SyncConfig(up ? SyncConfig::TYPE_UP : SyncConfig::TYPE_DOWN, propagateDeletes, forceOverwrites), 
-                                                           fs::relative(syncrootpath, state.client.fsBasePath).u8string(),  remoteTestBasePath + "/f", sync_tag = ++state.next_sync_tag);
+                                                           syncrootpath.erase(0, state.client.fsBasePath.u8string().size()+1),  remoteTestBasePath + "/f", sync_tag = ++state.next_sync_tag);
         ASSERT_TRUE(syncsetup);    
 
         //future<bool> fb = state.client.thread_do([&](StandardClient& sc, promise<bool>& pb) { 
@@ -4319,7 +4319,7 @@ TEST(Sync, OneWay_Highlevel_Symmetries)
     }
 
     cout << "Letting each one-way sync run" << endl;
-    WaitMillisec(5000);
+    WaitMillisec(10000);
 
     cout << "Preparing action " << endl;
     for (auto& testcase : cases)
@@ -4328,7 +4328,7 @@ TEST(Sync, OneWay_Highlevel_Symmetries)
     }
 
     cout << "Letting each one-way sync run" << endl;
-    WaitMillisec(5000);
+    WaitMillisec(10000);
 
     cout << "Performing action " << endl;
     for (auto& testcase : cases)
@@ -4337,7 +4337,7 @@ TEST(Sync, OneWay_Highlevel_Symmetries)
     }
 
     cout << "Letting each one-way sync run" << endl;
-    WaitMillisec(5000);
+    WaitMillisec(10000);
 
     cout << "Checking local and remote state in each sub-test" << endl;
 
