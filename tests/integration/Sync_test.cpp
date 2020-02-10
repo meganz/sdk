@@ -4008,7 +4008,7 @@ struct OneWaySymmetryCase
         ASSERT_TRUE(!!n);
 
         bool syncsetup = state.client.setupSync_mainthread(SyncConfig(up ? SyncConfig::TYPE_UP : SyncConfig::TYPE_DOWN, propagateDeletes, forceOverwrites), 
-                                                           syncrootpath,  remoteTestBasePath + "/f", sync_tag = ++state.next_sync_tag);
+                                                           fs::relative(syncrootpath, state.client.fsBasePath).u8string(),  remoteTestBasePath + "/f", sync_tag = ++state.next_sync_tag);
         ASSERT_TRUE(syncsetup);    
 
         //future<bool> fb = state.client.thread_do([&](StandardClient& sc, promise<bool>& pb) { 
