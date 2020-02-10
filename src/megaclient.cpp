@@ -8055,11 +8055,6 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
                                  && uh != me
                                  && !fetchingnodes)
                         {
-                            // Invalidate attrs to ensure that are re-fetched for users
-                            // with group chats previous to establish contact relationship
-                            u->invalidateattr(ATTR_FIRSTNAME);
-                            u->invalidateattr(ATTR_LASTNAME);
-
                             // new user --> fetch keys
                             fetchContactKeys(u);
                         }
