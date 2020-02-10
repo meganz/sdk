@@ -609,7 +609,14 @@ void SdkTest::loginBySessionId(unsigned int apiIndex, const std::string& session
 void SdkTest::fetchnodes(unsigned int apiIndex, int timeout, bool resumeSyncs)
 {
     mApi[apiIndex].requestFlags[MegaRequest::TYPE_FETCH_NODES] = false;
-    mApi[apiIndex].megaApi->fetchNodes(nullptr, resumeSyncs);
+    if (resumeSyncs)
+    {
+        mApi[apiIndex].megaApi->fetchNodesAndResumeSyncs();
+    }
+    else
+    {
+        mApi[apiIndex].megaApi->fetchNodes();
+    }
 
     ASSERT_TRUE( waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_FETCH_NODES], timeout) )
             << "Fetchnodes failed after " << timeout  << " seconds";

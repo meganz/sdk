@@ -582,7 +582,7 @@ void SyncConfigBag::insert(const SyncConfig& syncConfig)
     }
     else // syncConfig exists already
     {
-        uint32_t tableId = syncConfigIt->second.dbid;
+        const uint32_t tableId = syncConfigIt->second.dbid;
         if (mTable)
         {
             if (!insertOrUpdate(tableId, syncConfig))

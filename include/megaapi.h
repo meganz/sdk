@@ -9826,9 +9826,25 @@ class MegaApi
          * - MegaRequest::getNodeHandle - Returns the public handle if logged into a public folder. Otherwise, INVALID_HANDLE
          *
          * @param listener MegaRequestListener to track this request
-         * @param resumeSyncs Whether to auto-resume syncs following a successful fetch
          */
-        void fetchNodes(MegaRequestListener *listener = NULL, bool resumeSyncs = false);
+        void fetchNodes(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Fetch the filesystem in MEGA and resumes syncs following a successful fetch
+         *
+         * The MegaApi object must be logged in in an account or a public folder
+         * to successfully complete this request.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_FETCH_NODES
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getFlag - Returns true if logged in into a folder and the provided key is invalid. Otherwise, false.
+         * - MegaRequest::getNodeHandle - Returns the public handle if logged into a public folder. Otherwise, INVALID_HANDLE
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void fetchNodesAndResumeSyncs(MegaRequestListener *listener = NULL);
 
         /**
          * @brief Get the sum of sizes of all the files stored in the MEGA cloud.
