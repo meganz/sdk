@@ -4757,10 +4757,12 @@ void exec_pause(autocomplete::ACState& s)
         getarg = true;
         putarg = true;
     }
+    
+    DBTableTransactionCommitter committer(client->tctable);
 
     if (getarg)
     {
-        client->pausexfers(GET, client->xferpaused[GET] ^= true, hardarg);
+        client->pausexfers(GET, client->xferpaused[GET] ^= true, hardarg, committer);
         if (client->xferpaused[GET])
         {
             cout << "GET transfers paused. Resume using the same command." << endl;
@@ -4773,7 +4775,7 @@ void exec_pause(autocomplete::ACState& s)
 
     if (putarg)
     {
-        client->pausexfers(PUT, client->xferpaused[PUT] ^= true, hardarg);
+        client->pausexfers(PUT, client->xferpaused[PUT] ^= true, hardarg, committer);
         if (client->xferpaused[PUT])
         {
             cout << "PUT transfers paused. Resume using the same command." << endl;

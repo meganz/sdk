@@ -7747,40 +7747,34 @@ class MegaApi
         void setAccountAuth(const char* auth);
 
         /**
-         * @brief Initialize the creation of a new MEGA account
-         *
-         * This function automatically imports a Welcome PDF file into the new account. The file is
-         * automatically imported in the language used for the account. In case there is no file
-         * available for the language of the account, it will not be imported.
-         *
-         * @note If the account has been created correctly, but there is any error related to the
-         * importing of the file, this request will still return API_OK. However, the nodehandle
-         * at the MegaRequest::getNodeHandle will be INVALID_HANDLE.
+         * @brief Initialize the creation of a new MEGA account, with firstname and lastname
          *
          * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getEmail - Returns the email for the account
          * - MegaRequest::getPassword - Returns the password for the account
-         * - MegaRequest::getName - Returns the name of the user
+         * - MegaRequest::getName - Returns the firstname of the user
+         * - MegaRequest::getText - Returns the lastname of the user
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getNodeHandle - Returns the nodehandle of the Welcome PDF file, if it
-         * was imported successfully.
+         * - MegaRequest::getSessionKey - Returns the session id to resume the process
          *
-         * If this request succeeds, a confirmation email will be sent to the users.
+         * If this request succeeds, a new ephemeral account will be created for the new user
+         * and a confirmation email will be sent to the specified email address. The app may
+         * resume the create-account process by using MegaApi::resumeCreateAccount.
+         *
          * If an account with the same email already exists, you will get the error code
          * MegaError::API_EEXIST in onRequestFinish
          *
          * @param email Email for the account
          * @param password Password for the account
-         * @param name Name of the user
+         * @param firstname Firstname of the user
+         * @param lastname Lastname of the user
          * @param listener MegaRequestListener to track this request
-         *
-         * @deprecated This function is deprecated and will eventually be removed. Instead,
-         * use the new version of MegaApi::createAccount with firstname and lastname.
          */
-        void createAccount(const char* email, const char* password, const char* name, MegaRequestListener *listener = NULL);
+        void createAccount(const char* email, const char* password, const char* firstname, const char* lastname, MegaRequestListener *listener = NULL);
+
 
         /**
          * @brief Initialize the creation of a new MEGA account, with firstname and lastname
@@ -7791,6 +7785,9 @@ class MegaApi
          * - MegaRequest::getPassword - Returns the password for the account
          * - MegaRequest::getName - Returns the firstname of the user
          * - MegaRequest::getText - Returns the lastname of the user
+         * - MegaRequest::getNodeHandle - Returns the last public node handle accessed
+         * - MegaRequest::getAccess - Returns the type of lastPublicHandle
+         * - MegaRequest::getTransferredBytes - Returns the timestamp of the last access
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -7807,9 +7804,17 @@ class MegaApi
          * @param password Password for the account
          * @param firstname Firstname of the user
          * @param lastname Lastname of the user
+         * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
+         * @param lastPublicHandleType Indicates the type of lastPublicHandle, valid values are:
+         *      - MegaApi::AFFILIATE_TYPE_ID = 1
+         *      - MegaApi::AFFILIATE_TYPE_FILE_FOLDER = 2
+         *      - MegaApi::AFFILIATE_TYPE_CHAT = 3
+         *      - MegaApi::AFFILIATE_TYPE_CONTACT = 4
+         *
+         * @param lastAccessTimestamp Timestamp of the last access
          * @param listener MegaRequestListener to track this request
          */
-        void createAccount(const char* email, const char* password, const char* firstname, const char* lastname, MegaRequestListener *listener = NULL);
+        void createAccount(const char* email, const char* password, const char* firstname, const char* lastname, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Resume a registration process
@@ -10116,7 +10121,7 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNumber - Returns the payment gateway
          * - MegaRequest::getText - Returns the purchase receipt
-         * - MegaRequest::getParentHandle - Returns the last public node handle accessed
+         * - MegaRequest::getNodeHandle - Returns the last public node handle accessed
          *
          * @param gateway Payment gateway
          * Currently supported payment gateways are:
@@ -10137,7 +10142,7 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNumber - Returns the payment gateway
          * - MegaRequest::getText - Returns the purchase receipt
-         * - MegaRequest::getParentHandle - Returns the last public node handle accessed
+         * - MegaRequest::getNodeHandle - Returns the last public node handle accessed
          * - MegaRequest::getParamType - Returns the type of lastPublicHandle
          * - MegaRequest::getTransferredBytes - Returns the timestamp of the last access
          *

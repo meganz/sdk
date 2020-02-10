@@ -630,13 +630,6 @@ using namespace mega;
 
 #pragma mark - Create account and confirm account Requests
 
-- (void)createAccountWithEmail:(NSString *)email password:(NSString *)password name:(NSString *)name {
-    self.megaApi->createAccount((email != nil) ? [email UTF8String] : NULL, (password != nil) ? [password UTF8String] : NULL, (name != nil) ? [name UTF8String] : NULL);
-}
-
-- (void)createAccountWithEmail:(NSString *)email password:(NSString *)password name:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->createAccount((email != nil) ? [email UTF8String] : NULL, (password != nil) ? [password UTF8String] : NULL, (name != nil) ? [name UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
-}
 
 - (void)createAccountWithEmail:(NSString *)email password:(NSString *)password firstname:(NSString *)firstname lastname:(NSString *)lastname {
     self.megaApi->createAccount((email != nil) ? [email UTF8String] : NULL, (password != nil) ? [password UTF8String] : NULL, (firstname != nil) ? [firstname UTF8String] : NULL, (lastname != nil) ? [lastname UTF8String] : NULL);
@@ -644,6 +637,14 @@ using namespace mega;
 
 - (void)createAccountWithEmail:(NSString *)email password:(NSString *)password firstname:(NSString *)firstname lastname:(NSString *)lastname delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->createAccount((email != nil) ? [email UTF8String] : NULL, (password != nil) ? [password UTF8String] : NULL, (firstname != nil) ? [firstname UTF8String] : NULL, (lastname != nil) ? [lastname UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)createAccountWithEmail:(NSString *)email password:(NSString *)password firstname:(NSString *)firstname lastname:(NSString *)lastname lastPublicHandle:(uint64_t)lastPublicHandle lastPublicHandleType:(AffiliateType)lastPublicHandleType lastAccessTimestamp:(uint64_t)lastAccessTimestamp {
+    self.megaApi->createAccount(email.UTF8String, password.UTF8String, firstname.UTF8String, lastname.UTF8String, lastPublicHandle, (int)lastPublicHandleType, lastAccessTimestamp);
+}
+
+- (void)createAccountWithEmail:(NSString *)email password:(NSString *)password firstname:(NSString *)firstname lastname:(NSString *)lastname lastPublicHandle:(uint64_t)lastPublicHandle lastPublicHandleType:(AffiliateType)lastPublicHandleType lastAccessTimestamp:(uint64_t)lastAccessTimestamp delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->createAccount(email.UTF8String, password.UTF8String, firstname.UTF8String, lastname.UTF8String, lastPublicHandle, (int)lastPublicHandleType, lastAccessTimestamp, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
 - (void)resumeCreateAccountWithSessionId:(NSString *)sessionId delegate:(id<MEGARequestDelegate>)delegate {

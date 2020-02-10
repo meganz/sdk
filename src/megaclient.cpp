@@ -9107,7 +9107,7 @@ error MegaClient::removecontact(const char* email, visibility_t show)
  * @param ctag Tag to identify the request at intermediate layer
 
  */
-void MegaClient::putua(attr_t at, const byte* av, unsigned avl, int ctag)
+void MegaClient::putua(attr_t at, const byte* av, unsigned avl, int ctag, handle lastPublicHandle, int phtype, int64_t ts)
 {
     string data;
 
@@ -9142,7 +9142,7 @@ void MegaClient::putua(attr_t at, const byte* av, unsigned avl, int ctag)
 
     if (!needversion)
     {
-        reqs.add(new CommandPutUA(this, at, av, avl, tag));
+        reqs.add(new CommandPutUA(this, at, av, avl, tag, lastPublicHandle, phtype, ts));
     }
     else
     {
@@ -13809,7 +13809,7 @@ void MegaClient::stopxfer(File* f, DBTableTransactionCommitter* committer)
 }
 
 // pause/unpause transfers
-void MegaClient::pausexfers(direction_t d, bool pause, bool hard)
+void MegaClient::pausexfers(direction_t d, bool pause, bool hard, DBTableTransactionCommitter& committer)
 {
     xferpaused[d] = pause;
 
@@ -13817,7 +13817,6 @@ void MegaClient::pausexfers(direction_t d, bool pause, bool hard)
     {
         WAIT_CLASS::bumpds();
 
-        DBTableTransactionCommitter committer(tctable);
         for (transferslot_list::iterator it = tslots.begin(); it != tslots.end(); )
         {
             if ((*it)->transfer->type == d)
