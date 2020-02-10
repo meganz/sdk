@@ -381,14 +381,6 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
 
     LOG_debug << "Transfer failed with error " << e;
 
-    if (slot && slot->delayedchunk)
-    {
-        int creqtag = client->reqtag;
-        client->reqtag = 0;
-        client->sendevent(99442, "Upload with delayed chunks failed");
-        client->reqtag = creqtag;
-    }
-
     if (e == API_EOVERQUOTA)
     {
         if (!slot)
@@ -983,14 +975,6 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 
         if (slot->fa)
         {
-            if (slot->delayedchunk)
-            {
-                int creqtag = client->reqtag;
-                client->reqtag = 0;
-                client->sendevent(99443, "Upload with delayed chunks completed");
-                client->reqtag = creqtag;
-            }
-
             slot->fa.reset();
         }
 
@@ -1045,6 +1029,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                     client->syncdownrequired = true;
                 }
 #endif
+                it++; // the next line will remove the current item and invalidate that iterator
                 removeTransferFile(API_EREAD, f, &committer);
             }
             else

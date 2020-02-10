@@ -418,12 +418,12 @@ public:
     void unlinkversions();
 
     // move node to new parent folder
-    error rename(Node*, Node*, syncdel_t = SYNCDEL_NONE, handle = UNDEF);
+    error rename(Node*, Node*, syncdel_t = SYNCDEL_NONE, handle = UNDEF, const char *newName = nullptr);
 
     // start/stop/pause file transfer
     bool startxfer(direction_t, File*, DBTableTransactionCommitter&, bool skipdupes = false, bool startfirst = false, bool donotpersist = false);
     void stopxfer(File* f, DBTableTransactionCommitter* committer);
-    void pausexfers(direction_t, bool, bool = false);
+    void pausexfers(direction_t, bool pause, bool hard, DBTableTransactionCommitter& committer);
 
     // maximum number of connections per transfer
     static const unsigned MAX_NUM_CONNECTIONS = 6;
@@ -481,7 +481,7 @@ public:
     void checkfacompletion(handle, Transfer* = NULL);
 
     // attach/update/delete a user attribute
-    void putua(attr_t at, const byte* av = NULL, unsigned avl = 0, int ctag = -1);
+    void putua(attr_t at, const byte* av = NULL, unsigned avl = 0, int ctag = -1, handle lastPublicHandle = UNDEF, int phtype = 0, int64_t ts = 0);
 
     // attach/update multiple versioned user attributes at once
     void putua(userattr_map *attrs, int ctag = -1);

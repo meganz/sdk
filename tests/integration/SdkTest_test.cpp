@@ -244,8 +244,8 @@ void SdkTest::TearDown()
         LOG_info << "___ Cleaning up test (TearDown()) ___";
 
         // Remove nodes in Cloud & Rubbish
-        purgeTree(megaApi[0]->getRootNode());
-        purgeTree(megaApi[0]->getRubbishNode());
+        purgeTree(megaApi[0]->getRootNode(), false);
+        purgeTree(megaApi[0]->getRubbishNode(), false);
 //        megaApi[0]->cleanRubbishBin();
 
         // Remove auxiliar contact
@@ -646,7 +646,7 @@ void SdkTest::resumeSession(const char *session, int timeout)
     ASSERT_EQ(MegaError::API_OK, synchronousFastLogin(apiIndex, session, this)) << "Resume session failed (error: " << mApi[apiIndex].lastError << ")";
 }
 
-void SdkTest::purgeTree(MegaNode *p)
+void SdkTest::purgeTree(MegaNode *p, bool depthfirst)
 {
     int apiIndex = 0;
     MegaNodeList *children;
@@ -657,7 +657,7 @@ void SdkTest::purgeTree(MegaNode *p)
         MegaNode *n = children->get(i);
 
         // removing the folder removes the children anyway
-        if (n->isFolder())
+        if (depthfirst && n->isFolder())
             purgeTree(n);
 
         ASSERT_EQ(MegaError::API_OK, synchronousRemove(apiIndex, n)) << "Remove node operation failed (error: " << mApi[apiIndex].lastError << ")";
@@ -1253,13 +1253,11 @@ TEST_F(SdkTest, SdkTestResumeSession)
 {
     LOG_info << "___TEST Resume session___";
 
-    char *session = dumpSession();
+    unique_ptr<char[]> session(dumpSession());
 
     ASSERT_NO_FATAL_FAILURE( locallogout() );
-    ASSERT_NO_FATAL_FAILURE( resumeSession(session) );
+    ASSERT_NO_FATAL_FAILURE( resumeSession(session.get()) );
     ASSERT_NO_FATAL_FAILURE( fetchnodes(0) );
-
-    delete session;
 }
 
 /**
