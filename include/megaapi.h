@@ -7760,7 +7760,7 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getSessionKey - Returns the session id to resume the process
          *
-         * If this request succeeds, a new ephemeral session will be created for the new user
+         * If this request succeeds, a new ephemeral account will be created for the new user
          * and a confirmation email will be sent to the specified email address. The app may
          * resume the create-account process by using MegaApi::resumeCreateAccount.
          *
