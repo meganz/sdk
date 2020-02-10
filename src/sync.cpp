@@ -563,8 +563,8 @@ void SyncConfigBag::insert(const SyncConfig& syncConfig)
         return true;
     };
 
-    auto syncConfigPair = mSyncConfigs.find(syncConfig.getLocalPath());
-    if (syncConfigPair == mSyncConfigs.end()) // syncConfig is new
+    map<string, SyncConfig>::iterator syncConfigIt = mSyncConfigs.find(syncConfig.getLocalPath());
+    if (syncConfigIt == mSyncConfigs.end()) // syncConfig is new
     {
         if (mTable)
         {
@@ -582,7 +582,7 @@ void SyncConfigBag::insert(const SyncConfig& syncConfig)
     }
     else // syncConfig exists already
     {
-        const auto tableId = syncConfigPair->second.dbid;
+        uint32_t tableId = syncConfigIt->second.dbid;
         if (mTable)
         {
             if (!insertOrUpdate(tableId, syncConfig))
@@ -590,8 +590,8 @@ void SyncConfigBag::insert(const SyncConfig& syncConfig)
                 return;
             }
         }
-        syncConfigPair->second = syncConfig;
-        syncConfigPair->second.dbid = tableId;
+        syncConfigIt->second = syncConfig;
+        syncConfigIt->second.dbid = tableId;
     }
 }
 
