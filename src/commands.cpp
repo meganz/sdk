@@ -1938,6 +1938,9 @@ void CommandLogin::procresult()
                     client->sessionkey.assign((const char *)sek, sizeof(sek));
                 }
 
+                // fetch the unshareable key straight away, so we have it before fetchnodes-from-server completes .
+                client->reqs.add(new CommandUnshareableUA(client, true, 5));
+
                 return client->app->login_result(API_OK);
 
             default:
@@ -2925,7 +2928,7 @@ void CommandPutUAVer::procresult()
     }
 }
 
-CommandPutUA::CommandPutUA(MegaClient* /*client*/, attr_t at, const byte* av, unsigned avl, int ctag)
+CommandPutUA::CommandPutUA(MegaClient* /*client*/, attr_t at, const byte* av, unsigned avl, int ctag, handle lph, int phtype, int64_t ts)
 {
     this->at = at;
     this->av.assign((const char*)av, avl);
@@ -2942,6 +2945,15 @@ CommandPutUA::CommandPutUA(MegaClient* /*client*/, attr_t at, const byte* av, un
     else
     {
         arg(an.c_str(), av, avl);
+    }
+
+    if (!ISUNDEF(lph))
+    {
+        beginobject("aff");
+        arg("id", (byte*)&lph, MegaClient::NODEHANDLE);
+        arg("ts", ts);
+        arg("t", phtype);   // 1=affiliate id, 2=file/folder link, 3=chat link, 4=contact link
+        endobject();
     }
 
     tag = ctag;
@@ -4911,6 +4923,9 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, bool nocache)
     {
         arg("ca", 1);
     }
+
+    // The servers are more efficient with this command when it's the only one in the batch
+    batchSeparately = true;
 
     tag = client->reqtag;
 }

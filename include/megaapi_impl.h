@@ -2031,8 +2031,7 @@ class MegaApiImpl : public MegaApp
         void getCloudStorageUsed(MegaRequestListener *listener = NULL); 
         void getAccountDetails(bool storage, bool transfer, bool pro, bool sessions, bool purchases, bool transactions, int source = -1, MegaRequestListener *listener = NULL);
         void queryTransferQuota(long long size, MegaRequestListener *listener = NULL);
-        void createAccount(const char* email, const char* password, const char* name, MegaRequestListener *listener = NULL);
-        void createAccount(const char* email, const char* password, const char* firstname, const char* lastname, MegaRequestListener *listener = NULL);
+        void createAccount(const char* email, const char* password, const char* firstname, const char* lastname, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener = NULL);
         void resumeCreateAccount(const char* sid, MegaRequestListener *listener = NULL);
         void cancelCreateAccount(MegaRequestListener *listener = NULL);
         void sendSignupLink(const char* email, const char *name, const char *password, MegaRequestListener *listener = NULL);
@@ -2078,6 +2077,7 @@ class MegaApiImpl : public MegaApp
         void createFolder(const char* name, MegaNode *parent, MegaRequestListener *listener = NULL);
         bool createLocalFolder(const char *path);
         void moveNode(MegaNode* node, MegaNode* newParent, MegaRequestListener *listener = NULL);
+        void moveNode(MegaNode* node, MegaNode* newParent, const char *newName, MegaRequestListener *listener = NULL);
         void copyNode(MegaNode* node, MegaNode *newParent, MegaRequestListener *listener = NULL);
         void copyNode(MegaNode* node, MegaNode *newParent, const char* newName, MegaRequestListener *listener = NULL);
         void renameNode(MegaNode* node, const char* newName, MegaRequestListener *listener = NULL);

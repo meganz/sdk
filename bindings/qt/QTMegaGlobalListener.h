@@ -1,5 +1,4 @@
-#ifndef QTMEGAGLOBALLISTENER_H
-#define QTMEGAGLOBALLISTENER_H
+#pragma once
 
 #include <QObject>
 #include "megaapi.h"
@@ -28,5 +27,3 @@ protected:
     MegaGlobalListener *listener;
 };
 }
-
-#endif // QTMEGAGLOBALLISTENER_H
