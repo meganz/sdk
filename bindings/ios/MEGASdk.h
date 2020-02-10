@@ -1290,51 +1290,6 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest email] - Returns the email for the account
  * - [MEGARequest password] - Returns the password for the account
- * - [MEGARequest name] - Returns the name of the user
- *
- * If this request succeed, a confirmation email will be sent to the users.
- * If an account with the same email already exists, you will get the error code
- * MEGAErrorTypeApiEExist in onRequestFinish
- *
- * @param email Email for the account.
- * @param password Password for the account.
- * @param name Name of the user.
- * @param delegate Delegate to track this request.
- *
- * @deprecated This function is deprecated and will eventually be removed. Instead,
- * use the new version of [MEGASdk createAccountWithEmail:password:firstname:lastname:delegate:].
- */
-- (void)createAccountWithEmail:(NSString *)email password:(NSString *)password name:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate __attribute__((deprecated("This function is deprecated and will eventually be removed. Instead, use the new version of [MEGASdk createAccountWithEmail:password:firstname:lastname:delegate:]")));
-
-/**
- * @brief Initialize the creation of a new MEGA account.
- *
- * The associated request type with this request is MEGARequestTypeCreateAccount.
- * Valid data in the MEGARequest object received on callbacks:
- * - [MEGARequest email] - Returns the email for the account
- * - [MEGARequest password] - Returns the password for the account
- * - [MEGARequest name] - Returns the name of the user
- *
- * If this request succeed, a confirmation email will be sent to the users.
- * If an account with the same email already exists, you will get the error code
- * MEGAErrorTypeApiEExist in onRequestFinish
- *
- * @param email Email for the account.
- * @param password Password for the account.
- * @param name Name of the user.
- * @deprecated This function is deprecated and will eventually be removed. Instead,
- * use the new version of [MEGASdk createAccountWithEmail:password:firstname:lastname:].
- */
-- (void)createAccountWithEmail:(NSString *)email password:(NSString *)password name:(NSString *)name __attribute__((deprecated("This function is deprecated and will eventually be removed. Instead, use the new version of [MEGASdk createAccountWithEmail:password:firstname:lastname:]")));
-
-
-/**
- * @brief Initialize the creation of a new MEGA account.
- *
- * The associated request type with this request is MEGARequestTypeCreateAccount.
- * Valid data in the MEGARequest object received on callbacks:
- * - [MEGARequest email] - Returns the email for the account
- * - [MEGARequest password] - Returns the password for the account
  * - [MEGARequest name] - Returns the firstname of the user
  * - [MEGARequest text] - Returns the lastname of the user
  *
@@ -1344,7 +1299,7 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  *
  * If this request succeed, a new ephemeral session will be created for the new user
  * and a confirmation email will be sent to the specified email address. The app may
- * resume the create-account process by using MegaApi::resumeCreateAccount.
+ * resume the create-account process by using [MEGASdk resumeCreateAccountWithSessionId:].
  *
  * If an account with the same email already exists, you will get the error code
  * MEGAErrorTypeApiEExist in onRequestFinish
@@ -1373,7 +1328,7 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  *
  * If this request succeed, a new ephemeral session will be created for the new user
  * and a confirmation email will be sent to the specified email address. The app may
- * resume the create-account process by using MegaApi::resumeCreateAccount.
+ * resume the create-account process by using [MEGASdk resumeCreateAccountWithSessionId:].
  *
  * If an account with the same email already exists, you will get the error code
  * MEGAErrorTypeApiEExist in onRequestFinish
@@ -1384,6 +1339,85 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * @param lastname Lastname of the user
  */
 - (void)createAccountWithEmail:(NSString *)email password:(NSString *)password firstname:(NSString *)firstname lastname:(NSString *)lastname;
+
+/**
+ * @brief Initialize the creation of a new MEGA account, with firstname and lastname
+ *
+ * The associated request type with this request is MEGARequestTypeCreateAccount.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest email] - Returns the email for the account
+ * - [MEGARequest password] - Returns the password for the account
+ * - [MEGARequest name] - Returns the firstname of the user
+ * - [MEGARequest text] - Returns the lastname of the user
+ * - [MEGARequest nodeHandle] - Returns the last public node handle accessed
+ * - [MEGARequest access] - Returns the type of lastPublicHandle
+ * - [MEGARequest transferredBytes] - Returns the timestamp of the last access
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest sessionKey] - Returns the session id to resume the process
+ *
+ * If this request succeed, a new ephemeral session will be created for the new user
+ * and a confirmation email will be sent to the specified email address. The app may
+ * resume the create-account process by using [MEGASdk resumeCreateAccountWithSessionId:].
+ *
+ * If an account with the same email already exists, you will get the error code
+ * MEGAErrorTypeApiEExist in onRequestFinish
+ *
+ * @param email Email for the account
+ * @param password Password for the account
+ * @param firstname Firstname of the user
+ * @param lastname Lastname of the user
+ * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
+ * @param lastPublicHandleType Indicates the type of lastPublicHandle, valid values are:
+ *      - AffiliateTypeId = 1
+ *      - AffiliateTypeFileFolder = 2
+ *      - AffiliateTypeChat = 3
+ *      - AffiliateTypeContact = 4
+ *
+ * @param lastAccessTimestamp Timestamp of the last access
+ * @param delegate Delegate to track this request.
+ */
+- (void)createAccountWithEmail:(NSString *)email password:(NSString *)password firstname:(NSString *)firstname lastname:(NSString *)lastname lastPublicHandle:(uint64_t)lastPublicHandle lastPublicHandleType:(AffiliateType)lastPublicHandleType lastAccessTimestamp:(uint64_t)lastAccessTimestamp delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Initialize the creation of a new MEGA account, with firstname and lastname
+ *
+ * The associated request type with this request is MEGARequestTypeCreateAccount.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest email] - Returns the email for the account
+ * - [MEGARequest password] - Returns the password for the account
+ * - [MEGARequest name] - Returns the firstname of the user
+ * - [MEGARequest text] - Returns the lastname of the user
+ * - [MEGARequest nodeHandle] - Returns the last public node handle accessed
+ * - [MEGARequest access] - Returns the type of lastPublicHandle
+ * - [MEGARequest transferredBytes] - Returns the timestamp of the last access
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest sessionKey] - Returns the session id to resume the process
+ *
+ * If this request succeed, a new ephemeral session will be created for the new user
+ * and a confirmation email will be sent to the specified email address. The app may
+ * resume the create-account process by using [MEGASdk resumeCreateAccountWithSessionId:].
+ *
+ * If an account with the same email already exists, you will get the error code
+ * MEGAErrorTypeApiEExist in onRequestFinish
+ *
+ * @param email Email for the account
+ * @param password Password for the account
+ * @param firstname Firstname of the user
+ * @param lastname Lastname of the user
+ * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
+ * @param lastPublicHandleType Indicates the type of lastPublicHandle, valid values are:
+ *      - AffiliateTypeId = 1
+ *      - AffiliateTypeFileFolder = 2
+ *      - AffiliateTypeChat = 3
+ *      - AffiliateTypeContact = 4
+ *
+ * @param lastAccessTimestamp Timestamp of the last access
+ */
+- (void)createAccountWithEmail:(NSString *)email password:(NSString *)password firstname:(NSString *)firstname lastname:(NSString *)lastname lastPublicHandle:(uint64_t)lastPublicHandle lastPublicHandleType:(AffiliateType)lastPublicHandleType lastAccessTimestamp:(uint64_t)lastAccessTimestamp;
 
 /**
  * @brief Resume a registration process
