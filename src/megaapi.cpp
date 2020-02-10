@@ -2176,6 +2176,11 @@ void MegaApi::moveNode(MegaNode *node, MegaNode *newParent, MegaRequestListener 
     pImpl->moveNode(node, newParent, listener);
 }
 
+void MegaApi::moveNode(MegaNode *node, MegaNode *newParent, const char *newName, MegaRequestListener *listener)
+{
+    pImpl->moveNode(node, newParent, newName, listener);
+}
+
 void MegaApi::copyNode(MegaNode *node, MegaNode* target, MegaRequestListener *listener)
 {
     pImpl->copyNode(node, target, listener);

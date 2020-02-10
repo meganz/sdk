@@ -7,7 +7,7 @@
 # cd 3rdParty
 # git clone https://github.com/Microsoft/vcpkg.git
 # cd vcpkg
-# .\bootstrap-vcpkg.sh -disableMetrics
+# ./bootstrap-vcpkg.sh -disableMetrics
 #
 # Comment out any libraries that you won't use.
 # If using pdfium, follow the instructions below to get the source code
@@ -95,7 +95,7 @@ for l in $(cat "$PORTS_FILE" | grep -v "^#" | grep [a-z0-9A-Z]); do
 OVERLAYPORTS=("--overlay-ports=$DIR/vcpkg_extra_ports/$l" "${OVERLAYPORTS[@]}")
 done
 
-[ -z $VCPKG ] && VCPKG=$(hash vcpkg 2>/dev/null && echo "vcpkg" || echo "./vckpg")
+[ -z $VCPKG ] && VCPKG=$(hash vcpkg 2>/dev/null && echo "vcpkg" || echo "./vcpkg")
 PARENTVCPKG=$(which vcpkg 2>/dev/null | awk -F '/' '{OFS="/"; $NF=""; print $0}')
 echo mv ${PARENTVCPKG}ports{,_moved} 2>/dev/null || true
 
