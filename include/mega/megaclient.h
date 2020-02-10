@@ -419,7 +419,7 @@ public:
     // start/stop/pause file transfer
     bool startxfer(direction_t, File*, DBTableTransactionCommitter&, bool skipdupes = false, bool startfirst = false, bool donotpersist = false);
     void stopxfer(File* f, DBTableTransactionCommitter* committer);
-    void pausexfers(direction_t, bool, bool = false);
+    void pausexfers(direction_t, bool pause, bool hard, DBTableTransactionCommitter& committer);
 
     // maximum number of connections per transfer
     static const unsigned MAX_NUM_CONNECTIONS = 6;

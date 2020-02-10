@@ -18261,16 +18261,32 @@ void MegaApiImpl::sendPendingRequests()
 {
     int nextTag = 0;
 
-    while(true)
-    {
-        sdkMutex.lock();
+    SdkMutexGuard g(sdkMutex);
+    
+    // For multiple consecutive requests of the same type (eg. remove transfer) this committer will put all the database activity into a single commit
+    DBTableTransactionCommitter committer(client->tctable);
+    int lastRequestType = -1;
+    int lastRequestConsecutive = 0;
 
-        MegaRequestPrivate *request = requestQueue.pop();
-        if (!request)
+
+    while(MegaRequestPrivate *request = requestQueue.pop())
+    {
+
+        // also we avoid yielding for consecutive transaction cancel operations (we used to yeild every time, but we need to keep the sdkMutex lock while the database transaction is ongoing)
+        if ((lastRequestType == -1 || lastRequestType == request->getType()) && lastRequestConsecutive < 1024)
         {
-            sdkMutex.unlock();
-            break;
+            ++lastRequestConsecutive;
         }
+        else
+        {
+            committer.commitNow();
+            sdkMutex.unlock();
+            yield();
+            sdkMutex.lock();
+            lastRequestConsecutive = 0;
+        }
+
+        lastRequestType = request->getType();
 
         if (!nextTag && request->getType() != MegaRequest::TYPE_LOGOUT)
         {
@@ -20140,16 +20156,16 @@ void MegaApiImpl::sendPendingRequests()
 
             if(direction == -1)
             {
-                client->pausexfers(PUT, pause);
-                client->pausexfers(GET, pause);
+                client->pausexfers(PUT, pause, false, committer);
+                client->pausexfers(GET, pause, false, committer);
             }
             else if(direction == MegaTransfer::TYPE_DOWNLOAD)
             {
-                client->pausexfers(GET, pause);
+                client->pausexfers(GET, pause, false, committer);
             }
             else
             {
-                client->pausexfers(PUT, pause);
+                client->pausexfers(PUT, pause, false, committer);
             }
 
             fireOnRequestFinish(request, MegaError(API_OK));
@@ -20166,7 +20182,6 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            DBTableTransactionCommitter committer(client->tctable);
             e = client->transferlist.pause(megaTransfer->getTransfer(), pause, committer);
             if (!e)
             {
@@ -20202,7 +20217,6 @@ void MegaApiImpl::sendPendingRequests()
 
             if (automove)
             {
-                DBTableTransactionCommitter committer(client->tctable);
                 switch (number)
                 {
                     case MegaTransfer::MOVE_TYPE_UP:
@@ -20231,7 +20245,6 @@ void MegaApiImpl::sendPendingRequests()
                     break;
                 }
 
-                DBTableTransactionCommitter committer(client->tctable);
                 Transfer *prevTransfer = prevMegaTransfer->getTransfer();
                 if (!prevTransfer)
                 {
@@ -20331,7 +20344,6 @@ void MegaApiImpl::sendPendingRequests()
 
                 megaTransfer->setLastError(MegaError(API_EINCOMPLETE));
 
-                DBTableTransactionCommitter committer(client->tctable); 
                 bool found = false;
                 file_list files = transfer->files;
                 file_list::iterator iterator = files.begin();
@@ -20891,7 +20903,6 @@ void MegaApiImpl::sendPendingRequests()
                         Transfer *t = it->second;
                         if (t->slot)
                         {
-                            DBTableTransactionCommitter committer(client->tctable);
                             t->failed(API_EAGAIN, committer);
                         }
                     }
@@ -21704,9 +21715,6 @@ void MegaApiImpl::sendPendingRequests()
             LOG_err << "Error starting request: " << e;
             fireOnRequestFinish(request, MegaError(e));
         }
-
-        sdkMutex.unlock();
-        yield();
     }
 }
 
