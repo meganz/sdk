@@ -46,6 +46,7 @@ endif()
 
 
 set (HAVE_LIBUV ${USE_LIBUV})
+set (HAVE_LIBRAW ${USE_LIBRAW})
 
 
 if (WIN32 AND NOT USE_PREBUILT_3RDPARTY)
@@ -299,16 +300,21 @@ function(ImportALibrary libName includeDir) #receives also libfileDebug & libfil
 endfunction(ImportALibrary)
 
 function(ImportStdVcpkgLibrary libName winDbg win linDbg lin)
-    # function that imports vcpkg libraries (receiving different names for win/linux)
-    add_library(${libName} STATIC IMPORTED)
-    set_property(TARGET ${libName} PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${vcpkg_dir}/include)
-    if (WIN32)
-        set_property(TARGET ${libName} APPEND PROPERTY IMPORTED_LOCATION  ${vcpkg_dir}/lib/${win}.lib)
-        set_property(TARGET ${libName} APPEND PROPERTY IMPORTED_LOCATION_DEBUG ${vcpkg_dir}/debug/lib/${winDbg}.lib)
-    else()
-        set_property(TARGET ${libName} APPEND PROPERTY IMPORTED_LOCATION  ${vcpkg_dir}/lib/${lin}.a)
-        set_property(TARGET ${libName} APPEND PROPERTY IMPORTED_LOCATION_DEBUG ${vcpkg_dir}/debug/lib/${linDbg}.a)
+    if (WIN32 OR EXISTS ${vcpkg_dir}/lib/${lin}.a)
+        add_library(${libName} STATIC IMPORTED)
+        message("adding library: " ${vcpkg_dir}/lib/${lin}.a)
+        # function that imports vcpkg libraries (receiving different names for win/linux)
+        set_property(TARGET ${libName} PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${vcpkg_dir}/include)
+        if (WIN32)
+            set_property(TARGET ${libName} APPEND PROPERTY IMPORTED_LOCATION  ${vcpkg_dir}/lib/${win}.lib)
+            set_property(TARGET ${libName} APPEND PROPERTY IMPORTED_LOCATION_DEBUG ${vcpkg_dir}/debug/lib/${winDbg}.lib)
+            add_library(${libName} STATIC IMPORTED)
+        else()
+                set_property(TARGET ${libName} APPEND PROPERTY IMPORTED_LOCATION  ${vcpkg_dir}/lib/${lin}.a)
+                set_property(TARGET ${libName} APPEND PROPERTY IMPORTED_LOCATION_DEBUG ${vcpkg_dir}/debug/lib/${linDbg}.a)
+        endif()
     endif()
+
 endfunction(ImportStdVcpkgLibrary)
 
 function(ImportHeaderLibrary libName includeDir)
@@ -367,13 +373,11 @@ if(USE_PREBUILT_3RDPARTY) #TODO: do this explicitly for !Win32? (currently relyi
         
         IF(USE_LIBUV)
             ImportALibrary(uv       "${prebuilt_dir}/include/libuv" "${prebuilt_dir}/libs/x32d/libuv.lib" "${prebuilt_dir}/libs/x32/libuv.lib")
-            SET(HAVE_LIBUV 1)
         ENDIF(USE_LIBUV)
 
         IF(USE_LIBRAW)
             add_definitions( -DLIBRAW_NODLL)
             ImportALibrary(raw       "${prebuilt_dir}/include/libraw" "${prebuilt_dir}/libs/x32d/libraw.lib" "${prebuilt_dir}/libs/x32/libraw.lib")
-            SET(HAVE_LIBRAW 1)
         ENDIF(USE_LIBRAW)
 
         IF(USE_PDFIUM)
@@ -456,6 +460,13 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             ImportALibrary(freeimage_webpdecoder    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/webpdecoderd.lib"  "${vcpkg_dir}/lib/webpdecoder.lib")
             ImportALibrary(freeimage_webpdemux    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/webpdemuxd.lib"  "${vcpkg_dir}/lib/webpdemux.lib")
             ImportALibrary(freeimage_webpmux    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/libwebpmuxd.lib"  "${vcpkg_dir}/lib/libwebpmux.lib")
+
+            set (freeimage_deps freeimage_Iex freeimage_IexMath freeimage_IlmImf freeimage_IlmImfUtil
+                freeimage_IlmThread freeimage_jpeg freeimage_turbojpeg freeimage_jpegxr freeimage_jxrglue freeimage_openjp2
+                freeimage_half freeimage_jasper freeimage_libpng freeimage_lzma freeimage_lcms2 freeimage_raw freeimage_tiff
+                freeimage_tiffxx freeimage_webp freeimage_webpdecoder freeimage_webpdemux freeimage_webpmux )
+
+
         ENDIF(USE_FREEIMAGE)
 
         IF(HAVE_FFMPEG)
@@ -474,14 +485,19 @@ if (USE_THIRDPARTY_FROM_VCPKG)
 
         IF(USE_LIBUV)
             ImportStdVcpkgLibrary(uv       libuv libuv liblibuv liblibuv)
-            SET(HAVE_LIBUV 1)
         ENDIF(USE_LIBUV)
 
         IF(USE_LIBRAW)
-            ImportStdVcpkgLibrary(raw                  rawd raw libraw libraw)
-            ImportStdVcpkgLibrary(raw_jasper           jasperd jasper libjasper libjasper)
+            ImportStdVcpkgLibrary(raw                  rawd raw librawd libraw)
+            ImportStdVcpkgLibrary(raw_jasper           jasperd jasper libjasperd libjasper)
             ImportStdVcpkgLibrary(raw_libjpeg_turbo    turbojpegd turbojpeg libturbojpeg libturbojpeg)
-            SET(HAVE_LIBRAW 1)
+            ImportStdVcpkgLibrary(raw_lcms           lcmsd lcms liblcmsd liblcms)
+            SET(raw_deps raw_jasper raw_libjpeg_turbo raw_lcms)
+
+            IF(NOT CMAKE_HOST_APPLE AND NOT CMAKE_HOST_WIN32)
+                set(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} -fopenmp)
+            ENDIF()
+
         ENDIF(USE_LIBRAW)
 
         IF(USE_PDFIUM)
@@ -491,6 +507,7 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             ImportStdVcpkgLibrary(lcms         lcmsd lcms liblcmsd liblcms)
             ImportStdVcpkgLibrary(turbojpeg    jpegd jpeg libjpeg libjpeg)
             ImportStdVcpkgLibrary(openjpeg     openjp2 openjp2 libopenjp2 libopenjp2)
+            set(pdfium_deps freetype icu lcms turbojpeg openjpeg)
         ENDIF(USE_PDFIUM)
 
 endif(USE_THIRDPARTY_FROM_VCPKG)
@@ -503,7 +520,7 @@ if(WIN32)
     
     add_definitions(-D_CRT_SECURE_NO_WARNINGS -DCURL_STATICLIB -DCARES_STATICLIB -DWIN32_LEAN_AND_MEAN -DSODIUM_STATIC -DPCRE_STATICWIN32 -D_CONSOLE )
     SET(Mega_PlatformSpecificIncludes ${MegaDir}/include/mega/$<IF:${USE_CURL},wincurl,win32>)
-    SET(Mega_PlatformSpecificLibs ws2_32 winhttp Shlwapi Secur32.lib  $<${USE_WEBRTC}:Wldap32.lib> )
+    SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} ws2_32 winhttp Shlwapi Secur32.lib  $<${USE_WEBRTC}:Wldap32.lib> )
     IF(USE_LIBUV)
         SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} Kernel32.lib Iphlpapi.lib Userenv.lib Psapi.lib )
     ENDIF(USE_LIBUV)
@@ -534,7 +551,7 @@ ELSE(WIN32)
 
     SET(Mega_PlatformSpecificIncludes ${MegaDir}/include/mega/posix)
 
-    SET(Mega_PlatformSpecificLibs pthread z dl termcap)
+    SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} pthread z dl termcap)
     IF(APPLE)
         SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} "-framework Cocoa -framework SystemConfiguration -framework Security")
     ELSE()
@@ -724,14 +741,9 @@ target_link_libraries(Mega PUBLIC
                         $<$<AND:${USE_OPENSSL},$<NOT:${USE_WEBRTC}>>:crypto>
                         $<$<NOT:${USE_PREBUILT_3RDPARTY}>:$<${USE_SQLITE}:sqlite3>>
                         $<${USE_LIBUV}:uv>
-                        $<${USE_LIBRAW}:raw> $<${USE_LIBRAW}:raw_jasper> $<${USE_LIBRAW}:raw_libjpeg_turbo>
-                        $<${USE_FREEIMAGE}:freeimage> $<${USE_FREEIMAGE}:freeimage_IlmImf> $<${USE_FREEIMAGE}:freeimage_IlmImfUtil> $<${USE_FREEIMAGE}:freeimage_IlmThread> $<${USE_FREEIMAGE}:freeimage_Iex> $<${USE_FREEIMAGE}:freeimage_IexMath>
-                                                      $<${USE_FREEIMAGE}:freeimage_jpeg> $<${USE_FREEIMAGE}:freeimage_turbojpeg> $<${USE_FREEIMAGE}:freeimage_jpegxr> $<${USE_FREEIMAGE}:freeimage_jxrglue> $<${USE_FREEIMAGE}:freeimage_openjp2>
-                                                      $<${USE_FREEIMAGE}:freeimage_lzma>  $<${USE_FREEIMAGE}:freeimage_lcms2>  $<${USE_FREEIMAGE}:freeimage_raw>
-                                                      $<${USE_FREEIMAGE}:freeimage_tiff>  $<${USE_FREEIMAGE}:freeimage_tiffxx>
-                                                      $<${USE_FREEIMAGE}:freeimage_jasper>  $<${USE_FREEIMAGE}:freeimage_libpng>  $<${USE_FREEIMAGE}:freeimage_half>
-                                                      $<${USE_FREEIMAGE}:freeimage_webp> $<${USE_FREEIMAGE}:freeimage_webpdecoder>  $<${USE_FREEIMAGE}:freeimage_webpdemux>  $<${USE_FREEIMAGE}:freeimage_webpmux>
-                        $<${USE_PDFIUM}:pdfium> $<${USE_PDFIUM}:freetype> $<${USE_PDFIUM}:icu> $<${USE_PDFIUM}:lcms> $<${USE_PDFIUM}:turbojpeg> $<${USE_PDFIUM}:openjpeg>
+                        $<${USE_LIBRAW}:raw> $<${USE_LIBRAW}:${raw_deps}>
+                        $<${USE_FREEIMAGE}:freeimage> $<${USE_FREEIMAGE}:${freeimage_deps}>
+                        $<${USE_PDFIUM}:pdfium> $<${USE_PDFIUM}:${pdfium_deps}>
                         z
                         ${Mega_PlatformSpecificLibs})
 
