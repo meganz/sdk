@@ -12618,12 +12618,6 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 // for creation
 bool MegaClient::syncup(LocalNode* l, dstime* nds)
 {
-    if (!l->sync->getConfig().isUpSync())
-    {
-        LOG_debug << "sync type prevents syncup";
-        return false;
-    }
-
     bool insync = true;
 
     list<string> strings;
@@ -12761,6 +12755,11 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                         ll->sync->statecacheadd(ll);
                     }
                     ll->setnode(rit->second);
+
+                    if (!l->sync->getConfig().isUpSync())
+                    {
+                        continue;
+                    }
 
                     // check if file is likely to be identical
                     if (*ll == *(FileFingerprint*)rit->second)
@@ -12927,6 +12926,11 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                     continue;
                 }
             }
+        }
+
+        if (!l->sync->getConfig().isUpSync())
+        {
+            continue;
         }
 
         if (isSymLink)
