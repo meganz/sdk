@@ -8,6 +8,7 @@ set OVERLAYTRIPLETS=--overlay-triplets=%DIR%vcpkg_extra_triplets
 
 :GETOPTS
  if /I "%1" == "-h" ( goto Help ) ^
+ else (if /I "%1" == "-r" (set REMOVEBEFORE=true )^
  else (if /I "%1" == "-d" (set DEPS_FILE=%2 & shift )^
  else (if /I "%1" == "-p" (set PORTS_FILE=%2 & shift )^
  else (if /I "%1" == "-t" (set OVERLAYTRIPLETS=--overlay-triplets=%2 & shift )^
@@ -54,7 +55,11 @@ echo deps = %DEPS_FILE%
 echo overtri = %OVERLAYTRIPLETS%
 
 set what=%1%
+
+if "%REMOVEBEFORE%"=="true" (
 %VCPKG% remove %what% --triplet %TRIPLET% %OVERLAYPORTS% %OVERLAYTRIPLETS%
+)
+
 %VCPKG% install --triplet %TRIPLET% %what% %OVERLAYPORTS% %OVERLAYTRIPLETS%
 echo %errorlevel% %1% % % %%TRIPLET%% >> buildlog
 if %errorlevel% neq 0 (
@@ -96,5 +101,6 @@ exit /b 0
     echo  -d : path to file listing dependencies. By default %DIR%3rdparty_deps.txt. Comment out any libraries that you won't use.
     echo  -p : paths to ports file with dependencies/versions too look for. By default: %DIR%preferred-ports.txt
     echo  -t : overlay triplets path. By default %DIR%vcpkg_extra_triplets
+    echo  -r : remove before install
     echo.
 
