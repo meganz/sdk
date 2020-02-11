@@ -12229,12 +12229,6 @@ void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, list
 // returns false if any local fs op failed transiently
 bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 {
-    if (!l->sync->getConfig().isDownSync())
-    {
-        LOG_debug << "sync type prevents syncdown";
-        return true;
-    }
-
     // only use for LocalNodes with a corresponding and properly linked Node
     if (l->type != FOLDERNODE || !l->node || (l->parent && l->node->parent->localnode != l->parent))
     {
@@ -12320,6 +12314,12 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                 }
 
                 ll->setnode(rit->second);
+
+                if (!l->sync->getConfig().isDownSync())
+                {
+                    lit++;
+                    continue;
+                }
 
                 bool overwriteLocalnode = true;
 
@@ -12439,6 +12439,11 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
         }
 
         localpath->resize(t);
+    }
+
+    if (!l->sync->getConfig().isDownSync())
+    {
+        return true;
     }
 
     // create/move missing local folders / FolderNodes, initiate downloads of
