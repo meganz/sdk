@@ -3135,7 +3135,7 @@ TEST(Sync, OneWay_Upload_syncDelTrue_overwriteFalse_2)
      * - Wait for upload
      * - Edit file via ref
      * - Remove local file
-     * - Assert: New remote file still there
+     * - Assert: Remote file gone
      */
     const OneWayFixture fx{SyncConfig::TYPE_UP, true, false};
 
@@ -3154,17 +3154,10 @@ TEST(Sync, OneWay_Upload_syncDelTrue_overwriteFalse_2)
     fx.wait();
     // foo is not deleted on the remote
 
-    Model localModel;
+    Model model;
 
-    Model remoteModel;
-    auto remoteFooNodeOld = remoteModel.makeModelSubfile("foo");
-    auto remoteFooNode = remoteModel.makeModelSubfile("foo", "fooblah");
-    remoteFooNode->addkid(std::move(remoteFooNodeOld));
-    remoteModel.root->addkid(std::move(remoteFooNode));
-
-    ASSERT_TRUE(fx.checkRef(remoteModel));
-    ASSERT_TRUE(fx.checkOneWay(remoteModel, StandardClient::CONFIRM_REMOTE));
-    ASSERT_TRUE(fx.checkOneWay(localModel, StandardClient::CONFIRM_LOCAL));
+    ASSERT_TRUE(fx.checkRef(model));
+    ASSERT_TRUE(fx.checkOneWay(model));
 }
 
 TEST(Sync, OneWay_Upload_syncDelTrue_overwriteFalse_3)
@@ -3225,7 +3218,7 @@ TEST(Sync, OneWay_Upload_syncDelTrue_overwriteFalse_4)
      * - Edit file via ref
      * - Remove local file
      * - Create new local foo
-     * - Assert: Remote has 3 foo versions (local new foo is most recent)
+     * - Assert: New foo is uploaded
      */
     const OneWayFixture fx{SyncConfig::TYPE_UP, true, false};
 
@@ -3249,20 +3242,11 @@ TEST(Sync, OneWay_Upload_syncDelTrue_overwriteFalse_4)
     fx.wait();
     // new foo is now uploaded
 
-    Model localModel;
-    localModel.root->addkid(localModel.makeModelSubfile("foo", "halb"));
+    Model model;
+    model.root->addkid(model.makeModelSubfile("foo", "halb"));
 
-    Model remoteModel;
-    auto remoteFooNodeOldOld = remoteModel.makeModelSubfile("foo");
-    auto remoteFooNodeOld = remoteModel.makeModelSubfile("foo", "blah");
-    auto remoteFooNode = remoteModel.makeModelSubfile("foo", "halb");
-    remoteFooNodeOld->addkid(std::move(remoteFooNodeOldOld));
-    remoteFooNode->addkid(std::move(remoteFooNodeOld));
-    remoteModel.root->addkid(std::move(remoteFooNode));
-
-    ASSERT_TRUE(fx.checkRef(remoteModel));
-    ASSERT_TRUE(fx.checkOneWay(remoteModel, StandardClient::CONFIRM_REMOTE));
-    ASSERT_TRUE(fx.checkOneWay(localModel, StandardClient::CONFIRM_LOCAL));
+    ASSERT_TRUE(fx.checkRef(model));
+    ASSERT_TRUE(fx.checkOneWay(model));
 }
 
 TEST(Sync, OneWay_Upload_syncDelFalse_overwriteTrue_1)
