@@ -2790,7 +2790,7 @@ autocomplete::ACN autocompleteSyntax()
 #endif
     p->Add(exec_smsverify, sequence(text("smsverify"), either(sequence(text("send"), param("phonenumber"), opt(param("reverifywhitelisted"))), sequence(text("code"), param("verificationcode")))));
     p->Add(exec_verifiedphonenumber, sequence(text("verifiedphone")));
-    p->Add(exec_mkdir, sequence(text("mkdir"), opt(flag("-allowduplicate")), remoteFSFolder(client, &cwd)));
+    p->Add(exec_mkdir, sequence(text("mkdir"), opt(flag("-allowduplicate")), opt(flag("-exactleafname")), remoteFSFolder(client, &cwd)));
     p->Add(exec_rm, sequence(text("rm"), remoteFSPath(client, &cwd), opt(sequence(flag("-regexchild"), param("regex")))));
     p->Add(exec_mv, sequence(text("mv"), remoteFSPath(client, &cwd, "src"), remoteFSPath(client, &cwd, "dst")));
     p->Add(exec_cp, sequence(text("cp"), remoteFSPath(client, &cwd, "src"), either(remoteFSPath(client, &cwd, "dst"), param("dstemail"))));
@@ -4498,12 +4498,24 @@ void exec_users(autocomplete::ACState& s)
 void exec_mkdir(autocomplete::ACState& s)
 {
     bool allowDuplicate = s.extractflag("-allowduplicate");
+    bool exactLeafName = s.extractflag("-exactleafname");
 
     if (s.words.size() > 1)
     {
         string newname;
 
-        if (Node* n = nodebypath(s.words[1].s.c_str(), NULL, &newname))
+        Node* n;
+        if (exactLeafName) 
+        {
+            n = client->nodebyhandle(cwd);
+            newname = s.words[1].s;
+        }
+        else 
+        {
+            n = nodebypath(s.words[1].s.c_str(), NULL, &newname);
+        }
+        
+        if (n)
         {
             if (!client->checkaccess(n, RDWR))
             {
