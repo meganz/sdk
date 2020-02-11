@@ -101,7 +101,6 @@ struct MEGA_API HttpReqCommandPutFA : public HttpReq, public Command
 {
     handle th;    // if th is UNDEF, just report the handle back to the client app rather than attaching to a node
     fatype type;
-    string* data;
     m_off_t progressreported;
 
     void procresult();
@@ -109,8 +108,10 @@ struct MEGA_API HttpReqCommandPutFA : public HttpReq, public Command
     // progress information
     virtual m_off_t transferred(MegaClient*);
 
-    HttpReqCommandPutFA(MegaClient*, handle, fatype, string*, bool);
-    ~HttpReqCommandPutFA();
+    HttpReqCommandPutFA(MegaClient*, handle, fatype, std::unique_ptr<string> faData, bool);
+
+private:
+    std::unique_ptr<string> data;
 };
 
 class MEGA_API CommandGetFA : public Command
@@ -285,7 +286,7 @@ class MEGA_API CommandPutUA : public Command
     string av;  // attribute value
 
 public:
-    CommandPutUA(MegaClient*, attr_t at, const byte*, unsigned, int);
+    CommandPutUA(MegaClient*, attr_t at, const byte*, unsigned, int, handle = UNDEF, int = 0, int64_t = 0);
 
     void procresult();
 };

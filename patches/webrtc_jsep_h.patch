@@ -13,7 +13,7 @@
 +  void OnFailure(const std::string& error) {
 +    OnFailure(RTCError(RTCErrorType::INTERNAL_ERROR, std::string(error)));
 +  }
- 
+
   protected:
    ~CreateSessionDescriptionObserver() override = default;
 @@ -233,9 +238,14 @@

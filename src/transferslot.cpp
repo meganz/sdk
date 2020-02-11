@@ -68,8 +68,6 @@ const dstime TransferSlot::PROGRESSTIMEOUT = 10;
     const m_off_t TransferSlot::MAX_REQ_SIZE = 4194304; // 4 MB
 #endif
 
-const m_off_t TransferSlot::MAX_UPLOAD_GAP = 62914560; // 60 MB (up to 63 chunks)
-
 TransferSlot::TransferSlot(Transfer* ctransfer)
     : fa(ctransfer->client->fsaccess->newfileaccess(), ctransfer)
     , retrybt(ctransfer->client->rng, ctransfer->client->transferSlotsBackoff)
@@ -79,7 +77,6 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
     progressreported = 0;
     speed = meanSpeed = 0;
     progresscontiguous = 0;
-    delayedchunk = false;
 
     lastdata = Waiter::ds;
     errorcount = 0;
@@ -489,6 +486,13 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                             reqs[i]->status = REQ_READY;
                         }
                     }
+
+                    if (reqs[i]->lastdata > lastdata)
+                    {
+                        // prevent overall timeout if all channels are busy with big chunks for a while
+                        lastdata = reqs[i]->lastdata;
+                    }
+
                     break;
 
                 case REQ_SUCCESS:
@@ -545,14 +549,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                                     errorcount = 0;
                                     transfer->failcount = 0;
 
-                                    m_off_t startpos = reqs[i]->pos;
-                                    m_off_t finalpos = startpos + reqs[i]->size;
-                                    while (startpos < finalpos)
-                                    {
-                                        transfer->chunkmacs[startpos].finished = true;
-                                        LOG_verbose << "Upload chunk completed: " << startpos;
-                                        startpos = ChunkedHash::chunkceil(startpos, finalpos);
-                                    }
+                                    transfer->chunkmacs.finishedUploadChunks(reqs[i]->pos, reqs[i]->size);
 
                                     updatecontiguousprogress();
 
@@ -617,14 +614,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                             return transfer->failed(e, committer);
                         }
 
-                        m_off_t startpos = reqs[i]->pos;
-                        m_off_t finalpos = startpos + reqs[i]->size;
-                        while (startpos < finalpos)
-                        {
-                            transfer->chunkmacs[startpos].finished = true;
-                            LOG_verbose << "Upload chunk completed: " << startpos;
-                            startpos = ChunkedHash::chunkceil(startpos, finalpos);
-                        }
+                        transfer->chunkmacs.finishedUploadChunks(reqs[i]->pos, reqs[i]->size);
                         transfer->progresscompleted += reqs[i]->size;
 
                         updatecontiguousprogress();
@@ -1080,7 +1070,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
 
     if (Waiter::ds - lastdata >= XFERTIMEOUT && !failure)
     {
-        LOG_warn << "Failed chunk due to a timeout";
+        LOG_warn << "Failed chunk(s) due to a timeout: no data moved for " << (XFERTIMEOUT/10) << " seconds" ;
         failure = true;
         bool changeport = false;
 
