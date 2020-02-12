@@ -202,8 +202,8 @@ Node::~Node()
     // sync: remove reference from local filesystem node
     if (localnode)
     {
-        localnode->reactToNodeChange(true);
         localnode->node = NULL;
+        localnode->reactToNodeChange(true);
     }
 
     // in case this node is currently being transferred for syncing: abort transfer
