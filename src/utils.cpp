@@ -1710,7 +1710,7 @@ string escapewebdavchar(const char c)
     {
         escapesec[33] = "&#33;"; // !  //For some reason &Exclamation; was not properly handled (crashed) by gvfsd-dav
         escapesec[34] = "&quot;"; // "
-        escapesec[37] = "&percent;"; // %
+        escapesec[37] = "&percnt;"; // %
         escapesec[38] = "&amp;"; // &
         escapesec[39] = "&apos;"; // '
         escapesec[43] = "&add;"; // +
