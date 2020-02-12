@@ -118,28 +118,41 @@ int responseprogress = -1;
 int attempts = 0;
 
 #ifdef ENABLE_SYNC
-// sync config used when creating a new sync
-static SyncConfig syncConfig;
 
-// converts the given sync config to a string
-static std::string syncConfigToString(const SyncConfig& config)
+struct NewSyncConfig
 {
-    auto getOptions = [](const SyncConfig& config)
+    SyncConfig::Type type;
+    bool syncDeletions;
+    bool forceOverwrite;
+
+    static NewSyncConfig from(const SyncConfig& config)
+    {
+        return NewSyncConfig{config.getType(), config.syncDeletions(), config.forceOverwrite()};
+    }
+};
+
+// sync configuration used when creating a new sync
+static NewSyncConfig newSyncConfig;
+
+// converts the given sync configuration to a string
+static std::string syncConfigToString(const NewSyncConfig& config)
+{
+    auto getOptions = [](const NewSyncConfig& config)
     {
         std::string desc;
         desc += ", syncDeletions ";
-        desc += config.syncDeletions() ? "ON" : "OFF";
+        desc += config.syncDeletions ? "ON" : "OFF";
         desc += ", forceOverwrite ";
-        desc += config.forceOverwrite() ? "ON" : "OFF";
+        desc += config.forceOverwrite ? "ON" : "OFF";
         return desc;
     };
 
     std::string description;
-    if (config.isUpSync() && config.isDownSync())
+    if (config.type == SyncConfig::TYPE_TWOWAY)
     {
         description = "TWOWAY";
     }
-    else if (config.isUpSync())
+    else if (config.type & SyncConfig::TYPE_UP)
     {
         description = "UP";
         description += getOptions(config);
@@ -152,9 +165,9 @@ static std::string syncConfigToString(const SyncConfig& config)
     return description;
 }
 
-// creates a SyncConfig object from config options as strings.
+// creates a NewSyncConfig object from config options as strings.
 // returns a pair where `first` is success and `second` is the sync config.
-static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::string syncDel = {}, std::string overwrite = {})
+static std::pair<bool, NewSyncConfig> syncConfigFromStrings(std::string type, std::string syncDel = {}, std::string overwrite = {})
 {
     auto toLower = [](std::string& s)
     {
@@ -176,17 +189,17 @@ static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::
     }
     else if (type == "twoway")
     {
-        syncType = SyncConfig::TYPE_DEFAULT;
+        syncType = SyncConfig::TYPE_TWOWAY;
     }
     else
     {
-        return std::make_pair(false, SyncConfig{});
+        return std::make_pair(false, NewSyncConfig{});
     }
 
     bool syncDeletions = false;
     bool forceOverwrite = false;
 
-    if (syncType != SyncConfig::TYPE_DEFAULT)
+    if (syncType != SyncConfig::TYPE_TWOWAY)
     {
         if (syncDel == "on")
         {
@@ -198,7 +211,7 @@ static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::
         }
         else
         {
-            return std::make_pair(false, SyncConfig{});
+            return std::make_pair(false, NewSyncConfig{});
         }
 
         if (overwrite == "on")
@@ -211,11 +224,11 @@ static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::
         }
         else
         {
-            return std::make_pair(false, SyncConfig{});
+            return std::make_pair(false, NewSyncConfig{});
         }
     }
 
-    return std::make_pair(true, SyncConfig{syncType, syncDeletions, forceOverwrite});
+    return std::make_pair(true, NewSyncConfig{syncType, syncDeletions, forceOverwrite});
 }
 #endif
 
@@ -4099,9 +4112,6 @@ void exec_sync(autocomplete::ACState& s)
 
         if (client->checkaccess(n, FULL))
         {
-            string localname;
-
-            client->fsaccess->path2local(&s.words[1].s, &localname);
 
             if (!n)
             {
@@ -4113,7 +4123,9 @@ void exec_sync(autocomplete::ACState& s)
             }
             else
             {
-                error e = client->addsync(syncConfig, &localname, DEBRISFOLDER, NULL, n);
+                SyncConfig syncConfig{s.words[1].s, n->nodehandle, 0, {}, newSyncConfig.type,
+                            newSyncConfig.syncDeletions, newSyncConfig.forceOverwrite};
+                error e = client->addsync(std::move(syncConfig), DEBRISFOLDER, NULL);
 
                 if (e)
                 {
@@ -4160,7 +4172,7 @@ void exec_sync(autocomplete::ACState& s)
                         nodepath((*it)->localroot->node->nodehandle, &remotepath);
                         client->fsaccess->local2path(&(*it)->localroot->localname, &localpath);
 
-                        cout << i++ << " (" << syncConfigToString((*it)->getConfig()) << "): " << localpath << " to " << remotepath << " - "
+                        cout << i++ << " (" << syncConfigToString(NewSyncConfig::from((*it)->getConfig())) << "): " << localpath << " to " << remotepath << " - "
                                 << syncstatenames[(*it)->state] << ", " << (*it)->localbytes
                                 << " byte(s) in " << (*it)->localnodes[FILENODE] << " file(s) and "
                                 << (*it)->localnodes[FOLDERNODE] << " folder(s)" << endl;
@@ -4179,11 +4191,11 @@ void exec_syncconfig(autocomplete::ACState& s)
 {
     if (s.words.size() == 1)
     {
-        cout << "Current sync config: " << syncConfigToString(syncConfig) << endl;
+        cout << "Current sync config: " << syncConfigToString(newSyncConfig) << endl;
     }
     else if (s.words.size() == 2 || s.words.size() == 4)
     {
-        std::pair<bool, SyncConfig> pair;
+        std::pair<bool, NewSyncConfig> pair;
         if (s.words.size() == 2)
         {
             pair = syncConfigFromStrings(s.words[1].s);
@@ -4195,7 +4207,7 @@ void exec_syncconfig(autocomplete::ACState& s)
 
         if (pair.first)
         {
-            syncConfig = pair.second;
+            newSyncConfig = pair.second;
             cout << "Successfully applied new sync config!" << endl;
         }
         else

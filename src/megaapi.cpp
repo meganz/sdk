@@ -2443,7 +2443,12 @@ void MegaApi::disableExport(MegaNode *node, MegaRequestListener *listener)
 
 void MegaApi::fetchNodes(MegaRequestListener *listener)
 {
-    pImpl->fetchNodes(listener);
+    pImpl->fetchNodes(false, listener);
+}
+
+void MegaApi::fetchNodesAndResumeSyncs(MegaRequestListener *listener)
+{
+    pImpl->fetchNodes(true, listener);
 }
 
 void MegaApi::getCloudStorageUsed(MegaRequestListener *listener)
@@ -3084,12 +3089,12 @@ MegaNode *MegaApi::getSyncedNode(string *path)
 
 void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener *listener)
 {
-    pImpl->syncFolder(localFolder, megaFolder, NULL, listener);
+    pImpl->syncFolder(localFolder, megaFolder, NULL, 0, listener);
 }
 
 void MegaApi::resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRequestListener *listener)
 {
-    pImpl->resumeSync(localFolder, localfp, megaFolder, NULL, listener);
+    pImpl->syncFolder(localFolder, megaFolder, NULL, localfp, listener);
 }
 
 #ifdef USE_PCRE

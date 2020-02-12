@@ -664,7 +664,7 @@ namespace CodeCounter
 }
 
 // Holds the config of a sync. Can be extended with future config options
-class SyncConfig
+class SyncConfig : public Cacheable
 {
 public:
 
@@ -672,65 +672,111 @@ public:
     {
         TYPE_UP = 0x01, // sync up from local to remote
         TYPE_DOWN = 0x02, // sync down from remote to local
-        TYPE_DEFAULT = TYPE_UP | TYPE_DOWN, // Two-way sync
+        TYPE_TWOWAY = TYPE_UP | TYPE_DOWN, // Two-way sync
     };
 
-    SyncConfig() = default;
+    SyncConfig(std::string localPath,
+               const handle remoteNode,
+               const fsfp_t localFingerprint,
+               std::vector<std::string> regExps = {},
+               const Type syncType = TYPE_TWOWAY,
+               const bool syncDeletions = false,
+               const bool forceOverwrite = false);
 
-    SyncConfig(const Type syncType, const bool syncDeletions, const bool forceOverwrite)
-        : mSyncType{syncType}
-        , mSyncDeletions{syncDeletions}
-        , mForceOverwrite{forceOverwrite}
-    {}
+    // whether this sync is resumable
+    bool isResumable() const;
+
+    // sets whether this sync is resumable
+    void setResumable(bool active);
+
+    // returns the local path of the sync
+    const std::string& getLocalPath() const;
+
+    // returns the remote path of the sync
+    handle getRemoteNode() const;
+
+    // returns the local fingerprint
+    fsfp_t getLocalFingerprint() const;
+
+    // sets the local fingerprint
+    void setLocalFingerprint(fsfp_t fingerprint);
+
+    // returns the regular expressions
+    const std::vector<std::string>& getRegExps() const;
+
+    // returns the type of the sync
+    Type getType() const;
 
     // whether this is an up-sync from local to remote
-    bool isUpSync() const
-    {
-        return mSyncType & TYPE_UP;
-    }
+    bool isUpSync() const;
 
     // whether this is a down-sync from remote to local
-    bool isDownSync() const
-    {
-        return mSyncType & TYPE_DOWN;
-    }
+    bool isDownSync() const;
 
     // whether deletions are synced
-    bool syncDeletions() const
-    {
-        switch (mSyncType)
-        {
-            case TYPE_UP: return mSyncDeletions;
-            case TYPE_DOWN: return mSyncDeletions;
-            case TYPE_DEFAULT: return true;
-        }
-        assert(false);
-        return true;
-    }
+    bool syncDeletions() const;
 
     // whether changes are overwritten irregardless of file properties
-    bool forceOverwrite() const
-    {
-        switch (mSyncType)
-        {
-            case TYPE_UP: return mForceOverwrite;
-            case TYPE_DOWN: return mForceOverwrite;
-            case TYPE_DEFAULT: return false;
-        }
-        assert(false);
-        return false;
-    }
+    bool forceOverwrite() const;
+
+    // serializes the object to a string
+    bool serialize(string* data) override;
+
+    // deserializes the string to a SyncConfig object. Returns null in case of failure
+    static std::unique_ptr<SyncConfig> unserialize(const std::string& data);
 
 private:
+    friend bool operator==(const SyncConfig& lhs, const SyncConfig& rhs);
+
+    // Whether the sync is resumable
+    bool mResumable = true;
+
+    // the local path of the sync
+    std::string mLocalPath;
+
+    // the remote handle of the sync
+    handle mRemoteNode;
+
+    // the local fingerprint
+    fsfp_t mLocalFingerprint;
+
+    // list of regular expressions
+    std::vector<std::string> mRegExps;
+
     // type of the sync, defaults to bidirectional
-    Type mSyncType = TYPE_DEFAULT;
+    Type mSyncType;
 
     // whether deletions are synced (only relevant for one-way-sync)
-    bool mSyncDeletions = false;
+    bool mSyncDeletions;
 
     // whether changes are overwritten irregardless of file properties (only relevant for one-way-sync)
-    bool mForceOverwrite = false;
+    bool mForceOverwrite;
+
+    // need this to ensure serialization doesn't mutate state (Cacheable::serialize is non-const)
+    bool serialize(std::string& data) const;
+
+    // this is very handy for defining comparison operators
+    std::tuple<const bool&,
+               const std::string&,
+               const handle&,
+               const fsfp_t&,
+               const std::vector<std::string>&,
+               const Type&,
+               const bool&,
+               const bool&> tie() const
+    {
+        return std::tie(mResumable,
+                        mLocalPath,
+                        mRemoteNode,
+                        mLocalFingerprint,
+                        mRegExps,
+                        mSyncType,
+                        mSyncDeletions,
+                        mForceOverwrite);
+    }
 };
+
+bool operator==(const SyncConfig& lhs, const SyncConfig& rhs);
 
 } // namespace
 

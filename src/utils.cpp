@@ -94,6 +94,11 @@ void CacheableWriter::serializehandle(handle field)
     dest.append((char*)&field, sizeof(field));
 }
 
+void CacheableWriter::serializefsfp(fsfp_t field)
+{
+    dest.append((char*)&field, sizeof(field));
+}
+
 void CacheableWriter::serializebool(bool field)
 {
     dest.append((char*)&field, sizeof(field));
@@ -346,6 +351,18 @@ bool CacheableReader::unserializehandle(handle& field)
     }
     field = MemAccess::get<handle>(ptr);
     ptr += sizeof(handle);
+    fieldnum += 1;
+    return true;
+}
+
+bool CacheableReader::unserializefsfp(fsfp_t& field)
+{
+    if (ptr + sizeof(fsfp_t) > end)
+    {
+        return false;
+    }
+    field = MemAccess::get<fsfp_t>(ptr);
+    ptr += sizeof(fsfp_t);
     fieldnum += 1;
     return true;
 }
@@ -2038,21 +2055,187 @@ void NodeCounter::operator -= (const NodeCounter& o)
     versions -= o.versions;
 }
 
+SyncConfig::SyncConfig(std::string localPath,
+                       const handle remoteNode,
+                       const fsfp_t localFingerprint,
+                       std::vector<std::string> regExps,
+                       const Type syncType,
+                       const bool syncDeletions,
+                       const bool forceOverwrite)
+    : mLocalPath{std::move(localPath)}
+    , mRemoteNode{remoteNode}
+    , mLocalFingerprint{localFingerprint}
+    , mRegExps{std::move(regExps)}
+    , mSyncType{syncType}
+    , mSyncDeletions{syncDeletions}
+    , mForceOverwrite{forceOverwrite}
+{}
+
+bool SyncConfig::isResumable() const
+{
+    return mResumable;
+}
+
+void SyncConfig::setResumable(bool resumable)
+{
+    mResumable = resumable;
+}
+
+const std::string& SyncConfig::getLocalPath() const
+{
+    return mLocalPath;
+}
+
+handle SyncConfig::getRemoteNode() const
+{
+    return mRemoteNode;
+}
+
+handle SyncConfig::getLocalFingerprint() const
+{
+    return mLocalFingerprint;
+}
+
+void SyncConfig::setLocalFingerprint(fsfp_t fingerprint)
+{
+    mLocalFingerprint = fingerprint;
+}
+
+const std::vector<std::string>& SyncConfig::getRegExps() const
+{
+    return mRegExps;
+}
+
+SyncConfig::Type SyncConfig::getType() const
+{
+    return mSyncType;
+}
+
+bool SyncConfig::isUpSync() const
+{
+    return mSyncType & TYPE_UP;
+}
+
+bool SyncConfig::isDownSync() const
+{
+    return mSyncType & TYPE_DOWN;
+}
+
+bool SyncConfig::syncDeletions() const
+{
+    switch (mSyncType)
+    {
+        case TYPE_UP: return mSyncDeletions;
+        case TYPE_DOWN: return mSyncDeletions;
+        case TYPE_TWOWAY: return true;
+    }
+    assert(false);
+    return true;
+}
+
+bool SyncConfig::forceOverwrite() const
+{
+    switch (mSyncType)
+    {
+        case TYPE_UP: return mForceOverwrite;
+        case TYPE_DOWN: return mForceOverwrite;
+        case TYPE_TWOWAY: return false;
+    }
+    assert(false);
+    return false;
+}
+
+// This should be a const-method but can't be due to the broken Cacheable interface.
+// Do not mutate members in this function! Hence, we forward to a private const-method.
+bool SyncConfig::serialize(std::string* data)
+{
+    return const_cast<const SyncConfig*>(this)->serialize(*data);
+}
+
+std::unique_ptr<SyncConfig> SyncConfig::unserialize(const std::string& data)
+{
+    bool resumable;
+    std::string localPath;
+    handle remoteNode;
+    fsfp_t fingerprint;
+    uint32_t regExpCount;
+    std::vector<std::string> regExps;
+    uint32_t syncType;
+    bool syncDeletions;
+    bool forceOverwrite;
+
+    CacheableReader reader{data};
+    if (!reader.unserializebool(resumable))
+    {
+        return {};
+    }
+    if (!reader.unserializestring(localPath))
+    {
+        return {};
+    }
+    if (!reader.unserializehandle(remoteNode))
+    {
+        return {};
+    }
+    if (!reader.unserializefsfp(fingerprint))
+    {
+        return {};
+    }
+    if (!reader.unserializeu32(regExpCount))
+    {
+        return {};
+    }
+    for (uint32_t i = 0; i < regExpCount; ++i)
+    {
+        std::string regExp;
+        if (!reader.unserializestring(regExp))
+        {
+            return {};
+        }
+        regExps.push_back(std::move(regExp));
+    }
+    if (!reader.unserializeu32(syncType))
+    {
+        return {};
+    }
+    if (!reader.unserializebool(syncDeletions))
+    {
+        return {};
+    }
+    if (!reader.unserializebool(forceOverwrite))
+    {
+        return {};
+    }
+
+    auto syncConfig = std::unique_ptr<SyncConfig>{new SyncConfig{std::move(localPath),
+                    remoteNode, fingerprint, std::move(regExps),
+                    static_cast<Type>(syncType), syncDeletions, forceOverwrite}};
+    syncConfig->setResumable(resumable);
+    return syncConfig;
+}
+
+bool SyncConfig::serialize(std::string& data) const
+{
+    CacheableWriter writer{data};
+    writer.serializebool(mResumable);
+    writer.serializestring(mLocalPath);
+    writer.serializehandle(mRemoteNode);
+    writer.serializefsfp(mLocalFingerprint);
+    writer.serializeu32(static_cast<uint32_t>(mRegExps.size()));
+    for (const auto& regExp : mRegExps)
+    {
+        writer.serializestring(regExp);
+    }
+    writer.serializeu32(static_cast<uint32_t>(mSyncType));
+    writer.serializebool(mSyncDeletions);
+    writer.serializebool(mForceOverwrite);
+    writer.serializeexpansionflags();
+    return true;
+}
+
+bool operator==(const SyncConfig& lhs, const SyncConfig& rhs)
+{
+    return lhs.tie() == rhs.tie();
+}
+
 } // namespace
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -805,9 +805,8 @@ struct StandardClient : public MegaApp
         {
             if (Node* m = drillchildnodebyname(n, subfoldername))
             {
-                string local, orig = localpath.u8string();
-                client.fsaccess->path2local(&orig, &local);
-                error e = client.addsync(SyncConfig{}, &local, DEBRISFOLDER, NULL, m, 0, syncid);  // use syncid as tag
+                SyncConfig syncConfig{localpath.u8string(), m->nodehandle, 0};
+                error e = client.addsync(std::move(syncConfig), DEBRISFOLDER, NULL, syncid);  // use syncid as tag
                 if (!e)
                 {
                     syncSet[syncid] = SyncInfo{ m->nodehandle, localpath };

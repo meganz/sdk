@@ -69,6 +69,25 @@
 
 #include "mega/mega_zxcvbn.h"
 
+namespace {
+
+#ifdef ENABLE_SYNC
+std::vector<std::string> regExpToVector(mega::MegaRegExp* regExp)
+{
+    std::vector<std::string> regExps;
+    if (regExp)
+    {
+        for (int i = 0; i < regExp->getNumRegExp(); ++i)
+        {
+            regExps.push_back(regExp->getRegExp(i));
+        }
+    }
+    return regExps;
+}
+#endif
+
+}
+
 namespace mega {
 
 MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime, uint64_t nodehandle,
@@ -6682,9 +6701,10 @@ void MegaApiImpl::disableExport(MegaNode *node, MegaRequestListener *listener)
     waiter->notify();
 }
 
-void MegaApiImpl::fetchNodes(MegaRequestListener *listener)
+void MegaApiImpl::fetchNodes(bool resumeSyncs, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_NODES, listener);
+    request->setNumber(resumeSyncs);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -8316,7 +8336,7 @@ MegaNode *MegaApiImpl::getSyncedNode(string *path)
     return node;
 }
 
-void MegaApiImpl::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
+void MegaApiImpl::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp, long long localfp, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC);
     if(megaFolder) request->setNodeHandle(megaFolder->getHandle());
@@ -8332,80 +8352,9 @@ void MegaApiImpl::syncFolder(const char *localFolder, MegaNode *megaFolder, Mega
 
     request->setListener(listener);
     request->setRegExp(regExp);
+    request->setNumber(localfp);
     requestQueue.push(request);
     waiter->notify();
-}
-
-void MegaApiImpl::resumeSync(const char *localFolder, long long localfp, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
-{
-    sdkMutex.lock();
-
-#ifdef __APPLE__
-    localfp = 0;
-#endif
-
-    LOG_debug << "Resume sync";
-
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC);
-    request->setListener(listener);
-    request->setRegExp(regExp);
-
-    if (megaFolder)
-    {
-        request->setNodeHandle(megaFolder->getHandle());
-    }
-
-    if (localFolder)
-    {
-        string path(localFolder);
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
-        if(!PathIsRelativeA(path.c_str()) && ((path.size()<2) || path.compare(0, 2, "\\\\")))
-            path.insert(0, "\\\\?\\");
-#endif
-        request->setFile(path.data());
-    }
-    request->setNumber(localfp);
-
-    int nextTag = client->nextreqtag();
-    request->setTag(nextTag);
-    requestMap[nextTag]=request;
-    error e = API_OK;
-    fireOnRequestStart(request);
-
-    const char *localPath = request->getFile();
-    Node *node = client->nodebyhandle(request->getNodeHandle());
-    if(!node || (node->type==FILENODE) || !localPath)
-    {
-        e = API_EARGS;
-    }
-    else
-    {
-        string utf8name(localPath);
-        string localname;
-        client->fsaccess->path2local(&utf8name, &localname);
-
-        MegaSyncPrivate *sync = new MegaSyncPrivate(utf8name.c_str(), node->nodehandle, -nextTag);
-        sync->setListener(request->getSyncListener());
-        sync->setLocalFingerprint(localfp);
-        sync->setRegExp(regExp);
-
-        e = client->addsync(SyncConfig{}, &localname, DEBRISFOLDER, NULL, node, localfp, -nextTag, sync);
-        if (!e)
-        {
-            Sync *s = client->syncs.back();
-            fsfp_t fsfp = s->fsfp;
-            sync->setState(s->state);
-            request->setNumber(fsfp);
-            syncMap[-nextTag] = sync;
-        }
-        else
-        {
-            delete sync;
-        }
-    }
-
-    fireOnRequestFinish(request, MegaError(e));
-    sdkMutex.unlock();
 }
 
 void MegaApiImpl::removeSync(handle nodehandle, MegaRequestListener* listener)
@@ -12858,6 +12807,29 @@ bool MegaApiImpl::sync_syncable(Sync *sync, const char *name, string *localpath)
     bool result = is_syncable(sync, name, localpath);
     sdkMutex.lock();
     return result;
+}
+
+void MegaApiImpl::sync_auto_resumed(const string& localPath, const handle remoteNode, const long long localFp, const std::vector<std::string>& regExp)
+{
+    const int nextTag = client->nextreqtag();
+
+    MegaSyncPrivate *sync = new MegaSyncPrivate(localPath.c_str(), remoteNode, -nextTag);
+    sync->setLocalFingerprint(localFp);
+
+    if (!regExp.empty())
+    {
+        auto re = make_unique<MegaRegExp>();
+        for (const auto& v : regExp)
+        {
+            re->addRegExp(v.c_str());
+        }
+        sync->setRegExp(re.get());
+    }
+
+    Sync *s = client->syncs.back();
+    s->appData = sync;
+    sync->setState(s->state);
+    syncMap[-nextTag] = sync;
 }
 
 void MegaApiImpl::syncupdate_local_lockretry(bool waiting)
@@ -19003,6 +18975,15 @@ void MegaApiImpl::sendPendingRequests()
                 nocache = false;
             }
 
+            const bool resumeSyncs = request->getNumber();
+            if (!resumeSyncs && client->syncConfigs)
+            {
+                for (auto config : client->syncConfigs->all())
+                {
+                    config.setResumable(false);
+                    client->syncConfigs->insert(config);
+                }
+            }
             client->fetchnodes();
             break;
         }
@@ -20573,15 +20554,14 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            string utf8name(localPath);
-            string localname;
-            client->fsaccess->path2local(&utf8name, &localname);
-
-            MegaSyncPrivate *sync = new MegaSyncPrivate(utf8name.c_str(), node->nodehandle, -nextTag);
+            MegaSyncPrivate *sync = new MegaSyncPrivate(localPath, node->nodehandle, -nextTag);
             sync->setListener(request->getSyncListener());
             sync->setRegExp(request->getRegExp());
 
-            e = client->addsync(SyncConfig{}, &localname, DEBRISFOLDER, NULL, node, 0, -nextTag, sync);
+            SyncConfig syncConfig{localPath, request->getNodeHandle(), 
+                                  static_cast<fsfp_t>(request->getNumber()), 
+                                  regExpToVector(request->getRegExp())};
+            e = client->addsync(std::move(syncConfig), DEBRISFOLDER, NULL, -nextTag, sync);
             if (!e)
             {
                 Sync *s = client->syncs.back();
