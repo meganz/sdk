@@ -1444,7 +1444,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
                     : (!memcmp(req->posturl.data(), MegaClient::CHATSTATSURL.data(), MegaClient::CHATSTATSURL.size())
                        || !memcmp(req->posturl.data(), MegaClient::GELBURL.data(), MegaClient::GELBURL.size()))
                                  ? "sha256//a1vEOQRTsb7jMsyAhr4X/6YSF774gWlht8JQZ58DHlQ="  //CHAT
-                                 : "") ==  CURLE_OK)
+                                 : nullptr) ==  CURLE_OK)
             {
                 curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
                 if (httpio->pkpErrors)

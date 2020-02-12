@@ -1,5 +1,5 @@
 /**
- * (c) 2019 by Mega Limited, Wellsford, New Zealand
+ * (c) 2020 by Mega Limited, Wellsford, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -27,12 +27,7 @@ namespace mt {
 class DefaultedDbTable : public mega::DbTable
 {
 public:
-    DefaultedDbTable()
-    : mega::DbTable{mPrn, false}
-    {}
-
-    mega::PrnGen mPrn;
-
+    using mega::DbTable::DbTable;
     void rewind() override
     {
         throw NotImplemented{__func__};

@@ -295,11 +295,31 @@ TEST(Serialization, CacheableReader_32bit)
     ASSERT_EQ(readstring, "abc");
 }
 
+TEST(Serialization, CacheableReaderWriter_fsfp_t)
+{
+    std::string data;
+    {
+        mega::CacheableWriter writer{data};
+        writer.serializefsfp(42);
+    }
+    mega::CacheableReader reader{data};
+    fsfp_t fsfp;
+    ASSERT_TRUE(reader.unserializefsfp(fsfp));
+    ASSERT_EQ(1, reader.fieldnum);
+    ASSERT_EQ(reader.ptr, data.c_str() + data.size());
+    ASSERT_EQ(42, fsfp);
+}
+
 namespace {
 
 struct MockFileSystemAccess : mt::DefaultedFileSystemAccess
 {
     void local2path(std::string* local, std::string* path) const override
+    {
+        *path = *local;
+    }
+
+    void path2local(std::string* local, std::string* path) const override
     {
         *path = *local;
     }

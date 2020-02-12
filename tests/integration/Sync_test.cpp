@@ -839,9 +839,7 @@ struct StandardClient : public MegaApp
         {
             if (Node* m = drillchildnodebyname(n, subfoldername))
             {
-                string local, orig = localpath.u8string();
-                client.fsaccess->path2local(&orig, &local);
-                error e = client.addsync(config, &local, DEBRISFOLDER, NULL, m, 0, syncid);  // use syncid as tag
+                error e = client.addsync(std::move(config), DEBRISFOLDER, NULL, syncid);  // use syncid as tag
                 if (!e)
                 {
                     syncSet[syncid] = SyncInfo{ m->nodehandle, localpath };
@@ -1436,7 +1434,8 @@ struct StandardClient : public MegaApp
 
     bool login_fetchnodes_resumesync(const string& session, const string& localsyncpath, const std::string& remotesyncrootfolder, int syncid)
     {
-        return login_fetchnodes_resumesync(SyncConfig{}, session, localsyncpath, remotesyncrootfolder, syncid);
+        SyncConfig config{localsyncpath, drillchildnodebyname(gettestbasenode(), remotesyncrootfolder)->nodehandle, 0};
+        return login_fetchnodes_resumesync(std::move(config), session, localsyncpath, remotesyncrootfolder, syncid);
     }
 
     bool login_fetchnodes_resumesync(SyncConfig config, const string& session, const string& localsyncpath, const std::string& remotesyncrootfolder, int syncid)
@@ -1462,7 +1461,8 @@ struct StandardClient : public MegaApp
 
     bool setupSync_mainthread(const std::string& localsyncrootfolder, const std::string& remotesyncrootfolder, int syncid)
     {
-        return setupSync_mainthread(SyncConfig{}, localsyncrootfolder, remotesyncrootfolder, syncid);
+        SyncConfig config{(fsBasePath / fs::u8path(localsyncrootfolder)).u8string(), drillchildnodebyname(gettestbasenode(), remotesyncrootfolder)->nodehandle, 0};
+        return setupSync_mainthread(std::move(config), localsyncrootfolder, remotesyncrootfolder, syncid);
     }
 
     bool setupSync_mainthread(SyncConfig config, const std::string& localsyncrootfolder, const std::string& remotesyncrootfolder, int syncid)
@@ -2832,7 +2832,6 @@ class OneWayFixture
 {
 public:
     OneWayFixture(const SyncConfig::Type type, const bool syncDel, const bool overwrite)
-    : mConfig{type, syncDel, overwrite}
     {
         assert(type != SyncConfig::TYPE_TWOWAY);
 
@@ -2845,7 +2844,10 @@ public:
         EXPECT_EQ(mClientRef->basefolderhandle, mClientOneWay->basefolderhandle);
 
         EXPECT_TRUE(mClientRef->setupSync_mainthread("sync", "f/f_0", 0));
-        EXPECT_TRUE(mClientOneWay->setupSync_mainthread(mConfig, "sync", "f/f_0", 0));
+
+        auto remoteHandle = mClientOneWay->drillchildnodebyname(mClientOneWay->gettestbasenode(), "f/f_0")->nodehandle;
+        mConfig = std::make_unique<SyncConfig>((localtestroot / "ClientOneWay/sync").u8string(), remoteHandle, 0, std::vector<std::string>{}, type, syncDel, overwrite);
+        EXPECT_TRUE(mClientOneWay->setupSync_mainthread(*mConfig, "sync", "f/f_0", 0));
         wait(4);
         mClientRef->logcb = mClientOneWay->logcb = true;
     }
@@ -2888,7 +2890,7 @@ public:
 
     bool resumeOneWay()
     {
-        return mClientOneWay->setupSync_mainthread(mConfig, "sync", "f/f_0", 0);
+        return mClientOneWay->setupSync_mainthread(*mConfig, "sync", "f/f_0", 0);
     }
 
     bool remoteMove(const std::string& source, const std::string& target)
@@ -2899,7 +2901,7 @@ public:
     }
 
 private:
-    SyncConfig mConfig;
+    std::unique_ptr<SyncConfig> mConfig;
     std::unique_ptr<StandardClient> mClientRef;
     std::unique_ptr<StandardClient> mClientOneWay;
 };
@@ -3991,7 +3993,8 @@ struct OneWaySymmetryCase
         Node* n = state.client.drillchildnodebyname(testRoot, remoteTestBasePath + "/f");
         ASSERT_TRUE(!!n);
 
-        bool syncsetup = state.client.setupSync_mainthread(SyncConfig(up ? SyncConfig::TYPE_UP : SyncConfig::TYPE_DOWN, propagateDeletes, forceOverwrites), 
+        SyncConfig config(syncrootpath, n->nodehandle, 0, {}, (up ? SyncConfig::TYPE_UP : SyncConfig::TYPE_DOWN), propagateDeletes, forceOverwrites);
+        bool syncsetup = state.client.setupSync_mainthread(std::move(config),
                                                            syncrootpath.erase(0, state.client.fsBasePath.u8string().size()+1),  remoteTestBasePath + "/f", sync_tag = ++state.next_sync_tag);
         ASSERT_TRUE(syncsetup);    
 

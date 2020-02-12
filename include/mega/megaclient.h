@@ -42,6 +42,7 @@
 namespace mega {
 
 #ifdef ENABLE_SYNC
+class SyncConfigBag;
 class UnsyncableNodeBag;
 #endif
 
@@ -447,6 +448,9 @@ public:
     // indicates whether all startup syncs have been fully scanned
     bool syncsup;
 
+    // A collection of sync configs backed by a database table
+    std::unique_ptr<SyncConfigBag> syncConfigs;
+
     // A collection of unsyncable remote nodes stored by handle
     std::unique_ptr<UnsyncableNodeBag> unsyncables;
 #endif
@@ -520,7 +524,7 @@ public:
     // add/delete sync
     error isnodesyncable(const SyncConfig& syncConfig, Node*, bool* = nullptr);
 
-    error addsync(SyncConfig, string*, const char*, string*, Node*, fsfp_t = 0, int = 0, void* = NULL);
+    error addsync(SyncConfig, const char*, string*, int = 0, void* = NULL);
 
     void delsync(Sync*, bool = true);
 
@@ -851,6 +855,11 @@ private:
     // maximum number of concurrent putfa
     static const int MAXPUTFA;
 
+#ifdef ENABLE_SYNC
+    // Resumes all resumable syncs
+    void resumeResumableSyncs();
+#endif
+
     // update time at which next deferred transfer retry kicks in
     void nexttransferretry(direction_t d, dstime*);
 
@@ -955,7 +964,7 @@ public:
     bool gfxdisabled;
     
     // DB access
-    DbAccess* dbaccess;
+    DbAccess* dbaccess = nullptr;
 
     // state cache table for logged in user
     DbTable* sctable;
@@ -1590,6 +1599,7 @@ public:
     } performanceStats;
 
 #ifdef ENABLE_SYNC
+    void resetSyncConfigs();
     void resetUnsyncables();
 #endif
 

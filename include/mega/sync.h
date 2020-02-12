@@ -72,12 +72,43 @@ private:
     std::unordered_map<handle, uint32_t> mNodes; // map of remote node handles to table ids
 };
 
+// A collection of sync configs backed by a database table
+class MEGA_API SyncConfigBag
+{
+public:
+    SyncConfigBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, PrnGen& rng, const std::string& id);
+
+    MEGA_DISABLE_COPY_MOVE(SyncConfigBag)
+
+    // Adds a new sync config or updates if exists already
+    void insert(const SyncConfig& syncConfig);
+
+    // Removes a sync config at the given local path
+    void remove(const std::string& localPath);
+
+    // Returns the sync config at the given local path
+    const SyncConfig* get(const std::string& localPath) const;
+
+    // Removes all sync configs
+    void clear();
+
+    // Returns all current sync configs
+    std::vector<SyncConfig> all() const;
+
+private:
+    std::unique_ptr<DbTable> mTable; // table for caching the sync configs
+    std::map<std::string, SyncConfig> mSyncConfigs; // map of local paths to sync configs
+};
+
 class MEGA_API Sync
 {
 public:
 
     // returns the sync config
     const SyncConfig& getConfig() const;
+
+    // sets whether this sync is resumable (default is true)
+    void setResumable(bool isResumable);
 
     void* appData = nullptr;
 
@@ -189,7 +220,7 @@ public:
     m_time_t updatedfilets = 0;
     m_time_t updatedfileinitialts = 0;
 
-    Sync(MegaClient*, SyncConfig, string*, const char*, string*, Node*, fsfp_t, bool, int, void*);
+    Sync(MegaClient*, SyncConfig, const char*, string*, Node*, bool, int, void*);
     ~Sync();
 
     static const int SCANNING_DELAY_DS;
@@ -202,7 +233,7 @@ protected :
     bool readstatecache();
 
 private:
-    const SyncConfig mConfig;
+    std::string mLocalPath;
 };
 } // namespace
 

@@ -1939,6 +1939,7 @@ void CommandLogin::procresult()
                 }
 
 #ifdef ENABLE_SYNC
+                client->resetSyncConfigs();
                 client->resetUnsyncables();
 #endif
 

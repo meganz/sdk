@@ -1070,6 +1070,7 @@ void MegaClient::init()
         syncscanstate = false;
     }
 
+    resetSyncConfigs();
     resetUnsyncables();
 #endif
 
@@ -1273,6 +1274,17 @@ MegaClient::~MegaClient()
     delete tctable;
     delete dbaccess;
 }
+
+#ifdef ENABLE_SYNC
+void MegaClient::resetSyncConfigs()
+{
+    syncConfigs.reset();
+    if (dbaccess && !uid.empty())
+    {
+        syncConfigs.reset(new SyncConfigBag{*dbaccess, *fsaccess, rng, uid});
+    }
+}
+#endif
 
 std::string MegaClient::getPublicLink(bool newLinkFormat, nodetype_t type, handle ph, const char *key)
 {
@@ -3717,6 +3729,28 @@ void MegaClient::freeq(direction_t d)
     }
 }
 
+void MegaClient::resumeResumableSyncs()
+{
+    if (!syncConfigs)
+    {
+        return;
+    }
+    for (const auto& config : syncConfigs->all())
+    {
+        if (!config.isResumable())
+        {
+            continue;
+        }
+        const auto e = addsync(config, DEBRISFOLDER, nullptr);
+        if (e == 0)
+        {
+            app->sync_auto_resumed(config.getLocalPath(), config.getRemoteNode(),
+                                   static_cast<long long>(config.getLocalFingerprint()),
+                                   config.getRegExps());
+        }
+    }
+}
+
 // determine next scheduled transfer retry
 void MegaClient::nexttransferretry(direction_t d, dstime* dsmin)
 {
@@ -3978,6 +4012,10 @@ void MegaClient::removeCaches()
             (*it)->statecachetable = NULL;
         }
     }
+    if (syncConfigs)
+    {
+        syncConfigs->clear();
+    }
     if (unsyncables)
     {
         unsyncables->clear();
@@ -4126,7 +4164,7 @@ bool MegaClient::procsc()
                     break;
 
                 case MAKENAMEID2('s', 'n'):
-                    // the sn element is guaranteed to be the last in sequence
+                    // the sn element is guaranteed to be the last in sequence (except for notification requests (c=50))
                     setscsn(&jsonsc);
                     notifypurge();
                     if (sctable)
@@ -4170,6 +4208,8 @@ bool MegaClient::procsc()
                             fetchingnodes = false;
                             restag = fetchnodestag;
                             fetchnodestag = 0;
+                            resumeResumableSyncs();
+
                             app->fetchnodes_result(API_OK);
                             app->notify_dbcommit();
 
@@ -8062,7 +8102,7 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
                     v = (visibility_t)j->getint();
                     break;
 
-                case 'm':   // attributes
+                case 'm':   // email
                     m = j->getvalue();
                     break;
 
@@ -8100,17 +8140,30 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
             bool notify = !u;
             if (u || (u = finduser(uh, 1)))
             {
+                const string oldEmail = u->email;
                 mapuser(uh, m);
-
-                if (uh != me && !fetchingnodes) // new user --> fetch keys
-                {
-                    fetchContactKeys(u);
-                }
 
                 if (v != VISIBILITY_UNKNOWN)
                 {
                     if (u->show != v || u->ctime != ts)
                     {
+                        if (u->show == HIDDEN && v == VISIBLE)
+                        {
+                            u->invalidateattr(ATTR_FIRSTNAME);
+                            u->invalidateattr(ATTR_LASTNAME);
+                            if (oldEmail != u->email)
+                            {
+                                u->changed.email = true;
+                            }
+                        }
+                        else if (u->show == VISIBILITY_UNKNOWN && v == VISIBLE
+                                 && uh != me
+                                 && !fetchingnodes)
+                        {
+                            // new user --> fetch keys
+                            fetchContactKeys(u);
+                        }
+
                         u->set(v, ts);
                         notify = true;
                     }
@@ -10928,6 +10981,7 @@ void MegaClient::fetchnodes(bool nocache)
         Base64::btoa((byte*)&cachedscsn, sizeof cachedscsn, scsn);
         LOG_info << "Session loaded from local cache. SCSN: " << scsn;
 
+        resumeResumableSyncs();
         app->fetchnodes_result(API_OK);
 
         // if don't know fileversioning is enabled or disabled...
@@ -12076,9 +12130,10 @@ error MegaClient::addtimer(TimerWithBackoff *twb)
 // check sync path, add sync if folder
 // disallow nested syncs (there is only one LocalNode pointer per node)
 // (FIXME: perform the same check for local paths!)
-error MegaClient::addsync(const SyncConfig syncConfig, string* rootpath, const char* debris, string* localdebris, Node* remotenode, fsfp_t fsfp, int tag, void *appData)
+error MegaClient::addsync(SyncConfig syncConfig, const char* debris, string* localdebris, int tag, void *appData)
 {
 #ifdef ENABLE_SYNC
+    Node* remotenode = nodebyhandle(syncConfig.getRemoteNode());
     bool inshare = false;
     error e = isnodesyncable(syncConfig, remotenode, &inshare);
     if (e)
@@ -12086,31 +12141,33 @@ error MegaClient::addsync(const SyncConfig syncConfig, string* rootpath, const c
         return e;
     }
 
-    if (rootpath->size() >= fsaccess->localseparator.size()
-     && !memcmp(rootpath->data() + (int(rootpath->size()) & -int(fsaccess->localseparator.size())) - fsaccess->localseparator.size(),
+    string localPath = syncConfig.getLocalPath();
+    string rootpath;
+    fsaccess->path2local(&localPath, &rootpath);
+
+    if (rootpath.size() >= fsaccess->localseparator.size()
+     && !memcmp(rootpath.data() + (int(rootpath.size()) & -int(fsaccess->localseparator.size())) - fsaccess->localseparator.size(),
                 fsaccess->localseparator.data(),
                 fsaccess->localseparator.size()))
     {
-        rootpath->resize((int(rootpath->size()) & -int(fsaccess->localseparator.size())) - fsaccess->localseparator.size());
+        rootpath.resize((int(rootpath.size()) & -int(fsaccess->localseparator.size())) - fsaccess->localseparator.size());
     }
     
     bool isnetwork = false;
-    if (!fsaccess->issyncsupported(rootpath, &isnetwork))
+    if (!fsaccess->issyncsupported(&rootpath, &isnetwork))
     {
         LOG_warn << "Unsupported filesystem";
         return API_EFAILED;
     }
 
     auto fa = fsaccess->newfileaccess();
-    if (fa->fopen(rootpath, true, false))
+    if (fa->fopen(&rootpath, true, false))
     {
         if (fa->type == FOLDERNODE)
         {
-            string utf8path;
-            fsaccess->local2path(rootpath, &utf8path);
-            LOG_debug << "Adding sync: " << utf8path;
+            LOG_debug << "Adding sync: " << syncConfig.getLocalPath();
 
-            Sync* sync = new Sync(this, syncConfig, rootpath, debris, localdebris, remotenode, fsfp, inshare, tag, appData);
+            Sync* sync = new Sync(this, std::move(syncConfig), debris, localdebris, remotenode, inshare, tag, appData);
             sync->isnetwork = isnetwork;
 
             if (!sync->fsstableids)
@@ -12125,7 +12182,7 @@ error MegaClient::addsync(const SyncConfig syncConfig, string* rootpath, const c
                 }
             }
 
-            if (sync->scan(rootpath, fa.get()))
+            if (sync->scan(&rootpath, fa.get()))
             {
                 syncsup = false;
                 e = API_OK;
@@ -13640,6 +13697,8 @@ void MegaClient::execmovetosyncdebris()
 void MegaClient::delsync(Sync* sync, bool deletecache)
 {
     sync->changestate(SYNC_CANCELED);
+
+    sync->setResumable(false);
 
     if (deletecache && sync->statecachetable)
     {

@@ -83,8 +83,9 @@ std::unique_ptr<mega::Sync> makeSync(mega::MegaClient& client, const std::string
     std::string rootname = localname;
     std::string localdebris = gLocalDebris;
     auto& n = makeNode(client, mega::FOLDERNODE, std::hash<std::string>{}(localname));
-    auto sync = new mega::Sync{&client, mega::SyncConfig{}, &rootname,
-                               nullptr, &localdebris, &n, fsfp_t{}, false, 0, nullptr};
+    mega::SyncConfig config{localname, n.nodehandle, 0};
+    auto sync = new mega::Sync{&client, std::move(config),
+                               nullptr, &localdebris, &n, false, 0, nullptr};
     sync->state = mega::SYNC_CANCELED; // to avoid the assertion in Sync::~Sync()
     return std::unique_ptr<mega::Sync>{sync};
 }
