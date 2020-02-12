@@ -8054,6 +8054,7 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
             bool notify = !u;
             if (u || (u = finduser(uh, 1)))
             {
+                const string oldEmail = u->email;
                 mapuser(uh, m);
 
                 if (v != VISIBILITY_UNKNOWN)
@@ -8064,6 +8065,10 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
                         {
                             u->invalidateattr(ATTR_FIRSTNAME);
                             u->invalidateattr(ATTR_LASTNAME);
+                            if (oldEmail != u->email)
+                            {
+                                u->changed.email = true;
+                            }
                         }
                         else if (u->show == VISIBILITY_UNKNOWN && v == VISIBLE
                                  && uh != me
