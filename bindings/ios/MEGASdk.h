@@ -2409,6 +2409,43 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
 - (void)moveNode:(MEGANode *)node newParent:(MEGANode *)newParent;
 
 /**
+ * @brief Move a node in the MEGA account.
+ *
+ * The associated request type with this request is MEGARequestTypeMove.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node to move
+ * - [MEGARequest parentHandle] - Returns the handle of the new parent for the node
+ * - [MEGARequest name] - Returns the name for the new node
+ *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEBusinessPastDue.
+ *
+ * @param node Node to move.
+ * @param newParent New parent for the node.
+ * @param newName Name for the new node.
+ * @param delegate Delegate to track this request.
+ */
+- (void)moveNode:(MEGANode *)node newParent:(MEGANode *)newParent newName:(NSString *)newName delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Move a node in the MEGA account.
+ *
+ * The associated request type with this request is MEGARequestTypeMove.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node to move
+ * - [MEGARequest parentHandle] - Returns the handle of the new parent for the node
+ * - [MEGARequest name] - Returns the name for the new node
+ *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEBusinessPastDue.
+ *
+ * @param node Node to move.
+ * @param newParent New parent for the node.
+ * @param newName Name for the new node.
+ */
+- (void)moveNode:(MEGANode *)node newParent:(MEGANode *)newParent newName:(NSString *)newName;
+
+/**
  * @brief Copy a node in the MEGA account.
  *
  * The associated request type with this request is MEGARequestTypeCopy.
