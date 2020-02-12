@@ -308,7 +308,6 @@ function(ImportStdVcpkgLibrary libName winDbg win linDbg lin)
         if (WIN32)
             set_property(TARGET ${libName} APPEND PROPERTY IMPORTED_LOCATION  ${vcpkg_dir}/lib/${win}.lib)
             set_property(TARGET ${libName} APPEND PROPERTY IMPORTED_LOCATION_DEBUG ${vcpkg_dir}/debug/lib/${winDbg}.lib)
-            add_library(${libName} STATIC IMPORTED)
         else()
                 set_property(TARGET ${libName} APPEND PROPERTY IMPORTED_LOCATION  ${vcpkg_dir}/lib/${lin}.a)
                 set_property(TARGET ${libName} APPEND PROPERTY IMPORTED_LOCATION_DEBUG ${vcpkg_dir}/debug/lib/${linDbg}.a)
@@ -352,13 +351,13 @@ if(USE_PREBUILT_3RDPARTY) #TODO: do this explicitly for !Win32? (currently relyi
         
         IF(HAVE_FFMPEG)
         IF(WIN32)
-            ImportALibrary(ffmpeg_avutil "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avutil.lib" "${prebuilt_dir}/libs/x32/avutil.lib")
-            ImportALibrary(ffmpeg_avformat "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avformat.lib" "${prebuilt_dir}/libs/x32/avformat.lib")
-            ImportALibrary(ffmpeg_avcodec "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avcodec.lib" "${prebuilt_dir}/libs/x32/avcodec.lib")
-            ImportALibrary(ffmpeg_avfilter "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avfilter.lib" "${prebuilt_dir}/libs/x32/avfilter.lib")
-            ImportALibrary(ffmpeg_avdevice "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avdevice.lib" "${prebuilt_dir}/libs/x32/avdevice.lib")
-            ImportALibrary(ffmpeg_swscale  "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/swscale.lib"  "${prebuilt_dir}/libs/x32/swscale.lib")
-            ImportALibrary(ffmpeg_swresample "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/swresample.lib"  "${prebuilt_dir}/libs/x32/swresample.lib")
+            ImportALibrary(avutil "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avutil.lib" "${prebuilt_dir}/libs/x32/avutil.lib")
+            ImportALibrary(avformat "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avformat.lib" "${prebuilt_dir}/libs/x32/avformat.lib")
+            ImportALibrary(avcodec "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avcodec.lib" "${prebuilt_dir}/libs/x32/avcodec.lib")
+            ImportALibrary(avfilter "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avfilter.lib" "${prebuilt_dir}/libs/x32/avfilter.lib")
+            ImportALibrary(avdevice "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avdevice.lib" "${prebuilt_dir}/libs/x32/avdevice.lib")
+            ImportALibrary(swscale  "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/swscale.lib"  "${prebuilt_dir}/libs/x32/swscale.lib")
+            ImportALibrary(swresample "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/swresample.lib"  "${prebuilt_dir}/libs/x32/swresample.lib")
         else()
             ImportALibrary(avformat "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avformat.lib" "${prebuilt_dir}/libs/x32/avformat.lib")
             ImportALibrary(avutil "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avutil.lib" "${prebuilt_dir}/libs/x32/avutil.lib")
@@ -432,8 +431,11 @@ if (USE_THIRDPARTY_FROM_VCPKG)
         ImportStdVcpkgLibrary(gtest           gtestd gtest libgtestd libgtest) 
 
         IF(USE_MEDIAINFO)
-            ImportStdVcpkgLibrary(zen        zend zen libzen libzen)
-            ImportStdVcpkgLibrary(mediainfo  mediainfod mediainfo libmediainfo libmediainfo)
+            IF(CMAKE_HOST_APPLE)
+                set(DEBUG_SUFIX _debug)
+            endif()
+            ImportStdVcpkgLibrary(zen        zend zen libzen${DEBUG_SUFIX} libzen)
+            ImportStdVcpkgLibrary(mediainfo  mediainfod mediainfo libmediainfo${DEBUG_SUFIX} libmediainfo)
         ENDIF(USE_MEDIAINFO)
 
         IF(USE_FREEIMAGE)
@@ -470,13 +472,13 @@ if (USE_THIRDPARTY_FROM_VCPKG)
         ENDIF(USE_FREEIMAGE)
 
         IF(HAVE_FFMPEG)
-            ImportStdVcpkgLibrary(ffmpeg_avformat avformat avformat libavformat libavformat)
-            ImportStdVcpkgLibrary(ffmpeg_avutil avutil avutil libavutil libavutil)
-            ImportStdVcpkgLibrary(ffmpeg_avcodec avcodec avcodec libavcodec libavcodec)
-            ImportStdVcpkgLibrary(ffmpeg_avfilter avfilter avfilter libavfilter libavfilter)
-            ImportStdVcpkgLibrary(ffmpeg_avdevice avdevice avdevice libavdevice libavdevice)
-            ImportStdVcpkgLibrary(ffmpeg_swscale  swscale swscale libswscale libswscale)
-            ImportStdVcpkgLibrary(ffmpeg_swresample swresample swresample libswresample libswresample)
+            ImportStdVcpkgLibrary(avformat avformat avformat libavformat libavformat)
+            ImportStdVcpkgLibrary(avutil avutil avutil libavutil libavutil)
+            ImportStdVcpkgLibrary(avcodec avcodec avcodec libavcodec libavcodec)
+            ImportStdVcpkgLibrary(avfilter avfilter avfilter libavfilter libavfilter)
+            ImportStdVcpkgLibrary(avdevice avdevice avdevice libavdevice libavdevice)
+            ImportStdVcpkgLibrary(swscale  swscale swscale libswscale libswscale)
+            ImportStdVcpkgLibrary(swresample swresample swresample libswresample libswresample)
         ENDIF(HAVE_FFMPEG)
 
         IF(USE_SQLITE)
@@ -489,10 +491,15 @@ if (USE_THIRDPARTY_FROM_VCPKG)
 
         IF(USE_LIBRAW)
             ImportStdVcpkgLibrary(raw                  rawd raw librawd libraw)
+            ImportStdVcpkgLibrary(raw_lcms           lcmsd lcms liblcmsd liblcms)
+
+            IF(NOT CMAKE_HOST_APPLE)
             ImportStdVcpkgLibrary(raw_jasper           jasperd jasper libjasperd libjasper)
             ImportStdVcpkgLibrary(raw_libjpeg_turbo    turbojpegd turbojpeg libturbojpeg libturbojpeg)
-            ImportStdVcpkgLibrary(raw_lcms           lcmsd lcms liblcmsd liblcms)
             SET(raw_deps raw_jasper raw_libjpeg_turbo raw_lcms)
+            else()
+                SET(raw_deps  raw_lcms)
+            endif()
 
             IF(NOT CMAKE_HOST_APPLE AND NOT CMAKE_HOST_WIN32)
                 set(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} -fopenmp)
@@ -719,13 +726,16 @@ target_include_directories(Mega PUBLIC ${MegaDir}/include ${Mega_PlatformSpecifi
 
 if (WIN32)
     set(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs}
-        $<${HAVE_FFMPEG}:ffmpeg_avfilter> $<${HAVE_FFMPEG}:ffmpeg_avdevice> $<${HAVE_FFMPEG}:ffmpeg_avdevice> $<${HAVE_FFMPEG}:ffmpeg_swresample>
-        $<${HAVE_FFMPEG}:ffmpeg_avformat> $<${HAVE_FFMPEG}:ffmpeg_avcodec> $<${HAVE_FFMPEG}:ffmpeg_avutil> $<${HAVE_FFMPEG}:ffmpeg_swscale>
+        $<${HAVE_FFMPEG}:avfilter> $<${HAVE_FFMPEG}:avdevice> $<${HAVE_FFMPEG}:avdevice> $<${HAVE_FFMPEG}:swresample>
+        $<${HAVE_FFMPEG}:avformat> $<${HAVE_FFMPEG}:avcodec> $<${HAVE_FFMPEG}:avutil> $<${HAVE_FFMPEG}:swscale>
         )
 else()
     set(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs}
         $<${HAVE_FFMPEG}:avformat> $<${HAVE_FFMPEG}:avcodec> $<${HAVE_FFMPEG}:avutil> $<${HAVE_FFMPEG}:swscale>
         )
+    if (CMAKE_HOST_APPLE)
+        set(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} $<${HAVE_FFMPEG}:-liconv>)
+    endif()
 endif()
         
 target_link_libraries(Mega PUBLIC
