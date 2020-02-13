@@ -151,7 +151,7 @@ class SimpleLogger
     static OutputStreams getOutput(enum LogLevel ll);
 #else
     std::array<char, 256> mBuffer; // will be stack-allocated since SimpleLogger is stack-allocated
-    std::array<char, 256>::iterator mBufferIt;
+    std::array<char, 257>::iterator mBufferIt;
     using DiffType = std::array<char, 256>::difference_type;
     using NumBuf = std::array<char, 24>;
     const char* filenameStr;
@@ -167,16 +167,20 @@ class SimpleLogger
             mBufferIt = std::copy(dataIt + start, dataIt + start + size, mBufferIt);
             if (mBufferIt == mBuffer.end() - 1)
             {
-                outputBuffer();
+                outputBuffer(true);
             }
             start += size;
             currentSize -= size;
         }
     }
 
-    void outputBuffer()
+    void outputBuffer(bool continues = false)
     {
         *mBufferIt = '\0';
+        if (continues)
+        {
+            *(mBufferIt+1) = (char)0x1F;
+        }
         if (logger)
         {
             logger->log(nullptr, level, nullptr, mBuffer.data());
