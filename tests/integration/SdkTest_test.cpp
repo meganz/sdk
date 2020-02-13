@@ -1902,34 +1902,62 @@ TEST_F(SdkTest, SdkTestContacts)
 
 bool SdkTest::checkAlert(int apiIndex, const string& title, const string& path)
 {
-    unique_ptr<MegaUserAlertList> list(megaApi[apiIndex]->getUserAlerts());
-    for (int i = 0; i < list->size(); i++)
+    bool ok = false;
+    for (int i = 0; !ok && i < 10; ++i)
     {
-        MegaUserAlert *a = list->get(i);
-        if (title == a->getTitle()
-                && path == a->getPath()
-                && !ISUNDEF(a->getNodeHandle()))
+
+        MegaUserAlertList* list = mApi[apiIndex].megaApi->getUserAlerts();
+        if (list->size() > 0)
         {
-            return true;
+            MegaUserAlert* a = list->get(list->size() - 1);
+            ok = title == a->getTitle() && path == a->getPath() && !ISUNDEF(a->getNodeHandle());
+
+            if (!ok && i == 9)
+            {
+                EXPECT_STREQ(title.c_str(), a->getTitle());
+                EXPECT_STREQ(path.c_str(), a->getPath());
+                EXPECT_NE(a->getNodeHandle(), UNDEF);
+            }
+        }
+        delete list;
+
+        if (!ok)
+        {
+            LOG_info << "Waiting some more for the alert";
+            WaitMillisec(USERALERT_ARRIVAL_MILLISEC);
         }
     }
-    return false;
+    return ok;
 }
 
 bool SdkTest::checkAlert(int apiIndex, const string& title, handle h, int n)
 {
-    unique_ptr<MegaUserAlertList> list(megaApi[apiIndex]->getUserAlerts());
-    for (int i = 0; i < list->size(); i++)
+    bool ok = false;
+    for (int i = 0; !ok && i < 10; ++i)
     {
-        MegaUserAlert *a = list->get(i);
-        if (title == a->getTitle()
-                && a->getNodeHandle() == h
-                && a->getNumber(0) == n)
+
+        MegaUserAlertList* list = megaApi[apiIndex]->getUserAlerts();
+        if (list->size() > 0)
         {
-            return true;
+            MegaUserAlert* a = list->get(list->size() - 1);
+            ok = title == a->getTitle() && a->getNodeHandle() == h && a->getNumber(0) == n;
+
+            if (!ok && i == 9)
+            {
+                EXPECT_STREQ(a->getTitle(), title.c_str());
+                EXPECT_EQ(a->getNodeHandle(), h);
+                EXPECT_EQ(a->getNumber(0), n); // 0 for number of folders
+            }
+        }
+        delete list;
+
+        if (!ok)
+        {
+            LOG_info << "Waiting some more for the alert";
+            WaitMillisec(USERALERT_ARRIVAL_MILLISEC);
         }
     }
-    return false;
+    return ok;
 }
 
 
