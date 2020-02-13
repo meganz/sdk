@@ -5425,6 +5425,11 @@ void MegaApiImpl::setLogLevel(int logLevel)
     externalLogger.setLogLevel(logLevel);
 }
 
+void MegaApiImpl::setMaxPayloadLogSize(long long maxSize)
+{
+    SimpleLogger::setMaxPayloadLogSize(maxSize);
+}
+
 void MegaApiImpl::addLoggerClass(MegaLogger *megaLogger)
 {
     externalLogger.addMegaLogger(megaLogger);

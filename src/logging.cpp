@@ -40,6 +40,7 @@ Logger *SimpleLogger::logger = nullptr;
 
 // by the default, display logs with level equal or less than logInfo
 enum LogLevel SimpleLogger::logCurrentLevel = logInfo;
+long long SimpleLogger::maxPayloadLogSizeize  = 10240;
 
 #ifndef ENABLE_LOG_PERFORMANCE
 // static member initialization
