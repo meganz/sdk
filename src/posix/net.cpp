@@ -1339,14 +1339,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
     }
     else
     {
-        if (req->out->size() < 10240)
-        {
-            LOG_debug << httpctx->req->logname << "Sending " << req->out->size() << ": " << *req->out;
-        }
-        else
-        {
-            LOG_debug << httpctx->req->logname << "Sending " << req->out->size() << ": " << req->out->substr(0, 5116) << " [...] " << req->out->substr(req->out->size() - 5116, string::npos);
-        }
+        LOG_debug << httpctx->req->logname << "Sending " << req->out->size() << ": " << *req->out;
     }
 
     httpctx->headers = clone_curl_slist(req->type == REQ_JSON ? httpio->contenttypejson : httpio->contenttypebinary);
@@ -2135,14 +2128,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                     }
                     else
                     {
-                        if (req->in.size() < 10240)
-                        {
-                            LOG_debug << req->logname << "Received " << req->in.size() << ": " << req->in.c_str();
-                        }
-                        else
-                        {
-                            LOG_debug << req->logname << "Received " << req->in.size() << ": " << req->in.substr(0, 5116).c_str() << " [...] " << req->in.substr(req->in.size() - 5116, string::npos).c_str();
-                        }
+                        LOG_debug << req->logname << "Received " << req->in.size() << ": " << req->in;
                     }
                 }
 
