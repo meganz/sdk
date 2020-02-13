@@ -18975,6 +18975,7 @@ void MegaApiImpl::sendPendingRequests()
                 nocache = false;
             }
 
+#ifdef ENABLE_SYNC
             const bool resumeSyncs = request->getNumber();
             if (!resumeSyncs && client->syncConfigs)
             {
@@ -18984,6 +18985,8 @@ void MegaApiImpl::sendPendingRequests()
                     client->syncConfigs->insert(config);
                 }
             }
+#endif
+
             client->fetchnodes();
             break;
         }
