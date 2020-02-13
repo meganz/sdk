@@ -6828,7 +6828,7 @@ void MegaClient::makeattr(SymmCipher* key, string* attrstring, const char* json,
 error MegaClient::setattr(Node* n, const char *prevattr)
 {
 #ifdef ENABLE_SYNC
-    if (n->localnode && !n->localnode->sync->getConfig().isUpSync())
+    if (n->localnode && !n->localnode->sync->getConfig().syncsToCloud())
     {
         return API_OK;
     }
@@ -12061,7 +12061,7 @@ error MegaClient::isnodesyncable(const SyncConfig& syncConfig, Node *remotenode,
     n = remotenode;
     inshare = false;
 
-    const auto minimumAccessLevel = syncConfig.isUpSync() ? FULL : RDONLY;
+    const auto minimumAccessLevel = syncConfig.syncsToCloud() ? FULL : RDONLY;
 
     do {
         for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
@@ -12372,7 +12372,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 
                 ll->setnode(rit->second);
 
-                if (!l->sync->getConfig().isDownSync())
+                if (!l->sync->getConfig().syncsToLocal())
                 {
                     lit++;
                     continue;
@@ -12498,7 +12498,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
         localpath->resize(t);
     }
 
-    if (!l->sync->getConfig().isDownSync())
+    if (!l->sync->getConfig().syncsToLocal())
     {
         return true;
     }
@@ -12818,7 +12818,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                     }
                     ll->setnode(rit->second);
 
-                    if (!l->sync->getConfig().isUpSync())
+                    if (!l->sync->getConfig().syncsToCloud())
                     {
                         continue;
                     }
@@ -12990,7 +12990,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
             }
         }
 
-        if (!l->sync->getConfig().isUpSync())
+        if (!l->sync->getConfig().syncsToCloud())
         {
             continue;
         }
@@ -13425,7 +13425,7 @@ void MegaClient::movetosyncdebris(Node* dn, bool unlink)
         dn->localnode->node = NULL;
         dn->localnode = NULL;
 
-        if (!sync->getConfig().isUpSync())
+        if (!sync->getConfig().syncsToCloud())
         {
             LOG_debug << "synctype prevents moving to sync debris";
             return;
@@ -13706,7 +13706,7 @@ void MegaClient::delsync(Sync* sync, bool deletecache)
         delete sync->statecachetable;
         sync->statecachetable = NULL;
 
-        if (!sync->getConfig().isUpSync() && sync->localroot->node)
+        if (!sync->getConfig().syncsToCloud() && sync->localroot->node)
         {
             DBTableTransactionCommitter committer{unsyncables->getDbTable()};
             makeAllSyncable(*sync->localroot->node);

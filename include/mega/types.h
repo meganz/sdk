@@ -707,11 +707,11 @@ public:
     // returns the type of the sync
     Type getType() const;
 
-    // whether this is an up-sync from local to remote
-    bool isUpSync() const;
+    // whether we sync from local to remote
+    bool syncsToCloud() const;
 
-    // whether this is a down-sync from remote to local
-    bool isDownSync() const;
+    // whether we sync from remote to local
+    bool syncsToLocal() const;
 
     // whether deletions are synced
     bool syncDeletions() const;

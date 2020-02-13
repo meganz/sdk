@@ -1330,13 +1330,15 @@ int MegaApiImpl::isNodeSyncable(MegaNode *megaNode)
         return MegaError::API_ENOENT;
     }
 
-    SyncConfig syncConfig{"", mega::UNDEF, 0};
+    error e;
     if (node->localnode)
     {
-        syncConfig = node->localnode->sync->getConfig();
+        e = client->isnodesyncable(node->localnode->sync->getConfig(), node);
     }
-
-    error e = client->isnodesyncable(syncConfig, node);
+    else
+    {
+        e = client->isnodesyncable(SyncConfig{"", mega::UNDEF, 0}, node);
+    }
     sdkMutex.unlock();
     return e;
 }

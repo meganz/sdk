@@ -1080,8 +1080,8 @@ TEST(Sync, SyncConfig_defaultOptions)
     ASSERT_EQ(123, config.getLocalFingerprint());
     ASSERT_TRUE(config.getRegExps().empty());
     ASSERT_EQ(mega::SyncConfig::TYPE_TWOWAY, config.getType());
-    ASSERT_TRUE(config.isUpSync());
-    ASSERT_TRUE(config.isDownSync());
+    ASSERT_TRUE(config.syncsToCloud());
+    ASSERT_TRUE(config.syncsToLocal());
     ASSERT_TRUE(config.syncDeletions());
     ASSERT_FALSE(config.forceOverwrite());
     test_SyncConfig_serialization(config);
@@ -1090,8 +1090,8 @@ TEST(Sync, SyncConfig_defaultOptions)
 TEST(Sync, SyncConfig_defaultOptions_inactive)
 {
     const mega::SyncConfig config{"foo", 42, 123, {}, mega::SyncConfig::TYPE_TWOWAY, false, true};
-    ASSERT_TRUE(config.isUpSync());
-    ASSERT_TRUE(config.isDownSync());
+    ASSERT_TRUE(config.syncsToCloud());
+    ASSERT_TRUE(config.syncsToLocal());
     ASSERT_TRUE(config.syncDeletions());
     ASSERT_FALSE(config.forceOverwrite());
     test_SyncConfig_serialization(config);
@@ -1107,8 +1107,8 @@ TEST(Sync, SyncConfig_defaultOptions_butWithRegExps)
     ASSERT_EQ(123, config.getLocalFingerprint());
     ASSERT_EQ(regExps, config.getRegExps());
     ASSERT_EQ(mega::SyncConfig::TYPE_TWOWAY, config.getType());
-    ASSERT_TRUE(config.isUpSync());
-    ASSERT_TRUE(config.isDownSync());
+    ASSERT_TRUE(config.syncsToCloud());
+    ASSERT_TRUE(config.syncsToLocal());
     ASSERT_TRUE(config.syncDeletions());
     ASSERT_FALSE(config.forceOverwrite());
     test_SyncConfig_serialization(config);
@@ -1124,8 +1124,8 @@ TEST(Sync, SyncConfig_upSync_syncDelFalse_overwriteFalse)
     ASSERT_EQ(123, config.getLocalFingerprint());
     ASSERT_EQ(regExps, config.getRegExps());
     ASSERT_EQ(mega::SyncConfig::TYPE_UP, config.getType());
-    ASSERT_TRUE(config.isUpSync());
-    ASSERT_FALSE(config.isDownSync());
+    ASSERT_TRUE(config.syncsToCloud());
+    ASSERT_FALSE(config.syncsToLocal());
     ASSERT_FALSE(config.syncDeletions());
     ASSERT_FALSE(config.forceOverwrite());
     test_SyncConfig_serialization(config);
@@ -1141,8 +1141,8 @@ TEST(Sync, SyncConfig_upSync_syncDelTrue_overwriteTrue)
     ASSERT_EQ(123, config.getLocalFingerprint());
     ASSERT_EQ(regExps, config.getRegExps());
     ASSERT_EQ(mega::SyncConfig::TYPE_UP, config.getType());
-    ASSERT_TRUE(config.isUpSync());
-    ASSERT_FALSE(config.isDownSync());
+    ASSERT_TRUE(config.syncsToCloud());
+    ASSERT_FALSE(config.syncsToLocal());
     ASSERT_TRUE(config.syncDeletions());
     ASSERT_TRUE(config.forceOverwrite());
     test_SyncConfig_serialization(config);
@@ -1158,8 +1158,8 @@ TEST(Sync, SyncConfig_downSync_syncDelFalse_overwriteFalse)
     ASSERT_EQ(123, config.getLocalFingerprint());
     ASSERT_EQ(regExps, config.getRegExps());
     ASSERT_EQ(mega::SyncConfig::TYPE_DOWN, config.getType());
-    ASSERT_FALSE(config.isUpSync());
-    ASSERT_TRUE(config.isDownSync());
+    ASSERT_FALSE(config.syncsToCloud());
+    ASSERT_TRUE(config.syncsToLocal());
     ASSERT_FALSE(config.syncDeletions());
     ASSERT_FALSE(config.forceOverwrite());
     test_SyncConfig_serialization(config);
@@ -1175,8 +1175,8 @@ TEST(Sync, SyncConfig_downSync_syncDelTrue_overwriteTrue)
     ASSERT_EQ(123, config.getLocalFingerprint());
     ASSERT_EQ(regExps, config.getRegExps());
     ASSERT_EQ(mega::SyncConfig::TYPE_DOWN, config.getType());
-    ASSERT_FALSE(config.isUpSync());
-    ASSERT_TRUE(config.isDownSync());
+    ASSERT_FALSE(config.syncsToCloud());
+    ASSERT_TRUE(config.syncsToLocal());
     ASSERT_TRUE(config.syncDeletions());
     ASSERT_TRUE(config.forceOverwrite());
     test_SyncConfig_serialization(config);

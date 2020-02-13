@@ -955,7 +955,7 @@ struct StandardClient : public MegaApp
         {
             EXPECT_EQ(n->name, n_localname);
         }
-        if (n->sync->getConfig().isUpSync() && n->sync->getConfig().isDownSync())
+        if (n->sync->getConfig().syncsToCloud() && n->sync->getConfig().syncsToLocal())
         {
             EXPECT_TRUE(n->node != nullptr);
         }

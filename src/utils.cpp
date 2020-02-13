@@ -2111,12 +2111,12 @@ SyncConfig::Type SyncConfig::getType() const
     return mSyncType;
 }
 
-bool SyncConfig::isUpSync() const
+bool SyncConfig::syncsToCloud() const
 {
     return mSyncType & TYPE_UP;
 }
 
-bool SyncConfig::isDownSync() const
+bool SyncConfig::syncsToLocal() const
 {
     return mSyncType & TYPE_DOWN;
 }

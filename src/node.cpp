@@ -1059,7 +1059,7 @@ bool Node::setparent(Node* p)
 #ifdef ENABLE_SYNC
     Node *oldparent = parent;
 
-    if ((!localnode || !localnode->sync->getConfig().isUpSync()) && !isSyncable())
+    if ((!localnode || !localnode->sync->getConfig().syncsToCloud()) && !isSyncable())
     {
         if (p) // p is the new parent
         {
@@ -1430,7 +1430,7 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
 
 void LocalNode::reactToNodeChange(const bool nodeDeleted)
 {
-    if (!sync->getConfig().isDownSync())
+    if (!sync->getConfig().syncsToLocal())
     {
         mSyncable = !nodeDeleted;
     }
@@ -1743,7 +1743,7 @@ LocalNode::~LocalNode()
         }
         else // sync is active
         {
-            if (!sync->getConfig().isUpSync())
+            if (!sync->getConfig().syncsToCloud())
             {
                 node->setSyncable(false);
             }
