@@ -150,38 +150,41 @@ class SimpleLogger
     static OutputMap outputs;
     static OutputStreams getOutput(enum LogLevel ll);
 #else
-    std::array<char, 256> mBuffer; // will be stack-allocated since SimpleLogger is stack-allocated
-    std::array<char, 256>::iterator mBufferIt;
-    using DiffType = std::array<char, 256>::difference_type;
+    static constexpr size_t BUFFER_SIZE = 256;
+    std::array<char, BUFFER_SIZE> mBuffer; // will be stack-allocated since SimpleLogger is stack-allocated
+    std::array<char, BUFFER_SIZE>::iterator mBufferIt;
+    std::unique_ptr<std::vector<char>> mOverflow; // used when we run out of stack buffer (mBuffer)
+    using DiffType = std::array<char, BUFFER_SIZE>::difference_type;
     using NumBuf = std::array<char, 24>;
     const char* filenameStr;
     int lineNum;
 
     template<typename DataIterator>
-    void copyToBuffer(const DataIterator dataIt, DiffType currentSize)
+    void copyToBuffer(const DataIterator dataIt, const DiffType size)
     {
-        DiffType start = 0;
-        while (currentSize > 0)
+        if (mOverflow)
         {
-            const auto size = std::min(currentSize, std::distance(mBufferIt, mBuffer.end() - 1));
-            mBufferIt = std::copy(dataIt + start, dataIt + start + size, mBufferIt);
-            if (mBufferIt == mBuffer.end() - 1)
+            for (DiffType i = 0; i < size; ++i)
             {
-                outputBuffer();
+                mOverflow->push_back(*(dataIt + i));
             }
-            start += size;
-            currentSize -= size;
         }
-    }
-
-    void outputBuffer()
-    {
-        *mBufferIt = '\0';
-        if (logger)
+        else
         {
-            logger->log(nullptr, level, nullptr, mBuffer.data());
+            if (size <= std::distance(mBufferIt, mBuffer.end() - 1))
+            {
+                mBufferIt = std::copy(dataIt, dataIt + size, mBufferIt);
+            }
+            else
+            {
+                mOverflow = std::unique_ptr<std::vector<char>>{new std::vector<char>};
+                for (auto it = mBuffer.begin(); it != mBufferIt; ++it)
+                {
+                    mOverflow->push_back(*it);
+                }
+                copyToBuffer(dataIt, size);
+            }
         }
-        mBufferIt = mBuffer.begin();
     }
 
     template<typename T>
@@ -327,7 +330,19 @@ public:
         copyToBuffer(":", 1);
         logValue(lineNum);
         copyToBuffer("]", 1);
-        outputBuffer();
+        if (logger)
+        {
+            if (mOverflow)
+            {
+                mOverflow->push_back('\0');
+                logger->log(nullptr, level, nullptr, mOverflow->data());
+            }
+            else
+            {
+                *mBufferIt = '\0';
+                logger->log(nullptr, level, nullptr, mBuffer.data());
+            }
+        }
 #else
         OutputStreams::iterator iter;
         OutputStreams vec;

@@ -285,9 +285,8 @@ TEST(Logging, performanceMode_withMessageLargeThanLogBuffer)
         const std::string message = firstMessage + secondMessage;
         mega::SimpleLogger{static_cast<mega::LogLevel>(level), file.c_str(), line} << message;
         logger.checkLogLevel(level);
-        ASSERT_EQ(2, logger.mMessage.size());
-        ASSERT_EQ(expMsg(file, line, message).substr(0,255), logger.mMessage[0]);
-        ASSERT_EQ(expMsg(file, line, message).substr(255), logger.mMessage[1]);
+        ASSERT_EQ(1, logger.mMessage.size());
+        ASSERT_EQ(expMsg(file, line, message), logger.mMessage[0]);
     }
 }
 
@@ -301,11 +300,8 @@ TEST(Logging, performanceMode_withHugeMessage)
         const std::string message(5000, 'X');
         mega::SimpleLogger{static_cast<mega::LogLevel>(level), file.c_str(), line} << message;
         logger.checkLogLevel(level);
-
-        const int totallength = 5000 + strlen(" [file.cpp:13]") + 1;
-        const size_t fullMsgCount = totallength / 255;
-        ASSERT_EQ(fullMsgCount + 1, logger.mMessage.size());
-        ASSERT_EQ(totallength % 255 - 1, logger.mMessage.back().size());
+        ASSERT_EQ(1, logger.mMessage.size());
+        ASSERT_EQ(expMsg(file, line, message), logger.mMessage[0]);
     }
 }
 
