@@ -987,6 +987,16 @@ void SdkTest::getUserAttribute(MegaUser *u, int type, int timeout, int apiIndex)
     ASSERT_TRUE(result) << "User attribute retrieval failed (error: " << err << ")";
 }
 
+void SdkTest::catchup(unsigned int apiIndex, int timeout)
+{
+    mApi[apiIndex].requestFlags[MegaRequest::TYPE_CATCHUP] = false;
+    megaApi[apiIndex]->catchup();
+
+    ASSERT_TRUE( waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_CATCHUP], timeout) )
+            << "catchup failed after " << timeout  << " seconds";
+    ASSERT_EQ(MegaError::API_OK, mApi[apiIndex].lastError) << "Catchup failed (error: " << mApi[apiIndex].lastError << ")";
+}
+
 ///////////////////////////__ Tests using SdkTest __//////////////////////////////////
 
 /**
@@ -2085,6 +2095,7 @@ TEST_F(SdkTest, SdkTestShares)
     delete nl;
 
     // check the corresponding user alert
+    catchup(1);
     ASSERT_TRUE(checkAlert(1, "New shared folder from " + mApi[0].email, mApi[0].email + ":Shared-folder"));
 
     // add a folder under the share
@@ -2094,6 +2105,7 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_NO_FATAL_FAILURE(createFolder(0, foldernameB, megaApi[0]->getNodeByHandle(hfolder2)));
 
     // check the corresponding user alert
+    catchup(1);
     ASSERT_TRUE(checkAlert(1, mApi[0].email + " added 2 folders", megaApi[0]->getNodeByHandle(hfolder2)->getHandle(), 2));
 
     // --- Modify the access level of an outgoing share ---
