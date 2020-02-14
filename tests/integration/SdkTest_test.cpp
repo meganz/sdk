@@ -804,6 +804,11 @@ void SdkTest::getMegaApiAux(unsigned index)
 
 void SdkTest::releaseMegaApi(unsigned int apiIndex)
 {
+    if (mApi.size() <= apiIndex)
+    {
+        return;
+    }
+
     assert(megaApi[apiIndex].get() == mApi[apiIndex].megaApi);
     if (mApi[apiIndex].megaApi)
     {
