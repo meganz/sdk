@@ -5135,7 +5135,7 @@ public class MegaApiJava {
      *
      * @param listener MegaRequestListener to track this request
      */
-    void getCameraUploadsFolder(MegaRequestListenerInterface listener){
+    public void getCameraUploadsFolder(MegaRequestListenerInterface listener){
         megaApi.getCameraUploadsFolder(createDelegateRequestListener(listener));
     }
 
@@ -5155,7 +5155,7 @@ public class MegaApiJava {
      *
      * @param listener MegaRequestListener to track this request
      */
-    void getCameraUploadsFolderSecondary(MegaRequestListenerInterface listener){
+    public void getCameraUploadsFolderSecondary(MegaRequestListenerInterface listener){
         megaApi.getCameraUploadsFolderSecondary(createDelegateRequestListener(listener));
     }
 

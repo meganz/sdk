@@ -562,12 +562,6 @@ void SdkTest::onChatsUpdate(MegaApi *api, MegaTextChatList *chats)
     mApi[apiIndex].chatUpdated = true;
 }
 
-void SdkTest::onEvent(MegaApi*, MegaEvent *event)
-{
-    std::lock_guard<std::mutex> lock{lastEventMutex};
-    lastEvent.reset(event->copy());
-}
-
 void SdkTest::createChat(bool group, MegaTextChatPeerList *peers, int timeout)
 {
     int apiIndex = 0;
@@ -583,6 +577,12 @@ void SdkTest::createChat(bool group, MegaTextChatPeerList *peers, int timeout)
 }
 
 #endif
+
+void SdkTest::onEvent(MegaApi*, MegaEvent *event)
+{
+    std::lock_guard<std::mutex> lock{lastEventMutex};
+    lastEvent.reset(event->copy());
+}
 
 void SdkTest::login(unsigned int apiIndex, int timeout)
 {
