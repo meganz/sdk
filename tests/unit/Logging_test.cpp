@@ -81,8 +81,9 @@ TEST(Logging, performanceMode_forStdString)
         const std::string message = "some message";
         mega::SimpleLogger{static_cast<mega::LogLevel>(level), file.c_str(), line} << message;
         logger.checkLogLevel(level);
-        ASSERT_EQ(1, logger.mMessage.size());
+        ASSERT_EQ(2, logger.mMessage.size());
         ASSERT_EQ(expMsg(file, line, message), logger.mMessage[0]);
+        ASSERT_TRUE(logger.mMessage.back().empty());
     }
 }
 
@@ -97,8 +98,9 @@ TEST(Logging, performanceMode_forWStdString)
         const std::wstring message = L"\u039C\u03C5\u03C4\u03B9\u03BB\u03B7\u03BD\u03B1\u03AF\u03BF\u03C2\20\u0391\u03B2\u03C1\u03AC\u03C2";
         mega::SimpleLogger{static_cast<mega::LogLevel>(level), file.c_str(), line} << message;
         logger.checkLogLevel(level);
-        ASSERT_EQ(1, logger.mMessage.size());
+        ASSERT_EQ(2, logger.mMessage.size());
         ASSERT_EQ(expWMsg(file, line, message), logger.mMessage[0]);
+        ASSERT_TRUE(logger.mMessage.back().empty());
     }
 }
 #endif
@@ -113,8 +115,9 @@ TEST(Logging, performanceMode_forCString)
         const std::string message = "some message";
         mega::SimpleLogger{static_cast<mega::LogLevel>(level), file.c_str(), line} << message.c_str();
         logger.checkLogLevel(level);
-        ASSERT_EQ(1, logger.mMessage.size());
+        ASSERT_EQ(2, logger.mMessage.size());
         ASSERT_EQ(expMsg(file, line, message), logger.mMessage[0]);
+        ASSERT_TRUE(logger.mMessage.back().empty());
     }
 }
 
@@ -128,8 +131,9 @@ TEST(Logging, performanceMode_forEnum)
         const auto obj = mega::LogLevel::logDebug;
         mega::SimpleLogger{static_cast<mega::LogLevel>(level), file.c_str(), line} << obj;
         logger.checkLogLevel(level);
-        ASSERT_EQ(1, logger.mMessage.size());
+        ASSERT_EQ(2, logger.mMessage.size());
         ASSERT_EQ(expMsg(file, line, "4"), logger.mMessage[0]);
+        ASSERT_TRUE(logger.mMessage.back().empty());
     }
 }
 
@@ -143,8 +147,9 @@ TEST(Logging, performanceMode_forPointer)
         const double obj = 42;
         mega::SimpleLogger{static_cast<mega::LogLevel>(level), file.c_str(), line} << &obj;
         logger.checkLogLevel(level);
-        ASSERT_EQ(1, logger.mMessage.size());
+        ASSERT_EQ(2, logger.mMessage.size());
         ASSERT_GE(logger.mMessage[0].size(), file.size() + 5); // 5 = ':13 ' plus null terminator
+        ASSERT_TRUE(logger.mMessage.back().empty());
     }
 }
 
@@ -158,8 +163,9 @@ TEST(Logging, performanceMode_forNullPointer)
         const double* obj = nullptr;
         mega::SimpleLogger{static_cast<mega::LogLevel>(level), file.c_str(), line} << obj;
         logger.checkLogLevel(level);
-        ASSERT_EQ(1, logger.mMessage.size());
+        ASSERT_EQ(2, logger.mMessage.size());
         ASSERT_EQ(expMsg(file, line, "(NULL)"), logger.mMessage[0]);
+        ASSERT_TRUE(logger.mMessage.back().empty());
     }
 }
 
@@ -175,10 +181,11 @@ void test_forIntegerNumber(const Type number)
         const int line = 13;
         mega::SimpleLogger{static_cast<mega::LogLevel>(level), file.c_str(), line} << number;
         logger.checkLogLevel(level);
-        EXPECT_EQ(1, logger.mMessage.size());
+        EXPECT_EQ(2, logger.mMessage.size());
         std::ostringstream expected;
         expected << number;
         EXPECT_EQ(expMsg(file, line, expected.str()), logger.mMessage[0]);
+        ASSERT_TRUE(logger.mMessage.back().empty());
     }
 }
 
@@ -192,11 +199,12 @@ void test_forFloatingNumber(const Type number)
         const int line = 13;
         mega::SimpleLogger{static_cast<mega::LogLevel>(level), file.c_str(), line} << number;
         logger.checkLogLevel(level);
-        EXPECT_EQ(1, logger.mMessage.size());
+        EXPECT_EQ(2, logger.mMessage.size());
         std::ostringstream expected;
         expected << number;
         const auto msg = expMsg(file, line, expected.str());
         EXPECT_NE(logger.mMessage[0].find(msg), std::string::npos);
+        ASSERT_TRUE(logger.mMessage.back().empty());
     }
 }
 
@@ -285,9 +293,10 @@ TEST(Logging, performanceMode_withMessageLargeThanLogBuffer)
         const std::string message = firstMessage + secondMessage;
         mega::SimpleLogger{static_cast<mega::LogLevel>(level), file.c_str(), line} << message;
         logger.checkLogLevel(level);
-        ASSERT_EQ(2, logger.mMessage.size());
+        ASSERT_EQ(3, logger.mMessage.size());
         ASSERT_EQ(expMsg(file, line, message).substr(0,255), logger.mMessage[0]);
         ASSERT_EQ(expMsg(file, line, message).substr(255), logger.mMessage[1]);
+        ASSERT_TRUE(logger.mMessage.back().empty());
     }
 }
 
@@ -304,8 +313,9 @@ TEST(Logging, performanceMode_withHugeMessage)
 
         const int totallength = 5000 + strlen(" [file.cpp:13]") + 1;
         const size_t fullMsgCount = totallength / 255;
-        ASSERT_EQ(fullMsgCount + 1, logger.mMessage.size());
-        ASSERT_EQ(totallength % 255 - 1, logger.mMessage.back().size());
+        ASSERT_EQ(fullMsgCount + 2, logger.mMessage.size());
+        ASSERT_EQ(totallength % 255 - 1, logger.mMessage[logger.mMessage.size() - 2].size());
+        ASSERT_TRUE(logger.mMessage.back().empty());
     }
 }
 
@@ -394,8 +404,9 @@ TEST(Logging, macroVerbose)
         if (level >= currentLevel)
         {
             logger.checkLogLevel(currentLevel);
-            ASSERT_EQ(1u, logger.mMessage.size());
+            ASSERT_EQ(2u, logger.mMessage.size());
             EXPECT_NE(logger.mMessage[0].find(msg), std::string::npos);
+            ASSERT_TRUE(logger.mMessage.back().empty());
         }
         else
         {
@@ -416,8 +427,9 @@ TEST(Logging, macroDebug)
         if (level >= currentLevel)
         {
             logger.checkLogLevel(currentLevel);
-            ASSERT_EQ(1u, logger.mMessage.size());
+            ASSERT_EQ(2u, logger.mMessage.size());
             EXPECT_NE(logger.mMessage[0].find(msg), std::string::npos);
+            ASSERT_TRUE(logger.mMessage.back().empty());
         }
         else
         {
@@ -438,8 +450,9 @@ TEST(Logging, macroInfo)
         if (level >= currentLevel)
         {
             logger.checkLogLevel(currentLevel);
-            ASSERT_EQ(1u, logger.mMessage.size());
+            ASSERT_EQ(2u, logger.mMessage.size());
             EXPECT_NE(logger.mMessage[0].find(msg), std::string::npos);
+            ASSERT_TRUE(logger.mMessage.back().empty());
         }
         else
         {
@@ -460,8 +473,9 @@ TEST(Logging, macroWarn)
         if (level >= currentLevel)
         {
             logger.checkLogLevel(currentLevel);
-            ASSERT_EQ(1u, logger.mMessage.size());
+            ASSERT_EQ(2u, logger.mMessage.size());
             EXPECT_NE(logger.mMessage[0].find(msg), std::string::npos);
+            ASSERT_TRUE(logger.mMessage.back().empty());
         }
         else
         {
@@ -482,8 +496,9 @@ TEST(Logging, macroErr)
         if (level >= currentLevel)
         {
             logger.checkLogLevel(currentLevel);
-            ASSERT_EQ(1u, logger.mMessage.size());
+            ASSERT_EQ(2u, logger.mMessage.size());
             EXPECT_NE(logger.mMessage[0].find(msg), std::string::npos);
+            ASSERT_TRUE(logger.mMessage.back().empty());
         }
         else
         {
@@ -501,7 +516,8 @@ TEST(Logging, macroFatal)
         const std::string msg = "foobar";
         LOG_fatal << msg;
         logger.checkLogLevel(mega::LogLevel::logFatal);
-        ASSERT_EQ(1u, logger.mMessage.size());
+        ASSERT_EQ(2u, logger.mMessage.size());
         EXPECT_NE(logger.mMessage[0].find(msg), std::string::npos);
+        ASSERT_TRUE(logger.mMessage.back().empty());
     }
 }

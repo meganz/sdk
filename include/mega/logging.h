@@ -174,12 +174,19 @@ class SimpleLogger
         }
     }
 
-    void outputBuffer()
+    void outputBuffer(bool finalize = false)
     {
         *mBufferIt = '\0';
         if (logger)
         {
-            logger->log(nullptr, level, nullptr, mBuffer.data());
+            if (*mBuffer.begin() != '\0')
+            {
+                logger->log(nullptr, level, nullptr, mBuffer.data());
+            }
+            if (finalize)
+            {
+                logger->log(nullptr, level, nullptr, "");
+            }
         }
         mBufferIt = mBuffer.begin();
     }
@@ -327,7 +334,7 @@ public:
         copyToBuffer(":", 1);
         logValue(lineNum);
         copyToBuffer("]", 1);
-        outputBuffer();
+        outputBuffer(true);
 #else
         OutputStreams::iterator iter;
         OutputStreams vec;
