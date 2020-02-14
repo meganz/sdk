@@ -238,6 +238,7 @@ void SdkTest::TearDown()
     deleteFile(AVATARDST);
 
     releaseMegaApi(1);
+    releaseMegaApi(2);
 
     if (megaApi[0])
     {        
