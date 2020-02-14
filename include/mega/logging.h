@@ -179,7 +179,11 @@ class SimpleLogger
         *mBufferIt = '\0';
         if (continues)
         {
-            *(mBufferIt+1) = (char)0x1F;
+            *(mBufferIt + 1) = (char)0x1F;
+        }
+        else
+        {
+            *(mBufferIt + 1) = '\0';
         }
         if (logger)
         {
