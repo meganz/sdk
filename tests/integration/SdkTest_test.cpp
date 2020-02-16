@@ -4033,8 +4033,7 @@ TEST_F(SdkTest, SdkRecentsTest)
     ASSERT_EQ(UPFILE, string(buckets->get(0)->getNodes()->get(1)->getName()));
 }
 
-// TODO: Enable this test when API command (smslc) becomes available in production
-TEST_F(SdkTest, DISABLED_SdkGetCountryCallingCodes)
+TEST_F(SdkTest, SdkGetCountryCallingCodes)
 {
     LOG_info << "___TEST SdkGetCountryCallingCodes___";
 
@@ -4052,8 +4051,7 @@ TEST_F(SdkTest, DISABLED_SdkGetCountryCallingCodes)
     ASSERT_EQ(0, strcmp("49", de->get(0)));
 }
 
-// TODO: Enable this test when API command (usabd) becomes available in production
-TEST_F(SdkTest, DISABLED_SdkGetRegisteredContacts)
+TEST_F(SdkTest, SdkGetRegisteredContacts)
 {
     LOG_info << "___TEST SdkGetRegisteredContacts___";
 
