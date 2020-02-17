@@ -62,7 +62,13 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
     MEGASortOrderTypeModificationAsc,
     MEGASortOrderTypeModificationDesc,
     MEGASortOrderTypeAlphabeticalAsc,
-    MEGASortOrderTypeAlphabeticalDesc
+    MEGASortOrderTypeAlphabeticalDesc,
+    MEGASortOrderTypePhotoAsc,
+    MEGASortOrderTypePhotoDesc,
+    MEGASortOrderTypeVideoAsc,
+    MEGASortOrderTypeVideoDesc,
+    MEGASortOrderTypeLinkCreationAsc,
+    MEGASortOrderTypeLinkCreationDesc
 };
 
 typedef NS_ENUM (NSInteger, MEGAEventType) {
@@ -6239,10 +6245,26 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * Sort by modification time of the original file, descending
  *
  * - MEGASortOrderTypeAlphabeticalAsc = 9
- * Sort in alphabetical order, ascending
+ * Same behavior than MEGASortOrderTypeDefaultAsc
  *
  * - MEGASortOrderTypeAlphabeticalDesc = 10
- * Sort in alphabetical order, descending
+ * Same behavior than MEGASortOrderTypeDefaultDesc
+ *
+ * - MEGASortOrderTypePhotoAsc = 11
+ * Sort with photos first, then by date ascending
+ *
+ * - MEGASortOrderTypePhotoDesc = 12
+ * Sort with photos first, then by date descending
+ *
+ * - MEGASortOrderTypeVideoAsc = 13
+ * Sort with videos first, then by date ascending
+ *
+ * - MEGASortOrderTypeVideoDesc = 14
+ * Sort with videos first, then by date descending
+ *
+ * @deprecated MEGASortOrderTypeAlphabeticalAsc and MEGASortOrderTypeAlphabeticalDesc
+ * are equivalent to MEGASortOrderTypeDefaultAsc and MEGASortOrderTypeDefaultDesc.
+ * They will be eventually removed.
  *
  * @return List with all child MEGANode objects.
  */
@@ -6348,10 +6370,26 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * Sort by modification time of the original file, descending
  *
  * - MEGASortOrderTypeAlphabeticalAsc = 9
- * Sort in alphabetical order, ascending
+ * Same behavior than MEGASortOrderTypeDefaultAsc
  *
  * - MEGASortOrderTypeAlphabeticalDesc = 10
- * Sort in alphabetical order, descending
+ * Same behavior than MEGASortOrderTypeDefaultDesc
+ *
+ * - MEGASortOrderTypePhotoAsc = 11
+ * Sort with photos first, then by date ascending
+ *
+ * - MEGASortOrderTypePhotoDesc = 12
+ * Sort with photos first, then by date descending
+ *
+ * - MEGASortOrderTypeVideoAsc = 13
+ * Sort with videos first, then by date ascending
+ *
+ * - MEGASortOrderTypeVideoDesc = 14
+ * Sort with videos first, then by date descending
+ *
+ * @deprecated MEGASortOrderTypeAlphabeticalAsc and MEGASortOrderTypeAlphabeticalDesc
+ * are equivalent to MEGASortOrderTypeDefaultAsc and MEGASortOrderTypeDefaultDesc.
+ * They will be eventually removed.
  *
  * @return Lists with files and folders child MegaNode objects
  */
@@ -6555,6 +6593,9 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * @brief Get a list with all public links
  *
  * @param order Order for the returned list.
+ * Valid value for order are: MEGASortOrderTypeNone, MEGASortOrderTypeDefaultAsc,
+ * MEGASortOrderTypeDefaultDesc, MEGASortOrderTypeLinkCreationAsc,
+ * MEGASortOrderTypeLinkCreationDesc
  * @return List of MEGANode objects that are shared with everyone via public link
  */
 - (MEGANodeList *)publicLinks:(MEGASortOrderType)order;
@@ -6780,19 +6821,68 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
 - (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString recursive:(BOOL)recursive;
 
 /**
-* @brief Search nodes containing a search string in their name.
-*
-* The search is case-insensitive.
-*
-* @param node The parent node of the tree to explore.
-* @param searchString Search string. The search is case-insensitive.
-* @param cancelToken MEGACancelToken to be able to cancel the processing at any time.
-* @param recursive YES if you want to seach recursively in the node tree.
-* @param order MEGASortOrderType for the returned list.
-* NO if you want to seach in the children of the node only
-*
-* @return List of nodes that contain the desired string in their name.
-*/
+ * @brief Search nodes containing a search string in their name.
+ *
+ * The search is case-insensitive.
+ *
+ * @param node The parent node of the tree to explore.
+ * @param searchString Search string. The search is case-insensitive.
+ * @param cancelToken MEGACancelToken to be able to cancel the processing at any time.
+ * @param recursive YES if you want to seach recursively in the node tree.
+ * NO if you want to seach in the children of the node only
+ * @param order MEGASortOrderType for the returned list.
+ * Valid values for this parameter are:
+ * - MEGASortOrderTypeNone = 0
+ * Undefined order
+ *
+ * - MEGASortOrderTypeDefaultAsc = 1
+ * Folders first in alphabetical order, then files in the same order
+ *
+ * - MEGASortOrderTypeDefaultDesc = 2
+ * Files first in reverse alphabetical order, then folders in the same order
+ *
+ * - MEGASortOrderTypeSizeAsc = 3
+ * Sort by size, ascending
+ *
+ * - MEGASortOrderTypeSizeDesc = 4
+ * Sort by size, descending
+ *
+ * - MEGASortOrderTypeCreationAsc = 5
+ * Sort by creation time in MEGA, ascending
+ *
+ * - MEGASortOrderTypeCreationDesc = 6
+ * Sort by creation time in MEGA, descending
+ *
+ * - MEGASortOrderTypeModificationAsc = 7
+ * Sort by modification time of the original file, ascending
+ *
+ * - MEGASortOrderTypeModificationDesc = 8
+ * Sort by modification time of the original file, descending
+ *
+ * - MEGASortOrderTypeAlphabeticalAsc = 9
+ * Same behavior than MEGASortOrderTypeDefaultAsc
+ *
+ * - MEGASortOrderTypeAlphabeticalDesc = 10
+ * Same behavior than MEGASortOrderTypeDefaultDesc
+ *
+ * - MEGASortOrderTypePhotoAsc = 11
+ * Sort with photos first, then by date ascending
+ *
+ * - MEGASortOrderTypePhotoDesc = 12
+ * Sort with photos first, then by date descending
+ *
+ * - MEGASortOrderTypeVideoAsc = 13
+ * Sort with videos first, then by date ascending
+ *
+ * - MEGASortOrderTypeVideoDesc = 14
+ * Sort with videos first, then by date descending
+ *
+ * @deprecated MEGASortOrderTypeAlphabeticalAsc and MEGASortOrderTypeAlphabeticalDesc
+ * are equivalent to MEGASortOrderTypeDefaultAsc and MEGASortOrderTypeDefaultDesc.
+ * They will be eventually removed.
+ *
+ * @return List of nodes that contain the desired string in their name.
+ */
 - (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString cancelToken:(MEGACancelToken *)cancelToken recursive:(BOOL)recursive order:(MEGASortOrderType)order;
 
 /**
