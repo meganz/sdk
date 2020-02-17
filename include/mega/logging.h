@@ -156,6 +156,9 @@ class SimpleLogger
     using NumBuf = std::array<char, 24>;
     const char* filenameStr;
     int lineNum;
+    int outputted = 0;
+    static const int immediate_threshold = 1024;
+    bool immediate = false;
 
     template<typename DataIterator>
     void copyToBuffer(const DataIterator dataIt, DiffType currentSize)
@@ -179,11 +182,27 @@ class SimpleLogger
         *mBufferIt = '\0';
         if (continues)
         {
-            *(mBufferIt + 1) = (char)0x1F;
+            if (outputted > immediate_threshold)
+            {
+                *(mBufferIt + 1) = (char)0x1E;
+                immediate = true;
+            }
+            else
+            {
+                outputted+=mBuffer.size() - 1;
+                *(mBufferIt + 1) = (char)0x1F;
+            }
         }
         else
         {
-            *(mBufferIt + 1) = '\0';
+            if (immediate)
+            {
+                *(mBufferIt + 1) = (char)0x1D;
+            }
+            else
+            {
+                *(mBufferIt + 1) = '\0';
+            }
         }
         if (logger)
         {
