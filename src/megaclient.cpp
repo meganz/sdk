@@ -5207,9 +5207,11 @@ bool MegaClient::sc_shares()
 
                     if (!ISUNDEF(oh) && (!ISUNDEF(uh) || !ISUNDEF(p)))
                     {
-                        if (!outbound && oh != me && oh && statecurrent)
+                        User* u = finduser(oh);
+                        // only new shares should be notified (skip permissions changes)
+                        bool newShare = u->sharing.find(h) == u->sharing.end();
+                        if (!outbound && oh != me && oh && statecurrent && newShare)
                         {
-                            User* u = finduser(oh);
                             useralerts.add(new UserAlert::NewShare(h, oh, u ? u->email : "", ts, useralerts.nextId()));
                             useralerts.ignoreNextSharedNodesUnder(h);  // no need to alert on nodes already in the new share, which are delivered next
                         }
