@@ -11268,12 +11268,15 @@ char *MegaApiImpl::getFingerprint(MegaNode *n)
     return MegaApi::strdup(n->getFingerprint());
 }
 
-void MegaApiImpl::transfer_failed(Transfer* t, error e, dstime timeleft)
+void MegaApiImpl::transfer_failed(Transfer* t, error e, dstime timeleft, handle targetHandle)
 {
     for (file_list::iterator it = t->files.begin(); it != t->files.end(); it++)
     {
         MegaTransferPrivate* transfer = getMegaTransferPrivate((*it)->tag);
-        if (!transfer)
+
+        // uploads with multiple targets may fail for some targets, but success for other ones --> only notify failed ones
+        if (!transfer
+            || (t->type == PUT && !ISUNDEF(targetHandle) && transfer->getParentHandle() != targetHandle))
         {
             continue;
         }
@@ -17749,7 +17752,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                         else
                         {
                             MegaTransferPrivate* prevTransfer = NULL;
-                            transfer_map::iterator it = client->transfers[PUT].find(f);
+                            transfer_map::iterator it = client->getTransferByFileFingerprint(f, client->transfers[PUT], client->isForeignNode(f->h));
                             if (it != client->transfers[PUT].end())
                             {
                                 Transfer *t = it->second;
