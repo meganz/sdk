@@ -16704,6 +16704,10 @@ bool MegaApiImpl::nodeComparatorPublicLinkCreationASC(Node *i, Node *j)
     {
         return t;
     }
+    if (!i->plink || !j->plink)
+    {
+        return nodeNaturalComparatorASC(i, j);
+    }
     if (i->plink->cts < j->plink->cts)
     {
         return 1;
@@ -16721,6 +16725,10 @@ bool MegaApiImpl::nodeComparatorPublicLinkCreationDESC(Node *i, Node *j)
     if (t >= 0)
     {
         return t;
+    }
+    if (!i->plink || !j->plink)
+    {
+        return nodeNaturalComparatorDESC(i, j);
     }
     if (i->plink->cts < j->plink->cts)
     {
