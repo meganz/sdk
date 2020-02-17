@@ -7354,7 +7354,8 @@ public class MegaApiJava {
      * Get a list with all public links
      *
      * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
-     * MegaApi::ORDER_DEFAULT_DESC
+     * MegaApi::ORDER_DEFAULT_DESC, MegaApi::ORDER_LINK_CREATION_ASC,
+     * MegaApi::ORDER_LINK_CREATION_DESC
      *
      * You take the ownership of the returned value
      *
