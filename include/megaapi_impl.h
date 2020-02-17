@@ -2420,6 +2420,8 @@ class MegaApiImpl : public MegaApp
         static bool nodeComparatorPhotoDESC(Node *i, Node *j, MegaClient& mc);
         static bool nodeComparatorVideoASC(Node *i, Node *j, MegaClient& mc);
         static bool nodeComparatorVideoDESC(Node *i, Node *j, MegaClient& mc);
+        static bool nodeComparatorPublicLinkCreationASC(Node *i, Node *j);
+        static bool nodeComparatorPublicLinkCreationDESC(Node *i, Node *j);
         static int typeComparator(Node *i, Node *j);
         static bool userComparatorDefaultASC (User *i, User *j);
 

@@ -16495,6 +16495,8 @@ std::function<bool (Node*, Node*)> MegaApiImpl::getComparatorFunction(int order,
         case MegaApi::ORDER_MODIFICATION_DESC: return MegaApiImpl::nodeComparatorModificationDESC;
         case MegaApi::ORDER_ALPHABETICAL_ASC: return MegaApiImpl::nodeComparatorDefaultASC;
         case MegaApi::ORDER_ALPHABETICAL_DESC: return MegaApiImpl::nodeComparatorDefaultDESC;
+        case MegaApi::ORDER_LINK_CREATION_ASC: return MegaApiImpl::nodeComparatorPublicLinkCreationASC;
+        case MegaApi::ORDER_LINK_CREATION_DESC: return MegaApiImpl::nodeComparatorPublicLinkCreationDESC;
         case MegaApi::ORDER_PHOTO_ASC: return [&mc](Node* i, Node*j) { return MegaApiImpl::nodeComparatorPhotoASC(i, j, mc); };
         case MegaApi::ORDER_PHOTO_DESC: return [&mc](Node* i, Node*j) { return MegaApiImpl::nodeComparatorPhotoDESC(i, j, mc); };
         case MegaApi::ORDER_VIDEO_ASC: return [&mc](Node* i, Node*j) { return MegaApiImpl::nodeComparatorVideoASC(i, j, mc); };
@@ -16692,6 +16694,42 @@ bool MegaApiImpl::nodeComparatorModificationDESC(Node *i, Node *j)
         return 1;
     }
 
+    return nodeNaturalComparatorDESC(i, j);
+}
+
+bool MegaApiImpl::nodeComparatorPublicLinkCreationASC(Node *i, Node *j)
+{
+    int t = typeComparator(i, j);
+    if (t >= 0)
+    {
+        return t;
+    }
+    if (i->plink->cts < j->plink->cts)
+    {
+        return 1;
+    }
+    if (i->plink->cts > j->plink->cts)
+    {
+        return 0;
+    }
+    return nodeNaturalComparatorASC(i, j);
+}
+
+bool MegaApiImpl::nodeComparatorPublicLinkCreationDESC(Node *i, Node *j)
+{
+    int t = typeComparator(i, j);
+    if (t >= 0)
+    {
+        return t;
+    }
+    if (i->plink->cts < j->plink->cts)
+    {
+        return 0;
+    }
+    if (i->plink->cts > j->plink->cts)
+    {
+        return 1;
+    }
     return nodeNaturalComparatorDESC(i, j);
 }
 
