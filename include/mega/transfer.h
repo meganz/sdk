@@ -30,6 +30,18 @@
 
 namespace mega {
 
+// helper class for categorizing transfers for upload/download queues
+struct TransferCategory
+{
+    direction_t direction = NONE;
+    filesizetype_t sizetype = LARGEFILE;
+
+    TransferCategory(direction_t d, filesizetype_t s);
+    TransferCategory(Transfer*);
+    unsigned index();
+    unsigned directionIndex();
+};
+
 class DBTableTransactionCommitter;
 
 // pending/active up/download ordered by file fingerprint (size - mtime - sparse CRC)
@@ -90,8 +102,11 @@ struct MEGA_API Transfer : public FileFingerprint
     MegaClient* client;
     int tag;
 
+    // returns true if the transfer contains foreign targets, false if targets are private
+    bool isForeign();
+
     // signal failure
-    void failed(error, DBTableTransactionCommitter&, dstime = 0);
+    void failed(error, DBTableTransactionCommitter&, dstime = 0, handle targetHandle = UNDEF);
 
     // signal completion
     void complete(DBTableTransactionCommitter&);
@@ -142,7 +157,7 @@ struct MEGA_API Transfer : public FileFingerprint
     virtual ~Transfer();
 
     // serialize the Transfer object
-    virtual bool serialize(string*);
+    bool serialize(string*) override;
 
     // unserialize a Transfer and add it to the transfer map
     static Transfer* unserialize(MegaClient *, string*, transfer_map *);
@@ -176,7 +191,7 @@ public:
     transfer_list::iterator begin(direction_t direction);
     transfer_list::iterator end(direction_t direction);
     transfer_list::iterator iterator(Transfer *transfer);
-    Transfer *nexttransfer(direction_t direction);
+    std::array<vector<Transfer*>, 6> nexttransfers(std::function<bool(Transfer*)>& continuefunction);
     Transfer *transferat(direction_t direction, unsigned int position);
 
     transfer_list transfers[2];

@@ -35,6 +35,111 @@ extern JavaVM *MEGAjvm;
 
 namespace mega {
 
+
+#if defined(_WIN32)
+
+HANDLE SockInfo::eventHandle()
+{
+    return handle;
+}
+
+bool SockInfo::createAssociateEvent()
+{
+    if (handle == WSA_INVALID_EVENT)
+    {
+        associatedHandleEvents = 0;
+        signalledWrite = false;
+        handle = WSACreateEvent();
+        if (handle == WSA_INVALID_EVENT)
+        {
+            LOG_err << "Failed to create WSA event for " << fd;
+            return false;
+        }
+    }
+
+    int events = (mode & SockInfo::READ ? FD_READ : 0) | (mode & SockInfo::WRITE ? FD_WRITE : 0);
+
+    if (associatedHandleEvents != events)
+    {
+        if (WSAEventSelect(fd, handle, events))
+        {
+            auto err = WSAGetLastError();
+            LOG_err << "WSAEventSelect failed " << fd << " " << handle << " " << events << " " << err;
+            closeEvent();
+            return false;
+        }
+        associatedHandleEvents = events;
+    }
+    return true;
+}
+
+bool SockInfo::checkEvent(bool& read, bool& write)
+{
+    if (handle != WSA_INVALID_EVENT)
+    {
+        WSANETWORKEVENTS wne;
+        memset(&wne, 0, sizeof(wne));
+        WSAEnumNetworkEvents(fd, handle, &wne); // resets the event, which we will wait on
+
+        read = 0 != (FD_READ & wne.lNetworkEvents);
+        write = 0 != (FD_WRITE & wne.lNetworkEvents);
+
+        if (!write && (FD_WRITE & associatedHandleEvents))
+        {
+            // per https://curl.haxx.se/mail/lib-2009-10/0313.html check if the socket has any buffer space
+
+            // The trick is that we want to wait on the event handle to know when we can read and write
+            // that works fine for read, however for write the event is not signalled in the normal case
+            // where curl wrote to the socket, but not enough to cause it to become unwriteable for now.
+            // So, we need to signal curl to write again if it has more data to write, if the socket can take
+            // more data.  This trick with WSASend for 0 bytes enables that - if it fails with would-block
+            // then we can stop asking curl to write to the socket, and start waiting on the handle to 
+            // know when to try again.
+            // If curl has finished writing to the socket, it will call us back to change the mode to read only.
+
+            WSABUF buf{ 0, (CHAR*)&buf };
+            DWORD bSent = 0;
+            auto writeResult = WSASend(fd, &buf, 1, &bSent, 0, NULL, NULL);
+            auto writeError = WSAGetLastError();
+            write = writeResult == 0 || writeError != WSAEWOULDBLOCK;
+        }
+
+        if (read || write)
+        {
+            signalledWrite = signalledWrite || write;
+            return true;   // if we return true, both read and write must have been set.
+        }
+    }
+    return false;
+}
+
+void SockInfo::closeEvent()
+{
+    if (handle != WSA_INVALID_EVENT)
+    {
+        WSACloseEvent(handle);
+        handle = WSA_INVALID_EVENT;
+    }
+    associatedHandleEvents = 0;
+    signalledWrite = false;
+}
+
+SockInfo::SockInfo(SockInfo&& o)
+    : fd(o.fd)
+    , mode(o.mode)
+    , signalledWrite(o.signalledWrite)
+    , handle(o.handle)
+    , associatedHandleEvents(o.associatedHandleEvents)
+{
+    o.handle = WSA_INVALID_EVENT;
+}
+
+SockInfo::~SockInfo()
+{
+    assert(handle == WSA_INVALID_EVENT);
+}
+#endif
+
 std::mutex CurlHttpIO::curlMutex;
 
 #if defined(USE_OPENSSL) && !defined(OPENSSL_IS_BORINGSSL)
@@ -170,9 +275,11 @@ CurlHttpIO::CurlHttpIO()
 
 #endif
 
-    curl_global_init(CURL_GLOBAL_DEFAULT);
-    ares_library_init(ARES_LIB_INIT_ALL);
-
+    if (++instanceCount == 1)
+    {
+        curl_global_init(CURL_GLOBAL_DEFAULT);
+        ares_library_init(ARES_LIB_INIT_ALL);
+    }
 
 #if defined(__ANDROID__) && ARES_VERSION >= 0x010F00
     initialize_android();
@@ -365,76 +472,71 @@ void CurlHttpIO::filterDNSservers()
 void CurlHttpIO::addaresevents(Waiter *waiter)
 {
     CodeCounter::ScopeTimer ccst(countAddAresEventsCode);
-    closearesevents();
+
+    SockInfoMap prevAressockets;   // if there are SockInfo records that were in use, and won't be anymore, they will be deleted with this
+    prevAressockets.swap(aressockets);
 
     ares_socket_t socks[ARES_GETSOCK_MAXNUM];
     int bitmask = ares_getsock(ares, socks, ARES_GETSOCK_MAXNUM);
     for (int i = 0; i < ARES_GETSOCK_MAXNUM; i++)
     {
-        SockInfo info;
+        bool readable = ARES_GETSOCK_READABLE(bitmask, i);
+        bool writeable = ARES_GETSOCK_WRITABLE(bitmask, i);
+
+        if (readable || writeable)
+        {
+            // take the old record from the prior version of the map, if there is one, and then we will update it
+            SockInfo& info = aressockets.emplace(socks[i], std::move(prevAressockets[socks[i]])).first->second;
+            info.mode = 0;
+
+            if (readable)
+            {
+                info.fd = socks[i];
+                info.mode |= SockInfo::READ;
+            }
+
+            if (writeable)
+            {
+                info.fd = socks[i];
+                info.mode |= SockInfo::WRITE;
+            }
 
 #if defined(_WIN32)
-        long events = 0;
-#endif
-        if(ARES_GETSOCK_READABLE(bitmask, i))
-        {
-            info.fd = socks[i];
-            info.mode |= SockInfo::READ;
-#if defined(_WIN32)
-            events |= FD_READ;
-#endif
-        }
-
-        if(ARES_GETSOCK_WRITABLE(bitmask, i))
-        {
-            info.fd = socks[i];
-            info.mode |= SockInfo::WRITE;
-#if defined(_WIN32)
-            events |= FD_WRITE;
-#endif
-        }
-
-        if (!info.mode)
-        {
-            continue;
-        }
-
-#if defined(_WIN32)
-        info.handle = WSACreateEvent();
-        if (info.handle == WSA_INVALID_EVENT)
-        {
-            LOG_err << "Unable to create WSA event for cares";
-        }
-        else if (WSAEventSelect(info.fd, info.handle, events))
-        {
-            LOG_err << "Error associating cares handle " << info.fd << ": " << GetLastError();
-            WSACloseEvent(info.handle);
-            info.handle = WSA_INVALID_EVENT;
-        }
-
-        if (info.handle != WSA_INVALID_EVENT)
-        {
-            ((WinWaiter *)waiter)->addhandle(info.handle, Waiter::NEEDEXEC);
-        }
+            if (info.createAssociateEvent())
+            {
+                ((WinWaiter *)waiter)->addhandle(info.eventHandle(), Waiter::NEEDEXEC);
+            }
 #else
-        if (info.mode & SockInfo::READ)
-        {
-            FD_SET(info.fd, &((PosixWaiter *)waiter)->rfds);
-            ((PosixWaiter *)waiter)->bumpmaxfd(info.fd);
-        }
-        if (info.mode & SockInfo::WRITE)
-        {
-            FD_SET(info.fd, &((PosixWaiter *)waiter)->wfds);
-            ((PosixWaiter *)waiter)->bumpmaxfd(info.fd);
-        }
+            if (readable)
+            {
+                FD_SET(info.fd, &((PosixWaiter *)waiter)->rfds);
+                ((PosixWaiter *)waiter)->bumpmaxfd(info.fd);
+            }
+            if (writeable)
+            {
+                FD_SET(info.fd, &((PosixWaiter *)waiter)->wfds);
+                ((PosixWaiter *)waiter)->bumpmaxfd(info.fd);
+            }
 #endif
-        aressockets.push_back(info);
+        }
     }
+
+#if defined(_WIN32)
+    for (auto& mapPair : prevAressockets)
+    {
+        mapPair.second.closeEvent();
+    }
+#endif
 }
 
 void CurlHttpIO::addcurlevents(Waiter *waiter, direction_t d)
 {
     CodeCounter::ScopeTimer ccst(countAddCurlEventsCode);
+
+#if defined(_WIN32)
+    bool anyWriters = false;
+#endif
+
     SockInfoMap &socketmap = curlsockets[d];
     for (SockInfoMap::iterator it = socketmap.begin(); it != socketmap.end(); it++)
     {
@@ -445,61 +547,44 @@ void CurlHttpIO::addcurlevents(Waiter *waiter, direction_t d)
         }
 
 #if defined(_WIN32)
-        long events = 0;
-        if (info.handle == WSA_INVALID_EVENT)
+        anyWriters = anyWriters || info.signalledWrite;
+        info.signalledWrite = false;
+
+        if (info.createAssociateEvent())
         {
-            info.handle = WSACreateEvent();
-            if (info.handle == WSA_INVALID_EVENT)
-            {
-                LOG_err << "Unable to create WSA event for curl";
-                continue;
-            }
+            ((WinWaiter *)waiter)->addhandle(info.eventHandle(), Waiter::NEEDEXEC);
         }
-#endif
+#else
 
         if (info.mode & SockInfo::READ)
         {
-#if defined(_WIN32)
-            events |= FD_READ;
-#else
             FD_SET(info.fd, &((PosixWaiter *)waiter)->rfds);
             ((PosixWaiter *)waiter)->bumpmaxfd(info.fd);
-#endif
         }
 
         if (info.mode & SockInfo::WRITE)
         {
-#if defined(_WIN32)
-            events |= FD_WRITE;
-#else
             FD_SET(info.fd, &((PosixWaiter *)waiter)->wfds);
             ((PosixWaiter *)waiter)->bumpmaxfd(info.fd);
-#endif
         }
+#endif
+   }
 
 #if defined(_WIN32)
-        if (WSAEventSelect(info.fd, info.handle, events))
-        {
-            LOG_err << "Error associating curl handle " << info.fd << ": " << GetLastError();
-            WSACloseEvent(info.handle);
-            info.handle = WSA_INVALID_EVENT;
-            continue;
-        }
-
-        ((WinWaiter *)waiter)->addhandle(info.handle, Waiter::NEEDEXEC);
-#endif
+    if (anyWriters)
+    {
+        // so long as we are writing at least one socket, keep looping until the socket is full, then start waiting on its associated event
+        static_cast<WinWaiter*>(waiter)->maxds = 0;
     }
+#endif
 }
 
 void CurlHttpIO::closearesevents()
 {
 #if defined(_WIN32)
-    for (unsigned int i = 0; i < aressockets.size(); i++)
+    for (auto& mapPair : aressockets)
     {
-        if (aressockets[i].handle != WSA_INVALID_EVENT)
-        {
-            WSACloseEvent(aressockets[i].handle);
-        }
+        mapPair.second.closeEvent();
     }
 #endif
     aressockets.clear();
@@ -511,11 +596,7 @@ void CurlHttpIO::closecurlevents(direction_t d)
 #if defined(_WIN32)
     for (SockInfoMap::iterator it = socketmap.begin(); it != socketmap.end(); it++)
     {
-        SockInfo &info = it->second;
-        if (info.handle != WSA_INVALID_EVENT)
-        {
-            WSACloseEvent(info.handle);
-        }
+        it->second.closeEvent();
     }
 #endif
     socketmap.clear();
@@ -524,31 +605,25 @@ void CurlHttpIO::closecurlevents(direction_t d)
 void CurlHttpIO::processaresevents()
 {
     CodeCounter::ScopeTimer ccst(countProcessAresEventsCode);
+
 #ifndef _WIN32
     fd_set *rfds = &((PosixWaiter *)waiter)->rfds;
     fd_set *wfds = &((PosixWaiter *)waiter)->wfds;
 #endif
 
-    for (unsigned int i = 0; i < aressockets.size(); i++)
+    for (auto& mapPair : aressockets)
     {
-        SockInfo &info = aressockets[i];
+        SockInfo &info = mapPair.second;
         if (!info.mode)
         {
             continue;
         }
 
 #if defined(_WIN32)
-        if (info.handle == WSA_INVALID_EVENT)
+        bool read, write;
+        if (info.checkEvent(read, write))  // if checkEvent returns true, both `read` and `write` have been set.
         {
-            continue;
-        }
-
-        if (WSAWaitForMultipleEvents(1, &info.handle, TRUE, 0, FALSE) == WSA_WAIT_EVENT_0)
-        {
-            WSAResetEvent(info.handle);
-            ares_process_fd(ares,
-                            (info.mode & SockInfo::READ) ? info.fd : ARES_SOCKET_BAD,
-                            (info.mode & SockInfo::WRITE) ? info.fd : ARES_SOCKET_BAD);
+            ares_process_fd(ares, read ? info.fd : ARES_SOCKET_BAD, write ? info.fd : ARES_SOCKET_BAD);
         }
 #else
         if (((info.mode & SockInfo::READ) && FD_ISSET(info.fd, rfds)) || ((info.mode & SockInfo::WRITE) && FD_ISSET(info.fd, wfds)))
@@ -590,18 +665,12 @@ void CurlHttpIO::processcurlevents(direction_t d)
         }
 
 #if defined(_WIN32)
-        if (info.handle == WSA_INVALID_EVENT)
+        bool read, write;
+        if (info.checkEvent(read, write)) // if checkEvent returns true, both `read` and `write` have been set.
         {
-            continue;
-        }
-
-        if (WSAWaitForMultipleEvents(1, &info.handle, TRUE, 0, FALSE) == WSA_WAIT_EVENT_0)
-        {
-            WSAResetEvent(info.handle);
             curl_multi_socket_action(curlm[d], info.fd,
-                                     ((info.mode & SockInfo::READ) ? CURL_CSELECT_IN : 0)
-                                     | ((info.mode & SockInfo::WRITE) ? CURL_CSELECT_OUT : 0),
-                                     &dummy);
+                                     (read ? CURL_CSELECT_IN : 0)
+                                   | (write ? CURL_CSELECT_OUT : 0), &dummy);
         }
 #else
         if (((info.mode & SockInfo::READ) && FD_ISSET(info.fd, rfds)) || ((info.mode & SockInfo::WRITE) && FD_ISSET(info.fd, wfds)))
@@ -651,13 +720,18 @@ CurlHttpIO::~CurlHttpIO()
     closecurlevents(PUT);
 
     curlMutex.lock();
-    ares_library_cleanup();
-    curl_global_cleanup();
+    if (--instanceCount == 0)
+    {
+        ares_library_cleanup();
+        curl_global_cleanup();
+    }
     curlMutex.unlock();
 
     curl_slist_free_all(contenttypejson);
     curl_slist_free_all(contenttypebinary);
 }
+
+int CurlHttpIO::instanceCount = 0;
 
 void CurlHttpIO::setuseragent(string* u)
 {
@@ -709,6 +783,13 @@ void CurlHttpIO::disconnect()
     if (DNS_CACHE_EXPIRES)
     {
         dnscache.clear();
+    }
+    else
+    {
+        for (auto &dnsPair: dnscache)
+        {
+            dnsPair.second.mNeedsResolvingAgain= true;
+        }
     }
 
     curlm[API] = curl_multi_init();
@@ -1260,11 +1341,11 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
     {
         if (req->out->size() < 10240)
         {
-            LOG_debug << httpctx->req->logname << "Sending: " << *req->out;
+            LOG_debug << httpctx->req->logname << "Sending " << req->out->size() << ": " << *req->out;
         }
         else
         {
-            LOG_debug << httpctx->req->logname << "Sending: " << req->out->substr(0, 5116) << " [...] " << req->out->substr(req->out->size() - 5116, string::npos);
+            LOG_debug << httpctx->req->logname << "Sending " << req->out->size() << ": " << req->out->substr(0, 5116) << " [...] " << req->out->substr(req->out->size() - 5116, string::npos);
         }
     }
 
@@ -1363,7 +1444,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
                     : (!memcmp(req->posturl.data(), MegaClient::CHATSTATSURL.data(), MegaClient::CHATSTATSURL.size())
                        || !memcmp(req->posturl.data(), MegaClient::GELBURL.data(), MegaClient::GELBURL.size()))
                                  ? "sha256//a1vEOQRTsb7jMsyAhr4X/6YSF774gWlht8JQZ58DHlQ="  //CHAT
-                                 : "") ==  CURLE_OK)
+                                 : nullptr) ==  CURLE_OK)
             {
                 curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
                 if (httpio->pkpErrors)
@@ -1776,23 +1857,24 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
             send_request(httpctx);
             return;
         }
+    }
 
+    if (dnsEntry && dnsEntry->ipv4.size() && !dnsEntry->isIPv4Expired())
+    {
+        LOG_debug << "DNS cache hit for " << httpctx->hostname << " (IPv4) " << dnsEntry->ipv4;
+        httpctx->isIPv6 = false;
+        httpctx->isCachedIp = true;
+        httpctx->hostip = dnsEntry->ipv4;
+        httpctx->ares_pending = 0;
+        send_request(httpctx);
+        return;
+    }
+
+    if (ipv6requestsenabled)
+    {
         httpctx->ares_pending++;
         LOG_debug << "Resolving IPv6 address for " << httpctx->hostname;
         ares_gethostbyname(ares, httpctx->hostname.c_str(), PF_INET6, ares_completed_callback, httpctx);
-    }
-    else
-    {
-        if (dnsEntry && dnsEntry->ipv4.size() && !dnsEntry->isIPv4Expired())
-        {
-            LOG_debug << "DNS cache hit for " << httpctx->hostname << " (IPv4) " << dnsEntry->ipv4;
-            httpctx->isIPv6 = false;
-            httpctx->isCachedIp = true;
-            httpctx->hostip = dnsEntry->ipv4;
-            httpctx->ares_pending = 0;
-            send_request(httpctx);
-            return;
-        }
     }
 
     LOG_debug << "Resolving IPv4 address for " << httpctx->hostname;
@@ -1900,7 +1982,6 @@ bool CurlHttpIO::doio()
     statechange = false;
 
     processaresevents();
-    closearesevents();
 
     result = statechange;
     statechange = false;
@@ -2056,11 +2137,11 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                     {
                         if (req->in.size() < 10240)
                         {
-                            LOG_debug << req->logname << "Received: " << req->in.c_str();
+                            LOG_debug << req->logname << "Received " << req->in.size() << ": " << req->in.c_str();
                         }
                         else
                         {
-                            LOG_debug << req->logname << "Received: " << req->in.substr(0, 5116).c_str() << " [...] " << req->in.substr(req->in.size() - 5116, string::npos).c_str();
+                            LOG_debug << req->logname << "Received " << req->in.size() << ": " << req->in.substr(0, 5116).c_str() << " [...] " << req->in.substr(req->in.size() - 5116, string::npos).c_str();
                         }
                     }
                 }
@@ -2440,34 +2521,26 @@ int CurlHttpIO::socket_callback(CURL *, curl_socket_t s, int what, void *userp, 
         LOG_debug << "Removing socket " << s;
 
 #if defined(_WIN32)
-        HANDLE handle = socketmap[s].handle;
-        if (handle != WSA_INVALID_EVENT)
-        {
-            WSACloseEvent(handle);
-            socketmap[s].handle = WSA_INVALID_EVENT;
-        }
+        socketmap[s].closeEvent();
 #endif
         socketmap[s].mode = 0;
     }
     else
     {
         LOG_debug << "Adding/setting curl socket " << s << " to " << what;
-        SockInfo info;
+        auto& info = socketmap[s];
         info.fd = s;
         info.mode = what;
 #if defined(_WIN32)
-        SockInfoMap::iterator it = socketmap.find(s);
-        if (it != socketmap.end() && it->second.handle != WSA_INVALID_EVENT)
-        {
-            WSACloseEvent (it->second.handle);
-        }
-        info.handle = WSA_INVALID_EVENT;
+        info.createAssociateEvent();
 #endif
-        socketmap[s] = info;
     }
 
     return 0;
 }
+
+// This one was causing us to issue additional c-ares requests, when normal usage already sends those requests
+// CURL doco: When set, this callback function gets called by libcurl when the socket has been created, but before the connect call to allow applications to change specific socket options.The callback's purpose argument identifies the exact purpose for this particular socket:
 
 int CurlHttpIO::sockopt_callback(void *clientp, curl_socket_t, curlsocktype)
 {
@@ -2475,8 +2548,9 @@ int CurlHttpIO::sockopt_callback(void *clientp, curl_socket_t, curlsocktype)
     CurlHttpIO* httpio = (CurlHttpIO*)req->httpio;
     CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
     if (httpio && !httpio->disconnecting
-            && httpctx && httpctx->isCachedIp && !httpctx->ares_pending)
+            && httpctx && httpctx->isCachedIp && !httpctx->ares_pending && httpio->dnscache[httpctx->hostname].mNeedsResolvingAgain)
     {
+        httpio->dnscache[httpctx->hostname].mNeedsResolvingAgain = false;
         httpctx->ares_pending = 1;
         if (httpio->ipv6requestsenabled)
         {
@@ -2687,15 +2761,6 @@ bool CurlDNSEntry::isIPv6Expired()
     return (DNS_CACHE_EXPIRES && (Waiter::ds - ipv6timestamp) >= DNS_CACHE_TIMEOUT_DS);
 }
 
-SockInfo::SockInfo()
-{
-    fd = curl_socket_t(-1);
-    mode = NONE;
-#if defined(_WIN32)
-    handle = WSA_INVALID_EVENT;
-#endif
-}
-
 #if defined(__ANDROID__) && ARES_VERSION >= 0x010F00
 void CurlHttpIO::initialize_android()
 {
@@ -2709,7 +2774,7 @@ void CurlHttpIO::initialize_android()
     try
     {
         JNIEnv *env;
-        int result = MEGAjvm->GetEnv((void **)&env, JNI_VERSION_1_4);
+        int result = MEGAjvm->GetEnv((void **)&env, JNI_VERSION_1_6);
         if (result == JNI_EDETACHED)
         {
             if (MEGAjvm->AttachCurrentThread(&env, NULL) != JNI_OK)
@@ -2821,7 +2886,9 @@ void CurlHttpIO::initialize_android()
             return;
         }
 
+        ares_library_init_jvm(MEGAjvm);
         ares_library_init_android(connectivityManager);
+        assert(ares_library_android_initialized() == ARES_SUCCESS);
 
         if (detach)
         {

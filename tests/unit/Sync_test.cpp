@@ -28,6 +28,8 @@
 
 #include "constants.h"
 #include "FsNode.h"
+#include "DefaultedDbAccess.h"
+#include "DefaultedDbTable.h"
 #include "DefaultedDirAccess.h"
 #include "DefaultedFileAccess.h"
 #include "DefaultedFileSystemAccess.h"
@@ -40,6 +42,11 @@ class MockApp : public mega::MegaApp
 public:
 
     bool sync_syncable(mega::Sync*, const char*, std::string* localpath) override
+    {
+        return mNotSyncablePaths.find(*localpath) == mNotSyncablePaths.end();
+    }
+
+    bool sync_syncable(mega::Sync*, const char*, std::string* localpath, mega::Node*) override
     {
         return mNotSyncablePaths.find(*localpath) == mNotSyncablePaths.end();
     }
@@ -203,6 +210,11 @@ public:
     }
 
     void local2path(std::string* local, std::string* path) const override
+    {
+        *path = *local;
+    }
+
+    void path2local(std::string* local, std::string* path) const override
     {
         *path = *local;
     }
@@ -1044,5 +1056,384 @@ TEST(Sync, assignFilesystemIds_whenFileTypeIsUnexpected_hittingAssert)
     ASSERT_FALSE(success);
 }
 #endif
+
+namespace
+{
+
+void test_SyncConfig_serialization(const mega::SyncConfig& config)
+{
+    std::string data;
+    const_cast<mega::SyncConfig&>(config).serialize(&data);
+    auto newConfig = mega::SyncConfig::unserialize(data);
+    ASSERT_TRUE(newConfig != nullptr);
+    ASSERT_EQ(config, *newConfig);
+}
+
+}
+
+TEST(Sync, SyncConfig_defaultOptions)
+{
+    const mega::SyncConfig config{"foo", 42, 123};
+    ASSERT_TRUE(config.isResumable());
+    ASSERT_EQ("foo", config.getLocalPath());
+    ASSERT_EQ(42, config.getRemoteNode());
+    ASSERT_EQ(123, config.getLocalFingerprint());
+    ASSERT_TRUE(config.getRegExps().empty());
+    ASSERT_EQ(mega::SyncConfig::TYPE_TWOWAY, config.getType());
+    ASSERT_TRUE(config.syncsToCloud());
+    ASSERT_TRUE(config.syncsToLocal());
+    ASSERT_TRUE(config.syncDeletions());
+    ASSERT_FALSE(config.forceOverwrite());
+    test_SyncConfig_serialization(config);
+}
+
+TEST(Sync, SyncConfig_defaultOptions_inactive)
+{
+    const mega::SyncConfig config{"foo", 42, 123, {}, mega::SyncConfig::TYPE_TWOWAY, false, true};
+    ASSERT_TRUE(config.syncsToCloud());
+    ASSERT_TRUE(config.syncsToLocal());
+    ASSERT_TRUE(config.syncDeletions());
+    ASSERT_FALSE(config.forceOverwrite());
+    test_SyncConfig_serialization(config);
+}
+
+TEST(Sync, SyncConfig_defaultOptions_butWithRegExps)
+{
+    const std::vector<std::string> regExps{"aa", "bbb"};
+    const mega::SyncConfig config{"foo", 42, 123, regExps};
+    ASSERT_TRUE(config.isResumable());
+    ASSERT_EQ("foo", config.getLocalPath());
+    ASSERT_EQ(42, config.getRemoteNode());
+    ASSERT_EQ(123, config.getLocalFingerprint());
+    ASSERT_EQ(regExps, config.getRegExps());
+    ASSERT_EQ(mega::SyncConfig::TYPE_TWOWAY, config.getType());
+    ASSERT_TRUE(config.syncsToCloud());
+    ASSERT_TRUE(config.syncsToLocal());
+    ASSERT_TRUE(config.syncDeletions());
+    ASSERT_FALSE(config.forceOverwrite());
+    test_SyncConfig_serialization(config);
+}
+
+TEST(Sync, SyncConfig_upSync_syncDelFalse_overwriteFalse)
+{
+    const std::vector<std::string> regExps{"aa", "bbb"};
+    const mega::SyncConfig config{"foo", 42, 123, regExps, mega::SyncConfig::TYPE_UP};
+    ASSERT_TRUE(config.isResumable());
+    ASSERT_EQ("foo", config.getLocalPath());
+    ASSERT_EQ(42, config.getRemoteNode());
+    ASSERT_EQ(123, config.getLocalFingerprint());
+    ASSERT_EQ(regExps, config.getRegExps());
+    ASSERT_EQ(mega::SyncConfig::TYPE_UP, config.getType());
+    ASSERT_TRUE(config.syncsToCloud());
+    ASSERT_FALSE(config.syncsToLocal());
+    ASSERT_FALSE(config.syncDeletions());
+    ASSERT_FALSE(config.forceOverwrite());
+    test_SyncConfig_serialization(config);
+}
+
+TEST(Sync, SyncConfig_upSync_syncDelTrue_overwriteTrue)
+{
+    const std::vector<std::string> regExps{"aa", "bbb"};
+    const mega::SyncConfig config{"foo", 42, 123, regExps, mega::SyncConfig::TYPE_UP, true, true};
+    ASSERT_TRUE(config.isResumable());
+    ASSERT_EQ("foo", config.getLocalPath());
+    ASSERT_EQ(42, config.getRemoteNode());
+    ASSERT_EQ(123, config.getLocalFingerprint());
+    ASSERT_EQ(regExps, config.getRegExps());
+    ASSERT_EQ(mega::SyncConfig::TYPE_UP, config.getType());
+    ASSERT_TRUE(config.syncsToCloud());
+    ASSERT_FALSE(config.syncsToLocal());
+    ASSERT_TRUE(config.syncDeletions());
+    ASSERT_TRUE(config.forceOverwrite());
+    test_SyncConfig_serialization(config);
+}
+
+TEST(Sync, SyncConfig_downSync_syncDelFalse_overwriteFalse)
+{
+    const std::vector<std::string> regExps{"aa", "bbb"};
+    const mega::SyncConfig config{"foo", 42, 123, regExps, mega::SyncConfig::TYPE_DOWN};
+    ASSERT_TRUE(config.isResumable());
+    ASSERT_EQ("foo", config.getLocalPath());
+    ASSERT_EQ(42, config.getRemoteNode());
+    ASSERT_EQ(123, config.getLocalFingerprint());
+    ASSERT_EQ(regExps, config.getRegExps());
+    ASSERT_EQ(mega::SyncConfig::TYPE_DOWN, config.getType());
+    ASSERT_FALSE(config.syncsToCloud());
+    ASSERT_TRUE(config.syncsToLocal());
+    ASSERT_FALSE(config.syncDeletions());
+    ASSERT_FALSE(config.forceOverwrite());
+    test_SyncConfig_serialization(config);
+}
+
+TEST(Sync, SyncConfig_downSync_syncDelTrue_overwriteTrue)
+{
+    const std::vector<std::string> regExps{"aa", "bbb"};
+    const mega::SyncConfig config{"foo", 42, 123, regExps, mega::SyncConfig::TYPE_DOWN, true, true};
+    ASSERT_TRUE(config.isResumable());
+    ASSERT_EQ("foo", config.getLocalPath());
+    ASSERT_EQ(42, config.getRemoteNode());
+    ASSERT_EQ(123, config.getLocalFingerprint());
+    ASSERT_EQ(regExps, config.getRegExps());
+    ASSERT_EQ(mega::SyncConfig::TYPE_DOWN, config.getType());
+    ASSERT_FALSE(config.syncsToCloud());
+    ASSERT_TRUE(config.syncsToLocal());
+    ASSERT_TRUE(config.syncDeletions());
+    ASSERT_TRUE(config.forceOverwrite());
+    test_SyncConfig_serialization(config);
+}
+
+namespace
+{
+
+void test_SyncConfigBag(mega::SyncConfigBag& bag)
+{
+    ASSERT_TRUE(bag.all().empty());
+    const mega::SyncConfig config1{"foo", 41, 122};
+    bag.insert(config1);
+    const mega::SyncConfig config2{"bar", 42, 123};
+    bag.insert(config2);
+    const std::vector<mega::SyncConfig> expConfigs1{config2, config1};
+    ASSERT_EQ(expConfigs1, bag.all());
+    bag.remove(config1.getLocalPath());
+    const std::vector<mega::SyncConfig> expConfigs2{config2};
+    ASSERT_EQ(expConfigs2, bag.all());
+    const mega::SyncConfig config3{"bar", 43, 124};
+    bag.insert(config3); // update
+    const std::vector<mega::SyncConfig> expConfigs3{config3};
+    ASSERT_EQ(expConfigs3, bag.all());
+    bag.insert(config1);
+    bag.insert(config2);
+    ASSERT_EQ(expConfigs1, bag.all());
+    bag.clear();
+    ASSERT_TRUE(bag.all().empty());
+}
+
+class MockDbTable : public mt::DefaultedDbTable
+{
+public:
+    using mt::DefaultedDbTable::DefaultedDbTable;
+    void rewind() override
+    {
+        mIndex = 0;
+    }
+    bool next(uint32_t* id, std::string* data) override
+    {
+        if (mIndex >= mData->size())
+        {
+            return false;
+        }
+        *id = (*mData)[mIndex].first;
+        *data = (*mData)[mIndex].second;
+        ++mIndex;
+        return true;
+    }
+    bool put(uint32_t id, char* data, unsigned size) override
+    {
+        del(id);
+        mData->emplace_back(id, std::string{data, size});
+        return true;
+    }
+    bool del(uint32_t id) override
+    {
+        mData->erase(std::remove_if(mData->begin(), mData->end(),
+                                   [id](const std::pair<uint32_t, std::string>& p)
+                                   {
+                                       return p.first == id;
+                                   }),
+                     mData->end());
+        return true;
+    }
+    void truncate() override
+    {
+        mData->clear();
+    }
+
+    std::vector<std::pair<uint32_t, std::string>>* mData = nullptr;
+
+private:
+    size_t mIndex = 0;
+};
+
+class MockDbAccess : public mega::DbAccess
+{
+public:
+    MockDbAccess(std::vector<std::pair<uint32_t, std::string>>& data)
+        : mData{data}
+    {}
+    mega::DbTable* open(mega::PrnGen &rng, mega::FileSystemAccess*, std::string*, bool recycleLegacyDB, bool checkAlwaysTransacted) override
+    {
+        auto table = new MockDbTable{rng, checkAlwaysTransacted};
+        table->mData = &mData;
+        return table;
+    }
+
+private:
+    std::vector<std::pair<uint32_t, std::string>>& mData;
+};
+
+}
+
+TEST(Sync, SyncConfigBag)
+{
+    std::vector<std::pair<uint32_t, std::string>> mData;
+    MockDbAccess dbaccess{mData};
+    mt::DefaultedFileSystemAccess fsaccess;
+    mega::PrnGen rng;
+    mega::SyncConfigBag bag{dbaccess, fsaccess, rng, "some_id"};
+    test_SyncConfigBag(bag);
+}
+
+TEST(Sync, SyncConfigBag_withPreviousState)
+{
+    std::vector<std::pair<uint32_t, std::string>> mData;
+    MockDbAccess dbaccess{mData};
+    mt::DefaultedFileSystemAccess fsaccess;
+    mega::PrnGen rng;
+
+    mega::SyncConfigBag bag1{dbaccess, fsaccess, rng, "some_id"};
+    const mega::SyncConfig config1{"foo", 41, 122};
+    bag1.insert(config1);
+    ASSERT_EQ(1, mData.size());
+    const mega::SyncConfig config2{"bar", 42, 123};
+    bag1.insert(config2);
+    ASSERT_EQ(2, mData.size());
+    const mega::SyncConfig config3{"blah", 43, 124};
+    bag1.insert(config3);
+    ASSERT_EQ(3, mData.size());
+    bag1.insert(config3); // update
+    ASSERT_EQ(3, mData.size());
+    bag1.remove(config3.getLocalPath());
+    ASSERT_EQ(2, mData.size());
+
+    const mega::SyncConfigBag bag2{dbaccess, fsaccess, rng, "some_id"};
+    const std::vector<mega::SyncConfig> expConfigs{config2, config1};
+    ASSERT_EQ(expConfigs, bag2.all());
+}
+
+namespace {
+
+struct UnsyncableDbTable : mt::DefaultedDbTable
+{
+    using row_t = std::pair<uint32_t, std::string>;
+    std::vector<row_t>& mRecords;
+    size_t mCurrentIndex = 0;
+    mega::PrnGen mPrn;
+
+    UnsyncableDbTable(std::vector<row_t>& records)
+        : mt::DefaultedDbTable{mPrn, false}
+        , mRecords(records)
+    {}
+
+    void rewind() override
+    {
+        mCurrentIndex = 0;
+    }
+    bool next(uint32_t* id, std::string* data) override
+    {
+        if (mCurrentIndex >= mRecords.size())
+        {
+            rewind();
+            return false;
+        }
+        *id = mRecords[mCurrentIndex].first;
+        *data = mRecords[mCurrentIndex].second;
+        ++mCurrentIndex;
+        return true;
+    }
+    bool put(uint32_t id, char* data, unsigned length) override
+    {
+        mRecords.emplace_back(id, std::string(data, length));
+        return true;
+    }
+    bool del(uint32_t id) override
+    {
+        mRecords.erase(std::remove_if(mRecords.begin(), mRecords.end(),
+                                      [id](const row_t& r) { return r.first == id; }), mRecords.end());
+        return true;
+    }
+};
+
+struct UnsyncableDbAccess : mt::DefaultedDbAccess
+{
+    std::vector<UnsyncableDbTable::row_t> mRecords;
+    mega::DbTable* open(mega::PrnGen&, mega::FileSystemAccess*, std::string*, bool, bool) override
+    {
+        return new UnsyncableDbTable{mRecords};
+    }
+};
+
+struct UnsyncableFsAccess : mt::DefaultedFileSystemAccess
+{
+};
+
+std::string serializeUnsyncable(mega::handle nodeHandle)
+{
+    std::string data;
+    mega::CacheableWriter writer{data};
+    writer.serializehandle(nodeHandle);
+    return data;
+}
+
+}
+
+TEST(Sync, UnsyncableNodeBag)
+{
+    UnsyncableDbAccess dbaccess;
+    dbaccess.mRecords = {
+        {1, serializeUnsyncable(42)},
+        {2, serializeUnsyncable(13)},
+    };
+    UnsyncableFsAccess fsaccess;
+    mega::PrnGen prn;
+    const mega::handle nodeHandle = 123;
+    mega::UnsyncableNodeBag bag{dbaccess, fsaccess, prn, "id"};
+    ASSERT_TRUE(bag.containsNode(42));
+    ASSERT_TRUE(bag.containsNode(13));
+    ASSERT_FALSE(bag.containsNode(nodeHandle));
+    ASSERT_TRUE(bag.addNode(nodeHandle));
+
+    std::vector<UnsyncableDbTable::row_t> exp_records{
+        {1, serializeUnsyncable(42)},
+        {2, serializeUnsyncable(13)},
+        {3, serializeUnsyncable(123)},
+    };
+    ASSERT_EQ(exp_records, dbaccess.mRecords);
+
+    ASSERT_TRUE(bag.containsNode(nodeHandle));
+    ASSERT_TRUE(bag.removeNode(nodeHandle));
+    ASSERT_FALSE(bag.containsNode(nodeHandle));
+
+    exp_records = {
+        {1, serializeUnsyncable(42)},
+        {2, serializeUnsyncable(13)},
+    };
+    ASSERT_EQ(exp_records, dbaccess.mRecords);
+
+    ASSERT_TRUE(bag.removeNode(42));
+    ASSERT_FALSE(bag.containsNode(nodeHandle));
+
+    exp_records = {
+        {2, serializeUnsyncable(13)},
+    };
+    ASSERT_EQ(exp_records, dbaccess.mRecords);
+
+    ASSERT_TRUE(bag.removeNode(13));
+    ASSERT_FALSE(bag.containsNode(13));
+    ASSERT_TRUE(dbaccess.mRecords.empty());
+}
+
+TEST(Sync, UnsyncableNodeBag_withoutRecords)
+{
+    UnsyncableDbAccess dbaccess;
+    UnsyncableFsAccess fsaccess;
+    mega::PrnGen prn;
+    const mega::handle nodeHandle = 123;
+    mega::UnsyncableNodeBag bag{dbaccess, fsaccess, prn, "id"};
+    ASSERT_FALSE(bag.containsNode(nodeHandle));
+    ASSERT_TRUE(bag.addNode(nodeHandle));
+    ASSERT_TRUE(bag.containsNode(nodeHandle));
+    ASSERT_TRUE(bag.removeNode(nodeHandle));
+    ASSERT_FALSE(bag.containsNode(nodeHandle));
+}
 
 #endif

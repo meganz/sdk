@@ -236,6 +236,12 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // location in the tounlink node_set
     // FIXME: merge todebris / tounlink
     node_set::iterator tounlink_it;
+
+    // sets whether this node can be synced to the local tree
+    void setSyncable(bool syncable);
+
+    // can this node be synced to the local tree
+    bool isSyncable() const;
 #endif
 
     // source tag
@@ -249,7 +255,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     void setpubliclink(handle, m_time_t, m_time_t, bool);
 
-    bool serialize(string*);
+    bool serialize(string*) override;
     static Node* unserialize(MegaClient*, const string*, node_vector*);
 
     Node(MegaClient*, vector<Node*>*, handle, handle, nodetype_t, m_off_t, handle, const char*, m_time_t);
@@ -380,10 +386,13 @@ struct MEGA_API LocalNode : public File
 
     void setnameparent(LocalNode*, string*);
 
+    // react to a change of the corresponding remote node
+    void reactToNodeChange(bool nodeDeleted);
+
     LocalNode();
     void init(Sync*, nodetype_t, LocalNode*, string*);
 
-    virtual bool serialize(string*);
+    bool serialize(string*) override;
     static LocalNode* unserialize( Sync* sync, const string* sData );
 
     ~LocalNode();

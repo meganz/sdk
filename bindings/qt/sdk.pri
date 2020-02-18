@@ -1,6 +1,25 @@
 
 MEGASDK_BASE_PATH = $$PWD/../../
 
+THIRDPARTY_VCPKG_PATH = $$THIRDPARTY_VCPKG_BASE_PATH/vcpkg/installed/$$VCPKG_TRIPLET
+exists($$THIRDPARTY_VCPKG_PATH) {
+   CONFIG += vcpkg
+}
+vcpkg:debug:message("Building DEBUG with VCPKG 3rdparty at $$THIRDPARTY_VCPKG_PATH")
+vcpkg:release:message("Building RELEASE with VCPKG 3rdparty at $$THIRDPARTY_VCPKG_PATH")
+!vcpkg:message("vcpkg not used")
+
+debug:DEBUG_SUFFIX = "d"
+else:DEBUG_SUFFIX = ""
+debug:DASH_DEBUG_SUFFIX = "-d"
+else:DASH_DEBUG_SUFFIX = ""
+debug:win32:DEBUG_SUFFIX_WO = "d"
+else:DEBUG_SUFFIX_WO = ""
+
+MI_DEBUG_SUFFIX = ""
+debug:macx:MI_DEBUG_SUFFIX = "_debug"
+debug:win32:MI_DEBUG_SUFFIX = "d"
+
 VPATH += $$MEGASDK_BASE_PATH
 SOURCES += src/attrmap.cpp \
     src/backofftimer.cpp \
@@ -106,11 +125,12 @@ CONFIG(ENABLE_CHAT) {
     CONFIG += USE_LIBUV
 
     !macx {
-        exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebsockets.a) {
+        !vcpkg:exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebsockets.a) {
         LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebsockets.a -lcap
         }
         else {
-        LIBS += -lwebsockets -lcap
+            vcpkg:LIBS += $$THIRDPARTY_VCPKG_PATH/lib/libwebsockets.a -lcap
+            !vcpkg:LIBS += -lwebsockets -lcap
         }
     }
     else {
@@ -126,7 +146,8 @@ CONFIG(ENABLE_CHAT) {
 CONFIG(USE_LIBUV) {
     SOURCES += src/mega_http_parser.cpp
     DEFINES += HAVE_LIBUV
-    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/libuv
+    vcpkg:INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/libuv
+    !vcpkg:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/libuv
     win32 {
         LIBS += -llibuv -lIphlpapi -lUserenv -lpsapi
     }
@@ -136,27 +157,34 @@ CONFIG(USE_LIBUV) {
         LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libuv.a
        }
        else {
-        LIBS += -luv
+        vcpkg:LIBS += -llibuv
+        else:LIBS += -luv
        }
     }
 
     macx {
-        LIBS += -luv
+        vcpkg:LIBS += -llibuv
+        !vcpkg:LIBS += -luv
     }
 }
 
 CONFIG(USE_MEDIAINFO) {
     DEFINES += USE_MEDIAINFO UNICODE
 
-    win32 {
-        LIBS += -lMediaInfo -lZenLib -lzlibstat
+    vcpkg:LIBS += -lmediainfo$$MI_DEBUG_SUFFIX -lzen$$MI_DEBUG_SUFFIX 
+    vcpkg:win32:LIBS += -lzlib$$DEBUG_SUFFIX
+    vcpkg:!win32:LIBS += -lz
+
+    !vcpkg:win32 {
+        vcpkg:LIBS += -lmediainfo$$DEBUG_SUFFIX -lzen$$DEBUG_SUFFIX -lzlib$$DEBUG_SUFFIX
+        else:LIBS += -lMediaInfo -lZenLib -lzlibstat
     }
 
-    macx {
+    !vcpkg:macx {
         LIBS += -lmediainfo -lzen -lz
     }
 
-    unix:!macx {
+    !vcpkg:unix:!macx {
 
        exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libmediainfo.a) {
         LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libmediainfo.a
@@ -176,16 +204,22 @@ CONFIG(USE_MEDIAINFO) {
 CONFIG(USE_LIBRAW) {
     DEFINES += HAVE_LIBRAW
 
+    vcpkg:LIBS += -lraw$$DEBUG_SUFFIX -ljasper$$DEBUG_SUFFIX
+    vcpkg:win32:LIBS += -ljpeg$$DEBUG_SUFFIX
+    vcpkg:!win32:LIBS += -ljpeg
+    vcpkg:unix:!macx:LIBS += -lgomp
+    vcpkg:!CONFIG(USE_PDFIUM):LIBS += -llcms2$$DEBUG_SUFFIX
+
     win32 {
         DEFINES += LIBRAW_NODLL
-        LIBS += -llibraw
+        !vcpkg:LIBS += -llibraw
     }
 
-    macx {
+    !vcpkg:macx {
         LIBS += -lraw
     }
 
-    unix:!macx {
+    !vcpkg:unix:!macx {
         exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libraw.a) {
             LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libraw.a -fopenmp
         }
@@ -196,21 +230,28 @@ CONFIG(USE_LIBRAW) {
 }
 
 CONFIG(USE_PDFIUM) {
-    unix:!macx {
-        exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/lib/libpdfium.a) {
+
+    vcpkg:INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/pdfium
+    vcpkg:LIBS += -lpdfium -llcms$$DEBUG_SUFFIX -licuuc$$DEBUG_SUFFIX_WO -licuio$$DEBUG_SUFFIX_WO -ljpeg$$DEBUG_SUFFIX_WO -lopenjp2 -lfreetype$$DEBUG_SUFFIX 
+    # is it needed? win has it, mac does not -licuin$$DEBUG_SUFFIX_WO
+    vcpkg:win32:LIBS += -lGdi32
+    vcpkg:DEFINES += HAVE_PDFIUM
+
+    !vcpkg {
+        unix:!macx {
+            exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/lib/libpdfium.a) {
+                DEFINES += HAVE_PDFIUM
+                INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pdfium
+                LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/lib/libpdfium.a
+            }
+            else:exists(/usr/include/fpdfview.h) {
+                DEFINES += HAVE_PDFIUM
+                LIBS += -lpdfium
+            }
+        }
+        else {#win/mac
             DEFINES += HAVE_PDFIUM
             INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pdfium
-            LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/lib/libpdfium.a
-        }
-        else:exists(/usr/include/fpdfview.h) {
-            DEFINES += HAVE_PDFIUM
-            LIBS += -lpdfium
-        }
-    }
-    else {#win/mac
-        DEFINES += HAVE_PDFIUM
-        INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pdfium
-        macx {
             LIBS += -lpdfium
         }
     }
@@ -219,51 +260,56 @@ CONFIG(USE_PDFIUM) {
 CONFIG(USE_FFMPEG) {
 
     unix:!macx {
-        exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/ffmpeg):exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/lib/libavcodec.a) {
-        DEFINES += HAVE_FFMPEG
-            INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/ffmpeg
-            FFMPEGLIBPATH = $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/lib
-        }
-        else:exists(/usr/include/ffmpeg-mega) {
+    
+        vcpkg:LIBS += -lavformat -lavcodec -lavutil -lswscale -lswresample
+        else {
+            exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/ffmpeg):exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/lib/libavcodec.a) {
             DEFINES += HAVE_FFMPEG
-            INCLUDEPATH += /usr/include/ffmpeg-mega
-            exists(/usr/lib64/libavcodec.a) {
-                FFMPEGLIBPATH = /usr/lib64
+                INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/ffmpeg
+                FFMPEGLIBPATH = $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/lib
             }
-            else:exists(/usr/lib32/libavcodec.a) {
-                FFMPEGLIBPATH = /usr/lib32
+            else:exists(/usr/include/ffmpeg-mega) {
+                DEFINES += HAVE_FFMPEG
+                INCLUDEPATH += /usr/include/ffmpeg-mega
+                exists(/usr/lib64/libavcodec.a) {
+                    FFMPEGLIBPATH = /usr/lib64
+                }
+                else:exists(/usr/lib32/libavcodec.a) {
+                    FFMPEGLIBPATH = /usr/lib32
+                }
+                else {
+                   FFMPEGLIBPATH = /usr/lib
+                }
             }
-            else {
-               FFMPEGLIBPATH = /usr/lib
+            else:packagesExist(ffmpeg)|packagesExist(libavcodec) {
+                DEFINES += HAVE_FFMPEG
+                LIBS += -lavcodec -lavformat -lavutil -lswscale -lswresample
+            }
+
+            FFMPEGSTATICLIBS = libavformat.a libavcodec.a libavutil.a libswscale.a
+
+            for(ffmpeglib, FFMPEGSTATICLIBS) {
+                exists($$FFMPEGLIBPATH/$$ffmpeglib) {
+                    LIBS += $$FFMPEGLIBPATH/$$ffmpeglib
+                }
+            }
+
+            #particular distros requirements
+            exists(/usr/lib64/libbz2.so*)|exists(/usr/lib/libbz2.so*) {
+                LIBS += -lbz2 #required in fedora ffmpeg/arch compilation
+            }
+
+            exists(/usr/lib/liblzma.so*):exists(/etc/arch-release) {
+                LIBS += -llzma #required in arch ffmpeg compilation
             }
         }
-        else:packagesExist(ffmpeg)|packagesExist(libavcodec) {
-            DEFINES += HAVE_FFMPEG
-            LIBS += -lavcodec -lavformat -lavutil -lswscale
-        }
-
-        FFMPEGSTATICLIBS = libavformat.a libavcodec.a libavutil.a libswscale.a
-
-        for(ffmpeglib, FFMPEGSTATICLIBS) {
-            exists($$FFMPEGLIBPATH/$$ffmpeglib) {
-                LIBS += $$FFMPEGLIBPATH/$$ffmpeglib
-            }
-        }
-
-        #particular distros requirements
-        exists(/usr/lib64/libbz2.so*)|exists(/usr/lib/libbz2.so*) {
-            LIBS += -lbz2 #required in fedora ffmpeg/arch compilation
-        }
-
-        exists(/usr/lib/liblzma.so*):exists(/etc/arch-release) {
-            LIBS += -llzma #required in arch ffmpeg compilation
-        }
-
     }
     else { #win/mac
         DEFINES += HAVE_FFMPEG
-        INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/ffmpeg
+        vcpkg:INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/ffmpeg
+        else:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/ffmpeg
         LIBS += -lavcodec -lavformat -lavutil -lswscale
+        vcpkg:macx:LIBS += -lswrescale -lbz2
     }
 }
 
@@ -281,7 +327,8 @@ CONFIG(USE_WEBRTC) {
     INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/webrtc/include \
                    $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/webrtc/include/webrtc \
                    $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/webrtc/include/third_party/boringssl/src/include \
-                   $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/webrtc/include/third_party/libyuv/include
+                   $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/webrtc/include/third_party/libyuv/include \
+                   $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/webrtc/include/third_party/abseil-cpp
     !macx {
     exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebrtc.a) {
         LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebrtc.a -ldl -lX11
@@ -310,7 +357,7 @@ win32 {
             src/wincurl/waiter.cpp
         HEADERS += include/mega/wincurl/meganet.h
         DEFINES += USE_CURL USE_OPENSSL
-        LIBS +=  -llibcurl -lcares -llibeay32 -lssleay32
+        !vcpkg:LIBS +=  -llibcurl -lcares -llibeay32 -lssleay32
     }
     else {
         SOURCES += src/win32/net.cpp \
@@ -323,7 +370,7 @@ win32 {
     LIBS += -lwinhttp -ladvapi32
     DEFINES += _CRT_SECURE_NO_WARNINGS
 }
-
+else:CONFIG += USE_CURL
 
 unix {
 SOURCES += src/posix/net.cpp  \
@@ -401,7 +448,7 @@ win32 {
             include/mega/win32/megafs.h  \
             include/mega/win32/megawaiter.h
 
-    SOURCES += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/sqlite3.c
+    !vcpkg:SOURCES += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/sqlite3.c
 }
 
 unix {
@@ -451,7 +498,8 @@ else {
 DEFINES += USE_SQLITE USE_CRYPTOPP ENABLE_SYNC ENABLE_CHAT
 INCLUDEPATH += $$MEGASDK_BASE_PATH/include
 INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt
-INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include
+vcpkg:INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include
+else:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include
 
 !release {
     DEFINES += SQLITE_DEBUG DEBUG
@@ -460,20 +508,48 @@ else {
     DEFINES += NDEBUG
 }
 
+vcpkg {
+    INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/zlib
+    INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/libsodium
+
+    CONFIG(USE_CURL) {
+        INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/openssl
+        INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/cares
+        win32:LIBS +=  -llibcurl$$DASH_DEBUG_SUFFIX -lcares -llibeay32 -lssleay32
+        else:LIBS +=  -lcurl$$DASH_DEBUG_SUFFIX -lcares -lcrypto -lssl
+    }
+
+    CONFIG(USE_PCRE) {
+        INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/pcre
+        DEFINES += PCRE_STATIC
+        LIBS += -lpcre
+    }
+
+    CONFIG(USE_PDFIUM):INCLUDEPATH += $$THIRDPARTY_VCPKG_BASE_PATH/pdfium/pdfium/public
+
+    release:LIBS += -L"$$THIRDPARTY_VCPKG_PATH/lib"
+    debug:LIBS += -L"$$THIRDPARTY_VCPKG_PATH/debug/lib"
+
+    win32:LIBS += -llibsodium -lcryptopp-static -lzlib$$DEBUG_SUFFIX
+    else:LIBS += -lsodium -lcryptopp -lz
+    LIBS += -lsqlite3
+}
+
+
 win32 {
-    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/zlib
-    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/libsodium
+    !vcpkg:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/zlib
+    !vcpkg:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/libsodium
 
     CONFIG(USE_CURL) {
         INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/wincurl
-        INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/openssl
-        INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/cares
+        !vcpkg:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/openssl
+        !vcpkg:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/cares
     }
     else {
         INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/win32
     }
 
-    contains(CONFIG, BUILDX64) {
+    !vcpkg:contains(CONFIG, BUILDX64) {
        release {
             LIBS += -L"$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/x64"
         }
@@ -482,7 +558,7 @@ win32 {
         }
     }
 
-    !contains(CONFIG, BUILDX64) {
+    !vcpkg:!contains(CONFIG, BUILDX64) {
         release {
             LIBS += -L"$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/x32"
         }
@@ -497,7 +573,8 @@ win32 {
      LIBS += -lpcre
     }
 
-    LIBS += -lshlwapi -lws2_32 -luser32 -lsodium -lcryptopp -lzlibstat
+    LIBS += -lshlwapi -lws2_32 -luser32 
+    !vcpkg:LIBS += -lsodium -lcryptopp -lzlibstat
 
     DEFINES += NOMINMAX
 }
@@ -510,7 +587,8 @@ unix:!macx {
     LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a
    }
    else {
-    LIBS += -lcurl
+    vcpkg:LIBS += -lcurl$$DASH_DEBUG_SUFFIX
+    else:LIBS += -lcurl
    }
 
    exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libz.a) {
@@ -526,7 +604,7 @@ unix:!macx {
    else {
     LIBS += -lssl
    }
-   
+
    exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcrypto.a) {
     LIBS +=  $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcrypto.a
    }
@@ -572,16 +650,16 @@ macx {
 
    OBJECTIVE_SOURCES += $$MEGASDK_BASE_PATH/src/osx/osxutils.mm
 
-   SOURCES += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/sqlite3.c
+   !vcpkg:SOURCES += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/sqlite3.c
 
-   INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/curl
-   INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/libsodium
-   INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/cares
-   INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/mediainfo
-   INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/zenlib
-   INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pdfium
+   !vcpkg:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/curl
+   !vcpkg:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/libsodium
+   !vcpkg:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/cares
+   !vcpkg:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/mediainfo
+   !vcpkg:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/zenlib
+   !vcpkg:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pdfium
 
-   CONFIG(USE_PCRE) {
+   !vcpkg:CONFIG(USE_PCRE) {
     INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pcre
     DEFINES += PCRE_STATIC
     LIBS += -lpcre
@@ -589,15 +667,16 @@ macx {
 
    DEFINES += _DARWIN_FEATURE_64_BIT_INODE CRYPTOPP_DISABLE_ASM
 
-   LIBS += -L$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/ $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcares.a $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libsodium.a \
-            -lz -lcryptopp
-
-   CONFIG(USE_OPENSSL) {
+   !vcpkg:LIBS += -L$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/ $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcares.a $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a \
+                    $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libsodium.a -lcryptopp
+   LIBS += -lz
+   
+   !vcpkg:CONFIG(USE_OPENSSL) {
     INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/openssl
     LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libssl.a $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcrypto.a
    }
 
-
-
    LIBS += -framework SystemConfiguration
+   
+   vcpkg:LIBS += -liconv -framework CoreServices -framework CoreFoundation -framework AudioUnit -framework AudioToolbox -framework CoreAudio -framework CoreMedia -framework VideoToolbox -framework ImageIO -framework CoreVideo 
 }

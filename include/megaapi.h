@@ -6902,6 +6902,14 @@ class MegaApi
             BUSINESS_STATUS_GRACE_PERIOD = 2
         };
 
+        enum {
+            AFFILIATE_TYPE_INVALID = 0, // legacy mode
+            AFFILIATE_TYPE_ID = 1,
+            AFFILIATE_TYPE_FILE_FOLDER = 2,
+            AFFILIATE_TYPE_CHAT = 3,
+            AFFILIATE_TYPE_CONTACT = 4,
+        };
+
         /**
          * @brief Constructor suitable for most applications
          * @param appKey AppKey of your application
@@ -7796,40 +7804,34 @@ class MegaApi
         void setAccountAuth(const char* auth);
 
         /**
-         * @brief Initialize the creation of a new MEGA account
-         *
-         * This function automatically imports a Welcome PDF file into the new account. The file is
-         * automatically imported in the language used for the account. In case there is no file
-         * available for the language of the account, it will not be imported.
-         *
-         * @note If the account has been created correctly, but there is any error related to the
-         * importing of the file, this request will still return API_OK. However, the nodehandle
-         * at the MegaRequest::getNodeHandle will be INVALID_HANDLE.
+         * @brief Initialize the creation of a new MEGA account, with firstname and lastname
          *
          * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getEmail - Returns the email for the account
          * - MegaRequest::getPassword - Returns the password for the account
-         * - MegaRequest::getName - Returns the name of the user
+         * - MegaRequest::getName - Returns the firstname of the user
+         * - MegaRequest::getText - Returns the lastname of the user
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getNodeHandle - Returns the nodehandle of the Welcome PDF file, if it
-         * was imported successfully.
+         * - MegaRequest::getSessionKey - Returns the session id to resume the process
          *
-         * If this request succeeds, a confirmation email will be sent to the users.
+         * If this request succeeds, a new ephemeral account will be created for the new user
+         * and a confirmation email will be sent to the specified email address. The app may
+         * resume the create-account process by using MegaApi::resumeCreateAccount.
+         *
          * If an account with the same email already exists, you will get the error code
          * MegaError::API_EEXIST in onRequestFinish
          *
          * @param email Email for the account
          * @param password Password for the account
-         * @param name Name of the user
+         * @param firstname Firstname of the user
+         * @param lastname Lastname of the user
          * @param listener MegaRequestListener to track this request
-         *
-         * @deprecated This function is deprecated and will eventually be removed. Instead,
-         * use the new version of MegaApi::createAccount with firstname and lastname.
          */
-        void createAccount(const char* email, const char* password, const char* name, MegaRequestListener *listener = NULL);
+        void createAccount(const char* email, const char* password, const char* firstname, const char* lastname, MegaRequestListener *listener = NULL);
+
 
         /**
          * @brief Initialize the creation of a new MEGA account, with firstname and lastname
@@ -7840,6 +7842,9 @@ class MegaApi
          * - MegaRequest::getPassword - Returns the password for the account
          * - MegaRequest::getName - Returns the firstname of the user
          * - MegaRequest::getText - Returns the lastname of the user
+         * - MegaRequest::getNodeHandle - Returns the last public node handle accessed
+         * - MegaRequest::getAccess - Returns the type of lastPublicHandle
+         * - MegaRequest::getTransferredBytes - Returns the timestamp of the last access
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -7856,9 +7861,17 @@ class MegaApi
          * @param password Password for the account
          * @param firstname Firstname of the user
          * @param lastname Lastname of the user
+         * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
+         * @param lastPublicHandleType Indicates the type of lastPublicHandle, valid values are:
+         *      - MegaApi::AFFILIATE_TYPE_ID = 1
+         *      - MegaApi::AFFILIATE_TYPE_FILE_FOLDER = 2
+         *      - MegaApi::AFFILIATE_TYPE_CHAT = 3
+         *      - MegaApi::AFFILIATE_TYPE_CONTACT = 4
+         *
+         * @param lastAccessTimestamp Timestamp of the last access
          * @param listener MegaRequestListener to track this request
          */
-        void createAccount(const char* email, const char* password, const char* firstname, const char* lastname, MegaRequestListener *listener = NULL);
+        void createAccount(const char* email, const char* password, const char* firstname, const char* lastname, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Resume a registration process
@@ -8719,6 +8732,25 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void moveNode(MegaNode* node, MegaNode* newParent, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Move a node in the MEGA account changing the file name
+         *
+         * The associated request type with this request is MegaRequest::TYPE_MOVE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node to move
+         * - MegaRequest::getParentHandle - Returns the handle of the new parent for the node
+         * - MegaRequest::getName - Returns the name for the new node
+         *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
+         * @param node Node to move
+         * @param newParent New parent for the node
+         * @param newName Name for the new node
+         * @param listener MegaRequestListener to track this request
+         */
+        void moveNode(MegaNode* node, MegaNode* newParent, const char* newName, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Copy a node in the MEGA account
@@ -9860,6 +9892,23 @@ class MegaApi
         void fetchNodes(MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Fetch the filesystem in MEGA and resumes syncs following a successful fetch
+         *
+         * The MegaApi object must be logged in in an account or a public folder
+         * to successfully complete this request.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_FETCH_NODES
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getFlag - Returns true if logged in into a folder and the provided key is invalid. Otherwise, false.
+         * - MegaRequest::getNodeHandle - Returns the public handle if logged into a public folder. Otherwise, INVALID_HANDLE
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void fetchNodesAndResumeSyncs(MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Get the sum of sizes of all the files stored in the MEGA cloud.
          *
          * The SDK keeps a running total of the sum of the sizes of all the files stored in the cloud.
@@ -10019,6 +10068,7 @@ class MegaApi
          * The associated request type with this request is MegaRequest::TYPE_GET_PAYMENT_ID
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the product
+         * - MegaRequest::getParentHandle - Returns the last public node handle accessed
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -10031,6 +10081,34 @@ class MegaApi
          * @see MegaApi::getPricing
          */
         void getPaymentId(MegaHandle productHandle, MegaHandle lastPublicHandle, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get the payment URL for an upgrade
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_PAYMENT_ID
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the product
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getLink - Payment ID
+         * - MegaRequest::getParentHandle - Returns the last public node handle accessed
+         * - MegaRequest::getParamType - Returns the type of lastPublicHandle
+         * - MegaRequest::getTransferredBytes - Returns the timestamp of the last access
+         *
+         * @param productHandle Handle of the product (see MegaApi::getPricing)
+         * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
+         * @param lastPublicHandleType Indicates the type of lastPublicHandle, valid values are:
+         *      - MegaApi::AFFILIATE_TYPE_ID = 1
+         *      - MegaApi::AFFILIATE_TYPE_FILE_FOLDER = 2
+         *      - MegaApi::AFFILIATE_TYPE_CHAT = 3
+         *      - MegaApi::AFFILIATE_TYPE_CONTACT = 4
+         *
+         * @param lastAccessTimestamp Timestamp of the last access
+         * @param listener MegaRequestListener to track this request
+         * @see MegaApi::getPricing
+         */
+        void getPaymentId(MegaHandle productHandle, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Upgrade an account
@@ -10061,6 +10139,8 @@ class MegaApi
          * @brief Submit a purchase receipt for verification
          *
          * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getText - Returns the purchase receipt
          *
          * @param receipt Purchase receipt
          * @param listener MegaRequestListener to track this request
@@ -10076,6 +10156,9 @@ class MegaApi
          * @brief Submit a purchase receipt for verification
          *
          * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNumber - Returns the payment gateway
+         * - MegaRequest::getText - Returns the purchase receipt
          *
          * @param gateway Payment gateway
          * Currently supported payment gateways are:
@@ -10092,6 +10175,10 @@ class MegaApi
          * @brief Submit a purchase receipt for verification
          *
          * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNumber - Returns the payment gateway
+         * - MegaRequest::getText - Returns the purchase receipt
+         * - MegaRequest::getNodeHandle - Returns the last public node handle accessed
          *
          * @param gateway Payment gateway
          * Currently supported payment gateways are:
@@ -10104,6 +10191,36 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void submitPurchaseReceipt(int gateway, const char* receipt, MegaHandle lastPublicHandle, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Submit a purchase receipt for verification
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNumber - Returns the payment gateway
+         * - MegaRequest::getText - Returns the purchase receipt
+         * - MegaRequest::getNodeHandle - Returns the last public node handle accessed
+         * - MegaRequest::getParamType - Returns the type of lastPublicHandle
+         * - MegaRequest::getTransferredBytes - Returns the timestamp of the last access
+         *
+         * @param gateway Payment gateway
+         * Currently supported payment gateways are:
+         * - MegaApi::PAYMENT_METHOD_ITUNES = 2
+         * - MegaApi::PAYMENT_METHOD_GOOGLE_WALLET = 3
+         * - MegaApi::PAYMENT_METHOD_WINDOWS_STORE = 13
+         *
+         * @param receipt Purchase receipt
+         * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
+         * @param lastPublicHandleType Indicates the type of lastPublicHandle, valid values are:
+         *      - MegaApi::AFFILIATE_TYPE_ID = 1
+         *      - MegaApi::AFFILIATE_TYPE_FILE_FOLDER = 2
+         *      - MegaApi::AFFILIATE_TYPE_CHAT = 3
+         *      - MegaApi::AFFILIATE_TYPE_CONTACT = 4
+         *
+         * @param lastAccessTimestamp Timestamp of the last access
+         * @param listener MegaRequestListener to track this request
+         */
+        void submitPurchaseReceipt(int gateway, const char *receipt, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener =  NULL);
 
         /**
          * @brief Store a credit card
@@ -10775,7 +10892,15 @@ class MegaApi
          * - MegaRequest::getText - Returns the description of the issue
          *
          * @param message Description of the issue for support
-         * @param eventType Event type (use 1 for support tickets)
+         * @param type Ticket type. These are the available types:
+         *          0 for General Enquiry
+         *          1 for Technical Issue
+         *          2 for Payment Issue
+         *          3 for Forgotten Password
+         *          4 for Transfer Issue
+         *          5 for Contact/Sharing Issue
+         *          6 for MEGAsync Issue
+         *          7 for Missing/Invisible Data
          * @param listener MegaRequestListener to track this request
          */
         void createSupportTicket(const char* message, int type = 1, MegaRequestListener *listener = NULL);
@@ -12650,7 +12775,8 @@ class MegaApi
             ORDER_MODIFICATION_ASC, ORDER_MODIFICATION_DESC,
             ORDER_ALPHABETICAL_ASC, ORDER_ALPHABETICAL_DESC,
             ORDER_PHOTO_ASC, ORDER_PHOTO_DESC,
-            ORDER_VIDEO_ASC, ORDER_VIDEO_DESC};
+            ORDER_VIDEO_ASC, ORDER_VIDEO_DESC,
+            ORDER_LINK_CREATION_ASC, ORDER_LINK_CREATION_DESC,};
 
         /**
          * @brief Get the number of child nodes
@@ -13158,7 +13284,8 @@ class MegaApi
          * @brief Get a list with all public links
          *
          * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
-         * MegaApi::ORDER_DEFAULT_DESC
+         * MegaApi::ORDER_DEFAULT_DESC, MegaApi::ORDER_LINK_CREATION_ASC,
+         * MegaApi::ORDER_LINK_CREATION_DESC
          *
          * You take the ownership of the returned value
          *

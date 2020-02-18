@@ -202,8 +202,8 @@ Node::~Node()
     // sync: remove reference from local filesystem node
     if (localnode)
     {
-        localnode->deleted = true;
         localnode->node = NULL;
+        localnode->reactToNodeChange(true);
     }
 
     // in case this node is currently being transferred for syncing: abort transfer
@@ -373,14 +373,26 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
         n->setkey(k);
     }
 
-    if (numshares)
+    // read inshare, outshares, or pending shares
+    while (numshares)   // inshares: -1, outshare/s: num_shares
     {
-        // read inshare, outshares, or pending shares
-        while (Share::unserialize(client,
-                                  (numshares > 0) ? -1 : 0,
-                                  h, skey, &ptr, end)
-               && numshares > 0
-               && --numshares);
+        int direction = (numshares > 0) ? -1 : 0;
+        NewShare *newShare = Share::unserialize(direction, h, skey, &ptr, end);
+        if (!newShare)
+        {
+            LOG_err << "Failed to unserialize Share";
+            break;
+        }
+
+        client->newshares.push_back(newShare);
+        if (numshares > 0)  // outshare/s
+        {
+            numshares--;
+        }
+        else    // inshare
+        {
+            break;
+        }
     }
 
     ptr = n->attrs.unserialize(ptr, end);
@@ -984,6 +996,39 @@ NodeCounter Node::subnodeCounts() const
     return nc;
 }
 
+#ifdef ENABLE_SYNC
+void Node::setSyncable(const bool syncable)
+{
+    if (!client->unsyncables)
+    {
+        return;
+    }
+    if (!syncable)
+    {
+        if (!client->unsyncables->addNode(nodehandle))
+        {
+            LOG_err << "Incomplete database write for node: " << nodehandle;
+        }
+    }
+    else
+    {
+        if (!client->unsyncables->removeNode(nodehandle))
+        {
+            LOG_err << "Incomplete database write for node: " << nodehandle;
+        }
+    }
+}
+
+bool Node::isSyncable() const
+{
+    if (!client->unsyncables)
+    {
+        return true;
+    }
+    return !client->unsyncables->containsNode(nodehandle);
+}
+#endif
+
 // returns whether node was moved
 bool Node::setparent(Node* p)
 {
@@ -1013,6 +1058,57 @@ bool Node::setparent(Node* p)
 
 #ifdef ENABLE_SYNC
     Node *oldparent = parent;
+
+    if ((!localnode || !localnode->sync->getConfig().syncsToCloud()) && !isSyncable())
+    {
+        if (p) // p is the new parent
+        {
+            if (p->type == FILENODE)
+            {
+                // if child (old version) is not syncable then parent must follow suit (new version)
+                p->setSyncable(false);
+                setSyncable(true); // set old version back to default
+            }
+            else // p is a folder
+            {
+                // If the node is not syncable and was moved out of a sync then
+                // it becomes syncable again.
+
+                auto getSyncRoot = [this](const Node* n)
+                {
+                    while (n)
+                    {
+                        if (std::find_if(client->syncs.begin(), client->syncs.end(),
+                                         [n](const Sync* sync)
+                                         {
+                                             return sync->localroot->node &&
+                                                    sync->localroot->node->nodehandle == n->nodehandle;
+                                         }) != client->syncs.end())
+                        {
+                            return n->nodehandle;
+                        }
+                        n = n->parent;
+                    }
+                    return UNDEF;
+                };
+
+                const auto nSyncRoot = getSyncRoot(parent);
+                if (nSyncRoot != UNDEF)
+                {
+                    const auto pSyncRoot = getSyncRoot(p);
+                    // different sync roots means the node was moved out of a sync
+                    if (nSyncRoot != pSyncRoot)
+                    {
+                        setSyncable(true);
+                    }
+                }
+            }
+        }
+        else
+        {
+            setSyncable(true);
+        }
+    }
 #endif
 
     parent = p;
@@ -1269,6 +1365,7 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
             if (sync != parent->sync)
             {
                 LOG_debug << "Moving files between different syncs";
+                mSyncable = true;
                 oldsync = sync;
             }
 
@@ -1328,6 +1425,18 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
     {
         LocalTreeProcUpdateTransfers tput;
         sync->client->proclocaltree(this, &tput);
+    }
+}
+
+void LocalNode::reactToNodeChange(const bool nodeDeleted)
+{
+    if (!sync->getConfig().syncsToLocal())
+    {
+        mSyncable = !nodeDeleted;
+    }
+    else if (sync->getConfig().syncDeletions())
+    {
+        deleted = nodeDeleted;
     }
 }
 
@@ -1632,8 +1741,12 @@ LocalNode::~LocalNode()
         {
             node->localnode = NULL;
         }
-        else
+        else // sync is active
         {
+            if (!sync->getConfig().syncsToCloud())
+            {
+                node->setSyncable(false);
+            }
             sync->client->movetosyncdebris(node, sync->inshare);
         }
     }
@@ -1804,7 +1917,7 @@ bool LocalNode::serialize(string* d)
     const char syncable = mSyncable ? 1 : 0;
     d->append(&syncable, sizeof(syncable));
 
-    d->append("\0\0\0\0\0\0", 8); // Use these bytes for extensions
+    d->append("\0\0\0\0\0\0\0", 8); // Use these bytes for extensions
 
     return true;
 }

@@ -105,7 +105,10 @@ std::string megaApiCacheFolder(int index)
     {
 
 #ifdef _WIN32
-        bool success = fs::create_directory(p);
+        #ifndef NDEBUG
+        bool success =
+        #endif
+        fs::create_directory(p);
         assert(success);
 #else
         mkdir(p.c_str(), S_IRWXU);
@@ -235,14 +238,15 @@ void SdkTest::TearDown()
     deleteFile(AVATARDST);
 
     releaseMegaApi(1);
+    releaseMegaApi(2);
 
     if (megaApi[0])
     {        
         LOG_info << "___ Cleaning up test (TearDown()) ___";
 
         // Remove nodes in Cloud & Rubbish
-        purgeTree(megaApi[0]->getRootNode());
-        purgeTree(megaApi[0]->getRubbishNode());
+        purgeTree(megaApi[0]->getRootNode(), false);
+        purgeTree(megaApi[0]->getRubbishNode(), false);
 //        megaApi[0]->cleanRubbishBin();
 
         // Remove auxiliar contact
@@ -277,6 +281,10 @@ int SdkTest::getApiIndex(MegaApi* api)
 
 void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
 {
+    if (request->getType() == MegaRequest::TYPE_DELETE)
+    {
+        return;
+    }
     int apiIndex = getApiIndex(api);
     if (apiIndex < 0) return;
     mApi[apiIndex].requestFlags[request->getType()] = true;
@@ -571,32 +579,45 @@ void SdkTest::createChat(bool group, MegaTextChatPeerList *peers, int timeout)
 
 #endif
 
+void SdkTest::onEvent(MegaApi*, MegaEvent *event)
+{
+    std::lock_guard<std::mutex> lock{lastEventMutex};
+    lastEvent.reset(event->copy());
+}
+
 void SdkTest::login(unsigned int apiIndex, int timeout)
 {
     mApi[apiIndex].requestFlags[MegaRequest::TYPE_LOGIN] = false;
     mApi[apiIndex].megaApi->login(mApi[apiIndex].email.data(), mApi[apiIndex].pwd.data());
 
     ASSERT_TRUE(waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_LOGIN], timeout))
-        << "Logging failed after " << timeout << " seconds";
-    ASSERT_EQ(MegaError::API_OK, mApi[apiIndex].lastError) << "Logging failed (error: " << mApi[apiIndex].lastError << ")";
-    ASSERT_TRUE(mApi[apiIndex].megaApi->isLoggedIn()) << "Not logged it";
+        << "Login failed after " << timeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, mApi[apiIndex].lastError) << "Login failed (error: " << mApi[apiIndex].lastError << ")";
+    ASSERT_TRUE(mApi[apiIndex].megaApi->isLoggedIn());
 }
 
 void SdkTest::loginBySessionId(unsigned int apiIndex, const std::string& sessionId, int timeout)
 {
     mApi[apiIndex].requestFlags[MegaRequest::TYPE_LOGIN] = false;
-    mApi[apiIndex].megaApi->login(mApi[apiIndex].email.data(), mApi[apiIndex].pwd.data());
+    mApi[apiIndex].megaApi->fastLogin(sessionId.c_str());
 
     ASSERT_TRUE(waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_LOGIN], timeout))
-        << "Logging failed after " << timeout << " seconds";
-    ASSERT_EQ(MegaError::API_OK, mApi[apiIndex].lastError) << "Logging failed (error: " << mApi[apiIndex].lastError << ")";
-    ASSERT_TRUE(mApi[apiIndex].megaApi->isLoggedIn()) << "Not logged it";
+        << "Login failed after " << timeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, mApi[apiIndex].lastError) << "Login failed (error: " << mApi[apiIndex].lastError << ")";
+    ASSERT_TRUE(mApi[apiIndex].megaApi->isLoggedIn());
 }
 
-void SdkTest::fetchnodes(unsigned int apiIndex, int timeout)
+void SdkTest::fetchnodes(unsigned int apiIndex, int timeout, bool resumeSyncs)
 {
     mApi[apiIndex].requestFlags[MegaRequest::TYPE_FETCH_NODES] = false;
-    mApi[apiIndex].megaApi->fetchNodes();
+    if (resumeSyncs)
+    {
+        mApi[apiIndex].megaApi->fetchNodesAndResumeSyncs();
+    }
+    else
+    {
+        mApi[apiIndex].megaApi->fetchNodes();
+    }
 
     ASSERT_TRUE( waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_FETCH_NODES], timeout) )
             << "Fetchnodes failed after " << timeout  << " seconds";
@@ -639,7 +660,7 @@ void SdkTest::resumeSession(const char *session, int timeout)
     ASSERT_EQ(MegaError::API_OK, synchronousFastLogin(apiIndex, session, this)) << "Resume session failed (error: " << mApi[apiIndex].lastError << ")";
 }
 
-void SdkTest::purgeTree(MegaNode *p)
+void SdkTest::purgeTree(MegaNode *p, bool depthfirst)
 {
     int apiIndex = 0;
     MegaNodeList *children;
@@ -650,7 +671,7 @@ void SdkTest::purgeTree(MegaNode *p)
         MegaNode *n = children->get(i);
 
         // removing the folder removes the children anyway
-        if (n->isFolder())
+        if (depthfirst && n->isFolder())
             purgeTree(n);
 
         ASSERT_EQ(MegaError::API_OK, synchronousRemove(apiIndex, n)) << "Remove node operation failed (error: " << mApi[apiIndex].lastError << ")";
@@ -783,6 +804,11 @@ void SdkTest::getMegaApiAux(unsigned index)
 
 void SdkTest::releaseMegaApi(unsigned int apiIndex)
 {
+    if (mApi.size() <= apiIndex)
+    {
+        return;
+    }
+
     assert(megaApi[apiIndex].get() == mApi[apiIndex].megaApi);
     if (mApi[apiIndex].megaApi)
     {
@@ -1246,13 +1272,11 @@ TEST_F(SdkTest, SdkTestResumeSession)
 {
     LOG_info << "___TEST Resume session___";
 
-    char *session = dumpSession();
+    unique_ptr<char[]> session(dumpSession());
 
     ASSERT_NO_FATAL_FAILURE( locallogout() );
-    ASSERT_NO_FATAL_FAILURE( resumeSession(session) );
+    ASSERT_NO_FATAL_FAILURE( resumeSession(session.get()) );
     ASSERT_NO_FATAL_FAILURE( fetchnodes(0) );
-
-    delete session;
 }
 
 /**
@@ -4015,8 +4039,7 @@ TEST_F(SdkTest, SdkRecentsTest)
     ASSERT_EQ(UPFILE, string(buckets->get(0)->getNodes()->get(1)->getName()));
 }
 
-// TODO: Enable this test when API command (smslc) becomes available in production
-TEST_F(SdkTest, DISABLED_SdkGetCountryCallingCodes)
+TEST_F(SdkTest, SdkGetCountryCallingCodes)
 {
     LOG_info << "___TEST SdkGetCountryCallingCodes___";
 
@@ -4034,8 +4057,7 @@ TEST_F(SdkTest, DISABLED_SdkGetCountryCallingCodes)
     ASSERT_EQ(0, strcmp("49", de->get(0)));
 }
 
-// TODO: Enable this test when API command (usabd) becomes available in production
-TEST_F(SdkTest, DISABLED_SdkGetRegisteredContacts)
+TEST_F(SdkTest, SdkGetRegisteredContacts)
 {
     LOG_info << "___TEST SdkGetRegisteredContacts___";
 
@@ -4142,3 +4164,197 @@ TEST_F(SdkTest, RecursiveDownloadWithLogout)
     fs::remove_all(uploadpath, ec);
     fs::remove_all(downloadpath, ec);
 }
+
+#ifdef ENABLE_SYNC
+TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
+{
+    LOG_info << "___TEST SyncResumptionAfterFetchNodes___";
+
+    // This test has several issues:
+    // 1. Remote nodes may not be committed to the sctable database in time for fetchnodes which
+    //    then fails adding syncs because the remotes are missing. For this reason we wait until
+    //    we receive the EVENT_COMMIT_DB event after transferring the nodes.
+    // 2. Syncs are deleted some time later leading to error messages (like local fingerprint mismatch)
+    //    if we don't wait for long enough after we get called back. A sync only gets flagged but
+    //    is deleted later.
+
+    const std::string session = dumpSession();
+
+    const fs::path basePath = "SyncResumptionAfterFetchNodes";
+    const auto sync1Path = fs::current_path() / basePath / "sync1"; // stays active
+    const auto sync2Path = fs::current_path() / basePath / "sync2"; // will be made inactive
+    const auto sync3Path = fs::current_path() / basePath / "sync3"; // will be deleted
+    const auto sync4Path = fs::current_path() / basePath / "sync4"; // stays active
+
+    auto cleanUp = [this, &basePath]()
+    {
+        std::error_code ignoredEc;
+        fs::remove_all(basePath, ignoredEc);
+
+        std::unique_ptr<MegaNode> baseNode{megaApi[0]->getNodeByPath(("/" + basePath.u8string()).c_str())};
+        if (baseNode)
+        {
+            RequestTracker removeTracker;
+            megaApi[0]->remove(baseNode.get(), &removeTracker);
+            ASSERT_EQ(API_OK, removeTracker.waitForResult());
+        }
+    };
+
+    cleanUp();
+
+    fs::create_directories(sync1Path);
+    fs::create_directories(sync2Path);
+    fs::create_directories(sync3Path);
+    fs::create_directories(sync4Path);
+
+    {
+        std::lock_guard<std::mutex> lock{lastEventMutex};
+        lastEvent.reset();
+        // we're assuming we're not getting any unrelated db commits while the transfer is running
+    }
+
+    // transfer the folder and its subfolders
+    TransferTracker uploadListener;
+    megaApi[0]->startUpload(basePath.u8string().c_str(), megaApi[0]->getRootNode(), &uploadListener);
+    ASSERT_EQ(API_OK, uploadListener.waitForResult());
+
+    // loop until we get a commit to the sctable to ensure we cached the new remote nodes
+    for (;;)
+    {
+        {
+            std::lock_guard<std::mutex> lock{lastEventMutex};
+            if (lastEvent && lastEvent->getType() == MegaEvent::EVENT_COMMIT_DB)
+            {
+                // we're assuming this event is the event for the whole batch of nodes
+                break;
+            }
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds{100});
+    }
+
+    auto megaNode = [this, &basePath](const std::string& p)
+    {
+        const auto path = "/" + basePath.u8string() + "/" + p;
+        return std::unique_ptr<MegaNode>{megaApi[0]->getNodeByPath(path.c_str())};
+    };
+
+    auto localFp = [this, &megaNode](const fs::path& p)
+    {
+        auto node = megaNode(p.filename().u8string());
+        auto sync = std::unique_ptr<MegaSync>{megaApi[0]->getSyncByNode(node.get())};
+        return sync->getLocalFingerprint();
+    };
+
+    auto syncFolder = [this, &megaNode](const fs::path& p)
+    {
+        RequestTracker syncTracker;
+        auto node = megaNode(p.filename().u8string());
+        megaApi[0]->syncFolder(p.u8string().c_str(), node.get(), &syncTracker);
+        ASSERT_EQ(API_OK, syncTracker.waitForResult());
+    };
+
+    auto disableSync = [this, &megaNode](const fs::path& p)
+    {
+        RequestTracker syncTracker;
+        auto node = megaNode(p.filename().u8string());
+        megaApi[0]->disableSync(node.get(), &syncTracker);
+        ASSERT_EQ(API_OK, syncTracker.waitForResult());
+    };
+
+    auto resumeSync = [this, &megaNode](const fs::path& p, const long long localfp)
+    {
+        RequestTracker syncTracker;
+        auto node = megaNode(p.filename().u8string());
+        megaApi[0]->resumeSync(p.u8string().c_str(), node.get(), localfp, &syncTracker);
+        ASSERT_EQ(API_OK, syncTracker.waitForResult());
+    };
+
+    auto removeSync = [this, &megaNode](const fs::path& p)
+    {
+        RequestTracker syncTracker;
+        auto node = megaNode(p.filename().u8string());
+        megaApi[0]->removeSync(node.get(), &syncTracker);
+        ASSERT_EQ(API_OK, syncTracker.waitForResult());
+    };
+
+    auto checkSyncOK = [this, &megaNode](const fs::path& p)
+    {
+        auto node = megaNode(p.filename().u8string());
+        return std::unique_ptr<MegaSync>{megaApi[0]->getSyncByNode(node.get())} != nullptr;
+    };
+
+    auto reloginViaSession = [this, &session]()
+    {
+        locallogout();
+        loginBySessionId(0, session);
+    };
+
+    syncFolder(sync1Path);
+    syncFolder(sync2Path);
+    syncFolder(sync3Path);
+    syncFolder(sync4Path);
+
+    ASSERT_TRUE(checkSyncOK(sync1Path));
+    ASSERT_TRUE(checkSyncOK(sync2Path));
+    ASSERT_TRUE(checkSyncOK(sync3Path));
+    ASSERT_TRUE(checkSyncOK(sync4Path));
+    const auto sync2LocalFp = localFp(sync2Path); // need this for manual resume
+
+    disableSync(sync2Path);
+    removeSync(sync3Path);
+
+    // wait for the sync removals to actually take place
+    std::this_thread::sleep_for(std::chrono::seconds{20});
+
+    ASSERT_TRUE(checkSyncOK(sync1Path));
+    ASSERT_FALSE(checkSyncOK(sync2Path));
+    ASSERT_FALSE(checkSyncOK(sync3Path));
+    ASSERT_TRUE(checkSyncOK(sync4Path));
+
+    reloginViaSession();
+
+    ASSERT_FALSE(checkSyncOK(sync1Path));
+    ASSERT_FALSE(checkSyncOK(sync2Path));
+    ASSERT_FALSE(checkSyncOK(sync3Path));
+    ASSERT_FALSE(checkSyncOK(sync4Path));
+
+    fetchnodes(0, maxTimeout, true); // auto-resumes two active syncs
+
+    ASSERT_TRUE(checkSyncOK(sync1Path));
+    ASSERT_FALSE(checkSyncOK(sync2Path));
+    ASSERT_FALSE(checkSyncOK(sync3Path));
+    ASSERT_TRUE(checkSyncOK(sync4Path));
+
+    // check if we can still resume manually
+    resumeSync(sync2Path, sync2LocalFp);
+
+    ASSERT_TRUE(checkSyncOK(sync1Path));
+    ASSERT_TRUE(checkSyncOK(sync2Path));
+    ASSERT_FALSE(checkSyncOK(sync3Path));
+    ASSERT_TRUE(checkSyncOK(sync4Path));
+
+    // check if resumeSync re-activated the sync
+    reloginViaSession();
+
+    ASSERT_FALSE(checkSyncOK(sync1Path));
+    ASSERT_FALSE(checkSyncOK(sync2Path));
+    ASSERT_FALSE(checkSyncOK(sync3Path));
+    ASSERT_FALSE(checkSyncOK(sync4Path));
+
+    fetchnodes(0, maxTimeout, true); // auto-resumes three active syncs
+
+    ASSERT_TRUE(checkSyncOK(sync1Path));
+    ASSERT_TRUE(checkSyncOK(sync2Path));
+    ASSERT_FALSE(checkSyncOK(sync3Path));
+    ASSERT_TRUE(checkSyncOK(sync4Path));
+
+    removeSync(sync1Path);
+    removeSync(sync2Path);
+    removeSync(sync4Path);
+
+    // wait for the sync removals to actually take place
+    std::this_thread::sleep_for(std::chrono::seconds{20});
+
+    cleanUp();
+}
+#endif

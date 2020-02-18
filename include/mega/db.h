@@ -53,7 +53,7 @@ public:
     // update or add specific record
     virtual bool put(uint32_t, char*, unsigned) = 0;
     bool put(uint32_t, string*);
-    bool put(uint32_t, Cachable *, SymmCipher*);
+    bool put(uint32_t, Cacheable *, SymmCipher*);
 
     // delete specific record
     virtual bool del(uint32_t) = 0;
@@ -97,14 +97,23 @@ public:
         }
     }
 
-    inline ~DBTableTransactionCommitter()
+    inline void commitNow()
     {
         if (mTable)
         {
             if (mStarted)
             {
                 mTable->commit();
+                mStarted = false;
             }
+        }
+    }
+
+    inline ~DBTableTransactionCommitter()
+    {
+        if (mTable)
+        {
+            commitNow();
             mTable->mCurrentTransactionCommiter = nullptr;
         }
     }

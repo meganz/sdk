@@ -1,7 +1,4 @@
 /**
- * @file tests/synctests.cpp
- * @brief Mega SDK test file
- *
  * (c) 2018 by Mega Limited, Wellsford, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
@@ -71,6 +68,7 @@ struct Model
         enum nodetype { file, folder };
         nodetype type = folder;
         string name;
+        string content;
         vector<unique_ptr<ModelNode>> kids;
         ModelNode* parent = nullptr;
         string path() 
@@ -103,7 +101,15 @@ struct Model
                 in->print(prefix);
             }
         }
-
+        std::unique_ptr<ModelNode> clone()
+        {
+            auto result = std::make_unique<ModelNode>();
+            result->name = name;
+            result->type = type;
+            result->content = content;
+            for (auto& k : kids) result->addkid(k->clone());
+            return result;
+        }
     };
 
     unique_ptr<ModelNode> makeModelSubfolder(const string& utf8Name)
@@ -113,11 +119,12 @@ struct Model
         return n;
     }
 
-    unique_ptr<ModelNode> makeModelSubfile(const string& utf8Name)
+    unique_ptr<ModelNode> makeModelSubfile(const string& utf8Name, string content = {})
     {
         unique_ptr<ModelNode> n(new ModelNode);
         n->name = utf8Name;
         n->type = ModelNode::file;
+        n->content = content.empty() ? utf8Name : std::move(content);
         return n;
     }
 
@@ -281,6 +288,33 @@ struct Model
 
             return removenode(syncrootpath + "/" + DEBRISFOLDER + "/" + today + "/" + subpath).get();
         }
+    }
+
+    void emulate_rename(std::string nodepath, std::string newname)
+    {
+        auto node = findnode(nodepath);
+        ASSERT_TRUE(!!node);
+        if (node) node->name = newname;
+    }
+
+    void emulate_move(std::string nodepath, std::string newparentpath)
+    {
+        ASSERT_TRUE(movenode(nodepath, newparentpath));
+    }
+
+    void emulate_copy(std::string nodepath, std::string newparentpath)
+    {
+        auto node = findnode(nodepath);
+        auto newparent = findnode(newparentpath);
+        ASSERT_TRUE(!!node);
+        ASSERT_TRUE(!!newparent);
+        newparent->addkid(node->clone());
+    }
+
+    void emulate_delete(std::string nodepath)
+    {
+        auto removed = removenode(nodepath);
+        ASSERT_TRUE(!!removed);
     }
 
     Model() : root(makeModelSubfolder("root"))
@@ -582,33 +616,8 @@ struct StandardClient : public MegaApp
 
     NewNode* makeSubfolder(const string& utf8Name)
     {
-        SymmCipher key;
-        string attrstring;
-        byte buf[FOLDERNODEKEYLENGTH];
         NewNode* newnode = new NewNode[1];
-
-        // set up new node as folder node
-        newnode->source = NEW_NODE;
-        newnode->type = FOLDERNODE;
-        newnode->nodehandle = 0;
-        newnode->parenthandle = UNDEF;
-
-        // generate fresh random key for this folder node
-        PrnGen prngen;
-        prngen.genblock(buf, FOLDERNODEKEYLENGTH);
-        newnode->nodekey.assign((char*)buf, FOLDERNODEKEYLENGTH);
-        key.setkey(buf);
-
-        // generate fresh attribute object with the folder name
-        AttrMap attrs;
-        string& n = attrs.map['n'];
-        client.fsaccess->normalize(&(n = utf8Name));
-
-        // JSON-encode object and encrypt attribute string
-        attrs.getjson(&attrstring);
-        newnode->attrstring = new string;
-        client.makeattr(&key, newnode->attrstring, attrstring.c_str());
-
+        client.putnodes_prepareOneFolder(newnode, utf8Name);
         return newnode;
     }
      
@@ -812,7 +821,7 @@ struct StandardClient : public MegaApp
         else
         {
             vector<Node*> results, subnodes = client.childnodesbyname(n, path.c_str(), false);
-            for (int i = subnodes.size(); i--; )
+            for (size_t i = subnodes.size(); i--; )
             {
                 if (subnodes[i]->type != FILENODE)
                 {
@@ -824,15 +833,13 @@ struct StandardClient : public MegaApp
         }
     }
 
-    bool setupSync_inthread(int syncid, const string& subfoldername, const fs::path& localpath)
+    bool setupSync_inthread(SyncConfig config, int syncid, const string& subfoldername, const fs::path& localpath)
     {
         if (Node* n = client.nodebyhandle(basefolderhandle))
         {
             if (Node* m = drillchildnodebyname(n, subfoldername))
             {
-                string local, orig = localpath.u8string();
-                client.fsaccess->path2local(&orig, &local);
-                error e = client.addsync(SyncConfig{}, &local, DEBRISFOLDER, NULL, m, 0, syncid);  // use syncid as tag
+                error e = client.addsync(std::move(config), DEBRISFOLDER, NULL, syncid);  // use syncid as tag
                 if (!e)
                 {
                     syncSet[syncid] = SyncInfo{ m->nodehandle, localpath };
@@ -843,6 +850,14 @@ struct StandardClient : public MegaApp
         return false;
     }
 
+    bool delSync_inthread(const int syncId, const bool keepCache)
+    {
+        const auto handle = syncSet.at(syncId).h;
+        const auto node = client.nodebyhandle(handle);
+        EXPECT_TRUE(node);
+        client.delsync(node->localnode->sync, keepCache);
+        return true;
+    }
 
     bool recursiveConfirm(Model::ModelNode* mn, Node* n, int& descendants, const string& identifier, int depth)
     {
@@ -905,7 +920,7 @@ struct StandardClient : public MegaApp
         }
         else
         {
-            cout << identifier << " after matching " << matched << " child nodes [";
+            cout << clientname << " " << identifier << " after matching " << matched << " child nodes [";
             for (auto& ml : matchedlist) cout << ml << " ";
             cout << "](with " << descendants << " descendants) in " << mn->path() << ", ended up with unmatched model nodes:";
             for (auto& m : ms) cout << " " << m.first;
@@ -940,7 +955,10 @@ struct StandardClient : public MegaApp
         {
             EXPECT_EQ(n->name, n_localname);
         }
-        EXPECT_TRUE(n->node != nullptr);
+        if (n->sync->getConfig().syncsToCloud() && n->sync->getConfig().syncsToLocal())
+        {
+            EXPECT_TRUE(n->node != nullptr);
+        }
         if (depth && n->node)
         {
             EXPECT_EQ(n->node->displayname(), n->name);
@@ -967,6 +985,12 @@ struct StandardClient : public MegaApp
         multimap<string, LocalNode*> ns;
         for (auto& m : mn->kids)
         {
+            if (m->parent && m->parent->type == Model::ModelNode::file)
+            {
+                // skip previous versions
+                assert(m->type == Model::ModelNode::file);
+                continue;
+            }
             ms.emplace(m->name, m.get());
         }
         for (auto& n2 : n->children)
@@ -1014,7 +1038,7 @@ struct StandardClient : public MegaApp
         }
         else
         {
-            cout << identifier << " after matching " << matched << " child nodes [";
+            cout << clientname << " " << identifier << " after matching " << matched << " child nodes [";
             for (auto& ml : matchedlist) cout << ml << " ";
             cout << "](with " << descendants << " descendants) in " << mn->path() << ", ended up with unmatched model nodes:";
             for (auto& m : ms) cout << " " << m.first;
@@ -1026,7 +1050,7 @@ struct StandardClient : public MegaApp
     }
 
 
-    bool recursiveConfirm(Model::ModelNode* mn, fs::path p, int& descendants, const string& identifier, int depth)
+    bool recursiveConfirm(Model::ModelNode* mn, fs::path p, int& descendants, const string& identifier, int depth, bool ignoreDebris)
     {
         if (!mn) return false;
         if (depth && mn->name != p.filename().u8string())
@@ -1046,8 +1070,8 @@ struct StandardClient : public MegaApp
             ifstream fs(p, ios::binary);
             char filedata[1024];
             fs.read(filedata, sizeof(filedata));
-            EXPECT_EQ(fs.gcount(), p.filename().u8string().size()) << " file is not expected size " << p;
-            EXPECT_TRUE(!memcmp(filedata, p.filename().u8string().data(), p.filename().u8string().size())) << " file data mismatch " << p;
+            EXPECT_EQ(size_t(fs.gcount()), mn->content.size()) << " file is not expected size " << p;
+            EXPECT_TRUE(!memcmp(filedata, mn->content.data(), mn->content.size())) << " file data mismatch " << p;
         }
 
         if (pathtype != FOLDERNODE)
@@ -1060,6 +1084,11 @@ struct StandardClient : public MegaApp
         for (auto& m : mn->kids) ms.emplace(m->name, m.get());
         for (fs::directory_iterator pi(p); pi != fs::directory_iterator(); ++pi) ps.emplace(pi->path().filename().u8string(), pi->path());
 
+        if (ignoreDebris)
+        {
+            ps.erase(DEBRISFOLDER);
+        }
+
         int matched = 0;
         vector<string> matchedlist;
         for (auto m_iter = ms.begin(); m_iter != ms.end(); )
@@ -1071,7 +1100,7 @@ struct StandardClient : public MegaApp
             for (auto i = er.first; i != er.second; ++i)
             {
                 int rdescendants = 0; 
-                if (recursiveConfirm(m_iter->second, i->second, rdescendants, identifier, depth+1))
+                if (recursiveConfirm(m_iter->second, i->second, rdescendants, identifier, depth+1, ignoreDebris))
                 {
                     ++matched;
                     matchedlist.push_back(m_iter->first);
@@ -1098,7 +1127,7 @@ struct StandardClient : public MegaApp
         }
         else
         {
-            cout << identifier << " after matching " << matched << " child nodes [";
+            cout << clientname << " " << identifier << " after matching " << matched << " child nodes [";
             for (auto& ml : matchedlist) cout << ml << " ";
             cout << "](with " << descendants << " descendants) in " << mn->path() << ", ended up with unmatched model nodes:";
             for (auto& m : ms) cout << " " << m.first;
@@ -1119,20 +1148,29 @@ struct StandardClient : public MegaApp
         return nullptr;
     }
 
-    bool confirmModel(int syncid, Model::ModelNode* mnode)
+    enum Confirm
+    {
+        CONFIRM_LOCALFS = 0x01,
+        CONFIRM_LOCALNODE = 0x02,
+        CONFIRM_LOCAL = CONFIRM_LOCALFS | CONFIRM_LOCALNODE,
+        CONFIRM_REMOTE = 0x04,
+        CONFIRM_ALL = CONFIRM_LOCAL | CONFIRM_REMOTE,
+    };
+
+    bool confirmModel(int syncid, Model::ModelNode* mnode, const Confirm confirm, const bool ignoreDebris)
     {
         auto si = syncSet.find(syncid);
         if (si == syncSet.end())
         {
-            cout << "syncid " << syncid << " not found " << endl;
+            cout << clientname << " syncid " << syncid << " not found " << endl;
             return false;
         }
 
         // compare model aganst nodes representing remote state
         int descendants = 0;
-        if (!recursiveConfirm(mnode, client.nodebyhandle(si->second.h), descendants, "Sync " + to_string(syncid), 0))
+        if (confirm & CONFIRM_REMOTE && !recursiveConfirm(mnode, client.nodebyhandle(si->second.h), descendants, "Sync " + to_string(syncid), 0))
         {
-            cout << "syncid " << syncid << " comparison against remote nodes failed" << endl;
+            cout << clientname << " syncid " << syncid << " comparison against remote nodes failed" << endl;
             return false;
         }
 
@@ -1140,18 +1178,18 @@ struct StandardClient : public MegaApp
         descendants = 0; 
         if (Sync* sync = syncByTag(syncid))
         {
-            if (!recursiveConfirm(mnode, sync->localroot.get(), descendants, "Sync " + to_string(syncid), 0))
+            if (confirm & CONFIRM_LOCALNODE && !recursiveConfirm(mnode, sync->localroot.get(), descendants, "Sync " + to_string(syncid), 0))
             {
-                cout << "syncid " << syncid << " comparison against LocalNodes failed" << endl;
+                cout << clientname << " syncid " << syncid << " comparison against LocalNodes failed" << endl;
                 return false;
             }
         }
 
         // compare model against local filesystem
         descendants = 0;
-        if (!recursiveConfirm(mnode, si->second.localpath, descendants, "Sync " + to_string(syncid), 0))
+        if (confirm & CONFIRM_LOCALFS && !recursiveConfirm(mnode, si->second.localpath, descendants, "Sync " + to_string(syncid), 0, ignoreDebris))
         {
-            cout << "syncid " << syncid << " comparison against local filesystem failed" << endl;
+            cout << clientname << " syncid " << syncid << " comparison against local filesystem failed" << endl;
             return false;
         }
 
@@ -1219,7 +1257,7 @@ struct StandardClient : public MegaApp
         }
         else
         {
-            for (int i = ns.size(); i--; )
+            for (size_t i = ns.size(); i--; )
             {
                 resultproc.prepresult(UNLINK, [this, &pb, i](error e) { if (!i) pb.set_value(!e); });
                 client.unlink(ns[i]);
@@ -1230,7 +1268,7 @@ struct StandardClient : public MegaApp
     void movenode(string path, string newparentpath, promise<bool>& pb)
     {
         Node* n = drillchildnodebyname(gettestbasenode(), path);
-        Node* p = drillchildnodebyname(gettestbasenode(), path);
+        Node* p = drillchildnodebyname(gettestbasenode(), newparentpath);
         if (n && p)
         {
             resultproc.prepresult(MOVENODE, [this, &pb](error e) { pb.set_value(!e); }, n->nodehandle);
@@ -1352,7 +1390,7 @@ struct StandardClient : public MegaApp
         return true;
     }
 
-    bool login_reset_makeremotenodes(const string& user, const string& pw, const string& prefix, int depth, int fanout)
+    bool login_reset_makeremotenodes(const string& user, const string& pw, const string& prefix, int depth = 0, int fanout = 0)
     {
         if (!login_reset(user, pw))
         {
@@ -1368,7 +1406,7 @@ struct StandardClient : public MegaApp
         return true;
     }
 
-    bool login_fetchnodes(const string& user, const string& pw)
+    bool login_fetchnodes(const string& user, const string& pw, bool makeBaseFolder = false)
     {
         future<bool> p2;
         p2 = thread_do([=](StandardClient& sc, promise<bool>& pb) { sc.preloginFromEnv(user, pb); });
@@ -1377,7 +1415,7 @@ struct StandardClient : public MegaApp
         if (!waitonresults(&p2)) return false;
         p2 = thread_do([](StandardClient& sc, promise<bool>& pb) { sc.fetchnodes(pb); });
         if (!waitonresults(&p2)) return false;
-        p2 = thread_do([](StandardClient& sc, promise<bool>& pb) { sc.ensureTestBaseFolder(false, pb); });
+        p2 = thread_do([makeBaseFolder](StandardClient& sc, promise<bool>& pb) { sc.ensureTestBaseFolder(makeBaseFolder, pb); });
         if (!waitonresults(&p2)) return false;
         return true;
     }
@@ -1396,6 +1434,12 @@ struct StandardClient : public MegaApp
 
     bool login_fetchnodes_resumesync(const string& session, const string& localsyncpath, const std::string& remotesyncrootfolder, int syncid)
     {
+        SyncConfig config{localsyncpath, drillchildnodebyname(gettestbasenode(), remotesyncrootfolder)->nodehandle, 0};
+        return login_fetchnodes_resumesync(std::move(config), session, localsyncpath, remotesyncrootfolder, syncid);
+    }
+
+    bool login_fetchnodes_resumesync(SyncConfig config, const string& session, const string& localsyncpath, const std::string& remotesyncrootfolder, int syncid)
+    {
         future<bool> p2;
         p2 = thread_do([=](StandardClient& sc, promise<bool>& pb) { sc.loginFromSession(session, pb); });
         if (!waitonresults(&p2)) return false;
@@ -1405,7 +1449,7 @@ struct StandardClient : public MegaApp
         {
             promise<bool> tp;
             mc.ensureTestBaseFolder(false, tp);
-            pb.set_value(tp.get_future().get() ? mc.setupSync_inthread(syncid, remotesyncrootfolder, localsyncpath) : false);
+            pb.set_value(tp.get_future().get() ? mc.setupSync_inthread(config, syncid, remotesyncrootfolder, localsyncpath) : false);
         };
 
         p2 = thread_do([](StandardClient& sc, promise<bool>& pb) { sc.fetchnodes(pb); });
@@ -1417,16 +1461,28 @@ struct StandardClient : public MegaApp
 
     bool setupSync_mainthread(const std::string& localsyncrootfolder, const std::string& remotesyncrootfolder, int syncid)
     {
+        SyncConfig config{(fsBasePath / fs::u8path(localsyncrootfolder)).u8string(), drillchildnodebyname(gettestbasenode(), remotesyncrootfolder)->nodehandle, 0};
+        return setupSync_mainthread(std::move(config), localsyncrootfolder, remotesyncrootfolder, syncid);
+    }
+
+    bool setupSync_mainthread(SyncConfig config, const std::string& localsyncrootfolder, const std::string& remotesyncrootfolder, int syncid)
+    {
         fs::path syncdir = fsBasePath / fs::u8path(localsyncrootfolder);
         fs::create_directory(syncdir);
-        future<bool> fb = thread_do([=](StandardClient& mc, promise<bool>& pb) { pb.set_value(mc.setupSync_inthread(syncid, remotesyncrootfolder, syncdir)); });
+        future<bool> fb = thread_do([=](StandardClient& mc, promise<bool>& pb) { pb.set_value(mc.setupSync_inthread(config, syncid, remotesyncrootfolder, syncdir)); });
         return fb.get();
     }
 
-    bool confirmModel_mainthread(Model::ModelNode* mnode, int syncid)
+    bool delSync_mainthread(int syncId, bool keepCache = false)
+    {
+        future<bool> fb = thread_do([=](StandardClient& mc, promise<bool>& pb) { pb.set_value(mc.delSync_inthread(syncId, keepCache)); });
+        return fb.get();
+    }
+
+    bool confirmModel_mainthread(Model::ModelNode* mnode, int syncid, const bool ignoreDebris = false, const Confirm confirm = CONFIRM_ALL)
     {
         future<bool> fb;
-        fb = thread_do([syncid, mnode](StandardClient& sc, promise<bool>& pb) { pb.set_value(sc.confirmModel(syncid, mnode)); });
+        fb = thread_do([syncid, mnode, ignoreDebris, confirm](StandardClient& sc, promise<bool>& pb) { pb.set_value(sc.confirmModel(syncid, mnode, confirm, ignoreDebris)); });
         return fb.get();
     }
 };
@@ -1519,7 +1575,10 @@ fs::path makeNewTestRoot(fs::path p)
     {
         moveToTrash(p);
     }
-    bool b = fs::create_directory(p);
+    #ifndef NDEBUG
+    bool b =
+    #endif
+    fs::create_directory(p);
     assert(b);
     return p;
 }
@@ -1534,12 +1593,56 @@ bool createFile(const fs::path &p, const string &filename)
 #else
     ofstream fs(fp.u8string()/*, ios::binary*/);
 #endif
+    if (!fs.is_open())
+    {
+        return false;
+    }
     fs << filename;
     if (fs.bad())
     {
         return false;
     }
     return true;
+}
+
+bool appendToFile(const fs::path &p, const string &filename, const string& data)
+{
+    fs::path fp = p / fs::u8path(filename);
+#if (__cplusplus >= 201700L)
+    ofstream fs(fp, std::ios_base::app);
+#else
+    ofstream fs(fp.u8string(), std::ios_base::app);
+#endif
+    if (!fs.is_open())
+    {
+        return false;
+    }
+    fs << data;
+    if (fs.bad())
+    {
+        return false;
+    }
+    return true;
+}
+
+bool readFileContents(std::string& content, const fs::path& p, const string& filename)
+{
+    fs::path fp = p / fs::u8path(filename);
+#if (__cplusplus >= 201700L)
+    ifstream fs(fp);
+#else
+    ifstream fs(fp.u8string());
+#endif
+    if (!fs.is_open())
+    {
+        return false;
+    }
+    content = std::string{std::istreambuf_iterator<char>{fs}, std::istreambuf_iterator<char>{}};
+    if (fs.bad())
+    {
+        return false;
+    }
+    return true;;
 }
 
 bool buildLocalFolders(fs::path targetfolder, const string& prefix, int n, int recurselevel, int filesperfolder)
@@ -2473,6 +2576,45 @@ GTEST_TEST(Sync, NodeSorting_forPhotosAndVideos)
     ASSERT_EQ(v, v5);
 }
 
+
+GTEST_TEST(Sync, PutnodesForMultipleFolders)
+{
+    fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
+    StandardClient standardclient(localtestroot, "PutnodesForMultipleFolders");
+    ASSERT_TRUE(standardclient.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD", true));
+
+    NewNode* newnodes = new NewNode[4];
+    
+    standardclient.client.putnodes_prepareOneFolder(&newnodes[0], "folder1");
+    standardclient.client.putnodes_prepareOneFolder(&newnodes[1], "folder2");
+    standardclient.client.putnodes_prepareOneFolder(&newnodes[2], "folder2.1");
+    standardclient.client.putnodes_prepareOneFolder(&newnodes[3], "folder2.2");
+
+    newnodes[1].nodehandle = newnodes[2].parenthandle = newnodes[3].parenthandle = 2;
+
+    handle targethandle = standardclient.client.rootnodes[0];
+
+    std::atomic<bool> putnodesDone{false};
+    standardclient.resultproc.prepresult(StandardClient::PUTNODES, [&putnodesDone](error e) {
+        putnodesDone = true;
+    });
+
+    standardclient.client.putnodes(targethandle, newnodes, 4, nullptr);
+    
+    while (!putnodesDone)
+    {
+        WaitMillisec(100);
+    }
+
+    Node* cloudRoot = standardclient.client.nodebyhandle(targethandle);
+
+    ASSERT_TRUE(nullptr != standardclient.drillchildnodebyname(cloudRoot, "folder1"));
+    ASSERT_TRUE(nullptr != standardclient.drillchildnodebyname(cloudRoot, "folder2"));
+    ASSERT_TRUE(nullptr != standardclient.drillchildnodebyname(cloudRoot, "folder2/folder2.1"));
+    ASSERT_TRUE(nullptr != standardclient.drillchildnodebyname(cloudRoot, "folder2/folder2.2"));
+}
+
+
 #ifndef _WIN32
 #define DEFAULWAIT 20s
 GTEST_TEST(Sync, BasicSync_CreateAndDeleteLink)
@@ -2683,4 +2825,1519 @@ GTEST_TEST(Sync, BasicSync_CreateAndReplaceLinkUponSyncDown)
 
 #endif
 
+namespace {
+
+// This fixture is intended for testing the one-way-sync functionality
+class OneWayFixture
+{
+public:
+    OneWayFixture(const SyncConfig::Type type, const bool syncDel, const bool overwrite)
+    {
+        assert(type != SyncConfig::TYPE_TWOWAY);
+
+        const fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
+        mClientRef.reset(new StandardClient{localtestroot, "ClientRef"});   // user 1 client 1 (two-way)
+        mClientOneWay.reset(new StandardClient{localtestroot, "ClientOneWay"});   // user 1 client 2 (one-way)
+
+        EXPECT_TRUE(mClientRef->login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "f", 1, 2));
+        EXPECT_TRUE(mClientOneWay->login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
+        EXPECT_EQ(mClientRef->basefolderhandle, mClientOneWay->basefolderhandle);
+
+        EXPECT_TRUE(mClientRef->setupSync_mainthread("sync", "f/f_0", 0));
+
+        auto remoteHandle = mClientOneWay->drillchildnodebyname(mClientOneWay->gettestbasenode(), "f/f_0")->nodehandle;
+        mConfig = std::make_unique<SyncConfig>((localtestroot / "ClientOneWay/sync").u8string(), remoteHandle, 0, std::vector<std::string>{}, type, syncDel, overwrite);
+        EXPECT_TRUE(mClientOneWay->setupSync_mainthread(*mConfig, "sync", "f/f_0", 0));
+        wait(4);
+        mClientRef->logcb = mClientOneWay->logcb = true;
+    }
+
+    ~OneWayFixture()
+    {
+        mClientRef->localLogout();
+        mClientOneWay->localLogout();
+    }
+
+    const fs::path& refRootPath() const
+    {
+        return mClientRef->syncSet.at(0).localpath;
+    }
+
+    const fs::path& oneWayRootPath() const
+    {
+        return mClientOneWay->syncSet.at(0).localpath;
+    }
+
+    void wait(const int sec = 10) const
+    {
+        waitonsyncs(chrono::seconds{sec}, mClientRef.get(), mClientOneWay.get());
+    }
+
+    bool checkRef(const Model& model) const
+    {
+        return mClientRef->confirmModel_mainthread(model.root.get(), 0, true);
+    }
+
+    bool checkOneWay(const Model& model, const StandardClient::Confirm confirm = StandardClient::CONFIRM_ALL) const
+    {
+        return mClientOneWay->confirmModel_mainthread(model.root.get(), 0, true, confirm);
+    }
+
+    bool pauseOneWay()
+    {
+        return mClientOneWay->delSync_mainthread(0, true);
+    }
+
+    bool resumeOneWay()
+    {
+        return mClientOneWay->setupSync_mainthread(*mConfig, "sync", "f/f_0", 0);
+    }
+
+    bool remoteMove(const std::string& source, const std::string& target)
+    {
+        std::promise<bool> p;
+        mClientRef->movenode(source, target, p);
+        return p.get_future().get();
+    }
+
+private:
+    std::unique_ptr<SyncConfig> mConfig;
+    std::unique_ptr<StandardClient> mClientRef;
+    std::unique_ptr<StandardClient> mClientOneWay;
+};
+
+} // anonymous
+
+TEST(Sync, OneWay_Upload_syncDelFalse_overwriteFalse_1)
+{
+    /* Steps:
+     * - Add remote file
+     * - Assert: No local file
+     */
+    const OneWayFixture fx{SyncConfig::TYPE_UP, false, false};
+
+    ASSERT_TRUE(createFile(fx.refRootPath(), "foo"));
+
+    fx.wait();
+    // foo is now uploaded
+
+    Model localModel;
+
+    Model remoteModel;
+    remoteModel.root->addkid(remoteModel.makeModelSubfile("foo"));
+
+    ASSERT_TRUE(fx.checkRef(remoteModel));
+    ASSERT_TRUE(fx.checkOneWay(remoteModel, StandardClient::CONFIRM_REMOTE));
+    ASSERT_TRUE(fx.checkOneWay(localModel, StandardClient::CONFIRM_LOCAL));
+}
+
+TEST(Sync, OneWay_Upload_syncDelFalse_overwriteFalse_2)
+{
+    /* Steps:
+     * - Add local file
+     * - Assert: File uploaded
+     */
+    const OneWayFixture fx{SyncConfig::TYPE_UP, false, false};
+
+    ASSERT_TRUE(createFile(fx.oneWayRootPath(), "foo"));
+
+    fx.wait();
+    // foo is now uploaded
+
+    Model model;
+    model.root->addkid(model.makeModelSubfile("foo"));
+
+    ASSERT_TRUE(fx.checkRef(model));
+    ASSERT_TRUE(fx.checkOneWay(model));
+}
+
+TEST(Sync, OneWay_Upload_syncDelFalse_overwriteFalse_3)
+{
+    /* Steps:
+     * - Add local file
+     * - Wait for upload
+     * - Edit local file
+     * - Assert: Edited file uploaded
+     */
+    const OneWayFixture fx{SyncConfig::TYPE_UP, false, false};
+
+    ASSERT_TRUE(createFile(fx.oneWayRootPath(), "foo"));
+
+    fx.wait();
+    // foo is now uploaded
+
+    ASSERT_TRUE(appendToFile(fx.oneWayRootPath(), "foo", "blah"));
+
+    fx.wait();
+    // new foo is now uploaded
+
+    Model model;
+    auto fooNodeOld = model.makeModelSubfile("foo");
+    auto fooNode = model.makeModelSubfile("foo", "fooblah");
+    fooNode->addkid(std::move(fooNodeOld));
+    model.root->addkid(std::move(fooNode));
+
+    ASSERT_TRUE(fx.checkRef(model));
+    ASSERT_TRUE(fx.checkOneWay(model));
+}
+
+TEST(Sync, OneWay_Upload_syncDelFalse_overwriteFalse_4)
+{
+    /* Steps:
+     * - Add local file
+     * - Wait for upload
+     * - Remove local file
+     * - Assert: Remote file still there
+     */
+    const OneWayFixture fx{SyncConfig::TYPE_UP, false, false};
+
+    ASSERT_TRUE(createFile(fx.oneWayRootPath(), "foo"));
+
+    fx.wait();
+    // foo is now uploaded
+
+    fs::remove(fx.oneWayRootPath() / "foo");
+
+    fx.wait();
+    // foo is not deleted on the remote
+
+    Model localModel;
+
+    Model remoteModel;
+    remoteModel.root->addkid(remoteModel.makeModelSubfile("foo"));
+
+    ASSERT_TRUE(fx.checkRef(remoteModel));
+    ASSERT_TRUE(fx.checkOneWay(remoteModel, StandardClient::CONFIRM_REMOTE));
+    ASSERT_TRUE(fx.checkOneWay(localModel, StandardClient::CONFIRM_LOCAL));
+}
+
+TEST(Sync, OneWay_Upload_syncDelFalse_overwriteFalse_5)
+{
+    /* Steps:
+     * - Add local file
+     * - Wait for upload
+     * - Remove remote file via ref
+     * - Edit local file
+     * - Assert: Remote file still gone
+     */
+    const OneWayFixture fx{SyncConfig::TYPE_UP, false, false};
+
+    ASSERT_TRUE(createFile(fx.oneWayRootPath(), "foo"));
+
+    fx.wait();
+    // foo is now uploaded
+
+    fs::remove(fx.refRootPath() / "foo");
+
+    fx.wait();
+    // foo is now removed from remote
+
+    ASSERT_TRUE(appendToFile(fx.oneWayRootPath(), "foo", "blah"));
+
+    fx.wait();
+    // new foo is not uploaded
+
+    Model localModel;
+    auto localFooNodeOld = localModel.makeModelSubfile("foo");
+    auto localFooNode = localModel.makeModelSubfile("foo", "fooblah");
+    localFooNode->addkid(std::move(localFooNodeOld));
+    localModel.root->addkid(std::move(localFooNode));
+
+    Model remoteModel;
+
+    ASSERT_TRUE(fx.checkRef(remoteModel));
+    ASSERT_TRUE(fx.checkOneWay(remoteModel, StandardClient::CONFIRM_REMOTE));
+    ASSERT_TRUE(fx.checkOneWay(localModel, StandardClient::CONFIRM_LOCAL));
+}
+
+TEST(Sync, OneWay_Upload_syncDelFalse_overwriteFalse_6)
+{
+    /* Steps:
+     * - Add local file
+     * - Wait for upload
+     * - Pause sync of oneWay
+     * - Edit local file
+     * - Edit remote file via ref
+     * - Resume sync of oneWay
+     * - Assert: New local is not uploaded (remote is newer)
+     */
+    OneWayFixture fx{SyncConfig::TYPE_UP, false, false};
+
+    ASSERT_TRUE(createFile(fx.oneWayRootPath(), "foo"));
+
+    fx.wait();
+    // foo is now uploaded
+
+    ASSERT_TRUE(fx.pauseOneWay());
+
+    fx.wait();
+    // oneWay is now paused
+
+    ASSERT_TRUE(appendToFile(fx.oneWayRootPath(), "foo", "blah"));
+
+    this_thread::sleep_for(chrono::seconds{3}); // wait a bit
+
+    ASSERT_TRUE(appendToFile(fx.refRootPath(), "foo", "halb"));
+
+    fx.wait();
+    // new foo from ref is now uploaded
+
+    fx.resumeOneWay();
+
+    fx.wait();
+    // oneWay is now resumed. New foo from oneWay is not uploaded (remote is newer)
+
+    Model localModel;
+    auto localFooNodeOld = localModel.makeModelSubfile("foo");
+    auto localFooNode = localModel.makeModelSubfile("foo", "fooblah");
+    localFooNode->addkid(std::move(localFooNodeOld));
+    localModel.root->addkid(std::move(localFooNode));
+
+    Model remoteModel;
+    auto remoteFooNodeOld = remoteModel.makeModelSubfile("foo");
+    auto remoteFooNode = remoteModel.makeModelSubfile("foo", "foohalb");
+    remoteFooNode->addkid(std::move(remoteFooNodeOld));
+    remoteModel.root->addkid(std::move(remoteFooNode));
+
+    ASSERT_TRUE(fx.checkRef(remoteModel));
+    ASSERT_TRUE(fx.checkOneWay(remoteModel, StandardClient::CONFIRM_REMOTE));
+    ASSERT_TRUE(fx.checkOneWay(localModel, StandardClient::CONFIRM_LOCAL));
+}
+
+TEST(Sync, OneWay_Upload_syncDelTrue_overwriteFalse_1)
+{
+    /* Steps:
+     * - Add local file
+     * - Wait for upload
+     * - Remove local file
+     * - Assert: Remote file gone
+     */
+    const OneWayFixture fx{SyncConfig::TYPE_UP, true, false};
+
+    ASSERT_TRUE(createFile(fx.oneWayRootPath(), "foo"));
+
+    fx.wait();
+    // foo is now uploaded
+
+    fs::remove(fx.oneWayRootPath() / "foo");
+
+    fx.wait();
+    // foo is deleted on the remote
+
+    Model model;
+
+    ASSERT_TRUE(fx.checkRef(model));
+    ASSERT_TRUE(fx.checkOneWay(model));
+}
+
+TEST(Sync, OneWay_Upload_syncDelTrue_overwriteFalse_2)
+{
+    /* Steps:
+     * - Add local file
+     * - Wait for upload
+     * - Edit file via ref
+     * - Remove local file
+     * - Assert: Remote file gone
+     */
+    const OneWayFixture fx{SyncConfig::TYPE_UP, true, false};
+
+    ASSERT_TRUE(createFile(fx.oneWayRootPath(), "foo"));
+
+    fx.wait();
+    // foo is now uploaded
+
+    ASSERT_TRUE(appendToFile(fx.refRootPath(), "foo", "blah"));
+
+    fx.wait();
+    // new foo is now uploaded
+
+    fs::remove(fx.oneWayRootPath() / "foo");
+
+    fx.wait();
+    // foo is not deleted on the remote
+
+    Model model;
+
+    ASSERT_TRUE(fx.checkRef(model));
+    ASSERT_TRUE(fx.checkOneWay(model));
+}
+
+TEST(Sync, OneWay_Upload_syncDelTrue_overwriteFalse_3)
+{
+    /* Steps:
+     * - Add local file
+     * - Wait for upload
+     * - Pause oneWay sync
+     * - Remove local file
+     * - Edit file via ref
+     * - Resume oneWay sync
+     * - Assert: New remote file still there
+     */
+    OneWayFixture fx{SyncConfig::TYPE_UP, true, false};
+
+    ASSERT_TRUE(createFile(fx.oneWayRootPath(), "foo"));
+
+    fx.wait();
+    // foo is now uploaded
+
+    fx.pauseOneWay();
+
+    fx.wait();
+    // oneWay is now paused
+
+    fs::remove(fx.oneWayRootPath() / "foo");
+
+    this_thread::sleep_for(chrono::seconds{3}); // wait a bit
+
+    ASSERT_TRUE(appendToFile(fx.refRootPath(), "foo", "blah"));
+
+    fx.wait();
+    // new foo is now uploaded
+
+    fx.resumeOneWay();
+
+    fx.wait();
+    // foo is not deleted on the remote
+
+    Model localModel;
+
+    Model remoteModel;
+    auto remoteFooNodeOld = remoteModel.makeModelSubfile("foo");
+    auto remoteFooNode = remoteModel.makeModelSubfile("foo", "fooblah");
+    remoteFooNode->addkid(std::move(remoteFooNodeOld));
+    remoteModel.root->addkid(std::move(remoteFooNode));
+
+    ASSERT_TRUE(fx.checkRef(remoteModel));
+    ASSERT_TRUE(fx.checkOneWay(remoteModel, StandardClient::CONFIRM_REMOTE));
+    ASSERT_TRUE(fx.checkOneWay(localModel, StandardClient::CONFIRM_LOCAL));
+}
+
+TEST(Sync, OneWay_Upload_syncDelTrue_overwriteFalse_4)
+{
+    /* Steps:
+     * - Add local file
+     * - Wait for upload
+     * - Edit file via ref
+     * - Remove local file
+     * - Create new local foo
+     * - Assert: New foo is uploaded
+     */
+    const OneWayFixture fx{SyncConfig::TYPE_UP, true, false};
+
+    ASSERT_TRUE(createFile(fx.oneWayRootPath(), "foo"));
+
+    fx.wait();
+    // foo is now uploaded
+
+    ASSERT_TRUE(appendToFile(fx.refRootPath(), "foo", "blah"));
+
+    fx.wait();
+    // new foo is now uploaded
+
+    fs::remove(fx.oneWayRootPath() / "foo");
+
+    fx.wait();
+    // foo is not deleted on the remote
+
+    ASSERT_TRUE(appendToFile(fx.oneWayRootPath(), "foo", "halb"));
+
+    fx.wait();
+    // new foo is now uploaded
+
+    Model model;
+    model.root->addkid(model.makeModelSubfile("foo", "halb"));
+
+    ASSERT_TRUE(fx.checkRef(model));
+    ASSERT_TRUE(fx.checkOneWay(model));
+}
+
+TEST(Sync, OneWay_Upload_syncDelFalse_overwriteTrue_1)
+{
+    /* Steps:
+     * - Add local file
+     * - Wait for upload
+     * - Remove file via ref
+     * - Edit local file
+     * - Assert: New file is uploaded
+     */
+    const OneWayFixture fx{SyncConfig::TYPE_UP, false, true};
+
+    ASSERT_TRUE(createFile(fx.oneWayRootPath(), "foo"));
+
+    fx.wait();
+    // foo is now uploaded
+
+    fs::remove(fx.refRootPath() / "foo");
+
+    fx.wait();
+    // foo is deleted on the remote
+
+    ASSERT_TRUE(appendToFile(fx.oneWayRootPath(), "foo", "blah"));
+
+    fx.wait();
+    // new foo is now uploaded
+
+    Model model;
+    model.root->addkid(model.makeModelSubfile("foo", "fooblah"));
+
+    ASSERT_TRUE(fx.checkRef(model));
+    ASSERT_TRUE(fx.checkOneWay(model));
+}
+
+// TODO: For this test to pass we need to when resuming a sync:
+// 1. First process action packets
+// 2. Then go through list of local changes
+// Currently, events from those two are processed in an interleaved
+// fashion when resuming a sync leading to data races.
+TEST(Sync, DISABLED_OneWay_Upload_syncDelFalse_overwriteTrue_2)
+{
+    /* Steps:
+     * - Add local file
+     * - Wait for upload
+     * - Pause oneWay
+     * - Edit local file
+     * - Edit file via ref
+     * - Resume oneWay
+     * - Assert: New local file is uploaded
+     */
+    OneWayFixture fx{SyncConfig::TYPE_UP, false, true};
+
+    ASSERT_TRUE(createFile(fx.oneWayRootPath(), "foo"));
+
+    fx.wait();
+    // foo is now uploaded
+
+    fx.pauseOneWay();
+
+    fx.wait();
+    // oneWay is paused
+
+    ASSERT_TRUE(appendToFile(fx.oneWayRootPath(), "foo", "blaha"));
+
+    this_thread::sleep_for(chrono::seconds{3}); // wait a bit
+
+    ASSERT_TRUE(appendToFile(fx.refRootPath(), "foo", "halb"));
+
+    fx.wait();
+    // new foo is uploaded from ref
+
+    fx.resumeOneWay();
+
+    fx.wait();
+    // oneWay is resumed
+
+    Model localModel;
+    localModel.root->addkid(localModel.makeModelSubfile("foo", "fooblaha"));
+
+    Model remoteModel;
+    auto remoteFooNodeOldOld = remoteModel.makeModelSubfile("foo");
+    auto remoteFooNodeOld = remoteModel.makeModelSubfile("foo", "foohalb");
+    auto remoteFooNode = remoteModel.makeModelSubfile("foo", "fooblaha");
+    remoteFooNodeOld->addkid(std::move(remoteFooNodeOldOld));
+    remoteFooNode->addkid(std::move(remoteFooNodeOld));
+    remoteModel.root->addkid(std::move(remoteFooNode));
+
+    ASSERT_TRUE(fx.checkRef(remoteModel));
+    ASSERT_TRUE(fx.checkOneWay(remoteModel, StandardClient::CONFIRM_REMOTE));
+    ASSERT_TRUE(fx.checkOneWay(localModel, StandardClient::CONFIRM_LOCAL));
+}
+
+TEST(Sync, OneWay_Upload_syncDelTrue_overwriteTrue_1)
+{
+    /* Steps:
+     * - Add local file
+     * - Wait for upload
+     * - Pause oneWay
+     * - Delete local file
+     * - Edit file via ref
+     * - Resume oneWay
+     * - Assert: Remote file still there
+     */
+    OneWayFixture fx{SyncConfig::TYPE_UP, true, true};
+
+    ASSERT_TRUE(createFile(fx.oneWayRootPath(), "foo"));
+
+    fx.wait();
+    // foo is now uploaded
+
+    fx.pauseOneWay();
+
+    fx.wait();
+    // oneWay is paused
+
+    fs::remove(fx.oneWayRootPath() / "foo");
+
+    this_thread::sleep_for(chrono::seconds{3}); // wait a bit
+
+    ASSERT_TRUE(appendToFile(fx.refRootPath(), "foo", "blah"));
+
+    fx.wait();
+    // new foo is uploaded from ref
+
+    fx.resumeOneWay();
+
+    fx.wait();
+    // oneWay is resumed
+
+    Model localModel;
+
+    Model remoteModel;
+    auto remoteFooNodeOld = remoteModel.makeModelSubfile("foo");
+    auto remoteFooNode = remoteModel.makeModelSubfile("foo", "fooblah");
+    remoteFooNode->addkid(std::move(remoteFooNodeOld));
+    remoteModel.root->addkid(std::move(remoteFooNode));
+
+    ASSERT_TRUE(fx.checkRef(remoteModel));
+    ASSERT_TRUE(fx.checkOneWay(remoteModel, StandardClient::CONFIRM_REMOTE));
+    ASSERT_TRUE(fx.checkOneWay(localModel, StandardClient::CONFIRM_LOCAL));
+}
+
+TEST(Sync, OneWay_Download_syncDelFalse_overwriteFalse_1)
+{
+    /* Steps:
+     * - Add local file
+     * - Assert: No remote file
+     */
+    const OneWayFixture fx{SyncConfig::TYPE_DOWN, false, false};
+
+    ASSERT_TRUE(createFile(fx.oneWayRootPath(), "foo"));
+
+    fx.wait();
+    // foo is not uploaded
+
+    Model localModel;
+    localModel.root->addkid(localModel.makeModelSubfile("foo"));
+
+    Model remoteModel;
+
+    ASSERT_TRUE(fx.checkRef(remoteModel));
+    ASSERT_TRUE(fx.checkOneWay(remoteModel, StandardClient::CONFIRM_REMOTE));
+    ASSERT_TRUE(fx.checkOneWay(localModel, StandardClient::CONFIRM_LOCAL));
+}
+
+TEST(Sync, OneWay_Download_syncDelFalse_overwriteFalse_2)
+{
+    /* Steps:
+     * - Add remote file
+     * - Wait for download
+     * - Assert: file downloaded
+     */
+    const OneWayFixture fx{SyncConfig::TYPE_DOWN, false, false};
+
+    ASSERT_TRUE(createFile(fx.refRootPath(), "foo"));
+
+    fx.wait();
+    // foo is downloaded
+
+    Model model;
+    model.root->addkid(model.makeModelSubfile("foo"));
+
+    ASSERT_TRUE(fx.checkRef(model));
+    ASSERT_TRUE(fx.checkOneWay(model));
+}
+
+TEST(Sync, OneWay_Download_syncDelFalse_overwriteFalse_3)
+{
+    /* Steps:
+     * - Add remote file
+     * - Wait for download
+     * - Edit remote file
+     * - Assert: New file downloaded
+     */
+    const OneWayFixture fx{SyncConfig::TYPE_DOWN, false, false};
+
+    ASSERT_TRUE(createFile(fx.refRootPath(), "foo"));
+
+    fx.wait();
+    // foo is downloaded
+
+    ASSERT_TRUE(appendToFile(fx.refRootPath(), "foo", "blah"));
+
+    fx.wait();
+    // new foo is downloaded
+
+    Model model;
+    auto fooNodeOld = model.makeModelSubfile("foo");
+    auto fooNode = model.makeModelSubfile("foo", "fooblah");
+    fooNode->addkid(std::move(fooNodeOld));
+    model.root->addkid(std::move(fooNode));
+
+    ASSERT_TRUE(fx.checkRef(model));
+    ASSERT_TRUE(fx.checkOneWay(model));
+}
+
+TEST(Sync, OneWay_Download_syncDelFalse_overwriteFalse_4)
+{
+    /* Steps:
+     * - Add remote file
+     * - Wait for download
+     * - Remove remote file
+     * - Assert: Local file still there
+     */
+    const OneWayFixture fx{SyncConfig::TYPE_DOWN, false, false};
+
+    ASSERT_TRUE(createFile(fx.refRootPath(), "foo"));
+
+    fx.wait();
+    // foo is downloaded
+
+    fs::remove(fx.refRootPath() / "foo");
+
+    fx.wait();
+    // foo is not deleted
+
+    Model localModel;
+    localModel.root->addkid(localModel.makeModelSubfile("foo"));
+
+    Model remoteModel;
+
+    ASSERT_TRUE(fx.checkRef(remoteModel));
+    ASSERT_TRUE(fx.checkOneWay(remoteModel, StandardClient::CONFIRM_REMOTE));
+    ASSERT_TRUE(fx.checkOneWay(localModel, StandardClient::CONFIRM_LOCAL));
+}
+
+TEST(Sync, OneWay_Download_syncDelFalse_overwriteFalse_5)
+{
+    /* Steps:
+     * - Add remote file
+     * - Wait for download
+     * - Remove local file
+     * - Edit remote file
+     * - Assert: Local file still gone
+     */
+    const OneWayFixture fx{SyncConfig::TYPE_DOWN, false, false};
+
+    ASSERT_TRUE(createFile(fx.refRootPath(), "foo"));
+
+    fx.wait();
+    // foo is downloaded
+
+    fs::remove(fx.oneWayRootPath() / "foo");
+
+    fx.wait();
+    // foo is not deleted on remote
+
+    ASSERT_TRUE(appendToFile(fx.refRootPath(), "foo", "blah"));
+
+    fx.wait();
+    // foo is not downloaded
+
+    Model localModel;
+
+    Model remoteModel;
+    auto remoteFooNodeOld = remoteModel.makeModelSubfile("foo");
+    auto remoteFooNode = remoteModel.makeModelSubfile("foo", "fooblah");
+    remoteFooNode->addkid(std::move(remoteFooNodeOld));
+    remoteModel.root->addkid(std::move(remoteFooNode));
+
+    ASSERT_TRUE(fx.checkRef(remoteModel));
+    ASSERT_TRUE(fx.checkOneWay(remoteModel, StandardClient::CONFIRM_REMOTE));
+    ASSERT_TRUE(fx.checkOneWay(localModel, StandardClient::CONFIRM_LOCAL));
+}
+
+TEST(Sync, OneWay_Download_syncDelFalse_overwriteFalse_6)
+{
+    /* Steps:
+     * - Add remote file
+     * - Wait for download
+     * - Pause oneWay
+     * - Edit remote file
+     * - Edit local file
+     * - Resume oneWay
+     * - Assert: New remote is not downloaded (local is newer)
+     */
+    OneWayFixture fx{SyncConfig::TYPE_DOWN, false, false};
+
+    ASSERT_TRUE(createFile(fx.refRootPath(), "foo"));
+
+    fx.wait();
+    // foo is downloaded
+
+    fx.pauseOneWay();
+
+    fx.wait();
+    // oneWay is paused
+
+    ASSERT_TRUE(appendToFile(fx.refRootPath(), "foo", "blaha"));
+
+    this_thread::sleep_for(chrono::seconds{3}); // wait a bit
+
+    ASSERT_TRUE(appendToFile(fx.oneWayRootPath(), "foo", "halb"));
+
+    fx.wait();
+    // new file is now on remote
+
+    fx.resumeOneWay();
+
+    fx.wait();
+    // oneWay is resumed
+
+    Model localModel;
+    localModel.root->addkid(localModel.makeModelSubfile("foo", "foohalb"));
+
+    Model remoteModel;
+    auto remoteFooNodeOld = remoteModel.makeModelSubfile("foo");
+    auto remoteFooNode = remoteModel.makeModelSubfile("foo", "fooblaha");
+    remoteFooNode->addkid(std::move(remoteFooNodeOld));
+    remoteModel.root->addkid(std::move(remoteFooNode));
+
+    ASSERT_TRUE(fx.checkRef(remoteModel));
+    ASSERT_TRUE(fx.checkOneWay(remoteModel, StandardClient::CONFIRM_REMOTE));
+    ASSERT_TRUE(fx.checkOneWay(localModel, StandardClient::CONFIRM_LOCAL));
+}
+
+TEST(Sync, OneWay_Download_syncDelFalse_overwriteFalse_7)
+{
+    /* Steps:
+     * - Add remote file
+     * - Wait for download
+     * - Remove local file
+     * - Move remote node outside the sync
+     * - Move remote node back
+     * - Assert: Local file is back (remote node became syncable again)
+     */
+    OneWayFixture fx{SyncConfig::TYPE_DOWN, false, false};
+
+    ASSERT_TRUE(createFile(fx.refRootPath(), "foo"));
+
+    fx.wait();
+    // foo is downloaded
+
+    fs::remove(fx.oneWayRootPath() / "foo");
+
+    fx.wait();
+
+    // move foo to f_1 in cloud
+    ASSERT_TRUE(fx.remoteMove("f/f_0/foo", "f/f_1"));
+
+    fx.wait();
+
+    // move foo back to f_0 in cloud
+    ASSERT_TRUE(fx.remoteMove("f/f_1/foo", "f/f_0"));
+
+    fx.wait();
+    // foo is re-downloaded
+
+    Model model;
+    model.root->addkid(model.makeModelSubfile("foo"));
+
+    ASSERT_TRUE(fx.checkRef(model));
+    ASSERT_TRUE(fx.checkOneWay(model));
+}
+
+TEST(Sync, OneWay_Download_syncDelFalse_overwriteFalse_8)
+{
+    /* Steps:
+     * - Add remote file
+     * - Wait for download
+     * - Remove local file
+     * - Rename remote file within same sync
+     * - Assert: No new local file (remote node still unsyncable)
+     */
+    OneWayFixture fx{SyncConfig::TYPE_DOWN, false, false};
+
+    ASSERT_TRUE(createFile(fx.refRootPath(), "foo"));
+
+    fx.wait();
+    // foo is downloaded
+
+    fs::remove(fx.oneWayRootPath() / "foo");
+
+    fx.wait();
+
+    fs::create_directory(fx.refRootPath() / "bar");
+
+    fx.wait();
+
+    // move foo within same sync in cloud
+    ASSERT_TRUE(fx.remoteMove("f/f_0/foo", "f/f_0/bar"));
+
+    fx.wait();
+    // foobar is not downloaded
+
+    Model localModel;
+    localModel.root->addkid(localModel.makeModelSubfolder("bar"));
+
+    Model remoteModel;
+    auto fooNode = remoteModel.makeModelSubfile("foo");
+    auto barFolder = remoteModel.makeModelSubfolder("bar");
+    barFolder->addkid(std::move(fooNode));
+    remoteModel.root->addkid(std::move(barFolder));
+
+    ASSERT_TRUE(fx.checkRef(remoteModel));
+    ASSERT_TRUE(fx.checkOneWay(remoteModel, StandardClient::CONFIRM_REMOTE));
+    ASSERT_TRUE(fx.checkOneWay(localModel, StandardClient::CONFIRM_LOCAL));
+}
+
+TEST(Sync, OneWay_Download_syncDelTrue_overwriteFalse_1)
+{
+    /* Steps:
+     * - Add remote file
+     * - Wait for download
+     * - Remove remote file
+     * - Assert: Local file is gone
+     */
+    OneWayFixture fx{SyncConfig::TYPE_DOWN, true, false};
+
+    ASSERT_TRUE(createFile(fx.refRootPath(), "foo"));
+
+    fx.wait();
+    // foo is downloaded
+
+    fs::remove(fx.refRootPath() / "foo");
+
+    fx.wait();
+    // foo is now deleted
+
+    Model model;
+
+    ASSERT_TRUE(fx.checkRef(model));
+    ASSERT_TRUE(fx.checkOneWay(model));
+}
+
+TEST(Sync, OneWay_Download_syncDelTrue_overwriteFalse_2)
+{
+    /* Steps:
+     * - Add remote file
+     * - Wait for download
+     * - Edit local file
+     * - Delete remote file
+     * - Assert: Local file gone
+     */
+    OneWayFixture fx{SyncConfig::TYPE_DOWN, true, false};
+
+    ASSERT_TRUE(createFile(fx.refRootPath(), "foo"));
+
+    fx.wait();
+    // foo is downloaded
+
+    ASSERT_TRUE(appendToFile(fx.oneWayRootPath(), "foo", "blaha"));
+
+    this_thread::sleep_for(chrono::seconds{3}); // wait a bit
+
+    fs::remove(fx.refRootPath() / "foo");
+
+    fx.wait();
+    // foo is not deleted
+
+    Model model;
+
+    ASSERT_TRUE(fx.checkRef(model));
+    ASSERT_TRUE(fx.checkOneWay(model));
+}
+
+TEST(Sync, OneWay_Download_syncDelTrue_overwriteFalse_3)
+{
+    /* Steps:
+     * - Add remote file
+     * - Wait for download
+     * - Pause sync
+     * - Delete remote file
+     * - Edit local file
+     * - Resume sync
+     * - Assert: Local file still there
+     */
+    OneWayFixture fx{SyncConfig::TYPE_DOWN, true, false};
+
+    ASSERT_TRUE(createFile(fx.refRootPath(), "foo"));
+
+    fx.wait();
+    // foo is downloaded
+
+    fx.pauseOneWay();
+
+    fx.wait();
+    // oneWay is paused
+
+    fs::remove(fx.refRootPath() / "foo");
+
+    this_thread::sleep_for(chrono::seconds{3}); // wait a bit
+
+    ASSERT_TRUE(appendToFile(fx.oneWayRootPath(), "foo", "blaha"));
+
+    fx.wait();
+    // foo is now deleted on remote
+
+    fx.resumeOneWay();
+
+    fx.wait();
+    // oneWay is resumed
+
+    Model localModel;
+    localModel.root->addkid(localModel.makeModelSubfile("foo", "fooblaha"));
+
+    Model remoteModel;
+
+    ASSERT_TRUE(fx.checkRef(remoteModel));
+    ASSERT_TRUE(fx.checkOneWay(remoteModel, StandardClient::CONFIRM_REMOTE));
+    ASSERT_TRUE(fx.checkOneWay(localModel, StandardClient::CONFIRM_LOCAL));
+}
+
+TEST(Sync, OneWay_Download_syncDelFalse_overwriteTrue_1)
+{
+    /* Steps:
+     * - Add remote file
+     * - Wait for download
+     * - Remove local file
+     * - Edit remote file
+     * - Assert: New remote file is downloaded
+     */
+    OneWayFixture fx{SyncConfig::TYPE_DOWN, false, true};
+
+    ASSERT_TRUE(createFile(fx.refRootPath(), "foo"));
+
+    fx.wait();
+    // foo is downloaded
+
+    fs::remove(fx.oneWayRootPath() / "foo");
+
+    this_thread::sleep_for(chrono::seconds{3}); // wait a bit
+
+    ASSERT_TRUE(appendToFile(fx.refRootPath(), "foo", "blaha"));
+
+    fx.wait();
+    // new foo is downloaded
+
+    Model model;
+    auto fooNodeOld = model.makeModelSubfile("foo");
+    auto fooNode = model.makeModelSubfile("foo", "fooblaha");
+    fooNode->addkid(std::move(fooNodeOld));
+    model.root->addkid(std::move(fooNode));
+
+    ASSERT_TRUE(fx.checkRef(model));
+    ASSERT_TRUE(fx.checkOneWay(model));
+}
+
+TEST(Sync, OneWay_Download_syncDelFalse_overwriteTrue_2)
+{
+    /* Steps:
+     * - Add remote file
+     * - Wait for download
+     * - Pause oneWay
+     * - Edit remote file
+     * - Edit local file
+     * - Resume oneWay
+     * - Assert: New remote file replaces local file
+     */
+    OneWayFixture fx{SyncConfig::TYPE_DOWN, false, true};
+
+    ASSERT_TRUE(createFile(fx.refRootPath(), "foo"));
+
+    fx.wait();
+    // foo is downloaded
+
+    fx.pauseOneWay();
+
+    fx.wait();
+    // oneWay is paused
+
+    ASSERT_TRUE(appendToFile(fx.refRootPath(), "foo", "blaha"));
+
+    this_thread::sleep_for(chrono::seconds{3}); // wait a bit
+
+    ASSERT_TRUE(appendToFile(fx.oneWayRootPath(), "foo", "halb"));
+
+    fx.wait();
+    // new foo is downloaded
+
+    fx.resumeOneWay();
+
+    fx.wait();
+    // oneWay is paused
+
+    Model model;
+    auto fooNodeOld = model.makeModelSubfile("foo");
+    auto fooNode = model.makeModelSubfile("foo", "fooblaha");
+    fooNode->addkid(std::move(fooNodeOld));
+    model.root->addkid(std::move(fooNode));
+
+    ASSERT_TRUE(fx.checkRef(model));
+    ASSERT_TRUE(fx.checkOneWay(model));
+}
+
+TEST(Sync, OneWay_Download_syncDelTrue_overwriteTrue_1)
+{
+    /* Steps:
+     * - Add remote file
+     * - Wait for download
+     * - Pause oneWay
+     * - Delete remote file
+     * - Edit local file
+     * - Resume oneWay
+     * - Assert: Local file still there
+     */
+    OneWayFixture fx{SyncConfig::TYPE_DOWN, true, true};
+
+    ASSERT_TRUE(createFile(fx.refRootPath(), "foo"));
+
+    fx.wait();
+    // foo is downloaded
+
+    fx.pauseOneWay();
+
+    fx.wait();
+    // oneWay is paused
+
+    fs::remove(fx.refRootPath() / "foo");
+
+    this_thread::sleep_for(chrono::seconds{3}); // wait a bit
+
+    ASSERT_TRUE(appendToFile(fx.oneWayRootPath(), "foo", "halb"));
+
+    fx.wait();
+    // foo is edited on remote
+
+    fx.resumeOneWay();
+
+    fx.wait();
+    // oneWay is resumed
+
+    Model localModel;
+    localModel.root->addkid(localModel.makeModelSubfile("foo", "foohalb"));
+
+    Model remoteModel;
+
+    ASSERT_TRUE(fx.checkRef(remoteModel));
+    ASSERT_TRUE(fx.checkOneWay(remoteModel, StandardClient::CONFIRM_REMOTE));
+    ASSERT_TRUE(fx.checkOneWay(localModel, StandardClient::CONFIRM_LOCAL));
+}
+
+
+struct OneWaySymmetryCase
+{
+    enum Action { action_rename, action_moveWithinSync, action_moveOutOfSync, action_moveIntoSync, action_delete, action_numactions };
+    enum MatchState { match_exact, match_different, match_absent };
+    Action action = action_rename;
+    bool selfChange = false; // changed by our own client or another
+    bool up = false;  // or down - sync direction
+    bool file = false;  // or folder.  Which one this test changes
+    MatchState destinationMatchBefore = match_exact;
+    MatchState destinationMatchAfter = match_absent;
+    bool propagateDeletes = false;
+    bool forceOverwrites = false;
+    bool pauseDuringAction = false;
+    int sync_tag = -1;
+    Model localModel;
+    Model remoteModel;
+
+    struct State
+    {
+        StandardClient& client;
+        StandardClient& nonsyncClient;
+        fs::path localBaseFolder;
+        std::string remoteBaseFolder = "oneway";   // leave out initial / so we can drill down from root node
+        int next_sync_tag = 100;
+
+        State(StandardClient& sc, StandardClient& sc2) : client(sc), nonsyncClient(sc2) {}
+    };
+
+    State& state;
+    OneWaySymmetryCase(State& wholestate) : state(wholestate) {}
+
+    // todo: remote changes made by client (of this sync) or other client
+
+    std::string actionName() 
+    { 
+        switch (action)
+        {
+        case action_rename: return "rename";
+        case action_moveWithinSync: return "move";
+        case action_moveOutOfSync: return "moveOut";
+        case action_moveIntoSync: return "moveIn";
+        case action_delete: return "delete";
+        default: assert(false); return "";
+        }
+    }
+
+    std::string name() 
+    { 
+        return  actionName() +
+                (selfChange?"_self":"_other") + 
+                (up?"_up":"_down") + 
+                (file?"_file":"_folder") + 
+                "_" + to_string(int(destinationMatchBefore)) +
+                "_" + to_string(int(destinationMatchAfter)) +
+                (propagateDeletes?"_pd":"") +
+                (forceOverwrites?"_fo":"") +
+                (pauseDuringAction?"_pda":""); 
+    }
+
+    fs::path localTestBasePath;
+    std::string remoteTestBasePath;
+
+    Model& sourceModel() { return up ? localModel : remoteModel; }
+    Model& destinationModel() { return up ? remoteModel : localModel; }
+
+    StandardClient& changeClient() { return selfChange ? state.client : state.nonsyncClient; }
+
+    // prepares a local folder for testing, which will be two-way synced before the test
+    void SetupForSync()
+    {
+        localTestBasePath = state.localBaseFolder / name();
+        remoteTestBasePath = state.remoteBaseFolder + "/" + name();
+        std::error_code ec;
+        fs::create_directories(localTestBasePath, ec);
+        ASSERT_TRUE(!ec);
+        ASSERT_TRUE(buildLocalFolders(localTestBasePath, "f", 2, 2, 2));
+
+        localModel.root->addkid(localModel.buildModelSubdirs("f", 2, 2, 2));
+        remoteModel.root->addkid(remoteModel.buildModelSubdirs("f", 2, 2, 2));
+    }
+
+    void SetupOneWaySync()
+    {
+        string localname, syncrootpath((localTestBasePath / "f").u8string());
+        state.client.client.fsaccess->path2local(&syncrootpath, &localname);
+
+        Node* testRoot = state.client.client.nodebyhandle(state.client.basefolderhandle);
+        Node* n = state.client.drillchildnodebyname(testRoot, remoteTestBasePath + "/f");
+        ASSERT_TRUE(!!n);
+
+        SyncConfig config(syncrootpath, n->nodehandle, 0, {}, (up ? SyncConfig::TYPE_UP : SyncConfig::TYPE_DOWN), propagateDeletes, forceOverwrites);
+        bool syncsetup = state.client.setupSync_mainthread(std::move(config),
+                                                           syncrootpath.erase(0, state.client.fsBasePath.u8string().size()+1),  remoteTestBasePath + "/f", sync_tag = ++state.next_sync_tag);
+        ASSERT_TRUE(syncsetup);    
+
+        //future<bool> fb = state.client.thread_do([&](StandardClient& sc, promise<bool>& pb) { 
+        //    error e = sc.client.addsync(SyncConfig(up ? SyncConfig::TYPE_UP : SyncConfig::TYPE_DOWN, propagateDeletes, forceOverwrites), 
+        //                    &localname, DEBRISFOLDER, NULL, n, 0, sync_tag = ++state.next_sync_tag);
+        //    pb.set_value(e ? false : true);
+        //});
+        //ASSERT_TRUE(waitonresults(&fb));
+    }
+
+    void remote_rename(std::string nodepath, std::string newname, bool updatemodel)
+    {
+        if (updatemodel) remoteModel.emulate_rename(nodepath, newname);
+
+        Node* testRoot = changeClient().client.nodebyhandle(state.client.basefolderhandle);
+        Node* n = changeClient().drillchildnodebyname(testRoot, remoteTestBasePath + "/" + nodepath);
+        ASSERT_TRUE(!!n);
+
+        n->attrs.map['n'] = newname;
+        auto e = changeClient().client.setattr(n);
+        ASSERT_TRUE(!e);
+    }
+
+    void remote_move(std::string nodepath, std::string newparentpath, bool updatemodel)
+    {
+        if (updatemodel) remoteModel.emulate_move(nodepath, newparentpath);
+
+        Node* testRoot = changeClient().client.nodebyhandle(changeClient().basefolderhandle);
+        Node* n1 = changeClient().drillchildnodebyname(testRoot, remoteTestBasePath + "/" + nodepath);
+        Node* n2 = changeClient().drillchildnodebyname(testRoot, remoteTestBasePath + "/" + newparentpath);
+        ASSERT_TRUE(!!n1);
+        ASSERT_TRUE(!!n2);
+
+        auto e = changeClient().client.rename(n1, n2);
+        ASSERT_TRUE(!e);
+    }
+
+    void remote_copy(std::string nodepath, std::string newparentpath, bool updatemodel)
+    {
+        if (updatemodel) remoteModel.emulate_copy(nodepath, newparentpath);
+
+        Node* testRoot = changeClient().client.nodebyhandle(changeClient().basefolderhandle);
+        Node* n1 = changeClient().drillchildnodebyname(testRoot, remoteTestBasePath + "/" + nodepath);
+        Node* n2 = changeClient().drillchildnodebyname(testRoot, remoteTestBasePath + "/" + newparentpath);
+        ASSERT_TRUE(!!n1);
+        ASSERT_TRUE(!!n2);
+
+        auto e = changeClient().client.rename(n1, n2);
+        ASSERT_TRUE(!e);
+    }
+
+    void remote_delete(std::string nodepath, bool updatemodel)
+    {
+        if (updatemodel) remoteModel.emulate_delete(nodepath);
+
+        Node* testRoot = changeClient().client.nodebyhandle(changeClient().basefolderhandle);
+        Node* n = changeClient().drillchildnodebyname(testRoot, remoteTestBasePath + "/" + nodepath);
+        ASSERT_TRUE(!!n);
+
+        auto e = changeClient().client.unlink(n);
+        ASSERT_TRUE(!e);
+    }
+
+    void local_rename(std::string path, std::string newname, bool updatemodel)
+    {
+        if (updatemodel) localModel.emulate_rename(path, newname);
+
+        fs::path p1(localTestBasePath);
+        fs::path p2(localTestBasePath);
+        p1 /= path;
+        p2 /= p1.parent_path() / newname;
+
+        std::error_code ec;
+        for (int i = 0; i < 5; ++i)
+        {
+            fs::rename(p1, p2, ec);
+            if (!ec) break;
+            WaitMillisec(100);
+        }
+        ASSERT_TRUE(!ec) << "local_rename " << path << " to " << newname << " failed: " << ec.message();
+    }
+
+    void local_move(std::string from, std::string to, bool updatemodel)
+    {
+        if (updatemodel) localModel.emulate_move(from, to);
+
+        fs::path p1(localTestBasePath);
+        fs::path p2(localTestBasePath);
+        p1 /= from;
+        p2 /= to;
+
+        std::error_code ec;
+        fs::rename(p1, p2, ec);
+        ASSERT_TRUE(!ec) << "local_move " << from << " to " << to << " failed: " << ec.message();
+    }
+
+    void local_copy(std::string from, std::string to, bool updatemodel)
+    {
+        if (updatemodel) localModel.emulate_copy(from, to);
+
+        fs::path p1(localTestBasePath);
+        fs::path p2(localTestBasePath);
+        p1 /= from;
+        p2 /= to;
+
+        std::error_code ec;
+        fs::copy(p1, p2, ec);
+        ASSERT_TRUE(!ec) << "local_copy " << from << " to " << to << " failed: " << ec.message();
+    }
+
+    void local_delete(std::string path, bool updatemodel)
+    {
+        if (updatemodel) localModel.emulate_delete(path);
+
+        fs::path p(localTestBasePath);
+        p /= path;
+
+        std::error_code ec;
+        fs::remove_all(p, ec);
+        ASSERT_TRUE(!ec) << "local_delete " << path << " failed: " << ec.message();
+    }
+
+    void source_rename(std::string nodepath, std::string newname, bool updatemodel)
+    {
+        if (up) local_rename(nodepath, newname, updatemodel);
+        else remote_rename(nodepath, newname, updatemodel);
+    }
+
+    void source_move(std::string nodepath, std::string newparentpath, bool updatemodel)
+    {
+        if (up) local_move(nodepath, newparentpath, updatemodel);
+        else remote_move(nodepath, newparentpath, updatemodel);
+    }
+
+    void source_copy(std::string nodepath, std::string newparentpath, bool updatemodel)
+    {
+        if (up) local_copy(nodepath, newparentpath, updatemodel);
+        else remote_copy(nodepath, newparentpath, updatemodel);
+    }
+
+    void source_delete(std::string nodepath, bool updatemodel)
+    {
+        if (up) local_delete(nodepath, updatemodel);
+        else remote_delete(nodepath, updatemodel);
+    }
+
+    void destination_rename(std::string nodepath, std::string newname, bool updatemodel)
+    {
+        if (!up) local_rename(nodepath, newname, updatemodel);
+        else remote_rename(nodepath, newname, updatemodel);
+    }
+
+    void destination_move(std::string nodepath, std::string newparentpath, bool updatemodel)
+    {
+        if (!up) local_move(nodepath, newparentpath, updatemodel);
+        else remote_move(nodepath, newparentpath, updatemodel);
+    }
+
+    void destination_copy(std::string nodepath, std::string newparentpath, bool updatemodel)
+    {
+        if (!up) local_copy(nodepath, newparentpath, updatemodel);
+        else remote_copy(nodepath, newparentpath, updatemodel);
+    }
+
+    void destination_delete(std::string nodepath, bool updatemodel)
+    {
+        if (!up) local_delete(nodepath, updatemodel);
+        else remote_delete(nodepath, updatemodel);
+    }
+
+    // One-way sync has been started and is stable.  Now perform the test action
+
+    enum ModifyStage { Prepare, MainAction };
+
+    void Modify(ModifyStage stage)
+    {
+        bool prep = stage == Prepare;
+        bool act = stage == MainAction;
+
+        switch (action)
+        {
+        case action_rename: 
+            if (prep)
+            {
+                //if (destinationMatchBefore == match_exact) ;
+                if (destinationMatchBefore == match_different) { destination_delete("f/f_1", true), destination_copy("f/f_2", "f/f_1", true); }
+                //if (destinationMatchBefore == match_absent) ;
+                if (destinationMatchAfter == match_exact) destination_copy("f/f_1", "f/f_1_renamed", true);
+                if (destinationMatchAfter == match_different) destination_rename("f/f_2", "f/f_1_renamed", true);
+                //f (destinationMatchAfter == match_absent) ;
+            }
+            else if (act)
+            {
+                source_rename("f/f_0", "f_0_renamed", true);
+                destinationModel().emulate_rename("f/f_0", "f_0_renamed");
+            }
+            break;
+
+        case action_moveWithinSync: 
+            source_move("f/f_1", "f/f_2", true);
+            break;
+
+        case action_moveOutOfSync:
+            source_move("f/f_1", "", true);
+            break;
+
+        case action_moveIntoSync:
+            source_move("f_2", "f/f_1", true);
+            break;
+
+        case action_delete:
+            source_delete("f/f_1", true);
+            break;
+
+        default: ASSERT_TRUE(false);
+        }
+    }
+
+    // One-way sync is stable again after the change.  Check the results.
+    void CheckResult(State&)
+    {
+        cout << "Checking oneway sync "<< name() << endl;
+        bool localfs = state.client.confirmModel(sync_tag, localModel.findnode("f"), StandardClient::CONFIRM_LOCALFS, true); // todo: later enable debris checks
+        bool localnode = state.client.confirmModel(sync_tag, localModel.findnode("f"), StandardClient::CONFIRM_LOCALNODE, true); // todo: later enable debris checks
+        bool remote = state.client.confirmModel(sync_tag, remoteModel.findnode("f"), StandardClient::CONFIRM_REMOTE, true); // todo: later enable debris checks
+        EXPECT_EQ(localfs, localnode);
+        EXPECT_EQ(localnode, remote);
+        EXPECT_TRUE(localfs && localnode && remote);
+    }
+};
+
+
+TEST(Sync, OneWay_Highlevel_Symmetries)
+{
+    // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
+    fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
+    
+    StandardClient clientA1(localtestroot, "clientA1");   
+    StandardClient clientA2(localtestroot, "clientA2");   
+    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "oneway", 0, 0));
+    ASSERT_TRUE(clientA2.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
+
+    OneWaySymmetryCase::State allstate(clientA1, clientA2);
+    std::map<std::string, OneWaySymmetryCase> cases;
+
+
+    for (int selfChange = 0; selfChange < 2; ++selfChange)
+    {
+        for (int up = 0; up < 2; ++up)
+        {
+            for (int action = 0; action <= (int)OneWaySymmetryCase::action_rename /*< (int)OneWaySymmetryCase::action_numactions*/; ++action)
+            {
+                //for (int file = 0; file < 2; ++file)
+                {
+                    //for (int destinationMatchedBefore = 0; destinationMatchedBefore < 2; ++destinationMatchedBefore)
+                    {
+                        //for (int destinationMatchedAfter = 0; destinationMatchedAfter < 2; ++destinationMatchedAfter)
+                        {
+                            //for (int propagateDeletes = 0; propagateDeletes < 2; ++propagateDeletes)
+                            {
+                                //for (int forceOverwrites = 0; forceOverwrites < 2; ++forceOverwrites)
+                                {
+                                    //for (int pauseDuringAction = 0; pauseDuringAction < 2; ++pauseDuringAction)
+                                    {
+                                        OneWaySymmetryCase testcase(allstate);
+                                        testcase.selfChange = selfChange != 0;
+                                        testcase.up = up;
+                                        testcase.action = OneWaySymmetryCase::Action(action);
+                                        //testcase.file = file;
+                                        //testcase.destinationMatchedBefore = destinationMatchedBefore;
+                                        //testcase.destinationMatchedAfter = destinationMatchedAfter;
+                                        //testcase.propagateDeletes = propagateDeletes;
+                                        //testcase.forceOverwrites = forceOverwrites;
+                                        //testcase.pauseDuringAction = pauseDuringAction;
+                                        cases.emplace(testcase.name(), move(testcase));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // set up sync for A1, it should build matching cloud files/folders as the test cases add local files/folders
+    ASSERT_TRUE(clientA1.setupSync_mainthread("oneway", "oneway", 1));
+    allstate.localBaseFolder = clientA1.syncSet[1].localpath;
+
+    cout << "Creating initial local files/folders" << endl;
+    for (auto& testcase : cases)
+    {
+        testcase.second.SetupForSync();
+    }
+
+    cout << "Full-sync to the cloud for setup" << endl;
+    waitonsyncs(6s, &clientA1);
+
+    cout << "Stopping full-sync" << endl;
+    future<bool> fb = clientA1.thread_do([](StandardClient& sc, promise<bool>& pb) { sc.client.delsync(sc.syncByTag(1)); pb.set_value(true); });
+    ASSERT_TRUE(waitonresults(&fb));
+
+
+    cout << "Setting up each sub-test's one-way sync" << endl;
+    for (auto& testcase : cases)
+    {
+        testcase.second.SetupOneWaySync();
+    }
+
+    cout << "Letting each one-way sync run" << endl;
+    WaitMillisec(10000);
+
+    cout << "Preparing action " << endl;
+    for (auto& testcase : cases)
+    {
+        testcase.second.Modify(OneWaySymmetryCase::Prepare);
+    }
+
+    cout << "Letting each one-way sync run" << endl;
+    WaitMillisec(10000);
+
+    cout << "Performing action " << endl;
+    for (auto& testcase : cases)
+    {
+        testcase.second.Modify(OneWaySymmetryCase::MainAction);
+    }
+
+    cout << "Letting each one-way sync run" << endl;
+    WaitMillisec(10000);
+
+    cout << "Checking local and remote state in each sub-test" << endl;
+
+    for (auto& testcase : cases)
+    {
+        testcase.second.CheckResult(allstate);
+    }
+
+}
+
 #endif
+
+
+
+
+

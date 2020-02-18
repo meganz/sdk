@@ -23,6 +23,9 @@
 #define MEGA_SYNC_H 1
 
 #ifdef ENABLE_SYNC
+
+#include <unordered_map>
+
 #include "megaclient.h"
 
 namespace mega {
@@ -41,21 +44,71 @@ int computeReversePathMatchScore(string& accumulated, const string& path1, const
 bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, handlelocalnode_map& fsidnodes,
                          const string& localdebris, const string& localseparator);
 
+// A collection of unsyncable remote nodes stored by node handle
+class MEGA_API UnsyncableNodeBag
+{
+public:
+    UnsyncableNodeBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, PrnGen& rng, const std::string& id);
+
+    MEGA_DISABLE_COPY_MOVE(UnsyncableNodeBag)
+
+    // Returns the underlying db table. May be null
+    DbTable* getDbTable() const;
+
+    // Adds a new node by handle
+    bool addNode(handle nodeHandle);
+
+    // Removes a node by handle
+    bool removeNode(handle nodeHandle);
+
+    // Is the node contained, i.e. not syncable?
+    bool containsNode(handle nodeHandle) const;
+
+    // Removes all node handles stored
+    void clear();
+
+private:
+    std::unique_ptr<DbTable> mTable; // table for caching remote nodes that are not syncable
+    std::unordered_map<handle, uint32_t> mNodes; // map of remote node handles to table ids
+};
+
+// A collection of sync configs backed by a database table
+class MEGA_API SyncConfigBag
+{
+public:
+    SyncConfigBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, PrnGen& rng, const std::string& id);
+
+    MEGA_DISABLE_COPY_MOVE(SyncConfigBag)
+
+    // Adds a new sync config or updates if exists already
+    void insert(const SyncConfig& syncConfig);
+
+    // Removes a sync config at the given local path
+    void remove(const std::string& localPath);
+
+    // Returns the sync config at the given local path
+    const SyncConfig* get(const std::string& localPath) const;
+
+    // Removes all sync configs
+    void clear();
+
+    // Returns all current sync configs
+    std::vector<SyncConfig> all() const;
+
+private:
+    std::unique_ptr<DbTable> mTable; // table for caching the sync configs
+    std::map<std::string, SyncConfig> mSyncConfigs; // map of local paths to sync configs
+};
+
 class MEGA_API Sync
 {
 public:
 
-    // whether this is an up-sync from local to remote
-    bool isUpSync() const;
+    // returns the sync config
+    const SyncConfig& getConfig() const;
 
-    // whether this is a down-sync from remote to local
-    bool isDownSync() const;
-
-    // whether deletions are synced
-    bool syncDeletions() const;
-
-    // whether changes are overwritten irregardless of file properties
-    bool forceOverwrite() const;
+    // sets whether this sync is resumable (default is true)
+    void setResumable(bool isResumable);
 
     void* appData = nullptr;
 
@@ -82,7 +135,7 @@ public:
     bool inshare = false;
     
     // deletion queue
-    set<int32_t> deleteq;
+    set<uint32_t> deleteq;
 
     // insertion/update queue
     localnode_set insertq;
@@ -167,7 +220,7 @@ public:
     m_time_t updatedfilets = 0;
     m_time_t updatedfileinitialts = 0;
 
-    Sync(MegaClient*, SyncConfig, string*, const char*, string*, Node*, fsfp_t, bool, int, void*);
+    Sync(MegaClient*, SyncConfig, const char*, string*, Node*, bool, int, void*);
     ~Sync();
 
     static const int SCANNING_DELAY_DS;
@@ -180,9 +233,7 @@ protected :
     bool readstatecache();
 
 private:
-    // The sync config is not to be used directly for sync decisions.
-    // Instead, public member functions of `Sync` should be used.
-    SyncConfig mConfig;
+    std::string mLocalPath;
 };
 } // namespace
 

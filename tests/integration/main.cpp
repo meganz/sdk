@@ -98,6 +98,11 @@ int main (int argc, char *argv[])
             USER_AGENT = string(*it).substr(12);
             argc -= 1;
         }
+        else if (string(*it).substr(0, 9) == "--APIURL:")
+        {
+            mega::MegaClient::APIURL = string(*it).substr(9);
+            argc -= 1;
+        }
         else
         {
             myargv2.push_back(*it);
