@@ -689,6 +689,9 @@ public:
     // get welcome pdf
     void getwelcomepdf();
 
+    // set retention time for a chatroom
+    void setchatretentiontime(handle chatid, int period, bool inSeconds = false);
+
     // toggle global debug flag
     bool toggledebug();
 

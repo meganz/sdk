@@ -9843,6 +9843,16 @@ void MegaApiImpl::archiveChat(MegaHandle chatid, int archive, MegaRequestListene
     waiter->notify();
 }
 
+void MegaApiImpl::setChatRetentionTime(MegaHandle chatid, int period, bool inSeconds, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_RETENTION_TIME, listener);
+    request->setNodeHandle(chatid);
+    request->setNumDetails(period);
+    request->setFlag(inSeconds);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::requestRichPreview(const char *url, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_RICH_LINK, listener);
@@ -21256,6 +21266,34 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             client->archiveChat(chatid, archive);
+            break;
+        }
+        case MegaRequest::TYPE_SET_RETENTION_TIME:
+        {
+            MegaHandle chatid = request->getNodeHandle();
+            int period = request->getNumDetails();
+            bool inSeconds = request->getFlag();
+
+            if (chatid == INVALID_HANDLE)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            textchat_map::iterator it = client->chats.find(chatid);
+            if (it == client->chats.end())
+            {
+                e = API_ENOENT;
+                break;
+            }
+            TextChat *chat = it->second;
+            if (chat->priv != PRIV_MODERATOR)
+            {
+                e = API_EACCESS;
+                break;
+            }
+
+            client->setchatretentiontime(chatid, period, inSeconds);
             break;
         }
         case MegaRequest::TYPE_CHAT_STATS:

@@ -4918,6 +4918,11 @@ void MegaApi::archiveChat(MegaHandle chatid, int archive, MegaRequestListener *l
     pImpl->archiveChat(chatid, archive, listener);
 }
 
+void MegaApi::setChatRetentionTime(MegaHandle chatid, int period, bool inSeconds, MegaRequestListener *listener)
+{
+    pImpl->setChatRetentionTime(chatid, period, inSeconds, listener);
+}
+
 void MegaApi::requestRichPreview(const char *url, MegaRequestListener *listener)
 {
     pImpl->requestRichPreview(url, listener);

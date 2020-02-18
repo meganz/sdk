@@ -15633,6 +15633,8 @@ class MegaApi
          */
         void archiveChat(MegaHandle chatid, int archive, MegaRequestListener *listener = NULL);
 
+        void setChatRetentionTime(MegaHandle chatid, int period, bool inSeconds = false, MegaRequestListener *listener = NULL);
+
         /**
          * @brief Request rich preview information for specified URL
          *

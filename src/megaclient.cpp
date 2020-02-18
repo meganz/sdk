@@ -14419,6 +14419,11 @@ void MegaClient::getwelcomepdf()
     reqs.add(new CommandGetWelcomePDF(this));
 }
 
+void MegaClient::setchatretentiontime(handle chatid, int period, bool inSeconds)
+{
+    reqs.add(new CommandSetChatRetentionTime(this, chatid, period, inSeconds));
+}
+
 #ifdef MEGA_MEASURE_CODE
 std::string MegaClient::PerformanceStats::report(bool reset, HttpIO* httpio, Waiter* waiter, const RequestDispatcher& reqs)
 {
