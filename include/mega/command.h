@@ -996,6 +996,17 @@ protected:
     bool mArchive;
 };
 
+class MEGA_API CommandSetChatRetentionTime : public Command
+{
+public:
+    void procresult();
+
+    CommandSetChatRetentionTime(MegaClient*, handle , int , bool = false);
+
+protected:
+    handle mChatid;
+};
+
 class MEGA_API CommandRichLink : public Command
 {
 public:

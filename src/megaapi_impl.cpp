@@ -3856,6 +3856,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_MISC_FLAGS: return "GET_MISC_FLAGS";
         case TYPE_RESEND_VERIFICATION_EMAIL: return "RESEND_VERIFICATION_EMAIL";
         case TYPE_SUPPORT_TICKET: return "SUPPORT_TICKET";
+        case TYPE_SET_RETENTION_TIME: return "SET_RETENTION_TIME";
     }
     return "UNKNOWN";
 }
@@ -12368,6 +12369,16 @@ void MegaApiImpl::archivechat_result(error e)
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_CHAT_ARCHIVE)) return;
+
+    MegaError megaError(e);
+    fireOnRequestFinish(request, megaError);
+}
+
+void MegaApiImpl::setchatretentiontime_result(error e)
+{
+    if (requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate *request = requestMap.at(client->restag);
+    if (!request || (request->getType() != MegaRequest::TYPE_SET_RETENTION_TIME)) return;
 
     MegaError megaError(e);
     fireOnRequestFinish(request, megaError);

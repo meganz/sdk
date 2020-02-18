@@ -6539,6 +6539,47 @@ void CommandArchiveChat::procresult()
     }
 }
 
+CommandSetChatRetentionTime::CommandSetChatRetentionTime(MegaClient *client, handle chatid, int period, bool inSeconds)
+{
+    mChatid = chatid;
+
+    cmd("mcsr");
+    arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
+    arg("d", period);
+
+    if (inSeconds)
+    {
+        arg("ds", inSeconds);
+    }
+
+    notself(client);
+    tag = client->reqtag;
+}
+
+void CommandSetChatRetentionTime::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        error e = (error) client->json.getint();
+        if (e == API_OK)
+        {
+            if (client->chats.find(mChatid) == client->chats.end())
+            {
+                // set retention time succeed for a non-existing chatroom
+                client->app->setchatretentiontime_result(API_EINTERNAL);
+                return;
+            }
+        }
+
+        client->app->setchatretentiontime_result(e);
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->setchatretentiontime_result(API_EINTERNAL);
+    }
+}
+
 CommandRichLink::CommandRichLink(MegaClient *client, const char *url)
 {
     cmd("erlsd");
