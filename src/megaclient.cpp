@@ -951,6 +951,13 @@ void MegaClient::activateoverquota(dstime timeleft)
         for (transfer_map::iterator it = transfers[PUT].begin(); it != transfers[PUT].end(); it++)
         {
             Transfer *t = it->second;
+
+            // skip transfers with foreign targets
+            if (t->isForeign())
+            {
+                continue;
+            }
+
             t->bt.backoff(NEVER);
             if (t->slot)
             {
@@ -6886,13 +6893,13 @@ void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldern
 }
 
 // send new nodes to API for processing
-void MegaClient::putnodes(handle h, NewNode* newnodes, int numnodes, const char *cauth)
+void MegaClient::putnodes(handle h, NewNode* newnodes, int numnodes, const char *cauth, Transfer *t)
 {
-    reqs.add(new CommandPutNodes(this, h, NULL, newnodes, numnodes, reqtag, PUTNODES_APP, cauth));
+    reqs.add(new CommandPutNodes(this, h, NULL, newnodes, numnodes, reqtag, PUTNODES_APP, cauth, t));
 }
 
 // drop nodes into a user's inbox (must have RSA keypair)
-void MegaClient::putnodes(const char* user, NewNode* newnodes, int numnodes)
+void MegaClient::putnodes(const char* user, NewNode* newnodes, int numnodes, Transfer *transfer)
 {
     User* u;
 
@@ -6903,7 +6910,7 @@ void MegaClient::putnodes(const char* user, NewNode* newnodes, int numnodes)
         return app->putnodes_result(API_EARGS, USER_HANDLE, newnodes);
     }
 
-    queuepubkeyreq(user, new PubKeyActionPutNodes(newnodes, numnodes, reqtag));
+    queuepubkeyreq(user, new PubKeyActionPutNodes(newnodes, numnodes, reqtag, transfer));
 }
 
 // returns 1 if node has accesslevel a or better, 0 otherwise
@@ -13728,6 +13735,21 @@ void MegaClient::putnodes_syncdebris_result(error, NewNode* nn)
 }
 #endif
 
+transfer_map::iterator MegaClient::getTransferByFileFingerprint(FileFingerprint *f, transfer_map &transfers, bool foreign)
+{
+    pair<transfer_map::iterator, transfer_map::iterator> itMultimap = transfers.equal_range(f);
+    assert(std::distance(itMultimap.first, itMultimap.second) <= 2);
+    for (transfer_map::iterator itTransfers = itMultimap.first; itTransfers != itMultimap.second; ++itTransfers)
+    {
+        if (itTransfers->second->isForeign() == foreign)
+        {
+            return itTransfers;
+        }
+    }
+
+    return transfers.end();
+}
+
 // inject file into transfer subsystem
 // if file's fingerprint is not valid, it will be obtained from the local file
 // (PUT) or the file's key (GET)
@@ -13769,9 +13791,10 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
         }
 
         Transfer* t = NULL;
-        transfer_map::iterator it = transfers[d].find(f);
-
-        if (it != transfers[d].end())
+        bool reuseTransfer = false;
+        transfer_map::iterator it = getTransferByFileFingerprint(f, transfers[d], isForeignNode(f->h));
+        bool foundTransfer = it != transfers[d].end();
+        if (foundTransfer)
         {
             t = it->second;
             if (skipdupes)
@@ -13790,82 +13813,58 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
                     }
                 }
             }
-            f->file_it = t->files.insert(t->files.end(), f);
-            f->transfer = t;
-            f->tag = reqtag;
-            if (!f->dbid && !donotpersist)
-            {
-                filecacheadd(f, committer);
-            }
-            app->file_added(f);
 
-            if (startfirst)
+            // To reuse this transfer all the targets have to be of the same type (private or foreign)
+            reuseTransfer = t->isForeign() == isForeignNode(f->h);
+            if (reuseTransfer)
             {
-                transferlist.movetofirst(t, committer);
-            }
+                f->file_it = t->files.insert(t->files.end(), f);
+                f->transfer = t;
+                f->tag = reqtag;
+                if (!f->dbid && !donotpersist)
+                {
+                    filecacheadd(f, committer);
+                }
+                app->file_added(f);
 
-            if (overquotauntil && overquotauntil > Waiter::ds)
-            {
-                dstime timeleft = dstime(overquotauntil - Waiter::ds);
-                t->failed(API_EOVERQUOTA, committer, timeleft);
-            }
-            else if (d == PUT && ststatus == STORAGE_RED)
-            {
-                t->failed(API_EOVERQUOTA, committer);
+                if (startfirst)
+                {
+                    transferlist.movetofirst(t, committer);
+                }
+
+                if (overquotauntil && overquotauntil > Waiter::ds)
+                {
+                    dstime timeleft = dstime(overquotauntil - Waiter::ds);
+                    t->failed(API_EOVERQUOTA, committer, timeleft);
+                }
+                else if (d == PUT && ststatus == STORAGE_RED && !t->isForeign())
+                {
+                    // only transfers with private targets should fail, since "foreign" transfers may not fail due to overquota
+                    t->failed(API_EOVERQUOTA, committer, 0, f->h);
+                }
             }
         }
-        else
+        else // No transfer found
         {
-            it = cachedtransfers[d].find(f);
+            transfer_map::iterator it = getTransferByFileFingerprint(f, cachedtransfers[d], isForeignNode(f->h));
             if (it != cachedtransfers[d].end())
             {
                 LOG_debug << "Resumable transfer detected";
                 t = it->second;
-                bool hadAnyData = t->pos > 0;
-                if ((d == GET && !t->pos) || ((m_time() - t->lastaccesstime) >= 172500))
-                {
-                    LOG_warn << "Discarding temporary URL (" << t->pos << ", " << t->lastaccesstime << ")";
-                    t->tempurls.clear();
 
-                    if (d == PUT)
-                    {
-                        t->chunkmacs.clear();
-                        t->progresscompleted = 0;
-                        delete [] t->ultoken;
-                        t->ultoken = NULL;
-                        t->pos = 0;
-                    }
-                }
+                // To reuse this transfer all the targets have to be of the same type (private or foreign)
+                reuseTransfer = t->isForeign() == isForeignNode(f->h);
+                if (reuseTransfer)
+                {
 
-                auto fa = fsaccess->newfileaccess();
-                if (!fa->fopen(&t->localfilename))
-                {
-                    if (d == PUT)
+                    bool hadAnyData = t->pos > 0;
+                    if ((d == GET && !t->pos) || ((m_time() - t->lastaccesstime) >= 172500))
                     {
-                        LOG_warn << "Local file not found";
-                        // the transfer will be retried to ensure that the file
-                        // is not just just temporarily blocked
-                    }
-                    else
-                    {
-                        if (hadAnyData)
+                        LOG_warn << "Discarding temporary URL (" << t->pos << ", " << t->lastaccesstime << ")";
+                        t->tempurls.clear();
+
+                        if (d == PUT)
                         {
-                            LOG_warn << "Temporary file not found";
-                        }
-                        t->localfilename.clear();
-                        t->chunkmacs.clear();
-                        t->progresscompleted = 0;
-                        t->pos = 0;
-                    }
-                }
-                else
-                {
-                    if (d == PUT)
-                    {
-                        if (f->genfingerprint(fa.get()))
-                        {
-                            LOG_warn << "The local file has been modified";
-                            t->tempurls.clear();
                             t->chunkmacs.clear();
                             t->progresscompleted = 0;
                             delete [] t->ultoken;
@@ -13873,22 +13872,63 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
                             t->pos = 0;
                         }
                     }
-                    else
+
+                    auto fa = fsaccess->newfileaccess();
+                    if (!fa->fopen(&t->localfilename))
                     {
-                        if (t->progresscompleted > fa->size)
+                        if (d == PUT)
                         {
-                            LOG_warn << "Truncated temporary file";
+                            LOG_warn << "Local file not found";
+                            // the transfer will be retried to ensure that the file
+                            // is not just just temporarily blocked
+                        }
+                        else
+                        {
+                            if (hadAnyData)
+                            {
+                                LOG_warn << "Temporary file not found";
+                            }
+                            t->localfilename.clear();
                             t->chunkmacs.clear();
                             t->progresscompleted = 0;
                             t->pos = 0;
                         }
                     }
+                    else
+                    {
+                        if (d == PUT)
+                        {
+                            if (f->genfingerprint(fa.get()))
+                            {
+                                LOG_warn << "The local file has been modified";
+                                t->tempurls.clear();
+                                t->chunkmacs.clear();
+                                t->progresscompleted = 0;
+                                delete [] t->ultoken;
+                                t->ultoken = NULL;
+                                t->pos = 0;
+                            }
+                        }
+                        else
+                        {
+                            if (t->progresscompleted > fa->size)
+                            {
+                                LOG_warn << "Truncated temporary file";
+                                t->chunkmacs.clear();
+                                t->progresscompleted = 0;
+                                t->pos = 0;
+                            }
+                        }
+                    }
+                    cachedtransfers[d].erase(it);
+                    LOG_debug << "Transfer resumed";
                 }
-                cachedtransfers[d].erase(it);
-                LOG_debug << "Transfer resumed";
             }
+        }
 
-            if (!t)
+        if ((foundTransfer && !reuseTransfer) || !foundTransfer)
+        {
+            if (!t || !reuseTransfer)
             {
                 t = new Transfer(this, d);
                 *(FileFingerprint*)t = *(FileFingerprint*)f;
@@ -13899,7 +13939,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
             t->lastaccesstime = m_time();
             t->tag = reqtag;
             f->tag = reqtag;
-            t->transfers_it = transfers[d].insert(pair<FileFingerprint*, Transfer*>((FileFingerprint*)t, t)).first;
+            t->transfers_it = transfers[d].insert(pair<FileFingerprint*, Transfer*>((FileFingerprint*)t, t));
 
             f->file_it = t->files.insert(t->files.end(), f);
             f->transfer = t;
@@ -13918,9 +13958,10 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
                 dstime timeleft = dstime(overquotauntil - Waiter::ds);
                 t->failed(API_EOVERQUOTA, committer, timeleft);
             }
-            else if (d == PUT && ststatus == STORAGE_RED)
+            else if (d == PUT && ststatus == STORAGE_RED && !t->isForeign())
             {
-                t->failed(API_EOVERQUOTA, committer);
+                // only transfers with private targets should fail, since "foreign" transfers may not fail due to overquota
+                t->failed(API_EOVERQUOTA, committer, 0, f->h);
             }
         }
 

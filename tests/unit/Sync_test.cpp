@@ -1065,7 +1065,7 @@ void test_SyncConfig_serialization(const mega::SyncConfig& config)
     std::string data;
     const_cast<mega::SyncConfig&>(config).serialize(&data);
     auto newConfig = mega::SyncConfig::unserialize(data);
-    ASSERT_TRUE(newConfig);
+    ASSERT_TRUE(newConfig != nullptr);
     ASSERT_EQ(config, *newConfig);
 }
 

@@ -181,6 +181,8 @@ public class MegaApiJava {
     public final static int ORDER_PHOTO_DESC = MegaApi.ORDER_PHOTO_DESC;
     public final static int ORDER_VIDEO_ASC = MegaApi.ORDER_VIDEO_ASC;
     public final static int ORDER_VIDEO_DESC = MegaApi.ORDER_VIDEO_DESC;
+    public final static int ORDER_LINK_CREATION_ASC = MegaApi.ORDER_LINK_CREATION_ASC;
+    public final static int ORDER_LINK_CREATION_DESC = MegaApi.ORDER_LINK_CREATION_DESC;
 
     public final static int TCP_SERVER_DENY_ALL = MegaApi.TCP_SERVER_DENY_ALL;
     public final static int TCP_SERVER_ALLOW_ALL = MegaApi.TCP_SERVER_ALLOW_ALL;
@@ -7354,7 +7356,8 @@ public class MegaApiJava {
      * Get a list with all public links
      *
      * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
-     * MegaApi::ORDER_DEFAULT_DESC
+     * MegaApi::ORDER_DEFAULT_DESC, MegaApi::ORDER_LINK_CREATION_ASC,
+     * MegaApi::ORDER_LINK_CREATION_DESC
      *
      * You take the ownership of the returned value
      *

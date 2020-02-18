@@ -2420,6 +2420,8 @@ class MegaApiImpl : public MegaApp
         static bool nodeComparatorPhotoDESC(Node *i, Node *j, MegaClient& mc);
         static bool nodeComparatorVideoASC(Node *i, Node *j, MegaClient& mc);
         static bool nodeComparatorVideoDESC(Node *i, Node *j, MegaClient& mc);
+        static bool nodeComparatorPublicLinkCreationASC(Node *i, Node *j);
+        static bool nodeComparatorPublicLinkCreationDESC(Node *i, Node *j);
         static int typeComparator(Node *i, Node *j);
         static bool userComparatorDefaultASC (User *i, User *j);
 
@@ -2872,7 +2874,7 @@ protected:
         File* file_resume(string*, direction_t *type) override;
 
         void transfer_prepare(Transfer*) override;
-        void transfer_failed(Transfer*, error error, dstime timeleft) override;
+        void transfer_failed(Transfer*, error error, dstime timeleft, handle targetHandle = UNDEF) override;
         void transfer_update(Transfer*) override;
 
         dstime pread_failure(error, int, void*, dstime) override;

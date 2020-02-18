@@ -12613,7 +12613,8 @@ class MegaApi
             ORDER_MODIFICATION_ASC, ORDER_MODIFICATION_DESC,
             ORDER_ALPHABETICAL_ASC, ORDER_ALPHABETICAL_DESC,
             ORDER_PHOTO_ASC, ORDER_PHOTO_DESC,
-            ORDER_VIDEO_ASC, ORDER_VIDEO_DESC};
+            ORDER_VIDEO_ASC, ORDER_VIDEO_DESC,
+            ORDER_LINK_CREATION_ASC, ORDER_LINK_CREATION_DESC,};
 
         /**
          * @brief Get the number of child nodes
@@ -13121,7 +13122,8 @@ class MegaApi
          * @brief Get a list with all public links
          *
          * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
-         * MegaApi::ORDER_DEFAULT_DESC
+         * MegaApi::ORDER_DEFAULT_DESC, MegaApi::ORDER_LINK_CREATION_ASC,
+         * MegaApi::ORDER_LINK_CREATION_DESC
          *
          * You take the ownership of the returned value
          *

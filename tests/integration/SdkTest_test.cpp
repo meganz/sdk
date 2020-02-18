@@ -238,6 +238,7 @@ void SdkTest::TearDown()
     deleteFile(AVATARDST);
 
     releaseMegaApi(1);
+    releaseMegaApi(2);
 
     if (megaApi[0])
     {        
@@ -803,6 +804,11 @@ void SdkTest::getMegaApiAux(unsigned index)
 
 void SdkTest::releaseMegaApi(unsigned int apiIndex)
 {
+    if (mApi.size() <= apiIndex)
+    {
+        return;
+    }
+
     assert(megaApi[apiIndex].get() == mApi[apiIndex].megaApi);
     if (mApi[apiIndex].megaApi)
     {
@@ -4033,8 +4039,7 @@ TEST_F(SdkTest, SdkRecentsTest)
     ASSERT_EQ(UPFILE, string(buckets->get(0)->getNodes()->get(1)->getName()));
 }
 
-// TODO: Enable this test when API command (smslc) becomes available in production
-TEST_F(SdkTest, DISABLED_SdkGetCountryCallingCodes)
+TEST_F(SdkTest, SdkGetCountryCallingCodes)
 {
     LOG_info << "___TEST SdkGetCountryCallingCodes___";
 
@@ -4052,8 +4057,7 @@ TEST_F(SdkTest, DISABLED_SdkGetCountryCallingCodes)
     ASSERT_EQ(0, strcmp("49", de->get(0)));
 }
 
-// TODO: Enable this test when API command (usabd) becomes available in production
-TEST_F(SdkTest, DISABLED_SdkGetRegisteredContacts)
+TEST_F(SdkTest, SdkGetRegisteredContacts)
 {
     LOG_info << "___TEST SdkGetRegisteredContacts___";
 
