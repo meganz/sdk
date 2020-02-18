@@ -4793,28 +4793,28 @@ public:
     {
         TYPE_UP = 0x01, // Sync up from local to remote
         TYPE_DOWN = 0x02, // Sync down from remote to local
-        TYPE_DEFAULT = TYPE_UP | TYPE_DOWN, // Two-way sync
+        TYPE_TWOWAY = TYPE_UP | TYPE_DOWN, // Two-way sync
     };
 
     virtual ~MegaSyncConfig();
 
-    static MegaSyncConfig* createInstance(int syncType = TYPE_DEFAULT,
+    static MegaSyncConfig* createInstance(int syncType = TYPE_TWOWAY,
                                           bool syncDeletions = false,
                                           bool forceOverwrite = false);
 
     virtual MegaSyncConfig* copy() const;
 
-    // Returns the type of the sync: TYPE_UP, TYPE_DOWN, or TYPE_DEFAULT
+    // Returns the type of the sync: TYPE_UP, TYPE_DOWN, or TYPE_TWOWAY
     virtual int getSyncType() const;
 
     // TYPE_UP: Deleted local files are deleted remotely (default: false)
     // TYPE_DOWN: Deleted remote files are deleted locally (default: false)
-    // TYPE_DEFAULT: Always returns true. Deletions are synced for two-way sync
+    // TYPE_TWOWAY: Always returns true. Deletions are synced for two-way sync
     virtual bool getSyncDeletions() const;
 
     // TYPE_UP: Overwrite remote changes with local changes (default: false)
     // TYPE_DOWN: Overwrite local changes with remote changes (default: false)
-    // TYPE_DEFAULT: Always returns false. No force overwrite for two-way sync
+    // TYPE_TWOWAY: Always returns false. No force overwrite for two-way sync
     virtual bool getForceOverwrite() const;
 };
 

@@ -5406,7 +5406,7 @@ MegaSyncConfig* MegaSyncConfig::copy() const
 
 int MegaSyncConfig::getSyncType() const
 {
-    return TYPE_DEFAULT;
+    return TYPE_TWOWAY;
 }
 
 bool MegaSyncConfig::getSyncDeletions() const
