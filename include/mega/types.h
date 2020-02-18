@@ -741,19 +741,19 @@ private:
     handle mRemoteNode;
 
     // the local fingerprint
-    fsfp_t mLocalFingerprint;
+    fsfp_t mLocalFingerprint = 0;
 
     // list of regular expressions
     std::vector<std::string> mRegExps;
 
     // type of the sync, defaults to bidirectional
-    Type mSyncType;
+    Type mSyncType = TYPE_TWOWAY;
 
     // whether deletions are synced (only relevant for one-way-sync)
-    bool mSyncDeletions;
+    bool mSyncDeletions = false;
 
     // whether changes are overwritten irregardless of file properties (only relevant for one-way-sync)
-    bool mForceOverwrite;
+    bool mForceOverwrite = false;
 
     // need this to ensure serialization doesn't mutate state (Cacheable::serialize is non-const)
     bool serialize(std::string& data) const;
