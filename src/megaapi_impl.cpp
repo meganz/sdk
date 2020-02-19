@@ -19024,9 +19024,13 @@ void MegaApiImpl::sendPendingRequests()
                 nocache = false;
             }
 
+#ifdef ENABLE_SYNC
             client->allowAutoResumeSyncs = request->getNumber();
+#endif
             client->fetchnodes();
+#ifdef ENABLE_SYNC
             client->allowAutoResumeSyncs = true;
+#endif
             break;
         }
         case MegaRequest::TYPE_GET_CLOUD_STORAGE_USED:
