@@ -3704,7 +3704,8 @@ void MegaClient::freeq(direction_t d)
 #ifdef ENABLE_SYNC
 void MegaClient::resumeResumableSyncs()
 {
-    if (!syncConfigs)
+
+    if (!syncConfigs || !allowAutoResumeSyncs)
     {
         return;
     }

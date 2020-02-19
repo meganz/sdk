@@ -450,6 +450,9 @@ public:
 
     // A collection of sync configs backed by a database table
     std::unique_ptr<SyncConfigBag> syncConfigs;
+
+    // whether we allow the automatic resumption of syncs
+    bool allowAutoResumeSyncs = true;
 #endif
 
     // if set, symlinks will be followed except in recursive deletions
