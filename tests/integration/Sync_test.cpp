@@ -2845,10 +2845,41 @@ public:
 
         EXPECT_TRUE(mClientRef->setupSync_mainthread("sync", "f/f_0", 0));
 
+        const auto oneWaySyncRoot = localtestroot / "ClientOneWay/sync";
+
+        // adding a testFile before setting up the one-way sync
+        const std::string testFile = "testFile.txt";
+        if (type == SyncConfig::TYPE_UP)
+        {
+            EXPECT_TRUE(createFile(refRootPath(), testFile));
+            wait(4);
+        }
+        else
+        {
+            fs::create_directories(oneWaySyncRoot);
+            EXPECT_TRUE(createFile(oneWaySyncRoot, testFile));
+        }
+
+        // one-way sync setup
         auto remoteHandle = mClientOneWay->drillchildnodebyname(mClientOneWay->gettestbasenode(), "f/f_0")->nodehandle;
-        mConfig = std::make_unique<SyncConfig>((localtestroot / "ClientOneWay/sync").u8string(), remoteHandle, 0, std::vector<std::string>{}, type, syncDel, overwrite);
+        mConfig = std::make_unique<SyncConfig>(oneWaySyncRoot.u8string(), remoteHandle, 0, std::vector<std::string>{}, type, syncDel, overwrite);
         EXPECT_TRUE(mClientOneWay->setupSync_mainthread(*mConfig, "sync", "f/f_0", 0));
         wait(4);
+
+        if (type == SyncConfig::TYPE_UP)
+        {
+            // assert testFile not down synced
+            EXPECT_FALSE(fs::exists(oneWayRootPath() / testFile));
+            fs::remove(refRootPath() / testFile);
+        }
+        else
+        {
+            // assert testFile not up synced
+            EXPECT_FALSE(fs::exists(refRootPath() / testFile));
+            fs::remove(oneWayRootPath() / testFile);
+        }
+        wait(4);
+
         mClientRef->logcb = mClientOneWay->logcb = true;
     }
 
@@ -4336,8 +4367,3 @@ TEST(Sync, OneWay_Highlevel_Symmetries)
 }
 
 #endif
-
-
-
-
-
