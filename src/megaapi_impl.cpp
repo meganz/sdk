@@ -20636,9 +20636,15 @@ void MegaApiImpl::sendPendingRequests()
             sync->setListener(request->getSyncListener());
             sync->setRegExp(request->getRegExp());
 
-            SyncConfig syncConfig{localPath, request->getNodeHandle(), 
-                                  static_cast<fsfp_t>(request->getNumber()), 
-                                  regExpToVector(request->getRegExp())};
+            SyncConfig syncConfig{
+                localPath,
+                request->getNodeHandle(),
+                static_cast<fsfp_t>(request->getNumber()),
+                regExpToVector(request->getRegExp()),
+                static_cast<SyncConfig::Type>(request->getMegaSyncConfig()->getSyncType()),
+                request->getMegaSyncConfig()->getSyncDeletions(),
+                request->getMegaSyncConfig()->getForceOverwrite()
+            };
             e = client->addsync(std::move(syncConfig), DEBRISFOLDER, NULL, -nextTag, sync);
             if (!e)
             {
