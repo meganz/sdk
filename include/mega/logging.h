@@ -124,8 +124,13 @@ class Logger
 {
 public:
     virtual ~Logger() = default;
+#ifdef ENABLE_LOG_PERFORMANCE
+    // Note: `time` and `source` are null in performance mode
+    virtual void log(const char *time, int loglevel, const char *source, const char *message, bool partial = false, bool requiresDirectOutput = false) = 0;
+#else
     // Note: `time` and `source` are null in performance mode
     virtual void log(const char *time, int loglevel, const char *source, const char *message) = 0;
+#endif
 };
 
 typedef std::vector<std::ostream *> OutputStreams;
@@ -166,9 +171,9 @@ class SimpleLogger
         DiffType start = 0;
         while (currentSize > 0)
         {
-            const auto size = std::min(currentSize, std::distance(mBufferIt, mBuffer.end() - 2));
+            const auto size = std::min(currentSize, std::distance(mBufferIt, mBuffer.end() - 1));
             mBufferIt = std::copy(dataIt + start, dataIt + start + size, mBufferIt);
-            if (mBufferIt == mBuffer.end() - 2)
+            if (mBufferIt == mBuffer.end() - 1)
             {
                 outputBuffer(true);
             }
@@ -184,29 +189,16 @@ class SimpleLogger
         {
             if (outputted > immediate_threshold)
             {
-                *(mBufferIt + 1) = (char)0x1E;
                 immediate = true;
             }
             else
             {
                 outputted+=mBuffer.size() - 1;
-                *(mBufferIt + 1) = (char)0x1F;
-            }
-        }
-        else
-        {
-            if (immediate)
-            {
-                *(mBufferIt + 1) = (char)0x1D;
-            }
-            else
-            {
-                *(mBufferIt + 1) = '\0';
             }
         }
         if (logger)
         {
-            logger->log(nullptr, level, nullptr, mBuffer.data());
+            logger->log(nullptr, level, nullptr, mBuffer.data(), continues, immediate);
         }
         mBufferIt = mBuffer.begin();
     }

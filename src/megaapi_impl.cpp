@@ -22372,7 +22372,11 @@ void ExternalLogger::postLog(int logLevel, const char *message, const char *file
 #endif
 }
 
+#ifdef ENABLE_LOG_PERFORMANCE
+void ExternalLogger::log(const char *time, int loglevel, const char *source, const char *message, bool partial, bool requiresDirectOutput)
+#else
 void ExternalLogger::log(const char *time, int loglevel, const char *source, const char *message)
+#endif
 {
     if (!time)
     {
@@ -22394,7 +22398,12 @@ void ExternalLogger::log(const char *time, int loglevel, const char *source, con
 #endif
     for (auto logger : megaLoggers)
     {
+#ifdef ENABLE_LOG_PERFORMANCE
+        logger->log(time, loglevel, source, message, partial, requiresDirectOutput);
+#else
         logger->log(time, loglevel, source, message);
+#endif
+
     }
 
     if (logToConsole)
