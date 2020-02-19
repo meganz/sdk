@@ -88,7 +88,6 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
     plink = NULL;
 
     memset(&changed, 0, sizeof changed);
-    changed.newnode = true;
 
     Node* p;
 
@@ -367,7 +366,6 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
     }
 
     n = new Node(client, dp, h, ph, t, s, u, fa, ts);
-    n->changed.newnode = false;
 
     if (k)
     {

@@ -7491,6 +7491,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                 }
 
                 n = new Node(this, &dp, h, ph, t, s, u, fas.c_str(), ts);
+                n->changed.newnode = true;
 
                 n->tag = tag;
 
