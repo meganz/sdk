@@ -1931,6 +1931,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     l->parent_dbid = parent_dbid;
 
     l->fsid = fsid;
+    l->fsid_it = sync->client->fsidnode.end();
 
     l->localname.assign(localname, localnamelen);
     l->slocalname = nullptr;
