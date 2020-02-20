@@ -15,7 +15,6 @@
  * You should have received a copy of the license along with this
  * program.
  */
-#ifdef ENABLE_SYNC
 
 #include <memory>
 
@@ -33,6 +32,8 @@
 #include "DefaultedFileAccess.h"
 #include "DefaultedFileSystemAccess.h"
 #include "utils.h"
+
+#ifdef ENABLE_SYNC
 
 namespace {
 
