@@ -148,6 +148,8 @@ SqliteDbTable::SqliteDbTable(PrnGen &rng, sqlite3* cdb, FileSystemAccess *fs, st
 
 SqliteDbTable::~SqliteDbTable()
 {
+    resetCommitter();
+
     if (!db)
     {
         return;
