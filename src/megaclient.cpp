@@ -3709,7 +3709,7 @@ void MegaClient::resumeResumableSyncs()
     {
         return;
     }
-    for (const auto& config : syncConfigs->all())
+    for (const auto config : syncConfigs->all())
     {
         if (!config.isResumable())
         {
@@ -3718,6 +3718,7 @@ void MegaClient::resumeResumableSyncs()
         if (!nodebyhandle(config.getRemoteNode()))
         {
             // remote node gone
+            syncConfigs->remove(config.getLocalPath());
             continue;
         }
         const auto e = addsync(config, DEBRISFOLDER, nullptr);
