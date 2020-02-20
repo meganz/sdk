@@ -9326,7 +9326,7 @@ void MegaClient::notifynode(Node* n)
         // deletion from LocalNodes.
         if (n->localnode && n->localnode->parent && n->parent && !n->parent->localnode)
         {
-            if (n->changed.removed || n->changed.newnode)
+            if (n->changed.removed || n->changed.parent)
             {
                 if (n->type == FOLDERNODE)
                 {
@@ -9359,7 +9359,7 @@ void MegaClient::notifynode(Node* n)
                     n->localnode->deleted = n->changed.removed;
                 }
 
-                if (!n->changed.removed && n->changed.newnode)
+                if (!n->changed.removed && (n->changed.newnode || n->changed.parent))
                 {
                     if (!n->localnode)
                     {
