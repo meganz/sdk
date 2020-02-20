@@ -3715,6 +3715,11 @@ void MegaClient::resumeResumableSyncs()
         {
             continue;
         }
+        if (!nodebyhandle(config.getRemoteNode()))
+        {
+            // remote node gone
+            continue;
+        }
         const auto e = addsync(config, DEBRISFOLDER, nullptr);
         if (e == 0)
         {
@@ -11999,6 +12004,10 @@ void MegaClient::updateputs()
 error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare)
 {
 #ifdef ENABLE_SYNC
+    if (!remotenode)
+    {
+        return API_EACCESS;
+    }
     // cannot sync files, rubbish bins or inboxes
     if (remotenode->type != FOLDERNODE && remotenode->type != ROOTNODE)
     {
