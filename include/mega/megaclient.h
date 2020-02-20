@@ -454,6 +454,9 @@ public:
     // A collection of sync configs backed by a database table
     std::unique_ptr<SyncConfigBag> syncConfigs;
 
+    // whether we allow the automatic resumption of syncs
+    bool allowAutoResumeSyncs = true;
+
     // A collection of unsyncable remote nodes stored by handle
     std::unique_ptr<UnsyncableNodeBag> unsyncables;
 #endif

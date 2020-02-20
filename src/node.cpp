@@ -87,8 +87,7 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
 
     plink = NULL;
 
-    memset(&changed,-1,sizeof changed);
-    changed.removed = false;
+    memset(&changed, 0, sizeof changed);
 
     Node* p;
 

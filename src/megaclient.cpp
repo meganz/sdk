@@ -3738,7 +3738,8 @@ void MegaClient::freeq(direction_t d)
 #ifdef ENABLE_SYNC
 void MegaClient::resumeResumableSyncs()
 {
-    if (!syncConfigs)
+
+    if (!syncConfigs || !allowAutoResumeSyncs)
     {
         return;
     }
@@ -5245,11 +5246,16 @@ bool MegaClient::sc_shares()
 
                     if (!ISUNDEF(oh) && (!ISUNDEF(uh) || !ISUNDEF(p)))
                     {
-                        if (!outbound && oh != me && oh && statecurrent)
+                        if (!outbound && statecurrent)
                         {
                             User* u = finduser(oh);
-                            useralerts.add(new UserAlert::NewShare(h, oh, u ? u->email : "", ts, useralerts.nextId()));
-                            useralerts.ignoreNextSharedNodesUnder(h);  // no need to alert on nodes already in the new share, which are delivered next
+                            // only new shares should be notified (skip permissions changes)
+                            bool newShare = u && u->sharing.find(h) == u->sharing.end();
+                            if (newShare)
+                            {
+                                useralerts.add(new UserAlert::NewShare(h, oh, u->email, ts, useralerts.nextId()));
+                                useralerts.ignoreNextSharedNodesUnder(h);  // no need to alert on nodes already in the new share, which are delivered next
+                            }
                         }
 
                         // new share - can be inbound or outbound
@@ -7531,6 +7537,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                 }
 
                 n = new Node(this, &dp, h, ph, t, s, u, fas.c_str(), ts);
+                n->changed.newnode = true;
 
                 n->tag = tag;
 
@@ -9398,7 +9405,7 @@ void MegaClient::notifynode(Node* n)
                     n->localnode->reactToNodeChange(n->changed.removed);
                 }
 
-                if (!n->changed.removed && n->changed.parent)
+                if (!n->changed.removed && (n->changed.newnode || n->changed.parent))
                 {
                     if (!n->localnode)
                     {

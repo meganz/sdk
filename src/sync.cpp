@@ -820,13 +820,13 @@ Sync::Sync(MegaClient* cclient, SyncConfig config, const char* cdebris,
     if (macOSmajorVersion() >= 19) //macOS catalina+
     {
         LOG_debug << "macOS 10.15+ filesystem detected. Checking fseventspath.";
-        string supercrootpath = "/System/Volumes/Data" + *crootpath;
+        string supercrootpath = "/System/Volumes/Data" + crootpath;
 
         int fd = open(supercrootpath.c_str(), O_RDONLY);
         if (fd == -1)
         {
             LOG_debug << "Unable to open path using fseventspath.";
-            mFsEventsPath = *crootpath;
+            mFsEventsPath = crootpath;
         }
         else
         {
@@ -834,7 +834,7 @@ Sync::Sync(MegaClient* cclient, SyncConfig config, const char* cdebris,
             if (fcntl(fd, F_GETPATH, buf) < 0)
             {
                 LOG_debug << "Using standard paths to detect filesystem notifications.";
-                mFsEventsPath = *crootpath;
+                mFsEventsPath = crootpath;
             }
             else
             {

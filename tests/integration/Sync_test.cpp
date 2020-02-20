@@ -18,7 +18,7 @@
 
 // Many of these tests are still being worked on.
 // The file uses some C++17 mainly for the very convenient std::filesystem library, though the main SDK must still build with C++11 (and prior)
-#ifdef ENABLE_SYNC
+
 
 #include "test.h"
 #include <mega.h>
@@ -31,6 +31,8 @@
 #include <atomic>
 
 #include <megaapi_impl.h>
+
+#ifdef ENABLE_SYNC
 
 using namespace ::mega;
 using namespace ::std;

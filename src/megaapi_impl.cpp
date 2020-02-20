@@ -19033,18 +19033,12 @@ void MegaApiImpl::sendPendingRequests()
             }
 
 #ifdef ENABLE_SYNC
-            const bool resumeSyncs = request->getNumber();
-            if (!resumeSyncs && client->syncConfigs)
-            {
-                for (auto config : client->syncConfigs->all())
-                {
-                    config.setResumable(false);
-                    client->syncConfigs->insert(config);
-                }
-            }
+            client->allowAutoResumeSyncs = request->getNumber();
 #endif
-
             client->fetchnodes();
+#ifdef ENABLE_SYNC
+            client->allowAutoResumeSyncs = true;
+#endif
             break;
         }
         case MegaRequest::TYPE_GET_CLOUD_STORAGE_USED:
