@@ -6853,6 +6853,17 @@ class MegaApi
             AFFILIATE_TYPE_CONTACT = 4,
         };
 
+        enum {
+            ACCOUNT_NOT_SUSPENDED = 0,
+            ACCOUNT_SUSPENSION_EXCESS_DATA_USAGE = 100,
+            ACCOUNT_SUSPENSION_NON_COPYRIGHT = 200,
+            ACCOUNT_SUSPENSION_COPYRIGHT = 300,
+            ACCOUNT_SUSPENSION_SUBUSER_DISABLED = 400,
+            ACCOUNT_SUSPENSION_SUBUSER_REMOVED = 401,
+            ACCOUNT_SUSPENSION_VERIFICATION_SMS = 500,
+            ACCOUNT_SUSPENSION_VERIFICATION_EMAIL = 700
+        };
+
         /**
          * @brief Constructor suitable for most applications
          * @param appKey AppKey of your application

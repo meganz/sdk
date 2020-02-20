@@ -14960,27 +14960,27 @@ void MegaApiImpl::whyamiblocked_result(int code)
     {
         string reason = "Your account was terminated due to breach of Mega's Terms of Service, such as abuse of rights of others; sharing and/or importing illegal data; or system abuse.";
 
-        if (code == 100)    // deprecated
+        if (code == MegaApi::ACCOUNT_SUSPENSION_EXCESS_DATA_USAGE)    // deprecated
         {
             reason = "You have been suspended due to excess data usage.";
         }
-        else if (code == 200)
+        else if (code == MegaApi::ACCOUNT_SUSPENSION_NON_COPYRIGHT)
         {
             reason = "Your account has been suspended due to multiple breaches of Mega's Terms of Service. Please check your email inbox.";
         }
-        else if (code == 400)
+        else if (code == MegaApi::ACCOUNT_SUSPENSION_SUBUSER_DISABLED)
         {
             reason = "Your account has been disabled by your administrator. You may contact your business account administrator for further details.";
         }
-        else if (code == 401)
+        else if (code == MegaApi::ACCOUNT_SUSPENSION_SUBUSER_REMOVED)
         {
             reason = "Your account has been removed by your administrator. You may contact your business account administrator for further details.";
         }
-        else if (code == 500)
+        else if (code == MegaApi::ACCOUNT_SUSPENSION_VERIFICATION_SMS)
         {
             reason = "Your account has been blocked pending verification via SMS.";
         }
-        else if (code == 700)
+        else if (code == MegaApi::ACCOUNT_SUSPENSION_VERIFICATION_EMAIL)
         {
             reason = "Your account has been temporarily suspended for your safety. Please verify your email and follow its steps to unlock your account.";
         }
