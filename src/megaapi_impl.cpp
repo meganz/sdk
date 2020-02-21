@@ -19929,7 +19929,24 @@ void MegaApiImpl::sendPendingRequests()
                 {
                     if (len > 13 && !memcmp("ConfirmCodeV2", c, 13))
                     {
-                        client->confirmsignuplink2(c, len);
+                        // “ConfirmCodeV2” || Email Confirmation Token (128 bits) || Email (>=5 chars)
+                        if (len >= 13+16+5)
+                        {
+                            const byte *email = c + 13 + 16;
+                            size_t lenEmail = len - 13 - 16;
+                            if (strncmp(client->uid.c_str(), (const char *)email, lenEmail) == 0)
+                            {
+                                client->confirmsignuplink2(c, len);
+                            }
+                            else
+                            {
+                                e = API_EACCESS;
+                            }
+                        }
+                        else
+                        {
+                            e = API_EARGS;
+                        }
                     }
                     else
                     {
@@ -20005,7 +20022,24 @@ void MegaApiImpl::sendPendingRequests()
             {
                 if (len > 13 && !memcmp("ConfirmCodeV2", c, 13))
                 {
-                    client->confirmsignuplink2(c, len);
+                    // “ConfirmCodeV2” || Email Confirmation Token (128 bits) || Email (>=5 chars)
+                    if (len >= 13+16+5)
+                    {
+                        const byte *email = c + 13 + 16;
+                        size_t lenEmail = len - 13 - 16;
+                        if (strncmp(client->uid.c_str(), (const char *)email, lenEmail) == 0)
+                        {
+                            client->confirmsignuplink2(c, len);
+                        }
+                        else
+                        {
+                            e = API_EACCESS;
+                        }
+                    }
+                    else
+                    {
+                        e = API_EARGS;
+                    }
                 }
                 else if (!password && !pwkey)
                 {
