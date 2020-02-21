@@ -19922,21 +19922,19 @@ void MegaApiImpl::sendPendingRequests()
             {
                 ptr = tptr+8;
 
-                unsigned len = unsigned((strlen(link)-(ptr-link))*3/4+4);
-                byte *c = new byte[len];
-                len = Base64::atob(ptr,c,len);
-                if (len)
+                string code = Base64::atob(string(ptr));
+                if (!code.empty())
                 {
-                    if (len > 13 && !memcmp("ConfirmCodeV2", c, 13))
+                    if (code.find("ConfirmCodeV2") != string::npos)
                     {
                         // “ConfirmCodeV2” || Email Confirmation Token (128 bits) || Email (>=5 chars)
-                        if (len >= 13+16+5)
+
+                        if (code.size() >= 13+16+5)
                         {
-                            const byte *email = c + 13 + 16;
-                            size_t lenEmail = len - 13 - 16;
-                            if (strncmp(client->uid.c_str(), (const char *)email, lenEmail) == 0)
+                            string email = code.substr(13+15, code.find("\t", 13+15));
+                            if (client->uid == email)
                             {
-                                client->confirmsignuplink2(c, len);
+                                client->confirmsignuplink2((const byte*)code.data(), code.size());
                             }
                             else
                             {
@@ -19950,14 +19948,13 @@ void MegaApiImpl::sendPendingRequests()
                     }
                     else
                     {
-                        client->querysignuplink(c, len);
+                        client->querysignuplink((const byte*)code.data(), code.size());
                     }
                 }
                 else
                 {
                     e = API_EARGS;
                 }
-                delete[] c;
                 break;
             }
             else if ((tptr = strstr(ptr,"#newsignup")))
@@ -20015,21 +20012,19 @@ void MegaApiImpl::sendPendingRequests()
 
             if ((tptr = strstr(ptr,"#confirm"))) ptr = tptr+8;
 
-            unsigned len = unsigned((strlen(link)-(ptr-link))*3/4+4);
-            byte *c = new byte[len];
-            len = Base64::atob(ptr,c,len);
-            if (len)
+            string code = Base64::atob(string(ptr));
+            if (!code.empty())
             {
-                if (len > 13 && !memcmp("ConfirmCodeV2", c, 13))
+                if (code.find("ConfirmCodeV2") != string::npos)
                 {
                     // “ConfirmCodeV2” || Email Confirmation Token (128 bits) || Email (>=5 chars)
-                    if (len >= 13+16+5)
+
+                    if (code.size() >= 13+16+5)
                     {
-                        const byte *email = c + 13 + 16;
-                        size_t lenEmail = len - 13 - 16;
-                        if (strncmp(client->uid.c_str(), (const char *)email, lenEmail) == 0)
+                        string email = code.substr(13+15, code.find("\t", 13+15));
+                        if (client->uid == email)
                         {
-                            client->confirmsignuplink2(c, len);
+                            client->confirmsignuplink2((const byte*)code.data(), code.size());
                         }
                         else
                         {
@@ -20047,14 +20042,13 @@ void MegaApiImpl::sendPendingRequests()
                 }
                 else
                 {
-                    client->querysignuplink(c, len);
+                    client->querysignuplink((const byte*)code.data(), code.size());
                 }
             }
             else
             {
                 e = API_EARGS;
             }
-            delete[] c;
             break;
         }
         case MegaRequest::TYPE_GET_RECOVERY_LINK:
