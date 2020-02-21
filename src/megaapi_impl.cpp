@@ -15313,7 +15313,7 @@ void MegaApiImpl::querysignuplink_result(error e)
     fireOnRequestFinish(request, megaError);
 }
 
-void MegaApiImpl::querysignuplink_result(handle, const char* email, const char* name, const byte* pwc, const byte*, const byte* c, size_t len)
+void MegaApiImpl::querysignuplink_result(handle uh, const char* email, const char* name, const byte* pwc, const byte*, const byte* c, size_t len)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
@@ -15323,9 +15323,15 @@ void MegaApiImpl::querysignuplink_result(handle, const char* email, const char* 
     request->setEmail(email);
     request->setName(name);
 
-    if(request->getType() == MegaRequest::TYPE_QUERY_SIGNUP_LINK)
+    error e = API_OK;
+    if (uh != client->me)
     {
-        fireOnRequestFinish(request, MegaError(API_OK));
+        e = API_EACCESS;
+    }
+    
+    if(request->getType() == MegaRequest::TYPE_QUERY_SIGNUP_LINK || e)
+    {
+        fireOnRequestFinish(request, MegaError(e));
         return;
     }
 
