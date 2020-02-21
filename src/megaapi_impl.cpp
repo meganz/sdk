@@ -19927,11 +19927,12 @@ void MegaApiImpl::sendPendingRequests()
                 {
                     if (code.find("ConfirmCodeV2") != string::npos)
                     {
-                        // “ConfirmCodeV2” || Email Confirmation Token (128 bits) || Email (>=5 chars)
-
-                        if (code.size() >= 13+16+5)
+                        // “ConfirmCodeV2” || Email Confirmation Token (128 bits) || Email (>=5 chars) || \t || Fullname
+                        size_t posEmail = 13 + 15;
+                        size_t endEmail = code.find("\t", posEmail);
+                        if (endEmail != string::npos)
                         {
-                            string email = code.substr(13+15, code.find("\t", 13+15));
+                            string email = code.substr(posEmail, endEmail);
                             if (client->uid == email)
                             {
                                 client->confirmsignuplink2((const byte*)code.data(), code.size());
@@ -20017,11 +20018,12 @@ void MegaApiImpl::sendPendingRequests()
             {
                 if (code.find("ConfirmCodeV2") != string::npos)
                 {
-                    // “ConfirmCodeV2” || Email Confirmation Token (128 bits) || Email (>=5 chars)
-
-                    if (code.size() >= 13+16+5)
+                    // “ConfirmCodeV2” || Email Confirmation Token (128 bits) || Email (>=5 chars) || \t || Fullname
+                    size_t posEmail = 13 + 15;
+                    size_t endEmail = code.find("\t", posEmail);
+                    if (endEmail != string::npos)
                     {
-                        string email = code.substr(13+15, code.find("\t", 13+15));
+                        string email = code.substr(posEmail, endEmail);
                         if (client->uid == email)
                         {
                             client->confirmsignuplink2((const byte*)code.data(), code.size());
