@@ -59,7 +59,7 @@ private:
 
 std::string expMsg(const std::string& file, const int line, const std::string& message)
 {
-    return file + ":" + std::to_string(line) + " " + message;
+    return message + " ["+file + ":" + std::to_string(line) + "]";
 }
 
 }
@@ -262,8 +262,8 @@ TEST(Logging, performanceMode_withMessageLargeThanLogBuffer)
         mega::SimpleLogger{static_cast<mega::LogLevel>(level), file.c_str(), line} << message;
         logger.checkLogLevel(level);
         ASSERT_EQ(2, logger.mMessage.size());
-        ASSERT_EQ(expMsg(file, line, firstMessage), logger.mMessage[0]);
-        ASSERT_EQ(secondMessage, logger.mMessage[1]);
+        ASSERT_EQ(expMsg(file, line, message).substr(0,255), logger.mMessage[0]);
+        ASSERT_EQ(expMsg(file, line, message).substr(255), logger.mMessage[1]);
     }
 }
 
@@ -277,9 +277,11 @@ TEST(Logging, performanceMode_withHugeMessage)
         const std::string message(5000, 'X');
         mega::SimpleLogger{static_cast<mega::LogLevel>(level), file.c_str(), line} << message;
         logger.checkLogLevel(level);
-        const size_t fullMsgCount = 5013 / 255;
+
+        const int totallength = 5000 + strlen(" [file.cpp:13]") + 1;
+        const size_t fullMsgCount = totallength / 255;
         ASSERT_EQ(fullMsgCount + 1, logger.mMessage.size());
-        ASSERT_EQ(5013 % 255 - 1, logger.mMessage.back().size());
+        ASSERT_EQ(totallength % 255 - 1, logger.mMessage.back().size());
     }
 }
 
