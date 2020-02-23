@@ -96,7 +96,6 @@ void DbTable::resetCommitter()
 {
     if (mTransactionCommitter)
     {
-        mTransactionCommitter->commitNow();
         mTransactionCommitter->reset();
         mCheckAlwaysTransacted = false;
         mTransactionCommitter = nullptr;
