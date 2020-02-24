@@ -14814,8 +14814,31 @@ void MegaApiImpl::getuseremail_result(string *email, error e)
         return;
     }
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if (!request || (request->getType() != MegaRequest::TYPE_GET_USER_EMAIL))
+    if (!request || (request->getType() != MegaRequest::TYPE_GET_USER_EMAIL
+                     || request->getType() != MegaRequest::TYPE_QUERY_SIGNUP_LINK
+                     || request->getType() != MegaRequest::TYPE_CONFIRM_ACCOUNT))
     {
+        return;
+    }
+
+    if (request->getType() == MegaRequest::TYPE_QUERY_SIGNUP_LINK
+            || request->getType() == MegaRequest::TYPE_CONFIRM_ACCOUNT)
+    {
+        assert(request->getParamType() == 2);   // only V2 accounts require this step
+        if (*email != request->getEmail())
+        {
+            fireOnRequestFinish(request, API_EACCESS);
+        }
+        else
+        {
+            string code = request->getText();
+            code = code.substr(code.find("#confirm"), 8);
+
+            int creqtag = client->reqtag;
+            client->reqtag = client->restag;
+            client->confirmsignuplink2((const byte*)code.data(), code.size());
+            client->reqtag = creqtag;
+        }
         return;
     }
 
@@ -15329,6 +15352,7 @@ void MegaApiImpl::querysignuplink_result(handle uh, const char* email, const cha
         e = API_EACCESS;
     }
     
+    // TODO: decide whether finish the request here for V2, or to proceed with auto-confirmation, as by now
     if(request->getType() == MegaRequest::TYPE_QUERY_SIGNUP_LINK || e)
     {
         fireOnRequestFinish(request, MegaError(e));
@@ -19927,19 +19951,28 @@ void MegaApiImpl::sendPendingRequests()
                 {
                     if (code.find("ConfirmCodeV2") != string::npos)
                     {
-                        // “ConfirmCodeV2” || Email Confirmation Token (128 bits) || Email (>=5 chars) || \t || Fullname
+                        request->setParamType(2);
+
+                        // “ConfirmCodeV2” || Email Confirmation Token (128 bits) || Email (>=5 chars) || \t || Fullname || Hash
                         size_t posEmail = 13 + 15;
                         size_t endEmail = code.find("\t", posEmail);
                         if (endEmail != string::npos)
                         {
-                            string email = code.substr(posEmail, endEmail);
-                            if (client->uid == email)
+                            string email = code.substr(posEmail, endEmail - posEmail);
+                            request->setEmail(email.c_str());
+
+                            sessiontype_t session = client->loggedin();
+                            if (session == NOTLOGGEDIN)
                             {
                                 client->confirmsignuplink2((const byte*)code.data(), code.size());
                             }
-                            else
+                            else if (session == FULLACCOUNT)
                             {
-                                e = API_EACCESS;
+                                e = (client->uid == email) ? API_EEXPIRED : API_EACCESS;
+                            }
+                            else    // ephemeral account or partially confirmed, check email
+                            {
+                                client->getUserEmail(Base64Str<MegaClient::USERHANDLE>(client->me));
                             }
                         }
                         else
@@ -19949,6 +19982,7 @@ void MegaApiImpl::sendPendingRequests()
                     }
                     else
                     {
+                        request->setParamType(1);
                         client->querysignuplink((const byte*)code.data(), code.size());
                     }
                 }
@@ -20018,19 +20052,28 @@ void MegaApiImpl::sendPendingRequests()
             {
                 if (code.find("ConfirmCodeV2") != string::npos)
                 {
-                    // “ConfirmCodeV2” || Email Confirmation Token (128 bits) || Email (>=5 chars) || \t || Fullname
+                    request->setParamType(2);
+
+                    // “ConfirmCodeV2” || Email Confirmation Token (128 bits) || Email (>=5 chars) || \t || Fullname || Hash
                     size_t posEmail = 13 + 15;
                     size_t endEmail = code.find("\t", posEmail);
                     if (endEmail != string::npos)
                     {
                         string email = code.substr(posEmail, endEmail);
-                        if (client->uid == email)
+                        request->setEmail(email.c_str());
+
+                        sessiontype_t session = client->loggedin();
+                        if (session == NOTLOGGEDIN)
                         {
                             client->confirmsignuplink2((const byte*)code.data(), code.size());
                         }
-                        else
+                        else if (session == FULLACCOUNT)
                         {
-                            e = API_EACCESS;
+                            e = (client->uid == email) ? API_EEXPIRED : API_EACCESS;
+                        }
+                        else    // ephemeral account or partially confirmed, check email
+                        {
+                            client->getUserEmail(Base64Str<MegaClient::USERHANDLE>(client->me));
                         }
                     }
                     else
@@ -20044,6 +20087,7 @@ void MegaApiImpl::sendPendingRequests()
                 }
                 else
                 {
+                    request->setParamType(1);
                     client->querysignuplink((const byte*)code.data(), code.size());
                 }
             }
