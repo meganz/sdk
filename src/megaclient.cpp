@@ -3832,6 +3832,11 @@ void MegaClient::logout()
 
 void MegaClient::locallogout(bool removecaches)
 {
+    if (tctable)
+    {
+        tctable->checkNoCommitter();
+    }
+
     if (removecaches)
     {
         removeCaches();

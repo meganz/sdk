@@ -97,6 +97,11 @@ void DbTable::checkCommitter(DBTableTransactionCommitter* committer)
     assert(!committer || committer == mCurrentTransactionCommiter);
 }
 
+void DbTable::checkNoCommitter()
+{
+    assert(!mCurrentTransactionCommiter);
+}
+
 DbAccess::DbAccess()
 {
     currentDbVersion = LEGACY_DB_VERSION;

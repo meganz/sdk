@@ -3,6 +3,9 @@
 #include "test.h"
 #include <stdio.h>
 #include <fstream>
+#include <megaconsole.h>
+
+using namespace mega;
 
 bool gRunningInCI = false;
 bool gTestingInvalidArgs = false;

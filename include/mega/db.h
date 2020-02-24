@@ -74,6 +74,7 @@ public:
     virtual void remove() = 0;
 
     void checkCommitter(DBTableTransactionCommitter*);
+    void checkNoCommitter();
 
     // autoincrement
     uint32_t nextid;
@@ -86,6 +87,7 @@ class MEGA_API DBTableTransactionCommitter
 {
     DbTable* mTable;
     bool mStarted = false;
+    MEGA_DISABLE_COPY_MOVE(DBTableTransactionCommitter)
 
 public:
     inline void beginOnce()
@@ -97,7 +99,7 @@ public:
         }
     }
 
-    inline void commitNow()
+    inline void commitNow(bool finalCommit = false)
     {
         if (mTable)
         {
@@ -105,6 +107,12 @@ public:
             {
                 mTable->commit();
                 mStarted = false;
+            }
+
+            if (finalCommit)
+            {
+                mTable->mCurrentTransactionCommiter = nullptr;
+                mTable = nullptr;
             }
         }
     }

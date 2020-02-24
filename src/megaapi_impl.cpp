@@ -19112,6 +19112,7 @@ void MegaApiImpl::sendPendingRequests()
             }
             else
             {
+                committer.commitNow(true);
                 client->locallogout(false);
                 client->restag = nextTag;
                 logout_result(API_OK);
