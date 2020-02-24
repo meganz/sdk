@@ -5924,17 +5924,30 @@ class MegaGlobalListener
          *
          *  - MegaEvent::EVENT_ACCOUNT_BLOCKED: when the account get blocked, typically because of
          * infringement of the Mega's terms of service repeatedly. This event is followed by an automatic
-         * logout.
+         * logout, except for the temporary blockings (ACCOUNT_BLOCKED_VERIFICATION_SMS and
+         * ACCOUNT_BLOCKED_VERIFICATION_EMAIL)
          *
          *  Valid data in the MegaEvent object received in the callback:
          *      - MegaEvent::getText: message to show to the user.
          *      - MegaEvent::getNumber: code representing the reason for being blocked.
-         *          200: suspension message for any type of suspension, but copyright suspension.
-         *          300: suspension only for multiple copyright violations.
-         *          400: the subuser account has been disabled.
-         *          401: the subuser account has been removed.
-         *          500: The account needs to be verified by an SMS code.
-         *          700: the account is supended for Weak Account Protection.
+         *
+         *          - MegaApi::ACCOUNT_BLOCKED_TOS_NON_COPYRIGHT = 200
+         *              Suspension message for any type of suspension, but copyright suspension.
+         *
+         *          - MegaApi::ACCOUNT_BLOCKED_TOS_COPYRIGHT = 300
+         *              Suspension only for multiple copyright violations.
+         *
+         *          - MegaApi::ACCOUNT_BLOCKED_SUBUSER_DISABLED = 400
+         *              Subuser of the business account has been disabled.
+         *
+         *          - MegaApi::ACCOUNT_BLOCKED_SUBUSER_REMOVED = 401
+         *              Subuser of business account has been removed.
+         *
+         *          - MegaApi::ACCOUNT_BLOCKED_VERIFICATION_SMS = 500
+         *              The account is temporary blocked and needs to be verified by an SMS code.
+         *
+         *          - MegaApi::ACCOUNT_BLOCKED_VERIFICATION_EMAIL = 700
+         *              The account is temporary blocked and needs to be verified by email (Weak Account Protection).
          *
          * - MegaEvent::EVENT_STORAGE: when the status of the storage changes.
          *
@@ -6421,12 +6434,24 @@ class MegaListener
          *  Valid data in the MegaEvent object received in the callback:
          *      - MegaEvent::getText: message to show to the user.
          *      - MegaEvent::getNumber: code representing the reason for being blocked.
-         *          200: suspension message for any type of suspension, but copyright suspension.
-         *          300: suspension only for multiple copyright violations.
-         *          400: the subuser account has been disabled.
-         *          401: the subuser account has been removed.
-         *          500: The account needs to be verified by an SMS code.
-         *          700: the account is supended for Weak Account Protection.
+         *
+         *          - MegaApi::ACCOUNT_BLOCKED_TOS_NON_COPYRIGHT = 200
+         *              Suspension message for any type of suspension, but copyright suspension.
+         *
+         *          - MegaApi::ACCOUNT_BLOCKED_TOS_COPYRIGHT = 300
+         *              Suspension only for multiple copyright violations.
+         *
+         *          - MegaApi::ACCOUNT_BLOCKED_SUBUSER_DISABLED = 400
+         *              Subuser of the business account has been disabled.
+         *
+         *          - MegaApi::ACCOUNT_BLOCKED_SUBUSER_REMOVED = 401
+         *              Subuser of business account has been removed.
+         *
+         *          - MegaApi::ACCOUNT_BLOCKED_VERIFICATION_SMS = 500
+         *              The account is temporary blocked and needs to be verified by an SMS code.
+         *
+         *          - MegaApi::ACCOUNT_BLOCKED_VERIFICATION_EMAIL = 700
+         *              The account is temporary blocked and needs to be verified by email (Weak Account Protection).
          *
          * - MegaEvent::EVENT_STORAGE: when the status of the storage changes.
          *
@@ -6854,14 +6879,14 @@ class MegaApi
         };
 
         enum {
-            ACCOUNT_NOT_SUSPENDED = 0,
-            ACCOUNT_SUSPENSION_EXCESS_DATA_USAGE = 100,
-            ACCOUNT_SUSPENSION_NON_COPYRIGHT = 200,
-            ACCOUNT_SUSPENSION_COPYRIGHT = 300,
-            ACCOUNT_SUSPENSION_SUBUSER_DISABLED = 400,
-            ACCOUNT_SUSPENSION_SUBUSER_REMOVED = 401,
-            ACCOUNT_SUSPENSION_VERIFICATION_SMS = 500,
-            ACCOUNT_SUSPENSION_VERIFICATION_EMAIL = 700
+            ACCOUNT_NOT_BLOCKED = 0,
+            ACCOUNT_BLOCKED_EXCESS_DATA_USAGE = 100,        // (deprecated)
+            ACCOUNT_BLOCKED_TOS_NON_COPYRIGHT = 200,        // suspended due to multiple breaches of MEGA ToS
+            ACCOUNT_BLOCKED_TOS_COPYRIGHT = 300,            // suspended due to copyright violations
+            ACCOUNT_BLOCKED_SUBUSER_DISABLED = 400,         // subuser disabled by business administrator
+            ACCOUNT_BLOCKED_SUBUSER_REMOVED = 401,          // subuser removed by business administrator
+            ACCOUNT_BLOCKED_VERIFICATION_SMS = 500,         // temporary blocked, require SMS verification
+            ACCOUNT_BLOCKED_VERIFICATION_EMAIL = 700,       // temporary blocked, require email verification
         };
 
         /**
@@ -8214,13 +8239,26 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getText - Returns the reason string (in English)
          * - MegaRequest::getNumber - Returns the reason code. Possible values:
-         *     0: The account is not blocked
-         *     200: suspension message for any type of suspension, but copyright suspension.
-         *     300: suspension only for multiple copyright violations.
-         *     400: the subuser account has been disabled.
-         *     401: the subuser account has been removed.
-         *     500: The account needs to be verified by an SMS code.
-         *     700: the account is supended for Weak Account Protection.
+         *          - MegaApi::ACCOUNT_NOT_BLOCKED = 0
+         *              Account is not blocked in any way.
+         *
+         *          - MegaApi::ACCOUNT_BLOCKED_TOS_NON_COPYRIGHT = 200
+         *              Suspension message for any type of suspension, but copyright suspension.
+         *
+         *          - MegaApi::ACCOUNT_BLOCKED_TOS_COPYRIGHT = 300
+         *              Suspension only for multiple copyright violations.
+         *
+         *          - MegaApi::ACCOUNT_BLOCKED_SUBUSER_DISABLED = 400
+         *              Subuser of the business account has been disabled.
+         *
+         *          - MegaApi::ACCOUNT_BLOCKED_SUBUSER_REMOVED = 401
+         *              Subuser of business account has been removed.
+         *
+         *          - MegaApi::ACCOUNT_BLOCKED_VERIFICATION_SMS = 500
+         *              The account is temporary blocked and needs to be verified by an SMS code.
+         *
+         *          - MegaApi::ACCOUNT_BLOCKED_VERIFICATION_EMAIL = 700
+         *              The account is temporary blocked and needs to be verified by email (Weak Account Protection).
          *
          * If the error code in the MegaRequest object received in onRequestFinish
          * is MegaError::API_OK, the user is not blocked.
