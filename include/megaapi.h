@@ -15633,6 +15633,28 @@ class MegaApi
          */
         void archiveChat(MegaHandle chatid, int archive, MegaRequestListener *listener = NULL);
 
+        /**
+         * @brief Allows a logged in operator/moderator to specify a message retention timeframe
+         * after which all messages in the chat are automatically deleted.
+         *
+         * @note Use inSeconds param only for testing.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_RETENTION_TIME
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the chat identifier
+         * - MegaRequest::getNumdetails - Returns the retention timeframe
+         * - MegaRequest::getFlag - Returns true if period is specified in seconds, otherwise returns false.
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::ERROR_EARGS - If the chatid is invalid
+         * - MegaError::API_ENOENT - If there isn't any chat with the specified chatid.
+         * - MegaError::API_EACCESS - If the logged in user doesn't have operator privileges
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @param period retention timeframe after which all messages in the chat are automatically deleted
+         * @param inSeconds indicate API that period is specified in seconds. Only for testing
+         * @param listener MegaRequestListener to track this request
+         */
         void setChatRetentionTime(MegaHandle chatid, int period, bool inSeconds = false, MegaRequestListener *listener = NULL);
 
         /**
