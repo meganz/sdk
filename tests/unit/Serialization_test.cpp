@@ -381,7 +381,7 @@ TEST(Serialization, LocalNode_forFolder_withoutParent_withoutNode)
     std::string data;
     ASSERT_TRUE(l.serialize(&data));
     ASSERT_EQ(43u, data.size());
-    auto dl = mega::LocalNode::unserialize(sync.get(), &data);
+    std::unique_ptr<mega::LocalNode> dl{mega::LocalNode::unserialize(sync.get(), &data)};
     checkDeserializedLocalNode(*dl, l);
 }
 
@@ -400,7 +400,7 @@ TEST(Serialization, LocalNode_forFile_withoutNode)
     std::string data;
     ASSERT_TRUE(l->serialize(&data));
     ASSERT_EQ(63u, data.size());
-    auto dl = mega::LocalNode::unserialize(sync.get(), &data);
+    std::unique_ptr<mega::LocalNode> dl{mega::LocalNode::unserialize(sync.get(), &data)};
     checkDeserializedLocalNode(*dl, *l);
 }
 
@@ -418,7 +418,7 @@ TEST(Serialization, LocalNode_forFile_withoutNode_withMaxMtime)
     std::string data;
     ASSERT_TRUE(l->serialize(&data));
     ASSERT_EQ(67u, data.size());
-    auto dl = mega::LocalNode::unserialize(sync.get(), &data);
+    std::unique_ptr<mega::LocalNode> dl{mega::LocalNode::unserialize(sync.get(), &data)};
     checkDeserializedLocalNode(*dl, *l);
 }
 
@@ -426,14 +426,12 @@ TEST(Serialization, LocalNode_forFolder_withoutParent)
 {
     MockClient client;
     auto sync = mt::makeSync(*client.cli, "wicked");
-    auto& n = mt::makeNode(*client.cli, mega::FOLDERNODE, 42);
     auto& l = *sync->localroot;
     l.setfsid(10, client.cli->fsidnode);
-    l.node = &n;
     std::string data;
     ASSERT_TRUE(l.serialize(&data));
     ASSERT_EQ(43u, data.size());
-    auto dl = mega::LocalNode::unserialize(sync.get(), &data);
+    std::unique_ptr<mega::LocalNode> dl{mega::LocalNode::unserialize(sync.get(), &data)};
     checkDeserializedLocalNode(*dl, l);
 }
 
@@ -451,7 +449,7 @@ TEST(Serialization, LocalNode_forFolder)
     std::string data;
     ASSERT_TRUE(l->serialize(&data));
     ASSERT_EQ(42u, data.size());
-    auto dl = mega::LocalNode::unserialize(sync.get(), &data);
+    std::unique_ptr<mega::LocalNode> dl{mega::LocalNode::unserialize(sync.get(), &data)};
     checkDeserializedLocalNode(*dl, *l);
 }
 
@@ -478,7 +476,7 @@ TEST(Serialization, LocalNode_forFolder_32bit)
     };
     const std::string data(reinterpret_cast<const char*>(rawData.data()), rawData.size());
 
-    auto dl = mega::LocalNode::unserialize(sync.get(), &data);
+    std::unique_ptr<mega::LocalNode> dl{mega::LocalNode::unserialize(sync.get(), &data)};
     checkDeserializedLocalNode(*dl, *l);
 }
 
@@ -503,7 +501,7 @@ TEST(Serialization, LocalNode_forFolder_oldLocalNodeWithoutSyncable)
     };
     const std::string data(reinterpret_cast<const char*>(rawData.data()), rawData.size());
 
-    auto dl = mega::LocalNode::unserialize(sync.get(), &data);
+    std::unique_ptr<mega::LocalNode> dl{mega::LocalNode::unserialize(sync.get(), &data)};
     checkDeserializedLocalNode(*dl, *l);
 }
 
@@ -524,7 +522,7 @@ TEST(Serialization, LocalNode_forFile)
     std::string data;
     ASSERT_TRUE(l->serialize(&data));
     ASSERT_EQ(59u, data.size());
-    auto dl = mega::LocalNode::unserialize(sync.get(), &data);
+    std::unique_ptr<mega::LocalNode> dl{mega::LocalNode::unserialize(sync.get(), &data)};
     checkDeserializedLocalNode(*dl, *l);
 }
 
@@ -552,7 +550,7 @@ TEST(Serialization, LocalNode_forFiles_oldLocalNodeWithoutSyncable)
     };
     const std::string data(rawData.data(), rawData.size());
 
-    auto dl = mega::LocalNode::unserialize(sync.get(), &data);
+    std::unique_ptr<mega::LocalNode> dl{mega::LocalNode::unserialize(sync.get(), &data)};
     checkDeserializedLocalNode(*dl, *l);
 }
 
@@ -581,7 +579,7 @@ TEST(Serialization, LocalNode_forFile_32bit)
     };
     const std::string data(rawData.data(), rawData.size());
 
-    auto dl = mega::LocalNode::unserialize(sync.get(), &data);
+    std::unique_ptr<mega::LocalNode> dl{mega::LocalNode::unserialize(sync.get(), &data)};
     checkDeserializedLocalNode(*dl, *l);
 }
 #endif
