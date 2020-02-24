@@ -7895,7 +7895,6 @@ class MegaApi
          * The associated request type with this request is MegaRequest::TYPE_QUERY_SIGNUP_LINK.
          * Valid data in the MegaRequest object received on all callbacks:
          * - MegaRequest::getLink - Returns the confirmation link
-         * - MegaRequest::getParamType - Returns 1 for V1 accounts, 2 for V2 accounts (available only for confirmation links)
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -7927,7 +7926,6 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getLink - Returns the confirmation link
          * - MegaRequest::getPassword - Returns the password
-         * - MegaRequest::getParamType - Returns 1 for V1 accounts, 2 for V2 accounts (available only for confirmation links)
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
