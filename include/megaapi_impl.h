@@ -138,7 +138,7 @@ public:
     void setLogToConsole(bool enable);
     void postLog(int logLevel, const char *message, const char *filename, int line);
 #ifdef ENABLE_LOG_PERFORMANCE
-    void log(const char *time, int loglevel, const char *source, const char *message, bool partial = false, bool requiresDirectOutput = false) override;
+    void log(const char *time, int loglevel, const char *source, const char *message, bool continues = false, bool requiresDirectOutput = false) override;
 #else
     void log(const char *time, int loglevel, const char *source, const char *message) override;
 #endif

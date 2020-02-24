@@ -126,7 +126,7 @@ public:
     virtual ~Logger() = default;
 #ifdef ENABLE_LOG_PERFORMANCE
     // Note: `time` and `source` are null in performance mode
-    virtual void log(const char *time, int loglevel, const char *source, const char *message, bool partial = false, bool requiresDirectOutput = false) = 0;
+    virtual void log(const char *time, int loglevel, const char *source, const char *message, bool continues = false, bool requiresDirectOutput = false) = 0;
 #else
     // Note: `time` and `source` are null in performance mode
     virtual void log(const char *time, int loglevel, const char *source, const char *message) = 0;
@@ -161,9 +161,9 @@ class SimpleLogger
     using NumBuf = std::array<char, 24>;
     const char* filenameStr;
     int lineNum;
-    int outputted = 0;
-    static const int immediate_threshold = 1024;
-    bool immediate = false;
+    int mOutputted = 0; //bytes already sent to logger
+    static const int mImmediateThreshold = 524288; //max allowance for non direct write
+    bool mImmediate = false;
 
     template<typename DataIterator>
     void copyToBuffer(const DataIterator dataIt, DiffType currentSize)
@@ -182,23 +182,29 @@ class SimpleLogger
         }
     }
 
+    /**
+     * @brief sends the contents of the buffer to the logger
+     *
+     * @param continues to indicate whether this is the last part of the log line or it continues
+     */
     void outputBuffer(bool continues = false)
     {
         *mBufferIt = '\0';
         if (continues)
         {
-            if (outputted > immediate_threshold)
+            if (mOutputted > mImmediateThreshold) //after certain threshold, all the messages will require direct output.
+                // the logger should rather write this to disk before returning back so as not to further increase memory consumption
             {
-                immediate = true;
+                mImmediate = true;
             }
             else
             {
-                outputted+=mBuffer.size() - 1;
+                mOutputted += mBuffer.size() - 1;
             }
         }
         if (logger)
         {
-            logger->log(nullptr, level, nullptr, mBuffer.data(), continues, immediate);
+            logger->log(nullptr, level, nullptr, mBuffer.data(), continues, mImmediate);
         }
         mBufferIt = mBuffer.begin();
     }

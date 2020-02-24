@@ -5259,7 +5259,7 @@ bool MegaAccountDetails::isTemporalBandwidthValid()
 
 void MegaLogger::log(const char* /*time*/, int /*loglevel*/, const char* /*source*/, const char* /*message*/
 #ifdef ENABLE_LOG_PERFORMANCE
-                     , bool /*partial*/, bool /*requiresDirectOutput*/
+                     , bool /*continues*/, bool /*requiresDirectOutput*/
 #endif
 
                      )

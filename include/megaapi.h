@@ -365,11 +365,9 @@ public:
      *
      * The SDK retains the ownership of this string, it won't be valid after this funtion returns.
      *
-     * @param partial the message is partial
+     * @param continues the log line continues: there will be more calls to log: no need for break line.
      *
-     * Only a part of a logging line has been provided.
-     *
-     * @param requiresDirectOutput the message should be written immediatly
+     * @param requiresDirectOutput the message should be written immediatly to disk before returning the execution.
      *
      * The SDK will set this value to true for very long lines, so that the application
      * takes this into consideration in order no to buffer the line completely.
@@ -377,7 +375,7 @@ public:
      */
     virtual void log(const char *time, int loglevel, const char *source, const char *message
                  #ifdef ENABLE_LOG_PERFORMANCE
-                                      , bool partial, bool requiresDirectOutput
+                                      , bool continues, bool requiresDirectOutput
                  #endif
                      );
     virtual ~MegaLogger(){}

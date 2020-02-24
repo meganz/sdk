@@ -22373,7 +22373,7 @@ void ExternalLogger::postLog(int logLevel, const char *message, const char *file
 }
 
 #ifdef ENABLE_LOG_PERFORMANCE
-void ExternalLogger::log(const char *time, int loglevel, const char *source, const char *message, bool partial, bool requiresDirectOutput)
+void ExternalLogger::log(const char *time, int loglevel, const char *source, const char *message, bool continues, bool requiresDirectOutput)
 #else
 void ExternalLogger::log(const char *time, int loglevel, const char *source, const char *message)
 #endif
@@ -22399,7 +22399,7 @@ void ExternalLogger::log(const char *time, int loglevel, const char *source, con
     for (auto logger : megaLoggers)
     {
 #ifdef ENABLE_LOG_PERFORMANCE
-        logger->log(time, loglevel, source, message, partial, requiresDirectOutput);
+        logger->log(time, loglevel, source, message, continues, requiresDirectOutput);
 #else
         logger->log(time, loglevel, source, message);
 #endif
