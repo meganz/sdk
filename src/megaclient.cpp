@@ -6779,7 +6779,7 @@ void MegaClient::handleauth(handle h, byte* auth)
 }
 
 // make attribute string; add magic number prefix
-void MegaClient::makeattr(SymmCipher* key, std::unique_ptr<string> const & attrstring, const char* json, int l) const
+void MegaClient::makeattr(SymmCipher* key, string* attrstring, const char* json, int l) const
 {
     if (l < 0)
     {
@@ -6798,6 +6798,11 @@ void MegaClient::makeattr(SymmCipher* key, std::unique_ptr<string> const & attrs
     attrstring->assign((char*)buf, ll);
 
     delete[] buf;
+}
+
+void MegaClient::makeattr(SymmCipher* key, std::unique_ptr<string> const & attrstring, const char* json, int l) const
+{
+    makeattr(key, attrstring.get(), json, l);
 }
 
 // update node attributes

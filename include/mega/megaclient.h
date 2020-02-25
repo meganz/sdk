@@ -401,6 +401,9 @@ public:
     error setattr(Node*, const char* prevattr = NULL);
 
     // prefix and encrypt attribute json
+    void makeattr(SymmCipher*, string*, const char*, int = -1) const;
+
+    // convenience version of the above (used for all but one call)
     void makeattr(SymmCipher*, std::unique_ptr<string> const &, const char*, int = -1) const;
 
     // check node access level
