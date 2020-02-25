@@ -33,6 +33,8 @@ struct MEGA_API NodeCore
     NodeCore();
     ~NodeCore();
 
+    MEGA_DISABLE_COPY_MOVE(NodeCore)
+
     // node's own handle
     handle nodehandle;
 
@@ -67,8 +69,16 @@ struct MEGA_API NewNode : public NodeCore
 
     bool added;
 
+    MEGA_DISABLE_COPY(NewNode)
+
+    NewNode(NewNode&& o);
+    NewNode& operator=(NewNode&& o);
+
     NewNode();
     ~NewNode();
+
+private:
+    void swap(NewNode&& o);
 };
 
 struct MEGA_API PublicLink

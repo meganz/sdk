@@ -39,8 +39,8 @@ NewNode::NewNode()
     source = NEW_NODE;
     ovhandle = UNDEF;
     uploadhandle = UNDEF;
-    localnode = NULL;
-    fileattributes = NULL;
+    localnode = nullptr;
+    fileattributes = nullptr;
 }
 
 NewNode::~NewNode()
@@ -48,6 +48,48 @@ NewNode::~NewNode()
     delete fileattributes;
 }
 
+NewNode::NewNode(NewNode&& o)
+    : NewNode() // assign defaults
+{
+    swap(std::move(o));
+}
+
+NewNode& NewNode::operator=(NewNode&& o)
+{
+    if (this != &o)
+    {
+        if (attrstring)
+        {
+            delete attrstring;
+            attrstring = nullptr;
+        }
+        localnode = nullptr;
+        if (fileattributes)
+        {
+            delete fileattributes;
+            fileattributes = nullptr;
+        }
+        swap(std::move(o));
+    }
+    return *this;
+}
+
+void NewNode::swap(NewNode&& o)
+{
+    std::swap(nodehandle, o.nodehandle);
+    std::swap(parenthandle, o.parenthandle);
+    std::swap(type, o.type);
+    std::swap(attrstring, o.attrstring);
+    std::swap(nodekey, o.nodekey);
+    std::swap(source, o.source);
+    std::swap(ovhandle, o.ovhandle);
+    std::swap(uploadhandle, o.uploadhandle);
+    std::swap(uploadtoken, o.uploadtoken);
+    std::swap(syncid, o.syncid);
+    std::swap(localnode, o.localnode);
+    std::swap(fileattributes, o.fileattributes);
+    std::swap(added, o.added);
+}
 
 Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
            nodetype_t t, m_off_t s, handle u, const char* fa, m_time_t ts)
