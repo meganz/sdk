@@ -7909,10 +7909,11 @@ class MegaApi
          * to know how to proceed.
          *
          * If already logged-in into a different account, you will get the error code MegaError::API_EACCESS
-         * in onRequestFinish. The MegaRequest::getEmail will return the email of the account that was attempted
-         * to confirm.
+         * in onRequestFinish.
          * If logged-in into the account that is attempted to confirm and the account is already confirmed, you
          * will get the error code MegaError::API_EEXPIRED in onRequestFinish.
+         * In both cases, the MegaRequest::getEmail will return the email of the account that was attempted
+         * to confirm, and the MegaRequest::getName will return the name.
          *
          * @param link Confirmation link (#confirm) or new signup link (#newsignup)
          * @param listener MegaRequestListener to track this request
@@ -7938,10 +7939,11 @@ class MegaApi
          * the account by checking MegaEvent::getText. @see MegaListener::onEvent.
          *
          * If already logged-in into a different account, you will get the error code MegaError::API_EACCESS
-         * in onRequestFinish. The MegaRequest::getEmail will return the email of the account that was attempted
-         * to confirm.
+         * in onRequestFinish.
          * If logged-in into the account that is attempted to confirm and the account is already confirmed, you
          * will get the error code MegaError::API_EEXPIRED in onRequestFinish.
+         * In both cases, the MegaRequest::getEmail will return the email of the account that was attempted
+         * to confirm, and the MegaRequest::getName will return the name.
          *
          * @param link Confirmation link
          * @param password Password of the account

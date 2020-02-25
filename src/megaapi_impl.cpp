@@ -15329,7 +15329,6 @@ void MegaApiImpl::querysignuplink_result(handle uh, const char* email, const cha
         e = API_EACCESS;
     }
     
-    // TODO: decide whether finish the request here for V2, or to proceed with auto-confirmation, as by now
     if(request->getType() == MegaRequest::TYPE_QUERY_SIGNUP_LINK || e)
     {
         fireOnRequestFinish(request, MegaError(e));
@@ -15392,6 +15391,7 @@ void MegaApiImpl::confirmsignuplink2_result(handle, const char *name, const char
     if (!e)
     {
         assert(strcmp(email, request->getEmail()) == 0);
+        assert(strcmp(name, request->getName()) == 0);
         request->setName(name);
         request->setEmail(email);
         request->setFlag(true);
@@ -19929,13 +19929,14 @@ void MegaApiImpl::sendPendingRequests()
                 {
                     if (code.find("ConfirmCodeV2") != string::npos)
                     {
-                        // “ConfirmCodeV2” || Email Confirmation Token (128 bits) || Email (>=5 chars) || \t || Fullname || Hash
+                        // “ConfirmCodeV2” || Email Confirmation Token (128 bits) || Email (>=5 chars) || \t || Fullname || Hash (15B)
                         size_t posEmail = 13 + 15;
                         size_t endEmail = code.find("\t", posEmail);
                         if (endEmail != string::npos)
                         {
                             string email = code.substr(posEmail, endEmail - posEmail);
                             request->setEmail(email.c_str());
+                            request->setName(code.substr(endEmail, code.size() - 15).c_str());
 
                             sessiontype_t session = client->loggedin();
                             if (session == FULLACCOUNT)
@@ -20023,13 +20024,14 @@ void MegaApiImpl::sendPendingRequests()
             {
                 if (code.find("ConfirmCodeV2") != string::npos)
                 {
-                    // “ConfirmCodeV2” || Email Confirmation Token (128 bits) || Email (>=5 chars) || \t || Fullname || Hash
+                    // “ConfirmCodeV2” || Email Confirmation Token (128 bits) || Email (>=5 chars) || \t || Fullname || Hash (15B)
                     size_t posEmail = 13 + 15;
                     size_t endEmail = code.find("\t", posEmail);
                     if (endEmail != string::npos)
                     {
-                        string email = code.substr(posEmail, endEmail);
+                        string email = code.substr(posEmail, endEmail - posEmail);
                         request->setEmail(email.c_str());
+                        request->setName(code.substr(endEmail, code.size() - 15).c_str());
 
                         sessiontype_t session = client->loggedin();
                         if (session == FULLACCOUNT)
