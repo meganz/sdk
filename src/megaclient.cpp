@@ -6800,7 +6800,7 @@ void MegaClient::makeattr(SymmCipher* key, string* attrstring, const char* json,
     delete[] buf;
 }
 
-void MegaClient::makeattr(SymmCipher* key, std::unique_ptr<string> const & attrstring, const char* json, int l) const
+void MegaClient::makeattr(SymmCipher* key, const std::unique_ptr<string>& attrstring, const char* json, int l) const
 {
     makeattr(key, attrstring.get(), json, l);
 }
