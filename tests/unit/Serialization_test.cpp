@@ -614,7 +614,7 @@ TEST(Serialization, Node_whenNodeIsEncrypted)
 {
     MockClient client;
     auto& n = mt::makeNode(*client.cli, mega::FILENODE, 42);
-    n.attrstring = new std::string; // owned by Node
+    n.attrstring.reset(new std::string);
     std::string data;
     ASSERT_FALSE(n.serialize(&data));
 }

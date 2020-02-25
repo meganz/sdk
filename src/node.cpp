@@ -32,65 +32,6 @@
 
 namespace mega {
 
-NewNode::NewNode()
-{
-    syncid = UNDEF;
-    added = false;
-    source = NEW_NODE;
-    ovhandle = UNDEF;
-    uploadhandle = UNDEF;
-    localnode = nullptr;
-    fileattributes = nullptr;
-}
-
-NewNode::~NewNode()
-{
-    delete fileattributes;
-}
-
-NewNode::NewNode(NewNode&& o)
-    : NewNode() // assign defaults
-{
-    swap(std::move(o));
-}
-
-NewNode& NewNode::operator=(NewNode&& o)
-{
-    if (this != &o)
-    {
-        if (attrstring)
-        {
-            delete attrstring;
-            attrstring = nullptr;
-        }
-        localnode = nullptr;
-        if (fileattributes)
-        {
-            delete fileattributes;
-            fileattributes = nullptr;
-        }
-        swap(std::move(o));
-    }
-    return *this;
-}
-
-void NewNode::swap(NewNode&& o)
-{
-    std::swap(nodehandle, o.nodehandle);
-    std::swap(parenthandle, o.parenthandle);
-    std::swap(type, o.type);
-    std::swap(attrstring, o.attrstring);
-    std::swap(nodekey, o.nodekey);
-    std::swap(source, o.source);
-    std::swap(ovhandle, o.ovhandle);
-    std::swap(uploadhandle, o.uploadhandle);
-    std::swap(uploadtoken, o.uploadtoken);
-    std::swap(syncid, o.syncid);
-    std::swap(localnode, o.localnode);
-    std::swap(fileattributes, o.fileattributes);
-    std::swap(added, o.added);
-}
-
 Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
            nodetype_t t, m_off_t s, handle u, const char* fa, m_time_t ts)
 {
@@ -776,8 +717,7 @@ void Node::setattr()
 
         delete[] buf;
 
-        delete attrstring;
-        attrstring = NULL;
+        attrstring.reset();
     }
 }
 
@@ -928,8 +868,7 @@ bool Node::applykey()
     if (type > FOLDERNODE)
     {
         //Root nodes contain an empty attrstring
-        delete attrstring;
-        attrstring = NULL;
+        attrstring.reset();
     }
 
     if (keyApplied() || !nodekeydata.size())
@@ -1162,19 +1101,6 @@ void Node::setpubliclink(handle ph, m_time_t cts, m_time_t ets, bool takendown)
         plink->ets = ets;
         plink->takendown = takendown;
     }
-}
-
-NodeCore::NodeCore()
-{
-    attrstring = NULL;
-    nodehandle = UNDEF;
-    parenthandle = UNDEF;
-    type = TYPE_UNKNOWN;
-}
-
-NodeCore::~NodeCore()
-{
-    delete attrstring;
 }
 
 PublicLink::PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown)

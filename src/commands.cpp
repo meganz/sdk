@@ -1077,8 +1077,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
                 {
                     // if attributes are set on the newnode then the app is not using the pendingattr mechanism
                     s.swap(*nni->fileattributes);
-                    delete nni->fileattributes;
-                    nni->fileattributes = NULL;
+                    nni->fileattributes.reset();
                 }
                 else
                 {
