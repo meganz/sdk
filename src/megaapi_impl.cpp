@@ -22417,13 +22417,18 @@ void ExternalLogger::postLog(int logLevel, const char *message, const char *file
 #ifndef ENABLE_LOG_PERFORMANCE
     mutex.lock();
 #endif
+    //For direct logging, we could use DirectMessage(message) here
     SimpleLogger{static_cast<LogLevel>(logLevel), filename, line} << message;
 #ifndef ENABLE_LOG_PERFORMANCE
     mutex.unlock();
 #endif
 }
 
-void ExternalLogger::log(const char *time, int loglevel, const char *source, const char *message)
+void ExternalLogger::log(const char *time, int loglevel, const char *source, const char *message
+#ifdef ENABLE_LOG_PERFORMANCE
+          , std::vector<const char *> directMessages
+#endif
+                         )
 {
     if (!time)
     {
@@ -22445,7 +22450,11 @@ void ExternalLogger::log(const char *time, int loglevel, const char *source, con
 #endif
     for (auto logger : megaLoggers)
     {
-        logger->log(time, loglevel, source, message);
+        logger->log(time, loglevel, source, message
+#ifdef ENABLE_LOG_PERFORMANCE
+                    , directMessages
+#endif
+                    );
     }
 
     if (logToConsole)
