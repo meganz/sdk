@@ -1,5 +1,4 @@
-#ifndef QTMEGAREQUESTLISTENER_H
-#define QTMEGAREQUESTLISTENER_H
+#pragma once
 
 #include <QObject>
 #include "megaapi.h"
@@ -27,5 +26,3 @@ protected:
     MegaApi *megaApi;
 };
 }
-
-#endif // QTMEGAREQUESTLISTENER_H

@@ -277,7 +277,7 @@ struct MEGA_API MegaApp
     virtual void transfer_added(Transfer*) { }
     virtual void transfer_removed(Transfer*) { }
     virtual void transfer_prepare(Transfer*) { }
-    virtual void transfer_failed(Transfer*, error, dstime = 0) { }
+    virtual void transfer_failed(Transfer*, error, dstime = 0, handle = UNDEF) { }
     virtual void transfer_update(Transfer*) { }
     virtual void transfer_complete(Transfer*) { }
 
@@ -312,6 +312,8 @@ struct MEGA_API MegaApp
     {
         return true;
     }
+
+    virtual void sync_auto_resumed(const string&, handle, long long, const vector<string>&) { }
 
     // suggest reload due to possible race condition with other clients
     virtual void reload(const char*) { }

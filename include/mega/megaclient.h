@@ -41,6 +41,8 @@
 
 namespace mega {
 
+class SyncConfigBag;
+
 class MEGA_API FetchNodesStats
 {
 public:
@@ -414,12 +416,15 @@ public:
     void unlinkversions();
 
     // move node to new parent folder
-    error rename(Node*, Node*, syncdel_t = SYNCDEL_NONE, handle = UNDEF);
+    error rename(Node*, Node*, syncdel_t = SYNCDEL_NONE, handle = UNDEF, const char *newName = nullptr);
+
+    // find a transfer by fingerprint and target type (private/foreign) in transfers or cached transfers
+    transfer_map::iterator getTransferByFileFingerprint(FileFingerprint *f, transfer_map &transfers, bool foreign);
 
     // start/stop/pause file transfer
     bool startxfer(direction_t, File*, DBTableTransactionCommitter&, bool skipdupes = false, bool startfirst = false, bool donotpersist = false);
     void stopxfer(File* f, DBTableTransactionCommitter* committer);
-    void pausexfers(direction_t, bool, bool = false);
+    void pausexfers(direction_t, bool pause, bool hard, DBTableTransactionCommitter& committer);
 
     // maximum number of connections per transfer
     static const unsigned MAX_NUM_CONNECTIONS = 6;
@@ -442,6 +447,12 @@ public:
 
     // indicates whether all startup syncs have been fully scanned
     bool syncsup;
+
+    // A collection of sync configs backed by a database table
+    std::unique_ptr<SyncConfigBag> syncConfigs;
+
+    // whether we allow the automatic resumption of syncs
+    bool allowAutoResumeSyncs = true;
 #endif
 
     // if set, symlinks will be followed except in recursive deletions
@@ -459,10 +470,10 @@ public:
 
     // add nodes to specified parent node (complete upload, copy files, make
     // folders)
-    void putnodes(handle, NewNode*, int, const char * = NULL);
+    void putnodes(handle, NewNode*, int, const char * = nullptr, Transfer * = nullptr);
 
     // send files/folders to user
-    void putnodes(const char*, NewNode*, int);
+    void putnodes(const char*, NewNode*, int, Transfer * = nullptr);
 
     // attach file attribute to upload or node handle
     void putfa(handle, fatype, SymmCipher*, std::unique_ptr<string>, bool checkAccess = true);
@@ -474,7 +485,7 @@ public:
     void checkfacompletion(handle, Transfer* = NULL);
 
     // attach/update/delete a user attribute
-    void putua(attr_t at, const byte* av = NULL, unsigned avl = 0, int ctag = -1);
+    void putua(attr_t at, const byte* av = NULL, unsigned avl = 0, int ctag = -1, handle lastPublicHandle = UNDEF, int phtype = 0, int64_t ts = 0);
 
     // attach/update multiple versioned user attributes at once
     void putua(userattr_map *attrs, int ctag = -1);
@@ -513,7 +524,7 @@ public:
     // add/delete sync
     error isnodesyncable(Node*, bool* = NULL);
 
-    error addsync(SyncConfig, string*, const char*, string*, Node*, fsfp_t = 0, int = 0, void* = NULL);
+    error addsync(SyncConfig, const char*, string*, int = 0, void* = NULL);
 
     void delsync(Sync*, bool = true);
 
@@ -844,6 +855,11 @@ private:
     // maximum number of concurrent putfa
     static const int MAXPUTFA;
 
+#ifdef ENABLE_SYNC
+    // Resumes all resumable syncs
+    void resumeResumableSyncs();
+#endif
+
     // update time at which next deferred transfer retry kicks in
     void nexttransferretry(direction_t d, dstime*);
 
@@ -948,7 +964,7 @@ public:
     bool gfxdisabled;
     
     // DB access
-    DbAccess* dbaccess;
+    DbAccess* dbaccess = nullptr;
 
     // state cache table for logged in user
     DbTable* sctable;
@@ -1581,6 +1597,10 @@ public:
         CodeCounter::DurationSum transfersActiveTime;
         std::string report(bool reset, HttpIO* httpio, Waiter* waiter, const RequestDispatcher& reqs);
     } performanceStats;
+
+#ifdef ENABLE_SYNC
+    void resetSyncConfigs();
+#endif
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
     ~MegaClient();

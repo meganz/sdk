@@ -21,7 +21,7 @@
 
 // Many of these tests are still being worked on.
 // The file uses some C++17 mainly for the very convenient std::filesystem library, though the main SDK must still build with C++11 (and prior)
-#ifdef ENABLE_SYNC
+
 
 #include "test.h"
 #include <mega.h>
@@ -34,6 +34,8 @@
 #include <atomic>
 
 #include <megaapi_impl.h>
+
+#ifdef ENABLE_SYNC
 
 using namespace ::mega;
 using namespace ::std;
@@ -805,9 +807,8 @@ struct StandardClient : public MegaApp
         {
             if (Node* m = drillchildnodebyname(n, subfoldername))
             {
-                string local, orig = localpath.u8string();
-                client.fsaccess->path2local(&orig, &local);
-                error e = client.addsync(SyncConfig{}, &local, DEBRISFOLDER, NULL, m, 0, syncid);  // use syncid as tag
+                SyncConfig syncConfig{localpath.u8string(), m->nodehandle, 0};
+                error e = client.addsync(std::move(syncConfig), DEBRISFOLDER, NULL, syncid);  // use syncid as tag
                 if (!e)
                 {
                     syncSet[syncid] = SyncInfo{ m->nodehandle, localpath };
@@ -1378,9 +1379,8 @@ struct StandardClient : public MegaApp
         assert(!onFetchNodes);
         onFetchNodes = [=](StandardClient& mc, promise<bool>& pb)
         {
-            promise<bool> tp;
-            mc.ensureTestBaseFolder(false, tp);
-            pb.set_value(tp.get_future().get() ? mc.setupSync_inthread(syncid, remotesyncrootfolder, localsyncpath) : false);
+            mc.syncSet[syncid] = StandardClient::SyncInfo{ mc.drillchildnodebyname(mc.gettestbasenode(), remotesyncrootfolder)->nodehandle, localsyncpath };
+            pb.set_value(true);
         };
 
         p2 = thread_do([](StandardClient& sc, promise<bool>& pb) { sc.fetchnodes(pb); });

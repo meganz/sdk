@@ -156,6 +156,8 @@ public:
     m_off_t onTransferUpdate_progress;
     m_off_t onTransferUpdate_filesize;
 
+    std::mutex lastEventMutex;
+    std::unique_ptr<MegaEvent> lastEvent;
 
 protected:
     virtual void SetUp();
@@ -188,17 +190,18 @@ protected:
 #ifdef ENABLE_CHAT
     void onChatsUpdate(MegaApi *api, MegaTextChatList *chats) override;
 #endif
+    void onEvent(MegaApi* api, MegaEvent *event) override;
 
 public:
     void login(unsigned int apiIndex, int timeout = maxTimeout);
     void loginBySessionId(unsigned int apiIndex, const std::string& sessionId, int timeout = maxTimeout);
-    void fetchnodes(unsigned int apiIndex, int timeout = maxTimeout);
+    void fetchnodes(unsigned int apiIndex, int timeout = maxTimeout, bool resumeSyncs = false);
     void logout(unsigned int apiIndex, int timeout = maxTimeout);
     char* dumpSession();
     void locallogout(int timeout = maxTimeout);
     void resumeSession(const char *session, int timeout = maxTimeout);
 
-    void purgeTree(MegaNode *p);
+    void purgeTree(MegaNode *p, bool depthfirst = true);
     bool waitForResponse(bool *responseReceived, unsigned int timeout = maxTimeout);
 
     bool synchronousRequest(int apiIndex, int type, std::function<void()> f, unsigned int timeout = maxTimeout);

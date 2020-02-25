@@ -2031,8 +2031,7 @@ class MegaApiImpl : public MegaApp
         void getCloudStorageUsed(MegaRequestListener *listener = NULL); 
         void getAccountDetails(bool storage, bool transfer, bool pro, bool sessions, bool purchases, bool transactions, int source = -1, MegaRequestListener *listener = NULL);
         void queryTransferQuota(long long size, MegaRequestListener *listener = NULL);
-        void createAccount(const char* email, const char* password, const char* name, MegaRequestListener *listener = NULL);
-        void createAccount(const char* email, const char* password, const char* firstname, const char* lastname, MegaRequestListener *listener = NULL);
+        void createAccount(const char* email, const char* password, const char* firstname, const char* lastname, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener = NULL);
         void resumeCreateAccount(const char* sid, MegaRequestListener *listener = NULL);
         void cancelCreateAccount(MegaRequestListener *listener = NULL);
         void sendSignupLink(const char* email, const char *name, const char *password, MegaRequestListener *listener = NULL);
@@ -2078,6 +2077,7 @@ class MegaApiImpl : public MegaApp
         void createFolder(const char* name, MegaNode *parent, MegaRequestListener *listener = NULL);
         bool createLocalFolder(const char *path);
         void moveNode(MegaNode* node, MegaNode* newParent, MegaRequestListener *listener = NULL);
+        void moveNode(MegaNode* node, MegaNode* newParent, const char *newName, MegaRequestListener *listener = NULL);
         void copyNode(MegaNode* node, MegaNode *newParent, MegaRequestListener *listener = NULL);
         void copyNode(MegaNode* node, MegaNode *newParent, const char* newName, MegaRequestListener *listener = NULL);
         void renameNode(MegaNode* node, const char* newName, MegaRequestListener *listener = NULL);
@@ -2126,7 +2126,7 @@ class MegaApiImpl : public MegaApp
         void setNodeCoordinates(MegaNode *node, bool unshareable, double latitude, double longitude, MegaRequestListener *listener = NULL);
         void exportNode(MegaNode *node, int64_t expireTime, MegaRequestListener *listener = NULL);
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
-        void fetchNodes(MegaRequestListener *listener = NULL);
+        void fetchNodes(bool resumeSyncs, MegaRequestListener *listener = NULL);
         void getPricing(MegaRequestListener *listener = NULL);
         void getPaymentId(handle productHandle, handle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener = NULL);
         void upgradeAccount(MegaHandle productHandle, int paymentMethod, MegaRequestListener *listener = NULL);
@@ -2224,8 +2224,7 @@ class MegaApiImpl : public MegaApp
         //Sync
         int syncPathState(string *path);
         MegaNode *getSyncedNode(string *path);
-        void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp = NULL, MegaRequestListener* listener = NULL);
-        void resumeSync(const char *localFolder, long long localfp, MegaNode *megaFolder, MegaRegExp *regExp = NULL, MegaRequestListener *listener = NULL);
+        void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp = NULL, long long localfp = 0, MegaRequestListener* listener = NULL);
         void removeSync(handle nodehandle, MegaRequestListener *listener=NULL);
         void disableSync(handle nodehandle, MegaRequestListener *listener=NULL);
         int getNumActiveSyncs();
@@ -2421,6 +2420,8 @@ class MegaApiImpl : public MegaApp
         static bool nodeComparatorPhotoDESC(Node *i, Node *j, MegaClient& mc);
         static bool nodeComparatorVideoASC(Node *i, Node *j, MegaClient& mc);
         static bool nodeComparatorVideoDESC(Node *i, Node *j, MegaClient& mc);
+        static bool nodeComparatorPublicLinkCreationASC(Node *i, Node *j);
+        static bool nodeComparatorPublicLinkCreationDESC(Node *i, Node *j);
         static int typeComparator(Node *i, Node *j);
         static bool userComparatorDefaultASC (User *i, User *j);
 
@@ -2873,7 +2874,7 @@ protected:
         File* file_resume(string*, direction_t *type) override;
 
         void transfer_prepare(Transfer*) override;
-        void transfer_failed(Transfer*, error error, dstime timeleft) override;
+        void transfer_failed(Transfer*, error error, dstime timeleft, handle targetHandle = UNDEF) override;
         void transfer_update(Transfer*) override;
 
         dstime pread_failure(error, int, void*, dstime) override;
@@ -2947,6 +2948,7 @@ protected:
         void syncupdate_treestate(LocalNode*) override;
         bool sync_syncable(Sync *, const char*, string *, Node *) override;
         bool sync_syncable(Sync *, const char*, string *) override;
+        void sync_auto_resumed(const string& localPath, handle remoteNode, long long localFp, const vector<string>& regExp) override;
         void syncupdate_local_lockretry(bool) override;
 
         // for the exclusive use of sync_syncable

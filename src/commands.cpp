@@ -1018,7 +1018,7 @@ void CommandSetAttr::procresult()
 // response)
 CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
                                  const char* userhandle, NewNode* newnodes,
-                                 int numnodes, int ctag, putsource_t csource, const char *cauth)
+                                 int numnodes, int ctag, putsource_t csource, const char *cauth, Transfer *aTransfer)
 {
     byte key[FILENODEKEYLENGTH];
     int i;
@@ -1027,6 +1027,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
     nnsize = numnodes;
     type = userhandle ? USER_HANDLE : NODE_HANDLE;
     source = csource;
+    transfer = aTransfer;
 
     cmd("p");
     notself(client);
@@ -1192,7 +1193,33 @@ void CommandPutNodes::procresult()
         LOG_debug << "Putnodes error " << e;
         if (e == API_EOVERQUOTA)
         {
-            client->activateoverquota(0);
+            if (transfer)
+            {
+                transfer->failed(e, *client->mTctableRequestCommitter, 0, targethandle);
+                // Transfer::failed() will activate overquota if appropriate
+            }
+
+            if (client->isPrivateNode(targethandle))
+            {
+                client->activateoverquota(0);
+            }
+//            else
+//            {
+//                // TBD: should ongoing foreign transfers fail in case we detect the target account is overquota?
+//                // It comes at the cost of iterate through all transfers upon EOVERQUOTA for any foreign target.
+//                for (auto &itTransfers : transfers[PUT])
+//                {
+//                    Transfer *transfer = itTransfers.second;
+//                    for (file_list::iterator itFiles = transfer->files.begin(); itFiles != transfer->files.end();)
+//                    {
+//                        File *file = (*itFiles++);
+//                        if (file->h == targetHandle)
+//                        {
+//                            transfer->failed(API_EOVERQUOTA, *mTctableRequestCommitter, 0, targetHandle);
+//                        }
+//                    }
+//                }
+//            }
         }
 #ifdef ENABLE_SYNC
         if (source == PUTNODES_SYNC)
@@ -1340,10 +1367,10 @@ void CommandMoveNode::procresult()
     if (client->json.isnumeric())
     {
         error e = (error)client->json.getint();
-        if (e == API_EOVERQUOTA)
-        {
-            client->activateoverquota(0);
-        }
+
+        // movements should not result on overquota error
+        // (also, a movement between different accounts is not allowed, but performed by copy+delete)
+        assert(e != API_EOVERQUOTA);
 
 #ifdef ENABLE_SYNC
         if (syncdel != SYNCDEL_NONE)
@@ -1937,6 +1964,13 @@ void CommandLogin::procresult()
                 {
                     client->sessionkey.assign((const char *)sek, sizeof(sek));
                 }
+
+#ifdef ENABLE_SYNC
+                client->resetSyncConfigs();
+#endif
+
+                // fetch the unshareable key straight away, so we have it before fetchnodes-from-server completes .
+                client->reqs.add(new CommandUnshareableUA(client, true, 5));
 
                 return client->app->login_result(API_OK);
 
@@ -2925,7 +2959,7 @@ void CommandPutUAVer::procresult()
     }
 }
 
-CommandPutUA::CommandPutUA(MegaClient* /*client*/, attr_t at, const byte* av, unsigned avl, int ctag)
+CommandPutUA::CommandPutUA(MegaClient* /*client*/, attr_t at, const byte* av, unsigned avl, int ctag, handle lph, int phtype, int64_t ts)
 {
     this->at = at;
     this->av.assign((const char*)av, avl);
@@ -2942,6 +2976,15 @@ CommandPutUA::CommandPutUA(MegaClient* /*client*/, attr_t at, const byte* av, un
     else
     {
         arg(an.c_str(), av, avl);
+    }
+
+    if (!ISUNDEF(lph))
+    {
+        beginobject("aff");
+        arg("id", (byte*)&lph, MegaClient::NODEHANDLE);
+        arg("ts", ts);
+        arg("t", phtype);   // 1=affiliate id, 2=file/folder link, 3=chat link, 4=contact link
+        endobject();
     }
 
     tag = ctag;
@@ -4911,6 +4954,9 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, bool nocache)
     {
         arg("ca", 1);
     }
+
+    // The servers are more efficient with this command when it's the only one in the batch
+    batchSeparately = true;
 
     tag = client->reqtag;
 }

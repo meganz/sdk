@@ -87,8 +87,7 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
 
     plink = NULL;
 
-    memset(&changed,-1,sizeof changed);
-    changed.removed = false;
+    memset(&changed, 0, sizeof changed);
 
     Node* p;
 
@@ -1931,6 +1930,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     l->parent_dbid = parent_dbid;
 
     l->fsid = fsid;
+    l->fsid_it = sync->client->fsidnode.end();
 
     l->localname.assign(localname, localnamelen);
     l->slocalname = nullptr;
