@@ -310,6 +310,8 @@ struct StandardClient : public MegaApp
 #endif
 
     string client_dbaccess_path; 
+    std::unique_ptr<HttpIO> httpio;
+    std::unique_ptr<FileSystemAccess> fsaccess;
     MegaClient client;
     std::atomic<bool> clientthreadexit{false};
     bool fatalerror = false;
@@ -337,7 +339,9 @@ struct StandardClient : public MegaApp
 
     StandardClient(const fs::path& basepath, const string& name)
         : client_dbaccess_path(ensureDir(basepath / name / "").u8string())
-        , client(this, &waiter, new HTTPIO_CLASS, new FSACCESS_CLASS,
+        , httpio(new HTTPIO_CLASS)
+        , fsaccess(new FSACCESS_CLASS)
+        , client(this, &waiter, httpio.get(), fsaccess.get(),
 #ifdef DBACCESS_CLASS
             new DBACCESS_CLASS(&client_dbaccess_path),
 #else
@@ -582,10 +586,10 @@ struct StandardClient : public MegaApp
         client.fetchnodes();
     }
 
-    NewNode* makeSubfolder(const string& utf8Name)
+    NewNode makeSubfolder(const string& utf8Name)
     {
-        NewNode* newnode = new NewNode[1];
-        client.putnodes_prepareOneFolder(newnode, utf8Name);
+        NewNode newnode;
+        client.putnodes_prepareOneFolder(&newnode, utf8Name);
         return newnode;
     }
      
@@ -686,45 +690,40 @@ struct StandardClient : public MegaApp
                 resultproc.prepresult(PUTNODES, [this, &pb](error e) {
                     ensureTestBaseFolder(false, pb);
                 });
-                client.putnodes(root->nodehandle, makeSubfolder("mega_test_sync"), 1);
+                auto nn = new NewNode[1]; // freed by putnodes_result
+                nn[0] = makeSubfolder("mega_test_sync");
+                client.putnodes(root->nodehandle, nn, 1);
                 return;
             }
         }
         pb.set_value(false);
     }
 
-    NewNode* buildSubdirs(vector<NewNode*>& nodes, const string& prefix, int n, int recurselevel)
+    NewNode* buildSubdirs(list<NewNode>& nodes, const string& prefix, int n, int recurselevel)
     {
-        NewNode* nn = makeSubfolder(prefix);
-        nodes.push_back(nn);
-        nn->nodehandle = nodes.size();
+        nodes.emplace_back(makeSubfolder(prefix));
+        auto& nn = nodes.back();
+        nn.nodehandle = nodes.size();
 
         if (recurselevel > 0)
         {
             for (int i = 0; i < n; ++i)
             {
-                buildSubdirs(nodes, prefix + "_" + to_string(i), n, recurselevel - 1)->parenthandle = nn->nodehandle;
+                buildSubdirs(nodes, prefix + "_" + to_string(i), n, recurselevel - 1)->parenthandle = nn.nodehandle;
             }
         }
 
-        return nn;
+        return &nn;
     }
 
     void makeCloudSubdirs(const string& prefix, int depth, int fanout, promise<bool>& pb, const string& atpath = "")
     {
         assert(basefolderhandle != UNDEF);
 
-        vector<NewNode*> nodes;
+        std::list<NewNode> nodes;
         NewNode* nn = buildSubdirs(nodes, prefix, fanout, depth);
         nn->parenthandle = UNDEF;
         nn->ovhandle = UNDEF;
-
-        NewNode* nodearray = new NewNode[nodes.size()];
-        for (size_t i = 0; i < nodes.size(); ++i)
-        {
-            nodearray[i] = *nodes[i]; // todo:  need move semantics
-            //delete nodes[i];
-        }
 
         Node* atnode = client.nodebyhandle(basefolderhandle);
         if (atnode && !atpath.empty())
@@ -745,6 +744,12 @@ struct StandardClient : public MegaApp
                     cout << "putnodes result: " << e << endl;
                 }
             });
+            auto nodearray = new NewNode[nodes.size()]; // freed by putnodes_result
+            size_t i = 0;
+            for (auto n = nodes.begin(); n != nodes.end(); ++n, ++i)
+            {
+                nodearray[i] = std::move(*n);
+            }
             client.putnodes(atnode->nodehandle, nodearray, (int)nodes.size());
         }
     }
@@ -1166,6 +1171,7 @@ struct StandardClient : public MegaApp
         if (nn)  // ignore sync based putnodes
         {
             resultproc.processresult(PUTNODES, e);
+            delete[] nn;
         }
     }
 

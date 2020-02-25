@@ -245,19 +245,19 @@ void SdkTest::TearDown()
         LOG_info << "___ Cleaning up test (TearDown()) ___";
 
         // Remove nodes in Cloud & Rubbish
-        purgeTree(megaApi[0]->getRootNode(), false);
-        purgeTree(megaApi[0]->getRubbishNode(), false);
+        purgeTree(std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get(), false);
+        purgeTree(std::unique_ptr<MegaNode>{megaApi[0]->getRubbishNode()}.get(), false);
 //        megaApi[0]->cleanRubbishBin();
 
         // Remove auxiliar contact
-        MegaUserList *ul = megaApi[0]->getContacts();
+        std::unique_ptr<MegaUserList> ul{megaApi[0]->getContacts()};
         for (int i = 0; i < ul->size(); i++)
         {
             removeContact(ul->get(i)->getEmail());
         }
 
         // Remove pending contact requests
-        MegaContactRequestList *crl = megaApi[0]->getOutgoingContactRequests();
+        std::unique_ptr<MegaContactRequestList> crl{megaApi[0]->getOutgoingContactRequests()};
         for (int i = 0; i < crl->size(); i++)
         {
             MegaContactRequest *cr = crl->get(i);
@@ -350,11 +350,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
             MegaTextChat *chat = request->getMegaTextChatList()->get(0)->copy();
 
             mApi[apiIndex].chatid = chat->getHandle();
-            if (mApi[apiIndex].chats.find(mApi[apiIndex].chatid) != mApi[apiIndex].chats.end())
-            {
-                delete mApi[apiIndex].chats[mApi[apiIndex].chatid];
-            }
-            mApi[apiIndex].chats[mApi[apiIndex].chatid] = chat;
+            mApi[apiIndex].chats[mApi[apiIndex].chatid].reset(chat);
         }
         break;
 
@@ -364,7 +360,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
             mApi[apiIndex].chatid = request->getNodeHandle();
             if (mApi[apiIndex].chats.find(mApi[apiIndex].chatid) != mApi[apiIndex].chats.end())
             {
-                MegaTextChat *chat = mApi[apiIndex].chats[mApi[apiIndex].chatid];
+                MegaTextChat *chat = mApi[apiIndex].chats[mApi[apiIndex].chatid].get();
                 MegaHandle uh = request->getParentHandle();
                 int priv = request->getAccess();
                 userpriv_vector *privsbuf = new userpriv_vector;
@@ -397,7 +393,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
             mApi[apiIndex].chatid = request->getNodeHandle();
             if (mApi[apiIndex].chats.find(mApi[apiIndex].chatid) != mApi[apiIndex].chats.end())
             {
-                MegaTextChat *chat = mApi[apiIndex].chats[mApi[apiIndex].chatid];
+                MegaTextChat *chat = mApi[apiIndex].chats[mApi[apiIndex].chatid].get();
                 MegaHandle uh = request->getParentHandle();
                 userpriv_vector *privsbuf = new userpriv_vector;
 
@@ -550,12 +546,11 @@ void SdkTest::onChatsUpdate(MegaApi *api, MegaTextChatList *chats)
         handle chatid = list->get(i)->getHandle();
         if (mApi[apiIndex].chats.find(chatid) != mApi[apiIndex].chats.end())
         {
-            delete mApi[apiIndex].chats[chatid];
-            mApi[apiIndex].chats[chatid] = list->get(i)->copy();
+            mApi[apiIndex].chats[chatid].reset(list->get(i)->copy());
         }
         else
         {
-            mApi[apiIndex].chats[chatid] = list->get(i)->copy();
+            mApi[apiIndex].chats[chatid].reset(list->get(i)->copy());
         }
     }
     delete list;
@@ -663,8 +658,7 @@ void SdkTest::resumeSession(const char *session, int timeout)
 void SdkTest::purgeTree(MegaNode *p, bool depthfirst)
 {
     int apiIndex = 0;
-    MegaNodeList *children;
-    children = megaApi[0]->getChildren(p);
+    std::unique_ptr<MegaNodeList> children{megaApi[0]->getChildren(p)};
 
     for (int i = 0; i < children->size(); i++)
     {
@@ -1494,15 +1488,12 @@ TEST_F(SdkTest, SdkTestTransfers)
 
     // --- Get node by fingerprint (needs to be a file, not a folder) ---
 
-    char *fingerprint = megaApi[0]->getFingerprint(n1);
-    MegaNode *n2 = megaApi[0]->getNodeByFingerprint(fingerprint);
+    std::unique_ptr<char[]> fingerprint{megaApi[0]->getFingerprint(n1)};
+    MegaNode *n2 = megaApi[0]->getNodeByFingerprint(fingerprint.get());
 
     null_pointer = (n2 == NULL);
     EXPECT_FALSE(null_pointer) << "Node by fingerprint not found";
 //    ASSERT_EQ(n2->getHandle(), n4->getHandle());  This test may fail due to multiple nodes with the same name
-
-    delete fingerprint;
-
 
     // --- Get the size of a file ---
 
