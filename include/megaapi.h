@@ -8609,6 +8609,14 @@ class MegaApi
         static void setLogLevel(int logLevel);
 
         /**
+         * @brief Set the limit of size to requests payload
+         *
+         * This functions sets the max size that will be allowed for requests payload
+         * If the payload exceeds that, the line will be truncated in the midle with [...] in between
+         */
+        static void setMaxPayloadLogSize(long long maxSize);
+
+        /**
          * @brief Enable log to console
          *
          * By default, log to console is false. Logging to console is serialized via a mutex to
