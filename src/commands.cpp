@@ -959,10 +959,11 @@ CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n, SymmCipher* cipher, 
     cmd("a");
     notself(client);
 
-    string at;
+    std::unique_ptr<string> at_ptr(new string);
+    auto& at = *at_ptr;
 
     n->attrs.getjson(&at);
-    client->makeattr(cipher, &at, at.c_str(), int(at.size()));
+    client->makeattr(cipher, at_ptr, at.c_str(), int(at.size()));
 
     arg("n", (byte*)&n->nodehandle, MegaClient::NODEHANDLE);
     arg("at", (byte*)at.c_str(), int(at.size()));

@@ -6779,7 +6779,7 @@ void MegaClient::handleauth(handle h, byte* auth)
 }
 
 // make attribute string; add magic number prefix
-void MegaClient::makeattr(SymmCipher* key, string* attrstring, const char* json, int l) const
+void MegaClient::makeattr(SymmCipher* key, std::unique_ptr<string> const & attrstring, const char* json, int l) const
 {
     if (l < 0)
     {
@@ -6850,7 +6850,7 @@ void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldern
     // JSON-encode object and encrypt attribute string
     attrs.getjson(&attrstring);
     newnode->attrstring.reset(new string);
-    makeattr(&tmpnodecipher, newnode->attrstring.get(), attrstring.c_str());
+    makeattr(&tmpnodecipher, newnode->attrstring, attrstring.c_str());
 }
 
 // send new nodes to API for processing
@@ -13224,7 +13224,7 @@ void MegaClient::syncupdate()
                 tattrs.getjson(&tattrstring);
                 tkey.setkey((const byte*)nnp->nodekey.data(), nnp->type);
                 nnp->attrstring.reset(new string);
-                makeattr(&tkey, nnp->attrstring.get(), tattrstring.c_str());
+                makeattr(&tkey, nnp->attrstring, tattrstring.c_str());
 
                 l->treestate(TREESTATE_SYNCING);
                 nnp++;
@@ -13571,7 +13571,7 @@ void MegaClient::execmovetosyncdebris()
             tattrs.getjson(&tattrstring);
             tkey.setkey((const byte*)nn->nodekey.data(), FOLDERNODE);
             nn->attrstring.reset(new string);
-            makeattr(&tkey, nn->attrstring.get(), tattrstring.c_str());
+            makeattr(&tkey, nn->attrstring, tattrstring.c_str());
         }
 
         reqs.add(new CommandPutNodes(this, tn->nodehandle, NULL, nn,

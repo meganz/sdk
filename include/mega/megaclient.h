@@ -401,7 +401,7 @@ public:
     error setattr(Node*, const char* prevattr = NULL);
 
     // prefix and encrypt attribute json
-    void makeattr(SymmCipher*, string*, const char*, int = -1) const;
+    void makeattr(SymmCipher*, std::unique_ptr<string> const &, const char*, int = -1) const;
 
     // check node access level
     int checkaccess(Node*, accesslevel_t);
