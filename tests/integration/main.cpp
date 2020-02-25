@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <fstream>
 
+using namespace mega;
+
 bool gRunningInCI = false;
 bool gTestingInvalidArgs = false;
 std::string USER_AGENT = "Integration Tests with GoogleTest framework";

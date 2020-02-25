@@ -525,7 +525,7 @@ struct StandardClient : public MegaApp
         return nextfunctionSCpromise.get_future();
     }
 
-    enum resultprocenum { PRELOGIN, LOGIN, FETCHNODES, PUTNODES, UNLINK, MOVENODE };
+    enum resultprocenum { PRELOGIN, LOGIN, FETCHNODES, PUTNODES, UNLINK, MOVENODE, CATCHUP };
 
     void preloginFromEnv(const string& userenv, promise<bool>& pb)
     {
@@ -654,6 +654,14 @@ struct StandardClient : public MegaApp
                     return;
                 }
             }
+            if (rpe == CATCHUP)
+            {
+                if (entry.empty())
+                {
+                    //cout << "received unsolicited CATCHUP result" << endl; // too many of those to output
+                    return;
+                }
+            }
             if (!entry.empty())
             {
                 entry.front().f(e);
@@ -665,6 +673,18 @@ struct StandardClient : public MegaApp
             }
         }
     } resultproc;
+
+   void catchup(promise<bool>& pb)
+    {
+        resultproc.prepresult(CATCHUP, [this, &pb](error e) {
+            if (e)
+            {
+                cout << "catchup reports: " << e << endl;
+            }
+            pb.set_value(!e);
+        });
+        client.catchup();
+    }
 
     void deleteTestBaseFolder(bool mayneeddeleting, promise<bool>& pb)
     {
@@ -1134,8 +1154,8 @@ struct StandardClient : public MegaApp
             cout << "](with " << descendants << " descendants) in " << mn->path() << ", ended up with unmatched model nodes:";
             for (auto& m : ms) cout << " " << m.first;
             cout << " and unmatched filesystem paths:";
-            for (auto& i : ps) cout << " " << i.second;
-            cout << endl;
+            for (auto& i : ps) cout << " " << i.second.filename();
+            cout << " in " << p << endl;
             return false;
         };
     }
@@ -1223,6 +1243,11 @@ struct StandardClient : public MegaApp
     void unlink_result(handle, error e) 
     { 
         resultproc.processresult(UNLINK, e);
+    }
+
+    void catchup_result() override 
+    { 
+        resultproc.processresult(CATCHUP, error(API_OK));
     }
 
     void putnodes_result(error e, targettype_t tt, NewNode* nn) override
@@ -4029,14 +4054,17 @@ struct OneWaySymmetryCase
         SyncConfig config(syncrootpath, n->nodehandle, 0, {}, (up ? SyncConfig::TYPE_UP : SyncConfig::TYPE_DOWN), propagateDeletes, forceOverwrites);
         bool syncsetup = state.client.setupSync_mainthread(std::move(config),
                                                            syncrootpath.erase(0, state.client.fsBasePath.u8string().size()+1),  remoteTestBasePath + "/f", sync_tag = ++state.next_sync_tag);
-        ASSERT_TRUE(syncsetup);    
+        ASSERT_TRUE(syncsetup);
+    }
 
-        //future<bool> fb = state.client.thread_do([&](StandardClient& sc, promise<bool>& pb) { 
-        //    error e = sc.client.addsync(SyncConfig(up ? SyncConfig::TYPE_UP : SyncConfig::TYPE_DOWN, propagateDeletes, forceOverwrites), 
-        //                    &localname, DEBRISFOLDER, NULL, n, 0, sync_tag = ++state.next_sync_tag);
-        //    pb.set_value(e ? false : true);
-        //});
-        //ASSERT_TRUE(waitonresults(&fb));
+    void PauseOneWaySync()
+    {
+        state.client.delSync_mainthread(sync_tag, true);
+    }
+
+    void ResumeOneWaySync()
+    {
+        SetupOneWaySync();
     }
 
     void remote_rename(std::string nodepath, std::string newname, bool updatemodel)
@@ -4260,6 +4288,14 @@ struct OneWaySymmetryCase
     }
 };
 
+void CatchupClients(StandardClient& c1, StandardClient& c2)
+{
+    cout << "Catching up" << endl;
+    promise<bool> pb1, pb2;
+    c1.catchup(pb1);
+    c2.catchup(pb2);
+    ASSERT_TRUE(pb1.get_future().get() && pb2.get_future().get());
+}
 
 TEST(Sync, OneWay_Highlevel_Symmetries)
 {
@@ -4274,7 +4310,22 @@ TEST(Sync, OneWay_Highlevel_Symmetries)
     OneWaySymmetryCase::State allstate(clientA1, clientA2);
     std::map<std::string, OneWaySymmetryCase> cases;
 
-
+    static bool singleCase = true;
+    if (singleCase)
+    {
+        OneWaySymmetryCase testcase(allstate);
+        testcase.selfChange = false;
+        testcase.up = false;
+        testcase.action = OneWaySymmetryCase::action_rename;
+        testcase.file = false;
+        testcase.destinationMatchBefore = OneWaySymmetryCase::match_exact;
+        testcase.destinationMatchAfter = OneWaySymmetryCase::match_absent;
+        testcase.propagateDeletes = false;
+        testcase.forceOverwrites = false;
+        testcase.pauseDuringAction = true;
+        cases.emplace(testcase.name(), move(testcase));
+    }
+    else
     for (int selfChange = 0; selfChange < 2; ++selfChange)
     {
         for (int up = 0; up < 2; ++up)
@@ -4283,15 +4334,15 @@ TEST(Sync, OneWay_Highlevel_Symmetries)
             {
                 //for (int file = 0; file < 2; ++file)
                 {
-                    //for (int destinationMatchedBefore = 0; destinationMatchedBefore < 2; ++destinationMatchedBefore)
+                    //for (int destinationMatchBefore = 0; destinationMatchBefore < 3; ++destinationMatchBefore)
                     {
-                        //for (int destinationMatchedAfter = 0; destinationMatchedAfter < 2; ++destinationMatchedAfter)
+                        //for (int destinationMatchAfter = 0; destinationMatchAfter < 3; ++destinationMatchAfter)
                         {
                             //for (int propagateDeletes = 0; propagateDeletes < 2; ++propagateDeletes)
                             {
                                 //for (int forceOverwrites = 0; forceOverwrites < 2; ++forceOverwrites)
                                 {
-                                    //for (int pauseDuringAction = 0; pauseDuringAction < 2; ++pauseDuringAction)
+                                    for (int pauseDuringAction = 0; pauseDuringAction < 2; ++pauseDuringAction)
                                     {
                                         OneWaySymmetryCase testcase(allstate);
                                         testcase.selfChange = selfChange != 0;
@@ -4302,7 +4353,7 @@ TEST(Sync, OneWay_Highlevel_Symmetries)
                                         //testcase.destinationMatchedAfter = destinationMatchedAfter;
                                         //testcase.propagateDeletes = propagateDeletes;
                                         //testcase.forceOverwrites = forceOverwrites;
-                                        //testcase.pauseDuringAction = pauseDuringAction;
+                                        testcase.pauseDuringAction = pauseDuringAction;
                                         cases.emplace(testcase.name(), move(testcase));
                                     }
                                 }
@@ -4338,8 +4389,10 @@ TEST(Sync, OneWay_Highlevel_Symmetries)
         testcase.second.SetupOneWaySync();
     }
 
-    cout << "Letting each one-way sync run" << endl;
+    cout << "Letting all " << cases.size() << " one-way syncs run" << endl;
     WaitMillisec(10000);
+
+    CatchupClients(clientA1, clientA2);
 
     cout << "Preparing action " << endl;
     for (auto& testcase : cases)
@@ -4347,17 +4400,54 @@ TEST(Sync, OneWay_Highlevel_Symmetries)
         testcase.second.Modify(OneWaySymmetryCase::Prepare);
     }
 
-    cout << "Letting each one-way sync run" << endl;
+    CatchupClients(clientA1, clientA2);
+
+    cout << "Letting all " << cases.size() << " one-way syncs run" << endl;
     WaitMillisec(10000);
+
+    int paused = 0;
+    for (auto& testcase : cases)
+    {
+        if (testcase.second.pauseDuringAction)
+        {
+            testcase.second.PauseOneWaySync();
+            ++paused;
+        }
+    }
+    if (paused)
+    {
+        cout << "Paused " << paused << " one-way syncs" << endl;
+        WaitMillisec(1000);
+    }
 
     cout << "Performing action " << endl;
     for (auto& testcase : cases)
     {
         testcase.second.Modify(OneWaySymmetryCase::MainAction);
     }
+    WaitMillisec(1000);
+    CatchupClients(clientA1, clientA2);
 
-    cout << "Letting each one-way sync run" << endl;
+    int resumed = 0;
+    for (auto& testcase : cases)
+    {
+        if (testcase.second.pauseDuringAction)
+        {
+            testcase.second.ResumeOneWaySync();
+            ++resumed;
+        }
+    }
+    if (resumed)
+    {
+        cout << "Resumed " << resumed << " one-way syncs" << endl;
+        WaitMillisec(3000);
+    }
+
+
+    cout << "Letting all " << cases.size() << " one-way syncs run" << endl;
     WaitMillisec(10000);
+
+    CatchupClients(clientA1, clientA2);
 
     cout << "Checking local and remote state in each sub-test" << endl;
 
