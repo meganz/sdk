@@ -600,7 +600,6 @@ namespace mega
 
         String^ getSequenceNumber();
         String^ dumpSession();
-        String^ dumpXMPPSession();
 
         /**
         * @brief Log in to a MEGA account using precomputed keys

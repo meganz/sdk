@@ -633,21 +633,6 @@ String^ MegaSDK::dumpSession()
 	return ref new String((wchar_t *)utf16session.c_str());
 }
 
-String^ MegaSDK::dumpXMPPSession()
-{
-    const char *utf8session = megaApi->dumpXMPPSession();
-    if (!utf8session)
-    {
-        return nullptr;
-    }
-
-    std::string utf16session;
-    MegaApi::utf8ToUtf16(utf8session, &utf16session);
-    delete[] utf8session;
-
-    return ref new String((wchar_t *)utf16session.c_str());
-}
-
 void MegaSDK::fastLogin(String^ email, String^ stringHash, String^ base64pwkey)
 {
 	std::string utf8email;
