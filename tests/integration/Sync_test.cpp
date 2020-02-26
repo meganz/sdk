@@ -2400,7 +2400,7 @@ Node* makenode(MegaClient& mc, handle parent, ::mega::nodetype_t type, m_off_t s
 
     SymmCipher sc;
     sc.setkey(key, type);
-    mc.makeattr(&sc, newnode->attrstring.get(), attrs.c_str());
+    mc.makeattr(&sc, newnode->attrstring, attrs.c_str());
 
     int attrlen = int(newnode->attrstring->size());
     string base64attrstring;

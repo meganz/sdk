@@ -17755,7 +17755,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                             fsAccess->normalize(&sname);
                             attrs.map['n'] = sname;
                             attrs.getjson(&attrstring);
-                            client->makeattr(&key, tc.nn[0].attrstring.get(), attrstring.c_str());
+                            client->makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
                             if (tc.nn->type == FILENODE && !client->versions_disabled)
                             {
                                 tc.nn->ovhandle = client->getovhandle(parent, &sname);
@@ -18467,7 +18467,7 @@ void MegaApiImpl::sendPendingRequests()
             // JSON-encode object and encrypt attribute string
             attrs.getjson(&attrstring);
             newnode->attrstring.reset(new string);
-            client->makeattr(&key, newnode->attrstring.get(), attrstring.c_str());
+            client->makeattr(&key, newnode->attrstring, attrstring.c_str());
 
             // add the newly generated folder node
             client->putnodes(parent->nodehandle,newnode,1);
@@ -18615,7 +18615,7 @@ void MegaApiImpl::sendPendingRequests()
 
                     SymmCipher key;
                     key.setkey((const byte*)tc.nn->nodekey.data(), node->type);
-                    client->makeattr(&key, tc.nn->attrstring.get(), attrstring.c_str());
+                    client->makeattr(&key, tc.nn->attrstring, attrstring.c_str());
                 }
 
                 client->putnodes(newParent->nodehandle, tc.nn, nc);
@@ -18803,7 +18803,7 @@ void MegaApiImpl::sendPendingRequests()
                     attrs.map['n'] = sname;
 
                     attrs.getjson(&attrstring);
-                    client->makeattr(&key, tc.nn->attrstring.get(), attrstring.c_str());
+                    client->makeattr(&key, tc.nn->attrstring, attrstring.c_str());
                 }
 
                 if (target)
@@ -18859,7 +18859,7 @@ void MegaApiImpl::sendPendingRequests()
             {
                 key.setkey((const byte*)version->nodekey().data(), version->type);
                 version->attrs.getjson(&attrstring);
-                client->makeattr(&key, newnode->attrstring.get(), attrstring.c_str());
+                client->makeattr(&key, newnode->attrstring, attrstring.c_str());
             }
 
             client->putnodes(current->parent->nodehandle, newnode, 1);
@@ -21651,7 +21651,7 @@ void MegaApiImpl::sendPendingRequests()
             attrs.getjson(&tattrstring);
             SymmCipher cipher;
             cipher.setkey(uploadState->filekey);
-            client->makeattr(&cipher, newnode->attrstring.get(), tattrstring.c_str());
+            client->makeattr(&cipher, newnode->attrstring, tattrstring.c_str());
             newnode->nodekey.assign((char*)uploadState->filekey, FILENODEKEYLENGTH);
             SymmCipher::xorblock((const byte*)newnode->nodekey.data() + SymmCipher::KEYLENGTH, (byte*)newnode->nodekey.data());
 
@@ -21915,7 +21915,7 @@ void TreeProcCopy::proc(MegaClient* client, Node* n)
             }
 
             tattrs.getjson(&attrstring);
-            client->makeattr(&key, t->attrstring.get(), attrstring.c_str());
+            client->makeattr(&key, t->attrstring, attrstring.c_str());
         }
     }
     else nc++;
@@ -23437,7 +23437,7 @@ bool MegaTreeProcCopy::processMegaNode(MegaNode *n)
 
         string attrstring;
         attrs.getjson(&attrstring);
-        client->makeattr(&key, t->attrstring.get(), attrstring.c_str());
+        client->makeattr(&key, t->attrstring, attrstring.c_str());
 
         t->nodehandle = n->getHandle();
         t->type = (nodetype_t)n->getType();

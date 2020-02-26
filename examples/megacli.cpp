@@ -2036,7 +2036,7 @@ public:
 
             t->attrstring.reset(new string);
             tattrs.getjson(&attrstring);
-            mc->makeattr(&key, t->attrstring.get(), attrstring.c_str());
+            mc->makeattr(&key, t->attrstring, attrstring.c_str());
         }
         else
         {
@@ -3550,7 +3550,7 @@ void exec_cp(autocomplete::ACState& s)
                 // JSON-encode object and encrypt attribute string
                 attrs.getjson(&attrstring);
                 tc.nn->attrstring.reset(new string);
-                client->makeattr(&key, tc.nn->attrstring.get(), attrstring.c_str());
+                client->makeattr(&key, tc.nn->attrstring, attrstring.c_str());
             }
 
             // tree root: no parent
