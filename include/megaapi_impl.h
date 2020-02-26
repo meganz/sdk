@@ -139,7 +139,7 @@ public:
     void postLog(int logLevel, const char *message, const char *filename, int line);
     void log(const char *time, int loglevel, const char *source, const char *message
 #ifdef ENABLE_LOG_PERFORMANCE
-             , std::vector<const char *> directMessages
+             , LogLargeFunction
 #endif
             ) override;
 

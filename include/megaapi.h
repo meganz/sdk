@@ -25,6 +25,9 @@
 #include <string>
 #include <vector>
 #include <inttypes.h>
+#ifdef ENABLE_LOG_PERFORMANCE
+#include <functional>
+#endif
 
 #ifdef __APPLE__
 #include <TargetConditionals.h>
@@ -371,7 +374,7 @@ public:
      */
     virtual void log(const char *time, int loglevel, const char *source, const char *message
 #ifdef ENABLE_LOG_PERFORMANCE
-                     , std::vector<const char *> directMessages
+                     , std::function<void(std::ostream&)> largeMessageFunction
 #endif
                      );
     virtual ~MegaLogger(){}

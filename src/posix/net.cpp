@@ -1339,17 +1339,40 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
     }
     else
     {
+#ifndef ENABLE_LOG_PERFORMANCE
         if (req->out->size() < SimpleLogger::maxPayloadLogSize)
         {
-            LOG_debug << httpctx->req->logname << "Sending " << req->out->size() << ": " << DirectMessage(req->out->c_str(), req->out->size());
+            LOG_debug << httpctx->req->logname << "Sending " << req->out->size() << ": " << *req->out;
         }
         else
         {
-            LOG_debug << httpctx->req->logname << "Sending " << req->out->size() << ": "
-                      << DirectMessage(req->out->substr(0, SimpleLogger::maxPayloadLogSize / 2).c_str(), SimpleLogger::maxPayloadLogSize / 2)
-                      << " [...] " <<
-                         DirectMessage(req->out->substr(req->out->size() - SimpleLogger::maxPayloadLogSize / 2, string::npos).c_str(), SimpleLogger::maxPayloadLogSize / 2);
+            LOG_debug << httpctx->req->logname << "Sending " << req->out->size() << ": " << req->out->substr(0, SimpleLogger::maxPayloadLogSize / 2)
+                      << " [...] " << req->out->substr(req->out->size() - SimpleLogger::maxPayloadLogSize / 2, string::npos);
         }
+#else
+        if (req->out->size() < SimpleLogger::maxPayloadLogSize)
+        {
+            if (req->out->size() + 50 < SimpleLogger::LOGGER_CHUNKS_SIZE)
+            {
+                LOG_debug << httpctx->req->logname << "Sending " << req->out->size() << ": " << req->out; 
+            }
+            else
+            {
+                LOG_debug.logLarge( [httpctx, req](std::ostream& os){
+                            os << httpctx->req->logname << "Sending " << req->out->size() << ": " << req->out;
+                        });
+            }
+        }
+        else
+        {
+            LOG_debug.logLarge( [httpctx, req](std::ostream& os){
+                            os << httpctx->req->logname << "Sending " << req->out->size() << ": ";
+                            os.write(req->out->data(), SimpleLogger::maxPayloadLogSize / 2);
+                            os <<  " [...] ";
+                            os.write(req->out->data() + req->out->size() - SimpleLogger::maxPayloadLogSize / 2, SimpleLogger::maxPayloadLogSize / 2);
+                        });
+        }
+#endif
     }
 
     httpctx->headers = clone_curl_slist(req->type == REQ_JSON ? httpio->contenttypejson : httpio->contenttypebinary);
@@ -2138,17 +2161,40 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                     }
                     else
                     {
+#ifndef ENABLE_LOG_PERFORMANCE
                         if (req->in.size() < SimpleLogger::maxPayloadLogSize)
                         {
-                            LOG_debug << req->logname << "Received " << req->in.size() << ": " << DirectMessage(req->in.c_str(), req->in.size());
+                            LOG_debug << req->logname << "Received " << req->in.size() << ": " << req->in.c_str();
                         }
                         else
                         {
-                            LOG_debug << req->logname << "Received " << req->in.size() << ": " <<
-                                         DirectMessage(req->in.substr(0, SimpleLogger::maxPayloadLogSize / 2).c_str(), SimpleLogger::maxPayloadLogSize / 2)
-                                      << " [...] "
-                                      << DirectMessage(req->in.substr(req->in.size() - SimpleLogger::maxPayloadLogSize / 2, string::npos).c_str(), SimpleLogger::maxPayloadLogSize / 2);
+                            LOG_debug << req->logname << "Received " << req->in.size() << ": " << req->in.substr(0, SimpleLogger::maxPayloadLogSize / 2).c_str()
+                                      << " [...] " << req->in.substr(req->in.size() - SimpleLogger::maxPayloadLogSize / 2, string::npos).c_str();
                         }
+#else
+                        if (req->in.size() < SimpleLogger::maxPayloadLogSize)
+                        {
+                            if (req->out->size() + 50 < SimpleLogger::LOGGER_CHUNKS_SIZE)
+                            {
+                                LOG_debug << req->logname << "Received " << req->in.size() << ": " << req->in;
+                            }
+                            else
+                            {
+                                LOG_debug.logLarge( [req](std::ostream& os){
+                                            os << req->logname << "Received " << req->in.size() << ": " << req->in;
+                                });
+                            }
+                        }
+                        else
+                        {
+                            LOG_debug.logLarge( [req](std::ostream& os){
+                                        os << req->logname << "Received " << req->in.size() << ": ";
+                                        os.write(req->in.data(), SimpleLogger::maxPayloadLogSize / 2);
+                                        os << " [...] ";
+                                        os.write(req->in.data() + req->in.size() - SimpleLogger::maxPayloadLogSize / 2, SimpleLogger::maxPayloadLogSize / 2);
+                            });
+                        }
+#endif
                     }
                 }
 
