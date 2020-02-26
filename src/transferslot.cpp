@@ -1108,7 +1108,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
         if (!chunkfailed)
         {
             LOG_warn << "Transfer failed due to a timeout";
-            transfer->failed(API_EAGAIN, committer);
+            return transfer->failed(API_EAGAIN, committer);  // either the (this) slot has been deleted, or the whole transfer including slot has been deleted
         }
         else
         {

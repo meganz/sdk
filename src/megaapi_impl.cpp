@@ -20929,9 +20929,10 @@ void MegaApiImpl::sendPendingRequests()
                 client->usehttps = usehttps;
                 for (int d = GET; d == GET || d == PUT; d += PUT - GET)
                 {
-                    for (transfer_map::iterator it = client->transfers[d].begin(); it != client->transfers[d].end(); it++)
+                    for (transfer_map::iterator it = client->transfers[d].begin(); it != client->transfers[d].end(); )
                     {
                         Transfer *t = it->second;
+                        it++; // in case the failed() call deletes the transfer (which removes it from the list)
                         if (t->slot)
                         {
                             t->failed(API_EAGAIN, committer);
