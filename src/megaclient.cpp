@@ -13711,12 +13711,12 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
                 if (overquotauntil && overquotauntil > Waiter::ds)
                 {
                     dstime timeleft = dstime(overquotauntil - Waiter::ds);
-                    t->failed(API_EOVERQUOTA, committer, timeleft);
+                    t->failed(API_EOVERQUOTA, committer, timeleft);  // transfer may be deleted here
                 }
                 else if (d == PUT && ststatus == STORAGE_RED && !t->isForeign())
                 {
                     // only transfers with private targets should fail, since "foreign" transfers may not fail due to overquota
-                    t->failed(API_EOVERQUOTA, committer, 0, f->h);
+                    t->failed(API_EOVERQUOTA, committer, 0, f->h);  // transfer may be deleted here
                 }
             }
         }
