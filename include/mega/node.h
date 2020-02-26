@@ -30,21 +30,17 @@
 namespace mega {
 struct MEGA_API NodeCore
 {
-    NodeCore();
-    ~NodeCore();
-
     // node's own handle
-    handle nodehandle;
+    handle nodehandle = UNDEF;
 
     // parent node handle (in a Node context, temporary placeholder until parent is set)
-    handle parenthandle;
+    handle parenthandle = UNDEF;
 
     // node type
-    nodetype_t type;
+    nodetype_t type = TYPE_UNKNOWN;
 
     // node attributes
-    string *attrstring;
-
+    std::unique_ptr<string> attrstring;
 };
 
 // new node for putnodes()
@@ -55,20 +51,17 @@ struct MEGA_API NewNode : public NodeCore
 
     string nodekey;
 
-    newnodesource_t source;
+    newnodesource_t source = NEW_NODE;
 
-    handle ovhandle;
-    handle uploadhandle;
+    handle ovhandle = UNDEF;
+    handle uploadhandle = UNDEF;
     byte uploadtoken[UPLOADTOKENLEN]{};
 
-    handle syncid;
-    LocalNode* localnode;
-    string* fileattributes;  // owned here, usually NULL
+    handle syncid = UNDEF;
+    LocalNode* localnode = nullptr; // non-owning
+    std::unique_ptr<string> fileattributes;
 
-    bool added;
-
-    NewNode();
-    ~NewNode();
+    bool added = false;
 };
 
 struct MEGA_API PublicLink

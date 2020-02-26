@@ -135,7 +135,7 @@ public:
 
 #ifdef ENABLE_CHAT
         bool chatUpdated;        // flags to monitor the updates of chats due to actionpackets
-        map<handle, MegaTextChat*> chats;   //  runtime cache of fetched/updated chats
+        map<handle, std::unique_ptr<MegaTextChat>> chats;   //  runtime cache of fetched/updated chats
         MegaHandle chatid;          // last chat added
 #endif
     };

@@ -2034,7 +2034,7 @@ public:
                 tattrs.map.erase(it);
             }
 
-            t->attrstring = new string;
+            t->attrstring.reset(new string);
             tattrs.getjson(&attrstring);
             mc->makeattr(&key, t->attrstring, attrstring.c_str());
         }
@@ -3549,7 +3549,7 @@ void exec_cp(autocomplete::ACState& s)
 
                 // JSON-encode object and encrypt attribute string
                 attrs.getjson(&attrstring);
-                tc.nn->attrstring = new string;
+                tc.nn->attrstring.reset(new string);
                 client->makeattr(&key, tc.nn->attrstring, attrstring.c_str());
             }
 
@@ -6914,7 +6914,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
         newnode->nodehandle = ph;
         newnode->parenthandle = UNDEF;
         newnode->nodekey.assign((char*)key, FILENODEKEYLENGTH);
-        newnode->attrstring = new string(*a);
+        newnode->attrstring.reset(new string(*a));
 
         while ((name = json.getnameid()) != EOO && json.storeobject((t = &attrs.map[name])))
         {
