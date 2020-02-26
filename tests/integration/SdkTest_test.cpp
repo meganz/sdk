@@ -363,7 +363,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
                 MegaTextChat *chat = mApi[apiIndex].chats[mApi[apiIndex].chatid].get();
                 MegaHandle uh = request->getParentHandle();
                 int priv = request->getAccess();
-                userpriv_vector *privsbuf = new userpriv_vector;
+                unique_ptr<userpriv_vector> privsbuf{new userpriv_vector};
 
                 const MegaTextChatPeerList *privs = chat->getPeerList();
                 if (privs)
@@ -377,8 +377,9 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
                     }
                 }
                 privsbuf->push_back(userpriv_pair(uh, (privilege_t) priv));
-                privs = new MegaTextChatPeerListPrivate(privsbuf);
+                privs = new MegaTextChatPeerListPrivate(privsbuf.get());
                 chat->setPeerList(privs);
+                delete privs;
             }
             else
             {
@@ -395,7 +396,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
             {
                 MegaTextChat *chat = mApi[apiIndex].chats[mApi[apiIndex].chatid].get();
                 MegaHandle uh = request->getParentHandle();
-                userpriv_vector *privsbuf = new userpriv_vector;
+                std::unique_ptr<userpriv_vector> privsbuf{new userpriv_vector};
 
                 const MegaTextChatPeerList *privs = chat->getPeerList();
                 if (privs)
@@ -408,8 +409,9 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
                         }
                     }
                 }
-                privs = new MegaTextChatPeerListPrivate(privsbuf);
+                privs = new MegaTextChatPeerListPrivate(privsbuf.get());
                 chat->setPeerList(privs);
+                delete privs;
             }
             else
             {
@@ -1051,12 +1053,12 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
 {
     LOG_info << "___TEST Node attributes___";
 
-    MegaNode *rootnode = megaApi[0]->getRootNode();
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
 
     string filename1 = UPFILE;
     createFile(filename1, false);
 
-    ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(0, filename1.data(), rootnode)) << "Cannot upload a test file";
+    ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(0, filename1.data(), rootnode.get())) << "Cannot upload a test file";
 
     MegaNode *n1 = megaApi[0]->getNodeByHandle(mApi[0].h);
     bool null_pointer = (n1 == NULL);
@@ -1206,15 +1208,15 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     ASSERT_NO_FATAL_FAILURE(getMegaApiAux());    // login + fetchnodes
 
     // ___ import the link
-    ASSERT_NO_FATAL_FAILURE(importPublicLink(1, nodelink, megaApi[1]->getRootNode()));
-    MegaNode *nimported = megaApi[1]->getNodeByHandle(mApi[1].h);
+    ASSERT_NO_FATAL_FAILURE(importPublicLink(1, nodelink, std::unique_ptr<MegaNode>{megaApi[1]->getRootNode()}.get()));
+    std::unique_ptr<MegaNode> nimported{megaApi[1]->getNodeByHandle(mApi[1].h)};
 
     ASSERT_TRUE(veryclose(lat, nimported->getLatitude())) << "Latitude " << n1->getLatitude() << " value does not match " << lat;
     ASSERT_TRUE(veryclose(lon, nimported->getLongitude())) << "Longitude " << n1->getLongitude() << " value does not match " << lon;
 
     // ___ remove the imported node, for a clean next test
     mApi[1].requestFlags[MegaRequest::TYPE_REMOVE] = false;
-    megaApi[1]->remove(nimported);
+    megaApi[1]->remove(nimported.get());
     ASSERT_TRUE(waitForResponse(&mApi[1].requestFlags[MegaRequest::TYPE_REMOVE]))
         << "Remove operation failed after " << maxTimeout << " seconds";
     ASSERT_EQ(MegaError::API_OK, mApi[1].lastError) << "Cannot remove a node (error: " << mApi[1].lastError << ")";
@@ -1224,7 +1226,7 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
 
     string filename2 = "a"+UPFILE;
     createFile(filename2, false);
-    ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(0, filename2.data(), rootnode)) << "Cannot upload a test file";
+    ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(0, filename2.data(), rootnode.get())) << "Cannot upload a test file";
     MegaNode *n2 = megaApi[0]->getNodeByHandle(mApi[0].h);
     ASSERT_NE(n2, ((void*)NULL)) << "Cannot initialize second node for scenario (error: " << mApi[0].lastError << ")";
 
@@ -1247,14 +1249,15 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     string nodelink2 = this->link;
 
     // ___ import the link
-    ASSERT_NO_FATAL_FAILURE(importPublicLink(1, nodelink2, megaApi[1]->getRootNode()));
-    nimported = megaApi[1]->getNodeByHandle(mApi[1].h);
+    ASSERT_NO_FATAL_FAILURE(importPublicLink(1, nodelink2, std::unique_ptr<MegaNode>{megaApi[1]->getRootNode()}.get()));
+    nimported = std::unique_ptr<MegaNode>{megaApi[1]->getNodeByHandle(mApi[1].h)};
 
     // ___ confirm other user cannot read them
     lat = nimported->getLatitude();
     lon = nimported->getLongitude();
     ASSERT_EQ(MegaNode::INVALID_COORDINATE, lat) << "Latitude value does not match";
     ASSERT_EQ(MegaNode::INVALID_COORDINATE, lon) << "Longitude value does not match";
+    delete n1;
 }
 
 /**
@@ -1597,8 +1600,8 @@ TEST_F(SdkTest, SdkTestContacts)
 
     // --- Check my email and the email of the contact ---
 
-    EXPECT_STREQ(mApi[0].email.data(), megaApi[0]->getMyEmail());
-    EXPECT_STREQ(mApi[1].email.data(), megaApi[1]->getMyEmail());
+    EXPECT_STREQ(mApi[0].email.data(), std::unique_ptr<char[]>{megaApi[0]->getMyEmail()}.get());
+    EXPECT_STREQ(mApi[1].email.data(), std::unique_ptr<char[]>{megaApi[1]->getMyEmail()}.get());
 
 
     // --- Send a new contact request ---
@@ -1968,11 +1971,11 @@ TEST_F(SdkTest, SdkTestShares)
     //    |--subfolder
     //    |--file.txt
 
-    MegaNode *rootnode = megaApi[0]->getRootNode();
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
     char foldername1[64] = "Shared-folder";
     MegaHandle hfolder1;
 
-    ASSERT_NO_FATAL_FAILURE( createFolder(0, foldername1, rootnode) );
+    ASSERT_NO_FATAL_FAILURE( createFolder(0, foldername1, rootnode.get()) );
 
     hfolder1 = mApi[0].h;     // 'h' is set in 'onRequestFinish()'
     n1 = megaApi[0]->getNodeByHandle(hfolder1);
@@ -1980,14 +1983,14 @@ TEST_F(SdkTest, SdkTestShares)
     char foldername2[64] = "subfolder";
     MegaHandle hfolder2;
 
-    ASSERT_NO_FATAL_FAILURE( createFolder(0, foldername2, megaApi[0]->getNodeByHandle(hfolder1)) );
+    ASSERT_NO_FATAL_FAILURE( createFolder(0, foldername2, std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder1)}.get()) );
 
     hfolder2 = mApi[0].h;
 
     MegaHandle hfile1;
     createFile(PUBLICFILE.data(), false);   // not a large file since don't need to test transfers here
 
-    ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(0, PUBLICFILE.data(), megaApi[0]->getNodeByHandle(hfolder1))) << "Cannot upload a test file";
+    ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(0, PUBLICFILE.data(), std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder1)}.get())) << "Cannot upload a test file";
 
     hfile1 = mApi[0].h;
 
@@ -2087,11 +2090,11 @@ TEST_F(SdkTest, SdkTestShares)
     // add a folder under the share
     char foldernameA[64] = "dummyname1";
     char foldernameB[64] = "dummyname2";
-    ASSERT_NO_FATAL_FAILURE(createFolder(0, foldernameA, megaApi[0]->getNodeByHandle(hfolder2)));
-    ASSERT_NO_FATAL_FAILURE(createFolder(0, foldernameB, megaApi[0]->getNodeByHandle(hfolder2)));
+    ASSERT_NO_FATAL_FAILURE(createFolder(0, foldernameA, std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder2)}.get()));
+    ASSERT_NO_FATAL_FAILURE(createFolder(0, foldernameB, std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder2)}.get()));
 
     // check the corresponding user alert
-    ASSERT_TRUE(checkAlert(1, mApi[0].email + " added 2 folders", megaApi[0]->getNodeByHandle(hfolder2)->getHandle(), 2));
+    ASSERT_TRUE(checkAlert(1, mApi[0].email + " added 2 folders", std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder2)}->getHandle(), 2));
 
     // --- Modify the access level of an outgoing share ---
 
@@ -2120,6 +2123,7 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_TRUE( waitForResponse(&mApi[1].nodeUpdated) )   // at the target side (auxiliar account)
             << "Node update not received after " << maxTimeout << " seconds";
 
+    delete sl;
     sl = megaApi[0]->getOutShares();
     ASSERT_EQ(0, sl->size()) << "Outgoing share revocation failed";
     delete sl;
@@ -2172,34 +2176,34 @@ TEST_F(SdkTest, SdkTestShares)
 
     // --- Create a file public link ---
 
-    MegaNode *nfile1 = megaApi[0]->getNodeByHandle(hfile1);
+    std::unique_ptr<MegaNode> nfile1{megaApi[0]->getNodeByHandle(hfile1)};
 
-    ASSERT_NO_FATAL_FAILURE( createPublicLink(0, nfile1) );
+    ASSERT_NO_FATAL_FAILURE( createPublicLink(0, nfile1.get()) );
     // The created link is stored in this->link at onRequestFinish()
 
     // Get a fresh snapshot of the node and check it's actually exported
-    nfile1 = megaApi[0]->getNodeByHandle(hfile1);
+    nfile1 = std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfile1)};
     ASSERT_TRUE(nfile1->isExported()) << "Node is not exported, must be exported";
     ASSERT_FALSE(nfile1->isTakenDown()) << "Public link is taken down, it mustn't";
 
     // Regenerate the same link should not trigger a new request
     string oldLink = link;
     link = "";
-    nfile1 = megaApi[0]->getNodeByHandle(hfile1);
-    ASSERT_NO_FATAL_FAILURE( createPublicLink(0, nfile1) );
+    nfile1 = std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfile1)};
+    ASSERT_NO_FATAL_FAILURE( createPublicLink(0, nfile1.get()) );
     ASSERT_STREQ(oldLink.c_str(), link.c_str()) << "Wrong public link after link update";
 
 
     // Try to update the expiration time of an existing link (only for PRO accounts are allowed, otherwise -11
-    ASSERT_NO_FATAL_FAILURE( createPublicLink(0, nfile1, 1577836800) );     // Wed, 01 Jan 2020 00:00:00 GMT
-    nfile1 = megaApi[0]->getNodeByHandle(hfile1);
+    ASSERT_NO_FATAL_FAILURE( createPublicLink(0, nfile1.get(), 1577836800) );     // Wed, 01 Jan 2020 00:00:00 GMT
+    nfile1 = std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfile1)};
     ASSERT_EQ(0, nfile1->getExpirationTime()) << "Expiration time successfully set, when it shouldn't";
     ASSERT_FALSE(nfile1->isExpired()) << "Public link is expired, it mustn't";
 
 
     // --- Import a file public link ---
 
-    ASSERT_NO_FATAL_FAILURE( importPublicLink(0, link, rootnode) );
+    ASSERT_NO_FATAL_FAILURE( importPublicLink(0, link, rootnode.get()) );
 
     MegaNode *nimported = megaApi[0]->getNodeByHandle(mApi[0].h);
 
@@ -2216,10 +2220,9 @@ TEST_F(SdkTest, SdkTestShares)
 
     // --- Remove a public link ---
 
-    ASSERT_NO_FATAL_FAILURE( removePublicLink(0, nfile1) );
+    ASSERT_NO_FATAL_FAILURE( removePublicLink(0, nfile1.get()) );
 
-    delete nfile1;
-    nfile1 = megaApi[0]->getNodeByHandle(mApi[0].h);
+    nfile1 = std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(mApi[0].h)};
     ASSERT_FALSE(nfile1->isPublic()) << "Public link removal failed (still public)";
 
     delete nimported;
@@ -3480,11 +3483,11 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
-    MegaNode *rootnode = megaApi[0]->getRootNode();
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
 
-    ASSERT_NO_FATAL_FAILURE(importPublicLink(0, "https://mega.nz/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", rootnode));
+    ASSERT_NO_FATAL_FAILURE(importPublicLink(0, "https://mega.nz/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", rootnode.get()));
     MegaHandle imported_file_handle = mApi[0].h;
-    MegaNode *nimported = megaApi[0]->getNodeByHandle(imported_file_handle);
+    std::unique_ptr<MegaNode> nimported{megaApi[0]->getNodeByHandle(imported_file_handle)};
 
 
     string filename = "./cloudraid_downloaded_file.sdktest";
@@ -3504,7 +3507,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
         onTransferUpdate_progress = 0;
         onTransferUpdate_filesize = 0;
         mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
-        megaApi[0]->startDownload(nimported, filename.c_str());
+        megaApi[0]->startDownload(nimported.get(), filename.c_str());
 
         ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], 180)) << "Cloudraid download with 404 and 403 errors time out (180 seconds)";
         ASSERT_EQ(MegaError::API_OK, mApi[0].lastError) << "Cannot download the cloudraid file (error: " << mApi[0].lastError << ")";
@@ -3534,11 +3537,11 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
-    MegaNode *rootnode = megaApi[0]->getRootNode();
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
 
-    ASSERT_NO_FATAL_FAILURE(importPublicLink(0, "https://mega.nz/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", rootnode));
+    ASSERT_NO_FATAL_FAILURE(importPublicLink(0, "https://mega.nz/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", rootnode.get()));
     MegaHandle imported_file_handle = mApi[0].h;
-    MegaNode *nimported = megaApi[0]->getNodeByHandle(imported_file_handle);
+    std::unique_ptr<MegaNode> nimported{megaApi[0]->getNodeByHandle(imported_file_handle)};
 
 
     string filename = "./cloudraid_downloaded_file.sdktest";
@@ -3557,7 +3560,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
         onTransferUpdate_progress = 0;
         onTransferUpdate_filesize = 0;
         mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
-        megaApi[0]->startDownload(nimported, filename.c_str());
+        megaApi[0]->startDownload(nimported.get(), filename.c_str());
 
         ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], 180)) << "Cloudraid download with timeout errors timed out (180 seconds)";
         ASSERT_EQ(MegaError::API_OK, mApi[0].lastError) << "Cannot download the cloudraid file (error: " << mApi[0].lastError << ")";
@@ -3586,15 +3589,15 @@ TEST_F(SdkTest, SdkTestOverquotaNonCloudraid)
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
     // make a file to download, and upload so we can pull it down
-    MegaNode *rootnode = megaApi[0]->getRootNode();
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
     deleteFile(UPFILE);
     createFile(UPFILE, true);
     mApi[0].transferFlags[MegaTransfer::TYPE_UPLOAD] = false;
-    megaApi[0]->startUpload(UPFILE.c_str(), rootnode);
+    megaApi[0]->startUpload(UPFILE.c_str(), rootnode.get());
     ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_UPLOAD], 600))
         << "Upload transfer failed after " << 600 << " seconds";
-    MegaNode *n1 = megaApi[0]->getNodeByHandle(mApi[0].h);
-    ASSERT_NE(n1, ((::mega::MegaNode *)NULL));
+    std::unique_ptr<MegaNode> n1{megaApi[0]->getNodeByHandle(mApi[0].h)};
+    ASSERT_NE(n1.get(), ((::mega::MegaNode *)NULL));
 
     // set up to simulate 509 error
     DebugTestHook::isRaid = false;
@@ -3609,7 +3612,7 @@ TEST_F(SdkTest, SdkTestOverquotaNonCloudraid)
     string filename2 = "./" + DOWNFILE;
     deleteFile(filename2);
     mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
-    megaApi[0]->startDownload(n1, filename2.c_str());
+    megaApi[0]->startDownload(n1.get(), filename2.c_str());
 
     // get to 30 sec pause point
     second_timer t;
@@ -3823,7 +3826,7 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
 #endif
 
     // ensure we have our standard raid test file
-    ASSERT_NO_FATAL_FAILURE(importPublicLink(0, "https://mega.nz/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", megaApi[0]->getRootNode()));
+    ASSERT_NO_FATAL_FAILURE(importPublicLink(0, "https://mega.nz/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get()));
     MegaHandle imported_file_handle = mApi[0].h;
     MegaNode *nimported = megaApi[0]->getNodeByHandle(imported_file_handle);
 
@@ -3865,8 +3868,8 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
 
     int64_t filesize = getFilesize(filename2);
     std::ifstream compareDecryptedFile(filename2.c_str(), ios::binary);
-    ::mega::byte* compareDecryptedData = new ::mega::byte[filesize];
-    compareDecryptedFile.read((char*)compareDecryptedData, filesize);
+    std::vector<::mega::byte> compareDecryptedData(filesize);
+    compareDecryptedFile.read((char*)compareDecryptedData.data(), filesize);
 
     m_time_t starttime = m_time();
     int seconds_to_test_for = gRunningInCI ? 60 : 60 * 10;
@@ -3882,7 +3885,7 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
         int smallpieces = rand() % 2;
         int nonraid = rand() % 4 == 1;
 
-        *compareDecryptedData = ::mega::byte(nonraid ? nonraidchar : raidchar);
+        compareDecryptedData[0] = ::mega::byte(nonraid ? nonraidchar : raidchar);
 
         m_off_t start = 0, end = 0;
 
@@ -3924,7 +3927,7 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
 
         LOG_info << "beginning stream test, " << start << " to " << end << "(len " << end - start << ") " << (nonraid ? " non-raid " : " RAID ") << (!nonraid ? (smallpieces ? " smallpieces " : "normalpieces") : "");
 
-        CheckStreamedFile_MegaTransferListener* p = StreamRaidFilePart(megaApi[0].get(), start, end, !nonraid, smallpieces, nimported, nonRaidNode, compareDecryptedData);
+        CheckStreamedFile_MegaTransferListener* p = StreamRaidFilePart(megaApi[0].get(), start, end, !nonraid, smallpieces, nimported, nonRaidNode, compareDecryptedData.data());
 
         for (unsigned i = 0; p->comparedEqual; ++i)
         {
@@ -4007,7 +4010,7 @@ TEST_F(SdkTest, SdkRecentsTest)
     synchronousCatchup(0);
 
 
-    MegaRecentActionBucketList* buckets = megaApi[0]->getRecentActions(1, 10);
+    std::unique_ptr<MegaRecentActionBucketList> buckets{megaApi[0]->getRecentActions(1, 10)};
 
     ostringstream logMsg;
     for (int i = 0; i < buckets->size(); ++i)
@@ -4106,7 +4109,7 @@ TEST_F(SdkTest, RecursiveUploadWithLogout)
 
     // start uploading
     TransferTracker uploadListener;
-    megaApi[0]->startUpload(p.u8string().c_str(), megaApi[0]->getRootNode(), &uploadListener);
+    megaApi[0]->startUpload(p.u8string().c_str(), std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get(), &uploadListener);
     WaitMillisec(500);
 
     // logout while the upload (which consists of many transfers) is ongoing
@@ -4137,7 +4140,7 @@ TEST_F(SdkTest, RecursiveDownloadWithLogout)
 
     // upload all of those
     TransferTracker uploadListener, downloadListener;
-    megaApi[0]->startUpload(uploadpath.u8string().c_str(), megaApi[0]->getRootNode(), &uploadListener);
+    megaApi[0]->startUpload(uploadpath.u8string().c_str(), std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get(), &uploadListener);
     ASSERT_EQ(API_OK, uploadListener.waitForResult());
 
     // ok now try the download
