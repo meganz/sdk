@@ -75,6 +75,7 @@ class MEGA_API GfxProc
     WAIT_CLASS waiter;
     std::mutex mutex;
     THREAD_CLASS thread;
+    bool threadstarted = false;
     SymmCipher mCheckEventsKey;
     GfxJobQueue requests;
     GfxJobQueue responses;
@@ -129,6 +130,9 @@ public:
 
     MegaClient* client;
     int w, h;
+
+    // start a thread that will do the processing
+    void startProcessingThread();
 
     GfxProc();
     virtual ~GfxProc();
