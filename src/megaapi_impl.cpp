@@ -19929,14 +19929,14 @@ void MegaApiImpl::sendPendingRequests()
                 {
                     if (code.find("ConfirmCodeV2") != string::npos)
                     {
-                        // “ConfirmCodeV2” || Email Confirmation Token (128 bits) || Email (>=5 chars) || \t || Fullname || Hash (15B)
+                        // “ConfirmCodeV2” (13B) || Email Confirmation Token (15B) || Email (>=5B) || \t || Fullname || Hash (8B)
                         size_t posEmail = 13 + 15;
                         size_t endEmail = code.find("\t", posEmail);
                         if (endEmail != string::npos)
                         {
                             string email = code.substr(posEmail, endEmail - posEmail);
                             request->setEmail(email.c_str());
-                            request->setName(code.substr(endEmail, code.size() - 15).c_str());
+                            request->setName(code.substr(endEmail + 1, code.size() - endEmail - 9).c_str());
 
                             sessiontype_t session = client->loggedin();
                             if (session == FULLACCOUNT)
@@ -20024,14 +20024,14 @@ void MegaApiImpl::sendPendingRequests()
             {
                 if (code.find("ConfirmCodeV2") != string::npos)
                 {
-                    // “ConfirmCodeV2” || Email Confirmation Token (128 bits) || Email (>=5 chars) || \t || Fullname || Hash (15B)
+                    // “ConfirmCodeV2” (13B) || Email Confirmation Token (15B) || Email (>=5B) || \t || Fullname || Hash (8B)
                     size_t posEmail = 13 + 15;
                     size_t endEmail = code.find("\t", posEmail);
                     if (endEmail != string::npos)
                     {
                         string email = code.substr(posEmail, endEmail - posEmail);
                         request->setEmail(email.c_str());
-                        request->setName(code.substr(endEmail, code.size() - 15).c_str());
+                        request->setName(code.substr(endEmail + 1, code.size() - endEmail - 9).c_str());
 
                         sessiontype_t session = client->loggedin();
                         if (session == FULLACCOUNT)
