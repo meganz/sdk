@@ -322,7 +322,7 @@ void File::completed(Transfer* t, LocalNode* l)
 
         attrs.getjson(&tattrstring);
 
-        newnode->attrstring = new string;
+        newnode->attrstring.reset(new string);
         t->client->makeattr(t->transfercipher(), newnode->attrstring, tattrstring.c_str());
 
         if (targetuser.size())

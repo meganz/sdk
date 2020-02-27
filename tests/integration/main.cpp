@@ -114,6 +114,7 @@ int main (int argc, char *argv[])
     mega::SimpleLogger::setOutputClass(&megaLogger);
 
 #if defined(_WIN32) && defined(NO_READLINE)
+    using namespace mega;
     WinConsole* wc = new CONSOLE_CLASS;
     wc->setShellConsole();
 #endif

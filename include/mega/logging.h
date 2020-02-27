@@ -294,6 +294,8 @@ public:
 
     static enum LogLevel logCurrentLevel;
 
+    static long long maxPayloadLogSize;
+
     SimpleLogger(const enum LogLevel ll, const char* filename, const int line)
     : level{ll}
 #ifdef ENABLE_LOG_PERFORMANCE
@@ -432,6 +434,13 @@ public:
     {
         SimpleLogger::logCurrentLevel = ll;
     }
+
+    // set the limit of size to requests payload
+    static void setMaxPayloadLogSize(long long size)
+    {
+        maxPayloadLogSize = size;
+    }
+
 
 #ifndef ENABLE_LOG_PERFORMANCE
     // register output stream for log level
