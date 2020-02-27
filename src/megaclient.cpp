@@ -12183,7 +12183,7 @@ error MegaClient::addsync(SyncConfig syncConfig, const char* debris, string* loc
     {
         if (fa->type == FOLDERNODE)
         {
-            LOG_debug << "Adding sync: " << syncConfig.getLocalPath();
+            LOG_debug << "Adding sync: " << syncConfig.getLocalPath() << " vs " << remotenode->displaypath();
 
             Sync* sync = new Sync(this, std::move(syncConfig), debris, localdebris, remotenode, inshare, tag, appData);
             sync->isnetwork = isnetwork;
