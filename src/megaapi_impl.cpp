@@ -12817,8 +12817,13 @@ bool MegaApiImpl::sync_syncable(Sync *sync, const char *name, string *localpath)
     return result;
 }
 
-void MegaApiImpl::sync_auto_resumed(const string& localPath, const handle remoteNode, const long long localFp, const std::vector<std::string>& regExp)
+void MegaApiImpl::sync_auto_resume_result(const string& localPath, const handle remoteNode, const long long localFp, const std::vector<std::string>& regExp, const error e)
 {
+    if (e != 0)
+    {
+        return;
+    }
+
     const int nextTag = client->nextreqtag();
 
     MegaSyncPrivate *sync = new MegaSyncPrivate(localPath.c_str(), remoteNode, -nextTag);

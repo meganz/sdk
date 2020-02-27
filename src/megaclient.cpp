@@ -3723,12 +3723,15 @@ void MegaClient::resumeResumableSyncs()
             continue;
         }
         const auto e = addsync(config, DEBRISFOLDER, nullptr);
-        if (e == 0)
+        if (e != 0)
         {
-            app->sync_auto_resumed(config.getLocalPath(), config.getRemoteNode(),
-                                   static_cast<long long>(config.getLocalFingerprint()),
-                                   config.getRegExps());
+            LOG_warn << "auto-resume sync failed (" << e << "): " << config.getLocalPath() << " - " << LOG_NODEHANDLE(config.getRemoteNode());
+            config.setResumable(false);
+            syncConfigs->insert(config);
         }
+        app->sync_auto_resume_result(config.getLocalPath(), config.getRemoteNode(),
+                                     static_cast<long long>(config.getLocalFingerprint()),
+                                     config.getRegExps(), e);
     }
 }
 #endif
