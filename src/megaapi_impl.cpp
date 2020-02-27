@@ -12819,30 +12819,41 @@ bool MegaApiImpl::sync_syncable(Sync *sync, const char *name, string *localpath)
 
 void MegaApiImpl::sync_auto_resume_result(const string& localPath, const handle remoteNode, const long long localFp, const std::vector<std::string>& regExp, const error e)
 {
-    if (e != 0)
-    {
-        return;
-    }
-
     const int nextTag = client->nextreqtag();
-
     MegaSyncPrivate *sync = new MegaSyncPrivate(localPath.c_str(), remoteNode, -nextTag);
     sync->setLocalFingerprint(localFp);
 
-    if (!regExp.empty())
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC);
+    request->setNodeHandle(remoteNode);
+    request->setNumber(localFp);
+    request->setTag(nextTag);
+    requestMap[nextTag] = request;
+
+    if (e == 0)
     {
-        auto re = make_unique<MegaRegExp>();
-        for (const auto& v : regExp)
+        if (!regExp.empty())
         {
-            re->addRegExp(v.c_str());
+            auto re = make_unique<MegaRegExp>();
+            for (const auto& v : regExp)
+            {
+                re->addRegExp(v.c_str());
+            }
+            sync->setRegExp(re.get());
         }
-        sync->setRegExp(re.get());
+
+        Sync *s = client->syncs.back();
+        s->appData = sync;
+        sync->setState(s->state);
+        syncMap[-nextTag] = sync;
+    }
+    else
+    {
+        sync->setState(SYNC_FAILED);
     }
 
-    Sync *s = client->syncs.back();
-    s->appData = sync;
-    sync->setState(s->state);
-    syncMap[-nextTag] = sync;
+    fireOnRequestFinish(request, MegaError(e));
+
+    fireOnSyncStateChanged(sync);
 }
 
 void MegaApiImpl::syncupdate_local_lockretry(bool waiting)
