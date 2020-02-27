@@ -5098,12 +5098,14 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     if(processor)
     {
         GfxProcExternal *externalGfx = new GfxProcExternal();
+        externalGfx->startProcessingThread();
         externalGfx->setProcessor(processor);
         gfxAccess = externalGfx;
     }
     else
     {
         gfxAccess = new MegaGfxProc();
+        gfxAccess->startProcessingThread();
     }
 
     if(!userAgent)
