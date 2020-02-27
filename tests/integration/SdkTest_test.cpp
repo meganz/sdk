@@ -4172,7 +4172,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     //    if we don't wait for long enough after we get called back. A sync only gets flagged but
     //    is deleted later.
 
-    const std::string session = dumpSession();
+    const std::string session = std::unique_ptr<char[]>{dumpSession()}.get();
 
     const fs::path basePath = "SyncResumptionAfterFetchNodes";
     const auto sync1Path = fs::current_path() / basePath / "sync1"; // stays active
@@ -4209,7 +4209,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
 
     // transfer the folder and its subfolders
     TransferTracker uploadListener;
-    megaApi[0]->startUpload(basePath.u8string().c_str(), megaApi[0]->getRootNode(), &uploadListener);
+    megaApi[0]->startUpload(basePath.u8string().c_str(), std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get(), &uploadListener);
     ASSERT_EQ(API_OK, uploadListener.waitForResult());
 
     // loop until we get a commit to the sctable to ensure we cached the new remote nodes
