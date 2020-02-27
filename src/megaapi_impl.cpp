@@ -12254,8 +12254,8 @@ void MegaApiImpl::chatcreate_result(TextChat *chat, error e)
         textchat_map chatList;
         chatList[chat->id] = chat;
 
-        MegaTextChatListPrivate *megaChatList = new MegaTextChatListPrivate(&chatList);
-        request->setMegaTextChatList(megaChatList);
+        auto megaChatList = mega::make_unique<MegaTextChatListPrivate>(&chatList);
+        request->setMegaTextChatList(megaChatList.get());
     }
 
     fireOnRequestFinish(request, megaError);
