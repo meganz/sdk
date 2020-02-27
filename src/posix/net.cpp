@@ -1346,9 +1346,9 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         else
         {
             LOG_debug << httpctx->req->logname << "Sending " << req->out->size() << ": "
-                      << DirectMessage(req->out->substr(0, SimpleLogger::maxPayloadLogSize / 2).c_str(), SimpleLogger::maxPayloadLogSize / 2)
-                      << " [...] " <<
-                         DirectMessage(req->out->substr(req->out->size() - SimpleLogger::maxPayloadLogSize / 2, string::npos).c_str(), SimpleLogger::maxPayloadLogSize / 2);
+                      << DirectMessage(req->out->c_str(), SimpleLogger::maxPayloadLogSize / 2)
+                      << " [...] "
+                      << DirectMessage(req->out->c_str() + req->out->size() - SimpleLogger::maxPayloadLogSize / 2, SimpleLogger::maxPayloadLogSize / 2);
         }
     }
 
@@ -2144,10 +2144,10 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                         }
                         else
                         {
-                            LOG_debug << req->logname << "Received " << req->in.size() << ": " <<
-                                         DirectMessage(req->in.substr(0, SimpleLogger::maxPayloadLogSize / 2).c_str(), SimpleLogger::maxPayloadLogSize / 2)
+                            LOG_debug << req->logname << "Received " << req->in.size() << ": "
+                                      << DirectMessage(req->in.c_str(), SimpleLogger::maxPayloadLogSize / 2)
                                       << " [...] "
-                                      << DirectMessage(req->in.substr(req->in.size() - SimpleLogger::maxPayloadLogSize / 2, string::npos).c_str(), SimpleLogger::maxPayloadLogSize / 2);
+                                      << DirectMessage(req->in.c_str() + req->in.size() - SimpleLogger::maxPayloadLogSize / 2, SimpleLogger::maxPayloadLogSize / 2);
                         }
                     }
                 }

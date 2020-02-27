@@ -127,7 +127,7 @@ public:
     // Note: `time` and `source` are null in performance mode
     virtual void log(const char *time, int loglevel, const char *source, const char *message
 #ifdef ENABLE_LOG_PERFORMANCE)
-          , std::vector<const char *> directMessages = std::vector<const char *>()
+          , std::vector<const char *> directMessages = std::vector<const char *>(), std::vector<size_t> directMessagesSizes = std::vector<size_t>()
 #endif
                      ) = 0;
 };
@@ -138,21 +138,27 @@ typedef std::vector<std::ostream *> OutputStreams;
  * @brief holds a const char * and its size to pass to SimpleLogger, to use the direct logging logic
  */
 class DirectMessage{
+
+    const static size_t directMsgThreshold = 1024; //below this, the msg will be buffered as a normal message
+
 public:
+    bool mForce = false;
     size_t mSize = 0;
     const char *mConstChar;
 
     DirectMessage( const char *constChar, bool force = false) //force will set size as max, so as to stay above directMsgThreshold
     {
         mConstChar = constChar;
-        mSize = force?SIZE_MAX:strlen(constChar);
+        mSize = strlen(constChar);
+        mForce = force;
     }
 
     template<typename T, typename std::enable_if<std::is_integral<T>::value>::type* = nullptr>
-    DirectMessage( const char *constChar, T size)
+    DirectMessage( const char *constChar, T size, bool force = false)
     {
         mConstChar = constChar;
         mSize = size;
+        mForce = force;
     }
 
     size_t size() const
@@ -160,6 +166,10 @@ public:
         return mSize;
     }
 
+    bool isBigEnoughToOutputDirectly() const
+    {
+        return (mForce || mSize > directMsgThreshold );
+    }
 };
 
 class OutputMap : public std::array<OutputStreams, unsigned(logMax)+1> {};
@@ -191,8 +201,8 @@ class SimpleLogger
     const char* filenameStr;
     int lineNum;
 
-    std::vector<const char *> mDirectMessages;
-    const static size_t directMsgThreshold = 1024; //below this, the msg will be buffered as a normal message
+    std::vector<DirectMessage> mDirectMessages;
+    std::vector<std::string *> mCopiedParts;
 
     template<typename DataIterator>
     void copyToBuffer(const DataIterator dataIt, DiffType currentSize)
@@ -216,7 +226,7 @@ class SimpleLogger
         *mBufferIt = '\0';
         if (!mDirectMessages.empty()) // some part has already been passed as direct, we'll do all directly
         {
-            mDirectMessages.push_back(mBuffer.data());
+            mDirectMessages.push_back(DirectMessage(mBuffer.data(), std::distance(mBuffer.begin(), mBufferIt)));
         }
         else if (logger)
         {
@@ -372,9 +382,24 @@ public:
         copyToBuffer("]", 1);
         outputBuffer();
 
-        if (!mDirectMessages.empty() && logger)
+        if (!mDirectMessages.empty())
         {
-            logger->log(nullptr, level, nullptr, "", mDirectMessages);
+            if (logger)
+            {
+                std::vector<const char*> dm;
+                std::vector<size_t> dms;
+                for (const auto & d : mDirectMessages)
+                {
+                    dm.push_back(d.mConstChar);
+                    dms.push_back(d.size());
+                }
+
+                logger->log(nullptr, level, nullptr, "", dm, dms);
+            }
+        }
+        for (auto &s: mCopiedParts)
+        {
+            delete s;
         }
 #else
         OutputStreams::iterator iter;
@@ -473,7 +498,7 @@ public:
 
     SimpleLogger& operator<<(const DirectMessage &obj)
     {
-        if (obj.size() < this->directMsgThreshold) //don't bother with little msg
+        if (!obj.isBigEnoughToOutputDirectly()) //don't bother with little msg
         {
             *this << obj.mConstChar;
         }
@@ -482,11 +507,15 @@ public:
             if (mBufferIt != mBuffer.begin()) //something was appended to the buffer before this direct msg
             {
                 *mBufferIt = '\0';
-                mDirectMessages.push_back(mBuffer.data());
+                std::string *newStr  = new string(mBuffer.data());
+                mCopiedParts.emplace_back( newStr);
+                string * back = mCopiedParts[mCopiedParts.size()-1];
+
+                mDirectMessages.push_back(DirectMessage(back->data(), back->size()));
                 mBufferIt = mBuffer.begin();
             }
 
-            mDirectMessages.push_back(obj.mConstChar);
+            mDirectMessages.push_back(DirectMessage(obj.mConstChar, obj.size()));
         }
 
         return *this;

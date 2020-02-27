@@ -368,10 +368,12 @@ public:
      * @param directMessages: in ENABLE_LOG_PERFORMANCE MODE, this will indicate the logger that an array of const char* should
      * be written in the logs immediately without buffering the output. message can be discarded in that case.
      *
+     * @param directMessagesSizes: size of the previous const char *.
+     *
      */
     virtual void log(const char *time, int loglevel, const char *source, const char *message
 #ifdef ENABLE_LOG_PERFORMANCE
-                     , std::vector<const char *> directMessages
+                     , std::vector<const char *> directMessages, std::vector<size_t> directMessagesSizes
 #endif
                      );
     virtual ~MegaLogger(){}
