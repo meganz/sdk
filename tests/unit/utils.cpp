@@ -80,7 +80,6 @@ mega::Node& makeNode(mega::MegaClient& client, const mega::nodetype_t type, cons
 #ifdef ENABLE_SYNC
 std::unique_ptr<mega::Sync> makeSync(mega::MegaClient& client, const std::string& localname)
 {
-    std::string rootname = localname;
     std::string localdebris = gLocalDebris;
     auto& n = makeNode(client, mega::FOLDERNODE, std::hash<std::string>{}(localname));
     mega::SyncConfig config{localname, n.nodehandle, 0};
