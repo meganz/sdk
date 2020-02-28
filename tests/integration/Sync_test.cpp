@@ -687,7 +687,11 @@ struct StandardClient : public MegaApp
             }
             pb.set_value(!e);
         });
-        client.catchup();
+
+        auto request_sent = thread_do([](StandardClient& sc, promise<bool>& pb) { sc.client.catchup(); pb.set_value(true); });
+        if (!waitonresults(&request_sent)) {
+            cout << "catchup not sent" << endl;
+        }
     }
 
     void deleteTestBaseFolder(bool mayneeddeleting, promise<bool>& pb)
@@ -4387,7 +4391,7 @@ TEST(Sync, OneWay_Highlevel_Symmetries)
     OneWaySymmetryCase::State allstate(clientA1, clientA2);
     std::map<std::string, OneWaySymmetryCase> cases;
 
-    static bool singleCase = true;
+    static bool singleCase = false;
     if (singleCase)
     {
         OneWaySymmetryCase testcase(allstate);
