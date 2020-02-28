@@ -4132,9 +4132,8 @@ struct OneWaySymmetryCase
         if (updatemodel) localModel.emulate_rename(path, newname);
 
         fs::path p1(localTestBasePath);
-        fs::path p2(localTestBasePath);
         p1 /= fixSeparators(path);
-        p2 /= p1.parent_path() / newname;
+        fs::path p2 = p1.parent_path() / newname;
 
         std::error_code ec;
         for (int i = 0; i < 5; ++i)
@@ -4299,7 +4298,42 @@ struct OneWaySymmetryCase
             break;
 
         case action_moveWithinSync: 
-            source_move("f/f_1", "f/f_2", true);
+            if (prep)
+            {
+                if (file)
+                {
+                    if (destinationMatchAfter == match_exact) destination_copy("f/f_1/file0_f_1", "f/f_0", true);
+                    if (destinationMatchAfter == match_different) destination_copy_renamed("f/f_0", "file0_f_0", "file0_f_1", "f/f_0", true);
+                    if (destinationMatchBefore == match_different) destination_copy_renamed("f/f_1", "file1_f_1", "file0_f_1", "f/f_1", true);
+                    if (destinationMatchBefore == match_absent) destination_delete("f/f_1/file0_f_1", true);
+                }
+                else
+                {
+                    if (destinationMatchAfter == match_exact) destination_copy("f/f_1", "f/f_0", true);
+                    if (destinationMatchAfter == match_different) destination_copy_renamed("f/f_0", "f_0_0", "f_1", "f/f_0", true);
+                    if (destinationMatchBefore == match_different) destination_copy_renamed("f/f_0", "f_0_1", "f_1", "f", true);
+                    if (destinationMatchBefore == match_absent) destination_delete("f/f_1", true);
+                }
+            }
+            else if (act)
+            {
+                if (file)
+                {
+                    source_move("f/f_1/file0_f_1", "f/f_0", true);
+                    if (destinationMatchBefore == match_exact && destinationMatchAfter == match_absent)
+                    {
+                        destinationModel().emulate_move("f/f_1/file0_f_1", "f/f_0");
+                    }
+                }
+                else
+                {
+                    source_move("f/f_1", "f/f_0", true);
+                    if (destinationMatchBefore == match_exact && destinationMatchAfter == match_absent)
+                    {
+                        destinationModel().emulate_move("f/f_1", "f/f_0");
+                    }
+                }
+            }
             break;
 
         case action_moveOutOfSync:
@@ -4353,7 +4387,7 @@ TEST(Sync, OneWay_Highlevel_Symmetries)
     OneWaySymmetryCase::State allstate(clientA1, clientA2);
     std::map<std::string, OneWaySymmetryCase> cases;
 
-    static bool singleCase = false;
+    static bool singleCase = true;
     if (singleCase)
     {
         OneWaySymmetryCase testcase(allstate);
@@ -4373,13 +4407,13 @@ TEST(Sync, OneWay_Highlevel_Symmetries)
     {
         for (int up = 0; up < 1; ++up)
         {
-            for (int action = 0; action <= (int)OneWaySymmetryCase::action_rename /*< (int)OneWaySymmetryCase::action_numactions*/; ++action)
+            for (int action = (int)OneWaySymmetryCase::action_moveWithinSync; action <= (int)OneWaySymmetryCase::action_moveWithinSync /*< (int)OneWaySymmetryCase::action_numactions*/; ++action)
             {
                 for (int file = 1; file < 2; ++file)
                 {
-                    for (int destinationMatchBefore = 0; destinationMatchBefore < 3; ++destinationMatchBefore)
+                    for (int destinationMatchBefore = 0; destinationMatchBefore < 1; ++destinationMatchBefore)
                     {
-                        for (int destinationMatchAfter = 0; destinationMatchAfter < 3; ++destinationMatchAfter)
+                        for (int destinationMatchAfter = 2; destinationMatchAfter < 3; ++destinationMatchAfter)
                         {
                             //for (int propagateDeletes = 0; propagateDeletes < 2; ++propagateDeletes)
                             {
