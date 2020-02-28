@@ -134,6 +134,8 @@ public:
 
 typedef std::vector<std::ostream *> OutputStreams;
 
+const static int LOGGER_CHUNKS_SIZE = 1024;
+
 /**
  * @brief holds a const char * and its size to pass to SimpleLogger, to use the direct logging logic
  */
@@ -166,9 +168,9 @@ public:
         return mSize;
     }
 
-    bool isBigEnoughToOutputDirectly() const
+    bool isBigEnoughToOutputDirectly(int bufferedSize) const
     {
-        return (mForce || mSize > directMsgThreshold );
+        return (mForce || mSize > directMsgThreshold || mSize >= std::max(0, LOGGER_CHUNKS_SIZE - bufferedSize - 40/*room for [file:line]*/) );
     }
 };
 
@@ -192,7 +194,6 @@ class SimpleLogger
     static OutputMap outputs;
     static OutputStreams getOutput(enum LogLevel ll);
 #else
-    const static int LOGGER_CHUNKS_SIZE = 1024;
     std::array<char, LOGGER_CHUNKS_SIZE> mBuffer; // will be stack-allocated since SimpleLogger is stack-allocated
     std::array<char, LOGGER_CHUNKS_SIZE>::iterator mBufferIt;
 
@@ -221,12 +222,22 @@ class SimpleLogger
         }
     }
 
-    void outputBuffer()
+    void outputBuffer(bool lastcall = false)
     {
         *mBufferIt = '\0';
         if (!mDirectMessages.empty()) // some part has already been passed as direct, we'll do all directly
         {
-            mDirectMessages.push_back(DirectMessage(mBuffer.data(), std::distance(mBuffer.begin(), mBufferIt)));
+            if (lastcall) //the mBuffer can be reused
+            {
+                mDirectMessages.push_back(DirectMessage(mBuffer.data(), std::distance(mBuffer.begin(), mBufferIt)));
+            }
+            else //reached LOGGER_CHUNKS_SIZE, we need to copy mBuffer contents
+            {
+                std::string *newStr  = new string(mBuffer.data());
+                mCopiedParts.emplace_back( newStr);
+                string * back = mCopiedParts[mCopiedParts.size()-1];
+                mDirectMessages.push_back(DirectMessage(back->data(), back->size()));
+            }
         }
         else if (logger)
         {
@@ -380,7 +391,7 @@ public:
         copyToBuffer(":", 1);
         logValue(lineNum);
         copyToBuffer("]", 1);
-        outputBuffer();
+        outputBuffer(true);
 
         if (!mDirectMessages.empty())
         {
@@ -498,7 +509,7 @@ public:
 
     SimpleLogger& operator<<(const DirectMessage &obj)
     {
-        if (!obj.isBigEnoughToOutputDirectly()) //don't bother with little msg
+        if (!obj.isBigEnoughToOutputDirectly(std::distance(mBuffer.begin(), mBufferIt))) //don't bother with little msg
         {
             *this << obj.mConstChar;
         }
