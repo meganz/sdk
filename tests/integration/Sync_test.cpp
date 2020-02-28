@@ -2944,9 +2944,9 @@ public:
         return mClientOneWay->confirmModel_mainthread(model.root.get(), 0, true, confirm);
     }
 
-    bool pauseOneWay()
+    bool pauseOneWay(const bool keepCache = true)
     {
-        return mClientOneWay->delSync_mainthread(0, true);
+        return mClientOneWay->delSync_mainthread(0, keepCache);
     }
 
     bool resumeOneWay()
@@ -3724,6 +3724,71 @@ TEST(Sync, OneWay_Download_syncDelFalse_overwriteFalse_8)
     auto barFolder = remoteModel.makeModelSubfolder("bar");
     barFolder->addkid(std::move(fooNode));
     remoteModel.root->addkid(std::move(barFolder));
+
+    ASSERT_TRUE(fx.checkRef(remoteModel));
+    ASSERT_TRUE(fx.checkOneWay(remoteModel, StandardClient::CONFIRM_REMOTE));
+    ASSERT_TRUE(fx.checkOneWay(localModel, StandardClient::CONFIRM_LOCAL));
+}
+
+TEST(Sync, OneWay_Download_syncDelFalse_overwriteFalse_9)
+{
+    /* Steps:
+     * - Add remote file
+     * - Add remote dir1 and dir2
+     * - Wait for download
+     * - Remove down sync
+     * - create local file at move target (dir2)
+     * - Start down sync
+     * - Move remote file to dir2
+     * - Assert: Move is propagated down
+     */
+    OneWayFixture fx{SyncConfig::TYPE_DOWN, false, false};
+
+    fs::create_directories(fx.refRootPath() / "dir1");
+    fs::create_directories(fx.refRootPath() / "dir2");
+    ASSERT_TRUE(createFile(fx.refRootPath() / "dir1", "foo"));
+
+    fx.wait();
+    // foo and dirs are downloaded
+
+    // removing down sync
+    fx.pauseOneWay(false);
+    fx.wait();
+
+    // create a local file at the move target
+    ASSERT_TRUE(createFile(fx.oneWayRootPath() / "dir2", "foo"));
+
+    // starting down sync
+    fx.resumeOneWay();
+    fx.wait();
+
+    // move foo within same sync in cloud
+    ASSERT_TRUE(fx.remoteMove("f/f_0/dir1/foo", "f/f_0/dir2"));
+
+    fx.wait();
+    // move happened locally
+
+    Model remoteModel;
+    {
+        auto fooNode = remoteModel.makeModelSubfile("foo");
+        auto dir1Folder = remoteModel.makeModelSubfolder("dir1");
+        auto dir2Folder = remoteModel.makeModelSubfolder("dir2");
+        dir2Folder->addkid(std::move(fooNode));
+        remoteModel.root->addkid(std::move(dir1Folder));
+        remoteModel.root->addkid(std::move(dir2Folder));
+    }
+
+    Model localModel;
+    {
+        auto foo1Node = localModel.makeModelSubfile("foo");
+        auto foo2Node = localModel.makeModelSubfile("foo");
+        auto dir1Folder = localModel.makeModelSubfolder("dir1");
+        auto dir2Folder = localModel.makeModelSubfolder("dir2");
+        dir1Folder->addkid(std::move(foo1Node));
+        dir2Folder->addkid(std::move(foo2Node));
+        localModel.root->addkid(std::move(dir1Folder));
+        localModel.root->addkid(std::move(dir2Folder));
+    }
 
     ASSERT_TRUE(fx.checkRef(remoteModel));
     ASSERT_TRUE(fx.checkOneWay(remoteModel, StandardClient::CONFIRM_REMOTE));
