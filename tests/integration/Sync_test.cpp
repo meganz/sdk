@@ -4415,9 +4415,9 @@ TEST(Sync, OneWay_Highlevel_Symmetries)
             {
                 for (int file = 1; file < 2; ++file)
                 {
-                    for (int destinationMatchBefore = 0; destinationMatchBefore < 1; ++destinationMatchBefore)
+                    for (int destinationMatchBefore = 0; destinationMatchBefore < 3; ++destinationMatchBefore)
                     {
-                        for (int destinationMatchAfter = 2; destinationMatchAfter < 3; ++destinationMatchAfter)
+                        for (int destinationMatchAfter = 0; destinationMatchAfter < 3; ++destinationMatchAfter)
                         {
                             //for (int propagateDeletes = 0; propagateDeletes < 2; ++propagateDeletes)
                             {
@@ -4438,6 +4438,7 @@ TEST(Sync, OneWay_Highlevel_Symmetries)
                                         cases.emplace(testcase.name(), move(testcase));
                                     }
                                 }
+
                             }
                         }
                     }
@@ -4457,10 +4458,12 @@ TEST(Sync, OneWay_Highlevel_Symmetries)
     }
 
     cout << "Full-sync to the cloud for setup" << endl;
-    waitonsyncs(6s, &clientA1);
+    waitonsyncs(10s, &clientA1);
+    CatchupClients(clientA1, clientA2);
+    waitonsyncs(20s, &clientA1);
 
     cout << "Stopping full-sync" << endl;
-    future<bool> fb = clientA1.thread_do([](StandardClient& sc, promise<bool>& pb) { sc.client.delsync(sc.syncByTag(1)); pb.set_value(true); });
+    future<bool> fb = clientA1.thread_do([](StandardClient& sc, promise<bool>& pb) { sc.client.delsync(sc.syncByTag(1), true); pb.set_value(true); });
     ASSERT_TRUE(waitonresults(&fb));
 
 
