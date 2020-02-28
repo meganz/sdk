@@ -58,7 +58,7 @@ struct MEGA_API NewNode : public NodeCore
     byte uploadtoken[UPLOADTOKENLEN]{};
 
     handle syncid = UNDEF;
-    LocalNode* localnode = nullptr; // non-owning
+    crossref_ptr<LocalNode, NewNode> localnode; // non-owning
     std::unique_ptr<string> fileattributes;
 
     bool added = false;
@@ -301,7 +301,7 @@ struct MEGA_API LocalNode : public File
     Node* node = nullptr;
 
     // related pending node creation or NULL
-    NewNode* newnode = nullptr;
+    crossref_ptr<NewNode, LocalNode> newnode;
 
     // FILENODE or FOLDERNODE
     nodetype_t type = TYPE_UNKNOWN;
@@ -382,6 +382,12 @@ struct MEGA_API LocalNode : public File
     ~LocalNode();
 };
 #endif
+
+template <> inline crossref_ptr<NewNode, LocalNode>& crossref_other_ptr_ref<LocalNode, NewNode>(LocalNode* p) { return p->newnode; }
+template <> inline crossref_ptr<LocalNode, NewNode>& crossref_other_ptr_ref<NewNode, LocalNode>(NewNode* p) { return p->localnode; }
+
 } // namespace
+
+
 
 #endif
