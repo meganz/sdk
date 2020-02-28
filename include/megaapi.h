@@ -15646,7 +15646,7 @@ class MegaApi
          * - MegaRequest::getFlag - Returns true if period is specified in seconds, otherwise returns false.
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
-         * - MegaError::ERROR_EARGS - If the chatid is invalid
+         * - MegaError::API_EARGS - If the chatid is invalid
          * - MegaError::API_ENOENT - If there isn't any chat with the specified chatid.
          * - MegaError::API_EACCESS - If the logged in user doesn't have operator privileges
          *
