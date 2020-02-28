@@ -783,12 +783,12 @@ bool operator==(const SyncConfig& lhs, const SyncConfig& rhs);
 
 
 // cross reference pointers.  For the case where two classes have pointers to each other, and they should
-// either always be NULL or always consistently referring to each other. 
+// either always be NULL or if one refers to the other, the other refers to the one.
 // This class makes sure that the two pointers are always consistent, and also prevents copy/move (unless the pointers are NULL)
-template<typename TO, typename FROM, typename FROMS_CROSSREFPTR>
-FROMS_CROSSREFPTR& crossref_other_ptr_ref(typename TO* s);  // to be supplied for each pair of classes (to assign to the right member thereof) (gets around circular declarations)
+template<class TO, class FROM, class FROMS_CROSSREFPTR>
+FROMS_CROSSREFPTR& crossref_other_ptr_ref(TO* s);  // to be supplied for each pair of classes (to assign to the right member thereof) (gets around circular declarations)
 
-template <typename  TO, typename  FROM>
+template <class  TO, class  FROM>
 class MEGA_API  crossref_ptr 
 {
     friend class crossref_ptr<FROM, TO>;
