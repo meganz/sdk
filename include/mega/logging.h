@@ -127,7 +127,7 @@ public:
     // Note: `time` and `source` are null in performance mode
     virtual void log(const char *time, int loglevel, const char *source, const char *message
 #ifdef ENABLE_LOG_PERFORMANCE)
-          , std::vector<const char *> directMessages = std::vector<const char *>(), std::vector<size_t> directMessagesSizes = std::vector<size_t>()
+          , const std::vector<const char *> &directMessages = std::vector<const char *>(), const std::vector<size_t> &directMessagesSizes = std::vector<size_t>()
 #endif
                      ) = 0;
 };
@@ -141,12 +141,13 @@ const static int LOGGER_CHUNKS_SIZE = 1024;
  */
 class DirectMessage{
 
+private:
     const static size_t directMsgThreshold = 1024; //below this, the msg will be buffered as a normal message
-
-public:
     bool mForce = false;
     size_t mSize = 0;
-    const char *mConstChar;
+    const char *mConstChar = nullptr;
+
+public:
 
     DirectMessage( const char *constChar, bool force = false) //force will set size as max, so as to stay above directMsgThreshold
     {
@@ -171,6 +172,11 @@ public:
     bool isBigEnoughToOutputDirectly(int bufferedSize) const
     {
         return (mForce || mSize > directMsgThreshold || mSize >= std::max(0, LOGGER_CHUNKS_SIZE - bufferedSize - 40/*room for [file:line]*/) );
+    }
+
+    const char *constChar() const
+    {
+        return mConstChar;
     }
 };
 
@@ -401,7 +407,7 @@ public:
                 std::vector<size_t> dms;
                 for (const auto & d : mDirectMessages)
                 {
-                    dm.push_back(d.mConstChar);
+                    dm.push_back(d.constChar());
                     dms.push_back(d.size());
                 }
 
@@ -511,7 +517,7 @@ public:
     {
         if (!obj.isBigEnoughToOutputDirectly(std::distance(mBuffer.begin(), mBufferIt))) //don't bother with little msg
         {
-            *this << obj.mConstChar;
+            *this << obj.constChar();
         }
         else
         {
@@ -526,7 +532,7 @@ public:
                 mBufferIt = mBuffer.begin();
             }
 
-            mDirectMessages.push_back(DirectMessage(obj.mConstChar, obj.size()));
+            mDirectMessages.push_back(DirectMessage(obj.constChar(), obj.size()));
         }
 
         return *this;
