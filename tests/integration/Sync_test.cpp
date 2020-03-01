@@ -357,6 +357,7 @@ struct StandardClient : public MegaApp
     std::condition_variable functionDone;
     std::mutex functionDoneMutex;
     std::string salt;
+    std::set<fs::path> localFSFilesThatMayDiffer;
 
     fs::path fsBasePath;
 
@@ -1098,11 +1099,14 @@ struct StandardClient : public MegaApp
 
         if (pathtype == FILENODE && p.filename().u8string() != "lock")
         {
-            ifstream fs(p, ios::binary);
-            char filedata[1024];
-            fs.read(filedata, sizeof(filedata));
-            EXPECT_EQ(size_t(fs.gcount()), mn->content.size()) << " file is not expected size " << p;
-            EXPECT_TRUE(!memcmp(filedata, mn->content.data(), mn->content.size())) << " file data mismatch " << p;
+            if (localFSFilesThatMayDiffer.find(p) == localFSFilesThatMayDiffer.end())
+            {
+                ifstream fs(p, ios::binary);
+                char filedata[1024];
+                fs.read(filedata, sizeof(filedata));
+                EXPECT_EQ(size_t(fs.gcount()), mn->content.size()) << " file is not expected size " << p;
+                EXPECT_TRUE(!memcmp(filedata, mn->content.data(), mn->content.size())) << " file data mismatch " << p;
+            }
         }
 
         if (pathtype != FOLDERNODE)
@@ -4032,7 +4036,7 @@ TEST(Sync, OneWay_Download_syncDelTrue_overwriteTrue_1)
 struct OneWaySymmetryCase
 {
     enum Action { action_rename, action_moveWithinSync, action_moveOutOfSync, action_moveIntoSync, action_delete, action_numactions };
-    enum MatchState { match_exact, match_different, match_absent };
+    enum MatchState { match_exact, match_mismatch, match_absent };
     Action action = action_rename;
     bool selfChange = false; // changed by our own client or another
     bool up = false;  // or down - sync direction
@@ -4075,14 +4079,25 @@ struct OneWaySymmetryCase
         }
     }
 
+    std::string matchName(MatchState m)
+    {
+        switch (m) 
+        { 
+            case match_exact: return "exact";
+            case match_mismatch: return "mismatch";
+            case match_absent: return "absent";
+        }
+        return "bad enum";
+    }
+
     std::string name() 
     { 
         return  actionName() +
                 (selfChange?"_self":"_other") + 
                 (up?"_up":"_down") + 
                 (file?"_file":"_folder") + 
-                "_" + to_string(int(destinationMatchBefore)) +
-                "_" + to_string(int(destinationMatchAfter)) +
+                "_before" + matchName(destinationMatchBefore) +
+                "_after" + matchName(destinationMatchAfter) +
                 (propagateDeletes?"_pd":"") +
                 (forceOverwrites?"_fo":"") +
                 (pauseDuringAction?"_pda":""); 
@@ -4316,6 +4331,15 @@ struct OneWaySymmetryCase
         destination_move("f/" + newname, targetfolder, updatemodel);
     }
 
+    void fileMayDiffer(std::string filepath)
+    {
+        fs::path p(localTestBasePath);
+        p /= fixSeparators(filepath);
+
+        state.client.localFSFilesThatMayDiffer.insert(p);
+        cout << "File may differ: " << p << endl;
+    }
+
     // One-way sync has been started and is stable.  Now perform the test action
 
     enum ModifyStage { Prepare, MainAction };
@@ -4333,15 +4357,15 @@ struct OneWaySymmetryCase
                 if (file)
                 {
                     if (destinationMatchAfter == match_exact) { destination_copy_renamed("f/f_0", "file0_f_0", "file0_f_0_renamed", "f/f_0", true); };
-                    if (destinationMatchAfter == match_different) destination_copy_renamed("f/f_1", "file1_f_1", "file0_f_0_renamed", "f/f_0", true);
-                    if (destinationMatchBefore == match_different) { destination_copy_renamed("f/f_1", "file0_f_1", "file0_f_0", "f/f_0", true); }
+                    if (destinationMatchAfter == match_mismatch) destination_copy_renamed("f/f_1", "file1_f_1", "file0_f_0_renamed", "f/f_0", true);
+                    if (destinationMatchBefore == match_mismatch) { destination_copy_renamed("f/f_1", "file0_f_1", "file0_f_0", "f/f_0", true); }
                     if (destinationMatchBefore == match_absent) { destination_delete("f/f_0/file0_f_0", true); }
                 }
                 else
                 {
                     if (destinationMatchAfter == match_exact) destination_copy("f/f_1", "f/f_1_renamed", true);
-                    if (destinationMatchAfter == match_different) destination_rename("f/f_2", "f/f_1_renamed", true);
-                    if (destinationMatchBefore == match_different) { destination_delete("f/f_1", true), destination_copy("f/f_2", "f/f_1", true); }
+                    if (destinationMatchAfter == match_mismatch) destination_rename("f/f_2", "f/f_1_renamed", true);
+                    if (destinationMatchBefore == match_mismatch) { destination_delete("f/f_1", true), destination_copy("f/f_2", "f/f_1", true); }
                     if (destinationMatchBefore == match_absent) { destination_delete("f/f_1", true); }
                 }
             }
@@ -4372,15 +4396,15 @@ struct OneWaySymmetryCase
                 if (file)
                 {
                     if (destinationMatchAfter == match_exact) destination_copy("f/f_1/file0_f_1", "f/f_0", true);
-                    if (destinationMatchAfter == match_different) destination_copy_renamed("f/f_0", "file0_f_0", "file0_f_1", "f/f_0", true);
-                    if (destinationMatchBefore == match_different) destination_copy_renamed("f/f_1", "file1_f_1", "file0_f_1", "f/f_1", true);
+                    if (destinationMatchAfter == match_mismatch) { destination_copy_renamed("f/f_0", "file0_f_0", "file0_f_1", "f/f_0", true); fileMayDiffer("f/f_0/file0_f_1"); }
+                    if (destinationMatchBefore == match_mismatch) { destination_copy_renamed("f/f_1", "file1_f_1", "file0_f_1", "f/f_1", true); fileMayDiffer("f/f_1/file0_f_1"); }
                     if (destinationMatchBefore == match_absent) destination_delete("f/f_1/file0_f_1", true);
                 }
                 else
                 {
                     if (destinationMatchAfter == match_exact) destination_copy("f/f_1", "f/f_0", true);
-                    if (destinationMatchAfter == match_different) destination_copy_renamed("f/f_0", "f_0_0", "f_1", "f/f_0", true);
-                    if (destinationMatchBefore == match_different) destination_copy_renamed("f/f_0", "f_0_1", "f_1", "f", true);
+                    if (destinationMatchAfter == match_mismatch) destination_copy_renamed("f/f_0", "f_0_0", "f_1", "f/f_0", true);
+                    if (destinationMatchBefore == match_mismatch) destination_copy_renamed("f/f_0", "f_0_1", "f_1", "f", true);
                     if (destinationMatchBefore == match_absent) destination_delete("f/f_1", true);
                 }
             }
