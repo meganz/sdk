@@ -126,7 +126,7 @@ public:
     virtual ~Logger() = default;
     // Note: `time` and `source` are null in performance mode
     virtual void log(const char *time, int loglevel, const char *source, const char *message
-#ifdef ENABLE_LOG_PERFORMANCE)
+#ifdef ENABLE_LOG_PERFORMANCE
           , const std::vector<const char *> &directMessages = std::vector<const char *>(), const std::vector<size_t> &directMessagesSizes = std::vector<size_t>()
 #endif
                      ) = 0;
