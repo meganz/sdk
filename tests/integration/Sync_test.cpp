@@ -195,8 +195,10 @@ struct Model
     {
         ModelNode* source = findnode(sourcepath);
         ModelNode* dest = findnode(destpath);
-        if (source && source && source->parent && dest)
+        if (source && source->parent && dest)
         {
+            auto replaced_node = removenode(destpath + "/" + source->name);
+
             unique_ptr<ModelNode> n;
             ModelNode* parent = source->parent;
             auto newend = std::remove_if(parent->kids.begin(), parent->kids.end(), [&n, source](unique_ptr<ModelNode>& v) { if (v.get() == source) return n = move(v), true; else return false; });
@@ -336,6 +338,8 @@ bool waitonresults(future<bool>* r1 = nullptr, future<bool>* r2 = nullptr, futur
     return (!r1 || r1->get()) && (!r2 || r2->get()) && (!r3 || r3->get()) && (!r4 || r4->get());
 }
 
+atomic<int> next_request_tag{ 1 << 30 };
+
 struct StandardClient : public MegaApp
 {
     WAIT_CLASS waiter;
@@ -363,9 +367,6 @@ struct StandardClient : public MegaApp
 
     handle basefolderhandle = UNDEF;
 
-    // thread as last member so everything else is initialised before we start it
-    std::thread clientthread;
-
     fs::path ensureDir(const fs::path& p)
     {
         fs::create_directories(p);
@@ -390,6 +391,7 @@ struct StandardClient : public MegaApp
             "N9tSBJDC", USER_AGENT.c_str())
         , clientname(name)
         , fsBasePath(basepath / fs::u8path(name))
+        , resultproc(client)
         , clientthread([this]() { threadloop(); })
     {
         client.clientname = clientname + " ";
@@ -538,8 +540,10 @@ struct StandardClient : public MegaApp
 
         ASSERT_FALSE(user.empty());
 
-        resultproc.prepresult(PRELOGIN, [this, &pb](error e) { pb.set_value(!e); });
-        client.prelogin(user.c_str());
+        resultproc.prepresult(PRELOGIN, ++next_request_tag,
+            [&](){ client.prelogin(user.c_str()); },
+            [this, &pb](error e) { pb.set_value(!e); });
+        
     }
 
     void loginFromEnv(const string& userenv, const string& pwdenv, promise<bool>& pb)
@@ -552,32 +556,37 @@ struct StandardClient : public MegaApp
 
         byte pwkey[SymmCipher::KEYLENGTH];
 
-        resultproc.prepresult(LOGIN, [this, &pb](error e) { pb.set_value(!e); });
-        if (client.accountversion == 1)
-        {
-            if (error e = client.pw_key(pwd.c_str(), pwkey))
-            {
-                ASSERT_TRUE(false) << "login error: " << e;
-            }
-            else
-            {
-                client.login(user.c_str(), pwkey);
-            }
-        }
-        else if (client.accountversion == 2 && !salt.empty())
-        {
-            client.login2(user.c_str(), pwd.c_str(), &salt);
-        }
-        else
-        {
-            ASSERT_TRUE(false) << "Login unexpected error";
-        }
+        resultproc.prepresult(LOGIN, ++next_request_tag,
+            [&](){
+                if (client.accountversion == 1)
+                {
+                    if (error e = client.pw_key(pwd.c_str(), pwkey))
+                    {
+                        ASSERT_TRUE(false) << "login error: " << e;
+                    }
+                    else
+                    {
+                        client.login(user.c_str(), pwkey);
+                    }
+                }
+                else if (client.accountversion == 2 && !salt.empty())
+                {
+                    client.login2(user.c_str(), pwd.c_str(), &salt);
+                }
+                else
+                {
+                    ASSERT_TRUE(false) << "Login unexpected error";
+                }
+            },
+            [this, &pb](error e) { pb.set_value(!e); });
+
     }
 
     void loginFromSession(const string& session, promise<bool>& pb)
     {
-        resultproc.prepresult(LOGIN, [this, &pb](error e) { pb.set_value(!e); });
-        client.login((byte*)session.data(), (int)session.size());
+        resultproc.prepresult(LOGIN, ++next_request_tag,
+            [&](){ client.login((byte*)session.data(), (int)session.size()); },
+            [this, &pb](error e) { pb.set_value(!e); });
     }
 
 
@@ -596,29 +605,30 @@ struct StandardClient : public MegaApp
 
     void fetchnodes(promise<bool>& pb)
     {
-        resultproc.prepresult(FETCHNODES, [this, &pb](error e) 
-        { 
-            if (e)
-            {
-                pb.set_value(false);
-            }
-            else
-            {
-                TreeProcPrintTree tppt;
-                client.proctree(client.nodebyhandle(client.rootnodes[0]), &tppt);
-
-                if (onFetchNodes)
+        resultproc.prepresult(FETCHNODES, ++next_request_tag,
+            [&](){ client.fetchnodes(); },
+            [this, &pb](error e) 
+            { 
+                if (e)
                 {
-                    onFetchNodes(*this, pb);
+                    pb.set_value(false);
                 }
                 else
                 {
-                    pb.set_value(true);
+                    TreeProcPrintTree tppt;
+                    client.proctree(client.nodebyhandle(client.rootnodes[0]), &tppt);
+
+                    if (onFetchNodes)
+                    {
+                        onFetchNodes(*this, pb);
+                    }
+                    else
+                    {
+                        pb.set_value(true);
+                    }
                 }
-            }
-            onFetchNodes = nullptr;
-        });
-        client.fetchnodes();
+                onFetchNodes = nullptr;
+            });
     }
 
     NewNode makeSubfolder(const string& utf8Name)
@@ -631,68 +641,94 @@ struct StandardClient : public MegaApp
 
     struct ResultProc
     {
+        MegaClient& client; 
+        ResultProc(MegaClient& c) : client(c) {}
+
         struct id_callback
         {
+            int request_tag = 0;
             handle h = UNDEF;
             std::function<void(error)> f;
-            id_callback(std::function<void(error)> cf, handle ch = UNDEF) : f(cf), h(ch) {}
+            id_callback(std::function<void(error)> cf, int tag, handle ch) : request_tag(tag), f(cf), h(ch) {}
         };
 
+        recursive_mutex mtx;  // recursive because sometimes we need to set up new operations during a completion callback
         map<resultprocenum, deque<id_callback>> m;
 
-        void prepresult(resultprocenum rpe, std::function<void(error)>&& f, handle h = UNDEF)
+        void prepresult(resultprocenum rpe, int tag, std::function<void()>&& requestfunc, std::function<void(error)>&& f, handle h = UNDEF)
         {
+            lock_guard<recursive_mutex> g(mtx);
             auto& entry = m[rpe];
-            entry.emplace_back(move(f), h);
+            entry.emplace_back(move(f), tag, h);
+
+            assert(tag > 0);
+            int oldtag = client.reqtag;
+            client.reqtag = tag;
+            requestfunc();
+            client.reqtag = oldtag;
         }
 
         void processresult(resultprocenum rpe, error e, handle h = UNDEF)
         {
-            //cout << "procenum " << rpe << " result " << e << endl;
-            auto& entry = m[rpe];
-            if (rpe == MOVENODE)
+            int tag = client.restag;
+            if (tag == 0 && rpe != CATCHUP)
             {
-                // rename_result is called back for our app requests but also for sync objects as well, so we need to skip those... todo: should we change that?
-                if (entry.empty() || entry.front().h != h)
-                {
-                    cout << "received unsolicited rename_result call" << endl;
-                    return;
-                }
+                //cout << "received notification of SDK initiated operation " << rpe << " tag " << tag << endl; // too many of those to output
+                return;
             }
+
+            if (tag < (2 << 30))
+            {
+                cout << "ignoring callback from SDK internal sync operation " << rpe << " tag " << tag << endl; 
+                return;
+            }
+
+            lock_guard<recursive_mutex> g(mtx);
+            auto& entry = m[rpe];
+
             if (rpe == CATCHUP)
             {
-                if (entry.empty())
+                while (!entry.empty())
                 {
-                    //cout << "received unsolicited CATCHUP result" << endl; // too many of those to output
-                    return;
+                    entry.front().f(e);
+                    entry.pop_front();
                 }
+                return;
             }
-            if (!entry.empty())
+
+            if (entry.empty())
             {
-                entry.front().f(e);
-                entry.pop_front();
+                cout << "received notification of operation type " << rpe << " completion but we don't have a record of it.  tag: " << tag << endl;
+                return;
             }
-            else
+            
+            if (tag != entry.front().request_tag)
             {
-                assert(!entry.empty());
+                cout << "tag mismatch for operation completion of " << rpe << " tag " << tag << ", we expected " << entry.front().request_tag << endl;
+                return;
             }
+
+            entry.front().f(e);
+            entry.pop_front();
         }
     } resultproc;
 
    void catchup(promise<bool>& pb)
     {
-        resultproc.prepresult(CATCHUP, [this, &pb](error e) {
-            if (e)
-            {
-                cout << "catchup reports: " << e << endl;
-            }
-            pb.set_value(!e);
-        });
-
-        auto request_sent = thread_do([](StandardClient& sc, promise<bool>& pb) { sc.client.catchup(); pb.set_value(true); });
-        if (!waitonresults(&request_sent)) {
-            cout << "catchup not sent" << endl;
-        }
+        resultproc.prepresult(CATCHUP, ++next_request_tag,
+            [&](){
+                auto request_sent = thread_do([](StandardClient& sc, promise<bool>& pb) { sc.client.catchup(); pb.set_value(true); });
+                if (!waitonresults(&request_sent)) {
+                    cout << "catchup not sent" << endl;
+                }
+            },
+            [this, &pb](error e) {
+                if (e)
+                {
+                    cout << "catchup reports: " << e << endl;
+                }
+                pb.set_value(!e);
+            });
     }
 
     void deleteTestBaseFolder(bool mayneeddeleting, promise<bool>& pb)
@@ -703,15 +739,16 @@ struct StandardClient : public MegaApp
             {
                 if (mayneeddeleting)
                 {
-                    resultproc.prepresult(UNLINK, [this, &pb](error e) {
-                        if (e)
-                        {
-                            cout << "delete of test base folder reply reports: " << e << endl;
-                        }
-                        deleteTestBaseFolder(false, pb);
-                    });
                     //cout << "old test base folder found, deleting" << endl;
-                    client.unlink(basenode);
+                    resultproc.prepresult(UNLINK, ++next_request_tag,
+                        [&](){ client.unlink(basenode); },
+                        [this, &pb](error e) {
+                            if (e)
+                            {
+                                cout << "delete of test base folder reply reports: " << e << endl;
+                            }
+                            deleteTestBaseFolder(false, pb);
+                        });
                     return;
                 }
                 cout << "base folder found, but not expected, failing" << endl;
@@ -746,12 +783,13 @@ struct StandardClient : public MegaApp
             }
             else if (mayneedmaking)
             {
-                resultproc.prepresult(PUTNODES, [this, &pb](error e) {
-                    ensureTestBaseFolder(false, pb);
-                });
                 auto nn = new NewNode[1]; // freed by putnodes_result
                 nn[0] = makeSubfolder("mega_test_sync");
-                client.putnodes(root->nodehandle, nn, 1);
+
+                resultproc.prepresult(PUTNODES, ++next_request_tag,
+                    [&](){ client.putnodes(root->nodehandle, nn, 1); },
+                    [this, &pb](error e) { ensureTestBaseFolder(false, pb); });
+                
                 return;
             }
         }
@@ -796,20 +834,22 @@ struct StandardClient : public MegaApp
         }
         else
         {
-            resultproc.prepresult(PUTNODES, [this, &pb](error e) {
-                pb.set_value(!e);
-                if (e) 
-                {
-                    cout << "putnodes result: " << e << endl;
-                }
-            });
             auto nodearray = new NewNode[nodes.size()]; // freed by putnodes_result
             size_t i = 0;
             for (auto n = nodes.begin(); n != nodes.end(); ++n, ++i)
             {
                 nodearray[i] = std::move(*n);
             }
-            client.putnodes(atnode->nodehandle, nodearray, (int)nodes.size());
+
+            resultproc.prepresult(PUTNODES, ++next_request_tag,
+                [&](){ client.putnodes(atnode->nodehandle, nodearray, (int)nodes.size()); },
+                [this, &pb](error e) {
+                pb.set_value(!e);
+                if (e) 
+                {
+                    cout << "putnodes result: " << e << endl;
+                }
+            });
         }
     }
 
@@ -904,6 +944,12 @@ struct StandardClient : public MegaApp
         {
             cout << "Node type mismatch: " << mn->path() << ":" << mn->type << " " << n->displaypath() << ":" << n->type << endl;
             return false;
+        }
+
+        if (n->type == FILENODE) 
+        {
+            // not comparing any file versioning (for now)
+            return true;
         }
 
         multimap<string, Model::ModelNode*> ms;
@@ -1281,8 +1327,9 @@ struct StandardClient : public MegaApp
     {
         if (Node* n = drillchildnodebyname(gettestbasenode(), path))
         {
-            resultproc.prepresult(UNLINK, [this, &pb](error e) { pb.set_value(!e); });
-            client.unlink(n);
+            resultproc.prepresult(UNLINK, ++next_request_tag,
+                [&](){ client.unlink(n); },
+                [this, &pb](error e) { pb.set_value(!e); });
         }
         else
         {
@@ -1300,8 +1347,9 @@ struct StandardClient : public MegaApp
         {
             for (size_t i = ns.size(); i--; )
             {
-                resultproc.prepresult(UNLINK, [this, &pb, i](error e) { if (!i) pb.set_value(!e); });
-                client.unlink(ns[i]);
+                resultproc.prepresult(UNLINK, ++next_request_tag,
+                    [&](){ client.unlink(ns[i]); },
+                    [this, &pb, i](error e) { if (!i) pb.set_value(!e); });
             }
         }
     }
@@ -1312,8 +1360,9 @@ struct StandardClient : public MegaApp
         Node* p = drillchildnodebyname(gettestbasenode(), newparentpath);
         if (n && p)
         {
-            resultproc.prepresult(MOVENODE, [this, &pb](error e) { pb.set_value(!e); }, n->nodehandle);
-            client.rename(n, p);
+            resultproc.prepresult(MOVENODE, ++next_request_tag,
+                [&](){ client.rename(n, p); },
+                [this, &pb](error e) { pb.set_value(!e); });
             return;
         }
         cout << "node or new parent not found" << endl;
@@ -1326,8 +1375,9 @@ struct StandardClient : public MegaApp
         Node* p = client.nodebyhandle(h2);
         if (n && p)
         {
-            resultproc.prepresult(MOVENODE, [this, &pb](error e) { pb.set_value(!e); }, n->nodehandle);
-            client.rename(n, p);
+            resultproc.prepresult(MOVENODE, ++next_request_tag,
+                [&](){ client.rename(n, p);},
+                [this, &pb](error e) { pb.set_value(!e); });
             return;
         }
         cout << "node or new parent not found by handle" << endl;
@@ -1340,8 +1390,9 @@ struct StandardClient : public MegaApp
         Node* p = getcloudrubbishnode();
         if (n && p && n->parent)
         {
-            resultproc.prepresult(MOVENODE, [this, &pb](error e) { pb.set_value(!e); }, n->nodehandle);
-            client.rename(n, p, SYNCDEL_NONE, n->parent->nodehandle);
+            resultproc.prepresult(MOVENODE, ++next_request_tag,
+                [&](){ client.rename(n, p, SYNCDEL_NONE, n->parent->nodehandle); },
+                [this, &pb](error e) { pb.set_value(!e); });
             return;
         }
         cout << "node or rubbish or node parent not found" << endl;
@@ -1519,6 +1570,9 @@ struct StandardClient : public MegaApp
         fb = thread_do([syncid, mnode, ignoreDebris, confirm](StandardClient& sc, promise<bool>& pb) { pb.set_value(sc.confirmModel(syncid, mnode, confirm, ignoreDebris)); });
         return fb.get();
     }
+
+    // thread as last member so everything else is initialised before we start it
+    std::thread clientthread;
 };
 
 
@@ -2629,11 +2683,9 @@ GTEST_TEST(Sync, PutnodesForMultipleFolders)
     handle targethandle = standardclient.client.rootnodes[0];
 
     std::atomic<bool> putnodesDone{false};
-    standardclient.resultproc.prepresult(StandardClient::PUTNODES, [&putnodesDone](error e) {
-        putnodesDone = true;
-    });
-
-    standardclient.client.putnodes(targethandle, newnodes, 4, nullptr);
+    standardclient.resultproc.prepresult(StandardClient::PUTNODES, ++next_request_tag,
+        [&](){ standardclient.client.putnodes(targethandle, newnodes, 4, nullptr); },
+        [&putnodesDone](error e) { putnodesDone = true; });
     
     while (!putnodesDone)
     {
@@ -4150,7 +4202,7 @@ struct OneWaySymmetryCase
         SetupOneWaySync();
     }
 
-    void remote_rename(std::string nodepath, std::string newname, bool updatemodel)
+    void remote_rename(std::string nodepath, std::string newname, bool updatemodel, bool reportaction)
     {
         if (updatemodel) remoteModel.emulate_rename(nodepath, newname);
 
@@ -4158,12 +4210,14 @@ struct OneWaySymmetryCase
         Node* n = changeClient().drillchildnodebyname(testRoot, remoteTestBasePath + "/" + nodepath);
         ASSERT_TRUE(!!n);
 
+        if (reportaction) cout << name() << " action: remote rename " << n->displaypath() << " to " << newname << endl;
+
         n->attrs.map['n'] = newname;
         auto e = changeClient().client.setattr(n);
         ASSERT_TRUE(!e);
     }
 
-    void remote_move(std::string nodepath, std::string newparentpath, bool updatemodel)
+    void remote_move(std::string nodepath, std::string newparentpath, bool updatemodel, bool reportaction)
     {
         if (updatemodel) remoteModel.emulate_move(nodepath, newparentpath);
 
@@ -4173,11 +4227,13 @@ struct OneWaySymmetryCase
         ASSERT_TRUE(!!n1);
         ASSERT_TRUE(!!n2);
 
+        if (reportaction) cout << name() << " action: remote move " << n1->displaypath() << " to " << n2->displaypath() << endl;
+
         auto e = changeClient().client.rename(n1, n2);
         ASSERT_TRUE(!e);
     }
 
-    void remote_copy(std::string nodepath, std::string newparentpath, bool updatemodel)
+    void remote_copy(std::string nodepath, std::string newparentpath, bool updatemodel, bool reportaction)
     {
         if (updatemodel) remoteModel.emulate_copy(nodepath, newparentpath);
 
@@ -4187,17 +4243,21 @@ struct OneWaySymmetryCase
         ASSERT_TRUE(!!n1);
         ASSERT_TRUE(!!n2);
 
-        auto e = changeClient().client.rename(n1, n2);
+        if (reportaction) cout << name() << " action: remote copy " << n1->displaypath() << " to " << n2->displaypath() << endl;
+
+        auto e = changeClient().client.rename(n1, n2);        // todo: copy not rename
         ASSERT_TRUE(!e);
     }
 
-    void remote_delete(std::string nodepath, bool updatemodel)
+    void remote_delete(std::string nodepath, bool updatemodel, bool reportaction)
     {
         if (updatemodel) remoteModel.emulate_delete(nodepath);
 
         Node* testRoot = changeClient().client.nodebyhandle(changeClient().basefolderhandle);
         Node* n = changeClient().drillchildnodebyname(testRoot, remoteTestBasePath + "/" + nodepath);
         ASSERT_TRUE(!!n);
+
+        if (reportaction) cout << name() << " action: remote delete " << n->displaypath() << endl;
 
         auto e = changeClient().client.unlink(n);
         ASSERT_TRUE(!e);
@@ -4211,13 +4271,15 @@ struct OneWaySymmetryCase
         return fs::u8path(p);
     }
 
-    void local_rename(std::string path, std::string newname, bool updatemodel)
+    void local_rename(std::string path, std::string newname, bool updatemodel, bool reportaction)
     {
         if (updatemodel) localModel.emulate_rename(path, newname);
 
         fs::path p1(localTestBasePath);
         p1 /= fixSeparators(path);
         fs::path p2 = p1.parent_path() / newname;
+
+        if (reportaction) cout << name() << " action: local rename " << p1 << " to " << p2 << endl;
 
         std::error_code ec;
         for (int i = 0; i < 5; ++i)
@@ -4229,7 +4291,7 @@ struct OneWaySymmetryCase
         ASSERT_TRUE(!ec) << "local_rename " << p1 << " to " << p2 << " failed: " << ec.message();
     }
 
-    void local_move(std::string from, std::string to, bool updatemodel)
+    void local_move(std::string from, std::string to, bool updatemodel, bool reportaction)
     {
         if (updatemodel) localModel.emulate_move(from, to);
 
@@ -4238,6 +4300,8 @@ struct OneWaySymmetryCase
         p1 /= fixSeparators(from);
         p2 /= fixSeparators(to);
         p2 /= p1.filename();  // non-existing file in existing directory case
+
+        if (reportaction) cout << name() << " action: local move " << p1 << " to " << p2 << endl;
 
         std::error_code ec;
         fs::rename(p1, p2, ec);
@@ -4249,7 +4313,7 @@ struct OneWaySymmetryCase
         ASSERT_TRUE(!ec) << "local_move " << p1 << " to " << p2 << " failed: " << ec.message();
     }
 
-    void local_copy(std::string from, std::string to, bool updatemodel)
+    void local_copy(std::string from, std::string to, bool updatemodel, bool reportaction)
     {
         if (updatemodel) localModel.emulate_copy(from, to);
 
@@ -4258,77 +4322,81 @@ struct OneWaySymmetryCase
         p1 /= fixSeparators(from);
         p2 /= fixSeparators(to);
 
+        if (reportaction) cout << name() << " action: local copy " << p1 << " to " << p2 << endl;
+
         std::error_code ec;
         fs::copy(p1, p2, ec);
         ASSERT_TRUE(!ec) << "local_copy " << p1 << " to " << p2 << " failed: " << ec.message();
     }
 
-    void local_delete(std::string path, bool updatemodel)
+    void local_delete(std::string path, bool updatemodel, bool reportaction)
     {
         if (updatemodel) localModel.emulate_delete(path);
 
         fs::path p(localTestBasePath);
         p /= fixSeparators(path);
 
+        if (reportaction) cout << name() << " action: local_delete " << p << endl;
+
         std::error_code ec;
         fs::remove_all(p, ec);
         ASSERT_TRUE(!ec) << "local_delete " << p << " failed: " << ec.message();
     }
 
-    void source_rename(std::string nodepath, std::string newname, bool updatemodel)
+    void source_rename(std::string nodepath, std::string newname, bool updatemodel, bool reportaction = false)
     {
-        if (up) local_rename(nodepath, newname, updatemodel);
-        else remote_rename(nodepath, newname, updatemodel);
+        if (up) local_rename(nodepath, newname, updatemodel, reportaction);
+        else remote_rename(nodepath, newname, updatemodel, reportaction);
     }
 
-    void source_move(std::string nodepath, std::string newparentpath, bool updatemodel)
+    void source_move(std::string nodepath, std::string newparentpath, bool updatemodel, bool reportaction = false)
     {
-        if (up) local_move(nodepath, newparentpath, updatemodel);
-        else remote_move(nodepath, newparentpath, updatemodel);
+        if (up) local_move(nodepath, newparentpath, updatemodel, reportaction);
+        else remote_move(nodepath, newparentpath, updatemodel, reportaction);
     }
 
-    void source_copy(std::string nodepath, std::string newparentpath, bool updatemodel)
+    void source_copy(std::string nodepath, std::string newparentpath, bool updatemodel, bool reportaction = false)
     {
-        if (up) local_copy(nodepath, newparentpath, updatemodel);
-        else remote_copy(nodepath, newparentpath, updatemodel);
+        if (up) local_copy(nodepath, newparentpath, updatemodel, reportaction);
+        else remote_copy(nodepath, newparentpath, updatemodel, reportaction);
     }
 
-    void source_delete(std::string nodepath, bool updatemodel)
+    void source_delete(std::string nodepath, bool updatemodel, bool reportaction = false)
     {
-        if (up) local_delete(nodepath, updatemodel);
-        else remote_delete(nodepath, updatemodel);
+        if (up) local_delete(nodepath, updatemodel, reportaction);
+        else remote_delete(nodepath, updatemodel, reportaction);
     }
 
-    void destination_rename(std::string nodepath, std::string newname, bool updatemodel)
+    void destination_rename(std::string nodepath, std::string newname, bool updatemodel, bool reportaction = false)
     {
-        if (!up) local_rename(nodepath, newname, updatemodel);
-        else remote_rename(nodepath, newname, updatemodel);
+        if (!up) local_rename(nodepath, newname, updatemodel, reportaction);
+        else remote_rename(nodepath, newname, updatemodel, reportaction);
     }
 
-    void destination_move(std::string nodepath, std::string newparentpath, bool updatemodel)
+    void destination_move(std::string nodepath, std::string newparentpath, bool updatemodel, bool reportaction = false)
     {
-        if (!up) local_move(nodepath, newparentpath, updatemodel);
-        else remote_move(nodepath, newparentpath, updatemodel);
+        if (!up) local_move(nodepath, newparentpath, updatemodel, reportaction);
+        else remote_move(nodepath, newparentpath, updatemodel, reportaction);
     }
 
-    void destination_copy(std::string nodepath, std::string newparentpath, bool updatemodel)
+    void destination_copy(std::string nodepath, std::string newparentpath, bool updatemodel, bool reportaction = false)
     {
-        if (!up) local_copy(nodepath, newparentpath, updatemodel);
-        else remote_copy(nodepath, newparentpath, updatemodel);
+        if (!up) local_copy(nodepath, newparentpath, updatemodel, reportaction);
+        else remote_copy(nodepath, newparentpath, updatemodel, reportaction);
     }
 
-    void destination_delete(std::string nodepath, bool updatemodel)
+    void destination_delete(std::string nodepath, bool updatemodel, bool reportaction = false)
     {
-        if (!up) local_delete(nodepath, updatemodel);
-        else remote_delete(nodepath, updatemodel);
+        if (!up) local_delete(nodepath, updatemodel, reportaction);
+        else remote_delete(nodepath, updatemodel, reportaction);
     }
 
-    void destination_copy_renamed(std::string sourcefolder, std::string oldname, std::string newname, std::string targetfolder, bool updatemodel)
+    void destination_copy_renamed(std::string sourcefolder, std::string oldname, std::string newname, std::string targetfolder, bool updatemodel, bool reportaction = false)
     {
         // avoid name clashes in any one folder
-        destination_copy(sourcefolder + "/" + oldname, "f", updatemodel);
-        destination_rename("f/" + oldname, newname, updatemodel);
-        destination_move("f/" + newname, targetfolder, updatemodel);
+        destination_copy(sourcefolder + "/" + oldname, "f", updatemodel, reportaction);
+        destination_rename("f/" + oldname, newname, updatemodel, reportaction);
+        destination_move("f/" + newname, targetfolder, updatemodel, reportaction);
     }
 
     void fileMayDiffer(std::string filepath)
@@ -4373,7 +4441,7 @@ struct OneWaySymmetryCase
             {
                 if (file)
                 {
-                    source_rename("f/f_0/file0_f_0", "file0_f_0_renamed", true);
+                    source_rename("f/f_0/file0_f_0", "file0_f_0_renamed", true, true);
                     if (destinationMatchBefore == match_exact && destinationMatchAfter == match_absent)
                     {
                         destinationModel().emulate_rename("f/f_0/file0_f_0", "file0_f_0_renamed");
@@ -4381,7 +4449,7 @@ struct OneWaySymmetryCase
                 }
                 else
                 {
-                    source_rename("f/f_0", "f_0_renamed", true);
+                    source_rename("f/f_0", "f_0_renamed", true, true);
                     if (destinationMatchBefore == match_exact && destinationMatchAfter == match_absent)
                     {
                         destinationModel().emulate_rename("f/f_0", "f_0_renamed");
@@ -4412,7 +4480,7 @@ struct OneWaySymmetryCase
             {
                 if (file)
                 {
-                    source_move("f/f_1/file0_f_1", "f/f_0", true);
+                    source_move("f/f_1/file0_f_1", "f/f_0", true, true);
                     if (destinationMatchBefore == match_exact && destinationMatchAfter == match_absent)
                     {
                         destinationModel().emulate_move("f/f_1/file0_f_1", "f/f_0");
@@ -4420,7 +4488,7 @@ struct OneWaySymmetryCase
                 }
                 else
                 {
-                    source_move("f/f_1", "f/f_0", true);
+                    source_move("f/f_1", "f/f_0", true, true);
                     if (destinationMatchBefore == match_exact && destinationMatchAfter == match_absent)
                     {
                         destinationModel().emulate_move("f/f_1", "f/f_0");
@@ -4438,7 +4506,38 @@ struct OneWaySymmetryCase
             break;
 
         case action_delete:
-            source_delete("f/f_1", true);
+            if (prep)
+            {
+                if (file)
+                {
+                    if (destinationMatchBefore == match_mismatch) { destination_copy_renamed("f/f_0", "file1_f_0", "file0_f_0", "f/f_0", true); fileMayDiffer("f/f_0/file0_f_0"); }
+                    if (destinationMatchBefore == match_absent) destination_delete("f/f_0/file0_f_0", true);
+                }
+                else
+                {
+                    if (destinationMatchBefore == match_mismatch) destination_copy_renamed("f/f_1", "f_0_1", "f_0", "f", true);
+                    if (destinationMatchBefore == match_absent) destination_delete("f/f_0", true);
+                }
+            }
+            else if (act)
+            {
+                if (file)
+                {
+                    source_delete("f/f_0/file0_f_0", true, true);
+                    if (propagateDeletes && (destinationMatchBefore == match_exact || destinationMatchBefore == match_mismatch))
+                    {
+                        destinationModel().emulate_delete("f/f_0/file0_f_0");
+                    }
+                }
+                else
+                {
+                    source_delete("f/f_0", true, true);
+                    if (propagateDeletes && (destinationMatchBefore == match_exact || destinationMatchBefore == match_mismatch))
+                    {
+                        destinationModel().emulate_delete("f/f_0");
+                    }
+                }
+            }
             break;
 
         default: ASSERT_TRUE(false);
@@ -4481,6 +4580,7 @@ TEST(Sync, OneWay_Highlevel_Symmetries)
     std::map<std::string, OneWaySymmetryCase> cases;
 
     static bool singleCase = false;
+    static string singleNamedTest = ""; //"delete_other_up_file_beforemismatch_afterexact";
     if (singleCase)
     {
         OneWaySymmetryCase testcase(allstate);
@@ -4496,11 +4596,11 @@ TEST(Sync, OneWay_Highlevel_Symmetries)
         cases.emplace(testcase.name(), move(testcase));
     }
     else
-    for (int selfChange = 0; selfChange < 1; ++selfChange)
+    for (int selfChange = 0; selfChange < 2; ++selfChange)
     {
-        for (int up = 0; up < 1; ++up)
+        for (int up = 0; up < 2; ++up)
         {
-            for (int action = (int)OneWaySymmetryCase::action_moveWithinSync; action <= (int)OneWaySymmetryCase::action_moveWithinSync /*< (int)OneWaySymmetryCase::action_numactions*/; ++action)
+            for (int action = (int)OneWaySymmetryCase::action_delete; action <= (int)OneWaySymmetryCase::action_delete /*< (int)OneWaySymmetryCase::action_numactions*/; ++action)
             {
                 for (int file = 1; file < 2; ++file)
                 {
@@ -4508,7 +4608,9 @@ TEST(Sync, OneWay_Highlevel_Symmetries)
                     {
                         for (int destinationMatchAfter = 0; destinationMatchAfter < 3; ++destinationMatchAfter)
                         {
-                            //for (int propagateDeletes = 0; propagateDeletes < 2; ++propagateDeletes)
+                            if (action == OneWaySymmetryCase::action_delete && destinationMatchAfter > 0) continue;  // only before matters for delete since there's only one path involved
+
+                            for (int propagateDeletes = 0; propagateDeletes < 2; ++propagateDeletes)
                             {
                                 //for (int forceOverwrites = 0; forceOverwrites < 2; ++forceOverwrites)
                                 {
@@ -4521,13 +4623,16 @@ TEST(Sync, OneWay_Highlevel_Symmetries)
                                         testcase.file = file;
                                         testcase.destinationMatchBefore = OneWaySymmetryCase::MatchState(destinationMatchBefore);
                                         testcase.destinationMatchAfter = OneWaySymmetryCase::MatchState(destinationMatchAfter);
-                                        //testcase.propagateDeletes = propagateDeletes;
+                                        testcase.propagateDeletes = propagateDeletes;
                                         //testcase.forceOverwrites = forceOverwrites;
                                         testcase.pauseDuringAction = pauseDuringAction;
-                                        cases.emplace(testcase.name(), move(testcase));
+
+                                        if (singleNamedTest.empty() || testcase.name() == singleNamedTest)
+                                        {
+                                            cases.emplace(testcase.name(), move(testcase));
+                                        }
                                     }
                                 }
-
                             }
                         }
                     }
