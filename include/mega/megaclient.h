@@ -406,6 +406,9 @@ public:
     // prefix and encrypt attribute json
     void makeattr(SymmCipher*, string*, const char*, int = -1) const;
 
+    // convenience version of the above (frequently we are passing a NodeBase's attrstring)
+    void makeattr(SymmCipher*, const std::unique_ptr<string>&, const char*, int = -1) const;
+
     // check node access level
     int checkaccess(Node*, accesslevel_t);
 
@@ -453,6 +456,9 @@ public:
 
     // A collection of sync configs backed by a database table
     std::unique_ptr<SyncConfigBag> syncConfigs;
+
+    // whether we allow the automatic resumption of syncs
+    bool allowAutoResumeSyncs = true;
 
     // A collection of unsyncable remote nodes stored by handle
     std::unique_ptr<UnsyncableNodeBag> unsyncables;

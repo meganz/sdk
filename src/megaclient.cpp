@@ -3738,23 +3738,34 @@ void MegaClient::freeq(direction_t d)
 #ifdef ENABLE_SYNC
 void MegaClient::resumeResumableSyncs()
 {
-    if (!syncConfigs)
+
+    if (!syncConfigs || !allowAutoResumeSyncs)
     {
         return;
     }
-    for (const auto& config : syncConfigs->all())
+    for (auto config : syncConfigs->all())
     {
         if (!config.isResumable())
         {
             continue;
         }
-        const auto e = addsync(config, DEBRISFOLDER, nullptr);
-        if (e == 0)
+        if (!nodebyhandle(config.getRemoteNode()))
         {
-            app->sync_auto_resumed(config.getLocalPath(), config.getRemoteNode(),
-                                   static_cast<long long>(config.getLocalFingerprint()),
-                                   config.getRegExps());
+            // remote node gone
+            config.setResumable(false);
+            syncConfigs->insert(config);
+            continue;
         }
+        const auto e = addsync(config, DEBRISFOLDER, nullptr);
+        if (e != 0)
+        {
+            LOG_warn << "auto-resume sync failed (" << e << "): " << config.getLocalPath() << " - " << LOG_NODEHANDLE(config.getRemoteNode());
+            config.setResumable(false);
+            syncConfigs->insert(config);
+        }
+        app->sync_auto_resume_result(config.getLocalPath(), config.getRemoteNode(),
+                                     static_cast<long long>(config.getLocalFingerprint()),
+                                     config.getRegExps(), e);
     }
 }
 #endif
@@ -5026,9 +5037,9 @@ void MegaClient::sc_updatenode()
                         {
                             if (!n->attrstring)
                             {
-                                n->attrstring = new string;
+                                n->attrstring.reset(new string);
                             }
-                            Node::copystring(n->attrstring, a);
+                            Node::copystring(n->attrstring.get(), a);
                             n->changed.attrs = true;
                             notify = true;
                         }
@@ -5245,11 +5256,16 @@ bool MegaClient::sc_shares()
 
                     if (!ISUNDEF(oh) && (!ISUNDEF(uh) || !ISUNDEF(p)))
                     {
-                        if (!outbound && oh != me && oh && statecurrent)
+                        if (!outbound && statecurrent)
                         {
                             User* u = finduser(oh);
-                            useralerts.add(new UserAlert::NewShare(h, oh, u ? u->email : "", ts, useralerts.nextId()));
-                            useralerts.ignoreNextSharedNodesUnder(h);  // no need to alert on nodes already in the new share, which are delivered next
+                            // only new shares should be notified (skip permissions changes)
+                            bool newShare = u && u->sharing.find(h) == u->sharing.end();
+                            if (newShare)
+                            {
+                                useralerts.add(new UserAlert::NewShare(h, oh, u->email, ts, useralerts.nextId()));
+                                useralerts.ignoreNextSharedNodesUnder(h);  // no need to alert on nodes already in the new share, which are delivered next
+                            }
                         }
 
                         // new share - can be inbound or outbound
@@ -6832,6 +6848,11 @@ void MegaClient::makeattr(SymmCipher* key, string* attrstring, const char* json,
     delete[] buf;
 }
 
+void MegaClient::makeattr(SymmCipher* key, const std::unique_ptr<string>& attrstring, const char* json, int l) const
+{
+    makeattr(key, attrstring.get(), json, l);
+}
+
 // update node attributes
 // (with speculative instant completion)
 error MegaClient::setattr(Node* n, const char *prevattr)
@@ -6888,7 +6909,7 @@ void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldern
 
     // JSON-encode object and encrypt attribute string
     attrs.getjson(&attrstring);
-    newnode->attrstring = new string;
+    newnode->attrstring.reset(new string);
     makeattr(&tmpnodecipher, newnode->attrstring, attrstring.c_str());
 }
 
@@ -7477,7 +7498,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                 if (a && k && n->attrstring)
                 {
                     LOG_warn << "Updating the key of a NO_KEY node";
-                    Node::copystring(n->attrstring, a);
+                    Node::copystring(n->attrstring.get(), a);
                     n->setkeyfromjson(k);
                 }
             }
@@ -7531,11 +7552,12 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                 }
 
                 n = new Node(this, &dp, h, ph, t, s, u, fas.c_str(), ts);
+                n->changed.newnode = true;
 
                 n->tag = tag;
 
-                n->attrstring = new string;
-                Node::copystring(n->attrstring, a);
+                n->attrstring.reset(new string);
+                Node::copystring(n->attrstring.get(), a);
                 n->setkeyfromjson(k);
 
                 if (!ISUNDEF(su))
@@ -9398,7 +9420,7 @@ void MegaClient::notifynode(Node* n)
                     n->localnode->reactToNodeChange(n->changed.removed);
                 }
 
-                if (!n->changed.removed && n->changed.parent)
+                if (!n->changed.removed && (n->changed.newnode || n->changed.parent))
                 {
                     if (!n->localnode)
                     {
@@ -12043,6 +12065,10 @@ void MegaClient::updateputs()
 error MegaClient::isnodesyncable(const SyncConfig& syncConfig, Node *remotenode, bool *isinshare)
 {
 #ifdef ENABLE_SYNC
+    if (!remotenode)
+    {
+        return API_EACCESS;
+    }
     // cannot sync files, rubbish bins or inboxes
     if (remotenode->type != FOLDERNODE && remotenode->type != ROOTNODE)
     {
@@ -12176,7 +12202,7 @@ error MegaClient::addsync(SyncConfig syncConfig, const char* debris, string* loc
     {
         if (fa->type == FOLDERNODE)
         {
-            LOG_debug << "Adding sync: " << syncConfig.getLocalPath();
+            LOG_debug << "Adding sync: " << syncConfig.getLocalPath() << " vs " << remotenode->displaypath();
 
             Sync* sync = new Sync(this, std::move(syncConfig), debris, localdebris, remotenode, inshare, tag, appData);
             sync->isnetwork = isnetwork;
@@ -13333,7 +13359,7 @@ void MegaClient::syncupdate()
                 tattrs.map['n'] = l->name;
                 tattrs.getjson(&tattrstring);
                 tkey.setkey((const byte*)nnp->nodekey.data(), nnp->type);
-                nnp->attrstring = new string;
+                nnp->attrstring.reset(new string);
                 makeattr(&tkey, nnp->attrstring, tattrstring.c_str());
 
                 l->treestate(TREESTATE_SYNCING);
@@ -13693,7 +13719,7 @@ void MegaClient::execmovetosyncdebris()
             tattrs.map['n'] = (i || target == SYNCDEL_DEBRIS) ? buf : SYNCDEBRISFOLDERNAME;
             tattrs.getjson(&tattrstring);
             tkey.setkey((const byte*)nn->nodekey.data(), FOLDERNODE);
-            nn->attrstring = new string;
+            nn->attrstring.reset(new string);
             makeattr(&tkey, nn->attrstring, tattrstring.c_str());
         }
 
@@ -13835,12 +13861,12 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
                 if (overquotauntil && overquotauntil > Waiter::ds)
                 {
                     dstime timeleft = dstime(overquotauntil - Waiter::ds);
-                    t->failed(API_EOVERQUOTA, committer, timeleft);
+                    t->failed(API_EOVERQUOTA, committer, timeleft);  // transfer may be deleted here
                 }
                 else if (d == PUT && ststatus == STORAGE_RED && !t->isForeign())
                 {
                     // only transfers with private targets should fail, since "foreign" transfers may not fail due to overquota
-                    t->failed(API_EOVERQUOTA, committer, 0, f->h);
+                    t->failed(API_EOVERQUOTA, committer, 0, f->h);  // transfer may be deleted here
                 }
             }
         }

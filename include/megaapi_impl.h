@@ -2091,6 +2091,7 @@ class MegaApiImpl : public MegaApp
         void verifyCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
         void resetCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
         static void setLogLevel(int logLevel);
+        static void setMaxPayloadLogSize(long long maxSize);
         static void addLoggerClass(MegaLogger *megaLogger);
         static void removeLoggerClass(MegaLogger *megaLogger);
         static void setLogToConsole(bool enable);
@@ -2973,7 +2974,7 @@ protected:
         void syncupdate_treestate(LocalNode*) override;
         bool sync_syncable(Sync *, const char*, string *, Node *) override;
         bool sync_syncable(Sync *, const char*, string *) override;
-        void sync_auto_resumed(const string& localPath, handle remoteNode, long long localFp, const vector<string>& regExp) override;
+        void sync_auto_resume_result(const string& localPath, handle remoteNode, long long localFp, const vector<string>& regExp, error e) override;
         void syncupdate_local_lockretry(bool) override;
 
         // for the exclusive use of sync_syncable

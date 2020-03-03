@@ -1829,6 +1829,11 @@ void MegaApi::setLogLevel(int logLevel)
     MegaApiImpl::setLogLevel(logLevel);
 }
 
+void MegaApi::setMaxPayloadLogSize(long long maxSize)
+{
+    MegaApiImpl::setMaxPayloadLogSize(maxSize);
+}
+
 void MegaApi::setLogToConsole(bool enable)
 {
     MegaApiImpl::setLogToConsole(enable);
