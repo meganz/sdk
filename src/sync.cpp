@@ -1773,7 +1773,13 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                 else
                 {
                     // this is a new node: add
+#ifdef DEBUG
+                    string newlocalnodename;
+                    client->fsaccess->local2path(localname ? localpath : &tmppath, &newlocalnodename);
+                    LOG_debug << "New localnode: " << newlocalnodename << "  Parent: " << (parent ? parent->name : "NO");
+#else
                     LOG_debug << "New localnode.  Parent: " << (parent ? parent->name : "NO");
+#endif
                     l = new LocalNode;
                     l->init(this, fa->type, parent, localname ? localpath : &tmppath);
 

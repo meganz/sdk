@@ -3868,7 +3868,7 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
 
     int64_t filesize = getFilesize(filename2);
     std::ifstream compareDecryptedFile(filename2.c_str(), ios::binary);
-    std::vector<::mega::byte> compareDecryptedData(filesize);
+    std::vector<::mega::byte> compareDecryptedData((size_t)filesize);
     compareDecryptedFile.read((char*)compareDecryptedData.data(), filesize);
 
     m_time_t starttime = m_time();
