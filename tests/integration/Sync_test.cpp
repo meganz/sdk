@@ -53,6 +53,80 @@ bool suppressfiles = false;
 
 typedef ::mega::byte byte;
 
+void outputToDotFile(std::ostream& dotFile, const LocalNode& l)
+{
+    auto outputNode = [](const LocalNode& l)
+    {
+        std::ostringstream os;
+        os << "\"l: " << l.name << " (" << &l << ")";
+        os << "\nn: ";
+        if (l.node)
+        {
+            os << l.node->displayname() << " (" << l.node << ")";
+        }
+        else
+        {
+            os << "<None>";
+        }
+        os << "\"";
+        return os.str();
+    };
+    if (l.type == mega::FILENODE)
+    {
+        return;
+    }
+    for (const auto& lnode : l.children)
+    {
+        dotFile << outputNode(l) << " -> " << outputNode(*lnode.second) << "\n";
+        outputToDotFile(dotFile, *lnode.second);
+    }
+}
+
+void outputToDotFile(std::ostream& dotFile, const Node& n)
+{
+    auto outputNode = [](const Node& n)
+    {
+        std::ostringstream os;
+        os << "\"n: " << std::string{n.displayname()} << " (" << &n << ")";
+        os << "\nl: ";
+        if (n.localnode)
+        {
+            os << n.localnode->name << " (" << n.localnode << ")";
+        }
+        else
+        {
+            os << "<None>";
+        }
+        os << "\"";
+        return os.str();
+    };
+    if (n.type == mega::FILENODE)
+    {
+        return;
+    }
+    for (const auto& node : n.children)
+    {
+        dotFile << outputNode(n) << " -> " << outputNode(*node) << "\n";
+        outputToDotFile(dotFile, *node);
+    }
+}
+
+void createDotFile(std::string filename, const LocalNode& l)
+{
+    std::ofstream dotFile{filename};
+    dotFile << "digraph {\n";
+    outputToDotFile(dotFile, l);
+    dotFile << "}";
+}
+
+void createDotFile(std::string filename, const Node& n)
+{
+    std::ofstream dotFile{filename};
+    dotFile << "digraph {\n";
+    outputToDotFile(dotFile, n);
+    dotFile << "}";
+}
+
 void WaitMillisec(unsigned n)
 {
 #ifdef _WIN32
@@ -1006,9 +1080,9 @@ struct StandardClient : public MegaApp
         }
         if (n->node && n->parent && n->parent->node)
         {
-            string p = n->node->displaypath();
-            string pp = n->parent->node->displaypath();
-            EXPECT_EQ(p.substr(0, pp.size()), pp);
+            const string parentNodePath = n->parent->node->displaypath();
+            const string nodePath = n->node->displaypath().substr(0, parentNodePath.size());
+            EXPECT_EQ(nodePath, parentNodePath);
             EXPECT_EQ(n->parent->node, n->node->parent);
         }
 
@@ -1195,6 +1269,16 @@ struct StandardClient : public MegaApp
         {
             cout << clientname << " syncid " << syncid << " not found " << endl;
             return false;
+        }
+
+        // output the remote and local trees to dot-files which can be used for visualization
+        if (Node* node = client.nodebyhandle(si->second.h))
+        {
+            createDotFile(clientname + "_remotetree_" + std::to_string(syncid) + ".dot", *node);
+        }
+        if (Sync* sync = syncByTag(syncid))
+        {
+            createDotFile(clientname + "_localtree_" + std::to_string(syncid) + ".dot", *sync->localroot);
         }
 
         // compare model aganst nodes representing remote state
@@ -3737,10 +3821,10 @@ TEST(Sync, OneWay_Download_syncDelFalse_overwriteFalse_9)
      * - Add remote dir1 and dir2
      * - Wait for download
      * - Remove down sync
-     * - create local file at move target (dir2)
+     * - create local file at move target (dir2) with same mtime
      * - Start down sync
      * - Move remote file to dir2
-     * - Assert: Move is propagated down
+     * - Assert: Move is not propagated down (existing file already there)
      */
     OneWayFixture fx{SyncConfig::TYPE_DOWN, false, false};
 
@@ -3755,8 +3839,9 @@ TEST(Sync, OneWay_Download_syncDelFalse_overwriteFalse_9)
     fx.pauseOneWay(false);
     fx.wait();
 
-    // create a local file at the move target
-    ASSERT_TRUE(createFile(fx.oneWayRootPath() / "dir2", "foo"));
+    // copy local file to same move target (same mtime)
+    fs::copy_file(fx.oneWayRootPath() / "dir1" / "foo", fx.oneWayRootPath() / "dir2" / "foo");
+    fs::last_write_time(fx.oneWayRootPath() / "dir2" / "foo", fs::last_write_time(fx.oneWayRootPath() / "dir1" / "foo"));
 
     // starting down sync
     fx.resumeOneWay();
@@ -3766,7 +3851,7 @@ TEST(Sync, OneWay_Download_syncDelFalse_overwriteFalse_9)
     ASSERT_TRUE(fx.remoteMove("f/f_0/dir1/foo", "f/f_0/dir2"));
 
     fx.wait();
-    // move happened locally
+    // move did not happen locally
 
     Model remoteModel;
     {

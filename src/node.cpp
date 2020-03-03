@@ -1545,7 +1545,14 @@ void LocalNode::setnode(Node* cnode)
 {
     if (node && (node != cnode) && node->localnode)
     {
-        node->localnode = NULL;
+        node->localnode = nullptr;
+    }
+
+    if (node != cnode && cnode->localnode)
+    {
+        assert(cnode == cnode->localnode->node);
+        // clears the previous localnode's relationship with the new node
+        cnode->localnode->node = nullptr;
     }
 
     deleted = false;
