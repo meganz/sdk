@@ -3743,19 +3743,29 @@ void MegaClient::resumeResumableSyncs()
     {
         return;
     }
-    for (const auto& config : syncConfigs->all())
+    for (auto config : syncConfigs->all())
     {
         if (!config.isResumable())
         {
             continue;
         }
-        const auto e = addsync(config, DEBRISFOLDER, nullptr);
-        if (e == 0)
+        if (!nodebyhandle(config.getRemoteNode()))
         {
-            app->sync_auto_resumed(config.getLocalPath(), config.getRemoteNode(),
-                                   static_cast<long long>(config.getLocalFingerprint()),
-                                   config.getRegExps());
+            // remote node gone
+            config.setResumable(false);
+            syncConfigs->insert(config);
+            continue;
         }
+        const auto e = addsync(config, DEBRISFOLDER, nullptr);
+        if (e != 0)
+        {
+            LOG_warn << "auto-resume sync failed (" << e << "): " << config.getLocalPath() << " - " << LOG_NODEHANDLE(config.getRemoteNode());
+            config.setResumable(false);
+            syncConfigs->insert(config);
+        }
+        app->sync_auto_resume_result(config.getLocalPath(), config.getRemoteNode(),
+                                     static_cast<long long>(config.getLocalFingerprint()),
+                                     config.getRegExps(), e);
     }
 }
 #endif
@@ -12055,6 +12065,10 @@ void MegaClient::updateputs()
 error MegaClient::isnodesyncable(const SyncConfig& syncConfig, Node *remotenode, bool *isinshare)
 {
 #ifdef ENABLE_SYNC
+    if (!remotenode)
+    {
+        return API_EACCESS;
+    }
     // cannot sync files, rubbish bins or inboxes
     if (remotenode->type != FOLDERNODE && remotenode->type != ROOTNODE)
     {
