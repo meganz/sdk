@@ -803,8 +803,10 @@ public:
 
     void crossref(TO* to, FROM* from) 
     {
+        assert(to && from);
         assert(ptr == nullptr);
-        assert( !(crossref_other_ptr_ref<TO, FROM, crossref_ptr<FROM, TO>>(ptr).ptr) );
+        assert( !(crossref_other_ptr_ref<TO, FROM, crossref_ptr<FROM, TO>>(to).ptr) );
+        assert( (&crossref_other_ptr_ref<FROM, TO, crossref_ptr<TO, FROM>>(from) == this) );
         ptr = to;
         if (ptr) crossref_other_ptr_ref<TO, FROM, crossref_ptr<FROM, TO>>(ptr).ptr = from;
     }
@@ -814,7 +816,7 @@ public:
         if (ptr)
         {
             assert( !!(crossref_other_ptr_ref<TO, FROM, crossref_ptr<FROM, TO>>(ptr)) );
-            if (ptr) crossref_other_ptr_ref<TO, FROM, crossref_ptr<FROM, TO>>(ptr).ptr = nullptr;
+            crossref_other_ptr_ref<TO, FROM, crossref_ptr<FROM, TO>>(ptr).ptr = nullptr;
             ptr = nullptr;
         }
     }
