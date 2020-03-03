@@ -29,6 +29,7 @@
 //#include <mega/tsthooks.h>
 #include <fstream>
 #include <atomic>
+#include <random>
 
 #include <megaapi_impl.h>
 
@@ -125,6 +126,43 @@ void createDotFile(std::string filename, const Node& n)
     dotFile << "digraph {\n";
     outputToDotFile(dotFile, n);
     dotFile << "}";
+}
+
+// Creates a temporary directory in the current path
+fs::path makeTmpDir(const int maxTries = 1000)
+{
+    const auto cwd = fs::current_path();
+    std::random_device dev;
+    std::mt19937 prng{dev()};
+    std::uniform_int_distribution<uint64_t> rand{0};
+    fs::path path;
+    for (int i = 0;; ++i)
+    {
+        std::ostringstream os;
+        os << std::hex << rand(prng);
+        path = cwd / os.str();
+        if (fs::create_directory(path))
+        {
+            break;
+        }
+        if (i == maxTries)
+        {
+            throw std::runtime_error{"Couldn't create tmp dir"};
+        }
+    }
+    return path;
+}
+
+// Copies a file while maintaining the write time.
+void copyFile(const fs::path& source, const fs::path& target)
+{
+    assert(fs::is_regular_file(source));
+    const auto tmpDir = makeTmpDir();
+    const auto tmpFile = tmpDir / "copied_file";
+    fs::copy_file(source, tmpFile);
+    fs::last_write_time(tmpFile, fs::last_write_time(source));
+    fs::rename(tmpFile, target);
+    fs::remove(tmpDir);
 }
 
 void WaitMillisec(unsigned n)
@@ -3895,9 +3933,8 @@ TEST(Sync, OneWay_Download_syncDelFalse_overwriteFalse_9)
     fx.pauseOneWay(false);
     fx.wait();
 
-    // copy local file to same move target (same mtime)
-    fs::copy_file(fx.oneWayRootPath() / "dir1" / "foo", fx.oneWayRootPath() / "dir2" / "foo");
-    fs::last_write_time(fx.oneWayRootPath() / "dir2" / "foo", fs::last_write_time(fx.oneWayRootPath() / "dir1" / "foo"));
+    // copy local file to same move target (maintaining mtime)
+    copyFile(fx.oneWayRootPath() / "dir1" / "foo", fx.oneWayRootPath() / "dir2" / "foo");
 
     // starting down sync
     fx.resumeOneWay();
