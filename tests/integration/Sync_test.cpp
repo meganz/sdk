@@ -72,7 +72,7 @@ void outputToDotFile(std::ostream& dotFile, const LocalNode& l)
         os << "\"";
         return os.str();
     };
-    if (l.type == mega::FILENODE)
+    if (l.type == ::mega::FILENODE)
     {
         return;
     }
@@ -101,7 +101,7 @@ void outputToDotFile(std::ostream& dotFile, const Node& n)
         os << "\"";
         return os.str();
     };
-    if (n.type == mega::FILENODE)
+    if (n.type == ::mega::FILENODE)
     {
         return;
     }
@@ -163,6 +163,12 @@ void copyFile(const fs::path& source, const fs::path& target)
     fs::last_write_time(tmpFile, fs::last_write_time(source));
     fs::rename(tmpFile, target);
     fs::remove(tmpDir);
+}
+
+string leafname(const string& p)
+{
+    auto n = p.find_last_of("/");
+    return n == string::npos ? p : p.substr(n+1);
 }
 
 void WaitMillisec(unsigned n)
@@ -415,6 +421,8 @@ struct Model
 
     void emulate_move(std::string nodepath, std::string newparentpath)
     {
+        auto removed = removenode(newparentpath + "/" + leafname(nodepath));
+
         ASSERT_TRUE(movenode(nodepath, newparentpath));
     }
 
@@ -4224,6 +4232,8 @@ struct OneWaySymmetryCase
     Model localModel;
     Model remoteModel;
 
+    bool printTreesBeforeAndAfter = false;
+
     struct State
     {
         StandardClient& client;
@@ -4271,7 +4281,7 @@ struct OneWaySymmetryCase
                 (up?"_up":"_down") + 
                 (file?"_file":"_folder") + 
                 "_before" + matchName(destinationMatchBefore) +
-                "_after" + matchName(destinationMatchAfter) +
+                (action == action_delete ? "" : "_after" + matchName(destinationMatchAfter)) +
                 (propagateDeletes?"_pd":"") +
                 (forceOverwrites?"_fo":"") +
                 (pauseDuringAction?"_pda":""); 
@@ -4341,6 +4351,10 @@ struct OneWaySymmetryCase
 
     void remote_move(std::string nodepath, std::string newparentpath, bool updatemodel, bool reportaction)
     {
+        
+        remote_delete(newparentpath + "/" + leafname(nodepath), updatemodel, reportaction); // in case the target already exists
+
+        
         if (updatemodel) remoteModel.emulate_move(nodepath, newparentpath);
 
         Node* testRoot = changeClient().client.nodebyhandle(changeClient().basefolderhandle);
@@ -4534,10 +4548,54 @@ struct OneWaySymmetryCase
 
     enum ModifyStage { Prepare, MainAction };
 
+    void PrintLocalTree(fs::path p)
+    {
+        cout << p << endl;
+        if (fs::is_directory(p))
+        {
+            for (auto i = fs::directory_iterator(p); i != fs::directory_iterator(); ++i)
+            {
+                PrintLocalTree(*i);
+            }
+        }
+    }
+
+    void PrintRemoteTree(Node* n, string prefix = "")
+    {
+        prefix += string("/") + n->displayname();
+        cout << prefix << endl;
+        if (n->type == FILENODE) return;
+        for (auto& c : n->children)
+        {
+            PrintRemoteTree(c, prefix);
+        }
+    }
+
+    void PrintModelTree(Model::ModelNode* n, string prefix = "")
+    {
+        prefix += string("/") + n->name;
+        cout << prefix << endl;
+        if (n->type == FILENODE) return;
+        for (auto& c : n->kids)
+        {
+            PrintModelTree(c.get(), prefix);
+        }
+    }
+
     void Modify(ModifyStage stage)
     {
         bool prep = stage == Prepare;
         bool act = stage == MainAction;
+
+        if (act && printTreesBeforeAndAfter)
+        {
+            cout << " ---- local tree before change ----" << endl;
+            PrintLocalTree(fs::path(localTestBasePath));
+            cout << " ---- remote tree before change ----" << endl;
+            Node* testRoot = state.client.client.nodebyhandle(changeClient().basefolderhandle);
+            Node* n = state.client.drillchildnodebyname(testRoot, remoteTestBasePath);
+            PrintRemoteTree(n);
+        }
 
         switch (action)
         {
@@ -4669,6 +4727,18 @@ struct OneWaySymmetryCase
     // One-way sync is stable again after the change.  Check the results.
     void CheckResult(State&)
     {
+        if (printTreesBeforeAndAfter)
+        {
+            cout << " ---- local tree after sync of change ----" << endl;
+            PrintLocalTree(fs::path(localTestBasePath));
+            cout << " ---- remote tree after sync of change ----" << endl;
+            Node* testRoot = state.client.client.nodebyhandle(changeClient().basefolderhandle);
+            Node* n = state.client.drillchildnodebyname(testRoot, remoteTestBasePath);
+            PrintRemoteTree(n);
+            cout << " ---- expected sync destination (model) ----" << endl;
+            PrintModelTree(destinationModel().findnode("f"));
+        }
+
         cout << "Checking oneway sync "<< name() << endl;
         bool localfs = state.client.confirmModel(sync_tag, localModel.findnode("f"), StandardClient::CONFIRM_LOCALFS, true); // todo: later enable debris checks
         bool localnode = state.client.confirmModel(sync_tag, localModel.findnode("f"), StandardClient::CONFIRM_LOCALNODE, true); // todo: later enable debris checks
@@ -4751,6 +4821,8 @@ TEST(Sync, OneWay_Highlevel_Symmetries)
 
                                         if (singleNamedTest.empty() || testcase.name() == singleNamedTest)
                                         {
+                                            testcase.printTreesBeforeAndAfter = !singleNamedTest.empty();
+
                                             cases.emplace(testcase.name(), move(testcase));
                                         }
                                     }
@@ -4781,7 +4853,6 @@ TEST(Sync, OneWay_Highlevel_Symmetries)
     cout << "Stopping full-sync" << endl;
     future<bool> fb = clientA1.thread_do([](StandardClient& sc, promise<bool>& pb) { sc.client.delsync(sc.syncByTag(1), true); pb.set_value(true); });
     ASSERT_TRUE(waitonresults(&fb));
-
 
     cout << "Setting up each sub-test's one-way sync" << endl;
     for (auto& testcase : cases)
