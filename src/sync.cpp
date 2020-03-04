@@ -1387,7 +1387,10 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
     if (parent && !parent->node)
     {
         LOG_warn << "Parent doesn't exist yet: " << path;
-        return (LocalNode*)~0;
+        if (parent->sync->getConfig().syncsToCloud())
+        {
+            return (LocalNode*)~0;
+        }
     }
 
     // attempt to open/type this file
