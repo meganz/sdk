@@ -1824,6 +1824,11 @@ void MegaApi::setLogLevel(int logLevel)
     MegaApiImpl::setLogLevel(logLevel);
 }
 
+void MegaApi::setMaxPayloadLogSize(long long maxSize)
+{
+    MegaApiImpl::setMaxPayloadLogSize(maxSize);
+}
+
 void MegaApi::setLogToConsole(bool enable)
 {
     MegaApiImpl::setLogToConsole(enable);
@@ -2056,14 +2061,14 @@ void MegaApi::setAccountAuth(const char *auth)
     pImpl->setAccountAuth(auth);
 }
 
-void MegaApi::createAccount(const char* email, const char* password, const char* name, MegaRequestListener *listener)
-{
-    pImpl->createAccount(email, password, name, listener);
-}
-
 void MegaApi::createAccount(const char* email, const char* password, const char* firstname, const char*  lastname, MegaRequestListener *listener)
 {
-    pImpl->createAccount(email, password, firstname, lastname, listener);
+    pImpl->createAccount(email, password, firstname, lastname, UNDEF, AFFILIATE_TYPE_INVALID, 0, listener);
+}
+
+void MegaApi::createAccount(const char* email, const char* password, const char* firstname, const char* lastname, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener)
+{
+    pImpl->createAccount(email, password, firstname, lastname, lastPublicHandle, lastPublicHandleType, lastAccessTimestamp, listener);
 }
 
 void MegaApi::resumeCreateAccount(const char* sid, MegaRequestListener *listener)
@@ -2174,6 +2179,11 @@ bool MegaApi::createLocalFolder(const char *localPath)
 void MegaApi::moveNode(MegaNode *node, MegaNode *newParent, MegaRequestListener *listener)
 {
     pImpl->moveNode(node, newParent, listener);
+}
+
+void MegaApi::moveNode(MegaNode *node, MegaNode *newParent, const char *newName, MegaRequestListener *listener)
+{
+    pImpl->moveNode(node, newParent, newName, listener);
 }
 
 void MegaApi::copyNode(MegaNode *node, MegaNode* target, MegaRequestListener *listener)
@@ -2438,7 +2448,12 @@ void MegaApi::disableExport(MegaNode *node, MegaRequestListener *listener)
 
 void MegaApi::fetchNodes(MegaRequestListener *listener)
 {
-    pImpl->fetchNodes(listener);
+    pImpl->fetchNodes(false, listener);
+}
+
+void MegaApi::fetchNodesAndResumeSyncs(MegaRequestListener *listener)
+{
+    pImpl->fetchNodes(true, listener);
 }
 
 void MegaApi::getCloudStorageUsed(MegaRequestListener *listener)
@@ -2473,12 +2488,17 @@ void MegaApi::getPricing(MegaRequestListener *listener)
 
 void MegaApi::getPaymentId(MegaHandle productHandle, MegaRequestListener *listener)
 {
-    pImpl->getPaymentId(productHandle, UNDEF, listener);
+    pImpl->getPaymentId(productHandle, UNDEF, AFFILIATE_TYPE_INVALID, 0, listener);
 }
 
 void MegaApi::getPaymentId(MegaHandle productHandle, MegaHandle lastPublicHandle, MegaRequestListener *listener)
 {
-    pImpl->getPaymentId(productHandle, lastPublicHandle, listener);
+    pImpl->getPaymentId(productHandle, lastPublicHandle, AFFILIATE_TYPE_INVALID, 0, listener);
+}
+
+void MegaApi::getPaymentId(MegaHandle productHandle, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener)
+{
+    pImpl->getPaymentId(productHandle, lastPublicHandle, lastPublicHandleType, lastAccessTimestamp, listener);
 }
 
 void MegaApi::upgradeAccount(MegaHandle productHandle, int paymentMethod, MegaRequestListener *listener)
@@ -2488,17 +2508,22 @@ void MegaApi::upgradeAccount(MegaHandle productHandle, int paymentMethod, MegaRe
 
 void MegaApi::submitPurchaseReceipt(const char *receipt, MegaRequestListener *listener)
 {
-    pImpl->submitPurchaseReceipt(MegaApi::PAYMENT_METHOD_GOOGLE_WALLET, receipt, UNDEF, listener);
+    pImpl->submitPurchaseReceipt(MegaApi::PAYMENT_METHOD_GOOGLE_WALLET, receipt, UNDEF, AFFILIATE_TYPE_INVALID, 0, listener);
 }
 
 void MegaApi::submitPurchaseReceipt(int gateway, const char *receipt, MegaRequestListener *listener)
 {
-    pImpl->submitPurchaseReceipt(gateway, receipt, UNDEF, listener);
+    pImpl->submitPurchaseReceipt(gateway, receipt, UNDEF, AFFILIATE_TYPE_INVALID, 0, listener);
 }
 
 void MegaApi::submitPurchaseReceipt(int gateway, const char *receipt, MegaHandle lastPublicHandle, MegaRequestListener *listener)
 {
-    pImpl->submitPurchaseReceipt(gateway, receipt, lastPublicHandle, listener);
+    pImpl->submitPurchaseReceipt(gateway, receipt, lastPublicHandle, AFFILIATE_TYPE_INVALID, 0, listener);
+}
+
+void MegaApi::submitPurchaseReceipt(int gateway, const char *receipt, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener)
+{
+    pImpl->submitPurchaseReceipt(gateway, receipt, lastPublicHandle, lastPublicHandleType, lastAccessTimestamp, listener);
 }
 
 void MegaApi::creditCardStore(const char* address1, const char* address2, const char* city,
@@ -3069,12 +3094,12 @@ MegaNode *MegaApi::getSyncedNode(string *path)
 
 void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener *listener)
 {
-    pImpl->syncFolder(localFolder, megaFolder, NULL, listener);
+    pImpl->syncFolder(localFolder, megaFolder, NULL, 0, listener);
 }
 
 void MegaApi::resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRequestListener *listener)
 {
-    pImpl->resumeSync(localFolder, localfp, megaFolder, NULL, listener);
+    pImpl->syncFolder(localFolder, megaFolder, NULL, localfp, listener);
 }
 
 #ifdef USE_PCRE

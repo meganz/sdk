@@ -169,15 +169,7 @@ struct ChunkMAC
     bool finished;
 };
 
-// file chunk macs
-class chunkmac_map : public map<m_off_t, ChunkMAC>
-{
-public:
-    int64_t macsmac(SymmCipher *cipher);
-    void serialize(string& d) const;
-    bool unserialize(const char*& ptr, const char* end);
-    void calcprogress(m_off_t size, m_off_t& chunkpos, m_off_t& completedprogress, m_off_t* lastblockprogress = nullptr);
-};
+class chunkmac_map;
 
 /**
  * @brief Declaration of API error codes.
@@ -248,16 +240,15 @@ const int FOLDERNODEKEYLENGTH = 16;
 typedef list<class Sync*> sync_list;
 
 // persistent resource cache storage
-struct Cachable
+class Cacheable
 {
+public:
+    virtual ~Cacheable() = default;
+
     virtual bool serialize(string*) = 0;
 
-    int32_t dbid;
-
-    bool notified;
-
-    Cachable();
-    virtual ~Cachable() { }
+    uint32_t dbid = 0;
+    bool notified = false;
 };
 
 // numeric representation of string (up to 8 chars)
@@ -317,8 +308,11 @@ typedef list<struct TransferSlot*> transferslot_list;
 // FIXME: use forward_list instad (C++11)
 typedef list<HttpReqCommandPutFA*> putfa_list;
 
-// map a FileFingerprint to the transfer for that FileFingerprint
-typedef map<FileFingerprint*, Transfer*, FileFingerprintCmp> transfer_map;
+/* maps a FileFingerprint to the transfer for that FileFingerprint,
+ * this map can contain two items for the same key (FileFingerprint)
+ * depending on the type of target (private/foreign) associated to the PUT transfers
+ */
+typedef multimap<FileFingerprint*, Transfer*, FileFingerprintCmp> transfer_map;
 
 typedef deque<Transfer*> transfer_list;
 
@@ -384,6 +378,7 @@ typedef map<int, FileAttributeFetchChannel*> fafc_map;
 
 // transfer type
 typedef enum { GET = 0, PUT, API, NONE } direction_t;
+typedef enum { LARGEFILE = 0, SMALLFILE } filesizetype_t;
 
 struct StringCmp
 {
@@ -483,7 +478,7 @@ typedef enum { PRIV_UNKNOWN = -2, PRIV_RM = -1, PRIV_RO = 0, PRIV_STANDARD = 2, 
 typedef pair<handle, privilege_t> userpriv_pair;
 typedef vector< userpriv_pair > userpriv_vector;
 typedef map <handle, set <handle> > attachments_map;
-struct TextChat : public Cachable
+struct TextChat : public Cacheable
 {
     enum {
         FLAG_OFFSET_ARCHIVE = 0
@@ -670,6 +665,121 @@ namespace CodeCounter
 #endif
     };
 }
+
+// Holds the config of a sync. Can be extended with future config options
+class SyncConfig : public Cacheable
+{
+public:
+
+    enum Type
+    {
+        TYPE_UP = 0x01, // sync up from local to remote
+        TYPE_DOWN = 0x02, // sync down from remote to local
+        TYPE_TWOWAY = TYPE_UP | TYPE_DOWN, // Two-way sync
+    };
+
+    SyncConfig(std::string localPath,
+               const handle remoteNode,
+               const fsfp_t localFingerprint,
+               std::vector<std::string> regExps = {},
+               const Type syncType = TYPE_TWOWAY,
+               const bool syncDeletions = false,
+               const bool forceOverwrite = false);
+
+    // whether this sync is resumable
+    bool isResumable() const;
+
+    // sets whether this sync is resumable
+    void setResumable(bool active);
+
+    // returns the local path of the sync
+    const std::string& getLocalPath() const;
+
+    // returns the remote path of the sync
+    handle getRemoteNode() const;
+
+    // returns the local fingerprint
+    fsfp_t getLocalFingerprint() const;
+
+    // sets the local fingerprint
+    void setLocalFingerprint(fsfp_t fingerprint);
+
+    // returns the regular expressions
+    const std::vector<std::string>& getRegExps() const;
+
+    // returns the type of the sync
+    Type getType() const;
+
+    // whether this is an up-sync from local to remote
+    bool isUpSync() const;
+
+    // whether this is a down-sync from remote to local
+    bool isDownSync() const;
+
+    // whether deletions are synced
+    bool syncDeletions() const;
+
+    // whether changes are overwritten irregardless of file properties
+    bool forceOverwrite() const;
+
+    // serializes the object to a string
+    bool serialize(string* data) override;
+
+    // deserializes the string to a SyncConfig object. Returns null in case of failure
+    static std::unique_ptr<SyncConfig> unserialize(const std::string& data);
+
+private:
+    friend bool operator==(const SyncConfig& lhs, const SyncConfig& rhs);
+
+    // Whether the sync is resumable
+    bool mResumable = true;
+
+    // the local path of the sync
+    std::string mLocalPath;
+
+    // the remote handle of the sync
+    handle mRemoteNode;
+
+    // the local fingerprint
+    fsfp_t mLocalFingerprint;
+
+    // list of regular expressions
+    std::vector<std::string> mRegExps;
+
+    // type of the sync, defaults to bidirectional
+    Type mSyncType;
+
+    // whether deletions are synced (only relevant for one-way-sync)
+    bool mSyncDeletions;
+
+    // whether changes are overwritten irregardless of file properties (only relevant for one-way-sync)
+    bool mForceOverwrite;
+
+    // need this to ensure serialization doesn't mutate state (Cacheable::serialize is non-const)
+    bool serialize(std::string& data) const;
+
+    // this is very handy for defining comparison operators
+    std::tuple<const bool&,
+               const std::string&,
+               const handle&,
+               const fsfp_t&,
+               const std::vector<std::string>&,
+               const Type&,
+               const bool&,
+               const bool&> tie() const
+    {
+        return std::tie(mResumable,
+                        mLocalPath,
+                        mRemoteNode,
+                        mLocalFingerprint,
+                        mRegExps,
+                        mSyncType,
+                        mSyncDeletions,
+                        mForceOverwrite);
+    }
+};
+
+bool operator==(const SyncConfig& lhs, const SyncConfig& rhs);
 
 } // namespace
 

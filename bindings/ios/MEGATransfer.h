@@ -234,4 +234,13 @@ typedef NS_ENUM (NSInteger, MEGATransferState) {
  */
 @property (readonly, nonatomic) MEGATransferState state;
 
+/**
+ * @brief Returns the priority of the transfer
+ *
+ * This value is intended to keep the order of the transfer queue on apps.
+ *
+ * @return Priority of the transfer
+ */
+@property (readonly, nonatomic) unsigned long long priority;
+
 @end

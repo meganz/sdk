@@ -10,18 +10,17 @@
 #endif
 
 #ifdef ENABLE_WEBRTC
-#include "webrtc/rtc_base/ssladapter.h"
-#include "webrtc/sdk/android/src/jni/classreferenceholder.h"
+#include "webrtc/modules/utility/include/jvm_android.h"
+#include "webrtc/rtc_base/logging.h"
+#include "webrtc/rtc_base/ssl_adapter.h"
+#include "webrtc/sdk/android/native_api/base/init.h"
+#include "webrtc/sdk/android/src/jni/class_reference_holder.h"
+#include "webrtc/sdk/android/src/jni/jni_generator_helper.h"
 #include "webrtc/sdk/android/src/jni/jni_helpers.h"
+#include "webrtc/sdk/android/native_api/jni/class_loader.h"
+#include "modules/utility/include/jvm_android.h"
+#include <jni.h>
 
-namespace webrtc
-{
-    class JVM
-    {
-        public:
-            static void Initialize(JavaVM* jvm, jobject context);
-    };
-};
 #endif
 
 #ifdef SWIGJAVA
@@ -32,16 +31,15 @@ jmethodID ctorString = NULL;
 jmethodID getBytes = NULL;
 jclass applicationClass = NULL;
 jmethodID startVideoCaptureMID = NULL;
-jmethodID startVideoCaptureWithParametersMID = NULL;
 jmethodID stopVideoCaptureMID = NULL;
+jmethodID deviceListMID = NULL;
 jobject surfaceTextureHelper = NULL;
 
-
-JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
+extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 {
     MEGAjvm = jvm;
     JNIEnv* jenv = NULL;
-    jvm->GetEnv((void**)&jenv, JNI_VERSION_1_4);
+    jvm->GetEnv((void**)&jenv, JNI_VERSION_1_6);
 
     jclass clsStringLocal = jenv->FindClass("java/lang/String");
     clsString = (jclass)jenv->NewGlobalRef(clsStringLocal);
@@ -54,26 +52,15 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 
 #ifdef ENABLE_WEBRTC
     // Initialize WebRTC
+    webrtc::JVM::Initialize(jvm);
+    webrtc::InitAndroid(MEGAjvm);
+    rtc::InitializeSSL();
+
+    jenv->ExceptionClear();
     jclass appGlobalsClass = jenv->FindClass("android/app/AppGlobals");
     if (appGlobalsClass)
     {
         jmethodID getInitialApplicationMID = jenv->GetStaticMethodID(appGlobalsClass, "getInitialApplication", "()Landroid/app/Application;");
-        if (getInitialApplicationMID)
-        {
-            jobject context = jenv->CallStaticObjectMethod(appGlobalsClass, getInitialApplicationMID);
-            if (context)
-            {
-                webrtc::JVM::Initialize(MEGAjvm, context);
-                webrtc_jni::InitGlobalJniVariables(jvm);
-                rtc::InitializeSSL();
-                webrtc_jni::LoadGlobalClassReferenceHolder();
-                jenv->DeleteLocalRef(context);
-            }
-        }
-        else
-        {
-            jenv->ExceptionClear();
-        }
         jenv->DeleteLocalRef(appGlobalsClass);
     }
     else
@@ -81,26 +68,14 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
         jenv->ExceptionClear();
     }
 
-    jclass megaApplicationClass = jenv->FindClass("mega/privacy/android/app/MegaApplication");
-    if (megaApplicationClass)
+    jclass videoCaptureUtilsClass = jenv->FindClass("mega/privacy/android/app/utils/VideoCaptureUtils");
+    if (videoCaptureUtilsClass)
     {
-        applicationClass = (jclass)jenv->NewGlobalRef(megaApplicationClass);
-        jenv->DeleteLocalRef(megaApplicationClass);
+        applicationClass = (jclass)jenv->NewGlobalRef(videoCaptureUtilsClass);
+        jenv->DeleteLocalRef(videoCaptureUtilsClass);
 
-        startVideoCaptureMID = jenv->GetStaticMethodID(applicationClass, "startVideoCapture", "(JLorg/webrtc/SurfaceTextureHelper;)V");
-        if (!startVideoCaptureMID)
-        {
-            jenv->ExceptionClear();
-        }
-
-        startVideoCaptureWithParametersMID = jenv->GetStaticMethodID(applicationClass, "startVideoCaptureWithParameters", "(IIIJLorg/webrtc/SurfaceTextureHelper;)V");
-        if (!startVideoCaptureWithParametersMID)
-        {
-            jenv->ExceptionClear();
-        }
-
-        stopVideoCaptureMID = jenv->GetStaticMethodID(applicationClass, "stopVideoCapture", "()V");
-        if (!stopVideoCaptureMID)
+        deviceListMID = jenv->GetStaticMethodID(applicationClass, "deviceList", "()[Ljava/lang/String;");
+        if (!deviceListMID)
         {
             jenv->ExceptionClear();
         }
@@ -141,7 +116,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
     ares_library_init_jvm(jvm);
 #endif
 
-    return JNI_VERSION_1_4;
+    return JNI_VERSION_1_6;
 }
 #endif
 %}

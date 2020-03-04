@@ -35,7 +35,6 @@ using namespace mega;
 using ::testing::Test;
 
 static const string APP_KEY     = "8QxzVRxD";
-static const string USER_AGENT  = "Integration Tests with GoogleTest framework";
 
 // IMPORTANT: the main account must be empty (Cloud & Rubbish) before starting the test and it will be purged at exit.
 // Both main and auxiliar accounts shouldn't be contacts yet and shouldn't have any pending contact requests.
@@ -136,7 +135,7 @@ public:
 
 #ifdef ENABLE_CHAT
         bool chatUpdated;        // flags to monitor the updates of chats due to actionpackets
-        map<handle, MegaTextChat*> chats;   //  runtime cache of fetched/updated chats
+        map<handle, std::unique_ptr<MegaTextChat>> chats;   //  runtime cache of fetched/updated chats
         MegaHandle chatid;          // last chat added
 #endif
     };
@@ -157,6 +156,8 @@ public:
     m_off_t onTransferUpdate_progress;
     m_off_t onTransferUpdate_filesize;
 
+    std::mutex lastEventMutex;
+    std::unique_ptr<MegaEvent> lastEvent;
 
 protected:
     virtual void SetUp();
@@ -189,17 +190,18 @@ protected:
 #ifdef ENABLE_CHAT
     void onChatsUpdate(MegaApi *api, MegaTextChatList *chats) override;
 #endif
+    void onEvent(MegaApi* api, MegaEvent *event) override;
 
 public:
     void login(unsigned int apiIndex, int timeout = maxTimeout);
     void loginBySessionId(unsigned int apiIndex, const std::string& sessionId, int timeout = maxTimeout);
-    void fetchnodes(unsigned int apiIndex, int timeout = maxTimeout);
+    void fetchnodes(unsigned int apiIndex, int timeout = maxTimeout, bool resumeSyncs = false);
     void logout(unsigned int apiIndex, int timeout = maxTimeout);
     char* dumpSession();
     void locallogout(int timeout = maxTimeout);
     void resumeSession(const char *session, int timeout = maxTimeout);
 
-    void purgeTree(MegaNode *p);
+    void purgeTree(MegaNode *p, bool depthfirst = true);
     bool waitForResponse(bool *responseReceived, unsigned int timeout = maxTimeout);
 
     bool synchronousRequest(int apiIndex, int type, std::function<void()> f, unsigned int timeout = maxTimeout);

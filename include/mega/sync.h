@@ -41,9 +41,44 @@ int computeReversePathMatchScore(string& accumulated, const string& path1, const
 bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, handlelocalnode_map& fsidnodes,
                          const string& localdebris, const string& localseparator);
 
+// A collection of sync configs backed by a database table
+class MEGA_API SyncConfigBag
+{
+public:
+    SyncConfigBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, PrnGen& rng, const std::string& id);
+
+    MEGA_DISABLE_COPY_MOVE(SyncConfigBag)
+
+    // Adds a new sync config or updates if exists already
+    void insert(const SyncConfig& syncConfig);
+
+    // Removes a sync config at the given local path
+    void remove(const std::string& localPath);
+
+    // Returns the sync config at the given local path
+    const SyncConfig* get(const std::string& localPath) const;
+
+    // Removes all sync configs
+    void clear();
+
+    // Returns all current sync configs
+    std::vector<SyncConfig> all() const;
+
+private:
+    std::unique_ptr<DbTable> mTable; // table for caching the sync configs
+    std::map<std::string, SyncConfig> mSyncConfigs; // map of local paths to sync configs
+};
+
 class MEGA_API Sync
 {
 public:
+
+    // returns the sync config
+    const SyncConfig& getConfig() const;
+
+    // sets whether this sync is resumable (default is true)
+    void setResumable(bool isResumable);
+
     void* appData = nullptr;
 
     MegaClient* client = nullptr;
@@ -69,7 +104,7 @@ public:
     bool inshare = false;
     
     // deletion queue
-    set<int32_t> deleteq;
+    set<uint32_t> deleteq;
 
     // insertion/update queue
     localnode_set insertq;
@@ -154,8 +189,7 @@ public:
     m_time_t updatedfilets = 0;
     m_time_t updatedfileinitialts = 0;
 
-    Sync() = default;
-    Sync(MegaClient*, string*, const char*, string*, Node*, fsfp_t, bool, int, void*);
+    Sync(MegaClient*, SyncConfig, const char*, string*, Node*, bool, int, void*);
     ~Sync();
 
     static const int SCANNING_DELAY_DS;
@@ -167,6 +201,8 @@ public:
 protected :
     bool readstatecache();
 
+private:
+    std::string mLocalPath;
 };
 } // namespace
 

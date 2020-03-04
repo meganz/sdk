@@ -35,9 +35,11 @@ class MEGA_API DbTable
 
 protected:
     bool mCheckAlwaysTransacted = false;
-    DBTableTransactionCommitter* mCurrentTransactionCommiter = nullptr;
+    DBTableTransactionCommitter* mTransactionCommitter = nullptr;
     friend class DBTableTransactionCommitter;
     void checkTransaction();
+    // should be called by the subclass' destructor
+    void resetCommitter();
 
 public:
     // for a full sequential get: rewind to first record
@@ -53,7 +55,7 @@ public:
     // update or add specific record
     virtual bool put(uint32_t, char*, unsigned) = 0;
     bool put(uint32_t, string*);
-    bool put(uint32_t, Cachable *, SymmCipher*);
+    bool put(uint32_t, Cacheable *, SymmCipher*);
 
     // delete specific record
     virtual bool del(uint32_t) = 0;
@@ -88,7 +90,7 @@ class MEGA_API DBTableTransactionCommitter
     bool mStarted = false;
 
 public:
-    inline void beginOnce()
+    void beginOnce()
     {
         if (mTable && !mStarted)
         {
@@ -97,33 +99,49 @@ public:
         }
     }
 
-    inline ~DBTableTransactionCommitter()
+    void commitNow()
     {
         if (mTable)
         {
             if (mStarted)
             {
                 mTable->commit();
+                mStarted = false;
             }
-            mTable->mCurrentTransactionCommiter = nullptr;
         }
     }
 
-    explicit inline DBTableTransactionCommitter(DbTable* t)
+    void reset()
+    {
+        mTable = nullptr;
+    }
+
+    ~DBTableTransactionCommitter()
+    {
+        if (mTable)
+        {
+            commitNow();
+            mTable->mTransactionCommitter = nullptr;
+        }
+    }
+
+    explicit DBTableTransactionCommitter(DbTable* t)
         : mTable(t)
     {
         if (mTable)
         {
-            if (mTable->mCurrentTransactionCommiter)
+            if (mTable->mTransactionCommitter)
             {
                 mTable = nullptr;  // we are nested; this one does nothing.  This can occur during eg. putnodes response when the core sdk and the intermediate layer both do db work.
             }
             else
             {
-                mTable->mCurrentTransactionCommiter = this;
+                mTable->mTransactionCommitter = this;
             }
         }
     }
+
+    MEGA_DISABLE_COPY_MOVE(DBTableTransactionCommitter)
 };
 
 struct MEGA_API DbAccess

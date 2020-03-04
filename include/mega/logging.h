@@ -280,12 +280,21 @@ class SimpleLogger
     {
         copyToBuffer(value.begin(), static_cast<DiffType>(value.size()));
     }
+
+#ifdef _WIN32
+    void logValue(const std::wstring& value)
+    {
+        copyToBuffer(value.begin(), static_cast<DiffType>(value.size()));
+    }
+#endif
 #endif
 
 public:
     static Logger *logger;
 
     static enum LogLevel logCurrentLevel;
+
+    static long long maxPayloadLogSize;
 
     SimpleLogger(const enum LogLevel ll, const char* filename, const int line)
     : level{ll}
@@ -425,6 +434,13 @@ public:
     {
         SimpleLogger::logCurrentLevel = ll;
     }
+
+    // set the limit of size to requests payload
+    static void setMaxPayloadLogSize(long long size)
+    {
+        maxPayloadLogSize = size;
+    }
+
 
 #ifndef ENABLE_LOG_PERFORMANCE
     // register output stream for log level

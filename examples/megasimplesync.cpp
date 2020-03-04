@@ -419,10 +419,6 @@ void SyncApp::fetchnodes_result(error e)
         Node* n = nodebypath(remote_folder.c_str());
         if (client->checkaccess(n, FULL))
         {
-            string localname;
-
-            client->fsaccess->path2local(&local_folder, &localname);
-
             if (!n)
             {
                 LOG_err << remote_folder << ": Not found.";
@@ -435,7 +431,8 @@ void SyncApp::fetchnodes_result(error e)
             }
             else
             {
-                error err = client->addsync(&localname, DEBRISFOLDER, NULL, n, 0);
+                SyncConfig syncConfig{local_folder, n->nodehandle, 0};
+                error err = client->addsync(std::move(syncConfig), DEBRISFOLDER, NULL);
                 if (err)
                 {
                     LOG_err << "Sync could not be added! ";
