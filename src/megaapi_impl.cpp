@@ -12870,10 +12870,16 @@ void MegaApiImpl::sync_auto_resume_result(const string& localPath, const handle 
         s->appData = sync;
         sync->setState(s->state);
         syncMap[-nextTag] = sync;
+        request->setMegaSyncConfig(MegaSyncConfig::createInstance(
+                                       s->getConfig().getType(),
+                                       s->getConfig().syncDeletions(),
+                                       s->getConfig().forceOverwrite()
+                                  ));
     }
     else
     {
         sync->setState(SYNC_FAILED);
+        request->setMegaSyncConfig(MegaSyncConfig::createInstance());
     }
 
     fireOnRequestFinish(request, MegaError(e));
