@@ -1015,21 +1015,21 @@ public:
 
     virtual MegaSync *copy();
 
-    virtual const MegaSyncConfig* getMegaSyncConfig() const;
-    void setMegaSyncConfig(const MegaSyncConfig* config);
-    virtual MegaHandle getMegaHandle() const;
+    const MegaSyncConfig* getConfig() const override;
+    void setConfig(const MegaSyncConfig* config);
+    MegaHandle getMegaHandle() const override;
     void setMegaHandle(MegaHandle handle);
-    virtual const char* getLocalFolder() const;
+    const char* getLocalFolder() const override;
     void setLocalFolder(const char*path);
-    virtual long long getLocalFingerprint() const;
+    long long getLocalFingerprint() const override;
     void setLocalFingerprint(long long fingerprint);
-    virtual int getTag() const;
+    int getTag() const override;
     void setTag(int tag);
     void setListener(MegaSyncListener *listener);
     MegaSyncListener *getListener();
-    virtual int getState() const;
+    int getState() const override;
     void setState(int state);
-    virtual MegaRegExp* getRegExp() const;
+    MegaRegExp* getRegExp() const; // TODO: Is this supposed to override?
     void setRegExp(MegaRegExp *regExp);
 
 protected:

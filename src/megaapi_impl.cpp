@@ -12556,13 +12556,24 @@ void MegaApiImpl::syncupdate_state(Sync *sync, syncstate_t newstate)
 {
     if(syncMap.find(sync->tag) == syncMap.end()) return;
     MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
+    assert(megaSync);
     megaSync->setState(newstate);
+    megaSync->setConfig(MegaSyncConfig::createInstance(
+                                    sync->getConfig().getType(),
+                                    sync->getConfig().syncDeletions(),
+                                    sync->getConfig().forceOverwrite()
+                                ));
     LOG_debug << "Sync state change: " << newstate << " Path: " << sync->localroot->name;
     client->abortbackoff(false);
 
     if (newstate == SYNC_FAILED)
     {
         MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC);
+        request->setMegaSyncConfig(MegaSyncConfig::createInstance(
+                                       sync->getConfig().getType(),
+                                       sync->getConfig().syncDeletions(),
+                                       sync->getConfig().forceOverwrite()
+                                   ));
 
         if(sync->localroot->node)
         {
@@ -12875,11 +12886,17 @@ void MegaApiImpl::sync_auto_resume_result(const string& localPath, const handle 
                                        s->getConfig().syncDeletions(),
                                        s->getConfig().forceOverwrite()
                                   ));
+        sync->setConfig(MegaSyncConfig::createInstance(
+                                    s->getConfig().getType(),
+                                    s->getConfig().syncDeletions(),
+                                    s->getConfig().forceOverwrite()
+                               ));
     }
     else
     {
         sync->setState(SYNC_FAILED);
         request->setMegaSyncConfig(MegaSyncConfig::createInstance());
+        sync->setConfig(MegaSyncConfig::createInstance());
     }
 
     fireOnRequestFinish(request, MegaError(e));
@@ -20653,7 +20670,7 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             MegaSyncPrivate *sync = new MegaSyncPrivate(localPath, node->nodehandle, -nextTag);
-            sync->setMegaSyncConfig(request->getMegaSyncConfig()->copy());
+            sync->setConfig(request->getMegaSyncConfig()->copy());
             sync->setListener(request->getSyncListener());
             sync->setRegExp(request->getRegExp());
 
@@ -22808,7 +22825,7 @@ MegaSyncPrivate::MegaSyncPrivate(const char *path, handle nodehandle, int tag)
 
 MegaSyncPrivate::MegaSyncPrivate(MegaSyncPrivate *sync)
 {
-    this->setMegaSyncConfig(sync->getMegaSyncConfig()->copy());
+    this->setConfig(sync->getConfig()->copy());
     this->regExp = NULL;
     this->localFolder = NULL;
     this->setTag(sync->getTag());
@@ -22831,12 +22848,12 @@ MegaSync *MegaSyncPrivate::copy()
     return new MegaSyncPrivate(this);
 }
 
-const MegaSyncConfig* MegaSyncPrivate::getMegaSyncConfig() const
+const MegaSyncConfig* MegaSyncPrivate::getConfig() const
 {
     return megaSyncConfig.get();
 }
 
-void MegaSyncPrivate::setMegaSyncConfig(const MegaSyncConfig* syncConfig)
+void MegaSyncPrivate::setConfig(const MegaSyncConfig* syncConfig)
 {
     this->megaSyncConfig.reset(syncConfig);
 }
