@@ -2,7 +2,7 @@ include(vcpkg_common_functions)
 
 vcpkg_check_linkage(ONLY_STATIC_LIBRARY)
 
-set(SOURCE_PATH ${CMAKE_CURRENT_LIST_DIR}/../../pdfium/pdfium/third_party/freetype/src)
+set(SOURCE_PATH ${VCPKG_ROOT_DIR}/pdfium/pdfium/third_party/freetype/src)
 
 vcpkg_configure_cmake(
   SOURCE_PATH ${SOURCE_PATH}
