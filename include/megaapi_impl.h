@@ -922,17 +922,16 @@ protected:
 class MegaSyncEventPrivate: public MegaSyncEvent
 {
 public:
-    MegaSyncEventPrivate(int type);
-    virtual ~MegaSyncEventPrivate();
+    explicit MegaSyncEventPrivate(int type);
 
-    virtual MegaSyncEvent *copy();
+    MegaSyncEvent *copy() override;
 
-    virtual int getType() const;
-    virtual const char *getPath() const;
-    virtual MegaHandle getNodeHandle() const;
-    virtual const char *getNewPath() const;
-    virtual const char* getPrevName() const;
-    virtual MegaHandle getPrevParent() const;
+    int getType() const override;
+    const char *getPath() const override;
+    MegaHandle getNodeHandle() const override;
+    const char *getNewPath() const override;
+    const char* getPrevName() const override;
+    MegaHandle getPrevParent() const override;
 
     void setPath(const char* path);
     void setNodeHandle(MegaHandle nodeHandle);
@@ -942,11 +941,11 @@ public:
 
 protected:
     int type;
-    const char* path;
-    const char* newPath;
-    const char* prevName;
-    MegaHandle nodeHandle;
-    MegaHandle prevParent;
+    std::unique_ptr<char[]> path;
+    std::unique_ptr<char[]> newPath;
+    std::unique_ptr<char[]> prevName;
+    MegaHandle nodeHandle = INVALID_HANDLE;
+    MegaHandle prevParent = INVALID_HANDLE;
 };
 
 class MegaRegExpPrivate
