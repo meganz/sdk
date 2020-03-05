@@ -23040,9 +23040,9 @@ MegaSyncEventPrivate::MegaSyncEventPrivate(int type)
 {
 }
 
-MegaSyncEvent* MegaSyncEventPrivate::copy()
+MegaSyncEvent *MegaSyncEventPrivate::copy()
 {
-    MegaSyncEventPrivate* event = new MegaSyncEventPrivate(type);
+    MegaSyncEventPrivate *event = new MegaSyncEventPrivate(type);
     event->setPath(this->path.get());
     event->setNodeHandle(this->nodeHandle);
     event->setNewPath(this->newPath.get());
@@ -23056,7 +23056,7 @@ int MegaSyncEventPrivate::getType() const
     return type;
 }
 
-const char* MegaSyncEventPrivate::getPath() const
+const char *MegaSyncEventPrivate::getPath() const
 {
     return path.get();
 }
@@ -23066,12 +23066,12 @@ MegaHandle MegaSyncEventPrivate::getNodeHandle() const
     return nodeHandle;
 }
 
-const char* MegaSyncEventPrivate::getNewPath() const
+const char *MegaSyncEventPrivate::getNewPath() const
 {
     return newPath.get();
 }
 
-const char* MegaSyncEventPrivate::getPrevName() const
+const char *MegaSyncEventPrivate::getPrevName() const
 {
     return prevName.get();
 }
@@ -23081,7 +23081,7 @@ MegaHandle MegaSyncEventPrivate::getPrevParent() const
     return prevParent;
 }
 
-void MegaSyncEventPrivate::setPath(const char* path)
+void MegaSyncEventPrivate::setPath(const char *path)
 {
     this->path.reset(MegaApi::strdup(path));
 }
@@ -23091,12 +23091,12 @@ void MegaSyncEventPrivate::setNodeHandle(MegaHandle nodeHandle)
     this->nodeHandle = nodeHandle;
 }
 
-void MegaSyncEventPrivate::setNewPath(const char* newPath)
+void MegaSyncEventPrivate::setNewPath(const char *newPath)
 {
     this->newPath.reset(MegaApi::strdup(newPath));
 }
 
-void MegaSyncEventPrivate::setPrevName(const char* prevName)
+void MegaSyncEventPrivate::setPrevName(const char *prevName)
 {
     this->prevName.reset(MegaApi::strdup(prevName));
 }

@@ -919,18 +919,17 @@ protected:
 
 #ifdef ENABLE_SYNC
 
-class MegaSyncEventPrivate : public MegaSyncEvent
+class MegaSyncEventPrivate: public MegaSyncEvent
 {
 public:
-    explicit
-    MegaSyncEventPrivate(int type);
+    explicit MegaSyncEventPrivate(int type);
 
-    MegaSyncEvent* copy() override;
+    MegaSyncEvent *copy() override;
 
     int getType() const override;
-    const char* getPath() const override;
+    const char *getPath() const override;
     MegaHandle getNodeHandle() const override;
-    const char* getNewPath() const override;
+    const char *getNewPath() const override;
     const char* getPrevName() const override;
     MegaHandle getPrevParent() const override;
 
