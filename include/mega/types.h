@@ -781,6 +781,62 @@ private:
 
 bool operator==(const SyncConfig& lhs, const SyncConfig& rhs);
 
+
+// cross reference pointers.  For the case where two classes have pointers to each other, and they should
+// either always be NULL or if one refers to the other, the other refers to the one.
+// This class makes sure that the two pointers are always consistent, and also prevents copy/move (unless the pointers are NULL)
+template<class TO, class FROM>
+FROM*& crossref_other_ptr_ref(TO* s);  // to be supplied for each pair of classes (to assign to the right member thereof) (gets around circular declarations)
+
+template <class  TO, class  FROM>
+class MEGA_API  crossref_ptr 
+{
+    friend class crossref_ptr<FROM, TO>;
+
+    template<class A, class B>
+    friend B*& crossref_other_ptr_ref(A* s);  // friend so that specialization can access `ptr`
+
+    TO* ptr = nullptr;
+
+public:
+    crossref_ptr() = default;
+
+    ~crossref_ptr()
+    {
+        reset();
+    }
+
+    void crossref(TO* to, FROM* from) 
+    {
+        assert(to && from);
+        assert(ptr == nullptr);
+        assert( !(crossref_other_ptr_ref<TO, FROM>(to)) );
+        ptr = to;
+        crossref_other_ptr_ref<TO, FROM>(ptr) = from;
+    }
+
+    void reset()
+    {
+        if (ptr)
+        {
+            assert( !!(crossref_other_ptr_ref<TO, FROM>(ptr)) );
+            crossref_other_ptr_ref<TO, FROM>(ptr) = nullptr;
+            ptr = nullptr;
+        }
+    }
+
+    TO* operator->() const { return ptr; }
+    operator TO*() const { return ptr; }
+
+    // no copying
+    crossref_ptr(const crossref_ptr&) = delete;
+    void operator=(const crossref_ptr&) = delete;
+
+    // only allow move if the pointers are null (check at runtime with assert)
+    crossref_ptr(crossref_ptr&& p) { assert(!p.ptr); }
+    void operator=(crossref_ptr&& p) { assert(!p.ptr); ptr = p; }
+};
+
 } // namespace
 
 #define MEGA_DISABLE_COPY(class_name) \

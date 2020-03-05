@@ -7526,11 +7526,11 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                         {
                             // overwrites/updates: associate LocalNode with newly created Node
                             nn[nni].localnode->setnode(n);
-                            nn[nni].localnode->newnode = NULL;
                             nn[nni].localnode->treestate(TREESTATE_SYNCED);
 
                             // updates cache with the new node associated
                             nn[nni].localnode->sync->statecacheadd(nn[nni].localnode);
+                            nn[nni].localnode->newnode.reset(); // localnode ptr now null also
                         }
                     }
 #endif
@@ -13180,8 +13180,7 @@ void MegaClient::syncupdate()
                 nnp->source = NEW_NODE;
                 nnp->type = l->type;
                 nnp->syncid = l->syncid;
-                nnp->localnode = l;
-                l->newnode = nnp;
+                nnp->localnode.crossref(l, nnp);  // also sets l->newnode to nnp
                 nnp->nodehandle = n ? n->nodehandle : l->syncid;
                 nnp->parenthandle = i > start ? l->parent->syncid : UNDEF;
 
