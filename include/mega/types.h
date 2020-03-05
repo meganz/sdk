@@ -811,9 +811,8 @@ public:
         assert(to && from);
         assert(ptr == nullptr);
         assert( !(crossref_other_ptr_ref<TO, FROM>(to)) );
-        assert( (crossref_other_ptr_ref<FROM, TO>(from) == ptr) );
         ptr = to;
-        if (ptr) crossref_other_ptr_ref<TO, FROM>(ptr) = from;
+        crossref_other_ptr_ref<TO, FROM>(ptr) = from;
     }
 
     void reset()
@@ -826,9 +825,8 @@ public:
         }
     }
 
-    explicit operator bool() { return !!ptr; }
-    TO* operator->() { return ptr; }
-    operator TO*() { return ptr; }
+    TO* operator->() const { return ptr; }
+    operator TO*() const { return ptr; }
 
     // no copying
     crossref_ptr(const crossref_ptr&) = delete;
