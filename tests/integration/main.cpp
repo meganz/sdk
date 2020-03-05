@@ -26,7 +26,9 @@ public:
         {
             auto t = std::time(NULL);
             char ts[50];
-            if (!std::strftime(ts, sizeof(ts), "%H:%M:%S", std::gmtime(&t)))
+            struct tm dt;
+            mega::m_gmtime(t, &dt);
+            if (!std::strftime(ts, sizeof(ts), "%H:%M:%S", &dt))
             {
                 ts[0] = '\0';
             }
