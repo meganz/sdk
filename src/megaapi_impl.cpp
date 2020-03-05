@@ -23060,27 +23060,17 @@ void MegaSyncPrivate::setRegExp(MegaRegExp *regExp)
 }
 
 MegaSyncEventPrivate::MegaSyncEventPrivate(int type)
+    : type(type)
 {
-    this->type = type;
-    path = NULL;
-    newPath = NULL;
-    prevName = NULL;
-    nodeHandle = INVALID_HANDLE;
-    prevParent = INVALID_HANDLE;
-}
-
-MegaSyncEventPrivate::~MegaSyncEventPrivate()
-{
-    delete [] path;
 }
 
 MegaSyncEvent *MegaSyncEventPrivate::copy()
 {
     MegaSyncEventPrivate *event = new MegaSyncEventPrivate(type);
-    event->setPath(this->path);
+    event->setPath(this->path.get());
     event->setNodeHandle(this->nodeHandle);
-    event->setNewPath(this->newPath);
-    event->setPrevName(this->prevName);
+    event->setNewPath(this->newPath.get());
+    event->setPrevName(this->prevName.get());
     event->setPrevParent(this->prevParent);
     return event;
 }
@@ -23092,7 +23082,7 @@ int MegaSyncEventPrivate::getType() const
 
 const char *MegaSyncEventPrivate::getPath() const
 {
-    return path;
+    return path.get();
 }
 
 MegaHandle MegaSyncEventPrivate::getNodeHandle() const
@@ -23102,12 +23092,12 @@ MegaHandle MegaSyncEventPrivate::getNodeHandle() const
 
 const char *MegaSyncEventPrivate::getNewPath() const
 {
-    return newPath;
+    return newPath.get();
 }
 
 const char *MegaSyncEventPrivate::getPrevName() const
 {
-    return prevName;
+    return prevName.get();
 }
 
 MegaHandle MegaSyncEventPrivate::getPrevParent() const
@@ -23117,11 +23107,7 @@ MegaHandle MegaSyncEventPrivate::getPrevParent() const
 
 void MegaSyncEventPrivate::setPath(const char *path)
 {
-    if(this->path)
-    {
-        delete [] this->path;
-    }
-    this->path =  MegaApi::strdup(path);
+    this->path.reset(MegaApi::strdup(path));
 }
 
 void MegaSyncEventPrivate::setNodeHandle(MegaHandle nodeHandle)
@@ -23131,20 +23117,12 @@ void MegaSyncEventPrivate::setNodeHandle(MegaHandle nodeHandle)
 
 void MegaSyncEventPrivate::setNewPath(const char *newPath)
 {
-    if(this->newPath)
-    {
-        delete [] this->newPath;
-    }
-    this->newPath =  MegaApi::strdup(newPath);
+    this->newPath.reset(MegaApi::strdup(newPath));
 }
 
 void MegaSyncEventPrivate::setPrevName(const char *prevName)
 {
-    if(this->prevName)
-    {
-        delete [] this->prevName;
-    }
-    this->prevName =  MegaApi::strdup(prevName);
+    this->prevName.reset(MegaApi::strdup(prevName));
 }
 
 void MegaSyncEventPrivate::setPrevParent(MegaHandle prevParent)
