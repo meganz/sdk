@@ -383,8 +383,8 @@ struct MEGA_API LocalNode : public File
 };
 #endif
 
-template <> inline crossref_ptr<NewNode, LocalNode>& crossref_other_ptr_ref<LocalNode, NewNode>(LocalNode* p) { return p->newnode; }
-template <> inline crossref_ptr<LocalNode, NewNode>& crossref_other_ptr_ref<NewNode, LocalNode>(NewNode* p) { return p->localnode; }
+template <> inline NewNode*& crossref_other_ptr_ref<LocalNode, NewNode>(LocalNode* p) { return p->newnode.ptr; }
+template <> inline LocalNode*& crossref_other_ptr_ref<NewNode, LocalNode>(NewNode* p) { return p->localnode.ptr; }
 
 } // namespace
 

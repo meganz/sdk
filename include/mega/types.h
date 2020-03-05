@@ -785,19 +785,24 @@ bool operator==(const SyncConfig& lhs, const SyncConfig& rhs);
 // cross reference pointers.  For the case where two classes have pointers to each other, and they should
 // either always be NULL or if one refers to the other, the other refers to the one.
 // This class makes sure that the two pointers are always consistent, and also prevents copy/move (unless the pointers are NULL)
-template<class TO, class FROM, class FROMS_CROSSREFPTR>
-FROMS_CROSSREFPTR& crossref_other_ptr_ref(TO* s);  // to be supplied for each pair of classes (to assign to the right member thereof) (gets around circular declarations)
+template<class TO, class FROM>
+FROM*& crossref_other_ptr_ref(TO* s);  // to be supplied for each pair of classes (to assign to the right member thereof) (gets around circular declarations)
 
 template <class  TO, class  FROM>
 class MEGA_API  crossref_ptr 
 {
     friend class crossref_ptr<FROM, TO>;
+
+    template<class A, class B>
+    friend B*& crossref_other_ptr_ref(A* s);  // friend so that specialization can access `ptr`
+
     TO* ptr = nullptr;
 
 public:
-    crossref_ptr() : ptr(nullptr) {}
+    crossref_ptr() = default;
 
-    ~crossref_ptr() { 
+    ~crossref_ptr()
+    {
         reset();
     }
 
@@ -805,18 +810,18 @@ public:
     {
         assert(to && from);
         assert(ptr == nullptr);
-        assert( !(crossref_other_ptr_ref<TO, FROM, crossref_ptr<FROM, TO>>(to).ptr) );
-        assert( (&crossref_other_ptr_ref<FROM, TO, crossref_ptr<TO, FROM>>(from) == this) );
+        assert( !(crossref_other_ptr_ref<TO, FROM>(to)) );
+        assert( (crossref_other_ptr_ref<FROM, TO>(from) == ptr) );
         ptr = to;
-        if (ptr) crossref_other_ptr_ref<TO, FROM, crossref_ptr<FROM, TO>>(ptr).ptr = from;
+        if (ptr) crossref_other_ptr_ref<TO, FROM>(ptr) = from;
     }
 
     void reset()
     {
         if (ptr)
         {
-            assert( !!(crossref_other_ptr_ref<TO, FROM, crossref_ptr<FROM, TO>>(ptr)) );
-            crossref_other_ptr_ref<TO, FROM, crossref_ptr<FROM, TO>>(ptr).ptr = nullptr;
+            assert( !!(crossref_other_ptr_ref<TO, FROM>(ptr)) );
+            crossref_other_ptr_ref<TO, FROM>(ptr) = nullptr;
             ptr = nullptr;
         }
     }
