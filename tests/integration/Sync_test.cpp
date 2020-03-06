@@ -171,6 +171,12 @@ string leafname(const string& p)
     return n == string::npos ? p : p.substr(n+1);
 }
 
+string parentpath(const string& p)
+{
+    auto n = p.find_last_of("/");
+    return n == string::npos ? "" : p.substr(0, n-1);
+}
+
 void WaitMillisec(unsigned n)
 {
 #ifdef _WIN32
@@ -4218,7 +4224,12 @@ TEST(Sync, OneWay_Download_syncDelTrue_overwriteTrue_1)
 struct OneWaySymmetryCase
 {
     enum Action { action_rename, action_moveWithinSync, action_moveOutOfSync, action_moveIntoSync, action_delete, action_numactions };
-    enum MatchState { match_exact, match_mismatch, match_absent };
+    
+    enum MatchState { match_exact,      // the sync destination has the exact same file/folder at the same relative path
+                      match_older,      // the sync destination has an older file/folder at the same relative path
+                      match_newer,      // the sync destination has a newer file/folder at the same relative path
+                      match_absent };   // the sync destination has no node at the same relative path
+
     Action action = action_rename;
     bool selfChange = false; // changed by our own client or another
     bool up = false;  // or down - sync direction
@@ -4268,7 +4279,8 @@ struct OneWaySymmetryCase
         switch (m) 
         { 
             case match_exact: return "exact";
-            case match_mismatch: return "mismatch";
+            case match_older: return "older";
+            case match_newer: return "newer";
             case match_absent: return "absent";
         }
         return "bad enum";
@@ -4295,6 +4307,16 @@ struct OneWaySymmetryCase
 
     StandardClient& changeClient() { return selfChange ? state.client : state.nonsyncClient; }
 
+    void makeMtimeFile(std::string name, int mtime_delta, Model& m1, Model& m2)
+    {
+        createFile(localTestBasePath, name);
+        auto initial_mtime = fs::last_write_time(localTestBasePath / name);
+        fs::last_write_time(localTestBasePath / name, initial_mtime + std::chrono::seconds(mtime_delta));
+        fs::rename(localTestBasePath / name, localTestBasePath / "f" / name); // move it after setting the time to be 100% sure the sync sees it with the adjusted mtime only
+        m1.findnode("f")->addkid(m1.makeModelSubfile(name));
+        m2.findnode("f")->addkid(m2.makeModelSubfile(name));
+    }
+
     // prepares a local folder for testing, which will be two-way synced before the test
     void SetupForSync()
     {
@@ -4307,6 +4329,11 @@ struct OneWaySymmetryCase
 
         localModel.root->addkid(localModel.buildModelSubdirs("f", 2, 2, 2));
         remoteModel.root->addkid(remoteModel.buildModelSubdirs("f", 2, 2, 2));
+
+        makeMtimeFile("file_older_1", -3600, localModel, remoteModel);
+        makeMtimeFile("file_newer_1", 3600, localModel, remoteModel);
+        makeMtimeFile("file_older_2", -3600, localModel, remoteModel);
+        makeMtimeFile("file_newer_2", 3600, localModel, remoteModel);
     }
 
     void SetupOneWaySync()
@@ -4334,8 +4361,10 @@ struct OneWaySymmetryCase
         SetupOneWaySync();
     }
 
-    void remote_rename(std::string nodepath, std::string newname, bool updatemodel, bool reportaction)
+    void remote_rename(std::string nodepath, std::string newname, bool updatemodel, bool reportaction, bool deleteTargetFirst)
     {
+        if (deleteTargetFirst) remote_delete(parentpath(nodepath) + "/" + newname, updatemodel, reportaction, true); // in case the target already exists
+
         if (updatemodel) remoteModel.emulate_rename(nodepath, newname);
 
         Node* testRoot = changeClient().client.nodebyhandle(state.client.basefolderhandle);
@@ -4349,11 +4378,10 @@ struct OneWaySymmetryCase
         ASSERT_TRUE(!e);
     }
 
-    void remote_move(std::string nodepath, std::string newparentpath, bool updatemodel, bool reportaction)
+    void remote_move(std::string nodepath, std::string newparentpath, bool updatemodel, bool reportaction, bool deleteTargetFirst)
     {
         
-        remote_delete(newparentpath + "/" + leafname(nodepath), updatemodel, reportaction); // in case the target already exists
-
+        if (deleteTargetFirst) remote_delete(newparentpath + "/" + leafname(nodepath), updatemodel, reportaction, true); // in case the target already exists
         
         if (updatemodel) remoteModel.emulate_move(nodepath, newparentpath);
 
@@ -4385,16 +4413,18 @@ struct OneWaySymmetryCase
         ASSERT_TRUE(!e);
     }
 
-    void remote_delete(std::string nodepath, bool updatemodel, bool reportaction)
+    void remote_delete(std::string nodepath, bool updatemodel, bool reportaction, bool mightNotExist)
     {
-        if (updatemodel) remoteModel.emulate_delete(nodepath);
 
         Node* testRoot = changeClient().client.nodebyhandle(changeClient().basefolderhandle);
         Node* n = changeClient().drillchildnodebyname(testRoot, remoteTestBasePath + "/" + nodepath);
-        if (!n) return;  // eg when checking to remove an item that is a move target but there isn't one
-        //ASSERT_TRUE(!!n);
+        if (mightNotExist && !n) return;  // eg when checking to remove an item that is a move target but there isn't one
+        
+        ASSERT_TRUE(!!n);
 
         if (reportaction) cout << name() << " action: remote delete " << n->displaypath() << endl;
+
+        if (updatemodel) remoteModel.emulate_delete(nodepath);
 
         auto e = changeClient().client.unlink(n);
         ASSERT_TRUE(!e);
@@ -4408,8 +4438,10 @@ struct OneWaySymmetryCase
         return fs::u8path(p);
     }
 
-    void local_rename(std::string path, std::string newname, bool updatemodel, bool reportaction)
+    void local_rename(std::string path, std::string newname, bool updatemodel, bool reportaction, bool deleteTargetFirst)
     {
+        if (deleteTargetFirst) local_delete(parentpath(path) + "/" + newname, updatemodel, reportaction, true); // in case the target already exists
+        
         if (updatemodel) localModel.emulate_rename(path, newname);
 
         fs::path p1(localTestBasePath);
@@ -4428,8 +4460,10 @@ struct OneWaySymmetryCase
         ASSERT_TRUE(!ec) << "local_rename " << p1 << " to " << p2 << " failed: " << ec.message();
     }
 
-    void local_move(std::string from, std::string to, bool updatemodel, bool reportaction)
+    void local_move(std::string from, std::string to, bool updatemodel, bool reportaction, bool deleteTargetFirst)
     {
+        if (deleteTargetFirst) local_delete(to + "/" + leafname(from), updatemodel, reportaction, true);
+
         if (updatemodel) localModel.emulate_move(from, to);
 
         fs::path p1(localTestBasePath);
@@ -4466,33 +4500,34 @@ struct OneWaySymmetryCase
         ASSERT_TRUE(!ec) << "local_copy " << p1 << " to " << p2 << " failed: " << ec.message();
     }
 
-    void local_delete(std::string path, bool updatemodel, bool reportaction)
+    void local_delete(std::string path, bool updatemodel, bool reportaction, bool mightNotExist)
     {
-        if (updatemodel) localModel.emulate_delete(path);
-
         fs::path p(localTestBasePath);
         p /= fixSeparators(path);
+
+        if (mightNotExist && !fs::exists(p)) return;
 
         if (reportaction) cout << name() << " action: local_delete " << p << endl;
 
         std::error_code ec;
         fs::remove_all(p, ec);
         ASSERT_TRUE(!ec) << "local_delete " << p << " failed: " << ec.message();
+        if (updatemodel) localModel.emulate_delete(path);
     }
 
-    void source_rename(std::string nodepath, std::string newname, bool updatemodel, bool reportaction = false)
+    void source_rename(std::string nodepath, std::string newname, bool updatemodel, bool reportaction, bool deleteTargetFirst)
     {
-        if (up) local_rename(nodepath, newname, updatemodel, reportaction);
-        else remote_rename(nodepath, newname, updatemodel, reportaction);
+        if (up) local_rename(nodepath, newname, updatemodel, reportaction, deleteTargetFirst);
+        else remote_rename(nodepath, newname, updatemodel, reportaction, deleteTargetFirst);
     }
 
-    void source_move(std::string nodepath, std::string newparentpath, bool updatemodel, bool reportaction = false)
+    void source_move(std::string nodepath, std::string newparentpath, bool updatemodel, bool reportaction, bool deleteTargetFirst)
     {
-        if (up) local_move(nodepath, newparentpath, updatemodel, reportaction);
-        else remote_move(nodepath, newparentpath, updatemodel, reportaction);
+        if (up) local_move(nodepath, newparentpath, updatemodel, reportaction, deleteTargetFirst);
+        else remote_move(nodepath, newparentpath, updatemodel, reportaction, deleteTargetFirst);
     }
 
-    void source_copy(std::string nodepath, std::string newparentpath, bool updatemodel, bool reportaction = false)
+    void source_copy(std::string nodepath, std::string newparentpath, bool updatemodel, bool reportaction)
     {
         if (up) local_copy(nodepath, newparentpath, updatemodel, reportaction);
         else remote_copy(nodepath, newparentpath, updatemodel, reportaction);
@@ -4500,40 +4535,46 @@ struct OneWaySymmetryCase
 
     void source_delete(std::string nodepath, bool updatemodel, bool reportaction = false)
     {
-        if (up) local_delete(nodepath, updatemodel, reportaction);
-        else remote_delete(nodepath, updatemodel, reportaction);
+        if (up) local_delete(nodepath, updatemodel, reportaction, false);
+        else remote_delete(nodepath, updatemodel, reportaction, false);
     }
 
-    void destination_rename(std::string nodepath, std::string newname, bool updatemodel, bool reportaction = false)
+    void destination_rename(std::string nodepath, std::string newname, bool updatemodel, bool reportaction, bool deleteTargetFirst)
     {
-        if (!up) local_rename(nodepath, newname, updatemodel, reportaction);
-        else remote_rename(nodepath, newname, updatemodel, reportaction);
+        if (!up) local_rename(nodepath, newname, updatemodel, reportaction, deleteTargetFirst);
+        else remote_rename(nodepath, newname, updatemodel, reportaction, deleteTargetFirst);
     }
 
-    void destination_move(std::string nodepath, std::string newparentpath, bool updatemodel, bool reportaction = false)
+    void destination_move(std::string nodepath, std::string newparentpath, bool updatemodel, bool reportaction, bool deleteTargetFirst)
     {
-        if (!up) local_move(nodepath, newparentpath, updatemodel, reportaction);
-        else remote_move(nodepath, newparentpath, updatemodel, reportaction);
+        if (!up) local_move(nodepath, newparentpath, updatemodel, reportaction, deleteTargetFirst);
+        else remote_move(nodepath, newparentpath, updatemodel, reportaction, deleteTargetFirst);
     }
 
-    void destination_copy(std::string nodepath, std::string newparentpath, bool updatemodel, bool reportaction = false)
+    void destination_copy(std::string nodepath, std::string newparentpath, bool updatemodel, bool reportaction)
     {
         if (!up) local_copy(nodepath, newparentpath, updatemodel, reportaction);
         else remote_copy(nodepath, newparentpath, updatemodel, reportaction);
     }
 
-    void destination_delete(std::string nodepath, bool updatemodel, bool reportaction = false)
+    void destination_delete(std::string nodepath, bool updatemodel, bool reportaction)
     {
-        if (!up) local_delete(nodepath, updatemodel, reportaction);
-        else remote_delete(nodepath, updatemodel, reportaction);
+        if (!up) local_delete(nodepath, updatemodel, reportaction, false);
+        else remote_delete(nodepath, updatemodel, reportaction, false);
     }
 
-    void destination_copy_renamed(std::string sourcefolder, std::string oldname, std::string newname, std::string targetfolder, bool updatemodel, bool reportaction = false)
+    void destination_copy_renamed(std::string sourcefolder, std::string oldname, std::string newname, std::string targetfolder, bool updatemodel, bool reportaction, bool deleteTargetFirst)
     {
         // avoid name clashes in any one folder
-        destination_copy(sourcefolder + "/" + oldname, "f", updatemodel, reportaction);
-        destination_rename("f/" + oldname, newname, updatemodel, reportaction);
-        destination_move("f/" + newname, targetfolder, updatemodel, reportaction);
+        if (sourcefolder != "f") destination_copy(sourcefolder + "/" + oldname, "f", updatemodel, reportaction);
+        destination_rename("f/" + oldname, newname, updatemodel, reportaction, false);
+        destination_move("f/" + newname, targetfolder, updatemodel, reportaction, deleteTargetFirst);
+    }
+
+    void destination_rename_move(std::string sourcefolder, std::string oldname, std::string newname, std::string targetfolder, bool updatemodel, bool reportaction, bool deleteTargetFirst)
+    {
+        destination_rename("f/" + oldname, newname, updatemodel, reportaction, false);
+        destination_move("f/" + newname, targetfolder, updatemodel, reportaction, deleteTargetFirst);
     }
 
     void fileMayDiffer(std::string filepath)
@@ -4588,11 +4629,14 @@ struct OneWaySymmetryCase
         bool prep = stage == Prepare;
         bool act = stage == MainAction;
 
-        if (act && printTreesBeforeAndAfter)
+        if (prep) cout << "Preparing action " << endl;
+        if (act) cout << "Executing action " << endl;
+
+        if (prep && printTreesBeforeAndAfter)
         {
-            cout << " ---- local tree before change ----" << endl;
+            cout << " ---- local tree initial state ----" << endl;
             PrintLocalTree(fs::path(localTestBasePath));
-            cout << " ---- remote tree before change ----" << endl;
+            cout << " ---- remote tree initial state ----" << endl;
             Node* testRoot = state.client.client.nodebyhandle(changeClient().basefolderhandle);
             Node* n = state.client.drillchildnodebyname(testRoot, remoteTestBasePath);
             PrintRemoteTree(n);
@@ -4605,24 +4649,28 @@ struct OneWaySymmetryCase
             {
                 if (file)
                 {
-                    if (destinationMatchAfter == match_exact) { destination_copy_renamed("f/f_0", "file0_f_0", "file0_f_0_renamed", "f/f_0", true); };
-                    if (destinationMatchAfter == match_mismatch) destination_copy_renamed("f/f_1", "file1_f_1", "file0_f_0_renamed", "f/f_0", true);
-                    if (destinationMatchBefore == match_mismatch) { destination_copy_renamed("f/f_1", "file0_f_1", "file0_f_0", "f/f_0", true); }
-                    if (destinationMatchBefore == match_absent) { destination_delete("f/f_0/file0_f_0", true); }
+                    if (destinationMatchAfter == match_exact) { destination_copy_renamed("f/f_0", "file0_f_0", "file0_f_0_renamed", "f/f_0", true, false, false); };
+                    if (destinationMatchAfter == match_older) destination_rename_move("f", "file_older_2", "file0_f_0_renamed", "f/f_0", true, false, false);
+                    if (destinationMatchAfter == match_newer) destination_rename_move("f", "file_newer_2", "file0_f_0_renamed", "f/f_0", true, false, false);
+                    if (destinationMatchBefore == match_older) { destination_rename_move("f", "file_older_1", "file0_f_0", "f/f_0", true, false, true); }
+                    if (destinationMatchBefore == match_newer) { destination_rename_move("f", "file_newer_1", "file0_f_0", "f/f_0", true, false, true); }
+                    if (destinationMatchBefore == match_absent) { destination_delete("f/f_0/file0_f_0", true, false); }
                 }
                 else
                 {
-                    if (destinationMatchAfter == match_exact) destination_copy("f/f_1", "f/f_1_renamed", true);
-                    if (destinationMatchAfter == match_mismatch) destination_rename("f/f_2", "f/f_1_renamed", true);
-                    if (destinationMatchBefore == match_mismatch) { destination_delete("f/f_1", true), destination_copy("f/f_2", "f/f_1", true); }
-                    if (destinationMatchBefore == match_absent) { destination_delete("f/f_1", true); }
+                    if (destinationMatchAfter == match_exact) destination_copy("f/f_1", "f/f_1_renamed", true, false);
+                    if (destinationMatchAfter == match_older) destination_rename("f/f_2", "f/f_1_renamed", true, false, false);
+                    if (destinationMatchAfter == match_newer) destination_rename("f/f_2", "f/f_1_renamed", true, false, false);
+                    if (destinationMatchBefore == match_older) { destination_delete("f/f_1", true, false), destination_copy("f/f_2", "f/f_1", true, false); }
+                    if (destinationMatchBefore == match_newer) { destination_delete("f/f_1", true, false), destination_copy("f/f_2", "f/f_1", true, false); }
+                    if (destinationMatchBefore == match_absent) { destination_delete("f/f_1", true, false); }
                 }
             }
             else if (act)
             {
                 if (file)
                 {
-                    source_rename("f/f_0/file0_f_0", "file0_f_0_renamed", true, true);
+                    source_rename("f/f_0/file0_f_0", "file0_f_0_renamed", true, true, true);
                     if (destinationMatchBefore == match_exact && destinationMatchAfter == match_absent)
                     {
                         destinationModel().emulate_rename("f/f_0/file0_f_0", "file0_f_0_renamed");
@@ -4630,7 +4678,7 @@ struct OneWaySymmetryCase
                 }
                 else
                 {
-                    source_rename("f/f_0", "f_0_renamed", true, true);
+                    source_rename("f/f_0", "f_0_renamed", true, true, false);
                     if (destinationMatchBefore == match_exact && destinationMatchAfter == match_absent)
                     {
                         destinationModel().emulate_rename("f/f_0", "f_0_renamed");
@@ -4644,24 +4692,28 @@ struct OneWaySymmetryCase
             {
                 if (file)
                 {
-                    if (destinationMatchAfter == match_exact) destination_copy("f/f_1/file0_f_1", "f/f_0", true);
-                    if (destinationMatchAfter == match_mismatch) { destination_copy_renamed("f/f_0", "file0_f_0", "file0_f_1", "f/f_0", true); fileMayDiffer("f/f_0/file0_f_1"); }
-                    if (destinationMatchBefore == match_mismatch) { destination_copy_renamed("f/f_1", "file1_f_1", "file0_f_1", "f/f_1", true); fileMayDiffer("f/f_1/file0_f_1"); }
-                    if (destinationMatchBefore == match_absent) destination_delete("f/f_1/file0_f_1", true);
+                    if (destinationMatchAfter == match_exact) destination_copy("f/f_1/file0_f_1", "f/f_0", true, false);
+                    if (destinationMatchAfter == match_older) { destination_copy_renamed("f/f_0", "file0_f_0", "file0_f_1", "f/f_0", true, false, true); fileMayDiffer("f/f_0/file0_f_1"); }
+                    if (destinationMatchAfter == match_newer) { destination_copy_renamed("f/f_0", "file0_f_0", "file0_f_1", "f/f_0", true, false, true); fileMayDiffer("f/f_0/file0_f_1"); }
+                    if (destinationMatchBefore == match_older) { destination_copy_renamed("f/f_1", "file1_f_1", "file0_f_1", "f/f_1", true, false, true); fileMayDiffer("f/f_1/file0_f_1"); }
+                    if (destinationMatchBefore == match_newer) { destination_copy_renamed("f/f_1", "file1_f_1", "file0_f_1", "f/f_1", true, false, true); fileMayDiffer("f/f_1/file0_f_1"); }
+                    if (destinationMatchBefore == match_absent) destination_delete("f/f_1/file0_f_1", true, false);
                 }
                 else
                 {
-                    if (destinationMatchAfter == match_exact) destination_copy("f/f_1", "f/f_0", true);
-                    if (destinationMatchAfter == match_mismatch) destination_copy_renamed("f/f_0", "f_0_0", "f_1", "f/f_0", true);
-                    if (destinationMatchBefore == match_mismatch) destination_copy_renamed("f/f_0", "f_0_1", "f_1", "f", true);
-                    if (destinationMatchBefore == match_absent) destination_delete("f/f_1", true);
+                    if (destinationMatchAfter == match_exact) destination_copy("f/f_1", "f/f_0", true, false);
+                    if (destinationMatchAfter == match_older) destination_copy_renamed("f/f_0", "f_0_0", "f_1", "f/f_0", true, false, true);
+                    if (destinationMatchAfter == match_newer) destination_copy_renamed("f/f_0", "f_0_0", "f_1", "f/f_0", true, false, true);
+                    if (destinationMatchBefore == match_older) destination_copy_renamed("f/f_0", "f_0_1", "f_1", "f", true, false, true);
+                    if (destinationMatchBefore == match_newer) destination_copy_renamed("f/f_0", "f_0_1", "f_1", "f", true, false, true);
+                    if (destinationMatchBefore == match_absent) destination_delete("f/f_1", true, false);
                 }
             }
             else if (act)
             {
                 if (file)
                 {
-                    source_move("f/f_1/file0_f_1", "f/f_0", true, true);
+                    source_move("f/f_1/file0_f_1", "f/f_0", true, true, false);
                     if (destinationMatchBefore == match_exact && destinationMatchAfter == match_absent)
                     {
                         destinationModel().emulate_move("f/f_1/file0_f_1", "f/f_0");
@@ -4669,7 +4721,7 @@ struct OneWaySymmetryCase
                 }
                 else
                 {
-                    source_move("f/f_1", "f/f_0", true, true);
+                    source_move("f/f_1", "f/f_0", true, true, false);
                     if (destinationMatchBefore == match_exact && destinationMatchAfter == match_absent)
                     {
                         destinationModel().emulate_move("f/f_1", "f/f_0");
@@ -4679,11 +4731,11 @@ struct OneWaySymmetryCase
             break;
 
         case action_moveOutOfSync:
-            source_move("f/f_1", "", true);
+            source_move("f/f_1", "", true, false, false);
             break;
 
         case action_moveIntoSync:
-            source_move("f_2", "f/f_1", true);
+            source_move("f_2", "f/f_1", true, false, false);
             break;
 
         case action_delete:
@@ -4691,13 +4743,15 @@ struct OneWaySymmetryCase
             {
                 if (file)
                 {
-                    if (destinationMatchBefore == match_mismatch) { destination_copy_renamed("f/f_0", "file1_f_0", "file0_f_0", "f/f_0", true); fileMayDiffer("f/f_0/file0_f_0"); }
-                    if (destinationMatchBefore == match_absent) destination_delete("f/f_0/file0_f_0", true);
+                    if (destinationMatchBefore == match_older) { destination_copy_renamed("f", "file_older_1", "file0_f_0", "f/f_0", true, false, true); fileMayDiffer("f/f_0/file0_f_0"); }
+                    if (destinationMatchBefore == match_newer) { destination_copy_renamed("f", "file_newer_1", "file0_f_0", "f/f_0", true, false, true); fileMayDiffer("f/f_0/file0_f_0"); }
+                    if (destinationMatchBefore == match_absent) destination_delete("f/f_0/file0_f_0", true, false);
                 }
                 else
                 {
-                    if (destinationMatchBefore == match_mismatch) destination_copy_renamed("f/f_1", "f_0_1", "f_0", "f", true);
-                    if (destinationMatchBefore == match_absent) destination_delete("f/f_0", true);
+                    if (destinationMatchBefore == match_older) destination_copy_renamed("f/f_1", "f_0_1", "f_0", "f", true, false, true);
+                    if (destinationMatchBefore == match_newer) destination_copy_renamed("f/f_1", "f_0_1", "f_0", "f", true, false, true);
+                    if (destinationMatchBefore == match_absent) destination_delete("f/f_0", true, false);
                 }
             }
             else if (act)
@@ -4705,7 +4759,7 @@ struct OneWaySymmetryCase
                 if (file)
                 {
                     source_delete("f/f_0/file0_f_0", true, true);
-                    if (propagateDeletes && (destinationMatchBefore == match_exact || destinationMatchBefore == match_mismatch))
+                    if (propagateDeletes && (destinationMatchBefore != match_absent))
                     {
                         destinationModel().emulate_delete("f/f_0/file0_f_0");
                     }
@@ -4713,7 +4767,7 @@ struct OneWaySymmetryCase
                 else
                 {
                     source_delete("f/f_0", true, true);
-                    if (propagateDeletes && (destinationMatchBefore == match_exact || destinationMatchBefore == match_mismatch))
+                    if (propagateDeletes && (destinationMatchBefore != match_absent))
                     {
                         destinationModel().emulate_delete("f/f_0");
                     }
@@ -4724,6 +4778,30 @@ struct OneWaySymmetryCase
         default: ASSERT_TRUE(false);
         }
     }
+
+    void CheckSetup(State&)
+    {
+        if (printTreesBeforeAndAfter)
+        {
+            cout << " ---- local tree before change ----" << endl;
+            PrintLocalTree(fs::path(localTestBasePath));
+            cout << " ---- remote tree before change ----" << endl;
+            Node* testRoot = state.client.client.nodebyhandle(changeClient().basefolderhandle);
+            Node* n = state.client.drillchildnodebyname(testRoot, remoteTestBasePath);
+            PrintRemoteTree(n);
+        }
+
+        cout << "Checking setup state (should be no changes in oneway sync source)"<< name() << endl;
+
+        // confirm source is unchanged after setup  (one-way is not sending changes to the wrong side)
+        bool localfs = state.client.confirmModel(sync_tag, localModel.findnode("f"), StandardClient::CONFIRM_LOCALFS, true); // todo: later enable debris checks
+        bool localnode = state.client.confirmModel(sync_tag, localModel.findnode("f"), StandardClient::CONFIRM_LOCALNODE, true); // todo: later enable debris checks
+        bool remote = state.client.confirmModel(sync_tag, remoteModel.findnode("f"), StandardClient::CONFIRM_REMOTE, true); // todo: later enable debris checks
+        EXPECT_EQ(localfs, localnode);
+        EXPECT_EQ(localnode, remote);
+        EXPECT_TRUE(localfs && localnode && remote);
+    }
+
 
     // One-way sync is stable again after the change.  Check the results.
     void CheckResult(State&)
@@ -4773,7 +4851,7 @@ TEST(Sync, OneWay_Highlevel_Symmetries)
     std::map<std::string, OneWaySymmetryCase> cases;
 
     static bool singleCase = false;
-    static string singleNamedTest = "rename_other_down_file_beforemismatch_afterabsent"; 
+    static string singleNamedTest = "rename_other_down_file_beforenewer_afterolder";//"rename_other_down_file_beforemismatch_afterabsent"; 
     if (singleCase)
     {
         OneWaySymmetryCase testcase(allstate);
@@ -4789,7 +4867,7 @@ TEST(Sync, OneWay_Highlevel_Symmetries)
         cases.emplace(testcase.name(), move(testcase));
     }
     else
-    for (int selfChange = 0; selfChange < 2; ++selfChange)
+    for (int selfChange = 0; selfChange < 1; ++selfChange)
     {
         for (int up = 0; up < 2; ++up)
         {
@@ -4803,9 +4881,9 @@ TEST(Sync, OneWay_Highlevel_Symmetries)
                         {
                             if (action == OneWaySymmetryCase::action_delete && destinationMatchAfter > 0) continue;  // only before matters for delete since there's only one path involved
 
-                            for (int propagateDeletes = 0; propagateDeletes < 2; ++propagateDeletes)
+                            for (int propagateDeletes = 0; propagateDeletes < 1; ++propagateDeletes)
                             {
-                                //for (int forceOverwrites = 0; forceOverwrites < 2; ++forceOverwrites)
+                                for (int forceOverwrites = 0; forceOverwrites < 2; ++forceOverwrites)
                                 {
                                     for (int pauseDuringAction = 0; pauseDuringAction < 1; ++pauseDuringAction)
                                     {
@@ -4817,7 +4895,7 @@ TEST(Sync, OneWay_Highlevel_Symmetries)
                                         testcase.destinationMatchBefore = OneWaySymmetryCase::MatchState(destinationMatchBefore);
                                         testcase.destinationMatchAfter = OneWaySymmetryCase::MatchState(destinationMatchAfter);
                                         testcase.propagateDeletes = propagateDeletes;
-                                        //testcase.forceOverwrites = forceOverwrites;
+                                        testcase.forceOverwrites = forceOverwrites;
                                         testcase.pauseDuringAction = pauseDuringAction;
 
                                         if (singleNamedTest.empty() || testcase.name() == singleNamedTest)
@@ -4866,7 +4944,7 @@ TEST(Sync, OneWay_Highlevel_Symmetries)
 
     CatchupClients(clientA1, clientA2);
 
-    cout << "Preparing action " << endl;
+    // make changes in destination to set up test
     for (auto& testcase : cases)
     {
         testcase.second.Modify(OneWaySymmetryCase::Prepare);
@@ -4876,6 +4954,13 @@ TEST(Sync, OneWay_Highlevel_Symmetries)
 
     cout << "Letting all " << cases.size() << " one-way syncs run" << endl;
     WaitMillisec(10000);
+
+
+    cout << "Checking one-way source is unchanged" << endl;
+    for (auto& testcase : cases)
+    {
+        testcase.second.CheckSetup(allstate);
+    }
 
     int paused = 0;
     for (auto& testcase : cases)
