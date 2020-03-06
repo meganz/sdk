@@ -509,16 +509,24 @@ if (USE_THIRDPARTY_FROM_VCPKG)
 
         IF(USE_PDFIUM)
             ImportStdVcpkgLibrary(pdfium       pdfium pdfium libpdfium libpdfium)
-            IF (CMAKE_HOST_APPLE)
-                ImportStdVcpkgLibrary(bzip2       bz2 bz2 libbz2d libbz2) #TODO: check macos only?
-                set (pdfium_deps bzip2)
-            ENDIF(CMAKE_HOST_APPLE)
+
             ImportStdVcpkgLibrary(freetype     freetyped freetype libfreetyped libfreetype)
             ImportStdVcpkgLibrary(icu          icuucd icuuc libicuuc libicuuc)
             ImportStdVcpkgLibrary(lcms         lcmsd lcms liblcmsd liblcms)
             ImportStdVcpkgLibrary(turbojpeg    jpegd jpeg libjpeg libjpeg)
             ImportStdVcpkgLibrary(openjpeg     openjp2 openjp2 libopenjp2 libopenjp2)
-            set(pdfium_deps  ${pdfium_deps} freetype icu lcms turbojpeg openjpeg)
+
+            IF (CMAKE_HOST_APPLE)
+                ImportStdVcpkgLibrary(bzip2       bz2 bz2 libbz2d libbz2)
+                set (pdfium_deps bzip2)
+            ELSEIF (CMAKE_HOST_UNIX)
+                set(ENV{PKG_CONFIG_PATH} "${vcpkg_dir}/lib/pkgconfig")
+                include(FindPkgConfig)
+                pkg_check_modules(FTYPECONF freetype2)
+                set(freetype_deps ${FTYPECONF_STATIC_LIBRARIES})
+            ENDIF(CMAKE_HOST_APPLE)
+
+            set(pdfium_deps  ${pdfium_deps} freetype ${freetype_deps} icu lcms turbojpeg openjpeg)
         ENDIF(USE_PDFIUM)
 
 endif(USE_THIRDPARTY_FROM_VCPKG)
