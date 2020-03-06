@@ -58,7 +58,9 @@ struct MEGA_API NewNode : public NodeCore
     byte uploadtoken[UPLOADTOKENLEN]{};
 
     handle syncid = UNDEF;
+#ifdef ENABLE_SYNC
     crossref_ptr<LocalNode, NewNode> localnode; // non-owning
+#endif
     std::unique_ptr<string> fileattributes;
 
     bool added = false;
@@ -381,10 +383,11 @@ struct MEGA_API LocalNode : public File
 
     ~LocalNode();
 };
-#endif
 
 template <> inline NewNode*& crossref_other_ptr_ref<LocalNode, NewNode>(LocalNode* p) { return p->newnode.ptr; }
 template <> inline LocalNode*& crossref_other_ptr_ref<NewNode, LocalNode>(NewNode* p) { return p->localnode.ptr; }
+
+#endif
 
 } // namespace
 
