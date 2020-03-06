@@ -1269,7 +1269,7 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
             name = localname;
             sync->client->fsaccess->local2name(&name);
 
-            if (node)
+            if (node && sync->getConfig().syncsToCloud())
             {
                 if (name != node->attrs.map['n'])
                 {
@@ -1306,7 +1306,7 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
         {
             parent = newparent;
 
-            if (!newnode && node)
+            if (!newnode && node && sync->getConfig().syncsToCloud())
             {
                 assert(parent->node);
                 
