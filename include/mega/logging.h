@@ -403,8 +403,8 @@ public:
         {
             if (logger)
             {
-                const char **dm = new const char *[mDirectMessages.size()];
-                size_t *dms = new size_t[mDirectMessages.size()];
+                std::unique_ptr<const char *[]> dm(new const char *[mDirectMessages.size()]);
+                std::unique_ptr<size_t[]> dms(new size_t[mDirectMessages.size()]);
                 int i = 0;
                 for (const auto & d : mDirectMessages)
                 {
@@ -413,7 +413,7 @@ public:
                     i++;
                 }
 
-                logger->log(nullptr, level, nullptr, "", dm, dms, i);
+                logger->log(nullptr, level, nullptr, "", dm.get(), dms.get(), i);
             }
         }
         for (auto &s: mCopiedParts)
