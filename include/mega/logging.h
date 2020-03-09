@@ -127,7 +127,7 @@ public:
     // Note: `time` and `source` are null in performance mode
     virtual void log(const char *time, int loglevel, const char *source, const char *message
 #ifdef ENABLE_LOG_PERFORMANCE
-          , const std::vector<const char *> &directMessages = std::vector<const char *>(), const std::vector<size_t> &directMessagesSizes = std::vector<size_t>()
+          , const char **directMessages = nullptr, size_t *directMessagesSizes = nullptr, int numberMessages = 0
 #endif
                      ) = 0;
 };
@@ -403,15 +403,17 @@ public:
         {
             if (logger)
             {
-                std::vector<const char*> dm;
-                std::vector<size_t> dms;
+                const char **dm = new const char *[mDirectMessages.size()];
+                size_t *dms = new size_t[mDirectMessages.size()];
+                int i = 0;
                 for (const auto & d : mDirectMessages)
                 {
-                    dm.push_back(d.constChar());
-                    dms.push_back(d.size());
+                    dm[i] = d.constChar();
+                    dms[i] = d.size();
+                    i++;
                 }
 
-                logger->log(nullptr, level, nullptr, "", dm, dms);
+                logger->log(nullptr, level, nullptr, "", dm, dms, i);
             }
         }
         for (auto &s: mCopiedParts)

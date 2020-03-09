@@ -22426,7 +22426,7 @@ void ExternalLogger::postLog(int logLevel, const char *message, const char *file
 
 void ExternalLogger::log(const char *time, int loglevel, const char *source, const char *message
 #ifdef ENABLE_LOG_PERFORMANCE
-          , const std::vector<const char *> &directMessages, const std::vector<size_t> &directMessagesSizes
+          , const char **directMessages = nullptr, size_t *directMessagesSizes = nullptr, int numberMessages = 0
 #endif
                          )
 {
@@ -22452,7 +22452,7 @@ void ExternalLogger::log(const char *time, int loglevel, const char *source, con
     {
         logger->log(time, loglevel, source, message
 #ifdef ENABLE_LOG_PERFORMANCE
-                    , directMessages, directMessagesSizes
+                    , directMessages, directMessagesSizes, numberMessages
 #endif
                     );
     }

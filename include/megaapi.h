@@ -373,7 +373,7 @@ public:
      */
     virtual void log(const char *time, int loglevel, const char *source, const char *message
 #ifdef ENABLE_LOG_PERFORMANCE
-                     , const std::vector<const char *> &directMessages, const std::vector<size_t> &directMessagesSizes
+                     , const char **directMessages = nullptr, size_t *directMessagesSizes = nullptr, int numberMessages = 0
 #endif
                      );
     virtual ~MegaLogger(){}
