@@ -517,6 +517,9 @@ public:
 
     SimpleLogger& operator<<(const DirectMessage &obj)
     {
+#ifndef ENABLE_LOG_PERFORMANCE
+    *this << obj.constChar();
+#else
         if (!obj.isBigEnoughToOutputDirectly(std::distance(mBuffer.begin(), mBufferIt))) //don't bother with little msg
         {
             *this << obj.constChar();
@@ -537,6 +540,7 @@ public:
             mDirectMessages.push_back(DirectMessage(obj.constChar(), obj.size()));
         }
 
+#endif
         return *this;
     }
 
