@@ -365,8 +365,17 @@ public:
      *
      * The SDK retains the ownership of this string, it won't be valid after this funtion returns.
      *
+     * @param directMessages: in ENABLE_LOG_PERFORMANCE MODE, this will indicate the logger that an array of const char* should
+     * be written in the logs immediately without buffering the output. message can be discarded in that case.
+     *
+     * @param directMessagesSizes: size of the previous const char *.
+     *
      */
-    virtual void log(const char *time, int loglevel, const char *source, const char *message);
+    virtual void log(const char *time, int loglevel, const char *source, const char *message
+#ifdef ENABLE_LOG_PERFORMANCE
+                     , const char **directMessages = nullptr, size_t *directMessagesSizes = nullptr, int numberMessages = 0
+#endif
+                     );
     virtual ~MegaLogger(){}
 };
 

@@ -5262,7 +5262,11 @@ bool MegaAccountDetails::isTemporalBandwidthValid()
     return false;
 }
 
-void MegaLogger::log(const char* /*time*/, int /*loglevel*/, const char* /*source*/, const char* /*message*/)
+void MegaLogger::log(const char* /*time*/, int /*loglevel*/, const char* /*source*/, const char* /*message*/
+#ifdef ENABLE_LOG_PERFORMANCE
+                     , const char ** /*directMessages*/, size_t * /*directMessagesSizes*/, int /*numberMessages*/
+#endif
+                     )
 {
 
 }

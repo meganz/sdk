@@ -137,7 +137,11 @@ public:
     void setLogLevel(int logLevel);
     void setLogToConsole(bool enable);
     void postLog(int logLevel, const char *message, const char *filename, int line);
-    void log(const char *time, int loglevel, const char *source, const char *message) override;
+    void log(const char *time, int loglevel, const char *source, const char *message
+#ifdef ENABLE_LOG_PERFORMANCE
+             , const char **directMessages, size_t *directMessagesSizes, int numberMessages
+#endif
+            ) override;
 
 private:
     std::recursive_mutex mutex;
