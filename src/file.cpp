@@ -586,7 +586,7 @@ void SyncFileGet::updatelocalname()
 // add corresponding LocalNode (by path), then self-destruct
 void SyncFileGet::completed(Transfer*, LocalNode*)
 {
-    LocalNode *ll = sync->checkpath(NULL, &localname);
+    LocalNode *ll = sync->checkpath(NULL, &localname, nullptr, nullptr, false, nullptr);
     if (ll && ll != (LocalNode*)~0 && n
             && (*(FileFingerprint *)ll) == (*(FileFingerprint *)n))
     {
