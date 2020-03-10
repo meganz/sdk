@@ -88,7 +88,7 @@ struct MEGA_API User : public Cacheable
     };
 
     // actions to take after arrival of the public key
-    deque<class PubKeyAction*> pkrs;
+    deque<std::unique_ptr<PubKeyAction>> pkrs;
 
 private:
     // persistent attributes (keyring, firstname...)
