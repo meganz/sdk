@@ -3662,7 +3662,6 @@ void CommandPubKeyRequest::procresult()
     {
         client->restag = tag;
         u->pkrs[0]->proc(client, u);
-        delete u->pkrs[0];
         u->pkrs.pop_front();
     }
 
