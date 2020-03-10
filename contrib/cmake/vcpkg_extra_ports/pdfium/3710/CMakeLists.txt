@@ -2,6 +2,8 @@
 cmake_minimum_required(VERSION 3.7.2)
 project(pdfium_by_cmake)
 
+set(_VCPKG_ROOT_DIR "${_VCPKG_ROOT_DIR}${VCPKG_ROOT_DIR}")
+
 set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -D_DEBUG -DDEBUG")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -D_DEBUG -DDEBUG")
 
@@ -20,7 +22,7 @@ endif()
 add_definitions( -DUNICODE -DNOMINMAX -DUSE_LIBJPEG_TURBO -DPNG_PREFIX  -DUSE_SYSTEM_ICUUC -DUSE_SYSTEM_LIBJPEG -DUSE_SYSTEM_LCMS2 -DUSE_SYSTEM_ZLIB -DUSE_SYSTEM_LIBOPENJPEG2 -DOPJ_STATIC -DDEFINE_PS_TABLES)
 # no skia, V8, or xfa (xfa seems to require V8 anyway)
 
-set(PdfiumDir "${CMAKE_CURRENT_LIST_DIR}")
+set(PdfiumDir "${_VCPKG_ROOT_DIR}/pdfium/pdfium")
 
 #todo: figure out how to use the vckpg triplet here
 include_directories( 
@@ -29,7 +31,7 @@ include_directories(
     ${PdfiumDir}/../../installed/${VCPKG_TARGET_TRIPLET}/include
 )
 
-message("include vcpkg: ${PdfiumDir}/../../vcpkg/installed/${VCPKG_TARGET_TRIPLET}/include")
+message("include vcpkg: ${_VCPKG_ROOT_DIR}/installed/${VCPKG_TARGET_TRIPLET}/include")
 
 if(WIN32)
      set(WIN 1)
