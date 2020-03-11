@@ -4738,6 +4738,8 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * The associated request type with this request is MEGARequestTypeSetAttrUser
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeMyChatFilesFolder
+ * - [MEGARequest megaStringDictionary] - Returns a megaStringDictionary.
+ * The key "h" in the map contains the nodehandle specified as parameter encoded in B64
  *
  * @param handle Handle of the node to be used as target folder
  * @param delegate MEGARequestDelegate to track this request
@@ -4750,6 +4752,8 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * The associated request type with this request is MEGARequestTypeSetAttrUser
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeMyChatFilesFolder
+ * - [MEGARequest megaStringDictionary] - Returns a megaStringDictionary.
+ * The key "h" in the map contains the nodehandle specified as parameter encoded in B64
  *
  * @param handle Handle of the node to be used as target folder
  */
@@ -4789,6 +4793,8 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * The associated request type with this request is MEGARequestTypeSetAttrUser
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeCameraUploadsFolder
+ * - [MEGARequest megaStringDictionary] - Returns a megaStringDictionary.
+ * The key "h" in the map contains the nodehandle specified as parameter encoded in B64
  *
  * @param handle Handle of the node to be used as target folder
  * @param delegate MEGARequestDelegate to track this request
@@ -4801,6 +4807,8 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * The associated request type with this request is MEGARequestTypeSetAttrUser
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeCameraUploadsFolder
+ * - [MEGARequest megaStringDictionary] - Returns a megaStringDictionary.
+ * The key "h" in the map contains the nodehandle specified as parameter encoded in B64
  *
  * @param handle Handle of the node to be used as target folder
  */
