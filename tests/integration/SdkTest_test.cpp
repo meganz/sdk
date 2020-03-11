@@ -4114,7 +4114,7 @@ TEST_F(SdkTest, RecursiveUploadWithLogout)
 
     // logout while the upload (which consists of many transfers) is ongoing
     ASSERT_EQ(API_OK, doRequestLogout(0));
-    int result = uploadListener.waitForResult(600);
+    int result = uploadListener.waitForResult();
     ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
 }
 
@@ -4141,7 +4141,7 @@ TEST_F(SdkTest, RecursiveDownloadWithLogout)
     // upload all of those
     TransferTracker uploadListener, downloadListener;
     megaApi[0]->startUpload(uploadpath.u8string().c_str(), std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get(), &uploadListener);
-    ASSERT_EQ(API_OK, uploadListener.waitForResult(600));
+    ASSERT_EQ(API_OK, uploadListener.waitForResult());
 
     // ok now try the download
     megaApi[0]->startDownload(megaApi[0]->getNodeByPath("/uploadme_mega_auto_test_sdk"), downloadpath.u8string().c_str(), &downloadListener);
@@ -4153,7 +4153,7 @@ TEST_F(SdkTest, RecursiveDownloadWithLogout)
 
     ASSERT_EQ(API_OK, doRequestLogout(0));
 
-    int result = downloadListener.waitForResult(600);
+    int result = downloadListener.waitForResult();
     ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
     fs::remove_all(uploadpath, ec);
     fs::remove_all(downloadpath, ec);
@@ -4210,7 +4210,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     // transfer the folder and its subfolders
     TransferTracker uploadListener;
     megaApi[0]->startUpload(basePath.u8string().c_str(), megaApi[0]->getRootNode(), &uploadListener);
-    ASSERT_EQ(API_OK, uploadListener.waitForResult(600));
+    ASSERT_EQ(API_OK, uploadListener.waitForResult());
 
     // loop until we get a commit to the sctable to ensure we cached the new remote nodes
     for (;;)

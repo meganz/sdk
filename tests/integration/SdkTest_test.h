@@ -79,7 +79,7 @@ struct TransferTracker : public ::mega::MegaTransferListener
         finished = true;
         promiseResult.set_value(result);
     }
-    int waitForResult(int seconds)
+    int waitForResult(int seconds = maxTimeout)
     {
         auto& f = promiseResult.get_future();
         if (std::future_status::ready != f.wait_for(std::chrono::seconds(seconds)))
