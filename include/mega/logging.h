@@ -171,7 +171,7 @@ public:
 
     bool isBigEnoughToOutputDirectly(int bufferedSize) const
     {
-        return (mForce || mSize > directMsgThreshold || mSize >= std::max(0, LOGGER_CHUNKS_SIZE - bufferedSize - 40/*room for [file:line]*/) );
+        return (mForce || mSize > directMsgThreshold || mSize >= std::max<size_t>(0, LOGGER_CHUNKS_SIZE - bufferedSize - 40/*room for [file:line]*/) );
     }
 
     const char *constChar() const
