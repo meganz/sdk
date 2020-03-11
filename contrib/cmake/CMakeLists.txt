@@ -86,7 +86,7 @@ if (WIN32)
     ENDIF()
 else(WIN32)
     set(NO_READLINE 0)
-    set(USE_PREBUILT_3RDPARTY 0)
+    set(USE_PREBUILT_3RDPARTY 0 CACHE STRING "")
 endif(WIN32)
 
 if (USE_WEBRTC)
@@ -173,6 +173,8 @@ if (USE_PREBUILT_3RDPARTY)
     include_directories( "${Mega3rdPartyDir}/include/zenlib" )
     include_directories( "${Mega3rdPartyDir}/include/pdfium" )
     include_directories( "${Mega3rdPartyDir}/include/zlib" )
+    include_directories( "${Mega3rdPartyDir}/include/libuv" )
+    include_directories( "${Mega3rdPartyDir}/include/ffmpeg" )
 
     link_directories( "${Mega3rdPartyDir}/libs" )
 
@@ -594,6 +596,10 @@ if(WIN32)
     SET(WIN_EXTRA_INCLUDE $<${USE_PREBUILT_3RDPARTY}:${prebuilt_dir}/libs/sqlite3.c>)
 endif()
 
+if(CMAKE_HOST_APPLE)
+    SET(MACOS_EXTRA_INCLUDE $<${USE_PREBUILT_3RDPARTY}:${prebuilt_dir}/sqlite3.c>)
+endif()
+
 add_library(Mega STATIC
             ${MegaDir}/include/megaapi.h
             ${MegaDir}/include/megaapi_impl.h
@@ -728,6 +734,7 @@ add_library(Mega STATIC
             ${MegaDir}/src/waiterbase.cpp 
             ${Mega_PlatformSpecificFiles} ${Mega_CryptoFiles} ${Mega_DbFiles} ${Mega_GfxFiles}
             ${WIN_EXTRA_INCLUDE}
+            ${MACOS_EXTRA_INCLUDE}
             $<${USE_LIBUV}:${MegaDir}/src/mega_evt_tls.cpp> 
             $<${USE_QT}:${MegaDir}/src/gfx/qt.cpp>
             $<${USE_QT}:${MegaDir}/src/thread/qtthread.cpp >
