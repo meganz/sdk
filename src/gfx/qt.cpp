@@ -28,6 +28,10 @@
 
 #ifdef _WIN32
 #include <windows.h>
+#ifdef HAVE_FFMPEG
+#pragma warning(disable: 4996) // warning C4996: 'av_register_all': was declared deprecated
+#pragma warning(disable: 4242) // warning C4242: 'return': conversion from 'int' to 'uint8_t', possible loss of data
+#endif
 #endif
 
 #include <QFileInfo>
@@ -374,7 +378,8 @@ int GfxProcQT::processEXIF(QByteArray *data, int itemlen){
 }
 /************* END OF EXIF STUFF **************/
 
-#if defined(HAVE_PDFIUM) && defined(_WIN32)
+// turn on PDFIUM_DELAY_LOAD_DLL if you are building XP-compatible apps and using pdfium.dll (which won't load on XP)
+#if PDFIUM_DELAY_LOAD_DLL
 typedef void (WINAPI *pFPDF_InitLibraryWithConfig) (const FPDF_LIBRARY_CONFIG* config);
 typedef void (WINAPI *pFPDF_DestroyLibrary) ();
 
@@ -424,7 +429,7 @@ GfxProcQT::GfxProcQT()
 #endif
 
 #ifdef HAVE_PDFIUM
-#ifdef _WIN32
+#ifdef PDFIUM_DELAY_LOAD_DLL
 #pragma warning (disable: 4996 4191)
     if (!pdfiumLoadAttempted)
     {
@@ -480,7 +485,7 @@ GfxProcQT::GfxProcQT()
     config.m_pUserFontPaths = NULL;
     config.m_pIsolate = NULL;
     config.m_v8EmbedderSlot = 0;
-#ifdef _WIN32
+#ifdef PDFIUM_DELAY_LOAD_DLL
     if (pdfiumLoadedOk)
 #endif
     {
@@ -509,7 +514,7 @@ GfxProcQT::~GfxProcQT()
 {
 #ifdef HAVE_PDFIUM
 
-#ifdef _WIN32
+#ifdef PDFIUM_DELAY_LOAD_DLL
     if (pdfiumLoadedOk)
 #endif
     {
@@ -949,7 +954,7 @@ QImageReader *GfxProcQT::readbitmapLibraw(int &w, int &h, int &orientation, QStr
 #ifdef HAVE_PDFIUM
 const char *GfxProcQT::supportedformatsPDF()
 {
-#ifdef _WIN32
+#ifdef PDFIUM_DELAY_LOAD_DLL
     if (!pdfiumLoadedOk)
     {
         return "";
@@ -960,7 +965,7 @@ const char *GfxProcQT::supportedformatsPDF()
 
 QImageReader *GfxProcQT::readbitmapPdf(int &w, int &h, int &orientation, QString imagePath)
 {
-#ifdef _WIN32
+#ifdef PDFIUM_DELAY_LOAD_DLL
     if (!pdfiumLoadedOk)
     {
         return NULL;

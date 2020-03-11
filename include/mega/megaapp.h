@@ -156,8 +156,11 @@ struct MEGA_API MegaApp
     virtual void creditcardcancelsubscriptions_result(error) {}
     virtual void getpaymentmethods_result(int, error) {}
     virtual void copysession_result(string*, error) { }
+
+    // feedback from user/client
     virtual void userfeedbackstore_result(error) { }
     virtual void sendevent_result(error) { }
+    virtual void supportticket_result(error) { }
 
     // user invites/attributes
     virtual void removecontact_result(error) { }
@@ -218,6 +221,9 @@ struct MEGA_API MegaApp
     // get change email link result
     virtual void getemaillink_result(error) {}
 
+    // resend verification email
+    virtual void resendverificationemail_result(error) {};
+
     // confirm change email link result
     virtual void confirmemaillink_result(error) {}
 
@@ -271,7 +277,7 @@ struct MEGA_API MegaApp
     virtual void transfer_added(Transfer*) { }
     virtual void transfer_removed(Transfer*) { }
     virtual void transfer_prepare(Transfer*) { }
-    virtual void transfer_failed(Transfer*, error, dstime = 0) { }
+    virtual void transfer_failed(Transfer*, error, dstime = 0, handle = UNDEF) { }
     virtual void transfer_update(Transfer*) { }
     virtual void transfer_complete(Transfer*) { }
 
@@ -306,6 +312,8 @@ struct MEGA_API MegaApp
     {
         return true;
     }
+
+    virtual void sync_auto_resumed(const string&, handle, long long, const vector<string>&) { }
 
     // suggest reload due to possible race condition with other clients
     virtual void reload(const char*) { }

@@ -26,7 +26,7 @@
 
 namespace mega {
 // user/contact
-struct MEGA_API User : public Cachable
+struct MEGA_API User : public Cacheable
 {
     // user handle
     handle userhandle;
@@ -88,7 +88,7 @@ struct MEGA_API User : public Cachable
     };
 
     // actions to take after arrival of the public key
-    deque<class PubKeyAction*> pkrs;
+    deque<std::unique_ptr<PubKeyAction>> pkrs;
 
 private:
     // persistent attributes (keyring, firstname...)
@@ -103,7 +103,7 @@ private:
 public:
     void set(visibility_t, m_time_t);
 
-    bool serialize(string*);
+    bool serialize(string*) override;
     static User* unserialize(class MegaClient *, string*);
 
     // attribute methods: set/get/invalidate...

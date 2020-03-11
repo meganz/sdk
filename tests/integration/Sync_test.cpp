@@ -22,6 +22,7 @@
 // Many of these tests are still being worked on.
 // The file uses some C++17 mainly for the very convenient std::filesystem library, though the main SDK must still build with C++11 (and prior)
 
+
 #include "test.h"
 #include <mega.h>
 #include "gtest/gtest.h"
@@ -33,6 +34,8 @@
 #include <atomic>
 
 #include <megaapi_impl.h>
+
+#ifdef ENABLE_SYNC
 
 using namespace ::mega;
 using namespace ::std;
@@ -307,6 +310,8 @@ struct StandardClient : public MegaApp
 #endif
 
     string client_dbaccess_path; 
+    std::unique_ptr<HttpIO> httpio;
+    std::unique_ptr<FileSystemAccess> fsaccess;
     MegaClient client;
     std::atomic<bool> clientthreadexit{false};
     bool fatalerror = false;
@@ -334,7 +339,9 @@ struct StandardClient : public MegaApp
 
     StandardClient(const fs::path& basepath, const string& name)
         : client_dbaccess_path(ensureDir(basepath / name / "").u8string())
-        , client(this, &waiter, new HTTPIO_CLASS, new FSACCESS_CLASS,
+        , httpio(new HTTPIO_CLASS)
+        , fsaccess(new FSACCESS_CLASS)
+        , client(this, &waiter, httpio.get(), fsaccess.get(),
 #ifdef DBACCESS_CLASS
             new DBACCESS_CLASS(&client_dbaccess_path),
 #else
@@ -345,7 +352,7 @@ struct StandardClient : public MegaApp
 #else
             NULL,
 #endif
-            "N9tSBJDC", "synctests")
+            "N9tSBJDC", USER_AGENT.c_str())
         , clientname(name)
         , fsBasePath(basepath / fs::u8path(name))
         , clientthread([this]() { threadloop(); })
@@ -377,7 +384,7 @@ struct StandardClient : public MegaApp
                 // logout stalls in windows due to the issue above
                 mc.purgenodesusersabortsc();
             #else
-                mc.locallogout();
+                mc.locallogout(false);
             #endif
         });
     }
@@ -579,35 +586,10 @@ struct StandardClient : public MegaApp
         client.fetchnodes();
     }
 
-    NewNode* makeSubfolder(const string& utf8Name)
+    NewNode makeSubfolder(const string& utf8Name)
     {
-        SymmCipher key;
-        string attrstring;
-        byte buf[FOLDERNODEKEYLENGTH];
-        NewNode* newnode = new NewNode[1];
-
-        // set up new node as folder node
-        newnode->source = NEW_NODE;
-        newnode->type = FOLDERNODE;
-        newnode->nodehandle = 0;
-        newnode->parenthandle = UNDEF;
-
-        // generate fresh random key for this folder node
-        PrnGen prngen;
-        prngen.genblock(buf, FOLDERNODEKEYLENGTH);
-        newnode->nodekey.assign((char*)buf, FOLDERNODEKEYLENGTH);
-        key.setkey(buf);
-
-        // generate fresh attribute object with the folder name
-        AttrMap attrs;
-        string& n = attrs.map['n'];
-        client.fsaccess->normalize(&(n = utf8Name));
-
-        // JSON-encode object and encrypt attribute string
-        attrs.getjson(&attrstring);
-        newnode->attrstring = new string;
-        client.makeattr(&key, newnode->attrstring, attrstring.c_str());
-
+        NewNode newnode;
+        client.putnodes_prepareOneFolder(&newnode, utf8Name);
         return newnode;
     }
      
@@ -708,45 +690,40 @@ struct StandardClient : public MegaApp
                 resultproc.prepresult(PUTNODES, [this, &pb](error e) {
                     ensureTestBaseFolder(false, pb);
                 });
-                client.putnodes(root->nodehandle, makeSubfolder("mega_test_sync"), 1);
+                auto nn = new NewNode[1]; // freed by putnodes_result
+                nn[0] = makeSubfolder("mega_test_sync");
+                client.putnodes(root->nodehandle, nn, 1);
                 return;
             }
         }
         pb.set_value(false);
     }
 
-    NewNode* buildSubdirs(vector<NewNode*>& nodes, const string& prefix, int n, int recurselevel)
+    NewNode* buildSubdirs(list<NewNode>& nodes, const string& prefix, int n, int recurselevel)
     {
-        NewNode* nn = makeSubfolder(prefix);
-        nodes.push_back(nn);
-        nn->nodehandle = nodes.size();
+        nodes.emplace_back(makeSubfolder(prefix));
+        auto& nn = nodes.back();
+        nn.nodehandle = nodes.size();
 
         if (recurselevel > 0)
         {
             for (int i = 0; i < n; ++i)
             {
-                buildSubdirs(nodes, prefix + "_" + to_string(i), n, recurselevel - 1)->parenthandle = nn->nodehandle;
+                buildSubdirs(nodes, prefix + "_" + to_string(i), n, recurselevel - 1)->parenthandle = nn.nodehandle;
             }
         }
 
-        return nn;
+        return &nn;
     }
 
     void makeCloudSubdirs(const string& prefix, int depth, int fanout, promise<bool>& pb, const string& atpath = "")
     {
         assert(basefolderhandle != UNDEF);
 
-        vector<NewNode*> nodes;
+        std::list<NewNode> nodes;
         NewNode* nn = buildSubdirs(nodes, prefix, fanout, depth);
         nn->parenthandle = UNDEF;
         nn->ovhandle = UNDEF;
-
-        NewNode* nodearray = new NewNode[nodes.size()];
-        for (size_t i = 0; i < nodes.size(); ++i)
-        {
-            nodearray[i] = *nodes[i]; // todo:  need move semantics
-            //delete nodes[i];
-        }
 
         Node* atnode = client.nodebyhandle(basefolderhandle);
         if (atnode && !atpath.empty())
@@ -767,6 +744,12 @@ struct StandardClient : public MegaApp
                     cout << "putnodes result: " << e << endl;
                 }
             });
+            auto nodearray = new NewNode[nodes.size()]; // freed by putnodes_result
+            size_t i = 0;
+            for (auto n = nodes.begin(); n != nodes.end(); ++n, ++i)
+            {
+                nodearray[i] = std::move(*n);
+            }
             client.putnodes(atnode->nodehandle, nodearray, (int)nodes.size());
         }
     }
@@ -811,7 +794,7 @@ struct StandardClient : public MegaApp
         else
         {
             vector<Node*> results, subnodes = client.childnodesbyname(n, path.c_str(), false);
-            for (int i = subnodes.size(); i--; )
+            for (size_t i = subnodes.size(); i--; )
             {
                 if (subnodes[i]->type != FILENODE)
                 {
@@ -829,9 +812,8 @@ struct StandardClient : public MegaApp
         {
             if (Node* m = drillchildnodebyname(n, subfoldername))
             {
-                string local, orig = localpath.u8string();
-                client.fsaccess->path2local(&orig, &local);
-                error e = client.addsync(&local, DEBRISFOLDER, NULL, m, 0, syncid);  // use syncid as tag
+                SyncConfig syncConfig{localpath.u8string(), m->nodehandle, 0};
+                error e = client.addsync(std::move(syncConfig), DEBRISFOLDER, NULL, syncid);  // use syncid as tag
                 if (!e)
                 {
                     syncSet[syncid] = SyncInfo{ m->nodehandle, localpath };
@@ -1045,7 +1027,7 @@ struct StandardClient : public MegaApp
             ifstream fs(p, ios::binary);
             char filedata[1024];
             fs.read(filedata, sizeof(filedata));
-            EXPECT_EQ(fs.gcount(), p.filename().u8string().size()) << " file is not expected size " << p;
+            EXPECT_EQ(size_t(fs.gcount()), p.filename().u8string().size()) << " file is not expected size " << p;
             EXPECT_TRUE(!memcmp(filedata, p.filename().u8string().data(), p.filename().u8string().size())) << " file data mismatch " << p;
         }
 
@@ -1189,6 +1171,7 @@ struct StandardClient : public MegaApp
         if (nn)  // ignore sync based putnodes
         {
             resultproc.processresult(PUTNODES, e);
+            delete[] nn;
         }
     }
 
@@ -1218,7 +1201,7 @@ struct StandardClient : public MegaApp
         }
         else
         {
-            for (int i = ns.size(); i--; )
+            for (size_t i = ns.size(); i--; )
             {
                 resultproc.prepresult(UNLINK, [this, &pb, i](error e) { if (!i) pb.set_value(!e); });
                 client.unlink(ns[i]);
@@ -1367,7 +1350,7 @@ struct StandardClient : public MegaApp
         return true;
     }
 
-    bool login_fetchnodes(const string& user, const string& pw)
+    bool login_fetchnodes(const string& user, const string& pw, bool makeBaseFolder = false)
     {
         future<bool> p2;
         p2 = thread_do([=](StandardClient& sc, promise<bool>& pb) { sc.preloginFromEnv(user, pb); });
@@ -1376,7 +1359,7 @@ struct StandardClient : public MegaApp
         if (!waitonresults(&p2)) return false;
         p2 = thread_do([](StandardClient& sc, promise<bool>& pb) { sc.fetchnodes(pb); });
         if (!waitonresults(&p2)) return false;
-        p2 = thread_do([](StandardClient& sc, promise<bool>& pb) { sc.ensureTestBaseFolder(false, pb); });
+        p2 = thread_do([makeBaseFolder](StandardClient& sc, promise<bool>& pb) { sc.ensureTestBaseFolder(makeBaseFolder, pb); });
         if (!waitonresults(&p2)) return false;
         return true;
     }
@@ -1402,9 +1385,8 @@ struct StandardClient : public MegaApp
         assert(!onFetchNodes);
         onFetchNodes = [=](StandardClient& mc, promise<bool>& pb)
         {
-            promise<bool> tp;
-            mc.ensureTestBaseFolder(false, tp);
-            pb.set_value(tp.get_future().get() ? mc.setupSync_inthread(syncid, remotesyncrootfolder, localsyncpath) : false);
+            mc.syncSet[syncid] = StandardClient::SyncInfo{ mc.drillchildnodebyname(mc.gettestbasenode(), remotesyncrootfolder)->nodehandle, localsyncpath };
+            pb.set_value(true);
         };
 
         p2 = thread_do([](StandardClient& sc, promise<bool>& pb) { sc.fetchnodes(pb); });
@@ -1518,7 +1500,10 @@ fs::path makeNewTestRoot(fs::path p)
     {
         moveToTrash(p);
     }
-    bool b = fs::create_directory(p);
+    #ifndef NDEBUG
+    bool b =
+    #endif
+    fs::create_directory(p);
     assert(b);
     return p;
 }
@@ -2410,8 +2395,8 @@ Node* makenode(MegaClient& mc, handle parent, ::mega::nodetype_t type, m_off_t s
     std::vector<Node*> dp;
     auto newnode = new Node(&mc, &dp, ++handlegenerator, parent, type, size, owner, nullptr, 1);
     
-    newnode->nodekey.assign((char*)key, type == FILENODE ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH);
-    newnode->attrstring = new string;
+    newnode->setkey(key);
+    newnode->attrstring.reset(new string);
 
     SymmCipher sc;
     sc.setkey(key, type);
@@ -2471,6 +2456,45 @@ GTEST_TEST(Sync, NodeSorting_forPhotosAndVideos)
     node_vector v5{ video2, video1, photo2, photo1, otherfolder, otherfile };
     ASSERT_EQ(v, v5);
 }
+
+
+GTEST_TEST(Sync, PutnodesForMultipleFolders)
+{
+    fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
+    StandardClient standardclient(localtestroot, "PutnodesForMultipleFolders");
+    ASSERT_TRUE(standardclient.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD", true));
+
+    NewNode* newnodes = new NewNode[4];
+    
+    standardclient.client.putnodes_prepareOneFolder(&newnodes[0], "folder1");
+    standardclient.client.putnodes_prepareOneFolder(&newnodes[1], "folder2");
+    standardclient.client.putnodes_prepareOneFolder(&newnodes[2], "folder2.1");
+    standardclient.client.putnodes_prepareOneFolder(&newnodes[3], "folder2.2");
+
+    newnodes[1].nodehandle = newnodes[2].parenthandle = newnodes[3].parenthandle = 2;
+
+    handle targethandle = standardclient.client.rootnodes[0];
+
+    std::atomic<bool> putnodesDone{false};
+    standardclient.resultproc.prepresult(StandardClient::PUTNODES, [&putnodesDone](error e) {
+        putnodesDone = true;
+    });
+
+    standardclient.client.putnodes(targethandle, newnodes, 4, nullptr);
+    
+    while (!putnodesDone)
+    {
+        WaitMillisec(100);
+    }
+
+    Node* cloudRoot = standardclient.client.nodebyhandle(targethandle);
+
+    ASSERT_TRUE(nullptr != standardclient.drillchildnodebyname(cloudRoot, "folder1"));
+    ASSERT_TRUE(nullptr != standardclient.drillchildnodebyname(cloudRoot, "folder2"));
+    ASSERT_TRUE(nullptr != standardclient.drillchildnodebyname(cloudRoot, "folder2/folder2.1"));
+    ASSERT_TRUE(nullptr != standardclient.drillchildnodebyname(cloudRoot, "folder2/folder2.2"));
+}
+
 
 #ifndef _WIN32
 #define DEFAULWAIT 20s
@@ -2679,5 +2703,7 @@ GTEST_TEST(Sync, BasicSync_CreateAndReplaceLinkUponSyncDown)
     //check client 2 is as expected
     ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
 }
+
+#endif
 
 #endif

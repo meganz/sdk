@@ -143,6 +143,14 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypePublicLinkInformation,
     MEGARequestTypeGetBackgroundUploadURL,
     MEGARequestTypeCompleteBackgroundUpload,
+    MEGARequestTypeCloudStorageUsed,
+    MEGARequestTypeSendSMSVerificationCode,
+    MEGARequestTypeCheckSMSVerificationCode,
+    MEGARequestTypeGetRegisteredContacts,
+    MEGARequestTypeGetCountryCallingCodes,
+    MEGARequestTypeVerifyCredentials,
+    MEGARequestTypeGetMiscFlags,
+    MEGARequestTypeResendVerificationEmail,
     TotalOfRequestTypes
 };
 
@@ -499,6 +507,16 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * @brief Returns a dictionary of mega string list.
  */
 @property (readonly, nonatomic) NSDictionary<NSString *, MEGAStringList*> *megaStringListDictionary;
+
+/**
+ * @brief Returns the attribute values as dictionary with key and value as string.
+ *
+ * This value is valid for these requests:
+ * - [MEGASdk getUserAttributeType:] - Returns the attribute value of the current account.
+ *
+ * @return Dictionary containing the key-value pairs of the attribute as string.
+ */
+@property (readonly, nonatomic) NSDictionary<NSString *, NSString*> *megaStringDictionary;
 
 /**
  * @brief Gets the string table response from a request mapped into a collection of NSArray of NSStrings.

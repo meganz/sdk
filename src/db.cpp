@@ -37,7 +37,7 @@ bool DbTable::put(uint32_t index, string* data)
 }
 
 // add or update record with padding and encryption
-bool DbTable::put(uint32_t type, Cachable* record, SymmCipher* key)
+bool DbTable::put(uint32_t type, Cacheable* record, SymmCipher* key)
 {
     string data;
 
@@ -84,17 +84,27 @@ void DbTable::checkTransaction()
 {
     if (mCheckAlwaysTransacted)
     {
-        assert(mCurrentTransactionCommiter);  // if this fails, we should have started a DBTableTransactionCommitter higher in the call stack
-        if (mCurrentTransactionCommiter)
+        assert(mTransactionCommitter);  // if this fails, we should have started a DBTableTransactionCommitter higher in the call stack
+        if (mTransactionCommitter)
         {
-            mCurrentTransactionCommiter->beginOnce();
+            mTransactionCommitter->beginOnce();
         }
+    }
+}
+
+void DbTable::resetCommitter()
+{
+    if (mTransactionCommitter)
+    {
+        mTransactionCommitter->reset();
+        mCheckAlwaysTransacted = false;
+        mTransactionCommitter = nullptr;
     }
 }
 
 void DbTable::checkCommitter(DBTableTransactionCommitter* committer)
 {
-    assert(!committer || committer == mCurrentTransactionCommiter);
+    assert(!committer || committer == mTransactionCommitter);
 }
 
 DbAccess::DbAccess()

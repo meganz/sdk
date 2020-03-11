@@ -32,8 +32,33 @@
 
 namespace mega {
 
+TransferCategory::TransferCategory(direction_t d, filesizetype_t s) 
+    : direction(d)
+    , sizetype(s) 
+{
+}
+
+TransferCategory::TransferCategory(Transfer* t)
+    : direction(t->type)
+    , sizetype(t->size > 131072 ? LARGEFILE : SMALLFILE)  // Conservative starting point: 131072 is the smallest chunk, we will certainly only use one socket to upload/download
+{
+}
+
+unsigned TransferCategory::index() 
+{
+    assert(direction == GET || direction == PUT);
+    assert(sizetype == LARGEFILE || sizetype == SMALLFILE);
+    return 2 + direction * 2 + sizetype;
+}
+
+unsigned TransferCategory::directionIndex() 
+{
+    assert(direction == GET || direction == PUT);
+    return direction;
+}
+
 Transfer::Transfer(MegaClient* cclient, direction_t ctype)
-    : bt(cclient->rng)
+    : bt(cclient->rng, cclient->transferRetryBackoffs[ctype])
 {
     type = ctype;
     client = cclient;
@@ -338,86 +363,118 @@ SymmCipher *Transfer::transfercipher()
     return &client->tmptransfercipher;
 }
 
+void Transfer::removeTransferFile(error e, File* f, DBTableTransactionCommitter* committer)
+{
+    Transfer *transfer = f->transfer;
+    client->filecachedel(f, committer);
+    transfer->files.erase(f->file_it);
+    client->app->file_removed(f, e);
+    f->transfer = NULL;
+    f->terminated();
+}
+
+bool Transfer::isForeign()
+{
+    if (files.empty())
+    {
+        return false;
+    }
+
+    // only need to check one target, since all target should be foreign or private, but not a mix
+    return client->isForeignNode(files.front()->h);
+}
+
 // transfer attempt failed, notify all related files, collect request on
 // whether to abort the transfer, kill transfer if unanimous
-void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime timeleft)
+void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime timeleft, handle targetHandle)
 {
     bool defer = false;
 
     LOG_debug << "Transfer failed with error " << e;
 
-    if (slot && slot->delayedchunk)
+    if (e == API_EOVERQUOTA)
     {
-        int creqtag = client->reqtag;
-        client->reqtag = 0;
-        client->sendevent(99442, "Upload with delayed chunks failed");
-        client->reqtag = creqtag;
-    }
-
-    if (e != API_EBUSINESSPASTDUE)
-    {
-        if (e == API_EOVERQUOTA)
+        if (!slot)
         {
-            if (!slot)
+            if (!isForeign())
             {
-                client->activateoverquota(timeleft);
                 bt.backoff(timeleft ? timeleft : NEVER);
-                client->app->transfer_failed(this, e, timeleft);
+                client->activateoverquota(timeleft);
+            }
+            client->app->transfer_failed(this, e, timeleft, targetHandle);
+            ++client->performanceStats.transferTempErrors;
+        }
+        else
+        {
+            // if storage overquota and transfer with foreign targets, transfer failed permanently
+            if (!timeleft && isForeign())
+            {
+                client->app->transfer_failed(this, API_EOVERQUOTA, 0, targetHandle);
                 ++client->performanceStats.transferTempErrors;
             }
-            else
+            else    // bandwidth overquota (only downloads) or storage overquota (but transfer with only private targets)
             {
-                bool allForeignTargets = true;
-                for (auto &file : files)
+                bt.backoff(timeleft ? timeleft : NEVER);
+                if (client->ststatus == STORAGE_RED && !timeleft)   // already in storage overquota, notify transfer error
                 {
-                    if (client->isPrivateNode(file->h))
-                    {
-                        allForeignTargets = false;
-                        break;
-                    }
+                    state = TRANSFERSTATE_RETRYING;
+                    slot->retrybt.backoff(NEVER);
+                    slot->retrying = true;
+                    client->app->transfer_failed(this, API_EOVERQUOTA, 0, targetHandle);
+                    ++client->performanceStats.transferTempErrors;
                 }
-
-                /* If all targets are foreign and there's not a bandwidth overquota, transfer must fail.
-                 * Otherwise we need to activate overquota.
-                 */
-                if (!timeleft && allForeignTargets)
+                else    // if bandwidth overquota or transition to storage overquota
                 {
-                    client->app->transfer_failed(this, e, NEVER);
-                }
-                else
-                {
-                    bt.backoff(timeleft ? timeleft : NEVER);
                     client->activateoverquota(timeleft);
                 }
             }
         }
-        else
-        {
-            bt.backoff();
-            state = TRANSFERSTATE_RETRYING;
-            client->app->transfer_failed(this, e, timeleft);
-            client->looprequested = true;
-            ++client->performanceStats.transferTempErrors;
-        }
+    }
+    else if (e == API_EARGS)
+    {
+        client->app->transfer_failed(this, e);
+    }
+    else if (e != API_EBUSINESSPASTDUE)
+    {
+        bt.backoff();
+        state = TRANSFERSTATE_RETRYING;
+        client->app->transfer_failed(this, e, timeleft);
+        client->looprequested = true;
+        ++client->performanceStats.transferTempErrors;
     }
 
     for (file_list::iterator it = files.begin(); it != files.end();)
     {
-        // Remove files with foreign targets, if transfer failed with a (foreign) storage overquota
-        if (e == API_EOVERQUOTA && !timeleft)
+        // if transfer failed due to a (foreign) storage overquota, remove file/s
+        if (e == API_EOVERQUOTA && !timeleft && isForeign())
         {
-            if (client->isForeignNode((*it)->h))
+            File *f = (*it++);
+            if (ISUNDEF(targetHandle) || f->h == targetHandle)
             {
-#ifdef ENABLE_SYNC
-                if((*it)->syncxfer && e != API_EBUSINESSPASTDUE)
-                {
-                    client->syncdownrequired = true;
-                }
-#endif
-                client->app->file_removed(*it, e);
-                files.erase(it++);
-                continue;
+                // if `u` command returns -17, all target accounts are overquota and Transfer::failed()
+                // is called with a targetHandle == UNDEF
+                removeTransferFile(API_EOVERQUOTA, f, &committer);
             }
+            continue;
+        }
+
+        /*
+         * If the transfer failed with API_EARGS, the target handle is invalid. For a sync-transfer,
+         * the actionpacket will eventually remove the target and the sync-engine will force to
+         * disable the synchronization of the folder. For non-sync-transfers, remove the file directly.
+         */
+        if (e == API_EARGS)
+        {
+             File *f = (*it++);
+             if (f->syncxfer)
+             {
+                defer = true;
+             }
+             else
+             {
+                removeTransferFile(API_EARGS, f, &committer);
+             }
+             continue;
         }
 
         if (((*it)->failed(e) && (e != API_EBUSINESSPASTDUE))
@@ -464,19 +521,28 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
         state = TRANSFERSTATE_FAILED;
         finished = true;
 
-        for (file_list::iterator it = files.begin(); it != files.end(); it++)
+        if (!isForeign())   // transfers with foreign targets already removed the failed files/targets
         {
-#ifdef ENABLE_SYNC
-            if((*it)->syncxfer && e != API_EBUSINESSPASTDUE)
+            for (file_list::iterator it = files.begin(); it != files.end(); it++)
             {
-                client->syncdownrequired = true;
-            }
+#ifdef ENABLE_SYNC
+                if((*it)->syncxfer
+                        && e != API_EBUSINESSPASTDUE
+                        && e != API_EOVERQUOTA)
+                {
+                    client->syncdownrequired = true;
+                }
 #endif
-            client->app->file_removed(*it, e);
+                client->app->file_removed(*it, e);
+            }
         }
-        client->app->transfer_removed(this);
-        ++client->performanceStats.transferFails;
-        delete this;
+
+        if (files.empty())  // transfers with foreign targets may have some pending files/targets
+        {
+            client->app->transfer_removed(this);
+            ++client->performanceStats.transferFails;
+            delete this;
+        }
     }
 }
 
@@ -494,13 +560,13 @@ void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ std::strin
 
 #ifdef USE_MEDIAINFO
     char ext[8];
-    if (((type == PUT && size >= 16) || (node && node->nodekey.size() == FILENODEKEYLENGTH && node->size >= 16)) &&
+    if (((type == PUT && size >= 16) || (node && node->nodekey().size() == FILENODEKEYLENGTH && node->size >= 16)) &&
         client->fsaccess->getextension(&localpath, ext, sizeof(ext)) &&
         MediaProperties::isMediaFilenameExt(ext) &&
         !client->mediaFileInfo.mediaCodecsFailed)
     {
         // for upload, the key is in the transfer.  for download, the key is in the node.
-        uint32_t* attrKey = fileAttributeKeyPtr((type == PUT) ? filekey : (byte*)node->nodekey.data());
+        uint32_t* attrKey = fileAttributeKeyPtr((type == PUT) ? filekey : (byte*)node->nodekey().data());
 
         if (type == PUT || !node->hasfileattribute(fa_media) || client->mediaFileInfo.timeToRetryMediaPropertyExtraction(node->fileattrstring, attrKey))
         {
@@ -831,10 +897,10 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                     if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodebyhandle((*it)->h)))
                     {
                         if (!client->gfxdisabled && client->gfx && client->gfx->isgfx(&localname) &&
-                                keys.find(n->nodekey) == keys.end() &&    // this file hasn't been processed yet
+                                keys.find(n->nodekey()) == keys.end() &&    // this file hasn't been processed yet
                                 client->checkaccess(n, OWNER))
                         {
-                            keys.insert(n->nodekey);
+                            keys.insert(n->nodekey());
 
                             // check if restoration of missing attributes failed in the past (no access)
                             if (n->attrs.map.find('f') == n->attrs.map.end() || n->attrs.map['f'] != me64)
@@ -933,14 +999,6 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 
         if (slot->fa)
         {
-            if (slot->delayedchunk)
-            {
-                int creqtag = client->reqtag;
-                client->reqtag = 0;
-                client->sendevent(99443, "Upload with delayed chunks completed");
-                client->reqtag = creqtag;
-            }
-
             slot->fa.reset();
         }
 
@@ -995,11 +1053,8 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                     client->syncdownrequired = true;
                 }
 #endif
-                client->filecachedel(f, &committer);
-                files.erase(it++);
-                client->app->file_removed(f, API_EREAD);
-                f->transfer = NULL;
-                f->terminated();
+                it++; // the next line will remove the current item and invalidate that iterator
+                removeTransferFile(API_EREAD, f, &committer);
             }
             else
             {
@@ -1050,24 +1105,6 @@ void Transfer::completefiles()
         files.erase(it++);
     }
     ids.push_back(dbid);
-}
-
-m_off_t Transfer::nextpos()
-{
-    while (chunkmacs.find(ChunkedHash::chunkfloor(pos)) != chunkmacs.end() && pos < size)
-    {    
-        if (chunkmacs[ChunkedHash::chunkfloor(pos)].finished)
-        {
-            pos = ChunkedHash::chunkceil(pos, size);
-        }
-        else
-        {
-            pos += chunkmacs[ChunkedHash::chunkfloor(pos)].offset;
-            break;
-        }
-    }
-
-    return pos;
 }
 
 DirectReadNode::DirectReadNode(MegaClient* cclient, handle ch, bool cp, SymmCipher* csymmcipher, int64_t cctriv, const char *privauth, const char *pubauth, const char *cauth)
@@ -1903,19 +1940,49 @@ transfer_list::iterator TransferList::iterator(Transfer *transfer)
     return transfers[transfer->type].end();
 }
 
-Transfer *TransferList::nexttransfer(direction_t direction)
+std::array<vector<Transfer*>, 6> TransferList::nexttransfers(std::function<bool(Transfer*)>& continuefunction)
 {
-    for (transfer_list::iterator it = transfers[direction].begin(); it != transfers[direction].end(); it++)
+    std::array<vector<Transfer*>, 6> chosenTransfers;
+
+    static direction_t putget[] = { PUT, GET };
+
+    for (direction_t direction : putget)
     {
-        Transfer *transfer = (*it);
-        if ((!transfer->slot && isReady(transfer))
+        for (Transfer *transfer : transfers[direction])
+        {
+            bool continueLarge = true;
+            bool continueSmall = true;
+
+            if ((!transfer->slot && isReady(transfer))
                 || (transfer->asyncopencontext
                     && transfer->asyncopencontext->finished))
-        {
-            return transfer;
+            {
+                TransferCategory tc(transfer);
+                
+                if (tc.sizetype == LARGEFILE && continueLarge)
+                {
+                    continueLarge = continuefunction(transfer);
+                    if (continueLarge)
+                    {
+                        chosenTransfers[tc.index()].push_back(transfer);
+                    }
+                }
+                else if (tc.sizetype == SMALLFILE && continueSmall)
+                {
+                    continueSmall = continuefunction(transfer);
+                    if (continueSmall)
+                    {
+                        chosenTransfers[tc.index()].push_back(transfer);
+                    }
+                }
+                if (!continueLarge && !continueSmall)
+                {
+                    break;
+                }
+            }
         }
     }
-    return NULL;
+    return chosenTransfers;
 }
 
 Transfer *TransferList::transferat(direction_t direction, unsigned int position)
