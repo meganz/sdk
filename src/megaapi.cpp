@@ -5822,6 +5822,17 @@ void MegaApiLock::lockOnce()
     }
 }
 
+
+bool MegaApiLock::try_lock_for(long long time)
+{
+    if (!locked)
+    {
+        locked = api->tryLockMutex_for(time);
+    }
+
+    return locked;
+}
+
 void MegaApiLock::unlockOnce()
 {
     if (locked)
