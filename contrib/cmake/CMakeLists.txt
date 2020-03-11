@@ -39,15 +39,14 @@ set (USE_QT 0 CACHE STRING "")
 set (USE_PDFIUM 0 CACHE STRING "")
 set (USE_LIBRAW 0 CACHE STRING "")
 
-
 if (USE_QT)
-    find_package(Qt5 COMPONENTS Core Widgets)
+    set( USE_CPPTHREAD 0)
+else()
+    set( USE_CPPTHREAD 1)
 endif()
-
 
 set (HAVE_LIBUV ${USE_LIBUV})
 set (HAVE_LIBRAW ${USE_LIBRAW})
-
 
 if (WIN32 AND NOT USE_PREBUILT_3RDPARTY)
     set (USE_THIRDPARTY_FROM_VCPKG 1 CACHE STRING "")
@@ -56,24 +55,6 @@ else()
 endif()
 
 message(STATUS " Using 3rd party from vcpkg = ${USE_THIRDPARTY_FROM_VCPKG}")
-
-if (USE_QT)
-    set( USE_CPPTHREAD 0)
-    if (NOT Qt5_FOUND)
-        #For convenience, added some default qt paths if none is specified by CMAKE_PREFIX_PATH
-        if (CMAKE_HOST_WIN32 AND (NOT DEFINED CMAKE_PREFIX_PATH) )
-            if (build_64_bit)
-                set(CMAKE_PREFIX_PATH "C:/Qt/Qt5.6.3_64/5.6.3/msvc2015_64;${CMAKE_PREFIX_PATH}")
-            else()
-                set(CMAKE_PREFIX_PATH "C:/Qt/Qt5.6.3_64/5.6.3/msvc2015;${CMAKE_PREFIX_PATH}")
-            ENDIF()
-        ENDIF()
-        find_package(Qt5 COMPONENTS Core Widgets REQUIRED)
-    endif()
-    set(QTCOMPONENTS "Qt5::Core" "Qt5::Widgets")
-else()
-    set( USE_CPPTHREAD 1)
-ENDIF()
 
 if (WIN32)
     set (NO_READLINE 1 CACHE STRING "")
@@ -154,6 +135,37 @@ ELSE(WIN32)
         set (Mega3rdPartyDir "${MegaDir}/../3rdParty/")
     endif()
 ENDIF(WIN32)
+
+# Since we offer some Qt support in the SDK, set up those dependencies here
+if (USE_QT)
+
+    #For convenience, added some default qt paths if none is specified by CMAKE_PREFIX_PATH
+    if (CMAKE_HOST_WIN32 AND (NOT DEFINED CMAKE_PREFIX_PATH) )
+        if (build_64_bit)
+            set (QT_BASE_PATH "C:/Qt/Qt5.6.3_64/5.6.3/msvc2015" CACHE STRING "Specify your QT install folder if it is nonstandard")
+            set(CMAKE_PREFIX_PATH "${QT_BASE_PATH};${CMAKE_PREFIX_PATH}") 
+        else()
+            set (QT_BASE_PATH "C:/Qt/Qt5.6.3/5.6.3/msvc2015" CACHE STRING "Specify your QT install folder if it is nonstandard")
+            set(CMAKE_PREFIX_PATH "${QT_BASE_PATH};${CMAKE_PREFIX_PATH}")
+        ENDIF()
+    ENDIF()
+
+    message(STATUS "CMAKE_PREFIX_PATH (should contain the QT install path): ${CMAKE_PREFIX_PATH}")
+
+    foreach (PKG IN LISTS MEGA_QT_REQUIRED_COMPONENTS) 
+        message(STATUS "Finding Qt package ${PKG}")
+        find_package(Qt5 COMPONENTS ${PKG} REQUIRED)
+    endforeach(PKG)
+
+    # get qt version
+    if ("${QT_QMAKE_EXECUTABLE}" STREQUAL "")
+        set(QT_QMAKE_EXECUTABLE "${QT_DIR}/bin/qmake.exe")
+    endif()
+
+    execute_process(COMMAND ${QT_QMAKE_EXECUTABLE} -query QT_VERSION OUTPUT_VARIABLE QT_VERSION OUTPUT_STRIP_TRAILING_WHITESPACE)
+    message(STATUS "Using QT ${QT_VERSION} from ${Qt5_DIR} ${QT_DIR}")
+
+endif(USE_QT)
 
 # currently supported scenarios for getting 3rd party libraries:
 #  - prebuilt libraries, in a folder from mega    (set USE_PREBUILT_3RDPARTY and prebulit_dir (if the default does not suit))
@@ -749,10 +761,12 @@ else()
         set(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} $<${HAVE_FFMPEG}:-liconv>)
     endif()
 endif()
-        
-target_link_libraries(Mega PUBLIC
-                        ${QTCOMPONENTS}
 
+foreach (PKG IN LISTS MEGA_QT_LINK_LIBRARIES) 
+    target_link_libraries(Mega PUBLIC ${PKG} )
+endforeach(PKG)
+
+target_link_libraries(Mega PUBLIC
                         $<${USE_CRYPTOPP}:cryptopp>
                         $<${USE_SODIUM}:sodium>
                         $<${USE_WEBRTC}:webrtc>
