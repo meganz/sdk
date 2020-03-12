@@ -7316,12 +7316,14 @@ void MegaApiImpl::abortPendingActions(error preverror)
         preverror = API_EACCESS;
     }
 
+    // -- Backups --
     for (auto it : backupsMap)
     {
         delete it.second;
     }
     backupsMap.clear();
 
+    // -- CS Requests in progress --
     deque<MegaRequestPrivate*> requests;
     for (auto requestPair : requestMap)
     {
@@ -7334,7 +7336,10 @@ void MegaApiImpl::abortPendingActions(error preverror)
     {
         fireOnRequestFinish(request, preverror);
     }
+    requestMap.clear();
 
+
+    // -- Transfers in progress --
     {
         DBTableTransactionCommitter committer(client->tctable);
         while (!transferMap.empty())
@@ -7345,16 +7350,15 @@ void MegaApiImpl::abortPendingActions(error preverror)
             fireOnTransferFinish(transfer, preverror, committer);
         }
         assert(transferMap.empty());
-    }
+        transferMap.clear();
 
-    requestMap.clear();
-    transferMap.clear();
-
-    {
-        DBTableTransactionCommitter committer(client->tctable);
+        // -- Transfers in the queue --
+        // clear also the queued transfers, not yet started (and not added to cache)
         while (MegaTransferPrivate *transfer = transferQueue.pop())
         {
-            delete transfer;   // committer needed here
+            fireOnTransferStart(transfer);
+            transfer->setState(MegaTransfer::STATE_FAILED);
+            fireOnTransferFinish(transfer, preverror, committer);
         }
     }
 
