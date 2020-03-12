@@ -385,7 +385,7 @@ int PosixFileAccess::stealFileDescriptor()
     return toret;
 }
 
-bool PosixFileAccess::fopen(string* f, bool read, bool write)
+bool PosixFileAccess::fopen(string* f, bool read, bool write, DirAccess* iteratingDir)
 {
 #ifdef USE_IOS
     string absolutef;
@@ -475,11 +475,21 @@ bool PosixFileAccess::fopen(string* f, bool read, bool write)
 #endif
 
     bool statok = false;
-    mIsSymLink = !lstat(f->c_str(), &statbuf) && S_ISLNK(statbuf.st_mode);
 
-    if (mIsSymLink && !mFollowSymLinks)
+    if (iteratingDir) //reuse statbuf from iterator
     {
-        statok = true; //we will use statbuf filled by lstat instead of fstat
+        statbuf = static_cast<PosixDirAccess *>(iteratingDir)->currentItemStat;
+        mIsSymLink = S_ISLNK(statbuf.st_mode);
+        statok = true;
+    }
+    else
+    {
+         mIsSymLink = !lstat(f->c_str(), &statbuf) && S_ISLNK(statbuf.st_mode);
+
+        if (mIsSymLink && !mFollowSymLinks)
+        {
+            statok = true; //we will use statbuf filled by lstat instead of fstat
+        }
     }
 
     mode_t mode = 0;
@@ -724,7 +734,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                                  || memcmp(lastname.c_str(), ignore->data(), ignore->size())
                                  || (lastname.size() > ignore->size()
                                   && memcmp(lastname.c_str() + ignore->size(), localseparator.c_str(), localseparator.size())))
-                                {                                    
+                                {
                                     // previous IN_MOVED_FROM is not followed by the
                                     // corresponding IN_MOVED_TO, so was actually a deletion
                                     LOG_debug << "Filesystem notification (deletion). Root: " << lastlocalnode->name << "   Path: " << lastname;
@@ -1895,13 +1905,14 @@ bool PosixDirAccess::dnext(string* path, string* name, bool followsymlinks, node
 
     if (globbing)
     {
-        struct stat statbuf;
+        struct stat &statbuf = currentItemStat;
 
         while (globindex < globbuf.gl_pathc)
         {
-            if (!stat(globbuf.gl_pathv[globindex++], &statbuf))
+            if (followsymlinks ? !stat(globbuf.gl_pathv[globindex], &statbuf) : !lstat(globbuf.gl_pathv[globindex], &currentItemStat))
             {
-                if (statbuf.st_mode & (S_IFREG | S_IFDIR))
+                if (S_ISREG(statbuf.st_mode) || S_ISDIR(statbuf.st_mode)) // this evalves false for symlinks
+                //if (statbuf.st_mode & (S_IFREG | S_IFDIR)) //TODO: use this when symlinks are supported
                 {
                     *name = globbuf.gl_pathv[globindex - 1];
                     *type = (statbuf.st_mode & S_IFREG) ? FILENODE : FOLDERNODE;
@@ -1909,6 +1920,7 @@ bool PosixDirAccess::dnext(string* path, string* name, bool followsymlinks, node
                     return true;
                 }
             }
+            globindex++;
         }
 
         return false;
@@ -1916,7 +1928,7 @@ bool PosixDirAccess::dnext(string* path, string* name, bool followsymlinks, node
 
     dirent* d;
     size_t pathsize = path->size();
-    struct stat statbuf;
+    struct stat &statbuf = currentItemStat;
 
     path->append("/");
 
@@ -1928,7 +1940,8 @@ bool PosixDirAccess::dnext(string* path, string* name, bool followsymlinks, node
 
             if (followsymlinks ? !stat(path->c_str(), &statbuf) : !lstat(path->c_str(), &statbuf))
             {
-                if (S_ISREG(statbuf.st_mode) || S_ISDIR(statbuf.st_mode))
+                if (S_ISREG(statbuf.st_mode) || S_ISDIR(statbuf.st_mode)) // this evalves false for symlinks
+                //if (statbuf.st_mode & (S_IFREG | S_IFDIR)) //TODO: use this when symlinks are supported
                 {
                     path->resize(pathsize);
                     *name = d->d_name;

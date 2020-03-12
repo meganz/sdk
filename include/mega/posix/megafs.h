@@ -50,6 +50,8 @@ struct MEGA_API PosixDirAccess : public DirAccess
     glob_t globbuf;
     unsigned globindex;
 
+    struct stat currentItemStat;
+
     bool dopen(string*, FileAccess*, bool);
     bool dnext(string*, string*, bool, nodetype_t*);
 
@@ -143,7 +145,8 @@ public:
     DIR* dp;
 #endif
 
-    bool fopen(string*, bool, bool);
+    bool fopen(string*, bool read, bool write, DirAccess* iteratingDir = nullptr) override;
+
     void updatelocalname(string*);
     bool fread(string *, unsigned, unsigned, m_off_t);
     bool fwrite(const byte *, unsigned, m_off_t);
