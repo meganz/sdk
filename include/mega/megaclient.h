@@ -1555,6 +1555,9 @@ public:
     // manage overquota errors
     void activateoverquota(dstime timeleft);
 
+    // convenience function for getting filesystem shortnames
+    std::unique_ptr<string> fsShortname(string& localpath);
+
     // achievements enabled for the account
     bool achievements_enabled;
 

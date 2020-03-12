@@ -23,6 +23,7 @@
 #include "mega/logging.h"
 #include "mega/megaclient.h"
 #include "mega/base64.h"
+#include "mega/serialize64.h"
 
 #include <iomanip>
 
@@ -79,6 +80,12 @@ void CacheableWriter::serializestring(const string& field)
     dest.append(field.data(), ll);
 }
 
+void CacheableWriter::serializecompressed64(int64_t field)
+{
+    byte buf[sizeof field+1];
+    dest.append((const char*)buf, Serialize64::serialize(buf, field));
+}
+
 void CacheableWriter::serializei64(int64_t field)
 {
     dest.append((char*)&field, sizeof(field));
@@ -92,6 +99,11 @@ void CacheableWriter::serializeu32(uint32_t field)
 void CacheableWriter::serializehandle(handle field)
 {
     dest.append((char*)&field, sizeof(field));
+}
+
+void CacheableWriter::serializenodehandle(handle field)
+{
+    dest.append((const char*)&field, MegaClient::NODEHANDLE);
 }
 
 void CacheableWriter::serializefsfp(fsfp_t field)
@@ -319,6 +331,21 @@ bool CacheableReader::unserializechunkmacs(chunkmac_map& m)
     return false;
 }
 
+bool CacheableReader::unserializecompressed64(uint64_t& field)
+{
+    int fieldize;
+    if ((fieldize = Serialize64::unserialize((byte*)ptr, static_cast<int>(end - ptr), &field)) < 0)
+    {
+        LOG_err << "Serialize64 unserialization failed - malformed field";
+        return false;
+    }
+    else
+    {
+        ptr += fieldize;
+    }
+    return true;
+}
+
 bool CacheableReader::unserializei64(int64_t& field)
 {
     if (ptr + sizeof(int64_t) > end)
@@ -351,6 +378,19 @@ bool CacheableReader::unserializehandle(handle& field)
     }
     field = MemAccess::get<handle>(ptr);
     ptr += sizeof(handle);
+    fieldnum += 1;
+    return true;
+}
+
+bool CacheableReader::unserializenodehandle(handle& field)
+{
+    if (ptr + MegaClient::NODEHANDLE > end)
+    {
+        return false;
+    }
+    field = 0;
+    memcpy((char*)&field, ptr, MegaClient::NODEHANDLE);
+    ptr += MegaClient::NODEHANDLE;
     fieldnum += 1;
     return true;
 }

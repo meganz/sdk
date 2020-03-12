@@ -5804,7 +5804,7 @@ MegaApiLock::MegaApiLock(MegaApiImpl* ptr, bool lock) : api(ptr)
 {
     if (lock)
     {
-        lockOnce();
+        lockOnce(0);
     }
 }
 
@@ -5813,13 +5813,14 @@ MegaApiLock::~MegaApiLock()
     unlockOnce();
 }
 
-void MegaApiLock::lockOnce()
+bool MegaApiLock::lockOnce(unsigned millisec)
 {
     if (!locked)
     {
-        api->lockMutex();
-        locked = true;
+        locked = api->lockMutex(millisec);
+        return locked;
     }
+    return true;
 }
 
 void MegaApiLock::unlockOnce()

@@ -21840,9 +21840,17 @@ int MegaApiImpl::areServersBusy()
     return isWaiting();
 }
 
-void MegaApiImpl::lockMutex()
+bool MegaApiImpl::lockMutex(unsigned millisec)
 {
-    sdkMutex.lock();
+    if (millisec) 
+    {
+        return sdkMutex.try_lock_for(std::chrono::milliseconds(millisec));
+    }
+    else
+    {
+        sdkMutex.lock();
+        return true;
+    }
 }
 
 void MegaApiImpl::unlockMutex()

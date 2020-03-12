@@ -2595,7 +2595,7 @@ class MegaApiImpl : public MegaApp
         void fireOnBackupTemporaryError(MegaBackupController *backup, MegaError e);
 
         void yield();
-        void lockMutex();
+        bool lockMutex(unsigned millisec);
         void unlockMutex();
 
 protected:
