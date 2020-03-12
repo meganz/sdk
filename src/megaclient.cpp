@@ -12715,13 +12715,6 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
 
         rit = nchildren.find(&localname);
 
-        string localpath;
-        unique_ptr<FileAccess> fa(fsaccess->newfileaccess(false));
-
-        ll->getlocalpath(&localpath);
-        fa->fopen(&localpath);
-        bool isSymLink = fa->mIsSymLink;
-
         // do we have a corresponding remote child?
         if (rit != nchildren.end())
         {
@@ -12730,10 +12723,10 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
             // local: file, remote: folder - overwrite
             // local: folder, remote: folder - recurse
             // local: file, remote: file - overwrite if newer
-            if (ll->type != rit->second->type || fa->mIsSymLink)
+            if (ll->type != rit->second->type || ll->mIsSymlink)
             {
                 insync = false;
-                LOG_warn << "Type changed: " << localname << " LNtype: " << ll->type << " Ntype: " << rit->second->type << " isSymLink = " << fa->mIsSymLink;
+                LOG_warn << "Type changed: " << localname << " LNtype: " << ll->type << " Ntype: " << rit->second->type << " isSymLink = " << ll->mIsSymlink;
                 movetosyncdebris(rit->second, l->sync->inshare);
             }
             else
@@ -12911,8 +12904,9 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
             }
         }
 
-        if (isSymLink)
+        if (ll->mIsSymlink)
         {
+            LOG_warn << "skipping node creation (symlink): " << ll->name;
             continue; //Do nothing for the moment
         }
         else if (ll->type == FILENODE)
@@ -13100,7 +13094,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
         {
             ll->created = true;
 
-            assert (!isSymLink);
+            assert (!ll->mIsSymlink);
             // create remote folder or send file
             LOG_debug << "Adding local file to synccreate: " << ll->name << " " << synccreate.size();
             synccreate.push_back(ll);

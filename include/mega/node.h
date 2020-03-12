@@ -279,6 +279,9 @@ struct MEGA_API LocalNode : public File
 {
     class Sync* sync = nullptr;
 
+    // is symlink?
+    bool mIsSymlink = false;
+
     // parent linkage
     LocalNode* parent = nullptr;
 

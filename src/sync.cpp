@@ -1508,6 +1508,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                 if (fa->fsidvalid && (it = client->fsidnode.find(fa->fsid)) != client->fsidnode.end()
                     // additional checks to prevent wrong fsid matches
                     && it->second->type == fa->type
+                    && it->second->mIsSymlink == fa->mIsSymLink
                     && (!parent
                         || (it->second->sync == parent->sync)
                         || ((fp1 = it->second->sync->dirnotify->fsfingerprint())
@@ -1656,11 +1657,6 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                         scan(localname ? localpath : &tmppath, fa.get());
                     }
                 }
-                else if (fa->mIsSymLink)
-                {
-                    LOG_debug << "checked path is a symlink.  Parent: " << (parent ? parent->name : "NO");
-                    //doing nothing for the moment
-                }
                 else
                 {
                     // this is a new node: add
@@ -1672,6 +1668,8 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                     {
                         l->setfsid(fa->fsid, client->fsidnode);
                     }
+
+                    l->mIsSymlink = fa->mIsSymLink;
 
                     newnode = true;
                 }

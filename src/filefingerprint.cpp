@@ -147,6 +147,12 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
 
     if (size <= (m_off_t)sizeof crc)
     {
+        if (fa->mIsSymLink)
+        {
+            //TODO: get CRC from appointed target instead of contents
+            fa->closef();
+            return true;
+        }
         // tiny file: read verbatim, NUL pad
         if (!fa->frawread((byte*)newcrc.data(), static_cast<unsigned>(size), 0, true))
         {
