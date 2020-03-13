@@ -14025,9 +14025,6 @@ void MegaApiImpl::logout_result(error e)
         mPushSettings = NULL;
         delete mTimezones;
         mTimezones = NULL;
-
-        fireOnRequestFinish(request, MegaError(preverror));
-        return;
     }
     fireOnRequestFinish(request,MegaError(e));
 }

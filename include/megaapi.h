@@ -10823,6 +10823,10 @@ class MegaApi
          * is that the logout action has been notified before the reception of the
          * logout response itself.
          *
+         * In case of an automatic logout (ie. when the account become blocked by
+         * ToS infringment), the MegaRequest::getParamType indicates the error that
+         * triggered the automatic logout (MegaError::API_EBLOCKED for the example).
+         *
          * @param listener MegaRequestListener to track this request
          */
         void logout(MegaRequestListener *listener = NULL);
