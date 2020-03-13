@@ -12566,7 +12566,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
         rit = nchildren.find(&localname);
 
         bool isSymLink = false;
-
+#ifndef WIN32
         if (PosixFileAccess::mFoundASymlink)
         {
             string localpath;
@@ -12577,7 +12577,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
             isSymLink = fa->mIsSymLink;
             LOG_debug << "checking if localpath is symlink: " << localpath;
         }
-
+#endif
         // do we have a corresponding remote child?
         if (rit != nchildren.end())
         {
