@@ -1805,7 +1805,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
         (type == FILENODE && !r.unserializebinary((byte*)crc, sizeof(crc))) ||
         (type == FILENODE && !r.unserializecompressed64(mtime)) ||
         (r.hasdataleft() && !r.unserializebyte(syncable)) ||
-        !r.unserializeexpansionflags(expansionflags, 1) ||
+        (r.hasdataleft() && !r.unserializeexpansionflags(expansionflags, 1)) ||
         (expansionflags[0] && !r.unserializestring(shortname)))
     {
         LOG_err << "LocalNode unserialization failed at field " << r.fieldnum;
