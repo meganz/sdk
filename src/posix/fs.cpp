@@ -403,14 +403,20 @@ bool PosixFileAccess::fopen(string* f, bool read, bool write, DirAccess* iterati
     struct stat statbuf;
 
     retry = false;
+    bool statok = false;
+    if (iteratingDir) //reuse statbuf from iterator
+    {
+        statbuf = static_cast<PosixDirAccess *>(iteratingDir)->currentItemStat;
+        mIsSymLink = S_ISLNK(statbuf.st_mode);
+        statok = true;
+    }
 
 #ifdef __MACH__
     if (!write)
     {
         char resolved_path[PATH_MAX];
-        struct stat statbuf;
         if (memcmp(f->c_str(), ".", 2) && memcmp(f->c_str(), "..", 3)
-                && !lstat(f->c_str(), &statbuf)
+                && (statok || !lstat(f->c_str(), &statbuf) )
                 && !S_ISLNK(statbuf.st_mode)
                 && realpath(f->c_str(), resolved_path) == resolved_path)
         {
@@ -474,15 +480,7 @@ bool PosixFileAccess::fopen(string* f, bool read, bool write, DirAccess* iterati
     }
 #endif
 
-    bool statok = false;
-
-    if (iteratingDir) //reuse statbuf from iterator
-    {
-        statbuf = static_cast<PosixDirAccess *>(iteratingDir)->currentItemStat;
-        mIsSymLink = S_ISLNK(statbuf.st_mode);
-        statok = true;
-    }
-    else
+    if (!statok)
     {
          mIsSymLink = !lstat(f->c_str(), &statbuf) && S_ISLNK(statbuf.st_mode);
 
