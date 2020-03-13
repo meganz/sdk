@@ -5156,26 +5156,12 @@ MegaApiImpl::~MegaApiImpl()
     thread.join();
 
     delete mPushSettings;
-    delete mTimezones;
+    delete mTimezones;    
 
-    requestMap.erase(request->getTag());
+    assert(requestMap.empty());
+    assert(backupsMap.empty());
+    assert(transferMap.empty());
 
-    for (std::map<int, MegaBackupController *>::iterator it = backupsMap.begin(); it != backupsMap.end(); ++it)
-    {
-        delete it->second;
-    }
-
-    for (std::map<int,MegaRequestPrivate*>::iterator it = requestMap.begin(); it != requestMap.end(); it++)
-    {
-        delete it->second;
-    }
-
-    for (std::map<int, MegaTransferPrivate *>::iterator it = transferMap.begin(); it != transferMap.end(); it++)
-    {
-        delete it->second;
-    }
-
-    delete client;    //  only delete client now that transfers that might refer to it are finally removed.
     delete gfxAccess;
     delete fsAccess;
     delete waiter;
@@ -6245,10 +6231,7 @@ void MegaApiImpl::loop()
             sendPendingScRequest();
             if (threadExit)
             {
-                // The ~MegaApiImpl() destructor is responsible for deleting the client after join()ing the thread
-                // But first call locallogout() which may call back to the app (on this thread as usual) to close some requestMap items etc
-                client->locallogout(false);
-                return;
+                break;
             }
 
             sdkMutex.lock();
@@ -6256,6 +6239,10 @@ void MegaApiImpl::loop()
             sdkMutex.unlock();
         }
     }
+
+    sdkMutex.lock();
+    delete client;
+    sdkMutex.unlock();
 }
 
 
@@ -7308,7 +7295,7 @@ bool MegaApiImpl::isScheduleNotifiable()
     }
 }
 
-// clears backups and requests/transfers notifying failure with EACCESS (and  resets total up/down bytes)
+// clears backups/requests/transfers notifying failure with EACCESS (and resets total up/down bytes)
 void MegaApiImpl::abortPendingActions(error preverror)
 {
     if (!preverror)
@@ -7334,10 +7321,13 @@ void MegaApiImpl::abortPendingActions(error preverror)
     }
     for (auto request : requests)
     {
+        if (request->getType() == MegaRequest::TYPE_DELETE)
+        {
+            continue; // this request is finished at MegaApiImpl dtor
+        }
         fireOnRequestFinish(request, preverror);
     }
     requestMap.clear();
-
 
     // -- Transfers in progress --
     {
@@ -18318,7 +18308,7 @@ void MegaApiImpl::sendPendingRequests()
         {
             nextTag = client->nextreqtag();
             request->setTag(nextTag);
-            requestMap[nextTag]=request;
+            requestMap[nextTag] = request;
             fireOnRequestStart(request);
         }
         else
@@ -20717,6 +20707,7 @@ void MegaApiImpl::sendPendingRequests()
             ftpServerStop();
             sdkMutex.lock();
 #endif
+            abortPendingActions();
             threadExit = 1;
             break;
         }
