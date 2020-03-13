@@ -12565,12 +12565,17 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
 
         rit = nchildren.find(&localname);
 
-        string localpath;
-        unique_ptr<FileAccess> fa(fsaccess->newfileaccess(false));
+        bool isSymLink = false;
 
-        ll->getlocalpath(&localpath);
-        fa->fopen(&localpath);
-        bool isSymLink = fa->mIsSymLink;
+        if (PosixFileAccess::mFoundASymlink)
+        {
+            string localpath;
+            unique_ptr<FileAccess> fa(fsaccess->newfileaccess(false));
+
+            ll->getlocalpath(&localpath);
+            fa->fopen(&localpath);
+            isSymLink = fa->mIsSymLink;
+        }
 
         // do we have a corresponding remote child?
         if (rit != nchildren.end())
@@ -12580,10 +12585,10 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
             // local: file, remote: folder - overwrite
             // local: folder, remote: folder - recurse
             // local: file, remote: file - overwrite if newer
-            if (ll->type != rit->second->type || fa->mIsSymLink)
+            if (ll->type != rit->second->type || isSymLink)
             {
                 insync = false;
-                LOG_warn << "Type changed: " << localname << " LNtype: " << ll->type << " Ntype: " << rit->second->type << " isSymLink = " << fa->mIsSymLink;
+                LOG_warn << "Type changed: " << localname << " LNtype: " << ll->type << " Ntype: " << rit->second->type << " isSymLink = " << isSymLink;
                 movetosyncdebris(rit->second, l->sync->inshare);
             }
             else
