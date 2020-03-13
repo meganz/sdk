@@ -1761,14 +1761,14 @@ void TreeProcListOutShares::proc(MegaClient*, Node* n)
 
 bool handles_on = false;
 
-static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstream* tofile)
+static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstream* toFile)
 {
-    std::ostream& stream = tofile ? *tofile : cout;
-    string titletmp;
+    std::ostream& stream = toFile ? *toFile : cout;
+    string titleTmp;
 
     if (depth)
     {
-        if (!tofile)
+        if (!toFile)
         {
             if (!title && !(title = n->displayname()))
             {
@@ -1782,8 +1782,8 @@ static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstre
         }
         else
         {
-            titletmp = n->displaypath();
-            title = titletmp.c_str();
+            titleTmp = n->displaypath();
+            title = titleTmp.c_str();
         }
 
         stream << title << " (";
@@ -1890,7 +1890,7 @@ static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstre
     {
         for (node_list::iterator it = n->children.begin(); it != n->children.end(); it++)
         {
-            dumptree(*it, recurse, depth + 1, NULL, tofile);
+            dumptree(*it, recurse, depth + 1, NULL, toFile);
         }
     }
 }
@@ -2413,23 +2413,30 @@ void exec_find(autocomplete::ACState& s)
     }
 }
 
-bool recurse_findemptysubfoldertrees(Node* n, bool movetotrash)
+bool recurse_findemptysubfoldertrees(Node* n, bool moveToTrash)
 {
-    if (n->type == FILENODE) return false;
-    std::vector<Node*> emptyfolders;
+    if (n->type == FILENODE)
+    {
+        return false;
+    }
+
+    std::vector<Node*> emptyFolders;
     bool empty = true;
-    Node* trash = nodebypath("//bin");
+    Node* trash = client->nodebyhandle(client->rootnodes[2]);
     for (auto c : n->children)
     {
-        bool subempty = recurse_findemptysubfoldertrees(c, movetotrash);
-        if (subempty) emptyfolders.push_back(c);
-        empty = empty && subempty;
+        bool subfolderEmpty = recurse_findemptysubfoldertrees(c, moveToTrash);
+        if (subfolderEmpty)
+        {
+            emptyFolders.push_back(c);
+        }
+        empty = empty && subfolderEmpty;
     }
     if (!empty)
     {
-        for (auto c : emptyfolders)
+        for (auto c : emptyFolders)
         {
-            if (movetotrash)
+            if (moveToTrash)
             {
                 cout << "moving to trash: " << c->displaypath() << endl;
                 client->rename(c, trash);
@@ -2445,10 +2452,10 @@ bool recurse_findemptysubfoldertrees(Node* n, bool movetotrash)
 
 void exec_findemptysubfoldertrees(autocomplete::ACState& s)
 {
-    bool movetotrash = s.extractflag("-movetotrash");
+    bool moveToTrash = s.extractflag("-movetotrash");
     if (Node* n = client->nodebyhandle(cwd))
     {
-        if (recurse_findemptysubfoldertrees(n, movetotrash))
+        if (recurse_findemptysubfoldertrees(n, moveToTrash))
         {
             cout << "the search root path only contains empty folders: " << n->displaypath() << endl;
         }
@@ -3258,11 +3265,14 @@ void exec_ls(autocomplete::ACState& s)
 {
     Node* n;
     bool recursive = s.extractflag("-R");
-    string tofilename;
-    bool tofileflag = s.extractflagparam("-tofile", tofilename);
+    string toFilename;
+    bool toFileFlag = s.extractflagparam("-tofile", toFilename);
 
-    ofstream tofile;
-    if (tofileflag) tofile.open(tofilename);
+    ofstream toFile;
+    if (toFileFlag)
+    {
+        toFile.open(toFilename);
+    }
 
     if (s.words.size() > 1)
     {
@@ -3275,7 +3285,7 @@ void exec_ls(autocomplete::ACState& s)
 
     if (n)
     {
-        dumptree(n, recursive, 0, NULL, tofileflag? &tofile : nullptr);
+        dumptree(n, recursive, 0, NULL, toFileFlag ? &toFile : nullptr);
     }
 }
 
