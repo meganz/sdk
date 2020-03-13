@@ -1761,62 +1761,73 @@ void TreeProcListOutShares::proc(MegaClient*, Node* n)
 
 bool handles_on = false;
 
-static void dumptree(Node* n, bool recurse, int depth = 0, const char* title = NULL)
+static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstream* tofile)
 {
+    std::ostream& stream = tofile ? *tofile : cout;
+    string titletmp;
+
     if (depth)
     {
-        if (!title && !(title = n->displayname()))
+        if (!tofile)
         {
-            title = "CRYPTO_ERROR";
+            if (!title && !(title = n->displayname()))
+            {
+                title = "CRYPTO_ERROR";
+            }
+
+            for (int i = depth; i--; )
+            {
+                stream << "\t";
+            }
+        }
+        else
+        {
+            titletmp = n->displaypath();
+            title = titletmp.c_str();
         }
 
-        for (int i = depth; i--; )
-        {
-            cout << "\t";
-        }
-
-        cout << title << " (";
+        stream << title << " (";
 
         switch (n->type)
         {
             case FILENODE:
-                cout << n->size;
+                stream << n->size;
 
                 if (handles_on)
                 {
                     Base64Str<MegaClient::NODEHANDLE> handlestr(n->nodehandle);
-                    cout << " " << handlestr.chars;
+                    stream << " " << handlestr.chars;
                 }
 
                 const char* p;
                 if ((p = strchr(n->fileattrstring.c_str(), ':')))
                 {
-                    cout << ", has attributes " << p + 1;
+                    stream << ", has attributes " << p + 1;
                 }
 
                 if (n->plink)
                 {
-                    cout << ", shared as exported";
+                    stream << ", shared as exported";
                     if (n->plink->ets)
                     {
-                        cout << " temporal";
+                        stream << " temporal";
                     }
                     else
                     {
-                        cout << " permanent";
+                        stream << " permanent";
                     }
-                    cout << " file link";
+                    stream << " file link";
                 }
 
                 break;
 
             case FOLDERNODE:
-                cout << "folder";
+                stream << "folder";
 
                 if (handles_on)
                 {
                     Base64Str<MegaClient::NODEHANDLE> handlestr(n->nodehandle);
-                    cout << " " << handlestr.chars;
+                    stream << " " << handlestr.chars;
                 }
 
                 if(n->outshares)
@@ -1825,23 +1836,23 @@ static void dumptree(Node* n, bool recurse, int depth = 0, const char* title = N
                     {
                         if (it->first)
                         {
-                            cout << ", shared with " << it->second->user->email << ", access "
+                            stream << ", shared with " << it->second->user->email << ", access "
                                  << getAccessLevelStr(it->second->access);
                         }
                     }
 
                     if (n->plink)
                     {
-                        cout << ", shared as exported";
+                        stream << ", shared as exported";
                         if (n->plink->ets)
                         {
-                            cout << " temporal";
+                            stream << " temporal";
                         }
                         else
                         {
-                            cout << " permanent";
+                            stream << " permanent";
                         }
-                        cout << " folder link";
+                        stream << " folder link";
                     }
                 }
 
@@ -1851,7 +1862,7 @@ static void dumptree(Node* n, bool recurse, int depth = 0, const char* title = N
                     {
                         if (it->first)
                         {
-                            cout << ", shared (still pending) with " << it->second->pcr->targetemail << ", access "
+                            stream << ", shared (still pending) with " << it->second->pcr->targetemail << ", access "
                                  << getAccessLevelStr(it->second->access);
                         }                        
                     }
@@ -1859,15 +1870,15 @@ static void dumptree(Node* n, bool recurse, int depth = 0, const char* title = N
 
                 if (n->inshare)
                 {
-                    cout << ", inbound " << getAccessLevelStr(n->inshare->access) << " share";
+                    stream << ", inbound " << getAccessLevelStr(n->inshare->access) << " share";
                 }
                 break;
 
             default:
-                cout << "unsupported type, please upgrade";
+                stream << "unsupported type, please upgrade";
         }
 
-        cout << ")" << (n->changed.removed ? " (DELETED)" : "") << endl;
+        stream << ")" << (n->changed.removed ? " (DELETED)" : "") << endl;
 
         if (!recurse)
         {
@@ -1879,7 +1890,7 @@ static void dumptree(Node* n, bool recurse, int depth = 0, const char* title = N
     {
         for (node_list::iterator it = n->children.begin(); it != n->children.end(); it++)
         {
-            dumptree(*it, recurse, depth + 1);
+            dumptree(*it, recurse, depth + 1, NULL, tofile);
         }
     }
 }
@@ -2402,6 +2413,48 @@ void exec_find(autocomplete::ACState& s)
     }
 }
 
+bool recurse_findemptysubfoldertrees(Node* n, bool movetotrash)
+{
+    if (n->type == FILENODE) return false;
+    std::vector<Node*> emptyfolders;
+    bool empty = true;
+    Node* trash = nodebypath("//bin");
+    for (auto c : n->children)
+    {
+        bool subempty = recurse_findemptysubfoldertrees(c, movetotrash);
+        if (subempty) emptyfolders.push_back(c);
+        empty = empty && subempty;
+    }
+    if (!empty)
+    {
+        for (auto c : emptyfolders)
+        {
+            if (movetotrash)
+            {
+                cout << "moving to trash: " << c->displaypath() << endl;
+                client->rename(c, trash);
+            }
+            else
+            {
+                cout << "empty folder tree at: " << c->displaypath() << endl;
+            }
+        }
+    }
+    return empty;
+}
+
+void exec_findemptysubfoldertrees(autocomplete::ACState& s)
+{
+    bool movetotrash = s.extractflag("-movetotrash");
+    if (Node* n = client->nodebyhandle(cwd))
+    {
+        if (recurse_findemptysubfoldertrees(n, movetotrash))
+        {
+            cout << "the search root path only contains empty folders: " << n->displaypath() << endl;
+        }
+    }
+}
+
 bool typematchesnodetype(nodetype_t pathtype, nodetype_t nodetype)
 {
     switch (pathtype)
@@ -2774,7 +2827,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_confirm, sequence(text("confirm")));
     p->Add(exec_session, sequence(text("session"), opt(sequence(text("autoresume"), opt(param("id"))))));
     p->Add(exec_mount, sequence(text("mount")));
-    p->Add(exec_ls, sequence(text("ls"), opt(flag("-R")), opt(remoteFSFolder(client, &cwd))));
+    p->Add(exec_ls, sequence(text("ls"), opt(flag("-R")), opt(sequence(flag("-tofile"), param("filename"))), opt(remoteFSFolder(client, &cwd))));
     p->Add(exec_cd, sequence(text("cd"), opt(remoteFSFolder(client, &cwd))));
     p->Add(exec_pwd, sequence(text("pwd")));
     p->Add(exec_lcd, sequence(text("lcd"), opt(localFSFolder())));
@@ -2890,6 +2943,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_quit, either(text("quit"), text("q"), text("exit")));
 
     p->Add(exec_find, sequence(text("find"), text("raided")));
+    p->Add(exec_findemptysubfoldertrees, sequence(text("findemptysubfoldertrees"), opt(flag("-movetotrash"))));
 
 #ifdef MEGA_MEASURE_CODE
     p->Add(exec_deferRequests, sequence(text("deferrequests"), repeat(either(flag("-putnodes")))));
@@ -3204,6 +3258,11 @@ void exec_ls(autocomplete::ACState& s)
 {
     Node* n;
     bool recursive = s.extractflag("-R");
+    string tofilename;
+    bool tofileflag = s.extractflagparam("-tofile", tofilename);
+
+    ofstream tofile;
+    if (tofileflag) tofile.open(tofilename);
 
     if (s.words.size() > 1)
     {
@@ -3216,7 +3275,7 @@ void exec_ls(autocomplete::ACState& s)
 
     if (n)
     {
-        dumptree(n, recursive);
+        dumptree(n, recursive, 0, NULL, tofileflag? &tofile : nullptr);
     }
 }
 
