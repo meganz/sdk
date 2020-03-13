@@ -64,6 +64,15 @@ void WaitMillisec(unsigned n)
     usleep(n * 1000);
 #endif
 }
+
+fs::path fixSeparators(std::string p)
+{
+    for (auto& c : p)
+        if (c == '/')
+            c = fs::path::preferred_separator;
+    return fs::u8path(p);
+}
+
 struct Model
 {
     // records what we think the tree should look like after sync so we can confirm it
@@ -335,6 +344,20 @@ struct StandardClient : public MegaApp
     {
         fs::create_directories(p);
         return p;
+    }
+
+    void createLocalFolderSymlink(const string& linkpath, const string& actualfolder)
+    {
+        std::error_code ec;
+        fs::create_directory_symlink(fsBasePath / fixSeparators(actualfolder), fsBasePath / fixSeparators(linkpath), ec);
+        EXPECT_TRUE(!ec);
+    }
+
+    void createLocalFileSymlink(const string& linkpath, const string& actualfile)
+    {
+        std::error_code ec;
+        fs::create_symlink(fsBasePath / fixSeparators(actualfile), fsBasePath / fixSeparators(linkpath), ec);
+        EXPECT_TRUE(!ec);
     }
 
     StandardClient(const fs::path& basepath, const string& name)
@@ -1100,20 +1123,29 @@ struct StandardClient : public MegaApp
         return nullptr;
     }
 
-    bool confirmModel(int syncid, Model::ModelNode* mnode)
+    enum Confirm
+    {
+        CONFIRM_LOCALFS = 0x01,
+        CONFIRM_LOCALNODE = 0x02,
+        CONFIRM_LOCAL = CONFIRM_LOCALFS | CONFIRM_LOCALNODE,
+        CONFIRM_REMOTE = 0x04,
+        CONFIRM_ALL = CONFIRM_LOCAL | CONFIRM_REMOTE,
+    };
+
+    bool confirmModel(int syncid, Model::ModelNode* mnode, Confirm confirm)
     {
         auto si = syncSet.find(syncid);
         if (si == syncSet.end())
         {
-            cout << "syncid " << syncid << " not found " << endl;
+            cout << clientname << " syncid " << syncid << " not found " << endl;
             return false;
         }
 
         // compare model aganst nodes representing remote state
         int descendants = 0;
-        if (!recursiveConfirm(mnode, client.nodebyhandle(si->second.h), descendants, "Sync " + to_string(syncid), 0))
+        if (confirm & CONFIRM_REMOTE && !recursiveConfirm(mnode, client.nodebyhandle(si->second.h), descendants, "Sync " + to_string(syncid), 0))
         {
-            cout << "syncid " << syncid << " comparison against remote nodes failed" << endl;
+            cout << clientname << " syncid " << syncid << " comparison against remote nodes failed" << endl;
             return false;
         }
 
@@ -1121,18 +1153,18 @@ struct StandardClient : public MegaApp
         descendants = 0; 
         if (Sync* sync = syncByTag(syncid))
         {
-            if (!recursiveConfirm(mnode, sync->localroot.get(), descendants, "Sync " + to_string(syncid), 0))
+            if (confirm & CONFIRM_LOCALNODE && !recursiveConfirm(mnode, sync->localroot.get(), descendants, "Sync " + to_string(syncid), 0))
             {
-                cout << "syncid " << syncid << " comparison against LocalNodes failed" << endl;
+                cout << clientname << " syncid " << syncid << " comparison against LocalNodes failed" << endl;
                 return false;
             }
         }
 
         // compare model against local filesystem
         descendants = 0;
-        if (!recursiveConfirm(mnode, si->second.localpath, descendants, "Sync " + to_string(syncid), 0))
+        if (confirm & CONFIRM_LOCALFS && !recursiveConfirm(mnode, si->second.localpath, descendants, "Sync " + to_string(syncid), 0))
         {
-            cout << "syncid " << syncid << " comparison against local filesystem failed" << endl;
+            cout << clientname << " syncid " << syncid << " comparison against local filesystem failed" << endl;
             return false;
         }
 
@@ -1404,10 +1436,10 @@ struct StandardClient : public MegaApp
         return fb.get();
     }
 
-    bool confirmModel_mainthread(Model::ModelNode* mnode, int syncid)
+    bool confirmModel_mainthread(Model::ModelNode* mnode, int syncid, Confirm confirm = CONFIRM_ALL)
     {
         future<bool> fb;
-        fb = thread_do([syncid, mnode](StandardClient& sc, promise<bool>& pb) { pb.set_value(sc.confirmModel(syncid, mnode)); });
+        fb = thread_do([syncid, mnode, confirm](StandardClient& sc, promise<bool>& pb) { pb.set_value(sc.confirmModel(syncid, mnode, confirm)); });
         return fb.get();
     }
 };
@@ -1636,24 +1668,37 @@ GTEST_TEST(Sync, BasicSync_DelLocalFolder)
     waitonsyncs(4s, &clientA1, &clientA2);
     clientA1.logcb = clientA2.logcb = true;
 
+    // also make symlinks
+    clientA1.createLocalFolderSymlink("sync1/foldersym0", "sync1/f_0");
+    clientA1.createLocalFolderSymlink("sync1/foldersym01", "sync1/f_1");
+    waitonsyncs(4s, &clientA1, &clientA2);
+
     // check everything matches (model has expected state of remote and local)
-    Model model;
-    model.root->addkid(model.buildModelSubdirs("f", 3, 3, 0));
-    ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
-    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
+    Model localmodel, remotemodel;
+    localmodel.root->addkid(localmodel.buildModelSubdirs("f", 3, 3, 0));
+    remotemodel.root->addkid(remotemodel.buildModelSubdirs("f", 3, 3, 0));
+
+    localmodel.findnode("f")->addkid(localmodel.makeModelSubfolder("foldersym0"));
+    localmodel.findnode("f")->addkid(localmodel.makeModelSubfolder("foldersym01"));
+
+    ASSERT_TRUE(clientA1.confirmModel_mainthread(localmodel.findnode("f"), 1, StandardClient::CONFIRM_LOCAL));
+    ASSERT_TRUE(clientA1.confirmModel_mainthread(remotemodel.findnode("f"), 1, StandardClient::CONFIRM_REMOTE));
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(remotemodel.findnode("f"), 2, StandardClient::CONFIRM_ALL));
 
     // delete something in the local filesystem and see if we catch up in A1 and A2 (deleter and observer syncs)
     error_code e;
-    ASSERT_TRUE(fs::remove_all(clientA1.syncSet[1].localpath / "f_2" / "f_2_1", e) != static_cast<std::uintmax_t>(-1)) << e;
+    ASSERT_TRUE(fs::remove_all(clientA1.syncSet[1].localpath / "f_2" / "f_2_1", e) + 1 > 1) << e;
+    ASSERT_TRUE(fs::remove_all(clientA1.syncSet[1].localpath / "foldersym01", e) + 1 > 1) << e;
 
     // let them catch up
     waitonsyncs(60s, &clientA1, &clientA2);
 
     // check everything matches (model has expected state of remote and local)
-    ASSERT_TRUE(model.movetosynctrash("f/f_2/f_2_1", "f"));
-    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
-    ASSERT_TRUE(model.removesynctrash("f"));
-    ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
+    ASSERT_TRUE(remotemodel.movetosynctrash("f/f_2/f_2_1", "f"));
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(remotemodel.findnode("f"), 2));
+    ASSERT_TRUE(remotemodel.removesynctrash("f"));
+    ASSERT_TRUE(clientA1.confirmModel_mainthread(localmodel.findnode("f"), 1, StandardClient::CONFIRM_LOCAL));
+    ASSERT_TRUE(clientA1.confirmModel_mainthread(remotemodel.findnode("f"), 1, StandardClient::CONFIRM_REMOTE));
 }
 
 GTEST_TEST(Sync, BasicSync_MoveLocalFolder)
