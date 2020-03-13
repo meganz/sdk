@@ -14964,6 +14964,10 @@ void MegaApiImpl::whyamiblocked_result(int code)
         {
             reason = "Your account has been suspended due to multiple breaches of Mega's Terms of Service. Please check your email inbox.";
         }
+        else if (code == MegaApi::ACCOUNT_BLOCKED_TOS_COPYRIGHT)
+        {
+            reason = "Your account has been suspended due to copyright violations. Please check your email inbox.";
+        }
         else if (code == MegaApi::ACCOUNT_BLOCKED_SUBUSER_DISABLED)
         {
             reason = "Your account has been disabled by your administrator. You may contact your business account administrator for further details.";
