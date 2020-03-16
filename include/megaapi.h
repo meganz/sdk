@@ -6708,6 +6708,18 @@ public:
     void lockOnce();
 
     /**
+     * @brief Tries to lock the MegaApi if this instance does not currently have a lock on it yet.
+     *
+     * If the lock is succeeded in the expected time, the behaviour is the same as lockOnce().
+     *
+     * @param time Milliseconds to wait for locking
+     *
+     * @return if the locking succeded
+     */
+    bool tryLockFor(long long time);
+
+
+    /**
      * @brief Release the lock on the MegaApi if one is still held by this instance
      *
      * The MegaApi will be unable to continue work until all MegaApiLock objects release

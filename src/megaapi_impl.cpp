@@ -21854,6 +21854,18 @@ void MegaApiImpl::unlockMutex()
     sdkMutex.unlock();
 }
 
+bool MegaApiImpl::tryLockMutexFor(long long time)
+{
+    if (time <= 0)
+    {
+        return sdkMutex.try_lock();
+    }
+    else
+    {
+        return sdkMutex.try_lock_for(std::chrono::milliseconds(time));
+    }
+}
+
 TreeProcCopy::TreeProcCopy()
 {
     nn = NULL;
