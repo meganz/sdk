@@ -1912,7 +1912,7 @@ bool PosixDirAccess::dnext(string* path, string* name, bool followsymlinks, node
                 if (S_ISREG(statbuf.st_mode) || S_ISDIR(statbuf.st_mode)) // this evalves false for symlinks
                 //if (statbuf.st_mode & (S_IFREG | S_IFDIR)) //TODO: use this when symlinks are supported
                 {
-                    *name = globbuf.gl_pathv[globindex - 1];
+                    *name = globbuf.gl_pathv[globindex];
                     *type = (statbuf.st_mode & S_IFREG) ? FILENODE : FOLDERNODE;
 
                     return true;
