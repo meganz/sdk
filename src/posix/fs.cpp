@@ -1915,6 +1915,7 @@ bool PosixDirAccess::dnext(string* path, string* name, bool followsymlinks, node
                     *name = globbuf.gl_pathv[globindex];
                     *type = (statbuf.st_mode & S_IFREG) ? FILENODE : FOLDERNODE;
 
+                    globindex++;
                     return true;
                 }
             }
