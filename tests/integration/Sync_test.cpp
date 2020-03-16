@@ -73,6 +73,32 @@ fs::path fixSeparators(std::string p)
     return fs::u8path(p);
 }
 
+void printTreeSuffix(int depth, vector<bool> &lastleaf)
+{
+#ifdef _WIN32
+    const wchar_t *c0 = L" ";
+    const wchar_t *c1 = L"\u2502";
+    const wchar_t *c2 = L"\u2514";
+    const wchar_t *c3 = L"\u251c";
+    const wchar_t *c4 = L"\u2500\u2500";
+#else
+    const char *c0 = " ";
+    const char *c1 = "\u2502";
+    const char *c2 = "\u2514";
+    const char *c3 = "\u251c";
+    const char *c4 = "\u2500\u2500";
+#endif
+    for (int i = 0; i < depth-1; i++)
+    {
+        cout << (lastleaf.at(i)?c0:c1) << "   ";
+    }
+    if (lastleaf.size())
+    {
+        cout << (lastleaf.back()?c2:c3) << c4 << " ";
+    }
+}
+
+
 struct Model
 {
     // records what we think the tree should look like after sync so we can confirm it
@@ -84,6 +110,9 @@ struct Model
         string name;
         vector<unique_ptr<ModelNode>> kids;
         ModelNode* parent = nullptr;
+
+        string contents; // to store expected contents when different than filename
+
         string path() 
         {
             string s;
@@ -105,14 +134,24 @@ struct Model
             }
             return false;
         }
-        void print(string prefix="")
+
+        void print(vector<bool> &lastleaf, int depth = 0)
         {
-            cout << prefix << name << endl;
-            prefix.append(name).append("/");
-            for (const auto &in: kids)
+            printTreeSuffix(depth, lastleaf);
+            cout  << name << endl;
+            int i = 0;
+            for (auto &in: kids)
             {
-                in->print(prefix);
+                lastleaf.push_back(i==(kids.size()-1));
+                in->print(lastleaf, depth + 1);
+                i++;
             }
+        }
+
+        void print()
+        {
+            vector<bool> lfs;
+            print(lfs,0);
         }
 
     };
@@ -1050,8 +1089,16 @@ struct StandardClient : public MegaApp
             ifstream fs(p, ios::binary);
             char filedata[1024];
             fs.read(filedata, sizeof(filedata));
-            EXPECT_EQ(size_t(fs.gcount()), p.filename().u8string().size()) << " file is not expected size " << p;
-            EXPECT_TRUE(!memcmp(filedata, p.filename().u8string().data(), p.filename().u8string().size())) << " file data mismatch " << p;
+            if (mn->contents.empty())
+            {
+                EXPECT_EQ(size_t(fs.gcount()), p.filename().u8string().size()) << " file is not expected size " << p;
+                EXPECT_TRUE(!memcmp(filedata, p.filename().u8string().data(), p.filename().u8string().size())) << " file data mismatch " << p;
+            }
+            else
+            {
+                EXPECT_EQ(size_t(fs.gcount()), mn->contents.size()) << " file is not expected size " << p;
+                EXPECT_TRUE(!memcmp(filedata, mn->contents.data(), mn->contents.size())) << " file data mismatch " << p;
+            }
         }
 
         if (pathtype != FOLDERNODE)
@@ -1132,6 +1179,24 @@ struct StandardClient : public MegaApp
         CONFIRM_ALL = CONFIRM_LOCAL | CONFIRM_REMOTE,
     };
 
+    void printree(Node *n, vector<bool> &lastleaf, int depth = 0)
+    {
+        printTreeSuffix(depth, lastleaf);
+
+        cout << n->displayname() << endl;
+
+        auto children = n->children;
+        int i = 0;
+        auto it = children.begin();
+        for (; it != children.end(); i++, it++)
+        {
+            vector<bool> lfs = lastleaf;
+            lfs.push_back(i==(children.size()-1));
+            printree(*it, lfs, depth + 1);
+        }
+    }
+
+
     bool confirmModel(int syncid, Model::ModelNode* mnode, Confirm confirm)
     {
         auto si = syncSet.find(syncid);
@@ -1140,6 +1205,11 @@ struct StandardClient : public MegaApp
             cout << clientname << " syncid " << syncid << " not found " << endl;
             return false;
         }
+
+        ////// UNCOMMENT THESE LINES TO PRINT MODEL vs NODE tree
+        //cout << " mnode = " << endl; mnode->print();
+        //vector<bool> lfs;
+        //cout << " nodetree = " << endl; printree(client.nodebyhandle(si->second.h), lfs);
 
         // compare model aganst nodes representing remote state
         int descendants = 0;
@@ -2641,7 +2711,59 @@ GTEST_TEST(Sync, BasicSync_CreateRenameAndDeleteLink)
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
 }
 
-GTEST_TEST(Sync, BasicSync_CreateAndReplaceLinkLocally)
+GTEST_TEST(Sync, BasicSync_CreateAndReplaceLinkLocally) //create a symlink to a file and replace the symlink with that file
+{
+    // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
+    fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
+    StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
+    StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
+
+    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "f", 0, 0));
+    ASSERT_TRUE(clientA2.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
+    ASSERT_EQ(clientA1.basefolderhandle, clientA2.basefolderhandle);
+
+    Model model;
+    model.root->addkid(model.buildModelSubdirs("f", 1, 0, 1));
+
+    // set up sync for A1, it should build matching local folders
+    ASSERT_TRUE(clientA1.setupSync_mainthread("sync1", "f", 1));
+    ASSERT_TRUE(clientA2.setupSync_mainthread("sync2", "f", 2));
+
+    ASSERT_TRUE(createFile(clientA1.syncSet[1].localpath, "file0_f"));
+
+    waitonsyncs(4s, &clientA1, &clientA2);
+    clientA1.logcb = clientA2.logcb = true;
+    // check everything matches (model has expected state of remote and local)
+    ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
+
+    model.ensureLocalDebrisTmpLock("f"); // since we downloaded files
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
+
+    // create a link in the local filesystem and compare (nothing should change in remote) . TODO: change this when symlinks are supported
+    error_code linkage_error;
+    fs::create_symlink(clientA1.syncSet[1].localpath / "file0_f", clientA1.syncSet[1].localpath / "linked", linkage_error);
+    ASSERT_TRUE(!linkage_error) << linkage_error;
+
+    // let them catch up
+    waitonsyncs(DEFAULWAIT, &clientA1, &clientA2);
+
+    //check client 2 is unaffected
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
+    error_code rename_error;
+    fs::rename(clientA1.syncSet[1].localpath / "file0_f", clientA1.syncSet[1].localpath / "linked", rename_error);
+    ASSERT_TRUE(!rename_error) << rename_error;
+
+    // let them catch up
+    waitonsyncs(DEFAULWAIT, &clientA1, &clientA2);
+
+    //check client 2 is as expected
+    auto nodetorename = model.findnode("f/file0_f");
+    nodetorename->name = "linked";
+    nodetorename->contents = "file0_f"; //so that contents check does not use filename
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
+}
+
+GTEST_TEST(Sync, BasicSync_CreateAndReplaceLinkLocallyWithFolder) //create a symlink to a folder and replace the symlink with that folder
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
@@ -2665,8 +2787,7 @@ GTEST_TEST(Sync, BasicSync_CreateAndReplaceLinkLocally)
     ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
 
-
-    // move something in the local filesystem and see if we catch up in A1 and A2 (deleter and observer syncs)
+    // create a link in the local filesystem and compare (nothing should change in remote) . TODO: change this when symlinks are supported
     error_code linkage_error;
     fs::create_symlink(clientA1.syncSet[1].localpath / "f_0", clientA1.syncSet[1].localpath / "linked", linkage_error);
     ASSERT_TRUE(!linkage_error) << linkage_error;
@@ -2676,27 +2797,21 @@ GTEST_TEST(Sync, BasicSync_CreateAndReplaceLinkLocally)
 
     //check client 2 is unaffected
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
-    fs::rename(clientA1.syncSet[1].localpath / "f_0", clientA1.syncSet[1].localpath / "linked", linkage_error);
+    error_code remove_error;
+    fs::remove(clientA1.syncSet[1].localpath / "linked", remove_error);
+    ASSERT_TRUE(!remove_error) << remove_error;
+
+    error_code rename_error;
+    fs::rename(clientA1.syncSet[1].localpath / "f_0", clientA1.syncSet[1].localpath / "linked", rename_error);
+    ASSERT_TRUE(!rename_error) << rename_error;
 
     // let them catch up
     waitonsyncs(DEFAULWAIT, &clientA1, &clientA2);
-
-    //check client 2 is unaffected
-    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
-
-    fs::remove(clientA1.syncSet[1].localpath / "linked");
-    ASSERT_TRUE(createFile(clientA1.syncSet[1].localpath, "linked"));
-
-    // let them catch up
-    waitonsyncs(DEFAULWAIT, &clientA1, &clientA2);
-
-    model.findnode("f")->addkid(model.makeModelSubfile("linked"));
-    model.ensureLocalDebrisTmpLock("f"); // since we downloaded files
 
     //check client 2 is as expected
+    model.findnode("f/f_0")->name = "linked";
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
 }
-
 
 GTEST_TEST(Sync, BasicSync_CreateAndReplaceLinkUponSyncDown)
 {
