@@ -14931,19 +14931,6 @@ void MegaApiImpl::whyamiblocked_result(int code)
         return;
     }
 
-    if (request->getFlag()
-            && code != 500  // don't log out if we can be unblocked via sms verification
-            && code != 700) // don't log out if we can be unblocked via verification email (weak account protection)
-    {
-        client->locallogout(true);
-
-        MegaRequestPrivate *logoutRequest = new MegaRequestPrivate(MegaRequest::TYPE_LOGOUT);
-        logoutRequest->setFlag(false);
-        logoutRequest->setParamType(API_EBLOCKED);
-        requestQueue.push(logoutRequest);
-        waiter->notify();
-    }
-
     if (code <= 0)
     {
         MegaError megaError(code);
@@ -14983,6 +14970,7 @@ void MegaApiImpl::whyamiblocked_result(int code)
         }
         //else if (code == ACCOUNT_BLOCKED_DEFAULT) --> default reason
 
+        bool logoutAllowed = request->getFlag();
         request->setNumber(code);
         request->setText(reason.c_str());
         fireOnRequestFinish(request, API_OK);
@@ -14991,6 +14979,20 @@ void MegaApiImpl::whyamiblocked_result(int code)
         event->setNumber(code);
         event->setText(reason.c_str());
         fireOnEvent(event);
+
+        // (don't log out if we can be unblocked by email or sms)
+        if (logoutAllowed
+                && code != MegaApi::ACCOUNT_BLOCKED_VERIFICATION_SMS
+                && code != MegaApi::ACCOUNT_BLOCKED_VERIFICATION_EMAIL)
+        {
+            client->locallogout(true);
+
+            MegaRequestPrivate *logoutRequest = new MegaRequestPrivate(MegaRequest::TYPE_LOGOUT);
+            logoutRequest->setFlag(false);
+            logoutRequest->setParamType(API_EBLOCKED);
+            requestQueue.push(logoutRequest);
+            waiter->notify();
+        }
     }
 }
 
