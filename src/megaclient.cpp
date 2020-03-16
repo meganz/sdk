@@ -12575,7 +12575,6 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
             ll->getlocalpath(&localpath);
             fa->fopen(&localpath);
             isSymLink = fa->mIsSymLink;
-            LOG_debug << "checking if localpath is symlink: " << localpath;
         }
 #endif
         // do we have a corresponding remote child?

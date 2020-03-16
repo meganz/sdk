@@ -122,10 +122,12 @@ bool PosixFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
 
     type = TYPE_UNKNOWN;
     mIsSymLink = !lstat(nonblocking_localname.c_str(), &statbuf) && S_ISLNK(statbuf.st_mode);
-    if (mIsSymLink)
+    if (mIsSymLink && !PosixFileAccess::mFoundASymlink)
     {
+        LOG_warn << "Enabling symlink check for syncup";
         PosixFileAccess::mFoundASymlink = true;
     }
+
     if (!(mFollowSymLinks? stat(nonblocking_localname.c_str(), &statbuf) : lstat(nonblocking_localname.c_str(), &statbuf)))
     {
         errorcode = 0;
@@ -482,8 +484,9 @@ bool PosixFileAccess::fopen(string* f, bool read, bool write)
 
     bool statok = false;
     mIsSymLink = !lstat(f->c_str(), &statbuf) && S_ISLNK(statbuf.st_mode);
-    if (mIsSymLink)
+    if (mIsSymLink && !PosixFileAccess::mFoundASymlink)
     {
+        LOG_warn << "Enabling symlink check for syncup.";
         PosixFileAccess::mFoundASymlink = true;
     }
 
