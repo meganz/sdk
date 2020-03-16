@@ -1964,6 +1964,11 @@ void MegaClient::exec()
                             fnstats.eAgainCount++;
                         }
                     }
+                    else if (e == API_EBLOCKED)
+                    {
+                        app->request_error(API_EBLOCKED);
+                        stopsc = true;
+                    }
                     else
                     {
                         LOG_err << "Unexpected sc response: " << pendingsc->in;

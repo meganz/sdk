@@ -6827,19 +6827,34 @@ void DemoApp::whyamiblocked_result(int code)
         {
             reason = "Your account has been suspended due to multiple breaches of Mega's Terms of Service. Please check your email inbox.";
         }
+        else if (code == 300)
+        {
+            reason = "Your account has been suspended due to copyright violations. Please check your email inbox.";
+        }
+        else if (code == 400)
+        {
+            reason = "Your account has been disabled by your administrator. You may contact your business account administrator for further details.";
+        }
+        else if (code == 401)
+        {
+            reason = "Your account has been removed by your administrator. You may contact your business account administrator for further details.";
+        }
         else if (code == 500)
         {
-            reason = "Your account has been blocked, pending verification via SMS.";
+            reason = "Your account has been blocked pending verification via SMS.";
         }
-        //else if (code == 300) --> default reason
-
+        else if (code == 700)
+        {
+            reason = "Your account has been temporarily suspended for your safety. Please verify your email and follow its steps to unlock your account.";
+        }
+        //else if (code == ACCOUNT_BLOCKED_DEFAULT) --> default reason
 
         cout << "Reason: " << reason << endl;
 
-        if (code != 500)
+        if (code != 500 && code != 700)
         {
             cout << "Logging out..." << endl;
-            client->locallogout(false);
+            client->locallogout(true);
         }
     }
 }
