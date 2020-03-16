@@ -6716,7 +6716,7 @@ public:
      *
      * @return if the locking succeded
      */
-    bool try_lock_for(long long time);
+    bool tryLockFor(long long time);
 
 
     /**

@@ -2597,7 +2597,7 @@ class MegaApiImpl : public MegaApp
         void yield();
         void lockMutex();
         void unlockMutex();
-        bool tryLockMutex_for(long long time);
+        bool tryLockMutexFor(long long time);
 
 protected:
         static const unsigned int MAX_SESSION_LENGTH;

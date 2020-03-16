@@ -21850,7 +21850,7 @@ void MegaApiImpl::unlockMutex()
     sdkMutex.unlock();
 }
 
-bool MegaApiImpl::tryLockMutex_for(long long time)
+bool MegaApiImpl::tryLockMutexFor(long long time)
 {
     if (time <= 0)
     {

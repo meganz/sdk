@@ -5823,11 +5823,11 @@ void MegaApiLock::lockOnce()
 }
 
 
-bool MegaApiLock::try_lock_for(long long time)
+bool MegaApiLock::tryLockFor(long long time)
 {
     if (!locked)
     {
-        locked = api->tryLockMutex_for(time);
+        locked = api->tryLockMutexFor(time);
     }
 
     return locked;
