@@ -12723,7 +12723,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
             // local: file, remote: folder - overwrite
             // local: folder, remote: folder - recurse
             // local: file, remote: file - overwrite if newer
-            if (ll->type != rit->second->type || ll->mIsSymlink)
+            if (ll->type != rit->second->type || ll->mIsSymlink) //TODO: when Node has mIsSymlink, check !=
             {
                 insync = false;
                 LOG_warn << "Type changed: " << localname << " LNtype: " << ll->type << " Ntype: " << rit->second->type << " isSymLink = " << ll->mIsSymlink;

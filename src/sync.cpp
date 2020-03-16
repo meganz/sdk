@@ -1362,7 +1362,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
         {
             if (l)
             {
-                if (l->type == fa->type)
+                if (l->type == fa->type && l->mIsSymlink == fa->mIsSymLink)
                 {
                     // mark as present
                     l->setnotseen(0);
