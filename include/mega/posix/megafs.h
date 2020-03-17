@@ -139,6 +139,8 @@ public:
     int stealFileDescriptor();
     int defaultfilepermissions;
 
+    static bool mFoundASymlink;
+
 #ifndef HAVE_FDOPENDIR
     DIR* dp;
 #endif
