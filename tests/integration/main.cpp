@@ -39,9 +39,15 @@ public:
             os << ts;
         }
 #ifdef ENABLE_LOG_PERFORMANCE
-        os << "] " << mega::SimpleLogger::toStr(static_cast<mega::LogLevel>(loglevel)) << ": " << std::flush;
-        for (int i = 0; i < numberMessages; ++i) os.write(directMessages[i], directMessagesSizes[i]);
-        os.flush();
+        os << "] " << mega::SimpleLogger::toStr(static_cast<mega::LogLevel>(loglevel)) << ": ";
+        if (message)
+        {
+            os << message;
+        }
+        else
+        {
+            for (int i = 0; i < numberMessages; ++i) os.write(directMessages[i], directMessagesSizes[i]);
+        }
 #else
         os << "] " << mega::SimpleLogger::toStr(static_cast<mega::LogLevel>(loglevel)) << ": " << message;
 #endif

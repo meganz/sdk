@@ -50,18 +50,22 @@ static const string EMPTYFILE   = "empty-file.txt";
 static const string AVATARSRC   = "logo.png";
 static const string AVATARDST   = "deleteme.png";
 
-class MegaLoggerSDK : public MegaLogger {
-
-public:
-    MegaLoggerSDK(const char *filename);
-    ~MegaLoggerSDK();
-
-private:
-    std::ofstream sdklog;
-
-protected:
-    void log(const char *time, int loglevel, const char *source, const char *message);
-};
+//class MegaLoggerSDK : public MegaLogger {
+//
+//public:
+//    MegaLoggerSDK(const char *filename);
+//    ~MegaLoggerSDK();
+//
+//private:
+//    std::ofstream sdklog;
+//
+//protected:
+//    void log(const char *time, int loglevel, const char *source, const char *message
+//#ifdef ENABLE_LOG_PERFORMANCE
+//                     , const char **directMessages = nullptr, size_t *directMessagesSizes = nullptr, int numberMessages = 0
+//#endif
+//    ) override;
+//};
 
 struct TransferTracker : public ::mega::MegaTransferListener
 {
@@ -151,7 +155,7 @@ public:
     std::unique_ptr<MegaStringListMap> stringListMap;
     std::unique_ptr<MegaStringTable> stringTable;
 
-    MegaLoggerSDK *logger;
+    //MegaLoggerSDK *logger;
 
     m_off_t onTransferUpdate_progress;
     m_off_t onTransferUpdate_filesize;
