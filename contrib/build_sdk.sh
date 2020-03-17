@@ -1509,7 +1509,7 @@ main() {
             mkdir -p $persistent_path/sdk/3rdparty_status
             echo "Using $persistent_path/sdk/ as persistent path to store current build status."
             cp --preserve=timestamps -r $install_dir/* $persistent_path/sdk/3rdparty/
-            rm $persistent_path/sdk/3rdparty_status/*
+            rm -f $persistent_path/sdk/3rdparty_status/*
             cp --preserve=timestamps $status_dir/*.success $persistent_path/sdk/3rdparty_status/
         fi
     fi
