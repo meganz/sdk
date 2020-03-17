@@ -7,7 +7,7 @@
  * This file is part of the MEGA SDK - Client Access Engine.
  *
  * Applications using the MEGA API must present a valid application key
- * and comply with the the rules set forth in the Terms of Service.
+ * and comply with the the rules set forth in the Terms of 	Service.
  *
  * The MEGA SDK is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -2445,7 +2445,7 @@ TEST_F(SdkTest, SdkTestFolderIteration)
     {
         nodetype_t type;
         string itemlocalname;
-        while (da->dnext(NULL, &itemlocalname, true, &type))
+        while (da->dnext(&localdir, &itemlocalname, true, &type))
         {
             string leafNameUtf8 = localpathToUtf8Leaf(itemlocalname, fsa);
 
