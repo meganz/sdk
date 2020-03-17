@@ -134,7 +134,7 @@ public:
 
 typedef std::vector<std::ostream *> OutputStreams;
 
-const static int LOGGER_CHUNKS_SIZE = 1024;
+const static size_t LOGGER_CHUNKS_SIZE = 1024;
 
 /**
  * @brief holds a const char * and its size to pass to SimpleLogger, to use the direct logging logic
@@ -169,9 +169,9 @@ public:
         return mSize;
     }
 
-    bool isBigEnoughToOutputDirectly(int bufferedSize) const
+    bool isBigEnoughToOutputDirectly(size_t bufferedSize) const
     {
-        return (mForce || mSize > directMsgThreshold || mSize >= std::max<size_t>(0, LOGGER_CHUNKS_SIZE - bufferedSize - 40/*room for [file:line]*/) );
+        return (mForce || mSize > directMsgThreshold || mSize + bufferedSize + 40 >= LOGGER_CHUNKS_SIZE /*room for [file:line]*/ );
     }
 
     const char *constChar() const
@@ -405,7 +405,7 @@ public:
             {
                 std::unique_ptr<const char *[]> dm(new const char *[mDirectMessages.size()]);
                 std::unique_ptr<size_t[]> dms(new size_t[mDirectMessages.size()]);
-                int i = 0;
+                unsigned i = 0;
                 for (const auto & d : mDirectMessages)
                 {
                     dm[i] = d.constChar();
@@ -413,7 +413,7 @@ public:
                     i++;
                 }
 
-                logger->log(nullptr, level, nullptr, "", dm.get(), dms.get(), i);
+                logger->log(nullptr, level, nullptr, "", dm.get(), dms.get(), static_cast<int>(i));
             }
         }
         for (auto &s: mCopiedParts)
@@ -520,7 +520,7 @@ public:
 #ifndef ENABLE_LOG_PERFORMANCE
     *this << obj.constChar();
 #else
-        if (!obj.isBigEnoughToOutputDirectly(std::distance(mBuffer.begin(), mBufferIt))) //don't bother with little msg
+        if (!obj.isBigEnoughToOutputDirectly(static_cast<size_t>(std::distance(mBuffer.begin(), mBufferIt)))) //don't bother with little msg
         {
             *this << obj.constChar();
         }

@@ -147,22 +147,22 @@ public:
 
     bool fopen(string*, bool read, bool write, DirAccess* iteratingDir = nullptr) override;
 
-    void updatelocalname(string*);
+    void updatelocalname(string*) override;
     bool fread(string *, unsigned, unsigned, m_off_t);
-    bool fwrite(const byte *, unsigned, m_off_t);
+    bool fwrite(const byte *, unsigned, m_off_t) override;
 
-    bool sysread(byte *, unsigned, m_off_t);
-    bool sysstat(m_time_t*, m_off_t*);
-    bool sysopen(bool async = false);
-    void sysclose();
+    bool sysread(byte *, unsigned, m_off_t) override;
+    bool sysstat(m_time_t*, m_off_t*) override;
+    bool sysopen(bool async = false) override;
+    void sysclose() override;
 
     PosixFileAccess(Waiter *w, int defaultfilepermissions = 0600, bool followSymLinks = true);
 
     // async interface
-    virtual bool asyncavailable();
-    virtual void asyncsysopen(AsyncIOContext* context);
-    virtual void asyncsysread(AsyncIOContext* context);
-    virtual void asyncsyswrite(AsyncIOContext* context);
+    bool asyncavailable() override;
+    void asyncsysopen(AsyncIOContext* context) override;
+    void asyncsysread(AsyncIOContext* context) override;
+    void asyncsyswrite(AsyncIOContext* context) override;
 
     ~PosixFileAccess();
 

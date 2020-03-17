@@ -731,6 +731,9 @@ target_compile_definitions(test_integration PRIVATE _SILENCE_TR1_NAMESPACE_DEPRE
 target_compile_definitions(tool_purge_account PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
 target_link_libraries(test_unit gtest Mega )
 target_link_libraries(test_integration gtest Mega )
+if(APPLE)
+    target_link_libraries(test_integration "-framework Security" )
+endif()
 target_link_libraries(tool_purge_account gtest Mega )
 
 if(WIN32)
