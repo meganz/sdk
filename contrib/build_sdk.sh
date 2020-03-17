@@ -878,38 +878,6 @@ EOF
     fi
 }
 
-# we can't build vanilla ReadLine under MinGW
-readline_win_pkg() {
-    local build_dir=$1
-    local install_dir=$2
-    local name="Readline"
-    local readline_ver="5.0.1"
-    local readline_url="http://downloads.sourceforge.net/project/gnuwin32/readline/5.0-1/readline-5.0-1-bin.zip?r=&ts=1468492036&use_mirror=freefr"
-    local readline_md5="91beae8726edd7ad529f67d82153e61a"
-    local readline_file="readline-bin.zip"
-    local readline_dir="readline-bin"
-
-    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ] && [ `cat $status_dir/$name.success` = $readline_md5 ]; then
-        echo "$name already built"
-        return
-    else
-        rm -f $status_dir/$name.success
-    fi
-
-    package_download $name $readline_url $readline_file $readline_md5
-    if [ $download_only -eq 1 ]; then
-        return
-    fi
-
-    package_extract $name $readline_file $readline_dir
-
-    # manually copy binary files
-    cp -R $readline_dir/include/* $install_dir/include/ || exit 1
-    # fix library name
-    cp $readline_dir/lib/libreadline.dll.a $install_dir/lib/libreadline.a || exit 1
-    echo $readline_md5 > $status_dir/$name.success
-}
-
 mediainfo_pkg() {
     local build_dir=$1
     local install_dir=$2
