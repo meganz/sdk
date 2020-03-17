@@ -930,7 +930,7 @@ mediainfo_pkg() {
     local mediainfolib_dir_extract="MediaInfoLib-$mediainfolib_ver"
     local mediainfolib_dir="MediaInfoLib-$mediainfolib_ver/Project/GNU/Library"
 
-    if [ $incremental -eq 1 ] && [ -e $status_dir/$mediainfolib_name.success -a `cat $status_dir/$mediainfolib_name.success` = $mediainfolib_md5]; then
+    if [ $incremental -eq 1 ] && [ -e $status_dir/$mediainfolib_name.success ] && [ `cat $status_dir/$mediainfolib_name.success` = $mediainfolib_md5]; then
         echo "$mediainfolib_name already built"
         return
     else
