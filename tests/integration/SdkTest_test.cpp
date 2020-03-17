@@ -2340,6 +2340,171 @@ TEST_F(SdkTest, SdkTestShareKeys)
     ASSERT_STREQ(bView2->get(1)->getName(), "NO_KEY");
 }
 
+string localpathToUtf8Leaf(const string& itemlocalname, FSACCESS_CLASS& fsa)
+{
+    string::size_type pos = 0, testpos = 0;
+    while (string::npos != (testpos = itemlocalname.find(fsa.localseparator, pos)))
+    {
+        pos = testpos + fsa.localseparator.size();
+    }
+
+    string leafNameLocal = itemlocalname.substr(pos);
+    string leafNameUtf8;
+    fsa.local2path(&leafNameLocal, &leafNameUtf8);
+    return leafNameUtf8;
+}
+
+string fspathToLocal(const fs::path& p, FSACCESS_CLASS& fsa)
+{
+    string path(p.u8string());
+    string local;
+    fsa.path2local(&path, &local);
+    return local;
+}
+    
+
+
+TEST_F(SdkTest, SdkTestFolderIteration)
+{
+    error_code ec;
+    fs::remove_all("test_SdkTestFolderIteration", ec);
+    ASSERT_TRUE(!ec) << "could not remove old test folder";
+
+    fs::create_directory("test_SdkTestFolderIteration", ec);
+    ASSERT_TRUE(!ec) << "could not create test folder";
+
+    fs::path iteratePath = fs::current_path() / "test_SdkTestFolderIteration";
+
+    // make a directory
+    fs::create_directory(iteratePath / "folder");
+
+    // make a file
+    {
+        ofstream f( (iteratePath / "file.txt").u8string().c_str());
+        f << "file content";
+    }
+
+    // make a symlink to a folder (not recoginised by our dnext() on windows currently)
+    fs::create_directory_symlink(iteratePath / "folder", iteratePath / "folderlink", ec);
+    ASSERT_TRUE(!ec) << "could not create folder symlink";
+
+    // make a symlinnk to a file
+    fs::create_symlink(iteratePath / "file.txt", iteratePath / "filelink.txt", ec);
+    ASSERT_TRUE(!ec) << "could not create folder symlink";
+
+    // note on windows:  symlinks are excluded by skipAttributes for FILE_ATTRIBUTE_REPARSE_POINT (also see https://docs.microsoft.com/en-us/windows/win32/fileio/determining-whether-a-directory-is-a-volume-mount-point)
+
+    struct FileAccessFields
+    {
+        m_off_t size = -2;
+        m_time_t mtime = 2;
+        handle fsid = 3;
+        bool fsidvalid = false;
+        nodetype_t type = (nodetype_t)-9;
+        bool mIsSymLink = false;
+        bool retry = false;
+        int errorcode = -998;
+
+        FileAccessFields() = default;
+
+        FileAccessFields(const FileAccess& f) 
+        {
+            size = f.size;
+            mtime = f.mtime;
+            fsid = f.fsid;
+            fsidvalid = f.fsidvalid;
+            type = f.type;
+            mIsSymLink = f.mIsSymLink;
+            retry = f.retry;
+            errorcode = f.errorcode;
+        }
+        bool operator == (const FileAccessFields& f) const
+        {
+            if (size != f.size) { EXPECT_EQ(size, f.size); return false; }
+            if (mtime != f.mtime) { EXPECT_EQ(mtime, f.mtime); return false; }
+            if (fsid != f.fsid) { EXPECT_EQ(fsid, f.fsid); return false; }
+            if (fsidvalid != f.fsidvalid) { EXPECT_EQ(fsidvalid, f.fsidvalid); return false; }
+            if (type != f.type) { EXPECT_EQ(type, f.type); return false; }
+            if (mIsSymLink != f.mIsSymLink) { EXPECT_EQ(mIsSymLink, f.mIsSymLink); return false; }
+            if (retry != f.retry) { EXPECT_EQ(retry, f.retry); return false; }
+            if (errorcode != f.errorcode) { EXPECT_EQ(errorcode, f.errorcode); return false; }
+            return true;
+        }
+    };
+
+    // capture results from the ways of gettnig the file info
+    std::map<std::string, FileAccessFields > plain_fopen;
+    std::map<std::string, FileAccessFields > iterate_fopen;
+    std::map<std::string, FileAccessFields > plain_follow_fopen;
+    std::map<std::string, FileAccessFields > iterate_follow_fopen;
+
+    FSACCESS_CLASS fsa;
+    string localdir = fspathToLocal(iteratePath, fsa);
+    std::unique_ptr<DirAccess> da(fsa.newdiraccess());
+    if (da->dopen(&localdir, NULL, false))
+    {
+        nodetype_t type;
+        string itemlocalname;
+        while (da->dnext(NULL, &itemlocalname, true, &type))
+        {
+            string leafNameUtf8 = localpathToUtf8Leaf(itemlocalname, fsa);
+
+            std::unique_ptr<FileAccess> plain_fopen_fa(fsa.newfileaccess(true));
+            std::unique_ptr<FileAccess> iterate_fopen_fa(fsa.newfileaccess(false));
+            std::unique_ptr<FileAccess> plain_follow_fopen_fa(fsa.newfileaccess(true));
+            std::unique_ptr<FileAccess> iterate_follow_fopen_fa(fsa.newfileaccess(false));
+            
+            string localpath = fspathToLocal(iteratePath / leafNameUtf8, fsa);
+
+            ASSERT_TRUE(plain_fopen_fa->fopen(&localpath, true, false));
+            plain_fopen[leafNameUtf8] = *plain_fopen_fa;
+
+            ASSERT_TRUE(iterate_fopen_fa->fopen(&localpath, true, false, da.get()));
+            iterate_fopen[leafNameUtf8] = *iterate_fopen_fa;
+            
+            ASSERT_TRUE(plain_follow_fopen_fa->fopen(&localpath, true, false));
+            plain_follow_fopen[leafNameUtf8] = *plain_follow_fopen_fa;
+
+            ASSERT_TRUE(iterate_follow_fopen_fa->fopen(&localpath, true, false, da.get()));
+            iterate_follow_fopen[leafNameUtf8] = *iterate_follow_fopen_fa;
+        }
+    }
+
+    ASSERT_EQ(plain_fopen.size(), 2u);
+    ASSERT_EQ(iterate_fopen.size(), 2u);
+    ASSERT_EQ(plain_follow_fopen.size(), 2u);
+    ASSERT_EQ(iterate_follow_fopen.size(), 2u);
+
+    std::array<std::string, 2> names { "folder", "file.txt"/*, "folderlink"*/ /*, "filelink.txt"*/ };
+
+    for (auto& name : names)
+    {
+        ASSERT_TRUE(plain_fopen.find(name) != plain_fopen.end()) << name;
+        ASSERT_TRUE(iterate_fopen.find(name) != iterate_fopen.end()) << name;
+        ASSERT_TRUE(plain_follow_fopen.find(name) != plain_follow_fopen.end()) << name;
+        ASSERT_TRUE(iterate_follow_fopen.find(name) != iterate_follow_fopen.end()) << name;
+
+        auto& plain = plain_fopen[name];
+        auto& iterate = iterate_fopen[name];
+        auto& plain_follow = plain_follow_fopen[name];
+        auto& iterate_follow = iterate_follow_fopen[name];
+
+        ASSERT_EQ(plain, iterate)  << name;
+        ASSERT_EQ(plain_follow, iterate_follow)  << name;
+    }
+
+    //ASSERT_EQ(plain_fopen["folder"].size, 0);  size field is not set for folders
+    ASSERT_EQ(plain_fopen["folder"].type, FOLDERNODE);
+    ASSERT_EQ(plain_fopen["folder"].fsidvalid, true);
+
+    ASSERT_EQ(plain_fopen["file.txt"].size, 12);
+    ASSERT_EQ(plain_fopen["file.txt"].fsidvalid, true);
+    ASSERT_EQ(plain_fopen["file.txt"].type, FILENODE);
+
+
+}
+
+
 
 /**
 * @brief TEST_F SdkTestConsoleAutocomplete
@@ -3868,7 +4033,7 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
 
     int64_t filesize = getFilesize(filename2);
     std::ifstream compareDecryptedFile(filename2.c_str(), ios::binary);
-    std::vector<::mega::byte> compareDecryptedData(filesize);
+    std::vector<::mega::byte> compareDecryptedData((size_t)filesize);
     compareDecryptedFile.read((char*)compareDecryptedData.data(), filesize);
 
     m_time_t starttime = m_time();
