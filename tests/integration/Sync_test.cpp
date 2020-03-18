@@ -2848,6 +2848,7 @@ GTEST_TEST(Sync, BasicSync_CreateAndReplaceLinkUponSyncDown)
     //check client 2 is unaffected
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
 
+    //create a file in client 2 that will be synced down and move link to sync debris in 1
     ASSERT_TRUE(createFile(clientA2.syncSet[2].localpath, "linked"));
 
     // let them catch up

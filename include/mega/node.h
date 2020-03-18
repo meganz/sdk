@@ -280,7 +280,7 @@ struct MEGA_API LocalNode : public File
     class Sync* sync = nullptr;
 
     // is symlink?
-    bool mIsSymlink = false;
+    bool mIsSymlink = false; //TODO: serialize this
 
     // parent linkage
     LocalNode* parent = nullptr;

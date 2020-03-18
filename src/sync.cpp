@@ -1679,7 +1679,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
         if (l)
         {
             // detect file changes or recurse into new subfolders
-            if (l->type == FOLDERNODE)
+            if (l->type == FOLDERNODE && !l->mIsSymlink)
             {
                 if (newnode)
                 {

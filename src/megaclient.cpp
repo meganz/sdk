@@ -12333,7 +12333,23 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
             // local: file, remote: folder - ignore
             // local: folder, remote: folder - recurse
             // local: file, remote: file - overwrite if newer
-            if (ll->type != rit->second->type)
+            // symlink: move to sync debris : overwrite if newer
+            if (ll->mIsSymlink && ll->mtime < rit->second->mtime)
+            {
+                LOG_warn << "LocalNode children is a SymLink. it will be overriten.";
+
+                // we need to move to localdebris here. for deleted replaced folder/files, ll->deleted is marked as true, and will be
+                // moved later in this function. For symlinks, that's not the case.
+                if (l->sync->movetolocaldebris(localpath))
+                {
+                    LOG_debug << "local symlink moved to local debris: " << localpath;
+                }
+
+                lit++;
+                continue;
+            }
+
+            if (ll->type != rit->second->type || ll->mIsSymlink)
             {
                 // folder/file clash: do nothing (rather than attempting to
                 // second-guess the user)
@@ -12532,15 +12548,13 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                 if (rit->second->localnode != (LocalNode*)~0
                         && (f->fopen(localpath) || f->type == FOLDERNODE))
                 {
-                    if (f->mIsSymLink && l->sync->movetolocaldebris(localpath))
+                    if (f->mIsSymLink)
                     {
-                        LOG_debug << "Found a link in localpath " << localpath;
+                        LOG_debug << "Found a link at syncdown in localpath: " << localpath;
                     }
-                    else
-                    {
-                        LOG_debug << "Skipping download over an unscanned file/folder, or the file/folder is not to be synced (special attributes)";
-                        download = false;
-                    }
+
+                    LOG_debug << "Skipping download over an unscanned file/folder, or the file/folder is not to be synced (special attributes): " << localpath;
+                    download = false;
                 }
                 f.reset();
                 rit->second->localnode = NULL;
@@ -12564,13 +12578,20 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
             else
             {
                 LOG_debug << "Creating local folder";
+                bool create = true;
                 auto f = fsaccess->newfileaccess(false);
                 if (f->fopen(localpath) || f->type == FOLDERNODE)
                 {
-                    LOG_debug << "Skipping folder creation over an unscanned file/folder, or the file/folder is not to be synced (special attributes)";
+                    if (f->mIsSymLink)
+                    {
+                        LOG_debug << "Found a link at syncdown in localpath: " << localpath;
+                    }
+                    LOG_debug << "Skipping folder creation over an unscanned file/folder, or the file/folder is not to be synced (special attributes): " << localpath;
+                    create = false;
                 }
+
                 // create local path, add to LocalNodes and recurse
-                else if (fsaccess->mkdirlocal(localpath))
+                if (create && fsaccess->mkdirlocal(localpath))
                 {
                     LocalNode* ll = l->sync->checkpath(l, localpath, &localname, NULL, true);
 
@@ -12729,11 +12750,19 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
             // local: file, remote: folder - overwrite
             // local: folder, remote: folder - recurse
             // local: file, remote: file - overwrite if newer
+            // symlink: overwrite if newer
             if (ll->type != rit->second->type || ll->mIsSymlink) //TODO: when Node has mIsSymlink, check !=
             {
                 insync = false;
                 LOG_warn << "Type changed: " << localname << " LNtype: " << ll->type << " Ntype: " << rit->second->type << " isSymLink = " << ll->mIsSymlink;
-                movetosyncdebris(rit->second, l->sync->inshare);
+                if (!ll->mIsSymlink || ll->mtime > rit->second->mtime)
+                {
+                    if (ll->mIsSymlink)
+                    {
+                        LOG_warn << "local path replaced by symlink newer than remote node. Moving remote to syncdebris: " << localname;
+                    }
+                    movetosyncdebris(rit->second, l->sync->inshare);
+                }
             }
             else
             {
