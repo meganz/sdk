@@ -529,9 +529,9 @@ bool PosixFileAccess::fopen(string* f, bool read, bool write, DirAccess* iterati
                 }
             #endif
 
-            size = statbuf.st_size;
-            mtime = statbuf.st_mtime;
             type = S_ISDIR(statbuf.st_mode) ? FOLDERNODE : FILENODE;
+            size = (type == FILENODE && !mIsSymLink) ? statbuf.st_size : 0;
+            mtime = statbuf.st_mtime;
             // in the future we might want to add LINKNODE to type and set it here using S_ISLNK
             fsid = (handle)statbuf.st_ino;
             fsidvalid = true;
@@ -1909,7 +1909,7 @@ bool PosixDirAccess::dnext(string* path, string* name, bool followsymlinks, node
         {
             if (followsymlinks ? !stat(globbuf.gl_pathv[globindex], &statbuf) : !lstat(globbuf.gl_pathv[globindex], &currentItemStat))
             {
-                if (S_ISREG(statbuf.st_mode) || S_ISDIR(statbuf.st_mode)) // this evalves false for symlinks
+                if (S_ISREG(statbuf.st_mode) || S_ISDIR(statbuf.st_mode)) // this evaluates false for symlinks
                 //if (statbuf.st_mode & (S_IFREG | S_IFDIR)) //TODO: use this when symlinks are supported
                 {
                     *name = globbuf.gl_pathv[globindex];

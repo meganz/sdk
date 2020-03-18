@@ -74,26 +74,26 @@ struct MEGA_API DirAccess;
 struct MEGA_API FileAccess
 {
     // file size
-    m_off_t size;
+    m_off_t size = 0;
 
     // mtime of a file opened for reading
-    m_time_t mtime;
+    m_time_t mtime = 0;
 
     // local filesystem record id (survives renames & moves)
-    handle fsid;
-    bool fsidvalid;
+    handle fsid = 0;
+    bool fsidvalid = false;
 
     // type of opened path
-    nodetype_t type;
+    nodetype_t type = TYPE_UNKNOWN;
 
     // if opened path is a symlink
     bool mIsSymLink = false;
 
     // if the open failed, retry indicates a potentially transient reason
-    bool retry;
+    bool retry = false;
 
     //error code related to the last call to fopen() without parameters
-    int errorcode;
+    int errorcode = 0;
 
     // for files "opened" in nonblocking mode, the current local filename
     string nonblocking_localname;
