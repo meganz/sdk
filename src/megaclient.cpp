@@ -11032,20 +11032,24 @@ void MegaClient::fetchnodes(bool nocache)
 
         if (!loggedinfolderlink())
         {
+            if (!k.size())
+            {
+                getuserdata();
+            }
+            else
+            {
+                reqs.add(new CommandGetUA(this, uid.c_str(), ATTR_PUSH_SETTINGS, NULL, 0));
+
+            }
+
             if (loggedin() == FULLACCOUNT)
             {
                 fetchkeys();
                 loadAuthrings();
             }
-            if (!k.size())
-            {
-                getuserdata();
-            }
 
             reqs.add(new CommandGetUA(this, uid.c_str(), ATTR_DISABLE_VERSIONS, NULL, 0));
-
             fetchtimezone();
-            reqs.add(new CommandGetUA(this, uid.c_str(), ATTR_PUSH_SETTINGS, NULL, 0));
         }
 
         reqs.add(new CommandFetchNodes(this, nocache));
@@ -11060,10 +11064,13 @@ void MegaClient::fetchkeys()
     discarduser(me);
     User *u = finduser(me, 1);
 
-    int creqtag = reqtag;
-    reqtag = 0;
-    reqs.add(new CommandPubKeyRequest(this, u));    // public RSA
-    reqtag = creqtag;
+    if (k.size())
+    {
+        int creqtag = reqtag;
+        reqtag = 0;
+        reqs.add(new CommandPubKeyRequest(this, u));    // public RSA
+        reqtag = creqtag;
+    }
 
     getua(u, ATTR_KEYRING, 0);        // private Cu25519 & private Ed25519
     getua(u, ATTR_ED25519_PUBK, 0);
