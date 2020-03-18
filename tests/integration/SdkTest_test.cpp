@@ -2466,21 +2466,19 @@ TEST_F(SdkTest, SdkTestFolderIteration)
         std::unique_ptr<FileAccess> fopen_directory(fsa.newfileaccess(true));
         ASSERT_TRUE(fopen_directory->fopen(&localdir, true, false));
 
-        // now open and iterate the directory (either by name of fopen'd directory)
+        // now open and iterate the directory, not following symlinks (either by name of fopen'd directory)
         std::unique_ptr<DirAccess> da(fsa.newdiraccess());
         if (da->dopen(openWithNameOrUseFileAccess ? &localdir : NULL, openWithNameOrUseFileAccess ? NULL : fopen_directory.get(), false))
         {
             nodetype_t type;
             string itemlocalname;
-            while (da->dnext(&localdir, &itemlocalname, true, &type))
+            while (da->dnext(&localdir, &itemlocalname, false, &type))
             {
                 string leafNameUtf8 = localpathToUtf8Leaf(itemlocalname, fsa);
 
                 std::unique_ptr<FileAccess> plain_fopen_fa(fsa.newfileaccess(false));
                 std::unique_ptr<FileAccess> iterate_fopen_fa(fsa.newfileaccess(false));
-                std::unique_ptr<FileAccess> plain_follow_fopen_fa(fsa.newfileaccess(true));
-                std::unique_ptr<FileAccess> iterate_follow_fopen_fa(fsa.newfileaccess(true));
-            
+
                 string localpath = fspathToLocal(iteratePath / leafNameUtf8, fsa);
 
                 ASSERT_TRUE(plain_fopen_fa->fopen(&localpath, true, false));
@@ -2488,11 +2486,31 @@ TEST_F(SdkTest, SdkTestFolderIteration)
 
                 ASSERT_TRUE(iterate_fopen_fa->fopen(&localpath, true, false, da.get()));
                 iterate_fopen[leafNameUtf8] = *iterate_fopen_fa;
+            }
+        }
+
+        std::unique_ptr<FileAccess> fopen_directory2(fsa.newfileaccess(true));  // dopen must have a fresh fileaccess when that form is used
+        ASSERT_TRUE(fopen_directory2->fopen(&localdir, true, false));
+
+        // now open and iterate the directory, following symlinks (either by name of fopen'd directory)
+        std::unique_ptr<DirAccess> da_follow(fsa.newdiraccess());
+        if (da_follow->dopen(openWithNameOrUseFileAccess ? &localdir : NULL, openWithNameOrUseFileAccess ? NULL : fopen_directory2.get(), false))
+        {
+            nodetype_t type;
+            string itemlocalname;
+            while (da_follow->dnext(&localdir, &itemlocalname, true, &type))
+            {
+                string leafNameUtf8 = localpathToUtf8Leaf(itemlocalname, fsa);
+
+                std::unique_ptr<FileAccess> plain_follow_fopen_fa(fsa.newfileaccess(true));
+                std::unique_ptr<FileAccess> iterate_follow_fopen_fa(fsa.newfileaccess(true));
             
+                string localpath = fspathToLocal(iteratePath / leafNameUtf8, fsa);
+
                 ASSERT_TRUE(plain_follow_fopen_fa->fopen(&localpath, true, false));
                 plain_follow_fopen[leafNameUtf8] = *plain_follow_fopen_fa;
 
-                ASSERT_TRUE(iterate_follow_fopen_fa->fopen(&localpath, true, false, da.get()));
+                ASSERT_TRUE(iterate_follow_fopen_fa->fopen(&localpath, true, false, da_follow.get()));
                 iterate_follow_fopen[leafNameUtf8] = *iterate_follow_fopen_fa;
             }
         }
