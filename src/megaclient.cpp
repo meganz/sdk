@@ -2590,7 +2590,10 @@ void MegaClient::exec()
                             }
 
                             // delete files that were overwritten by folders in syncup()
-                            execsyncdeletions();  
+                            {
+                                DBTableTransactionCommitter committer(tctable);
+                                execsyncdeletions();
+                            }
 
                             if (synccreate.size())
                             {
@@ -2679,7 +2682,10 @@ void MegaClient::exec()
         }
         else
         {
-            notifypurge();
+            {
+                DBTableTransactionCommitter committer(tctable);
+                notifypurge();
+            }
 
             // sync timer: retry syncdown() ops in case of local filesystem lock clashes
             if (syncdownretry && syncdownbt.armed())
