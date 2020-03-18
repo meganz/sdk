@@ -2069,6 +2069,7 @@ class MegaApiImpl : public MegaApp
         bool areCredentialsVerified(MegaUser *user);
         void verifyCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
         void resetCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
+        char* getMyPrivkey();
         static void setLogLevel(int logLevel);
         static void setMaxPayloadLogSize(long long maxSize);
         static void addLoggerClass(MegaLogger *megaLogger);

@@ -5406,6 +5406,19 @@ void MegaApiImpl::resetCredentials(MegaUser *user, MegaRequestListener *listener
     waiter->notify();
 }
 
+char *MegaApiImpl::getMyPrivkey()
+{
+    SdkMutexGuard g(sdkMutex);
+    if (ISUNDEF(client->me))
+    {
+        return nullptr;
+    }
+
+    char *privbuff =  client->mPrivKey.size() ? MegaApi::strdup(client->mPrivKey.c_str()) : nullptr;
+
+    return privbuff;
+}
+
 void MegaApiImpl::setLogLevel(int logLevel)
 {
     externalLogger.setLogLevel(logLevel);

@@ -8611,6 +8611,19 @@ class MegaApi
         void resetCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Returns priv key of the currently open account
+         *
+         * If the MegaApi object isn't logged in or there's no pub key available,
+         * this function returns NULL
+         *
+         * You take the ownership of the returned value.
+         * Use delete [] to free it.
+         *
+         * @return privkey of the current account
+         */
+        char *getMyPrivkey();
+
+        /**
          * @brief Set the active log level
          *
          * This function sets the log level of the logging system. Any log listener registered by

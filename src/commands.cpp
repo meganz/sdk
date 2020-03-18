@@ -1927,6 +1927,8 @@ void CommandLogin::procresult()
                     {
                         // decrypt and set private key
                         client->key.ecb_decrypt(privkbuf, len_privk);
+                        client->mPrivKey.resize(AsymmCipher::MAXKEYLENGTH * 2);
+                        client->mPrivKey.resize(Base64::btoa(privkbuf, len_privk, (char *)client->mPrivKey.data()));
 
                         if (!client->asymkey.setkey(AsymmCipher::PRIVKEY, privkbuf, len_privk))
                         {
