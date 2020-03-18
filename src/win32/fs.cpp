@@ -1553,6 +1553,9 @@ bool WinFileSystemAccess::issyncsupported(string *localpath, bool *isnetwork)
 
 bool WinDirAccess::dopen(string* name, FileAccess* f, bool glob)
 {
+    assert((name && !f) || (!name && f));
+    assert(!glob || name);
+
     if (f)
     {
         if ((hFind = ((WinFileAccess*)f)->hFind) != INVALID_HANDLE_VALUE)
