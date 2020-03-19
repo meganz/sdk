@@ -2463,7 +2463,7 @@ TEST_F(SdkTest, SdkTestFolderIteration)
         FSACCESS_CLASS fsa;
         string localdir = fspathToLocal(iteratePath, fsa);
 
-        std::unique_ptr<FileAccess> fopen_directory(fsa.newfileaccess(true));
+        std::unique_ptr<FileAccess> fopen_directory(fsa.newfileaccess(false));  // false = don't follow symlinks
         ASSERT_TRUE(fopen_directory->fopen(&localdir, true, false));
 
         // now open and iterate the directory, not following symlinks (either by name of fopen'd directory)
@@ -2489,7 +2489,7 @@ TEST_F(SdkTest, SdkTestFolderIteration)
             }
         }
 
-        std::unique_ptr<FileAccess> fopen_directory2(fsa.newfileaccess(true));  // dopen must have a fresh fileaccess when that form is used
+        std::unique_ptr<FileAccess> fopen_directory2(fsa.newfileaccess(true));  // true = follow symlinks
         ASSERT_TRUE(fopen_directory2->fopen(&localdir, true, false));
 
         // now open and iterate the directory, following symlinks (either by name of fopen'd directory)
@@ -2516,38 +2516,43 @@ TEST_F(SdkTest, SdkTestFolderIteration)
         }
 
     #ifdef WIN32
-        unsigned expected_count = 2;  // currently on windows, any type of symlink is ignored when iterating directories
-        std::array<std::string, 2> names { "folder", "file.txt"/*, "folderlink"*/ /*, "filelink.txt"*/ };
+        std::set<std::string> plain_names { "folder", "file.txt" }; // currently on windows, any type of symlink is ignored when iterating directories
+        std::set<std::string> follow_names { "folder", "file.txt"};
     #else
-        unsigned expected_count = 4;
-        std::array<std::string, 4> names { "folder", "file.txt", "folderlink", "filelink.txt" };
+        std::set<std::string> plain_names { "folder", "file.txt" };
+        std::set<std::string> follow_names { "folder", "file.txt", "folderlink", "filelink.txt" };
     #endif
 
-        ASSERT_EQ(plain_fopen.size(), expected_count + glob_entries);
-        ASSERT_EQ(iterate_fopen.size(), expected_count + glob_entries);
-        ASSERT_EQ(plain_follow_fopen.size(), expected_count + glob_entries);
-        ASSERT_EQ(iterate_follow_fopen.size(), expected_count + glob_entries);
+        ASSERT_EQ(plain_fopen.size(), plain_names.size() + glob_entries);
+        ASSERT_EQ(iterate_fopen.size(), plain_names.size() + glob_entries);
+        ASSERT_EQ(plain_follow_fopen.size(), follow_names.size() + glob_entries);
+        ASSERT_EQ(iterate_follow_fopen.size(), follow_names.size() + glob_entries);
 
-        for (auto& name : names)
+        for (auto& name : follow_names)
         {
-            ASSERT_TRUE(plain_fopen.find(name) != plain_fopen.end()) << name;
-            ASSERT_TRUE(iterate_fopen.find(name) != iterate_fopen.end()) << name;
+            bool expected_non_follow = plain_names.find(name) != plain_names.end();
+            bool issymlink = name.find("link") != string::npos;
+            
+            if (expected_non_follow)
+            {
+                ASSERT_TRUE(plain_fopen.find(name) != plain_fopen.end()) << name;
+                ASSERT_TRUE(iterate_fopen.find(name) != iterate_fopen.end()) << name;
+
+                auto& plain = plain_fopen[name];
+                auto& iterate = iterate_fopen[name];
+
+                ASSERT_EQ(plain, iterate)  << name;
+                ASSERT_TRUE(plain.mIsSymLink == issymlink);
+            }
+            
             ASSERT_TRUE(plain_follow_fopen.find(name) != plain_follow_fopen.end()) << name;
             ASSERT_TRUE(iterate_follow_fopen.find(name) != iterate_follow_fopen.end()) << name;
 
-            auto& plain = plain_fopen[name];
-            auto& iterate = iterate_fopen[name];
             auto& plain_follow = plain_follow_fopen[name];
             auto& iterate_follow = iterate_follow_fopen[name];
 
-            ASSERT_EQ(plain, iterate)  << name;
             ASSERT_EQ(plain_follow, iterate_follow) << name;
-            
-            if (name.find("link") != string::npos)
-            {
-                ASSERT_TRUE(plain.mIsSymLink == true);
-                ASSERT_TRUE(plain_follow.mIsSymLink == false);
-            }
+            ASSERT_TRUE(plain_follow.mIsSymLink == issymlink);
         }
 
         //ASSERT_EQ(plain_fopen["folder"].size, 0);  size field is not set for folders
