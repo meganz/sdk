@@ -3105,12 +3105,12 @@ void MegaApi::resumeSync(const char *localFolder, MegaNode *megaFolder, long lon
 #ifdef USE_PCRE
 void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
 {
-    pImpl->syncFolder(localFolder, megaFolder, regExp, listener);
+    pImpl->syncFolder(localFolder, megaFolder, regExp, 0, listener);
 }
 
 void MegaApi::resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRegExp *regExp, MegaRequestListener *listener)
 {
-    pImpl->resumeSync(localFolder, localfp, megaFolder, regExp, listener);
+    pImpl->syncFolder(localFolder, megaFolder, regExp, localfp, listener);
 }
 #endif
 
