@@ -326,7 +326,11 @@ void User::invalidateattr(attr_t at)
 
 void User::removeattr(attr_t at, const string *version)
 {
-    setChanged(at);
+    if (isattrvalid(at))
+    {
+        setChanged(at);
+    }
+
     attrs.erase(at);
     if (version)
     {
