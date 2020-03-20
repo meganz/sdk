@@ -15,7 +15,7 @@ set OVERLAYTRIPLETS=--overlay-triplets=%DIR%vcpkg_extra_triplets
  else (^
  echo "%1"|>nul findstr /rx \"-.*\" && goto Help REM if parameter starts width - and has not been recognized, go to Help
  if "%1" neq "" (if "%TRIPLET%" == "" (set TRIPLET=%1% ))^
- else (goto :START)))))
+ else (goto :START))))))
  
  shift & goto GETOPTS
  
