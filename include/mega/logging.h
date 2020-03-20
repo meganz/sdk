@@ -407,7 +407,7 @@ public:
                     i++;
                 }
 
-                logger->log(nullptr, level, nullptr, "", dm.get(), dms.get(), static_cast<int>(i));
+                logger->log(nullptr, level, nullptr, "", dm.get(), dms.get(), i);
             }
         }
         for (auto &s: mCopiedParts)

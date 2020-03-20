@@ -706,7 +706,7 @@ bool SdkTest::waitForResponse(bool *responseReceived, unsigned int timeout)
     return true;    // response is received
 }
 
-bool SdkTest::synchronousTransfer(int apiIndex, int type, std::function<void()> f, unsigned int timeout)
+bool SdkTest::synchronousTransfer(unsigned apiIndex, int type, std::function<void()> f, unsigned int timeout)
 {
     auto& flag = mApi[apiIndex].transferFlags[type];
     flag = false;
@@ -717,7 +717,7 @@ bool SdkTest::synchronousTransfer(int apiIndex, int type, std::function<void()> 
     return result;
 }
 
-bool SdkTest::synchronousRequest(int apiIndex, int type, std::function<void()> f, unsigned int timeout)
+bool SdkTest::synchronousRequest(unsigned apiIndex, int type, std::function<void()> f, unsigned int timeout)
 {
     auto& flag = mApi[apiIndex].requestFlags[type];
     flag = false;
