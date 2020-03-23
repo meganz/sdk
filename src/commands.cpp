@@ -3709,7 +3709,7 @@ void CommandGetUserData::procresult()
     string smsv;
     string lastname;
     string firstname;
-    string languaje;
+    string language;
     string prd;
     string pushSetting;
     string contactLinkVerification;
