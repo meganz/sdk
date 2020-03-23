@@ -8611,7 +8611,7 @@ class MegaApi
         void resetCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Returns priv key of the currently open account
+         * @brief Returns RSA priv key of the currently open account
          *
          * If the MegaApi object isn't logged in or there's no pub key available,
          * this function returns NULL

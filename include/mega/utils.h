@@ -47,8 +47,6 @@ namespace mega {
 #define MAKENAMEID6(a, b, c, d, e, f) (nameid)((((uint64_t)a) << 40) + (((uint64_t)b) << 32) + ((c) << 24) + ((d) << 16) + ((e) << 8) + (f))
 #define MAKENAMEID7(a, b, c, d, e, f, g) (nameid)((((uint64_t)a) << 48) + (((uint64_t)b) << 40) + (((uint64_t)c) << 32) + ((d) << 24) + ((e) << 16) + ((f) << 8) + (g))
 #define MAKENAMEID8(a, b, c, d, e, f, g, h) (nameid)((((uint64_t)a) << 56) + (((uint64_t)b) << 48) + (((uint64_t)c) << 40) + (((uint64_t)d) << 32) + ((e) << 24) + ((f) << 16) + ((g) << 8) + (h))
-#define MAKENAMEID9(a, b, c, d, e, f, g, h, i) (nameid)((((uint64_t)b) << 56) + (((uint64_t)c) << 48) + (((uint64_t)d) << 40) + (((uint64_t)e) << 32) + ((f) << 24) + ((g) << 16) + ((h) << 8) + (i))
-#define MAKENAMEID10(a, b, c, d, e, f, g, h, i, j) (nameid)((((uint64_t)c) << 56) + (((uint64_t)d) << 48) + (((uint64_t)e) << 40) + (((uint64_t)f) << 32) + ((g) << 24) + ((h) << 16) + ((i) << 8) + (j))
 
 std::string toNodeHandle(handle nodeHandle);
 std::string toHandle(handle h);

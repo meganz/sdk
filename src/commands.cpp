@@ -3739,6 +3739,7 @@ void CommandGetUserData::procresult()
 
     for (;;)
     {
+        string attributeName = client->json.getnameWithoutAdvance();
         switch (client->json.getnameid())
         {
         case MAKENAMEID3('a', 'a', 'v'):    // account authentication version
@@ -3786,28 +3787,16 @@ void CommandGetUserData::procresult()
             me = client->json.gethandle(MegaClient::USERHANDLE);
             break;
 
-        case MAKENAMEID9('f', 'i', 'r', 's', 't', 'n', 'a', 'm', 'e'):
-            client->json.storebinary(&firstname);
-            break;
-
         case MAKENAMEID8('l', 'a', 's', 't', 'n', 'a', 'm', 'e'):
             client->json.storebinary(&lastname);
             break;
 
         case MAKENAMEID6('^', '!', 'l', 'a', 'n', 'g'):
-            client->json.storebinary(&languaje);
+            client->json.storebinary(&language);
             break;
 
         case MAKENAMEID8('b', 'i', 'r', 't', 'h', 'd', 'a', 'y'):
             client->json.storebinary(&birthday);
-            break;
-
-        case MAKENAMEID10('b', 'i', 'r', 't', 'h', 'm', 'o', 'n', 't', 'h'):
-            client->json.storebinary(&birthmonth);
-            break;
-
-        case MAKENAMEID9('b', 'i', 'r', 't', 'h', 'y', 'e', 'a', 'r'):
-            client->json.storebinary(&birthyear);
             break;
 
         case MAKENAMEID7('c', 'o', 'u', 'n', 't', 'r', 'y'):
@@ -3970,7 +3959,7 @@ void CommandGetUserData::procresult()
                      u->setattr(ATTR_LASTNAME, &lastname, nullptr);
                 }
 
-                if (u && languaje.size())
+                if (u && language.size())
                 {
                      u->setattr(ATTR_LANGUAGE, &lastname, nullptr);
                 }
@@ -4134,10 +4123,29 @@ void CommandGetUserData::procresult()
             return;
         }
         default:
-            if (!client->json.storeobject())
+            switch (User::string2attr(attributeName.c_str()))
             {
-                return client->app->userdata_result(NULL, NULL, NULL, API_EINTERNAL);
+                case ATTR_FIRSTNAME:
+                    client->json.storebinary(&firstname);
+                    break;
+
+                case ATTR_BIRTHMONTH:
+                    client->json.storebinary(&birthmonth);
+                    break;
+
+                case ATTR_BIRTHYEAR:
+                    client->json.storebinary(&birthyear);
+                    break;
+
+                default:
+                    if (!client->json.storeobject())
+                    {
+                        return client->app->userdata_result(NULL, NULL, NULL, API_EINTERNAL);
+                    }
+                    break;
             }
+
+            break;
         }
     }
 }
