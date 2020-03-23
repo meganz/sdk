@@ -803,7 +803,7 @@ private:
 
     // server-client command trigger connection
     std::unique_ptr<HttpReq> pendingsc;
-    std::unique_ptr<HttpReq> pendingsc50;
+    std::unique_ptr<HttpReq> pendingscUserAlerts;
     BackoffTimer btsc;
     bool stopsc = false;
 

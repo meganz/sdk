@@ -1066,7 +1066,7 @@ void MegaClient::init()
     }
 
     pendingsc.reset();
-    pendingsc50.reset();
+    pendingscUserAlerts.reset();
     stopsc = false;
 
     btcs.reset();
@@ -1913,49 +1913,49 @@ void MegaClient::exec()
         }
 
         // handle API server-client requests
-        if (pendingsc50)
+        if (pendingscUserAlerts)
         {
-            switch (pendingsc50->status)
+            switch (pendingscUserAlerts->status)
             {
             case REQ_SUCCESS:
-                if (*pendingsc50->in.c_str() == '{')
+                if (*pendingscUserAlerts->in.c_str() == '{')
                 {
                     JSON json;
-                    json.begin(pendingsc50->in.c_str());
+                    json.begin(pendingscUserAlerts->in.c_str());
                     json.enterobject();
                     if (useralerts.procsc_useralert(json))
                     {
                         // NULL vector: "notify all elements"
                         app->useralerts_updated(NULL, int(useralerts.alerts.size()));
                     }
-                    pendingsc50.reset();
+                    pendingscUserAlerts.reset();
                     break;
                 }
 
                 // fall through
             case REQ_FAILURE:
-                if (pendingsc50->httpstatus != 200)
+                if (pendingscUserAlerts->httpstatus != 200)
                 {
-                    (pendingsc50->httpstatus == 500 ? fnstats.e500Count : fnstats.eOthersCount)++;
+                    (pendingscUserAlerts->httpstatus == 500 ? fnstats.e500Count : fnstats.eOthersCount)++;
                 }
                 else
                 {
-                    error e = (error)atoi(pendingsc50->in.c_str());
+                    error e = (error)atoi(pendingscUserAlerts->in.c_str());
                     if (e == API_EAGAIN || e == API_ERATELIMIT)
                     {
                         fnstats.eAgainCount++;
                         btsc.backoff();
-                        pendingsc50.reset();
+                        pendingscUserAlerts.reset();
                         break;
                     }
-                    LOG_err << "Unexpected sc response: " << pendingsc50->in;
+                    LOG_err << "Unexpected sc response: " << pendingscUserAlerts->in;
                 }
                 if (useralerts.begincatchup)
                 {
                     useralerts.begincatchup = false;
                     useralerts.catchupdone = true;
                 }
-                pendingsc50.reset();
+                pendingscUserAlerts.reset();
                 break;
 
             default:
@@ -1964,7 +1964,7 @@ void MegaClient::exec()
         }
 
         // handle API server-client requests
-        if (!jsonsc.pos && !pendingsc50 && pendingsc && !loggingout)
+        if (!jsonsc.pos && !pendingscUserAlerts && pendingsc && !loggingout)
         {
             switch (pendingsc->status)
             {
@@ -2112,20 +2112,20 @@ void MegaClient::exec()
 #endif
         }
 
-        if (!pendingsc && !pendingsc50 && *scsn && btsc.armed() && !stopsc)
+        if (!pendingsc && !pendingscUserAlerts && *scsn && btsc.armed() && !stopsc)
         {
             if (useralerts.begincatchup)
             {
                 assert(!fetchingnodes);
-                pendingsc50.reset(new HttpReq());
-                pendingsc50->logname = clientname + "sc50 ";
-                pendingsc50->protect = true;
-                pendingsc50->posturl = APIURL;
-                pendingsc50->posturl.append("sc");  // notifications/useralerts on sc rather than wsc, no timeout
-                pendingsc50->posturl.append("?c=50");
-                pendingsc50->posturl.append(auth);
-                pendingsc50->type = REQ_JSON;
-                pendingsc50->post(this);
+                pendingscUserAlerts.reset(new HttpReq());
+                pendingscUserAlerts->logname = clientname + "sc50 ";
+                pendingscUserAlerts->protect = true;
+                pendingscUserAlerts->posturl = APIURL;
+                pendingscUserAlerts->posturl.append("sc");  // notifications/useralerts on sc rather than wsc, no timeout
+                pendingscUserAlerts->posturl.append("?c=50");
+                pendingscUserAlerts->posturl.append(auth);
+                pendingscUserAlerts->type = REQ_JSON;
+                pendingscUserAlerts->post(this);
             }
             else
             {
@@ -2939,7 +2939,7 @@ int MegaClient::preparewait()
         }
 
         // retry failed server-client requests
-        if (!pendingsc && !pendingsc50 && *scsn && !stopsc)
+        if (!pendingsc && !pendingscUserAlerts && *scsn && !stopsc)
         {
             btsc.update(&nds);
         }
@@ -3248,7 +3248,7 @@ bool MegaClient::abortbackoff(bool includexfers)
         r = true;
     }
 
-    if (!pendingsc && !pendingsc50 && btsc.arm())
+    if (!pendingsc && !pendingscUserAlerts && btsc.arm())
     {
         r = true;
     }
@@ -3786,9 +3786,9 @@ void MegaClient::disconnect()
         pendingsc->disconnect();
     }
 
-    if (pendingsc50)
+    if (pendingscUserAlerts)
     {
-        pendingsc50->disconnect();
+        pendingscUserAlerts->disconnect();
     }
 
     abortlockrequest();
@@ -11050,7 +11050,7 @@ void MegaClient::fetchnodes(bool nocache)
 
         // prevent the processing of previous sc requests
         pendingsc.reset();
-        pendingsc50.reset();
+        pendingscUserAlerts.reset();
         jsonsc.pos = NULL;
         scnotifyurl.clear();
         insca = false;
@@ -11880,9 +11880,9 @@ void MegaClient::purgenodesusersabortsc()
         pendingsc->disconnect();
     }
 
-    if (pendingsc50)
+    if (pendingscUserAlerts)
     {
-        pendingsc50->disconnect();
+        pendingscUserAlerts->disconnect();
     }
 
     init();
