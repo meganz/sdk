@@ -369,7 +369,7 @@ void SyncApp::log(const char *time, int loglevel, const char *source, const char
         message = "";
     }
 
-#ifdef ENABLE_LOG_PERFORMANCE
+#ifndef ENABLE_LOG_PERFORMANCE
     cout << "[" << time << "][" << SimpleLogger::toStr((LogLevel)loglevel) << "] " << message << endl;
 #else
     cout << "[" << time << "][" << SimpleLogger::toStr((LogLevel)loglevel) << "] ";
