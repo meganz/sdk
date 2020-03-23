@@ -802,7 +802,8 @@ private:
     vector<TimerWithBackoff *> bttimers;
 
     // server-client command trigger connection
-    HttpReq* pendingsc;
+    std::unique_ptr<HttpReq> pendingsc;
+    std::unique_ptr<HttpReq> pendingsc50;
     BackoffTimer btsc;
     bool stopsc = false;
 

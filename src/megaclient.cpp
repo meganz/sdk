@@ -1065,8 +1065,8 @@ void MegaClient::init()
         rootnodes[i] = UNDEF;
     }
 
-    delete pendingsc;
-    pendingsc = NULL;
+    pendingsc.reset();
+    pendingsc50.reset();
     stopsc = false;
 
     btcs.reset();
@@ -1145,7 +1145,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
 #endif
 
     pendingcs = NULL;
-    pendingsc = NULL;
 
     xferpaused[PUT] = false;
     xferpaused[GET] = false;
@@ -1240,7 +1239,6 @@ MegaClient::~MegaClient()
     locallogout(false);
 
     delete pendingcs;
-    delete pendingsc;
     delete badhostcs;
     delete workinglockcs;
     delete sctable;
@@ -1915,7 +1913,58 @@ void MegaClient::exec()
         }
 
         // handle API server-client requests
-        if (!jsonsc.pos && pendingsc && !loggingout)
+        if (pendingsc50)
+        {
+            switch (pendingsc50->status)
+            {
+            case REQ_SUCCESS:
+                if (*pendingsc50->in.c_str() == '{')
+                {
+                    JSON json;
+                    json.begin(pendingsc50->in.c_str());
+                    json.enterobject();
+                    if (useralerts.procsc_useralert(json))
+                    {
+                        // NULL vector: "notify all elements"
+                        app->useralerts_updated(NULL, int(useralerts.alerts.size()));
+                    }
+                    pendingsc50.reset();
+                    break;
+                }
+
+                // fall through
+            case REQ_FAILURE:
+                if (pendingsc50->httpstatus != 200)
+                {
+                    (pendingsc50->httpstatus == 500 ? fnstats.e500Count : fnstats.eOthersCount)++;
+                }
+                else
+                {
+                    error e = (error)atoi(pendingsc50->in.c_str());
+                    if (e == API_EAGAIN || e == API_ERATELIMIT)
+                    {
+                        fnstats.eAgainCount++;
+                        btsc.backoff();
+                        pendingsc50.reset();
+                        break;
+                    }
+                    LOG_err << "Unexpected sc response: " << pendingsc50->in;
+                }
+                if (useralerts.begincatchup)
+                {
+                    useralerts.begincatchup = false;
+                    useralerts.catchupdone = true;
+                }
+                pendingsc50.reset();
+                break;
+
+            default:
+                break;
+            }
+        }
+
+        // handle API server-client requests
+        if (!jsonsc.pos && !pendingsc50 && pendingsc && !loggingout)
         {
             switch (pendingsc->status)
             {
@@ -1925,8 +1974,7 @@ void MegaClient::exec()
                         && pendingsc->in[0] == '0')
                 {
                     LOG_debug << "SC keep-alive received";
-                    delete pendingsc;
-                    pendingsc = NULL;
+                    pendingsc.reset();
                     btsc.reset();
                     break;
                 }
@@ -1972,11 +2020,6 @@ void MegaClient::exec()
                     else
                     {
                         LOG_err << "Unexpected sc response: " << pendingsc->in;
-                        if (useralerts.begincatchup)
-                        {
-                            useralerts.begincatchup = false;
-                            useralerts.catchupdone = true;
-                        }
                         stopsc = true;
                     }
                 }
@@ -2009,8 +2052,7 @@ void MegaClient::exec()
                         }
                     }
 
-                    delete pendingsc;
-                    pendingsc = NULL;
+                    pendingsc.reset();
                 }
 
                 if (stopsc)
@@ -2028,8 +2070,7 @@ void MegaClient::exec()
                 if (Waiter::ds >= (pendingsc->lastdata + HttpIO::SCREQUESTTIMEOUT))
                 {
                     LOG_debug << "sc timeout expired";
-                    delete pendingsc;
-                    pendingsc = NULL;
+                    pendingsc.reset();
                     btsc.reset();
                 }
                 break;
@@ -2053,27 +2094,12 @@ void MegaClient::exec()
 #endif
         {
             // FIXME: reload in case of bad JSON
-            bool r;
-            if (useralerts.begincatchup)
-            {
-                r = useralerts.procsc_useralert(jsonsc);
-                if (r)
-                {
-                    // NULL vector: "notify all elements"
-                    app->useralerts_updated(NULL, int(useralerts.alerts.size()));
-                }
-            }
-            else
-            {
-                r = procsc();
-            }
+            bool r = procsc();
 
             if (r)
             {
                 // completed - initiate next SC request
-                delete pendingsc;
-                pendingsc = NULL;
-
+                pendingsc.reset();
                 btsc.reset();
             }
 #ifdef ENABLE_SYNC
@@ -2086,37 +2112,44 @@ void MegaClient::exec()
 #endif
         }
 
-        if (!pendingsc && *scsn && btsc.armed() && !stopsc)
+        if (!pendingsc && !pendingsc50 && *scsn && btsc.armed() && !stopsc)
         {
-            pendingsc = new HttpReq();
-            pendingsc->logname = clientname + "sc ";
-
-            if (scnotifyurl.size() && !useralerts.begincatchup)
-            {
-                pendingsc->posturl = scnotifyurl;
-            }
-            else
-            {
-                pendingsc->posturl = APIURL;
-                pendingsc->posturl.append("wsc");
-            }
-
-            pendingsc->protect = true;
-
             if (useralerts.begincatchup)
             {
                 assert(!fetchingnodes);
-                pendingsc->posturl.append("?c=50");
+                pendingsc50.reset(new HttpReq());
+                pendingsc50->logname = clientname + "sc50 ";
+                pendingsc50->protect = true;
+                pendingsc50->posturl = APIURL;
+                pendingsc50->posturl.append("sc");  // notifications/useralerts on sc rather than wsc, no timeout
+                pendingsc50->posturl.append("?c=50");
+                pendingsc50->posturl.append(auth);
+                pendingsc50->type = REQ_JSON;
+                pendingsc50->post(this);
             }
             else
             {
+                pendingsc.reset(new HttpReq());
+                pendingsc->logname = clientname + "sc ";
+                if (scnotifyurl.size())
+                {
+                    pendingsc->posturl = scnotifyurl;
+                }
+                else
+                {
+                    pendingsc->posturl = APIURL;
+                    pendingsc->posturl.append("wsc");
+                }
+
+                pendingsc->protect = true;
                 pendingsc->posturl.append("?sn=");
                 pendingsc->posturl.append(scsn);
+
+                pendingsc->posturl.append(auth);
+                pendingsc->type = REQ_JSON;
+                pendingsc->post(this);
+                jsonsc.pos = NULL;
             }
-            pendingsc->posturl.append(auth);
-            pendingsc->type = REQ_JSON;
-            pendingsc->post(this);
-            jsonsc.pos = NULL;
         }
 
         if (badhostcs)
@@ -2906,7 +2939,7 @@ int MegaClient::preparewait()
         }
 
         // retry failed server-client requests
-        if (!pendingsc && *scsn && !stopsc)
+        if (!pendingsc && !pendingsc50 && *scsn && !stopsc)
         {
             btsc.update(&nds);
         }
@@ -3215,7 +3248,7 @@ bool MegaClient::abortbackoff(bool includexfers)
         r = true;
     }
 
-    if (!pendingsc && btsc.arm())
+    if (!pendingsc && !pendingsc50 && btsc.arm())
     {
         r = true;
     }
@@ -3753,6 +3786,11 @@ void MegaClient::disconnect()
         pendingsc->disconnect();
     }
 
+    if (pendingsc50)
+    {
+        pendingsc50->disconnect();
+    }
+
     abortlockrequest();
 
     for (pendinghttp_map::iterator it = pendinghttp.begin(); it != pendinghttp.end(); it++)
@@ -3804,10 +3842,9 @@ void MegaClient::catchup()
     {
         pendingsc->disconnect();
 
-        delete pendingsc;
-        pendingsc = NULL;
+        pendingsc.reset();
     }
-    btcs.reset();
+    btsc.reset();
     scnotifyurl.clear();
 }
 
@@ -11012,8 +11049,8 @@ void MegaClient::fetchnodes(bool nocache)
         pendingsccommit = false;
 
         // prevent the processing of previous sc requests
-        delete pendingsc;
-        pendingsc = NULL;
+        pendingsc.reset();
+        pendingsc50.reset();
         jsonsc.pos = NULL;
         scnotifyurl.clear();
         insca = false;
@@ -11841,6 +11878,11 @@ void MegaClient::purgenodesusersabortsc()
     {
         app->request_response_progress(-1, -1);
         pendingsc->disconnect();
+    }
+
+    if (pendingsc50)
+    {
+        pendingsc50->disconnect();
     }
 
     init();
