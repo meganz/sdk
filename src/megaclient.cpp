@@ -1969,6 +1969,7 @@ void MegaClient::exec()
             switch (pendingsc->status)
             {
             case REQ_SUCCESS:
+                pendingscTimedOut = false;
                 if (pendingsc->contentlength == 1
                         && pendingsc->in.size()
                         && pendingsc->in[0] == '0')
@@ -2026,6 +2027,7 @@ void MegaClient::exec()
 
                 // fall through
             case REQ_FAILURE:
+                pendingscTimedOut = false;
                 if (pendingsc)
                 {
                     if (!statecurrent && pendingsc->httpstatus != 200)
@@ -2067,9 +2069,11 @@ void MegaClient::exec()
                 break;
 
             case REQ_INFLIGHT:
-                if (Waiter::ds >= (pendingsc->lastdata + HttpIO::SCREQUESTTIMEOUT))
+                if (!pendingscTimedOut && Waiter::ds >= (pendingsc->lastdata + HttpIO::SCREQUESTTIMEOUT))
                 {
                     LOG_debug << "sc timeout expired";
+                    // In almost all cases the server won't take more than 40 seconds.  But if it does, break the cycle of endless requests for the same thing
+                    pendingscTimedOut = true;
                     pendingsc.reset();
                     btsc.reset();
                 }
@@ -2146,10 +2150,11 @@ void MegaClient::exec()
                 pendingsc->posturl.append(scsn);
 
                 pendingsc->posturl.append(auth);
+
                 pendingsc->type = REQ_JSON;
                 pendingsc->post(this);
-                jsonsc.pos = NULL;
             }
+            jsonsc.pos = NULL;
         }
 
         if (badhostcs)
@@ -3103,7 +3108,7 @@ int MegaClient::preparewait()
             }
         }
 
-        if (!jsonsc.pos && pendingsc && pendingsc->status == REQ_INFLIGHT)
+        if (!pendingscTimedOut && !jsonsc.pos && pendingsc && pendingsc->status == REQ_INFLIGHT)
         {
             dstime timeout = pendingsc->lastdata + HttpIO::SCREQUESTTIMEOUT;
             if (timeout > Waiter::ds && timeout < nds)

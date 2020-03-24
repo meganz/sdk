@@ -806,6 +806,8 @@ private:
     std::unique_ptr<HttpReq> pendingscUserAlerts;
     BackoffTimer btsc;
     bool stopsc = false;
+    bool pendingscTimedOut = false;
+
 
     // badhost report
     HttpReq* badhostcs;
