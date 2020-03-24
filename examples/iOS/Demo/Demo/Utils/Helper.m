@@ -181,7 +181,7 @@
     
     switch (nodeType) {
         case MEGANodeTypeFolder: {
-            if ([[MEGASdkManager sharedMEGASdk] isSharedNode:node])
+            if (node.isInShare)
                 return [UIImage imageNamed:@"folder_shared"];
             else
                 return [UIImage imageNamed:@"folder"];

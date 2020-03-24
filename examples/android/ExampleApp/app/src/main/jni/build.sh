@@ -19,11 +19,11 @@ APP_PLATFORM=`grep APP_PLATFORM Application.mk | cut -d '=' -f 2`
 LOG_FILE=/dev/null
 
 CRYPTOPP=cryptopp
-CRYPTOPP_VERSION=563
+CRYPTOPP_VERSION=800
 CRYPTOPP_SOURCE_FILE=cryptopp${CRYPTOPP_VERSION}.zip
 CRYPTOPP_SOURCE_FOLDER=${CRYPTOPP}/${CRYPTOPP}
 CRYPTOPP_DOWNLOAD_URL=http://www.cryptopp.com/${CRYPTOPP_SOURCE_FILE}
-CRYPTOPP_SHA1="f2fcd1fbf884bed70a69b565970ecd8b33a68cc4"
+CRYPTOPP_SHA1="dd0dc0586c0a3e0696cd323efc6fa2e2945ad920"
 
 SQLITE=sqlite
 SQLITE_VERSION=3120200
@@ -36,7 +36,7 @@ SQLITE_SHA1="22632bf0cfacedbeddde9f92695f71cab8d8c0a5"
 
 CURL=curl
 CURL_VERSION=7.48.0
-C_ARES_VERSION=1.11.0
+C_ARES_VERSION=1.15.0
 CURL_EXTRA="--disable-smb --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-proxy --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi"
 CURL_SOURCE_FILE=curl-${CURL_VERSION}.tar.gz
 CURL_SOURCE_FOLDER=curl-${CURL_VERSION}
@@ -47,7 +47,7 @@ ARES_SOURCE_FILE=c-ares-${C_ARES_VERSION}.tar.gz
 ARES_SOURCE_FOLDER=c-ares-${C_ARES_VERSION}
 ARES_CONFIGURED=${CURL}/${ARES_SOURCE_FOLDER}/Makefile.inc
 ARES_DOWNLOAD_URL=http://c-ares.haxx.se/download/${ARES_SOURCE_FILE}
-ARES_SHA1="8c20b2680099ac73861a780c731edd59e010383a"
+ARES_SHA1="74a50c02b7f051c4fb66c0f60f187350f196d908"
 
 OPENSSL=openssl
 OPENSSL_VERSION=1.0.2h
@@ -58,11 +58,11 @@ OPENSSL_PREFIX=${JNI_PATH}/${OPENSSL}/${OPENSSL_SOURCE_FOLDER}
 OPENSSL_SHA1="577585f5f5d299c44dd3c993d3c0ac7a219e4949"
 
 SODIUM=sodium
-SODIUM_VERSION=1.0.16
-SODIUM_SOURCE_FILE=libsodium-${SODIUM_VERSION}.tar.gz
+SODIUM_VERSION=1.0.18
+SODIUM_SOURCE_FILE=${SODIUM_VERSION}.tar.gz
 SODIUM_SOURCE_FOLDER=libsodium-${SODIUM_VERSION}
-SODIUM_DOWNLOAD_URL=https://download.libsodium.org/libsodium/releases/${SODIUM_SOURCE_FILE}
-SODIUM_SHA1="c7ea321d7b8534e51c5e3d86055f6c1aa1e48ee9"
+SODIUM_DOWNLOAD_URL=https://github.com/jedisct1/libsodium/archive/${SODIUM_SOURCE_FILE}
+SODIUM_SHA1="cd8a76b79aeb077e8d3eea478ea6241972593dfd"
 
 LIBUV=libuv
 LIBUV_VERSION=1.8.0
@@ -271,6 +271,7 @@ echo "* Setting up Crypto++"
 if [ ! -f ${CRYPTOPP}/${CRYPTOPP_SOURCE_FILE}.ready ]; then
     mkdir -p ${CRYPTOPP}/${CRYPTOPP}
     downloadCheckAndUnpack ${CRYPTOPP_DOWNLOAD_URL} ${CRYPTOPP}/${CRYPTOPP_SOURCE_FILE} ${CRYPTOPP_SHA1} ${CRYPTOPP}/${CRYPTOPP}
+    cp ${NDK_ROOT}/sources/android/cpufeatures/cpu-features.h ${CRYPTOPP}/${CRYPTOPP}/
     touch ${CRYPTOPP}/${CRYPTOPP_SOURCE_FILE}.ready
 fi
 echo "* Crypto++ is ready"

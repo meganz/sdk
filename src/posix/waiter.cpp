@@ -21,22 +21,6 @@
 
 #include "mega.h"
 
-#ifdef __APPLE__
-#define CLOCK_MONOTONIC 0
-int clock_gettime(int, struct timespec* t)
-{
-    struct timeval now;
-    int rv = gettimeofday(&now, NULL);
-    if (rv)
-    {
-        return rv;
-    }
-    t->tv_sec = now.tv_sec;
-    t->tv_nsec = now.tv_usec * 1000;
-    return 0;
-}
-#endif
-
 namespace mega {
 dstime Waiter::ds;
 
@@ -80,7 +64,7 @@ void Waiter::bumpds()
 {
     timespec ts;
 
-    clock_gettime(CLOCK_MONOTONIC, &ts);
+    m_clock_getmonotonictime(&ts);
 
     ds = ts.tv_sec * 10 + ts.tv_nsec / 100000000;
 }
@@ -131,9 +115,14 @@ int PosixWaiter::wait()
     // empty pipe
     uint8_t buf;
     bool external = false;
-    while (read(m_pipe[0], &buf, sizeof buf) > 0)
+
     {
-        external = true;
+        std::lock_guard<std::mutex> g(mMutex);
+        while (read(m_pipe[0], &buf, sizeof buf) > 0)
+        {
+            external = true;
+        }
+        alreadyNotified = false;
     }
 
     // timeout or error
@@ -150,6 +139,11 @@ int PosixWaiter::wait()
 
 void PosixWaiter::notify()
 {
-    write(m_pipe[1], "0", 1);
+    std::lock_guard<std::mutex> g(mMutex);
+    if (!alreadyNotified)
+    {
+        write(m_pipe[1], "0", 1);
+        alreadyNotified = true;
+    }
 }
 } // namespace

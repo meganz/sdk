@@ -45,14 +45,14 @@ File::~File()
     // if transfer currently running, stop
     if (transfer)
     {
-        transfer->client->stopxfer(this);
+        transfer->client->stopxfer(this, nullptr);
     }
     delete [] chatauth;
 }
 
 bool File::serialize(string *d)
 {
-    char type = transfer->type;
+    char type = char(transfer->type);
     d->append((const char*)&type, sizeof(type));
 
     if (!FileFingerprint::serialize(d))
@@ -304,9 +304,9 @@ void File::completed(Transfer* t, LocalNode* l)
         newnode->type = FILENODE;
         newnode->parenthandle = UNDEF;
 #ifdef ENABLE_SYNC
-        if ((newnode->localnode = l))
+        if (l)
         {
-            l->newnode = newnode;
+            l->newnode.crossref(newnode, l);
             newnode->syncid = l->syncid;
         }
 #endif
@@ -322,7 +322,7 @@ void File::completed(Transfer* t, LocalNode* l)
 
         attrs.getjson(&tattrstring);
 
-        newnode->attrstring = new string;
+        newnode->attrstring.reset(new string);
         t->client->makeattr(t->transfercipher(), newnode->attrstring, tattrstring.c_str());
 
         if (targetuser.size())
@@ -330,17 +330,17 @@ void File::completed(Transfer* t, LocalNode* l)
             // drop file into targetuser's inbox
             int creqtag = t->client->reqtag;
             t->client->reqtag = tag;
-            t->client->putnodes(targetuser.c_str(), newnode, 1);
+            t->client->putnodes(targetuser.c_str(), newnode, 1, t);
             t->client->reqtag = creqtag;
         }
         else
         {
             handle th = h;
 
-            // inaccessible target folder - use / instead
+            // inaccessible target folder - use //bin instead
             if (!t->client->nodebyhandle(th))
             {
-                th = t->client->rootnodes[0];
+                th = t->client->rootnodes[RUBBISHNODE - ROOTNODE];
             }
 #ifdef ENABLE_SYNC            
             if (l)
@@ -372,9 +372,9 @@ void File::completed(Transfer* t, LocalNode* l)
                                                                   newnode, 1,
                                                                   tag,
 #ifdef ENABLE_SYNC
-                                                                  l ? PUTNODES_SYNC : PUTNODES_APP));
+                                                                  l ? PUTNODES_SYNC : PUTNODES_APP, nullptr, t));
 #else
-                                                                  PUTNODES_APP));
+                                                                  PUTNODES_APP, nullptr, t));
 #endif
         }
     }
@@ -410,7 +410,7 @@ bool File::failed(error e)
     }
 
     return  // Non fatal errors, up to 16 retries
-            ((e != API_EBLOCKED && e != API_ENOENT && e != API_EINTERNAL && e != API_EACCESS && transfer->failcount < 16)
+            ((e != API_EBLOCKED && e != API_ENOENT && e != API_EINTERNAL && e != API_EACCESS && e != API_ETOOMANY && transfer->failcount < 16)
             // I/O errors up to 6 retries
             && !((e == API_EREAD || e == API_EWRITE) && transfer->failcount > 6))
             // Retry sync transfers up to 8 times for erros that doesn't have a specific management
@@ -504,8 +504,7 @@ void SyncFileGet::prepare()
             // back to the sync's root
             if (i < 0)
             {
-                delete sync->tmpfa;
-                sync->tmpfa = NULL;
+                sync->tmpfa.reset();
             }
         }
 
@@ -517,7 +516,7 @@ void SyncFileGet::prepare()
         }
         else
         {
-            transfer->localfilename = sync->localroot.localname;
+            transfer->localfilename = sync->localroot->localname;
         }
 
         sync->client->fsaccess->tmpnamelocal(&tmpname);

@@ -66,7 +66,7 @@
       <ExceptionHandling>Sync</ExceptionHandling>
       <ObjectFileName>debug\</ObjectFileName>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>WIN32_LEAN_AND_MEAN;ZLIB_WINAPI;_WINDOWS;UNICODE;WIN32;USE_FREEIMAGE;USE_SQLITE;USE_CRYPTOPP;USE_SODIUM;USE_CURL;USE_OPENSSL;ENABLE_SYNC;SODIUM_STATIC;PCRE_STATIC;HAVE_LIBUV;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NOMINMAX;WIN32_LEAN_AND_MEAN;ZLIB_WINAPI;_WINDOWS;UNICODE;WIN32;USE_SQLITE;USE_CRYPTOPP;USE_SODIUM;USE_CURL;USE_OPENSSL;ENABLE_SYNC;SODIUM_STATIC;PCRE_STATIC;HAVE_LIBUV;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessToFile>false</PreprocessToFile>
       <ProgramDataBaseFileName>.\</ProgramDataBaseFileName>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
@@ -105,7 +105,7 @@
       <ExceptionHandling>Sync</ExceptionHandling>
       <ObjectFileName>release\</ObjectFileName>
       <Optimization>MaxSpeed</Optimization>
-      <PreprocessorDefinitions>WIN32_LEAN_AND_MEAN;ZLIB_WINAPI;_WINDOWS;UNICODE;WIN32;USE_FREEIMAGE;USE_SQLITE;USE_CRYPTOPP;USE_SODIUM;USE_CURL;USE_OPENSSL;ENABLE_SYNC;NDEBUG;SODIUM_STATIC;PCRE_STATIC;HAVE_LIBUV;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NOMINMAX;WIN32_LEAN_AND_MEAN;ZLIB_WINAPI;_WINDOWS;UNICODE;WIN32;USE_SQLITE;USE_CRYPTOPP;USE_SODIUM;USE_CURL;USE_OPENSSL;ENABLE_SYNC;NDEBUG;SODIUM_STATIC;PCRE_STATIC;HAVE_LIBUV;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessToFile>false</PreprocessToFile>
       <ProgramDataBaseFileName>.\</ProgramDataBaseFileName>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
@@ -165,8 +165,8 @@
     <ClCompile Include="..\..\src\mega_ccronexpr.cpp" />
     <ClCompile Include="..\..\src\mega_evt_tls.cpp" />
     <ClCompile Include="..\..\src\mega_zxcvbn.cpp" />
-    <ClCompile Include="..\..\src\posix\net.cpp" />
     <ClCompile Include="..\..\src\raid.cpp" />
+    <ClCompile Include="..\..\src\posix\net.cpp" />
     <ClCompile Include="..\..\src\testhooks.cpp" />
     <ClCompile Include="..\..\src\thread\win32thread.cpp" />
     <ClCompile Include="..\..\src\win32\fs.cpp" />

@@ -20,6 +20,9 @@
  */
 #import <Foundation/Foundation.h>
 
+/**
+ * @brief Declaration of API error codes.
+ */
 typedef NS_ENUM(NSInteger, MEGAErrorType) {
     MEGAErrorTypeApiOk = 0,
     MEGAErrorTypeApiEInternal = -1,                // internal error
@@ -46,7 +49,20 @@ typedef NS_ENUM(NSInteger, MEGAErrorType) {
     MEGAErrorTypeApiEAppKey = -22,                 // invalid or missing application key
     MEGAErrorTypeApiESSL = -23,                    // invalid SSL key
     MEGAErrorTypeApiEgoingOverquota = -24,         // Not enough quota
-    MEGAErrorTypeApiEMFARequired = -26             // Multi-factor authentication required
+    MEGAErrorTypeApiEMFARequired = -26,            // Multi-factor authentication required
+    MEGAErrorTypeApiEMasterOnly = -27,             ///< Access denied for sub-users (only for business accounts)
+    MEGAErrorTypeApiEBusinessPastDue = -28         ///< Business account expired
+};
+
+
+/**
+ * @brief Api error code context.
+ */
+typedef NS_ENUM(NSInteger, MEGAErrorContext) {
+    MEGAErrorContextDefault = 0,   ///< Default error code context
+    MEGAErrorContextDownload = 1,  ///< Download transfer context.
+    MEGAErrorContextImport = 2,    ///< Import context.
+    MEGAErrorContextUpload = 3     ///< Upload transfer context.
 };
 
 /**
@@ -98,5 +114,15 @@ typedef NS_ENUM(NSInteger, MEGAErrorType) {
  * @return Description associated with the error code.
  */
 - (NSString *)nameWithErrorCode:(NSInteger)errorCode;
+
+/**
+ * @brief Provides the error description associated with an error code
+ * given a certain context.
+ *
+ * @param errorCode Error code for which the description will be returned
+ * @param context Context to provide a more accurate description (MEGAErrorContext)
+ * @return Description associated with the error code
+ */
++ (NSString *)errorStringWithErrorCode:(NSInteger)errorCode context:(MEGAErrorContext)context;
 
 @end

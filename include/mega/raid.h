@@ -23,6 +23,7 @@
 #define MEGA_RAID_H 1
 
 #include "http.h"
+#include "utils.h"
 
 namespace mega {
 
@@ -56,7 +57,7 @@ namespace mega {
         void setIsRaid(const std::vector<std::string>& tempUrls, m_off_t resumepos, m_off_t readtopos, m_off_t filesize, m_off_t maxDownloadRequestSize);
 
         // indicate if the file is raid or not.  Most variation due to raid/non-raid is captured in this class
-        bool isRaid();
+        bool isRaid() const;
 
         // in case URLs expire, use this to update them and keep downloading without wasting any data
         void updateUrlsAndResetPos(const std::vector<std::string>& tempUrls);
@@ -68,7 +69,7 @@ namespace mega {
         FilePiece* getAsyncOutputBufferPointer(unsigned connectionNum);
 
         // indicate that the buffer written by asyncIO (or synchronously) can now be discarded.
-        void bufferWriteCompleted(unsigned connectionNum);
+        void bufferWriteCompleted(unsigned connectionNum, bool succeeded);
 
         // temp URL to use on a given connection.  The same on all connections for a non-raid file.
         const std::string& tempURL(unsigned connectionNum);
@@ -78,6 +79,9 @@ namespace mega {
 
         // Track the progress of http requests sent.  For raid download, tracks the parts.  Otherwise, uses the position through the full file.
         virtual m_off_t& transferPos(unsigned connectionNum);
+
+        // start this part off again (eg. after abandoning slowest connection)
+        void resetPart(unsigned connectionNum);
 
         // Return the size of a particluar part of the file, for raid.  Or for non-raid the size of the whole wile.
         m_off_t transferSize(unsigned connectionNum);
@@ -93,6 +97,12 @@ namespace mega {
 
         // check to see if all other channels than the one specified are up to date with data and so we could go faster with 5 connections rather than 6.
         bool connectionRaidPeersAreAllPaused(unsigned slowConnection);
+
+        // indicate that this connection has responded with headers, and see if we now know which is the slowest connection, and make that the unused one
+        bool detectSlowestRaidConnection(unsigned thisConnection, unsigned& slowestConnection);
+
+        // returns how far we are through the file on average, including uncombined data
+        m_off_t progress() const;
 
         RaidBufferManager();
         ~RaidBufferManager();
@@ -113,33 +123,27 @@ namespace mega {
         // controls buffer sizes used
         unsigned raidLinesPerChunk;
 
-        // If one connection has an error then we can continue with just 5, or if a file is small then 5 connections can be quicker due sending fewer requests per connection
-        bool useOnlyFiveRaidConnections;
-        
-        // only if useOnlyFiveRaidConnections==true
+        // of the six raid URLs, which 5 are we downloading from
         unsigned unusedRaidConnection;
 
         // storage server access URLs.  It either has 6 entries for a raid file, or 1 entry for a non-raid file, or empty if we have not looked up a tempurl yet.
         std::vector<std::string> tempurls;
-        static std::string emptyReturnString;
+        std::string emptyReturnString;
 
         // a connection is paused if it reads too far ahead of others.  This prevents excessive buffer usage
         bool connectionPaused[RAIDPARTS];
         
         // for raid, how far through the raid part we are currently
-        m_off_t raidrequestpartpos[RAIDPARTS];                  
+        m_off_t raidrequestpartpos[RAIDPARTS];
         
         // for raid, the http requested data before combining
         std::deque<FilePiece*> raidinputparts[RAIDPARTS];
 
-        // for raid, contains previously downloaded pieces that are beyond where raidinputparts is at. Only used when failing over from 6 Connection.
-        std::map<m_off_t, FilePiece*> raidinputparts_recovery[RAIDPARTS];
-
         // the data to output currently, per connection, raid or non-raid.  re-accessible in case retries are needed
-        std::map<unsigned, FilePiece*> asyncoutputbuffers;      
+        std::map<unsigned, FilePiece*> asyncoutputbuffers;
         
         // piece to carry over to the next combine operation, when we don't get pieces that match the chunkceil boundaries
-        FilePiece leftoverchunk;                                
+        FilePiece leftoverchunk;
 
         // the point we are at in the raid input parts.  raidinputparts buffers contain data from this point in their part.
         m_off_t raidpartspos;
@@ -147,12 +151,17 @@ namespace mega {
         // the point we are at in the output file.  asyncoutputbuffers contain data from this point.
         m_off_t outputfilepos;
 
+        // the point we started at in the output file.
+        m_off_t startfilepos;
+
         // In the case of resuming a file, the point we got to in the output might not line up nicely with a sector in an input part.  
         // This field allows us to start reading on a sector boundary but skip outputting data until we match where we got to last time.
         size_t resumewastedbytes;
 
         // track errors across the connections.  A successful fetch resets the error count for a connection.  Stop trying to recover if we hit 3 total.
         unsigned raidHttpGetErrorCount[RAIDPARTS];
+
+        bool connectionStarted[RAIDPARTS];
 
         // take raid input part buffers and combine to form the asyncoutputbuffers
         void combineRaidParts(unsigned connectionNum);
@@ -178,7 +187,7 @@ namespace mega {
         void setIsRaid(Transfer* transfer, std::vector<std::string>& tempUrls, m_off_t resumepos, m_off_t maxDownloadRequestSize);
 
         // Track the progress of http requests sent.  For raid download, tracks the parts.  Otherwise, uses the full file position in the Transfer object, as it used to prior to raid.
-        m_off_t& transferPos(unsigned connectionNum) /* override */;
+        m_off_t& transferPos(unsigned connectionNum) override;
 
         // Get the file position to upload/download to on the specified connection
         std::pair<m_off_t, m_off_t> nextNPosForConnection(unsigned connectionNum, m_off_t maxDownloadRequestSize, unsigned connectionCount, bool& newBufferSupplied, bool& pauseConnectionForRaid);
@@ -189,13 +198,10 @@ namespace mega {
 
         Transfer* transfer;
 
-        // get the next pos to start transferring from/to on this connection, for non-raid
-        m_off_t nextTransferPos();
-
         // decrypt and mac downloaded chunk
-        void finalize(FilePiece& r) /* override */;
-        m_off_t calcOutputChunkPos(m_off_t acquiredpos) /* override */;
-        void bufferWriteCompletedAction(FilePiece& r) /* override */;
+        void finalize(FilePiece& r) override;
+        m_off_t calcOutputChunkPos(m_off_t acquiredpos) override;
+        void bufferWriteCompletedAction(FilePiece& r) override;
 
         friend class DebugTestHook;
     };
@@ -205,7 +211,7 @@ namespace mega {
     public:
 
         // Track the progress of http requests sent.  For raid download, tracks the parts.  Otherwise, uses the full file position in the Transfer object, as it used to prior to raid.
-        m_off_t& transferPos(unsigned connectionNum) /* override */;
+        m_off_t& transferPos(unsigned connectionNum) override;
 
         DirectReadBufferManager(DirectRead* dr);
 
@@ -213,13 +219,9 @@ namespace mega {
 
         DirectRead* directRead;
 
-        // get the next pos to start transferring from/to on this connection, for non-raid
-        m_off_t nextTransferPos();
-
         // decrypt and mac downloaded chunk
-        void finalize(FilePiece& r) /* override */;
-        m_off_t calcOutputChunkPos(m_off_t acquiredpos) /* override */;
-        void bufferWriteCompletedAction(unsigned connectionNum, FilePiece& r) /* override */;
+        void finalize(FilePiece& r) override;
+        m_off_t calcOutputChunkPos(m_off_t acquiredpos) override;
 
         friend class DebugTestHook;
     };

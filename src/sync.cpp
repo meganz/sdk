@@ -19,6 +19,9 @@
  * program.
  */
 
+#include <type_traits>
+#include <unordered_set>
+
 #include "mega.h"
 
 #ifdef ENABLE_SYNC
@@ -36,10 +39,617 @@ const int Sync::FILE_UPDATE_DELAY_DS = 30;
 const int Sync::FILE_UPDATE_MAX_DELAY_SECS = 60;
 const dstime Sync::RECENT_VERSION_INTERVAL_SECS = 10800;
 
+namespace {
+
+// Need this to store `LightFileFingerprint` by-value in `FingerprintSet`
+struct LightFileFingerprintComparator
+{
+    bool operator()(const LightFileFingerprint& lhs, const LightFileFingerprint& rhs) const
+    {
+        return LightFileFingerprintCmp{}(&lhs, &rhs);
+    }
+};
+
+// Represents a file/folder for use in assigning fs IDs
+struct FsFile
+{
+    handle fsid;
+    string path;
+};
+
+// Caches fingerprints
+class FingerprintCache
+{
+public:
+    using FingerprintSet = std::set<LightFileFingerprint, LightFileFingerprintComparator>;
+
+    // Adds a new fingerprint
+    template<typename T, typename = typename std::enable_if<std::is_same<LightFileFingerprint, typename std::decay<T>::type>::value>::type>
+    const LightFileFingerprint* add(T&& ffp)
+    {
+         const auto insertPair = mFingerprints.insert(std::forward<T>(ffp));
+         return &*insertPair.first;
+    }
+
+    // Returns the set of all fingerprints
+    const FingerprintSet& all() const
+    {
+        return mFingerprints;
+    }
+
+private:
+    FingerprintSet mFingerprints;
+};
+
+using FingerprintLocalNodeMap = std::multimap<const LightFileFingerprint*, LocalNode*, LightFileFingerprintCmp>;
+using FingerprintFileMap = std::multimap<const LightFileFingerprint*, FsFile, LightFileFingerprintCmp>;
+
+// Collects all syncable filesystem paths in the given folder under `localpath`
+set<string> collectAllPathsInFolder(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, string localpath,
+                                    const string& localdebris, const string& localseparator)
+{
+    auto fa = fsaccess.newfileaccess(false);
+    if (!fa->fopen(&localpath, true, false))
+    {
+        LOG_err << "Unable to open path: " << localpath;
+        return {};
+    }
+    if (fa->mIsSymLink)
+    {
+        LOG_debug << "Ignoring symlink: " << localpath;
+        return {};
+    }
+    assert(fa->type == FOLDERNODE);
+
+    auto da = std::unique_ptr<DirAccess>{fsaccess.newdiraccess()};
+    if (!da->dopen(&localpath, fa.get(), false))
+    {
+        LOG_err << "Unable to open directory: " << localpath;
+        return {};
+    }
+
+    set<string> paths; // has to be a std::set to enforce same sorting as `children` of `LocalNode`
+
+    const size_t localpathSize = localpath.size();
+
+    string localname;
+    while (da->dnext(&localpath, &localname, false))
+    {
+        auto name = localname;
+        fsaccess.local2name(&name);
+
+        if (localpathSize > 0)
+        {
+            localpath.append(localseparator);
+        }
+
+        localpath.append(localname);
+
+        // check if this record is to be ignored
+        if (app.sync_syncable(&sync, name.c_str(), &localpath))
+        {
+            // skip the sync's debris folder
+            if (isPathSyncable(localpath, localdebris, localseparator))
+            {
+                paths.insert(localpath);
+            }
+        }
+
+        localpath.resize(localpathSize);
+    }
+
+    return paths;
+}
+
+// Combines another fingerprint into `ffp`
+void hashCombineFingerprint(LightFileFingerprint& ffp, const LightFileFingerprint& other)
+{
+    hashCombine(ffp.size, other.size);
+    hashCombine(ffp.mtime, other.mtime);
+}
+
+// Combines the fingerprints of all file nodes in the given map
+bool combinedFingerprint(LightFileFingerprint& ffp, const localnode_map& nodeMap)
+{
+    bool success = false;
+    for (const auto& nodePair : nodeMap)
+    {
+        const LocalNode& l = *nodePair.second;
+        if (l.type == FILENODE)
+        {
+            LightFileFingerprint lFfp;
+            lFfp.genfingerprint(l.size, l.mtime);
+            hashCombineFingerprint(ffp, lFfp);
+            success = true;
+        }
+    }
+    return success;
+}
+
+// Combines the fingerprints of all files in the given paths
+bool combinedFingerprint(LightFileFingerprint& ffp, FileSystemAccess& fsaccess, const set<string>& paths)
+{
+    bool success = false;
+    for (const auto& path : paths)
+    {
+        auto fa = fsaccess.newfileaccess(false);
+        if (!fa->fopen(const_cast<string*>(&path), true, false))
+        {
+            LOG_err << "Unable to open path: " << path;
+            success = false;
+            break;
+        }
+        if (fa->mIsSymLink)
+        {
+            LOG_debug << "Ignoring symlink: " << path;
+            continue;
+        }
+        if (fa->type == FILENODE)
+        {
+            LightFileFingerprint faFfp;
+            faFfp.genfingerprint(fa->size, fa->mtime);
+            hashCombineFingerprint(ffp, faFfp);
+            success = true;
+        }
+    }
+    return success;
+}
+
+// Computes the fingerprint of the given `l` (file or folder) and stores it in `ffp`
+bool computeFingerprint(LightFileFingerprint& ffp, const LocalNode& l)
+{
+    if (l.type == FILENODE)
+    {
+        ffp.genfingerprint(l.size, l.mtime);
+        return true;
+    }
+    else if (l.type == FOLDERNODE)
+    {
+        return combinedFingerprint(ffp, l.children);
+    }
+    else
+    {
+        assert(false && "Invalid node type");
+        return false;
+    }
+}
+
+// Computes the fingerprint of the given `fa` (file or folder) and stores it in `ffp`
+bool computeFingerprint(LightFileFingerprint& ffp, FileSystemAccess& fsaccess,
+                        FileAccess& fa, const std::string& path, const set<string>& paths)
+{
+    if (fa.type == FILENODE)
+    {
+        assert(paths.empty());
+        ffp.genfingerprint(fa.size, fa.mtime);
+        return true;
+    }
+    else if (fa.type == FOLDERNODE)
+    {
+        return combinedFingerprint(ffp, fsaccess, paths);
+    }
+    else
+    {
+        assert(false && "Invalid node type");
+        return false;
+    }
+}
+
+// Collects all `LocalNode`s by storing them in `localnodes`, keyed by LightFileFingerprint.
+// Invalidates the fs IDs of all local nodes.
+// Stores all fingerprints in `fingerprints` for later reference.
+void collectAllLocalNodes(FingerprintCache& fingerprints, FingerprintLocalNodeMap& localnodes,
+                          LocalNode& l, handlelocalnode_map& fsidnodes, const string& localseparator)
+{
+    // invalidate fsid of `l`
+    l.fsid = mega::UNDEF;
+    if (l.fsid_it != fsidnodes.end())
+    {
+        fsidnodes.erase(l.fsid_it);
+        l.fsid_it = fsidnodes.end();
+    }
+    // collect fingerprint
+    LightFileFingerprint ffp;
+    if (computeFingerprint(ffp, l))
+    {
+        const auto ffpPtr = fingerprints.add(std::move(ffp));
+        localnodes.insert(std::make_pair(ffpPtr, &l));
+    }
+    if (l.type == FILENODE)
+    {
+        return;
+    }
+    for (auto& childPair : l.children)
+    {
+        collectAllLocalNodes(fingerprints, localnodes, *childPair.second, fsidnodes, localseparator);
+    }
+}
+
+// Collects all `File`s by storing them in `files`, keyed by FileFingerprint.
+// Stores all fingerprints in `fingerprints` for later reference.
+void collectAllFiles(bool& success, FingerprintCache& fingerprints, FingerprintFileMap& files,
+                     Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, const string& localpath,
+                     const string& localdebris, const string& localseparator)
+{
+    auto insertFingerprint = [&files, &fingerprints](FileSystemAccess& fsaccess, FileAccess& fa,
+                                                     const std::string& path, const set<string>& paths)
+    {
+        LightFileFingerprint ffp;
+        if (computeFingerprint(ffp, fsaccess, fa, path, paths))
+        {
+            const auto ffpPtr = fingerprints.add(std::move(ffp));
+            files.insert(std::make_pair(ffpPtr, FsFile{fa.fsid, path}));
+        }
+    };
+
+    auto fa = fsaccess.newfileaccess(false);
+    if (!fa->fopen(const_cast<string*>(&localpath), true, false))
+    {
+        LOG_err << "Unable to open path: " << localpath;
+        success = false;
+        return;
+    }
+    if (fa->mIsSymLink)
+    {
+        LOG_debug << "Ignoring symlink: " << localpath;
+        return;
+    }
+    if (!fa->fsidvalid)
+    {
+        LOG_err << "Invalid fs id for: " << localpath;
+        success = false;
+        return;
+    }
+
+    if (fa->type == FILENODE)
+    {
+        insertFingerprint(fsaccess, *fa, localpath, {});
+    }
+    else if (fa->type == FOLDERNODE)
+    {
+        const auto paths = collectAllPathsInFolder(sync, app, fsaccess, localpath, localdebris, localseparator);
+        insertFingerprint(fsaccess, *fa, localpath, paths);
+        fa.reset();
+        for (const auto& path : paths)
+        {
+            collectAllFiles(success, fingerprints, files, sync, app, fsaccess, path, localdebris, localseparator);
+        }
+    }
+    else
+    {
+        assert(false && "Invalid file type");
+        success = false;
+        return;
+    }
+}
+
+// Assigns fs IDs from `files` to those `localnodes` that match the fingerprints found in `files`.
+// If there are multiple matches we apply a best-path heuristic.
+size_t assignFilesystemIdsImpl(const FingerprintCache& fingerprints, FingerprintLocalNodeMap& localnodes,
+                               FingerprintFileMap& files, handlelocalnode_map& fsidnodes, const string& localseparator)
+{
+    string nodePath;
+    string accumulated;
+    size_t assignmentCount = 0;
+    for (const auto& fp : fingerprints.all())
+    {
+        const auto nodeRange = localnodes.equal_range(&fp);
+        const auto nodeCount = std::distance(nodeRange.first, nodeRange.second);
+        if (nodeCount <= 0)
+        {
+            continue;
+        }
+
+        const auto fileRange = files.equal_range(&fp);
+        const auto fileCount = std::distance(fileRange.first, fileRange.second);
+        if (fileCount <= 0)
+        {
+            // without files we cannot assign fs IDs to these localnodes, so no need to keep them
+            localnodes.erase(nodeRange.first, nodeRange.second);
+            continue;
+        }
+
+        struct Element
+        {
+            int score;
+            handle fsid;
+            LocalNode* l;
+        };
+        std::vector<Element> elements;
+        elements.reserve(nodeCount * fileCount);
+
+        for (auto nodeIt = nodeRange.first; nodeIt != nodeRange.second; ++nodeIt)
+        {
+            auto l = nodeIt->second;
+            if (l != l->sync->localroot.get()) // never assign fs ID to the root localnode
+            {
+                nodePath.clear();
+                l->getlocalpath(&nodePath, false, &localseparator);
+                for (auto fileIt = fileRange.first; fileIt != fileRange.second; ++fileIt)
+                {
+                    const auto& filePath = fileIt->second.path;
+                    const auto score = computeReversePathMatchScore(accumulated, nodePath, filePath, localseparator);
+                    if (score > 0) // leaf name must match
+                    {
+                        elements.push_back({score, fileIt->second.fsid, l});
+                    }
+                }
+            }
+        }
+
+        // Sort in descending order by score. Elements with highest score come first
+        std::sort(elements.begin(), elements.end(), [](const Element& e1, const Element& e2)
+                                                    {
+                                                        return e1.score > e2.score;
+                                                    });
+
+        std::unordered_set<handle> usedFsIds;
+        for (const auto& e : elements)
+        {
+            if (e.l->fsid == mega::UNDEF // node not assigned
+                && usedFsIds.find(e.fsid) == usedFsIds.end()) // fsid not used
+            {
+                e.l->setfsid(e.fsid, fsidnodes);
+                usedFsIds.insert(e.fsid);
+                ++assignmentCount;
+            }
+        }
+
+        // the fingerprint that these files and localnodes correspond to has now finished processing
+        files.erase(fileRange.first, fileRange.second);
+        localnodes.erase(nodeRange.first, nodeRange.second);
+    }
+    return assignmentCount;
+}
+
+} // anonymous
+
+bool isPathSyncable(const string& localpath, const string& localdebris, const string& localseparator)
+{
+    return localpath.size() < localdebris.size()
+         || memcmp(localpath.data(), localdebris.data(), localdebris.size())
+         || (localpath.size() != localdebris.size()
+          && memcmp(localpath.data() + localdebris.size(),
+                    localseparator.data(),
+                    localseparator.size()));
+}
+
+int computeReversePathMatchScore(string& accumulated, const string& path1, const string& path2, const string& localseparator)
+{
+    if (path1.empty() || path2.empty())
+    {
+        return 0;
+    }
+
+    accumulated.clear();
+
+    const auto path1End = path1.size() - 1;
+    const auto path2End = path2.size() - 1;
+
+    size_t index = 0;
+    size_t separatorBias = 0;
+    while (index <= path1End && index <= path2End)
+    {
+        const auto value1 = path1[path1End - index];
+        const auto value2 = path2[path2End - index];
+        if (value1 != value2)
+        {
+            break;
+        }
+
+        accumulated.push_back(value1);
+        ++index;
+
+        if (accumulated.size() >= localseparator.size())
+        {
+            const auto diffSize = accumulated.size() - localseparator.size();
+            if (std::equal(accumulated.begin() + diffSize, accumulated.end(), localseparator.begin()))
+            {
+                separatorBias += localseparator.size();
+                accumulated.clear();
+            }
+        }
+    }
+
+    if (index > path1End && index > path2End) // we got to the beginning of both paths (full score)
+    {
+        return static_cast<int>(index - separatorBias);
+    }
+    else // the paths only partly match
+    {
+        return static_cast<int>(index - separatorBias - accumulated.size());
+    }
+}
+
+bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, handlelocalnode_map& fsidnodes,
+                         const string& localdebris, const string& localseparator)
+{
+    const auto& rootpath = sync.localroot->localname;
+    LOG_info << "Assigning fs IDs at rootpath: " << rootpath;
+
+    auto fa = fsaccess.newfileaccess(false);
+    if (!fa->fopen(const_cast<string*>(&rootpath), true, false))
+    {
+        LOG_err << "Unable to open rootpath";
+        return false;
+    }
+    if (fa->type != FOLDERNODE)
+    {
+        LOG_err << "rootpath not a folder";
+        assert(false);
+        return false;
+    }
+    if (fa->mIsSymLink)
+    {
+        LOG_err << "rootpath is a symlink";
+        assert(false);
+        return false;
+    }
+    fa.reset();
+
+    bool success = true;
+
+    FingerprintCache fingerprints;
+
+    FingerprintLocalNodeMap localnodes;
+    collectAllLocalNodes(fingerprints, localnodes, *sync.localroot, fsidnodes, localseparator);
+    LOG_info << "Number of localnodes: " << localnodes.size();
+
+    if (localnodes.empty())
+    {
+        return success;
+    }
+
+    FingerprintFileMap files;
+    collectAllFiles(success, fingerprints, files, sync, app, fsaccess, rootpath, localdebris, localseparator);
+    LOG_info << "Number of files: " << files.size();
+
+    LOG_info << "Number of fingerprints: " << fingerprints.all().size();
+    const auto assignmentCount = assignFilesystemIdsImpl(fingerprints, localnodes, files, fsidnodes, localseparator);
+    LOG_info << "Number of fsid assignments: " << assignmentCount;
+
+    return success;
+}
+
+SyncConfigBag::SyncConfigBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, PrnGen& rng, const std::string& id)
+{
+    std::string dbname = "syncconfigs_" + id;
+    mTable.reset(dbaccess.open(rng, &fsaccess, &dbname, false, false));
+    if (!mTable)
+    {
+        LOG_err << "Unable to open DB table: " << dbname;
+        assert(false);
+        return;
+    }
+
+    mTable->rewind();
+
+    uint32_t tableId;
+    std::string data;
+    while (mTable->next(&tableId, &data))
+    {
+        auto syncConfig = SyncConfig::unserialize(data);
+        if (!syncConfig)
+        {
+            LOG_err << "Unable to unserialize sync config at id: " << tableId;
+            assert(false);
+            continue;
+        }
+        syncConfig->dbid = tableId;
+
+        mSyncConfigs.insert(std::make_pair(syncConfig->getLocalPath(), *syncConfig));
+        if (tableId > mTable->nextid)
+        {
+            mTable->nextid = tableId;
+        }
+    }
+    ++mTable->nextid;
+}
+
+void SyncConfigBag::insert(const SyncConfig& syncConfig)
+{
+    auto insertOrUpdate = [this](const uint32_t id, const SyncConfig& syncConfig)
+    {
+        std::string data;
+        const_cast<SyncConfig&>(syncConfig).serialize(&data);
+        DBTableTransactionCommitter committer{mTable.get()};
+        if (!mTable->put(id, &data)) // put either inserts or updates
+        {
+            LOG_err << "Incomplete database put at id: " << mTable->nextid;
+            assert(false);
+            mTable->abort();
+            return false;
+        }
+        return true;
+    };
+
+    map<string, SyncConfig>::iterator syncConfigIt = mSyncConfigs.find(syncConfig.getLocalPath());
+    if (syncConfigIt == mSyncConfigs.end()) // syncConfig is new
+    {
+        if (mTable)
+        {
+            if (!insertOrUpdate(mTable->nextid, syncConfig))
+            {
+                return;
+            }
+        }
+        auto insertPair = mSyncConfigs.insert(std::make_pair(syncConfig.getLocalPath(), syncConfig));
+        if (mTable)
+        {
+            insertPair.first->second.dbid = mTable->nextid;
+            ++mTable->nextid;
+        }
+    }
+    else // syncConfig exists already
+    {
+        const uint32_t tableId = syncConfigIt->second.dbid;
+        if (mTable)
+        {
+            if (!insertOrUpdate(tableId, syncConfig))
+            {
+                return;
+            }
+        }
+        syncConfigIt->second = syncConfig;
+        syncConfigIt->second.dbid = tableId;
+    }
+}
+
+void SyncConfigBag::remove(const std::string& localPath)
+{
+    auto syncConfigPair = mSyncConfigs.find(localPath);
+    if (syncConfigPair != mSyncConfigs.end())
+    {
+        if (mTable)
+        {
+            DBTableTransactionCommitter committer{mTable.get()};
+            if (!mTable->del(syncConfigPair->second.dbid))
+            {
+                LOG_err << "Incomplete database del at id: " << syncConfigPair->second.dbid;
+                assert(false);
+                mTable->abort();
+                return;
+            }
+        }
+        mSyncConfigs.erase(syncConfigPair);
+    }
+}
+
+const SyncConfig* SyncConfigBag::get(const std::string& localPath) const
+{
+    auto syncConfigPair = mSyncConfigs.find(localPath);
+    if (syncConfigPair != mSyncConfigs.end())
+    {
+        return &syncConfigPair->second;
+    }
+    return nullptr;
+}
+
+void SyncConfigBag::clear()
+{
+    if (mTable)
+    {
+        mTable->truncate();
+        mTable->nextid = 0;
+    }
+    mSyncConfigs.clear();
+}
+
+std::vector<SyncConfig> SyncConfigBag::all() const
+{
+    std::vector<SyncConfig> syncConfigs;
+    for (const auto& syncConfigPair : mSyncConfigs)
+    {
+        syncConfigs.push_back(syncConfigPair.second);
+    }
+    return syncConfigs;
+}
+
 // new Syncs are automatically inserted into the session's syncs list
 // and a full read of the subtree is initiated
-Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
-           string* clocaldebris, Node* remotenode, fsfp_t cfsfp, bool cinshare, int ctag, void *cappdata)
+Sync::Sync(MegaClient* cclient, SyncConfig config, const char* cdebris,
+           string* clocaldebris, Node* remotenode, bool cinshare, int ctag, void *cappdata)
+: localroot(new LocalNode)
 {
     isnetwork = false;
     client = cclient;
@@ -63,26 +673,31 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
     fullscan = true;
     scanseqno = 0;
 
+    mLocalPath = config.getLocalPath();
+    string crootpath;
+    client->fsaccess->path2local(&mLocalPath, &crootpath);
+
     if (cdebris)
     {
         debris = cdebris;
         client->fsaccess->path2local(&debris, &localdebris);
 
-        dirnotify.reset(client->fsaccess->newdirnotify(crootpath, &localdebris));
+        dirnotify.reset(client->fsaccess->newdirnotify(&crootpath, &localdebris));
 
         localdebris.insert(0, client->fsaccess->localseparator);
-        localdebris.insert(0, *crootpath);
+        localdebris.insert(0, crootpath);
     }
     else
     {
         localdebris = *clocaldebris;
 
         // FIXME: pass last segment of localdebris
-        dirnotify.reset(client->fsaccess->newdirnotify(crootpath, &localdebris));
+        dirnotify.reset(client->fsaccess->newdirnotify(&crootpath, &localdebris));
     }
     dirnotify->sync = this;
 
     // set specified fsfp or get from fs if none
+    const auto cfsfp = config.getLocalFingerprint();
     if (cfsfp)
     {
         fsfp = cfsfp;
@@ -90,10 +705,44 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
     else
     {
         fsfp = dirnotify->fsfingerprint();
+        config.setLocalFingerprint(fsfp);
     }
 
-    localroot.init(this, FOLDERNODE, NULL, crootpath);
-    localroot.setnode(remotenode);
+    fsstableids = dirnotify->fsstableids();
+    LOG_info << "Filesystem IDs are stable: " << fsstableids;
+
+    localroot->init(this, FOLDERNODE, NULL, &crootpath);
+    localroot->setnode(remotenode);
+
+#ifdef __APPLE__
+    if (macOSmajorVersion() >= 19) //macOS catalina+
+    {
+        LOG_debug << "macOS 10.15+ filesystem detected. Checking fseventspath.";
+        string supercrootpath = "/System/Volumes/Data" + crootpath;
+
+        int fd = open(supercrootpath.c_str(), O_RDONLY);
+        if (fd == -1)
+        {
+            LOG_debug << "Unable to open path using fseventspath.";
+            mFsEventsPath = crootpath;
+        }
+        else
+        {
+            char buf[MAXPATHLEN];
+            if (fcntl(fd, F_GETPATH, buf) < 0)
+            {
+                LOG_debug << "Using standard paths to detect filesystem notifications.";
+                mFsEventsPath = crootpath;
+            }
+            else
+            {
+                LOG_debug << "Using fsevents paths to detect filesystem notifications.";
+                mFsEventsPath = supercrootpath;
+            }
+            close(fd);
+        }
+    }
+#endif
 
     sync_it = client->syncs.insert(client->syncs.end(), this);
 
@@ -103,9 +752,9 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
         handle tableid[3];
         string dbname;
 
-        FileAccess *fas = client->fsaccess->newfileaccess();
+        auto fas = client->fsaccess->newfileaccess(false);
 
-        if (fas->fopen(crootpath, true, false))
+        if (fas->fopen(&crootpath, true, false))
         {
             tableid[0] = fas->fsid;
             tableid[1] = remotenode->nodehandle;
@@ -114,12 +763,15 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
             dbname.resize(sizeof tableid * 4 / 3 + 3);
             dbname.resize(Base64::btoa((byte*)tableid, sizeof tableid, (char*)dbname.c_str()));
 
-            statecachetable = client->dbaccess->open(client->fsaccess, &dbname);
+            statecachetable = client->dbaccess->open(client->rng, client->fsaccess, &dbname, false, false);
 
             readstatecache();
         }
+    }
 
-        delete fas;
+    if (client->syncConfigs)
+    {
+        client->syncConfigs->insert(config);
     }
 }
 
@@ -128,20 +780,36 @@ Sync::~Sync()
     // must be set to prevent remote mass deletion while rootlocal destructor runs
     assert(state == SYNC_CANCELED || state == SYNC_FAILED);
 
+    if (!statecachetable && client->syncConfigs)
+    {
+        // if there's no localnode cache then remove the sync config
+        client->syncConfigs->remove(mLocalPath);
+    }
+
     // unlock tmp lock
-    delete tmpfa;
+    tmpfa.reset();
 
     // stop all active and pending downloads
-    if (localroot.node)
+    if (localroot->node)
     {
         TreeProcDelSyncGet tdsg;
-        client->proctree(localroot.node, &tdsg);
+        // Create a committer to ensure we update the transfer database in an efficient single commit,
+        // if there are transactions in progress.
+        DBTableTransactionCommitter committer(client->tctable);
+        client->proctree(localroot->node, &tdsg);
     }
 
     delete statecachetable;
 
     client->syncs.erase(sync_it);
     client->syncactivity = true;
+
+    {
+        // Create a committer and recursively delete all the associated LocalNodes, and their associated transfer and file objects.
+        // If any have transactions in progress, the committer will ensure we update the transfer database in an efficient single commit.
+        DBTableTransactionCommitter committer(client->tctable);
+        localroot.reset();
+    }
 }
 
 void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, string* path, LocalNode *p, int maxdepth)
@@ -173,7 +841,7 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, st
 
         l->parent_dbid = parent_dbid;
         l->size = size;
-        l->setfsid(fsid);
+        l->setfsid(fsid, client->fsidnode);
         l->setnode(node);
 
         if (maxdepth)
@@ -207,7 +875,7 @@ bool Sync::readstatecache()
         }
 
         // recursively build LocalNode tree, set scanseqnos to sync's current scanseqno
-        addstatecachechildren(0, &tmap, &localroot.localname, &localroot, 100);
+        addstatecachechildren(0, &tmap, &localroot->localname, localroot.get(), 100);
 
         // trigger a single-pass full scan to identify deleted nodes
         fullscan = true;
@@ -217,6 +885,26 @@ bool Sync::readstatecache()
     }
 
     return false;
+}
+
+const SyncConfig& Sync::getConfig() const
+{
+    assert(client->syncConfigs && "Calling getConfig() requires sync configs");
+    const auto config = client->syncConfigs->get(mLocalPath);
+    assert(config);
+    return *config;
+}
+
+void Sync::setResumable(const bool isResumable)
+{
+    if (client->syncConfigs)
+    {
+        const auto config = client->syncConfigs->get(mLocalPath);
+        assert(config);
+        auto newConfig = *config;
+        newConfig.setResumable(isResumable);
+        client->syncConfigs->insert(newConfig);
+    }
 }
 
 // remove LocalNode from DB cache
@@ -259,7 +947,7 @@ void Sync::cachenodes()
         statecachetable->begin();
 
         // deletions
-        for (set<int32_t>::iterator it = deleteq.begin(); it != deleteq.end(); it++)
+        for (set<uint32_t>::iterator it = deleteq.begin(); it != deleteq.end(); it++)
         {
             statecachetable->del(*it);
         }
@@ -274,7 +962,7 @@ void Sync::cachenodes()
 
             for (set<LocalNode*>::iterator it = insertq.begin(); it != insertq.end(); )
             {
-                if ((*it)->parent->dbid || (*it)->parent == &localroot)
+                if ((*it)->parent->dbid || (*it)->parent == localroot.get())
                 {
                     statecachetable->put(MegaClient::CACHEDLOCALNODE, *it, &client->key);
                     insertq.erase(it++);
@@ -330,8 +1018,8 @@ LocalNode* Sync::localnodebypath(LocalNode* l, string* localpath, LocalNode** pa
     {
         // verify matching localroot prefix - this should always succeed for
         // internal use
-        if (memcmp(ptr, localroot.localname.data(), localroot.localname.size())
-         || memcmp(ptr + localroot.localname.size(),
+        if (memcmp(ptr, localroot->localname.data(), localroot->localname.size())
+         || memcmp(ptr + localroot->localname.size(),
                    client->fsaccess->localseparator.data(),
                    separatorlen))
         {
@@ -343,7 +1031,7 @@ LocalNode* Sync::localnodebypath(LocalNode* l, string* localpath, LocalNode** pa
             return NULL;
         }
 
-        l = &localroot;
+        l = localroot.get();
         ptr += l->localname.size() + client->fsaccess->localseparator.size();
     }
 
@@ -411,16 +1099,21 @@ LocalNode* Sync::localnodebypath(LocalNode* l, string* localpath, LocalNode** pa
     }
 }
 
+bool Sync::assignfsids()
+{
+    return assignFilesystemIds(*this, *client->app, *client->fsaccess, client->fsidnode,
+                               localdebris, client->fsaccess->localseparator);
+}
+
 // scan localpath, add or update child nodes, call recursively for folder nodes
 // localpath must be prefixed with Sync
 bool Sync::scan(string* localpath, FileAccess* fa)
 {
-    if (localpath->size() < localdebris.size()
-     || memcmp(localpath->data(), localdebris.data(), localdebris.size())
-     || (localpath->size() != localdebris.size()
-      && memcmp(localpath->data() + localdebris.size(),
-                client->fsaccess->localseparator.data(),
-                client->fsaccess->localseparator.size())))
+    if (fa)
+    {
+        assert(fa->type == FOLDERNODE);
+    }
+    if (isPathSyncable(*localpath, localdebris, client->fsaccess->localseparator))
     {
         DirAccess* da;
         string localname, name;
@@ -456,12 +1149,7 @@ bool Sync::scan(string* localpath, FileAccess* fa)
                 if (client->app->sync_syncable(this, name.c_str(), localpath))
                 {
                     // skip the sync's debris folder
-                    if (localpath->size() < localdebris.size()
-                     || memcmp(localpath->data(), localdebris.data(), localdebris.size())
-                     || (localpath->size() != localdebris.size()
-                      && memcmp(localpath->data() + localdebris.size(),
-                                client->fsaccess->localseparator.data(),
-                                client->fsaccess->localseparator.size())))
+                    if (isPathSyncable(*localpath, localdebris, client->fsaccess->localseparator))
                     {
                         LocalNode *l = NULL;
                         if (initializing)
@@ -502,7 +1190,6 @@ bool Sync::scan(string* localpath, FileAccess* fa)
 LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, dstime *backoffds, bool wejustcreatedthisfolder)
 {
     LocalNode* ll = l;
-    FileAccess* fa;
     bool newnode = false, changed = false;
     bool isroot;
 
@@ -582,7 +1269,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
             return NULL;
         }
 
-        isroot = l == &localroot && !newname.size();
+        isroot = l == localroot.get() && !newname.size();
     }
 
     LOG_verbose << "Scanning: " << path;
@@ -595,7 +1282,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
     }
 
     // attempt to open/type this file
-    fa = client->fsaccess->newfileaccess();
+    auto fa = client->fsaccess->newfileaccess(false);
 
     if (initializing || fullscan)
     {
@@ -606,7 +1293,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                      lastpart,
                      (localname ? *localpath : tmppath).size() - lastpart);
 
-        LocalNode* cl = (parent ? parent : &localroot)->childbyname(&fname);
+        LocalNode* cl = (parent ? parent : localroot.get())->childbyname(&fname);
         if (initializing && cl)
         {
             // the file seems to be still in the folder
@@ -636,14 +1323,13 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
 
                     if (l->type == FOLDERNODE)
                     {
-                        scan(localname ? localpath : &tmppath, fa);
+                        scan(localname ? localpath : &tmppath, fa.get());
                     }
                     else
                     {
                         localbytes += l->size;
                     }
 
-                    delete fa;
                     return l;
                 }
             }
@@ -664,12 +1350,10 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
             {
                 LOG_verbose << "New file. FaType: " << fa->type << "  FaSize: " << fa->size << "  FaMtime: " << fa->mtime;
             }
-            delete fa;
             return NULL;
         }
 
-        delete fa;
-        fa = client->fsaccess->newfileaccess();
+        fa = client->fsaccess->newfileaccess(false);
     }
 
     if (fa->fopen(localname ? localpath : &tmppath, true, false))
@@ -708,10 +1392,10 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                                             #ifdef _WIN32
                                                 // only consider fsid matches between different syncs for local drives with the
                                                 // same drive letter, to prevent problems with cloned Volume IDs
-                                                && (colon = strstr(parent->sync->localroot.name.c_str(), ":"))
-                                                && !memcmp(parent->sync->localroot.name.c_str(),
-                                                       it->second->sync->localroot.name.c_str(),
-                                                       colon - parent->sync->localroot.name.c_str())
+                                                && (colon = strstr(parent->sync->localroot->name.c_str(), ":"))
+                                                && !memcmp(parent->sync->localroot->name.c_str(),
+                                                       it->second->sync->localroot->name.c_str(),
+                                                       colon - parent->sync->localroot->name.c_str())
                                             #endif
                                                 )
                                             )
@@ -745,7 +1429,6 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
 
                                         statecacheadd(it->second);
 
-                                        delete fa;
                                         return it->second;
                                     }
                                 }
@@ -761,19 +1444,20 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                         {
                             if (fa->fsidvalid && l->fsid != fa->fsid)
                             {
-                                l->setfsid(fa->fsid);
+                                l->setfsid(fa->fsid, client->fsidnode);
                             }
 
                             m_off_t dsize = l->size > 0 ? l->size : 0;
 
-                            if (l->genfingerprint(fa) && l->size >= 0)
+                            if (l->genfingerprint(fa.get()) && l->size >= 0)
                             {
                                 localbytes -= dsize - l->size;
                             }
 
                             client->app->syncupdate_local_file_change(this, l, path.c_str());
 
-                            client->stopxfer(l);
+                            DBTableTransactionCommitter committer(client->tctable);
+                            client->stopxfer(l, &committer); // TODO:  can we use one committer for all the files in the folder?  Or for the whole recursion?
                             l->bumpnagleds();
                             l->deleted = false;
 
@@ -781,7 +1465,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
 
                             statecacheadd(l);
 
-                            delete fa;
+                            fa.reset();
 
                             if (isnetwork && l->type == FILENODE)
                             {
@@ -799,7 +1483,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                         // content scan anyway)
                         if (fa->fsidvalid && fa->fsid != l->fsid)
                         {
-                            l->setfsid(fa->fsid);
+                            l->setfsid(fa->fsid, client->fsidnode);
                             newnode = true;
                         }
                     }
@@ -832,10 +1516,10 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                         #ifdef _WIN32
                             // allow moves between different syncs only for local drives with the
                             // same drive letter, to prevent problems with cloned Volume IDs
-                            && (colon = strstr(parent->sync->localroot.name.c_str(), ":"))
-                            && !memcmp(parent->sync->localroot.name.c_str(),
-                                   it->second->sync->localroot.name.c_str(),
-                                   colon - parent->sync->localroot.name.c_str())
+                            && (colon = strstr(parent->sync->localroot->name.c_str(), ":"))
+                            && !memcmp(parent->sync->localroot->name.c_str(),
+                                   it->second->sync->localroot->name.c_str(),
+                                   colon - parent->sync->localroot->name.c_str())
                         #endif
                             )
                        )
@@ -862,7 +1546,8 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                                 string local;
                                 bool waitforupdate = false;
                                 it->second->getlocalpath(&local, true);
-                                FileAccess *prevfa = client->fsaccess->newfileaccess();
+                                auto prevfa = client->fsaccess->newfileaccess(false);
+
                                 bool exists = prevfa->fopen(&local);
                                 if (exists)
                                 {
@@ -934,11 +1619,8 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                                 {
                                     LOG_debug << "Possible file update detected.";
                                     *backoffds = FILE_UPDATE_DELAY_DS;
-                                    delete prevfa;
-                                    delete fa;
                                     return NULL;
                                 }
-                                delete prevfa;
                             }
                             else
                             {
@@ -969,10 +1651,15 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                     it->second->setnotseen(0);
 
                     // immediately scan folder to detect deviations from cached state
-                    if (fullscan)
+                    if (fullscan && fa->type == FOLDERNODE)
                     {
-                        scan(localname ? localpath : &tmppath, fa);
+                        scan(localname ? localpath : &tmppath, fa.get());
                     }
+                }
+                else if (fa->mIsSymLink)
+                {
+                    LOG_debug << "checked path is a symlink.  Parent: " << (parent ? parent->name : "NO");
+                    //doing nothing for the moment
                 }
                 else
                 {
@@ -983,7 +1670,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
 
                     if (fa->fsidvalid)
                     {
-                        l->setfsid(fa->fsid);
+                        l->setfsid(fa->fsid, client->fsidnode);
                     }
 
                     newnode = true;
@@ -998,7 +1685,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
             {
                 if (newnode)
                 {
-                    scan(localname ? localpath : &tmppath, fa);
+                    scan(localname ? localpath : &tmppath, fa.get());
                     client->app->syncupdate_local_folder_addition(this, l, path.c_str());
 
                     if (!isroot)
@@ -1024,7 +1711,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                 {
                     if (fa->fsidvalid && l->fsid != fa->fsid)
                     {
-                        l->setfsid(fa->fsid);
+                        l->setfsid(fa->fsid, client->fsidnode);
                     }
 
                     if (l->size > 0)
@@ -1032,7 +1719,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                         localbytes -= l->size;
                     }
 
-                    if (l->genfingerprint(fa))
+                    if (l->genfingerprint(fa.get()))
                     {
                         changed = true;
                         l->bumpnagleds();
@@ -1051,7 +1738,8 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                     else if (changed)
                     {
                         client->app->syncupdate_local_file_change(this, l, path.c_str());
-                        client->stopxfer(l);
+                        DBTableTransactionCommitter committer(client->tctable); // TODO:  can we use one committer for all the files in the folder?  Or for the whole recursion?
+                        client->stopxfer(l, &committer);
                     }
 
                     if (newnode || changed)
@@ -1093,7 +1781,8 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
             // immediately stop outgoing transfer, if any
             if (l->transfer)
             {
-                client->stopxfer(l);
+                DBTableTransactionCommitter committer(client->tctable); // TODO:  can we use one committer for all the files in the folder?  Or for the whole recursion?
+                client->stopxfer(l, &committer);
             }
 
             client->syncactivity = true;
@@ -1108,8 +1797,6 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
 
         l = NULL;
     }
-
-    delete fa;
 
     return l;
 }
@@ -1185,14 +1872,14 @@ dstime Sync::procscanq(int q)
         cachenodes();
     }
 
-    return ~0;
+    return dstime(~0);
 }
 
 // delete all child LocalNodes that have been missing for two consecutive scans (*l must still exist)
 void Sync::deletemissing(LocalNode* l)
 {
     string path;
-    FileAccess *fa = NULL;
+    std::unique_ptr<FileAccess> fa;
     for (localnode_map::iterator it = l->children.begin(); it != l->children.end(); )
     {
         if (scanseqno-it->second->scanseqno > 1)
@@ -1201,7 +1888,7 @@ void Sync::deletemissing(LocalNode* l)
             {
                 fa = client->fsaccess->newfileaccess();
             }
-            client->unlinkifexists(it->second, fa, &path);
+            client->unlinkifexists(it->second, fa.get(), &path);
             delete it++->second;
         }
         else
@@ -1210,7 +1897,6 @@ void Sync::deletemissing(LocalNode* l)
             it++;
         }
     }
-    delete fa;
 }
 
 bool Sync::movetolocaldebris(string* localpath)

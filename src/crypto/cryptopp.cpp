@@ -28,12 +28,10 @@ namespace mega {
 
 using namespace CryptoPP;
 
-AutoSeededRandomPool PrnGen::rng;
-
 // cryptographically strong random byte sequence
-void PrnGen::genblock(byte* buf, int len)
+void PrnGen::genblock(byte* buf, size_t len)
 {
-    rng.GenerateBlock(buf, len);
+    GenerateBlock(buf, len);
 }
 
 // random number from 0 ... max-1
@@ -90,13 +88,13 @@ bool SymmCipher::setkey(const string* key)
     return false;
 }
 
-void SymmCipher::cbc_encrypt(byte* data, unsigned len, const byte* iv)
+void SymmCipher::cbc_encrypt(byte* data, size_t len, const byte* iv)
 {
     aescbc_e.Resynchronize(iv ? iv : zeroiv);
     aescbc_e.ProcessData(data, data, len);
 }
 
-void SymmCipher::cbc_decrypt(byte* data, unsigned len, const byte* iv)
+void SymmCipher::cbc_decrypt(byte* data, size_t len, const byte* iv)
 {
     aescbc_d.Resynchronize(iv ? iv : zeroiv);
     aescbc_d.ProcessData(data, data, len);
@@ -118,12 +116,12 @@ void SymmCipher::cbc_decrypt_pkcs_padding(const std::string *data, const byte *i
                                                      StreamTransformationFilter::PKCS_PADDING));
 }
 
-void SymmCipher::ecb_encrypt(byte* data, byte* dst, unsigned len)
+void SymmCipher::ecb_encrypt(byte* data, byte* dst, size_t len)
 {
     aesecb_e.ProcessData(dst ? dst : data, data, len);
 }
 
-void SymmCipher::ecb_decrypt(byte* data, unsigned len)
+void SymmCipher::ecb_decrypt(byte* data, size_t len)
 {
     aesecb_d.ProcessData(data, data, len);
 }
@@ -144,7 +142,7 @@ void SymmCipher::ccm_encrypt(const string *data, const byte *iv, unsigned ivlen,
     }
 }
 
-void SymmCipher::ccm_decrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result)
+bool SymmCipher::ccm_decrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result)
 {
     try {
         if (taglen == 16)
@@ -163,7 +161,9 @@ void SymmCipher::ccm_decrypt(const string *data, const byte *iv, unsigned ivlen,
     {
         result->clear();
         LOG_err << "Failed AES-CCM decryption: " << e.GetWhat();
+        return false;
     }
+    return true;
 }
 
 void SymmCipher::gcm_encrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result)
@@ -172,7 +172,7 @@ void SymmCipher::gcm_encrypt(const string *data, const byte *iv, unsigned ivlen,
     StringSource(*data, true, new AuthenticatedEncryptionFilter(aesgcm_e, new StringSink(*result), false, taglen));
 }
 
-void SymmCipher::gcm_decrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result)
+bool SymmCipher::gcm_decrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result)
 {
     aesgcm_d.Resynchronize(iv, ivlen);
     try {
@@ -181,7 +181,9 @@ void SymmCipher::gcm_decrypt(const string *data, const byte *iv, unsigned ivlen,
     {
         result->clear();
         LOG_err << "Failed AES-GCM decryption: " << e.GetWhat();
+        return false;
     }
+    return true;
 }
 
 void SymmCipher::serializekeyforjs(string *d)
@@ -324,13 +326,13 @@ static void rsaencrypt(Integer* key, Integer* m)
     *m = a_exp_b_mod_c(*m, key[AsymmCipher::PUB_E], key[AsymmCipher::PUB_PQ]);
 }
 
-unsigned AsymmCipher::rawencrypt(const byte* plain, int plainlen, byte* buf, int buflen)
+unsigned AsymmCipher::rawencrypt(const byte* plain, size_t plainlen, byte* buf, size_t buflen)
 {
     Integer t(plain, plainlen);
 
     rsaencrypt(key, &t);
 
-    int i = t.ByteCount();
+    unsigned i = t.ByteCount();
 
     if (i > buflen)
     {
@@ -345,9 +347,9 @@ unsigned AsymmCipher::rawencrypt(const byte* plain, int plainlen, byte* buf, int
     return t.ByteCount();
 }
 
-int AsymmCipher::encrypt(const byte* plain, int plainlen, byte* buf, int buflen)
+int AsymmCipher::encrypt(PrnGen &rng, const byte* plain, size_t plainlen, byte* buf, size_t buflen)
 {
-    if ((int)key[PUB_PQ].ByteCount() + 2 > buflen)
+    if (key[PUB_PQ].ByteCount() + 2 > buflen)
     {
         return 0;
     }
@@ -358,7 +360,7 @@ int AsymmCipher::encrypt(const byte* plain, int plainlen, byte* buf, int buflen)
     }
 
     // add random padding
-    PrnGen::genblock(buf + plainlen, key[PUB_PQ].ByteCount() - plainlen - 2);
+    rng.genblock(buf + plainlen, key[PUB_PQ].ByteCount() - plainlen - 2);
 
     Integer t(buf, key[PUB_PQ].ByteCount() - 2);
 
@@ -402,13 +404,13 @@ static void rsadecrypt(Integer* key, Integer* m)
     *m = *m * key[AsymmCipher::PRIV_P] + xp;
 }
 
-unsigned AsymmCipher::rawdecrypt(const byte* cipher, int cipherlen, byte* buf, int buflen)
+unsigned AsymmCipher::rawdecrypt(const byte* cipher, size_t cipherlen, byte* buf, size_t buflen)
 {
     Integer m(cipher, cipherlen);
 
     rsadecrypt(key, &m);
 
-    int i = m.ByteCount();
+    unsigned i = m.ByteCount();
 
     if (i > buflen)
     {
@@ -423,18 +425,18 @@ unsigned AsymmCipher::rawdecrypt(const byte* cipher, int cipherlen, byte* buf, i
     return m.ByteCount();
 }
 
-int AsymmCipher::decrypt(const byte* cipher, int cipherlen, byte* out, int numbytes)
+int AsymmCipher::decrypt(const byte* cipher, size_t cipherlen, byte* out, size_t numbytes)
 {
     Integer m;
 
-    if (!decodeintarray(&m, 1, cipher, cipherlen))
+    if (!decodeintarray(&m, 1, cipher, int(cipherlen)))
     {
         return 0;
     }
 
     rsadecrypt(key, &m);
 
-    unsigned l = key[AsymmCipher::PRIV_P].ByteCount() + key[AsymmCipher::PRIV_Q].ByteCount() - 2;
+    size_t l = key[AsymmCipher::PRIV_P].ByteCount() + key[AsymmCipher::PRIV_Q].ByteCount() - 2;
 
     if (m.ByteCount() > l)
     {
@@ -523,7 +525,7 @@ void AsymmCipher::serializeintarray(Integer* t, int numints, string* d, bool hea
     {
         if (headers)
         {
-            c = t[i].BitCount() >> 8;
+            c = static_cast<char>(t[i].BitCount() >> 8);
             d->append(&c, sizeof c);
 
             c = (char)t[i].BitCount();
@@ -600,7 +602,7 @@ public:
 };
 
 // generate RSA keypair
-void AsymmCipher::genkeypair(Integer* privk, Integer* pubk, int size)
+void AsymmCipher::genkeypair(PrnGen &rng, Integer* privk, Integer* pubk, int size)
 {
     pubk[PUB_E] = 17;
 
@@ -609,8 +611,8 @@ void AsymmCipher::genkeypair(Integer* privk, Integer* pubk, int size)
             = MakeParametersForTwoPrimesOfEqualSize(size)
                 (Name::PointerToPrimeSelector(), selector.GetSelectorPointer());
 
-    privk[PRIV_P].GenerateRandom(PrnGen::rng, primeParam);
-    privk[PRIV_Q].GenerateRandom(PrnGen::rng, primeParam);
+    privk[PRIV_P].GenerateRandom(rng, primeParam);
+    privk[PRIV_Q].GenerateRandom(rng, primeParam);
 
     privk[PRIV_D] = pubk[PUB_E].InverseMod(LCM(privk[PRIV_P] - Integer::One(), privk[PRIV_Q] - Integer::One()));
     pubk[PUB_PQ] = privk[PRIV_P] * privk[PRIV_Q];
@@ -654,7 +656,7 @@ HMACSHA256::HMACSHA256(const byte *key, size_t length)
 {
 }
 
-void HMACSHA256::add(const byte *data, unsigned len)
+void HMACSHA256::add(const byte *data, size_t len)
 {
     hmac.Update(data, len);
 }

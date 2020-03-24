@@ -26,6 +26,14 @@
 
 #include <iomanip>
 
+#if defined(_WIN32) && defined(_MSC_VER)
+#include <sys/timeb.h>
+#endif
+
+#ifdef __APPLE__
+#include <sys/sysctl.h>
+#endif
+
 namespace mega {
 
 string toNodeHandle(handle nodeHandle)
@@ -42,10 +50,379 @@ string toHandle(handle h)
     return string(base64Handle);
 }
 
-Cachable::Cachable()
+CacheableWriter::CacheableWriter(string& d)
+    : dest(d)
 {
-    dbid = 0;
-    notified = 0;
+}
+
+void CacheableWriter::serializebinary(byte* data, size_t len)
+{
+    dest.append((char*)data, len);
+}
+
+void CacheableWriter::serializechunkmacs(const chunkmac_map& m)
+{
+    m.serialize(dest);
+}
+
+void CacheableWriter::serializecstr(const char* field, bool storeNull)
+{
+    unsigned short ll = (unsigned short)(field ? strlen(field) + (storeNull ? 1 : 0) : 0);
+    dest.append((char*)&ll, sizeof(ll));
+    dest.append(field, ll);
+}
+
+void CacheableWriter::serializestring(const string& field)
+{
+    unsigned short ll = (unsigned short)field.size();
+    dest.append((char*)&ll, sizeof(ll));
+    dest.append(field.data(), ll);
+}
+
+void CacheableWriter::serializei64(int64_t field)
+{
+    dest.append((char*)&field, sizeof(field));
+}
+
+void CacheableWriter::serializeu32(uint32_t field)
+{
+    dest.append((char*)&field, sizeof(field));
+}
+
+void CacheableWriter::serializehandle(handle field)
+{
+    dest.append((char*)&field, sizeof(field));
+}
+
+void CacheableWriter::serializefsfp(fsfp_t field)
+{
+    dest.append((char*)&field, sizeof(field));
+}
+
+void CacheableWriter::serializebool(bool field)
+{
+    dest.append((char*)&field, sizeof(field));
+}
+
+void CacheableWriter::serializebyte(byte field)
+{
+    dest.append((char*)&field, sizeof(field));
+}
+
+void CacheableWriter::serializedouble(double field)
+{
+    dest.append((char*)&field, sizeof(field));
+}
+
+void CacheableWriter::serializeexpansionflags(bool b0, bool b1, bool b2, bool b3, bool b4, bool b5, bool b6, bool b7)
+{
+    unsigned char b[8];
+    b[0] = b0;
+    b[1] = b1;
+    b[2] = b2;
+    b[3] = b3;
+    b[4] = b4;
+    b[5] = b5;
+    b[6] = b6;
+    b[7] = b7;
+    dest.append((char*)b, 8);
+}
+
+
+CacheableReader::CacheableReader(const string& d)
+    : ptr(d.data())
+    , end(ptr + d.size())
+    , fieldnum(0)
+{
+}
+
+void CacheableReader::eraseused(string& d)
+{
+    assert(end == d.data() + d.size());
+    d.erase(0, ptr - d.data());
+}
+
+bool CacheableReader::unserializecstr(string& s, bool removeNull)
+{
+    if (ptr + sizeof(unsigned short) > end)
+    {
+        return false;
+    }
+
+    unsigned short len = MemAccess::get<unsigned short>(ptr);
+    ptr += sizeof(len);
+
+    if (ptr + len > end)
+    {
+        return false;
+    }
+
+    if (len)
+    {
+        s.assign(ptr, len - (removeNull ? 1 : 0));
+    }
+    ptr += len;
+    fieldnum += 1;
+    return true;
+}
+
+
+bool CacheableReader::unserializestring(string& s)
+{
+    if (ptr + sizeof(unsigned short) > end)
+    {
+        return false;
+    }
+
+    unsigned short len = MemAccess::get<unsigned short>(ptr);
+    ptr += sizeof(len);
+
+    if (ptr + len > end)
+    {
+        return false;
+    }
+
+    if (len)
+    {
+        s.assign(ptr, len);
+    }
+    ptr += len;
+    fieldnum += 1;
+    return true;
+}
+
+bool CacheableReader::unserializebinary(byte* data, size_t len)
+{
+    if (ptr + len > end)
+    {
+        return false;
+    }
+
+    memcpy(data, ptr, len);
+    ptr += len;
+    fieldnum += 1;
+    return true;
+}
+
+
+void chunkmac_map::serialize(string& d) const
+{
+    unsigned short ll = (unsigned short)size();
+    d.append((char*)&ll, sizeof(ll));
+    for (const_iterator it = begin(); it != end(); it++)
+    {
+        d.append((char*)&it->first, sizeof(it->first));
+        d.append((char*)&it->second, sizeof(it->second));
+    }
+}
+
+bool chunkmac_map::unserialize(const char*& ptr, const char* end)
+{
+    unsigned short ll;
+    if ((ptr + sizeof(ll) > end) || ptr + (ll = MemAccess::get<unsigned short>(ptr)) * (sizeof(m_off_t) + sizeof(ChunkMAC)) + sizeof(ll) > end)
+    {
+        return false;
+    }
+
+    ptr += sizeof(ll);
+
+    for (int i = 0; i < ll; i++)
+    {
+        m_off_t pos = MemAccess::get<m_off_t>(ptr);
+        ptr += sizeof(m_off_t);
+
+        memcpy(&((*this)[pos]), ptr, sizeof(ChunkMAC));
+        ptr += sizeof(ChunkMAC);
+    }
+    return true;
+}
+
+void chunkmac_map::calcprogress(m_off_t size, m_off_t& chunkpos, m_off_t& progresscompleted, m_off_t* lastblockprogress)
+{
+    chunkpos = 0;
+    progresscompleted = 0;
+
+    for (chunkmac_map::iterator it = begin(); it != end(); ++it)
+    {
+        m_off_t chunkceil = ChunkedHash::chunkceil(it->first, size);
+
+        if (chunkpos == it->first && it->second.finished)
+        {
+            chunkpos = chunkceil;
+            progresscompleted = chunkceil;
+        }
+        else if (it->second.finished)
+        {
+            m_off_t chunksize = chunkceil - ChunkedHash::chunkfloor(it->first);
+            progresscompleted += chunksize;
+        }
+        else
+        {
+            progresscompleted += it->second.offset;
+            if (lastblockprogress)
+            {
+                *lastblockprogress += it->second.offset;
+            }
+        }
+    }
+}
+
+m_off_t chunkmac_map::nextUnprocessedPosFrom(m_off_t pos)
+{
+    for (const_iterator it = find(ChunkedHash::chunkfloor(pos));
+        it != end();
+        it = find(ChunkedHash::chunkfloor(pos)))
+    {
+        if (it->second.finished)
+        {
+            pos = ChunkedHash::chunkceil(pos);
+        }
+        else
+        {
+            pos += it->second.offset;
+            break;
+        }
+    }
+    return pos;
+}
+
+m_off_t chunkmac_map::expandUnprocessedPiece(m_off_t pos, m_off_t npos, m_off_t fileSize, m_off_t maxReqSize)
+{
+    for (iterator it = find(npos);
+        npos < fileSize && (npos - pos) <= maxReqSize && (it == end() || (!it->second.finished && !it->second.offset));
+        it = find(npos))
+    {
+        npos = ChunkedHash::chunkceil(npos, fileSize);
+    }
+    return npos;
+}
+
+void chunkmac_map::finishedUploadChunks(m_off_t pos, m_off_t size)
+{
+    m_off_t startpos = pos;
+    m_off_t finalpos = startpos + size;
+    while (startpos < finalpos)
+    {
+        (*this)[startpos].finished = true;
+        LOG_verbose << "Upload chunk completed: " << startpos;
+        startpos = ChunkedHash::chunkceil(startpos, finalpos);
+    }
+}
+
+bool CacheableReader::unserializechunkmacs(chunkmac_map& m)
+{
+    if (m.unserialize(ptr, end))   // ptr is adjusted by reference
+    {
+        fieldnum += 1;
+        return true;
+    }
+    return false;
+}
+
+bool CacheableReader::unserializei64(int64_t& field)
+{
+    if (ptr + sizeof(int64_t) > end)
+    {
+        return false;
+    }
+    field = MemAccess::get<int64_t>(ptr);
+    ptr += sizeof(int64_t);
+    fieldnum += 1;
+    return true;
+}
+
+bool CacheableReader::unserializeu32(uint32_t& field)
+{
+    if (ptr + sizeof(uint32_t) > end)
+    {
+        return false;
+    }
+    field = MemAccess::get<uint32_t>(ptr);
+    ptr += sizeof(uint32_t);
+    fieldnum += 1;
+    return true;
+}
+
+bool CacheableReader::unserializehandle(handle& field)
+{
+    if (ptr + sizeof(handle) > end)
+    {
+        return false;
+    }
+    field = MemAccess::get<handle>(ptr);
+    ptr += sizeof(handle);
+    fieldnum += 1;
+    return true;
+}
+
+bool CacheableReader::unserializefsfp(fsfp_t& field)
+{
+    if (ptr + sizeof(fsfp_t) > end)
+    {
+        return false;
+    }
+    field = MemAccess::get<fsfp_t>(ptr);
+    ptr += sizeof(fsfp_t);
+    fieldnum += 1;
+    return true;
+}
+
+bool CacheableReader::unserializebool(bool& field)
+{
+    if (ptr + sizeof(bool) > end)
+    {
+        return false;
+    }
+    field = MemAccess::get<bool>(ptr);
+    ptr += sizeof(bool);
+    fieldnum += 1;
+    return true;
+}
+
+bool CacheableReader::unserializebyte(byte& field)
+{
+    if (ptr + sizeof(byte) > end)
+    {
+        return false;
+    }
+    field = MemAccess::get<byte>(ptr);
+    ptr += sizeof(byte);
+    fieldnum += 1;
+    return true;
+}
+
+bool CacheableReader::unserializedouble(double& field)
+{
+    if (ptr + sizeof(double) > end)
+    {
+        return false;
+    }
+    field = MemAccess::get<double>(ptr);
+    ptr += sizeof(double);
+    fieldnum += 1;
+    return true;
+}
+
+bool CacheableReader::unserializeexpansionflags(unsigned char field[8], unsigned usedFlagCount)
+{
+    if (ptr + 8 > end)
+    {
+        return false;
+    }
+    memcpy(field, ptr, 8);
+
+    for (int i = usedFlagCount;  i < 8; i++ )
+    {
+        if (field[i])
+        {
+            LOG_err << "Unserialization failed in expansion flags, invalid version detected.  Fieldnum: " << fieldnum;
+            return false;
+        }
+    }
+
+    ptr += 8;
+    fieldnum += 1;
+    return true;
 }
 
 #ifdef ENABLE_CHAT
@@ -200,6 +577,12 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
             ptr += sizeof priv;
 
             userpriv->push_back(userpriv_pair(uh, priv));
+        }
+
+        if (priv == PRIV_RM)    // clear peerlist if removed
+        {
+            delete userpriv;
+            userpriv = NULL;
         }
     }
 
@@ -436,7 +819,7 @@ bool TextChat::setMode(bool publicchat)
 
 bool TextChat::setFlag(bool value, uint8_t offset)
 {
-    if (((flags >> offset) & 1U) == value)
+    if (bool((flags >> offset) & 1U) == value)
     {
         return false;
     }
@@ -461,7 +844,7 @@ bool TextChat::setFlag(bool value, uint8_t offset)
  *     for encryption will be generated and available through the reference.
  * @return Void.
  */
-void PaddedCBC::encrypt(string* data, SymmCipher* key, string* iv)
+void PaddedCBC::encrypt(PrnGen &rng, string* data, SymmCipher* key, string* iv)
 {
     if (iv)
     {
@@ -469,7 +852,7 @@ void PaddedCBC::encrypt(string* data, SymmCipher* key, string* iv)
         if (iv->size() == 0)
         {
             byte* buf = new byte[8];
-            PrnGen::genblock(buf, 8);
+            rng.genblock(buf, 8);
             iv->append((char*)buf);
             delete [] buf;
         }
@@ -653,13 +1036,14 @@ bool HashSignature::checksignature(AsymmCipher* pubk, const byte* sig, unsigned 
     return s == h;
 }
 
-PayCrypter::PayCrypter()
+PayCrypter::PayCrypter(PrnGen &rng)
+    : rng(rng)
 {
-    PrnGen::genblock(keys, ENC_KEY_BYTES + MAC_KEY_BYTES);
+    rng.genblock(keys, ENC_KEY_BYTES + MAC_KEY_BYTES);
     encKey = keys;
     hmacKey = keys+ENC_KEY_BYTES;
 
-    PrnGen::genblock(iv, IV_BYTES);
+    rng.genblock(iv, IV_BYTES);
 }
 
 void PayCrypter::setKeys(const byte *newEncKey, const byte *newHmacKey, const byte *newIv)
@@ -717,7 +1101,7 @@ bool PayCrypter::rsaEncryptKeys(const string *cleartext, const byte *pubkdata, i
     keyString.append(*cleartext);
 
     //Save the length of the valid message
-    int keylen = keyString.size();
+    size_t keylen = keyString.size();
 
     //Resize to add padding
     keyString.resize(asym.key[AsymmCipher::PUB_PQ].ByteCount() - 2);
@@ -725,7 +1109,7 @@ bool PayCrypter::rsaEncryptKeys(const string *cleartext, const byte *pubkdata, i
     //Add padding
     if(randompadding)
     {
-        PrnGen::genblock((byte *)keyString.data() + keylen, keyString.size() - keylen);
+        rng.genblock((byte *)keyString.data() + keylen, keyString.size() - keylen);
     }
 
     //RSA encryption
@@ -733,7 +1117,7 @@ bool PayCrypter::rsaEncryptKeys(const string *cleartext, const byte *pubkdata, i
     result->resize(asym.rawencrypt((byte *)keyString.data(), keyString.size(), (byte *)result->data(), result->size()));
 
     //Complete the result (2-byte header + RSA result)
-    int reslen = result->size();
+    size_t reslen = result->size();
     result->insert(0, 1, (byte)(reslen >> 8));
     result->insert(1, 1, (byte)(reslen));
     return true;
@@ -781,7 +1165,7 @@ int mega_snprintf(char *s, size_t n, const char *format, ...)
 }
 #endif
 
-string * TLVstore::tlvRecordsToContainer(SymmCipher *key, encryptionsetting_t encSetting)
+string * TLVstore::tlvRecordsToContainer(PrnGen &rng, SymmCipher *key, encryptionsetting_t encSetting)
 {    
     // decide nonce/IV and auth. tag lengths based on the `mode`
     unsigned ivlen = TLVstore::getIvlen(encSetting);
@@ -798,7 +1182,7 @@ string * TLVstore::tlvRecordsToContainer(SymmCipher *key, encryptionsetting_t en
 
     // generate IV array
     byte *iv = new byte[ivlen];
-    PrnGen::genblock(iv, ivlen);
+    rng.genblock(iv, ivlen);
 
     string cipherText;
 
@@ -815,7 +1199,7 @@ string * TLVstore::tlvRecordsToContainer(SymmCipher *key, encryptionsetting_t en
 
     string *result = new string;
     result->resize(1);
-    result->at(0) = encSetting;
+    result->at(0) = static_cast<char>(encSetting);
     result->append((char*) iv, ivlen);
     result->append((char*) cipherText.data(), cipherText.length()); // includes auth. tag
 
@@ -825,22 +1209,13 @@ string * TLVstore::tlvRecordsToContainer(SymmCipher *key, encryptionsetting_t en
     return result;
 }
 
-string * TLVstore::tlvRecordsToContainer()
+string* TLVstore::tlvRecordsToContainer()
 {
-    TLV_map::iterator it;
-    unsigned buflen = 0;
+    string *result = new string;
+    size_t offset = 0;
+    size_t length;
 
-    for (it = tlv.begin(); it != tlv.end(); it++)
-    {
-        // add string length + null char + 2 bytes for length + value length
-        buflen += it->first.length() + 1 + 2 + it->second.length();
-    }
-
-    string * result = new string;
-    unsigned offset = 0;
-    unsigned length;
-
-    for (it = tlv.begin(); it != tlv.end(); it++)
+    for (TLV_map::iterator it = tlv.begin(); it != tlv.end(); it++)
     {
         // copy Type
         result->append(it->first);
@@ -849,8 +1224,8 @@ string * TLVstore::tlvRecordsToContainer()
         // set Length of value
         length = it->second.length();
         result->resize(offset + 2);
-        result->at(offset) = length >> 8;
-        result->at(offset + 1) = length & 0xFF;
+        result->at(offset) = static_cast<char>(length >> 8);
+        result->at(offset + 1) = static_cast<char>(length & 0xFF);
         offset += 2;
 
         // copy the Value
@@ -861,7 +1236,7 @@ string * TLVstore::tlvRecordsToContainer()
     return result;
 }
 
-string TLVstore::get(string type)
+std::string TLVstore::get(string type) const
 {
     return tlv.at(type);
 }
@@ -881,7 +1256,7 @@ vector<string> *TLVstore::getKeys() const
     return keys;
 }
 
-bool TLVstore::find(string type)
+bool TLVstore::find(string type) const
 {
     return (tlv.find(type) != tlv.end());
 }
@@ -889,6 +1264,11 @@ bool TLVstore::find(string type)
 void TLVstore::set(string type, string value)
 {
     tlv[type] = value;
+}
+
+void TLVstore::reset(std::string type)
+{
+    tlv.erase(type);
 }
 
 size_t TLVstore::size()
@@ -966,15 +1346,15 @@ TLVstore * TLVstore::containerToTLVrecords(const string *data)
 
     TLVstore *tlv = new TLVstore();
 
-    unsigned offset = 0;
+    size_t offset = 0;
 
     string type;
-    unsigned typelen;
+    size_t typelen;
     string value;
     unsigned valuelen;
     size_t pos;
 
-    unsigned datalen = data->length();
+    size_t datalen = data->length();
 
     while (offset < datalen)
     {
@@ -983,7 +1363,7 @@ TLVstore * TLVstore::containerToTLVrecords(const string *data)
         typelen = pos - offset;
 
         // if no valid TLV record in the container, but remaining bytes...
-        if ( (pos == data->npos) || (offset + typelen + 3 > datalen) )
+        if (pos == string::npos || offset + typelen + 3 > datalen)
         {
             delete tlv;
             return NULL;
@@ -1032,7 +1412,7 @@ TLVstore * TLVstore::containerToTLVrecords(const string *data, SymmCipher *key)
     unsigned taglen = TLVstore::getTaglen(encSetting);
     encryptionmode_t encMode = TLVstore::getMode(encSetting);
 
-    if (encMode == AES_MODE_UNKNOWN || !ivlen || !taglen ||  data->size() <= offset+ivlen+taglen)
+    if (encMode == AES_MODE_UNKNOWN || !ivlen || !taglen ||  data->size() < offset+ivlen+taglen)
     {
         return NULL;
     }
@@ -1041,26 +1421,31 @@ TLVstore * TLVstore::containerToTLVrecords(const string *data, SymmCipher *key)
     memcpy(iv, &(data->data()[offset]), ivlen);
     offset += ivlen;
 
-    unsigned cipherTextLen = data->length() - offset;
+    unsigned cipherTextLen = unsigned(data->length() - offset);
     string cipherText = data->substr(offset, cipherTextLen);
 
     unsigned clearTextLen = cipherTextLen - taglen;
     string clearText;
 
+    bool decrypted = false;
     if (encMode == AES_MODE_CCM)   // CCM or GCM_BROKEN (same than CCM)
     {
-        key->ccm_decrypt(&cipherText, iv, ivlen, taglen, &clearText);
+       decrypted = key->ccm_decrypt(&cipherText, iv, ivlen, taglen, &clearText);
     }
     else if (encMode == AES_MODE_GCM)  // GCM
     {
-        key->gcm_decrypt(&cipherText, iv, ivlen, taglen, &clearText);
+       decrypted = key->gcm_decrypt(&cipherText, iv, ivlen, taglen, &clearText);
     }
 
     delete [] iv;
 
-    if (clearText.empty())  // the decryption has failed (probably due to authentication)
+    if (!decrypted)  // the decryption has failed (probably due to authentication)
     {
         return NULL;
+    }
+    else if (clearText.empty()) // If decryption succeeded but attribute is empty, generate an empty TLV
+    {
+        return new TLVstore();
     }
 
     TLVstore *tlv = TLVstore::containerToTLVrecords(&clearText);
@@ -1145,6 +1530,45 @@ bool Utils::utf8toUnicode(const uint8_t *src, unsigned srclen, string *result)
     return true;
 }
 
+std::string Utils::stringToHex(const std::string &input)
+{
+    static const char* const lut = "0123456789ABCDEF";
+    size_t len = input.length();
+
+    std::string output;
+    output.reserve(2 * len);
+    for (size_t i = 0; i < len; ++i)
+    {
+        const unsigned char c = input[i];
+        output.push_back(lut[c >> 4]);
+        output.push_back(lut[c & 15]);
+    }
+    return output;
+}
+
+std::string Utils::hexToString(const std::string &input)
+{
+    static const char* const lut = "0123456789ABCDEF";
+    size_t len = input.length();
+    if (len & 1) throw std::invalid_argument("odd length");
+
+    std::string output;
+    output.reserve(len / 2);
+    for (size_t i = 0; i < len; i += 2)
+    {
+        char a = input[i];
+        const char* p = std::lower_bound(lut, lut + 16, a);
+        if (*p != a) throw std::invalid_argument("not a hex digit");
+
+        char b = input[i + 1];
+        const char* q = std::lower_bound(lut, lut + 16, b);
+        if (*q != b) throw std::invalid_argument("not a hex digit");
+
+        output.push_back(static_cast<char>(((p - lut) << 4) | (q - lut)));
+    }
+    return output;
+}
+
 long long abs(long long n)
 {
     // for pre-c++11 where this version is not defined yet
@@ -1216,6 +1640,51 @@ m_time_t m_mktime(struct tm* stm)
     return mktime(stm);
 }
 
+int m_clock_getmonotonictime(timespec *t)
+{
+#ifdef __APPLE__
+    struct timeval now;
+    int rv = gettimeofday(&now, NULL);
+    if (rv)
+    {
+        return rv;
+    }
+    t->tv_sec = now.tv_sec;
+    t->tv_nsec = now.tv_usec * 1000;
+    return 0;
+#elif defined(_WIN32) && defined(_MSC_VER)
+    struct __timeb64 tb;
+    _ftime64(&tb);
+    t->tv_sec = tb.time;
+    t->tv_nsec = long(tb.millitm) * 1000000;
+    return 0;
+#else
+#ifdef CLOCK_BOOTTIME
+    return clock_gettime(CLOCK_BOOTTIME, t);
+#else
+    return clock_gettime(CLOCK_MONOTONIC, t);
+#endif
+#endif
+
+}
+
+m_time_t m_mktime_UTC(const struct tm *src)
+{
+    struct tm dst = *src;
+    m_time_t t = 0;
+#if _MSC_VER >= 1400 || defined(__MINGW32__) // MSVCRT (2005+)
+    t = mktime(&dst);
+    TIME_ZONE_INFORMATION TimeZoneInfo;
+    GetTimeZoneInformation(&TimeZoneInfo);
+    t += TimeZoneInfo.Bias * 60 - dst.tm_isdst * 3600;
+#elif _WIN32
+#error "localtime is not thread safe in this compiler; please use a later one"
+#else //POSIX
+    t = mktime(&dst);
+    t += dst.tm_gmtoff - dst.tm_isdst * 3600;
+#endif
+    return t;
+}
 
 std::string rfc1123_datetime( time_t time )
 {
@@ -1258,7 +1727,7 @@ string escapewebdavchar(const char c)
     {
         escapesec[33] = "&#33;"; // !  //For some reason &Exclamation; was not properly handled (crashed) by gvfsd-dav
         escapesec[34] = "&quot;"; // "
-        escapesec[37] = "&percent;"; // %
+        escapesec[37] = "&percnt;"; // %
         escapesec[38] = "&amp;"; // &
         escapesec[39] = "&apos;"; // '
         escapesec[43] = "&add;"; // +
@@ -1536,22 +2005,237 @@ string webdavnameescape(const string &value) {
     return escaped.str();
 }
 
+void tolower_string(std::string& str)
+{
+    std::transform(str.begin(), str.end(), str.begin(), [](char c) {return static_cast<char>(::tolower(c)); });
+}
+
+#ifdef __APPLE__
+int macOSmajorVersion()
+{
+    char releaseStr[256];
+    size_t size = sizeof(releaseStr);
+    if (!sysctlbyname("kern.osrelease", releaseStr, &size, NULL, 0)  && size > 0)
+    {
+        if (strchr(releaseStr,'.'))
+        {
+            char *token = strtok(releaseStr, ".");
+            if (token)
+            {
+                errno = 0;
+                char *endPtr = NULL;
+                long majorVersion = strtol(token, &endPtr, 10);
+                if (endPtr != token && errno != ERANGE && majorVersion >= INT_MIN && majorVersion <= INT_MAX)
+                {
+                    return int(majorVersion);
+                }
+            }
+        }
+    }
+
+    return -1;
+}
+#endif
+
+void NodeCounter::operator += (const NodeCounter& o)
+{
+    storage += o.storage;
+    versionStorage += o.versionStorage;
+    files += o.files;
+    folders += o.folders;
+    versions += o.versions;
+}
+
+void NodeCounter::operator -= (const NodeCounter& o)
+{
+    storage -= o.storage;
+    versionStorage -= o.versionStorage;
+    files -= o.files;
+    folders -= o.folders;
+    versions -= o.versions;
+}
+
+SyncConfig::SyncConfig(std::string localPath,
+                       const handle remoteNode,
+                       const fsfp_t localFingerprint,
+                       std::vector<std::string> regExps,
+                       const Type syncType,
+                       const bool syncDeletions,
+                       const bool forceOverwrite)
+    : mLocalPath{std::move(localPath)}
+    , mRemoteNode{remoteNode}
+    , mLocalFingerprint{localFingerprint}
+    , mRegExps{std::move(regExps)}
+    , mSyncType{syncType}
+    , mSyncDeletions{syncDeletions}
+    , mForceOverwrite{forceOverwrite}
+{}
+
+bool SyncConfig::isResumable() const
+{
+    return mResumable;
+}
+
+void SyncConfig::setResumable(bool resumable)
+{
+    mResumable = resumable;
+}
+
+const std::string& SyncConfig::getLocalPath() const
+{
+    return mLocalPath;
+}
+
+handle SyncConfig::getRemoteNode() const
+{
+    return mRemoteNode;
+}
+
+handle SyncConfig::getLocalFingerprint() const
+{
+    return mLocalFingerprint;
+}
+
+void SyncConfig::setLocalFingerprint(fsfp_t fingerprint)
+{
+    mLocalFingerprint = fingerprint;
+}
+
+const std::vector<std::string>& SyncConfig::getRegExps() const
+{
+    return mRegExps;
+}
+
+SyncConfig::Type SyncConfig::getType() const
+{
+    return mSyncType;
+}
+
+bool SyncConfig::isUpSync() const
+{
+    return mSyncType & TYPE_UP;
+}
+
+bool SyncConfig::isDownSync() const
+{
+    return mSyncType & TYPE_DOWN;
+}
+
+bool SyncConfig::syncDeletions() const
+{
+    switch (mSyncType)
+    {
+        case TYPE_UP: return mSyncDeletions;
+        case TYPE_DOWN: return mSyncDeletions;
+        case TYPE_TWOWAY: return true;
+    }
+    assert(false);
+    return true;
+}
+
+bool SyncConfig::forceOverwrite() const
+{
+    switch (mSyncType)
+    {
+        case TYPE_UP: return mForceOverwrite;
+        case TYPE_DOWN: return mForceOverwrite;
+        case TYPE_TWOWAY: return false;
+    }
+    assert(false);
+    return false;
+}
+
+// This should be a const-method but can't be due to the broken Cacheable interface.
+// Do not mutate members in this function! Hence, we forward to a private const-method.
+bool SyncConfig::serialize(std::string* data)
+{
+    return const_cast<const SyncConfig*>(this)->serialize(*data);
+}
+
+std::unique_ptr<SyncConfig> SyncConfig::unserialize(const std::string& data)
+{
+    bool resumable;
+    std::string localPath;
+    handle remoteNode;
+    fsfp_t fingerprint;
+    uint32_t regExpCount;
+    std::vector<std::string> regExps;
+    uint32_t syncType;
+    bool syncDeletions;
+    bool forceOverwrite;
+
+    CacheableReader reader{data};
+    if (!reader.unserializebool(resumable))
+    {
+        return {};
+    }
+    if (!reader.unserializestring(localPath))
+    {
+        return {};
+    }
+    if (!reader.unserializehandle(remoteNode))
+    {
+        return {};
+    }
+    if (!reader.unserializefsfp(fingerprint))
+    {
+        return {};
+    }
+    if (!reader.unserializeu32(regExpCount))
+    {
+        return {};
+    }
+    for (uint32_t i = 0; i < regExpCount; ++i)
+    {
+        std::string regExp;
+        if (!reader.unserializestring(regExp))
+        {
+            return {};
+        }
+        regExps.push_back(std::move(regExp));
+    }
+    if (!reader.unserializeu32(syncType))
+    {
+        return {};
+    }
+    if (!reader.unserializebool(syncDeletions))
+    {
+        return {};
+    }
+    if (!reader.unserializebool(forceOverwrite))
+    {
+        return {};
+    }
+
+    auto syncConfig = std::unique_ptr<SyncConfig>{new SyncConfig{std::move(localPath),
+                    remoteNode, fingerprint, std::move(regExps),
+                    static_cast<Type>(syncType), syncDeletions, forceOverwrite}};
+    syncConfig->setResumable(resumable);
+    return syncConfig;
+}
+
+bool SyncConfig::serialize(std::string& data) const
+{
+    CacheableWriter writer{data};
+    writer.serializebool(mResumable);
+    writer.serializestring(mLocalPath);
+    writer.serializehandle(mRemoteNode);
+    writer.serializefsfp(mLocalFingerprint);
+    writer.serializeu32(static_cast<uint32_t>(mRegExps.size()));
+    for (const auto& regExp : mRegExps)
+    {
+        writer.serializestring(regExp);
+    }
+    writer.serializeu32(static_cast<uint32_t>(mSyncType));
+    writer.serializebool(mSyncDeletions);
+    writer.serializebool(mForceOverwrite);
+    writer.serializeexpansionflags();
+    return true;
+}
+
+bool operator==(const SyncConfig& lhs, const SyncConfig& rhs)
+{
+    return lhs.tie() == rhs.tie();
+}
 
 } // namespace
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

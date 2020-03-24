@@ -29,7 +29,7 @@ namespace mega {
 // add share node and return its index
 int ShareNodeKeys::addshare(Node* sn)
 {
-    for (int i = shares.size(); i--;)
+    for (int i = static_cast<int>(shares.size()); i--;)
     {
         if (shares[i] == sn)
         {
@@ -39,7 +39,7 @@ int ShareNodeKeys::addshare(Node* sn)
 
     shares.push_back(sn);
 
-    return shares.size() - 1;
+    return static_cast<int>(shares.size() - 1);
 }
 
 void ShareNodeKeys::add(Node* n, Node* sn, int specific)
@@ -49,11 +49,11 @@ void ShareNodeKeys::add(Node* n, Node* sn, int specific)
         sn = n;
     }
 
-    add((NodeCore*)n, sn, specific);
+    add(n->nodekey(), n->nodehandle, sn, specific);
 }
 
 // add a nodecore (!sn: all relevant shares, otherwise starting from sn, fixed: only sn)
-void ShareNodeKeys::add(NodeCore* n, Node* sn, int specific, const byte* item, int itemlen)
+void ShareNodeKeys::add(const string& nodekey, handle nodehandle, Node* sn, int specific, const byte* item, int itemlen)
 {
     char buf[96];
     char* ptr;
@@ -67,10 +67,10 @@ void ShareNodeKeys::add(NodeCore* n, Node* sn, int specific, const byte* item, i
         {
             sprintf(buf, ",%d,%d,\"", addshare(sn), (int)items.size());
 
-            sn->sharekey->ecb_encrypt((byte*)n->nodekey.data(), key, n->nodekey.size());
+            sn->sharekey->ecb_encrypt((byte*)nodekey.data(), key, nodekey.size());
 
             ptr = strchr(buf + 5, 0);
-            ptr += Base64::btoa(key, n->nodekey.size(), ptr);
+            ptr += Base64::btoa(key, int(nodekey.size()), ptr);
             *ptr++ = '"';
 
             keys.append(buf, ptr - buf);
@@ -88,7 +88,7 @@ void ShareNodeKeys::add(NodeCore* n, Node* sn, int specific, const byte* item, i
         }
         else
         {
-            items[items.size() - 1].assign((const char*)&n->nodehandle, MegaClient::NODEHANDLE);
+            items[items.size() - 1].assign((const char*)&nodehandle, MegaClient::NODEHANDLE);
         }
     }
 }
@@ -115,7 +115,7 @@ void ShareNodeKeys::get(Command* c, bool skiphandles)
         {
             for (unsigned i = 0; i < items.size(); i++)
             {
-                c->element((const byte*)items[i].c_str(), items[i].size());
+                c->element((const byte*)items[i].c_str(), int(items[i].size()));
             }
         }
 
@@ -123,7 +123,7 @@ void ShareNodeKeys::get(Command* c, bool skiphandles)
 
         // emit linkage/keys
         c->beginarray();
-        c->appendraw(keys.c_str() + 1, keys.size() - 1);
+        c->appendraw(keys.c_str() + 1, int(keys.size() - 1));
         c->endarray();
 
         c->endarray();

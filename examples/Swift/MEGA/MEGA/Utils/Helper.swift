@@ -197,13 +197,10 @@ class Helper {
     }
 
     
-    class func imageForNode(_ node : MEGANode) -> UIImage {
-        
-        let megaapi : MEGASdk! = (UIApplication.shared.delegate as! AppDelegate).megaapi
-        
+    class func imageForNode(_ node : MEGANode) -> UIImage {        
         switch node.type {
         case MEGANodeType.folder:
-            if megaapi.isSharedNode(node) {
+            if node.isInShare() {
                 return UIImage(named: "folder_shared")!
             } else {
                 return UIImage(named: "folder")!

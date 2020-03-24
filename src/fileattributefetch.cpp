@@ -25,7 +25,8 @@
 #include "mega/logging.h"
 
 namespace mega {
-FileAttributeFetchChannel::FileAttributeFetchChannel()
+FileAttributeFetchChannel::FileAttributeFetchChannel(MegaClient* client)
+    : client(client), bt(client->rng), timeout(client->rng)
 {
     req.binary = true;
     req.status = REQ_READY;
@@ -44,7 +45,7 @@ FileAttributeFetch::FileAttributeFetch(handle h, string key, fatype t, int ctag)
     tag = ctag;
 }
 
-void FileAttributeFetchChannel::dispatch(MegaClient* client)
+void FileAttributeFetchChannel::dispatch()
 {
     faf_map::iterator it;
  
@@ -90,7 +91,7 @@ void FileAttributeFetchChannel::dispatch(MegaClient* client)
 }
 
 // communicate received file attributes to the application
-void FileAttributeFetchChannel::parse(MegaClient* client, int /*fac*/, bool final)
+void FileAttributeFetchChannel::parse(int /*fac*/, bool final)
 {
 #pragma pack(push,1)
     struct FaHeader
@@ -152,7 +153,7 @@ void FileAttributeFetchChannel::parse(MegaClient* client, int /*fac*/, bool fina
 }
 
 // notify the application of the request failure and remove records no longer needed
-void FileAttributeFetchChannel::failed(MegaClient* client)
+void FileAttributeFetchChannel::failed()
 {
     for (faf_map::iterator it = fafs[1].begin(); it != fafs[1].end(); )
     {

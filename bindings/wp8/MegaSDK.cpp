@@ -48,8 +48,7 @@ MegaSDK::MegaSDK(String^ appKey, String^ userAgent, MRandomNumberProvider ^rando
 	unsigned char randomData[REQUIRED_ENTROPY];
 	if (randomProvider != nullptr)
 		randomProvider->GenerateRandomBlock(::Platform::ArrayReference<unsigned char>(randomData, REQUIRED_ENTROPY));
-	MegaApi::addEntropy((char *)randomData, REQUIRED_ENTROPY);
-
+	
 	std::string utf8appKey;
 	if(appKey != nullptr) 
 		MegaApi::utf16ToUtf8(appKey->Data(), appKey->Length(), &utf8appKey);
@@ -61,6 +60,8 @@ MegaSDK::MegaSDK(String^ appKey, String^ userAgent, MRandomNumberProvider ^rando
 	megaApi = new MegaApi((appKey != nullptr) ? utf8appKey.c_str() : NULL, 
 		(const char *)NULL, (userAgent != nullptr) ? utf8userAgent.c_str() : NULL);
 	
+    megaApi->addEntropy((char *)randomData, REQUIRED_ENTROPY);
+
     InitializeCriticalSectionEx(&listenerMutex, 0, 0);
     InitializeCriticalSectionEx(&loggerMutex, 0, 0);
 }
@@ -75,8 +76,7 @@ MegaSDK::MegaSDK(String^ appKey, String^ userAgent, String^ basePath, MRandomNum
 	unsigned char randomData[REQUIRED_ENTROPY];
 	if (randomProvider != nullptr)
 		randomProvider->GenerateRandomBlock(::Platform::ArrayReference<unsigned char>(randomData, REQUIRED_ENTROPY));
-	MegaApi::addEntropy((char *)randomData, REQUIRED_ENTROPY);
-
+	
 	std::string utf8appKey;
 	if (appKey != nullptr)
 		MegaApi::utf16ToUtf8(appKey->Data(), appKey->Length(), &utf8appKey);
@@ -93,6 +93,8 @@ MegaSDK::MegaSDK(String^ appKey, String^ userAgent, String^ basePath, MRandomNum
 		(basePath != nullptr) ? utf8basePath.c_str() : NULL,
 		(userAgent != nullptr) ? utf8userAgent.c_str() : NULL);
 	
+    megaApi->addEntropy((char *)randomData, REQUIRED_ENTROPY);
+
     InitializeCriticalSectionEx(&listenerMutex, 0, 0);
     InitializeCriticalSectionEx(&loggerMutex, 0, 0);
 }
@@ -107,8 +109,7 @@ MegaSDK::MegaSDK(String^ appKey, String^ userAgent, String^ basePath, MRandomNum
 	unsigned char randomData[REQUIRED_ENTROPY];
 	if (randomProvider != nullptr)
 		randomProvider->GenerateRandomBlock(::Platform::ArrayReference<unsigned char>(randomData, REQUIRED_ENTROPY));
-	MegaApi::addEntropy((char *)randomData, REQUIRED_ENTROPY);
-
+	
 	std::string utf8appKey;
 	if (appKey != nullptr)
 		MegaApi::utf16ToUtf8(appKey->Data(), appKey->Length(), &utf8appKey);
@@ -130,6 +131,8 @@ MegaSDK::MegaSDK(String^ appKey, String^ userAgent, String^ basePath, MRandomNum
 		(basePath != nullptr) ? utf8basePath.c_str() : NULL,
 		(userAgent != nullptr) ? utf8userAgent.c_str() : NULL);
 	
+    megaApi->addEntropy((char *)randomData, REQUIRED_ENTROPY);
+
     InitializeCriticalSectionEx(&listenerMutex, 0, 0);
     InitializeCriticalSectionEx(&loggerMutex, 0, 0);
 }
@@ -376,6 +379,22 @@ void MegaSDK::setStatsID(String^ id)
         MegaApi::utf16ToUtf8(id->Data(), id->Length(), &utf8id);
 
     MegaApi::setStatsID((id != nullptr) ? utf8id.c_str() : NULL);
+}
+
+void MegaSDK::setDnsServers(String^ dnsServers, MRequestListenerInterface^ listener)
+{
+    std::string utf8dnsServers;
+    if (dnsServers != nullptr)
+        MegaApi::utf16ToUtf8(dnsServers->Data(), dnsServers->Length(), &utf8dnsServers);
+
+    megaApi->setDnsServers(
+        (dnsServers != nullptr) ? utf8dnsServers.c_str() : NULL,
+        createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::setDnsServers(String^ dnsServers)
+{
+    this->setDnsServers(dnsServers, nullptr);
 }
 
 bool MegaSDK::serverSideRubbishBinAutopurgeEnabled()
@@ -2469,16 +2488,6 @@ void MegaSDK::setRubbishBinAutopurgePeriod(int days, MRequestListenerInterface^ 
 void MegaSDK::setRubbishBinAutopurgePeriod(int days)
 {
     megaApi->setRubbishBinAutopurgePeriod(days);
-}
-
-void MegaSDK::getStorageState(MRequestListenerInterface^ listener)
-{
-    megaApi->getStorageState(createDelegateMRequestListener(listener));
-}
-
-void MegaSDK::getStorageState()
-{
-    megaApi->getStorageState();
 }
 
 void MegaSDK::changePassword(String^ oldPassword, String^ newPassword, MRequestListenerInterface^ listener)

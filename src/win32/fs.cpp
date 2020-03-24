@@ -46,6 +46,7 @@ WinFileAccess::~WinFileAccess()
 bool WinFileAccess::sysread(byte* dst, unsigned len, m_off_t pos)
 {
     DWORD dwRead;
+    assert(hFile != INVALID_HANDLE_VALUE);
 
     if (!SetFilePointerEx(hFile, *(LARGE_INTEGER*)&pos, NULL, FILE_BEGIN))
     {
@@ -131,10 +132,11 @@ m_time_t FileTime_to_POSIX(FILETIME* ft)
 
 bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
 {
+    assert(nonblocking_localname.size());
     WIN32_FILE_ATTRIBUTE_DATA fad;
 
     type = TYPE_UNKNOWN;
-    if (!GetFileAttributesExW((LPCWSTR)localname.data(), GetFileExInfoStandard, (LPVOID)&fad))
+    if (!GetFileAttributesExW((LPCWSTR)nonblocking_localname.data(), GetFileExInfoStandard, (LPVOID)&fad))
     {
         DWORD e = GetLastError();
         errorcode = e;
@@ -146,9 +148,9 @@ bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
     if (SimpleLogger::logCurrentLevel >= logDebug && skipattributes(fad.dwFileAttributes))
     {
         string utf8path;
-        utf8path.resize((localname.size() + 1) * 4 / sizeof(wchar_t));
-        utf8path.resize(WideCharToMultiByte(CP_UTF8, 0, (wchar_t*)localname.data(),
-                                         int(localname.size() / sizeof(wchar_t)),
+        utf8path.resize((nonblocking_localname.size() + 1) * 4 / sizeof(wchar_t));
+        utf8path.resize(WideCharToMultiByte(CP_UTF8, 0, (wchar_t*)nonblocking_localname.data(),
+                                         int(nonblocking_localname.size() / sizeof(wchar_t)),
                                          (char*)utf8path.data(),
                                          int(utf8path.size() + 1),
                                          NULL, NULL));
@@ -173,12 +175,20 @@ bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
 
 bool WinFileAccess::sysopen(bool async)
 {
+    assert(hFile == INVALID_HANDLE_VALUE);
+    assert(nonblocking_localname.size());
+
+    if (hFile != INVALID_HANDLE_VALUE)
+    {
+        sysclose();
+    }
+
 #ifdef WINDOWS_PHONE
     hFile = CreateFile2((LPCWSTR)localname.data(), GENERIC_READ,
                         FILE_SHARE_WRITE | FILE_SHARE_READ,
                         OPEN_EXISTING, NULL);
 #else
-    hFile = CreateFileW((LPCWSTR)localname.data(), GENERIC_READ,
+    hFile = CreateFileW((LPCWSTR)nonblocking_localname.data(), GENERIC_READ,
                         FILE_SHARE_WRITE | FILE_SHARE_READ,
                         NULL, OPEN_EXISTING, async ? FILE_FLAG_OVERLAPPED : 0, NULL);
 #endif
@@ -196,14 +206,13 @@ bool WinFileAccess::sysopen(bool async)
 
 void WinFileAccess::sysclose()
 {
-    if (localname.size())
+    assert(nonblocking_localname.size());
+    assert(hFile != INVALID_HANDLE_VALUE);
+
+    if (hFile != INVALID_HANDLE_VALUE)
     {
-        assert (hFile != INVALID_HANDLE_VALUE);
-        if (hFile != INVALID_HANDLE_VALUE)
-        {
-            CloseHandle(hFile);
-            hFile = INVALID_HANDLE_VALUE;
-        }
+        CloseHandle(hFile);
+        hFile = INVALID_HANDLE_VALUE;
     }
 }
 
@@ -396,11 +405,11 @@ void WinFileAccess::asyncsyswrite(AsyncIOContext *context)
 // update local name
 void WinFileAccess::updatelocalname(string* name)
 {
-    if (localname.size())
+    if (nonblocking_localname.size())
     {
-        localname = *name;
-        WinFileSystemAccess::sanitizedriveletter(&localname);
-        localname.append("", 1);
+        nonblocking_localname = *name;
+        WinFileSystemAccess::sanitizedriveletter(&nonblocking_localname);
+        nonblocking_localname.append("", 1);
     }
 }
 
@@ -427,6 +436,7 @@ bool WinFileAccess::fopen(string *name, bool read, bool write)
 bool WinFileAccess::fopen(string* name, bool read, bool write, bool async)
 {
     WIN32_FIND_DATA fad = { 0 };
+    assert(hFile == INVALID_HANDLE_VALUE);
 
 #ifdef WINDOWS_PHONE
     FILE_ID_INFO bhfi = { 0 };
@@ -805,7 +815,7 @@ bool WinFileSystemAccess::copylocal(string* oldname, string* newname, m_time_t)
     newname->append("", 1);
 
 #ifdef WINDOWS_PHONE
-    bool r = !!CopyFile2((LPCWSTR)oldname->data(), (LPCWSTR)newname->data(), NULL);
+    bool r = SUCCEEDED(CopyFile2((LPCWSTR)oldname->data(), (LPCWSTR)newname->data(), NULL));
 #else
     bool r = !!CopyFileW((LPCWSTR)oldname->data(), (LPCWSTR)newname->data(), FALSE);
 #endif
@@ -1075,13 +1085,13 @@ size_t WinFileSystemAccess::lastpartlocal(string* name) const
 }
 
 // return lowercased ASCII file extension, including the . separator
-bool WinFileSystemAccess::getextension(string* filename, char* extension, int size) const
+bool WinFileSystemAccess::getextension(string* filename, char* extension, size_t size) const
 {
     const wchar_t* ptr = (const wchar_t*)(filename->data() + filename->size() 
         - (filename->size() & 1));   // if the string has had an extra null char added for surety, get back on wchar_t boundary.
 
     char c;
-    int i, j;
+    size_t i, j;
 
 	size--;
 
@@ -1148,7 +1158,14 @@ bool WinFileSystemAccess::expanselocalpath(string *path, string *absolutepath)
 
     if (memcmp(absolutepath->data(), L"\\\\?\\", 8))
     {
-        absolutepath->insert(0, (const char *)(const wchar_t*)L"\\\\?\\", 8);
+        if (!memcmp(absolutepath->data(), L"\\\\", 4)) //network location
+        {
+            absolutepath->insert(0, (const char *)(const wchar_t*)L"\\\\?\\UNC\\", 16);
+        }
+        else
+        {
+            absolutepath->insert(0, (const char *)(const wchar_t*)L"\\\\?\\", 8);
+        }
     }
     absolutepath->resize(absolutepath->size() - 2);
     return true;
@@ -1231,7 +1248,7 @@ void WinDirNotify::addnotify(LocalNode* l, string*)
 #endif
 }
 
-fsfp_t WinDirNotify::fsfingerprint()
+fsfp_t WinDirNotify::fsfingerprint() const
 {
 #ifdef WINDOWS_PHONE
 	FILE_ID_INFO fi = { 0 };
@@ -1250,6 +1267,27 @@ fsfp_t WinDirNotify::fsfingerprint()
 #else
     return fi.dwVolumeSerialNumber + 1;
 #endif
+}
+
+bool WinDirNotify::fsstableids() const
+{
+#ifdef WINDOWS_PHONE
+#error "Not implemented"
+#endif
+    TCHAR volume[MAX_PATH + 1];
+    if (GetVolumePathNameW((LPCWSTR)localbasepath.data(), volume, MAX_PATH + 1))
+    {
+        TCHAR fs[MAX_PATH + 1];
+        if (GetVolumeInformation(volume, NULL, 0, NULL, NULL, NULL, fs, MAX_PATH + 1))
+        {
+            LOG_info << "Filesystem type: " << fs;
+            return _wcsicmp(fs, L"FAT")
+                && _wcsicmp(fs, L"FAT32")
+                && _wcsicmp(fs, L"exFAT");
+        }
+    }
+    LOG_err << "Failed to get filesystem type. Error code: " << GetLastError();
+    return true;
 }
 
 VOID CALLBACK WinDirNotify::completion(DWORD dwErrorCode, DWORD dwBytes, LPOVERLAPPED lpOverlapped)
@@ -1272,11 +1310,13 @@ void WinDirNotify::process(DWORD dwBytes)
 #ifndef WINDOWS_PHONE
     if (!dwBytes)
     {
+#ifdef ENABLE_SYNC
         LOG_err << "Empty filesystem notification: " << (localrootnode ? localrootnode->name.c_str() : "NULL")
                 << " errors: " << error;
         error++;
         readchanges();
         notify(DIREVENTS, localrootnode, NULL, 0);
+#endif
     }
     else
     {
@@ -1314,9 +1354,14 @@ void WinDirNotify::process(DWORD dwBytes)
                                                      (char*)path.data(),
                                                      int(path.size() + 1),
                                                      NULL, NULL));
+#ifdef ENABLE_SYNC
+
                     LOG_debug << "Filesystem notification. Root: " << (localrootnode ? localrootnode->name.c_str() : "NULL") << "   Path: " << path;
+#endif
                 }
+#ifdef ENABLE_SYNC
                 notify(DIREVENTS, localrootnode, (char*)fni->FileName, fni->FileNameLength);
+#endif
             }
             else if (SimpleLogger::logCurrentLevel >= logDebug)
             {
@@ -1328,7 +1373,9 @@ void WinDirNotify::process(DWORD dwBytes)
                                                  (char*)path.data(),
                                                  int(path.size() + 1),
                                                  NULL, NULL));
+#ifdef ENABLE_SYNC
                 LOG_debug << "Skipped filesystem notification. Root: " << (localrootnode ? localrootnode->name.c_str() : "NULL") << "   Path: " << path;
+#endif
             }
 
 
@@ -1439,9 +1486,9 @@ WinDirNotify::~WinDirNotify()
 #endif
 }
 
-FileAccess* WinFileSystemAccess::newfileaccess()
+std::unique_ptr<FileAccess> WinFileSystemAccess::newfileaccess(bool followSymLinks)
 {
-    return new WinFileAccess(waiter);
+    return std::unique_ptr<FileAccess>(new WinFileAccess(waiter));
 }
 
 DirAccess* WinFileSystemAccess::newdiraccess()

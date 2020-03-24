@@ -44,7 +44,7 @@ struct MEGA_API MegaApp
     virtual void logout_result(error) { }
 
     // user data result
-    virtual void userdata_result(string*, string*, string*, handle, error) { }
+    virtual void userdata_result(string*, string*, string*, error) { }
 
     // user public key retrieval result
     virtual void pubkey_result(User *) { }
@@ -52,6 +52,7 @@ struct MEGA_API MegaApp
     // ephemeral session creation/resumption result
     virtual void ephemeral_result(error) { }
     virtual void ephemeral_result(handle, const byte*) { }
+    virtual void cancelsignup_result(error) { }
 
     // check the reason of being blocked result
     virtual void whyamiblocked_result(int) { }
@@ -115,6 +116,12 @@ struct MEGA_API MegaApp
     // nodes now (nearly) current
     virtual void nodes_current() { }
 
+    // up to date with API (regarding actionpackets)
+    virtual void catchup_result() { }
+
+    // notify about a modified key
+    virtual void key_modified(handle, attr_t) { }
+
     // node addition has failed
     virtual void putnodes_result(error, targettype_t, NewNode*) { }
 
@@ -139,7 +146,7 @@ struct MEGA_API MegaApp
     virtual void putfa_result(handle, fatype, const char*) { }
 
     // purchase transactions
-    virtual void enumeratequotaitems_result(handle, unsigned, unsigned, unsigned, unsigned, unsigned, const char*, const char*, const char*, const char*) { }
+    virtual void enumeratequotaitems_result(unsigned, handle, unsigned, int, int, unsigned, unsigned, unsigned, const char*, const char*, const char*, const char*) { }
     virtual void enumeratequotaitems_result(error) { }
     virtual void additem_result(error) { }
     virtual void checkout_result(const char*, error) { }
@@ -149,15 +156,18 @@ struct MEGA_API MegaApp
     virtual void creditcardcancelsubscriptions_result(error) {}
     virtual void getpaymentmethods_result(int, error) {}
     virtual void copysession_result(string*, error) { }
+
+    // feedback from user/client
     virtual void userfeedbackstore_result(error) { }
     virtual void sendevent_result(error) { }
+    virtual void supportticket_result(error) { }
 
     // user invites/attributes
     virtual void removecontact_result(error) { }
     virtual void putua_result(error) { }
     virtual void getua_result(error) { }
-    virtual void getua_result(byte*, unsigned) { }
-    virtual void getua_result(TLVstore *) { }
+    virtual void getua_result(byte*, unsigned, attr_t) { }
+    virtual void getua_result(TLVstore *, attr_t) { }
 #ifdef DEBUG
     virtual void delua_result(error) { }
 #endif
@@ -175,6 +185,9 @@ struct MEGA_API MegaApp
     // node opening result
     virtual void checkfile_result(handle, error) { }
     virtual void checkfile_result(handle, error, byte*, m_off_t, m_time_t, m_time_t, string*, string*, string*) { }
+
+    // URL suitable for iOS (or other system) background upload feature
+    virtual void backgrounduploadurl_result(error, string*) { }
 
     // pread result
     virtual dstime pread_failure(error, int, void*, dstime) { return ~(dstime)0; }
@@ -207,6 +220,9 @@ struct MEGA_API MegaApp
 
     // get change email link result
     virtual void getemaillink_result(error) {}
+
+    // resend verification email
+    virtual void resendverificationemail_result(error) {};
 
     // confirm change email link result
     virtual void confirmemaillink_result(error) {}
@@ -246,6 +262,12 @@ struct MEGA_API MegaApp
     // get welcome pdf
     virtual void getwelcomepdf_result(handle, string*, error) {}
 
+    // codec-mappings received
+    virtual void mediadetection_ready() {}
+
+    // Locally calculated sum of sizes of files stored in cloud has changed
+    virtual void storagesum_changed(int64_t newsum) {}
+
     // global transfer queue updates
     virtual void file_added(File*) { }
     virtual void file_removed(File*, error) { }
@@ -255,7 +277,7 @@ struct MEGA_API MegaApp
     virtual void transfer_added(Transfer*) { }
     virtual void transfer_removed(Transfer*) { }
     virtual void transfer_prepare(Transfer*) { }
-    virtual void transfer_failed(Transfer*, error, dstime = 0) { }
+    virtual void transfer_failed(Transfer*, error, dstime = 0, handle = UNDEF) { }
     virtual void transfer_update(Transfer*) { }
     virtual void transfer_complete(Transfer*) { }
 
@@ -291,6 +313,8 @@ struct MEGA_API MegaApp
         return true;
     }
 
+    virtual void sync_auto_resumed(const string&, handle, long long, const vector<string>&) { }
+
     // suggest reload due to possible race condition with other clients
     virtual void reload(const char*) { }
 
@@ -302,7 +326,9 @@ struct MEGA_API MegaApp
 
     virtual void notify_dbcommit() { }
 
-    virtual void notify_storage() { }
+    virtual void notify_storage(int) { }
+
+    virtual void notify_business_status(BizStatus) { }
 
     virtual void notify_change_to_https() { }
 
@@ -347,6 +373,21 @@ struct MEGA_API MegaApp
 
     // result of the user alert acknowledge request
     virtual void acknowledgeuseralerts_result(error) { }
+
+    // get info about a folder link
+    virtual void folderlinkinfo_result(error, handle , handle, string*, string* , m_off_t, uint32_t , uint32_t , m_off_t , uint32_t) {}
+
+    // result of sms verification commands
+    virtual void smsverificationsend_result(error) { }
+    virtual void smsverificationcheck_result(error, string*) { }
+
+    // result of get registered contacts command
+    virtual void getregisteredcontacts_result(error, vector<tuple<string, string, string>>*) { }
+
+    // result of get country calling codes command
+    virtual void getcountrycallingcodes_result(error, map<string, vector<string>>*) { }
+
+    virtual void getmiscflags_result(error) { }
 
     virtual ~MegaApp() { }
 };

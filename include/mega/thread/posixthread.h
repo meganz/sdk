@@ -38,7 +38,6 @@
 
 #ifndef THREAD_CLASS
 #define THREAD_CLASS PosixThread
-#define MUTEX_CLASS PosixMutex
 #define SEMAPHORE_CLASS PosixSemaphore
 
 #include "mega/thread.h"
@@ -58,21 +57,6 @@ public:
 
 protected:
     pthread_t *thread;
-};
-
-class PosixMutex : public Mutex
-{
-public:
-    PosixMutex();
-    PosixMutex(bool recursive);
-    virtual void init(bool recursive);
-    virtual void lock();
-    virtual void unlock();
-    virtual ~PosixMutex();
-
-protected:
-    pthread_mutex_t *mutex;
-    pthread_mutexattr_t *attr;
 };
 
 class PosixSemaphore : public Semaphore

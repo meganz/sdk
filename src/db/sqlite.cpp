@@ -35,7 +35,7 @@ SqliteDbAccess::~SqliteDbAccess()
 {
 }
 
-DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name, bool recycleLegacyDB)
+DbTable* SqliteDbAccess::open(PrnGen &rng, FileSystemAccess* fsaccess, string* name, bool recycleLegacyDB, bool checkAlwaysTransacted)
 {
     //Each table will use its own database object and its own file
     sqlite3* db;
@@ -55,10 +55,10 @@ DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name, bool rec
     string currentdbpath = newoss.str();
 
     string locallegacydbpath;
-    FileAccess *fa = fsaccess->newfileaccess();
+    auto fa = fsaccess->newfileaccess();
     fsaccess->path2local(&legacydbpath, &locallegacydbpath);
     bool legacydbavailable = fa->fopen(&locallegacydbpath);
-    delete fa;
+    fa.reset();
 
     if (legacydbavailable)
     {
@@ -134,10 +134,11 @@ DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name, bool rec
         return NULL;
     }
 
-    return new SqliteDbTable(db, fsaccess, &dbfile);
+    return new SqliteDbTable(rng, db, fsaccess, &dbfile, checkAlwaysTransacted);
 }
 
-SqliteDbTable::SqliteDbTable(sqlite3* cdb, FileSystemAccess *fs, string *filepath)
+SqliteDbTable::SqliteDbTable(PrnGen &rng, sqlite3* cdb, FileSystemAccess *fs, string *filepath, bool checkAlwaysTransacted)
+    : DbTable(rng, checkAlwaysTransacted)
 {
     db = cdb;
     pStmt = NULL;
@@ -147,6 +148,8 @@ SqliteDbTable::SqliteDbTable(sqlite3* cdb, FileSystemAccess *fs, string *filepat
 
 SqliteDbTable::~SqliteDbTable()
 {
+    resetCommitter();
+
     if (!db)
     {
         return;
@@ -216,6 +219,8 @@ bool SqliteDbTable::get(uint32_t index, string* data)
         return false;
     }
 
+    checkTransaction();
+
     sqlite3_stmt *stmt;
     bool result = false;
 
@@ -243,6 +248,8 @@ bool SqliteDbTable::put(uint32_t index, char* data, unsigned len)
     {
         return false;
     }
+
+    checkTransaction();
 
     sqlite3_stmt *stmt;
     bool result = false;
@@ -273,6 +280,8 @@ bool SqliteDbTable::del(uint32_t index)
         return false;
     }
 
+    checkTransaction();
+
     char buf[64];
 
     sprintf(buf, "DELETE FROM statecache WHERE id = %" PRIu32, index);
@@ -287,6 +296,8 @@ void SqliteDbTable::truncate()
     {
         return;
     }
+
+    checkTransaction();
 
     sqlite3_exec(db, "DELETE FROM statecache", 0, 0, NULL);
 }

@@ -26,10 +26,10 @@
 
 #ifndef THREAD_CLASS
 #define THREAD_CLASS Win32Thread
-#define MUTEX_CLASS Win32Mutex
 #define SEMAPHORE_CLASS Win32Semaphore
 
 #include "mega/thread.h"
+#include "winsock2.h"
 #include <windows.h>
 
 namespace mega {
@@ -49,20 +49,6 @@ public:
 protected:
     static DWORD WINAPI run(LPVOID lpParameter);
     HANDLE hThread;
-};
-
-class Win32Mutex : public Mutex
-{
-public:
-    Win32Mutex();
-    Win32Mutex(bool recursive);
-    virtual void init(bool recursive);
-    virtual void lock();
-    virtual void unlock();
-    virtual ~Win32Mutex();
-
-protected:
-    CRITICAL_SECTION mutex;
 };
 
 class Win32Semaphore : public Semaphore

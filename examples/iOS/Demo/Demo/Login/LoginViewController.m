@@ -53,10 +53,7 @@
 }
 
 - (void)generateKeys {
-    NSString *privateKey = [[MEGASdkManager sharedMEGASdk] base64pwkeyForPassword:self.passwordTextField.text];
-    NSString *publicKey  = [[MEGASdkManager sharedMEGASdk] hashForBase64pwkey:privateKey email:self.emailTextField.text];
-    
-    [[MEGASdkManager sharedMEGASdk] fastLoginWithEmail:self.emailTextField.text stringHash:publicKey base64pwKey:privateKey delegate:self];
+    [[MEGASdkManager sharedMEGASdk] loginWithEmail:self.emailTextField.text password:self.passwordTextField.text delegate:self];
 }
 
 - (BOOL)validateForm {

@@ -168,10 +168,10 @@ namespace mega
         *
         * - MEvent::EVENT_STORAGE: when the status of the storage changes.
         *
-        * For this event type, MegaEvent::getNumber provides the current status of the storage
+        * For this event type, MEvent::getNumber provides the current status of the storage
         *
         * There are three possible storage states:
-        *    - MegaSDK::STORAGE_STATE_GREEN = 0
+        *     - MegaSDK::STORAGE_STATE_GREEN = 0
         *     There are no storage problems
         *
         *     - MegaSDK::STORAGE_STATE_ORANGE = 1
@@ -179,6 +179,12 @@ namespace mega
         *
         *     - MegaSDK::STORAGE_STATE_RED = 2
         *     The account is full. Uploads have been stopped
+        *
+        *     - MegaSDK::STORAGE_STATE_CHANGE = 3
+        *     There is a possible significant change in the storage state.
+        *     It's needed to call MegaApi::getAccountDetails to check the storage status.
+        *     After calling it, this callback will be called again with the corresponding
+        *     state if there is really a change.
         *
         * - MEvent::EVENT_NODES_CURRENT: when all external changes have been received
         *

@@ -2,7 +2,7 @@ LOCAL_PATH := $(call my-dir)
 
 include $(CLEAR_VARS)
 LOCAL_MODULE    := libuv
-LOCAL_CFLAGS := -fexceptions -frtti -fvisibility=hidden -fdata-sections -ffunction-sections
+LOCAL_CFLAGS := -fvisibility=hidden -fdata-sections -ffunction-sections
 
 ifneq  ($(TARGET_ARCH_ABI),arm64-v8a)
 LOCAL_CFLAGS += -DHAVE_PTHREAD_COND_TIMEDWAIT_MONOTONIC

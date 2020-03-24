@@ -19,37 +19,42 @@
  * program.
  */
 
-#ifndef MEGA_FILEFINGERPRINT_H
-#define MEGA_FILEFINGERPRINT_H 1
+#pragma once
+
+#include <array>
 
 #include "types.h"
 #include "filesystem.h"
 
 namespace mega {
-// sparse file fingerprint, including size and mtime
-struct MEGA_API FileFingerprint : public Cachable
-{
-    m_off_t size;
-    m_time_t mtime;
-    int32_t crc[4];
 
-    static const int MAXFULL = 8192;
+// sparse file fingerprint, including size and mtime
+struct MEGA_API FileFingerprint : public Cacheable
+{
+    m_off_t size = -1;
+    m_time_t mtime = 0;
+    std::array<int32_t, 4> crc{};
 
     // if true, represents actual file data
     // if false, is constructed from node ctime/key
-    bool isvalid;
+    bool isvalid = false;
 
-    bool genfingerprint(FileAccess*, bool = false);
-    bool genfingerprint(InputStreamAccess*, m_time_t, bool = false);
-    void serializefingerprint(string*) const;
-    int unserializefingerprint(string*);
+    // Generates a fingerprint by iterating through`fa`
+    bool genfingerprint(FileAccess* fa, bool ignoremtime = false);
 
-    FileFingerprint& operator=(FileFingerprint&);
+    // Generates a fingerprint by iterating through `is`
+    bool genfingerprint(InputStreamAccess* is, m_time_t cmtime, bool ignoremtime = false);
 
-    FileFingerprint();
+    void serializefingerprint(string* d) const;
+    int unserializefingerprint(string* d);
 
-    virtual bool serialize(string*);
-    static FileFingerprint* unserialize(string*);
+    FileFingerprint() = default;
+
+    FileFingerprint(const FileFingerprint&);
+    FileFingerprint& operator=(const FileFingerprint& other);
+
+    bool serialize(string* d) override;
+    static FileFingerprint* unserialize(string* d);
 };
 
 // orders transfers by file fingerprints, ordered by size / mtime / sparse CRC
@@ -58,7 +63,28 @@ struct MEGA_API FileFingerprintCmp
     bool operator()(const FileFingerprint* a, const FileFingerprint* b) const;
 };
 
-bool operator==(FileFingerprint&, FileFingerprint&);
-} // namespace
+bool operator==(const FileFingerprint& lhs, const FileFingerprint& rhs);
 
-#endif
+// A light-weight fingerprint only based on size and mtime
+struct MEGA_API LightFileFingerprint
+{
+    m_off_t size = -1;
+    m_time_t mtime = 0;
+
+    LightFileFingerprint() = default;
+
+    MEGA_DEFAULT_COPY_MOVE(LightFileFingerprint)
+
+    // Establishes a new fingerprint not involving I/O
+    bool genfingerprint(m_off_t filesize, m_time_t filemtime);
+};
+
+// Orders light file fingerprints by size and mtime in terms of "<"
+struct MEGA_API LightFileFingerprintCmp
+{
+    bool operator()(const LightFileFingerprint* a, const LightFileFingerprint* b) const;
+};
+
+bool operator==(const LightFileFingerprint& lhs, const LightFileFingerprint& rhs);
+
+} // mega

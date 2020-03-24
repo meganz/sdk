@@ -30,6 +30,7 @@ CPP_SOURCES= sdk/src/attrmap.cpp \
     sdk/src/megaclient.cpp \
     sdk/src/node.cpp \
     sdk/src/pubkeyaction.cpp \
+    sdk/src/raid.cpp \
     sdk/src/request.cpp \
     sdk/src/serialize64.cpp \
     sdk/src/share.cpp \
@@ -60,8 +61,9 @@ CPP_SOURCES= sdk/src/attrmap.cpp \
     sdk/src/logging.cpp \
     sdk/src/mega_http_parser.cpp \
     sdk/src/mega_zxcvbn.cpp \
-    sdk/src/mediafileattribute.cpp
-    
+    sdk/src/mediafileattribute.cpp \
+    sdk/src/testhooks.cpp
+
 C_SOURCES = sdk/src/mega_glob.c
 
 HEADERS= sdk/include/mega.h \

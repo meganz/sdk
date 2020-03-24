@@ -37,6 +37,11 @@
 #endif
 #endif
 
+#ifdef _MSC_VER
+#pragma warning(disable: 4244) // conversion from '__int64' to 'int', possible loss of data (in 64 bit build)
+#pragma warning(disable: 4267) // conversion from 'size_t' to 'int', possible loss of data (in 64 bit build)
+#endif
+
 /* Minimum number of characters in a incrementing/decrementing sequence match */
 #define MIN_SEQUENCE_LEN 3
 

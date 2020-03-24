@@ -29,7 +29,7 @@ namespace mega {
 // linear non-strict JSON scanner
 struct MEGA_API JSON
 {
-    const char* pos;
+    const char* pos = nullptr;
 
     bool isnumeric();
 
@@ -41,6 +41,7 @@ struct MEGA_API JSON
 
     nameid getnameid();
     nameid getnameid(const char*) const;
+    string getname();
 
     bool is(const char*);
 
@@ -57,7 +58,6 @@ struct MEGA_API JSON
     bool enterobject();
     bool leaveobject();
 
-    bool storestring(string*);
     bool storeobject(string* = NULL);
 
     static void unescape(string*);
@@ -70,6 +70,11 @@ struct MEGA_API JSON
      * @return False if the JSON string doesn't contains the string attribute
      */
     static bool extractstringvalue(const string & json, const string & name, string* value);
+
+    // convenience functions, which avoid warnings and casts
+    inline int      getint32()  { return int(getint()); }
+    inline unsigned getuint32() { return unsigned(getint()); }
+    inline bool     getbool()   { return bool(getint()); }
 };
 
 } // namespace

@@ -29,6 +29,21 @@
 #include "raid.h"
 
 namespace mega {
+
+// helper class for categorizing transfers for upload/download queues
+struct TransferCategory
+{
+    direction_t direction = NONE;
+    filesizetype_t sizetype = LARGEFILE;
+
+    TransferCategory(direction_t d, filesizetype_t s);
+    TransferCategory(Transfer*);
+    unsigned index();
+    unsigned directionIndex();
+};
+
+class DBTableTransactionCommitter;
+
 // pending/active up/download ordered by file fingerprint (size - mtime - sparse CRC)
 struct MEGA_API Transfer : public FileFingerprint
 {
@@ -44,7 +59,7 @@ struct MEGA_API Transfer : public FileFingerprint
 
     // failures/backoff
     unsigned failcount;
-    BackoffTimer bt;
+    BackoffTimerTracked bt;
 
     // representative local filename for this transfer
     string localfilename;
@@ -87,17 +102,20 @@ struct MEGA_API Transfer : public FileFingerprint
     MegaClient* client;
     int tag;
 
-    // signal failure
-    void failed(error, dstime = 0);
+    // returns true if the transfer contains foreign targets, false if targets are private
+    bool isForeign();
+
+    // signal failure.  Either the transfer's slot or the transfer itself (including slot) will be deleted.
+    void failed(error, DBTableTransactionCommitter&, dstime = 0, handle targetHandle = UNDEF);
 
     // signal completion
-    void complete();
+    void complete(DBTableTransactionCommitter&);
     
     // execute completion
     void completefiles();
 
-    // next position to download/upload
-    m_off_t nextpos();
+    // remove file from transfer including in cache
+    void removeTransferFile(error, File* f, DBTableTransactionCommitter* committer);
 
     // previous wrong fingerprint
     FileFingerprint badfp;
@@ -133,11 +151,13 @@ struct MEGA_API Transfer : public FileFingerprint
     // state of the transfer
     transferstate_t state;
 
+    bool skipserialization;
+
     Transfer(MegaClient*, direction_t);
     virtual ~Transfer();
 
     // serialize the Transfer object
-    virtual bool serialize(string*);
+    bool serialize(string*) override;
 
     // unserialize a Transfer and add it to the transfer map
     static Transfer* unserialize(MegaClient *, string*, transfer_map *);
@@ -153,25 +173,25 @@ public:
     static const uint64_t PRIORITY_STEP  = 0x0000000000010000ull;
 
     TransferList();
-    void addtransfer(Transfer* transfer, bool startFirst = false);
+    void addtransfer(Transfer* transfer, DBTableTransactionCommitter&, bool startFirst = false);
     void removetransfer(Transfer *transfer);
-    void movetransfer(Transfer *transfer, Transfer *prevTransfer);
-    void movetransfer(Transfer *transfer, unsigned int position);
-    void movetransfer(Transfer *transfer, transfer_list::iterator dstit);
-    void movetransfer(transfer_list::iterator it, transfer_list::iterator dstit);
-    void movetofirst(Transfer *transfer);
-    void movetofirst(transfer_list::iterator it);
-    void movetolast(Transfer *transfer);
-    void movetolast(transfer_list::iterator it);
-    void moveup(Transfer *transfer);
-    void moveup(transfer_list::iterator it);
-    void movedown(Transfer *transfer);
-    void movedown(transfer_list::iterator it);
-    error pause(Transfer *transfer, bool enable);
+    void movetransfer(Transfer *transfer, Transfer *prevTransfer, DBTableTransactionCommitter& committer);
+    void movetransfer(Transfer *transfer, unsigned int position, DBTableTransactionCommitter& committer);
+    void movetransfer(Transfer *transfer, transfer_list::iterator dstit, DBTableTransactionCommitter&);
+    void movetransfer(transfer_list::iterator it, transfer_list::iterator dstit, DBTableTransactionCommitter&);
+    void movetofirst(Transfer *transfer, DBTableTransactionCommitter& committer);
+    void movetofirst(transfer_list::iterator it, DBTableTransactionCommitter& committer);
+    void movetolast(Transfer *transfer, DBTableTransactionCommitter& committer);
+    void movetolast(transfer_list::iterator it, DBTableTransactionCommitter& committer);
+    void moveup(Transfer *transfer, DBTableTransactionCommitter& committer);
+    void moveup(transfer_list::iterator it, DBTableTransactionCommitter& committer);
+    void movedown(Transfer *transfer, DBTableTransactionCommitter& committer);
+    void movedown(transfer_list::iterator it, DBTableTransactionCommitter& committer);
+    error pause(Transfer *transfer, bool enable, DBTableTransactionCommitter& committer);
     transfer_list::iterator begin(direction_t direction);
     transfer_list::iterator end(direction_t direction);
     transfer_list::iterator iterator(Transfer *transfer);
-    Transfer *nexttransfer(direction_t direction);
+    std::array<vector<Transfer*>, 6> nexttransfers(std::function<bool(Transfer*)>& continuefunction);
     Transfer *transferat(direction_t direction, unsigned int position);
 
     transfer_list transfers[2];
@@ -179,7 +199,7 @@ public:
     uint64_t currentpriority;
 
 private:
-    void prepareIncreasePriority(Transfer *transfer, transfer_list::iterator srcit, transfer_list::iterator dstit);
+    void prepareIncreasePriority(Transfer *transfer, transfer_list::iterator srcit, transfer_list::iterator dstit, DBTableTransactionCommitter& committer);
     void prepareDecreasePriority(Transfer *transfer, transfer_list::iterator it, transfer_list::iterator dstit);
     bool isReady(Transfer *transfer);
 };
@@ -243,6 +263,7 @@ struct MEGA_API DirectReadNode
     bool p;
     string publicauth;
     string privateauth;
+    string chatauth;
     m_off_t partiallen;
     dstime partialstarttime;
 
@@ -279,7 +300,7 @@ struct MEGA_API DirectReadNode
     // report failure to app and abort or retry all reads
     void retry(error, dstime = 0);
 
-    DirectReadNode(MegaClient*, handle, bool, SymmCipher*, int64_t, const char*, const char*);
+    DirectReadNode(MegaClient*, handle, bool, SymmCipher*, int64_t, const char*, const char*, const char*);
     ~DirectReadNode();
 };
 } // namespace

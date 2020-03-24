@@ -22,6 +22,7 @@
 #include <megaapi.h>
 #include <Windows.h>
 #include <iostream>
+#include <time.h>
 
 //ENTER YOUR CREDENTIALS HERE
 #define MEGA_EMAIL "EMAIL"
@@ -32,7 +33,6 @@
 #define USER_AGENT "Example Win32 App"
 
 using namespace mega;
-using namespace std;
 
 class MyListener: public MegaListener
 {
@@ -61,7 +61,7 @@ public:
 			}
 			case MegaRequest::TYPE_FETCH_NODES:
 			{
-				cout << "***** Showing files/folders in the root folder:" << endl;
+				std::cout << "***** Showing files/folders in the root folder:" << std::endl;
 				MegaNode *root = api->getRootNode();
 				MegaNodeList *list = api->getChildren(root);
 			
@@ -69,17 +69,17 @@ public:
 				{
 					MegaNode *node = list->get(i);
 					if(node->isFile())
-						cout << "*****   File:   ";
+						std::cout << "*****   File:   ";
 					else
-						cout << "*****   Folder: ";
+						std::cout << "*****   Folder: ";
 				
-					cout << node->getName() << endl;
+					std::cout << node->getName() << std::endl;
 				}
-				cout << "***** Done" << endl;
+				std::cout << "***** Done" << std::endl;
 
 				delete list;
 
-				cout << "***** Uploading the image MEGA.png" << endl;
+				std::cout << "***** Uploading the image MEGA.png" << std::endl;
 				api->startUpload("MEGA.png", root);
 				delete root;
 
@@ -93,23 +93,23 @@ public:
 	//Currently, this callback is only valid for the request fetchNodes()
 	virtual void onRequestUpdate(MegaApi*api, MegaRequest *request)
 	{
-		cout << "***** Loading filesystem " <<  request->getTransferredBytes() << " / " << request->getTotalBytes() << endl;
+		std::cout << "***** Loading filesystem " <<  request->getTransferredBytes() << " / " << request->getTotalBytes() << std::endl;
 	}
 
 	virtual void onRequestTemporaryError(MegaApi *api, MegaRequest *request, MegaError* error)
 	{
-		cout << "***** Temporary error in request: " << error->getErrorString() << endl;
+		std::cout << "***** Temporary error in request: " << error->getErrorString() << std::endl;
 	}
 
 	virtual void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* error)
 	{
 		if (error->getErrorCode())
 		{
-			cout << "***** Transfer finished with error: " << error->getErrorString() << endl;
+			std::cout << "***** Transfer finished with error: " << error->getErrorString() << std::endl;
 		}
 		else
 		{
-			cout << "***** Transfer finished OK" << endl;
+			std::cout << "***** Transfer finished OK" << std::endl;
 		}
 
 		finished = true;
@@ -117,12 +117,12 @@ public:
 	
 	virtual void onTransferUpdate(MegaApi *api, MegaTransfer *transfer)
 	{
-		cout << "***** Transfer progress: " << transfer->getTransferredBytes() << "/" << transfer->getTotalBytes() << endl; 
+		std::cout << "***** Transfer progress: " << transfer->getTransferredBytes() << "/" << transfer->getTotalBytes() << std::endl; 
 	}
 
 	virtual void onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* error)
 	{
-		cout << "***** Temporary error in transfer: " << error->getErrorString() << endl;
+		std::cout << "***** Temporary error in transfer: " << error->getErrorString() << std::endl;
 	}
 
 	virtual void onUsersUpdate(MegaApi* api, MegaUserList *users)
@@ -132,7 +132,7 @@ public:
 			//Full account reload
 			return;
 		}
-		cout << "***** There are " << users->size() << " new or updated users in your account" << endl;
+		std::cout << "***** There are " << users->size() << " new or updated users in your account" << std::endl;
 	}
 
 	virtual void onNodesUpdate(MegaApi* api, MegaNodeList *nodes)
@@ -143,9 +143,16 @@ public:
 			return;
 		}
 
-		cout << "***** There are " << nodes->size() << " new or updated node/s in your account" << endl;
+		std::cout << "***** There are " << nodes->size() << " new or updated node/s in your account" << std::endl;
 	}
 };
+
+std::string displayTime(time_t t)
+{
+    char timebuf[32];
+    strftime(timebuf, sizeof timebuf, "%c", localtime(&t));
+    return timebuf;
+}
 
 
 int main()
@@ -165,8 +172,8 @@ int main()
 
 	if(!strcmp(MEGA_EMAIL, "EMAIL"))
 	{
-		cout << "Please enter your email/password at the top of main.cpp" << endl;
-		cout << "Press any key to exit the app..." << endl;
+		std::cout << "Please enter your email/password at the top of main.cpp" << std::endl;
+		std::cout << "Press any key to exit the app..." << std::endl;
 		getchar();
 		exit(0);
 	}
@@ -180,8 +187,12 @@ int main()
 		Sleep(1000);
 	}
 
+    // Add code here to exercise MegaApi
+
+
+
 #ifdef HAVE_LIBUV
-	cout << "Do you want to enable the local HTTP server (y/n)?" << endl;
+	std::cout << "Do you want to enable the local HTTP server (y/n)?" << std::endl;
 	char c = getchar();
 	if (c == 'y' || c == 'Y')
 	{
@@ -189,11 +200,11 @@ int main()
 		megaApi->httpServerSetRestrictedMode(MegaApi::HTTP_SERVER_ALLOW_ALL);
 		megaApi->httpServerEnableFileServer(true);
 		megaApi->httpServerEnableFolderServer(true);
-		cout << "You can browse your account now! http://127.0.0.1:4443/" << endl;
+		std::cout << "You can browse your account now! http://127.0.0.1:4443/" << std::endl;
 	}
 #endif
 
-	cout << "Press any key to exit the app..." << endl;
+	std::cout << "Press any key to exit the app..." << std::endl;
 	getchar();
 	getchar();
 	return 0;

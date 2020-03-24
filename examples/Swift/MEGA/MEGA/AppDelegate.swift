@@ -27,7 +27,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, MEGARequestDelegate {
     var window: UIWindow?
     let megaapi: MEGASdk = MEGASdk(appKey: "iOS Swift/1.0", userAgent: "hNF3ELhK", basePath: nil)
     
-    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplicationLaunchOptionsKey: Any]?) -> Bool {
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         MEGASdk.setLogLevel(MEGALogLevel.debug)
         
         
@@ -71,7 +71,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, MEGARequestDelegate {
     // MARK: - MEGA Request delegate
     
     func onRequestStart(_ api: MEGASdk!, request: MEGARequest!) {
-        if request.type == MEGARequestType.fetchNodes {
+        if request.type == MEGARequestType.MEGARequestTypeFetchNodes {
             SVProgressHUD.show(withStatus: "Updating nodes...")
         }
     }
@@ -81,7 +81,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, MEGARequestDelegate {
             return
         }
         
-        if request.type == MEGARequestType.login {
+        if request.type == MEGARequestType.MEGARequestTypeLogin {
             megaapi.fetchNodes(with: self)
         }
     }

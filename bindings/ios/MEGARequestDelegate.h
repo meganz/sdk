@@ -22,6 +22,8 @@
 #import "MEGARequest.h"
 #import "MEGAError.h"
 
+NS_ASSUME_NONNULL_BEGIN
+
 @class MEGASdk;
 
 /**
@@ -88,3 +90,4 @@
 
 @end
 
+NS_ASSUME_NONNULL_END

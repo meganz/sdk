@@ -245,6 +245,11 @@ typedef NS_ENUM(NSUInteger, MEGANodeChangeType) {
 @property (readonly, nonatomic) NSString *publicLink;
 
 /**
+ * @brief The handle of the owner of the node.
+ */
+@property (readonly, nonatomic) uint64_t owner;
+
+/**
  * @brief Creates a copy of this MEGANode object.
  *
  * The resulting object is fully independent of the source MEGANode,

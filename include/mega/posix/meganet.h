@@ -42,11 +42,34 @@ struct MEGA_API SockInfo
         WRITE = 2
     };
 
-    SockInfo();
-    curl_socket_t fd;
-    int mode;
+    SockInfo() = default;
+    curl_socket_t fd = curl_socket_t(-1);
+    int mode = NONE;
+
 #if defined(_WIN32)
-    HANDLE handle;
+    SockInfo(const SockInfo&) = delete;
+    void operator=(const SockInfo&) = delete;
+    SockInfo(SockInfo&& o);
+    ~SockInfo();
+
+    // create the event and call WSAEventSelect, if it hasn't been done yet.
+    bool createAssociateEvent();
+
+    // see if there is any work to be done on this socket (to be called after waiting, and a network event was triggered)
+    bool checkEvent(bool& read, bool& write);
+
+    // manually close the event (used when we know the socket is no longer active)
+    void closeEvent();
+
+    // get the event handle, for waiting on
+    HANDLE eventHandle();
+
+    // Flag for dealing with windows write event signalling, where we only get signalled if the socket goes from unwriteable to writeable (but not if we wrote to it and didn't get it to the unwriteable state)
+    bool signalledWrite = false;
+
+private:
+    HANDLE handle = WSA_INVALID_EVENT;
+    int associatedHandleEvents = 0;
 #endif
 };
 
@@ -55,7 +78,7 @@ struct MEGA_API CurlHttpContext;
 class CurlHttpIO: public HttpIO
 {
 protected:
-    static MUTEX_CLASS curlMutex;
+    static std::mutex curlMutex;
 
     string useragent;
     CURLM* curlm[3];
@@ -97,7 +120,7 @@ protected:
     static int upload_timer_callback(CURLM *multi, long timeout_ms, void *userp);
 
 #if defined(USE_OPENSSL) && !defined(OPENSSL_IS_BORINGSSL)
-    static MUTEX_CLASS **sslMutexes;
+    static std::recursive_mutex **sslMutexes;
     static void locking_function(int mode, int lockNumber, const char *, int);
 
 #if OPENSSL_VERSION_NUMBER >= 0x10000000
@@ -142,8 +165,8 @@ protected:
     void closecurlevents(direction_t d);
     void processaresevents();
     void processcurlevents(direction_t d);
-    std::vector<SockInfo> aressockets;
     typedef std::map<curl_socket_t, SockInfo> SockInfoMap;
+    SockInfoMap aressockets;
     SockInfoMap curlsockets[3];
     m_time_t curltimeoutreset[3];
     bool arerequestspaused[3];
@@ -184,6 +207,15 @@ public:
 
     CurlHttpIO();
     ~CurlHttpIO();
+
+private:
+    static int instanceCount;
+
+    CodeCounter::ScopeStats countCurlHttpIOAddevents = { "curl-httpio-addevents" };
+    CodeCounter::ScopeStats countAddAresEventsCode = { "ares-add-events" };
+    CodeCounter::ScopeStats countAddCurlEventsCode = { "curl-add-events" };
+    CodeCounter::ScopeStats countProcessAresEventsCode = { "ares-process-events" };
+    CodeCounter::ScopeStats countProcessCurlEventsCode = { "curl-process-events" };
 };
 
 struct MEGA_API CurlHttpContext
@@ -218,6 +250,8 @@ struct MEGA_API CurlDNSEntry
     dstime ipv4timestamp;
     string ipv6;
     dstime ipv6timestamp;
+
+    bool mNeedsResolvingAgain = false;
 };
 
 } // namespace

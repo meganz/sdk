@@ -140,7 +140,8 @@ namespace mega
     public enum class MStorageState {
         STORAGE_STATE_GREEN     = 0,
         STORAGE_STATE_ORANGE    = 1,
-        STORAGE_STATE_RED       = 2
+        STORAGE_STATE_RED       = 2,
+        STORAGE_STATE_CHANGE    = 3
     };
 
     public ref class MegaSDK sealed
@@ -197,6 +198,54 @@ namespace mega
         void retryPendingConnections();
         void reconnect();
         static void setStatsID(String^ id);
+
+        /**
+        * @brief Use custom DNS servers
+        *
+        * The SDK tries to automatically get and use DNS servers configured in the system at startup. This function can be used
+        * to override that automatic detection and use a custom list of DNS servers. It is also useful to provide working
+        * DNS servers to the SDK in platforms in which it can't get them from the system (Windows Phone and Universal Windows Platform).
+        *
+        * Since the usage of this function implies a change in DNS servers used by the SDK, all connections are
+        * closed and restarted using the new list of new DNS servers, so calling this function too often can cause
+        * many retries and problems to complete requests. Please use it only at startup or when DNS servers need to be changed.
+        *
+        * The associated request type with this request is MRequest::TYPE_RETRY_PENDING_CONNECTIONS.
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getText - Returns the new list of DNS servers
+        *
+        * @param dnsServers New list of DNS servers. It must be a list of IPs separated by a comma character ",".
+        * IPv6 servers are allowed (without brackets).
+        *
+        * The usage of this function will trigger the callback MGlobalListener::onEvent and the callback
+        * MListener::onEvent with the event type MEvent::EVENT_DISCONNECT.
+        *
+        * @param listener MRequestListener to track this request
+        */
+        void setDnsServers(String^ dnsServers, MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Use custom DNS servers
+        *
+        * The SDK tries to automatically get and use DNS servers configured in the system at startup. This function can be used
+        * to override that automatic detection and use a custom list of DNS servers. It is also useful to provide working
+        * DNS servers to the SDK in platforms in which it can't get them from the system (Windows Phone and Universal Windows Platform).
+        *
+        * Since the usage of this function implies a change in DNS servers used by the SDK, all connections are
+        * closed and restarted using the new list of new DNS servers, so calling this function too often can cause
+        * many retries and problems to complete requests. Please use it only at startup or when DNS servers need to be changed.
+        *
+        * The associated request type with this request is MRequest::TYPE_RETRY_PENDING_CONNECTIONS.
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getText - Returns the new list of DNS servers
+        *
+        * @param dnsServers New list of DNS servers. It must be a list of IPs separated by a comma character ",".
+        * IPv6 servers are allowed (without brackets).
+        *
+        * The usage of this function will trigger the callback MGlobalListener::onEvent and the callback
+        * MListener::onEvent with the event type MEvent::EVENT_DISCONNECT.
+        */
+        void setDnsServers(String^ dnsServers);
 
         /**
         * @brief Check if server-side Rubbish Bin autopurging is enabled for the current account
@@ -2447,48 +2496,6 @@ namespace mega
         * The value zero disables the rubbish-bin cleaning scheduler (only for PRO accounts).
         */
         void setRubbishBinAutopurgePeriod(int days);
-
-        /**
-        * @brief Get the state of the storage
-        *
-        * The associated request type with this request is MRequest::TYPE_GET_ATTR_USER
-        * Valid data in the MRequest object received on callbacks:
-        * - MRequest::getParamType - Returns the attribute type MUserAttrType::USER_ATTR_STORAGE_STATE
-        *
-        * Valid data in the MRequest object received in onRequestFinish when the error code
-        * is MError::API_OK:
-        * - MRequest::getNumber - Returns one of these storage states:
-        * MStorageState::STORAGE_STATE_GREEN = 0 - The account has no problems with storage space
-        * MStorageState::STORAGE_STATE_ORANGE = 1 - The account is almost full
-        * MStorageState::STORAGE_STATE_RED = 2 - The account is full
-        *
-        * If the state is not set on the server side, the request will finish with the error
-        * MError::API_ENOENT, but MRequest::getNumber will be valid and will have the
-        * number 0 (MStorageState::STORAGE_STATE_GREEN).
-        *
-        * @param listener MRequestListener to track this request
-        */
-        void getStorageState(MRequestListenerInterface^ listener);
-
-        /**
-        * @brief Get the state of the storage
-        *
-        * The associated request type with this request is MRequest::TYPE_GET_ATTR_USER
-        * Valid data in the MRequest object received on callbacks:
-        * - MRequest::getParamType - Returns the attribute type MUserAttrType::USER_ATTR_STORAGE_STATE
-        *
-        * Valid data in the MRequest object received in onRequestFinish when the error code
-        * is MError::API_OK:
-        * - MRequest::getNumber - Returns one of these storage states:
-        * MStorageState::STORAGE_STATE_GREEN = 0 - The account has no problems with storage space
-        * MStorageState::STORAGE_STATE_ORANGE = 1 - The account is almost full
-        * MStorageState::STORAGE_STATE_RED = 2 - The account is full
-        *
-        * If the state is not set on the server side, the request will finish with the error
-        * MError::API_ENOENT, but MRequest::getNumber will be valid and will have the
-        * number 0 (MStorageState::STORAGE_STATE_GREEN).
-        */
-        void getStorageState();
 
         /**
         * @brief Change the password of the MEGA account

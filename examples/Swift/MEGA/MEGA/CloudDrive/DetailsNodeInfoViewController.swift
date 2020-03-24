@@ -99,7 +99,7 @@ class DetailsNodeInfoViewController: UIViewController, MEGADelegate, UIAlertView
             downloadProgressView.isHidden = true
             cancelButton.isHidden = true
             saveLabel.isHidden = false
-            downloadButton.setImage(UIImage(named: "savedFile"), for: UIControlState())
+            downloadButton.setImage(UIImage(named: "savedFile"), for: UIControl.State())
             saveLabel.text = "Saved for offline"
         } else if megaapi.transfers.size.int32Value > 0 {
             downloadProgressView.isHidden = true
@@ -193,7 +193,7 @@ class DetailsNodeInfoViewController: UIViewController, MEGADelegate, UIAlertView
     // MARK: - MEGA Request delegate
     
     func onRequestStart(_ api: MEGASdk!, request: MEGARequest!) {
-        if request.type == MEGARequestType.export {
+        if request.type == MEGARequestType.MEGARequestTypeExport {
             SVProgressHUD.show(withStatus: "Generate link...")
         }
     }
@@ -204,7 +204,7 @@ class DetailsNodeInfoViewController: UIViewController, MEGADelegate, UIAlertView
         }
         
         switch request.type {
-        case MEGARequestType.getAttrFile:
+        case MEGARequestType.MEGARequestTypeGetAttrFile:
             if request.nodeHandle == node.handle {
                 let node = megaapi.node(forHandle: request.nodeHandle)
                 let thumbnailFilePath = Helper.pathForNode(node!, path: FileManager.SearchPathDirectory.cachesDirectory, directory: "thumbs")
@@ -215,12 +215,12 @@ class DetailsNodeInfoViewController: UIViewController, MEGADelegate, UIAlertView
                 }
             }
             
-        case MEGARequestType.export:
+        case MEGARequestType.MEGARequestTypeExport:
             SVProgressHUD.showSuccess(withStatus: "Link Generate")
             SVProgressHUD.dismiss()
             let items = [request.link]
-            let activity : UIActivityViewController = UIActivityViewController(activityItems: items, applicationActivities: nil)
-            activity.excludedActivityTypes = [UIActivityType.print, UIActivityType.copyToPasteboard, UIActivityType.assignToContact, UIActivityType.saveToCameraRoll]
+            let activity : UIActivityViewController = UIActivityViewController(activityItems: items as [Any], applicationActivities: nil)
+            activity.excludedActivityTypes = [UIActivity.ActivityType.print, UIActivity.ActivityType.copyToPasteboard, UIActivity.ActivityType.assignToContact, UIActivity.ActivityType.saveToCameraRoll]
             self.present(activity, animated: true, completion: nil)
             
         default:
@@ -261,7 +261,7 @@ class DetailsNodeInfoViewController: UIViewController, MEGADelegate, UIAlertView
         } else {
             downloadProgressView.setProgress(1.0, animated: true)
             saveLabel.isHidden = false
-            downloadButton.setImage(UIImage(named: "savedFile"), for: UIControlState())
+            downloadButton.setImage(UIImage(named: "savedFile"), for: UIControl.State())
             saveLabel.text = "Saved for offline"
         }
     }

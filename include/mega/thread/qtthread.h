@@ -23,12 +23,10 @@
 
 #ifndef THREAD_CLASS
 #define THREAD_CLASS QtThread
-#define MUTEX_CLASS QtMutex
 #define SEMAPHORE_CLASS QtSemaphore
 
 #include "mega/thread.h"
 #include <QThread>
-#include <QMutex>
 #include <QSemaphore>
 
 namespace mega {
@@ -48,21 +46,6 @@ protected:
     void *(*start_routine)(void*);
     void *pointer;
 };
-
-class QtMutex : public Mutex
-{
-public:
-    QtMutex();
-    QtMutex(bool recursive);
-    virtual void init(bool recursive);
-    virtual void lock();
-    virtual void unlock();
-    virtual ~QtMutex();
-
-protected:
-    QMutex *mutex;
-};
-
 
 class QtSemaphore : public Semaphore
 {

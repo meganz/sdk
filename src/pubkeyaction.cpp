@@ -29,11 +29,12 @@ PubKeyAction::PubKeyAction()
     cmd = NULL; 
 }
 
-PubKeyActionPutNodes::PubKeyActionPutNodes(NewNode* newnodes, int numnodes, int ctag)
+PubKeyActionPutNodes::PubKeyActionPutNodes(NewNode* newnodes, int numnodes, int ctag, Transfer *aTransfer)
 {
     nn = newnodes;
     nc = numnodes;
     tag = ctag;
+    transfer = aTransfer;
 }
 
 void PubKeyActionPutNodes::proc(MegaClient* client, User* u)
@@ -46,7 +47,7 @@ void PubKeyActionPutNodes::proc(MegaClient* client, User* u)
         // re-encrypt all node keys to the user's public key
         for (int i = nc; i--;)
         {
-            if (!(t = u->pubk.encrypt((const byte*)nn[i].nodekey.data(), nn[i].nodekey.size(), buf, sizeof buf)))
+            if (!(t = u->pubk.encrypt(client->rng, (const byte*)nn[i].nodekey.data(), nn[i].nodekey.size(), buf, sizeof buf)))
             {
                 return client->app->putnodes_result(API_EINTERNAL, USER_HANDLE, nn);
             }
@@ -54,7 +55,7 @@ void PubKeyActionPutNodes::proc(MegaClient* client, User* u)
             nn[i].nodekey.assign((char*)buf, t);
         }
 
-        client->reqs.add(new CommandPutNodes(client, UNDEF, u->uid.c_str(), nn, nc, tag));
+        client->reqs.add(new CommandPutNodes(client, UNDEF, u->uid.c_str(), nn, nc, tag, PUTNODES_APP, nullptr, transfer));
     }
     else
     {
@@ -78,7 +79,7 @@ void PubKeyActionSendShareKey::proc(MegaClient* client, User* u)
         int t;
         byte buf[AsymmCipher::MAXKEYLENGTH];
 
-        if ((t = u->pubk.encrypt(n->sharekey->key, SymmCipher::KEYLENGTH, buf, sizeof buf)))
+        if ((t = u->pubk.encrypt(client->rng, n->sharekey->key, SymmCipher::KEYLENGTH, buf, sizeof buf)))
         {
             client->reqs.add(new CommandShareKeyUpdate(client, sh, u->uid.c_str(), buf, t));
         }
@@ -102,7 +103,7 @@ void PubKeyActionCreateShare::proc(MegaClient* client, User* u)
         // no: create
         byte key[SymmCipher::KEYLENGTH];
 
-        PrnGen::genblock(key, sizeof key);
+        client->rng.genblock(key, sizeof key);
 
         n->sharekey = new SymmCipher(key);
     }

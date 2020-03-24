@@ -39,16 +39,13 @@
 #include <cryptopp/pwdbased.h>
 
 namespace mega {
-using std::string;
 
 /**
  * @brief A generic pseudo-random number generator.
  */
-class MEGA_API PrnGen
+class MEGA_API PrnGen : public CryptoPP::AutoSeededRandomPool
 {
 public:
-    static CryptoPP::AutoSeededRandomPool rng;
-
     /**
      * @brief Generates a block of random bytes of length `len` into a buffer
      *        `buf`.
@@ -58,7 +55,7 @@ public:
      * @param len The number of random bytes to generate.
      * @return Void.
      */
-    static void genblock(byte* buf, int len);
+    void genblock(byte* buf, size_t len);
 
     /**
      * @brief Generates a random integer between 0 ... max - 1.
@@ -66,7 +63,7 @@ public:
      * @param max The maximum of which the number is to generate under.
      * @return The random number generated.
      */
-    static uint32_t genuint32(uint64_t max);
+    uint32_t genuint32(uint64_t max);
 };
 
 // symmetric cryptography: AES-128
@@ -101,7 +98,7 @@ public:
     typedef uint64_t ctr_iv;
 
     void setkey(const byte*, int = 1);
-    bool setkey(const string*);
+    bool setkey(const std::string*);
 
     /**
      * @brief Encrypt symmetrically using AES in ECB mode.
@@ -112,7 +109,7 @@ public:
      *     SymCipher::BLOCKSIZE.
      * @return Void.
      */
-    void ecb_encrypt(byte*, byte* = NULL, unsigned = BLOCKSIZE);
+    void ecb_encrypt(byte*, byte* = NULL, size_t = BLOCKSIZE);
 
     /**
      * @brief Decrypt symmetrically using AES in ECB mode.
@@ -122,7 +119,7 @@ public:
      *     SymCipher::BLOCKSIZE.
      * @return Void.
      */
-    void ecb_decrypt(byte*, unsigned = BLOCKSIZE);
+    void ecb_decrypt(byte*, size_t = BLOCKSIZE);
 
     /**
      * @brief Encrypt symmetrically using AES in CBC mode.
@@ -134,7 +131,7 @@ public:
      * @param iv Initialisation vector to use. Choose randomly and never re-use.
      * @return Void.
      */
-    void cbc_encrypt(byte* data, unsigned len, const byte* iv = NULL);
+    void cbc_encrypt(byte* data, size_t len, const byte* iv = NULL);
 
     /**
      * @brief Decrypt symmetrically using AES in CBC mode.
@@ -146,7 +143,7 @@ public:
      * @param iv Initialisation vector.
      * @return Void.
      */
-    void cbc_decrypt(byte* data, unsigned len, const byte* iv = NULL);
+    void cbc_decrypt(byte* data, size_t len, const byte* iv = NULL);
 
     /**
      * @brief Encrypt symmetrically using AES in CBC mode and pkcs padding
@@ -158,7 +155,7 @@ public:
      * @param result Encrypted message
      * @return Void.
      */
-    void cbc_encrypt_pkcs_padding(const string *data, const byte* iv, string *result);
+    void cbc_encrypt_pkcs_padding(const std::string *data, const byte* iv, std::string *result);
 
     /**
      * @brief Decrypt symmetrically using AES in CBC mode and pkcs padding
@@ -170,7 +167,7 @@ public:
      * @param result Decrypted message
      * @return Void.
      */
-    void cbc_decrypt_pkcs_padding(const string *data, const byte* iv, string *result);
+    void cbc_decrypt_pkcs_padding(const std::string *data, const byte* iv, std::string *result);
 
     /**
      * Authenticated symmetric encryption using AES in CCM mode (counter with CBC-MAC).
@@ -186,7 +183,7 @@ public:
      * @param taglen Length of expected authentication tag. Allowed sizes are 8 and 16 bytes.
      * @param result Encrypted data, including the authentication tag.
      */
-    void ccm_encrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result);
+    void ccm_encrypt(const std::string *data, const byte *iv, unsigned ivlen, unsigned taglen, std::string *result);
 
     /**
      * @brief Authenticated symmetric decryption using AES in CCM mode (counter with CBC-MAC).
@@ -201,7 +198,7 @@ public:
      * @param taglen Length of expected authentication tag. Allowed sizes are 8 and 16 bytes.
      * @param result Decrypted data, not including the authentication tag.
      */
-    void ccm_decrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result);
+    bool ccm_decrypt(const std::string *data, const byte *iv, unsigned ivlen, unsigned taglen, std::string *result);
 
     /**
      * @brief Authenticated symmetric encryption using AES in GCM mode.
@@ -217,7 +214,7 @@ public:
      * @param taglen Length of expected authentication tag.
      * @param result Encrypted data, including the authentication tag.
      */
-    void gcm_encrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result);
+    void gcm_encrypt(const std::string *data, const byte *iv, unsigned ivlen, unsigned taglen, std::string *result);
 
     /**
      * @brief Authenticated symmetric decryption using AES in GCM mode.
@@ -232,7 +229,7 @@ public:
      * @param taglen Length of expected authentication tag. Allowed sizes are 8 and 16 bytes.
      * @param result Decrypted data, not including the authentication tag.
      */
-    void gcm_decrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result);
+    bool gcm_decrypt(const std::string *data, const byte *iv, unsigned ivlen, unsigned taglen, std::string *result);
 
     /**
      * @brief Serialize key for compatibility with the webclient
@@ -242,7 +239,7 @@ public:
      *
      * @param d string that receives the serialized key
      */
-    void serializekeyforjs(string *);
+    void serializekeyforjs(std::string *);
 
     void ctr_crypt(byte *, unsigned, m_off_t, ctr_iv, byte *, bool, bool initmac = true);
 
@@ -307,13 +304,14 @@ public:
     /**
      * @brief Encrypts a randomly padded plain text into a buffer.
      *
+     * @param rng Reference to the random block generator
      * @param plain The plain text to encrypt.
      * @param plainlen Length of the plain text.
      * @param buf Buffer to take the cipher text..
      * @param buflen Length of the cipher text.
      * @return Number of bytes encrypted, 0 on failure.
      */
-    int encrypt(const byte* plain, int plainlen, byte* buf, int buflen);
+    int encrypt(PrnGen &rng, const byte* plain, size_t plainlen, byte* buf, size_t buflen);
 
     /**
      * @brief Decrypts a cipher text into a buffer and strips random padding.
@@ -324,7 +322,7 @@ public:
      * @param buflen Length of the plain text.
      * @return Always returns 1.
      */
-    int decrypt(const byte* cipher, int cipherlen, byte* buf, int buflen);
+    int decrypt(const byte* cipher, size_t cipherlen, byte* buf, size_t buflen);
 
     /**
      * @brief Encrypts a plain text into a buffer.
@@ -335,7 +333,7 @@ public:
      * @param buflen Length of the cipher text.
      * @return Number of bytes encrypted, 0 on failure.
      */
-    unsigned rawencrypt(const byte* plain, int plainlen, byte* buf, int buflen);
+    unsigned rawencrypt(const byte* plain, size_t plainlen, byte* buf, size_t buflen);
 
     /**
      * @brief Decrypts a cipher text into a buffer.
@@ -346,9 +344,9 @@ public:
      * @param buflen Length of the plain text.
      * @return Always returns 1.
      */
-    unsigned rawdecrypt(const byte* cipher, int cipherlen, byte* buf, int buflen);
+    unsigned rawdecrypt(const byte* cipher, size_t cipherlen, byte* buf, size_t buflen);
 
-    static void serializeintarray(CryptoPP::Integer*, int, string*, bool headers = true);
+    static void serializeintarray(CryptoPP::Integer*, int, std::string*, bool headers = true);
 
     /**
      * @brief Serialises a key to a string.
@@ -358,7 +356,7 @@ public:
      *     (AsymmCipher::PRIVKEY or AsymmCipher::PUBKEY).
      * @return Void.
      */
-    void serializekey(string* d, int keytype);
+    void serializekey(std::string* d, int keytype);
 
     /**
      * @brief Serialize public key for compatibility with the webclient.
@@ -369,17 +367,18 @@ public:
      * @param d String to take the serialized key without size-headers
      * @return Void.
      */
-    void serializekeyforjs(string& d);
+    void serializekeyforjs(std::string& d);
 
     /**
      * @brief Generates an RSA key pair of a given key size.
      *
+     * @param rng Reference to the random block generator
      * @param privk Private key.
      * @param pubk Public key.
      * @param size Size of key to generate in bits (key strength).
      * @return Always returns 1.
      */
-    void genkeypair(CryptoPP::Integer* privk, CryptoPP::Integer* pubk, int size);
+    void genkeypair(PrnGen &rng, CryptoPP::Integer* privk, CryptoPP::Integer* pubk, int size);
 };
 
 class MEGA_API Hash
@@ -388,7 +387,7 @@ class MEGA_API Hash
 
 public:
     void add(const byte*, unsigned);
-    void get(string*);
+    void get(std::string*);
 };
 
 class MEGA_API HashSHA256
@@ -397,7 +396,7 @@ class MEGA_API HashSHA256
 
 public:
     void add(const byte*, unsigned int);
-    void get(string*);
+    void get(std::string*);
 };
 
 class MEGA_API HashCRC32
@@ -429,7 +428,7 @@ public:
      * @param data Data to add
      * @param len Data length
      */
-    void add(const byte* data, unsigned len);
+    void add(const byte* data, size_t len);
 
     /**
      * @brief Compute the HMAC for the current message

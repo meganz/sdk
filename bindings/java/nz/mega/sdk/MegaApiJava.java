@@ -62,6 +62,14 @@ public class MegaApiJava {
     static Set<DelegateMegaTreeProcessor> activeMegaTreeProcessors = Collections.synchronizedSet(new LinkedHashSet<DelegateMegaTreeProcessor>());
     static Set<DelegateMegaTransferListener> activeHttpServerListeners = Collections.synchronizedSet(new LinkedHashSet<DelegateMegaTransferListener>());
 
+    /**
+     * INVALID_HANDLE Invalid value for a handle
+     *
+     * This value is used to represent an invalid handle. Several MEGA objects can have
+     * a handle but it will never be INVALID_HANDLE.
+     */
+    public final static long INVALID_HANDLE = ~(long)0;
+
     // Very severe error event that will presumably lead the application to abort.
     public final static int LOG_LEVEL_FATAL = MegaApi.LOG_LEVEL_FATAL;
     // Error information but application will continue run.
@@ -95,6 +103,11 @@ public class MegaApiJava {
     public final static int USER_ATTR_RUBBISH_TIME = MegaApi.USER_ATTR_RUBBISH_TIME;
     public final static int USER_ATTR_LAST_PSA = MegaApi.USER_ATTR_LAST_PSA;
     public final static int USER_ATTR_STORAGE_STATE = MegaApi.USER_ATTR_STORAGE_STATE;
+    public final static int USER_ATTR_GEOLOCATION = MegaApi.USER_ATTR_GEOLOCATION;
+    public final static int USER_ATTR_CAMERA_UPLOADS_FOLDER = MegaApi.USER_ATTR_CAMERA_UPLOADS_FOLDER;
+    public final static int USER_ATTR_MY_CHAT_FILES_FOLDER = MegaApi.USER_ATTR_MY_CHAT_FILES_FOLDER;
+    public final static int USER_ATTR_PUSH_SETTINGS = MegaApi.USER_ATTR_PUSH_SETTINGS;
+    public final static int USER_ATTR_ALIAS = MegaApi.USER_ATTR_ALIAS;
 
     public final static int NODE_ATTR_DURATION = MegaApi.NODE_ATTR_DURATION;
     public final static int NODE_ATTR_COORDINATES = MegaApi.NODE_ATTR_COORDINATES;
@@ -136,9 +149,22 @@ public class MegaApiJava {
 
     public final static int KEEP_ALIVE_CAMERA_UPLOADS = MegaApi.KEEP_ALIVE_CAMERA_UPLOADS;
 
+    public final static int STORAGE_STATE_UNKNOWN = MegaApi.STORAGE_STATE_UNKNOWN;
     public final static int STORAGE_STATE_GREEN = MegaApi.STORAGE_STATE_GREEN;
     public final static int STORAGE_STATE_ORANGE = MegaApi.STORAGE_STATE_ORANGE;
     public final static int STORAGE_STATE_RED = MegaApi.STORAGE_STATE_RED;
+    public final static int STORAGE_STATE_CHANGE = MegaApi.STORAGE_STATE_CHANGE;
+
+    public final static int BUSINESS_STATUS_EXPIRED = MegaApi.BUSINESS_STATUS_EXPIRED;
+    public final static int BUSINESS_STATUS_INACTIVE = MegaApi.BUSINESS_STATUS_INACTIVE;
+    public final static int BUSINESS_STATUS_ACTIVE = MegaApi.BUSINESS_STATUS_ACTIVE;
+    public final static int BUSINESS_STATUS_GRACE_PERIOD = MegaApi.BUSINESS_STATUS_GRACE_PERIOD;
+
+    public final static int AFFILIATE_TYPE_INVALID = MegaApi.AFFILIATE_TYPE_INVALID;
+    public final static int AFFILIATE_TYPE_ID = MegaApi.AFFILIATE_TYPE_ID;
+    public final static int AFFILIATE_TYPE_FILE_FOLDER = MegaApi.AFFILIATE_TYPE_FILE_FOLDER;
+    public final static int AFFILIATE_TYPE_CHAT = MegaApi.AFFILIATE_TYPE_CHAT;
+    public final static int AFFILIATE_TYPE_CONTACT = MegaApi.AFFILIATE_TYPE_CONTACT;
 
     public final static int ORDER_NONE = MegaApi.ORDER_NONE;
     public final static int ORDER_DEFAULT_ASC = MegaApi.ORDER_DEFAULT_ASC;
@@ -151,6 +177,12 @@ public class MegaApiJava {
     public final static int ORDER_MODIFICATION_DESC = MegaApi.ORDER_MODIFICATION_DESC;
     public final static int ORDER_ALPHABETICAL_ASC = MegaApi.ORDER_ALPHABETICAL_ASC;
     public final static int ORDER_ALPHABETICAL_DESC = MegaApi.ORDER_ALPHABETICAL_DESC;
+    public final static int ORDER_PHOTO_ASC = MegaApi.ORDER_PHOTO_ASC;
+    public final static int ORDER_PHOTO_DESC = MegaApi.ORDER_PHOTO_DESC;
+    public final static int ORDER_VIDEO_ASC = MegaApi.ORDER_VIDEO_ASC;
+    public final static int ORDER_VIDEO_DESC = MegaApi.ORDER_VIDEO_DESC;
+    public final static int ORDER_LINK_CREATION_ASC = MegaApi.ORDER_LINK_CREATION_ASC;
+    public final static int ORDER_LINK_CREATION_DESC = MegaApi.ORDER_LINK_CREATION_DESC;
 
     public final static int TCP_SERVER_DENY_ALL = MegaApi.TCP_SERVER_DENY_ALL;
     public final static int TCP_SERVER_ALLOW_ALL = MegaApi.TCP_SERVER_ALLOW_ALL;
@@ -405,6 +437,50 @@ public class MegaApiJava {
     }
 
     /**
+     * Get an URL to transfer the current session to the webclient
+     *
+     * This function creates a new session for the link so logging out in the web client won't log out
+     * the current session.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_SESSION_TRANSFER_URL
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getLink - URL to open the desired page with the same account
+     *
+     * You take the ownership of the returned value.
+     *
+     * @param path Path inside https://mega.nz/# that we want to open with the current session
+     *
+     * For example, if you want to open https://mega.nz/#pro, the parameter of this function should be "pro".
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getSessionTransferURL(String path, MegaRequestListenerInterface listener){
+        megaApi.getSessionTransferURL(path, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Get an URL to transfer the current session to the webclient
+     *
+     * This function creates a new session for the link so logging out in the web client won't log out
+     * the current session.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_SESSION_TRANSFER_URL
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getLink - URL to open the desired page with the same account
+     *
+     * You take the ownership of the returned value.
+     *
+     * @param path Path inside https://mega.nz/# that we want to open with the current session
+     *
+     * For example, if you want to open https://mega.nz/#pro, the parameter of this function should be "pro".
+     */
+    public void getSessionTransferURL(String path){
+        megaApi.getSessionTransferURL(path);
+    }
+
+    /**
      * Converts a Base32-encoded user handle (JID) to a MegaHandle.
      * <p>
      * @param base32Handle
@@ -479,8 +555,8 @@ public class MegaApiJava {
      * @param size
      *            Size of the byte array (in bytes).
      */
-    public static void addEntropy(String data, long size) {
-        MegaApi.addEntropy(data, size);
+    public void addEntropy(String data, long size) {
+        megaApi.addEntropy(data, size);
     }
 
     /**
@@ -504,6 +580,10 @@ public class MegaApiJava {
 
     /**
      * Check if server-side Rubbish Bin autopurging is enabled for the current account
+     *
+     * Before using this function, it's needed to:
+     *  - If you are logged-in: call to MegaApi::login and MegaApi::fetchNodes.
+     *
      * @return True if this feature is enabled. Otherwise false.
      */
     public boolean serverSideRubbishBinAutopurgeEnabled(){
@@ -511,10 +591,24 @@ public class MegaApiJava {
     }
 
     /**
+     * Check if the new format for public links is enabled
+     *
+     * Before using this function, it's needed to:
+     *  - If you are logged-in: call to MegaApi::login and MegaApi::fetchNodes.
+     *  - If you are not logged-in: call to MegaApi::getMiscFlags.
+     *
+     * @return True if this feature is enabled. Otherwise, false.
+     */
+    public boolean newLinkFormatEnabled() {
+        return megaApi.newLinkFormatEnabled();
+    }
+
+    /**
      * Check if multi-factor authentication can be enabled for the current account.
      *
-     * It's needed to be logged into an account and with the nodes loaded (login + fetchNodes) before
-     * using this function. Otherwise it will always return false.
+     * Before using this function, it's needed to:
+     *  - If you are logged-in: call to MegaApi::login and MegaApi::fetchNodes.
+     *  - If you are not logged-in: call to MegaApi::getMiscFlags.
      *
      * @return True if multi-factor authentication can be enabled for the current account, otherwise false.
      */
@@ -736,6 +830,9 @@ public class MegaApiJava {
      * If this request succeeds, a change-email link will be sent to the specified email address.
      * If no user is logged in, you will get the error code MegaError::API_EACCESS in onRequestFinish().
      *
+     * If the MEGA account is a sub-user business account, onRequestFinish will
+     * be called with the error code MegaError::API_EMASTERONLY.
+     *
      * @param email The new email to be associated to the account.
      * @param pin Pin code for multi-factor authentication
      * @param listener MegaRequestListener to track this request
@@ -754,6 +851,9 @@ public class MegaApiJava {
      *
      * If this request succeeds, a change-email link will be sent to the specified email address.
      * If no user is logged in, you will get the error code MegaError::API_EACCESS in onRequestFinish().
+     *
+     * If the MEGA account is a sub-user business account, onRequestFinish will
+     * be called with the error code MegaError::API_EMASTERONLY.
      *
      * @param email The new email to be associated to the account.
      * @param pin Pin code for multi-factor authentication
@@ -774,6 +874,9 @@ public class MegaApiJava {
      * Valid data in the MegaRequest object received on all callbacks:
      * - MegaRequest::getText - Returns the pin code for multi-factor authentication
      *
+     * If the MEGA account is a sub-user business account, onRequestFinish will
+     * be called with the error code MegaError::API_EMASTERONLY.
+     *
      * @see MegaApi::confirmCancelAccount
      *
      * @param pin Pin code for multi-factor authentication
@@ -793,6 +896,9 @@ public class MegaApiJava {
      *
      * Valid data in the MegaRequest object received on all callbacks:
      * - MegaRequest::getText - Returns the pin code for multi-factor authentication
+     *
+     * If the MEGA account is a sub-user business account, onRequestFinish will
+     * be called with the error code MegaError::API_EMASTERONLY.
      *
      * @see MegaApi::confirmCancelAccount
      *
@@ -1092,6 +1198,42 @@ public class MegaApiJava {
     }
 
     /**
+     * Fetch miscellaneous flags when not logged in
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_MISC_FLAGS.
+     *
+     * When onRequestFinish is called with MegaError::API_OK, the global flags are available.
+     * If you are logged in into an account, the error code provided in onRequestFinish is
+     * MegaError::API_EACCESS.
+     *
+     * @see MegaApi::multiFactorAuthAvailable
+     * @see MegaApi::newLinkFormatEnabled
+     * @see MegaApi::smsAllowedState
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getMiscFlags(MegaRequestListenerInterface listener) {
+        megaApi.getMiscFlags(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Fetch miscellaneous flags when not logged in
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_MISC_FLAGS.
+     *
+     * When onRequestFinish is called with MegaError::API_OK, the global flags are available.
+     * If you are logged in into an account, the error code provided in onRequestFinish is
+     * MegaError::API_EACCESS.
+     *
+     * @see MegaApi::multiFactorAuthAvailable
+     * @see MegaApi::newLinkFormatEnabled
+     * @see MegaApi::smsAllowedState
+     */
+    public void getMiscFlags() {
+        megaApi.getMiscFlags();
+    }
+
+    /**
      * Returns the current session key.
      * <p>
      * You have to be logged in to get a valid session key. Otherwise,
@@ -1101,64 +1243,6 @@ public class MegaApiJava {
      */
     public String dumpSession() {
         return megaApi.dumpSession();
-    }
-
-    /**
-     * Returns the current XMPP session key.
-     * <p>
-     * You have to be logged in to get a valid session key. Otherwise,
-     * this function returns null.
-     * 
-     * @return Current XMPP session key.
-     */
-    public String dumpXMPPSession() {
-        return megaApi.dumpXMPPSession();
-    }
-
-    /**
-     * Initialize the creation of a new MEGA account.
-     * <p>
-     * The associated request type with this request is MegaRequest.TYPE_CREATE_ACCOUNT.
-     * Valid data in the MegaRequest object received on callbacks: <br>
-     * - MegaRequest.getEmail() - Returns the email for the account. <br>
-     * - MegaRequest.getPassword() - Returns the password for the account. <br>
-     * - MegaRequest.getName() - Returns the name of the user. <br>
-     * <p>
-     * If this request succeed, a confirmation email will be sent to the users.
-     * If an account with the same email already exists, you will get the error code
-     * MegaError.API_EEXIST in onRequestFinish().
-     * 
-     * @param email
-     *            Email for the account.
-     * @param password
-     *            Password for the account.
-     * @param name
-     *            Name of the user.
-     * @param listener
-     *            MegaRequestListener to track this request.
-     *
-     * @deprecated This function is deprecated and will eventually be removed. Instead,
-     * use the new version with firstname and lastname.
-     */
-    public void createAccount(String email, String password, String name, MegaRequestListenerInterface listener) {
-        megaApi.createAccount(email, password, name, createDelegateRequestListener(listener));
-    }
-
-    /**
-     * Initialize the creation of a new MEGA account.
-     * 
-     * @param email
-     *            Email for the account.
-     * @param password
-     *            Password for the account.
-     * @param name
-     *            Name of the user.
-     *
-     * @deprecated This function is deprecated and will eventually be removed. Instead,
-     * use the new version with firstname and lastname.
-     */
-    public void createAccount(String email, String password, String name) {
-        megaApi.createAccount(email, password, name);
     }
 
     /**
@@ -1175,7 +1259,7 @@ public class MegaApiJava {
      * is MegaError::API_OK:
      * - MegaRequest::getSessionKey - Returns the session id to resume the process
      *
-     * If this request succeed, a new ephemeral session will be created for the new user
+     * If this request succeeds, a new ephemeral session will be created for the new user
      * and a confirmation email will be sent to the specified email address. The app may
      * resume the create-account process by using MegaApi::resumeCreateAccount.
      *
@@ -1190,6 +1274,124 @@ public class MegaApiJava {
      */
     public void createAccount(String email, String password, String firstname, String lastname, MegaRequestListenerInterface listener){
     	megaApi.createAccount(email, password, firstname, lastname, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Initialize the creation of a new MEGA account, with firstname and lastname
+     *
+     * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getEmail - Returns the email for the account
+     * - MegaRequest::getPassword - Returns the password for the account
+     * - MegaRequest::getName - Returns the firstname of the user
+     * - MegaRequest::getText - Returns the lastname of the user
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getSessionKey - Returns the session id to resume the process
+     *
+     * If this request succeeds, a new ephemeral session will be created for the new user
+     * and a confirmation email will be sent to the specified email address. The app may
+     * resume the create-account process by using MegaApi::resumeCreateAccount.
+     *
+     * If an account with the same email already exists, you will get the error code
+     * MegaError::API_EEXIST in onRequestFinish
+     *
+     * @param email Email for the account
+     * @param password Password for the account
+     * @param firstname Firstname of the user
+     * @param lastname Lastname of the user
+     */
+    public void createAccount(String email, String password, String firstname, String lastname){
+        megaApi.createAccount(email, password, firstname, lastname);
+    }
+
+    /**
+     * Initialize the creation of a new MEGA account, with firstname and lastname
+     *
+     * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getEmail - Returns the email for the account
+     * - MegaRequest::getPassword - Returns the password for the account
+     * - MegaRequest::getName - Returns the firstname of the user
+     * - MegaRequest::getText - Returns the lastname of the user
+     * - MegaRequest::getNodeHandle - Returns the last public node handle accessed
+     * - MegaRequest::getAccess - Returns the type of lastPublicHandle
+     * - MegaRequest::getTransferredBytes - Returns the timestamp of the last access
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getSessionKey - Returns the session id to resume the process
+     *
+     * If this request succeeds, a new ephemeral session will be created for the new user
+     * and a confirmation email will be sent to the specified email address. The app may
+     * resume the create-account process by using MegaApi::resumeCreateAccount.
+     *
+     * If an account with the same email already exists, you will get the error code
+     * MegaError::API_EEXIST in onRequestFinish
+     *
+     * @param email Email for the account
+     * @param password Password for the account
+     * @param firstname Firstname of the user
+     * @param lastname Lastname of the user
+     * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
+     * @param lastPublicHandleType Indicates the type of lastPublicHandle, valid values are:
+     *      - MegaApi::AFFILIATE_TYPE_ID = 1
+     *      - MegaApi::AFFILIATE_TYPE_FILE_FOLDER = 2
+     *      - MegaApi::AFFILIATE_TYPE_CHAT = 3
+     *      - MegaApi::AFFILIATE_TYPE_CONTACT = 4
+     *
+     * @param lastAccessTimestamp Timestamp of the last access
+     * @param listener MegaRequestListener to track this request
+     */
+    public void createAccount(String email, String password, String firstname, String lastname,
+                              long lastPublicHandle, int lastPublicHandleType, long lastAccessTimestamp,
+                              MegaRequestListenerInterface listener) {
+        megaApi.createAccount(email, password, firstname,
+                lastname, lastPublicHandle, lastPublicHandleType, lastAccessTimestamp,
+                createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Initialize the creation of a new MEGA account, with firstname and lastname
+     *
+     * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getEmail - Returns the email for the account
+     * - MegaRequest::getPassword - Returns the password for the account
+     * - MegaRequest::getName - Returns the firstname of the user
+     * - MegaRequest::getText - Returns the lastname of the user
+     * - MegaRequest::getNodeHandle - Returns the last public node handle accessed
+     * - MegaRequest::getAccess - Returns the type of lastPublicHandle
+     * - MegaRequest::getTransferredBytes - Returns the timestamp of the last access
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getSessionKey - Returns the session id to resume the process
+     *
+     * If this request succeeds, a new ephemeral session will be created for the new user
+     * and a confirmation email will be sent to the specified email address. The app may
+     * resume the create-account process by using MegaApi::resumeCreateAccount.
+     *
+     * If an account with the same email already exists, you will get the error code
+     * MegaError::API_EEXIST in onRequestFinish
+     *
+     * @param email Email for the account
+     * @param password Password for the account
+     * @param firstname Firstname of the user
+     * @param lastname Lastname of the user
+     * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
+     * @param lastPublicHandleType Indicates the type of lastPublicHandle, valid values are:
+     *      - MegaApi::AFFILIATE_TYPE_ID = 1
+     *      - MegaApi::AFFILIATE_TYPE_FILE_FOLDER = 2
+     *      - MegaApi::AFFILIATE_TYPE_CHAT = 3
+     *      - MegaApi::AFFILIATE_TYPE_CONTACT = 4
+     *
+     * @param lastAccessTimestamp Timestamp of the last access
+     */
+    public void createAccount(String email, String password, String firstname, String lastname,
+                              long lastPublicHandle, int lastPublicHandleType, long lastAccessTimestamp) {
+        megaApi.createAccount(email, password, firstname, lastname, lastPublicHandle, lastPublicHandleType, lastAccessTimestamp);
     }
 
     /**
@@ -1454,6 +1656,9 @@ public class MegaApiJava {
      * If this request succeed, a cancellation link will be sent to the email address of the user.
      * If no user is logged in, you will get the error code MegaError::API_EACCESS in onRequestFinish().
      *
+     * If the MEGA account is a sub-user business account, onRequestFinish will
+     * be called with the error code MegaError::API_EMASTERONLY.
+     *
      * @see MegaApi::confirmCancelAccount
      *
      * @param listener MegaRequestListener to track this request
@@ -1505,6 +1710,44 @@ public class MegaApiJava {
     }
 
     /**
+     * Allow to resend the verification email for Weak Account Protection
+     *
+     * The verification email will be resent to the same address as it was previously sent to.
+     *
+     * This function can be called if the the reason for being blocked is:
+     *      700: the account is supended for Weak Account Protection.
+     *
+     * If the logged in account is not suspended or is suspended for some other reason,
+     * onRequestFinish will be called with the error code MegaError::API_EACCESS.
+     *
+     * If the logged in account has not been sent the unlock email before,
+     * onRequestFinish will be called with the error code MegaError::API_EARGS.
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void resendVerificationEmail(MegaRequestListenerInterface listener) {
+        megaApi.resendVerificationEmail(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Allow to resend the verification email for Weak Account Protection
+     *
+     * The verification email will be resent to the same address as it was previously sent to.
+     *
+     * This function can be called if the the reason for being blocked is:
+     *      700: the account is supended for Weak Account Protection.
+     *
+     * If the logged in account is not suspended or is suspended for some other reason,
+     * onRequestFinish will be called with the error code MegaError::API_EACCESS.
+     *
+     * If the logged in account has not been sent the unlock email before,
+     * onRequestFinish will be called with the error code MegaError::API_EARGS.
+     */
+    public void resendVerificationEmail() {
+        megaApi.resendVerificationEmail();
+    }
+
+    /**
      * Initialize the change of the email address associated to the account.
      *
      * The associated request type with this request is MegaRequest::TYPE_GET_CHANGE_EMAIL_LINK.
@@ -1513,6 +1756,9 @@ public class MegaApiJava {
      *
      * If this request succeed, a change-email link will be sent to the specified email address.
      * If no user is logged in, you will get the error code MegaError::API_EACCESS in onRequestFinish().
+     *
+     * If the MEGA account is a sub-user business account, onRequestFinish will
+     * be called with the error code MegaError::API_EMASTERONLY.
      *
      * @param email The new email to be associated to the account.
      * @param listener MegaRequestListener to track this request
@@ -1596,6 +1842,62 @@ public class MegaApiJava {
      */
     public int isLoggedIn() {
         return megaApi.isLoggedIn();
+    }
+
+    /**
+     * Check the reason of being blocked.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_WHY_AM_I_BLOCKED.
+     *
+     * This request can be sent internally at anytime (whenever an account gets blocked), so
+     * a MegaGlobalListener should process the result, show the reason and logout.
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getText - Returns the reason string (in English)
+     * - MegaRequest::getNumber - Returns the reason code. Possible values:
+     *     0: The account is not blocked
+     *     200: suspension message for any type of suspension, but copyright suspension.
+     *     300: suspension only for multiple copyright violations.
+     *     400: the subuser account has been disabled.
+     *     401: the subuser account has been removed.
+     *     500: The account needs to be verified by an SMS code.
+     *     700: the account is supended for Weak Account Protection.
+     *
+     * If the error code in the MegaRequest object received in onRequestFinish
+     * is MegaError::API_OK, the user is not blocked.
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void whyAmIBlocked(MegaRequestListenerInterface listener) {
+        megaApi.whyAmIBlocked(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Check the reason of being blocked.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_WHY_AM_I_BLOCKED.
+     *
+     * This request can be sent internally at anytime (whenever an account gets blocked), so
+     * a MegaGlobalListener should process the result, show the reason and logout.
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getText - Returns the reason string (in English)
+     * - MegaRequest::getNumber - Returns the reason code. Possible values:
+     *     0: The account is not blocked
+     *     200: suspension message for any type of suspension, but copyright suspension.
+     *     300: suspension only for multiple copyright violations.
+     *     400: the subuser account has been disabled.
+     *     401: the subuser account has been removed.
+     *     500: The account needs to be verified by an SMS code.
+     *     700: the account is supended for Weak Account Protection.
+     *
+     * If the error code in the MegaRequest object received in onRequestFinish
+     * is MegaError::API_OK, the user is not blocked.
+     */
+    public void whyAmIBlocked() {
+        megaApi.whyAmIBlocked();
     }
 
     /**
@@ -1864,18 +2166,6 @@ public class MegaApiJava {
     public MegaUser getMyUser(){
     	return megaApi.getMyUser();
     }
-    
-    /**
-     * Returns the XMPP JID of the currently open account
-     *
-     * If the MegaApi object isn't logged in,
-     * this function returns null
-     *
-     * @return XMPP JID of the current account
-     */
-    public String getMyXMPPJid() {
-    	return megaApi.getMyXMPPJid();
-    }
 
     /**
      * Returns whether MEGA Achievements are enabled for the open account
@@ -1886,27 +2176,67 @@ public class MegaApiJava {
     }
 
     /**
+     * Check if the account is a business account.
+     * @return returns true if it's a business account, otherwise false
+     */
+    public boolean isBusinessAccount() {
+        return megaApi.isBusinessAccount();
+    }
+
+    /**
+     * Check if the account is a master account.
+     *
+     * When a business account is a sub-user, not the master, some user actions will be blocked.
+     * In result, the API will return the error code MegaError::API_EMASTERONLY. Some examples of
+     * requests that may fail with this error are:
+     *  - MegaApi::cancelAccount
+     *  - MegaApi::changeEmail
+     *  - MegaApi::remove
+     *  - MegaApi::removeVersion
+     *
+     * @return returns true if it's a master account, false if it's a sub-user account
+     */
+    public boolean isMasterBusinessAccount() {
+        return megaApi.isMasterBusinessAccount();
+    }
+
+    /**
+     * Check if the business account is active or not.
+     *
+     * When a business account is not active, some user actions will be blocked. In result, the API
+     * will return the error code MegaError::API_EBUSINESSPASTDUE. Some examples of requests
+     * that may fail with this error are:
+     *  - MegaApi::startDownload
+     *  - MegaApi::startUpload
+     *  - MegaApi::copyNode
+     *  - MegaApi::share
+     *  - MegaApi::cleanRubbishBin
+     *
+     * @return returns true if the account is active, otherwise false
+     */
+    public boolean isBusinessAccountActive() {
+        return megaApi.isBusinessAccountActive();
+    }
+
+    /**
+     * Get the status of a business account.
+     * @return Returns the business account status, possible values:
+     *      MegaApi::BUSINESS_STATUS_EXPIRED = -1
+     *      MegaApi::BUSINESS_STATUS_INACTIVE = 0
+     *      MegaApi::BUSINESS_STATUS_ACTIVE = 1
+     *      MegaApi::BUSINESS_STATUS_GRACE_PERIOD = 2
+     */
+    public int getBusinessStatus() {
+        return megaApi.getBusinessStatus();
+    }
+
+    /**
      * Check if the password is correct for the current account
      * @param password Password to check
      * @return True if the password is correct for the current account, otherwise false.
      */
     public boolean checkPassword(String password){
         return megaApi.checkPassword(password);
-    }
-
-    /**
-     * Returns the fingerprint of the signing key of the currently open account
-     *
-     * If the MegaApi object isn't logged in or there's no signing key available,
-     * this function returns NULL
-     *
-     * You take the ownership of the returned value.
-     * Use delete [] to free it.
-     *
-     * @return Fingerprint of the signing key of the current account
-     */
-    public String getMyFingerprint(){
-        return megaApi.getMyFingerprint();
     }
 
     /**
@@ -2023,182 +2353,258 @@ public class MegaApiJava {
     }
 
     /**
-     * Create a folder in the MEGA account.
-     * <p>
-     * The associated request type with this request is MegaRequest.TYPE_CREATE_FOLDER
-     * Valid data in the MegaRequest object received on callbacks: <br>
-     * - MegaRequest.getParentHandle() - Returns the handle of the parent folder. <br>
-     * - MegaRequest.getName() - Returns the name of the new folder.
-     * <p>
-     * Valid data in the MegaRequest object received in onRequestFinish() when the error code
-     * is MegaError.API_OK: <br>
-     * - MegaRequest.getNodeHandle() - Handle of the new folder.
-     * 
-     * @param name
-     *            Name of the new folder.
-     * @param parent
-     *            Parent folder.
-     * @param listener
-     *            MegaRequestListener to track this request.
+     * Create a folder in the MEGA account
+     *
+     * The associated request type with this request is MegaRequest::TYPE_CREATE_FOLDER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParentHandle - Returns the handle of the parent folder
+     * - MegaRequest::getName - Returns the name of the new folder
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNodeHandle - Handle of the new folder
+     *
+     * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * @param name Name of the new folder
+     * @param parent Parent folder
+     * @param listener MegaRequestListener to track this request
      */
     public void createFolder(String name, MegaNode parent, MegaRequestListenerInterface listener) {
         megaApi.createFolder(name, parent, createDelegateRequestListener(listener));
     }
 
     /**
-     * Create a folder in the MEGA account.
-     * 
-     * @param name
-     *            Name of the new folder.
-     * @param parent
-     *            Parent folder.
+     * Create a folder in the MEGA account
+     *
+     * The associated request type with this request is MegaRequest::TYPE_CREATE_FOLDER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParentHandle - Returns the handle of the parent folder
+     * - MegaRequest::getName - Returns the name of the new folder
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNodeHandle - Handle of the new folder
+     *
+     * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * @param name Name of the new folder
+     * @param parent Parent folder
      */
     public void createFolder(String name, MegaNode parent) {
         megaApi.createFolder(name, parent);
     }
 
     /**
-     * Move a node in the MEGA account.
-     * <p>
-     * The associated request type with this request is MegaRequest.TYPE_MOVE
-     * Valid data in the MegaRequest object received on callbacks: <br>
-     * - MegaRequest.getNodeHandle() - Returns the handle of the node to move. <br>
-     * - MegaRequest.getParentHandle() - Returns the handle of the new parent for the node.
-     * 
-     * @param node
-     *            Node to move.
-     * @param newParent
-     *            New parent for the node.
-     * @param listener
-     *            MegaRequestListener to track this request.
+     * Move a node in the MEGA account
+     *
+     * The associated request type with this request is MegaRequest::TYPE_MOVE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node to move
+     * - MegaRequest::getParentHandle - Returns the handle of the new parent for the node
+     *
+     * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * @param node Node to move
+     * @param newParent New parent for the node
+     * @param listener MegaRequestListener to track this request
      */
     public void moveNode(MegaNode node, MegaNode newParent, MegaRequestListenerInterface listener) {
         megaApi.moveNode(node, newParent, createDelegateRequestListener(listener));
     }
 
     /**
-     * Move a node in the MEGA account.
-     * 
-     * @param node
-     *            Node to move.
-     * @param newParent
-     *            New parent for the node.
+     * Move a node in the MEGA account
+     *
+     * The associated request type with this request is MegaRequest::TYPE_MOVE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node to move
+     * - MegaRequest::getParentHandle - Returns the handle of the new parent for the node
+     *
+     * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * @param node Node to move
+     * @param newParent New parent for the node
      */
     public void moveNode(MegaNode node, MegaNode newParent) {
         megaApi.moveNode(node, newParent);
     }
 
     /**
-     * Copy a node in the MEGA account.
-     * <p>
-     * The associated request type with this request is MegaRequest.TYPE_COPY
-     * Valid data in the MegaRequest object received on callbacks: <br>
-     * - MegaRequest.getNodeHandle() - Returns the handle of the node to copy. <br>
-     * - MegaRequest.getParentHandle() - Returns the handle of the new parent for the new node. <br>
-     * - MegaRequest.getPublicMegaNode() - Returns the node to copy (if it is a public node).
-     * <p>
-     * Valid data in the MegaRequest object received in onRequestFinish() when the error code
-     * is MegaError.API_OK: <br>
-     * - MegaRequest.getNodeHandle() - Handle of the new node.
-     * 
-     * @param node
-     *            Node to copy.
-     * @param newParent
-     *            Parent for the new node.
-     * @param listener
-     *            MegaRequestListener to track this request.
+     * Move a node in the MEGA account changing the file name
+     *
+     * The associated request type with this request is MegaRequest::TYPE_MOVE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node to move
+     * - MegaRequest::getParentHandle - Returns the handle of the new parent for the node
+     * - MegaRequest::getName - Returns the name for the new node
+     *
+     * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * @param node Node to move
+     * @param newParent New parent for the node
+     * @param newName Name for the new node
+     * @param listener MegaRequestListener to track this request
+     */
+    void moveNode(MegaNode node, MegaNode newParent, String newName, MegaRequestListenerInterface listener) {
+        megaApi.moveNode(node, newParent, newName, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Move a node in the MEGA account changing the file name
+     *
+     * The associated request type with this request is MegaRequest::TYPE_MOVE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node to move
+     * - MegaRequest::getParentHandle - Returns the handle of the new parent for the node
+     * - MegaRequest::getName - Returns the name for the new node
+     *
+     * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * @param node Node to move
+     * @param newParent New parent for the node
+     * @param newName Name for the new node
+     */
+    void moveNode(MegaNode node, MegaNode newParent, String newName) {
+        megaApi.moveNode(node, newParent, newName);
+    }
+
+    /**
+     * Copy a node in the MEGA account
+     *
+     * The associated request type with this request is MegaRequest::TYPE_COPY
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node to copy
+     * - MegaRequest::getParentHandle - Returns the handle of the new parent for the new node
+     * - MegaRequest::getPublicMegaNode - Returns the node to copy (if it is a public node)
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNodeHandle - Handle of the new node
+     *
+     * If the status of the business account is expired, onRequestFinish will be called with the error
+     * code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * @param node Node to copy
+     * @param newParent Parent for the new node
+     * @param listener MegaRequestListener to track this request
      */
     public void copyNode(MegaNode node, MegaNode newParent, MegaRequestListenerInterface listener) {
         megaApi.copyNode(node, newParent, createDelegateRequestListener(listener));
     }
 
     /**
-     * Copy a node in the MEGA account.
-     * <p>
-     * @param node
-     *            Node to copy.
-     * @param newParent
-     *            Parent for the new node.
+     * Copy a node in the MEGA account
+     *
+     * The associated request type with this request is MegaRequest::TYPE_COPY
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node to copy
+     * - MegaRequest::getParentHandle - Returns the handle of the new parent for the new node
+     * - MegaRequest::getPublicMegaNode - Returns the node to copy (if it is a public node)
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNodeHandle - Handle of the new node
+     *
+     * If the status of the business account is expired, onRequestFinish will be called with the error
+     * code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * @param node Node to copy
+     * @param newParent Parent for the new node
      */
     public void copyNode(MegaNode node, MegaNode newParent) {
         megaApi.copyNode(node, newParent);
     }
 
     /**
-     * Copy a node in the MEGA account changing the file name.
-     * <p>
-     * The associated request type with this request is MegaRequest.TYPE_COPY
-     * Valid data in the MegaRequest object received on callbacks: <br>
-     * - MegaRequest.getNodeHandle() - Returns the handle of the node to copy. <br>
-     * - MegaRequest.getParentHandle() - Returns the handle of the new parent for the new node. <br>
-     * - MegaRequest.getPublicMegaNode() - Returns the node to copy. <br>
-     * - MegaRequest.getName() - Returns the name for the new node.
-     * 
-     * Valid data in the MegaRequest object received in onRequestFinish() when the error code
-     * is MegaError.API_OK: <br>
-     * - MegaRequest.getNodeHandle() - Handle of the new node.
-     * 
-     * @param node
-     *            Node to copy.
-     * @param newParent
-     *            Parent for the new node.
-     * @param newName
-     *            Name for the new node. <br>
-     * 
-     *            This parameter is only used if the original node is a file and it is not a public node,
-     *            otherwise, it's ignored.
-     * 
-     * @param listener
-     *            MegaRequestListenerInterface to track this request.
+     * Copy a node in the MEGA account changing the file name
+     *
+     * The associated request type with this request is MegaRequest::TYPE_COPY
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node to copy
+     * - MegaRequest::getParentHandle - Returns the handle of the new parent for the new node
+     * - MegaRequest::getPublicMegaNode - Returns the node to copy
+     * - MegaRequest::getName - Returns the name for the new node
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNodeHandle - Handle of the new node
+     *
+     * If the status of the business account is expired, onRequestFinish will be called with the error
+     * code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * @param node Node to copy
+     * @param newParent Parent for the new node
+     * @param newName Name for the new node
+     * @param listener MegaRequestListener to track this request
      */
     public void copyNode(MegaNode node, MegaNode newParent, String newName, MegaRequestListenerInterface listener) {
         megaApi.copyNode(node, newParent, newName, createDelegateRequestListener(listener));
     }
 
     /**
-     * Copy a node in the MEGA account changing the file name.
-     * 
-     * @param node
-     *            Node to copy.
-     * @param newParent
-     *            Parent for the new node.
-     * @param newName
-     *            Name for the new node. <br>
-     * 
-     *            This parameter is only used if the original node is a file and it is not a public node,
-     *            otherwise, it is ignored.
-     * 
+     * Copy a node in the MEGA account changing the file name
+     *
+     * The associated request type with this request is MegaRequest::TYPE_COPY
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node to copy
+     * - MegaRequest::getParentHandle - Returns the handle of the new parent for the new node
+     * - MegaRequest::getPublicMegaNode - Returns the node to copy
+     * - MegaRequest::getName - Returns the name for the new node
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNodeHandle - Handle of the new node
+     *
+     * If the status of the business account is expired, onRequestFinish will be called with the error
+     * code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * @param node Node to copy
+     * @param newParent Parent for the new node
+     * @param newName Name for the new node
      */
     public void copyNode(MegaNode node, MegaNode newParent, String newName) {
         megaApi.copyNode(node, newParent, newName);
     }
 
     /**
-     * Rename a node in the MEGA account.
-     * <p>
-     * The associated request type with this request is MegaRequest.TYPE_RENAME
-     * Valid data in the MegaRequest object received on callbacks: <br>
-     * - MegaRequest.getNodeHandle() - Returns the handle of the node to rename. <br>
-     * - MegaRequest.getName() - Returns the new name for the node.
-     * 
-     * @param node
-     *            Node to modify.
-     * @param newName
-     *            New name for the node.
-     * @param listener
-     *            MegaRequestListener to track this request.
+     * Rename a node in the MEGA account
+     *
+     * The associated request type with this request is MegaRequest::TYPE_RENAME
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node to rename
+     * - MegaRequest::getName - Returns the new name for the node
+     *
+     * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * @param node Node to modify
+     * @param newName New name for the node
+     * @param listener MegaRequestListener to track this request
      */
     public void renameNode(MegaNode node, String newName, MegaRequestListenerInterface listener) {
         megaApi.renameNode(node, newName, createDelegateRequestListener(listener));
     }
 
     /**
-     * Rename a node in the MEGA account.
-     * 
-     * @param node
-     *            Node to modify.
-     * @param newName
-     *            New name for the node.
+     * Rename a node in the MEGA account
+     *
+     * The associated request type with this request is MegaRequest::TYPE_RENAME
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node to rename
+     * - MegaRequest::getName - Returns the new name for the node
+     *
+     * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * @param node Node to modify
+     * @param newName New name for the node
      */
     public void renameNode(MegaNode node, String newName) {
         megaApi.renameNode(node, newName);
@@ -2217,6 +2623,9 @@ public class MegaApiJava {
      * - MegaRequest::getNodeHandle - Returns the handle of the node to remove
      * - MegaRequest::getFlag - Returns false because previous versions won't be preserved
      *
+     * If the MEGA account is a sub-user business account, onRequestFinish will
+     * be called with the error code MegaError::API_EMASTERONLY.
+     *
      * @param node Node to remove
      * @param listener MegaRequestListener to track this request
      */
@@ -2225,10 +2634,22 @@ public class MegaApiJava {
     }
 
     /**
-     * Remove a node from the MEGA account.
-     * 
-     * @param node
-     *            Node to remove
+     * Remove a node from the MEGA account
+     *
+     * This function doesn't move the node to the Rubbish Bin, it fully removes the node. To move
+     * the node to the Rubbish Bin use MegaApi::moveNode
+     *
+     * If the node has previous versions, they will be deleted too
+     *
+     * The associated request type with this request is MegaRequest::TYPE_REMOVE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node to remove
+     * - MegaRequest::getFlag - Returns false because previous versions won't be preserved
+     *
+     * If the MEGA account is a sub-user business account, onRequestFinish will
+     * be called with the error code MegaError::API_EMASTERONLY.
+     *
+     * @param node Node to remove
      */
     public void remove(MegaNode node) {
         megaApi.remove(node);
@@ -2261,6 +2682,9 @@ public class MegaApiJava {
      * - MegaRequest::getNodeHandle - Returns the handle of the node to remove
      * - MegaRequest::getFlag - Returns true because previous versions will be preserved
      *
+     * If the MEGA account is a sub-user business account, onRequestFinish will
+     * be called with the error code MegaError::API_EMASTERONLY.
+     *
      * @param node Node to remove
      * @param listener MegaRequestListener to track this request
      */
@@ -2280,6 +2704,9 @@ public class MegaApiJava {
      * Valid data in the MegaRequest object received on callbacks:
      * - MegaRequest::getNodeHandle - Returns the handle of the node to restore
      *
+     * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     *
      * @param version Node with the version to restore
      * @param listener MegaRequestListener to track this request
      */
@@ -2296,7 +2723,10 @@ public class MegaApiJava {
      * The associated request type with this request is MegaRequest::TYPE_CLEAN_RUBBISH_BIN. This
      * request returns MegaError::API_ENOENT if the Rubbish bin is already empty.
      *
-     * @param listener MegaRequestListenerInterface to track this request
+     * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * @param listener MegaRequestListener to track this request
      */
     public void cleanRubbishBin(MegaRequestListenerInterface listener) {
     	megaApi.cleanRubbishBin(createDelegateRequestListener(listener));
@@ -2305,208 +2735,247 @@ public class MegaApiJava {
     /**
      * Clean the Rubbish Bin in the MEGA account
      *
+     * This function effectively removes every node contained in the Rubbish Bin. In order to
+     * avoid accidental deletions, you might want to warn the user about the action.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_CLEAN_RUBBISH_BIN. This
+     * request returns MegaError::API_ENOENT if the Rubbish bin is already empty.
+     *
+     * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
      */
     public void cleanRubbishBin() {
     	megaApi.cleanRubbishBin();
     }
-    
+
     /**
-     * Send a node to the Inbox of another MEGA user using a MegaUser.
-     * <p>
-     * The associated request type with this request is MegaRequest.TYPE_COPY
-     * Valid data in the MegaRequest object received on callbacks: <br>
-     * - MegaRequest.getNodeHandle() - Returns the handle of the node to send. <br>
-     * - MegaRequest.getEmail() - Returns the email of the user that receives the node.
-     * 
-     * @param node
-     *            Node to send.
-     * @param user
-     *            User that receives the node.
-     * @param listener
-     *            MegaRequestListener to track this request.
+     * Send a node to the Inbox of another MEGA user using a MegaUser
+     *
+     * The associated request type with this request is MegaRequest::TYPE_COPY
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node to send
+     * - MegaRequest::getEmail - Returns the email of the user that receives the node
+     *
+     * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * @param node Node to send
+     * @param user User that receives the node
+     * @param listener MegaRequestListener to track this request
      */
     public void sendFileToUser(MegaNode node, MegaUser user, MegaRequestListenerInterface listener) {
         megaApi.sendFileToUser(node, user, createDelegateRequestListener(listener));
     }
 
     /**
-     * Send a node to the Inbox of another MEGA user using a MegaUser.
-     * 
-     * @param node
-     *            Node to send.
-     * @param user
-     *            User that receives the node.
+     * Send a node to the Inbox of another MEGA user using a MegaUser
+     *
+     * The associated request type with this request is MegaRequest::TYPE_COPY
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node to send
+     * - MegaRequest::getEmail - Returns the email of the user that receives the node
+     *
+     * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * @param node Node to send
+     * @param user User that receives the node
      */
     public void sendFileToUser(MegaNode node, MegaUser user) {
         megaApi.sendFileToUser(node, user);
     }
-    
+
     /**
-    * 
-    * The associated request type with this request is MegaRequest::TYPE_COPY
-    * Valid data in the MegaRequest object received on callbacks:
-    * - MegaRequest::getNodeHandle - Returns the handle of the node to send
-    * - MegaRequest::getEmail - Returns the email of the user that receives the node
-    *
-    * @param node Node to send
-    * @param email Email of the user that receives the node        
-    * @param listener MegaRequestListener to track this request
-    */
+     * Send a node to the Inbox of another MEGA user using his email
+     *
+     * The associated request type with this request is MegaRequest::TYPE_COPY
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node to send
+     * - MegaRequest::getEmail - Returns the email of the user that receives the node
+     *
+     * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * @param node Node to send
+     * @param email Email of the user that receives the node
+     * @param listener MegaRequestListener to track this request
+     */
     public void sendFileToUser(MegaNode node, String email, MegaRequestListenerInterface listener){
     	megaApi.sendFileToUser(node, email, createDelegateRequestListener(listener));
     }
 
     /**
-     * Share or stop sharing a folder in MEGA with another user using a MegaUser.
-     * <p>
+     * Share or stop sharing a folder in MEGA with another user using a MegaUser
+     *
      * To share a folder with an user, set the desired access level in the level parameter. If you
-     * want to stop sharing a folder use the access level MegaShare.ACCESS_UNKNOWN.
-     * <p>
-     * The associated request type with this request is MegaRequest.TYPE_COPY
-     * Valid data in the MegaRequest object received on callbacks: <br>
-     * - MegaRequest.getNodeHandle() - Returns the handle of the folder to share. <br>
-     * - MegaRequest.getEmail() - Returns the email of the user that receives the shared folder. <br>
-     * - MegaRequest.getAccess() - Returns the access that is granted to the user.
-     * 
-     * @param node
-     *            The folder to share. It must be a non-root folder.
-     * @param user
-     *            User that receives the shared folder.
-     * @param level
-     *            Permissions that are granted to the user. <br>
-     *            Valid values for this parameter: <br>
-     *            - MegaShare.ACCESS_UNKNOWN = -1.
-     *            Stop sharing a folder with this user. <br>
-     * 
-     *            - MegaShare.ACCESS_READ = 0. <br>
-     *            - MegaShare.ACCESS_READWRITE = 1. <br>
-     *            - MegaShare.ACCESS_FULL = 2. <br>
-     *            - MegaShare.ACCESS_OWNER = 3.
-     * 
-     * @param listener
-     *            MegaRequestListener to track this request.
+     * want to stop sharing a folder use the access level MegaShare::ACCESS_UNKNOWN
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SHARE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the folder to share
+     * - MegaRequest::getEmail - Returns the email of the user that receives the shared folder
+     * - MegaRequest::getAccess - Returns the access that is granted to the user
+     *
+     * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * @param node The folder to share. It must be a non-root folder
+     * @param user User that receives the shared folder
+     * @param level Permissions that are granted to the user
+     * Valid values for this parameter:
+     * - MegaShare::ACCESS_UNKNOWN = -1
+     * Stop sharing a folder with this user
+     *
+     * - MegaShare::ACCESS_READ = 0
+     * - MegaShare::ACCESS_READWRITE = 1
+     * - MegaShare::ACCESS_FULL = 2
+     * - MegaShare::ACCESS_OWNER = 3
+     *
+     * @param listener MegaRequestListener to track this request
      */
     public void share(MegaNode node, MegaUser user, int level, MegaRequestListenerInterface listener) {
         megaApi.share(node, user, level, createDelegateRequestListener(listener));
     }
 
     /**
-     * Share or stop sharing a folder in MEGA with another user using a MegaUser.
-     * <p>
+     * Share or stop sharing a folder in MEGA with another user using a MegaUser
+     *
      * To share a folder with an user, set the desired access level in the level parameter. If you
-     * want to stop sharing a folder use the access level MegaShare.ACCESS_UNKNOWN.
-     * 
-     * @param node
-     *            The folder to share. It must be a non-root folder.
-     * @param user
-     *            User that receives the shared folder.
-     * @param level
-     *            Permissions that are granted to the user. <br>
-     *            Valid values for this parameter: <br>
-     *            - MegaShare.ACCESS_UNKNOWN = -1.
-     *            Stop sharing a folder with this user.
-     * 
-     *            - MegaShare.ACCESS_READ = 0. <br>
-     *            - MegaShare.ACCESS_READWRITE = 1. <br>
-     *            - MegaShare.ACCESS_FULL = 2. <br>
-     *            - MegaShare.ACCESS_OWNER = 3.
-     * 
+     * want to stop sharing a folder use the access level MegaShare::ACCESS_UNKNOWN
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SHARE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the folder to share
+     * - MegaRequest::getEmail - Returns the email of the user that receives the shared folder
+     * - MegaRequest::getAccess - Returns the access that is granted to the user
+     *
+     * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * @param node The folder to share. It must be a non-root folder
+     * @param user User that receives the shared folder
+     * @param level Permissions that are granted to the user
+     * Valid values for this parameter:
+     * - MegaShare::ACCESS_UNKNOWN = -1
+     * Stop sharing a folder with this user
+     *
+     * - MegaShare::ACCESS_READ = 0
+     * - MegaShare::ACCESS_READWRITE = 1
+     * - MegaShare::ACCESS_FULL = 2
+     * - MegaShare::ACCESS_OWNER = 3
      */
     public void share(MegaNode node, MegaUser user, int level) {
         megaApi.share(node, user, level);
     }
 
     /**
-     * Share or stop sharing a folder in MEGA with another user using his email.
-     * <p>
+     * Share or stop sharing a folder in MEGA with another user using his email
+     *
      * To share a folder with an user, set the desired access level in the level parameter. If you
-     * want to stop sharing a folder use the access level MegaShare.ACCESS_UNKNOWN.
-     * <p>
-     * The associated request type with this request is MegaRequest.TYPE_COPY
-     * Valid data in the MegaRequest object received on callbacks: <br>
-     * - MegaRequest.getNodeHandle() - Returns the handle of the folder to share. <br>
-     * - MegaRequest.getEmail() - Returns the email of the user that receives the shared folder. <br>
-     * - MegaRequest.getAccess() - Returns the access that is granted to the user.
-     * 
-     * @param node
-     *            The folder to share. It must be a non-root folder.
-     * @param email
-     *            Email of the user that receives the shared folder. If it does not have a MEGA account,
-     *            the folder will be shared anyway and the user will be invited to register an account.
-     * @param level
-     *            Permissions that are granted to the user. <br>
-     *            Valid values for this parameter: <br>
-     *            - MegaShare.ACCESS_UNKNOWN = -1.
-     *            Stop sharing a folder with this user. <br>
-     * 
-     *            - MegaShare.ACCESS_READ = 0. <br>
-     *            - MegaShare.ACCESS_READWRITE = 1. <br>
-     *            - MegaShare.ACCESS_FULL = 2. <br>
-     *            - MegaShare.ACCESS_OWNER = 3.
-     * 
-     * @param listener
-     *            MegaRequestListener to track this request.
+     * want to stop sharing a folder use the access level MegaShare::ACCESS_UNKNOWN
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SHARE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the folder to share
+     * - MegaRequest::getEmail - Returns the email of the user that receives the shared folder
+     * - MegaRequest::getAccess - Returns the access that is granted to the user
+     *
+     * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * @param node The folder to share. It must be a non-root folder
+     * @param email Email of the user that receives the shared folder. If it doesn't have a MEGA account, the folder will be shared anyway
+     * and the user will be invited to register an account.
+     *
+     * @param level Permissions that are granted to the user
+     * Valid values for this parameter:
+     * - MegaShare::ACCESS_UNKNOWN = -1
+     * Stop sharing a folder with this user
+     *
+     * - MegaShare::ACCESS_READ = 0
+     * - MegaShare::ACCESS_READWRITE = 1
+     * - MegaShare::ACCESS_FULL = 2
+     * - MegaShare::ACCESS_OWNER = 3
+     *
+     * @param listener MegaRequestListener to track this request
      */
     public void share(MegaNode node, String email, int level, MegaRequestListenerInterface listener) {
         megaApi.share(node, email, level, createDelegateRequestListener(listener));
     }
 
     /**
-     * Share or stop sharing a folder in MEGA with another user using his email.
-     * <p>
+     * Share or stop sharing a folder in MEGA with another user using his email
+     *
      * To share a folder with an user, set the desired access level in the level parameter. If you
-     * want to stop sharing a folder use the access level MegaShare.ACCESS_UNKNOWN.
-     * 
-     * @param node
-     *            The folder to share. It must be a non-root folder.
-     * @param email
-     *            Email of the user that receives the shared folder. If it does not have a MEGA account, the folder will be shared anyway
-     *            and the user will be invited to register an account.
-     * @param level
-     *            Permissions that are granted to the user. <br>
-     *            Valid values for this parameter: <br>
-     *            - MegaShare.ACCESS_UNKNOWN = -1. <br>
-     *            Stop sharing a folder with this user.
-     * 
-     *            - MegaShare.ACCESS_READ = 0. <br>
-     *            - MegaShare.ACCESS_READWRITE = 1. <br>
-     *            - MegaShare.ACCESS_FULL = 2. <br>
-     *            - MegaShare.ACCESS_OWNER = 3.
+     * want to stop sharing a folder use the access level MegaShare::ACCESS_UNKNOWN
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SHARE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the folder to share
+     * - MegaRequest::getEmail - Returns the email of the user that receives the shared folder
+     * - MegaRequest::getAccess - Returns the access that is granted to the user
+     *
+     * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * @param node The folder to share. It must be a non-root folder
+     * @param email Email of the user that receives the shared folder. If it doesn't have a MEGA account, the folder will be shared anyway
+     * and the user will be invited to register an account.
+     *
+     * @param level Permissions that are granted to the user
+     * Valid values for this parameter:
+     * - MegaShare::ACCESS_UNKNOWN = -1
+     * Stop sharing a folder with this user
+     *
+     * - MegaShare::ACCESS_READ = 0
+     * - MegaShare::ACCESS_READWRITE = 1
+     * - MegaShare::ACCESS_FULL = 2
+     * - MegaShare::ACCESS_OWNER = 3
      */
     public void share(MegaNode node, String email, int level) {
         megaApi.share(node, email, level);
     }
 
     /**
-     * Import a public link to the account.
-     * <p>
-     * The associated request type with this request is MegaRequest.TYPE_IMPORT_LINK
-     * Valid data in the MegaRequest object received on callbacks: <br>
-     * - MegaRequest.getLink() - Returns the public link to the file. <br>
-     * - MegaRequest.getParentHandle() - Returns the folder that receives the imported file.
-     * <p>
-     * Valid data in the MegaRequest object received in onRequestFinish() when the error code
-     * is MegaError.API_OK: <br>
-     * - MegaRequest.getNodeHandle() - Handle of the new node in the account.
-     * 
-     * @param megaFileLink
-     *            Public link to a file in MEGA.
-     * @param parent
-     *            Parent folder for the imported file.
-     * @param listener
-     *            MegaRequestListener to track this request.
+     * Import a public link to the account
+     *
+     * The associated request type with this request is MegaRequest::TYPE_IMPORT_LINK
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getLink - Returns the public link to the file
+     * - MegaRequest::getParentHandle - Returns the folder that receives the imported file
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNodeHandle - Handle of the new node in the account
+     *
+     * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * @param megaFileLink Public link to a file in MEGA
+     * @param parent Parent folder for the imported file
+     * @param listener MegaRequestListener to track this request
      */
     public void importFileLink(String megaFileLink, MegaNode parent, MegaRequestListenerInterface listener) {
         megaApi.importFileLink(megaFileLink, parent, createDelegateRequestListener(listener));
     }
 
     /**
-     * Import a public link to the account.
-     * 
-     * @param megaFileLink
-     *            Public link to a file in MEGA.
-     * @param parent
-     *            Parent folder for the imported file.
+     * Import a public link to the account
+     *
+     * The associated request type with this request is MegaRequest::TYPE_IMPORT_LINK
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getLink - Returns the public link to the file
+     * - MegaRequest::getParentHandle - Returns the folder that receives the imported file
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNodeHandle - Handle of the new node in the account
+     *
+     * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * @param megaFileLink Public link to a file in MEGA
+     * @param parent Parent folder for the imported file
      */
     public void importFileLink(String megaFileLink, MegaNode parent) {
         megaApi.importFileLink(megaFileLink, parent);
@@ -2593,34 +3062,47 @@ public class MegaApiJava {
     }
 
     /**
-     * Get a MegaNode from a public link to a file.
-     * <p>
-     * A public node can be imported using MegaApiJava.copy() or downloaded using MegaApiJava.startDownload().
-     * <p>
-     * The associated request type with this request is MegaRequest.TYPE_GET_PUBLIC_NODE
-     * Valid data in the MegaRequest object received on callbacks: <br>
-     * - MegaRequest.getLink() - Returns the public link to the file.
-     * <p>
-     * Valid data in the MegaRequest object received in onRequestFinish() when the error code
-     * is MegaError.API_OK: <br>
-     * - MegaRequest.getPublicMegaNode() - Public MegaNode corresponding to the public link.
-     * 
-     * @param megaFileLink
-     *            Public link to a file in MEGA.
-     * @param listener
-     *            MegaRequestListener to track this request.
+     * Get a MegaNode from a public link to a file
+     *
+     * A public node can be imported using MegaApi::copyNode or downloaded using MegaApi::startDownload
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_PUBLIC_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getLink - Returns the public link to the file
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getPublicMegaNode - Public MegaNode corresponding to the public link
+     * - MegaRequest::getFlag - Return true if the provided key along the link is invalid.
+     *
+     * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * @param megaFileLink Public link to a file in MEGA
+     * @param listener MegaRequestListener to track this request
      */
     public void getPublicNode(String megaFileLink, MegaRequestListenerInterface listener) {
         megaApi.getPublicNode(megaFileLink, createDelegateRequestListener(listener));
     }
 
     /**
-     * Get a MegaNode from a public link to a file.
-     * <p>
-     * A public node can be imported using MegaApiJava.copy() or downloaded using MegaApiJava.startDownload().
-     * 
-     * @param megaFileLink
-     *            Public link to a file in MEGA.
+     * Get a MegaNode from a public link to a file
+     *
+     * A public node can be imported using MegaApi::copyNode or downloaded using MegaApi::startDownload
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_PUBLIC_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getLink - Returns the public link to the file
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getPublicMegaNode - Public MegaNode corresponding to the public link
+     * - MegaRequest::getFlag - Return true if the provided key along the link is invalid.
+     *
+     * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * @param megaFileLink Public link to a file in MEGA
      */
     public void getPublicNode(String megaFileLink) {
         megaApi.getPublicNode(megaFileLink);
@@ -2903,6 +3385,10 @@ public class MegaApiJava {
      * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
      * MegaApi::USER_ATTR_STORAGE_STATE = 21
      * Get the state of the storage (private non-encrypted)
+     * MegaApi::USER_ATTR_GEOLOCATION = 22
+     * Get whether the user has enabled send geolocation messages (private)
+     * MegaApi::USER_ATTR_PUSH_SETTINGS = 23
+     * Get the settings for push notifications (private non-encrypted)
      *
      * @param listener MegaRequestListener to track this request
      */
@@ -2961,13 +3447,17 @@ public class MegaApiJava {
      * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
      * MegaApi::USER_ATTR_STORAGE_STATE = 21
      * Get the state of the storage (private non-encrypted)
+     * MegaApi::USER_ATTR_GEOLOCATION = 22
+     * Get whether the user has enabled send geolocation messages (private)
+     * MegaApi::USER_ATTR_PUSH_SETTINGS = 23
+     * Get the settings for push notifications (private non-encrypted)
      */
     public void getUserAttribute(MegaUser user, int type) {
         megaApi.getUserAttribute(user, type);
     }
 
     /**
-     * @brief Get an attribute of any user in MEGA.
+     * Get an attribute of any user in MEGA.
      *
      * User attributes can be private or public. Private attributes are accessible only by
      * your own user, while public ones are retrievable by any of your contacts.
@@ -3016,6 +3506,10 @@ public class MegaApiJava {
      * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
      * MegaApi::USER_ATTR_STORAGE_STATE = 21
      * Get the state of the storage (private non-encrypted)
+     * MegaApi::USER_ATTR_GEOLOCATION = 22
+     * Get whether the user has enabled send geolocation messages (private)
+     * MegaApi::USER_ATTR_PUSH_SETTINGS = 23
+     * Get the settings for push notifications (private non-encrypted)
      *
      * @param listener MegaRequestListener to track this request
      */
@@ -3024,7 +3518,7 @@ public class MegaApiJava {
     }
 
     /**
-     * @brief Get an attribute of any user in MEGA.
+     * Get an attribute of any user in MEGA.
      *
      * User attributes can be private or public. Private attributes are accessible only by
      * your own user, while public ones are retrievable by any of your contacts.
@@ -3073,6 +3567,11 @@ public class MegaApiJava {
      * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
      * MegaApi::USER_ATTR_STORAGE_STATE = 21
      * Get the state of the storage (private non-encrypted)
+     * MegaApi::USER_ATTR_GEOLOCATION = 22
+     * Get whether the user has enabled send geolocation messages (private)
+     * MegaApi::USER_ATTR_PUSH_SETTINGS = 23
+     * Get the settings for push notifications (private non-encrypted)
+     *
      */
     public void getUserAttribute(String email_or_handle, int type) {
     	megaApi.getUserAttribute(email_or_handle, type);
@@ -3127,6 +3626,10 @@ public class MegaApiJava {
      * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
      * MegaApi::USER_ATTR_STORAGE_STATE = 21
      * Get the state of the storage (private non-encrypted)
+     * MegaApi::USER_ATTR_GEOLOCATION = 22
+     * Get whether the user has enabled send geolocation messages (private)
+     * MegaApi::USER_ATTR_PUSH_SETTINGS = 23
+     * Get the settings for push notifications (private non-encrypted)
      *
      * @param listener MegaRequestListener to track this request
      */
@@ -3135,7 +3638,7 @@ public class MegaApiJava {
     }
 
     /**
-     * @brief Get an attribute of the current account.
+     * Get an attribute of the current account.
      *
      * User attributes can be private or public. Private attributes are accessible only by
      * your own user, while public ones are retrievable by any of your contacts.
@@ -3183,6 +3686,11 @@ public class MegaApiJava {
      * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
      * MegaApi::USER_ATTR_STORAGE_STATE = 21
      * Get the state of the storage (private non-encrypted)
+     * MegaApi::USER_ATTR_GEOLOCATION = 22
+     * Get whether the user has enabled send geolocation messages (private)
+     * MegaApi::USER_ATTR_PUSH_SETTINGS = 23
+     * Get the settings for push notifications (private non-encrypted)
+     *
      */
     public void getUserAttribute(int type) {
         megaApi.getUserAttribute(type);
@@ -3337,25 +3845,31 @@ public class MegaApiJava {
     }
 
     /**
-     * Set a private attribute of the current user
+     * Set a public attribute of the current user
      *
      * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
      * Valid data in the MegaRequest object received on callbacks:
      * - MegaRequest::getParamType - Returns the attribute type
-     * - MegaRequest::getMegaStringMap - Returns the new value for the attribute
+     * - MegaRequest::getText - Returns the new value for the attribute
      *
      * @param type Attribute type
      *
      * Valid values are:
      *
-     * MegaApi::USER_ATTR_AUTHRING = 3
-     * Get the authentication ring of the user (private)
-     * MegaApi::USER_ATTR_LAST_INTERACTION = 4
-     * Get the last interaction of the contacts of the user (private)
-     * MegaApi::USER_ATTR_KEYRING = 7
-     * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
-     * MegaApi::USER_ATTR_RICH_PREVIEWS = 18
-     * Get whether user generates rich-link messages or not (private)
+     * MegaApi::USER_ATTR_FIRSTNAME = 1
+     * Set the firstname of the user (public)
+     * MegaApi::USER_ATTR_LASTNAME = 2
+     * Set the lastname of the user (public)
+     * MegaApi::USER_ATTR_ED25519_PUBLIC_KEY = 5
+     * Set the public key Ed25519 of the user (public)
+     * MegaApi::USER_ATTR_CU25519_PUBLIC_KEY = 6
+     * Set the public key Cu25519 of the user (public)
+     * MegaApi::USER_ATTR_RUBBISH_TIME = 19
+     * Set number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+     *
+     * If the MEGA account is a sub-user business account, and the value of the parameter
+     * type is equal to MegaApi::USER_ATTR_FIRSTNAME or MegaApi::USER_ATTR_LASTNAME
+     * onRequestFinish will be called with the error code MegaError::API_EMASTERONLY.
      *
      * @param value New attribute value
      * @param listener MegaRequestListener to track this request
@@ -3365,32 +3879,38 @@ public class MegaApiJava {
     }
 
     /**
-     * Set a private attribute of the current user
+     * Set a public attribute of the current user
      *
      * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
      * Valid data in the MegaRequest object received on callbacks:
      * - MegaRequest::getParamType - Returns the attribute type
-     * - MegaRequest::getMegaStringMap - Returns the new value for the attribute
+     * - MegaRequest::getText - Returns the new value for the attribute
      *
      * @param type Attribute type
      *
      * Valid values are:
      *
-     * MegaApi::USER_ATTR_AUTHRING = 3
-     * Get the authentication ring of the user (private)
-     * MegaApi::USER_ATTR_LAST_INTERACTION = 4
-     * Get the last interaction of the contacts of the user (private)
-     * MegaApi::USER_ATTR_KEYRING = 7
-     * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
-     * MegaApi::USER_ATTR_RICH_PREVIEWS = 18
-     * Get whether user generates rich-link messages or not (private)
+     * MegaApi::USER_ATTR_FIRSTNAME = 1
+     * Set the firstname of the user (public)
+     * MegaApi::USER_ATTR_LASTNAME = 2
+     * Set the lastname of the user (public)
+     * MegaApi::USER_ATTR_ED25519_PUBLIC_KEY = 5
+     * Set the public key Ed25519 of the user (public)
+     * MegaApi::USER_ATTR_CU25519_PUBLIC_KEY = 6
+     * Set the public key Cu25519 of the user (public)
+     * MegaApi::USER_ATTR_RUBBISH_TIME = 19
+     * Set number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+     *
+     * If the MEGA account is a sub-user business account, and the value of the parameter
+     * type is equal to MegaApi::USER_ATTR_FIRSTNAME or MegaApi::USER_ATTR_LASTNAME
+     * onRequestFinish will be called with the error code MegaError::API_EMASTERONLY.
      *
      * @param value New attribute value
      */
     public void setUserAttribute(int type, String value) {
         megaApi.setUserAttribute(type, value);
     }
-    
+
     /**
      * Set a custom attribute for the node
      *
@@ -3398,28 +3918,42 @@ public class MegaApiJava {
      * Valid data in the MegaRequest object received on callbacks:
      * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
      * - MegaRequest::getName - Returns the name of the custom attribute
-     * - MegaRequest::getText - Returns the tezt for the attribute
+     * - MegaRequest::getText - Returns the text for the attribute
+     * - MegaRequest::getFlag - Returns false (not official attribute)
      *
      * The attribute name must be an UTF8 string with between 1 and 7 bytes
      * If the attribute already has a value, it will be replaced
-     * If value is null, the attribute will be removed from the node
+     * If value is NULL, the attribute will be removed from the node
+     *
+     * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
      *
      * @param node Node that will receive the attribute
      * @param attrName Name of the custom attribute.
      * The length of this parameter must be between 1 and 7 UTF8 bytes
      * @param value Value for the attribute
-     * @param listener MegaRequestListenerInterface to track this request
+     * @param listener MegaRequestListener to track this request
      */
     public void setCustomNodeAttribute(MegaNode node, String attrName, String value, MegaRequestListenerInterface listener) {
     	megaApi.setCustomNodeAttribute(node, attrName, value, createDelegateRequestListener(listener));
     }
-    
+
     /**
      * Set a custom attribute for the node
      *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+     * - MegaRequest::getName - Returns the name of the custom attribute
+     * - MegaRequest::getText - Returns the text for the attribute
+     * - MegaRequest::getFlag - Returns false (not official attribute)
+     *
      * The attribute name must be an UTF8 string with between 1 and 7 bytes
      * If the attribute already has a value, it will be replaced
-     * If value is null, the attribute will be removed from the node
+     * If value is NULL, the attribute will be removed from the node
+     *
+     * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
      *
      * @param node Node that will receive the attribute
      * @param attrName Name of the custom attribute.
@@ -3431,29 +3965,9 @@ public class MegaApiJava {
     }
 
     /**
-     * Set the duration of audio/video files as a node attribute.
-     *
-     * To remove the existing duration, set it to MegaNode::INVALID_DURATION.
-     *
-     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
-     * Valid data in the MegaRequest object received on callbacks:
-     * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
-     * - MegaRequest::getNumber - Returns the number of seconds for the node
-     * - MegaRequest::getFlag - Returns true (official attribute)
-     * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_DURATION
-     *
-     * @param node Node that will receive the information.
-     * @param duration Length of the audio/video in seconds.
-     * @param listener MegaRequestListener to track this request
-     */
-    public void setNodeDuration(MegaNode node, int duration,  MegaRequestListenerInterface listener){
-        megaApi.setNodeDuration(node, duration, createDelegateRequestListener(listener));
-    }
-
-    /**
      * Set the GPS coordinates of image files as a node attribute.
      *
-     * To remove the existing coordinates, set both the latitude and longitud to
+     * To remove the existing coordinates, set both the latitude and longitude to
      * the value MegaNode::INVALID_COORDINATE.
      *
      * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
@@ -3463,6 +3977,9 @@ public class MegaApiJava {
      * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_COORDINATES
      * - MegaRequest::getNumDetails - Returns the longitude, scaled to integer in the range of [0, 2^24]
      * - MegaRequest::getTransferTag() - Returns the latitude, scaled to integer in the range of [0, 2^24)
+     *
+     * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
      *
      * @param node Node that will receive the information.
      * @param latitude Latitude in signed decimal degrees notation
@@ -3474,31 +3991,43 @@ public class MegaApiJava {
     }
 
     /**
-     * Generate a public link of a file/folder in MEGA.
-     * <p>
-     * The associated request type with this request is MegaRequest.TYPE_EXPORT
-     * Valid data in the MegaRequest object received on callbacks: <br>
-     * - MegaRequest.getNodeHandle() - Returns the handle of the node. <br>
-     * - MegaRequest.getAccess() - Returns true.
-     * <p>
-     * Valid data in the MegaRequest object received in onRequestFinish() when the error code
-     * is MegaError.API_OK: <br>
-     * - MegaRequest.getLink() - Public link.
-     * 
-     * @param node
-     *            MegaNode to get the public link.
-     * @param listener
-     *            MegaRequestListener to track this request.
+     * Generate a public link of a file/folder in MEGA
+     *
+     * The associated request type with this request is MegaRequest::TYPE_EXPORT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node
+     * - MegaRequest::getAccess - Returns true
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getLink - Public link
+     *
+     * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * @param node MegaNode to get the public link
+     * @param listener MegaRequestListener to track this request
      */
     public void exportNode(MegaNode node, MegaRequestListenerInterface listener) {
         megaApi.exportNode(node, createDelegateRequestListener(listener));
     }
 
     /**
-     * Generate a public link of a file/folder in MEGA.
-     * 
-     * @param node
-     *            MegaNode to get the public link.
+     * Generate a public link of a file/folder in MEGA
+     *
+     * The associated request type with this request is MegaRequest::TYPE_EXPORT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node
+     * - MegaRequest::getAccess - Returns true
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getLink - Public link
+     *
+     * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * @param node MegaNode to get the public link
      */
     public void exportNode(MegaNode node) {
         megaApi.exportNode(node);
@@ -3516,39 +4045,73 @@ public class MegaApiJava {
      * is MegaError::API_OK:
      * - MegaRequest::getLink - Public link
      *
+     * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     *
      * @param node MegaNode to get the public link
      * @param expireTime Unix timestamp until the public link will be valid
      * @param listener MegaRequestListener to track this request
      *
-     * @note A Unix timestamp represents the number of seconds since 00:00 hours, Jan 1, 1970 UTC
+     * A Unix timestamp represents the number of seconds since 00:00 hours, Jan 1, 1970 UTC
      */
-
     public void exportNode(MegaNode node, int expireTime, MegaRequestListenerInterface listener) {
         megaApi.exportNode(node, expireTime, createDelegateRequestListener(listener));
     }
 
     /**
-     * Stop sharing a file/folder.
-     * 
-     * The associated request type with this request is MegaRequest.TYPE_EXPORT.
-     * Valid data in the MegaRequest object received on callbacks: <br>
-     * - MegaRequest.getNodeHandle - Returns the handle of the node. <br>
-     * - MegaRequest.getAccess - Returns false.
-     * 
-     * @param node
-     *            MegaNode to stop sharing.
-     * @param listener
-     *            MegaRequestListener to track this request.
+     * Generate a temporary public link of a file/folder in MEGA
+     *
+     * The associated request type with this request is MegaRequest::TYPE_EXPORT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node
+     * - MegaRequest::getAccess - Returns true
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getLink - Public link
+     *
+     * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * @param node MegaNode to get the public link
+     * @param expireTime Unix timestamp until the public link will be valid
+     *
+     * A Unix timestamp represents the number of seconds since 00:00 hours, Jan 1, 1970 UTC
+     */
+    public void exportNode(MegaNode node, int expireTime) {
+        megaApi.exportNode(node, expireTime);
+    }
+
+    /**
+     * Stop sharing a file/folder
+     *
+     * The associated request type with this request is MegaRequest::TYPE_EXPORT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node
+     * - MegaRequest::getAccess - Returns false
+     *
+     * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * @param node MegaNode to stop sharing
+     * @param listener MegaRequestListener to track this request
      */
     public void disableExport(MegaNode node, MegaRequestListenerInterface listener) {
         megaApi.disableExport(node, createDelegateRequestListener(listener));
     }
 
     /**
-     * Stop sharing a file/folder.
-     * 
-     * @param node
-     *            MegaNode to stop sharing.
+     * Stop sharing a file/folder
+     *
+     * The associated request type with this request is MegaRequest::TYPE_EXPORT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node
+     * - MegaRequest::getAccess - Returns false
+     *
+     * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * @param node MegaNode to stop sharing
      */
     public void disableExport(MegaNode node) {
         megaApi.disableExport(node);
@@ -3580,100 +4143,167 @@ public class MegaApiJava {
     }
 
     /**
-     * Get details about the MEGA account.
-     * <p>
-     * The associated request type with this request is MegaRequest.TYPE_ACCOUNT_DETAILS.
-     * <p>
-     * Valid data in the MegaRequest object received in onRequestFinish() when the error code
-     * is MegaError.API_OK: <br>
-     * - MegaRequest.getMegaAccountDetails() - Details of the MEGA account.
-     * 
-     * @param listener
-     *            MegaRequestListener to track this request.
+     * Get details about the MEGA account
+     *
+     * Only basic data will be available. If you can get more data (sessions, transactions, purchases),
+     * use MegaApi::getExtendedAccountDetails.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_ACCOUNT_DETAILS
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaAccountDetails - Details of the MEGA account
+     * - MegaRequest::getNumDetails - Requested flags
+     *
+     * The available flags are:
+     *  - storage quota: (numDetails & 0x01)
+     *  - transfer quota: (numDetails & 0x02)
+     *  - pro level: (numDetails & 0x04)
+     *
+     * @param listener MegaRequestListener to track this request
      */
     public void getAccountDetails(MegaRequestListenerInterface listener) {
         megaApi.getAccountDetails(createDelegateRequestListener(listener));
     }
 
     /**
-     * Get details about the MEGA account.
+     * Get details about the MEGA account
+     *
+     * Only basic data will be available. If you can get more data (sessions, transactions, purchases),
+     * use MegaApi::getExtendedAccountDetails.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_ACCOUNT_DETAILS
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaAccountDetails - Details of the MEGA account
+     * - MegaRequest::getNumDetails - Requested flags
+     *
+     * The available flags are:
+     *  - storage quota: (numDetails & 0x01)
+     *  - transfer quota: (numDetails & 0x02)
+     *  - pro level: (numDetails & 0x04)
      */
     public void getAccountDetails() {
         megaApi.getAccountDetails();
     }
 
     /**
-     * Get details about the MEGA account.
-     * <p>
-     * This function allows to optionally get data about sessions, transactions and purchases related to the account.
-     * <p>
-     * The associated request type with this request is MegaRequest.TYPE_ACCOUNT_DETAILS.
-     * <p>
-     * Valid data in the MegaRequest object received in onRequestFinish() when the error code
-     * is MegaError.API_OK: <br>
-     * - MegaRequest.getMegaAccountDetails() - Details of the MEGA account.
+     * Get details about the MEGA account
      *
-     * @param sessions
-     *              Boolean. Get sessions history if true. Do not get sessions history if false.
-     * @param purchases
-     *              Boolean. Get purchase history if true. Do not get purchase history if false.
-     * @param transactions
-     *              Boolean. Get transactions history if true. Do not get transactions history if false.
-     * @param listener
-     *            MegaRequestListener to track this request.
+     * Only basic data will be available. If you need more data (sessions, transactions, purchases),
+     * use MegaApi::getExtendedAccountDetails.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_ACCOUNT_DETAILS
+     *
+     * Use this version of the function to get just the details you need, to minimise server load
+     * and keep the system highly available for all. At least one flag must be set.
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaAccountDetails - Details of the MEGA account
+     * - MegaRequest::getNumDetails - Requested flags
+     *
+     * The available flags are:
+     *  - storage quota: (numDetails & 0x01)
+     *  - transfer quota: (numDetails & 0x02)
+     *  - pro level: (numDetails & 0x04)
+     *
+     * In case none of the flags are set, the associated request will fail with error MegaError::API_EARGS.
+     *
+     * @param storage If true, account storage details are requested
+     * @param transfer If true, account transfer details are requested
+     * @param pro If true, pro level of account is requested
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getSpecificAccountDetails(boolean storage, boolean transfer, boolean pro, MegaRequestListenerInterface listener) {
+        megaApi.getSpecificAccountDetails(storage, transfer, pro, -1, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Get details about the MEGA account
+     *
+     * Only basic data will be available. If you need more data (sessions, transactions, purchases),
+     * use MegaApi::getExtendedAccountDetails.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_ACCOUNT_DETAILS
+     *
+     * Use this version of the function to get just the details you need, to minimise server load
+     * and keep the system highly available for all. At least one flag must be set.
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaAccountDetails - Details of the MEGA account
+     * - MegaRequest::getNumDetails - Requested flags
+     *
+     * The available flags are:
+     *  - storage quota: (numDetails & 0x01)
+     *  - transfer quota: (numDetails & 0x02)
+     *  - pro level: (numDetails & 0x04)
+     *
+     * In case none of the flags are set, the associated request will fail with error MegaError::API_EARGS.
+     *
+     * @param storage If true, account storage details are requested
+     * @param transfer If true, account transfer details are requested
+     * @param pro If true, pro level of account is requested
+     */
+    public void getSpecificAccountDetails(boolean storage, boolean transfer, boolean pro) {
+        megaApi.getSpecificAccountDetails(storage, transfer, pro, -1);
+    }
+
+    /**
+     * Get details about the MEGA account
+     *
+     * This function allows to optionally get data about sessions, transactions and purchases related to the account.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_ACCOUNT_DETAILS
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaAccountDetails - Details of the MEGA account
+     * - MegaRequest::getNumDetails - Requested flags
+     *
+     * The available flags are:
+     *  - transactions: (numDetails & 0x08)
+     *  - purchases: (numDetails & 0x10)
+     *  - sessions: (numDetails & 0x020)
+     *
+     * In case none of the flags are set, the associated request will fail with error MegaError::API_EARGS.
+     *
+     * @param sessions If true, sessions are requested
+     * @param purchases If true, purchases are requested
+     * @param transactions If true, transactions are requested
+     * @param listener MegaRequestListener to track this request
      */
     public void getExtendedAccountDetails(boolean sessions, boolean purchases, boolean transactions, MegaRequestListenerInterface listener) {
         megaApi.getExtendedAccountDetails(sessions, purchases, transactions, createDelegateRequestListener(listener));
     }
 
     /**
-     * Get details about the MEGA account.
-     * 
+     * Get details about the MEGA account
+     *
      * This function allows to optionally get data about sessions, transactions and purchases related to the account.
      *
-     * @param sessions
-     *              Boolean. Get sessions history if true. Do not get sessions history if false.
-     * @param purchases
-     *              Boolean. Get purchase history if true. Do not get purchase history if false.
-     * @param transactions
-     *              Boolean. Get transactions history if true. Do not get transactions history if false.
+     * The associated request type with this request is MegaRequest::TYPE_ACCOUNT_DETAILS
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaAccountDetails - Details of the MEGA account
+     * - MegaRequest::getNumDetails - Requested flags
+     *
+     * The available flags are:
+     *  - transactions: (numDetails & 0x08)
+     *  - purchases: (numDetails & 0x10)
+     *  - sessions: (numDetails & 0x020)
+     *
+     * In case none of the flags are set, the associated request will fail with error MegaError::API_EARGS.
+     *
+     * @param sessions If true, sessions are requested
+     * @param purchases If true, purchases are requested
+     * @param transactions If true, transactions are requested
      */
     public void getExtendedAccountDetails(boolean sessions, boolean purchases, boolean transactions) {
         megaApi.getExtendedAccountDetails(sessions, purchases, transactions);
-    }
-
-    /**
-     * Get details about the MEGA account.
-     * 
-     * This function allows to optionally get data about sessions and purchases related to the account.
-     *
-     * @param sessions
-     *              Boolean. Get sessions history if true. Do not get sessions history if false.
-     * @param purchases
-     *              Boolean. Get purchase history if true. Do not get purchase history if false.
-     */
-    public void getExtendedAccountDetails(boolean sessions, boolean purchases) {
-        megaApi.getExtendedAccountDetails(sessions, purchases);
-    }
-
-    /**
-     * Get details about the MEGA account.
-     * 
-     * This function allows to optionally get data about sessions related to the account.
-     *
-     * @param sessions
-     *              Boolean. Get sessions history if true. Do not get sessions history if false.
-     */
-    public void getExtendedAccountDetails(boolean sessions) {
-        megaApi.getExtendedAccountDetails(sessions);
-    }
-
-    /**
-     * Get details about the MEGA account.
-     * 
-     */
-    public void getExtendedAccountDetails() {
-        megaApi.getExtendedAccountDetails();
     }
 
     /**
@@ -3700,36 +4330,23 @@ public class MegaApiJava {
     }
 
     /**
-     * Get the payment id for an upgrade.
-     * <p>
-     * The associated request type with this request is MegaRequest.TYPE_GET_PAYMENT_ID
-     * Valid data in the MegaRequest object received on callbacks: <br>
-     * - MegaRequest.getNodeHandle() - Returns the handle of the product.
-     * <p>
-     * Valid data in the MegaRequest object received in onRequestFinish() when the error code
-     * is MegaError.API_OK: <br>
-     * - MegaRequest.getLink() - Payment link.
-     * 
-     * @param productHandle
-     *            Handle of the product (see MegaApiJava.getPricing()).
-     * @param listener
-     *            MegaRequestListener to track this request.
-     * @see #getPricing()
+     * Get the payment URL for an upgrade
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_PAYMENT_ID
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the product
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getLink - Payment ID
+     *
+     * @param productHandle Handle of the product (see MegaApi::getPricing)
+     * @param listener MegaRequestListener to track this request
+     *
+     * @see MegaApi::getPricing
      */
     public void getPaymentId(long productHandle, MegaRequestListenerInterface listener) {
         megaApi.getPaymentId(productHandle, createDelegateRequestListener(listener));
-    }
-
-    /**
-     * Get the payment URL for an upgrade.
-     * 
-     * @param productHandle
-     *            Handle of the product (see MegaApiJava.getPricing()).
-     * 
-     * @see #getPricing()
-     */
-    public void getPaymentId(long productHandle) {
-        megaApi.getPaymentId(productHandle);
     }
 
     /**
@@ -3744,7 +4361,27 @@ public class MegaApiJava {
      * - MegaRequest::getLink - Payment ID
      *
      * @param productHandle Handle of the product (see MegaApi::getPricing)
-     * @param lastPublicHandle Last public handle accessed by the user in the last 24h
+     *
+     * @see MegaApi::getPricing
+     */
+    public void getPaymentId(long productHandle) {
+        megaApi.getPaymentId(productHandle);
+    }
+
+    /**
+     * Get the payment URL for an upgrade
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_PAYMENT_ID
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the product
+     * - MegaRequest::getParentHandle - Returns the last public node handle accessed
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getLink - Payment ID
+     *
+     * @param productHandle Handle of the product (see MegaApi::getPricing)
+     * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
      * @param listener MegaRequestListener to track this request
      *
      * @see MegaApi::getPricing
@@ -3759,18 +4396,80 @@ public class MegaApiJava {
      * The associated request type with this request is MegaRequest::TYPE_GET_PAYMENT_ID
      * Valid data in the MegaRequest object received on callbacks:
      * - MegaRequest::getNodeHandle - Returns the handle of the product
+     * - MegaRequest::getParentHandle - Returns the last public node handle accessed
      *
      * Valid data in the MegaRequest object received in onRequestFinish when the error code
      * is MegaError::API_OK:
      * - MegaRequest::getLink - Payment ID
      *
      * @param productHandle Handle of the product (see MegaApi::getPricing)
-     * @param lastPublicHandle Last public handle accessed by the user in the last 24h
+     * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
      *
      * @see MegaApi::getPricing
      */
     public void getPaymentId(long productHandle, long lastPublicHandle) {
         megaApi.getPaymentId(productHandle, lastPublicHandle);
+    }
+
+    /**
+     * Get the payment URL for an upgrade
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_PAYMENT_ID
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the product
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getLink - Payment ID
+     * - MegaRequest::getParentHandle - Returns the last public node handle accessed
+     * - MegaRequest::getParamType - Returns the type of lastPublicHandle
+     * - MegaRequest::getTransferredBytes - Returns the timestamp of the last access
+     *
+     * @param productHandle Handle of the product (see MegaApi::getPricing)
+     * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
+     * @param lastPublicHandleType Indicates the type of lastPublicHandle, valid values are:
+     *      - MegaApi::AFFILIATE_TYPE_ID = 1
+     *      - MegaApi::AFFILIATE_TYPE_FILE_FOLDER = 2
+     *      - MegaApi::AFFILIATE_TYPE_CHAT = 3
+     *      - MegaApi::AFFILIATE_TYPE_CONTACT = 4
+     *
+     * @param lastAccessTimestamp Timestamp of the last access
+     * @param listener MegaRequestListener to track this request
+     * @see MegaApi::getPricing
+     */
+    public void getPaymentId(long productHandle, long lastPublicHandle, int lastPublicHandleType,
+                             long lastAccessTimestamp, MegaRequestListenerInterface listener) {
+        megaApi.getPaymentId(productHandle, lastPublicHandle, lastPublicHandleType,
+                lastAccessTimestamp, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Get the payment URL for an upgrade
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_PAYMENT_ID
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the product
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getLink - Payment ID
+     * - MegaRequest::getParentHandle - Returns the last public node handle accessed
+     * - MegaRequest::getParamType - Returns the type of lastPublicHandle
+     * - MegaRequest::getTransferredBytes - Returns the timestamp of the last access
+     *
+     * @param productHandle Handle of the product (see MegaApi::getPricing)
+     * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
+     * @param lastPublicHandleType Indicates the type of lastPublicHandle, valid values are:
+     *      - MegaApi::AFFILIATE_TYPE_ID = 1
+     *      - MegaApi::AFFILIATE_TYPE_FILE_FOLDER = 2
+     *      - MegaApi::AFFILIATE_TYPE_CHAT = 3
+     *      - MegaApi::AFFILIATE_TYPE_CONTACT = 4
+     *
+     * @param lastAccessTimestamp Timestamp of the last access
+     * @see MegaApi::getPricing
+     */
+    public void getPaymentId(long productHandle, long lastPublicHandle, int lastPublicHandleType, long lastAccessTimestamp) {
+        megaApi.getPaymentId(productHandle, lastPublicHandle, lastPublicHandleType, lastAccessTimestamp);
     }
 
     /**
@@ -3822,33 +4521,12 @@ public class MegaApiJava {
     }
 
     /**
-     * Send the Google Play receipt after a correct purchase of a subscription.
-     * 
-     * @param receipt
-     *            String The complete receipt from Google Play.
-     * @param listener
-     *            MegaRequestListener to track this request.
-     * 
-     */
-    public void submitPurchaseReceipt(String receipt, MegaRequestListenerInterface listener) {
-        megaApi.submitPurchaseReceipt(receipt, createDelegateRequestListener(listener));
-    }
-
-    /**
-     * Send the Google Play receipt after a correct purchase of a subscription.
-     * 
-     * @param receipt
-     *            String The complete receipt from Google Play.
-     * 
-     */
-    public void submitPurchaseReceipt(String receipt) {
-        megaApi.submitPurchaseReceipt(receipt);
-    }
-
-    /**
      * Submit a purchase receipt for verification
      *
      * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNumber - Returns the payment gateway
+     * - MegaRequest::getText - Returns the purchase receipt
      *
      * @param gateway Payment gateway
      * Currently supported payment gateways are:
@@ -3867,6 +4545,9 @@ public class MegaApiJava {
      * Submit a purchase receipt for verification
      *
      * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNumber - Returns the payment gateway
+     * - MegaRequest::getText - Returns the purchase receipt
      *
      * @param gateway Payment gateway
      * Currently supported payment gateways are:
@@ -3884,6 +4565,10 @@ public class MegaApiJava {
      * Submit a purchase receipt for verification
      *
      * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNumber - Returns the payment gateway
+     * - MegaRequest::getText - Returns the purchase receipt
+     * - MegaRequest::getParentHandle - Returns the last public node handle accessed
      *
      * @param gateway Payment gateway
      * Currently supported payment gateways are:
@@ -3892,7 +4577,7 @@ public class MegaApiJava {
      * - MegaApi::PAYMENT_METHOD_WINDOWS_STORE = 13
      *
      * @param receipt Purchase receipt
-     * @param lastPublicHandle Last public handle accessed by the user in the last 24h
+     * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
      * @param listener MegaRequestListener to track this request
      */
     public void submitPurchaseReceipt(int gateway, String receipt, long lastPublicHandle, MegaRequestListenerInterface listener) {
@@ -3903,6 +4588,10 @@ public class MegaApiJava {
      * Submit a purchase receipt for verification
      *
      * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNumber - Returns the payment gateway
+     * - MegaRequest::getText - Returns the purchase receipt
+     * - MegaRequest::getParentHandle - Returns the last public node handle accessed
      *
      * @param gateway Payment gateway
      * Currently supported payment gateways are:
@@ -3911,10 +4600,75 @@ public class MegaApiJava {
      * - MegaApi::PAYMENT_METHOD_WINDOWS_STORE = 13
      *
      * @param receipt Purchase receipt
-     * @param lastPublicHandle Last public handle accessed by the user in the last 24h
+     * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
      */
     public void submitPurchaseReceipt(int gateway, String receipt, long lastPublicHandle) {
         megaApi.submitPurchaseReceipt(gateway, receipt, lastPublicHandle);
+    }
+
+    /**
+     * Submit a purchase receipt for verification
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNumber - Returns the payment gateway
+     * - MegaRequest::getText - Returns the purchase receipt
+     * - MegaRequest::getParentHandle - Returns the last public node handle accessed
+     * - MegaRequest::getParamType - Returns the type of lastPublicHandle
+     * - MegaRequest::getTransferredBytes - Returns the timestamp of the last access
+     *
+     * @param gateway Payment gateway
+     * Currently supported payment gateways are:
+     * - MegaApi::PAYMENT_METHOD_ITUNES = 2
+     * - MegaApi::PAYMENT_METHOD_GOOGLE_WALLET = 3
+     * - MegaApi::PAYMENT_METHOD_WINDOWS_STORE = 13
+     *
+     * @param receipt Purchase receipt
+     * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
+     * @param lastPublicHandleType Indicates the type of lastPublicHandle, valid values are:
+     *      - MegaApi::AFFILIATE_TYPE_ID = 1
+     *      - MegaApi::AFFILIATE_TYPE_FILE_FOLDER = 2
+     *      - MegaApi::AFFILIATE_TYPE_CHAT = 3
+     *      - MegaApi::AFFILIATE_TYPE_CONTACT = 4
+     *
+     * @param lastAccessTimestamp Timestamp of the last access
+     * @param listener MegaRequestListener to track this request
+     */
+    public void submitPurchaseReceipt(int gateway, String receipt, long lastPublicHandle, int lastPublicHandleType,
+                               long lastAccessTimestamp, MegaRequestListenerInterface listener) {
+        megaApi.submitPurchaseReceipt(gateway, receipt, lastPublicHandle, lastPublicHandleType,
+                lastAccessTimestamp, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Submit a purchase receipt for verification
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNumber - Returns the payment gateway
+     * - MegaRequest::getText - Returns the purchase receipt
+     * - MegaRequest::getParentHandle - Returns the last public node handle accessed
+     * - MegaRequest::getParamType - Returns the type of lastPublicHandle
+     * - MegaRequest::getTransferredBytes - Returns the timestamp of the last access
+     *
+     * @param gateway Payment gateway
+     * Currently supported payment gateways are:
+     * - MegaApi::PAYMENT_METHOD_ITUNES = 2
+     * - MegaApi::PAYMENT_METHOD_GOOGLE_WALLET = 3
+     * - MegaApi::PAYMENT_METHOD_WINDOWS_STORE = 13
+     *
+     * @param receipt Purchase receipt
+     * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
+     * @param lastPublicHandleType Indicates the type of lastPublicHandle, valid values are:
+     *      - MegaApi::AFFILIATE_TYPE_ID = 1
+     *      - MegaApi::AFFILIATE_TYPE_FILE_FOLDER = 2
+     *      - MegaApi::AFFILIATE_TYPE_CHAT = 3
+     *      - MegaApi::AFFILIATE_TYPE_CONTACT = 4
+     *
+     * @param lastAccessTimestamp Timestamp of the last access
+     */
+    public void submitPurchaseReceipt(int gateway, String receipt, long lastPublicHandle, int lastPublicHandleType, long lastAccessTimestamp) {
+        megaApi.submitPurchaseReceipt(gateway, receipt, lastPublicHandle, lastPublicHandleType, lastAccessTimestamp);
     }
 
     /**
@@ -4316,6 +5070,186 @@ public class MegaApiJava {
     }
 
     /**
+     * Enable the sending of geolocation messages
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_GEOLOCATION
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void enableGeolocation(MegaRequestListenerInterface listener){
+        megaApi.enableGeolocation(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Check if the sending of geolocation messages is enabled
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_GEOLOCATION
+     *
+     * Sending a Geolocation message is enabled if the MegaRequest object, received in onRequestFinish,
+     * has error code MegaError::API_OK. In other cases, send geolocation messages is not enabled and
+     * the application has to answer before send a message of this type.
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void isGeolocationEnabled(MegaRequestListenerInterface listener){
+        megaApi.isGeolocationEnabled(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Set My Chat Files target folder.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER
+     * - MegaRequest::getMegaStringMap - Returns a MegaStringMap.
+     * The key "h" in the map contains the nodehandle specified as parameter encoded in B64
+     *
+     * @param nodehandle MegaHandle of the node to be used as target folder
+     * @param listener MegaRequestListener to track this request
+     */
+    public void setMyChatFilesFolder(long nodehandle, MegaRequestListenerInterface listener) {
+        megaApi.setMyChatFilesFolder(nodehandle, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Gets My chat files target folder.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNodehandle - Returns the handle of the node where My Chat Files are stored
+     *
+     * If the folder is not set, the request will fail with the error code MegaError::API_ENOENT.
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getMyChatFilesFolder(MegaRequestListenerInterface listener){
+        megaApi.getMyChatFilesFolder(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Set Camera Uploads primary target folder.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
+     * - MegaRequest::getFlag - Returns false
+     * - MegaRequest::getNodehandle - Returns the provided node handle
+     * - MegaRequest::getMegaStringMap - Returns a MegaStringMap.
+     * The key "h" in the map contains the nodehandle specified as parameter encoded in B64
+     *
+     * @param nodehandle MegaHandle of the node to be used as primary target folder
+     * @param listener MegaRequestListener to track this request
+     */
+    public void setCameraUploadsFolder(long nodehandle, MegaRequestListenerInterface listener){
+        megaApi.setCameraUploadsFolder(nodehandle, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Set Camera Uploads secondary target folder.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
+     * - MegaRequest::getFlag - Returns true
+     * - MegaRequest::getNodehandle - Returns the provided node handle
+     * - MegaRequest::getMegaStringMap - Returns a MegaStringMap.
+     * The key "sh" in the map contains the nodehandle specified as parameter encoded in B64
+     *
+     * @param nodehandle MegaHandle of the node to be used as secondary target folder
+     * @param listener MegaRequestListener to track this request
+     */
+
+    public void setCameraUploadsFolderSecondary(long nodehandle, MegaRequestListenerInterface listener){
+        megaApi.setCameraUploadsFolderSecondary(nodehandle, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Gets Camera Uploads primary target folder.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
+     * - MegaRequest::getFlag - Returns false
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNodehandle - Returns the handle of the primary node where Camera Uploads files are stored
+     *
+     * If the folder is not set, the request will fail with the error code MegaError::API_ENOENT.
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getCameraUploadsFolder(MegaRequestListenerInterface listener){
+        megaApi.getCameraUploadsFolder(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Gets Camera Uploads secondary target folder.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
+     * - MegaRequest::getFlag - Returns true
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNodehandle - Returns the handle of the secondary node where Camera Uploads files are stored
+     *
+     * If the secondary folder is not set, the request will fail with the error code MegaError::API_ENOENT.
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getCameraUploadsFolderSecondary(MegaRequestListenerInterface listener){
+        megaApi.getCameraUploadsFolderSecondary(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Gets the alias for an user
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_ALIAS
+     * - MegaRequest::getNodeHandle - user handle in binary
+     * - MegaRequest::getText - user handle encoded in B64
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getName - Returns the user alias
+     *
+     * If the user alias doesn't exists the request will fail with the error code MegaError::API_ENOENT.
+     *
+     * @param uh handle of the user in binary
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getUserAlias(long uh, MegaRequestListenerInterface listener) {
+        megaApi.getUserAlias(uh, createDelegateRequestListener(listener));
+    }
+    /**
+     * Set or reset an alias for a user
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_ALIAS
+     * - MegaRequest::getNodeHandle - Returns the user handle in binary
+     * - MegaRequest::getText - Returns the user alias
+     *
+     * @param uh handle of the user in binary
+     * @param alias the user alias, or null to reset the existing
+     * @param listener MegaRequestListener to track this request
+     */
+    public void setUserAlias(long uh, String alias, MegaRequestListenerInterface listener) {
+        megaApi.setUserAlias(uh, alias, createDelegateRequestListener(listener));
+    }
+
+    /**
      * Get the number of days for rubbish-bin cleaning scheduler
      *
      * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
@@ -4350,50 +5284,6 @@ public class MegaApiJava {
     public void setRubbishBinAutopurgePeriod(int days, MegaRequestListenerInterface listener){
         megaApi.setRubbishBinAutopurgePeriod(days, createDelegateRequestListener(listener));
     }
-
-    /**
-     * Get the state of the storage
-     *
-     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
-     * Valid data in the MegaRequest object received on callbacks:
-     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_STORAGE_STATE
-     *
-     * Valid data in the MegaRequest object received in onRequestFinish when the error code
-     * is MegaError::API_OK:
-     * - MegaRequest::getNumber - Returns one of these storage states:
-     * MegaApi::STORAGE_STATE_GREEN = 0 - The account has no problems with storage space
-     * MegaApi::STORAGE_STATE_ORANGE = 1 - The account is almost full
-     * MegaApi::STORAGE_STATE_RED = 2 - The account is full
-     *
-     * If the state is not set on the server side, the request will finish with the error
-     * MegaError::API_ENOENT, but MegaRequest::getNumber will be valid and will have the
-     * number 0 (MegaApi::STORAGE_STATE_GREEN).
-     *
-     * @param listener MegaRequestListener to track this request
-     */
-    public void getStorageState(MegaRequestListenerInterface listener) {
-        megaApi.getStorageState(createDelegateRequestListener(listener));
-    }
-
-    /**
-     * Get the state of the storage
-     *
-     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
-     * Valid data in the MegaRequest object received on callbacks:
-     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_STORAGE_STATE
-     *
-     * Valid data in the MegaRequest object received in onRequestFinish when the error code
-     * is MegaError::API_OK:
-     * - MegaRequest::getNumber - Returns one of these storage states:
-     * MegaApi::STORAGE_STATE_GREEN = 0 - The account has no problems with storage space
-     * MegaApi::STORAGE_STATE_ORANGE = 1 - The account is almost full
-     * MegaApi::STORAGE_STATE_RED = 2 - The account is full
-     *
-     * If the state is not set on the server side, the request will finish with the error
-     * MegaError::API_ENOENT, but MegaRequest::getNumber will be valid and will have the
-     * number 0 (MegaApi::STORAGE_STATE_GREEN).
-     */
-    public void getStorageState() { megaApi.getStorageState(); }
 
     /**
      * Change the password of the MEGA account
@@ -4744,120 +5634,136 @@ public class MegaApiJava {
     /****************************************************************************************************/
 
     /**
-     * Upload a file.
-     * 
-     * @param localPath
-     *            path of the file.
-     * @param parent
-     *            node for the file in the MEGA account.
-     * @param listener
-     *            MegaTransferListener to track this transfer.
+     * Upload a file or a folder
+     *
+     * If the status of the business account is expired, onTransferFinish will be called with the error
+     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+     * "Your business account is overdue, please contact your administrator."
+     *
+     * @param localPath Local path of the file or folder
+     * @param parent Parent node for the file or folder in the MEGA account
+     * @param listener MegaTransferListener to track this transfer
      */
     public void startUpload(String localPath, MegaNode parent, MegaTransferListenerInterface listener) {
         megaApi.startUpload(localPath, parent, createDelegateTransferListener(listener));
     }
 
     /**
-     * Upload a file.
-     * 
-     * @param localPath
-     *            path of the file.
-     * @param parent
-     *            node for the file in the MEGA account.
+     * Upload a file or a folder
+     *
+     * If the status of the business account is expired, onTransferFinish will be called with the error
+     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+     * "Your business account is overdue, please contact your administrator."
+     *
+     * @param localPath Local path of the file or folder
+     * @param parent Parent node for the file or folder in the MEGA account
      */
     public void startUpload(String localPath, MegaNode parent) {
         megaApi.startUpload(localPath, parent);
     }
 
     /**
-     * Upload a file with a custom modification time.
-     * 
-     * @param localPath
-     *            Local path of the file.
-     * @param parent
-     *            Parent node for the file in the MEGA account.
-     * @param mtime
-     *            Custom modification time for the file in MEGA (in seconds since the epoch).
-     * @param listener
-     *            MegaTransferListener to track this transfer.
+     * Upload a file or a folder with a custom modification time
+     *
+     *If the status of the business account is expired, onTransferFinish will be called with the error
+     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+     * "Your business account is overdue, please contact your administrator."
+     *
+     * @param localPath Local path of the file
+     * @param parent Parent node for the file in the MEGA account
+     * @param mtime Custom modification time for the file in MEGA (in seconds since the epoch)
+     * @param listener MegaTransferListener to track this transfer
+     *
+     * The custom modification time will be only applied for file transfers. If a folder
+     * is transferred using this function, the custom modification time won't have any effect,
      */
     public void startUpload(String localPath, MegaNode parent, long mtime, MegaTransferListenerInterface listener) {
         megaApi.startUpload(localPath, parent, mtime, createDelegateTransferListener(listener));
     }
 
     /**
-     * Upload a file with a custom modification time.
-     * 
-     * @param localPath
-     *            Local path of the file.
-     * @param parent
-     *            Parent node for the file in the MEGA account.
-     * @param mtime
-     *            Custom modification time for the file in MEGA (in seconds since the epoch).
+     * Upload a file or a folder with a custom modification time
+     *
+     *If the status of the business account is expired, onTransferFinish will be called with the error
+     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+     * "Your business account is overdue, please contact your administrator."
+     *
+     * @param localPath Local path of the file
+     * @param parent Parent node for the file in the MEGA account
+     * @param mtime Custom modification time for the file in MEGA (in seconds since the epoch)
+     *
+     * The custom modification time will be only applied for file transfers. If a folder
+     * is transferred using this function, the custom modification time won't have any effect,
      */
     public void startUpload(String localPath, MegaNode parent, long mtime) {
         megaApi.startUpload(localPath, parent, mtime);
     }
 
     /**
-     * Upload a file with a custom name.
-     * 
-     * @param localPath
-     *            Local path of the file.
-     * @param parent
-     *            Parent node for the file in the MEGA account.
-     * @param fileName
-     *            Custom file name for the file in MEGA.
-     * @param listener
-     *            MegaTransferListener to track this transfer.
+     * Upload a file or folder with a custom name
+     *
+     *If the status of the business account is expired, onTransferFinish will be called with the error
+     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+     * "Your business account is overdue, please contact your administrator."
+     *
+     * @param localPath Local path of the file or folder
+     * @param parent Parent node for the file or folder in the MEGA account
+     * @param fileName Custom file name for the file or folder in MEGA
+     * @param listener MegaTransferListener to track this transfer
      */
     public void startUpload(String localPath, MegaNode parent, String fileName, MegaTransferListenerInterface listener) {
         megaApi.startUpload(localPath, parent, fileName, createDelegateTransferListener(listener));
     }
 
     /**
-     * Upload a file with a custom name.
-     * 
-     * @param localPath
-     *            Local path of the file.
-     * @param parent
-     *            Parent node for the file in the MEGA account.
-     * @param fileName
-     *            Custom file name for the file in MEGA.
+     * Upload a file or folder with a custom name
+     *
+     *If the status of the business account is expired, onTransferFinish will be called with the error
+     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+     * "Your business account is overdue, please contact your administrator."
+     *
+     * @param localPath Local path of the file or folder
+     * @param parent Parent node for the file or folder in the MEGA account
+     * @param fileName Custom file name for the file or folder in MEGA
      */
     public void startUpload(String localPath, MegaNode parent, String fileName) {
         megaApi.startUpload(localPath, parent, fileName);
     }
 
     /**
-     * Upload a file with a custom name and a custom modification time.
-     * 
-     * @param localPath
-     *            Local path of the file.
-     * @param parent
-     *            Parent node for the file in the MEGA account.
-     * @param fileName
-     *            Custom file name for the file in MEGA.
-     * @param mtime
-     *            Custom modification time for the file in MEGA (in seconds since the epoch).
-     * @param listener
-     *            MegaTransferListener to track this transfer.
+     * Upload a file or a folder with a custom name and a custom modification time
+     *
+     *If the status of the business account is expired, onTransferFinish will be called with the error
+     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+     * "Your business account is overdue, please contact your administrator."
+     *
+     * @param localPath Local path of the file
+     * @param parent Parent node for the file in the MEGA account
+     * @param fileName Custom file name for the file in MEGA
+     * @param mtime Custom modification time for the file in MEGA (in seconds since the epoch)
+     * @param listener MegaTransferListener to track this transfer
+     *
+     * The custom modification time will be only applied for file transfers. If a folder
+     * is transferred using this function, the custom modification time won't have any effect
      */
     public void startUpload(String localPath, MegaNode parent, String fileName, long mtime, MegaTransferListenerInterface listener) {
         megaApi.startUpload(localPath, parent, fileName, mtime, createDelegateTransferListener(listener));
     }
 
     /**
-     * Upload a file with a custom name and a custom modification time.
-     * 
-     * @param localPath
-     *            Local path of the file.
-     * @param parent
-     *            Parent node for the file in the MEGA account.
-     * @param fileName
-     *            Custom file name for the file in MEGA.
-     * @param mtime
-     *            Custom modification time for the file in MEGA (in seconds since the epoch).
+     * Upload a file or a folder with a custom name and a custom modification time
+     *
+     *If the status of the business account is expired, onTransferFinish will be called with the error
+     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+     * "Your business account is overdue, please contact your administrator."
+     *
+     * @param localPath Local path of the file
+     * @param parent Parent node for the file in the MEGA account
+     * @param fileName Custom file name for the file in MEGA
+     * @param mtime Custom modification time for the file in MEGA (in seconds since the epoch)
+     *
+     * The custom modification time will be only applied for file transfers. If a folder
+     * is transferred using this function, the custom modification time won't have any effect
      */
     public void startUpload(String localPath, MegaNode parent, String fileName, long mtime) {
         megaApi.startUpload(localPath, parent, fileName, mtime);
@@ -4865,6 +5771,11 @@ public class MegaApiJava {
 
     /**
      * Upload a file or a folder, saving custom app data during the transfer
+     *
+     * If the status of the business account is expired, onTransferFinish will be called with the error
+     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+     * "Your business account is overdue, please contact your administrator."
+     *
      * @param localPath Local path of the file or folder
      * @param parent Parent node for the file or folder in the MEGA account
      * @param appData Custom app data to save in the MegaTransfer object
@@ -4882,6 +5793,11 @@ public class MegaApiJava {
 
     /**
      * Upload a file or a folder, saving custom app data during the transfer
+     *
+     * If the status of the business account is expired, onTransferFinish will be called with the error
+     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+     * "Your business account is overdue, please contact your administrator."
+     *
      * @param localPath Local path of the file or folder
      * @param parent Parent node for the file or folder in the MEGA account
      * @param appData Custom app data to save in the MegaTransfer object
@@ -4898,6 +5814,11 @@ public class MegaApiJava {
 
     /**
      * Upload a file or a folder, putting the transfer on top of the upload queue
+     *
+     * If the status of the business account is expired, onTransferFinish will be called with the error
+     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+     * "Your business account is overdue, please contact your administrator."
+     *
      * @param localPath Local path of the file or folder
      * @param parent Parent node for the file or folder in the MEGA account
      * @param appData Custom app data to save in the MegaTransfer object
@@ -4918,6 +5839,11 @@ public class MegaApiJava {
 
     /**
      * Upload a file or a folder, putting the transfer on top of the upload queue
+     *
+     *If the status of the business account is expired, onTransferFinish will be called with the error
+     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+     * "Your business account is overdue, please contact your administrator."
+     *
      * @param localPath Local path of the file or folder
      * @param parent Parent node for the file or folder in the MEGA account
      * @param appData Custom app data to save in the MegaTransfer object
@@ -4936,33 +5862,36 @@ public class MegaApiJava {
     }
 
     /**
-     * Download a file from MEGA.
-     * 
-     * @param node
-     *            MegaNode that identifies the file.
-     * @param localPath
-     *            Destination path for the file.
-     *            If this path is a local folder, it must end with a '\' or '/' character and the file name
-     *            in MEGA will be used to store a file inside that folder. If the path does not finish with
-     *            one of these characters, the file will be downloaded to a file in that path.
-     * 
-     * @param listener
-     *            MegaTransferListener to track this transfer.
+     * Download a file or a folder from MEGA
+     *
+     *If the status of the business account is expired, onTransferFinish will be called with the error
+     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+     * "Your business account is overdue, please contact your administrator."
+     *
+     * @param node MegaNode that identifies the file or folder
+     * @param localPath Destination path for the file or folder
+     * If this path is a local folder, it must end with a '\' or '/' character and the file name
+     * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
+     * one of these characters, the file will be downloaded to a file in that path.
+     *
+     * @param listener MegaTransferListener to track this transfer
      */
     public void startDownload(MegaNode node, String localPath, MegaTransferListenerInterface listener) {
         megaApi.startDownload(node, localPath, createDelegateTransferListener(listener));
     }
 
     /**
-     * Download a file from MEGA.
-     * 
-     * @param node
-     *            MegaNode that identifies the file.
-     * @param localPath
-     *            Destination path for the file.
-     *            If this path is a local folder, it must end with a '\' or '/' character and the file name
-     *            in MEGA will be used to store a file inside that folder. If the path does not finish with
-     *            one of these characters, the file will be downloaded to a file in that path.
+     * Download a file or a folder from MEGA
+     *
+     *If the status of the business account is expired, onTransferFinish will be called with the error
+     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+     * "Your business account is overdue, please contact your administrator."
+     *
+     * @param node MegaNode that identifies the file or folder
+     * @param localPath Destination path for the file or folder
+     * If this path is a local folder, it must end with a '\' or '/' character and the file name
+     * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
+     * one of these characters, the file will be downloaded to a file in that path.
      */
     public void startDownload(MegaNode node, String localPath) {
         megaApi.startDownload(node, localPath);
@@ -4970,6 +5899,11 @@ public class MegaApiJava {
 
     /**
      * Download a file or a folder from MEGA, saving custom app data during the transfer
+     *
+     * If the status of the business account is expired, onTransferFinish will be called with the error
+     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+     * "Your business account is overdue, please contact your administrator."
+     *
      * @param node MegaNode that identifies the file or folder
      * @param localPath Destination path for the file or folder
      * If this path is a local folder, it must end with a '\' or '/' character and the file name
@@ -4986,6 +5920,11 @@ public class MegaApiJava {
 
     /**
      * Download a file or a folder from MEGA, putting the transfer on top of the download queue.
+     *
+     * If the status of the business account is expired, onTransferFinish will be called with the error
+     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+     * "Your business account is overdue, please contact your administrator."
+     *
      * @param node MegaNode that identifies the file or folder
      * @param localPath Destination path for the file or folder
      * If this path is a local folder, it must end with a '\' or '/' character and the file name
@@ -5001,25 +5940,25 @@ public class MegaApiJava {
     }
 
     /**
-     * Start a streaming download.
-     * <p>
-     * Streaming downloads do not save the downloaded data into a local file. It is provided
-     * in MegaTransferListener.onTransferUpdate() in a byte buffer. The pointer is returned by
-     * MegaTransfer.getLastBytes() and the size of the buffer by MegaTransfer.getDeltaSize().
-     * <p>
-     * The same byte array is also provided in the callback MegaTransferListener.onTransferData for
+     * Start an streaming download for a file in MEGA
+     *
+     * Streaming downloads don't save the downloaded data into a local file. It is provided
+     * in MegaTransferListener::onTransferUpdate in a byte buffer. The pointer is returned by
+     * MegaTransfer::getLastBytes and the size of the buffer in MegaTransfer::getDeltaSize
+     *
+     * The same byte array is also provided in the callback MegaTransferListener::onTransferData for
      * compatibility with other programming languages. Only the MegaTransferListener passed to this function
-     * will receive MegaTransferListener.onTransferData() callbacks. MegaTransferListener objects registered
-     * with MegaApiJava.addTransferListener() will not receive them for performance reasons.
-     * 
-     * @param node
-     *            MegaNode that identifies the file (public nodes are not supported yet).
-     * @param startPos
-     *            First byte to download from the file.
-     * @param size
-     *            Size of the data to download.
-     * @param listener
-     *            MegaTransferListener to track this transfer.
+     * will receive MegaTransferListener::onTransferData callbacks. MegaTransferListener objects registered
+     * with MegaApi::addTransferListener won't receive them for performance reasons
+     *
+     * If the status of the business account is expired, onTransferFinish will be called with the error
+     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+     * "Your business account is overdue, please contact your administrator."
+     *
+     * @param node MegaNode that identifies the file
+     * @param startPos First byte to download from the file
+     * @param size Size of the data to download
+     * @param listener MegaTransferListener to track this transfer
      */
     public void startStreaming(MegaNode node, long startPos, long size, MegaTransferListenerInterface listener) {
         megaApi.startStreaming(node, startPos, size, createDelegateTransferListener(listener));
@@ -6217,12 +7156,27 @@ public class MegaApiJava {
     /**
      * Get a list with all inbound shares from one MegaUser.
      * 
-     * @param user
-     *            MegaUser sharing folders with this account.
+     * @param user MegaUser sharing folders with this account.
      * @return List of MegaNode objects that this user is sharing with this account.
      */
     public ArrayList<MegaNode> getInShares(MegaUser user) {
         return nodeListToArray(megaApi.getInShares(user));
+    }
+
+    /**
+     * Get a list with all inbound shares from one MegaUser.
+     *
+     * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
+     * MegaApi::ORDER_DEFAULT_DESC
+     *
+     * You take the ownership of the returned value
+     *
+     * @param user MegaUser sharing folders with this account.
+     * @param order Sorting order to use
+     * @return List of MegaNode objects that this user is sharing with this account.
+     */
+    public ArrayList<MegaNode> getInShares(MegaUser user, int order) {
+        return nodeListToArray(megaApi.getInShares(user, order));
     }
 
     /**
@@ -6232,6 +7186,21 @@ public class MegaApiJava {
      */
     public ArrayList<MegaNode> getInShares() {
         return nodeListToArray(megaApi.getInShares());
+    }
+
+    /**
+     * Get a list with all inbound shares.
+     *
+     * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
+     * MegaApi::ORDER_DEFAULT_DESC
+     *
+     * You take the ownership of the returned value
+     *
+     * @param order Sorting order to use
+     * @return List of MegaNode objects that other users are sharing with this account.
+     */
+    public ArrayList<MegaNode> getInShares(int order) {
+        return nodeListToArray(megaApi.getInShares(order));
     }
     
     /**
@@ -6246,14 +7215,70 @@ public class MegaApiJava {
     }
 
     /**
-     * Check if a MegaNode is being shared.
-     * <p>
+     * Get a list with all active inboud sharings
+     *
+     * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
+     * MegaApi::ORDER_DEFAULT_DESC
+     *
+     * You take the ownership of the returned value
+     *
+     * @param order Sorting order to use
+     * @return List of MegaShare objects that other users are sharing with this account
+     */
+    public ArrayList<MegaShare> getInSharesList(int order) {
+        return shareListToArray(megaApi.getInSharesList(order));
+    }
+
+    /**
+     * Get the user relative to an incoming share
+     *
+     * This function will return NULL if the node is not found.
+     *
+     * If recurse is true, it will return NULL if the root corresponding to
+     * the node received as argument doesn't represent the root of an incoming share.
+     * Otherwise, it will return NULL if the node doesn't represent
+     * the root of an incoming share.
+     *
+     * You take the ownership of the returned value
+     *
+     * @param node Node to look for inshare user.
+     * @return MegaUser relative to the incoming share
+     */
+    public MegaUser getUserFromInShare(MegaNode node) {
+        return megaApi.getUserFromInShare(node);
+    }
+
+    /**
+     * Get the user relative to an incoming share
+     *
+     * This function will return NULL if the node is not found.
+     *
+     * When recurse is true and the root of the specified node is not an incoming share,
+     * this function will return NULL.
+     * When recurse is false and the specified node doesn't represent the root of an
+     * incoming share, this function will return NULL.
+     *
+     * You take the ownership of the returned value
+     *
+     * @param node Node to look for inshare user.
+     * @param recurse use root node corresponding to the node passed
+     * @return MegaUser relative to the incoming share
+     */
+    public MegaUser getUserFromInShare(MegaNode node, boolean recurse) {
+        return megaApi.getUserFromInShare(node, recurse);
+    }
+
+    /**
+     * Check if a MegaNode is being shared by/with your own user
+     *
      * For nodes that are being shared, you can get a a list of MegaShare
-     * objects using MegaApiJava.getOutShares().
+     * objects using MegaApiJava.getOutShares(), or a list of MegaNode objects
+     * using MegaApi::getInShares
      * 
-     * @param node
-     *            Node to check.
+     * @param node Node to check.
      * @return true is the MegaNode is being shared, otherwise false.
+     * @deprecated This function is intended for debugging and internal purposes and will be probably removed in future updates.
+     * Use MegaNode::isShared instead
      */
     public boolean isShared(MegaNode node) {
         return megaApi.isShared(node);
@@ -6304,7 +7329,7 @@ public class MegaApiJava {
     }
 
     /**
-     * Get a list with all active outbound shares.
+     * Get a list with all active and pending outbound sharings
      * 
      * @return List of MegaShare objects.
      */
@@ -6313,12 +7338,28 @@ public class MegaApiJava {
     }
 
     /**
-     * Get a list with the active outbound shares for a MegaNode.
-     * <p>
-     * If the node does not exist in the account, this function returns an empty list.
-     * 
-     * @param node
-     *            MegaNode to check.
+     * Get a list with the active and pending outbound sharings for a MegaNode
+     *
+     * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
+     * MegaApi::ORDER_DEFAULT_DESC
+     *
+     * You take the ownership of the returned value
+     *
+     * @param order Sorting order to use
+     * @return List of MegaShare objects.
+     */
+    public ArrayList<MegaShare> getOutShares(int order) {
+        return shareListToArray(megaApi.getOutShares(order));
+    }
+
+    /**
+     * Get a list with the active and pending outbound sharings for a MegaNode
+     *
+     * If the node doesn't exist in the account, this function returns an empty list.
+     *
+     * You take the ownership of the returned value
+     *
+     * @param node MegaNode to check.
      * @return List of MegaShare objects.
      */
     public ArrayList<MegaShare> getOutShares(MegaNode node) {
@@ -6326,19 +7367,25 @@ public class MegaApiJava {
     }
 
     /**
-     * Get a list with all pending outbound shares.
+     * Get a list with all pending outbound sharings
      *
-     * @return List of MegaShare objects.
+     * You take the ownership of the returned value
+     *
+     * @return List of MegaShare objects
+     * @deprecated Use MegaNode::getOutShares instead of this function
      */
     public ArrayList<MegaShare> getPendingOutShares() {
         return shareListToArray(megaApi.getPendingOutShares());
     }
 
     /**
-     * Get a list with all pending outbound shares.
+     * Get a list with all pending outbound sharings
+     *
+     * You take the ownership of the returned value
      *
      * @param node MegaNode to check.
      * @return List of MegaShare objects.
+     * @deprecated Use MegaNode::getOutShares instead of this function
      */
     public ArrayList<MegaShare> getPendingOutShares(MegaNode node) {
         return shareListToArray(megaApi.getPendingOutShares(node));
@@ -6354,9 +7401,27 @@ public class MegaApiJava {
     public ArrayList<MegaNode> getPublicLinks() {
     	return nodeListToArray(megaApi.getPublicLinks());
     }
+
+    /**
+     * Get a list with all public links
+     *
+     * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
+     * MegaApi::ORDER_DEFAULT_DESC, MegaApi::ORDER_LINK_CREATION_ASC,
+     * MegaApi::ORDER_LINK_CREATION_DESC
+     *
+     * You take the ownership of the returned value
+     *
+     * @param order Sorting order to use
+     * @return List of MegaNode objects that are shared with everyone via public link
+     */
+    public ArrayList<MegaNode> getPublicLinks(int order) {
+        return nodeListToArray(megaApi.getPublicLinks(order));
+    }
     
     /**
      * Get a list with all incoming contact requests.
+     *
+     * You take the ownership of the returned value
      *
      * @return List of MegaContactRequest objects.
      */
@@ -6366,6 +7431,8 @@ public class MegaApiJava {
 
     /**
      * Get a list with all outgoing contact requests.
+     *
+     * You take the ownership of the returned value
      *
      * @return List of MegaContactRequest objects.
      */
@@ -6758,6 +7825,63 @@ public class MegaApiJava {
     }
 
     /**
+     * Search nodes containing a search string in their name
+     *
+     * The search is case-insensitive.
+     *
+     * You take the ownership of the returned value.
+     *
+     * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
+     * to MegaCancelToken::setCancelFlag(true). If a valid object is passed, it must be kept alive until
+     * this method returns.
+     *
+     * @param node The parent node of the tree to explore
+     * @param searchString Search string. The search is case-insensitive
+     * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
+     * @param recursive True if you want to seach recursively in the node tree.
+     * False if you want to seach in the children of the node only
+     * @param order Order for the returned list
+     * Valid values for this parameter are:
+     * - MegaApi::ORDER_NONE = 0
+     * Undefined order
+     *
+     * - MegaApi::ORDER_DEFAULT_ASC = 1
+     * Folders first in alphabetical order, then files in the same order
+     *
+     * - MegaApi::ORDER_DEFAULT_DESC = 2
+     * Files first in reverse alphabetical order, then folders in the same order
+     *
+     * - MegaApi::ORDER_SIZE_ASC = 3
+     * Sort by size, ascending
+     *
+     * - MegaApi::ORDER_SIZE_DESC = 4
+     * Sort by size, descending
+     *
+     * - MegaApi::ORDER_CREATION_ASC = 5
+     * Sort by creation time in MEGA, ascending
+     *
+     * - MegaApi::ORDER_CREATION_DESC = 6
+     * Sort by creation time in MEGA, descending
+     *
+     * - MegaApi::ORDER_MODIFICATION_ASC = 7
+     * Sort by modification time of the original file, ascending
+     *
+     * - MegaApi::ORDER_MODIFICATION_DESC = 8
+     * Sort by modification time of the original file, descending
+     *
+     * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+     * Sort in alphabetical order, ascending
+     *
+     * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+     * Sort in alphabetical order, descending
+     *
+     * @return List of nodes that contain the desired string in their name
+     */
+    public ArrayList<MegaNode> search(MegaNode node, String searchString, MegaCancelToken cancelToken, boolean recursive, int order) {
+        return nodeListToArray(megaApi.search(node, searchString, cancelToken, recursive, order));
+    }
+
+    /**
      * Search nodes containing a search string in their name.
      * <p>
      * The search is case-insensitive.
@@ -6852,6 +7976,67 @@ public class MegaApiJava {
      *  - Rubbish bin
      *  - Incoming shares from other users
      *
+     * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
+     * to MegaCancelToken::setCancelFlag(true). If a valid object is passed, it must be kept alive until
+     * this method returns.
+     *
+     * You take the ownership of the returned value.
+     *
+     * @param searchString Search string. The search is case-insensitive
+     * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
+     * @param order Order for the returned list
+     * Valid values for this parameter are:
+     * - MegaApi::ORDER_NONE = 0
+     * Undefined order
+     *
+     * - MegaApi::ORDER_DEFAULT_ASC = 1
+     * Folders first in alphabetical order, then files in the same order
+     *
+     * - MegaApi::ORDER_DEFAULT_DESC = 2
+     * Files first in reverse alphabetical order, then folders in the same order
+     *
+     * - MegaApi::ORDER_SIZE_ASC = 3
+     * Sort by size, ascending
+     *
+     * - MegaApi::ORDER_SIZE_DESC = 4
+     * Sort by size, descending
+     *
+     * - MegaApi::ORDER_CREATION_ASC = 5
+     * Sort by creation time in MEGA, ascending
+     *
+     * - MegaApi::ORDER_CREATION_DESC = 6
+     * Sort by creation time in MEGA, descending
+     *
+     * - MegaApi::ORDER_MODIFICATION_ASC = 7
+     * Sort by modification time of the original file, ascending
+     *
+     * - MegaApi::ORDER_MODIFICATION_DESC = 8
+     * Sort by modification time of the original file, descending
+     *
+     * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+     * Sort in alphabetical order, ascending
+     *
+     * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+     * Sort in alphabetical order, descending
+     *
+     * @return List of nodes that contain the desired string in their name
+     */
+    public ArrayList<MegaNode> search(String searchString, MegaCancelToken cancelToken, int order) {
+        return nodeListToArray(megaApi.search(searchString, cancelToken, order));
+    }
+
+
+    /**
+     * Search nodes containing a search string in their name
+     *
+     * The search is case-insensitive.
+     *
+     * The search will consider every accessible node for the account:
+     *  - Cloud drive
+     *  - Inbox
+     *  - Rubbish bin
+     *  - Incoming shares from other users
+     *
      * You take the ownership of the returned value.
      *
      * @param searchString Search string. The search is case-insensitive
@@ -6860,6 +8045,36 @@ public class MegaApiJava {
      */
     public ArrayList<MegaNode> search(String searchString) {
         return nodeListToArray(megaApi.search(searchString));
+    }
+
+
+    /**
+     * Return a list of buckets, each bucket containing a list of recently added/modified nodes
+     *
+     * Each bucket contains files that were added/modified in a set, by a single user.
+     *
+     * @param days Age of actions since added/modified nodes will be considered (in days)
+     * @param maxnodes Maximum amount of nodes to be considered
+     *
+     * @return List of buckets containing nodes that were added/modifed as a set
+     */
+    public ArrayList<MegaRecentActionBucket> getRecentActions (long days, long maxnodes) {
+        return recentActionsToArray(megaApi.getRecentActions(days, maxnodes));
+    }
+
+    /**
+     * Return a list of buckets, each bucket containing a list of recently added/modified nodes
+     *
+     * Each bucket contains files that were added/modified in a set, by a single user.
+     *
+     * This function uses the default parameters for the MEGA apps, which consider (currently)
+     * interactions during the last 90 days and max 10.000 nodes.
+     *
+     * @return List of buckets containing nodes that were added/modifed as a set
+     */
+
+    public ArrayList<MegaRecentActionBucket> getRecentActions () {
+        return recentActionsToArray(megaApi.getRecentActions());
     }
 
     /**
@@ -6931,6 +8146,29 @@ public class MegaApiJava {
      */
     public MegaNode authorizeNode(MegaNode node){
         return megaApi.authorizeNode(node);
+    }
+
+    /**
+     *
+     * Returns a MegaNode that can be downloaded/copied with a chat-authorization
+     *
+     * During preview of chat-links, you need to call this method to authorize the MegaNode
+     * from a node-attachment message, so the API allows to access to it. The parameter to
+     * authorize the access can be retrieved from MegaChatRoom::getAuthorizationToken when
+     * the chatroom in in preview mode.
+     *
+     * You can use MegaApi::startDownload and/or MegaApi::copyNode with the resulting
+     * node with any instance of MegaApi, even if it's logged into another account,
+     * a public folder, or not logged in.
+     *
+     * You take the ownership of the returned value.
+     *
+     * @param node MegaNode to authorize
+     * @param cauth Authorization token (public handle of the chatroom in B64url encoding)
+     * @return Authorized node, or NULL if the node can't be authorized
+     */
+    public MegaNode authorizeChatNode(MegaNode node, String cauth){
+        return megaApi.authorizeChatNode(node, cauth);
     }
 
     /**
@@ -7790,7 +9028,89 @@ public class MegaApiJava {
     public void getMegaAchievements() {
         megaApi.getMegaAchievements();
     }
+    
+    /**
+     * Set original fingerprint for MegaNode
+     *
+     * @param node
+     * @param fingerprint
+     * @param listener
+     */
+    
+    public void setOriginalFingerprint(MegaNode node, String fingerprint, MegaRequestListenerInterface listener){
+        megaApi.setOriginalFingerprint(node,fingerprint,createDelegateRequestListener(listener));
+    }
+    
+    /**
+     * Get MegaNode list by original fingerprint
+     *
+     * @param originalfingerprint
+     * @param parent
+     */
+    
+    public MegaNodeList getNodesByOriginalFingerprint(String originalfingerprint, MegaNode parent){
+        return megaApi.getNodesByOriginalFingerprint(originalfingerprint, parent);
+    }
+    
+    /**
+     * @brief Retrieve basic information about a folder link
+     *
+     * This function retrieves basic information from a folder link, like the number of files / folders
+     * and the name of the folder. For folder links containing a lot of files/folders,
+     * this function is more efficient than a fetchnodes.
+     *
+     * Valid data in the MegaRequest object received on all callbacks:
+     * - MegaRequest::getLink() - Returns the public link to the folder
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaFolderInfo() - Returns information about the contents of the folder
+     * - MegaRequest::getNodeHandle() - Returns the public handle of the folder
+     * - MegaRequest::getParentHandle() - Returns the handle of the owner of the folder
+     * - MegaRequest::getText() - Returns the name of the folder.
+     * If there's no name, it returns the special status string "CRYPTO_ERROR".
+     * If the length of the name is zero, it returns the special status string "BLANK".
+     *
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_EARGS  - If the link is not a valid folder link
+     * - MegaError::API_EKEY - If the public link does not contain the key or it is invalid
+     *
+     * @param megaFolderLink Public link to a folder in MEGA
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getPublicLinkInformation(String megaFolderLink, MegaRequestListenerInterface listener) {
+        megaApi.getPublicLinkInformation(megaFolderLink, createDelegateRequestListener(listener));
+    }
 
+    /**
+     * @brief Retrieve basic information about a folder link
+     *
+     * This function retrieves basic information from a folder link, like the number of files / folders
+     * and the name of the folder. For folder links containing a lot of files/folders,
+     * this function is more efficient than a fetchnodes.
+     *
+     * Valid data in the MegaRequest object received on all callbacks:
+     * - MegaRequest::getLink() - Returns the public link to the folder
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaFolderInfo() - Returns information about the contents of the folder
+     * - MegaRequest::getNodeHandle() - Returns the public handle of the folder
+     * - MegaRequest::getParentHandle() - Returns the handle of the owner of the folder
+     * - MegaRequest::getText() - Returns the name of the folder.
+     * If there's no name, it returns the special status string "CRYPTO_ERROR".
+     * If the length of the name is zero, it returns the special status string "BLANK".
+     *
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_EARGS  - If the link is not a valid folder link
+     * - MegaError::API_EKEY - If the public link does not contain the key or it is invalid
+     *
+     * @param megaFolderLink Public link to a folder in MEGA
+     */
+    public void getPublicLinkInformation(String megaFolderLink) {
+        megaApi.getPublicLinkInformation(megaFolderLink);
+    }
+    
     /****************************************************************************************************/
     // INTERNAL METHODS
     /****************************************************************************************************/
@@ -7934,5 +9254,107 @@ public class MegaApiJava {
         }
 
         return result;
+    }
+
+    static ArrayList<MegaRecentActionBucket> recentActionsToArray(MegaRecentActionBucketList recentActionList) {
+        if (recentActionList == null) {
+            return null;
+        }
+
+        ArrayList<MegaRecentActionBucket> result = new ArrayList<>(recentActionList.size());
+        for (int i = 0; i< recentActionList.size(); i++) {
+            result.add(recentActionList.get(i).copy());
+        }
+
+        return result;
+    }
+
+    /**
+     * Provide a phone number to get verification code.
+     *
+     * @param phoneNumber the phone number to receive the txt with verification code.
+     * @param listener callback of this request.
+     */
+    public void sendSMSVerificationCode(String phoneNumber,nz.mega.sdk.MegaRequestListenerInterface listener) {
+        megaApi.sendSMSVerificationCode(phoneNumber,createDelegateRequestListener(listener));
+    }
+
+    public void sendSMSVerificationCode(String phoneNumber,nz.mega.sdk.MegaRequestListenerInterface listener,boolean reverifying_whitelisted) {
+        megaApi.sendSMSVerificationCode(phoneNumber,createDelegateRequestListener(listener),reverifying_whitelisted);
+    }
+
+    /**
+     * Send the verification code to verifiy phone number.
+     *
+     * @param verificationCode received 6 digits verification code.
+     * @param listener callback of this request.
+     */
+    public void checkSMSVerificationCode(String verificationCode,nz.mega.sdk.MegaRequestListenerInterface listener) {
+        megaApi.checkSMSVerificationCode(verificationCode,createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Get the verified phone number of the mega account.
+     *
+     * @return verified phone number.
+     */
+    public String smsVerifiedPhoneNumber() {
+        return megaApi.smsVerifiedPhoneNumber();
+    }
+    
+    /**
+     * Requests the contacts that are registered at MEGA (currently verified through SMS)
+     *
+     * @param contacts The map of contacts to get registered contacts from
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getRegisteredContacts(MegaStringMap contacts, nz.mega.sdk.MegaRequestListenerInterface listener) {
+        megaApi.getRegisteredContacts(contacts, createDelegateRequestListener(listener));
+    }
+    
+    /**
+     * Requests the currently available country calling codes
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getCountryCallingCodes(nz.mega.sdk.MegaRequestListenerInterface listener) {
+        megaApi.getCountryCallingCodes(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Get the state to see whether blocked account could do SMS verification
+     * 
+     * @return the state 
+     */
+    public int smsAllowedState() {
+        return megaApi.smsAllowedState();
+    }
+
+    /**
+     * @brief Returns the email of the user who made the changes
+     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaRecentActionBucket object is deleted.
+     *
+     * @return The associated user's email
+     */
+    public void getUserEmail(long handle, nz.mega.sdk.MegaRequestListenerInterface listener) {
+        megaApi.getUserEmail(handle, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * @brief Cancel a registration process
+     *
+     * If a signup link has been generated during registration process, call this function
+     * to invalidate it. The ephemeral session will not be invalidated, only the signup link.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the value 2
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void cancelCreateAccount(MegaRequestListenerInterface listener){
+        megaApi.cancelCreateAccount(createDelegateRequestListener(listener));
     }
 }

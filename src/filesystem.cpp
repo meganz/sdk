@@ -57,11 +57,22 @@ bool FileSystemAccess::islocalfscompatible(unsigned char c) const
 // replace characters that are not allowed in local fs names with a %xx escape sequence
 void FileSystemAccess::escapefsincompatible(string* name) const
 {
+    if (!name->compare(".."))
+    {
+        name->replace(0, 2, "%2e%2e");
+        return;
+    }
+    if (!name->compare("."))
+    {
+        name->replace(0, 1, "%2e");
+        return;
+    }
+
     char buf[4];
     unsigned char c;
 
     // replace all occurrences of a badchar with %xx
-    for (int i = name->size(); i--; )
+    for (size_t i = name->size(); i--; )
     {
         c = (unsigned char)(*name)[i];
 
@@ -75,12 +86,22 @@ void FileSystemAccess::escapefsincompatible(string* name) const
 
 void FileSystemAccess::unescapefsincompatible(string* name) const
 {
-    for (int i = name->size() - 2; i-- > 0; )
+    if (!name->compare("%2e%2e"))
+    {
+        name->replace(0, 6, "..");
+        return;
+    }
+    if (!name->compare("%2e"))
+    {
+        name->replace(0, 3, ".");
+        return;
+    }
+    for (int i = int(name->size()) - 2; i-- > 0; )
     {
         // conditions for unescaping: %xx must be well-formed and encode an incompatible character
         if ((*name)[i] == '%' && islchex((*name)[i + 1]) && islchex((*name)[i + 2]))
         {
-            char c = (MegaClient::hexval((*name)[i + 1]) << 4) + MegaClient::hexval((*name)[i + 2]);
+            char c = static_cast<char>((MegaClient::hexval((*name)[i + 1]) << 4) + MegaClient::hexval((*name)[i + 2]));
 
             if (!islocalfscompatible((unsigned char)c))
             {
@@ -196,7 +217,7 @@ void DirNotify::notify(notifyqueue q, LocalNode* l, const char* localpath, size_
             tmppath.append(path);
         }
         attr_map::iterator ait;
-        FileAccess *fa = sync->client->fsaccess->newfileaccess();
+        auto fa = sync->client->fsaccess->newfileaccess(false);
         bool success = fa->fopen(&tmppath, false, false);
         LocalNode *ll = sync->localnodebypath(l, &path);
         if ((!ll && !success && !fa->retry) // deleted file
@@ -208,10 +229,8 @@ void DirNotify::notify(notifyqueue q, LocalNode* l, const char* localpath, size_
                 && (ll->type != FILENODE || (ll->mtime == fa->mtime && ll->size == fa->size))))
         {
             LOG_debug << "Self filesystem notification skipped";
-            delete fa;
             return;
         }
-        delete fa;
     }
 
     if (q == DirNotify::DIREVENTS || q == DirNotify::EXTRA)
@@ -227,9 +246,14 @@ void DirNotify::notify(notifyqueue q, LocalNode* l, const char* localpath, size_
 }
 
 // default: no fingerprint
-fsfp_t DirNotify::fsfingerprint()
+fsfp_t DirNotify::fsfingerprint() const
 {
     return 0;
+}
+
+bool DirNotify::fsstableids() const
+{
+    return true;
 }
 
 DirNotify* FileSystemAccess::newdirnotify(string* localpath, string* ignore)
@@ -253,7 +277,7 @@ FileAccess::~FileAccess()
 // open file for reading
 bool FileAccess::fopen(string* name)
 {
-    localname.resize(1);
+    nonblocking_localname.resize(1);
     updatelocalname(name);
 
     return sysstat(&mtime, &size);
@@ -268,8 +292,9 @@ bool FileAccess::isfolder(string *name)
 // check if size and mtime are unchanged, then open for reading
 bool FileAccess::openf()
 {
-    if (!localname.size())
+    if (!nonblocking_localname.size())
     {
+        // file was not opened in nonblocking mode
         return true;
     }
 
@@ -296,7 +321,7 @@ bool FileAccess::openf()
 
 void FileAccess::closef()
 {
-    if (localname.size())
+    if (nonblocking_localname.size())
     {
         sysclose();
     }
@@ -313,7 +338,7 @@ void FileAccess::asyncopfinished(void *param)
 
 AsyncIOContext *FileAccess::asyncfopen(string *f)
 {
-    localname.resize(1);
+    nonblocking_localname.resize(1);
     updatelocalname(f);
 
     LOG_verbose << "Async open start";
@@ -322,7 +347,7 @@ AsyncIOContext *FileAccess::asyncfopen(string *f)
     context->access = AsyncIOContext::ACCESS_READ;
 
     context->buffer = (byte *)f->data();
-    context->len = f->size();
+    context->len = static_cast<unsigned>(f->size());
     context->waiter = waiter;
     context->userCallback = asyncopfinished;
     context->userData = waiter;
@@ -339,7 +364,7 @@ AsyncIOContext *FileAccess::asyncfopen(string *f)
 bool FileAccess::asyncopenf()
 {
     numAsyncReads++;
-    if (!localname.size())
+    if (!nonblocking_localname.size())
     {
         return true;
     }
@@ -391,7 +416,7 @@ void FileAccess::asyncclosef()
     }
 }
 
-AsyncIOContext *FileAccess::asyncfopen(string *f, bool read, bool write, m_off_t size)
+AsyncIOContext *FileAccess::asyncfopen(string *f, bool read, bool write, m_off_t pos)
 {
     LOG_verbose << "Async open start";
     AsyncIOContext *context = newasynccontext();
@@ -401,11 +426,11 @@ AsyncIOContext *FileAccess::asyncfopen(string *f, bool read, bool write, m_off_t
             | (write ? AsyncIOContext::ACCESS_WRITE : 0);
 
     context->buffer = (byte *)f->data();
-    context->len = f->size();
+    context->len = static_cast<unsigned>(f->size());
     context->waiter = waiter;
     context->userCallback = asyncopfinished;
     context->userData = waiter;
-    context->pos = size;
+    context->pos = pos;
     context->fa = this;
 
     asyncsysopen(context);
@@ -519,16 +544,19 @@ bool FileAccess::fread(string* dst, unsigned len, unsigned pad, m_off_t pos)
     return r;
 }
 
-bool FileAccess::frawread(byte* dst, unsigned len, m_off_t pos)
+bool FileAccess::frawread(byte* dst, unsigned len, m_off_t pos, bool caller_opened)
 {
-    if (!openf())
+    if (!caller_opened && !openf())
     {
         return false;
     }
 
     bool r = sysread(dst, len, pos);
 
-    closef();
+    if (!caller_opened)
+    {
+        closef();
+    }
 
     return r;
 }

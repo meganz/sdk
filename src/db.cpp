@@ -24,7 +24,8 @@
 #include "mega/logging.h"
 
 namespace mega {
-DbTable::DbTable()
+DbTable::DbTable(PrnGen &rng, bool checkAlwaysTransacted)
+    : rng(rng), mCheckAlwaysTransacted(checkAlwaysTransacted)
 {
     nextid = 0;
 }
@@ -36,7 +37,7 @@ bool DbTable::put(uint32_t index, string* data)
 }
 
 // add or update record with padding and encryption
-bool DbTable::put(uint32_t type, Cachable* record, SymmCipher* key)
+bool DbTable::put(uint32_t type, Cacheable* record, SymmCipher* key)
 {
     string data;
 
@@ -48,7 +49,7 @@ bool DbTable::put(uint32_t type, Cachable* record, SymmCipher* key)
         return true;
     }
 
-    PaddedCBC::encrypt(&data, key);
+    PaddedCBC::encrypt(rng, &data, key);
 
     if (!record->dbid)
     {
@@ -77,6 +78,33 @@ bool DbTable::next(uint32_t* type, string* data, SymmCipher* key)
     }
 
     return false;
+}
+
+void DbTable::checkTransaction()
+{
+    if (mCheckAlwaysTransacted)
+    {
+        assert(mTransactionCommitter);  // if this fails, we should have started a DBTableTransactionCommitter higher in the call stack
+        if (mTransactionCommitter)
+        {
+            mTransactionCommitter->beginOnce();
+        }
+    }
+}
+
+void DbTable::resetCommitter()
+{
+    if (mTransactionCommitter)
+    {
+        mTransactionCommitter->reset();
+        mCheckAlwaysTransacted = false;
+        mTransactionCommitter = nullptr;
+    }
+}
+
+void DbTable::checkCommitter(DBTableTransactionCommitter* committer)
+{
+    assert(!committer || committer == mTransactionCommitter);
 }
 
 DbAccess::DbAccess()

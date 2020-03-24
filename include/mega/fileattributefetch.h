@@ -31,6 +31,8 @@ namespace mega {
 // file attribute fetching for a specific source cluster
 struct MEGA_API FileAttributeFetchChannel
 {
+    MegaClient *client;
+
     handle fahref;
 
     BackoffTimer bt;
@@ -45,15 +47,15 @@ struct MEGA_API FileAttributeFetchChannel
     error e;
 
     // dispatch new and retrying attributes by POSTing to existing URL
-    void dispatch(MegaClient*);
+    void dispatch();
 
     // parse fetch result and remove completed attributes from pending
-    void parse(MegaClient*, int, bool);
+    void parse(int, bool);
 
     // notify app of nodes that failed to receive their requested attribute
-    void failed(MegaClient*);
+    void failed();
 
-    FileAttributeFetchChannel();
+    FileAttributeFetchChannel(MegaClient*);
 };
 
 // pending individual attribute fetch

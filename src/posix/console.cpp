@@ -80,7 +80,7 @@ void PosixConsole::readpwchar(char* pw_buf, int pw_buf_size, int* pw_buf_pos, ch
     }
 }
 
-void PosixConsole::setecho(bool echo)
+void PosixConsole::setecho(bool /*echo*/)
 {
 }
 } // namespace

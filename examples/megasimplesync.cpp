@@ -30,12 +30,57 @@ using std::cout;
 using std::cerr;
 using std::endl;
 
+
+
+struct Login
+{
+    string email, password, salt, pin;
+    int version;
+
+    Login() : version(0)
+    {
+    }
+
+    void reset()
+    {
+        *this = Login();
+    }
+
+    void login(MegaClient* client)
+    {
+        byte pwkey[SymmCipher::KEYLENGTH];
+
+        if (version == 1)
+        {
+            if (error e = client->pw_key(password.c_str(), pwkey))
+            {
+                cout << "Login error: " << e << endl;
+            }
+            else
+            {
+                client->login(email.c_str(), pwkey, pin.c_str());
+            }
+        }
+        else if (version == 2 && !salt.empty())
+        {
+            client->login2(email.c_str(), password.c_str(), &salt, pin.c_str());
+        }
+        else
+        {
+            cout << "Login unexpected error" << endl;
+        }
+    }
+};
+static Login login;
+
 class SyncApp : public MegaApp, public Logger
 {
     string local_folder;
     string remote_folder;
     handle cwd;
     bool initial_fetch;
+
+    void prelogin_result(int version, string* email, string *salt, error e);
 
     void login_result(error e);
 
@@ -93,7 +138,7 @@ Node* SyncApp::nodebypath(const char* ptr, string* user = NULL, string* namepart
     int l = 0;
     const char* bptr = ptr;
     int remote = 0;
-    Node* n;
+    Node* n = nullptr;
     Node* nn;
 
     // split path by / or :
@@ -319,6 +364,28 @@ void SyncApp::log(const char *time, int loglevel, const char *source, const char
     cout << "[" << time << "][" << SimpleLogger::toStr((LogLevel)loglevel) << "] " << message << endl;
 }
 
+void SyncApp::prelogin_result(int version, std::string* email, std::string *salt, error e)
+{
+    if (e)
+    {
+        cout << "Login error: " << e << endl;
+        return;
+    }
+
+    login.version = version;
+    login.salt = (version == 2 && salt ? *salt : string());
+
+    if (login.password.empty())
+    {
+        cerr << "invalid empty password" << endl;
+    }
+    else
+    {
+        login.login(client);
+    }
+}
+
+
 // this callback function is called when we have login result (success or
 // error)
 // TODO: check for errors
@@ -352,10 +419,6 @@ void SyncApp::fetchnodes_result(error e)
         Node* n = nodebypath(remote_folder.c_str());
         if (client->checkaccess(n, FULL))
         {
-            string localname;
-
-            client->fsaccess->path2local(&local_folder, &localname);
-
             if (!n)
             {
                 LOG_err << remote_folder << ": Not found.";
@@ -368,8 +431,9 @@ void SyncApp::fetchnodes_result(error e)
             }
             else
             {
-                error e = client->addsync(&localname, DEBRISFOLDER, NULL, n, 0);
-                if (e)
+                SyncConfig syncConfig{local_folder, n->nodehandle, 0};
+                error err = client->addsync(std::move(syncConfig), DEBRISFOLDER, NULL);
+                if (err)
                 {
                     LOG_err << "Sync could not be added! ";
                     exit(1);
@@ -518,7 +582,6 @@ int main(int argc, char *argv[])
     return 1;
 #endif
 
-    static byte pwkey[SymmCipher::KEYLENGTH];
     SyncApp *app;
 
     // use logInfo level
@@ -570,8 +633,9 @@ int main(int argc, char *argv[])
     //client->followsymlinks = true;
 
     // get values from env
-    client->pw_key(getenv("MEGA_PWD"), pwkey);
-    client->login(getenv("MEGA_EMAIL"), pwkey);
+    login.password = getenv("MEGA_PWD");
+    login.email = getenv("MEGA_EMAIL");
+    client->prelogin(login.email.c_str());
 
     while (true)
     {

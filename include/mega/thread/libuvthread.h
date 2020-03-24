@@ -23,7 +23,6 @@
 
 #ifndef THREAD_CLASS
 #define THREAD_CLASS LibUVThread
-#define MUTEX_CLASS LibUVMutex
 #define SEMAPHORE_CLASS LibUVSemaphore
 
 #include "mega/thread.h"
@@ -46,21 +45,6 @@ public:
 protected:
     uv_thread_t *thread;
     static void run(void *arg);
-};
-
-class LibUVMutex : public Mutex
-{
-public:
-    LibUVMutex();
-    LibUVMutex(bool recursive);
-    virtual void init(bool recursive);
-    virtual void lock();
-    virtual void unlock();
-    virtual ~LibUVMutex();
-
-protected:
-    uv_mutex_t *mutex;
-    uv_key_t *count;
 };
 
 class LibUVSemaphore : public Semaphore

@@ -96,7 +96,7 @@ bool PendingContactRequest::serialize(string *d)
     return true;
 }
 
-PendingContactRequest* PendingContactRequest::unserialize(class MegaClient *client, string *d)
+PendingContactRequest* PendingContactRequest::unserialize(string *d)
 {
     handle id;
     string oemail;
@@ -164,9 +164,7 @@ PendingContactRequest* PendingContactRequest::unserialize(class MegaClient *clie
 
     if (ptr == end)
     {
-        PendingContactRequest *pcr = new PendingContactRequest(id, oemail.c_str(), temail.c_str(), ts, uts, msg.c_str(), isoutgoing);
-        client->mappcr(id, pcr);
-        return pcr;
+        return new PendingContactRequest(id, oemail.c_str(), temail.c_str(), ts, uts, msg.c_str(), isoutgoing);
     }
     else
     {

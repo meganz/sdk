@@ -48,8 +48,12 @@ typedef NS_ENUM(NSInteger, MEGAUserChangeType) {
     MEGAUserChangeTypeContactLinkVerification = 0x10000,
     MEGAUserChangeTypeRichPreviews            = 0x20000,
     MEGAUserChangeTypeRubbishTime             = 0x40000,
-    MEGAUserChangeTypeStorageState            = 0x80000
-    
+    MEGAUserChangeTypeStorageState            = 0x80000,
+    MEGAUserChangeTypeGeolocation             = 0x100000,
+    MEGAUserChangeTypeCameraUploadsFolder     = 0x200000,
+    MEGAUserChangeTypeMyChatFilesFolder       = 0x400000,
+    MEGAUserChangeTypePushSettings            = 0x800000,
+    MEGAUserChangeTypeUserAlias               = 0x1000000
 };
 
 /**
@@ -174,6 +178,9 @@ typedef NS_ENUM(NSInteger, MEGAUserChangeType) {
  * - MEGAUserChangeTypeStorageState = 0x80000
  * Check if the state of the storage has changed
  *
+ * - MEGAUserChangeTypeGeolocation = 0x100000
+ * Check if option for geolocation messages has changed
+ *
  */
 @property (readonly, nonatomic) MEGAUserChangeType changes;
 
@@ -263,6 +270,9 @@ typedef NS_ENUM(NSInteger, MEGAUserChangeType) {
  *
  * - MEGAUserChangeTypeStorageState = 0x80000
  * Check if the state of the storage has changed
+ *
+ * - MEGAUserChangeTypeGeolocation = 0x100000
+ * Check if option for geolocation messages has changed
  *
  * @return YES if this user has an specific change
  */

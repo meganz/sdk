@@ -22,6 +22,8 @@
 #import "MEGATransfer.h"
 #import "MEGAError.h"
 
+NS_ASSUME_NONNULL_BEGIN
+
 @class MEGASdk;
 
 /**
@@ -100,3 +102,5 @@
 - (BOOL)onTransferData:(MEGASdk *)api transfer:(MEGATransfer *)transfer buffer:(NSData *)buffer;
 
 @end
+
+NS_ASSUME_NONNULL_END

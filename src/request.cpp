@@ -25,17 +25,18 @@
 #include "mega/megaclient.h"
 
 namespace mega {
+
 void Request::add(Command* c)
 {
     cmds.push_back(c);
 }
 
-int Request::cmdspending() const
+size_t Request::size() const
 {
     return cmds.size();
 }
 
-void Request::get(string* req) const
+void Request::get(string* req, bool& suppressSID) const
 {
     // concatenate all command objects, resulting in an API request
     *req = "[";
@@ -45,27 +46,31 @@ void Request::get(string* req) const
         req->append(i ? ",{" : "{");
         req->append(cmds[i]->getstring());
         req->append("}");
+        suppressSID = suppressSID && cmds[i]->suppressSID;
     }
 
     req->append("]");
 }
 
-void Request::procresult(MegaClient* client)
+void Request::process(MegaClient* client)
 {
-    if (!client->json.enterarray())
-    {
-        LOG_err << "Invalid response from server";
-    }
+    DBTableTransactionCommitter committer(client->tctable);
+    client->mTctableRequestCommitter = &committer;
 
-    for (int i = 0; i < (int)cmds.size(); i++)
+    client->json = json;
+    for (; processindex < cmds.size() && !stopProcessing; processindex++)
     {
-        client->restag = cmds[i]->tag;
+        Command* cmd = cmds[processindex];
 
-        cmds[i]->client = client;
+        // in future we may exit this loop early here, when processing actionpackets associated with the command
+
+        client->restag = cmd->tag;
+
+        cmd->client = client;
 
         if (client->json.enterobject())
         {
-            cmds[i]->procresult();
+            cmd->procresult();
 
             if (!client->json.leaveobject())
             {
@@ -74,7 +79,7 @@ void Request::procresult(MegaClient* client)
         }
         else if (client->json.enterarray())
         {
-            cmds[i]->procresult();
+            cmd->procresult();
 
             if (!client->json.leavearray())
             {
@@ -83,16 +88,39 @@ void Request::procresult(MegaClient* client)
         }
         else
         {
-            cmds[i]->procresult();
-        }
-
-        if(!cmds.size())
-        {
-            return;
+            cmd->procresult();
         }
     }
+    json = client->json;
+    if (processindex == cmds.size() || stopProcessing)
+    {
+        clear();
+    }
+    client->mTctableRequestCommitter = nullptr;
+}
 
-    clear();
+void Request::serverresponse(std::string&& movestring, MegaClient* client)
+{
+    assert(processindex == 0);
+    jsonresponse = std::move(movestring);
+    json.begin(jsonresponse.c_str());
+
+    if (!json.enterarray())
+    {
+        LOG_err << "Invalid response from server";
+    }
+}
+
+void Request::servererror(error e, MegaClient* client)
+{
+    ostringstream s;
+    s << "[";
+    for (size_t i = cmds.size(); i--; )
+    {
+        s << e << (i ? "," : "");
+    }
+    s << "]";
+    serverresponse(s.str(), client);
 }
 
 void Request::clear()
@@ -105,73 +133,156 @@ void Request::clear()
         }
     }
     cmds.clear();
+    jsonresponse.clear();
+    json.pos = NULL;
+    processindex = 0;
+    stopProcessing = false;
+}
+
+bool Request::empty() const
+{
+    return cmds.empty();
+}
+
+void Request::swap(Request& r)
+{
+    // we use swap to move between queues, but process only after it gets into the completedreqs
+    cmds.swap(r.cmds);
+    assert(jsonresponse.empty() && r.jsonresponse.empty());
+    assert(json.pos == NULL && r.json.pos == NULL);
+    assert(processindex == 0 && r.processindex == 0);
 }
 
 RequestDispatcher::RequestDispatcher()
 {
-    r = 0;
+    nextreqs.push_back(Request());
 }
 
-void RequestDispatcher::nextRequest()
+#ifdef MEGA_MEASURE_CODE
+void RequestDispatcher::sendDeferred()
 {
-    r ^= 1;
-
-    if (!reqs[r].cmdspending())
+    if (!nextreqs.back().empty())
     {
-        while(!reqbuf.empty() && reqs[r].cmdspending() < MAX_COMMANDS)
-        {
-            Command *c = reqbuf.front();
-            reqbuf.pop();
-            reqs[r].add(c);
-            LOG_debug << "Command extracted from secondary buffer: " << reqbuf.size();
-        }
+        nextreqs.push_back(Request());
     }
+    nextreqs.back().swap(deferredRequests);
 }
+#endif
 
 void RequestDispatcher::add(Command *c)
 {
-    if(reqs[r].cmdspending() < MAX_COMMANDS)
+#ifdef MEGA_MEASURE_CODE
+    if (deferRequests && deferRequests(c))
     {
-        reqs[r].add(c);
+        deferredRequests.add(c);
+        return;
     }
-    else
+#endif
+
+    if (nextreqs.back().size() >= MAX_COMMANDS)
     {
-        reqbuf.push(c);
-        LOG_debug << "Command added to secondary buffer: " << reqbuf.size();
+        LOG_debug << "Starting an additional Request due to MAX_COMMANDS";
+        nextreqs.push_back(Request());
+    }
+    if (c->batchSeparately && !nextreqs.back().empty())
+    {
+        LOG_debug << "Starting an additional Request for a batch-separately command";
+        nextreqs.push_back(Request());
+    }
+    nextreqs.back().add(c);
+    if (c->batchSeparately)
+    {
+        nextreqs.push_back(Request());
     }
 }
 
-int RequestDispatcher::cmdspending() const
+bool RequestDispatcher::cmdspending() const
 {
-    return reqs[r].cmdspending();
+    return !nextreqs.front().empty();
 }
 
-void RequestDispatcher::get(string *out) const
+void RequestDispatcher::serverrequest(string *out, bool& suppressSID)
 {
-    reqs[r].get(out);
+    assert(inflightreq.empty());
+    inflightreq.swap(nextreqs.front());
+    nextreqs.pop_front();
+    if (nextreqs.empty())
+    {
+        nextreqs.push_back(Request());
+    }
+    inflightreq.get(out, suppressSID);
+#ifdef MEGA_MEASURE_CODE
+    csRequestsSent += inflightreq.size();
+    csBatchesSent += 1;
+#endif
 }
 
-void RequestDispatcher::procresult(MegaClient *client)
+void RequestDispatcher::requeuerequest()
 {
-    reqs[r ^ 1].procresult(client);
+#ifdef MEGA_MEASURE_CODE
+    csBatchesReceived += 1;
+#endif
+    assert(!inflightreq.empty());
+    if (!nextreqs.front().empty())
+    {
+        nextreqs.push_front(Request());
+    }
+    nextreqs.front().swap(inflightreq);
+}
+
+void RequestDispatcher::serverresponse(std::string&& movestring, MegaClient *client)
+{
+    CodeCounter::ScopeTimer ccst(client->performanceStats.csResponseProcessingTime);
+
+#ifdef MEGA_MEASURE_CODE
+    csBatchesReceived += 1;
+    csRequestsCompleted += inflightreq.size();
+#endif
+    processing = true;
+    inflightreq.serverresponse(std::move(movestring), client);
+    inflightreq.process(client);
+    assert(inflightreq.empty());
+    processing = false;
+    if (clearWhenSafe)
+    {
+        clear();
+    }
+}
+
+void RequestDispatcher::servererror(error e, MegaClient *client)
+{
+    // notify all the commands in the batch of the failure
+    // so that they can deallocate memory, take corrective action etc.
+    processing = true;
+    inflightreq.servererror(e, client);
+    inflightreq.process(client);
+    assert(inflightreq.empty());
+    processing = false;
+    if (clearWhenSafe)
+    {
+        clear();
+    }
 }
 
 void RequestDispatcher::clear()
 {
-    for (int i = sizeof(reqs)/sizeof(*reqs); i--; )
+    if (processing)
     {
-        reqs[i].clear();
+        // we are being called from a command that is in progress (eg. logout) - delay wiping the data structure until that call ends.
+        clearWhenSafe = true;
+        inflightreq.stopProcessing = true;
     }
-
-    while (!reqbuf.empty())
+    else
     {
-        Command *c = reqbuf.front();
-        reqbuf.pop();
-
-        if (!c->persistent)
+        inflightreq.clear();
+        for (auto& r : nextreqs)
         {
-            delete c;
+            r.clear();
         }
+        nextreqs.clear();
+        nextreqs.push_back(Request());
+        processing = false;
+        clearWhenSafe = false;
     }
 }
 

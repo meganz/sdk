@@ -152,6 +152,10 @@ public interface MegaGlobalListenerInterface {
      *      - MegaEvent::getNumber: code representing the reason for being blocked.
      *          200: suspension message for any type of suspension, but copyright suspension.
      *          300: suspension only for multiple copyright violations.
+     *          400: the subuser account has been disabled.
+     *          401: the subuser account has been removed.
+     *          500: The account needs to be verified by an SMS code.
+     *          700: the account is supended for Weak Account Protection.
      *
      * - MegaEvent::EVENT_STORAGE: when the status of the storage changes.
      *
@@ -167,7 +171,43 @@ public interface MegaGlobalListenerInterface {
      *     - MegaApi::STORAGE_STATE_RED = 2
      *     The account is full. Uploads have been stopped
      *
+     *     - MegaApi::STORAGE_STATE_CHANGE = 3
+     *     There is a possible significant change in the storage state.
+     *     It's needed to call MegaApi::getAccountDetails to check the storage status.
+     *     After calling it, this callback will be called again with the corresponding
+     *     state if there is really a change.
+     *
      * - MegaEvent::EVENT_NODES_CURRENT: when all external changes have been received
+     *
+     * - MegaEvent::EVENT_MEDIA_INFO_READY: when codec-mappings have been received
+     *
+     * - MegaEvent::EVENT_STORAGE_SUM_CHANGED: when the storage sum has changed.
+     *
+     * For this event type, MegaEvent::getNumber provides the new storage sum.
+     *
+     * - MegaEvent::EVENT_BUSINESS_STATUS: when the status of a business account has changed.
+     *
+     * For this event type, MegaEvent::getNumber provides the new business status.
+     *
+     * The posible values are:
+     *  - BUSINESS_STATUS_EXPIRED = -1
+     *  - BUSINESS_STATUS_INACTIVE = 0
+     *  - BUSINESS_STATUS_ACTIVE = 1
+     *  - BUSINESS_STATUS_GRACE_PERIOD = 2
+     *
+     * - MegaEvent::EVENT_KEY_MODIFIED: when the key of a user has changed.
+     *
+     * For this event type, MegaEvent::getHandle provides the handle of the user whose key has been modified.
+     * For this event type, MegaEvent::getNumber provides type of key that has been modified.
+     *
+     * The possible values are:
+     *  - Public chat key (Cu25519)     = 0
+     *  - Public signing key (Ed25519)  = 1
+     *  - Public RSA key                = 2
+     *  - Signature of chat key         = 3
+     *  - Signature of RSA key          = 4
+     *
+     * - MegaEvent::EVENT_GLOBAL_FLAGS_READY: when the global flags are available/updated.
      *
      * @param api MegaApi object connected to the account
      * @param event Details about the event

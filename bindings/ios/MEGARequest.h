@@ -25,6 +25,8 @@
 #import "MEGAAchievementsDetails.h"
 #import "MEGAFolderInfo.h"
 #import "MEGATimeZoneDetails.h"
+#import "MEGAStringList.h"
+#import "MEGAPushNotificationSettings.h"
 
 typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeLogin,
@@ -130,8 +132,25 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeRemoveBackup,
     MEGARequestTypeTimer,
     MEGARequestTypeAbortCurrentBackup,
-    MEGARequestTypeFetchTimeZone,
     MEGARequestTypeGetPSA,
+    MEGARequestTypeFetchTimeZone,
+    MEGARequestTypeUseralertAcknowledge,
+    MEGARequestTypeChatLinkHandle,
+    MEGARequestTypeChatLinkUrl,
+    MEGARequestTypeSetPrivateMode,
+    MEGARequestTypeAutojoinPublicChat,
+    MEGARequestTypeCatchup,
+    MEGARequestTypePublicLinkInformation,
+    MEGARequestTypeGetBackgroundUploadURL,
+    MEGARequestTypeCompleteBackgroundUpload,
+    MEGARequestTypeCloudStorageUsed,
+    MEGARequestTypeSendSMSVerificationCode,
+    MEGARequestTypeCheckSMSVerificationCode,
+    MEGARequestTypeGetRegisteredContacts,
+    MEGARequestTypeGetCountryCallingCodes,
+    MEGARequestTypeVerifyCredentials,
+    MEGARequestTypeGetMiscFlags,
+    MEGARequestTypeResendVerificationEmail,
     TotalOfRequestTypes
 };
 
@@ -462,6 +481,15 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
 @property (readonly, nonatomic) MEGAFolderInfo *megaFolderInfo;
 
 /**
+ * @brief Returns settings for push notifications
+ *
+ * This value is valid for these requests in onRequestFinish when the
+ * error code is MEGAErrorTypeApiOk:
+ * - [MEGASdk getPushNotificationSettingsWithDelegate] - Returns settings for push notifications
+*/
+@property (readonly, nonatomic) MEGAPushNotificationSettings *megaPushNotificationSettings;
+
+/**
  * @brief Tag of a transfer related to the request.
  *
  * This value is valid for these requests:
@@ -474,6 +502,30 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * @brief Number of details related to this request.
  */
 @property (readonly, nonatomic) NSInteger numDetails;
+
+/**
+ * @brief Returns a dictionary of mega string list.
+ */
+@property (readonly, nonatomic) NSDictionary<NSString *, MEGAStringList*> *megaStringListDictionary;
+
+/**
+ * @brief Returns the attribute values as dictionary with key and value as string.
+ *
+ * This value is valid for these requests:
+ * - [MEGASdk getUserAttributeType:] - Returns the attribute value of the current account.
+ *
+ * @return Dictionary containing the key-value pairs of the attribute as string.
+ */
+@property (readonly, nonatomic) NSDictionary<NSString *, NSString*> *megaStringDictionary;
+
+/**
+ * @brief Gets the string table response from a request mapped into a collection of NSArray of NSStrings.
+ *
+ * This value is valid for these requests:
+ * - [MEGASdk getRegisteredContacts:] - Obtains the user contacts registered in MEGA and verificated through SMS.
+ *
+ */
+@property (readonly, nonatomic) NSArray<NSArray<NSString *> *> *stringTableArray;
 
 /**
  * @brief Creates a copy of this MEGARequest object

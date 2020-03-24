@@ -64,6 +64,7 @@
     <ClInclude Include="..\..\..\include\mega\share.h" />
     <ClInclude Include="..\..\..\include\mega\sharenodekeys.h" />
     <ClInclude Include="..\..\..\include\mega\sync.h" />
+    <ClInclude Include="..\..\..\include\mega\testhooks.h" />
     <ClInclude Include="..\..\..\include\mega\thread.h" />
     <ClInclude Include="..\..\..\include\mega\thread\cppthread.h" />
     <ClInclude Include="..\..\..\include\mega\transfer.h" />
@@ -160,7 +161,9 @@
     <ClCompile Include="..\..\..\src\serialize64.cpp" />
     <ClCompile Include="..\..\..\src\share.cpp" />
     <ClCompile Include="..\..\..\src\sharenodekeys.cpp" />
+    <ClCompile Include="..\..\..\src\raid.cpp" />
     <ClCompile Include="..\..\..\src\sync.cpp" />
+    <ClCompile Include="..\..\..\src\testhooks.cpp" />
     <ClCompile Include="..\..\..\src\thread\cppthread.cpp" />
     <ClCompile Include="..\..\..\src\transfer.cpp" />
     <ClCompile Include="..\..\..\src\transferslot.cpp" />

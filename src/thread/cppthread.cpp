@@ -64,55 +64,6 @@ CppThread::~CppThread()
     delete thread;
 }
 
-//mutex
-CppMutex::CppMutex()
-{
-    mutex = NULL;
-    rmutex = NULL;
-}
-
-CppMutex::CppMutex(bool recursive)
-{
-    mutex = NULL;
-    rmutex = NULL;
-
-    init(recursive);
-}
-
-void CppMutex::init(bool recursive = true)
-{
-    if (mutex || rmutex)
-    {
-        return;
-    }
-
-    if (recursive)
-    {
-        rmutex = new std::recursive_mutex();
-    }
-    else
-    {
-        mutex = new std::mutex();
-    }
-}
-
-void CppMutex::lock()
-{
-    mutex ? mutex->lock() : rmutex->lock();
-}
-
-void CppMutex::unlock()
-{
-    mutex ? mutex->unlock() : rmutex->unlock();
-}
-
-CppMutex::~CppMutex()
-{
-    delete mutex;
-    delete rmutex;
-}
-
-
 //semaphore
 CppSemaphore::CppSemaphore()
 {

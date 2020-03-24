@@ -131,4 +131,39 @@ using namespace mega;
     return self.accountDetails ? self.accountDetails->getNumVersionFiles(handle) : 0;
 }
 
++ (NSString *)stringForAccountType:(MEGAAccountType)accountType {
+    NSString *result;
+    switch (accountType) {
+        case MEGAAccountTypeFree:
+            result = @"Free";
+            break;
+            
+        case MEGAAccountTypeProI:
+            result = @"PRO I";
+            break;
+            
+        case MEGAAccountTypeProII:
+            result = @"PRO II";
+            break;
+            
+        case MEGAAccountTypeProIII:
+            result = @"PRO III";
+            break;
+            
+        case MEGAAccountTypeLite:
+            result = @"LITE";
+            break;
+            
+        case MEGAAccountTypeBusiness:
+            result = @"Business";
+            break;
+            
+        default:
+            result = @"Unknown";
+            break;
+    }
+    
+    return result;
+}
+
 @end

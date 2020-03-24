@@ -26,9 +26,20 @@
 
 namespace mega {
 // generic host transactional database access interface
+class DBTableTransactionCommitter;
+
 class MEGA_API DbTable
 {
     static const int IDSPACING = 16;
+    PrnGen &rng;
+
+protected:
+    bool mCheckAlwaysTransacted = false;
+    DBTableTransactionCommitter* mTransactionCommitter = nullptr;
+    friend class DBTableTransactionCommitter;
+    void checkTransaction();
+    // should be called by the subclass' destructor
+    void resetCommitter();
 
 public:
     // for a full sequential get: rewind to first record
@@ -44,7 +55,7 @@ public:
     // update or add specific record
     virtual bool put(uint32_t, char*, unsigned) = 0;
     bool put(uint32_t, string*);
-    bool put(uint32_t, Cachable *, SymmCipher*);
+    bool put(uint32_t, Cacheable *, SymmCipher*);
 
     // delete specific record
     virtual bool del(uint32_t) = 0;
@@ -64,11 +75,73 @@ public:
     // permanantly remove all database info
     virtual void remove() = 0;
 
+    void checkCommitter(DBTableTransactionCommitter*);
+
     // autoincrement
     uint32_t nextid;
 
-    DbTable();
+    DbTable(PrnGen &rng, bool alwaysTransacted);
     virtual ~DbTable() { }
+};
+
+class MEGA_API DBTableTransactionCommitter
+{
+    DbTable* mTable;
+    bool mStarted = false;
+
+public:
+    void beginOnce()
+    {
+        if (mTable && !mStarted)
+        {
+            mTable->begin();
+            mStarted = true;
+        }
+    }
+
+    void commitNow()
+    {
+        if (mTable)
+        {
+            if (mStarted)
+            {
+                mTable->commit();
+                mStarted = false;
+            }
+        }
+    }
+
+    void reset()
+    {
+        mTable = nullptr;
+    }
+
+    ~DBTableTransactionCommitter()
+    {
+        if (mTable)
+        {
+            commitNow();
+            mTable->mTransactionCommitter = nullptr;
+        }
+    }
+
+    explicit DBTableTransactionCommitter(DbTable* t)
+        : mTable(t)
+    {
+        if (mTable)
+        {
+            if (mTable->mTransactionCommitter)
+            {
+                mTable = nullptr;  // we are nested; this one does nothing.  This can occur during eg. putnodes response when the core sdk and the intermediate layer both do db work.
+            }
+            else
+            {
+                mTable->mTransactionCommitter = this;
+            }
+        }
+    }
+
+    MEGA_DISABLE_COPY_MOVE(DBTableTransactionCommitter)
 };
 
 struct MEGA_API DbAccess
@@ -77,7 +150,7 @@ struct MEGA_API DbAccess
     static const int DB_VERSION = LEGACY_DB_VERSION + 1;
 
     DbAccess();
-    virtual DbTable* open(FileSystemAccess*, string*, bool = false) = 0;
+    virtual DbTable* open(PrnGen &rng, FileSystemAccess*, string*, bool recycleLegacyDB, bool checkAlwaysTransacted) = 0;
 
     virtual ~DbAccess() { }
 

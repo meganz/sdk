@@ -22,6 +22,8 @@
 #import <Foundation/Foundation.h>
 #import "MEGANode.h"
 
+NS_ASSUME_NONNULL_BEGIN
+
 /**
  * @brief Protocol to process node trees
  *
@@ -41,3 +43,5 @@
 - (BOOL)processMEGANode:(MEGANode *)node;
 
 @end
+
+NS_ASSUME_NONNULL_END

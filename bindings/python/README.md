@@ -31,14 +31,14 @@ Build Python Bindings
 ---------------------
 
 * Configure the project for Python:
-
+```
     ./autogen.sh
     ./configure --disable-silent-rules --enable-python --disable-examples
-
+```
 * Build the shared libraries and packages:
-
+```
     make
-
+```
 
 Build Python Distribution Package
 ---------------------------------

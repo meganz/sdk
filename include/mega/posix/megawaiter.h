@@ -23,6 +23,7 @@
 #define WAIT_CLASS PosixWaiter
 
 #include "mega/waiter.h"
+#include <mutex>
 
 namespace mega {
 struct PosixWaiter : public Waiter
@@ -44,6 +45,8 @@ struct PosixWaiter : public Waiter
 
 protected:
     int m_pipe[2];
+    std::mutex mMutex;
+    bool alreadyNotified = false;
 };
 } // namespace
 

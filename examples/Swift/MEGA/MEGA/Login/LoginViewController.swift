@@ -55,16 +55,16 @@ class LoginViewController: UIViewController, MEGARequestDelegate {
     
     func validateForm() -> Bool {
         if !validateEmail(emailTextField.text!) {
-            let alertController = UIAlertController(title: "Invalid email", message: "Enter a valid email", preferredStyle: UIAlertControllerStyle.alert)
-            alertController.addAction(UIAlertAction(title: "Dismiss", style: UIAlertActionStyle.default,handler: nil))
+            let alertController = UIAlertController(title: "Invalid email", message: "Enter a valid email", preferredStyle: UIAlertController.Style.alert)
+            alertController.addAction(UIAlertAction(title: "Dismiss", style: UIAlertAction.Style.default,handler: nil))
             self.present(alertController, animated: true, completion: nil)
             
             emailTextField.becomeFirstResponder()
             
             return false
         } else if !validatePassword(passwordTextField.text!) {
-            let alertController = UIAlertController(title: "Invalid password", message: "Enter a valid password", preferredStyle: UIAlertControllerStyle.alert)
-            alertController.addAction(UIAlertAction(title: "Dismiss", style: UIAlertActionStyle.default,handler: nil))
+            let alertController = UIAlertController(title: "Invalid password", message: "Enter a valid password", preferredStyle: UIAlertController.Style.alert)
+            alertController.addAction(UIAlertAction(title: "Dismiss", style: UIAlertAction.Style.default,handler: nil))
             self.present(alertController, animated: true, completion: nil)
             
             passwordTextField.becomeFirstResponder()
@@ -89,7 +89,7 @@ class LoginViewController: UIViewController, MEGARequestDelegate {
     // MARK: - MEGA Request delegate
     
     func onRequestStart(_ api: MEGASdk!, request: MEGARequest!) {
-        if request.type == MEGARequestType.login {
+        if request.type == MEGARequestType.MEGARequestTypeLogin {
             loginButton.isEnabled = false
             loginProgressView.isHidden = false
         }
@@ -104,13 +104,13 @@ class LoginViewController: UIViewController, MEGARequestDelegate {
             
             switch error.type {
             case MEGAErrorType.apiEArgs:
-                let alertController = UIAlertController(title: "Error", message: "Email or password invalid", preferredStyle: UIAlertControllerStyle.alert)
-                alertController.addAction(UIAlertAction(title: "Dismiss", style: UIAlertActionStyle.default,handler: nil))
+                let alertController = UIAlertController(title: "Error", message: "Email or password invalid", preferredStyle: UIAlertController.Style.alert)
+                alertController.addAction(UIAlertAction(title: "Dismiss", style: UIAlertAction.Style.default,handler: nil))
                 self.present(alertController, animated: true, completion: nil)
                 
             case MEGAErrorType.apiENoent:
-                let alertController = UIAlertController(title: "Error", message: "User does not exist", preferredStyle: UIAlertControllerStyle.alert)
-                alertController.addAction(UIAlertAction(title: "Dismiss", style: UIAlertActionStyle.default,handler: nil))
+                let alertController = UIAlertController(title: "Error", message: "User does not exist", preferredStyle: UIAlertController.Style.alert)
+                alertController.addAction(UIAlertAction(title: "Dismiss", style: UIAlertAction.Style.default,handler: nil))
                 self.present(alertController, animated: true, completion: nil)
                 
             default:
@@ -121,12 +121,12 @@ class LoginViewController: UIViewController, MEGARequestDelegate {
         }
         
         switch request.type {
-        case MEGARequestType.login:
+        case MEGARequestType.MEGARequestTypeLogin:
             let session = megaapi.dumpSession()
             SSKeychain.setPassword(session, forService: "MEGA", account: "session")
             api.fetchNodes(with: self)
             
-        case MEGARequestType.fetchNodes:
+        case MEGARequestType.MEGARequestTypeFetchNodes:
             self.performSegue(withIdentifier: "showCloudDrive", sender: self)
             
         default:
@@ -135,7 +135,7 @@ class LoginViewController: UIViewController, MEGARequestDelegate {
     }
     
     func onRequestUpdate(_ api: MEGASdk!, request: MEGARequest!) {
-        if request.type == MEGARequestType.fetchNodes {
+        if request.type == MEGARequestType.MEGARequestTypeFetchNodes {
             let progress = request.transferredBytes.floatValue / request.totalBytes.floatValue
             if progress > 0 && progress < 0.99 {
                 informationLabel.text = "Fectching nodes"

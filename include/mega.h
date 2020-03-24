@@ -95,6 +95,9 @@
 #if defined(REQUIRE_HAVE_LIBRAW) && !defined(HAVE_LIBRAW)
 #error compilation with HAVE_LIBRAW is required
 #endif
+#if defined(REQUIRE_HAVE_PDFIUM) && !defined(HAVE_PDFIUM)
+#error compilation with HAVE_PDFIUM is required
+#endif
 #if defined(REQUIRE_ENABLE_CHAT) && !defined(ENABLE_CHAT)
 #error compilation with ENABLE_CHAT is required
 #endif

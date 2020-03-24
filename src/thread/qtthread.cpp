@@ -59,44 +59,6 @@ unsigned long long QtThread::currentThreadId()
     return (unsigned long long) QThread::currentThreadId();
 }
 
-//mutex
-QtMutex::QtMutex()
-{
-    mutex = NULL;
-}
-
-QtMutex::QtMutex(bool recursive)
-{
-    mutex = NULL;
-
-    init(recursive);
-}
-
-
-void QtMutex::init(bool recursive)
-{
-    if(recursive)
-        mutex = new QMutex(QMutex::Recursive);
-    else
-        mutex = new QMutex();
-}
-
-void QtMutex::lock()
-{
-    mutex->lock();
-}
-
-void QtMutex::unlock()
-{
-    mutex->unlock();
-}
-
-QtMutex::~QtMutex()
-{
-    delete mutex;
-}
-
-
 //semaphore
 QtSemaphore::QtSemaphore()
 {

@@ -1,65 +1,106 @@
-REM best to use this script outside of the MEGA repo.  Once the libraries are built, the CMakeLists.txt can be adjusted to refer to them.
-mkdir 3rdParty
-cd 3rdParty
+echo off
 
-git clone https://github.com/Microsoft/vcpkg.git
-cd vcpkg
-CALL .\bootstrap-vcpkg.bat
+set DIR=%~dp0
 
-REM Set up build triplets: x86-windows-static-uncheckediterators, x64-windows-static-uncheckediterators
-REM Since we use a lot of map iterators, and the checking is linear, causing big delays in node deletion for example
-copy .\triplets\x86-windows-static.cmake .\triplets\x86-windows-static-uncheckediterators.cmake
-copy .\triplets\x64-windows-static.cmake .\triplets\x64-windows-static-uncheckediterators.cmake
-echo #comment >> .\triplets\x86-windows-static-uncheckediterators.cmake
-echo #comment >> .\triplets\x64-windows-static-uncheckediterators.cmake
-echo set(VCPKG_CXX_FLAGS "${VCPKG_CXX_FLAGS} -D_ITERATOR_DEBUG_LEVEL=0") >> .\triplets\x86-windows-static-uncheckediterators.cmake
-echo set(VCPKG_CXX_FLAGS "${VCPKG_CXX_FLAGS} -D_ITERATOR_DEBUG_LEVEL=0") >> .\triplets\x64-windows-static-uncheckediterators.cmake
-echo set(VCPKG_C_FLAGS "${VCPKG_C_FLAGS} -D_ITERATOR_DEBUG_LEVEL=0") >> .\triplets\x86-windows-static-uncheckediterators.cmake
-echo set(VCPKG_C_FLAGS "${VCPKG_C_FLAGS} -D_ITERATOR_DEBUG_LEVEL=0") >> .\triplets\x64-windows-static-uncheckediterators.cmake
+set PORTS_FILE="%DIR%preferred-ports.txt"
+set DEPS_FILE="%DIR%3rdparty_deps.txt"
+set OVERLAYTRIPLETS=--overlay-triplets=%DIR%vcpkg_extra_triplets
 
-REM for libsodium for x86, currently some adjustments are needed:
-REM add this to its portfile.cmake's vcpkg_build_msbuild call (having moved that definition before it):  PLATFORM ${BUILD_ARCH}
-REM also edit its vcproj file to set Configuration->AllOptions->TargetMachine to x86 for the Win32 configurations.
-REM you can build everything first then make those adjustments and manually call vcpkg for libsodium x86.
-REM OR avoid using it by turning off ENABLE_CHAT and USE_SODIUM
+:GETOPTS
+ if /I "%1" == "-h" ( goto Help ) ^
+ else (if /I "%1" == "-r" (set REMOVEBEFORE=true )^
+ else (if /I "%1" == "-d" (set DEPS_FILE=%2 & shift )^
+ else (if /I "%1" == "-p" (set PORTS_FILE=%2 & shift )^
+ else (if /I "%1" == "-t" (set OVERLAYTRIPLETS=--overlay-triplets=%2 & shift )^
+ else (^
+ echo "%1"|>nul findstr /rx \"-.*\" && goto Help REM if parameter starts width - and has not been recognized, go to Help
+ if "%1" neq "" (if "%TRIPLET%" == "" (set TRIPLET=%1% ))^
+ else (goto :START)))))
+ 
+ shift & goto GETOPTS
+ 
+:START
 
-CALL :build_one zlib
-CALL :build_one cryptopp
-CALL :build_one libsodium
-CALL :build_one openssl
-CALL :build_one curl
-CALL :build_one c-ares
-CALL :build_one sqlite3
-CALL :build_one gtest
-CALL :build_one freeimage
-CALL :build_one ffmpeg
-
-REM for megachat:
-REM CALL :build_one libuv
-REM CALL :build_one libwebsockets
-
-REM currently for libwebsockets a few changes are needed (mainly get 2.4.2, turn off ipv6, turn on libuv features)
-REM modify these attributes in its portfile: 
-REM     REF v2.4.2
-REM     SHA512 
-REM     7bee49f6763ff3ab7861fcda25af8d80f6757c56e197ea42be53e0b2480969eee73de3aee5198f5ff06fd1cb8ab2be4c6495243e83cd0acc235b0da83b2353d1
-REM     HEAD_REF v2.4-stable
-REM also find libwebsocket's CMakeLists.txt file and modify the libuv find_library, adding 'libuv' as that's what the libuv vcpkg produces:
-REM     find_library(LIBUV_LIBRARIES NAMES uv libuv)
-REM and add these lines in the vcpkg_configure_cmake in its portfile (LWS_IPV6 replaces an existing line):
-REM     -DLWS_IPV6=OFF
-REM     -DLWS_WITH_LIBUV=ON
-REM     -DLIBUV_LIBRARIES=${CURRENT_PACKAGES_DIR}/lib
-REM     -DLIBUV_INCLUDE_DIR=${CURRENT_PACKAGES_DIR}/include
-REM then use "vcpkg remove" and "vcpkg install" again, for libwebsockets.
+if "%TRIPLET%" == ""  goto Help
 
 
+
+
+
+Setlocal
+
+set "OVERLAYPORTS= "
+
+Setlocal EnableDelayedExpansion
+for /f "eol=# tokens=* delims=," %%l in ('type %PORTS_FILE%') do ^
+set "OVERLAYPORTS=--overlay-ports=%DIR%vcpkg_extra_ports/%%l !OVERLAYPORTS!"
+
+set VCPKG=vcpkg
+WHERE vcpkg >nul || set VCPKG=./vcpkg.exe & 2>nul ren %%~dpi.\ports ports_moved
+
+REM rename vcpkg's ports folder, to prevent using those ports
+for /f %%i IN ('WHERE vcpkg') DO (
+set vcpkgpath=%%~dpi
+2>nul ren %%~dpi.\ports ports_moved
+)
+
+for /f "eol=# tokens=* delims=," %%l in ('type %DEPS_FILE%') do ^
+call :build_one %%l
 
 exit /b 0
 
 :build_one 
-.\vcpkg.exe install --triplet x64-windows-static-uncheckediterators %1%
-echo %errorlevel% %1% x64-windows-static-uncheckediterators >> buildlog
-.\vcpkg.exe install --triplet x86-windows-static-uncheckediterators %1%
-echo %errorlevel% %1% x86-windows-static-uncheckediterators >> buildlog
+echo ports = %PORTS_FILE%
+echo deps = %DEPS_FILE%
+echo overtri = %OVERLAYTRIPLETS%
+
+set what=%1%
+
+if "%REMOVEBEFORE%"=="true" (
+%VCPKG% remove %what% --triplet %TRIPLET% %OVERLAYPORTS% %OVERLAYTRIPLETS%
+)
+
+%VCPKG% install --triplet %TRIPLET% %what% %OVERLAYPORTS% %OVERLAYTRIPLETS%
+echo %errorlevel% %1% % % %%TRIPLET%% >> buildlog
+if %errorlevel% neq 0 (
+    echo Failed: %VCPKG% install --triplet %TRIPLET% %what%  %OVERLAYPORTS% %OVERLAYTRIPLETS%
+    exit %errorlevel%
+)
 exit /b 0
+
+:help
+    echo.
+    echo Usage:
+    echo  $app [-d deps_file] [-p ports_file] [-t triplets_path] TRIPLET
+    echo.
+    echo This script is for getting and building the 3rd party libraries that the MEGA SDK uses (some are optional, and some are only needed only by MEGA apps too)
+    echo.
+    echo Your 3rdParty library builds should be outside the SDK repo.  We are moving to use vcpkg to build most of them. You can start it like this:
+    echo.
+    echo mkdir 3rdParty
+    echo cd 3rdParty
+    echo git clone https://github.com/Microsoft/vcpkg.git
+    echo cd vcpkg
+    echo .\bootstrap-vcpkg.bat -disableMetrics
+    echo.
+    
+    echo Note that our current toolset for XP compatibility (which we had but we are deprecating), is VS2015 with v140 or v140_xp.
+    echo  The triplet files ending -mega set v140, please adjust to your requirements.
+
+    echo.
+    echo If using pdfium, follow the instructions in 3rdparty_deps.txt to get the source code
+    echo.
+    echo From your 3rdParty/vcpkg folder (or with vcpkg in your environment PATH), run this script (in its proper location) with the desired TRIPLET as the parameter.  (usually x64-windows-mega or x86-windows-mega)
+    echo.
+    echo Once built, optionally capture just the headers and build products with:
+    echo  vcpkg  export --triplet <YOUR_TRIPLET> --zip zlib cryptopp libsodium sqlite3 openssl c-ares curl libevent libzen libmediainfo ffmpeg gtest libuv libraw icu lcms libjpeg-turbo openjpeg libwebsockets pdfium pdfium-freetype
+    echo.
+    echo Your packages will be installed in 3rdParty/vcpkg/installed
+    echo.
+    echo Options:
+    echo  -d : path to file listing dependencies. By default %DIR%3rdparty_deps.txt. Comment out any libraries that you won't use.
+    echo  -p : paths to ports file with dependencies/versions too look for. By default: %DIR%preferred-ports.txt
+    echo  -t : overlay triplets path. By default %DIR%vcpkg_extra_triplets
+    echo  -r : remove before install
+    echo.
+
