@@ -339,7 +339,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     bool target_exists;
 
     // append local operating system version information to string
-    virtual void osversion(string*) const { }
+    virtual void osversion(string*, bool includeArchitecture) const { }
 
     // append id for stats
     virtual void statsid(string*) const { }

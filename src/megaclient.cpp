@@ -1221,11 +1221,12 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     useragent = u;
 
     useragent.append(" (");
-    fsaccess->osversion(&useragent);
+    fsaccess->osversion(&useragent, true);
 
     useragent.append(") MegaClient/" TOSTRING(MEGA_MAJOR_VERSION)
                      "." TOSTRING(MEGA_MINOR_VERSION)
                      "." TOSTRING(MEGA_MICRO_VERSION));
+    useragent += sizeof(char*) == 8 ? "/64" : (sizeof(char*) == 4 ? "/32" : "");
 
     LOG_debug << "User-Agent: " << useragent;
     LOG_debug << "Cryptopp version: " << CRYPTOPP_VERSION;
