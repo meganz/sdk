@@ -1,4 +1,5 @@
 echo off
+SETLOCAL EnableExtensions
 
 set DIR=%~dp0
 
@@ -17,7 +18,8 @@ set OVERLAYTRIPLETS=--overlay-triplets=%DIR%vcpkg_extra_triplets
  if "%1" neq "" (if "%TRIPLET%" == "" (set TRIPLET=%1% ))^
  else (goto :START))))))
  
- shift & goto GETOPTS
+ shift
+ goto GETOPTS
  
 :START
 
