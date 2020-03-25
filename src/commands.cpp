@@ -4006,6 +4006,9 @@ void CommandGetUserData::procresult()
                     if (pushSetting.size())
                     {
                         u->setattr(ATTR_PUSH_SETTINGS, &pushSetting, nullptr);
+
+                        // initialize the settings for the intermediate layer by simulating there was a getua()
+                        client->app->getua_result((byte*) pushSetting.data(), (unsigned) pushSetting.size(), ATTR_PUSH_SETTINGS);
                     }
 
                     if (contactLinkVerification.size())
@@ -4016,6 +4019,8 @@ void CommandGetUserData::procresult()
                     if (disableVersions.size())
                     {
                         u->setattr(ATTR_DISABLE_VERSIONS, &disableVersions, nullptr);
+
+                        // initialize the status of file-versioning for the client
                         client->versions_disabled = (disableVersions == "1");
                         if (client->versions_disabled)
                         {

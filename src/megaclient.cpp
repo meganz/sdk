@@ -10968,12 +10968,6 @@ void MegaClient::fetchnodes(bool nocache)
 #endif
         app->fetchnodes_result(API_OK);
 
-
-        av = ownUser->getattr(ATTR_PUSH_SETTINGS);
-        if (av && !ownUser->isattrvalid(ATTR_PUSH_SETTINGS))
-        {
-            getua(ownUser, ATTR_PUSH_SETTINGS);
-        }
         loadAuthrings();
 
         WAIT_CLASS::bumpds();
@@ -11007,10 +11001,6 @@ void MegaClient::fetchnodes(bool nocache)
 
         if (!loggedinfolderlink())
         {
-            {
-                reqs.add(new CommandGetUA(this, uid.c_str(), ATTR_PUSH_SETTINGS, NULL, 0));
-
-            }
             getuserdata();
 
             if (loggedin() == FULLACCOUNT)
