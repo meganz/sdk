@@ -3710,12 +3710,12 @@ void CommandGetUserData::procresult()
     string lastname;
     string firstname;
     string language;
-    string prd;
+    string pwdReminderDialog;
     string pushSetting;
     string contactLinkVerification;
     handle me = UNDEF;
     string chatFolder;
-    string alias;
+    string aliases;
     string disableVersions;
     string country;
     string birthday;
@@ -3754,7 +3754,7 @@ void CommandGetUserData::procresult()
             client->json.storeobject(&name);
             break;
 
-        case 'k':
+        case 'k':   // master key
             k.resize(SymmCipher::KEYLENGTH);
             client->json.storebinary((byte *)k.data(), int(k.size()));
             break;
@@ -3763,12 +3763,12 @@ void CommandGetUserData::procresult()
             since = client->json.getint();
             break;
 
-        case MAKENAMEID4('p', 'u', 'b', 'k'):
+        case MAKENAMEID4('p', 'u', 'b', 'k'):   // RSA public key
             client->json.storeobject(&pubk);
-            len_pubk= Base64::atob(pubk.c_str(), pubkbuf, sizeof pubkbuf);
+            len_pubk = Base64::atob(pubk.c_str(), pubkbuf, sizeof pubkbuf);
             break;
 
-        case MAKENAMEID5('p', 'r', 'i', 'v', 'k'):
+        case MAKENAMEID5('p', 'r', 'i', 'v', 'k'):  // RSA private key (encrypted to MK)
             len_privk = client->json.storebinary(privkbuf, sizeof privkbuf);
             break;
 
@@ -3808,7 +3808,7 @@ void CommandGetUserData::procresult()
             break;
 
         case MAKENAMEID5('^', '!', 'p', 'r', 'd'):
-            client->json.storebinary(&prd);
+            client->json.storebinary(&pwdReminderDialog);
             break;
 
         case MAKENAMEID4('^', 'c', 'l', 'v'):
@@ -3824,8 +3824,8 @@ void CommandGetUserData::procresult()
             break;
 
        case MAKENAMEID8('*', '!', '>', 'a', 'l', 'i', 'a', 's'):
-        client->json.storebinary(&alias);
-        break;
+            client->json.storebinary(&aliases);
+            break;
 
         case 'b':   // business account's info
             assert(!b);
@@ -3906,7 +3906,7 @@ void CommandGetUserData::procresult()
             }
             break;
 
-        case MAKENAMEID4('s', 'm', 's', 'v'):
+        case MAKENAMEID4('s', 'm', 's', 'v'):   // SMS verified phone number
             if (!client->json.storeobject(&smsv))
             {
                 LOG_err << "Invalid verified phone number (smsv)";
@@ -3916,15 +3916,26 @@ void CommandGetUserData::procresult()
 
         case EOO:
         {
-            if (len_privk)
-            {
-                client->key.ecb_decrypt(privkbuf, len_privk);
-                privk.resize(AsymmCipher::MAXKEYLENGTH * 2);
-                privk.resize(Base64::btoa(privkbuf, len_privk, (char *)privk.data()));
-            }
-
             if (me == client->me)
             {
+                if (len_privk)
+                {
+                    client->key.ecb_decrypt(privkbuf, len_privk);
+                    privk.resize(AsymmCipher::MAXKEYLENGTH * 2);
+                    privk.resize(Base64::btoa(privkbuf, len_privk, (char *)privk.data()));
+
+                    // RSA private key should be already assigned at login
+                    assert(privk == client->mPrivKey);
+                    if (client->mPrivKey.empty())
+                    {
+                        LOG_warn << "Private key not set by login, setting at `ug` response...";
+                        if (!client->asymkey.setkey(AsymmCipher::PRIVKEY, privkbuf, len_privk))
+                        {
+                            LOG_warn << "Error checking private key at `ug` response";
+                        }
+                    }
+                }
+
                 if (len_pubk)
                 {
                     client->pubk.setkey(AsymmCipher::PUBKEY, pubkbuf, len_pubk);
@@ -3948,93 +3959,93 @@ void CommandGetUserData::procresult()
                 client->btugexpiration.backoff(MegaClient::USER_DATA_EXPIRATION_BACKOFF_SECS * 10);
                 client->cachedug = true;
 
+                // pre-load received user attributes into cache
                 User *u = client->ownuser();
-                if (u && firstname.size())
+                if (u)
                 {
-                     u->setattr(ATTR_FIRSTNAME, &firstname, nullptr);
-                }
-
-                if (u && lastname.size())
-                {
-                     u->setattr(ATTR_LASTNAME, &lastname, nullptr);
-                }
-
-                if (u && language.size())
-                {
-                     u->setattr(ATTR_LANGUAGE, &lastname, nullptr);
-                }
-
-                if (u && birthday.size())
-                {
-                     u->setattr(ATTR_BIRTHDAY, &birthday, nullptr);
-                }
-
-                if (u && birthmonth.size())
-                {
-                     u->setattr(ATTR_BIRTHMONTH, &birthmonth, nullptr);
-                }
-
-                if (u && birthyear.size())
-                {
-                     u->setattr(ATTR_BIRTHYEAR, &birthyear, nullptr);
-                }
-
-                if (u && country.size())
-                {
-                     u->setattr(ATTR_COUNTRY, &country, nullptr);
-                }
-
-                if (u && prd.size())
-                {
-                     u->setattr(ATTR_PWD_REMINDER, &prd, nullptr);
-                }
-
-                if (u && pushSetting.size())
-                {
-                     u->setattr(ATTR_PUSH_SETTINGS, &pushSetting, nullptr);
-                }
-
-                if (u && contactLinkVerification.size())
-                {
-                     u->setattr(ATTR_CONTACT_LINK_VERIFICATION, &contactLinkVerification, nullptr);
-                }
-
-                if (u && disableVersions.size())
-                {
-                    u->setattr(ATTR_DISABLE_VERSIONS, &disableVersions, nullptr);
-                }
-
-                if (u && chatFolder.size())
-                {
-                    TLVstore *tlvRecords = TLVstore::containerToTLVrecords(&chatFolder, &client->key);
-                    if (tlvRecords)
+                    if (firstname.size())
                     {
-                        // store the value for private user attributes (decrypted version of serialized TLV)
-                        string *tlvString = tlvRecords->tlvRecordsToContainer(client->rng, &client->key);
-                        u->setattr(ATTR_MY_CHAT_FILES_FOLDER, tlvString, nullptr);
-                        delete tlvString;
-                        delete tlvRecords;
+                        u->setattr(ATTR_FIRSTNAME, &firstname, nullptr);
                     }
-                    else
-                    {
-                        LOG_err << "Cannot extract TLV records for ATTR_MY_CHAT_FILES_FOLDER";
-                    }
-                }
 
-                if (u && alias.size())
-                {
-                    TLVstore *tlvRecords = TLVstore::containerToTLVrecords(&alias, &client->key);
-                    if (tlvRecords)
+                    if (lastname.size())
                     {
-                        // store the value for private user attributes (decrypted version of serialized TLV)
-                        string *tlvString = tlvRecords->tlvRecordsToContainer(client->rng, &client->key);
-                        u->setattr(ATTR_ALIAS, tlvString, nullptr);
-                        delete tlvString;
-                        delete tlvRecords;
+                        u->setattr(ATTR_LASTNAME, &lastname, nullptr);
                     }
-                    else
+
+                    if (language.size())
                     {
-                        LOG_err << "Cannot extract TLV records for ATTR_ALIAS";
+                        u->setattr(ATTR_LANGUAGE, &lastname, nullptr);
+                    }
+
+                    if (birthday.size())
+                    {
+                        u->setattr(ATTR_BIRTHDAY, &birthday, nullptr);
+                    }
+
+                    if (birthmonth.size())
+                    {
+                        u->setattr(ATTR_BIRTHMONTH, &birthmonth, nullptr);
+                    }
+
+                    if (birthyear.size())
+                    {
+                        u->setattr(ATTR_BIRTHYEAR, &birthyear, nullptr);
+                    }
+
+                    if (country.size())
+                    {
+                        u->setattr(ATTR_COUNTRY, &country, nullptr);
+                    }
+
+                    if (pwdReminderDialog.size())
+                    {
+                        u->setattr(ATTR_PWD_REMINDER, &pwdReminderDialog, nullptr);
+                    }
+
+                    if (pushSetting.size())
+                    {
+                        u->setattr(ATTR_PUSH_SETTINGS, &pushSetting, nullptr);
+                    }
+
+                    if (contactLinkVerification.size())
+                    {
+                        u->setattr(ATTR_CONTACT_LINK_VERIFICATION, &contactLinkVerification, nullptr);
+                    }
+
+                    if (disableVersions.size())
+                    {
+                        u->setattr(ATTR_DISABLE_VERSIONS, &disableVersions, nullptr);
+                    }
+
+                    if (chatFolder.size())
+                    {
+                        unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&chatFolder, &client->key));
+                        if (tlvRecords)
+                        {
+                            // store the value for private user attributes (decrypted version of serialized TLV)
+                            unique_ptr<string> tlvString(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
+                            u->setattr(ATTR_MY_CHAT_FILES_FOLDER, tlvString.get(), nullptr);
+                        }
+                        else
+                        {
+                            LOG_err << "Cannot extract TLV records for ATTR_MY_CHAT_FILES_FOLDER";
+                        }
+                    }
+
+                    if (aliases.size())
+                    {
+                        unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&aliases, &client->key));
+                        if (tlvRecords)
+                        {
+                            // store the value for private user attributes (decrypted version of serialized TLV)
+                            unique_ptr<string> tlvString(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
+                            u->setattr(ATTR_ALIAS, tlvString.get(), nullptr);
+                        }
+                        else
+                        {
+                            LOG_err << "Cannot extract TLV records for ATTR_ALIAS";
+                        }
                     }
                 }
 
