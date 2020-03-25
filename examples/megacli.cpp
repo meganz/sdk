@@ -2778,11 +2778,20 @@ class MegaCLILogger : public ::mega::Logger {
 public:
     ofstream mLogFile;
 
-    void log(const char*, int loglevel, const char*, const char *message) override
+    void log(const char*, int loglevel, const char*, const char *message
+#ifdef ENABLE_LOG_PERFORMANCE
+                 , const char **directMessages, size_t *directMessagesSizes, unsigned numberMessages
+#endif
+    ) override
     {
         if (mLogFile.is_open())
         {
-            mLogFile << Waiter::ds << " " << SimpleLogger::toStr(static_cast<LogLevel>(loglevel)) << ": " << message << std::endl;
+            mLogFile << Waiter::ds << " " << SimpleLogger::toStr(static_cast<LogLevel>(loglevel)) << ": ";
+            if (message) mLogFile << message;
+#ifdef ENABLE_LOG_PERFORMANCE
+            for (unsigned i = 0; i < numberMessages; ++i) mLogFile.write(directMessages[i], directMessagesSizes[i]);
+#endif
+            mLogFile << std::endl;
         }
         else
         {
@@ -2798,7 +2807,10 @@ public:
             s.reserve(1024);
             s += ts;
             s += " ";
-            s += message;
+            if (message) s += message;
+#ifdef ENABLE_LOG_PERFORMANCE
+            for (unsigned i = 0; i < numberMessages; ++i) s.append(directMessages[i], directMessagesSizes[i]);
+#endif
             s += "\r\n";
             OutputDebugStringA(s.c_str());
 #else
