@@ -3943,7 +3943,11 @@ void MegaClient::locallogout(bool removecaches)
     resetKeyring();
 
     key.setkey(SymmCipher::zeroiv);
+    tckey.setkey(SymmCipher::zeroiv);
     asymkey.resetkey();
+    mPrivKey.clear();
+    pubk.resetkey();
+    resetKeyring();
     memset((char*)auth.c_str(), 0, auth.size());
     auth.clear();
     sessionkey.clear();
