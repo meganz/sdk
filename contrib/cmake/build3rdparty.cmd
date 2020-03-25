@@ -13,10 +13,11 @@ set OVERLAYTRIPLETS=--overlay-triplets=%DIR%vcpkg_extra_triplets
  else (if /I "%1" == "-d" (set DEPS_FILE=%2 & shift )^
  else (if /I "%1" == "-p" (set PORTS_FILE=%2 & shift )^
  else (if /I "%1" == "-t" (set OVERLAYTRIPLETS=--overlay-triplets=%2 & shift )^
+ else (if /I "%1" == "-i" (set INPLACE=true )^
  else (^
  echo "%1"|>nul findstr /rx \"-.*\" && goto Help REM if parameter starts width - and has not been recognized, go to Help
  if "%1" neq "" (if "%TRIPLET%" == "" (set TRIPLET=%1% ))^
- else (goto :START))))))
+ else (goto :START)))))))
  
  shift
  goto GETOPTS
@@ -25,19 +26,20 @@ set OVERLAYTRIPLETS=--overlay-triplets=%DIR%vcpkg_extra_triplets
 
 if "%TRIPLET%" == ""  goto Help
 
-
-
-
-
-Setlocal
-
 set "OVERLAYPORTS= "
+set VCPKG=vcpkg
+
+IF "%INPLACE%" == "true" (goto portsOveraid) else (goto portsInplace)
+exit /b 0
+
+
+:portsOveraid
+Setlocal
 
 Setlocal EnableDelayedExpansion
 for /f "eol=# tokens=* delims=," %%l in ('type %PORTS_FILE%') do ^
 set "OVERLAYPORTS=--overlay-ports=%DIR%vcpkg_extra_ports/%%l !OVERLAYPORTS!"
 
-set VCPKG=vcpkg
 WHERE vcpkg >nul || set VCPKG=./vcpkg.exe & 2>nul ren %%~dpi.\ports ports_moved
 
 REM rename vcpkg's ports folder, to prevent using those ports
@@ -45,7 +47,24 @@ for /f %%i IN ('WHERE vcpkg') DO (
 set vcpkgpath=%%~dpi
 2>nul ren %%~dpi.\ports ports_moved
 )
+goto doBuild
 
+:copyPort
+echo %1 %2
+set mydir=%1
+for /D %%A in (%mydir%/..) do set PORTNAME=%%~nA
+if not exist  %2\%PORTNAME%-OLD ren %2\%PORTNAME% %PORTNAME%-OLD
+if exist %2\%PORTNAME% rmdir %2\%PORTNAME% /s /q
+xcopy /E /F /R %1 %2\%PORTNAME%\
+exit /b 0
+
+:portsInplace
+for /f %%i IN ('WHERE vcpkg') DO ( set vcpkgports=%%~dpi.\ports )
+for /f "eol=# tokens=* delims=," %%l in ('type %PORTS_FILE%') do ( CALL :copyPort "%DIR%vcpkg_extra_ports\%%l" %vcpkgports%)
+goto doBuild
+
+
+:doBuild
 for /f "eol=# tokens=* delims=," %%l in ('type %DEPS_FILE%') do ^
 call :build_one %%l
 
@@ -71,6 +90,7 @@ if %errorlevel% neq 0 (
 exit /b 0
 
 :help
+    echo off
     echo.
     echo Usage:
     echo  $app [-d deps_file] [-p ports_file] [-t triplets_path] TRIPLET
