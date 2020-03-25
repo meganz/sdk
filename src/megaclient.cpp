@@ -10968,35 +10968,6 @@ void MegaClient::fetchnodes(bool nocache)
 #endif
         app->fetchnodes_result(API_OK);
 
-        // if don't know fileversioning is enabled or disabled...
-        // (it can happen after AP invalidates the attribute, but app is closed before current value is retrieved and cached)
-        User *ownUser = finduser(me);
-        const string *av = ownUser->getattr(ATTR_DISABLE_VERSIONS);
-        if (av)
-        {
-            if (ownUser->isattrvalid((ATTR_DISABLE_VERSIONS)))
-            {
-                versions_disabled = !strcmp(av->c_str(), "1");
-                if (versions_disabled)
-                {
-                    LOG_info << "File versioning is disabled";
-                }
-                else
-                {
-                    LOG_info << "File versioning is enabled";
-                }
-            }
-            else
-            {
-                getua(ownUser, ATTR_DISABLE_VERSIONS, 0);
-                LOG_info << "File versioning option exist but is unknown. Fetching...";
-            }
-        }
-        else    // attribute does not exists
-        {
-            LOG_info << "File versioning is enabled";
-            versions_disabled = false;
-        }
 
         av = ownUser->getattr(ATTR_PUSH_SETTINGS);
         if (av && !ownUser->isattrvalid(ATTR_PUSH_SETTINGS))
@@ -11052,7 +11023,6 @@ void MegaClient::fetchnodes(bool nocache)
                 loadAuthrings();
             }
 
-            reqs.add(new CommandGetUA(this, uid.c_str(), ATTR_DISABLE_VERSIONS, NULL, 0));
             fetchtimezone();
         }
 

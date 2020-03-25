@@ -4016,6 +4016,20 @@ void CommandGetUserData::procresult()
                     if (disableVersions.size())
                     {
                         u->setattr(ATTR_DISABLE_VERSIONS, &disableVersions, nullptr);
+                        client->versions_disabled = (disableVersions == "1");
+                        if (client->versions_disabled)
+                        {
+                            LOG_info << "File versioning is disabled";
+                        }
+                        else
+                        {
+                            LOG_info << "File versioning is enabled";
+                        }
+                    }
+                    else    // attribute does not exists
+                    {
+                        LOG_info << "File versioning is enabled";
+                        client->versions_disabled = false;
                     }
 
                     if (chatFolder.size())
