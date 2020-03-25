@@ -1912,7 +1912,7 @@ void MegaClient::exec()
             break;
         }
 
-        // handle API server-client requests
+        // handle the request for the last 50 UserAlerts
         if (pendingscUserAlerts)
         {
             switch (pendingscUserAlerts->status)
@@ -1934,22 +1934,19 @@ void MegaClient::exec()
 
                 // fall through
             case REQ_FAILURE:
-                if (pendingscUserAlerts->httpstatus != 200)
+                if (pendingscUserAlerts->httpstatus == 200)
                 {
-                    (pendingscUserAlerts->httpstatus == 500 ? fnstats.e500Count : fnstats.eOthersCount)++;
-                }
-                else
-                {
-                    error e = (error)atoi(pendingscUserAlerts->in.c_str());
+                    error e = (error)atoi(pendingscUserAlerts->in.c_str());  
                     if (e == API_EAGAIN || e == API_ERATELIMIT)
                     {
-                        fnstats.eAgainCount++;
                         btsc.backoff();
                         pendingscUserAlerts.reset();
+                        LOG_warn << "Backing off before retrying useralerts request: " << btsc.retryin();
                         break;
                     }
                     LOG_err << "Unexpected sc response: " << pendingscUserAlerts->in;
                 }
+                LOG_err << "Useralerts request failed, continuing without them";
                 if (useralerts.begincatchup)
                 {
                     useralerts.begincatchup = false;
@@ -2072,7 +2069,7 @@ void MegaClient::exec()
                 if (!pendingscTimedOut && Waiter::ds >= (pendingsc->lastdata + HttpIO::SCREQUESTTIMEOUT))
                 {
                     LOG_debug << "sc timeout expired";
-                    // In almost all cases the server won't take more than 40 seconds.  But if it does, break the cycle of endless requests for the same thing
+                    // In almost all cases the server won't take more than SCREQUESTTIMEOUT seconds.  But if it does, break the cycle of endless requests for the same thing
                     pendingscTimedOut = true;
                     pendingsc.reset();
                     btsc.reset();
