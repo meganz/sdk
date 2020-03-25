@@ -9,11 +9,11 @@ set OVERLAYTRIPLETS=--overlay-triplets=%DIR%vcpkg_extra_triplets
 
 :GETOPTS
  if /I "%1" == "-h" ( goto Help ) ^
- else (if /I "%1" == "-r" (set REMOVEBEFORE=true )^
+ else (if /I "%1" == "-r" (set REMOVEBEFORE=true)^
  else (if /I "%1" == "-d" (set DEPS_FILE=%2 & shift )^
  else (if /I "%1" == "-p" (set PORTS_FILE=%2 & shift )^
  else (if /I "%1" == "-t" (set OVERLAYTRIPLETS=--overlay-triplets=%2 & shift )^
- else (if /I "%1" == "-i" (set INPLACE=true )^
+ else (if /I "%1" == "-o" (set OVERRIDEVCPKGPORTS=true)^
  else (^
  echo "%1"|>nul findstr /rx \"-.*\" && goto Help REM if parameter starts width - and has not been recognized, go to Help
  if "%1" neq "" (if "%TRIPLET%" == "" (set TRIPLET=%1% ))^
@@ -29,11 +29,12 @@ if "%TRIPLET%" == ""  goto Help
 set "OVERLAYPORTS= "
 set VCPKG=vcpkg
 
-IF "%INPLACE%" == "true" (goto portsOveraid) else (goto portsInplace)
+IF "%OVERRIDEVCPKGPORTS%" == "true" (goto portsOverrided) else (goto portsOverlaid)
 exit /b 0
 
 
-:portsOveraid
+:portsOverlaid
+echo "Using overlaid ports from: %PORTS_FILE%" 
 Setlocal
 
 Setlocal EnableDelayedExpansion
@@ -58,7 +59,9 @@ if exist %2\%PORTNAME% rmdir %2\%PORTNAME% /s /q
 xcopy /E /F /R %1 %2\%PORTNAME%\
 exit /b 0
 
-:portsInplace
+:portsOverrided
+echo "Overriding VCPKG ports with those in: %PORTS_FILE%" 
+
 for /f %%i IN ('WHERE vcpkg') DO ( set vcpkgports=%%~dpi.\ports )
 for /f "eol=# tokens=* delims=," %%l in ('type %PORTS_FILE%') do ( CALL :copyPort "%DIR%vcpkg_extra_ports\%%l" %vcpkgports%)
 goto doBuild
@@ -124,5 +127,6 @@ exit /b 0
     echo  -p : paths to ports file with dependencies/versions too look for. By default: %DIR%preferred-ports.txt
     echo  -t : overlay triplets path. By default %DIR%vcpkg_extra_triplets
     echo  -r : remove before install
+    echo  -o : override vcpkg ports by the overlaid ports (will copy the previous ones into PORT-OLD)
     echo.
 
