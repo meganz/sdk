@@ -553,7 +553,7 @@ if(WIN32)
     
     add_definitions(-D_CRT_SECURE_NO_WARNINGS -DCURL_STATICLIB -DCARES_STATICLIB -DWIN32_LEAN_AND_MEAN -DSODIUM_STATIC -DPCRE_STATICWIN32 -D_CONSOLE )
     SET(Mega_PlatformSpecificIncludes ${MegaDir}/include/mega/$<IF:${USE_CURL},wincurl,win32>)
-    SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} ws2_32 winhttp Shlwapi Secur32.lib  $<${USE_WEBRTC}:Wldap32.lib> )
+    SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} ws2_32 winhttp Shlwapi Secur32.lib  $<$<OR:${USE_CURL},${USE_WEBRTC}>:Wldap32.lib> )
     IF(USE_LIBUV)
         SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} Kernel32.lib Iphlpapi.lib Userenv.lib Psapi.lib )
     ENDIF(USE_LIBUV)
