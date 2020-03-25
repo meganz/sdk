@@ -369,13 +369,12 @@ void SyncApp::log(const char *time, int loglevel, const char *source, const char
         message = "";
     }
 
-#ifndef ENABLE_LOG_PERFORMANCE
-    cout << "[" << time << "][" << SimpleLogger::toStr((LogLevel)loglevel) << "] " << message << endl;
-#else
     cout << "[" << time << "][" << SimpleLogger::toStr((LogLevel)loglevel) << "] ";
+    if (message) cout << message;
+#ifdef ENABLE_LOG_PERFORMANCE
     for (unsigned i = 0; i < numberMessages; ++i) cout.write(directMessages[i], directMessagesSizes[i]);
-    cout << endl;
 #endif
+    cout << endl;
 }
 
 void SyncApp::prelogin_result(int version, std::string* email, std::string *salt, error e)
