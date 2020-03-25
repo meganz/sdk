@@ -1173,7 +1173,7 @@ bool WinFileSystemAccess::expanselocalpath(string *path, string *absolutepath)
 #endif
 }
 
-void WinFileSystemAccess::osversion(string* u, bool includeArchitecture) const
+void WinFileSystemAccess::osversion(string* u, bool includeArchExtraInfo) const
 {
     char buf[128];
 
@@ -1203,7 +1203,7 @@ void WinFileSystemAccess::osversion(string* u, bool includeArchitecture) const
     }
     snprintf(buf, sizeof(buf), "Windows %d.%d.%d", version.dwMajorVersion, version.dwMinorVersion, version.dwBuildNumber);
 
-    if (includeArchitecture)
+    if (includeArchExtraInfo)
     {
         BOOL isWOW = FALSE;
         BOOL callSucceeded = IsWow64Process(GetCurrentProcess(), &isWOW);
