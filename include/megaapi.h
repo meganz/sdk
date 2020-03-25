@@ -8410,6 +8410,8 @@ class MegaApi
         *
         * Other clients will be notified that alerts to this point have been seen.
         *
+        * The associated request type with this request is MegaRequest::TYPE_USERALERT_ACKNOWLEDGE.
+        *
         * @param listener MegaRequestListener to track this request
         *
         * @see MegaApi::getUserAlerts
@@ -8611,17 +8613,17 @@ class MegaApi
         void resetCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Returns RSA priv key of the currently open account
+         * @brief Returns RSA private key of the currently logged-in account
          *
-         * If the MegaApi object isn't logged in or there's no pub key available,
-         * this function returns NULL
+         * If the MegaApi object is not logged-in or there is no private key available,
+         * this function returns NULL.
          *
          * You take the ownership of the returned value.
          * Use delete [] to free it.
          *
-         * @return privkey of the current account
+         * @return RSA private key of the current account
          */
-        char *getMyPrivkey();
+        char *getMyRSAPrivateKey();
 
         /**
          * @brief Set the active log level

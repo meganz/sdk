@@ -1397,7 +1397,7 @@ public:
 
     // account access (full account): RSA private key
     AsymmCipher asymkey;
-    string mPrivKey;
+    string mPrivKey;    // serialized version for apps
 
     // RSA public key
     AsymmCipher pubk;

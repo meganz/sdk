@@ -1819,9 +1819,9 @@ void MegaApi::resetCredentials(MegaUser *user, MegaRequestListener *listener)
     pImpl->resetCredentials(user, listener);
 }
 
-char *MegaApi::getMyPrivkey()
+char *MegaApi::getMyRSAPrivateKey()
 {
-    return pImpl->getMyPrivkey();
+    return pImpl->getMyRSAPrivateKey();
 }
 
 void MegaApi::setLogLevel(int logLevel)
