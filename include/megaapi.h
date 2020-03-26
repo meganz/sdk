@@ -7961,8 +7961,16 @@ class MegaApi
          *
          * If MegaRequest::getFlag returns true, the account was automatically confirmed and it's not needed
          * to call MegaApi::confirmAccount. If it returns false, it's needed to call MegaApi::confirmAccount
-         * as usual. New accounts do not require a confirmation with the password, but old confirmation links
-         * require it, so it's needed to check that parameter in onRequestFinish to know how to proceed.
+         * as usual. New accounts (V2, starting from April 2018) do not require a confirmation with the password,
+         * but old confirmation links (V1) require it, so it's needed to check that parameter in onRequestFinish
+         * to know how to proceed.
+         *
+         * If already logged-in into a different account, you will get the error code MegaError::API_EACCESS
+         * in onRequestFinish.
+         * If logged-in into the account that is attempted to confirm and the account is already confirmed, you
+         * will get the error code MegaError::API_EEXPIRED in onRequestFinish.
+         * In both cases, the MegaRequest::getEmail will return the email of the account that was attempted
+         * to confirm, and the MegaRequest::getName will return the name.
          *
          * @param link Confirmation link (#confirm) or new signup link (#newsignup)
          * @param listener MegaRequestListener to track this request
@@ -7986,6 +7994,13 @@ class MegaApi
          * MegaListener::onEvent and MegaGlobalListener::onEvent with an event of type
          * MegaEvent::EVENT_ACCOUNT_CONFIRMATION. You can check the email used to confirm
          * the account by checking MegaEvent::getText. @see MegaListener::onEvent.
+         *
+         * If already logged-in into a different account, you will get the error code MegaError::API_EACCESS
+         * in onRequestFinish.
+         * If logged-in into the account that is attempted to confirm and the account is already confirmed, you
+         * will get the error code MegaError::API_EEXPIRED in onRequestFinish.
+         * In both cases, the MegaRequest::getEmail will return the email of the account that was attempted
+         * to confirm, and the MegaRequest::getName will return the name.
          *
          * @param link Confirmation link
          * @param password Password of the account

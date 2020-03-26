@@ -15306,7 +15306,7 @@ void MegaApiImpl::querysignuplink_result(error e)
     fireOnRequestFinish(request, megaError);
 }
 
-void MegaApiImpl::querysignuplink_result(handle, const char* email, const char* name, const byte* pwc, const byte*, const byte* c, size_t len)
+void MegaApiImpl::querysignuplink_result(handle uh, const char* email, const char* name, const byte* pwc, const byte*, const byte* c, size_t len)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
@@ -15316,9 +15316,15 @@ void MegaApiImpl::querysignuplink_result(handle, const char* email, const char* 
     request->setEmail(email);
     request->setName(name);
 
-    if(request->getType() == MegaRequest::TYPE_QUERY_SIGNUP_LINK)
+    error e = API_OK;
+    if (uh != client->me)
     {
-        fireOnRequestFinish(request, MegaError(API_OK));
+        e = API_EACCESS;
+    }
+    
+    if(request->getType() == MegaRequest::TYPE_QUERY_SIGNUP_LINK || e)
+    {
+        fireOnRequestFinish(request, MegaError(e));
         return;
     }
 
@@ -15377,6 +15383,8 @@ void MegaApiImpl::confirmsignuplink2_result(handle, const char *name, const char
 
     if (!e)
     {
+        assert(strcmp(email, request->getEmail()) == 0);
+        assert(strcmp(name, request->getName()) == 0);
         request->setName(name);
         request->setEmail(email);
         request->setFlag(true);
@@ -19909,25 +19917,44 @@ void MegaApiImpl::sendPendingRequests()
             {
                 ptr = tptr+8;
 
-                unsigned len = unsigned((strlen(link)-(ptr-link))*3/4+4);
-                byte *c = new byte[len];
-                len = Base64::atob(ptr,c,len);
-                if (len)
+                string code = Base64::atob(string(ptr));
+                if (!code.empty())
                 {
-                    if (len > 13 && !memcmp("ConfirmCodeV2", c, 13))
+                    if (code.find("ConfirmCodeV2") != string::npos)
                     {
-                        client->confirmsignuplink2(c, len);
+                        // “ConfirmCodeV2” (13B) || Email Confirmation Token (15B) || Email (>=5B) || \t || Fullname || Hash (8B)
+                        size_t posEmail = 13 + 15;
+                        size_t endEmail = code.find("\t", posEmail);
+                        if (endEmail != string::npos)
+                        {
+                            string email = code.substr(posEmail, endEmail - posEmail);
+                            request->setEmail(email.c_str());
+                            request->setName(code.substr(endEmail + 1, code.size() - endEmail - 9).c_str());
+
+                            sessiontype_t session = client->loggedin();
+                            if (session == FULLACCOUNT)
+                            {
+                                e = (client->ownuser()->email == email) ? API_EEXPIRED : API_EACCESS;
+                            }
+                            else    // not-logged-in / ephemeral account / partially confirmed
+                            {
+                                client->confirmsignuplink2((const byte*)code.data(), code.size());
+                            }
+                        }
+                        else
+                        {
+                            e = API_EARGS;
+                        }
                     }
                     else
                     {
-                        client->querysignuplink(c, len);
+                        client->querysignuplink((const byte*)code.data(), code.size());
                     }
                 }
                 else
                 {
                     e = API_EARGS;
                 }
-                delete[] c;
                 break;
             }
             else if ((tptr = strstr(ptr,"#newsignup")))
@@ -19985,14 +20012,34 @@ void MegaApiImpl::sendPendingRequests()
 
             if ((tptr = strstr(ptr,"#confirm"))) ptr = tptr+8;
 
-            unsigned len = unsigned((strlen(link)-(ptr-link))*3/4+4);
-            byte *c = new byte[len];
-            len = Base64::atob(ptr,c,len);
-            if (len)
+            string code = Base64::atob(string(ptr));
+            if (!code.empty())
             {
-                if (len > 13 && !memcmp("ConfirmCodeV2", c, 13))
+                if (code.find("ConfirmCodeV2") != string::npos)
                 {
-                    client->confirmsignuplink2(c, len);
+                    // “ConfirmCodeV2” (13B) || Email Confirmation Token (15B) || Email (>=5B) || \t || Fullname || Hash (8B)
+                    size_t posEmail = 13 + 15;
+                    size_t endEmail = code.find("\t", posEmail);
+                    if (endEmail != string::npos)
+                    {
+                        string email = code.substr(posEmail, endEmail - posEmail);
+                        request->setEmail(email.c_str());
+                        request->setName(code.substr(endEmail + 1, code.size() - endEmail - 9).c_str());
+
+                        sessiontype_t session = client->loggedin();
+                        if (session == FULLACCOUNT)
+                        {
+                            e = (client->ownuser()->email == email) ? API_EEXPIRED : API_EACCESS;
+                        }
+                        else    // not-logged-in / ephemeral account / partially confirmed
+                        {
+                            client->confirmsignuplink2((const byte*)code.data(), code.size());
+                        }
+                    }
+                    else
+                    {
+                        e = API_EARGS;
+                    }
                 }
                 else if (!password && !pwkey)
                 {
@@ -20000,14 +20047,13 @@ void MegaApiImpl::sendPendingRequests()
                 }
                 else
                 {
-                    client->querysignuplink(c, len);
+                    client->querysignuplink((const byte*)code.data(), code.size());
                 }
             }
             else
             {
                 e = API_EARGS;
             }
-            delete[] c;
             break;
         }
         case MegaRequest::TYPE_GET_RECOVERY_LINK:
