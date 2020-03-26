@@ -1957,6 +1957,8 @@ void CommandLogin::procresult()
                 client->me = me;
                 client->uid = Base64Str<MegaClient::USERHANDLE>(client->me);
                 client->achievements_enabled = ach;
+                // Force to create our own user
+                client->finduser(me, 1);
 
                 if (len_sek)
                 {
@@ -3721,6 +3723,7 @@ void CommandGetUserData::procresult()
     string birthday;
     string birthmonth;
     string birthyear;
+    string email;
 
     bool b = false;
     BizMode m = BIZ_MODE_UNKNOWN;
@@ -3825,6 +3828,10 @@ void CommandGetUserData::procresult()
 
        case MAKENAMEID8('*', '!', '>', 'a', 'l', 'i', 'a', 's'):
             client->json.storebinary(&aliases);
+            break;
+
+        case MAKENAMEID5('e', 'm', 'a', 'i', 'l'):
+            client->json.storeobject(&email);
             break;
 
         case 'b':   // business account's info
@@ -3961,6 +3968,12 @@ void CommandGetUserData::procresult()
 
                 // pre-load received user attributes into cache
                 User *u = client->ownuser();
+                if (u->email.empty())
+                {
+                    u->email = email;
+                }
+
+                assert(u);
                 if (u)
                 {
                     if (firstname.size())

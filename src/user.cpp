@@ -234,7 +234,11 @@ User* User::unserialize(MegaClient* client, string* d)
                 return NULL;
             }
 
-            u->attrs[key].assign(ptr, ll);
+            if (!u->isattrvalid(key))
+            {
+                u->attrs[key].assign(ptr, ll);
+            }
+
             ptr += ll;
 
             ll = MemAccess::get<short>(ptr);
@@ -247,7 +251,12 @@ User* User::unserialize(MegaClient* client, string* d)
                     client->discarduser(uh);
                     return NULL;
                 }
-                u->attrsv[key].assign(ptr,ll);
+
+                if (!u->isattrvalid(key))
+                {
+                    u->attrsv[key].assign(ptr,ll);
+                }
+
                 ptr += ll;
             }
         }
