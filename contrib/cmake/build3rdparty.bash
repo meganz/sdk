@@ -46,6 +46,7 @@ display_help() {
     echo " -d : path to file listing dependencies. By default $DIR/3rdparty_deps.txt. Comment out any libraries that you won't use."
     echo " -p : paths to ports file with dependencies/versions too look for. By default: $DIR/preferred-ports.txt"
     echo " -t : overlay triplets path. By default $DIR/vcpkg_extra_triplets"
+    echo " -r : remove before install"
     echo ""
 }
 
@@ -54,7 +55,7 @@ PORTS_FILE="$DIR"/preferred-ports.txt
 DEPS_FILE="$DIR"/3rdparty_deps.txt
 OVERLAYTRIPLETS="--overlay-triplets=$DIR/vcpkg_extra_triplets"
 
-while getopts ":d:p:t:" opt; do
+while getopts ":d:p:rt:" opt; do
   case $opt in
     p)
         PORTS_FOLDERS_FILE="$OPTARG"
@@ -64,6 +65,9 @@ while getopts ":d:p:t:" opt; do
     ;;
     t)
         OVERLAYTRIPLETS="--overlay-triplets=$OPTARG"
+    ;;
+    r)
+        REMOVEBEFORE=1
     ;;
     \?)
         echo "Invalid option: $opt -$OPTARG" >&2
@@ -101,6 +105,7 @@ echo mv ${PARENTVCPKG}ports{,_moved} 2>/dev/null || true
 
 build_one ()
 {
+  [ "x$REMOVEBEFORE" == "x1" ] && $VCPKG remove --triplet $TRIPLET $1 "${OVERLAYPORTS[@]}" "$OVERLAYTRIPLETS"
   $VCPKG install --triplet $TRIPLET $1 "${OVERLAYPORTS[@]}" "$OVERLAYTRIPLETS"
   echo $? $1 $TRIPLET >> buildlog
 }

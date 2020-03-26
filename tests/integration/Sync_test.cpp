@@ -181,7 +181,7 @@ struct Model
             ModelNode* parent = n->parent;
             auto newend = std::remove_if(parent->kids.begin(), parent->kids.end(), [&extracted, n](unique_ptr<ModelNode>& v) { if (v.get() == n) return extracted = move(v), true; else return false; });
             parent->kids.erase(newend, parent->kids.end());
-            return std::move(extracted);
+            return extracted;
         }
         return nullptr;
     }
@@ -244,8 +244,7 @@ struct Model
     void ensureLocalDebrisTmpLock(const string& syncrootpath)
     {
         // if we've downloaded a file then it's put in debris/tmp initially, and there is a lock file
-        ModelNode* syncroot;
-        if (syncroot = findnode(syncrootpath))
+        if (ModelNode* syncroot = findnode(syncrootpath))
         {
             ModelNode* trash;
             if (!(trash = childnodebyname(syncroot, DEBRISFOLDER)))
@@ -505,7 +504,7 @@ struct StandardClient : public MegaApp
 
         ASSERT_FALSE(user.empty());
 
-        resultproc.prepresult(PRELOGIN, [this, &pb](error e) { pb.set_value(!e); });
+        resultproc.prepresult(PRELOGIN, [&pb](error e) { pb.set_value(!e); });
         client.prelogin(user.c_str());
     }
 
@@ -519,7 +518,7 @@ struct StandardClient : public MegaApp
 
         byte pwkey[SymmCipher::KEYLENGTH];
 
-        resultproc.prepresult(LOGIN, [this, &pb](error e) { pb.set_value(!e); });
+        resultproc.prepresult(LOGIN, [&pb](error e) { pb.set_value(!e); });
         if (client.accountversion == 1)
         {
             if (error e = client.pw_key(pwd.c_str(), pwkey))
@@ -543,7 +542,7 @@ struct StandardClient : public MegaApp
 
     void loginFromSession(const string& session, promise<bool>& pb)
     {
-        resultproc.prepresult(LOGIN, [this, &pb](error e) { pb.set_value(!e); });
+        resultproc.prepresult(LOGIN, [&pb](error e) { pb.set_value(!e); });
         client.login((byte*)session.data(), (int)session.size());
     }
 
@@ -602,7 +601,7 @@ struct StandardClient : public MegaApp
         {
             handle h = UNDEF;
             std::function<void(error)> f;
-            id_callback(std::function<void(error)> cf, handle ch = UNDEF) : f(cf), h(ch) {}
+            id_callback(std::function<void(error)> cf, handle ch = UNDEF) : h(ch), f(cf) {}
         };
 
         map<resultprocenum, deque<id_callback>> m;
@@ -739,7 +738,7 @@ struct StandardClient : public MegaApp
         }
         else
         {
-            resultproc.prepresult(PUTNODES, [this, &pb](error e) {
+            resultproc.prepresult(PUTNODES, [&pb](error e) {
                 pb.set_value(!e);
                 if (e) 
                 {
@@ -1163,7 +1162,7 @@ struct StandardClient : public MegaApp
         resultproc.processresult(FETCHNODES, e);
     }
 
-    void unlink_result(handle, error e) 
+    void unlink_result(handle, error e) override
     { 
         resultproc.processresult(UNLINK, e);
     }
@@ -1186,7 +1185,7 @@ struct StandardClient : public MegaApp
     {
         if (Node* n = drillchildnodebyname(gettestbasenode(), path))
         {
-            resultproc.prepresult(UNLINK, [this, &pb](error e) { pb.set_value(!e); });
+        resultproc.prepresult(UNLINK, [ &pb](error e) { pb.set_value(!e); });
             client.unlink(n);
         }
         else
@@ -1205,7 +1204,7 @@ struct StandardClient : public MegaApp
         {
             for (size_t i = ns.size(); i--; )
             {
-                resultproc.prepresult(UNLINK, [this, &pb, i](error e) { if (!i) pb.set_value(!e); });
+                resultproc.prepresult(UNLINK, [&pb, i](error e) { if (!i) pb.set_value(!e); });
                 client.unlink(ns[i]);
             }
         }
@@ -1217,7 +1216,7 @@ struct StandardClient : public MegaApp
         Node* p = drillchildnodebyname(gettestbasenode(), path);
         if (n && p)
         {
-            resultproc.prepresult(MOVENODE, [this, &pb](error e) { pb.set_value(!e); }, n->nodehandle);
+            resultproc.prepresult(MOVENODE, [&pb](error e) { pb.set_value(!e); }, n->nodehandle);
             client.rename(n, p);
             return;
         }
@@ -1231,7 +1230,7 @@ struct StandardClient : public MegaApp
         Node* p = client.nodebyhandle(h2);
         if (n && p)
         {
-            resultproc.prepresult(MOVENODE, [this, &pb](error e) { pb.set_value(!e); }, n->nodehandle);
+        resultproc.prepresult(MOVENODE, [&pb](error e) { pb.set_value(!e); }, n->nodehandle);
             client.rename(n, p);
             return;
         }
@@ -1245,7 +1244,7 @@ struct StandardClient : public MegaApp
         Node* p = getcloudrubbishnode();
         if (n && p && n->parent)
         {
-            resultproc.prepresult(MOVENODE, [this, &pb](error e) { pb.set_value(!e); }, n->nodehandle);
+            resultproc.prepresult(MOVENODE, [&pb](error e) { pb.set_value(!e); }, n->nodehandle);
             client.rename(n, p, SYNCDEL_NONE, n->parent->nodehandle);
             return;
         }

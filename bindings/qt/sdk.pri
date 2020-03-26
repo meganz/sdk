@@ -232,7 +232,8 @@ CONFIG(USE_LIBRAW) {
 CONFIG(USE_PDFIUM) {
 
     vcpkg:INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/pdfium
-    vcpkg:LIBS += -lpdfium -llcms$$DEBUG_SUFFIX -licuuc$$DEBUG_SUFFIX_WO -licuio$$DEBUG_SUFFIX_WO -ljpeg$$DEBUG_SUFFIX_WO -lopenjp2 -lfreetype$$DEBUG_SUFFIX 
+    vcpkg:LIBS += -lpdfium -llcms$$DEBUG_SUFFIX -licuuc$$DEBUG_SUFFIX_WO -licuio$$DEBUG_SUFFIX_WO -ljpeg$$DEBUG_SUFFIX_WO -lopenjp2 -lfreetype$$DEBUG_SUFFIX
+    vcpkg:unix:!macx:LIBS += -lpng -lharfbuzz #freetype dependencies. ideally we could use pkg-config to get these
     # is it needed? win has it, mac does not -licuin$$DEBUG_SUFFIX_WO
     vcpkg:win32:LIBS += -lGdi32
     vcpkg:DEFINES += HAVE_PDFIUM

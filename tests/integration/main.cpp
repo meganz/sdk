@@ -15,7 +15,7 @@ class MegaLogger : public mega::Logger
 public:
     void log(const char* time, int loglevel, const char* source, const char* message
 #ifdef ENABLE_LOG_PERFORMANCE
-          , const char **directMessages = nullptr, size_t *directMessagesSizes = nullptr, int numberMessages = 0
+          , const char **directMessages = nullptr, size_t *directMessagesSizes = nullptr, unsigned numberMessages = 0
 #endif
     ) override
     {
@@ -46,7 +46,7 @@ public:
         }
         else
         {
-            for (int i = 0; i < numberMessages; ++i) os.write(directMessages[i], directMessagesSizes[i]);
+            for (unsigned i = 0; i < numberMessages; ++i) os.write(directMessages[i], directMessagesSizes[i]);
         }
 #else
         os << "] " << mega::SimpleLogger::toStr(static_cast<mega::LogLevel>(loglevel)) << ": " << message;
