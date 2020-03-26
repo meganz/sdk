@@ -3968,14 +3968,13 @@ void CommandGetUserData::procresult()
 
                 // pre-load received user attributes into cache
                 User *u = client->ownuser();
-                if (u->email.empty())
-                {
-                    u->email = email;
-                }
-
-                assert(u);
                 if (u)
                 {
+                    if (u->email.empty())
+                    {
+                        u->email = email;
+                    }
+
                     if (firstname.size())
                     {
                         u->setattr(ATTR_FIRSTNAME, &firstname, nullptr);
