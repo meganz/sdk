@@ -242,6 +242,10 @@ public:
     void procresult();
 
     CommandSetKeyPair(MegaClient*, const byte*, unsigned, const byte*, unsigned);
+
+private:
+    byte* privkBuffer = nullptr;
+    unsigned len;
 };
 
 // set visibility

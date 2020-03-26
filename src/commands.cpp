@@ -5149,6 +5149,10 @@ CommandSetKeyPair::CommandSetKeyPair(MegaClient* client, const byte* privk,
     arg("pubk", pubk, pubklen);
 
     tag = client->reqtag;
+
+    len = privklen;
+    privkBuffer = new byte[privklen];
+    memcpy(privkBuffer, privk, len);
 }
 
 void CommandSetKeyPair::procresult()
@@ -5160,7 +5164,12 @@ void CommandSetKeyPair::procresult()
 
     client->json.storeobject();
 
+    client->key.ecb_decrypt(privkBuffer, len);
+    client->mPrivKey.resize(AsymmCipher::MAXKEYLENGTH * 2);
+    client->mPrivKey.resize(Base64::btoa(privkBuffer, len, (char *)client->mPrivKey.data()));
+
     client->app->setkeypair_result(API_OK);
+    delete [] privkBuffer;
 }
 
 // fetch full node tree
