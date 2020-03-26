@@ -10760,7 +10760,7 @@ const char *MegaApiImpl::getVersion()
 char *MegaApiImpl::getOperatingSystemVersion()
 {
     string version;
-    fsAccess->osversion(&version);
+    fsAccess->osversion(&version, false);
     return MegaApi::strdup(version.c_str());
 }
 
