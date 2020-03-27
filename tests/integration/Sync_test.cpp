@@ -1057,7 +1057,7 @@ struct StandardClient : public MegaApp
         return true;
     }
 
-    bool recursiveConfirm(Model::ModelNode* mn, Node* n, int& descendants, const string& identifier, int depth)
+    bool recursiveConfirm(Model::ModelNode* mn, Node* n, int& descendants, const string& identifier, int depth, bool& firstreported)
     {
         // top level names can differ so we don't check those
         if (!mn || !n) return false;
@@ -1100,7 +1100,7 @@ struct StandardClient : public MegaApp
             for (auto i = er.first; i != er.second; ++i)
             {
                 int rdescendants = 0;
-                if (recursiveConfirm(m_iter->second, i->second, rdescendants, identifier, depth+1))
+                if (recursiveConfirm(m_iter->second, i->second, rdescendants, identifier, depth+1, firstreported))
                 {
                     ++matched;
                     matchedlist.push_back(m_iter->first);
@@ -1122,8 +1122,9 @@ struct StandardClient : public MegaApp
             descendants += matched;
             return true;
         }
-        else
+        else if (!firstreported)
         {
+            firstreported = true;
             cout << clientname << " " << identifier << " after matching " << matched << " child nodes [";
             for (auto& ml : matchedlist) cout << ml << " ";
             cout << "](with " << descendants << " descendants) in " << mn->path() << ", ended up with unmatched model nodes:";
@@ -1131,11 +1132,11 @@ struct StandardClient : public MegaApp
             cout << " and unmatched remote nodes:";
             for (auto& i : ns) cout << " " << i.first;
             cout << endl;
-            return false;
         };
+        return false;
     }
 
-    bool recursiveConfirm(Model::ModelNode* mn, LocalNode* n, int& descendants, const string& identifier, int depth)
+    bool recursiveConfirm(Model::ModelNode* mn, LocalNode* n, int& descendants, const string& identifier, int depth, bool& firstreported)
     {
         // top level names can differ so we don't check those
         if (!mn || !n) return false;
@@ -1219,7 +1220,7 @@ struct StandardClient : public MegaApp
             for (auto i = er.first; i != er.second; ++i)
             {
                 int rdescendants = 0; 
-                if (recursiveConfirm(m_iter->second, i->second, rdescendants, identifier, depth+1))
+                if (recursiveConfirm(m_iter->second, i->second, rdescendants, identifier, depth+1, firstreported))
                 {
                     ++matched;
                     matchedlist.push_back(m_iter->first);
@@ -1240,8 +1241,9 @@ struct StandardClient : public MegaApp
         {
             return true;
         }
-        else
+        else if (!firstreported)
         {
+            firstreported = true;
             cout << clientname << " " << identifier << " after matching " << matched << " child nodes [";
             for (auto& ml : matchedlist) cout << ml << " ";
             cout << "](with " << descendants << " descendants) in " << mn->path() << ", ended up with unmatched model nodes:";
@@ -1249,12 +1251,12 @@ struct StandardClient : public MegaApp
             cout << " and unmatched LocalNodes:";
             for (auto& i : ns) cout << " " << i.first;
             cout << endl;
-            return false;
         };
+        return false;
     }
 
 
-    bool recursiveConfirm(Model::ModelNode* mn, fs::path p, int& descendants, const string& identifier, int depth, bool ignoreDebris)
+    bool recursiveConfirm(Model::ModelNode* mn, fs::path p, int& descendants, const string& identifier, int depth, bool ignoreDebris, bool& firstreported)
     {
         if (!mn) return false;
         if (depth && mn->name != p.filename().u8string())
@@ -1307,7 +1309,7 @@ struct StandardClient : public MegaApp
             for (auto i = er.first; i != er.second; ++i)
             {
                 int rdescendants = 0; 
-                if (recursiveConfirm(m_iter->second, i->second, rdescendants, identifier, depth+1, ignoreDebris))
+                if (recursiveConfirm(m_iter->second, i->second, rdescendants, identifier, depth+1, ignoreDebris, firstreported))
                 {
                     ++matched;
                     matchedlist.push_back(m_iter->first);
@@ -1332,8 +1334,9 @@ struct StandardClient : public MegaApp
         {
             return true;
         }
-        else
+        else if (!firstreported)
         {
+            firstreported = true;
             cout << clientname << " " << identifier << " after matching " << matched << " child nodes [";
             for (auto& ml : matchedlist) cout << ml << " ";
             cout << "](with " << descendants << " descendants) in " << mn->path() << ", ended up with unmatched model nodes:";
@@ -1341,8 +1344,8 @@ struct StandardClient : public MegaApp
             cout << " and unmatched filesystem paths:";
             for (auto& i : ps) cout << " " << i.second.filename();
             cout << " in " << p << endl;
-            return false;
         };
+        return false;
     }
 
     Sync* syncByTag(int tag)
@@ -1385,7 +1388,8 @@ struct StandardClient : public MegaApp
 
         // compare model aganst nodes representing remote state
         int descendants = 0;
-        if (confirm & CONFIRM_REMOTE && !recursiveConfirm(mnode, client.nodebyhandle(si->second.h), descendants, "Sync " + to_string(syncid), 0))
+        bool firstreported = false;
+        if (confirm & CONFIRM_REMOTE && !recursiveConfirm(mnode, client.nodebyhandle(si->second.h), descendants, "Sync " + to_string(syncid), 0, firstreported))
         {
             cout << clientname << " syncid " << syncid << " comparison against remote nodes failed" << endl;
             return false;
@@ -1395,7 +1399,8 @@ struct StandardClient : public MegaApp
         descendants = 0; 
         if (Sync* sync = syncByTag(syncid))
         {
-            if (confirm & CONFIRM_LOCALNODE && !recursiveConfirm(mnode, sync->localroot.get(), descendants, "Sync " + to_string(syncid), 0))
+            bool firstreported = false;
+            if (confirm & CONFIRM_LOCALNODE && !recursiveConfirm(mnode, sync->localroot.get(), descendants, "Sync " + to_string(syncid), 0, firstreported))
             {
                 cout << clientname << " syncid " << syncid << " comparison against LocalNodes failed" << endl;
                 return false;
@@ -1404,7 +1409,8 @@ struct StandardClient : public MegaApp
 
         // compare model against local filesystem
         descendants = 0;
-        if (confirm & CONFIRM_LOCALFS && !recursiveConfirm(mnode, si->second.localpath, descendants, "Sync " + to_string(syncid), 0, ignoreDebris))
+        firstreported = false;
+        if (confirm & CONFIRM_LOCALFS && !recursiveConfirm(mnode, si->second.localpath, descendants, "Sync " + to_string(syncid), 0, ignoreDebris, firstreported))
         {
             cout << clientname << " syncid " << syncid << " comparison against local filesystem failed" << endl;
             return false;
@@ -4571,8 +4577,9 @@ struct OneWaySymmetryCase
         destination_move("f/" + newname, targetfolder, updatemodel, reportaction, deleteTargetFirst);
     }
 
-    void destination_rename_move(std::string sourcefolder, std::string oldname, std::string newname, std::string targetfolder, bool updatemodel, bool reportaction, bool deleteTargetFirst)
+    void destination_rename_move(std::string sourcefolder, std::string oldname, std::string newname, std::string targetfolder, bool updatemodel, bool reportaction, bool deleteTargetFirst, std::string deleteNameInTargetFirst)
     {
+        if (!deleteNameInTargetFirst.empty()) destination_delete(targetfolder + "/" + deleteNameInTargetFirst, updatemodel, reportaction);
         destination_rename("f/" + oldname, newname, updatemodel, reportaction, false);
         destination_move("f/" + newname, targetfolder, updatemodel, reportaction, deleteTargetFirst);
     }
@@ -4650,10 +4657,10 @@ struct OneWaySymmetryCase
                 if (file)
                 {
                     if (destinationMatchAfter == match_exact) { destination_copy_renamed("f/f_0", "file0_f_0", "file0_f_0_renamed", "f/f_0", true, false, false); };
-                    if (destinationMatchAfter == match_older) destination_rename_move("f", "file_older_2", "file0_f_0_renamed", "f/f_0", true, false, false);
-                    if (destinationMatchAfter == match_newer) destination_rename_move("f", "file_newer_2", "file0_f_0_renamed", "f/f_0", true, false, false);
-                    if (destinationMatchBefore == match_older) { destination_rename_move("f", "file_older_1", "file0_f_0", "f/f_0", true, false, true); }
-                    if (destinationMatchBefore == match_newer) { destination_rename_move("f", "file_newer_1", "file0_f_0", "f/f_0", true, false, true); }
+                    if (destinationMatchAfter == match_older) destination_rename_move("f", "file_older_2", "file0_f_0_renamed", "f/f_0", true, false, false, "file0_f_0");
+                    if (destinationMatchAfter == match_newer) destination_rename_move("f", "file_newer_2", "file0_f_0_renamed", "f/f_0", true, false, false, "file0_f_0");
+                    if (destinationMatchBefore == match_older) { destination_rename_move("f", "file_older_1", "file0_f_0", "f/f_0", true, false, true, ""); }
+                    if (destinationMatchBefore == match_newer) { destination_rename_move("f", "file_newer_1", "file0_f_0", "f/f_0", true, false, true, ""); }
                     if (destinationMatchBefore == match_absent) { destination_delete("f/f_0/file0_f_0", true, false); }
                 }
                 else
