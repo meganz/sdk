@@ -553,7 +553,7 @@ if(WIN32)
     
     add_definitions(-D_CRT_SECURE_NO_WARNINGS -DCURL_STATICLIB -DCARES_STATICLIB -DWIN32_LEAN_AND_MEAN -DSODIUM_STATIC -DPCRE_STATICWIN32 -D_CONSOLE )
     SET(Mega_PlatformSpecificIncludes ${MegaDir}/include/mega/$<IF:${USE_CURL},wincurl,win32>)
-    SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} ws2_32 winhttp Shlwapi Secur32.lib  $<${USE_WEBRTC}:Wldap32.lib> )
+    SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} ws2_32 winhttp Shlwapi Secur32.lib  $<$<OR:${USE_CURL},${USE_WEBRTC}>:Wldap32.lib> )
     IF(USE_LIBUV)
         SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} Kernel32.lib Iphlpapi.lib Userenv.lib Psapi.lib )
     ENDIF(USE_LIBUV)
@@ -889,6 +889,9 @@ target_compile_definitions(test_integration PRIVATE _SILENCE_TR1_NAMESPACE_DEPRE
 target_compile_definitions(tool_purge_account PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
 target_link_libraries(test_unit gtest Mega )
 target_link_libraries(test_integration gtest Mega )
+if(APPLE)
+    target_link_libraries(test_integration "-framework Security" )
+endif()
 target_link_libraries(tool_purge_account gtest Mega )
 
 if(WIN32)
