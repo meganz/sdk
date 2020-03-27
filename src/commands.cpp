@@ -1235,10 +1235,7 @@ void CommandPutNodes::procresult()
 
             for (int i=0; i < nnsize; i++)
             {
-                if (nn[i].localnode)
-                {
-                    nn[i].localnode->newnode = NULL;
-                }
+                nn[i].localnode.reset();
             }
 
             return client->putnodes_sync_result(e, nn, nnsize);
@@ -3666,7 +3663,6 @@ void CommandPubKeyRequest::procresult()
     {
         client->restag = tag;
         u->pkrs[0]->proc(client, u);
-        delete u->pkrs[0];
         u->pkrs.pop_front();
     }
 

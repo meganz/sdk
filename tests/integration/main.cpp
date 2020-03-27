@@ -15,7 +15,11 @@ namespace {
 class MegaLogger : public mega::Logger
 {
 public:
-    void log(const char* time, int loglevel, const char* source, const char* message)
+    void log(const char* time, int loglevel, const char* source, const char* message
+#ifdef ENABLE_LOG_PERFORMANCE
+          , const char **directMessages = nullptr, size_t *directMessagesSizes = nullptr, unsigned numberMessages = 0
+#endif
+    ) override
     {
         std::ostringstream os;
 
@@ -36,8 +40,19 @@ public:
             }
             os << ts;
         }
+#ifdef ENABLE_LOG_PERFORMANCE
+        os << "] " << mega::SimpleLogger::toStr(static_cast<mega::LogLevel>(loglevel)) << ": ";
+        if (message)
+        {
+            os << message;
+        }
+        else
+        {
+            for (unsigned i = 0; i < numberMessages; ++i) os.write(directMessages[i], directMessagesSizes[i]);
+        }
+#else
         os << "] " << mega::SimpleLogger::toStr(static_cast<mega::LogLevel>(loglevel)) << ": " << message;
-
+#endif
         if (source)
         {
             os << " (" << source << ")";

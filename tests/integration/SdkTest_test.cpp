@@ -706,7 +706,7 @@ bool SdkTest::waitForResponse(bool *responseReceived, unsigned int timeout)
     return true;    // response is received
 }
 
-bool SdkTest::synchronousTransfer(int apiIndex, int type, std::function<void()> f, unsigned int timeout)
+bool SdkTest::synchronousTransfer(unsigned apiIndex, int type, std::function<void()> f, unsigned int timeout)
 {
     auto& flag = mApi[apiIndex].transferFlags[type];
     flag = false;
@@ -717,7 +717,7 @@ bool SdkTest::synchronousTransfer(int apiIndex, int type, std::function<void()> 
     return result;
 }
 
-bool SdkTest::synchronousRequest(int apiIndex, int type, std::function<void()> f, unsigned int timeout)
+bool SdkTest::synchronousRequest(unsigned apiIndex, int type, std::function<void()> f, unsigned int timeout)
 {
     auto& flag = mApi[apiIndex].requestFlags[type];
     flag = false;
@@ -3868,7 +3868,7 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
 
     int64_t filesize = getFilesize(filename2);
     std::ifstream compareDecryptedFile(filename2.c_str(), ios::binary);
-    std::vector<::mega::byte> compareDecryptedData((size_t)filesize);
+    std::vector<::mega::byte> compareDecryptedData(static_cast<size_t>(filesize));
     compareDecryptedFile.read((char*)compareDecryptedData.data(), filesize);
 
     m_time_t starttime = m_time();
@@ -4118,7 +4118,7 @@ TEST_F(SdkTest, RecursiveUploadWithLogout)
     ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
 }
 
-TEST_F(SdkTest, RecursiveDownloadWithLogout)
+TEST_F(SdkTest, DISABLED_RecursiveDownloadWithLogout)
 {
     LOG_info << "___TEST RecursiveDownloadWithLogout";
 

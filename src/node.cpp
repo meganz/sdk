@@ -1438,7 +1438,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, string* 
     created = false;
     reported = false;
     syncxfer = true;
-    newnode = NULL;
+    newnode.reset();
     parent_dbid = 0;
     slocalname = NULL;
 
@@ -1654,10 +1654,7 @@ LocalNode::~LocalNode()
 
     setnotseen(0);
 
-    if (newnode)
-    {
-        newnode->localnode = NULL;
-    }
+    newnode.reset();
 
     if (sync->dirnotify.get())
     {

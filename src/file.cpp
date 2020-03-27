@@ -304,9 +304,9 @@ void File::completed(Transfer* t, LocalNode* l)
         newnode->type = FILENODE;
         newnode->parenthandle = UNDEF;
 #ifdef ENABLE_SYNC
-        if ((newnode->localnode = l))
+        if (l)
         {
-            l->newnode = newnode;
+            l->newnode.crossref(newnode, l);
             newnode->syncid = l->syncid;
         }
 #endif
