@@ -5149,8 +5149,8 @@ CommandSetKeyPair::CommandSetKeyPair(MegaClient* client, const byte* privk,
     tag = client->reqtag;
 
     len = privklen;
-    privkBuffer = new byte[privklen];
-    memcpy(privkBuffer, privk, len);
+    privkBuffer.reset(new byte[privklen]);
+    memcpy(privkBuffer.get(), privk, len);
 }
 
 void CommandSetKeyPair::procresult()
@@ -5162,16 +5162,11 @@ void CommandSetKeyPair::procresult()
 
     client->json.storeobject();
 
-    if (privkBuffer)
-    {
-        client->key.ecb_decrypt(privkBuffer, len);
-        client->mPrivKey.resize(AsymmCipher::MAXKEYLENGTH * 2);
-        client->mPrivKey.resize(Base64::btoa(privkBuffer, len, (char *)client->mPrivKey.data()));
-    }
+    client->key.ecb_decrypt(privkBuffer.get(), len);
+    client->mPrivKey.resize(AsymmCipher::MAXKEYLENGTH * 2);
+    client->mPrivKey.resize(Base64::btoa(privkBuffer.get(), len, (char *)client->mPrivKey.data()));
 
     client->app->setkeypair_result(API_OK);
-    delete [] privkBuffer;
-    privkBuffer = nullptr;
 }
 
 // fetch full node tree

@@ -244,7 +244,7 @@ public:
     CommandSetKeyPair(MegaClient*, const byte*, unsigned, const byte*, unsigned);
 
 private:
-    byte* privkBuffer = nullptr;
+    std::unique_ptr<byte> privkBuffer;
     unsigned len;
 };
 
