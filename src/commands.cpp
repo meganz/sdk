@@ -5162,12 +5162,16 @@ void CommandSetKeyPair::procresult()
 
     client->json.storeobject();
 
-    client->key.ecb_decrypt(privkBuffer, len);
-    client->mPrivKey.resize(AsymmCipher::MAXKEYLENGTH * 2);
-    client->mPrivKey.resize(Base64::btoa(privkBuffer, len, (char *)client->mPrivKey.data()));
+    if (privkBuffer)
+    {
+        client->key.ecb_decrypt(privkBuffer, len);
+        client->mPrivKey.resize(AsymmCipher::MAXKEYLENGTH * 2);
+        client->mPrivKey.resize(Base64::btoa(privkBuffer, len, (char *)client->mPrivKey.data()));
+    }
 
     client->app->setkeypair_result(API_OK);
     delete [] privkBuffer;
+    privkBuffer = nullptr;
 }
 
 // fetch full node tree
