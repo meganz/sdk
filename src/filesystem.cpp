@@ -100,7 +100,7 @@ bool FileSystemAccess::islocalfscompatible(unsigned char c, int fileSystemType) 
 }
 
 // replace characters that are not allowed in local fs names with a %xx escape sequence
-void FileSystemAccess::escapefsincompatible(string* name) const
+void FileSystemAccess::escapefsincompatible(string* name, string *dstPath) const
 {
     if (!name->compare(".."))
     {
@@ -115,13 +115,14 @@ void FileSystemAccess::escapefsincompatible(string* name) const
 
     char buf[4];
     unsigned char c;
+    int fileSystemType = getlocalfstype(dstPath);
 
     // replace all occurrences of a badchar with %xx
     for (size_t i = name->size(); i--; )
     {
         c = (unsigned char)(*name)[i];
 
-        if (!islocalfscompatible(c))
+        if (!islocalfscompatible(c, fileSystemType))
         {
             sprintf(buf, "%%%02x", c);
             name->replace(i, 1, buf);
