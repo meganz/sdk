@@ -82,9 +82,21 @@ int FileSystemAccess::getlocalfstype(string *dstPath) const
 }
 
 // is c allowed in local fs names?
-bool FileSystemAccess::islocalfscompatible(unsigned char c) const
+bool FileSystemAccess::islocalfscompatible(unsigned char c, int fileSystemType) const
 {
-    return c >= ' ' && !strchr("\\/:?\"<>|*", c);
+    switch (fileSystemType)
+    {
+        case FS_APPLE:
+            return !strchr(APPLE_RESTRICTED_CHARS, c);
+        case FS_UNIX:
+            return !strchr(UNIX_RESTRICTED_CHARS, c);
+        case FS_FAT32:
+            return !strchr(FAT32_RESTRICTED_CHARS, c);
+        case FS_WIN:
+            return !strchr(WIN_RESTRICTED_CHARS, c);
+        default:
+            return c >= ' ' && !strchr("\\/:?\"<>|*", c);
+    }
 }
 
 // replace characters that are not allowed in local fs names with a %xx escape sequence
