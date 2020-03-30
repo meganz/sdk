@@ -301,6 +301,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     bool islchex(char) const;
     bool islocalfscompatible(unsigned char) const;
     void escapefsincompatible(string*) const;
+    int getlocalfstype(string *dstPath) const;
     void unescapefsincompatible(string*) const;
 
     // convert MEGA path (UTF-8) to local format

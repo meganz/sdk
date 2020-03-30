@@ -48,6 +48,39 @@ bool FileSystemAccess::islchex(char c) const
     return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
 }
 
+int FileSystemAccess::getlocalfstype(string *dstPath) const
+{
+    if (!dstPath || dstPath->empty())
+    {
+        return FS_DEFAULT;
+    }
+
+#ifdef __linux__
+    struct statfs fileStat;
+    if (!statfs(dstPath->c_str(), &fileStat))
+    {
+        switch (fileStat.f_type)
+        {
+            case EXT2_SUPER_MAGIC:
+                return FS_UNIX;
+            case MSDOS_SUPER_MAGIC:
+                return FS_FAT32;
+            case HFS_SUPER_MAGIC:
+                return FS_APPLE;
+            case NTFS_SB_MAGIC:
+                return FS_WIN;
+            default:
+                return FS_DEFAULT;
+        }
+    }
+#elif defined  (__APPLE__)
+    /* Specific code for Apple */
+#elif defined(_WIN32) || defined(_WIN64)
+    /* Specific code for Windows */
+#endif
+    return FS_DEFAULT;
+}
+
 // is c allowed in local fs names?
 bool FileSystemAccess::islocalfscompatible(unsigned char c) const
 {
