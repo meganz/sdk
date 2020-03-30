@@ -8717,14 +8717,15 @@ bool MegaApiImpl::userComparatorDefaultASC (User *i, User *j)
     return 0;
 }
 
-char *MegaApiImpl::escapeFsIncompatible(const char *filename)
+char *MegaApiImpl::escapeFsIncompatible(const char *filename, const char *dstPath)
 {
     if(!filename)
     {
         return NULL;
     }
     string name = filename;
-    client->fsaccess->escapefsincompatible(&name);
+    string path = dstPath ? dstPath : "";
+    client->fsaccess->escapefsincompatible(&name, &path);
     return MegaApi::strdup(name.c_str());
 }
 

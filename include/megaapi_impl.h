@@ -2429,7 +2429,7 @@ class MegaApiImpl : public MegaApp
         static int typeComparator(Node *i, Node *j);
         static bool userComparatorDefaultASC (User *i, User *j);
 
-        char* escapeFsIncompatible(const char *filename);
+        char* escapeFsIncompatible(const char *filename, const char *dstPath);
         char* unescapeFsIncompatible(const char* name);
 
         bool createThumbnail(const char* imagePath, const char *dstPath);
