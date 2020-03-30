@@ -22,10 +22,32 @@
 #ifndef MEGA_FILESYSTEM_H
 #define MEGA_FILESYSTEM_H 1
 
+#ifdef __linux__
+#include <sys/vfs.h>
+#elif defined  (__APPLE__)
+#include <sys/mount.h>
+#include <sys/param.h>
+#elif defined(_WIN32) || defined(_WIN64)
+#include <windows.h>
+#endif
+
 #include "types.h"
 #include "waiter.h"
 
 namespace mega {
+
+#ifdef __linux__
+enum
+{
+    EXT2_SUPER_MAGIC      = 0xef53, // includes ext3/ext4
+    MSDOS_SUPER_MAGIC     = 0x4d44,
+    HFS_SUPER_MAGIC       = 0x4244,
+    NTFS_SB_MAGIC         = 0x5346544e,
+};
+#endif
+
+// Enumeration for filesystem families
+enum FileSystem {FS_DEFAULT = -1, FS_APPLE = 0, FS_UNIX = 1, FS_FAT32 = 2, FS_WIN = 3};
 // generic host filesystem node ID interface
 struct MEGA_API FsNodeId
 {
