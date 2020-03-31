@@ -55,7 +55,7 @@ int FileSystemAccess::getlocalfstype(string *dstPath) const
         return FS_DEFAULT;
     }
 
-#ifdef __linux__
+#if defined (__linux__) || defined (__ANDROID__)
     struct statfs fileStat;
     if (!statfs(dstPath->c_str(), &fileStat))
     {

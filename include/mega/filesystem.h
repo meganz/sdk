@@ -22,7 +22,7 @@
 #ifndef MEGA_FILESYSTEM_H
 #define MEGA_FILESYSTEM_H 1
 
-#ifdef __linux__
+#if defined (__linux__) || defined (__ANDROID__)
 #include <sys/vfs.h>
 #elif defined  (__APPLE__)
 #include <sys/mount.h>
@@ -36,7 +36,7 @@
 
 namespace mega {
 
-#ifdef __linux__
+#if defined (__linux__) || defined (__ANDROID__)
 enum
 {
     EXT2_SUPER_MAGIC      = 0xef53, // includes ext3/ext4
@@ -48,6 +48,7 @@ enum
 
 // Enumeration for filesystem families
 enum FileSystem {FS_DEFAULT = -1, FS_APPLE = 0, FS_UNIX = 1, FS_FAT32 = 2, FS_WIN = 3};
+
 // generic host filesystem node ID interface
 struct MEGA_API FsNodeId
 {
