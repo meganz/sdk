@@ -14453,7 +14453,7 @@ class MegaApi
          * @param destination path
          * @return Converted name (UTF8)
          */
-        char* escapeFsIncompatible(const char *filename, const char *dstPath =  NULL);
+        char* escapeFsIncompatible(const char *filename, const char *dstPath);
 
         /**
          * @brief Unescape a file name escaped with MegaApi::escapeFsIncompatible
