@@ -4717,7 +4717,7 @@ MegaFileGet::MegaFileGet(MegaClient *client, Node *n, string dstPath) : MegaFile
     *(FileFingerprint*)this = *n;
 
     string securename = n->displayname();
-    client->fsaccess->name2local(&securename);
+    client->fsaccess->name2local(&securename, &dstPath);
     client->fsaccess->local2path(&securename, &name);
 
     string finalPath;
@@ -17920,8 +17920,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                         {
                             name = fileName;
                         }
-
-                        client->fsaccess->name2local(&name);
+                        client->fsaccess->name2local(&name, &path);
                         client->fsaccess->local2path(&name, &securename);
                         path += securename;
                     }
@@ -17936,7 +17935,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                             name = transfer->getFileName();
                         }
 
-                        client->fsaccess->name2local(&name);
+                        client->fsaccess->name2local(&name, &path);
                         client->fsaccess->local2path(&name, &securename);
                         path += securename;
                     }
@@ -24844,7 +24843,7 @@ void MegaFolderDownloadController::start(MegaNode *node)
         name = fileName;
     }
 
-    client->fsaccess->name2local(&name);
+    client->fsaccess->name2local(&name, &path);
     client->fsaccess->local2path(&name, &securename);
     path += securename;
 
@@ -24943,7 +24942,7 @@ void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, string *pa
         size_t l = localpath.size();
 
         string name = child->getName();
-        client->fsaccess->name2local(&name);
+        client->fsaccess->name2local(&name, &localpath);
         localpath.append(name);
 
         string utf8path;

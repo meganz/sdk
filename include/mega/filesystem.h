@@ -290,7 +290,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     void local2name(string*) const;
 
     // convert local path to MEGA format (UTF-8) with unescaping
-    void name2local(string*) const;
+    void name2local(string*, std::string *dstPath = nullptr) const;
 
     //Normalize UTF-8 string
     void normalize(string *) const;

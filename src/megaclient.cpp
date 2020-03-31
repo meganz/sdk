@@ -12338,7 +12338,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
         {
             size_t t = localpath->size();
             string localname = ait->second;
-            fsaccess->name2local(&localname);
+            fsaccess->name2local(&localname, localpath);
             localpath->append(fsaccess->localseparator);
             localpath->append(localname);
             if (app->sync_syncable(l->sync, ait->second.c_str(), localpath, *it))
@@ -12512,7 +12512,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 
         localname = rit->second->attrs.map.find('n')->second;
 
-        fsaccess->name2local(&localname);
+        fsaccess->name2local(&localname, localpath);
         localpath->append(fsaccess->localseparator);
         localpath->append(localname);
 

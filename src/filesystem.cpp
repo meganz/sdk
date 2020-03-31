@@ -161,9 +161,9 @@ void FileSystemAccess::unescapefsincompatible(string* name) const
 }
 
 // escape forbidden characters, then convert to local encoding
-void FileSystemAccess::name2local(string* filename) const
+void FileSystemAccess::name2local(string* filename, string *dstPath) const
 {
-    escapefsincompatible(filename);
+    escapefsincompatible(filename, dstPath);
 
     string t = *filename;
 
