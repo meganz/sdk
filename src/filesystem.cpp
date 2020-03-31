@@ -81,21 +81,24 @@ int FileSystemAccess::getlocalfstype(string *dstPath) const
     return FS_DEFAULT;
 }
 
-// is c allowed in local fs names?
+// Group different filesystems types in families, according to it's restricted charsets
 bool FileSystemAccess::islocalfscompatible(unsigned char c, int fileSystemType) const
 {
     switch (fileSystemType)
     {
         case FS_APPLE:
-            return !strchr(APPLE_RESTRICTED_CHARS, c);
+            // APFS, HFS, HFS+ restricted characters => :
+            return !strchr("\x003A", c);
         case FS_UNIX:
-            return !strchr(UNIX_RESTRICTED_CHARS, c);
+            // ext2/ext3/ext4 restricted characters => NULL /
+            return !strchr("\x0000\x002F", c);
         case FS_FAT32:
-            return !strchr(FAT32_RESTRICTED_CHARS, c);
+            // FAT32 restricted characters => 0x0000-0x001F 0x007F " * / : < > ? \ | + , . ; = [ ]
+            return c >= ' ' && !strchr("\\/:?\"<>|*+,.;=[]\x007F", c);
         case FS_WIN:
-            return !strchr(WIN_RESTRICTED_CHARS, c);
         default:
-            return c >= ' ' && !strchr("\\/:?\"<>|*", c);
+            // NTFS and default filesystems, restricted characters => 0x0000-0x001F 0x007F " * / : < > ? \ |
+            return c >= ' ' && !strchr("\\/:?\"<>|*\x007F", c);
     }
 }
 
