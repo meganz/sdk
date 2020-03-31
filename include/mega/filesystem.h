@@ -48,30 +48,6 @@ enum
 
 // Enumeration for filesystem families
 enum FileSystem {FS_DEFAULT = -1, FS_APPLE = 0, FS_UNIX = 1, FS_FAT32 = 2, FS_WIN = 3};
-
-// APFS, HFS, HFS+ restricted characters => :
-const char APPLE_RESTRICTED_CHARS[] = "\x003A";
-
-// ext2/ext3/ext4 restricted characters => NULL /
-const char UNIX_RESTRICTED_CHARS[] = "\x0000\x002F";
-
-// FAT32 restricted characters => 0x0000-0x001F 0x007F " * / : < > ? \ | + , . ; = [ ]
-const char FAT32_RESTRICTED_CHARS[] = "\x0022\x002A\x002F\x003A\x003C\x003E\x003F"
-                                      "\x005C\x007C\x002B\x002C\x002E\x003B\x003D"
-                                      "\x005B\x005D\x007F\x0000\x0001\x0002\x0003"
-                                      "\x0004\x0005\x0006\x0007\x0008\x0009\x000A"
-                                      "\x000B\x000C\x000D\x000E\x000F\x0010\x0011"
-                                      "\x0012\x0013\x0014\x0015\x0016\x0017\x0018"
-                                      "\x0019\x001A\x001B\x001C\x001D\x001E\x001F";
-
-// extFAT, NTFS restricted characters => 0x0000-0x001F 0x007F " * / : < > ? \ |
-const char WIN_RESTRICTED_CHARS[] = "\x0022\x002A\x002F\x003A\x003C\x003E\x003F"
-                                    "\x005C\x007C\x007F\x0000\x0001\x0002\x0003"
-                                    "\x0004\x0005\x0006\x0007\x0008\x0009\x000A"
-                                    "\x000B\x000C\x000D\x000E\x000F\x0010\x0011"
-                                    "\x0012\x0013\x0014\x0015\x0016\x0017\x0018"
-                                    "\x0019\x001A\x001B\x001C\x001D\x001E\x001F";
-
 // generic host filesystem node ID interface
 struct MEGA_API FsNodeId
 {
