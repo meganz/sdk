@@ -466,7 +466,7 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
         if (e == API_EARGS || e == API_EBLOCKED)
         {
              File *f = (*it++);
-             if (f->syncxfer)
+             if (f->syncxfer && e == API_EARGS)
              {
                 defer = true;
              }
