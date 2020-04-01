@@ -3689,6 +3689,7 @@ void CommandPubKeyRequest::invalidateUser()
 CommandGetUserData::CommandGetUserData(MegaClient *client)
 {
     cmd("ug");
+    arg("v", 1);
 
     tag = client->reqtag;
 }
@@ -3708,19 +3709,32 @@ void CommandGetUserData::procresult()
     string salt;
     string smsv;
     string lastname;
+    string versionLastname;
     string firstname;
+    string versionFirstname;
     string language;
+    string versionLanguage;
     string pwdReminderDialog;
+    string versionPwdReminderDialog;
     string pushSetting;
+    string versionPushSetting;
     string contactLinkVerification;
+    string versionContactLinkVerification;
     handle me = UNDEF;
     string chatFolder;
+    string versionChatFolder;
     string aliases;
+    string versionAliases;
     string disableVersions;
+    string versionDisableVersions;
     string country;
+    string versionCountry;
     string birthday;
+    string versionBirthday;
     string birthmonth;
+    string versionBirthmonth;
     string birthyear;
+    string versionBirthyear;
     string email;
 
     bool b = false;
@@ -3789,43 +3803,43 @@ void CommandGetUserData::procresult()
             break;
 
         case MAKENAMEID8('l', 'a', 's', 't', 'n', 'a', 'm', 'e'):
-            client->json.storebinary(&lastname);
+            parseUserAttribute(lastname, versionLastname);
             break;
 
         case MAKENAMEID6('^', '!', 'l', 'a', 'n', 'g'):
-            client->json.storebinary(&language);
+            parseUserAttribute(language, versionLanguage);
             break;
 
         case MAKENAMEID8('b', 'i', 'r', 't', 'h', 'd', 'a', 'y'):
-            client->json.storebinary(&birthday);
+            parseUserAttribute(birthday, versionBirthday);
             break;
 
         case MAKENAMEID7('c', 'o', 'u', 'n', 't', 'r', 'y'):
-            client->json.storebinary(&country);
+            parseUserAttribute(country, versionCountry);
             break;
 
         case MAKENAMEID4('^', '!', 'p', 's'):
-            client->json.storebinary(&pushSetting);
+            parseUserAttribute(pushSetting, versionPushSetting);
             break;
 
         case MAKENAMEID5('^', '!', 'p', 'r', 'd'):
-            client->json.storebinary(&pwdReminderDialog);
+            parseUserAttribute(pwdReminderDialog, versionPwdReminderDialog);
             break;
 
         case MAKENAMEID4('^', 'c', 'l', 'v'):
-            client->json.storebinary(&contactLinkVerification);
+            parseUserAttribute(contactLinkVerification, versionContactLinkVerification);
             break;
 
         case MAKENAMEID4('^', '!', 'd', 'v'):
-            client->json.storebinary(&disableVersions);
+            parseUserAttribute(disableVersions, versionDisableVersions);
             break;
 
         case MAKENAMEID4('*', '!', 'c', 'f'):
-            client->json.storebinary(&chatFolder);
+            parseUserAttribute(chatFolder, versionChatFolder);
             break;
 
-       case MAKENAMEID8('*', '!', '>', 'a', 'l', 'i', 'a', 's'):
-            client->json.storebinary(&aliases);
+        case MAKENAMEID8('*', '!', '>', 'a', 'l', 'i', 'a', 's'):
+            parseUserAttribute(aliases, versionAliases);
             break;
 
         case MAKENAMEID5('e', 'm', 'a', 'i', 'l'):
@@ -3976,47 +3990,47 @@ void CommandGetUserData::procresult()
 
                     if (firstname.size())
                     {
-                        u->setattr(ATTR_FIRSTNAME, &firstname, nullptr);
+                        u->setattr(ATTR_FIRSTNAME, &firstname, &versionFirstname);
                     }
 
                     if (lastname.size())
                     {
-                        u->setattr(ATTR_LASTNAME, &lastname, nullptr);
+                        u->setattr(ATTR_LASTNAME, &lastname, &versionLastname);
                     }
 
                     if (language.size())
                     {
-                        u->setattr(ATTR_LANGUAGE, &lastname, nullptr);
+                        u->setattr(ATTR_LANGUAGE, &language, &versionLanguage);
                     }
 
                     if (birthday.size())
                     {
-                        u->setattr(ATTR_BIRTHDAY, &birthday, nullptr);
+                        u->setattr(ATTR_BIRTHDAY, &birthday, &versionBirthday);
                     }
 
                     if (birthmonth.size())
                     {
-                        u->setattr(ATTR_BIRTHMONTH, &birthmonth, nullptr);
+                        u->setattr(ATTR_BIRTHMONTH, &birthmonth, &versionBirthmonth);
                     }
 
                     if (birthyear.size())
                     {
-                        u->setattr(ATTR_BIRTHYEAR, &birthyear, nullptr);
+                        u->setattr(ATTR_BIRTHYEAR, &birthyear, &versionBirthyear);
                     }
 
                     if (country.size())
                     {
-                        u->setattr(ATTR_COUNTRY, &country, nullptr);
+                        u->setattr(ATTR_COUNTRY, &country, &versionCountry);
                     }
 
                     if (pwdReminderDialog.size())
                     {
-                        u->setattr(ATTR_PWD_REMINDER, &pwdReminderDialog, nullptr);
+                        u->setattr(ATTR_PWD_REMINDER, &pwdReminderDialog, &versionPwdReminderDialog);
                     }
 
                     if (pushSetting.size())
                     {
-                        u->setattr(ATTR_PUSH_SETTINGS, &pushSetting, nullptr);
+                        u->setattr(ATTR_PUSH_SETTINGS, &pushSetting, &versionPushSetting);
 
                         // initialize the settings for the intermediate layer by simulating there was a getua()
                         client->app->getua_result((byte*) pushSetting.data(), (unsigned) pushSetting.size(), ATTR_PUSH_SETTINGS);
@@ -4024,12 +4038,12 @@ void CommandGetUserData::procresult()
 
                     if (contactLinkVerification.size())
                     {
-                        u->setattr(ATTR_CONTACT_LINK_VERIFICATION, &contactLinkVerification, nullptr);
+                        u->setattr(ATTR_CONTACT_LINK_VERIFICATION, &contactLinkVerification, &versionContactLinkVerification);
                     }
 
                     if (disableVersions.size())
                     {
-                        u->setattr(ATTR_DISABLE_VERSIONS, &disableVersions, nullptr);
+                        u->setattr(ATTR_DISABLE_VERSIONS, &disableVersions, &versionDisableVersions);
 
                         // initialize the status of file-versioning for the client
                         client->versions_disabled = (disableVersions == "1");
@@ -4055,7 +4069,7 @@ void CommandGetUserData::procresult()
                         {
                             // store the value for private user attributes (decrypted version of serialized TLV)
                             unique_ptr<string> tlvString(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
-                            u->setattr(ATTR_MY_CHAT_FILES_FOLDER, tlvString.get(), nullptr);
+                            u->setattr(ATTR_MY_CHAT_FILES_FOLDER, tlvString.get(), &versionChatFolder);
                         }
                         else
                         {
@@ -4070,7 +4084,7 @@ void CommandGetUserData::procresult()
                         {
                             // store the value for private user attributes (decrypted version of serialized TLV)
                             unique_ptr<string> tlvString(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
-                            u->setattr(ATTR_ALIAS, tlvString.get(), nullptr);
+                            u->setattr(ATTR_ALIAS, tlvString.get(), &versionAliases);
                         }
                         else
                         {
@@ -4167,15 +4181,15 @@ void CommandGetUserData::procresult()
             switch (User::string2attr(attributeName.c_str()))
             {
                 case ATTR_FIRSTNAME:
-                    client->json.storebinary(&firstname);
+                    parseUserAttribute(firstname, versionFirstname);
                     break;
 
                 case ATTR_BIRTHMONTH:
-                    client->json.storebinary(&birthmonth);
+                    parseUserAttribute(birthmonth, versionBirthmonth);
                     break;
 
                 case ATTR_BIRTHYEAR:
-                    client->json.storebinary(&birthyear);
+                    parseUserAttribute(birthyear, versionBirthyear);
                     break;
 
                 default:
@@ -4187,6 +4201,40 @@ void CommandGetUserData::procresult()
             }
 
             break;
+        }
+    }
+}
+
+void CommandGetUserData::parseUserAttribute(std::string &value, std::string &version)
+{
+    const char *ptr;
+    const char *end;
+    string buf;
+    string info;
+    client->json.storeobject(&info);
+    JSON json;
+    json.pos = info.c_str() + 1;
+    for (;;)
+    {
+        switch (json.getnameid())
+        {
+            case MAKENAMEID2('a','v'):
+            {
+                json.storeobject(&buf);
+                break;
+            }
+            case 'v':
+            {
+                json.storeobject(&version);
+                break;
+            }
+            case EOO:
+            {
+                // convert from ASCII to binary the received data
+                value.resize(buf.size() / 4 * 3 + 3);
+                value.resize(Base64::atob(buf.data(), (byte *)value.data(), int(value.size())));
+                return;
+            }
         }
     }
 }

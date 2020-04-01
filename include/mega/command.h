@@ -552,6 +552,9 @@ public:
     void procresult();
 
     CommandGetUserData(MegaClient*);
+
+protected:
+    void parseUserAttribute(std::string& value, std::string &version);
 };
 
 class MEGA_API CommandGetMiscFlags : public Command
