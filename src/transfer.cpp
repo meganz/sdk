@@ -430,7 +430,7 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
             }
         }
     }
-    else if (e == API_EARGS)
+    else if (e == API_EARGS || e == API_EBLOCKED)
     {
         client->app->transfer_failed(this, e);
     }
@@ -463,7 +463,7 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
          * the actionpacket will eventually remove the target and the sync-engine will force to
          * disable the synchronization of the folder. For non-sync-transfers, remove the file directly.
          */
-        if (e == API_EARGS)
+        if (e == API_EARGS || e == API_EBLOCKED)
         {
              File *f = (*it++);
              if (f->syncxfer)
@@ -472,7 +472,7 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
              }
              else
              {
-                removeTransferFile(API_EARGS, f, &committer);
+                removeTransferFile(e, f, &committer);
              }
              continue;
         }
