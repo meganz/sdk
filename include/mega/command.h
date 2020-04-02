@@ -321,18 +321,6 @@ public:
 };
 #endif
 
-// Tries to fetch the unshareable-attribute key, creates it if necessary
-class MEGA_API CommandUnshareableUA : public Command
-{
-    bool fetching;
-    int maxtries;
-public:
-    CommandUnshareableUA(MegaClient*, bool fetch, int triesleft);
-
-    void procresult();
-};
-
-
 class MEGA_API CommandGetUserEmail : public Command
 {
 public:
@@ -554,7 +542,7 @@ public:
     CommandGetUserData(MegaClient*);
 
 protected:
-    void parseUserAttribute(std::string& value, std::string &version);
+    void parseUserAttribute(std::string& value, std::string &version, bool asciiToBinary = true);
 };
 
 class MEGA_API CommandGetMiscFlags : public Command

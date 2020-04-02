@@ -1967,9 +1967,6 @@ void CommandLogin::procresult()
                 client->resetSyncConfigs();
 #endif
 
-                // fetch the unshareable key straight away, so we have it before fetchnodes-from-server completes .
-                client->reqs.add(new CommandUnshareableUA(client, true, 5));
-
                 return client->app->login_result(API_OK);
 
             default:
@@ -3025,6 +3022,10 @@ void CommandPutUA::procresult()
                 LOG_info << "File versioning is enabled";
             }
         }
+        else if (at == ATTR_UNSHAREABLE_KEY)
+        {
+            client->unshareablekey.swap(av);
+        }
     }
 
     client->app->putua_result(e);
@@ -3372,102 +3373,6 @@ void CommandDelUA::procresult()
 
 #endif  // #ifdef DEBUG
 
-CommandUnshareableUA::CommandUnshareableUA(MegaClient* client, bool fetch, int triesleft)
-{
-    maxtries = triesleft;
-    fetching = fetch;
-    if (fetching)
-    {
-        cmd("uga");
-        arg("u", client->uid.c_str());
-        arg("ua", User::attr2string(ATTR_UNSHAREABLE_KEY).c_str());
-        arg("v", 1);
-    }
-    else
-    {
-        byte newunshareablekey[SymmCipher::BLOCKSIZE];
-        client->rng.genblock(newunshareablekey, sizeof(newunshareablekey));
-
-        cmd("up");
-        arg(User::attr2string(ATTR_UNSHAREABLE_KEY).c_str(), newunshareablekey, sizeof(newunshareablekey));
-        notself(client);
-    }
-    tag = 0;
-}
-
-void CommandUnshareableUA::procresult()
-{
-    if (client->json.isnumeric())
-    {
-        error e = (error)client->json.getint();
-
-        if (e == API_ENOENT && fetching && maxtries > 0)
-        {
-            // we can't get it because it doesn't exist yet, so make it now
-            LOG_info << "Creating unshareable key";
-            client->reqs.add(new CommandUnshareableUA(client, false, maxtries - 1));
-        }
-        else
-        {
-            LOG_err << "Could not get or create unshareable key";
-        }
-        return;
-    }
-    else if (!fetching)
-    {
-        LOG_info << "Successful creation of unshareable key";
-        // success uploading the key.  It just replies with [<uh>]
-        client->json.storeobject();
-        // fetch the value stored (protects somewhat against a creation race from multiple clients)
-        if (maxtries > 0)
-        {
-            client->reqs.add(new CommandUnshareableUA(client, true, maxtries - 1));
-        }
-    }
-    else
-    {
-        const char* ptr;
-        const char* end;
-        string buf;
-        for (;;)
-        {
-            switch (client->json.getnameid())
-            {
-            case MAKENAMEID2('a', 'v'):
-            {
-                if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
-                {
-                    return;
-                }
-                buf.assign(ptr, (end - ptr));
-                LOG_info << "Unshareable key received, size: " << buf.size();
-                break;
-            }
-            case EOO:
-            {
-                assert(fetching);
-                if (buf.size() == Base64Str<SymmCipher::BLOCKSIZE>::STRLEN)
-                {
-                    client->unshareablekey.swap(buf);
-                }
-                else
-                {
-                    LOG_err << "Unshareable key not included in reply, or wrong length";
-                }
-                return;
-            }
-
-            default:
-                if (!client->json.storeobject())
-                {
-                    LOG_err << "Bad field in unshareable reply";
-                    return;
-                }
-            }
-        }
-    }
-}
-
 CommandGetUserEmail::CommandGetUserEmail(MegaClient *client, const char *uid)
 {
     cmd("uge");
@@ -3736,6 +3641,8 @@ void CommandGetUserData::procresult()
     string birthyear;
     string versionBirthyear;
     string email;
+    string unshareableKey;
+    string versionUnshareableKey;
 
     bool b = false;
     BizMode m = BIZ_MODE_UNKNOWN;
@@ -3844,6 +3751,10 @@ void CommandGetUserData::procresult()
 
         case MAKENAMEID5('e', 'm', 'a', 'i', 'l'):
             client->json.storeobject(&email);
+            break;
+
+        case MAKENAMEID5('*', '~', 'u', 's', 'k'):
+            parseUserAttribute(unshareableKey, versionUnshareableKey, false);
             break;
 
         case 'b':   // business account's info
@@ -4091,6 +4002,26 @@ void CommandGetUserData::procresult()
                             LOG_err << "Cannot extract TLV records for ATTR_ALIAS";
                         }
                     }
+
+                    if (unshareableKey.size() == Base64Str<SymmCipher::BLOCKSIZE>::STRLEN)
+                    {
+                        client->unshareablekey.swap(unshareableKey);
+                        u->setattr(ATTR_UNSHAREABLE_KEY, &unshareableKey, &versionUnshareableKey);
+                        LOG_info << "Received unshareable key";
+                    }
+                    else if (unshareableKey.empty())
+                    {
+                        byte newunshareablekey[SymmCipher::BLOCKSIZE];
+                        client->rng.genblock(newunshareablekey, sizeof(newunshareablekey));
+                        CommandPutUA* putua = new CommandPutUA(client, ATTR_UNSHAREABLE_KEY, newunshareablekey, sizeof(newunshareablekey), 0);
+                        putua->notself(client);
+                        client->reqs.add(putua);
+                        LOG_info << "Creating unshareable key";
+                    }
+                    else
+                    {
+                        LOG_err << "Unshareable key wrong length";
+                    }
                 }
 
                 if (b)  // business account
@@ -4205,10 +4136,8 @@ void CommandGetUserData::procresult()
     }
 }
 
-void CommandGetUserData::parseUserAttribute(std::string &value, std::string &version)
+void CommandGetUserData::parseUserAttribute(std::string &value, std::string &version, bool asciiToBinary)
 {
-    const char *ptr;
-    const char *end;
     string buf;
     string info;
     client->json.storeobject(&info);
@@ -4231,8 +4160,15 @@ void CommandGetUserData::parseUserAttribute(std::string &value, std::string &ver
             case EOO:
             {
                 // convert from ASCII to binary the received data
-                value.resize(buf.size() / 4 * 3 + 3);
-                value.resize(Base64::atob(buf.data(), (byte *)value.data(), int(value.size())));
+                if (asciiToBinary)
+                {
+                    value.resize(buf.size() / 4 * 3 + 3);
+                    value.resize(Base64::atob(buf.data(), (byte *)value.data(), int(value.size())));
+                }
+                else
+                {
+                    value = buf;
+                }
                 return;
             }
         }
