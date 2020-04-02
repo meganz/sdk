@@ -28,7 +28,7 @@
 #include <sys/mount.h>
 #include <sys/param.h>
 #elif defined(_WIN32) || defined(_WIN64)
-#include <windows.h>
+#include <Windows.h>
 #endif
 
 #include "types.h"

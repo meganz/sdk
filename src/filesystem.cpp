@@ -76,7 +76,26 @@ int FileSystemAccess::getlocalfstype(string *dstPath) const
 #elif defined  (__APPLE__)
     /* Specific code for Apple */
 #elif defined(_WIN32) || defined(_WIN64)
-    /* Specific code for Windows */
+    TCHAR volumeName[MAX_PATH + 1] = { 0 };
+    TCHAR fileSystemName[MAX_PATH + 1] = { 0 };
+    DWORD serialNumber = 0;
+    DWORD maxComponentLen = 0;
+    DWORD fileSystemFlags = 0;
+
+    if (GetVolumeInformation(dstPath->c_str(), volumeName, sizeof(volumeName),
+                             &serialNumber, &maxComponentLen, &fileSystemFlags,
+                             fileSystemName, sizeof(fileSystemName)) == true)
+    {
+        if (!strcmp(fileSystemName, "NTFS")
+                || !strcmp(fileSystemName, "exFAT"))
+        {
+            return FS_WIN;
+        }
+        else if (!strcmp(fileSystemName, "FAT32"))
+        {
+            return FS_FAT32;
+        }
+    }
 #endif
     return FS_DEFAULT;
 }
