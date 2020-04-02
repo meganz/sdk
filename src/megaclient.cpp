@@ -6539,7 +6539,7 @@ void MegaClient::sc_ub()
                 mBizStatus = status;
                 mBizMode = mode;
 
-                // FIXME: if API decides tp include the expiration ts, remove the block below
+                // FIXME: if API decides to include the expiration ts, remove the block below
                 if (mBizStatus == BIZ_STATUS_ACTIVE)
                 {
                     // If new status is active, reset timestamps of transitions
@@ -7115,6 +7115,14 @@ error MegaClient::unlink(Node* n, bool keepversions)
     if (!n->inshare && !checkaccess(n, FULL))
     {
         return API_EACCESS;
+    }
+
+    if (mBizStatus > BIZ_STATUS_INACTIVE
+            && mBizMode == BIZ_MODE_SUBUSER && n->inshare
+            && mBizMasters.find(n->inshare->user->userhandle) != mBizMasters.end())
+    {
+        // business subusers cannot leave inshares from master biz users
+        return API_EMASTERONLY;
     }
 
     bool kv = (keepversions && n->type == FILENODE);
@@ -13470,7 +13478,6 @@ void MegaClient::execsyncunlink()
 {
     Node* n;
     Node* tn;
-    node_set::iterator it;
 
     // delete tounlink nodes
     do {
