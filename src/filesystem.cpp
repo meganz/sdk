@@ -183,7 +183,18 @@ std::string FileSystemAccess::getPathSeparator(const char *path)
 // escape forbidden characters, then convert to local encoding
 void FileSystemAccess::name2local(string* filename, string *dstPath) const
 {
-    escapefsincompatible(filename, dstPath);
+    std::string path = dstPath ? (*dstPath) : "";
+    if (filename && dstPath)
+    {
+        std::string aux = dstPath->substr(dstPath->size() - filename->size(), filename->size());
+        if (!aux.compare(*filename))
+        {
+            // Remove filename from dtspath if included, to be able to determine filesystem type
+            path = dstPath->substr(0, dstPath->size() - filename->size());
+        }
+    }
+
+    escapefsincompatible(filename, &path);
 
     string t = *filename;
 
