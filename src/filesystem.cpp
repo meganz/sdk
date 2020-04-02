@@ -184,13 +184,20 @@ std::string FileSystemAccess::getPathSeparator(const char *path)
 void FileSystemAccess::name2local(string* filename, string *dstPath) const
 {
     std::string path = dstPath ? (*dstPath) : "";
-    if (filename && dstPath)
+    if (filename && dstPath && dstPath->size() > filename->size())
     {
-        std::string aux = dstPath->substr(dstPath->size() - filename->size(), filename->size());
-        if (!aux.compare(*filename))
+        try
         {
-            // Remove filename from dtspath if included, to be able to determine filesystem type
-            path = dstPath->substr(0, dstPath->size() - filename->size());
+            std::string aux = dstPath->substr(dstPath->size() - filename->size(), filename->size());
+            if (!aux.compare(*filename))
+            {
+                // Remove filename from dtspath if included, to be able to determine filesystem type
+                path = dstPath->substr(0, dstPath->size() - filename->size());
+            }
+        }
+        catch (const std::out_of_range& err)
+        {
+           LOG_debug << "Out of Range: " << err.what() << '\n';
         }
     }
 
