@@ -1582,6 +1582,9 @@ public:
     // -1: expired, 0: inactive (no business subscription), 1: active, 2: grace-period
     BizStatus mBizStatus;
 
+    // list of handles of the Master business account/s
+    std::set<handle> mBizMasters;
+
     // Keep track of high level operation counts and times, for performance analysis
     struct PerformanceStats
     {

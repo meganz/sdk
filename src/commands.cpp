@@ -3707,6 +3707,7 @@ void CommandGetUserData::procresult()
     bool b = false;
     BizMode m = BIZ_MODE_UNKNOWN;
     BizStatus s = BIZ_STATUS_UNKNOWN;
+    std::set<handle> masters;
     std::vector<std::pair<BizStatus, m_time_t>> sts;
 
     if (client->json.isnumeric())
@@ -3780,6 +3781,25 @@ void CommandGetUserData::procresult()
 
                         case 'm':   // mode
                             m = BizMode(client->json.getint32());
+                            break;
+
+                        case MAKENAMEID2('m', 'u'):
+                            if (client->json.enterarray())
+                            {
+                                for (;;)
+                                {
+                                    handle uh = client->json.gethandle(MegaClient::USERHANDLE);
+                                    if (!ISUNDEF(uh))
+                                    {
+                                        masters.emplace(uh);
+                                    }
+                                    else
+                                    {
+                                        break;
+                                    }
+                                }
+                                client->json.leavearray();
+                            }
                             break;
 
                         case MAKENAMEID3('s', 't', 's'):    // status timestamps
@@ -3880,7 +3900,8 @@ void CommandGetUserData::procresult()
             {
                 // integrity checks
                 if ((s < BIZ_STATUS_EXPIRED || s > BIZ_STATUS_GRACE_PERIOD)  // status not received or invalid
-                        || (m == BIZ_MODE_UNKNOWN))  // master flag not received or invalid
+                        || (m == BIZ_MODE_UNKNOWN)  // master flag not received or invalid
+                        || (m == BIZ_MODE_SUBUSER && masters.empty())) // no master users for a business subuser
                 {
                     std::string err = "GetUserData: invalid business status / account mode";
                     LOG_err << err;
@@ -3888,6 +3909,7 @@ void CommandGetUserData::procresult()
 
                     client->mBizStatus = BIZ_STATUS_EXPIRED;
                     client->mBizMode = BIZ_MODE_SUBUSER;
+                    client->mBizMasters.clear();
                     client->mBizExpirationTs = client->mBizGracePeriodTs = 0;
                     client->app->notify_business_status(client->mBizStatus);
                 }
@@ -3912,6 +3934,7 @@ void CommandGetUserData::procresult()
                     }
 
                     client->mBizMode = m;
+                    client->mBizMasters = masters;
 
                     if (client->mBizStatus != s)
                     {
@@ -3948,6 +3971,7 @@ void CommandGetUserData::procresult()
                 BizStatus oldStatus = client->mBizStatus;
                 client->mBizStatus = BIZ_STATUS_INACTIVE;
                 client->mBizMode = BIZ_MODE_UNKNOWN;
+                client->mBizMasters.clear();
                 client->mBizExpirationTs = client->mBizGracePeriodTs = 0;
 
                 if (client->mBizStatus != oldStatus)
