@@ -2802,9 +2802,10 @@ void MegaTransferPrivate::setPath(const char* path)
     this->path = MegaApi::strdup(path);
     if(!this->path) return;
 
-    for(int i = int(strlen(path)-1); i>=0; i--)
+    std::string separator = ::mega::FileSystemAccess::getPathSeparator(path);
+    for (int i = int(strlen(path) - 1); i >= 0; i--)
     {
-        if((path[i]=='\\') || (path[i]=='/'))
+        if (strchr(separator.c_str(), path[i]))
         {
             setFileName(&(path[i+1]));
             char *parentPath = MegaApi::strdup(path);
@@ -8053,9 +8054,16 @@ void MegaApiImpl::startDownload(bool startFirst, MegaNode *node, const char* loc
         localPath = path.data();
 #endif
 
+        std::string separator = ::mega::FileSystemAccess::getPathSeparator(localPath);
         int c = localPath[strlen(localPath)-1];
-        if((c=='/') || (c == '\\')) transfer->setParentPath(localPath);
-        else transfer->setPath(localPath);
+        if (strchr(separator.c_str(), c))
+        {
+            transfer->setParentPath(localPath);
+        }
+        else
+        {
+            transfer->setPath(localPath);
+        }
     }
 
     if (node)

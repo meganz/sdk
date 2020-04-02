@@ -161,6 +161,25 @@ void FileSystemAccess::unescapefsincompatible(string* name) const
     }
 }
 
+std::string FileSystemAccess::getPathSeparator(const char *path)
+{
+    if (!path)
+    {
+        return "\\/";
+    }
+
+    for (int i = 0; i < int(strlen(path) - 1); i++)
+    {
+        if ((path[i] == '\\') || (path[i] == '/'))
+        {
+            return std::string(&path[i], 1);
+        }
+    }
+    // A separator must be always found, but in case we don't found it use both: \\ and /
+    assert(true);
+    return "\\/";
+}
+
 // escape forbidden characters, then convert to local encoding
 void FileSystemAccess::name2local(string* filename, string *dstPath) const
 {
