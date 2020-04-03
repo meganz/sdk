@@ -278,6 +278,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     bool islchex(char) const;
     bool islocalfscompatible(unsigned char, int = FS_DEFAULT) const;
     void escapefsincompatible(string*, std::string *dstPath = nullptr) const;
+    const char *fstypetostring(int type) const;
     int getlocalfstype(string *dstPath) const;
     void unescapefsincompatible(string*) const;
 

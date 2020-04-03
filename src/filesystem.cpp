@@ -48,6 +48,23 @@ bool FileSystemAccess::islchex(char c) const
     return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
 }
 
+const char *FileSystemAccess::fstypetostring(int type) const
+{
+    switch (type)
+    {
+        case FS_UNIX:
+            return "UNIX";
+        case FS_FAT32:
+            return "FAT32";
+        case FS_APPLE:
+            return "APPLE";
+        case FS_WIN:
+            return "WINDOWS";
+        default:
+            return "DEFAULT FS";
+    }
+}
+
 int FileSystemAccess::getlocalfstype(string *dstPath) const
 {
     if (!dstPath || dstPath->empty())
@@ -163,8 +180,12 @@ void FileSystemAccess::escapefsincompatible(string* name, string *dstPath) const
 
         if (!islocalfscompatible(c, fileSystemType))
         {
+            std::string inc = name->substr(i, 1);
             sprintf(buf, "%%%02x", c);
             name->replace(i, 1, buf);
+            LOG_debug << "Incompatible character for filesystem type "
+                      << fstypetostring(fileSystemType)
+                      << ", replace '" << inc << "' by '" << buf << "'\n";
         }
     }
 }
