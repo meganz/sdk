@@ -1957,6 +1957,8 @@ void CommandLogin::procresult()
                 client->me = me;
                 client->uid = Base64Str<MegaClient::USERHANDLE>(client->me);
                 client->achievements_enabled = ach;
+                // Force to create own user
+                client->finduser(me, 1);
 
                 if (len_sek)
                 {
@@ -3890,10 +3892,9 @@ void CommandGetUserData::procresult()
                 client->cachedug = true;
 
                 // pre-load received user attributes into cache
-                if (email.size())
+                User* u = client->ownuser();
+                if (u)
                 {
-                    User* u = client->finduser(me, 1);
-
                     if (u->email.empty())
                     {
                         u->email = email;
