@@ -3900,8 +3900,7 @@ void CommandGetUserData::procresult()
             {
                 // integrity checks
                 if ((s < BIZ_STATUS_EXPIRED || s > BIZ_STATUS_GRACE_PERIOD)  // status not received or invalid
-                        || (m == BIZ_MODE_UNKNOWN)  // master flag not received or invalid
-                        || (m == BIZ_MODE_SUBUSER && masters.empty())) // no master users for a business subuser
+                        || (m == BIZ_MODE_UNKNOWN))  // master flag not received or invalid
                 {
                     std::string err = "GetUserData: invalid business status / account mode";
                     LOG_err << err;
@@ -3934,6 +3933,8 @@ void CommandGetUserData::procresult()
                     }
 
                     client->mBizMode = m;
+                    // subusers must receive the list of master users
+                    assert(m != BIZ_MODE_SUBUSER || !masters.empty());
                     client->mBizMasters = masters;
 
                     if (client->mBizStatus != s)
