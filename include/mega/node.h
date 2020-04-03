@@ -30,21 +30,17 @@
 namespace mega {
 struct MEGA_API NodeCore
 {
-    NodeCore();
-    ~NodeCore();
-
     // node's own handle
-    handle nodehandle;
+    handle nodehandle = UNDEF;
 
     // parent node handle (in a Node context, temporary placeholder until parent is set)
-    handle parenthandle;
+    handle parenthandle = UNDEF;
 
     // node type
-    nodetype_t type;
+    nodetype_t type = TYPE_UNKNOWN;
 
     // node attributes
-    string *attrstring;
-
+    std::unique_ptr<string> attrstring;
 };
 
 // new node for putnodes()
@@ -55,20 +51,19 @@ struct MEGA_API NewNode : public NodeCore
 
     string nodekey;
 
-    newnodesource_t source;
+    newnodesource_t source = NEW_NODE;
 
-    handle ovhandle;
-    handle uploadhandle;
+    handle ovhandle = UNDEF;
+    handle uploadhandle = UNDEF;
     byte uploadtoken[UPLOADTOKENLEN]{};
 
-    handle syncid;
-    LocalNode* localnode;
-    string* fileattributes;  // owned here, usually NULL
+    handle syncid = UNDEF;
+#ifdef ENABLE_SYNC
+    crossref_ptr<LocalNode, NewNode> localnode; // non-owning
+#endif
+    std::unique_ptr<string> fileattributes;
 
-    bool added;
-
-    NewNode();
-    ~NewNode();
+    bool added = false;
 };
 
 struct MEGA_API PublicLink
@@ -308,7 +303,7 @@ struct MEGA_API LocalNode : public File
     Node* node = nullptr;
 
     // related pending node creation or NULL
-    NewNode* newnode = nullptr;
+    crossref_ptr<NewNode, LocalNode> newnode;
 
     // FILENODE or FOLDERNODE
     nodetype_t type = TYPE_UNKNOWN;
@@ -367,8 +362,8 @@ struct MEGA_API LocalNode : public File
     handle dirnotifytag = mega::UNDEF;
 #endif
 
-    void prepare();
-    void completed(Transfer*, LocalNode*);
+    void prepare() override;
+    void completed(Transfer*, LocalNode*) override;
 
     void setnode(Node*);
 
@@ -388,7 +383,14 @@ struct MEGA_API LocalNode : public File
 
     ~LocalNode();
 };
+
+template <> inline NewNode*& crossref_other_ptr_ref<LocalNode, NewNode>(LocalNode* p) { return p->newnode.ptr; }
+template <> inline LocalNode*& crossref_other_ptr_ref<NewNode, LocalNode>(NewNode* p) { return p->localnode.ptr; }
+
 #endif
+
 } // namespace
+
+
 
 #endif

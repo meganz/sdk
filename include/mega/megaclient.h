@@ -403,6 +403,9 @@ public:
     // prefix and encrypt attribute json
     void makeattr(SymmCipher*, string*, const char*, int = -1) const;
 
+    // convenience version of the above (frequently we are passing a NodeBase's attrstring)
+    void makeattr(SymmCipher*, const std::unique_ptr<string>&, const char*, int = -1) const;
+
     // check node access level
     int checkaccess(Node*, accesslevel_t);
 
@@ -799,9 +802,12 @@ private:
     vector<TimerWithBackoff *> bttimers;
 
     // server-client command trigger connection
-    HttpReq* pendingsc;
+    std::unique_ptr<HttpReq> pendingsc;
+    std::unique_ptr<HttpReq> pendingscUserAlerts;
     BackoffTimer btsc;
     bool stopsc = false;
+    bool pendingscTimedOut = false;
+
 
     // badhost report
     HttpReq* badhostcs;
@@ -1450,8 +1456,8 @@ public:
     PendingContactRequest* findpcr(handle);
 
     // queue public key request for user
-    void queuepubkeyreq(User*, PubKeyAction*);
-    void queuepubkeyreq(const char*, PubKeyAction*);
+    void queuepubkeyreq(User*, std::unique_ptr<PubKeyAction>);
+    void queuepubkeyreq(const char*, std::unique_ptr<PubKeyAction>);
 
     // rewrite foreign keys of the node (tree)
     void rewriteforeignkeys(Node* n);
@@ -1575,6 +1581,9 @@ public:
 
     // -1: expired, 0: inactive (no business subscription), 1: active, 2: grace-period
     BizStatus mBizStatus;
+
+    // list of handles of the Master business account/s
+    std::set<handle> mBizMasters;
 
     // Keep track of high level operation counts and times, for performance analysis
     struct PerformanceStats

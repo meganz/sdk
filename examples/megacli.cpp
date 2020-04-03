@@ -1761,62 +1761,73 @@ void TreeProcListOutShares::proc(MegaClient*, Node* n)
 
 bool handles_on = false;
 
-static void dumptree(Node* n, bool recurse, int depth = 0, const char* title = NULL)
+static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstream* toFile)
 {
+    std::ostream& stream = toFile ? *toFile : cout;
+    string titleTmp;
+
     if (depth)
     {
-        if (!title && !(title = n->displayname()))
+        if (!toFile)
         {
-            title = "CRYPTO_ERROR";
+            if (!title && !(title = n->displayname()))
+            {
+                title = "CRYPTO_ERROR";
+            }
+
+            for (int i = depth; i--; )
+            {
+                stream << "\t";
+            }
+        }
+        else
+        {
+            titleTmp = n->displaypath();
+            title = titleTmp.c_str();
         }
 
-        for (int i = depth; i--; )
-        {
-            cout << "\t";
-        }
-
-        cout << title << " (";
+        stream << title << " (";
 
         switch (n->type)
         {
             case FILENODE:
-                cout << n->size;
+                stream << n->size;
 
                 if (handles_on)
                 {
                     Base64Str<MegaClient::NODEHANDLE> handlestr(n->nodehandle);
-                    cout << " " << handlestr.chars;
+                    stream << " " << handlestr.chars;
                 }
 
                 const char* p;
                 if ((p = strchr(n->fileattrstring.c_str(), ':')))
                 {
-                    cout << ", has attributes " << p + 1;
+                    stream << ", has attributes " << p + 1;
                 }
 
                 if (n->plink)
                 {
-                    cout << ", shared as exported";
+                    stream << ", shared as exported";
                     if (n->plink->ets)
                     {
-                        cout << " temporal";
+                        stream << " temporal";
                     }
                     else
                     {
-                        cout << " permanent";
+                        stream << " permanent";
                     }
-                    cout << " file link";
+                    stream << " file link";
                 }
 
                 break;
 
             case FOLDERNODE:
-                cout << "folder";
+                stream << "folder";
 
                 if (handles_on)
                 {
                     Base64Str<MegaClient::NODEHANDLE> handlestr(n->nodehandle);
-                    cout << " " << handlestr.chars;
+                    stream << " " << handlestr.chars;
                 }
 
                 if(n->outshares)
@@ -1825,23 +1836,23 @@ static void dumptree(Node* n, bool recurse, int depth = 0, const char* title = N
                     {
                         if (it->first)
                         {
-                            cout << ", shared with " << it->second->user->email << ", access "
+                            stream << ", shared with " << it->second->user->email << ", access "
                                  << getAccessLevelStr(it->second->access);
                         }
                     }
 
                     if (n->plink)
                     {
-                        cout << ", shared as exported";
+                        stream << ", shared as exported";
                         if (n->plink->ets)
                         {
-                            cout << " temporal";
+                            stream << " temporal";
                         }
                         else
                         {
-                            cout << " permanent";
+                            stream << " permanent";
                         }
-                        cout << " folder link";
+                        stream << " folder link";
                     }
                 }
 
@@ -1851,7 +1862,7 @@ static void dumptree(Node* n, bool recurse, int depth = 0, const char* title = N
                     {
                         if (it->first)
                         {
-                            cout << ", shared (still pending) with " << it->second->pcr->targetemail << ", access "
+                            stream << ", shared (still pending) with " << it->second->pcr->targetemail << ", access "
                                  << getAccessLevelStr(it->second->access);
                         }                        
                     }
@@ -1859,15 +1870,15 @@ static void dumptree(Node* n, bool recurse, int depth = 0, const char* title = N
 
                 if (n->inshare)
                 {
-                    cout << ", inbound " << getAccessLevelStr(n->inshare->access) << " share";
+                    stream << ", inbound " << getAccessLevelStr(n->inshare->access) << " share";
                 }
                 break;
 
             default:
-                cout << "unsupported type, please upgrade";
+                stream << "unsupported type, please upgrade";
         }
 
-        cout << ")" << (n->changed.removed ? " (DELETED)" : "") << endl;
+        stream << ")" << (n->changed.removed ? " (DELETED)" : "") << endl;
 
         if (!recurse)
         {
@@ -1879,7 +1890,7 @@ static void dumptree(Node* n, bool recurse, int depth = 0, const char* title = N
     {
         for (node_list::iterator it = n->children.begin(); it != n->children.end(); it++)
         {
-            dumptree(*it, recurse, depth + 1);
+            dumptree(*it, recurse, depth + 1, NULL, toFile);
         }
     }
 }
@@ -2034,7 +2045,7 @@ public:
                 tattrs.map.erase(it);
             }
 
-            t->attrstring = new string;
+            t->attrstring.reset(new string);
             tattrs.getjson(&attrstring);
             mc->makeattr(&key, t->attrstring, attrstring.c_str());
         }
@@ -2402,6 +2413,55 @@ void exec_find(autocomplete::ACState& s)
     }
 }
 
+bool recurse_findemptysubfoldertrees(Node* n, bool moveToTrash)
+{
+    if (n->type == FILENODE)
+    {
+        return false;
+    }
+
+    std::vector<Node*> emptyFolders;
+    bool empty = true;
+    Node* trash = client->nodebyhandle(client->rootnodes[2]);
+    for (auto c : n->children)
+    {
+        bool subfolderEmpty = recurse_findemptysubfoldertrees(c, moveToTrash);
+        if (subfolderEmpty)
+        {
+            emptyFolders.push_back(c);
+        }
+        empty = empty && subfolderEmpty;
+    }
+    if (!empty)
+    {
+        for (auto c : emptyFolders)
+        {
+            if (moveToTrash)
+            {
+                cout << "moving to trash: " << c->displaypath() << endl;
+                client->rename(c, trash);
+            }
+            else
+            {
+                cout << "empty folder tree at: " << c->displaypath() << endl;
+            }
+        }
+    }
+    return empty;
+}
+
+void exec_findemptysubfoldertrees(autocomplete::ACState& s)
+{
+    bool moveToTrash = s.extractflag("-movetotrash");
+    if (Node* n = client->nodebyhandle(cwd))
+    {
+        if (recurse_findemptysubfoldertrees(n, moveToTrash))
+        {
+            cout << "the search root path only contains empty folders: " << n->displaypath() << endl;
+        }
+    }
+}
+
 bool typematchesnodetype(nodetype_t pathtype, nodetype_t nodetype)
 {
     switch (pathtype)
@@ -2718,11 +2778,20 @@ class MegaCLILogger : public ::mega::Logger {
 public:
     ofstream mLogFile;
 
-    void log(const char*, int loglevel, const char*, const char *message) override
+    void log(const char*, int loglevel, const char*, const char *message
+#ifdef ENABLE_LOG_PERFORMANCE
+                 , const char **directMessages, size_t *directMessagesSizes, unsigned numberMessages
+#endif
+    ) override
     {
         if (mLogFile.is_open())
         {
-            mLogFile << Waiter::ds << " " << SimpleLogger::toStr(static_cast<LogLevel>(loglevel)) << ": " << message << std::endl;
+            mLogFile << Waiter::ds << " " << SimpleLogger::toStr(static_cast<LogLevel>(loglevel)) << ": ";
+            if (message) mLogFile << message;
+#ifdef ENABLE_LOG_PERFORMANCE
+            for (unsigned i = 0; i < numberMessages; ++i) mLogFile.write(directMessages[i], directMessagesSizes[i]);
+#endif
+            mLogFile << std::endl;
         }
         else
         {
@@ -2738,7 +2807,10 @@ public:
             s.reserve(1024);
             s += ts;
             s += " ";
-            s += message;
+            if (message) s += message;
+#ifdef ENABLE_LOG_PERFORMANCE
+            for (unsigned i = 0; i < numberMessages; ++i) s.append(directMessages[i], directMessagesSizes[i]);
+#endif
             s += "\r\n";
             OutputDebugStringA(s.c_str());
 #else
@@ -2774,7 +2846,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_confirm, sequence(text("confirm")));
     p->Add(exec_session, sequence(text("session"), opt(sequence(text("autoresume"), opt(param("id"))))));
     p->Add(exec_mount, sequence(text("mount")));
-    p->Add(exec_ls, sequence(text("ls"), opt(flag("-R")), opt(remoteFSFolder(client, &cwd))));
+    p->Add(exec_ls, sequence(text("ls"), opt(flag("-R")), opt(sequence(flag("-tofile"), param("filename"))), opt(remoteFSFolder(client, &cwd))));
     p->Add(exec_cd, sequence(text("cd"), opt(remoteFSFolder(client, &cwd))));
     p->Add(exec_pwd, sequence(text("pwd")));
     p->Add(exec_lcd, sequence(text("lcd"), opt(localFSFolder())));
@@ -2890,6 +2962,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_quit, either(text("quit"), text("q"), text("exit")));
 
     p->Add(exec_find, sequence(text("find"), text("raided")));
+    p->Add(exec_findemptysubfoldertrees, sequence(text("findemptysubfoldertrees"), opt(flag("-movetotrash"))));
 
 #ifdef MEGA_MEASURE_CODE
     p->Add(exec_deferRequests, sequence(text("deferrequests"), repeat(either(flag("-putnodes")))));
@@ -3204,6 +3277,14 @@ void exec_ls(autocomplete::ACState& s)
 {
     Node* n;
     bool recursive = s.extractflag("-R");
+    string toFilename;
+    bool toFileFlag = s.extractflagparam("-tofile", toFilename);
+
+    ofstream toFile;
+    if (toFileFlag)
+    {
+        toFile.open(toFilename);
+    }
 
     if (s.words.size() > 1)
     {
@@ -3216,7 +3297,7 @@ void exec_ls(autocomplete::ACState& s)
 
     if (n)
     {
-        dumptree(n, recursive);
+        dumptree(n, recursive, 0, NULL, toFileFlag ? &toFile : nullptr);
     }
 }
 
@@ -3549,7 +3630,7 @@ void exec_cp(autocomplete::ACState& s)
 
                 // JSON-encode object and encrypt attribute string
                 attrs.getjson(&attrstring);
-                tc.nn->attrstring = new string;
+                tc.nn->attrstring.reset(new string);
                 client->makeattr(&key, tc.nn->attrstring, attrstring.c_str());
             }
 
@@ -6758,19 +6839,34 @@ void DemoApp::whyamiblocked_result(int code)
         {
             reason = "Your account has been suspended due to multiple breaches of Mega's Terms of Service. Please check your email inbox.";
         }
+        else if (code == 300)
+        {
+            reason = "Your account has been suspended due to copyright violations. Please check your email inbox.";
+        }
+        else if (code == 400)
+        {
+            reason = "Your account has been disabled by your administrator. You may contact your business account administrator for further details.";
+        }
+        else if (code == 401)
+        {
+            reason = "Your account has been removed by your administrator. You may contact your business account administrator for further details.";
+        }
         else if (code == 500)
         {
-            reason = "Your account has been blocked, pending verification via SMS.";
+            reason = "Your account has been blocked pending verification via SMS.";
         }
-        //else if (code == 300) --> default reason
-
+        else if (code == 700)
+        {
+            reason = "Your account has been temporarily suspended for your safety. Please verify your email and follow its steps to unlock your account.";
+        }
+        //else if (code == ACCOUNT_BLOCKED_DEFAULT) --> default reason
 
         cout << "Reason: " << reason << endl;
 
-        if (code != 500)
+        if (code != 500 && code != 700)
         {
             cout << "Logging out..." << endl;
-            client->locallogout(false);
+            client->locallogout(true);
         }
     }
 }
@@ -6914,7 +7010,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
         newnode->nodehandle = ph;
         newnode->parenthandle = UNDEF;
         newnode->nodekey.assign((char*)key, FILENODEKEYLENGTH);
-        newnode->attrstring = new string(*a);
+        newnode->attrstring.reset(new string(*a));
 
         while ((name = json.getnameid()) != EOO && json.storeobject((t = &attrs.map[name])))
         {

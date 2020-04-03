@@ -1339,13 +1339,16 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
     }
     else
     {
-        if (req->out->size() < 10240)
+        if (req->out->size() < SimpleLogger::maxPayloadLogSize)
         {
-            LOG_debug << httpctx->req->logname << "Sending " << req->out->size() << ": " << *req->out;
+            LOG_debug << httpctx->req->logname << "Sending " << req->out->size() << ": " << DirectMessage(req->out->c_str(), req->out->size());
         }
         else
         {
-            LOG_debug << httpctx->req->logname << "Sending " << req->out->size() << ": " << req->out->substr(0, 5116) << " [...] " << req->out->substr(req->out->size() - 5116, string::npos);
+            LOG_debug << httpctx->req->logname << "Sending " << req->out->size() << ": "
+                      << DirectMessage(req->out->c_str(), static_cast<size_t>(SimpleLogger::maxPayloadLogSize / 2))
+                      << " [...] "
+                      << DirectMessage(req->out->c_str() + req->out->size() - SimpleLogger::maxPayloadLogSize / 2, static_cast<size_t>(SimpleLogger::maxPayloadLogSize / 2));
         }
     }
 
@@ -2135,13 +2138,16 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                     }
                     else
                     {
-                        if (req->in.size() < 10240)
+                        if (req->in.size() < SimpleLogger::maxPayloadLogSize)
                         {
-                            LOG_debug << req->logname << "Received " << req->in.size() << ": " << req->in.c_str();
+                            LOG_debug << req->logname << "Received " << req->in.size() << ": " << DirectMessage(req->in.c_str(), req->in.size());
                         }
                         else
                         {
-                            LOG_debug << req->logname << "Received " << req->in.size() << ": " << req->in.substr(0, 5116).c_str() << " [...] " << req->in.substr(req->in.size() - 5116, string::npos).c_str();
+                            LOG_debug << req->logname << "Received " << req->in.size() << ": "
+                                      << DirectMessage(req->in.c_str(), static_cast<size_t>(SimpleLogger::maxPayloadLogSize / 2))
+                                      << " [...] "
+                                      << DirectMessage(req->in.c_str() + req->in.size() - SimpleLogger::maxPayloadLogSize / 2, static_cast<size_t>(SimpleLogger::maxPayloadLogSize / 2));
                         }
                     }
                 }

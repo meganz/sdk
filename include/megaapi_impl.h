@@ -137,7 +137,11 @@ public:
     void setLogLevel(int logLevel);
     void setLogToConsole(bool enable);
     void postLog(int logLevel, const char *message, const char *filename, int line);
-    void log(const char *time, int loglevel, const char *source, const char *message) override;
+    void log(const char *time, int loglevel, const char *source, const char *message
+#ifdef ENABLE_LOG_PERFORMANCE
+             , const char **directMessages, size_t *directMessagesSizes, unsigned numberMessages
+#endif
+            ) override;
 
 private:
     std::recursive_mutex mutex;
@@ -922,17 +926,16 @@ protected:
 class MegaSyncEventPrivate: public MegaSyncEvent
 {
 public:
-    MegaSyncEventPrivate(int type);
-    virtual ~MegaSyncEventPrivate();
+    explicit MegaSyncEventPrivate(int type);
 
-    virtual MegaSyncEvent *copy();
+    MegaSyncEvent *copy() override;
 
-    virtual int getType() const;
-    virtual const char *getPath() const;
-    virtual MegaHandle getNodeHandle() const;
-    virtual const char *getNewPath() const;
-    virtual const char* getPrevName() const;
-    virtual MegaHandle getPrevParent() const;
+    int getType() const override;
+    const char *getPath() const override;
+    MegaHandle getNodeHandle() const override;
+    const char *getNewPath() const override;
+    const char* getPrevName() const override;
+    MegaHandle getPrevParent() const override;
 
     void setPath(const char* path);
     void setNodeHandle(MegaHandle nodeHandle);
@@ -942,11 +945,11 @@ public:
 
 protected:
     int type;
-    const char* path;
-    const char* newPath;
-    const char* prevName;
-    MegaHandle nodeHandle;
-    MegaHandle prevParent;
+    std::unique_ptr<char[]> path;
+    std::unique_ptr<char[]> newPath;
+    std::unique_ptr<char[]> prevName;
+    MegaHandle nodeHandle = INVALID_HANDLE;
+    MegaHandle prevParent = INVALID_HANDLE;
 };
 
 class MegaRegExpPrivate
@@ -2067,6 +2070,7 @@ class MegaApiImpl : public MegaApp
         void verifyCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
         void resetCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
         static void setLogLevel(int logLevel);
+        static void setMaxPayloadLogSize(long long maxSize);
         static void addLoggerClass(MegaLogger *megaLogger);
         static void removeLoggerClass(MegaLogger *megaLogger);
         static void setLogToConsole(bool enable);
@@ -2593,6 +2597,7 @@ class MegaApiImpl : public MegaApp
         void yield();
         void lockMutex();
         void unlockMutex();
+        bool tryLockMutexFor(long long time);
 
 protected:
         static const unsigned int MAX_SESSION_LENGTH;

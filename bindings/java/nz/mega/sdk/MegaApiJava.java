@@ -437,6 +437,50 @@ public class MegaApiJava {
     }
 
     /**
+     * Get an URL to transfer the current session to the webclient
+     *
+     * This function creates a new session for the link so logging out in the web client won't log out
+     * the current session.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_SESSION_TRANSFER_URL
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getLink - URL to open the desired page with the same account
+     *
+     * You take the ownership of the returned value.
+     *
+     * @param path Path inside https://mega.nz/# that we want to open with the current session
+     *
+     * For example, if you want to open https://mega.nz/#pro, the parameter of this function should be "pro".
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getSessionTransferURL(String path, MegaRequestListenerInterface listener){
+        megaApi.getSessionTransferURL(path, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Get an URL to transfer the current session to the webclient
+     *
+     * This function creates a new session for the link so logging out in the web client won't log out
+     * the current session.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_SESSION_TRANSFER_URL
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getLink - URL to open the desired page with the same account
+     *
+     * You take the ownership of the returned value.
+     *
+     * @param path Path inside https://mega.nz/# that we want to open with the current session
+     *
+     * For example, if you want to open https://mega.nz/#pro, the parameter of this function should be "pro".
+     */
+    public void getSessionTransferURL(String path){
+        megaApi.getSessionTransferURL(path);
+    }
+
+    /**
      * Converts a Base32-encoded user handle (JID) to a MegaHandle.
      * <p>
      * @param base32Handle
@@ -5061,6 +5105,8 @@ public class MegaApiJava {
      * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
      * Valid data in the MegaRequest object received on callbacks:
      * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER
+     * - MegaRequest::getMegaStringMap - Returns a MegaStringMap.
+     * The key "h" in the map contains the nodehandle specified as parameter encoded in B64
      *
      * @param nodehandle MegaHandle of the node to be used as target folder
      * @param listener MegaRequestListener to track this request
@@ -5096,6 +5142,8 @@ public class MegaApiJava {
      * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
      * - MegaRequest::getFlag - Returns false
      * - MegaRequest::getNodehandle - Returns the provided node handle
+     * - MegaRequest::getMegaStringMap - Returns a MegaStringMap.
+     * The key "h" in the map contains the nodehandle specified as parameter encoded in B64
      *
      * @param nodehandle MegaHandle of the node to be used as primary target folder
      * @param listener MegaRequestListener to track this request
@@ -5112,6 +5160,8 @@ public class MegaApiJava {
      * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
      * - MegaRequest::getFlag - Returns true
      * - MegaRequest::getNodehandle - Returns the provided node handle
+     * - MegaRequest::getMegaStringMap - Returns a MegaStringMap.
+     * The key "sh" in the map contains the nodehandle specified as parameter encoded in B64
      *
      * @param nodehandle MegaHandle of the node to be used as secondary target folder
      * @param listener MegaRequestListener to track this request

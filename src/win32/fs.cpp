@@ -20,6 +20,7 @@
  */
 
 #include "mega.h"
+#include <wow64apiset.h>
 
 namespace mega {
 WinFileAccess::WinFileAccess(Waiter *w) : FileAccess(w)
@@ -1172,7 +1173,7 @@ bool WinFileSystemAccess::expanselocalpath(string *path, string *absolutepath)
 #endif
 }
 
-void WinFileSystemAccess::osversion(string* u) const
+void WinFileSystemAccess::osversion(string* u, bool includeArchExtraInfo) const
 {
     char buf[128];
 
@@ -1201,6 +1202,16 @@ void WinFileSystemAccess::osversion(string* u) const
         }
     }
     snprintf(buf, sizeof(buf), "Windows %d.%d.%d", version.dwMajorVersion, version.dwMinorVersion, version.dwBuildNumber);
+
+    if (includeArchExtraInfo)
+    {
+        BOOL isWOW = FALSE;
+        BOOL callSucceeded = IsWow64Process(GetCurrentProcess(), &isWOW);
+        if (callSucceeded && isWOW)
+        {
+            strcat(buf, "/64");  // if the app 32/64 bit matches the OS, then no need to specify the OS separately, so we only need to cover the WOW 32 bit on 64 bit case.
+        }
+    }
 #endif
 
     u->append(buf);

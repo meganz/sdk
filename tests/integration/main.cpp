@@ -13,7 +13,11 @@ namespace {
 class MegaLogger : public mega::Logger
 {
 public:
-    void log(const char* time, int loglevel, const char* source, const char* message)
+    void log(const char* time, int loglevel, const char* source, const char* message
+#ifdef ENABLE_LOG_PERFORMANCE
+          , const char **directMessages = nullptr, size_t *directMessagesSizes = nullptr, unsigned numberMessages = 0
+#endif
+    ) override
     {
         std::ostringstream os;
 
@@ -26,14 +30,27 @@ public:
         {
             auto t = std::time(NULL);
             char ts[50];
-            if (!std::strftime(ts, sizeof(ts), "%H:%M:%S", std::gmtime(&t)))
+            struct tm dt;
+            mega::m_gmtime(t, &dt);
+            if (!std::strftime(ts, sizeof(ts), "%H:%M:%S", &dt))
             {
                 ts[0] = '\0';
             }
             os << ts;
         }
+#ifdef ENABLE_LOG_PERFORMANCE
+        os << "] " << mega::SimpleLogger::toStr(static_cast<mega::LogLevel>(loglevel)) << ": ";
+        if (message)
+        {
+            os << message;
+        }
+        else
+        {
+            for (unsigned i = 0; i < numberMessages; ++i) os.write(directMessages[i], directMessagesSizes[i]);
+        }
+#else
         os << "] " << mega::SimpleLogger::toStr(static_cast<mega::LogLevel>(loglevel)) << ": " << message;
-
+#endif
         if (source)
         {
             os << " (" << source << ")";
@@ -112,6 +129,7 @@ int main (int argc, char *argv[])
     mega::SimpleLogger::setOutputClass(&megaLogger);
 
 #if defined(_WIN32) && defined(NO_READLINE)
+    using namespace mega;
     WinConsole* wc = new CONSOLE_CLASS;
     wc->setShellConsole();
 #endif

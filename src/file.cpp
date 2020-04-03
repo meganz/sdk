@@ -304,9 +304,9 @@ void File::completed(Transfer* t, LocalNode* l)
         newnode->type = FILENODE;
         newnode->parenthandle = UNDEF;
 #ifdef ENABLE_SYNC
-        if ((newnode->localnode = l))
+        if (l)
         {
-            l->newnode = newnode;
+            l->newnode.crossref(newnode, l);
             newnode->syncid = l->syncid;
         }
 #endif
@@ -322,7 +322,7 @@ void File::completed(Transfer* t, LocalNode* l)
 
         attrs.getjson(&tattrstring);
 
-        newnode->attrstring = new string;
+        newnode->attrstring.reset(new string);
         t->client->makeattr(t->transfercipher(), newnode->attrstring, tattrstring.c_str());
 
         if (targetuser.size())
