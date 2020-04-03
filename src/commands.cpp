@@ -5088,6 +5088,7 @@ void CommandConfirmSignupLink2::procresult()
 
     if (!ISUNDEF(uh) && version == 2)
     {
+        client->ephemeralSession = false;
         client->app->confirmsignuplink2_result(uh, name.c_str(), email.c_str(), API_OK);
     }
     else
@@ -5119,6 +5120,7 @@ void CommandConfirmSignupLink::procresult()
 
     client->json.storeobject();
 
+    client->ephemeralSession = false;
     client->app->confirmsignuplink_result(API_OK);
 }
 

@@ -235,6 +235,8 @@ public:
     // pseudo-random number generator
     PrnGen rng;
 
+    bool ephemeralSession = false;
+
     static string getPublicLink(bool newLinkFormat, nodetype_t type, handle ph, const char *key);
 
 #ifdef ENABLE_CHAT

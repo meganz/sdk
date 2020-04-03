@@ -1121,6 +1121,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     loggedout = false;
     cachedug = false;
     minstreamingrate = -1;
+    ephemeralSession = false;
 
 #ifndef EMSCRIPTEN
     autodownport = true;
@@ -3867,6 +3868,7 @@ void MegaClient::locallogout(bool removecaches)
     loggedout = false;
     cachedug = false;
     minstreamingrate = -1;
+    ephemeralSession = false;
 #ifdef USE_MEDIAINFO
     mediaFileInfo = MediaFileInfo();
 #endif
@@ -10413,9 +10415,7 @@ sessiontype_t MegaClient::loggedin()
         return NOTLOGGEDIN;
     }
 
-    User* u = finduser(me);
-
-    if (u && !u->email.size())
+    if (ephemeralSession)
     {
         return EPHEMERALACCOUNT;
     }
@@ -10502,6 +10502,7 @@ error MegaClient::changepw(const char* password, const char *pin)
 // create ephemeral session
 void MegaClient::createephemeral()
 {
+    ephemeralSession = true;
     byte keybuf[SymmCipher::KEYLENGTH];
     byte pwbuf[SymmCipher::KEYLENGTH];
     byte sscbuf[2 * SymmCipher::KEYLENGTH];
@@ -10521,6 +10522,7 @@ void MegaClient::createephemeral()
 
 void MegaClient::resumeephemeral(handle uh, const byte* pw, int ctag)
 {
+    ephemeralSession = true;
     reqs.add(new CommandResumeEphemeralSession(this, uh, pw, ctag ? ctag : reqtag));
 }
 
