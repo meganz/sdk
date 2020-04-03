@@ -1866,30 +1866,6 @@ TEST_F(SdkTest, SdkTestContacts)
     delete u;
 }
 
-/**
- * @brief TEST_F SdkTestShares
- *
- * Initialize a test scenario by:
- *
- * - Creating/uploading some folders/files to share
- * - Creating a new contact to share to
- *
- * Performs different operations related to sharing:
- *
- * - Share a folder with an existing contact
- * - Check the correctness of the outgoing share
- * - Check the reception and correctness of the incoming share
- * - Modify the access level
- * - Revoke the access to the share
- * - Share a folder with a non registered email
- * - Check the correctness of the pending outgoing share
- * - Create a file public link
- * - Import a file public link
- * - Get a node from a file public link
- * - Remove a public link
- * - Create a folder public link
- */
-
 bool SdkTest::checkAlert(int apiIndex, const string& title, const string& path)
 {
     bool ok = false;
@@ -1950,7 +1926,29 @@ bool SdkTest::checkAlert(int apiIndex, const string& title, handle h, int n)
     return ok;
 }
 
-
+/**
+ * @brief TEST_F SdkTestShares
+ *
+ * Initialize a test scenario by:
+ *
+ * - Creating/uploading some folders/files to share
+ * - Creating a new contact to share to
+ *
+ * Performs different operations related to sharing:
+ *
+ * - Share a folder with an existing contact
+ * - Check the correctness of the outgoing share
+ * - Check the reception and correctness of the incoming share
+ * - Modify the access level
+ * - Revoke the access to the share
+ * - Share a folder with a non registered email
+ * - Check the correctness of the pending outgoing share
+ * - Create a file public link
+ * - Import a file public link
+ * - Get a node from a file public link
+ * - Remove a public link
+ * - Create a folder public link
+ */
 TEST_F(SdkTest, SdkTestShares)
 {
     LOG_info << "___TEST Shares___";

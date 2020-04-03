@@ -442,7 +442,7 @@ typedef enum {
     ATTR_LANGUAGE = 14,                     // private, non-encrypted - char array in B64 - non-versioned
     ATTR_PWD_REMINDER = 15,                 // private, non-encrypted - char array in B64 - non-versioned
     ATTR_DISABLE_VERSIONS = 16,             // private, non-encrypted - char array in B64 - non-versioned
-    ATTR_CONTACT_LINK_VERIFICATION = 17,    // private, non-encrypted - char array in B64 - non-versioned
+    ATTR_CONTACT_LINK_VERIFICATION = 17,    // private, non-encrypted - char array in B64 - versioned
     ATTR_RICH_PREVIEWS = 18,                // private - byte array
     ATTR_RUBBISH_TIME = 19,                 // private, non-encrypted - char array in B64 - non-versioned
     ATTR_LAST_PSA = 20,                     // private - char array
