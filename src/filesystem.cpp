@@ -98,7 +98,7 @@ int FileSystemAccess::getlocalfstype(string *dstPath) const
     DWORD maxComponentLen = 0;
     DWORD fileSystemFlags = 0;
 
-    if (GetVolumeInformation(dstPath->c_str(), volumeName, sizeof(volumeName),
+    if (GetVolumeInformationA(dstPath->c_str(), volumeName, sizeof(volumeName),
                              &serialNumber, &maxComponentLen, &fileSystemFlags,
                              fileSystemName, sizeof(fileSystemName)) == true)
     {
