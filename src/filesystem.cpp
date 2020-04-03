@@ -74,7 +74,23 @@ int FileSystemAccess::getlocalfstype(string *dstPath) const
         }
     }
 #elif defined  (__APPLE__)
-    /* Specific code for Apple */
+    struct statfs fileStat;
+    if (!statfs(dstPath->c_str(),&fileStat))
+    {
+        if (!strcmp(fileStat.f_fstypename, "apfs")
+                || !strcmp(fileStat.f_fstypename, "hfs"))
+        {
+            return FS_APPLE;
+        }
+        if (!strcmp(fileStat.f_fstypename, "ntfs"))
+        {
+            return FS_WIN;
+        }
+        if (!strcmp(fileStat.f_fstypename, "msdos"))
+        {
+            return FS_FAT32;
+        }
+    }
 #elif defined(_WIN32) || defined(_WIN64)
     TCHAR volumeName[MAX_PATH + 1] = { 0 };
     TCHAR fileSystemName[MAX_PATH + 1] = { 0 };
