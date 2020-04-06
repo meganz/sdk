@@ -51,6 +51,7 @@ struct MEGA_API PosixDirAccess : public DirAccess
     unsigned globindex;
 
     struct stat currentItemStat;
+    bool currentItemFollowedSymlink;
 
     bool dopen(string*, FileAccess*, bool);
     bool dnext(string*, string*, bool, nodetype_t*);

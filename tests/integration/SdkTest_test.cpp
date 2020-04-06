@@ -2466,7 +2466,7 @@ TEST_F(SdkTest, SdkTestFolderIteration)
         std::unique_ptr<FileAccess> fopen_directory(fsa.newfileaccess(false));  // false = don't follow symlinks
         ASSERT_TRUE(fopen_directory->fopen(&localdir, true, false));
 
-        // now open and iterate the directory, not following symlinks (either by name of fopen'd directory)
+        // now open and iterate the directory, not following symlinks (either by name or fopen'd directory)
         std::unique_ptr<DirAccess> da(fsa.newdiraccess());
         if (da->dopen(openWithNameOrUseFileAccess ? &localdir : NULL, openWithNameOrUseFileAccess ? NULL : fopen_directory.get(), false))
         {
@@ -2492,7 +2492,7 @@ TEST_F(SdkTest, SdkTestFolderIteration)
         std::unique_ptr<FileAccess> fopen_directory2(fsa.newfileaccess(true));  // true = follow symlinks
         ASSERT_TRUE(fopen_directory2->fopen(&localdir, true, false));
 
-        // now open and iterate the directory, following symlinks (either by name of fopen'd directory)
+        // now open and iterate the directory, following symlinks (either by name or fopen'd directory)
         std::unique_ptr<DirAccess> da_follow(fsa.newdiraccess());
         if (da_follow->dopen(openWithNameOrUseFileAccess ? &localdir : NULL, openWithNameOrUseFileAccess ? NULL : fopen_directory2.get(), false))
         {

@@ -415,7 +415,7 @@ bool PosixFileAccess::fopen(string* f, bool read, bool write, DirAccess* iterati
     if (iteratingDir) //reuse statbuf from iterator
     {
         statbuf = static_cast<PosixDirAccess *>(iteratingDir)->currentItemStat;
-        mIsSymLink = S_ISLNK(statbuf.st_mode);
+        mIsSymLink = S_ISLNK(statbuf.st_mode) || static_cast<PosixDirAccess *>(iteratingDir)->currentItemFollowedSymlink;
         statok = true;
     }
 
@@ -1950,7 +1950,18 @@ bool PosixDirAccess::dnext(string* path, string* name, bool followsymlinks, node
         {
             path->append(d->d_name);
 
-            if (followsymlinks ? !stat(path->c_str(), &statbuf) : !lstat(path->c_str(), &statbuf))
+            bool statOk = !lstat(path->c_str(), &statbuf);
+            if (statOk && S_ISLNK(statbuf.st_mode) && followsymlinks)
+            {
+                currentItemFollowedSymlink = true;
+                statOk = !stat(path->c_str(), &statbuf);
+            }
+            else
+            {
+                currentItemFollowedSymlink = false;
+            }
+
+            if (statOk)
             {
                 if (S_ISREG(statbuf.st_mode) || S_ISDIR(statbuf.st_mode)) // this evalves false for symlinks
                 //if (statbuf.st_mode & (S_IFREG | S_IFDIR)) //TODO: use this when symlinks are supported
