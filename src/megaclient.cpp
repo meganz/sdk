@@ -8493,7 +8493,7 @@ void MegaClient::copysession()
 
 string *MegaClient::sessiontransferdata(const char *url, string *session)
 {
-    if (loggedin() != FULLACCOUNT)
+    if (!session && loggedin() != FULLACCOUNT)
     {
         return NULL;
     }
