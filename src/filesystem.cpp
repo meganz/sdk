@@ -92,7 +92,7 @@ int FileSystemAccess::getlocalfstype(string *dstPath) const
     }
 #elif defined  (__APPLE__)
     struct statfs fileStat;
-    if (!statfs(dstPath->c_str(),&fileStat))
+    if (!statfs(dstPath->c_str(), &fileStat))
     {
         if (!strcmp(fileStat.f_fstypename, "apfs")
                 || !strcmp(fileStat.f_fstypename, "hfs"))
