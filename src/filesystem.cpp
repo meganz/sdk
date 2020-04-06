@@ -243,7 +243,8 @@ void FileSystemAccess::name2local(string* filename, string *dstPath) const
     if (filename && dstPath)
     {
         size_t pos = dstPath->rfind(*filename);
-        if (pos == dstPath->size() - filename->size())
+        if (pos != std::string::npos
+                && pos == dstPath->size() - filename->size())
         {
             // Remove filename from dtspath if included, to be able to determine filesystem type
             path = dstPath->substr(0, pos);
