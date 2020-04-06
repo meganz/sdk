@@ -4642,9 +4642,9 @@ struct OneWaySymmetryCase
 
         if (prep && printTreesBeforeAndAfter)
         {
-            cout << " ---- local tree initial state ----" << endl;
+            cout << " ---- local filesystem initial state ----" << endl;
             PrintLocalTree(fs::path(localTestBasePath));
-            cout << " ---- remote tree initial state ----" << endl;
+            cout << " ---- remote node tree initial state ----" << endl;
             Node* testRoot = state.client.client.nodebyhandle(changeClient().basefolderhandle);
             Node* n = state.client.drillchildnodebyname(testRoot, remoteTestBasePath);
             PrintRemoteTree(n);
@@ -4658,10 +4658,10 @@ struct OneWaySymmetryCase
                 if (file)
                 {
                     if (destinationMatchAfter == match_exact) { destination_copy_renamed("f/f_0", "file0_f_0", "file0_f_0_renamed", "f/f_0", true, false, false); };
-                    if (destinationMatchAfter == match_older) destination_rename_move("f", "file_older_2", "file0_f_0_renamed", "f/f_0", true, false, false, "file0_f_0");
-                    if (destinationMatchAfter == match_newer) destination_rename_move("f", "file_newer_2", "file0_f_0_renamed", "f/f_0", true, false, false, "file0_f_0");
-                    if (destinationMatchBefore == match_older) { destination_rename_move("f", "file_older_1", "file0_f_0", "f/f_0", true, false, true, ""); }
-                    if (destinationMatchBefore == match_newer) { destination_rename_move("f", "file_newer_1", "file0_f_0", "f/f_0", true, false, true, ""); }
+                    if (destinationMatchAfter == match_older) { destination_rename_move("f", "file_older_2", "file0_f_0_renamed", "f/f_0", true, false, false, ""); fileMayDiffer("f/f_0/file0_f_0_renamed"); }
+                    if (destinationMatchAfter == match_newer) { destination_rename_move("f", "file_newer_2", "file0_f_0_renamed", "f/f_0", true, false, false, ""); fileMayDiffer("f/f_0/file0_f_0_renamed"); }
+                    if (destinationMatchBefore == match_older) { destination_rename_move("f", "file_older_1", "file0_f_0", "f/f_0", true, false, true, "file0_f_0"); fileMayDiffer("f/f_0/file0_f_0"); }
+                    if (destinationMatchBefore == match_newer) { destination_rename_move("f", "file_newer_1", "file0_f_0", "f/f_0", true, false, true, "file0_f_0"); fileMayDiffer("f/f_0/file0_f_0"); }
                     if (destinationMatchBefore == match_absent) { destination_delete("f/f_0/file0_f_0", true, false); }
                 }
                 else
@@ -4791,9 +4791,9 @@ struct OneWaySymmetryCase
     {
         if (printTreesBeforeAndAfter)
         {
-            cout << " ---- local tree before change ----" << endl;
+            cout << " ---- local filesystem before change ----" << endl;
             PrintLocalTree(fs::path(localTestBasePath));
-            cout << " ---- remote tree before change ----" << endl;
+            cout << " ---- remote node tree before change ----" << endl;
             Node* testRoot = state.client.client.nodebyhandle(changeClient().basefolderhandle);
             Node* n = state.client.drillchildnodebyname(testRoot, remoteTestBasePath);
             PrintRemoteTree(n);
@@ -4859,7 +4859,7 @@ TEST(Sync, OneWay_Highlevel_Symmetries)
     std::map<std::string, OneWaySymmetryCase> cases;
 
     static bool singleCase = false;
-    static string singleNamedTest = "rename_other_down_file_beforenewer_afterolder";//"rename_other_down_file_beforemismatch_afterabsent"; 
+    static string singleNamedTest = "";//"rename_other_down_file_beforeexact_afternewer_fo";//"rename_other_down_file_beforemismatch_afterabsent"; 
     if (singleCase)
     {
         OneWaySymmetryCase testcase(allstate);

@@ -12745,10 +12745,13 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
             else
             {
                 LOG_debug << "Node not syncable: " << LOG_NODEHANDLE(rit->second->nodehandle);
+                if (rit->second->localnode == (LocalNode*)~0) rit->second->localnode = nullptr;
             }
         }
 
         localpath->resize(t);
+
+        assert(rit->second->localnode != (LocalNode*)~0);
     }
 
     return success;

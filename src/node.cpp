@@ -1269,27 +1269,38 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
             name = localname;
             sync->client->fsaccess->local2name(&name);
 
-            if (node && sync->getConfig().syncsToCloud())
+            if (node)
             {
-                if (name != node->attrs.map['n'])
+                if (sync->getConfig().syncsToCloud())
                 {
-                    if (node->type == FILENODE)
+                    if (name != node->attrs.map['n'])
                     {
-                        treestate(TREESTATE_SYNCING);
-                    }
-                    else
-                    {
-                        sync->client->app->syncupdate_treestate(this);
-                    }
+                        if (node->type == FILENODE)
+                        {
+                            treestate(TREESTATE_SYNCING);
+                        }
+                        else
+                        {
+                            sync->client->app->syncupdate_treestate(this);
+                        }
 
-                    string prevname = node->attrs.map['n'];
-                    int creqtag = sync->client->reqtag;
+                        string prevname = node->attrs.map['n'];
+                        int creqtag = sync->client->reqtag;
 
-                    // set new name
-                    node->attrs.map['n'] = name;
-                    sync->client->reqtag = sync->tag;
-                    sync->client->setattr(node, prevname.c_str());
-                    sync->client->reqtag = creqtag;
+                        // set new name
+                        node->attrs.map['n'] = name;
+                        sync->client->reqtag = sync->tag;
+                        sync->client->setattr(node, prevname.c_str());
+                        sync->client->reqtag = creqtag;
+                    }
+                }
+                else
+                {
+                    // detach from node if one-way.  To rematch with a node after the move, we need to rely on name matching done by syncup/syncdown
+                    assert(node->localnode == this);
+                    node->setSyncable(false);
+                    node->localnode.set(NULL);
+                    node = NULL;
                 }
             }
         }
@@ -1304,6 +1315,15 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
     {
         if (newparent != parent)
         {
+            if (node && !sync->getConfig().syncsToCloud())
+            {
+                // detach from node if one-way.  To rematch with a node after the move, we need to rely on name matching done by syncup/syncdown
+                assert(node->localnode == this);
+                node->setSyncable(false);
+                node->localnode.set(NULL);
+                node = NULL;
+            }
+
             parent = newparent;
 
             if (!newnode && node && sync->getConfig().syncsToCloud())
