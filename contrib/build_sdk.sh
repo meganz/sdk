@@ -1344,8 +1344,8 @@ main() {
                 echo "* cross-compiling"
                 ;;
             C)
-               configure_cross_options="$OPTARG"
-               echo "* configure cross compile options: $configure_cross_options"
+                configure_cross_options="$OPTARG"
+                echo "* configure cross compile options: $configure_cross_options"
                 ;;
             O)
                 openssl_cross_option="$OPTARG"
