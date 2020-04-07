@@ -1299,7 +1299,7 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
                     // detach from node if one-way.  To rematch with a node after the move, we need to rely on name matching done by syncup/syncdown
                     assert(node->localnode == this);
                     node->setSyncable(false);
-                    node->localnode.set(NULL);
+                    node->localnode = NULL;
                     node = NULL;
                 }
             }
@@ -1320,7 +1320,7 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
                 // detach from node if one-way.  To rematch with a node after the move, we need to rely on name matching done by syncup/syncdown
                 assert(node->localnode == this);
                 node->setSyncable(false);
-                node->localnode.set(NULL);
+                node->localnode = NULL;
                 node = NULL;
             }
 

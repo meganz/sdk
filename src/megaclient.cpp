@@ -12501,6 +12501,12 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                         nchildren.erase(rit);
                     }
                 }
+                else if (ll->mDetachedFromFS)
+                {
+                    overwriteLocalnode = false;
+                    // both files are identical
+                    nchildren.erase(rit);
+                }
 
                 if (overwriteLocalnode)
                 {
@@ -12651,11 +12657,12 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
         else
         {
             LOG_debug << "doesn't have a previous localnode";
-            if (l->sync->getConfig().forceOverwrite())
-            {
-                rit->second->setSyncable(true);
-            }
-            if (rit->second->isSyncable())
+            //if (l->sync->getConfig().forceOverwrite())
+            //{
+            //    rit->second->setSyncable(true);
+            //}
+            //if (rit->second->isSyncable())
+            //if (l->sync->getConfig().forceOverwrite() || !rit->second->localnode || !rit->second->localnode->mDetachedFromFS)
             {
                 // missing node is not associated with an existing LocalNode
                 if (rit->second->type == FILENODE)
@@ -12742,11 +12749,11 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                     }
                 }
             }
-            else
-            {
-                LOG_debug << "Node not syncable: " << LOG_NODEHANDLE(rit->second->nodehandle);
-                if (rit->second->localnode == (LocalNode*)~0) rit->second->localnode = nullptr;
-            }
+            //else
+            //{
+            //    LOG_debug << "Node not syncable: " << LOG_NODEHANDLE(rit->second->nodehandle);
+            //    if (rit->second->localnode == (LocalNode*)~0) rit->second->localnode = nullptr;
+            //}
         }
 
         localpath->resize(t);

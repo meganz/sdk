@@ -293,6 +293,7 @@ struct MEGA_API LocalNode : public File
 
     // whether this node can be synced to the remote tree
     bool mSyncable = true;
+    bool mDetachedFromFS = false;
 
     // children by name
     localnode_map children;

@@ -442,6 +442,17 @@ struct Model
         newparent->addkid(node->clone());
     }
 
+    void emulate_rename_copy(std::string nodepath, std::string newparentpath, std::string newname)
+    {
+        auto node = findnode(nodepath);
+        auto newparent = findnode(newparentpath);
+        ASSERT_TRUE(!!node);
+        ASSERT_TRUE(!!newparent);
+        auto newnode = node->clone();
+        newnode->name = newname;
+        newparent->addkid(std::move(newnode));
+    }
+
     void emulate_delete(std::string nodepath)
     {
         auto removed = removenode(nodepath);
@@ -1201,7 +1212,16 @@ struct StandardClient : public MegaApp
         }
         for (auto& n2 : n->children)
         {
-            if (!n2.second->deleted) ns.emplace(n2.second->name, n2.second); // todo: should LocalNodes marked as deleted actually have been removed by now?
+            if (!n2.second->deleted) 
+            {
+                if (n2.second->mDetachedFromFS)
+                {
+                    // for now, detached nodes are considered not present
+                    continue;
+                }
+
+                ns.emplace(n2.second->name, n2.second); // todo: should LocalNodes marked as deleted actually have been removed by now?
+            }
         }
 
         int matched = 0;
@@ -4416,9 +4436,48 @@ struct OneWaySymmetryCase
 
         if (reportaction) cout << name() << " action: remote copy " << n1->displaypath() << " to " << n2->displaypath() << endl;
 
-        auto e = changeClient().client.rename(n1, n2);        // todo: copy not rename
-        ASSERT_TRUE(!e);
+        TreeProcCopy tc;
+        changeClient().client.proctree(n1, &tc, false, true);
+        tc.allocnodes();
+        changeClient().client.proctree(n1, &tc, false, true);
+        tc.nn->parenthandle = UNDEF;
+        changeClient().client.putnodes(n2->nodehandle, tc.nn, tc.nc);
     }
+
+    void remote_renamed_copy(std::string nodepath, std::string newparentpath, string newname, bool updatemodel, bool reportaction)
+    {
+        if (updatemodel) 
+        {
+            remoteModel.emulate_rename_copy(nodepath, newparentpath, newname);
+        }
+
+        Node* testRoot = changeClient().client.nodebyhandle(changeClient().basefolderhandle);
+        Node* n1 = changeClient().drillchildnodebyname(testRoot, remoteTestBasePath + "/" + nodepath);
+        Node* n2 = changeClient().drillchildnodebyname(testRoot, remoteTestBasePath + "/" + newparentpath);
+        ASSERT_TRUE(!!n1);
+        ASSERT_TRUE(!!n2);
+
+        if (reportaction) cout << name() << " action: remote rename + copy " << n1->displaypath() << " to " << n2->displaypath() << " as " << newname << endl;
+
+        TreeProcCopy tc;
+        changeClient().client.proctree(n1, &tc, false, true);
+        tc.allocnodes();
+        unsigned nc = tc.nc;
+        changeClient().client.proctree(n1, &tc, false, true);
+        tc.nn->parenthandle = UNDEF;
+
+        SymmCipher key;
+        AttrMap attrs;
+        string attrstring;
+        key.setkey((const ::mega::byte*)tc.nn[0].nodekey.data(), n1->type);
+        attrs = n1->attrs;
+        state.client.client.fsaccess->normalize(&newname);
+        attrs.map['n'] = newname;
+        attrs.getjson(&attrstring);
+        state.client.client.makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
+        changeClient().client.putnodes(n2->nodehandle, tc.nn, nc);
+    }
+
 
     void remote_delete(std::string nodepath, bool updatemodel, bool reportaction, bool mightNotExist)
     {
@@ -4572,6 +4631,12 @@ struct OneWaySymmetryCase
 
     void destination_copy_renamed(std::string sourcefolder, std::string oldname, std::string newname, std::string targetfolder, bool updatemodel, bool reportaction, bool deleteTargetFirst)
     {
+        if (up)
+        {
+            remote_renamed_copy(sourcefolder + "/" + oldname, targetfolder, newname, updatemodel, reportaction);
+            return;
+        }
+
         // avoid name clashes in any one folder
         if (sourcefolder != "f") destination_copy(sourcefolder + "/" + oldname, "f", updatemodel, reportaction);
         destination_rename("f/" + oldname, newname, updatemodel, reportaction, false);
@@ -4646,8 +4711,10 @@ struct OneWaySymmetryCase
             PrintLocalTree(fs::path(localTestBasePath));
             cout << " ---- remote node tree initial state ----" << endl;
             Node* testRoot = state.client.client.nodebyhandle(changeClient().basefolderhandle);
-            Node* n = state.client.drillchildnodebyname(testRoot, remoteTestBasePath);
-            PrintRemoteTree(n);
+            if (Node* n = state.client.drillchildnodebyname(testRoot, remoteTestBasePath))
+            {
+                PrintRemoteTree(n);
+            }
         }
 
         switch (action)
@@ -4795,8 +4862,10 @@ struct OneWaySymmetryCase
             PrintLocalTree(fs::path(localTestBasePath));
             cout << " ---- remote node tree before change ----" << endl;
             Node* testRoot = state.client.client.nodebyhandle(changeClient().basefolderhandle);
-            Node* n = state.client.drillchildnodebyname(testRoot, remoteTestBasePath);
-            PrintRemoteTree(n);
+            if (Node* n = state.client.drillchildnodebyname(testRoot, remoteTestBasePath))
+            {
+                PrintRemoteTree(n);
+            }
         }
 
         cout << "Checking setup state (should be no changes in oneway sync source)"<< name() << endl;
@@ -4820,8 +4889,10 @@ struct OneWaySymmetryCase
             PrintLocalTree(fs::path(localTestBasePath));
             cout << " ---- remote tree after sync of change ----" << endl;
             Node* testRoot = state.client.client.nodebyhandle(changeClient().basefolderhandle);
-            Node* n = state.client.drillchildnodebyname(testRoot, remoteTestBasePath);
-            PrintRemoteTree(n);
+            if (Node* n = state.client.drillchildnodebyname(testRoot, remoteTestBasePath))
+            {
+                PrintRemoteTree(n);
+            }
             cout << " ---- expected sync destination (model) ----" << endl;
             PrintModelTree(destinationModel().findnode("f"));
         }
@@ -4859,7 +4930,7 @@ TEST(Sync, OneWay_Highlevel_Symmetries)
     std::map<std::string, OneWaySymmetryCase> cases;
 
     static bool singleCase = false;
-    static string singleNamedTest = "";//"rename_other_down_file_beforeexact_afternewer_fo";//"rename_other_down_file_beforemismatch_afterabsent"; 
+    static string singleNamedTest = "rename_other_up_file_beforeexact_afterexact";//"rename_other_down_file_beforemismatch_afterabsent"; 
     if (singleCase)
     {
         OneWaySymmetryCase testcase(allstate);

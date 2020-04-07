@@ -1522,26 +1522,36 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                                     }
                                     else
                                     {
-                                        LOG_debug << "File move/overwrite detected";
+                                        LOG_debug << "File move/rename/overwrite detected";
 
-                                        // delete existing LocalNode...
-                                        delete l;
+                                        if (!getConfig().syncsToCloud())
+                                        {
+                                            // leave the old localnode there, still referencing its node, but unattached to a file (tracking that to prevent it being re-downloaded), and make a new localnode to represent the moved file
+                                            // its fsid map refrence is replace in the map by the new node
+                                            l->mDetachedFromFS = true;
+                                            l = NULL;
+                                        }
+                                        else
+                                        {
+                                            // delete existing LocalNode...
+                                            delete l;
 
-                                        // ...move remote node out of the way...
-                                        client->execsyncdeletions();
+                                            // ...move remote node out of the way...
+                                            client->execsyncdeletions();
 
-                                        // ...and atomically replace with moved one
-                                        client->app->syncupdate_local_move(this, it->second, path.c_str());
+                                            // ...and atomically replace with moved one
+                                            client->app->syncupdate_local_move(this, it->second, path.c_str());
 
-                                        // (in case of a move, this synchronously updates l->parent and l->node->parent)
-                                        it->second->setnameparent(parent, localname ? localpath : &tmppath);
+                                            // (in case of a move, this synchronously updates l->parent and l->node->parent)
+                                            it->second->setnameparent(parent, localname ? localpath : &tmppath);
 
-                                        // mark as seen / undo possible deletion
-                                        it->second->setnotseen(0);
+                                            // mark as seen / undo possible deletion
+                                            it->second->setnotseen(0);
 
-                                        statecacheadd(it->second);
+                                            statecacheadd(it->second);
 
-                                        return it->second;
+                                            return it->second;
+                                        }
                                     }
                                 }
                                 else
@@ -1552,7 +1562,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                         }
 
                         // no fsid change detected or overwrite with unknown file:
-                        if (fa->mtime != l->mtime || fa->size != l->size)
+                        if (l && (fa->mtime != l->mtime || fa->size != l->size))
                         {
                             if (fa->fsidvalid && l->fsid != fa->fsid)
                             {
@@ -1750,17 +1760,43 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
 
                     client->app->syncupdate_local_move(this, it->second, path.c_str());
 
-                    // (in case of a move, this synchronously updates l->parent
-                    // and l->node->parent)
-                    it->second->setnameparent(parent, localname ? localpath : &tmppath);
+                    if (!getConfig().syncsToCloud())
+                    {
+                        // leave the old localnode there, still referencing its node, but unattached to a file (tracking that to prevent it being re-downloaded), and make a new localnode to represent the moved file
+                        // its fsid map refrence is replace in the map by the new node
+                        it->second->mDetachedFromFS = true;
 
-                    // make sure that active PUTs receive their updated filenames
-                    client->updateputs();
+#ifdef DEBUG
+                        string newlocalnodename;
+                        client->fsaccess->local2path(localname ? localpath : &tmppath, &newlocalnodename);
+                        LOG_debug << "New moved/renamed localnode: " << newlocalnodename << "  Parent: " << (parent ? parent->name : "NO");
+#else
+                        LOG_debug << "New localnode.  Parent: " << (parent ? parent->name : "NO");
+#endif
+                        l = new LocalNode;
+                        l->init(this, fa->type, parent, localname ? localpath : &tmppath);
 
-                    statecacheadd(it->second);
+                        if (fa->fsidvalid)
+                        {
+                            l->setfsid(fa->fsid, client->fsidnode);
+                        }
 
-                    // unmark possible deletion
-                    it->second->setnotseen(0);
+                        newnode = true;
+                    }
+                    else
+                    {
+                        // (in case of a move, this synchronously updates l->parent
+                        // and l->node->parent)
+                        it->second->setnameparent(parent, localname ? localpath : &tmppath);
+
+                        // make sure that active PUTs receive their updated filenames
+                        client->updateputs();
+
+                        statecacheadd(it->second);
+
+                        // unmark possible deletion
+                        it->second->setnotseen(0);
+                    }
 
                     // immediately scan folder to detect deviations from cached state
                     if (fullscan && fa->type == FOLDERNODE)
