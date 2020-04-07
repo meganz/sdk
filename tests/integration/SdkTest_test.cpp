@@ -2565,17 +2565,20 @@ TEST_F(SdkTest, SdkTestFolderIteration)
         ASSERT_EQ(plain_fopen["file.txt"].type, FILENODE);
         ASSERT_EQ(plain_fopen["file.txt"].mIsSymLink, false);
 
-#ifndef WIN32
-        //ASSERT_EQ(plain_fopen["folder"].size, 0);  size field is not set for folders
-        ASSERT_EQ(plain_fopen["folderlink"].type, FOLDERNODE);
-        ASSERT_EQ(plain_fopen["folderlink"].fsidvalid, true);
-        ASSERT_EQ(plain_fopen["folderlink"].mIsSymLink, true);
-
-        ASSERT_EQ(plain_fopen["filelink.txt"].size, 12);
-        ASSERT_EQ(plain_fopen["filelink.txt"].fsidvalid, true);
-        ASSERT_EQ(plain_fopen["filelink.txt"].type, FILENODE);
-        ASSERT_EQ(plain_fopen["filelink.txt"].mIsSymLink, true);
-#endif
+// on windows and mac and linux, without the follow flag on, directory iteration does not report symlinks (currently)
+//
+//        //ASSERT_EQ(plain_fopen["folder"].size, 0);  size field is not set for folders
+//        ASSERT_EQ(plain_fopen["folderlink"].type, FOLDERNODE);
+//        ASSERT_EQ(plain_fopen["folderlink"].fsidvalid, true);
+//        ASSERT_EQ(plain_fopen["folderlink"].mIsSymLink, true);
+//
+//        ASSERT_EQ(plain_fopen["filelink.txt"].size, 12);
+//        ASSERT_EQ(plain_fopen["filelink.txt"].fsidvalid, true);
+//        ASSERT_EQ(plain_fopen["filelink.txt"].type, FILENODE);
+//        ASSERT_EQ(plain_fopen["filelink.txt"].mIsSymLink, true);
+//
+        ASSERT_TRUE(plain_fopen.find("folderlink") == plain_fopen.end());
+        ASSERT_TRUE(plain_fopen.find("filelink.txt") == plain_fopen.end());
         
         // check the glob flag
         string localdirGlob = fspathToLocal(iteratePath / "glob1*", fsa);
