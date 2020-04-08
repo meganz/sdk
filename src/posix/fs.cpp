@@ -1555,7 +1555,7 @@ string getDistroVersion()
 }
 #endif
 
-void PosixFileSystemAccess::osversion(string* u) const
+void PosixFileSystemAccess::osversion(string* u, bool /*includeArchExtraInfo*/) const
 {
 #ifdef __linux__
     string distro = getDistro();

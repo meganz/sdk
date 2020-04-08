@@ -109,7 +109,7 @@ public:
     void addevents(Waiter*, int) override;
     int checkevents(Waiter*) override;
 
-    void osversion(string*) const override;
+    void osversion(string*, bool includeArchitecture) const override;
     void statsid(string*) const override;
 
     static void emptydirlocal(string*, dev_t = 0);

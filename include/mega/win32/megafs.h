@@ -81,7 +81,7 @@ public:
     static bool istransient(DWORD);
     bool istransientorexists(DWORD);
 
-    void osversion(string*) const override;
+    void osversion(string*, bool includeArchExtraInfo) const override;
     void statsid(string*) const override;
 
     static void emptydirlocal(string*, dev_t = 0);
