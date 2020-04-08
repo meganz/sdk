@@ -1,5 +1,4 @@
-#ifndef QTMEGAEVENT_H
-#define QTMEGAEVENT_H
+#pragma once
 
 #include <megaapi.h>
 #include <QEvent>
@@ -81,5 +80,3 @@ private:
 };
 
 }
-
-#endif // QTMEGAEVENT_H

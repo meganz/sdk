@@ -418,6 +418,19 @@ void tolower_string(std::string& str);
 int macOSmajorVersion();
 #endif
 
+// file chunk macs
+class chunkmac_map : public map<m_off_t, ChunkMAC>
+{
+public:
+    int64_t macsmac(SymmCipher *cipher);
+    void serialize(string& d) const;
+    bool unserialize(const char*& ptr, const char* end);
+    void calcprogress(m_off_t size, m_off_t& chunkpos, m_off_t& completedprogress, m_off_t* lastblockprogress = nullptr);
+    m_off_t nextUnprocessedPosFrom(m_off_t pos);
+    m_off_t expandUnprocessedPiece(m_off_t pos, m_off_t npos, m_off_t fileSize, m_off_t maxReqSize);
+    void finishedUploadChunks(m_off_t pos, m_off_t size);
+};
+
 struct CacheableWriter
 {
     CacheableWriter(string& d);
@@ -429,6 +442,7 @@ struct CacheableWriter
     void serializei64(int64_t field);
     void serializeu32(uint32_t field);
     void serializehandle(handle field);
+    void serializefsfp(fsfp_t field);
     void serializebool(bool field);
     void serializebyte(byte field);
     void serializedouble(double field);
@@ -455,6 +469,7 @@ struct CacheableReader
     bool unserializebyte(byte& s);
     bool unserializedouble(double& s);
     bool unserializehandle(handle& s);
+    bool unserializefsfp(fsfp_t& s);
     bool unserializebool(bool& s);
     bool unserializechunkmacs(chunkmac_map& m);
 

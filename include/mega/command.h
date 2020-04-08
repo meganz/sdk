@@ -286,7 +286,7 @@ class MEGA_API CommandPutUA : public Command
     string av;  // attribute value
 
 public:
-    CommandPutUA(MegaClient*, attr_t at, const byte*, unsigned, int);
+    CommandPutUA(MegaClient*, attr_t at, const byte*, unsigned, int, handle = UNDEF, int = 0, int64_t = 0);
 
     void procresult();
 };
@@ -506,11 +506,12 @@ class MEGA_API CommandPutNodes : public Command
     targettype_t type;
     putsource_t source;
     handle targethandle;
+    Transfer *transfer;
 
 public:
     void procresult();
 
-    CommandPutNodes(MegaClient*, handle, const char*, NewNode*, int, int, putsource_t = PUTNODES_APP, const char *cauth = NULL);
+    CommandPutNodes(MegaClient*, handle, const char*, NewNode*, int, int, putsource_t = PUTNODES_APP, const char *cauth = nullptr, Transfer *aTransfer = nullptr);
 };
 
 class MEGA_API CommandSetAttr : public Command

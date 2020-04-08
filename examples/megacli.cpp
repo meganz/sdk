@@ -118,28 +118,41 @@ int responseprogress = -1;
 int attempts = 0;
 
 #ifdef ENABLE_SYNC
-// sync config used when creating a new sync
-static SyncConfig syncConfig;
 
-// converts the given sync config to a string
-static std::string syncConfigToString(const SyncConfig& config)
+struct NewSyncConfig
 {
-    auto getOptions = [](const SyncConfig& config)
+    SyncConfig::Type type;
+    bool syncDeletions;
+    bool forceOverwrite;
+
+    static NewSyncConfig from(const SyncConfig& config)
+    {
+        return NewSyncConfig{config.getType(), config.syncDeletions(), config.forceOverwrite()};
+    }
+};
+
+// sync configuration used when creating a new sync
+static NewSyncConfig newSyncConfig;
+
+// converts the given sync configuration to a string
+static std::string syncConfigToString(const NewSyncConfig& config)
+{
+    auto getOptions = [](const NewSyncConfig& config)
     {
         std::string desc;
         desc += ", syncDeletions ";
-        desc += config.syncDeletions() ? "ON" : "OFF";
+        desc += config.syncDeletions ? "ON" : "OFF";
         desc += ", forceOverwrite ";
-        desc += config.forceOverwrite() ? "ON" : "OFF";
+        desc += config.forceOverwrite ? "ON" : "OFF";
         return desc;
     };
 
     std::string description;
-    if (config.isUpSync() && config.isDownSync())
+    if (config.type == SyncConfig::TYPE_TWOWAY)
     {
         description = "TWOWAY";
     }
-    else if (config.isUpSync())
+    else if (config.type & SyncConfig::TYPE_UP)
     {
         description = "UP";
         description += getOptions(config);
@@ -152,9 +165,9 @@ static std::string syncConfigToString(const SyncConfig& config)
     return description;
 }
 
-// creates a SyncConfig object from config options as strings.
+// creates a NewSyncConfig object from config options as strings.
 // returns a pair where `first` is success and `second` is the sync config.
-static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::string syncDel = {}, std::string overwrite = {})
+static std::pair<bool, NewSyncConfig> syncConfigFromStrings(std::string type, std::string syncDel = {}, std::string overwrite = {})
 {
     auto toLower = [](std::string& s)
     {
@@ -176,17 +189,17 @@ static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::
     }
     else if (type == "twoway")
     {
-        syncType = SyncConfig::TYPE_DEFAULT;
+        syncType = SyncConfig::TYPE_TWOWAY;
     }
     else
     {
-        return std::make_pair(false, SyncConfig{});
+        return std::make_pair(false, NewSyncConfig{});
     }
 
     bool syncDeletions = false;
     bool forceOverwrite = false;
 
-    if (syncType != SyncConfig::TYPE_DEFAULT)
+    if (syncType != SyncConfig::TYPE_TWOWAY)
     {
         if (syncDel == "on")
         {
@@ -198,7 +211,7 @@ static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::
         }
         else
         {
-            return std::make_pair(false, SyncConfig{});
+            return std::make_pair(false, NewSyncConfig{});
         }
 
         if (overwrite == "on")
@@ -211,11 +224,11 @@ static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::
         }
         else
         {
-            return std::make_pair(false, SyncConfig{});
+            return std::make_pair(false, NewSyncConfig{});
         }
     }
 
-    return std::make_pair(true, SyncConfig{syncType, syncDeletions, forceOverwrite});
+    return std::make_pair(true, NewSyncConfig{syncType, syncDeletions, forceOverwrite});
 }
 #endif
 
@@ -397,7 +410,7 @@ void DemoApp::transfer_update(Transfer* /*t*/)
     // (this is handled in the prompt logic)
 }
 
-void DemoApp::transfer_failed(Transfer* t, error e, dstime)
+void DemoApp::transfer_failed(Transfer* t, error e, dstime, handle)
 {
     displaytransferdetails(t, "failed (");
     cout << errorstring(e) << ")" << endl;
@@ -2021,7 +2034,7 @@ public:
                 tattrs.map.erase(it);
             }
 
-            t->attrstring = new string;
+            t->attrstring.reset(new string);
             tattrs.getjson(&attrstring);
             mc->makeattr(&key, t->attrstring, attrstring.c_str());
         }
@@ -2790,7 +2803,7 @@ autocomplete::ACN autocompleteSyntax()
 #endif
     p->Add(exec_smsverify, sequence(text("smsverify"), either(sequence(text("send"), param("phonenumber"), opt(param("reverifywhitelisted"))), sequence(text("code"), param("verificationcode")))));
     p->Add(exec_verifiedphonenumber, sequence(text("verifiedphone")));
-    p->Add(exec_mkdir, sequence(text("mkdir"), opt(flag("-allowduplicate")), remoteFSFolder(client, &cwd)));
+    p->Add(exec_mkdir, sequence(text("mkdir"), opt(flag("-allowduplicate")), opt(flag("-exactleafname")), remoteFSFolder(client, &cwd)));
     p->Add(exec_rm, sequence(text("rm"), remoteFSPath(client, &cwd), opt(sequence(flag("-regexchild"), param("regex")))));
     p->Add(exec_mv, sequence(text("mv"), remoteFSPath(client, &cwd, "src"), remoteFSPath(client, &cwd, "dst")));
     p->Add(exec_cp, sequence(text("cp"), remoteFSPath(client, &cwd, "src"), either(remoteFSPath(client, &cwd, "dst"), param("dstemail"))));
@@ -3536,7 +3549,7 @@ void exec_cp(autocomplete::ACState& s)
 
                 // JSON-encode object and encrypt attribute string
                 attrs.getjson(&attrstring);
-                tc.nn->attrstring = new string;
+                tc.nn->attrstring.reset(new string);
                 client->makeattr(&key, tc.nn->attrstring, attrstring.c_str());
             }
 
@@ -3779,7 +3792,6 @@ void uploadLocalPath(nodetype_t type, std::string name, std::string localname, N
     }
     else if (type == FOLDERNODE && recursive)
     {
-
         if (previousNode)
         {
             if (previousNode->type == FILENODE)
@@ -4099,9 +4111,6 @@ void exec_sync(autocomplete::ACState& s)
 
         if (client->checkaccess(n, FULL))
         {
-            string localname;
-
-            client->fsaccess->path2local(&s.words[1].s, &localname);
 
             if (!n)
             {
@@ -4113,7 +4122,9 @@ void exec_sync(autocomplete::ACState& s)
             }
             else
             {
-                error e = client->addsync(syncConfig, &localname, DEBRISFOLDER, NULL, n);
+                SyncConfig syncConfig{s.words[1].s, n->nodehandle, 0, {}, newSyncConfig.type,
+                            newSyncConfig.syncDeletions, newSyncConfig.forceOverwrite};
+                error e = client->addsync(std::move(syncConfig), DEBRISFOLDER, NULL);
 
                 if (e)
                 {
@@ -4160,7 +4171,7 @@ void exec_sync(autocomplete::ACState& s)
                         nodepath((*it)->localroot->node->nodehandle, &remotepath);
                         client->fsaccess->local2path(&(*it)->localroot->localname, &localpath);
 
-                        cout << i++ << " (" << syncConfigToString((*it)->getConfig()) << "): " << localpath << " to " << remotepath << " - "
+                        cout << i++ << " (" << syncConfigToString(NewSyncConfig::from((*it)->getConfig())) << "): " << localpath << " to " << remotepath << " - "
                                 << syncstatenames[(*it)->state] << ", " << (*it)->localbytes
                                 << " byte(s) in " << (*it)->localnodes[FILENODE] << " file(s) and "
                                 << (*it)->localnodes[FOLDERNODE] << " folder(s)" << endl;
@@ -4179,11 +4190,11 @@ void exec_syncconfig(autocomplete::ACState& s)
 {
     if (s.words.size() == 1)
     {
-        cout << "Current sync config: " << syncConfigToString(syncConfig) << endl;
+        cout << "Current sync config: " << syncConfigToString(newSyncConfig) << endl;
     }
     else if (s.words.size() == 2 || s.words.size() == 4)
     {
-        std::pair<bool, SyncConfig> pair;
+        std::pair<bool, NewSyncConfig> pair;
         if (s.words.size() == 2)
         {
             pair = syncConfigFromStrings(s.words[1].s);
@@ -4195,7 +4206,7 @@ void exec_syncconfig(autocomplete::ACState& s)
 
         if (pair.first)
         {
-            syncConfig = pair.second;
+            newSyncConfig = pair.second;
             cout << "Successfully applied new sync config!" << endl;
         }
         else
@@ -4498,12 +4509,24 @@ void exec_users(autocomplete::ACState& s)
 void exec_mkdir(autocomplete::ACState& s)
 {
     bool allowDuplicate = s.extractflag("-allowduplicate");
+    bool exactLeafName = s.extractflag("-exactleafname");
 
     if (s.words.size() > 1)
     {
         string newname;
 
-        if (Node* n = nodebypath(s.words[1].s.c_str(), NULL, &newname))
+        Node* n;
+        if (exactLeafName) 
+        {
+            n = client->nodebyhandle(cwd);
+            newname = s.words[1].s;
+        }
+        else 
+        {
+            n = nodebypath(s.words[1].s.c_str(), NULL, &newname);
+        }
+        
+        if (n)
         {
             if (!client->checkaccess(n, RDWR))
             {
@@ -4745,10 +4768,12 @@ void exec_pause(autocomplete::ACState& s)
         getarg = true;
         putarg = true;
     }
+    
+    DBTableTransactionCommitter committer(client->tctable);
 
     if (getarg)
     {
-        client->pausexfers(GET, client->xferpaused[GET] ^= true, hardarg);
+        client->pausexfers(GET, client->xferpaused[GET] ^= true, hardarg, committer);
         if (client->xferpaused[GET])
         {
             cout << "GET transfers paused. Resume using the same command." << endl;
@@ -4761,7 +4786,7 @@ void exec_pause(autocomplete::ACState& s)
 
     if (putarg)
     {
-        client->pausexfers(PUT, client->xferpaused[PUT] ^= true, hardarg);
+        client->pausexfers(PUT, client->xferpaused[PUT] ^= true, hardarg, committer);
         if (client->xferpaused[PUT])
         {
             cout << "PUT transfers paused. Resume using the same command." << endl;
@@ -6889,7 +6914,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
         newnode->nodehandle = ph;
         newnode->parenthandle = UNDEF;
         newnode->nodekey.assign((char*)key, FILENODEKEYLENGTH);
-        newnode->attrstring = new string(*a);
+        newnode->attrstring.reset(new string(*a));
 
         while ((name = json.getnameid()) != EOO && json.storeobject((t = &attrs.map[name])))
         {

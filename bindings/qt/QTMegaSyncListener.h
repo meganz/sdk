@@ -1,5 +1,4 @@
-#ifndef QTMEGALISTENER_H
-#define QTMEGALISTENER_H
+#pragma once
 
 #ifdef ENABLE_SYNC
 
@@ -28,5 +27,3 @@ protected:
 }
 
 #endif //ENABLE_SYNC
-
-#endif // QTMEGALISTENER_H

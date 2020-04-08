@@ -32,23 +32,6 @@
 
 namespace mega {
 
-NewNode::NewNode()
-{
-    syncid = UNDEF;
-    added = false;
-    source = NEW_NODE;
-    ovhandle = UNDEF;
-    uploadhandle = UNDEF;
-    localnode = NULL;
-    fileattributes = NULL;
-}
-
-NewNode::~NewNode()
-{
-    delete fileattributes;
-}
-
-
 Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
            nodetype_t t, m_off_t s, handle u, const char* fa, m_time_t ts)
 {
@@ -87,8 +70,7 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
 
     plink = NULL;
 
-    memset(&changed,-1,sizeof changed);
-    changed.removed = false;
+    memset(&changed, 0, sizeof changed);
 
     Node* p;
 
@@ -735,8 +717,7 @@ void Node::setattr()
 
         delete[] buf;
 
-        delete attrstring;
-        attrstring = NULL;
+        attrstring.reset();
     }
 }
 
@@ -887,8 +868,7 @@ bool Node::applykey()
     if (type > FOLDERNODE)
     {
         //Root nodes contain an empty attrstring
-        delete attrstring;
-        attrstring = NULL;
+        attrstring.reset();
     }
 
     if (keyApplied() || !nodekeydata.size())
@@ -1121,19 +1101,6 @@ void Node::setpubliclink(handle ph, m_time_t cts, m_time_t ets, bool takendown)
         plink->ets = ets;
         plink->takendown = takendown;
     }
-}
-
-NodeCore::NodeCore()
-{
-    attrstring = NULL;
-    nodehandle = UNDEF;
-    parenthandle = UNDEF;
-    type = TYPE_UNKNOWN;
-}
-
-NodeCore::~NodeCore()
-{
-    delete attrstring;
 }
 
 PublicLink::PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown)
@@ -1374,7 +1341,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, string* 
     created = false;
     reported = false;
     syncxfer = true;
-    newnode = NULL;
+    newnode.reset();
     parent_dbid = 0;
     slocalname = NULL;
 
@@ -1583,10 +1550,7 @@ LocalNode::~LocalNode()
 
     setnotseen(0);
 
-    if (newnode)
-    {
-        newnode->localnode = NULL;
-    }
+    newnode.reset();
 
     if (sync->dirnotify.get())
     {
@@ -1931,6 +1895,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     l->parent_dbid = parent_dbid;
 
     l->fsid = fsid;
+    l->fsid_it = sync->client->fsidnode.end();
 
     l->localname.assign(localname, localnamelen);
     l->slocalname = nullptr;

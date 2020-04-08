@@ -125,10 +125,60 @@ class Logger
 public:
     virtual ~Logger() = default;
     // Note: `time` and `source` are null in performance mode
-    virtual void log(const char *time, int loglevel, const char *source, const char *message) = 0;
+    virtual void log(const char *time, int loglevel, const char *source, const char *message
+#ifdef ENABLE_LOG_PERFORMANCE
+          , const char **directMessages = nullptr, size_t *directMessagesSizes = nullptr, int numberMessages = 0
+#endif
+                     ) = 0;
 };
 
 typedef std::vector<std::ostream *> OutputStreams;
+
+const static int LOGGER_CHUNKS_SIZE = 1024;
+
+/**
+ * @brief holds a const char * and its size to pass to SimpleLogger, to use the direct logging logic
+ */
+class DirectMessage{
+
+private:
+    const static size_t directMsgThreshold = 1024; //below this, the msg will be buffered as a normal message
+    bool mForce = false;
+    size_t mSize = 0;
+    const char *mConstChar = nullptr;
+
+public:
+
+    DirectMessage( const char *constChar, bool force = false) //force will set size as max, so as to stay above directMsgThreshold
+    {
+        mConstChar = constChar;
+        mSize = strlen(constChar);
+        mForce = force;
+    }
+
+    template<typename T, typename std::enable_if<std::is_integral<T>::value>::type* = nullptr>
+    DirectMessage( const char *constChar, T size, bool force = false)
+    {
+        mConstChar = constChar;
+        mSize = size;
+        mForce = force;
+    }
+
+    size_t size() const
+    {
+        return mSize;
+    }
+
+    bool isBigEnoughToOutputDirectly(int bufferedSize) const
+    {
+        return (mForce || mSize > directMsgThreshold || mSize >= std::max(0, LOGGER_CHUNKS_SIZE - bufferedSize - 40/*room for [file:line]*/) );
+    }
+
+    const char *constChar() const
+    {
+        return mConstChar;
+    }
+};
 
 class OutputMap : public std::array<OutputStreams, unsigned(logMax)+1> {};
 
@@ -150,12 +200,16 @@ class SimpleLogger
     static OutputMap outputs;
     static OutputStreams getOutput(enum LogLevel ll);
 #else
-    std::array<char, 256> mBuffer; // will be stack-allocated since SimpleLogger is stack-allocated
-    std::array<char, 256>::iterator mBufferIt;
-    using DiffType = std::array<char, 256>::difference_type;
+    std::array<char, LOGGER_CHUNKS_SIZE> mBuffer; // will be stack-allocated since SimpleLogger is stack-allocated
+    std::array<char, LOGGER_CHUNKS_SIZE>::iterator mBufferIt;
+
+    using DiffType = std::array<char, LOGGER_CHUNKS_SIZE>::difference_type;
     using NumBuf = std::array<char, 24>;
     const char* filenameStr;
     int lineNum;
+
+    std::vector<DirectMessage> mDirectMessages;
+    std::vector<std::string *> mCopiedParts;
 
     template<typename DataIterator>
     void copyToBuffer(const DataIterator dataIt, DiffType currentSize)
@@ -174,10 +228,24 @@ class SimpleLogger
         }
     }
 
-    void outputBuffer()
+    void outputBuffer(bool lastcall = false)
     {
         *mBufferIt = '\0';
-        if (logger)
+        if (!mDirectMessages.empty()) // some part has already been passed as direct, we'll do all directly
+        {
+            if (lastcall) //the mBuffer can be reused
+            {
+                mDirectMessages.push_back(DirectMessage(mBuffer.data(), std::distance(mBuffer.begin(), mBufferIt)));
+            }
+            else //reached LOGGER_CHUNKS_SIZE, we need to copy mBuffer contents
+            {
+                std::string *newStr  = new string(mBuffer.data());
+                mCopiedParts.emplace_back( newStr);
+                string * back = mCopiedParts[mCopiedParts.size()-1];
+                mDirectMessages.push_back(DirectMessage(back->data(), back->size()));
+            }
+        }
+        else if (logger)
         {
             logger->log(nullptr, level, nullptr, mBuffer.data());
         }
@@ -280,12 +348,21 @@ class SimpleLogger
     {
         copyToBuffer(value.begin(), static_cast<DiffType>(value.size()));
     }
+
+#ifdef _WIN32
+    void logValue(const std::wstring& value)
+    {
+        copyToBuffer(value.begin(), static_cast<DiffType>(value.size()));
+    }
+#endif
 #endif
 
 public:
     static Logger *logger;
 
     static enum LogLevel logCurrentLevel;
+
+    static long long maxPayloadLogSize; //above this, the msg will be truncated by [ ... ]
 
     SimpleLogger(const enum LogLevel ll, const char* filename, const int line)
     : level{ll}
@@ -320,7 +397,29 @@ public:
         copyToBuffer(":", 1);
         logValue(lineNum);
         copyToBuffer("]", 1);
-        outputBuffer();
+        outputBuffer(true);
+
+        if (!mDirectMessages.empty())
+        {
+            if (logger)
+            {
+                std::unique_ptr<const char *[]> dm(new const char *[mDirectMessages.size()]);
+                std::unique_ptr<size_t[]> dms(new size_t[mDirectMessages.size()]);
+                int i = 0;
+                for (const auto & d : mDirectMessages)
+                {
+                    dm[i] = d.constChar();
+                    dms[i] = d.size();
+                    i++;
+                }
+
+                logger->log(nullptr, level, nullptr, "", dm.get(), dms.get(), i);
+            }
+        }
+        for (auto &s: mCopiedParts)
+        {
+            delete s;
+        }
 #else
         OutputStreams::iterator iter;
         OutputStreams vec;
@@ -414,6 +513,37 @@ public:
     }
 #endif
 
+
+
+    SimpleLogger& operator<<(const DirectMessage &obj)
+    {
+#ifndef ENABLE_LOG_PERFORMANCE
+    *this << obj.constChar();
+#else
+        if (!obj.isBigEnoughToOutputDirectly(std::distance(mBuffer.begin(), mBufferIt))) //don't bother with little msg
+        {
+            *this << obj.constChar();
+        }
+        else
+        {
+            if (mBufferIt != mBuffer.begin()) //something was appended to the buffer before this direct msg
+            {
+                *mBufferIt = '\0';
+                std::string *newStr  = new string(mBuffer.data());
+                mCopiedParts.emplace_back( newStr);
+                string * back = mCopiedParts[mCopiedParts.size()-1];
+
+                mDirectMessages.push_back(DirectMessage(back->data(), back->size()));
+                mBufferIt = mBuffer.begin();
+            }
+
+            mDirectMessages.push_back(DirectMessage(obj.constChar(), obj.size()));
+        }
+
+#endif
+        return *this;
+    }
+
     // set output class
     static void setOutputClass(Logger *logger_class)
     {
@@ -425,6 +555,13 @@ public:
     {
         SimpleLogger::logCurrentLevel = ll;
     }
+
+    // set the limit of size to requests payload
+    static void setMaxPayloadLogSize(long long size)
+    {
+        maxPayloadLogSize = size;
+    }
+
 
 #ifndef ENABLE_LOG_PERFORMANCE
     // register output stream for log level
