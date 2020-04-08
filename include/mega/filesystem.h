@@ -276,6 +276,8 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     // check if character is lowercase hex ASCII
     bool islchex(char) const;
+    // check if character is a control character (0x0000 - 0x001F , 0x007F - 0x009F)
+    bool isControlChar(unsigned char c) const;
     bool islocalfscompatible(unsigned char, int = FS_DEFAULT) const;
     void escapefsincompatible(string*, std::string *dstPath = nullptr) const;
     const char *fstypetostring(int type) const;

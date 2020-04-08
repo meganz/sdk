@@ -133,6 +133,11 @@ int FileSystemAccess::getlocalfstype(string *dstPath) const
     return FS_DEFAULT;
 }
 
+bool FileSystemAccess::isControlChar(unsigned char c) const
+{
+    return (c <= '\x1F' || (c >= '\x7F' && c <= '\x9F'));
+}
+
 // Group different filesystems types in families, according to it's restricted charsets
 bool FileSystemAccess::islocalfscompatible(unsigned char c, int fileSystemType) const
 {
