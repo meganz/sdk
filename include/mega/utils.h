@@ -352,6 +352,13 @@ public:
     static bool utf8toUnicode(const uint8_t *src, unsigned srclen, string *result);
 
     /**
+     * @brief Determines size in bytes of a valid UTF-8 sequence.
+     * @param c first character of UTF-8 sequence
+     * @return the size of UTF-8 sequence if its valid, otherwise returns 0
+     */
+    static size_t utf8SequenceSize(unsigned char c);
+
+    /**
      * @brief This function is analogous to a32_to_str in js version.
      * Converts a vector of <T> elements into a std::string
      *
