@@ -1951,7 +1951,7 @@ bool PosixDirAccess::dnext(string* path, string* name, bool followsymlinks, node
             path->append(d->d_name);
 
             bool statOk = !lstat(path->c_str(), &statbuf);
-            if (statOk && S_ISLNK(statbuf.st_mode) && followsymlinks)
+            if (followsymlinks && statOk && S_ISLNK(statbuf.st_mode))
             {
                 currentItemFollowedSymlink = true;
                 statOk = !stat(path->c_str(), &statbuf);

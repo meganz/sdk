@@ -2372,8 +2372,11 @@ TEST_F(SdkTest, SdkTestFolderIteration)
         bool openWithNameOrUseFileAccess = testcombination == 0;
 
         error_code ec;
-        fs::remove_all("test_SdkTestFolderIteration", ec);
-        ASSERT_TRUE(!ec) << "could not remove old test folder";
+        if (fs::exists("test_SdkTestFolderIteration")) 
+        {
+            fs::remove_all("test_SdkTestFolderIteration", ec);
+            ASSERT_TRUE(!ec) << "could not remove old test folder";
+        }
 
         fs::create_directory("test_SdkTestFolderIteration", ec);
         ASSERT_TRUE(!ec) << "could not create test folder";
