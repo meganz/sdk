@@ -141,22 +141,27 @@ bool FileSystemAccess::isControlChar(unsigned char c) const
 // Group different filesystems types in families, according to it's restricted charsets
 bool FileSystemAccess::islocalfscompatible(unsigned char c, int fileSystemType) const
 {
+    if (isControlChar(c))
+    {
+        return false;
+    }
+
     switch (fileSystemType)
     {
         case FS_APPLE:
             // APFS, HFS, HFS+ restricted characters => :
             return c != '\x3A';
         case FS_UNIX:
-            // ext2/ext3/ext4 restricted characters => NULL /
-            return c != '\x00' && c != '\x2F';
+            // ext2/ext3/ext4 restricted characters =>  /
+            return c != '\x2F';
         case FS_FAT32:
             // FAT32 restricted characters => 0x0000-0x001F 0x007F " * / : < > ? \ | + , . ; = [ ]
-            return c >= ' ' && c != '\x7F' && !strchr("\\/:?\"<>|*+,.;=[]", c);
+            return !strchr("\\/:?\"<>|*+,.;=[]", c);
         case FS_WIN:
         default:
             // NTFS restricted characters => 0x0000-0x001F 0x007F " * / : < > ? \ |
             // If filesystem couldn't be detected we'll use a restrictive charset to avoid issues.
-            return c >= ' ' && c != '\x7F' && !strchr("\\/:?\"<>|*", c);
+            return !strchr("\\/:?\"<>|*", c);
     }
 }
 
