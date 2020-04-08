@@ -126,7 +126,7 @@ MegaSDK::MegaSDK(String^ appKey, String^ userAgent, String^ basePath, MRandomNum
 	if (gfxProcessor != nullptr)
         {
 		externalGfxProcessor = new DelegateMGfxProcessor(gfxProcessor);
-                externalGfxPorcessor.startProcessingThread();
+                externalGfxProcessor.startProcessingThread();
         }
 
 	megaApi = new MegaApi((appKey != nullptr) ? utf8appKey.c_str() : NULL,
