@@ -180,15 +180,15 @@ void FileSystemAccess::escapefsincompatible(string* name, string *dstPath) const
     }
 
     char buf[4];
-    unsigned char c;
     int fileSystemType = getlocalfstype(dstPath);
-
-    // replace all occurrences of a badchar with %xx
-    for (size_t i = name->size(); i--; )
+    size_t utf8seqsize = 0, i = 0;
+    unsigned char c = '0';
+    while (i < name->size())
     {
-        c = (unsigned char)(*name)[i];
-
-        if (!islocalfscompatible(c, fileSystemType))
+        c = static_cast<unsigned char>((*name)[i]);
+        utf8seqsize = Utils::utf8SequenceSize(c);
+        assert (utf8seqsize);
+        if (utf8seqsize == 1 && !islocalfscompatible(c, fileSystemType))
         {
             std::string inc = name->substr(i, 1);
             sprintf(buf, "%%%02x", c);
@@ -197,6 +197,7 @@ void FileSystemAccess::escapefsincompatible(string* name, string *dstPath) const
                       << fstypetostring(fileSystemType)
                       << ", replace '" << inc << "' by '" << buf << "'\n";
         }
+        i += utf8seqsize;
     }
 }
 
