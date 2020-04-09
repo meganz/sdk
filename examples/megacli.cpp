@@ -367,8 +367,7 @@ AppFilePut::~AppFilePut()
 
 void AppFilePut::displayname(string* dname)
 {
-    *dname = localname;
-    transfer->client->fsaccess->local2name(dname);
+    *dname = localname.toName(*transfer->client->fsaccess);
 }
 
 // transfer progress callback
@@ -444,9 +443,9 @@ void DemoApp::transfer_prepare(Transfer* t)
     if (t->type == GET)
     {
         // only set localfilename if the engine has not already done so
-        if (!t->localfilename.size())
+        if (t->localfilename.empty())
         {
-            client->fsaccess->tmpnamelocal(&t->localfilename);
+            client->fsaccess->tmpnamelocal(t->localfilename.editStringDirect());
         }
     }
 }
@@ -650,13 +649,11 @@ AppFileGet::AppFileGet(Node* n, handle ch, byte* cfilekey, m_off_t csize, m_time
         name = *cfilename;
     }
 
-    localname = name;
-    client->fsaccess->name2local(&localname);
+    localname = LocalPath::fromName(name, *client->fsaccess);
     if (!targetfolder.empty())
     {
-        string ltf, tf = targetfolder;
-        client->fsaccess->path2local(&tf, &ltf);
-        localname = ltf + client->fsaccess->localseparator + localname;
+        string s = targetfolder;
+        localname.separatorPrepend(LocalPath::fromPath(s, *client->fsaccess), *client->fsaccess);
     }
 }
 
@@ -666,7 +663,7 @@ AppFilePut::AppFilePut(string* clocalname, handle ch, const char* ctargetuser)
     string separator = client->fsaccess->localseparator;
 
     // full local path
-    localname = *clocalname;
+    localname = LocalPath::fromLocalname(*clocalname);
 
     // target parent node
     h = ch;
@@ -4244,7 +4241,7 @@ void exec_sync(autocomplete::ACState& s)
                     if ((*it)->localroot->node)
                     {
                         nodepath((*it)->localroot->node->nodehandle, &remotepath);
-                        client->fsaccess->local2path(&(*it)->localroot->localname, &localpath);
+                        localpath = (*it)->localroot->localname.toPath(*client->fsaccess);
 
                         cout << i++ << " (" << syncConfigToString(NewSyncConfig::from((*it)->getConfig())) << "): " << localpath << " to " << remotepath << " - "
                                 << syncstatenames[(*it)->state] << ", " << (*it)->localbytes

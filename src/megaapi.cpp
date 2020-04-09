@@ -3089,7 +3089,7 @@ int MegaApi::syncPathState(string* path)
 
 MegaNode *MegaApi::getSyncedNode(string *path)
 {
-    return pImpl->getSyncedNode(path);
+    return pImpl->getSyncedNode(LocalPath::fromLocalname(*path));
 }
 
 void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener *listener)

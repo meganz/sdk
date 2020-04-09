@@ -147,7 +147,7 @@ public:
     void statecacheadd(LocalNode*);
 
     // recursively add children
-    void addstatecachechildren(uint32_t, idlocalnode_map*, string*, LocalNode*, int);
+    void addstatecachechildren(uint32_t, idlocalnode_map*, LocalPath&, LocalNode*, int);
     
     // Caches all synchronized LocalNode
     void cachenodes();
@@ -162,13 +162,13 @@ public:
     void deletemissing(LocalNode*);
 
     // scan specific path
-    LocalNode* checkpath(LocalNode*, string*, string* = NULL, dstime* = NULL, bool wejustcreatedthisfolder = false);
+    LocalNode* checkpath(LocalNode*, LocalPath*, string* const = NULL, dstime* = NULL, bool wejustcreatedthisfolder = false);
 
     m_off_t localbytes = 0;
     unsigned localnodes[2]{};
 
     // look up LocalNode relative to localroot
-    LocalNode* localnodebypath(LocalNode*, string*, LocalNode** = NULL, string* = NULL);
+    LocalNode* localnodebypath(LocalNode*, const LocalPath&, LocalNode** = NULL, string* = NULL);
 
     // Assigns fs IDs to those local nodes that match the fingerprint retrieved from disk.
     // The fs IDs of unmatched nodes are invalidated.
@@ -176,7 +176,7 @@ public:
 
     // scan items in specified path and add as children of the specified
     // LocalNode
-    bool scan(string*, FileAccess*);
+    bool scan(LocalPath*, FileAccess*);
 
     // own position in session sync list
     sync_list::iterator sync_it{};
@@ -189,7 +189,8 @@ public:
     int tag = 0;
 
     // debris path component relative to the base path
-    string debris, localdebris;
+    string debris;
+    LocalPath localdebris;
 
     // permanent lock on the debris/tmp folder
     std::unique_ptr<FileAccess> tmpfa;

@@ -1178,10 +1178,10 @@ void CommandPutNodes::procresult()
     pendingfiles_map::iterator pit = client->pendingfiles.find(tag);
     if (pit != client->pendingfiles.end())
     {
-        vector<string> &pfs = pit->second;
+        vector<LocalPath> &pfs = pit->second;
         for (unsigned int i = 0; i < pfs.size(); i++)
         {
-            client->fsaccess->unlinklocal(&pfs[i]);
+            client->fsaccess->unlinklocal(pfs[i].editStringDirect());
         }
         client->pendingfiles.erase(pit);
     }

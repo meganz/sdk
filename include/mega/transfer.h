@@ -62,7 +62,7 @@ struct MEGA_API Transfer : public FileFingerprint
     BackoffTimerTracked bt;
 
     // representative local filename for this transfer
-    string localfilename;
+    LocalPath localfilename;
 
     // progress completed
     m_off_t progresscompleted;

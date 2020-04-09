@@ -21,6 +21,7 @@
 #include <random>
 
 #include <mega/megaapp.h>
+#include <mega.h>
 
 #include "constants.h"
 #include "DefaultedFileSystemAccess.h"
@@ -93,11 +94,12 @@ std::unique_ptr<mega::LocalNode> makeLocalNode(mega::Sync& sync, mega::LocalNode
                                                mega::nodetype_t type, const std::string& name,
                                                const mega::FileFingerprint& ffp)
 {
+    std::string tmpname = name;
+    mega::FSACCESS_CLASS fsaccess;
     auto l = std::unique_ptr<mega::LocalNode>{new mega::LocalNode};
-    std::string path;
-    parent.getlocalpath(&path);
-    path += sync.client->fsaccess->localseparator + name;
-    l->init(&sync, type, &parent, &path);
+    auto path = parent.getlocalpath();
+    path.separatorAppend(::mega::LocalPath::fromPath(tmpname, fsaccess), fsaccess);
+    l->init(&sync, type, &parent, path);
     l->setfsid(nextFsId(), sync.client->fsidnode);
     static_cast<mega::FileFingerprint&>(*l) = ffp;
     return l;

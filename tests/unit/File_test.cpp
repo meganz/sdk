@@ -24,18 +24,19 @@
 
 #include "DefaultedFileSystemAccess.h"
 #include "utils.h"
+#include "mega.h"
 
 namespace
 {
 
-class MockFileSystemAccess : public mt::DefaultedFileSystemAccess
-{
-public:
-    bool unlinklocal(std::string*) override
-    {
-        return true;
-    }
-};
+//class MockFileSystemAccess : public mt::DefaultedFileSystemAccess
+//{
+//public:
+//    bool unlinklocal(std::string*) override
+//    {
+//        return true;
+//    }
+//};
 
 void checkFiles(const mega::File& exp, const mega::File& act)
 {
@@ -60,11 +61,11 @@ void checkFiles(const mega::File& exp, const mega::File& act)
 TEST(File, serialize_unserialize)
 {
     mega::MegaApp app;
-    MockFileSystemAccess fsaccess;
+    ::mega::FSACCESS_CLASS fsaccess;
     auto client = mt::makeClient(app, fsaccess);
     mega::File file;
     file.name = "foo";
-    file.localname = "foo";
+    file.localname = ::mega::LocalPath::fromPath(file.name, fsaccess);
     file.h = 42;
     file.hprivate = true;
     file.hforeign = true;
@@ -86,14 +87,15 @@ TEST(File, serialize_unserialize)
     checkFiles(file, *newFile);
 }
 
+#ifndef WIN32   // data was recorded with "mock" utf-8 not the actual utf-16
 TEST(File, unserialize_32bit)
 {
     mega::MegaApp app;
-    MockFileSystemAccess fsaccess;
+    ::mega::FSACCESS_CLASS fsaccess;
     auto client = mt::makeClient(app, fsaccess);
     mega::File file;
     file.name = "foo";
-    file.localname = "foo";
+    file.localname = ::mega::LocalPath::fromPath(file.name, fsaccess);
     file.h = 42;
     file.hprivate = true;
     file.hforeign = true;
@@ -130,3 +132,4 @@ TEST(File, unserialize_32bit)
     auto newFile = std::unique_ptr<mega::File>{mega::File::unserialize(&d)};
     checkFiles(file, *newFile);
 }
+#endif

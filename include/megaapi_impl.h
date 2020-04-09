@@ -1809,7 +1809,7 @@ struct MegaFilePut : public MegaFile
 {
     void completed(Transfer* t, LocalNode*) override;
     void terminated() override;
-    MegaFilePut(MegaClient *client, string* clocalname, string *filename, handle ch, const char* ctargetuser, int64_t mtime = -1, bool isSourceTemporary = false);
+    MegaFilePut(MegaClient *client, LocalPath clocalname, string *filename, handle ch, const char* ctargetuser, int64_t mtime = -1, bool isSourceTemporary = false);
     ~MegaFilePut() {}
 
     bool serialize(string*) override;
@@ -2227,7 +2227,7 @@ class MegaApiImpl : public MegaApp
 #ifdef ENABLE_SYNC
         //Sync
         int syncPathState(string *path);
-        MegaNode *getSyncedNode(string *path);
+        MegaNode *getSyncedNode(const LocalPath& path);
         void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp = NULL, long long localfp = 0, MegaRequestListener* listener = NULL);
         void removeSync(handle nodehandle, MegaRequestListener *listener=NULL);
         void disableSync(handle nodehandle, MegaRequestListener *listener=NULL);

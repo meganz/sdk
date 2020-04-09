@@ -274,7 +274,7 @@ int SdkTest::getApiIndex(MegaApi* api)
     for (int i = int(megaApi.size()); i--; )  if (megaApi[i].get() == api) apiIndex = i;
     if (apiIndex == -1)
     {
-        LOG_err << "Instance of MegaApi not recognized";
+        LOG_warn << "Instance of MegaApi not recognized";  // this can occur during MegaApi deletion due to callbacks on shutdown
     }
     return apiIndex;
 }

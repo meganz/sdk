@@ -181,6 +181,78 @@ struct MEGA_API DirAccess
     virtual ~DirAccess() { }
 };
 
+// LocalPath represents a path in the local filesystem, and wraps up common operations in a convenient fashion.
+// On mac/linux, local paths are in utf8 but in windows local paths are utf16, that is wrapped up here.
+
+struct MEGA_API FileSystemAccess;
+class MEGA_API LocalPath;
+
+class ScopedLengthRestore {
+    LocalPath& path;
+    size_t length;
+public:
+    // On destruction, puts the LocalPath length back to what it was on construction of this class
+    ScopedLengthRestore(LocalPath&);
+    ~ScopedLengthRestore();
+};
+
+class MEGA_API LocalPath
+{
+    std::string localpath;
+
+    friend class ScopedLengthRestore;
+    size_t getLength() { return localpath.size(); }
+    void setLength(size_t length) { localpath.resize(length); }
+
+public:
+
+    LocalPath() {}
+    explicit LocalPath(string&& s) : localpath(std::move(s)) {}
+
+    std::string* editStringDirect() const;
+    bool empty() const;
+    void clear() { localpath.clear(); }
+    void truncate(size_t bytePos) { localpath.resize(bytePos); }
+    size_t lastpartlocal(FileSystemAccess& fsaccess);
+    void append(const LocalPath& additionalPath);
+    void separatorAppend(const LocalPath& additionalPath, FileSystemAccess& fsaccess, bool separatorAlways);
+    void separatorPrepend(const LocalPath& additionalPath, FileSystemAccess& fsaccess);
+    bool findNextSeparator(size_t& separatorBytePos, FileSystemAccess& fsaccess) const;
+    bool findPrevSeparator(size_t& separatorBytePos, FileSystemAccess& fsaccess) const;
+    size_t getLeafnameByteIndex(FileSystemAccess& fsaccess) const;
+    bool backEqual(size_t bytePos, const string& compareTo) const;
+    bool backEqual(size_t bytePos, const LocalPath& compareTo) const;
+    string substrFrom(size_t bytePos) const;
+    LocalPath subpathFrom(size_t bytePos) const;
+    string substrTo(size_t bytePos) const;
+
+    bool isContainingPathOf(const LocalPath& path, FileSystemAccess& fsaccess);
+
+    
+    string toPath(FileSystemAccess& fsaccess) const;
+    string toName(FileSystemAccess& fsaccess) const;
+    static LocalPath fromPath(string& path, FileSystemAccess& fsaccess);
+    static LocalPath fromName(string path, FileSystemAccess& fsaccess);
+    static LocalPath fromLocalname(string localname);
+
+    bool operator==(const LocalPath& p) const { return localpath == p.localpath; }
+    bool operator!=(const LocalPath& p) const { return localpath != p.localpath; }
+    bool operator<(const LocalPath& p) const { return localpath < p.localpath; }
+};
+
+// map a request tag with pending paths of temporary files
+typedef map<int, vector<LocalPath> > pendingfiles_map;
+
+struct Notification
+{
+    dstime timestamp;
+    LocalPath path;
+    LocalNode* localnode;
+};
+
+typedef deque<Notification> notify_deque;
+
+
 // generic filesystem change notification
 struct MEGA_API DirNotify
 {
@@ -207,7 +279,7 @@ struct MEGA_API DirNotify
     virtual void addnotify(LocalNode*, string*) { }
     virtual void delnotify(LocalNode*) { }
 
-    void notify(notifyqueue, LocalNode *, const char*, size_t, bool = false);
+    void notify(notifyqueue, LocalNode *, LocalPath, bool = false);
 
     // filesystem fingerprint
     virtual fsfp_t fsfingerprint() const;
@@ -350,6 +422,8 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     FileSystemAccess();
     virtual ~FileSystemAccess() { }
 };
+
+
 } // namespace
 
 #endif

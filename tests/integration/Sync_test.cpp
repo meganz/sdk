@@ -1166,8 +1166,7 @@ struct StandardClient : public MegaApp
         string localpath;
         n->getlocalpath(&localpath, false);
         client.fsaccess->local2name(&localpath);
-        string n_localname = n->localname;
-        client.fsaccess->local2name(&n_localname);
+        string n_localname = n->localname.toName(*client.fsaccess);
         if (n_localname.size())
         {
             EXPECT_EQ(n->name, n_localname);

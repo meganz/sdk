@@ -1326,7 +1326,7 @@ void WinDirNotify::process(DWORD dwBytes)
                 << " errors: " << error;
         error++;
         readchanges();
-        notify(DIREVENTS, localrootnode, NULL, 0);
+        notify(DIREVENTS, localrootnode, LocalPath());
 #endif
     }
     else
@@ -1371,7 +1371,7 @@ void WinDirNotify::process(DWORD dwBytes)
 #endif
                 }
 #ifdef ENABLE_SYNC
-                notify(DIREVENTS, localrootnode, (char*)fni->FileName, fni->FileNameLength);
+                notify(DIREVENTS, localrootnode, LocalPath::fromLocalname(std::string((char*)fni->FileName, fni->FileNameLength)));
 #endif
             }
             else if (SimpleLogger::logCurrentLevel >= logDebug)

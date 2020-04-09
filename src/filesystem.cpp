@@ -180,11 +180,8 @@ DirNotify::DirNotify(string* clocalbasepath, string* cignore)
 }
 
 // notify base LocalNode + relative path/filename
-void DirNotify::notify(notifyqueue q, LocalNode* l, const char* localpath, size_t len, bool immediate)
+void DirNotify::notify(notifyqueue q, LocalNode* l, LocalPath path, bool immediate)
 {
-    string path;
-    path.assign(localpath, len);
-
 #ifdef ENABLE_SYNC
     if ((q == DirNotify::DIREVENTS || q == DirNotify::EXTRA)
             && notifyq[q].size()
@@ -201,25 +198,20 @@ void DirNotify::notify(notifyqueue q, LocalNode* l, const char* localpath, size_
 
     if (!immediate && sync && !sync->initializing && q == DirNotify::DIREVENTS)
     {
-        string tmppath;
+        LocalPath tmppath;
         if (l)
         {
             l->getlocalpath(&tmppath);
         }
 
-        if (localpath)
+        if (!path.empty())
         {
-            if (tmppath.size())
-            {
-                tmppath.append(sync->client->fsaccess->localseparator);
-            }
-
-            tmppath.append(path);
+            tmppath.separatorAppend(path, *sync->client->fsaccess, false);
         }
         attr_map::iterator ait;
         auto fa = sync->client->fsaccess->newfileaccess(false);
-        bool success = fa->fopen(&tmppath, false, false);
-        LocalNode *ll = sync->localnodebypath(l, &path);
+        bool success = fa->fopen(tmppath.editStringDirect(), false, false);
+        LocalNode *ll = sync->localnodebypath(l, path);
         if ((!ll && !success && !fa->retry) // deleted file
             || (ll && success && ll->node && ll->node->localnode == ll
                 && (ll->type != FILENODE || (*(FileFingerprint *)ll) == (*(FileFingerprint *)ll->node))
@@ -242,7 +234,7 @@ void DirNotify::notify(notifyqueue q, LocalNode* l, const char* localpath, size_
     notifyq[q].resize(notifyq[q].size() + 1);
     notifyq[q].back().timestamp = immediate ? 0 : Waiter::ds;
     notifyq[q].back().localnode = l;
-    notifyq[q].back().path = path;
+    notifyq[q].back().path = std::move(path);
 }
 
 // default: no fingerprint
@@ -603,5 +595,160 @@ void AsyncIOContext::finish()
         waiter->notify();
     }
 }
+
+std::string* LocalPath::editStringDirect() const
+{
+    // this function for compatibiltiy while converting to use LocalPath class.  TODO: phase out this function
+    return const_cast<std::string*>(&localpath);
+}
+
+bool LocalPath::empty() const
+{
+    return localpath.empty();
+}
+
+size_t LocalPath::lastpartlocal(FileSystemAccess& fsaccess)
+{
+    return fsaccess.lastpartlocal(&localpath);
+}
+
+void LocalPath::append(const LocalPath& additionalPath)
+{
+    localpath.append(additionalPath.localpath);
+}
+
+void LocalPath::separatorAppend(const LocalPath& additionalPath, FileSystemAccess& fsaccess, bool separatorAlways)
+{
+    if (separatorAlways || localpath.size())
+    {
+        localpath.append(fsaccess.localseparator);
+    }
+
+    localpath.append(additionalPath.localpath);
+}
+
+void LocalPath::separatorPrepend(const LocalPath& additionalPath, FileSystemAccess& fsaccess)
+{
+    localpath.insert(0, fsaccess.localseparator);
+    localpath.insert(0, additionalPath.localpath);
+}
+
+bool LocalPath::findNextSeparator(size_t& separatorBytePos, FileSystemAccess& fsaccess) const
+{
+    for (;;)
+    {
+        separatorBytePos = localpath.find(fsaccess.localseparator, separatorBytePos);
+        if (separatorBytePos == string::npos) return false;
+        if (separatorBytePos % fsaccess.localseparator.size() == 0) return true;
+        separatorBytePos++;
+    }
+}
+
+bool LocalPath::findPrevSeparator(size_t& separatorBytePos, FileSystemAccess& fsaccess) const
+{
+    for (;;)
+    {
+        separatorBytePos = localpath.rfind(fsaccess.localseparator, separatorBytePos);
+        if (separatorBytePos == string::npos) return false;
+        if (separatorBytePos % fsaccess.localseparator.size() == 0) return true;
+        separatorBytePos--;
+    } 
+}
+
+size_t LocalPath::getLeafnameByteIndex(FileSystemAccess& fsaccess) const
+{
+    // todo: take utf8 two byte characters into account
+    size_t p = localpath.size();
+    while (p && (p -= fsaccess.localseparator.size()))
+    {
+        if (!memcmp(localpath.data() + p, fsaccess.localseparator.data(), fsaccess.localseparator.size()))
+        {
+            p += fsaccess.localseparator.size();
+            break;
+        }
+    }
+    return p;
+}
+
+bool LocalPath::backEqual(size_t bytePos, const string& compareTo) const
+{
+    auto n = compareTo.size();
+    return bytePos + n == localpath.size() && memcmp(compareTo.data(), localpath.data() + bytePos, n);
+}
+
+bool LocalPath::backEqual(size_t bytePos, const LocalPath& compareTo) const
+{
+    auto n = compareTo.localpath.size();
+    return bytePos + n == localpath.size() && memcmp(compareTo.localpath.data(), localpath.data() + bytePos, n);
+}
+
+string LocalPath::substrFrom(size_t bytePos) const
+{
+    return localpath.substr(bytePos);
+}
+
+LocalPath LocalPath::subpathFrom(size_t bytePos) const
+{
+    return LocalPath::fromLocalname(localpath.substr(bytePos));
+}
+
+string LocalPath::substrTo(size_t bytePos) const
+{
+    return localpath.substr(0, bytePos);
+}
+
+string LocalPath::toPath(FileSystemAccess& fsaccess) const
+{
+    string path;
+    fsaccess.local2path(const_cast<string*>(&localpath), &path); // todo: const correctness for local2path etc
+    return path;
+}
+
+string LocalPath::toName(FileSystemAccess& fsaccess) const
+{
+    string name = localpath;
+    fsaccess.local2name(&name);
+    return name;
+}
+
+
+LocalPath LocalPath::fromPath(string& path, FileSystemAccess& fsaccess)
+{
+    LocalPath p;
+    fsaccess.path2local(&path, &p.localpath);
+    return p;
+}
+
+LocalPath LocalPath::fromName(string path, FileSystemAccess& fsaccess)
+{
+    fsaccess.name2local(&path);
+    return fromLocalname(path);
+}
+
+LocalPath LocalPath::fromLocalname(string path)
+{
+    LocalPath p;
+    p.localpath = std::move(path);
+    return p;
+}
+
+bool LocalPath::isContainingPathOf(const LocalPath& path, FileSystemAccess& fsaccess)
+{
+    return path.localpath.size() >= localpath.size() 
+        && !memcmp(path.localpath.data(), localpath.data(), localpath.size())
+        && (path.localpath.size() == localpath.size() ||
+           !memcmp(path.localpath.data() + localpath.size(), fsaccess.localseparator.data(), fsaccess.localseparator.size()));
+}
+
+ScopedLengthRestore::ScopedLengthRestore(LocalPath& p)
+    : path(p)
+    , length(path.getLength())
+{
+}
+ScopedLengthRestore::~ScopedLengthRestore()
+{
+    path.setLength(length);
+};
+
 
 } // namespace
