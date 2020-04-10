@@ -201,7 +201,7 @@ void DirNotify::notify(notifyqueue q, LocalNode* l, LocalPath path, bool immedia
         LocalPath tmppath;
         if (l)
         {
-            l->getlocalpath(&tmppath);
+            tmppath = l->getLocalPath();
         }
 
         if (!path.empty())
@@ -680,11 +680,6 @@ bool LocalPath::backEqual(size_t bytePos, const LocalPath& compareTo) const
 {
     auto n = compareTo.localpath.size();
     return bytePos + n == localpath.size() && memcmp(compareTo.localpath.data(), localpath.data() + bytePos, n);
-}
-
-string LocalPath::substrFrom(size_t bytePos) const
-{
-    return localpath.substr(bytePos);
 }
 
 LocalPath LocalPath::subpathFrom(size_t bytePos) const

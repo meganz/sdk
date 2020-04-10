@@ -1218,13 +1218,12 @@ bool Sync::scan(LocalPath* localpath, FileAccess* fa)
         // scan the dir, mark all items with a unique identifier
         if ((success = da->dopen(localpath->editStringDirect(), fa, false)))
         {
-            ScopedLengthRestore restoreLen(*localpath);
-
             while (da->dnext(localpath->editStringDirect(), &localname, client->followsymlinks))
             {
                 name = localname;
                 client->fsaccess->local2name(&name);
 
+                ScopedLengthRestore restoreLen(*localpath);
                 localpath->separatorAppend(LocalPath::fromLocalname(localname), *client->fsaccess, false);
 
                 // check if this record is to be ignored
@@ -1760,15 +1759,15 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
 
                         // does the new name already exist in the remote?
                         size_t p = localpathNew->getLeafnameByteIndex(*client->fsaccess);
-                        string newleafname = localpathNew->substrFrom(p);
+                        string newleafname = localpathNew->subpathFrom(p).toPath(*client->fsaccess);
 
-                        if (l->node && l->node->parent) 
+                        if (it->second->node && it->second->node->parent) 
                         {
-                            vector<Node*> namematch = client->childnodesbyname(l->node->parent, newleafname.c_str(), false);
+                            vector<Node*> namematch = client->childnodesbyname(it->second->node->parent, newleafname.c_str(), false);
                             if (!namematch.empty()) doMove = false;
                         }
 
-                        if (doMove)
+                        //if (doMove)
                         {
                             // (in case of a move, this synchronously updates l->parent
                             // and l->node->parent)

@@ -4853,9 +4853,9 @@ struct OneWaySymmetryCase
         }
     }
 
-    void CheckSetup(State&)
+    void CheckSetup(State&, bool initial)
     {
-        if (printTreesBeforeAndAfter)
+        if (!initial && printTreesBeforeAndAfter)
         {
             cout << " ---- local filesystem before change ----" << endl;
             PrintLocalTree(fs::path(localTestBasePath));
@@ -4867,7 +4867,7 @@ struct OneWaySymmetryCase
             }
         }
 
-        cout << "Checking setup state (should be no changes in oneway sync source)"<< name() << endl;
+        if (!initial) cout << "Checking setup state (should be no changes in oneway sync source)"<< name() << endl;
 
         // confirm source is unchanged after setup  (one-way is not sending changes to the wrong side)
         bool localfs = state.client.confirmModel(sync_tag, localModel.findnode("f"), StandardClient::CONFIRM_LOCALFS, true); // todo: later enable debris checks
@@ -4884,9 +4884,9 @@ struct OneWaySymmetryCase
     {
         if (printTreesBeforeAndAfter)
         {
-            cout << " ---- local tree after sync of change ----" << endl;
+            cout << " ---- local filesystem after sync of change ----" << endl;
             PrintLocalTree(fs::path(localTestBasePath));
-            cout << " ---- remote tree after sync of change ----" << endl;
+            cout << " ---- remote node tree after sync of change ----" << endl;
             Node* testRoot = state.client.client.nodebyhandle(changeClient().basefolderhandle);
             if (Node* n = state.client.drillchildnodebyname(testRoot, remoteTestBasePath))
             {
@@ -5022,6 +5022,13 @@ TEST(Sync, OneWay_Highlevel_Symmetries)
 
     CatchupClients(clientA1, clientA2);
 
+    cout << "Checking intial state" << endl;
+    for (auto& testcase : cases)
+    {
+        testcase.second.CheckSetup(allstate, true);
+    }
+
+
     // make changes in destination to set up test
     for (auto& testcase : cases)
     {
@@ -5037,7 +5044,7 @@ TEST(Sync, OneWay_Highlevel_Symmetries)
     cout << "Checking one-way source is unchanged" << endl;
     for (auto& testcase : cases)
     {
-        testcase.second.CheckSetup(allstate);
+        testcase.second.CheckSetup(allstate, false);
     }
 
     int paused = 0;

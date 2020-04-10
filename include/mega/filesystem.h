@@ -222,7 +222,6 @@ public:
     size_t getLeafnameByteIndex(FileSystemAccess& fsaccess) const;
     bool backEqual(size_t bytePos, const string& compareTo) const;
     bool backEqual(size_t bytePos, const LocalPath& compareTo) const;
-    string substrFrom(size_t bytePos) const;
     LocalPath subpathFrom(size_t bytePos) const;
     string substrTo(size_t bytePos) const;
 
