@@ -68,30 +68,32 @@ struct MEGA_API AsyncIOContext
     FileAccess *fa;
 };
 
+struct MEGA_API DirAccess;
+
 // generic host file/directory access interface
 struct MEGA_API FileAccess
 {
     // file size
-    m_off_t size;
+    m_off_t size = 0;
 
     // mtime of a file opened for reading
-    m_time_t mtime;
+    m_time_t mtime = 0;
 
     // local filesystem record id (survives renames & moves)
-    handle fsid;
-    bool fsidvalid;
+    handle fsid = 0;
+    bool fsidvalid = false;
 
     // type of opened path
-    nodetype_t type;
+    nodetype_t type = TYPE_UNKNOWN;
 
     // if opened path is a symlink
     bool mIsSymLink = false;
 
     // if the open failed, retry indicates a potentially transient reason
-    bool retry;
+    bool retry = false;
 
     //error code related to the last call to fopen() without parameters
-    int errorcode;
+    int errorcode = 0;
 
     // for files "opened" in nonblocking mode, the current local filename
     string nonblocking_localname;
@@ -101,7 +103,8 @@ struct MEGA_API FileAccess
 
     // blocking mode: open for reading, writing or reading and writing.
     // This one really does open the file, and openf(), closef() will have no effect
-    virtual bool fopen(string*, bool, bool) = 0;
+    // If iteratingDir is supplied, this fopen() call must be for the directory entry being iterated by dopen()/dnext()
+    virtual bool fopen(string*, bool read, bool write, DirAccess* iteratingDir = nullptr) = 0;
 
     // nonblocking open: Only prepares for opening.  Actually stats the file/folder, getting mtime, size, type.
     // Call openf() afterwards to actually open it if required.  For folders, returns false with type==FOLDERNODE.

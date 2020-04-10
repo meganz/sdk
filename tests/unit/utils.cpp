@@ -97,8 +97,8 @@ std::unique_ptr<mega::LocalNode> makeLocalNode(mega::Sync& sync, mega::LocalNode
     std::string tmpname = name;
     mega::FSACCESS_CLASS fsaccess;
     auto l = std::unique_ptr<mega::LocalNode>{new mega::LocalNode};
-    auto path = parent.getlocalpath();
-    path.separatorAppend(::mega::LocalPath::fromPath(tmpname, fsaccess), fsaccess);
+    auto path = parent.getLocalPath();
+    path.separatorAppend(::mega::LocalPath::fromPath(tmpname, fsaccess), fsaccess, true);
     l->init(&sync, type, &parent, path);
     l->setfsid(nextFsId(), sync.client->fsidnode);
     static_cast<mega::FileFingerprint&>(*l) = ffp;

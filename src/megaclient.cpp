@@ -4002,6 +4002,7 @@ void MegaClient::locallogout(bool removecaches)
     mBizExpirationTs = 0;
     mBizMode = BIZ_MODE_UNKNOWN;
     mBizStatus = BIZ_STATUS_UNKNOWN;
+    mBizMasters.clear();
     scpaused = false;
 
     for (fafc_map::iterator cit = fafcs.begin(); cit != fafcs.end(); cit++)
@@ -6584,7 +6585,7 @@ void MegaClient::sc_ub()
                 mBizStatus = status;
                 mBizMode = mode;
 
-                // FIXME: if API decides tp include the expiration ts, remove the block below
+                // FIXME: if API decides to include the expiration ts, remove the block below
                 if (mBizStatus == BIZ_STATUS_ACTIVE)
                 {
                     // If new status is active, reset timestamps of transitions
@@ -7167,6 +7168,14 @@ error MegaClient::unlink(Node* n, bool keepversions)
     if (!n->inshare && !checkaccess(n, FULL))
     {
         return API_EACCESS;
+    }
+
+    if (mBizStatus > BIZ_STATUS_INACTIVE
+            && mBizMode == BIZ_MODE_SUBUSER && n->inshare
+            && mBizMasters.find(n->inshare->user->userhandle) != mBizMasters.end())
+    {
+        // business subusers cannot leave inshares from master biz users
+        return API_EMASTERONLY;
     }
 
     bool kv = (keepversions && n->type == FILENODE);
@@ -8537,7 +8546,7 @@ void MegaClient::copysession()
 
 string *MegaClient::sessiontransferdata(const char *url, string *session)
 {
-    if (loggedin() != FULLACCOUNT)
+    if (!session && loggedin() != FULLACCOUNT)
     {
         return NULL;
     }
@@ -12713,7 +12722,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                     else if (fsaccess->mkdirlocal(localpath))
                     {
                         auto localpathpointed = LocalPath::fromLocalname(*localpath);
-                        LocalNode* ll = l->sync->checkpath(l, &localpathpointed, &localname, NULL, true);
+                        LocalNode* ll = l->sync->checkpath(l, &localpathpointed, &localname, NULL, true, nullptr);
 
                         if (ll && ll != (LocalNode*)~0)
                         {
@@ -13621,7 +13630,6 @@ void MegaClient::execsyncunlink()
 {
     Node* n;
     Node* tn;
-    node_set::iterator it;
 
     // delete tounlink nodes
     do {

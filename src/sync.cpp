@@ -1236,7 +1236,7 @@ bool Sync::scan(LocalPath* localpath, FileAccess* fa)
                         if (initializing)
                         {
                             // preload all cached LocalNodes
-                            l = checkpath(NULL, localpath);
+                            l = checkpath(NULL, localpath, nullptr, nullptr, false, da);
                         }
 
                         if (l && l != (LocalNode*)~0)
@@ -1273,7 +1273,7 @@ bool Sync::scan(LocalPath* localpath, FileAccess* fa)
 // path references a new FOLDERNODE: returns created node
 // path references a existing FILENODE: returns node
 // otherwise, returns NULL
-LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* const localname, dstime *backoffds, bool wejustcreatedthisfolder)
+LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* const localname, dstime *backoffds, bool wejustcreatedthisfolder, DirAccess* iteratingDir)
 {
     LocalNode* ll = l;
     bool newnode = false, changed = false;
@@ -1389,7 +1389,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
 
         // match cached LocalNode state during initial/rescan to prevent costly re-fingerprinting
         // (just compare the fsids, sizes and mtimes to detect changes)
-        if (fa->fopen(localpathNew->editStringDirect(), false, false))
+        if (fa->fopen(localpathNew->editStringDirect(), false, false, iteratingDir))
         {
             if (cl && fa->fsidvalid && fa->fsid == cl->fsid)
             {
@@ -1958,7 +1958,7 @@ dstime Sync::procscanq(int q)
         if ((l = dirnotify->notifyq[q].front().localnode) != (LocalNode*)~0)
         {
             dstime backoffds = 0;
-            l = checkpath(l, &dirnotify->notifyq[q].front().path, NULL, &backoffds);
+            l = checkpath(l, &dirnotify->notifyq[q].front().path, NULL, &backoffds, false, nullptr);
             if (backoffds)
             {
                 LOG_verbose << "Scanning deferred during " << backoffds << " ds";

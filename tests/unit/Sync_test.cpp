@@ -79,7 +79,7 @@ public:
 
     MEGA_DISABLE_COPY_MOVE(MockFileAccess)
 
-    bool fopen(std::string* path, bool, bool) override
+    bool fopen(std::string* path, bool, bool, mega::DirAccess* iteratingDir) override
     {
         mPath = *path;
         return sysopen();

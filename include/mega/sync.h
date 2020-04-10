@@ -162,7 +162,7 @@ public:
     void deletemissing(LocalNode*);
 
     // scan specific path
-    LocalNode* checkpath(LocalNode*, LocalPath*, string* const = NULL, dstime* = NULL, bool wejustcreatedthisfolder = false);
+    LocalNode* checkpath(LocalNode*, LocalPath*, string* const, dstime*, bool wejustcreatedthisfolder, DirAccess* iteratingDir);
 
     m_off_t localbytes = 0;
     unsigned localnodes[2]{};

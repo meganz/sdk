@@ -8169,6 +8169,9 @@ class MegaApi
          * If the logged in account has not been sent the unlock email before,
          * onRequestFinish will be called with the error code MegaError::API_EARGS.
          *
+         * If the logged in account has already sent the unlock email and until it's available again,
+         * onRequestFinish will be called with the error code MegaError::API_ETEMPUNAVAIL.
+         *
          * @param listener MegaRequestListener to track this request
          */
         void resendVerificationEmail(MegaRequestListener *listener = NULL);
