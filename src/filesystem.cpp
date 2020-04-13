@@ -220,7 +220,7 @@ void FileSystemAccess::unescapefsincompatible(string* name) const
         {
             char c = static_cast<char>((MegaClient::hexval((*name)[i + 1]) << 4) + MegaClient::hexval((*name)[i + 2]));
 
-            if (!islocalfscompatible((unsigned char)c))
+            if (!isControlChar((unsigned char)c))
             {
                 name->replace(i, 3, &c, 1);
             }
