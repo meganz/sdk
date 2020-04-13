@@ -8006,9 +8006,14 @@ void MegaApiImpl::startUpload(bool startFirst, const char *localPath, MegaNode *
 
     transfer->setBackupTransfer(isBackup);
 
-    if(fileName)
+    if (fileName || transfer->getFileName())
     {
-        transfer->setFileName(fileName);
+       std::string auxName = fileName
+               ? fileName
+               : transfer->getFileName();
+
+       client->fsaccess->unescapefsincompatible(&auxName);
+       transfer->setFileName(auxName.c_str());
     }
 
     transfer->setTime(mtime);
