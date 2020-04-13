@@ -215,7 +215,7 @@ void FileSystemAccess::unescapefsincompatible(string* name) const
     }
     for (int i = int(name->size()) - 2; i-- > 0; )
     {
-        // conditions for unescaping: %xx must be well-formed and encode an incompatible character
+        // conditions for unescaping: %xx must be well-formed
         if ((*name)[i] == '%' && islchex((*name)[i + 1]) && islchex((*name)[i + 2]))
         {
             char c = static_cast<char>((MegaClient::hexval((*name)[i + 1]) << 4) + MegaClient::hexval((*name)[i + 2]));
