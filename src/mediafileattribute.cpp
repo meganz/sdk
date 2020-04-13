@@ -72,14 +72,14 @@ MediaFileInfo::MediaFileInfo()
     LOG_debug << "MediaInfo version: " << GetMediaInfoVersion();
 }
 
-void MediaFileInfo::requestCodecMappingsOneTime(MegaClient* client, string* ifSuitableFilename)
+void MediaFileInfo::requestCodecMappingsOneTime(MegaClient* client, LocalPath* ifSuitableFilename)
 {
     if (!mediaCodecsReceived && !mediaCodecsRequested)
     {
         if (ifSuitableFilename)
         {
             char ext[8];
-            if (!client->fsaccess->getextension(ifSuitableFilename, ext, sizeof(ext))
+            if (!client->fsaccess->getextension(*ifSuitableFilename, ext, sizeof(ext))
                 || !MediaProperties::isMediaFilenameExt(ext))
             {
                 return;
@@ -638,9 +638,9 @@ bool MediaFileInfo::timeToRetryMediaPropertyExtraction(const std::string& fileat
     return false;
 }
 
-bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, std::string filename, FileAccess* fa, unsigned maxBytesToRead, unsigned maxSeconds)
+bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, LocalPath& filename, FileAccess* fa, unsigned maxBytesToRead, unsigned maxSeconds)
 {
-    if (!fa->fopen(&filename, true, false))
+    if (!fa->fopen(filename, true, false))
     {
         LOG_err << "could not open local file for mediainfo";
         return false;
@@ -722,7 +722,7 @@ bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, std::string filena
     return true;
 }
 
-void MediaProperties::extractMediaPropertyFileAttributes(const std::string& localFilename, FileSystemAccess* fsa)
+void MediaProperties::extractMediaPropertyFileAttributes(LocalPath& localFilename, FileSystemAccess* fsa)
 {
     if (auto tmpfa = fsa->newfileaccess())
     {
@@ -800,9 +800,7 @@ void MediaProperties::extractMediaPropertyFileAttributes(const std::string& loca
 
                 if (SimpleLogger::logCurrentLevel >= logDebug)
                 {
-                    string path, local = localFilename;
-                    fsa->local2path(&local, &path);
-                    LOG_debug << "MediaInfo on " << path << " | " << vw.To_Local() << " " << vh.To_Local() << " " << vd.To_Local() << " " << vr.To_Local() << " |\"" << gci.To_Local() << "\",\"" << gf.To_Local() << "\",\"" << vci.To_Local() << "\",\"" << vcf.To_Local() << "\",\"" << aci.To_Local() << "\",\"" << acf.To_Local() << "\"";
+                    LOG_debug << "MediaInfo on " << localFilename.toPath(*fsa) << " | " << vw.To_Local() << " " << vh.To_Local() << " " << vd.To_Local() << " " << vr.To_Local() << " |\"" << gci.To_Local() << "\",\"" << gf.To_Local() << "\",\"" << vci.To_Local() << "\",\"" << vcf.To_Local() << "\",\"" << aci.To_Local() << "\",\"" << acf.To_Local() << "\"";
                 }
             }
         }

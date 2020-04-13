@@ -479,16 +479,16 @@ void SyncFileGet::prepare()
             {
                 LOG_verbose << "Creating tmp folder";
                 transfer->localfilename = sync->localdebris;
-                sync->client->fsaccess->mkdirlocal(transfer->localfilename.editStringDirect(), true);
+                sync->client->fsaccess->mkdirlocal(transfer->localfilename, true);
 
                 transfer->localfilename.separatorAppend(tmpname, *sync->client->fsaccess, true);
-                sync->client->fsaccess->mkdirlocal(transfer->localfilename.editStringDirect());
+                sync->client->fsaccess->mkdirlocal(transfer->localfilename);
 
                 // lock it
                 LocalPath lockname = LocalPath::fromName("lock", *sync->client->fsaccess);
                 transfer->localfilename.separatorAppend(lockname, *sync->client->fsaccess, true);
 
-                if (sync->tmpfa->fopen(transfer->localfilename.editStringDirect(), false, true))
+                if (sync->tmpfa->fopen(transfer->localfilename, false, true))
                 {
                     break;
                 }
@@ -512,9 +512,9 @@ void SyncFileGet::prepare()
             transfer->localfilename = sync->localroot->localname;
         }
 
-        string tmpfilename;
-        sync->client->fsaccess->tmpnamelocal(&tmpfilename);
-        transfer->localfilename.separatorAppend(LocalPath::fromLocalname(tmpfilename), *sync->client->fsaccess, true);
+        LocalPath tmpfilename;
+        sync->client->fsaccess->tmpnamelocal(tmpfilename);
+        transfer->localfilename.separatorAppend(tmpfilename, *sync->client->fsaccess, true);
     }
 
     if (n->parent && n->parent->localnode)

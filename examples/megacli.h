@@ -71,7 +71,7 @@ struct AppFilePut : public AppFile
 
     void displayname(string*);
 
-    AppFilePut(string*, handle, const char*);
+    AppFilePut(const LocalPath&, handle, const char*);
     ~AppFilePut();
 };
 
@@ -233,8 +233,8 @@ struct DemoApp : public MegaApp
     void syncupdate_remote_rename(Sync*, Node*, const char*) override;
     void syncupdate_treestate(LocalNode*) override;
 
-    bool sync_syncable(Sync*, const char*, string*, Node*) override;
-    bool sync_syncable(Sync*, const char*, string*) override;
+    bool sync_syncable(Sync*, const char*, LocalPath&, Node*) override;
+    bool sync_syncable(Sync*, const char*, LocalPath&) override;
 #endif
 
     void changepw_result(error) override;

@@ -192,7 +192,7 @@ TransferSlot::~TransferSlot()
 
             // Open the file in synchonous mode
             fa.reset(transfer->client->fsaccess->newfileaccess());
-            if (!fa->fopen(transfer->localfilename.editStringDirect(), false, true))
+            if (!fa->fopen(transfer->localfilename, false, true))
             {
                 fa.reset();
             }

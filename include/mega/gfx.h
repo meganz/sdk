@@ -38,7 +38,7 @@ public:
     GfxJob();
 
     // locally encoded path of the image
-    string localfilename;
+    LocalPath localfilename;
 
     // vector with the required image type
     vector<fatype> imagetypes;
@@ -82,7 +82,7 @@ class MEGA_API GfxProc
     void loop();
 
     // read and store bitmap
-    virtual bool readbitmap(FileAccess*, string*, int) = 0;
+    virtual bool readbitmap(FileAccess*, LocalPath&, int) = 0;
 
     // resize stored bitmap and store result as JPEG
     virtual bool resizebitmap(int, int, string*) = 0;
@@ -104,23 +104,23 @@ public:
     virtual int checkevents(Waiter*);
 
     // check whether the filename looks like a supported media type
-    bool isgfx(string*);
+    bool isgfx(LocalPath&);
 
     // check whether the filename looks like a video
-    bool isvideo(string*);
+    bool isvideo(LocalPath&);
 
     // generate all dimensions, write to metadata server and attach to PUT transfer or existing node
     // handle is uploadhandle or nodehandle
     // - must respect JPEG EXIF rotation tag
     // - must save at 85% quality (120*120 pixel result: ~4 KB)
-    int gendimensionsputfa(FileAccess*, string*, handle, SymmCipher*, int = -1, bool checkAccess = true);
+    int gendimensionsputfa(FileAccess*, LocalPath&, handle, SymmCipher*, int = -1, bool checkAccess = true);
 
     // FIXME: read dynamically from API server
     typedef enum { THUMBNAIL, PREVIEW } meta_t;
     typedef enum { AVATAR250X250 } avatar_t;
 
     // generate and save a fa to a file
-    bool savefa(string*, int, int, string*);
+    bool savefa(LocalPath&, int, int, LocalPath&);
 
     // - w*0: largest square crop at the center (landscape) or at 1/6 of the height above center (portrait)
     // - w*h: resize to fit inside w*h bounding box

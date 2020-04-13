@@ -25,6 +25,7 @@
 #include "types.h"
 #include "json.h"
 #include <string>
+#include <mega/filesystem.h>
 
 namespace mega {
 
@@ -74,7 +75,7 @@ struct MEGA_API MediaProperties
     static bool isMediaFilenameExt(const std::string& ext);
 
     // Open the specified local file with mediainfoLib and get its video parameters.  This function fills in the names but not the IDs
-    void extractMediaPropertyFileAttributes(const std::string& localFilename, FileSystemAccess* fa);
+    void extractMediaPropertyFileAttributes(LocalPath& localFilename, FileSystemAccess* fa);
 
     // Look up the IDs of the codecs and container, and encode and encrypt all the info into a string with file attribute 8, and possibly file attribute 9.
     std::string convertMediaPropertyFileAttributes(uint32_t attributekey[4], MediaFileInfo& mediaInfo);
@@ -121,7 +122,7 @@ struct MEGA_API MediaFileInfo
     std::map<handle, queuedvp> uploadFileAttributes;
 
     // request MediaCodecs from Mega.  Only do this the first time we know we will need them.
-    void requestCodecMappingsOneTime(MegaClient* client, string* ifSuitableFilename);
+    void requestCodecMappingsOneTime(MegaClient* client, LocalPath* ifSuitableFilename);
     static void onCodecMappingsReceiptStatic(MegaClient* client, int codecListVersion);
     void onCodecMappingsReceipt(MegaClient* client, int codecListVersion);
     void ReadIdRecords(std::map<std::string, unsigned>&  data, JSON& json);

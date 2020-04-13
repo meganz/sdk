@@ -133,11 +133,11 @@ m_time_t FileTime_to_POSIX(FILETIME* ft)
 
 bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
 {
-    assert(nonblocking_localname.size());
+    assert(!nonblocking_localname.empty());
     WIN32_FILE_ATTRIBUTE_DATA fad;
 
     type = TYPE_UNKNOWN;
-    if (!GetFileAttributesExW((LPCWSTR)nonblocking_localname.data(), GetFileExInfoStandard, (LPVOID)&fad))
+    if (!GetFileAttributesExW((LPCWSTR)nonblocking_localname.editStringDirect()->data(), GetFileExInfoStandard, (LPVOID)&fad))
     {
         DWORD e = GetLastError();
         errorcode = e;
@@ -148,15 +148,8 @@ bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
     errorcode = 0;
     if (SimpleLogger::logCurrentLevel >= logDebug && skipattributes(fad.dwFileAttributes))
     {
-        string utf8path;
-        utf8path.resize((nonblocking_localname.size() + 1) * 4 / sizeof(wchar_t));
-        utf8path.resize(WideCharToMultiByte(CP_UTF8, 0, (wchar_t*)nonblocking_localname.data(),
-                                         int(nonblocking_localname.size() / sizeof(wchar_t)),
-                                         (char*)utf8path.data(),
-                                         int(utf8path.size() + 1),
-                                         NULL, NULL));
-
-        LOG_debug << "Incompatible attributes (" << fad.dwFileAttributes << ") for file " << utf8path;
+        WinFileSystemAccess wfsa;
+        LOG_debug << "Incompatible attributes (" << fad.dwFileAttributes << ") for file " << nonblocking_localname.toPath(wfsa);
     }
 
     if (fad.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
@@ -177,7 +170,7 @@ bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
 bool WinFileAccess::sysopen(bool async)
 {
     assert(hFile == INVALID_HANDLE_VALUE);
-    assert(nonblocking_localname.size());
+    assert(!nonblocking_localname.empty());
 
     if (hFile != INVALID_HANDLE_VALUE)
     {
@@ -189,7 +182,7 @@ bool WinFileAccess::sysopen(bool async)
                         FILE_SHARE_WRITE | FILE_SHARE_READ,
                         OPEN_EXISTING, NULL);
 #else
-    hFile = CreateFileW((LPCWSTR)nonblocking_localname.data(), GENERIC_READ,
+    hFile = CreateFileW((LPCWSTR)nonblocking_localname.editStringDirect()->data(), GENERIC_READ,
                         FILE_SHARE_WRITE | FILE_SHARE_READ,
                         NULL, OPEN_EXISTING, async ? FILE_FLAG_OVERLAPPED : 0, NULL);
 #endif
@@ -207,7 +200,7 @@ bool WinFileAccess::sysopen(bool async)
 
 void WinFileAccess::sysclose()
 {
-    assert(nonblocking_localname.size());
+    assert(!nonblocking_localname.empty());
     assert(hFile != INVALID_HANDLE_VALUE);
 
     if (hFile != INVALID_HANDLE_VALUE)
@@ -293,12 +286,11 @@ bool WinFileAccess::asyncavailable()
 void WinFileAccess::asyncsysopen(AsyncIOContext *context)
 {
 #ifndef WINDOWS_PHONE
-    string path;
-    path.assign((char *)context->buffer, context->len);
+    auto path = LocalPath::fromLocalname(string((char *)context->buffer, context->len));
     bool read = context->access & AsyncIOContext::ACCESS_READ;
     bool write = context->access & AsyncIOContext::ACCESS_WRITE;
 
-    context->failed = !fopen_impl(&path, read, write, true, nullptr);
+    context->failed = !fopen_impl(path, read, write, true, nullptr);
     context->retry = retry;
     context->finished = true;
     if (context->userCallback)
@@ -404,13 +396,13 @@ void WinFileAccess::asyncsyswrite(AsyncIOContext *context)
 }
 
 // update local name
-void WinFileAccess::updatelocalname(string* name)
+void WinFileAccess::updatelocalname(LocalPath& name)
 {
-    if (nonblocking_localname.size())
+    if (!nonblocking_localname.empty())
     {
-        nonblocking_localname = *name;
-        WinFileSystemAccess::sanitizedriveletter(&nonblocking_localname);
-        nonblocking_localname.append("", 1);
+        nonblocking_localname = name;
+        WinFileSystemAccess::sanitizedriveletter(nonblocking_localname);
+        nonblocking_localname.editStringDirect()->append("", 1);
     }
 }
 
@@ -429,12 +421,12 @@ bool WinFileAccess::skipattributes(DWORD dwAttributes)
 // CreateFile() operation without first looking at the attributes?
 // FIXME #2: How to convert a CreateFile()-opened directory directly to a hFind
 // without doing a FindFirstFile()?
-bool WinFileAccess::fopen(string *name, bool read, bool write, DirAccess* iteratingDir)
+bool WinFileAccess::fopen(LocalPath& name, bool read, bool write, DirAccess* iteratingDir)
 {
     return fopen_impl(name, read, write, false, iteratingDir);
 }
 
-bool WinFileAccess::fopen_impl(string* name, bool read, bool write, bool async, DirAccess* iteratingDir)
+bool WinFileAccess::fopen_impl(LocalPath& namePath, bool read, bool write, bool async, DirAccess* iteratingDir)
 {
     WIN32_FIND_DATA fad = { 0 };
     assert(hFile == INVALID_HANDLE_VALUE);
@@ -446,8 +438,9 @@ bool WinFileAccess::fopen_impl(string* name, bool read, bool write, bool async, 
 #endif
 
     bool skipcasecheck = false;
-    int added = WinFileSystemAccess::sanitizedriveletter(name);
+    int added = WinFileSystemAccess::sanitizedriveletter(namePath);
     
+    string* name = namePath.editStringDirect();
     name->append("", 1);
 
     if (write)
@@ -669,11 +662,11 @@ WinFileSystemAccess::~WinFileSystemAccess()
 }
 
 // append \ to bare Windows drive letter paths
-int WinFileSystemAccess::sanitizedriveletter(string* localpath)
+int WinFileSystemAccess::sanitizedriveletter(LocalPath& localpath)
 {
-    if (localpath->size() > sizeof(wchar_t) && !memcmp(localpath->data() + localpath->size() - sizeof(wchar_t), (const char*)(const wchar_t*)L":", sizeof(wchar_t)))
+    if (localpath.editStringDirect()->size() > sizeof(wchar_t) && !memcmp(localpath.editStringDirect()->data() + localpath.editStringDirect()->size() - sizeof(wchar_t), (const char*)(const wchar_t*)L":", sizeof(wchar_t)))
     {
-        localpath->append((const char*)(const wchar_t*)L"\\", sizeof(wchar_t));
+        localpath.editStringDirect()->append((const char*)(const wchar_t*)L"\\", sizeof(wchar_t));
         return sizeof(wchar_t);
     }
 
@@ -703,18 +696,17 @@ void WinFileSystemAccess::addevents(Waiter* w, int)
 }
 
 // generate unique local filename in the same fs as relatedpath
-void WinFileSystemAccess::tmpnamelocal(string* localname) const
+void WinFileSystemAccess::tmpnamelocal(LocalPath& localname) const
 {
     static unsigned tmpindex;
     char buf[128];
 
     sprintf(buf, ".getxfer.%lu.%u.mega", GetCurrentProcessId(), tmpindex++);
-    *localname = buf;
-    name2local(localname);
+    localname = LocalPath::fromName(buf, *this);
 }
 
 // convert UTF-8 to Windows Unicode
-void WinFileSystemAccess::path2local(string* path, string* local) const
+void WinFileSystemAccess::path2local(const string* path, string* local) const
 {
     // make space for the worst case
     local->resize((path->size() + 1) * sizeof(wchar_t));
@@ -736,7 +728,7 @@ void WinFileSystemAccess::path2local(string* path, string* local) const
 }
 
 // convert Windows Unicode to UTF-8
-void WinFileSystemAccess::local2path(string* local, string* path) const
+void WinFileSystemAccess::local2path(const string* local, string* path) const
 {
     path->resize((local->size() + 1) * 4 / sizeof(wchar_t));
 
@@ -749,12 +741,15 @@ void WinFileSystemAccess::local2path(string* local, string* path) const
 }
 
 // write short name of the last path component to sname
-bool WinFileSystemAccess::getsname(string* name, string* sname) const
+bool WinFileSystemAccess::getsname(LocalPath& namePath, LocalPath& snamePath) const
 {
 #ifdef WINDOWS_PHONE
     return false;
 #else
     int r, rr;
+
+    string* name = namePath.editStringDirect();
+    string* sname = snamePath.editStringDirect();
 
     name->append("", 1);
 
@@ -793,8 +788,11 @@ bool WinFileSystemAccess::getsname(string* name, string* sname) const
 
 // FIXME: if a folder rename fails because the target exists, do a top-down
 // recursive copy/delete
-bool WinFileSystemAccess::renamelocal(string* oldname, string* newname, bool replace)
+bool WinFileSystemAccess::renamelocal(LocalPath& oldnamePath, LocalPath& newnamePath, bool replace)
 {
+    string* oldname = oldnamePath.editStringDirect();
+    string* newname = newnamePath.editStringDirect();
+
     oldname->append("", 1);
     newname->append("", 1);
     bool r = !!MoveFileExW((LPCWSTR)oldname->data(), (LPCWSTR)newname->data(), replace ? MOVEFILE_REPLACE_EXISTING : 0);
@@ -819,8 +817,11 @@ bool WinFileSystemAccess::renamelocal(string* oldname, string* newname, bool rep
     return r;
 }
 
-bool WinFileSystemAccess::copylocal(string* oldname, string* newname, m_time_t)
+bool WinFileSystemAccess::copylocal(LocalPath& oldnamePath, LocalPath& newnamePath, m_time_t)
 {
+    string* oldname = oldnamePath.editStringDirect();
+    string* newname = newnamePath.editStringDirect();
+
     oldname->append("", 1);
     newname->append("", 1);
 
@@ -843,8 +844,10 @@ bool WinFileSystemAccess::copylocal(string* oldname, string* newname, m_time_t)
     return r;
 }
 
-bool WinFileSystemAccess::rmdirlocal(string* name)
+bool WinFileSystemAccess::rmdirlocal(LocalPath& namePath)
 {
+    string* name = namePath.editStringDirect();
+
     name->append("", 1);
     bool r = !!RemoveDirectoryW((LPCWSTR)name->data());
     name->resize(name->size() - 1);
@@ -859,8 +862,10 @@ bool WinFileSystemAccess::rmdirlocal(string* name)
     return r;
 }
 
-bool WinFileSystemAccess::unlinklocal(string* name)
+bool WinFileSystemAccess::unlinklocal(LocalPath& namePath)
 {
+    string* name = namePath.editStringDirect();
+
     name->append("", 1);
     bool r = !!DeleteFileW((LPCWSTR)name->data());
     name->resize(name->size() - 1);
@@ -877,12 +882,14 @@ bool WinFileSystemAccess::unlinklocal(string* name)
 
 // delete all files and folders contained in the specified folder
 // (does not recurse into mounted devices)
-void WinFileSystemAccess::emptydirlocal(string* name, dev_t basedev)
+void WinFileSystemAccess::emptydirlocal(LocalPath& namePath, dev_t basedev)
 {
     HANDLE hDirectory, hFind;
     dev_t currentdev;
 
-    int added = WinFileSystemAccess::sanitizedriveletter(name);
+    int added = WinFileSystemAccess::sanitizedriveletter(namePath);
+
+    string* name = namePath.editStringDirect();
     name->append("", 1);
 
     WIN32_FILE_ATTRIBUTE_DATA fad;
@@ -964,19 +971,19 @@ void WinFileSystemAccess::emptydirlocal(string* name, dev_t basedev)
                     || (ffd.cFileName[1] && ((ffd.cFileName[1] != '.')
                     || ffd.cFileName[2]))))
             {
-                string childname = *name;
-                childname.append((const char*)(const wchar_t*)L"\\", 2);
-                childname.append((char*)ffd.cFileName, sizeof(wchar_t) * wcslen(ffd.cFileName));
+                auto childname = LocalPath::fromLocalname(*name);
+                WinFileSystemAccess wfsa;
+                childname.separatorAppend(LocalPath::fromLocalname(std::string((char*)ffd.cFileName, sizeof(wchar_t) * wcslen(ffd.cFileName))), wfsa, true);
                 if (ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
                 {
-                    emptydirlocal(&childname , currentdev);
-                    childname.append("", 1);
-                    removed |= !!RemoveDirectoryW((LPCWSTR)childname.data());
+                    emptydirlocal(childname, currentdev);
+                    childname.editStringDirect()->append("", 1);
+                    removed |= !!RemoveDirectoryW((LPCWSTR)childname.editStringDirect()->data());
                 }
                 else
                 {
-                    childname.append("", 1);
-                    removed |= !!DeleteFileW((LPCWSTR)childname.data());
+                    childname.editStringDirect()->append("", 1);
+                    removed |= !!DeleteFileW((LPCWSTR)childname.editStringDirect()->data());
                 }
             }
             morefiles = FindNextFileW(hFind, &ffd);
@@ -990,8 +997,10 @@ void WinFileSystemAccess::emptydirlocal(string* name, dev_t basedev)
     }
 }
 
-bool WinFileSystemAccess::mkdirlocal(string* name, bool hidden)
+bool WinFileSystemAccess::mkdirlocal(LocalPath& namePath, bool hidden)
 {
+    string* name = namePath.editStringDirect();
+
     name->append("", 1);
     bool r = !!CreateDirectoryW((LPCWSTR)name->data(), NULL);
 
@@ -1026,7 +1035,7 @@ bool WinFileSystemAccess::mkdirlocal(string* name, bool hidden)
     return r;
 }
 
-bool WinFileSystemAccess::setmtimelocal(string* name, m_time_t mtime)
+bool WinFileSystemAccess::setmtimelocal(LocalPath& namePath, m_time_t mtime)
 {
 #ifdef WINDOWS_PHONE
     return false;
@@ -1035,6 +1044,7 @@ bool WinFileSystemAccess::setmtimelocal(string* name, m_time_t mtime)
     LONGLONG ll;
     HANDLE hFile;
 
+    string* name = namePath.editStringDirect();
     name->append("", 1);
     hFile = CreateFileW((LPCWSTR)name->data(), FILE_WRITE_ATTRIBUTES, FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
     name->resize(name->size() - 1);
@@ -1066,11 +1076,12 @@ bool WinFileSystemAccess::setmtimelocal(string* name, m_time_t mtime)
 #endif
 }
 
-bool WinFileSystemAccess::chdirlocal(string* name) const
+bool WinFileSystemAccess::chdirlocal(LocalPath& namePath) const
 {
 #ifdef WINDOWS_PHONE
     return false;
 #else
+    string* name = namePath.editStringDirect();
     name->append("", 1);
     int r = SetCurrentDirectoryW((LPCWSTR)name->data());
     name->resize(name->size() - 1);
@@ -1079,7 +1090,7 @@ bool WinFileSystemAccess::chdirlocal(string* name) const
 #endif
 }
 
-size_t WinFileSystemAccess::lastpartlocal(string* name) const
+size_t WinFileSystemAccess::lastpartlocal(const string* name) const
 {
     for (size_t i = name->size() / sizeof(wchar_t); i--;)
     {
@@ -1095,8 +1106,10 @@ size_t WinFileSystemAccess::lastpartlocal(string* name) const
 }
 
 // return lowercased ASCII file extension, including the . separator
-bool WinFileSystemAccess::getextension(string* filename, char* extension, size_t size) const
+bool WinFileSystemAccess::getextension(const LocalPath& filenamePath, char* extension, size_t size) const
 {
+    const string* filename = filenamePath.editStringDirect();
+
     const wchar_t* ptr = (const wchar_t*)(filename->data() + filename->size() 
         - (filename->size() & 1));   // if the string has had an extra null char added for surety, get back on wchar_t boundary.
 
@@ -1135,8 +1148,11 @@ bool WinFileSystemAccess::getextension(string* filename, char* extension, size_t
 	return false;
 }
 
-bool WinFileSystemAccess::expanselocalpath(string *path, string *absolutepath)
+bool WinFileSystemAccess::expanselocalpath(LocalPath& pathArg, LocalPath& absolutepathArg)
 {
+    string* path = pathArg.editStringDirect();
+    string* absolutepath = absolutepathArg.editStringDirect();
+
     string localpath = *path;
     localpath.append("", 1);
 
@@ -1295,7 +1311,7 @@ bool WinDirNotify::fsstableids() const
 #error "Not implemented"
 #endif
     TCHAR volume[MAX_PATH + 1];
-    if (GetVolumePathNameW((LPCWSTR)localbasepath.data(), volume, MAX_PATH + 1))
+    if (GetVolumePathNameW((LPCWSTR)localbasepath.editStringDirect()->data(), volume, MAX_PATH + 1))
     {
         TCHAR fs[MAX_PATH + 1];
         if (GetVolumeInformation(volume, NULL, 0, NULL, NULL, NULL, fs, MAX_PATH + 1))
@@ -1359,10 +1375,10 @@ void WinDirNotify::process(DWORD dwBytes)
             // skip the local debris folder
             // also, we skip the old name in case of renames
             if (fni->Action != FILE_ACTION_RENAMED_OLD_NAME
-             && (fni->FileNameLength < ignore.size()
-              || memcmp((char*)fni->FileName, ignore.data(), ignore.size())
-              || (fni->FileNameLength > ignore.size()
-               && memcmp((char*)fni->FileName + ignore.size(), (const char*)(const wchar_t*)L"\\", sizeof(wchar_t)))))
+             && (fni->FileNameLength < ignore.editStringDirect()->size()
+              || memcmp((char*)fni->FileName, ignore.editStringDirect()->data(), ignore.editStringDirect()->size())
+              || (fni->FileNameLength > ignore.editStringDirect()->size()
+               && memcmp((char*)fni->FileName + ignore.editStringDirect()->size(), (const char*)(const wchar_t*)L"\\", sizeof(wchar_t)))))
             {
                 if (SimpleLogger::logCurrentLevel >= logDebug)
                 {
@@ -1447,7 +1463,7 @@ void WinDirNotify::readchanges()
 #endif
 }
 
-WinDirNotify::WinDirNotify(string* localbasepath, string* ignore) : DirNotify(localbasepath, ignore)
+WinDirNotify::WinDirNotify(LocalPath& localbasepath, const LocalPath& ignore) : DirNotify(localbasepath, ignore)
 {
 #ifndef WINDOWS_PHONE
     ZeroMemory(&overlapped, sizeof(overlapped));
@@ -1460,9 +1476,9 @@ WinDirNotify::WinDirNotify(string* localbasepath, string* ignore) : DirNotify(lo
     notifybuf[1].resize(65534);
 
     int added = WinFileSystemAccess::sanitizedriveletter(localbasepath);
-    localbasepath->append("", 1);
+    localbasepath.editStringDirect()->append("", 1);
 
-    if ((hDirectory = CreateFileW((LPCWSTR)localbasepath->data(),
+    if ((hDirectory = CreateFileW((LPCWSTR)localbasepath.editStringDirect()->data(),
                                   FILE_LIST_DIRECTORY,
                                   FILE_SHARE_READ | FILE_SHARE_WRITE,
                                   NULL,
@@ -1480,7 +1496,7 @@ WinDirNotify::WinDirNotify(string* localbasepath, string* ignore) : DirNotify(lo
         LOG_err << "Unable to initialize filesystem notifications. Error: " << failed;
     }
 
-    localbasepath->resize(localbasepath->size() - added - 1);
+    localbasepath.editStringDirect()->resize(localbasepath.editStringDirect()->size() - added - 1);
 #endif
 }
 
@@ -1516,7 +1532,7 @@ DirAccess* WinFileSystemAccess::newdiraccess()
     return new WinDirAccess();
 }
 
-DirNotify* WinFileSystemAccess::newdirnotify(string* localpath, string* ignore)
+DirNotify* WinFileSystemAccess::newdirnotify(LocalPath& localpath, LocalPath& ignore)
 {
     WinDirNotify *dirnotify = new WinDirNotify(localpath, ignore);
     dirnotify->fsaccess = this;
@@ -1524,8 +1540,10 @@ DirNotify* WinFileSystemAccess::newdirnotify(string* localpath, string* ignore)
     return dirnotify;
 }
 
-bool WinFileSystemAccess::issyncsupported(string *localpath, bool *isnetwork)
+bool WinFileSystemAccess::issyncsupported(LocalPath& localpathArg, bool *isnetwork)
 {
+    string* localpath = localpathArg.editStringDirect();
+
     WCHAR VBoxSharedFolderFS[] = L"VBoxSharedFolderFS";
     string path, fsname;
     bool result = true;
@@ -1562,10 +1580,10 @@ bool WinFileSystemAccess::issyncsupported(string *localpath, bool *isnetwork)
     return result;
 }
 
-bool WinDirAccess::dopen(string* name, FileAccess* f, bool glob)
+bool WinDirAccess::dopen(LocalPath* nameArg, FileAccess* f, bool glob)
 {
-    assert((name && !f) || (!name && f));
-    assert(!glob || name);
+    assert(nameArg || f);
+    assert(!(glob && f));
 
     if (f)
     {
@@ -1577,6 +1595,8 @@ bool WinDirAccess::dopen(string* name, FileAccess* f, bool glob)
     }
     else
     {
+        string* name = nameArg ? nameArg->editStringDirect() : nullptr;
+
         if (!glob)
         {
             name->append((const char*)(const wchar_t*)L"\\*", 5);
@@ -1629,8 +1649,10 @@ bool WinDirAccess::dopen(string* name, FileAccess* f, bool glob)
 }
 
 // FIXME: implement followsymlinks
-bool WinDirAccess::dnext(string* /*path*/, string* name, bool /*followsymlinks*/, nodetype_t* type)
+bool WinDirAccess::dnext(LocalPath& /*path*/, LocalPath& nameArg, bool /*followsymlinks*/, nodetype_t* type)
 {
+    string* name = nameArg.editStringDirect();
+
     for (;;)
     {
         if (ffdvalid

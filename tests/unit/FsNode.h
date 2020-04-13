@@ -29,7 +29,7 @@
 namespace mt {
 
 // Represents a node on the filesystem (either file or directory)
-class FsNode
+/*class FsNode
 {
 public:
     FsNode(FsNode* parent, const mega::nodetype_t type, std::string name);
@@ -129,7 +129,7 @@ private:
     public:
         explicit FileAccess(const FsNode& fsNode);
 
-        bool fopen(std::string* path, bool, bool, mega::DirAccess* iteratingDir = nullptr) override;
+        bool fopen(mega::LocalPath& path, bool, bool, mega::DirAccess* iteratingDir = nullptr) override;
 
         bool sysstat(mega::m_time_t* curr_mtime, m_off_t* curr_size) override;
 
@@ -156,6 +156,6 @@ private:
     bool mOpenable = true;
     bool mReadable = true;
     std::vector<const FsNode*> mChildren;
-};
+};*/
 
 } // mt

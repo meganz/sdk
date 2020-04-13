@@ -207,7 +207,7 @@ protected:
     void onFolderAvailable(MegaHandle handle);
     void checkCompletion();
 
-    std::list<std::string> pendingFolders;
+    std::list<LocalPath> pendingFolders;
 
 public:
     void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e) override;
@@ -297,7 +297,7 @@ protected:
     // backup instance related
     handle currentHandle;
     std::string currentName;
-    std::list<std::string> pendingFolders;
+    std::list<LocalPath> pendingFolders;
     std::vector<MegaTransfer *> failedTransfers;
     int recursive;
     int pendingTransfers;
@@ -2243,7 +2243,7 @@ class MegaApiImpl : public MegaApp
         long long getNumLocalNodes();
         bool isSyncable(const char *path, long long size);
         bool isInsideSync(MegaNode *node);
-        bool is_syncable(Sync*, const char*, string*);
+        bool is_syncable(Sync*, const char*, const LocalPath&);
         bool is_syncable(long long size);
         int isNodeSyncable(MegaNode *megaNode);
         bool isIndexing();
@@ -2951,8 +2951,8 @@ protected:
         void syncupdate_remote_move(Sync *sync, Node *n, Node* prevparent) override;
         void syncupdate_remote_rename(Sync*sync, Node* n, const char* prevname) override;
         void syncupdate_treestate(LocalNode*) override;
-        bool sync_syncable(Sync *, const char*, string *, Node *) override;
-        bool sync_syncable(Sync *, const char*, string *) override;
+        bool sync_syncable(Sync *, const char*, LocalPath&, Node *) override;
+        bool sync_syncable(Sync *, const char*, LocalPath&) override;
         void sync_auto_resume_result(const string& localPath, handle remoteNode, long long localFp, const vector<string>& regExp, error e) override;
         void syncupdate_local_lockretry(bool) override;
 

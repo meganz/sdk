@@ -106,7 +106,7 @@ std::unique_ptr<mega::LocalNode> makeLocalNode(mega::Sync& sync, mega::LocalNode
 }
 #endif
 
-void collectAllFsNodes(std::map<std::string, const mt::FsNode*>& nodes, const mt::FsNode& node)
+/*void collectAllFsNodes(std::map<std::string, const mt::FsNode*>& nodes, const mt::FsNode& node)
 {
     const auto path = node.getPath();
     assert(nodes.find(path) == nodes.end());
@@ -118,7 +118,7 @@ void collectAllFsNodes(std::map<std::string, const mt::FsNode*>& nodes, const mt
             collectAllFsNodes(nodes, *child);
         }
     }
-}
+}*/
 
 std::uint16_t nextRandomInt()
 {

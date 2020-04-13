@@ -163,7 +163,7 @@ struct MEGA_API Transfer : public FileFingerprint
     static Transfer* unserialize(MegaClient *, string*, transfer_map *);
 
     // examine a file on disk for video/audio attributes to attach to the file, on upload/download
-    void addAnyMissingMediaFileAttributes(Node* node, std::string& localpath);
+    void addAnyMissingMediaFileAttributes(Node* node, LocalPath& localpath);
 };
 
 class MEGA_API TransferList

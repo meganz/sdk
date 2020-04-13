@@ -1181,7 +1181,7 @@ void CommandPutNodes::procresult()
         vector<LocalPath> &pfs = pit->second;
         for (unsigned int i = 0; i < pfs.size(); i++)
         {
-            client->fsaccess->unlinklocal(pfs[i].editStringDirect());
+            client->fsaccess->unlinklocal(pfs[i]);
         }
         client->pendingfiles.erase(pit);
     }

@@ -22,6 +22,7 @@
 
 namespace mt {
 
+/*
 FsNode::FsNode(FsNode* parent, const mega::nodetype_t type, std::string name)
 : mFsId{mt::nextFsId()}
 , mMTime{nextRandomInt()}
@@ -101,5 +102,6 @@ bool FsNode::FileAccess::sysread(mega::byte* buffer, unsigned size, m_off_t offs
 
 void FsNode::FileAccess::sysclose()
 {}
+*/
 
 } // mt

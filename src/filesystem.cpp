@@ -168,10 +168,10 @@ void FileSystemAccess::local2name(string* filename) const
 }
 
 // default DirNotify: no notification available
-DirNotify::DirNotify(string* clocalbasepath, string* cignore)
+DirNotify::DirNotify(const LocalPath& clocalbasepath, const LocalPath& cignore)
 {
-    localbasepath = *clocalbasepath;
-    ignore = *cignore;
+    localbasepath = clocalbasepath;
+    ignore = cignore;
 
     failed = 1;
     failreason = "Not initialized";
@@ -210,7 +210,7 @@ void DirNotify::notify(notifyqueue q, LocalNode* l, LocalPath path, bool immedia
         }
         attr_map::iterator ait;
         auto fa = sync->client->fsaccess->newfileaccess(false);
-        bool success = fa->fopen(tmppath.editStringDirect(), false, false);
+        bool success = fa->fopen(tmppath, false, false);
         LocalNode *ll = sync->localnodebypath(l, path);
         if ((!ll && !success && !fa->retry) // deleted file
             || (ll && success && ll->node && ll->node->localnode == ll
@@ -248,7 +248,7 @@ bool DirNotify::fsstableids() const
     return true;
 }
 
-DirNotify* FileSystemAccess::newdirnotify(string* localpath, string* ignore)
+DirNotify* FileSystemAccess::newdirnotify(LocalPath& localpath, LocalPath& ignore)
 {
     return new DirNotify(localpath, ignore);
 }
@@ -267,15 +267,15 @@ FileAccess::~FileAccess()
 }
 
 // open file for reading
-bool FileAccess::fopen(string* name)
+bool FileAccess::fopen(LocalPath& name)
 {
-    nonblocking_localname.resize(1);
+    nonblocking_localname.editStringDirect()->resize(1);
     updatelocalname(name);
 
     return sysstat(&mtime, &size);
 }
 
-bool FileAccess::isfolder(string *name)
+bool FileAccess::isfolder(LocalPath& name)
 {
     fopen(name);
     return (type == FOLDERNODE);
@@ -284,7 +284,7 @@ bool FileAccess::isfolder(string *name)
 // check if size and mtime are unchanged, then open for reading
 bool FileAccess::openf()
 {
-    if (!nonblocking_localname.size())
+    if (nonblocking_localname.empty())
     {
         // file was not opened in nonblocking mode
         return true;
@@ -313,7 +313,7 @@ bool FileAccess::openf()
 
 void FileAccess::closef()
 {
-    if (nonblocking_localname.size())
+    if (!nonblocking_localname.empty())
     {
         sysclose();
     }
@@ -328,9 +328,9 @@ void FileAccess::asyncopfinished(void *param)
     }
 }
 
-AsyncIOContext *FileAccess::asyncfopen(string *f)
+AsyncIOContext *FileAccess::asyncfopen(LocalPath& f)
 {
-    nonblocking_localname.resize(1);
+    nonblocking_localname.editStringDirect()->resize(1);
     updatelocalname(f);
 
     LOG_verbose << "Async open start";
@@ -338,8 +338,8 @@ AsyncIOContext *FileAccess::asyncfopen(string *f)
     context->op = AsyncIOContext::OPEN;
     context->access = AsyncIOContext::ACCESS_READ;
 
-    context->buffer = (byte *)f->data();
-    context->len = static_cast<unsigned>(f->size());
+    context->buffer = (byte *)f.editStringDirect()->data();
+    context->len = static_cast<unsigned>(f.editStringDirect()->size());
     context->waiter = waiter;
     context->userCallback = asyncopfinished;
     context->userData = waiter;
@@ -356,7 +356,7 @@ AsyncIOContext *FileAccess::asyncfopen(string *f)
 bool FileAccess::asyncopenf()
 {
     numAsyncReads++;
-    if (!nonblocking_localname.size())
+    if (nonblocking_localname.empty())
     {
         return true;
     }
@@ -408,7 +408,7 @@ void FileAccess::asyncclosef()
     }
 }
 
-AsyncIOContext *FileAccess::asyncfopen(string *f, bool read, bool write, m_off_t pos)
+AsyncIOContext *FileAccess::asyncfopen(LocalPath& f, bool read, bool write, m_off_t pos)
 {
     LOG_verbose << "Async open start";
     AsyncIOContext *context = newasynccontext();
@@ -417,8 +417,8 @@ AsyncIOContext *FileAccess::asyncfopen(string *f, bool read, bool write, m_off_t
             | (read ? AsyncIOContext::ACCESS_READ : 0)
             | (write ? AsyncIOContext::ACCESS_WRITE : 0);
 
-    context->buffer = (byte *)f->data();
-    context->len = static_cast<unsigned>(f->size());
+    context->buffer = (byte *)f.editStringDirect()->data();
+    context->len = static_cast<unsigned>(f.editStringDirect()->size());
     context->waiter = waiter;
     context->userCallback = asyncopfinished;
     context->userData = waiter;
@@ -596,7 +596,13 @@ void AsyncIOContext::finish()
     }
 }
 
-std::string* LocalPath::editStringDirect() const
+const std::string* LocalPath::editStringDirect() const
+{
+    // this function for compatibiltiy while converting to use LocalPath class.  TODO: phase out this function
+    return const_cast<std::string*>(&localpath);
+}
+
+std::string* LocalPath::editStringDirect()
 {
     // this function for compatibiltiy while converting to use LocalPath class.  TODO: phase out this function
     return const_cast<std::string*>(&localpath);
@@ -607,7 +613,7 @@ bool LocalPath::empty() const
     return localpath.empty();
 }
 
-size_t LocalPath::lastpartlocal(FileSystemAccess& fsaccess)
+size_t LocalPath::lastpartlocal(const FileSystemAccess& fsaccess) const
 {
     return fsaccess.lastpartlocal(&localpath);
 }
@@ -617,7 +623,7 @@ void LocalPath::append(const LocalPath& additionalPath)
     localpath.append(additionalPath.localpath);
 }
 
-void LocalPath::separatorAppend(const LocalPath& additionalPath, FileSystemAccess& fsaccess, bool separatorAlways)
+void LocalPath::separatorAppend(const LocalPath& additionalPath, const FileSystemAccess& fsaccess, bool separatorAlways)
 {
     if (separatorAlways || localpath.size())
     {
@@ -627,13 +633,24 @@ void LocalPath::separatorAppend(const LocalPath& additionalPath, FileSystemAcces
     localpath.append(additionalPath.localpath);
 }
 
-void LocalPath::separatorPrepend(const LocalPath& additionalPath, FileSystemAccess& fsaccess)
+void LocalPath::separatorPrepend(const LocalPath& additionalPath, const FileSystemAccess& fsaccess)
 {
     localpath.insert(0, fsaccess.localseparator);
     localpath.insert(0, additionalPath.localpath);
 }
 
-bool LocalPath::findNextSeparator(size_t& separatorBytePos, FileSystemAccess& fsaccess) const
+void LocalPath::trimTrailingSeparator(const FileSystemAccess& fsaccess)
+{
+    if (localpath.size() >= fsaccess.localseparator.size()
+        && !memcmp(localpath.data() + (int(localpath.size()) & -int(fsaccess.localseparator.size())) - fsaccess.localseparator.size(),
+            fsaccess.localseparator.data(),
+            fsaccess.localseparator.size()))
+    {
+        localpath.resize((int(localpath.size()) & -int(fsaccess.localseparator.size())) - fsaccess.localseparator.size());
+    }
+}
+
+bool LocalPath::findNextSeparator(size_t& separatorBytePos, const FileSystemAccess& fsaccess) const
 {
     for (;;)
     {
@@ -644,7 +661,7 @@ bool LocalPath::findNextSeparator(size_t& separatorBytePos, FileSystemAccess& fs
     }
 }
 
-bool LocalPath::findPrevSeparator(size_t& separatorBytePos, FileSystemAccess& fsaccess) const
+bool LocalPath::findPrevSeparator(size_t& separatorBytePos, const FileSystemAccess& fsaccess) const
 {
     for (;;)
     {
@@ -655,7 +672,7 @@ bool LocalPath::findPrevSeparator(size_t& separatorBytePos, FileSystemAccess& fs
     } 
 }
 
-size_t LocalPath::getLeafnameByteIndex(FileSystemAccess& fsaccess) const
+size_t LocalPath::getLeafnameByteIndex(const FileSystemAccess& fsaccess) const
 {
     // todo: take utf8 two byte characters into account
     size_t p = localpath.size();
@@ -692,14 +709,14 @@ string LocalPath::substrTo(size_t bytePos) const
     return localpath.substr(0, bytePos);
 }
 
-string LocalPath::toPath(FileSystemAccess& fsaccess) const
+string LocalPath::toPath(const FileSystemAccess& fsaccess) const
 {
     string path;
     fsaccess.local2path(const_cast<string*>(&localpath), &path); // todo: const correctness for local2path etc
     return path;
 }
 
-string LocalPath::toName(FileSystemAccess& fsaccess) const
+string LocalPath::toName(const FileSystemAccess& fsaccess) const
 {
     string name = localpath;
     fsaccess.local2name(&name);
@@ -707,14 +724,14 @@ string LocalPath::toName(FileSystemAccess& fsaccess) const
 }
 
 
-LocalPath LocalPath::fromPath(string& path, FileSystemAccess& fsaccess)
+LocalPath LocalPath::fromPath(const string& path, const FileSystemAccess& fsaccess)
 {
     LocalPath p;
     fsaccess.path2local(&path, &p.localpath);
     return p;
 }
 
-LocalPath LocalPath::fromName(string path, FileSystemAccess& fsaccess)
+LocalPath LocalPath::fromName(string path, const FileSystemAccess& fsaccess)
 {
     fsaccess.name2local(&path);
     return fromLocalname(path);
@@ -727,7 +744,14 @@ LocalPath LocalPath::fromLocalname(string path)
     return p;
 }
 
-bool LocalPath::isContainingPathOf(const LocalPath& path, FileSystemAccess& fsaccess)
+LocalPath LocalPath::tmpNameLocal(const FileSystemAccess& fsaccess)
+{
+    LocalPath lp;
+    fsaccess.tmpnamelocal(lp);
+    return lp;
+}
+
+bool LocalPath::isContainingPathOf(const LocalPath& path, const FileSystemAccess& fsaccess)
 {
     return path.localpath.size() >= localpath.size() 
         && !memcmp(path.localpath.data(), localpath.data(), localpath.size())

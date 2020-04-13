@@ -31,7 +31,7 @@ class MEGA_API GfxProcFreeImage : public GfxProc
 {
     FIBITMAP* dib;
 
-    bool readbitmap(FileAccess*, string*, int);
+    bool readbitmap(FileAccess*, LocalPath&, int);
     bool resizebitmap(int, int, string*);
     void freebitmap();
 
@@ -45,7 +45,7 @@ protected:
 #ifdef HAVE_FFMPEG
     static std::mutex gfxMutex;
     const char* supportedformatsFfmpeg();
-    bool readbitmapFfmpeg(FileAccess*, string*, int);
+    bool readbitmapFfmpeg(FileAccess*, LocalPath&, int);
 #endif
 
 };

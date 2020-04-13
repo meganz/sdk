@@ -103,15 +103,17 @@ const char *GfxProcFreeImage::supportedformatsFfmpeg()
             ".qt.sls.tmf.trp.ts.ty.vc1.vob.vr.webm.wmv.";
 }
 
-bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int size)
+bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, LocalPath& localImagePath, int size)
 {
 #ifndef DEBUG
     av_log_set_level(AV_LOG_PANIC);
 #endif
 
+    string imagePath = localImagePath.toPath(*client->fsaccess);  // WIN32 ffmpeg uses utf8 rather than wide strings
+
     // Open video file
     AVFormatContext* formatContext = avformat_alloc_context();
-    if (avformat_open_input(&formatContext, imagePath->data(), NULL, NULL))
+    if (avformat_open_input(&formatContext, imagePath.c_str(), NULL, NULL))
     {
         LOG_warn << "Error opening video: " << imagePath;
         return NULL;
@@ -252,7 +254,7 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int s
 
     char ext[8];
 
-    if (client->fsaccess->getextension(imagePath,ext,8)
+    if (client->fsaccess->getextension(localImagePath,ext,8)
             && strcmp(ext,".mp3") && seek_target > 0
             && av_seek_frame(formatContext, videoStreamIdx, seek_target, AVSEEK_FLAG_BACKWARD) < 0)
     {
@@ -398,10 +400,11 @@ const char* GfxProcFreeImage::supportedformats()
     return sformats.c_str();
 }
 
-bool GfxProcFreeImage::readbitmap(FileAccess* fa, string* localname, int size)
+bool GfxProcFreeImage::readbitmap(FileAccess* fa, LocalPath& localname, int size)
 {
 #ifdef _WIN32
-    localname->append("", 1);
+    ScopedLengthRestore restoreLen(localname);
+    localname.editStringDirect()->append("", 1);
 #endif
 
 #ifdef HAVE_FFMPEG
@@ -412,15 +415,9 @@ bool GfxProcFreeImage::readbitmap(FileAccess* fa, string* localname, int size)
         const char* ptr;
         if ((ptr = strstr(supportedformatsFfmpeg(), ext)) && ptr[strlen(ext)] == '.')
         {
-            string name;  // WIN32 ffmpeg uses utf8 rather than wide strings
-            client->fsaccess->local2path(localname, &name);
-
             isvideo = true;
-            if (!readbitmapFfmpeg(fa, &name, size) )
+            if (!readbitmapFfmpeg(fa, localname, size) )
             {
-#ifdef _WIN32
-                localname->resize(localname->size()-1);
-#endif
                 return false;
             }
         }
@@ -430,13 +427,10 @@ bool GfxProcFreeImage::readbitmap(FileAccess* fa, string* localname, int size)
 #endif
 
     // FIXME: race condition, need to use open file instead of filename
-    FREE_IMAGE_FORMAT fif = FreeImage_GetFileTypeX((freeimage_filename_char_t*)localname->data());
+    FREE_IMAGE_FORMAT fif = FreeImage_GetFileTypeX((freeimage_filename_char_t*)localname.editStringDirect()->data());
 
     if (fif == FIF_UNKNOWN)
     {
-#ifdef _WIN32
-        localname->resize(localname->size()-1);
-#endif
         return false;
     }
 
@@ -444,12 +438,9 @@ bool GfxProcFreeImage::readbitmap(FileAccess* fa, string* localname, int size)
     if (fif == FIF_JPEG)
     {
         // load JPEG (scale & EXIF-rotate)
-        if (!(dib = FreeImage_LoadX(fif, (freeimage_filename_char_t*) localname->data(),
+        if (!(dib = FreeImage_LoadX(fif, (freeimage_filename_char_t*) localname.editStringDirect()->data(),
                                     JPEG_EXIFROTATE | JPEG_FAST | (size << 16))))
         {
-#ifdef _WIN32
-            localname->resize(localname->size()-1);
-#endif
             return false;
         }
     }
@@ -457,16 +448,13 @@ bool GfxProcFreeImage::readbitmap(FileAccess* fa, string* localname, int size)
 #endif
     {
         // load all other image types - for RAW formats, rely on embedded preview
-        if (!(dib = FreeImage_LoadX(fif, (freeimage_filename_char_t*)localname->data(),
+        if (!(dib = FreeImage_LoadX(fif, (freeimage_filename_char_t*)localname.editStringDirect()->data(),
                 #ifndef OLD_FREEIMAGE
                                     (fif == FIF_RAW) ? RAW_PREVIEW : 0)))
                 #else
                                     0)))
                 #endif
         {
-#ifdef _WIN32
-            localname->resize(localname->size()-1);
-#endif
             return false;
         }
     }
@@ -479,15 +467,9 @@ bool GfxProcFreeImage::readbitmap(FileAccess* fa, string* localname, int size)
 
     if (!w || !h)
     {
-#ifdef _WIN32
-            localname->resize(localname->size()-1);
-#endif
         return false;
     }
 
-#ifdef _WIN32
-            localname->resize(localname->size()-1);
-#endif
     return true;
 }
 

@@ -449,7 +449,7 @@ bool Node::serialize(string* d)
 
         if (attrstring)
         {
-            LOG_err << "Skipping undecryptable node";
+            LOG_warn << "Skipping undecryptable node";
             return false;
         }
     }
@@ -1216,7 +1216,7 @@ bool PublicLink::isExpired()
 // set, change or remove LocalNode's parent and name/localname/slocalname.
 // newlocalpath must be a full path and must not point to an empty string.
 // no shortname allowed as the last path component.
-void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpath)
+void LocalNode::setnameparent(LocalNode* newparent, LocalPath* newlocalpath, bool updatecache)
 {
     if (!sync)
     {
@@ -1358,7 +1358,7 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
         {
             slocalname = new LocalPath();
         }
-        if (sync->client->fsaccess->getsname(newlocalpath->editStringDirect(), slocalname->editStringDirect()) && !(*slocalname == localname))
+        if (sync->client->fsaccess->getsname(*newlocalpath, *slocalname) && !(*slocalname == localname))
         {
             parent->schildren[slocalname] = this;
         }
@@ -1399,6 +1399,11 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
         LocalTreeProcUpdateTransfers tput;
         sync->client->proclocaltree(this, &tput);
     }
+
+    if (updatecache)
+    {
+        sync->statecacheadd(this);
+    }
 }
 
 void LocalNode::reactToNodeChange(const bool nodeDeleted)
@@ -1434,7 +1439,7 @@ LocalNode::LocalNode()
 {}
 
 // initialize fresh LocalNode object - must be called exactly once
-void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, const LocalPath& cfullpath)
+void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, LocalPath& cfullpath)
 {
     sync = csync;
     parent = NULL;
@@ -1458,7 +1463,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, const Lo
 
     if (cparent)
     {
-        setnameparent(cparent, &cfullpath);
+        setnameparent(cparent, &cfullpath, false);
     }
     else
     {
@@ -1702,7 +1707,7 @@ LocalNode::~LocalNode()
     // remove parent association
     if (parent)
     {
-        setnameparent(NULL, NULL);
+        setnameparent(NULL, NULL, false);
     }
 
     for (localnode_map::iterator it = children.begin(); it != children.end(); )
@@ -1737,9 +1742,14 @@ LocalNode::~LocalNode()
 
 LocalPath LocalNode::getLocalPath(bool sdisable) const
 {
-    string lp;
-    getlocalpath(&lp, sdisable);
-    return LocalPath::fromLocalname(std::move(lp));
+    LocalPath lp;
+    getLocalPath(lp, sdisable);
+    return lp;
+}
+
+void LocalNode::getLocalPath(LocalPath& reuse, bool sdisable) const
+{
+    getlocalpath(reuse.editStringDirect(), sdisable);
 }
 
 void LocalNode::getlocalpath(string* path, bool sdisable, const std::string* localseparator) const
@@ -1807,9 +1817,9 @@ void LocalNode::prepare()
     getlocalpath(transfer->localfilename.editStringDirect(), true);
 
     // is this transfer in progress? update file's filename.
-    if (transfer->slot && transfer->slot->fa && transfer->slot->fa->nonblocking_localname.size())
+    if (transfer->slot && transfer->slot->fa && !transfer->slot->fa->nonblocking_localname.empty())
     {
-        transfer->slot->fa->updatelocalname(transfer->localfilename.editStringDirect());
+        transfer->slot->fa->updatelocalname(transfer->localfilename);
     }
 
     treestate(TREESTATE_SYNCING);
