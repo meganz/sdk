@@ -50,6 +50,9 @@ struct MEGA_API PosixDirAccess : public DirAccess
     glob_t globbuf;
     unsigned globindex;
 
+    struct stat currentItemStat;
+    bool currentItemFollowedSymlink;
+
     bool dopen(string*, FileAccess*, bool);
     bool dnext(string*, string*, bool, nodetype_t*);
 
@@ -106,7 +109,7 @@ public:
     void addevents(Waiter*, int) override;
     int checkevents(Waiter*) override;
 
-    void osversion(string*) const override;
+    void osversion(string*, bool includeArchitecture) const override;
     void statsid(string*) const override;
 
     static void emptydirlocal(string*, dev_t = 0);
@@ -139,27 +142,30 @@ public:
     int stealFileDescriptor();
     int defaultfilepermissions;
 
+    static bool mFoundASymlink;
+
 #ifndef HAVE_FDOPENDIR
     DIR* dp;
 #endif
 
-    bool fopen(string*, bool, bool);
-    void updatelocalname(string*);
-    bool fread(string *, unsigned, unsigned, m_off_t);
-    bool fwrite(const byte *, unsigned, m_off_t);
+    bool fopen(string*, bool read, bool write, DirAccess* iteratingDir = nullptr) override;
 
-    bool sysread(byte *, unsigned, m_off_t);
-    bool sysstat(m_time_t*, m_off_t*);
-    bool sysopen(bool async = false);
-    void sysclose();
+    void updatelocalname(string*) override;
+    bool fread(string *, unsigned, unsigned, m_off_t);
+    bool fwrite(const byte *, unsigned, m_off_t) override;
+
+    bool sysread(byte *, unsigned, m_off_t) override;
+    bool sysstat(m_time_t*, m_off_t*) override;
+    bool sysopen(bool async = false) override;
+    void sysclose() override;
 
     PosixFileAccess(Waiter *w, int defaultfilepermissions = 0600, bool followSymLinks = true);
 
     // async interface
-    virtual bool asyncavailable();
-    virtual void asyncsysopen(AsyncIOContext* context);
-    virtual void asyncsysread(AsyncIOContext* context);
-    virtual void asyncsyswrite(AsyncIOContext* context);
+    bool asyncavailable() override;
+    void asyncsysopen(AsyncIOContext* context) override;
+    void asyncsysread(AsyncIOContext* context) override;
+    void asyncsyswrite(AsyncIOContext* context) override;
 
     ~PosixFileAccess();
 

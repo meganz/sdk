@@ -5823,6 +5823,17 @@ bool MegaApiLock::lockOnce(unsigned millisec)
     return true;
 }
 
+
+bool MegaApiLock::tryLockFor(long long time)
+{
+    if (!locked)
+    {
+        locked = api->tryLockMutexFor(time);
+    }
+
+    return locked;
+}
+
 void MegaApiLock::unlockOnce()
 {
     if (locked)

@@ -61,7 +61,7 @@ FsNode::FileAccess::FileAccess(const FsNode& fsNode)
 : mFsNode{fsNode}
 {}
 
-bool FsNode::FileAccess::fopen(std::string* path, bool, bool)
+bool FsNode::FileAccess::fopen(std::string* path, bool, bool, mega::DirAccess* iteratingDir)
 {
     mPath = *path;
     return sysopen();

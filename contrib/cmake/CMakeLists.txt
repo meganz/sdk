@@ -67,7 +67,7 @@ if (WIN32)
     ENDIF()
 else(WIN32)
     set(NO_READLINE 0)
-    set(USE_PREBUILT_3RDPARTY 0)
+    set(USE_PREBUILT_3RDPARTY 0 CACHE STRING "")
 endif(WIN32)
 
 if (USE_WEBRTC)
@@ -185,6 +185,8 @@ if (USE_PREBUILT_3RDPARTY)
     include_directories( "${Mega3rdPartyDir}/include/zenlib" )
     include_directories( "${Mega3rdPartyDir}/include/pdfium" )
     include_directories( "${Mega3rdPartyDir}/include/zlib" )
+    include_directories( "${Mega3rdPartyDir}/include/libuv" )
+    include_directories( "${Mega3rdPartyDir}/include/ffmpeg" )
 
     link_directories( "${Mega3rdPartyDir}/libs" )
 
@@ -551,7 +553,7 @@ if(WIN32)
     
     add_definitions(-D_CRT_SECURE_NO_WARNINGS -DCURL_STATICLIB -DCARES_STATICLIB -DWIN32_LEAN_AND_MEAN -DSODIUM_STATIC -DPCRE_STATICWIN32 -D_CONSOLE )
     SET(Mega_PlatformSpecificIncludes ${MegaDir}/include/mega/$<IF:${USE_CURL},wincurl,win32>)
-    SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} ws2_32 winhttp Shlwapi Secur32.lib  $<${USE_WEBRTC}:Wldap32.lib> )
+    SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} ws2_32 winhttp Shlwapi Secur32.lib  $<$<OR:${USE_CURL},${USE_WEBRTC}>:Wldap32.lib> )
     IF(USE_LIBUV)
         SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} Kernel32.lib Iphlpapi.lib Userenv.lib Psapi.lib )
     ENDIF(USE_LIBUV)
@@ -604,6 +606,10 @@ SET(Mega_GfxFiles ${MegaDir}/src/gfx/external.cpp ${MegaDir}/src/gfx/freeimage.c
 
 if(WIN32)
     SET(WIN_EXTRA_INCLUDE $<${USE_PREBUILT_3RDPARTY}:${prebuilt_dir}/libs/sqlite3.c>)
+endif()
+
+if(CMAKE_HOST_APPLE)
+    SET(MACOS_EXTRA_INCLUDE $<${USE_PREBUILT_3RDPARTY}:${prebuilt_dir}/sqlite3.c>)
 endif()
 
 add_library(Mega STATIC
@@ -740,6 +746,7 @@ add_library(Mega STATIC
             ${MegaDir}/src/waiterbase.cpp 
             ${Mega_PlatformSpecificFiles} ${Mega_CryptoFiles} ${Mega_DbFiles} ${Mega_GfxFiles}
             ${WIN_EXTRA_INCLUDE}
+            ${MACOS_EXTRA_INCLUDE}
             $<${USE_LIBUV}:${MegaDir}/src/mega_evt_tls.cpp> 
             $<${USE_QT}:${MegaDir}/src/gfx/qt.cpp>
             $<${USE_QT}:${MegaDir}/src/thread/qtthread.cpp >
@@ -882,6 +889,9 @@ target_compile_definitions(test_integration PRIVATE _SILENCE_TR1_NAMESPACE_DEPRE
 target_compile_definitions(tool_purge_account PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
 target_link_libraries(test_unit gtest Mega )
 target_link_libraries(test_integration gtest Mega )
+if(APPLE)
+    target_link_libraries(test_integration "-framework Security" )
+endif()
 target_link_libraries(tool_purge_account gtest Mega )
 
 if(WIN32)

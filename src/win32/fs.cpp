@@ -20,6 +20,7 @@
  */
 
 #include "mega.h"
+#include <wow64apiset.h>
 
 namespace mega {
 WinFileAccess::WinFileAccess(Waiter *w) : FileAccess(w)
@@ -297,7 +298,7 @@ void WinFileAccess::asyncsysopen(AsyncIOContext *context)
     bool read = context->access & AsyncIOContext::ACCESS_READ;
     bool write = context->access & AsyncIOContext::ACCESS_WRITE;
 
-    context->failed = !fopen(&path, read, write, true);
+    context->failed = !fopen_impl(&path, read, write, true, nullptr);
     context->retry = retry;
     context->finished = true;
     if (context->userCallback)
@@ -428,12 +429,12 @@ bool WinFileAccess::skipattributes(DWORD dwAttributes)
 // CreateFile() operation without first looking at the attributes?
 // FIXME #2: How to convert a CreateFile()-opened directory directly to a hFind
 // without doing a FindFirstFile()?
-bool WinFileAccess::fopen(string *name, bool read, bool write)
+bool WinFileAccess::fopen(string *name, bool read, bool write, DirAccess* iteratingDir)
 {
-    return fopen(name, read, write, false);
+    return fopen_impl(name, read, write, false, iteratingDir);
 }
 
-bool WinFileAccess::fopen(string* name, bool read, bool write, bool async)
+bool WinFileAccess::fopen_impl(string* name, bool read, bool write, bool async, DirAccess* iteratingDir)
 {
     WIN32_FIND_DATA fad = { 0 };
     assert(hFile == INVALID_HANDLE_VALUE);
@@ -455,38 +456,47 @@ bool WinFileAccess::fopen(string* name, bool read, bool write, bool async)
     }
     else
     {
-        HANDLE  h = name->size() > sizeof(wchar_t)
-                ? FindFirstFileExW((LPCWSTR)name->data(), FindExInfoStandard, &fad,
-                             FindExSearchNameMatch, NULL, 0)
-                : INVALID_HANDLE_VALUE;
-
-        if (h != INVALID_HANDLE_VALUE)
+        // fill in the `fad` file attribute data in the most efficient way available for its case
+        if (iteratingDir)
         {
-            FindClose(h);
+            fad = static_cast<WinDirAccess*>(iteratingDir)->currentItemAttributes;
         }
         else
         {
-            WIN32_FILE_ATTRIBUTE_DATA fatd;
-            if (!GetFileAttributesExW((LPCWSTR)name->data(), GetFileExInfoStandard, (LPVOID)&fatd))
+            HANDLE  h = name->size() > sizeof(wchar_t)
+                    ? FindFirstFileExW((LPCWSTR)name->data(), FindExInfoStandard, &fad,
+                                 FindExSearchNameMatch, NULL, 0)
+                    : INVALID_HANDLE_VALUE;
+
+            if (h != INVALID_HANDLE_VALUE)
             {
-                DWORD e = GetLastError();
-                // this is an expected case so no need to log.  the FindFirstFileEx did not find the file, 
-                // GetFileAttributesEx is only expected to find it if it's a network share point
-                // LOG_debug << "Unable to get the attributes of the file. Error code: " << e;
-                retry = WinFileSystemAccess::istransient(e);
-                name->resize(name->size() - added - 1);
-                return false;
+                // success so `fad` is set
+                FindClose(h);
             }
             else
             {
-                LOG_debug << "Possible root of network share";
-                skipcasecheck = true;
-                fad.dwFileAttributes = fatd.dwFileAttributes;
-                fad.ftCreationTime = fatd.ftCreationTime;
-                fad.ftLastAccessTime = fatd.ftLastAccessTime;
-                fad.ftLastWriteTime = fatd.ftLastWriteTime;
-                fad.nFileSizeHigh = fatd.nFileSizeHigh;
-                fad.nFileSizeLow = fatd.nFileSizeLow;
+                WIN32_FILE_ATTRIBUTE_DATA fatd;
+                if (!GetFileAttributesExW((LPCWSTR)name->data(), GetFileExInfoStandard, (LPVOID)&fatd))
+                {
+                    DWORD e = GetLastError();
+                    // this is an expected case so no need to log.  the FindFirstFileEx did not find the file, 
+                    // GetFileAttributesEx is only expected to find it if it's a network share point
+                    // LOG_debug << "Unable to get the attributes of the file. Error code: " << e;
+                    retry = WinFileSystemAccess::istransient(e);
+                    name->resize(name->size() - added - 1);
+                    return false;
+                }
+                else
+                {
+                    LOG_debug << "Possible root of network share";
+                    skipcasecheck = true;
+                    fad.dwFileAttributes = fatd.dwFileAttributes;
+                    fad.ftCreationTime = fatd.ftCreationTime;
+                    fad.ftLastAccessTime = fatd.ftLastAccessTime;
+                    fad.ftLastWriteTime = fatd.ftLastWriteTime;
+                    fad.nFileSizeHigh = fatd.nFileSizeHigh;
+                    fad.nFileSizeLow = fatd.nFileSizeLow;
+                }
             }
         }
 
@@ -1172,7 +1182,7 @@ bool WinFileSystemAccess::expanselocalpath(string *path, string *absolutepath)
 #endif
 }
 
-void WinFileSystemAccess::osversion(string* u) const
+void WinFileSystemAccess::osversion(string* u, bool includeArchExtraInfo) const
 {
     char buf[128];
 
@@ -1201,6 +1211,16 @@ void WinFileSystemAccess::osversion(string* u) const
         }
     }
     snprintf(buf, sizeof(buf), "Windows %d.%d.%d", version.dwMajorVersion, version.dwMinorVersion, version.dwBuildNumber);
+
+    if (includeArchExtraInfo)
+    {
+        BOOL isWOW = FALSE;
+        BOOL callSucceeded = IsWow64Process(GetCurrentProcess(), &isWOW);
+        if (callSucceeded && isWOW)
+        {
+            strcat(buf, "/64");  // if the app 32/64 bit matches the OS, then no need to specify the OS separately, so we only need to cover the WOW 32 bit on 64 bit case.
+        }
+    }
 #endif
 
     u->append(buf);
@@ -1544,6 +1564,9 @@ bool WinFileSystemAccess::issyncsupported(string *localpath, bool *isnetwork)
 
 bool WinDirAccess::dopen(string* name, FileAccess* f, bool glob)
 {
+    assert((name && !f) || (!name && f));
+    assert(!glob || name);
+
     if (f)
     {
         if ((hFind = ((WinFileAccess*)f)->hFind) != INVALID_HANDLE_VALUE)
@@ -1625,6 +1648,7 @@ bool WinDirAccess::dnext(string* /*path*/, string* name, bool /*followsymlinks*/
             }
 
             ffdvalid = false;
+            currentItemAttributes = ffd;
             return true;
         }
         else
