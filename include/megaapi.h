@@ -6705,7 +6705,7 @@ public:
      * be locked once from that point, until the end of the loop (when unlockOnce() can
      * be called, or the MegaApiLock destroyed.
      */
-    bool lockOnce(unsigned millisec);
+    void lockOnce();
 
     /**
      * @brief Tries to lock the MegaApi if this instance does not currently have a lock on it yet.
