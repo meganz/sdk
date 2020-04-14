@@ -1479,7 +1479,11 @@ size_t Utils::utf8SequenceSize(unsigned char c)
     else if ((aux & 0xE0) == 0xC0)  return 2;
     else if ((aux & 0xF0) == 0xE0)  return 3;
     else if ((aux & 0xF8) == 0xF0)  return 4;
-    else return 0;
+    else
+    {
+        LOG_err << "Malformed UTF-8 sequence, interpret character " << c << " as literal";
+        return 1;
+    }
 }
 
 bool Utils::utf8toUnicode(const uint8_t *src, unsigned srclen, string *result)

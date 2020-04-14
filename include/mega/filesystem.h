@@ -293,7 +293,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     void local2name(string*) const;
 
     // convert local path to MEGA format (UTF-8) with unescaping
-    void name2local(string*, std::string *dstPath = nullptr) const;
+    void name2local(string*, const std::string *dstPath = nullptr) const;
 
     // returns a string that contains the separator character for the target system
     static std::string getPathSeparator();

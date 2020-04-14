@@ -241,7 +241,7 @@ return "\\/";
 }
 
 // escape forbidden characters, then convert to local encoding
-void FileSystemAccess::name2local(string* filename, string *dstPath) const
+void FileSystemAccess::name2local(string* filename, const string *dstPath) const
 {
     std::string path = dstPath ? (*dstPath) : "";
     if (filename && dstPath)
