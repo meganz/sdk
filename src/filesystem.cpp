@@ -65,7 +65,7 @@ const char *FileSystemAccess::fstypetostring(int type) const
     }
 }
 
-int FileSystemAccess::getlocalfstype(string *dstPath) const
+int FileSystemAccess::getlocalfstype(const string *dstPath) const
 {
     if (!dstPath || dstPath->empty())
     {
@@ -166,7 +166,7 @@ bool FileSystemAccess::islocalfscompatible(unsigned char c, int fileSystemType) 
 }
 
 // replace characters that are not allowed in local fs names with a %xx escape sequence
-void FileSystemAccess::escapefsincompatible(string* name, string *dstPath) const
+void FileSystemAccess::escapefsincompatible(string* name, const string *dstPath) const
 {
     if (!name->compare(".."))
     {
