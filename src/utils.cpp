@@ -333,15 +333,15 @@ bool CacheableReader::unserializechunkmacs(chunkmac_map& m)
 
 bool CacheableReader::unserializecompressed64(uint64_t& field)
 {
-    int fieldize;
-    if ((fieldize = Serialize64::unserialize((byte*)ptr, static_cast<int>(end - ptr), &field)) < 0)
+    int fieldSize;
+    if ((fieldSize = Serialize64::unserialize((byte*)ptr, static_cast<int>(end - ptr), &field)) < 0)
     {
         LOG_err << "Serialize64 unserialization failed - malformed field";
         return false;
     }
     else
     {
-        ptr += fieldize;
+        ptr += fieldSize;
     }
     return true;
 }

@@ -1628,9 +1628,11 @@ void LocalNode::getlocalpath(string* path, bool sdisable, const std::string* loc
 
     while (l)
     {
+        assert(!l->parent || l->parent->sync == sync);
+
         // use short name, if available (less likely to overflow MAXPATH,
-        // perhaps faster?) and sdisable not set
-        if (!sdisable && l->slocalname)
+        // perhaps faster?) and sdisable not set.  Use localname from the sync root though, as it has the absolute path.
+        if (!sdisable && l->slocalname && l->parent)
         {
             path->insert(0, *(l->slocalname));
         }
@@ -1806,7 +1808,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
         (type == FILENODE && !r.unserializecompressed64(mtime)) ||
         (r.hasdataleft() && !r.unserializebyte(syncable)) ||
         (r.hasdataleft() && !r.unserializeexpansionflags(expansionflags, 1)) ||
-        (expansionflags[0] && !r.unserializestring(shortname)))
+        (expansionflags[0] && !r.unserializecstr(shortname, false)))
     {
         LOG_err << "LocalNode unserialization failed at field " << r.fieldnum;
         return nullptr;

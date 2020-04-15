@@ -167,6 +167,16 @@ void FileSystemAccess::local2name(string* filename) const
     unescapefsincompatible(filename);
 }
 
+std::unique_ptr<string> FileSystemAccess::fsShortname(string& localname)
+{
+    string s;
+    if (getsname(&localname, &s))
+    {
+        return ::mega::make_unique<string>(std::move(s));
+    }
+    return nullptr;
+}
+
 // default DirNotify: no notification available
 DirNotify::DirNotify(string* clocalbasepath, string* cignore)
 {

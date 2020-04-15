@@ -952,16 +952,6 @@ void MegaClient::activateoverquota(dstime timeleft)
     looprequested = true;
 }
 
-std::unique_ptr<string> MegaClient::fsShortname(string& localname)
-{
-    string s;
-    if (fsaccess->getsname(&localname, &s))
-    {
-        ::mega::make_unique<string>(std::move(s));
-    }
-    return nullptr;
-}
-
 // set warn level
 void MegaClient::warn(const char* msg)
 {
@@ -12561,7 +12551,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                                                rit->second->localnode, localname.c_str());
 
                     // update LocalNode tree to reflect the move/rename
-                    rit->second->localnode->setnameparent(l, localpath, fsShortname(*localpath));
+                    rit->second->localnode->setnameparent(l, localpath, fsaccess->fsShortname(*localpath));
 
                     rit->second->localnode->sync->statecacheadd(rit->second->localnode);
 
