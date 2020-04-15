@@ -4094,7 +4094,7 @@ TEST_F(SdkTest, SdkGetRegisteredContacts)
 
 TEST_F(SdkTest, invalidFileNames)
 {
-    LOG_info << "___TEST invalidFileNames";
+    LOG_info << "___TEST invalidFileNames___";
 
     // Maps filename unescaped (original) to filename escaped (expected result): f%2ff => f/f
     std::unique_ptr<MegaStringMap> fileNamesStringMap = std::unique_ptr<MegaStringMap>{MegaStringMap::createInstance()};
@@ -4127,6 +4127,7 @@ TEST_F(SdkTest, invalidFileNames)
         fs << filename;
         const char *unescapedFileName = megaApi[0]->unescapeFsIncompatible(filename.c_str(), uploadPath.c_str());
         fileNamesStringMap->set(filename.c_str(), unescapedFileName);
+        delete [] unescapedFileName;
     }
 
     TransferTracker uploadListener;
@@ -4136,6 +4137,7 @@ TEST_F(SdkTest, invalidFileNames)
     ::mega::unique_ptr <MegaNode> n(megaApi[0]->getNodeByPath("/upload_invalid_filenames"));
     ASSERT_TRUE(n.get());
     ::mega::unique_ptr <MegaNode> authNode(megaApi[0]->authorizeNode(n.get()));
+    ASSERT_TRUE(authNode.get());
     MegaNodeList *children(authNode->getChildren());
     ASSERT_TRUE(children && children->size());
 
@@ -4145,6 +4147,7 @@ TEST_F(SdkTest, invalidFileNames)
         const char *uploadedName = child->getName();
         const char *uploadedNameEscaped = megaApi[0]->escapeFsIncompatible(child->getName(), uploadPath.c_str());
         const char *expectedName = fileNamesStringMap->get(uploadedNameEscaped);
+        delete [] uploadedNameEscaped;
 
         // Conditions to check if uploaded fileName is correct:
         // 1) Escaped uploaded filename must be found in fileNamesStringMap (original filename found)
@@ -4176,7 +4179,7 @@ TEST_F(SdkTest, invalidFileNames)
 
       // Conditions to check if downloaded fileName is correct:
       // download filename must be found in fileNamesStringMap (original filename found)
-      ASSERT_TRUE(fileNamesStringMap->get(downloadedName));
+      ASSERT_TRUE(downloadedName && fileNamesStringMap->get(downloadedName));
     }
 }
 
