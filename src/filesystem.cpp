@@ -165,9 +165,30 @@ bool FileSystemAccess::islocalfscompatible(unsigned char c, int fileSystemType) 
     }
 }
 
+string FileSystemAccess::getValidPath(const string *path) const
+{
+    string validPath = path ? (*path) : "";
+    string separator = getPathSeparator();
+    if (separator != "/" && separator != "\\")
+    {
+        return validPath;
+    }
+
+    if (!validPath.empty())
+    {
+        size_t pos = validPath.rfind(separator);
+        if (pos != std::string::npos && pos != validPath.size() - 1)
+        {
+            validPath = validPath.substr(0, pos + 1);
+        }
+    }
+    return validPath;
+}
+
 // replace characters that are not allowed in local fs names with a %xx escape sequence
 void FileSystemAccess::escapefsincompatible(string* name, const string *dstPath) const
 {
+    string validPath = getValidPath(dstPath);
     if (!name->compare(".."))
     {
         name->replace(0, 2, "%2e%2e");
@@ -180,7 +201,7 @@ void FileSystemAccess::escapefsincompatible(string* name, const string *dstPath)
     }
 
     char buf[4];
-    int fileSystemType = getlocalfstype(dstPath);
+    int fileSystemType = getlocalfstype(&validPath);
     size_t utf8seqsize = 0, i = 0;
     unsigned char c = '0';
     while (i < name->size())
@@ -236,6 +257,7 @@ return "/";
 return "\\";
 #elif
 // Default case
+LOG_warn << "No path separator found";
 return "\\/";
 #endif
 }
@@ -243,19 +265,7 @@ return "\\/";
 // escape forbidden characters, then convert to local encoding
 void FileSystemAccess::name2local(string* filename, const string *dstPath) const
 {
-    std::string path = dstPath ? (*dstPath) : "";
-    if (filename && dstPath)
-    {
-        size_t pos = dstPath->rfind(*filename);
-        if (pos != std::string::npos
-                && pos == dstPath->size() - filename->size())
-        {
-            // Remove filename from dtspath if included, to be able to determine filesystem type
-            path = dstPath->substr(0, pos);
-        }
-    }
-
-    escapefsincompatible(filename, &path);
+    escapefsincompatible(filename, dstPath);
 
     string t = *filename;
 
