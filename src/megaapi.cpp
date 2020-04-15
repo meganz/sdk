@@ -5049,6 +5049,11 @@ char *MegaApi::unescapeFsIncompatible(const char *name)
     return pImpl->unescapeFsIncompatible(name, NULL);
 }
 
+char *MegaApi::unescapeFsIncompatible(const char *name, const char *localPath)
+{
+    return pImpl->unescapeFsIncompatible(name, localPath);
+}
+
 bool MegaApi::createThumbnail(const char *imagePath, const char *dstPath)
 {
     return pImpl->createThumbnail(imagePath, dstPath);
