@@ -8012,7 +8012,11 @@ void MegaApiImpl::startUpload(bool startFirst, const char *localPath, MegaNode *
                ? fileName
                : transfer->getFileName();
 
-       client->fsaccess->unescapefsincompatible(&auxName);
+       std::string path = localPath
+               ? localPath
+               : "";
+
+       client->fsaccess->unescapefsincompatible(&auxName, &path);
        transfer->setFileName(auxName.c_str());
     }
 
@@ -8742,14 +8746,15 @@ char *MegaApiImpl::escapeFsIncompatible(const char *filename, const char *dstPat
     return MegaApi::strdup(name.c_str());
 }
 
-char *MegaApiImpl::unescapeFsIncompatible(const char *name)
+char *MegaApiImpl::unescapeFsIncompatible(const char *name, const char *path)
 {
     if(!name)
     {
         return NULL;
     }
     string filename = name;
-    client->fsaccess->unescapefsincompatible(&filename);
+    string localpath = path;
+    client->fsaccess->unescapefsincompatible(&filename, &localpath);
     return MegaApi::strdup(filename.c_str());
 }
 
