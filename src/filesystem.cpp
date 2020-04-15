@@ -214,7 +214,7 @@ void FileSystemAccess::escapefsincompatible(string* name, const string *dstPath)
             std::string inc = name->substr(i, 1);
             sprintf(buf, "%%%02x", c);
             name->replace(i, 1, buf);
-            LOG_debug << "Incompatible character for filesystem type "
+            LOG_debug << "Escape incompatible character for filesystem type "
                       << fstypetostring(fileSystemType)
                       << ", replace '" << inc << "' by '" << buf << "'\n";
         }
@@ -222,8 +222,9 @@ void FileSystemAccess::escapefsincompatible(string* name, const string *dstPath)
     }
 }
 
-void FileSystemAccess::unescapefsincompatible(string* name) const
+void FileSystemAccess::unescapefsincompatible(string *name, const string *localPath) const
 {
+    string validPath = getValidPath(localPath);
     if (!name->compare("%2e%2e"))
     {
         name->replace(0, 6, "..");
@@ -234,6 +235,8 @@ void FileSystemAccess::unescapefsincompatible(string* name) const
         name->replace(0, 3, ".");
         return;
     }
+
+    int fileSystemType = getlocalfstype(&validPath);
     for (int i = int(name->size()) - 2; i-- > 0; )
     {
         // conditions for unescaping: %xx must be well-formed
@@ -241,9 +244,13 @@ void FileSystemAccess::unescapefsincompatible(string* name) const
         {
             char c = static_cast<char>((MegaClient::hexval((*name)[i + 1]) << 4) + MegaClient::hexval((*name)[i + 2]));
 
-            if (!isControlChar((unsigned char)c))
+            if (!islocalfscompatible(static_cast<unsigned char>(c), fileSystemType))
             {
+                std::string inc = name->substr(i, 3);
                 name->replace(i, 3, &c, 1);
+                LOG_debug << "Unescape incompatible character for filesystem type "
+                          << fstypetostring(fileSystemType)
+                          << ", replace '" << inc << "' by '" << name->substr(i, 1) << "'\n";
             }
         }
     }

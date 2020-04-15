@@ -285,7 +285,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     string getValidPath(const string *path) const;
     const char *fstypetostring(int type) const;
     int getlocalfstype(const std::string *dstPath) const;
-    void unescapefsincompatible(string*) const;
+    void unescapefsincompatible(string*, const std::string *) const;
 
     // convert MEGA path (UTF-8) to local format
     virtual void path2local(string*, string*) const = 0;
