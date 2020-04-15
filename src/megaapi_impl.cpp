@@ -8753,7 +8753,7 @@ char *MegaApiImpl::unescapeFsIncompatible(const char *name, const char *path)
         return NULL;
     }
     string filename = name;
-    string localpath = path;
+    string localpath = path ? path : "";
     client->fsaccess->unescapefsincompatible(&filename, &localpath);
     return MegaApi::strdup(filename.c_str());
 }
