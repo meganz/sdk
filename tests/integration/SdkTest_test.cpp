@@ -4134,7 +4134,7 @@ TEST_F(SdkTest, invalidFileNames)
     ASSERT_EQ(API_OK, uploadListener.waitForResult());
 
     ::mega::unique_ptr <MegaNode> n(megaApi[0]->getNodeByPath("/upload_invalid_filenames"));
-    ASSERT_TRUE(n);
+    ASSERT_TRUE(n.get());
     ::mega::unique_ptr <MegaNode> authNode(megaApi[0]->authorizeNode(n.get()));
     MegaNodeList *children(authNode->getChildren());
     ASSERT_TRUE(children && children->size());
