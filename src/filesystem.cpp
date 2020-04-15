@@ -141,6 +141,10 @@ bool FileSystemAccess::isControlChar(unsigned char c) const
 // Group different filesystems types in families, according to it's restricted charsets
 bool FileSystemAccess::islocalfscompatible(unsigned char c, int fileSystemType) const
 {
+    if (c == '\x00')
+    {
+        return false;
+    }
     switch (fileSystemType)
     {
         case FS_APPLE:
