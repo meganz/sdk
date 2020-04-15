@@ -1183,7 +1183,7 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
             localname.assign(newlocalpath->data() + p, newlocalpath->size() - p);
 
             name = localname;
-            sync->client->fsaccess->local2name(&name);
+            sync->client->fsaccess->local2name(&name, newlocalpath);
 
             if (node)
             {
@@ -1900,7 +1900,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     l->localname.assign(localname, localnamelen);
     l->slocalname = nullptr;
     l->name.assign(localname, localnamelen);
-    sync->client->fsaccess->local2name(&l->name);
+    sync->client->fsaccess->local2name(&l->name, &sync->localdebris);
 
     memcpy(l->crc.data(), crc, sizeof crc);
     l->mtime = mtime;

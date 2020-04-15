@@ -316,13 +316,13 @@ void FileSystemAccess::normalize(string* filename) const
 }
 
 // convert from local encoding, then unescape escaped forbidden characters
-void FileSystemAccess::local2name(string* filename) const
+void FileSystemAccess::local2name(string *filename, const string *localPath) const
 {
     string t = *filename;
 
     local2path(&t, filename);
 
-    unescapefsincompatible(filename);
+    unescapefsincompatible(filename, localPath);
 }
 
 // default DirNotify: no notification available
