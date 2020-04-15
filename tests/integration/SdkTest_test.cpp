@@ -4092,6 +4092,94 @@ TEST_F(SdkTest, SdkGetRegisteredContacts)
     ASSERT_EQ(js2, std::get<2>(table[1])); // ud
 }
 
+TEST_F(SdkTest, invalidFileNames)
+{
+    LOG_info << "___TEST invalidFileNames";
+
+    // Maps filename unescaped (original) to filename escaped (expected result): f%2ff => f/f
+    std::unique_ptr<MegaStringMap> fileNamesStringMap = std::unique_ptr<MegaStringMap>{MegaStringMap::createInstance()};
+    fs::path uploadPath = fs::current_path() / "upload_invalid_filenames";
+    if (fs::exists(uploadPath))
+    {
+        fs::remove_all(uploadPath);
+    }
+    fs::create_directories(uploadPath);
+
+    for (int i = 0x00; i <= 0xA0; i++)
+    {
+        // skip [0-9] [A-Z] [a-z]
+        if ((i >= 0x30 && i <= 0x39)
+                || (i >= 0x41 && i <= 0x5A)
+                || (i >= 0x61 && i <= 0x7A))
+        {
+            continue;
+        }
+
+        char aux[6];
+        sprintf(aux, "f%%%02xf", i);
+        string filename = aux;
+        fs::path fp = uploadPath / fs::u8path(filename);
+ #if (__cplusplus >= 201700L)
+        ofstream fs(fp/*, ios::binary*/);
+ #else
+        ofstream fs(fp.u8string()/*, ios::binary*/);
+ #endif
+        fs << filename;
+        const char *unescapedFileName = megaApi[0]->unescapeFsIncompatible(filename.c_str(), uploadPath.c_str());
+        fileNamesStringMap->set(filename.c_str(), unescapedFileName);
+    }
+
+    TransferTracker uploadListener;
+    megaApi[0]->startUpload(uploadPath.u8string().c_str(), std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get(), &uploadListener);
+    ASSERT_EQ(API_OK, uploadListener.waitForResult());
+
+    ::mega::unique_ptr <MegaNode> n(megaApi[0]->getNodeByPath("/upload_invalid_filenames"));
+    ASSERT_TRUE(n);
+    ::mega::unique_ptr <MegaNode> authNode(megaApi[0]->authorizeNode(n.get()));
+    MegaNodeList *children(authNode->getChildren());
+    ASSERT_TRUE(children && children->size());
+
+    for (int i = 0; i < children->size(); i++)
+    {
+        MegaNode *child = children->get(i);
+        const char *uploadedName = child->getName();
+        const char *uploadedNameEscaped = megaApi[0]->escapeFsIncompatible(child->getName(), uploadPath.c_str());
+        const char *expectedName = fileNamesStringMap->get(uploadedNameEscaped);
+
+        // Conditions to check if uploaded fileName is correct:
+        // 1) Escaped uploaded filename must be found in fileNamesStringMap (original filename found)
+        // 2) Uploaded filename must be equal than the expected value (original filename unescaped)
+        ASSERT_TRUE (uploadedName && expectedName && !strcmp(uploadedName, expectedName));
+    }
+
+    // Download files
+    fs::path downloadPath = fs::current_path() / "download_invalid_filenames";
+    if (fs::exists(downloadPath))
+    {
+        fs::remove_all(downloadPath);
+    }
+    fs::create_directories(downloadPath);
+    TransferTracker downloadListener;
+    megaApi[0]->startDownload(authNode.get(), downloadPath.u8string().c_str(), &downloadListener);
+    ASSERT_EQ(API_OK, downloadListener.waitForResult());
+
+    DIR *dp = opendir(downloadPath.c_str());
+    ASSERT_TRUE(dp);
+    struct dirent *dirp;
+    while ((dirp = readdir( dp )))
+    {
+      const char *downloadedName = dirp->d_name;
+      if (!strcmp(dirp->d_name, ".") || !strcmp(dirp->d_name, ".."))
+      {
+          continue;
+      }
+
+      // Conditions to check if downloaded fileName is correct:
+      // download filename must be found in fileNamesStringMap (original filename found)
+      ASSERT_TRUE(fileNamesStringMap->get(downloadedName));
+    }
+}
+
 TEST_F(SdkTest, RecursiveUploadWithLogout)
 {
     LOG_info << "___TEST RecursiveUploadWithLogout___";
