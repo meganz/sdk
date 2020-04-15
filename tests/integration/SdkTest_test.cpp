@@ -4105,7 +4105,7 @@ TEST_F(SdkTest, invalidFileNames)
     }
     fs::create_directories(uploadPath);
 
-    for (int i = 0x00; i <= 0xA0; i++)
+    for (int i = 0x01; i <= 0xA0; i++)
     {
         // skip [0-9] [A-Z] [a-z]
         if ((i >= 0x30 && i <= 0x39)
