@@ -42,6 +42,8 @@ Logger *SimpleLogger::logger = nullptr;
 enum LogLevel SimpleLogger::logCurrentLevel = logInfo;
 long long SimpleLogger::maxPayloadLogSize  = 10240;
 
+__thread std::array<char, LOGGER_CHUNKS_SIZE> SimpleLogger::mBuffer; // will be stack-allocated since SimpleLogger is stack-allocated
+
 #ifndef ENABLE_LOG_PERFORMANCE
 // static member initialization
 std::mutex SimpleLogger::outputs_mutex;
