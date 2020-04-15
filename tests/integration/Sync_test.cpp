@@ -4476,6 +4476,24 @@ struct OneWaySymmetryCase
         changeClient().client.putnodes(n2->nodehandle, tc.nn, nc);
     }
 
+    void remote_renamed_move(std::string nodepath, std::string newparentpath, string newname, bool updatemodel, bool reportaction)
+    {
+        if (updatemodel) 
+        {
+            remoteModel.emulate_rename_copy(nodepath, newparentpath, newname);
+        }
+
+        Node* testRoot = changeClient().client.nodebyhandle(changeClient().basefolderhandle);
+        Node* n1 = changeClient().drillchildnodebyname(testRoot, remoteTestBasePath + "/" + nodepath);
+        Node* n2 = changeClient().drillchildnodebyname(testRoot, remoteTestBasePath + "/" + newparentpath);
+        ASSERT_TRUE(!!n1);
+        ASSERT_TRUE(!!n2);
+
+        if (reportaction) cout << name() << " action: remote rename + move " << n1->displaypath() << " to " << n2->displaypath() << " as " << newname << endl;
+
+        error e = changeClient().client.rename(n1, n2, SYNCDEL_NONE, UNDEF, newname.c_str());
+        EXPECT_EQ(e, API_OK);
+    }
 
     void remote_delete(std::string nodepath, bool updatemodel, bool reportaction, bool mightNotExist)
     {
@@ -4643,6 +4661,12 @@ struct OneWaySymmetryCase
 
     void destination_rename_move(std::string sourcefolder, std::string oldname, std::string newname, std::string targetfolder, bool updatemodel, bool reportaction, bool deleteTargetFirst, std::string deleteNameInTargetFirst)
     {
+        if (up)
+        {
+            remote_renamed_move(sourcefolder + "/" + oldname, targetfolder, newname, updatemodel, reportaction);
+            return;
+        }
+
         if (!deleteNameInTargetFirst.empty()) destination_delete(targetfolder + "/" + deleteNameInTargetFirst, updatemodel, reportaction);
         destination_rename("f/" + oldname, newname, updatemodel, reportaction, false);
         destination_move("f/" + newname, targetfolder, updatemodel, reportaction, deleteTargetFirst);
@@ -4928,7 +4952,7 @@ TEST(Sync, OneWay_Highlevel_Symmetries)
     std::map<std::string, OneWaySymmetryCase> cases;
 
     static bool singleCase = false;
-    static string singleNamedTest = "rename_other_up_file_beforeexact_afterexact";//"rename_other_down_file_beforemismatch_afterabsent"; 
+    static string singleNamedTest = "";//"rename_other_down_file_beforemismatch_afterabsent"; 
     if (singleCase)
     {
         OneWaySymmetryCase testcase(allstate);

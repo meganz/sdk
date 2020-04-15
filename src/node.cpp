@@ -1261,6 +1261,26 @@ void LocalNode::setnameparent(LocalNode* newparent, LocalPath* newlocalpath, boo
                 {
                     if (name != node->attrs.map['n'])
                     {
+
+                        // does the new name already exist in the remote?
+                        bool reattachedToExisting = false;
+                        if (node->parent) 
+                        {
+                            vector<Node*> namematch = sync->client->childnodesbyname(node->parent, name.c_str(), false);
+                            for (auto child : namematch)
+                            {
+                                if (child->type == type && !child->localnode)
+                                {
+                                    node->localnode = nullptr;
+                                    node = child;
+                                    node->localnode = this;
+                                    reattachedToExisting = true;
+                                    break;
+                                }
+                            }
+                        }
+
+                        
                         if (node->type == FILENODE)
                         {
                             treestate(TREESTATE_SYNCING);
@@ -1270,14 +1290,17 @@ void LocalNode::setnameparent(LocalNode* newparent, LocalPath* newlocalpath, boo
                             sync->client->app->syncupdate_treestate(this);
                         }
 
-                        string prevname = node->attrs.map['n'];
-                        int creqtag = sync->client->reqtag;
+                        if (!reattachedToExisting)
+                        {
+                            string prevname = node->attrs.map['n'];
+                            int creqtag = sync->client->reqtag;
 
-                        // set new name
-                        node->attrs.map['n'] = name;
-                        sync->client->reqtag = sync->tag;
-                        sync->client->setattr(node, prevname.c_str());
-                        sync->client->reqtag = creqtag;
+                            // set new name
+                            node->attrs.map['n'] = name;
+                            sync->client->reqtag = sync->tag;
+                            sync->client->setattr(node, prevname.c_str());
+                            sync->client->reqtag = creqtag;
+                        }
                     }
                 }
                 else
