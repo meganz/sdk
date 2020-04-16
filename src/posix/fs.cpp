@@ -393,7 +393,7 @@ int PosixFileAccess::stealFileDescriptor()
     return toret;
 }
 
-bool PosixFileAccess::fopen(string* f, bool read, bool write)
+bool PosixFileAccess::fopen(string* f, bool read, bool write, DirAccess* iteratingDir)
 {
 #ifdef USE_IOS
     string absolutef;
@@ -411,14 +411,20 @@ bool PosixFileAccess::fopen(string* f, bool read, bool write)
     struct stat statbuf;
 
     retry = false;
+    bool statok = false;
+    if (iteratingDir) //reuse statbuf from iterator
+    {
+        statbuf = static_cast<PosixDirAccess *>(iteratingDir)->currentItemStat;
+        mIsSymLink = S_ISLNK(statbuf.st_mode) || static_cast<PosixDirAccess *>(iteratingDir)->currentItemFollowedSymlink;
+        statok = true;
+    }
 
 #ifdef __MACH__
     if (!write)
     {
         char resolved_path[PATH_MAX];
-        struct stat statbuf;
         if (memcmp(f->c_str(), ".", 2) && memcmp(f->c_str(), "..", 3)
-                && !lstat(f->c_str(), &statbuf)
+                && (statok || !lstat(f->c_str(), &statbuf) )
                 && !S_ISLNK(statbuf.st_mode)
                 && realpath(f->c_str(), resolved_path) == resolved_path)
         {
@@ -482,17 +488,19 @@ bool PosixFileAccess::fopen(string* f, bool read, bool write)
     }
 #endif
 
-    bool statok = false;
-    mIsSymLink = !lstat(f->c_str(), &statbuf) && S_ISLNK(statbuf.st_mode);
-    if (mIsSymLink && !PosixFileAccess::mFoundASymlink)
+    if (!statok)
     {
-        LOG_warn << "Enabling symlink check for syncup.";
-        PosixFileAccess::mFoundASymlink = true;
-    }
+         mIsSymLink = !lstat(f->c_str(), &statbuf) && S_ISLNK(statbuf.st_mode);
+        if (mIsSymLink && !PosixFileAccess::mFoundASymlink)
+        {
+            LOG_warn << "Enabling symlink check for syncup.";
+            PosixFileAccess::mFoundASymlink = true;
+        }
 
-    if (mIsSymLink && !mFollowSymLinks)
-    {
-        statok = true; //we will use statbuf filled by lstat instead of fstat
+        if (mIsSymLink && !mFollowSymLinks)
+        {
+            statok = true; //we will use statbuf filled by lstat instead of fstat
+        }
     }
 
     mode_t mode = 0;
@@ -534,9 +542,9 @@ bool PosixFileAccess::fopen(string* f, bool read, bool write)
                 }
             #endif
 
-            size = statbuf.st_size;
-            mtime = statbuf.st_mtime;
             type = S_ISDIR(statbuf.st_mode) ? FOLDERNODE : FILENODE;
+            size = (type == FILENODE || mIsSymLink) ? statbuf.st_size : 0;
+            mtime = statbuf.st_mtime;
             // in the future we might want to add LINKNODE to type and set it here using S_ISLNK
             fsid = (handle)statbuf.st_ino;
             fsidvalid = true;
@@ -737,7 +745,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                                  || memcmp(lastname.c_str(), ignore->data(), ignore->size())
                                  || (lastname.size() > ignore->size()
                                   && memcmp(lastname.c_str() + ignore->size(), localseparator.c_str(), localseparator.size())))
-                                {                                    
+                                {
                                     // previous IN_MOVED_FROM is not followed by the
                                     // corresponding IN_MOVED_TO, so was actually a deletion
                                     LOG_debug << "Filesystem notification (deletion). Root: " << lastlocalnode->name << "   Path: " << lastname;
@@ -1908,20 +1916,23 @@ bool PosixDirAccess::dnext(string* path, string* name, bool followsymlinks, node
 
     if (globbing)
     {
-        struct stat statbuf;
+        struct stat &statbuf = currentItemStat;
 
         while (globindex < globbuf.gl_pathc)
         {
-            if (!stat(globbuf.gl_pathv[globindex++], &statbuf))
+            if (followsymlinks ? !stat(globbuf.gl_pathv[globindex], &statbuf) : !lstat(globbuf.gl_pathv[globindex], &currentItemStat))
             {
-                if (statbuf.st_mode & (S_IFREG | S_IFDIR))
+                if (S_ISREG(statbuf.st_mode) || S_ISDIR(statbuf.st_mode)) // this evaluates false for symlinks
+                //if (statbuf.st_mode & (S_IFREG | S_IFDIR)) //TODO: use this when symlinks are supported
                 {
-                    *name = globbuf.gl_pathv[globindex - 1];
+                    *name = globbuf.gl_pathv[globindex];
                     *type = (statbuf.st_mode & S_IFREG) ? FILENODE : FOLDERNODE;
 
+                    globindex++;
                     return true;
                 }
             }
+            globindex++;
         }
 
         return false;
@@ -1929,7 +1940,7 @@ bool PosixDirAccess::dnext(string* path, string* name, bool followsymlinks, node
 
     dirent* d;
     size_t pathsize = path->size();
-    struct stat statbuf;
+    struct stat &statbuf = currentItemStat;
 
     path->append("/");
 
@@ -1939,9 +1950,21 @@ bool PosixDirAccess::dnext(string* path, string* name, bool followsymlinks, node
         {
             path->append(d->d_name);
 
-            if (followsymlinks ? !stat(path->c_str(), &statbuf) : !lstat(path->c_str(), &statbuf))
+            bool statOk = !lstat(path->c_str(), &statbuf);
+            if (followsymlinks && statOk && S_ISLNK(statbuf.st_mode))
             {
-                if (S_ISREG(statbuf.st_mode) || S_ISDIR(statbuf.st_mode))
+                currentItemFollowedSymlink = true;
+                statOk = !stat(path->c_str(), &statbuf);
+            }
+            else
+            {
+                currentItemFollowedSymlink = false;
+            }
+
+            if (statOk)
+            {
+                if (S_ISREG(statbuf.st_mode) || S_ISDIR(statbuf.st_mode)) // this evalves false for symlinks
+                //if (statbuf.st_mode & (S_IFREG | S_IFDIR)) //TODO: use this when symlinks are supported
                 {
                     path->resize(pathsize);
                     *name = d->d_name;

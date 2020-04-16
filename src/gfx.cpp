@@ -368,14 +368,23 @@ GfxProc::GfxProc()
 {
     client = NULL;
     finished = false;
+}
+
+void GfxProc::startProcessingThread()
+{
     thread.start(threadEntryPoint, this);
+    threadstarted = true;
 }
 
 GfxProc::~GfxProc()
 {
     finished = true;
     waiter.notify();
-    thread.join();
+    assert(threadstarted);
+    if (threadstarted)
+    {
+        thread.join();
+    }
 }
 
 GfxJobQueue::GfxJobQueue()

@@ -2498,7 +2498,6 @@ GTEST_TEST(Sync, PutnodesForMultipleFolders)
 
 
 #ifndef _WIN32
-#define DEFAULWAIT 20s
 GTEST_TEST(Sync, BasicSync_CreateAndDeleteLink)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
