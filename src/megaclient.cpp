@@ -1237,6 +1237,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
 
 MegaClient::~MegaClient()
 {
+    destructorRunning = true;
     locallogout(false);
 
     delete pendingcs;

@@ -1582,6 +1582,9 @@ public:
     // -1: expired, 0: inactive (no business subscription), 1: active, 2: grace-period
     BizStatus mBizStatus;
 
+    // whether the destructor has started running yet
+    bool destructorRunning = false;
+
     // Keep track of high level operation counts and times, for performance analysis
     struct PerformanceStats
     {
