@@ -200,7 +200,12 @@ class SimpleLogger
     static OutputMap outputs;
     static OutputStreams getOutput(enum LogLevel ll);
 #else
-    std::array<char, LOGGER_CHUNKS_SIZE> mBuffer; // will be stack-allocated since SimpleLogger is stack-allocated
+
+#ifdef WIN32
+    static thread_local std::array<char, LOGGER_CHUNKS_SIZE> mBuffer;
+#else
+    static __thread std::array<char, LOGGER_CHUNKS_SIZE> mBuffer;
+#endif
     std::array<char, LOGGER_CHUNKS_SIZE>::iterator mBufferIt;
 
     using DiffType = std::array<char, LOGGER_CHUNKS_SIZE>::difference_type;
