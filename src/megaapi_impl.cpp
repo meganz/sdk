@@ -3758,6 +3758,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CONFIRM_ACCOUNT: return "CONFIRM_ACCOUNT";
         case TYPE_QUERY_SIGNUP_LINK: return "QUERY_SIGNUP_LINK";
         case TYPE_ADD_SYNC: return "ADD_SYNC";
+        case TYPE_COPY_SYNC_CONFIG: return "TYPE_COPY_SYNC_CONFIG";
         case TYPE_REMOVE_SYNC: return "REMOVE_SYNC";
         case TYPE_REMOVE_SYNCS: return "REMOVE_SYNCS";
         case TYPE_PAUSE_TRANSFERS: return "PAUSE_TRANSFERS";
@@ -6695,10 +6696,9 @@ void MegaApiImpl::disableExport(MegaNode *node, MegaRequestListener *listener)
     waiter->notify();
 }
 
-void MegaApiImpl::fetchNodes(bool resumeSyncs, MegaRequestListener *listener)
+void MegaApiImpl::fetchNodes(MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_NODES, listener);
-    request->setNumber(resumeSyncs);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -8328,6 +8328,7 @@ MegaNode *MegaApiImpl::getSyncedNode(string *path)
     return node;
 }
 
+//TODO: add syncFolder version that takes MegaHandle directly
 void MegaApiImpl::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp, long long localfp, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC);
@@ -8349,6 +8350,32 @@ void MegaApiImpl::syncFolder(const char *localFolder, MegaNode *megaFolder, Mega
     waiter->notify();
 }
 
+//TODO: add syncFolder version that takes MegaHandle directly
+
+void MegaApiImpl::copySyncDataToCache(const char *localFolder, MegaHandle megaHandle,
+                                      long long localfp, bool enabled, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_COPY_SYNC_CONFIG);
+
+    request->setNodeHandle(megaHandle);
+    if(localFolder)
+    {
+        string path(localFolder);
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+        if(!PathIsRelativeA(path.c_str()) && ((path.size()<2) || path.compare(0, 2, "\\\\")))
+            path.insert(0, "\\\\?\\");
+#endif
+        request->setFile(path.data());
+    }
+
+    request->setFlag(enabled);
+    request->setListener(listener);
+    request->setNumber(localfp);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+//TODO: addRemoveSyncByTag and diableSyncByTag, and storeTag in request->number
 void MegaApiImpl::removeSync(handle nodehandle, MegaRequestListener* listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SYNC, listener);
@@ -8360,6 +8387,7 @@ void MegaApiImpl::removeSync(handle nodehandle, MegaRequestListener* listener)
 
 void MegaApiImpl::disableSync(handle nodehandle, MegaRequestListener *listener)
 {
+    //TODO: add new kind of request to actually DISABLE_SYNC
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SYNC, listener);
     request->setNodeHandle(nodehandle);
     request->setFlag(false);
@@ -12804,14 +12832,12 @@ bool MegaApiImpl::sync_syncable(Sync *sync, const char *name, string *localpath)
     return result;
 }
 
-void MegaApiImpl::sync_auto_resumed(const string& localPath, const handle remoteNode, const long long localFp, const std::vector<std::string>& regExp)
+void MegaApiImpl::sync_auto_resumed(const string& localPath, const handle remoteNode, const long long localFp, int tag, int error, const std::vector<std::string>& regExp)
 {
-    const int nextTag = client->nextreqtag();
-
-    MegaSyncPrivate *sync = new MegaSyncPrivate(localPath.c_str(), remoteNode, -nextTag);
+    MegaSyncPrivate *sync = new MegaSyncPrivate(localPath.c_str(), remoteNode, tag);
     sync->setLocalFingerprint(localFp);
 
-    if (!regExp.empty())
+    if (!regExp.empty()) //TODO: add this code to MegaSyncPrivate constructor?
     {
         auto re = make_unique<MegaRegExp>();
         for (const auto& v : regExp)
@@ -12821,10 +12847,26 @@ void MegaApiImpl::sync_auto_resumed(const string& localPath, const handle remote
         sync->setRegExp(re.get());
     }
 
-    Sync *s = client->syncs.back();
-    s->appData = sync;
-    sync->setState(s->state);
-    syncMap[-nextTag] = sync;
+    if (error == 0)
+    {
+        Sync *s = client->syncs.back();
+        s->appData = sync;
+        sync->setState(s->state);
+    }
+    else
+    {
+        sync->setError(error);
+        sync->setState(SYNC_FAILED);
+
+        // notice, should the error go to ConfigSync? If the error is not temporal: (i.e. won't be resumed, it should!)
+        //TODO: error = temporary? permanent?
+
+    }
+
+    syncMap[tag] = sync;
+    fireOnSyncAdded(sync);
+    //TODO: inform sync failedif (error!=0)
+
 }
 
 void MegaApiImpl::syncupdate_local_lockretry(bool waiting)
@@ -16021,6 +16063,45 @@ void MegaApiImpl::fireOnSyncEvent(MegaSyncPrivate *sync, MegaSyncEvent *event)
     delete event;
 }
 
+
+void MegaApiImpl::fireOnSyncAdded(MegaSyncPrivate *sync)
+{
+    for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
+    {
+        (*it++)->onSyncAdded(api, sync);
+    }
+
+    for(set<MegaSyncListener *>::iterator it = syncListeners.begin(); it != syncListeners.end() ;)
+    {
+        (*it++)->onSyncAdded(api, sync);
+    }
+
+    MegaSyncListener* listener = sync->getListener();
+    if(listener)
+    {
+        listener->onSyncAdded(api, sync);
+    }
+}
+
+void MegaApiImpl::fireonSyncDeleted(MegaSyncPrivate *sync)
+{
+    for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
+    {
+        (*it++)->onSyncDeleted(api, sync);
+    }
+
+    for(set<MegaSyncListener *>::iterator it = syncListeners.begin(); it != syncListeners.end() ;)
+    {
+        (*it++)->onSyncDeleted(api, sync);
+    }
+
+    MegaSyncListener* listener = sync->getListener();
+    if(listener)
+    {
+        listener->onSyncDeleted(api, sync);
+    }
+}
+
 void MegaApiImpl::fireOnGlobalSyncStateChanged()
 {
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
@@ -19027,13 +19108,7 @@ void MegaApiImpl::sendPendingRequests()
                 nocache = false;
             }
 
-#ifdef ENABLE_SYNC
-            client->allowAutoResumeSyncs = request->getNumber();
-#endif
             client->fetchnodes();
-#ifdef ENABLE_SYNC
-            client->allowAutoResumeSyncs = true;
-#endif
             break;
         }
         case MegaRequest::TYPE_GET_CLOUD_STORAGE_USED:
@@ -20641,14 +20716,17 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            MegaSyncPrivate *sync = new MegaSyncPrivate(localPath, node->nodehandle, -nextTag);
+            auto nextSyncTag = client->nextSyncTag();
+            MegaSyncPrivate *sync = new MegaSyncPrivate(localPath, node->nodehandle, nextSyncTag);
             sync->setListener(request->getSyncListener());
             sync->setRegExp(request->getRegExp());
 
-            SyncConfig syncConfig{localPath, request->getNodeHandle(), 
+            SyncConfig syncConfig{nextSyncTag, localPath, request->getNodeHandle(),
                                   static_cast<fsfp_t>(request->getNumber()), 
                                   regExpToVector(request->getRegExp())};
-            e = client->addsync(std::move(syncConfig), DEBRISFOLDER, NULL, -nextTag, sync);
+
+            int syncError = 0;
+            e = client->addsync(std::move(syncConfig), DEBRISFOLDER, NULL, syncError, nextSyncTag, sync);
             if (!e)
             {
                 Sync *s = client->syncs.back();
@@ -20656,12 +20734,44 @@ void MegaApiImpl::sendPendingRequests()
                 sync->setState(s->state);
                 sync->setLocalFingerprint(fsfp);
                 request->setNumber(fsfp);
-                syncMap[-nextTag] = sync;
+                syncMap[nextSyncTag] = sync;
+                fireOnSyncAdded(sync);
                 fireOnRequestFinish(request, MegaError(API_OK));
             }
             else
             {
+                // TODO: return syncError somehow in the request
                 delete sync;
+            }
+            break;
+        }
+        case MegaRequest::TYPE_COPY_SYNC_CONFIG:
+        {
+            const char *localPath = request->getFile();
+            if(!localPath)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            auto nextSyncTag = client->nextSyncTag(10000);//We artificially start giving syncs number from 10k, to avoid clashing
+            //when mixed syncConfig vs app configs (i.e. new -> old -> new version)
+            SyncConfig syncConfig{nextSyncTag, localPath, request->getNodeHandle(),
+                                  static_cast<fsfp_t>(request->getNumber()),
+                                  regExpToVector(request->getRegExp()), request->getFlag()};
+            if (client->syncConfigs)
+            {
+                client->syncConfigs->insert(syncConfig);
+            }
+            else
+            {
+                e = API_ENOENT; //TODO: rethink error?
+            }
+
+            if (!e)
+            {
+                request->setNumber(nextSyncTag);
+                fireOnRequestFinish(request, MegaError(API_OK));
             }
             break;
         }
@@ -20690,6 +20800,7 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_REMOVE_SYNC:
         {
             handle nodehandle = request->getNodeHandle();
+            int tag = static_cast<int>(request->getNumber());
             sync_list::iterator it = client->syncs.begin();
             bool found = false;
             while(it != client->syncs.end())
@@ -20697,7 +20808,8 @@ void MegaApiImpl::sendPendingRequests()
                 Sync *sync = (*it);
                 it++;
 
-                int tag = sync->tag;
+                assert(!tag || tag == sync->tag);
+                tag = sync->tag;
                 if (!sync->localroot->node || sync->localroot->node->nodehandle == nodehandle)
                 {
                     string path;
@@ -20721,14 +20833,42 @@ void MegaApiImpl::sendPendingRequests()
                 }
             }
 
+
+            if (!found)
+            {
+                // still can be in the syncMap (non active syncs)
+
+                if (!tag)
+                {
+                    for (auto it = syncMap.begin(); it != syncMap.end(); it++)
+                    {
+                        MegaSyncPrivate *sync = (MegaSyncPrivate *)it->second;
+                        if (sync->getMegaHandle() == nodehandle)
+                        {
+                            tag = sync->getTag();
+                            break;
+                        }
+                    }
+                }
+
+                if (tag && syncMap.find(tag) != syncMap.end())
+                {
+                    //TODO: refactor the following
+                    MegaSyncPrivate *megaSync = syncMap.at(tag);
+                    syncMap.erase(tag);
+                    fireonSyncDeleted(megaSync);
+                    delete megaSync; //The sysconfig won't be deleted in this case yet.
+                                     //TODO: move the removal of the syncConfig from ~Sync to ~MegaSyncPrivate (or better of, call it explicitly here, rather than hide it there, that will cause second effects)
+                    found = true;
+                }
+            }
+
             if (found)
             {
                 fireOnRequestFinish(request, MegaError(API_OK));
+                break;
             }
-            else
-            {
-                e = API_ENOENT;
-            }
+            e = API_ENOENT;
 
             break;
         }
@@ -22792,6 +22932,8 @@ MegaSyncPrivate::MegaSyncPrivate(MegaSyncPrivate *sync)
     this->setState(sync->getState());
     this->setListener(sync->getListener());
     this->setRegExp(sync->getRegExp());
+    this->setError(sync->getError());
+    this->setTemporarilyDisabled(sync->getTemporarilyDisabled());
 }
 
 MegaSyncPrivate::~MegaSyncPrivate()
@@ -23091,6 +23233,36 @@ void MegaSyncPrivate::setRegExp(MegaRegExp *regExp)
     {
         this->regExp = regExp->copy();
     }
+}
+
+int MegaSyncPrivate::getError() const
+{
+    return mError;
+}
+
+void MegaSyncPrivate::setError(int error)
+{
+    mError = error;
+}
+
+bool MegaSyncPrivate::isEnabled() const
+{
+    return state != SYNC_FAILED && state != SYNC_CANCELED;
+}
+
+bool MegaSyncPrivate::isTemporaryDisabled() const
+{
+    return mTemporarilyDisabled;
+}
+
+bool MegaSyncPrivate::getTemporarilyDisabled() const
+{
+    return mTemporarilyDisabled;
+}
+
+void MegaSyncPrivate::setTemporarilyDisabled(bool temporarilyDisabled)
+{
+    mTemporarilyDisabled = temporarilyDisabled;
 }
 
 MegaSyncEventPrivate::MegaSyncEventPrivate(int type)

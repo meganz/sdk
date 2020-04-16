@@ -1015,6 +1015,15 @@ public:
     virtual MegaRegExp* getRegExp() const;
     void setRegExp(MegaRegExp *regExp);
 
+    virtual int getError() const;
+    void setError(int error);
+
+    virtual bool isEnabled() const;
+    virtual bool isTemporaryDisabled() const;
+
+    bool getTemporarilyDisabled() const;
+    void setTemporarilyDisabled(bool temporarilyDisabled);
+
 protected:
     MegaHandle megaHandle;
     char *localFolder;
@@ -1022,7 +1031,18 @@ protected:
     int tag;
     long long fingerprint;
     MegaSyncListener *listener;
-    int state; 
+    int state; //this refers to status (initiascan/active/failed/canceled)
+    //TODO: review status variables and ensure they end up in ctors
+    //holds error cause
+    int mError; //TODO: initialize
+
+    // if temporarily disabled
+    bool mTemporarilyDisabled; //TODO: initialize
+
+    // if sync is enabled
+    //bool mEnabled;
+
+
 };
 
 #endif
@@ -2130,7 +2150,7 @@ class MegaApiImpl : public MegaApp
         void setNodeCoordinates(MegaNode *node, bool unshareable, double latitude, double longitude, MegaRequestListener *listener = NULL);
         void exportNode(MegaNode *node, int64_t expireTime, MegaRequestListener *listener = NULL);
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
-        void fetchNodes(bool resumeSyncs, MegaRequestListener *listener = NULL);
+        void fetchNodes(MegaRequestListener *listener = NULL);
         void getPricing(MegaRequestListener *listener = NULL);
         void getPaymentId(handle productHandle, handle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener = NULL);
         void upgradeAccount(MegaHandle productHandle, int paymentMethod, MegaRequestListener *listener = NULL);
@@ -2229,6 +2249,9 @@ class MegaApiImpl : public MegaApp
         int syncPathState(string *path);
         MegaNode *getSyncedNode(string *path);
         void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp = NULL, long long localfp = 0, MegaRequestListener* listener = NULL);
+        void copySyncDataToCache(const char *localFolder, MegaHandle megaHandle,
+                                          long long localfp, bool enabled, MegaRequestListener *listener = NULL);
+
         void removeSync(handle nodehandle, MegaRequestListener *listener=NULL);
         void disableSync(handle nodehandle, MegaRequestListener *listener=NULL);
         int getNumActiveSyncs();
@@ -2626,6 +2649,8 @@ protected:
         void fireOnGlobalSyncStateChanged();
         void fireOnSyncStateChanged(MegaSyncPrivate *sync);
         void fireOnSyncEvent(MegaSyncPrivate *sync, MegaSyncEvent *event);
+        void fireOnSyncAdded(MegaSyncPrivate *sync);
+        void fireonSyncDeleted(MegaSyncPrivate *sync);
         void fireOnFileSyncStateChanged(MegaSyncPrivate *sync, string *localPath, int newState);
 #endif
 
@@ -2953,7 +2978,7 @@ protected:
         void syncupdate_treestate(LocalNode*) override;
         bool sync_syncable(Sync *, const char*, string *, Node *) override;
         bool sync_syncable(Sync *, const char*, string *) override;
-        void sync_auto_resumed(const string& localPath, handle remoteNode, long long localFp, const vector<string>& regExp) override;
+        void sync_auto_resumed(const string& localPath, handle remoteNode, long long localFp, int tag, int error, const vector<string>& regExp) override;
         void syncupdate_local_lockretry(bool) override;
 
         // for the exclusive use of sync_syncable

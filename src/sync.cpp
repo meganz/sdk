@@ -563,7 +563,7 @@ void SyncConfigBag::insert(const SyncConfig& syncConfig)
         return true;
     };
 
-    map<string, SyncConfig>::iterator syncConfigIt = mSyncConfigs.find(syncConfig.getLocalPath());
+    map<string, SyncConfig>::iterator syncConfigIt = mSyncConfigs.find(syncConfig.getLocalPath()); //TODO: change primary key: use tag ?
     if (syncConfigIt == mSyncConfigs.end()) // syncConfig is new
     {
         if (mTable)
@@ -895,14 +895,14 @@ const SyncConfig& Sync::getConfig() const
     return *config;
 }
 
-void Sync::setResumable(const bool isResumable)
+void Sync::setResumable(const bool isResumable) //TODO: consider renaming to isEnable here
 {
     if (client->syncConfigs)
     {
         const auto config = client->syncConfigs->get(mLocalPath);
         assert(config);
         auto newConfig = *config;
-        newConfig.setResumable(isResumable);
+        newConfig.setEnabled(isResumable);
         client->syncConfigs->insert(newConfig);
     }
 }

@@ -1540,6 +1540,7 @@ bool WinFileSystemAccess::issyncsupported(string *localpath, bool *isnetwork)
         && !memcmp(fsname.data(), VBoxSharedFolderFS, sizeof(VBoxSharedFolderFS)))
     {
         LOG_warn << "VBoxSharedFolderFS is not supported because it doesn't provide ReadDirectoryChanges() nor unique file identifiers";
+        //TODO: this should be conveyed into the corresponding MegaSync::Error
         result = false;
     }
 

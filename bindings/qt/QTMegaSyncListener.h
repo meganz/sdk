@@ -17,6 +17,8 @@ public:
 
     virtual void onSyncStateChanged(MegaApi *api,  MegaSync *sync);
     virtual void onSyncFileStateChanged(MegaApi *api, MegaSync *sync, std::string *localPath, int newState);
+    virtual void onSyncAdded(MegaApi *api,  MegaSync *sync);
+    virtual void onSyncDeleted(MegaApi *api,  MegaSync *sync);
 
 protected:
     virtual void customEvent(QEvent * event);

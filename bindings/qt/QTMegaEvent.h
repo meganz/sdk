@@ -29,6 +29,8 @@ public:
         ,
         OnSyncStateChanged,
         OnFileSyncStateChanged,
+        OnSyncAdded,
+        OnSyncDeleted,
         OnGlobalSyncStateChanged
 #endif
     };

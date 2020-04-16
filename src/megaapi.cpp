@@ -1647,6 +1647,10 @@ void MegaListener::onSyncFileStateChanged(MegaApi *, MegaSync *, string *, int)
 { }
 void MegaListener::onSyncEvent(MegaApi *, MegaSync *, MegaSyncEvent *)
 { }
+void MegaListener::onSyncAdded(MegaApi *, MegaSync *)
+{ }
+void MegaListener::onSyncDeleted(MegaApi *, MegaSync *)
+{ }
 void MegaListener::onSyncStateChanged(MegaApi *, MegaSync *)
 { }
 void MegaListener::onGlobalSyncStateChanged(MegaApi *)
@@ -2448,12 +2452,7 @@ void MegaApi::disableExport(MegaNode *node, MegaRequestListener *listener)
 
 void MegaApi::fetchNodes(MegaRequestListener *listener)
 {
-    pImpl->fetchNodes(false, listener);
-}
-
-void MegaApi::fetchNodesAndResumeSyncs(MegaRequestListener *listener)
-{
-    pImpl->fetchNodes(true, listener);
+    pImpl->fetchNodes(listener);
 }
 
 void MegaApi::getCloudStorageUsed(MegaRequestListener *listener)
@@ -3095,6 +3094,12 @@ MegaNode *MegaApi::getSyncedNode(string *path)
 void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener *listener)
 {
     pImpl->syncFolder(localFolder, megaFolder, NULL, 0, listener);
+}
+
+void MegaApi::copySyncDataToCache(const char *localFolder, MegaHandle megaHandle,
+                                  long long localfp, bool enabled, MegaRequestListener *listener)
+{
+    pImpl->copySyncDataToCache(localFolder, megaHandle, localfp, enabled, listener);
 }
 
 void MegaApi::resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRequestListener *listener)
@@ -5404,6 +5409,20 @@ int MegaSync::getState() const
     return MegaSync::SYNC_FAILED;
 }
 
+int MegaSync::getError() const
+{
+    return MegaSync::Error::NO_ERROR;
+}
+
+bool MegaSync::isEnabled() const
+{
+    return true;
+}
+
+bool MegaSync::isTemporaryDisabled() const
+{
+    return false;
+}
 
 void MegaSyncListener::onSyncFileStateChanged(MegaApi *, MegaSync *, string *, int)
 { }
@@ -5412,6 +5431,12 @@ void MegaSyncListener::onSyncStateChanged(MegaApi *, MegaSync *)
 { }
 
 void MegaSyncListener::onSyncEvent(MegaApi *, MegaSync *, MegaSyncEvent *)
+{ }
+
+void MegaSyncListener::onSyncAdded(MegaApi *, MegaSync *)
+{ }
+
+void MegaSyncListener::onSyncDeleted(MegaApi *, MegaSync *)
 { }
 
 MegaSyncEvent::~MegaSyncEvent()

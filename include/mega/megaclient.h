@@ -259,6 +259,9 @@ public:
     // ID tag of the next request
     int nextreqtag();
 
+    // ID tag of the next sync
+    int nextSyncTag(int increment = 0);
+
     // corresponding ID tag of the currently executing callback
     int restag;
 
@@ -527,7 +530,8 @@ public:
     // add/delete sync
     error isnodesyncable(Node*, bool* = NULL);
 
-    error addsync(SyncConfig, const char*, string*, int = 0, void* = NULL);
+    // add sync. Will fill syncError in case there is one
+    error addsync(SyncConfig, const char*, string*, int &syncError, int = 0, void* = NULL);
 
     void delsync(Sync*, bool = true);
 
@@ -1048,6 +1052,9 @@ public:
 
     // current request tag
     int reqtag;
+
+    // current sync tag
+    int mSyncTag;
 
     // user maps: by handle and by case-normalized e-mail address
     uh_map uhindex;

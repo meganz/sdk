@@ -281,6 +281,19 @@ typedef map<pair<handle, fatype>, pair<handle, int> > fa_map;
 
 typedef enum { SYNC_FAILED = -2, SYNC_CANCELED = -1, SYNC_INITIALSCAN = 0, SYNC_ACTIVE } syncstate_t;
 
+//TODO: can we use named enum? otherwise, use names that should cause less collisions
+typedef enum {
+    NO_ERROR = 0,
+    UNKNOWN_ERROR = 1,
+    UNSUPPORTED_FILE_SYSTEM = 2,
+    INVALID_REMOTE_TYPE = 3,
+    INVALID_LOCAL_TYPE = 4,
+    INITIAL_SCAN_FAILED = 5,
+    LOCAL_PATH_TEMPORARY_UNAVAILABLE = 6, //Note, this is fatal when adding a sync!
+    LOCAL_PATH_UNAVAILABLE = 7,
+    REMOTE_NODE_NOT_FOUND = 8,
+} syncerror_t;
+
 typedef enum { SYNCDEL_NONE, SYNCDEL_DELETED, SYNCDEL_INFLIGHT, SYNCDEL_BIN,
                SYNCDEL_DEBRIS, SYNCDEL_DEBRISDAY, SYNCDEL_FAILED } syncdel_t;
 
@@ -678,19 +691,26 @@ public:
         TYPE_TWOWAY = TYPE_UP | TYPE_DOWN, // Two-way sync
     };
 
-    SyncConfig(std::string localPath,
+    SyncConfig( int tag,
+                std::string localPath,
                const handle remoteNode,
                const fsfp_t localFingerprint,
                std::vector<std::string> regExps = {},
+                const bool enabled = true,
                const Type syncType = TYPE_TWOWAY,
                const bool syncDeletions = false,
-               const bool forceOverwrite = false);
+               const bool forceOverwrite = false,
+                const int error = NO_ERROR
+            );
 
-    // whether this sync is resumable
+    // returns unique identifier
+    int getTag() const; //TODO: add tag & other new fields to std::tuple
+
+    // returns unique identifier
+    void setTag(int tag);
+
+    // whether this sync should be resumed at startup
     bool isResumable() const;
-
-    // sets whether this sync is resumable
-    void setResumable(bool active);
 
     // returns the local path of the sync
     const std::string& getLocalPath() const;
@@ -728,11 +748,24 @@ public:
     // deserializes the string to a SyncConfig object. Returns null in case of failure
     static std::unique_ptr<SyncConfig> unserialize(const std::string& data);
 
+    // TODO: docs
+    int getError() const;
+
+    void setError(int value);
+
+    bool getEnabled() const;
+
+    void setEnabled(bool enabled);
+
 private:
     friend bool operator==(const SyncConfig& lhs, const SyncConfig& rhs);
 
-    // Whether the sync is resumable
-    bool mResumable = true;
+    // Unique identifier. any other field can change (even remote handle),
+    // and we want to keep disabled configurations saved: e.g: remote handle changed
+    int mTag;
+
+    // enabled/disabled by the user
+    bool mEnabled = true;
 
     // the local path of the sync
     std::string mLocalPath;
@@ -744,7 +777,7 @@ private:
     fsfp_t mLocalFingerprint;
 
     // list of regular expressions
-    std::vector<std::string> mRegExps;
+    std::vector<std::string> mRegExps; //TODO: rename this to wildcardExclusions?: they are not regexps AFAIK
 
     // type of the sync, defaults to bidirectional
     Type mSyncType;
@@ -754,6 +787,9 @@ private:
 
     // whether changes are overwritten irregardless of file properties (only relevant for one-way-sync)
     bool mForceOverwrite;
+
+    // failure cause (disable/failure cause).
+    int mError; //TODO: add to std::tuple
 
     // need this to ensure serialization doesn't mutate state (Cacheable::serialize is non-const)
     bool serialize(std::string& data) const;
@@ -768,7 +804,7 @@ private:
                const bool&,
                const bool&> tie() const
     {
-        return std::tie(mResumable,
+        return std::tie(mEnabled,
                         mLocalPath,
                         mRemoteNode,
                         mLocalFingerprint,

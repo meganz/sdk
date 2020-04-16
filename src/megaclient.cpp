@@ -593,6 +593,12 @@ int MegaClient::nextreqtag()
     return ++reqtag;
 }
 
+int MegaClient::nextSyncTag(int increment)
+{
+    mSyncTag += increment;
+    return ++mSyncTag;
+}
+
 int MegaClient::hexval(char c)
 {
     return c > '9' ? c - 'a' + 10 : c - '0';
@@ -1208,6 +1214,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
 
     nextuh = 0;  
     reqtag = 0;
+    mSyncTag = 0;
 
     badhostcs = NULL;
 
@@ -3752,17 +3759,28 @@ void MegaClient::resumeResumableSyncs()
     }
     for (const auto& config : syncConfigs->all())
     {
-        if (!config.isResumable())
+        int syncError = config.getError();
+
+        if (config.isResumable())
         {
-            continue;
+            const auto e = addsync(config, DEBRISFOLDER, nullptr, syncError);
         }
-        const auto e = addsync(config, DEBRISFOLDER, nullptr);
-        if (e == 0)
+        else
         {
-            app->sync_auto_resumed(config.getLocalPath(), config.getRemoteNode(),
-                                   static_cast<long long>(config.getLocalFingerprint()),
-                                   config.getRegExps());
+            //TODO: review this. sync_auto_resumed might need to change and receive config.isResumable()
+//            assert(config.getError() != NO_ERROR); //otherwise, sync_auto_resumed will crash!
+            if (config.getError() == NO_ERROR)
+            {
+                syncError = UNKNOWN_ERROR;
+            }
         }
+
+        //TODO: rename sync_auto_resumed? or indicate that should be called when error too
+        // idea for name: create_megasync_object_and_add_to_map
+        app->sync_auto_resumed(config.getLocalPath(), config.getRemoteNode(),
+                               static_cast<long long>(config.getLocalFingerprint()),
+                               config.getTag(), syncError, config.getRegExps());
+        mSyncTag = std::max(mSyncTag, config.getTag());
     }
 }
 #endif
@@ -12160,14 +12178,21 @@ error MegaClient::addtimer(TimerWithBackoff *twb)
 // check sync path, add sync if folder
 // disallow nested syncs (there is only one LocalNode pointer per node)
 // (FIXME: perform the same check for local paths!)
-error MegaClient::addsync(SyncConfig syncConfig, const char* debris, string* localdebris, int tag, void *appData)
+error MegaClient::addsync(SyncConfig syncConfig, const char* debris, string* localdebris, int &syncError, int tag, void *appData)
 {
 #ifdef ENABLE_SYNC
+    syncError = NO_ERROR;
     Node* remotenode = nodebyhandle(syncConfig.getRemoteNode());
     bool inshare = false;
+    if (!remotenode)
+    {
+        syncError = UNSUPPORTED_FILE_SYSTEM;
+        return API_ENOENT;
+    }
     error e = isnodesyncable(remotenode, &inshare);
     if (e)
     {
+        syncError = INVALID_REMOTE_TYPE;
         return e;
     }
 
@@ -12187,6 +12212,7 @@ error MegaClient::addsync(SyncConfig syncConfig, const char* debris, string* loc
     if (!fsaccess->issyncsupported(&rootpath, &isnetwork))
     {
         LOG_warn << "Unsupported filesystem";
+        syncError = UNSUPPORTED_FILE_SYSTEM;
         return API_EFAILED;
     }
 
@@ -12223,6 +12249,7 @@ error MegaClient::addsync(SyncConfig syncConfig, const char* debris, string* loc
             {
                 LOG_err << "Initial scan failed";
                 sync->changestate(SYNC_FAILED);
+                syncError = INITIAL_SCAN_FAILED;
                 delete sync;
                 e = API_EFAILED;
             }
@@ -12231,12 +12258,14 @@ error MegaClient::addsync(SyncConfig syncConfig, const char* debris, string* loc
         }
         else
         {
+            syncError = INVALID_LOCAL_TYPE;
             e = API_EACCESS;    // cannot sync individual files
         }
     }
     else
     {
         e = fa->retry ? API_ETEMPUNAVAIL : API_ENOENT;
+        syncError = fa->retry ? LOCAL_PATH_TEMPORARY_UNAVAILABLE : LOCAL_PATH_UNAVAILABLE;
     }
 
     return e;

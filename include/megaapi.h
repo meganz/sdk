@@ -2726,6 +2726,7 @@ class MegaRequest
             TYPE_REMOVE_CONTACT, TYPE_CREATE_ACCOUNT,
             TYPE_CONFIRM_ACCOUNT,
             TYPE_QUERY_SIGNUP_LINK, TYPE_ADD_SYNC, TYPE_REMOVE_SYNC,
+            TYPE_COPY_SYNC_CONFIG,
             TYPE_REMOVE_SYNCS, TYPE_PAUSE_TRANSFERS,
             TYPE_CANCEL_TRANSFER, TYPE_CANCEL_TRANSFERS,
             TYPE_DELETE, TYPE_REPORT_EVENT, TYPE_CANCEL_ATTR_FILE,
@@ -4774,6 +4775,13 @@ public:
      * MegaSyncEvent::copy
      */
     virtual void onSyncEvent(MegaApi *api, MegaSync *sync, MegaSyncEvent *event);
+
+
+    //TODO: doc
+    virtual void onSyncAdded(MegaApi *api, MegaSync *sync);
+    virtual void onSyncDeleted(MegaApi *api, MegaSync *sync);
+
+
 };
 
 /**
@@ -4784,10 +4792,25 @@ class MegaSync
 public:
     enum
     {
+        //TODO: fully review if those states are enough!
         SYNC_FAILED = -2,
-        SYNC_CANCELED = -1,
+        SYNC_CANCELED = -1, //aka. DISABLED_BY_USER //TODO: rename?
         SYNC_INITIALSCAN = 0,
         SYNC_ACTIVE
+    };
+
+    //TODO: should this should also go into types.h?
+    enum Error
+    {
+        NO_ERROR = 0,
+        UNKNOWN_ERROR = 1,
+        UNSUPPORTED_FILE_SYSTEM = 2,
+        INVALID_REMOTE_TYPE = 3,
+        INVALID_LOCAL_TYPE = 4,
+        INITIAL_SCAN_FAILED = 5,
+        LOCAL_PATH_TEMPORARY_UNAVAILABLE = 6, //Note, this is fatal when adding a sync!
+        LOCAL_PATH_UNAVAILABLE = 7,
+        REMOTE_NODE_NOT_FOUND = 8,
     };
 
     virtual ~MegaSync();
@@ -4855,6 +4878,15 @@ public:
      * @return State of the synchronization
      */
     virtual int getState() const;
+
+
+    /*TODO: doc*/
+    virtual int getError() const;
+
+
+    /*TODO: doc*/
+    virtual bool isEnabled() const;
+    virtual bool isTemporaryDisabled() const;
 };
 
 #endif
@@ -6282,6 +6314,11 @@ class MegaListener
      * MegaSyncEvent::copy
      */
     virtual void onSyncEvent(MegaApi *api, MegaSync *sync, MegaSyncEvent *event);
+
+    //TODO: doc
+    virtual void onSyncAdded(MegaApi *api, MegaSync *sync);
+    virtual void onSyncDeleted(MegaApi *api, MegaSync *sync);
+
 
     /**
      * @brief This function is called when the state of the synchronization changes
@@ -9914,23 +9951,6 @@ class MegaApi
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Fetch the filesystem in MEGA
-         *
-         * The MegaApi object must be logged in in an account or a public folder
-         * to successfully complete this request.
-         *
-         * The associated request type with this request is MegaRequest::TYPE_FETCH_NODES
-         *
-         * Valid data in the MegaRequest object received in onRequestFinish when the error code
-         * is MegaError::API_OK:
-         * - MegaRequest::getFlag - Returns true if logged in into a folder and the provided key is invalid. Otherwise, false.
-         * - MegaRequest::getNodeHandle - Returns the public handle if logged into a public folder. Otherwise, INVALID_HANDLE
-         *
-         * @param listener MegaRequestListener to track this request
-         */
-        void fetchNodes(MegaRequestListener *listener = NULL);
-
-        /**
          * @brief Fetch the filesystem in MEGA and resumes syncs following a successful fetch
          *
          * The MegaApi object must be logged in in an account or a public folder
@@ -9945,7 +9965,7 @@ class MegaApi
          *
          * @param listener MegaRequestListener to track this request
          */
-        void fetchNodesAndResumeSyncs(MegaRequestListener *listener = NULL);
+        void fetchNodes(MegaRequestListener *listener = NULL);
 
         /**
          * @brief Get the sum of sizes of all the files stored in the MEGA cloud.
@@ -12130,6 +12150,10 @@ class MegaApi
          * @see MegaApi::resumeSync
          */
         void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener *listener = NULL);
+
+        //TODO: add docs. note that it returns tag in request->getNumber
+        void copySyncDataToCache(const char *localFolder, MegaHandle megaHandle,
+                                 long long localfp, bool enabled, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Resume a previously synced folder

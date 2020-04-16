@@ -2055,30 +2055,52 @@ void NodeCounter::operator -= (const NodeCounter& o)
     versions -= o.versions;
 }
 
-SyncConfig::SyncConfig(std::string localPath,
+SyncConfig::SyncConfig(int tag,
+                       std::string localPath,
                        const handle remoteNode,
                        const fsfp_t localFingerprint,
                        std::vector<std::string> regExps,
+                       const bool enabled,
                        const Type syncType,
                        const bool syncDeletions,
-                       const bool forceOverwrite)
-    : mLocalPath{std::move(localPath)}
+                       const bool forceOverwrite,
+                       const int error)
+    : mTag{tag}
+    , mEnabled{enabled}
+    , mLocalPath{std::move(localPath)}
     , mRemoteNode{remoteNode}
     , mLocalFingerprint{localFingerprint}
     , mRegExps{std::move(regExps)}
     , mSyncType{syncType}
     , mSyncDeletions{syncDeletions}
     , mForceOverwrite{forceOverwrite}
+    , mError{error}
 {}
+
+
+int SyncConfig::getTag() const
+{
+    return mTag;
+}
+
+void SyncConfig::setTag(int tag)
+{
+    mTag = tag;
+}
+
+bool SyncConfig::getEnabled() const
+{
+    return mEnabled;
+}
+
+void SyncConfig::setEnabled(bool enabled)
+{
+    mEnabled = enabled;
+}
 
 bool SyncConfig::isResumable() const
 {
-    return mResumable;
-}
-
-void SyncConfig::setResumable(bool resumable)
-{
-    mResumable = resumable;
+    return mEnabled /*TODO: && !isPermanent(mError)*/;
 }
 
 const std::string& SyncConfig::getLocalPath() const
@@ -2145,6 +2167,16 @@ bool SyncConfig::forceOverwrite() const
     return false;
 }
 
+int SyncConfig::getError() const
+{
+    return mError;
+}
+
+void SyncConfig::setError(int value)
+{
+    mError = value;
+}
+
 // This should be a const-method but can't be due to the broken Cacheable interface.
 // Do not mutate members in this function! Hence, we forward to a private const-method.
 bool SyncConfig::serialize(std::string* data)
@@ -2154,7 +2186,8 @@ bool SyncConfig::serialize(std::string* data)
 
 std::unique_ptr<SyncConfig> SyncConfig::unserialize(const std::string& data)
 {
-    bool resumable;
+    int64_t tag;
+    bool enabled;
     std::string localPath;
     handle remoteNode;
     fsfp_t fingerprint;
@@ -2163,9 +2196,14 @@ std::unique_ptr<SyncConfig> SyncConfig::unserialize(const std::string& data)
     uint32_t syncType;
     bool syncDeletions;
     bool forceOverwrite;
+    uint32_t error;
 
     CacheableReader reader{data};
-    if (!reader.unserializebool(resumable))
+    if (!reader.unserializei64(tag))
+    {
+        return {};
+    }
+    if (!reader.unserializebool(enabled))
     {
         return {};
     }
@@ -2206,18 +2244,22 @@ std::unique_ptr<SyncConfig> SyncConfig::unserialize(const std::string& data)
     {
         return {};
     }
-
-    auto syncConfig = std::unique_ptr<SyncConfig>{new SyncConfig{std::move(localPath),
-                    remoteNode, fingerprint, std::move(regExps),
-                    static_cast<Type>(syncType), syncDeletions, forceOverwrite}};
-    syncConfig->setResumable(resumable);
+    if (!reader.unserializeu32(error))
+    {
+        return {};
+    }
+    auto syncConfig = std::unique_ptr<SyncConfig>{new SyncConfig{static_cast<int>(tag), std::move(localPath), //TODO: use int64 for tag without casting
+                    remoteNode, fingerprint, std::move(regExps), enabled,
+                    static_cast<Type>(syncType), syncDeletions,
+                    forceOverwrite, static_cast<int>(error)}};
     return syncConfig;
 }
 
 bool SyncConfig::serialize(std::string& data) const
 {
     CacheableWriter writer{data};
-    writer.serializebool(mResumable);
+    writer.serializei64(mTag);
+    writer.serializebool(mEnabled);
     writer.serializestring(mLocalPath);
     writer.serializehandle(mRemoteNode);
     writer.serializefsfp(mLocalFingerprint);
@@ -2229,6 +2271,7 @@ bool SyncConfig::serialize(std::string& data) const
     writer.serializeu32(static_cast<uint32_t>(mSyncType));
     writer.serializebool(mSyncDeletions);
     writer.serializebool(mForceOverwrite);
+    writer.serializeu32(static_cast<int>(mError));
     writer.serializeexpansionflags();
     return true;
 }
