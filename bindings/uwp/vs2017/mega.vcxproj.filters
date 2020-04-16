@@ -304,6 +304,12 @@
     <ClInclude Include="..\..\..\include\mega\testhooks.h">
       <Filter>SDK\Header</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\include\megaapi_impl.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\DelegateMGfxProcessor.cpp">

@@ -27,6 +27,8 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\..\include\mega.h" />
+    <ClInclude Include="..\..\..\include\megaapi_impl.h" />
     <ClInclude Include="..\..\..\include\mega\account.h" />
     <ClInclude Include="..\..\..\include\mega\attrmap.h" />
     <ClInclude Include="..\..\..\include\mega\backofftimer.h" />

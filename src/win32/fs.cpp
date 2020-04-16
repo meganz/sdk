@@ -185,7 +185,7 @@ bool WinFileAccess::sysopen(bool async)
     }
 
 #ifdef WINDOWS_PHONE
-    hFile = CreateFile2((LPCWSTR)localname.data(), GENERIC_READ,
+    hFile = CreateFile2((LPCWSTR)nonblocking_localname.data(), GENERIC_READ,
                         FILE_SHARE_WRITE | FILE_SHARE_READ,
                         OPEN_EXISTING, NULL);
 #else
@@ -1283,8 +1283,9 @@ fsfp_t WinDirNotify::fsfingerprint() const
 bool WinDirNotify::fsstableids() const
 {
 #ifdef WINDOWS_PHONE
-#error "Not implemented"
-#endif
+	LOG_err << "Not implemented";
+	return true;
+#else
     TCHAR volume[MAX_PATH + 1];
     if (GetVolumePathNameW((LPCWSTR)localbasepath.data(), volume, MAX_PATH + 1))
     {
@@ -1299,6 +1300,7 @@ bool WinDirNotify::fsstableids() const
     }
     LOG_err << "Failed to get filesystem type. Error code: " << GetLastError();
     return true;
+#endif
 }
 
 VOID CALLBACK WinDirNotify::completion(DWORD dwErrorCode, DWORD dwBytes, LPOVERLAPPED lpOverlapped)
