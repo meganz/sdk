@@ -4131,19 +4131,40 @@ TEST_F(SdkTest, invalidFileNames)
             continue;
         }
 
-        char aux[6];
-        sprintf(aux, "f%%%02xf", i);
-        string filename = aux;
-        fs::path fp = uploadPath / fs::u8path(filename);
- #if (__cplusplus >= 201700L)
-        ofstream fs(fp/*, ios::binary*/);
- #else
-        ofstream fs(fp.u8string()/*, ios::binary*/);
- #endif
-        fs << filename;
-        const char *unescapedFileName = megaApi[0]->unescapeFsIncompatible(filename.c_str(), uploadPath.c_str());
-        fileNamesStringMap->set(filename.c_str(), unescapedFileName);
-        delete [] unescapedFileName;
+        // Create file with unescaped character ex: f%5cf
+        char unescapedName[6];
+        sprintf(unescapedName, "f%%%02xf", i);
+        if (createLocalFile(uploadPath, unescapedName))
+        {
+            const char *unescapedFileName = megaApi[0]->unescapeFsIncompatible(unescapedName, uploadPath.c_str());
+            fileNamesStringMap->set(unescapedName, unescapedFileName);
+            delete [] unescapedFileName;
+        }
+
+        // Create another file with the original character if supported f\f
+        if ((i >= 0x01 && i <= 0x20)
+                || (i >= 0x7F && i <= 0xA0))
+        {
+            // Skip control characters
+            continue;
+        }
+
+        char escapedName[4];
+        unsigned char c = i;
+        sprintf(escapedName, "f%cf", i);
+        const char *escapedFileName = megaApi[0]->escapeFsIncompatible(escapedName, uploadPath.c_str());
+        if (escapedFileName && !strcmp(escapedName, escapedFileName))
+        {
+            // Only create those files with supported characters, those ones that need unescaping
+            // has been created above
+            if (createLocalFile(uploadPath, escapedName))
+            {
+                const char * unescapedFileName = megaApi[0]->unescapeFsIncompatible(escapedName, uploadPath.c_str());
+                fileNamesStringMap->set(escapedName, unescapedFileName);
+                delete [] unescapedFileName;
+            }
+        }
+        delete [] escapedFileName;
     }
 
     TransferTracker uploadListener;
