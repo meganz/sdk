@@ -267,6 +267,8 @@ return "\\/";
 // escape forbidden characters, then convert to local encoding
 void FileSystemAccess::name2local(string* filename, const string *dstPath) const
 {
+    assert(filename);
+
     escapefsincompatible(filename, dstPath);
 
     string t = *filename;
@@ -313,6 +315,8 @@ void FileSystemAccess::normalize(string* filename) const
 // convert from local encoding, then unescape escaped forbidden characters
 void FileSystemAccess::local2name(string *filename, const string *localPath) const
 {
+    assert(filename);
+
     string t = *filename;
 
     local2path(&t, filename);
