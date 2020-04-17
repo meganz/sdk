@@ -1262,20 +1262,23 @@ void LocalNode::setnameparent(LocalNode* newparent, LocalPath* newlocalpath, boo
                     if (name != node->attrs.map['n'])
                     {
 
-                        // does the new name already exist in the remote?
-                        bool reattachedToExisting = false;
-                        if (node->parent) 
+                        // does the new name already exist in the remote destination?
+                        bool doRemoteRename = true;
+                        if (node->parent && !sync->getConfig().syncsToLocal())  // for two way, don't check if the move clashes, as it didn't check before.
                         {
                             vector<Node*> namematch = sync->client->childnodesbyname(node->parent, name.c_str(), false);
                             for (auto child : namematch)
                             {
-                                if (child->type == type && !child->localnode)
+                                if (child->type == type)
                                 {
-                                    node->localnode = nullptr;
-                                    node = child;
-                                    node->localnode = this;
-                                    reattachedToExisting = true;
-                                    break;
+                                    doRemoteRename = false;
+                                    if (!child->localnode)
+                                    {
+                                        node->localnode = nullptr;
+                                        node = child;
+                                        node->localnode = this;
+                                        break;
+                                    }
                                 }
                             }
                         }
@@ -1290,7 +1293,7 @@ void LocalNode::setnameparent(LocalNode* newparent, LocalPath* newlocalpath, boo
                             sync->client->app->syncupdate_treestate(this);
                         }
 
-                        if (!reattachedToExisting)
+                        if (doRemoteRename)
                         {
                             string prevname = node->attrs.map['n'];
                             int creqtag = sync->client->reqtag;
@@ -1324,6 +1327,8 @@ void LocalNode::setnameparent(LocalNode* newparent, LocalPath* newlocalpath, boo
     {
         if (newparent != parent)
         {
+            bool doRemoteMove = true;
+
             if (node && !sync->getConfig().syncsToCloud())
             {
                 // detach from node if one-way.  To rematch with a node after the move, we need to rely on name matching done by syncup/syncdown
@@ -1332,10 +1337,29 @@ void LocalNode::setnameparent(LocalNode* newparent, LocalPath* newlocalpath, boo
                 node->localnode = NULL;
                 node = NULL;
             }
+            else if (node && newparent->node && sync->getConfig().syncsToCloud() && !sync->getConfig().syncsToLocal())  // for two way, don't check if the move clashes, as it didn't check before.
+            {
+                // does the name already exist in the remote destination folder?
+                vector<Node*> namematch = sync->client->childnodesbyname(newparent->node, name.c_str(), false);
+                for (auto child : namematch)
+                {
+                    if (child->type == type)
+                    {
+                        doRemoteMove = false;
+                        if (!child->localnode)
+                        {
+                            node->localnode = nullptr;
+                            node = child;
+                            node->localnode = this;
+                            break;
+                        }
+                    }
+                }
+            }
 
             parent = newparent;
 
-            if (!newnode && node && sync->getConfig().syncsToCloud())
+            if (!newnode && node && sync->getConfig().syncsToCloud() && doRemoteMove)
             {
                 assert(parent->node);
                 

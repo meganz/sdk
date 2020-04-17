@@ -4439,6 +4439,14 @@ struct OneWaySymmetryCase
         tc.allocnodes();
         changeClient().client.proctree(n1, &tc, false, true);
         tc.nn->parenthandle = UNDEF;
+
+        SymmCipher key;
+        AttrMap attrs;
+        string attrstring;
+        key.setkey((const ::mega::byte*)tc.nn[0].nodekey.data(), n1->type);
+        attrs = n1->attrs;
+        attrs.getjson(&attrstring);
+        state.client.client.makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
         changeClient().client.putnodes(n2->nodehandle, tc.nn, tc.nc);
     }
 
@@ -4755,7 +4763,7 @@ struct OneWaySymmetryCase
                 }
                 else
                 {
-                    if (destinationMatchAfter == match_exact) destination_copy("f/f_1", "f/f_1_renamed", true, false);
+                    if (destinationMatchAfter == match_exact) destination_copy_renamed("f", "f_1", "f_1", "f/f_1_renamed", true, false, false);
                     if (destinationMatchAfter == match_older) destination_rename("f/f_2", "f/f_1_renamed", true, false, false);
                     if (destinationMatchAfter == match_newer) destination_rename("f/f_2", "f/f_1_renamed", true, false, false);
                     if (destinationMatchBefore == match_older) { destination_delete("f/f_1", true, false), destination_copy("f/f_2", "f/f_1", true, false); }
@@ -4789,7 +4797,7 @@ struct OneWaySymmetryCase
             {
                 if (file)
                 {
-                    if (destinationMatchAfter == match_exact) destination_copy("f/f_1/file0_f_1", "f/f_0", true, false);
+                    if (destinationMatchAfter == match_exact) destination_copy_renamed("f/f_1", "file0_f_1", "file0_f_1", "f/f_0", true, false, false);  // not really renaming
                     if (destinationMatchAfter == match_older) { destination_copy_renamed("f/f_0", "file0_f_0", "file0_f_1", "f/f_0", true, false, true); fileMayDiffer("f/f_0/file0_f_1"); }
                     if (destinationMatchAfter == match_newer) { destination_copy_renamed("f/f_0", "file0_f_0", "file0_f_1", "f/f_0", true, false, true); fileMayDiffer("f/f_0/file0_f_1"); }
                     if (destinationMatchBefore == match_older) { destination_copy_renamed("f/f_1", "file1_f_1", "file0_f_1", "f/f_1", true, false, true); fileMayDiffer("f/f_1/file0_f_1"); }
@@ -4972,7 +4980,7 @@ TEST(Sync, OneWay_Highlevel_Symmetries)
     {
         for (int up = 0; up < 2; ++up)
         {
-            for (int action = (int)OneWaySymmetryCase::action_rename; action <= (int)OneWaySymmetryCase::action_rename /*< (int)OneWaySymmetryCase::action_numactions*/; ++action)
+            for (int action = (int)OneWaySymmetryCase::action_rename; action <= (int)OneWaySymmetryCase::action_moveWithinSync /*< (int)OneWaySymmetryCase::action_numactions*/; ++action)
             {
                 for (int file = 1; file < 2; ++file)
                 {
