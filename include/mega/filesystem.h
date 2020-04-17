@@ -24,10 +24,10 @@
 
 #if defined (__linux__) || defined (__ANDROID__)
 #include <sys/vfs.h>
-#elif defined  (__APPLE__)
+#elif defined  (__APPLE__) || defined (USE_IOS)
 #include <sys/mount.h>
 #include <sys/param.h>
-#elif defined(_WIN32) || defined(_WIN64)
+#elif defined(_WIN32) || defined(_WIN64) || defined(WINDOWS_PHONE)
 #include <Windows.h>
 #endif
 

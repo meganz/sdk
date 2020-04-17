@@ -90,7 +90,7 @@ int FileSystemAccess::getlocalfstype(const string *dstPath) const
                 return FS_DEFAULT;
         }
     }
-#elif defined  (__APPLE__)
+#elif defined  (__APPLE__) || defined (USE_IOS)
     struct statfs fileStat;
     if (!statfs(dstPath->c_str(), &fileStat))
     {
@@ -108,7 +108,7 @@ int FileSystemAccess::getlocalfstype(const string *dstPath) const
             return FS_FAT32;
         }
     }
-#elif defined(_WIN32) || defined(_WIN64)
+#elif defined(_WIN32) || defined(_WIN64) || defined(WINDOWS_PHONE)
     TCHAR volumeName[MAX_PATH + 1] = { 0 };
     TCHAR fileSystemName[MAX_PATH + 1] = { 0 };
     DWORD serialNumber = 0;
