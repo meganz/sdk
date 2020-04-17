@@ -4166,20 +4166,17 @@ TEST_F(SdkTest, invalidFileNames)
     megaApi[0]->startDownload(authNode.get(), downloadPath.u8string().c_str(), &downloadListener);
     ASSERT_EQ(API_OK, downloadListener.waitForResult());
 
-    DIR *dp = opendir(downloadPath.c_str());
-    ASSERT_TRUE(dp);
-    struct dirent *dirp;
-    while ((dirp = readdir( dp )))
+    for (fs::directory_iterator itpath (downloadPath); itpath != fs::directory_iterator(); ++itpath)
     {
-      const char *downloadedName = dirp->d_name;
-      if (!strcmp(dirp->d_name, ".") || !strcmp(dirp->d_name, ".."))
-      {
-          continue;
-      }
+        std::string downloadedName = itpath->path().filename().u8string();
+        if (!downloadedName.compare(".") || !downloadedName.compare(".."))
+        {
+            continue;
+        }
 
-      // Conditions to check if downloaded fileName is correct:
-      // download filename must be found in fileNamesStringMap (original filename found)
-      ASSERT_TRUE(downloadedName && fileNamesStringMap->get(downloadedName));
+        // Conditions to check if downloaded fileName is correct:
+        // download filename must be found in fileNamesStringMap (original filename found)
+        ASSERT_TRUE(fileNamesStringMap->get(downloadedName.c_str()));
     }
 }
 
