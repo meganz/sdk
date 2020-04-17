@@ -14432,6 +14432,7 @@ class MegaApi
          *
          * @param filename Name to convert (UTF8)
          * @return Converted name (UTF8)
+         * @deprecated There is a new prototype that includes path for filesystem detection
          */
         char* escapeFsIncompatible(const char *filename);
 
@@ -14466,6 +14467,7 @@ class MegaApi
          *
          * @param name Escaped name to convert (UTF8)
          * @return Converted name (UTF8)
+         * @deprecated There is a new prototype that includes path for filesystem detection
          */
         char* unescapeFsIncompatible(const char* name);
 
