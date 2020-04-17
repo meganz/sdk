@@ -188,6 +188,22 @@ namespace
         return true;
     }
 
+    bool createLocalFile(fs::path path, const char *name)
+    {
+        if (!name)
+        {
+           return false;
+        }
+
+        fs::path fp = path / fs::u8path(name);
+#if (__cplusplus >= 201700L)
+        ofstream fs(fp/*, ios::binary*/);
+#else
+        ofstream fs(fp.u8string()/*, ios::binary*/);
+#endif
+        fs << name;
+        return true;
+    }
 }
 
 
