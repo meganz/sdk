@@ -4112,6 +4112,73 @@ TEST_F(SdkTest, invalidFileNames)
 {
     LOG_info << "___TEST invalidFileNames___";
 
+#if defined (__linux__) || defined (__ANDROID__)
+    std::string aux = fs::current_path().string();
+    if (fileSystemAccess.getlocalfstype(&aux) == FS_UNIX)
+    {
+        // Escape set of characters and check if it's the expected one
+        const char *name = megaApi[0]->escapeFsIncompatible("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~", fs::current_path().c_str());
+        ASSERT_TRUE (!strcmp(name, "!\"#$%&'()*+,-.%2f:;<=>?@[\\]^_`{|}~"));
+        delete [] name;
+
+        // Unescape set of characters and check if it's the expected one
+        name = megaApi[0]->unescapeFsIncompatible("%21%22%23%24%25%26%27%28%29%2a%2b%2c%2d"
+                                                            "%2e%2f%30%31%32%33%34%35%36%37"
+                                                            "%38%39%3a%3b%3c%3d%3e%3f%40%5b"
+                                                            "%5c%5d%5e%5f%60%7b%7c%7d%7e",
+                                                            fs::current_path().c_str());
+
+        ASSERT_TRUE(!strcmp(name, "%21%22%23%24%25%26%27%28%29%2a%2b%2c%2d%2e"
+                                  "/%30%31%32%33%34%35%36%37%38%39%3a%3b%3c%3d%3e"
+                                  "%3f%40%5b%5c%5d%5e%5f%60%7b%7c%7d%7e"));
+        delete [] name;
+    }
+#elif defined  (__APPLE__) || defined (USE_IOS)
+    std::string aux = fs::current_path().string();
+    if (fileSystemAccess.getlocalfstype(&aux) == FS_APPLE)
+    {
+        // Escape set of characters and check if it's the expected one
+        const char *name = megaApi[0]->escapeFsIncompatible("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~", fs::current_path().c_str());
+        ASSERT_TRUE (!strcmp(name, "!\"#$%&'()*+,-./%3a;<=>?@[\\]^_`{|}~"));
+        delete [] name;
+
+        // Unescape set of characters and check if it's the expected one
+        name = megaApi[0]->unescapeFsIncompatible("%21%22%23%24%25%26%27%28%29%2a%2b%2c%2d"
+                                                            "%2e%2f%30%31%32%33%34%35%36%37"
+                                                            "%38%39%3a%3b%3c%3d%3e%3f%40%5b"
+                                                            "%5c%5d%5e%5f%60%7b%7c%7d%7e",
+                                                            fs::current_path().c_str());
+
+        ASSERT_TRUE(!strcmp(name, "%21%22%23%24%25%26%27%28%29%2a%2b%2c%2d%2e"
+                                  "%2f%30%31%32%33%34%35%36%37%38%39:%3b%3c%3d%3e"
+                                  "%3f%40%5b%5c%5d%5e%5f%60%7b%7c%7d%7e"));
+        delete [] name;
+    }
+#elif defined(_WIN32) || defined(_WIN64) || defined(WINDOWS_PHONE)
+    std::string aux = fs::current_path().string();
+    if (fileSystemAccess.getlocalfstype(&aux) == FS_WIN || true)
+    {
+        // Escape set of characters and check if it's the expected one
+        const char *name = megaApi[0]->escapeFsIncompatible("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~", fs::current_path().c_str());
+        ASSERT_TRUE (!strcmp(name, "!%22#$%&'()%2a+,-.%2f%3a;%3c=%3e%3f@[%5c]^_`{%7c}~"));
+        delete [] name;
+
+        // Unescape set of characters and check if it's the expected one
+        name = megaApi[0]->unescapeFsIncompatible("%21%22%23%24%25%26%27%28%29%2a%2b%2c%2d"
+                                                            "%2e%2f%30%31%32%33%34%35%36%37"
+                                                            "%38%39%3a%3b%3c%3d%3e%3f%40%5b"
+                                                            "%5c%5d%5e%5f%60%7b%7c%7d%7e",
+                                                            fs::current_path().c_str());
+
+        ASSERT_TRUE(!strcmp(name, "%21\"%23%24%25%26%27%28%29*%2b%2c%2d"
+                                  "%2e/%30%31%32%33%34%35%36%37"
+                                  "%38%39:%3b<%3d>?%40%5b"
+                                  "\\%5d%5e%5f%60%7b|%7d%7e"));
+
+        delete [] name;
+    }
+#endif
+
     // Maps filename unescaped (original) to filename escaped (expected result): f%2ff => f/f
     std::unique_ptr<MegaStringMap> fileNamesStringMap = std::unique_ptr<MegaStringMap>{MegaStringMap::createInstance()};
     fs::path uploadPath = fs::current_path() / "upload_invalid_filenames";
