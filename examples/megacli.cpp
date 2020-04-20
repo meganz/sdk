@@ -2829,9 +2829,26 @@ public:
     }
 };
 
+void exec_fingerprint(autocomplete::ACState& s)
+{
+    string localfilepath, filepath = s.words[1].s;
+    client->fsaccess->path2local(&filepath, &localfilepath);
+    auto fa = client->fsaccess->newfileaccess();
+    if (fa->fopen(&localfilepath, true, false, nullptr))
+    {
+        FileFingerprint fp;
+        fp.genfingerprint(fa.get());
+        cout << Utils::stringToHex(std::string((const char*)&fp.size, sizeof(fp.size))) << "/" << 
+                Utils::stringToHex(std::string((const char*)&fp.mtime, sizeof(fp.mtime))) << "/" <<
+                Utils::stringToHex(std::string((const char*)&fp.crc, sizeof(fp.crc))) << endl;
+    }
+    else
+    {
+        cout << "Failed to open: " << filepath << endl;
+    }
+}
+
 MegaCLILogger gLogger;
-
-
 
 autocomplete::ACN autocompleteSyntax()
 {
@@ -2926,6 +2943,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_log, sequence(text("log"), either(text("utf8"), text("utf16"), text("codepage")), localFSFile()));
 #endif
     p->Add(exec_test, sequence(text("test"), opt(param("data"))));
+    p->Add(exec_fingerprint, sequence(text("fingerprint"), localFSFile("localfile")));
 #ifdef ENABLE_CHAT
     p->Add(exec_chats, sequence(text("chats")));
     p->Add(exec_chatc, sequence(text("chatc"), param("group"), repeat(opt(sequence(contactEmail(client), either(text("ro"), text("sta"), text("mod")))))));
