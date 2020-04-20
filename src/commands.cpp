@@ -7648,6 +7648,7 @@ void CommandGetRegisteredContacts::processResult(MegaApp& app, JSON& json)
                 case MAKENAMEID3('e', 'u', 'd'):
                 {
                     json.storeobject(&entryUserDetail);
+                    JSON::unescape(&entryUserDetail);
                     break;
                 }
                 case MAKENAMEID2('i', 'd'):
@@ -7658,6 +7659,7 @@ void CommandGetRegisteredContacts::processResult(MegaApp& app, JSON& json)
                 case MAKENAMEID2('u', 'd'):
                 {
                     json.storeobject(&userDetail);
+                    JSON::unescape(&userDetail);
                     break;
                 }
                 case EOO:

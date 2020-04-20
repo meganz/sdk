@@ -77,11 +77,26 @@ void Command::arg(const char* name, const char* value, int quotes)
     addcomma();
     json.append("\"");
     json.append(name);
-    json.append(quotes ? "\":\"" : "\":");
-    json.append(value);
     if (quotes)
     {
-        json.append("\"");
+        json.append("\":\"");
+        size_t valueLen = strlen(value);
+        for (size_t i = 0; i < valueLen; i++)
+        {
+            if (value[i] == '\"'
+                    || value[i] == '\\'
+                    || value[i] == '/')
+            {
+                json.push_back('\\');
+            }
+            json.push_back(value[i]);
+        }
+        json.push_back('\"');
+    }
+    else
+    {
+        json.append("\":");
+        json.append(value);
     }
 }
 
