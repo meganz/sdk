@@ -147,14 +147,14 @@ bool FileSystemAccess::islocalfscompatible(unsigned char c, int fileSystemType) 
             // APFS, HFS, HFS+ restricted characters => :
             return c != '\x3A';
         case FS_UNIX:
-            // ext2/ext3/ext4 restricted characters =>  /
-            return c != '\x2F';
+            // ext2/ext3/ext4 restricted characters =>  / NULL
+            return c != '\x00' && c != '\x2F';
         case FS_FAT32:
-            // FAT32 restricted characters => 0x0000-0x001F 0x007F " * / : < > ? \ | + , . ; = [ ]
+            // FAT32 restricted characters => " * / : < > ? \ | + , . ; = [ ]
             return !strchr("\\/:?\"<>|*+,.;=[]", c);
         case FS_WIN:
         default:
-            // NTFS restricted characters => 0x0000-0x001F 0x007F " * / : < > ? \ |
+            // NTFS restricted characters => " * / : < > ? \ |
             // If filesystem couldn't be detected we'll use a restrictive charset to avoid issues.
             return !strchr("\\/:?\"<>|*", c);
     }
