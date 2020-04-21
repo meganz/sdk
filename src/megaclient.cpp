@@ -8119,6 +8119,7 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
         m_time_t ts = 0;
         const char* m = NULL;
         nameid name;
+        BizMode bizMode = BIZ_MODE_UNKNOWN;
 
         while ((name = j->getnameid()) != EOO)
         {
@@ -8139,6 +8140,28 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
                 case MAKENAMEID2('t', 's'):
                     ts = j->getint();
                     break;
+
+                case 'b':
+                {
+                    if (j->enterobject())
+                    {
+                        nameid businessName;
+                        while ((businessName = j->getnameid()) != EOO)
+                        {
+                            switch (businessName)
+                            {
+                                case 'm':
+                                    bizMode = static_cast<BizMode>(j->getint());
+                                    break;
+                                default:
+                                    j->storeobject();
+                                    break;
+                            }
+                        }
+                    }
+
+                    break;
+                }
 
                 default:
                     if (!j->storeobject())
@@ -8172,6 +8195,8 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
             {
                 const string oldEmail = u->email;
                 mapuser(uh, m);
+
+                u->mBizMode = bizMode;
 
                 if (v != VISIBILITY_UNKNOWN)
                 {

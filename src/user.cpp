@@ -95,7 +95,15 @@ bool User::serialize(string* d)
     d->append(email.c_str(), l);
 
     d->append((char*)&attrVersion, 1);
-    d->append("\0\0\0\0\0\0", 7);
+
+    char bizMode = 0;
+    if (mBizMode != BIZ_MODE_UNKNOWN) // convert number to ascii
+    {
+        bizMode = '0' + mBizMode;
+    }
+
+    d->append((char*)&bizMode, 1);
+    d->append("\0\0\0\0\0", 6);
 
     // serialization of attributes
     l = (unsigned char)attrs.size();
@@ -177,7 +185,23 @@ User* User::unserialize(MegaClient* client, string* d)
     attrVersion = MemAccess::get<char>(ptr);
     ptr += sizeof(attrVersion);
 
-    for (i = 7; i--;)
+    char bizModeValue = MemAccess::get<char>(ptr);
+    ptr += sizeof(bizModeValue);
+    BizMode bizMode;
+    switch (bizModeValue)
+    {
+        case '0':
+            bizMode = BIZ_MODE_SUBUSER;
+            break;
+        case '1':
+            bizMode = BIZ_MODE_MASTER;
+            break;
+        default:
+            bizMode = BIZ_MODE_UNKNOWN;
+            break;
+    }
+
+    for (i = 6; i--;)
     {
         if (ptr + MemAccess::get<unsigned char>(ptr) < end)
         {
@@ -193,6 +217,7 @@ User* User::unserialize(MegaClient* client, string* d)
     client->mapuser(uh, m.c_str());
     u->set(v, ts);
     u->resetTag();
+    u->mBizMode = bizMode;
 
     if (attrVersion == '\0')
     {
