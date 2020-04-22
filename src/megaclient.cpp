@@ -12552,7 +12552,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                                                rit->second->localnode, localname.c_str());
 
                     // update LocalNode tree to reflect the move/rename
-                    rit->second->localnode->setnameparent(l, localpath);
+                    rit->second->localnode->setnameparent(l, localpath, fsaccess->fsShortname(*localpath));
 
                     rit->second->localnode->sync->statecacheadd(rit->second->localnode);
 
