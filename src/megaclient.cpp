@@ -6552,6 +6552,7 @@ void MegaClient::sc_ub()
                 if (prevBizStatus == BIZ_STATUS_INACTIVE)
                 {
                     app->account_updated();
+                    getuserdata();  // update account flags
                 }
 
                 return;
@@ -7967,7 +7968,9 @@ error MegaClient::readmiscflags(JSON *json)
         switch (json->getnameid())
         {
         // mcs:1 --> MegaChat enabled
-        // ach:1 --> Mega Achievements enabled
+        case MAKENAMEID3('a', 'c', 'h'):
+            achievements_enabled = bool(json->getint());    //  Mega Achievements enabled
+            break;
         case MAKENAMEID4('m', 'f', 'a', 'e'):   // multi-factor authentication enabled
             gmfa_enabled = bool(json->getint());
             break;
