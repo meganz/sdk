@@ -8154,10 +8154,13 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
                                     bizMode = static_cast<BizMode>(j->getint());
                                     break;
                                 default:
-                                    j->storeobject();
+                                    if (!j->storeobject())
+                                        return false;
                                     break;
                             }
                         }
+
+                        j->leaveobject();
                     }
 
                     break;
