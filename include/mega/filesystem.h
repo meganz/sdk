@@ -330,6 +330,9 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     int getdefaultfolderpermissions() { return 0700; }
     void setdefaultfolderpermissions(int) { }
 
+    // convenience function for getting filesystem shortnames
+    std::unique_ptr<string> fsShortname(string& localpath);
+
     // set whenever an operation fails due to a transient condition (e.g. locking violation)
     bool transient_error;
     

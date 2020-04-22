@@ -711,7 +711,7 @@ Sync::Sync(MegaClient* cclient, SyncConfig config, const char* cdebris,
     fsstableids = dirnotify->fsstableids();
     LOG_info << "Filesystem IDs are stable: " << fsstableids;
 
-    localroot->init(this, FOLDERNODE, NULL, &crootpath);
+    localroot->init(this, FOLDERNODE, NULL, &crootpath, nullptr);  // the root node must have the absolute path.  We don't store shortname, to avoid accidentally using relative paths.
     localroot->setnode(remotenode);
 
 #ifdef __APPLE__
@@ -837,12 +837,37 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, st
         // clear localname to force newnode = true in setnameparent
         l->localname.clear();
 
-        l->init(this, l->type, p, path);
+        // if we already have the shortname from database, use that, otherwise (db is from old code) look it up
+        std::unique_ptr<string> shortname;
+        if (l->slocalname_in_db)
+        {
+            // null if there is no shortname, or the shortname matches the localname.
+            shortname.reset(l->slocalname.release());
+        }
+        else
+        {
+            shortname = client->fsaccess->fsShortname(*path);
+        }
+
+        l->init(this, l->type, p, path, std::move(shortname));
+
+        assert(!l->localname.empty() && 
+                (!l->slocalname && l->localname == *client->fsaccess->fsShortname(*path) ||
+                (l->slocalname && !l->slocalname->empty() && *l->slocalname != l->localname)));
 
         l->parent_dbid = parent_dbid;
         l->size = size;
         l->setfsid(fsid, client->fsidnode);
         l->setnode(node);
+
+        if (!l->slocalname_in_db)
+        {
+            statecacheadd(l);
+            if (insertq.size() > 50000)
+            {
+                cachenodes();  // periodically output updated nodes with shortname updates, so people who restart megasync still make progress towards a fast startup
+            }
+        }
 
         if (maxdepth)
         {
@@ -876,6 +901,7 @@ bool Sync::readstatecache()
 
         // recursively build LocalNode tree, set scanseqnos to sync's current scanseqno
         addstatecachechildren(0, &tmap, &localroot->localname, localroot.get(), 100);
+        cachenodes();
 
         // trigger a single-pass full scan to identify deleted nodes
         fullscan = true;
@@ -1422,7 +1448,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                                         client->app->syncupdate_local_move(this, it->second, path.c_str());
 
                                         // (in case of a move, this synchronously updates l->parent and l->node->parent)
-                                        it->second->setnameparent(parent, localname ? localpath : &tmppath);
+                                        it->second->setnameparent(parent, localname ? localpath : &tmppath, client->fsaccess->fsShortname(localname ? *localpath : tmppath));
 
                                         // mark as seen / undo possible deletion
                                         it->second->setnotseen(0);
@@ -1640,7 +1666,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
 
                     // (in case of a move, this synchronously updates l->parent
                     // and l->node->parent)
-                    it->second->setnameparent(parent, localname ? localpath : &tmppath);
+                    it->second->setnameparent(parent, localname ? localpath : &tmppath, client->fsaccess->fsShortname(localname ? *localpath : tmppath));
 
                     // make sure that active PUTs receive their updated filenames
                     client->updateputs();
@@ -1666,7 +1692,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                     // this is a new node: add
                     LOG_debug << "New localnode.  Parent: " << (parent ? parent->name : "NO");
                     l = new LocalNode;
-                    l->init(this, fa->type, parent, localname ? localpath : &tmppath);
+                    l->init(this, fa->type, parent, localname ? localpath : &tmppath, client->fsaccess->fsShortname(localname ? *localpath : tmppath));
 
                     if (fa->fsidvalid)
                     {
