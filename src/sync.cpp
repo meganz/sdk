@@ -841,6 +841,7 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, st
         std::unique_ptr<string> shortname;
         if (l->slocalname_in_db)
         {
+            // null if there is no shortname, or the shortname matches the localname.
             shortname.reset(l->slocalname.release());
         }
         else
@@ -849,6 +850,10 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, st
         }
 
         l->init(this, l->type, p, path, std::move(shortname));
+
+        assert(!l->localname.empty() && 
+                (!l->slocalname && l->localname == *client->fsaccess->fsShortname(*path) ||
+                (l->slocalname && !l->slocalname->empty() && *l->slocalname != l->localname)));
 
         l->parent_dbid = parent_dbid;
         l->size = size;
