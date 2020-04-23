@@ -172,6 +172,18 @@ struct MEGA_API InputStreamAccess
     virtual ~InputStreamAccess() { }
 };
 
+class MEGA_API FileInputStream : public InputStreamAccess
+{
+    FileAccess *fileAccess;
+    m_off_t offset;
+
+public:
+    FileInputStream(FileAccess *fileAccess);
+
+    m_off_t size() override;
+    bool read(byte *buffer, unsigned size) override;
+};
+
 // generic host directory enumeration
 struct MEGA_API DirAccess
 {

@@ -3049,18 +3049,6 @@ public:
     virtual bool read(byte *buffer, unsigned size);
 };
 
-class FileInputStream : public InputStreamAccess
-{
-    FileAccess *fileAccess;
-    m_off_t offset;
-
-public:
-    FileInputStream(FileAccess *fileAccess);
-    virtual m_off_t size();
-    virtual bool read(byte *buffer, unsigned size);
-    virtual ~FileInputStream();
-};
-
 #ifdef HAVE_LIBUV
 class StreamingBuffer
 {
