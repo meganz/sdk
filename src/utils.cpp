@@ -321,6 +321,25 @@ void chunkmac_map::finishedUploadChunks(m_off_t pos, m_off_t size)
     }
 }
 
+// coalesce block macs into file mac
+int64_t chunkmac_map::macsmac(SymmCipher *cipher)
+{
+    byte mac[SymmCipher::BLOCKSIZE] = { 0 };
+
+    for (chunkmac_map::iterator it = begin(); it != end(); it++)
+    {
+        SymmCipher::xorblock(it->second.mac, mac);
+        cipher->ecb_encrypt(mac);
+    }
+
+    uint32_t* m = (uint32_t*)mac;
+
+    m[0] ^= m[1];
+    m[1] = m[2] ^ m[3];
+
+    return MemAccess::get<int64_t>((const char*)mac);
+}
+
 bool CacheableReader::unserializechunkmacs(chunkmac_map& m)
 {
     if (m.unserialize(ptr, end))   // ptr is adjusted by reference
