@@ -14034,6 +14034,67 @@ Node* MegaClient::nodebyfingerprint(FileFingerprint* fingerprint)
     return mFingerprints.nodebyfingerprint(fingerprint);
 }
 
+Node* MegaClient::nodebyfingerprint(LocalNode* local_node)
+{
+    const node_vector *remote_nodes =
+      mFingerprints.nodesbyfingerprint(local_node);
+
+    if (!remote_nodes || remote_nodes->empty())
+        return nullptr;
+
+    std::string local_name = local_node->localname;
+    fsaccess->local2name(&local_name);
+    
+    // Only compare metamac if the node doesn't already exist.
+    node_vector::const_iterator remote_node =
+      std::find_if(remote_nodes->begin(),
+                   remote_nodes->end(),
+                   [&](const Node *remote_node) -> bool
+                   {
+                       return local_node->type == remote_node->type
+                              && local_name == remote_node->displayname();
+                   });
+
+    if (remote_node != remote_nodes->end())
+        return *remote_node;
+
+    remote_node = remote_nodes->begin();
+
+    // Metamac only has meaning for files.
+    if ((*remote_node)->type != FILENODE)
+        return *remote_node;
+
+    // Compare the local file's metamac against a random candidate.
+    // 
+    // If we're unable to generate the metamac, fail in such a way that
+    // guarantees safe behavior.
+    // 
+    // That is, treat both nodes as distinct until we're absolutely certain
+    // they are identical.
+    auto ifaccess = fsaccess->newfileaccess();
+    std::string local_path;
+
+    local_node->getlocalpath(&local_path);
+
+    if (!ifaccess->fopen(&local_path, true, false))
+        return nullptr;
+
+    std::string remote_key = (*remote_node)->nodekey();
+    const char *iva = &remote_key[SymmCipher::KEYLENGTH];
+
+    SymmCipher cipher;
+    cipher.setkey((byte*)&remote_key[0], (*remote_node)->type);
+
+    int64_t remote_iv = MemAccess::get<int64_t>(iva);
+    int64_t remote_mm = MemAccess::get<int64_t>(iva + sizeof(int64_t));
+
+    auto result = generate_metamac(cipher, *ifaccess, remote_iv);
+    if (!result.first || result.second != remote_mm)
+        return nullptr;
+
+    return *remote_node;
+}
+
 node_vector *MegaClient::nodesbyfingerprint(FileFingerprint* fingerprint)
 {
     return mFingerprints.nodesbyfingerprint(fingerprint);
