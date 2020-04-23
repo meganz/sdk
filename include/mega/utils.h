@@ -491,6 +491,14 @@ void hashCombine(T& seed, const U& v)
     seed ^= std::hash<U>{}(v) + 0x9e3779b9 + (seed<<6) + (seed>>2);
 }
 
+class FileAccess;
+class InputStreamAccess;
+class SymmCipher;
+
+std::pair<bool, int64_t> generate_metamac(SymmCipher &cipher, FileAccess &ifaccess, const int64_t iv);
+
+std::pair<bool, int64_t> generate_metamac(SymmCipher &cipher, InputStreamAccess &isaccess, const int64_t iv);
+
 } // namespace
 
 #endif

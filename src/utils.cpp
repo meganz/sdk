@@ -24,6 +24,7 @@
 #include "mega/megaclient.h"
 #include "mega/base64.h"
 #include "mega/serialize64.h"
+#include "mega/filesystem.h"
 
 #include <iomanip>
 
@@ -2297,4 +2298,50 @@ bool operator==(const SyncConfig& lhs, const SyncConfig& rhs)
     return lhs.tie() == rhs.tie();
 }
 
+std::pair<bool, int64_t> generate_metamac(SymmCipher &cipher, FileAccess &ifaccess, const int64_t iv)
+{
+    FileInputStream isaccess(&ifaccess);
+
+    return generate_metamac(cipher, isaccess, iv);
+}
+
+std::pair<bool, int64_t> generate_metamac(SymmCipher &cipher, InputStreamAccess &isaccess, const int64_t iv)
+{
+    static const m_off_t SZ_1024K = 1l << 20;
+    static const m_off_t SZ_128K  = 128l << 10;
+
+    std::vector<byte> buffer;
+    chunkmac_map chunk_macs;
+    m_off_t chunk_length = 0;
+    m_off_t current = 0;
+    m_off_t remaining = isaccess.size();
+
+    buffer.reserve(SZ_1024K + SymmCipher::BLOCKSIZE);
+
+    while (remaining > 0)
+    {
+        chunk_length =
+          std::min(chunk_length + SZ_128K,
+                   std::min(remaining, SZ_1024K));
+
+        if (!isaccess.read(&buffer[0], (unsigned int)chunk_length))
+            return std::make_pair(false, 0l);
+
+        memset(&buffer[chunk_length], 0, SymmCipher::BLOCKSIZE);
+
+        cipher.ctr_crypt(&buffer[0],
+                         (unsigned int)chunk_length,
+                         current,
+                         iv,
+                         chunk_macs[current].mac,
+                         1);
+
+        current += chunk_length;
+        remaining -= chunk_length;
+    }
+
+    return std::make_pair(true, chunk_macs.macsmac(&cipher));
+}
+
 } // namespace
+
