@@ -75,8 +75,10 @@ struct Model
         enum nodetype { file, folder };
         nodetype type = folder;
         string name;
+        vector<uint8_t> data;
         vector<unique_ptr<ModelNode>> kids;
         ModelNode* parent = nullptr;
+
         string path() 
         {
             string s;
@@ -117,13 +119,28 @@ struct Model
         return n;
     }
 
-    unique_ptr<ModelNode> makeModelSubfile(const string& utf8Name)
+    unique_ptr<ModelNode> makeModelSubfile(const string& u8name, const void *data, const size_t data_length)
     {
-        unique_ptr<ModelNode> n(new ModelNode);
-        n->name = utf8Name;
-        n->type = ModelNode::file;
-        return n;
+        unique_ptr<ModelNode> node(new ModelNode());
+        const uint8_t * const m = reinterpret_cast<const uint8_t *>(data);
+
+        node->name = u8name;
+        node->data.assign(m, m + data_length);
+        node->type = ModelNode::file;
+
+        return node;
     }
+
+    unique_ptr<ModelNode> makeModelSubfile(const string& u8name, const std::vector<uint8_t> &data)
+    {
+        return makeModelSubfile(u8name, data.data(), data.size());
+    }
+
+    unique_ptr<ModelNode> makeModelSubfile(const string& u8name)
+    {
+        return makeModelSubfile(u8name, u8name.data(), u8name.size());
+    }
+
 
     unique_ptr<ModelNode> buildModelSubdirs(const string& prefix, int n, int recurselevel, int filesperdir)
     {
@@ -1025,11 +1042,18 @@ struct StandardClient : public MegaApp
 
         if (pathtype == FILENODE && p.filename().u8string() != "lock")
         {
-            ifstream fs(p, ios::binary);
-            char filedata[1024];
-            fs.read(filedata, sizeof(filedata));
-            EXPECT_EQ(size_t(fs.gcount()), p.filename().u8string().size()) << " file is not expected size " << p;
-            EXPECT_TRUE(!memcmp(filedata, p.filename().u8string().data(), p.filename().u8string().size())) << " file data mismatch " << p;
+            std::vector<uint8_t> buffer;
+            std::ifstream istream(p, ios::binary);
+
+            buffer.reserve(mn->data.size());
+
+            istream.read(reinterpret_cast<char *>(buffer.data()), buffer.capacity());
+
+            if (static_cast<size_t>(istream.gcount()) != buffer.capacity()
+                || !std::equal(mn->data.begin(), mn->data.end(), buffer.begin()))
+            {
+                return false;
+            }
         }
 
         if (pathtype != FOLDERNODE)
@@ -1511,20 +1535,27 @@ fs::path makeNewTestRoot(fs::path p)
 
 //std::atomic<int> fileSizeCount = 20;
 
+bool createFile(const fs::path &path, const void *data, const size_t data_length)
+{
+#if (__cplusplus >= 201700L)
+    ofstream ostream(path, ios::binary);
+#else
+    ofstream ostream(path.u8string(), ios::binary);
+#endif
+
+    ostream.write(reinterpret_cast<const char *>(data), data_length);
+
+    return ostream.good();
+}
+
+bool createFile(const fs::path &path, const std::vector<uint8_t> &data)
+{
+    return createFile(path, data.data(), data.size());
+}
+
 bool createFile(const fs::path &p, const string &filename)
 {
-    fs::path fp = p / fs::u8path(filename);
-#if (__cplusplus >= 201700L)
-    ofstream fs(fp/*, ios::binary*/);
-#else
-    ofstream fs(fp.u8string()/*, ios::binary*/);
-#endif
-    fs << filename;
-    if (fs.bad())
-    {
-        return false;
-    }
-    return true;
+    return createFile(p / fs::u8path(filename), filename.data(), filename.size());
 }
 
 bool buildLocalFolders(fs::path targetfolder, const string& prefix, int n, int recurselevel, int filesperfolder)
@@ -1584,6 +1615,146 @@ bool createSpecialFiles(fs::path targetfolder, const string& prefix, int n = 1)
 #endif
 
 } // anonymous
+
+GTEST_TEST(Sync, BasicSync_FingerprintCollision)
+{
+    const fs::path root = makeNewTestRoot(LOCAL_TEST_FOLDER);
+
+    StandardClient client0(root, "c0");
+    StandardClient client1(root, "c1");
+    Model model0;
+    Model model1;
+
+    client0.logcb = true;
+    client1.logcb = true;
+
+    // Create two clients, one push, one pull.
+    ASSERT_TRUE(client0.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "d", 1, 2));
+    ASSERT_TRUE(client1.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
+    ASSERT_EQ(client0.basefolderhandle, client1.basefolderhandle);
+
+    // Both synchronizing against the cloud.
+    ASSERT_TRUE(client0.setupSync_mainthread("s0", "d", 0));
+    ASSERT_TRUE(client1.setupSync_mainthread("s1", "d", 1));
+    waitonsyncs(chrono::seconds(4), &client0, &client1);
+
+    // Initial model contains a single directory, d.
+    model0.root->addkid(model0.buildModelSubdirs("d", 2, 1, 0));
+    model1.root->addkid(model1.buildModelSubdirs("d", 2, 1, 0));
+
+    ASSERT_TRUE(client0.confirmModel_mainthread(model0.findnode("d"), 0));
+    ASSERT_TRUE(client1.confirmModel_mainthread(model1.findnode("d"), 1));
+
+    // Create initial content.
+    std::vector<uint8_t> content0(16384);
+    std::generate_n(content0.begin(), content0.size(), std::rand);
+
+    // Wait for file to be synchronized.
+    ASSERT_TRUE(createFile(client0.syncSet[0].localpath / "d_0" / "a", content0));
+    waitonsyncs(chrono::seconds(4), &client0, &client1);
+
+    // Verify that the file was synchronized correctly.
+    model0.findnode("d/d_0")->addkid(model0.makeModelSubfile("a", content0));
+    model1.findnode("d/d_0")->addkid(model1.makeModelSubfile("a", content0));
+    model1.ensureLocalDebrisTmpLock("d");
+
+    ASSERT_TRUE(client0.confirmModel_mainthread(model0.findnode("d"), 0));
+    ASSERT_TRUE(client1.confirmModel_mainthread(model1.findnode("d"), 1));
+
+    // Create new file content that while different, fingerprints the same.
+    std::vector<uint8_t> content1(content0);
+    content1[0x41] = static_cast<uint8_t>(~content1[0x41]);
+
+    // Create a new file with the same name.
+    //
+    // Ensure synchronization is halted until the file is created and its
+    // modification time set. This is required for the fingerprint to be
+    // considered equivalent.
+    future<bool> result0 =
+      client0.thread_do([&](StandardClient &sc, promise<bool> &pb)
+                        {
+                            const fs::path ap = sc.syncSet[0].localpath / "d_0" / "a";
+                            const fs::path bp = sc.syncSet[0].localpath / "d_1" / "a";
+
+                            ASSERT_TRUE(createFile(bp, content1));
+
+                            fs::last_write_time(bp, fs::last_write_time(ap));
+
+                            pb.set_value(true);
+                        });
+    future<bool> result1 =
+      client1.thread_do([&](StandardClient &, promise<bool> &pb)
+                        {
+                            pb.set_value(result0.get());
+                        });
+
+    ASSERT_TRUE(waitonresults(&result1));
+
+    // Wait for client1 to synchronize.
+    waitonsyncs(chrono::seconds(4), &client0, &client1);
+
+    // Update and verify the model.
+    //
+    // Note that the file d/d_1/a within model1 has the same contents as
+    // d/d_0/a. This is so that we can check whether the metamac comparison
+    // is skipped when two files have the same name and fingerprint.
+    // 
+    // Put differently, we want to verify that a remote copy of the file was
+    // created and subsequently synchronized.
+    model0.findnode("d/d_1")->addkid(model0.makeModelSubfile("a", content1));
+    model1.findnode("d/d_1")->addkid(model1.makeModelSubfile("a", content0));
+
+    ASSERT_TRUE(client0.confirmModel_mainthread(model0.findnode("d"), 0));
+    ASSERT_TRUE(client1.confirmModel_mainthread(model1.findnode("d"), 1));
+
+    // Repeat the above except this time create files with different names.
+    std::generate_n(content0.begin(), content0.size(), std::rand);
+    content1 = content0;
+    content1[0x41] = static_cast<uint8_t>(~content1[0x41]);
+
+    // Wait for synchronization.
+    ASSERT_TRUE(createFile(client0.syncSet[0].localpath / "d_0" / "b", content0));
+    waitonsyncs(chrono::seconds(4), &client0, &client1);
+
+    // Update model and verify synchronization.
+    model0.findnode("d/d_0")->addkid(model0.makeModelSubfile("b", content0));
+    model1.findnode("d/d_0")->addkid(model1.makeModelSubfile("b", content0));
+
+    ASSERT_TRUE(client0.confirmModel_mainthread(model0.findnode("d"), 0));
+    ASSERT_TRUE(client1.confirmModel_mainthread(model1.findnode("d"), 1));
+
+    // Create file.
+    result0 = client0.thread_do([&](StandardClient &sc, promise<bool> &pb)
+                                {
+                                    const fs::path ap = sc.syncSet[0].localpath / "d_0" / "b";
+                                    const fs::path bp = sc.syncSet[0].localpath / "d_1" / "c";
+
+                                    ASSERT_TRUE(createFile(bp, content1));
+
+                                    fs::last_write_time(bp, fs::last_write_time(ap));
+
+                                    pb.set_value(true);
+                                });
+    result1 = client1.thread_do([&](StandardClient &sc, promise<bool> &pb)
+                                {
+                                    pb.set_value(result0.get());
+                                });
+
+    ASSERT_TRUE(waitonresults(&result1));
+
+    // Wait for clients to synchronize.
+    waitonsyncs(chrono::seconds(4), &client0, &client1);
+
+    // Update and verify model.
+    //
+    // This checks the case where the metamac of two differently named files
+    // (b and c) with identical fingerprints are compared.
+    model0.findnode("d/d_1")->addkid(model0.makeModelSubfile("c", content1));
+    model1.findnode("d/d_1")->addkid(model1.makeModelSubfile("c", content1));
+
+    ASSERT_TRUE(client0.confirmModel_mainthread(model0.findnode("d"), 0));
+    ASSERT_TRUE(client1.confirmModel_mainthread(model1.findnode("d"), 1));
+}
 
 GTEST_TEST(Sync, BasicSync_DelRemoteFolder)
 {
