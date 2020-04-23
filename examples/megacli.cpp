@@ -3003,6 +3003,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_showattributes, sequence(text("showattributes"), remoteFSPath(client, &cwd)));
 
     p->Add(exec_setmaxconnections, sequence(text("setmaxconnections"), either(text("put"), text("get")), opt(wholenumber(4))));
+    p->Add(exec_metamac, sequence(text("metamac"), localFSPath(), remoteFSPath(client, &cwd)));
 
     return autocompleteTemplate = std::move(p);
 }
@@ -7963,5 +7964,68 @@ void DemoAppFolder::nodes_updated(Node **n, int count)
 
     cout << "The folder link contains ";
     nodestats(c[1], "");
+}
+
+void exec_metamac(autocomplete::ACState& s)
+{
+    Node *node = nodebypath(s.words[2].s.c_str());
+    if (!node || node->type != FILENODE)
+    {
+        cerr << s.words[2].s
+             << (node ? ": No such file or directory"
+                      : ": Not a file")
+             << endl;
+        return;
+    }
+
+    auto ifaccess = client->fsaccess->newfileaccess();
+    {
+        std::string local_path;
+
+        client->fsaccess->path2local(&s.words[1].s, &local_path);
+
+        if (!ifaccess->fopen(&local_path, 1, 0))
+        {
+            cerr << "Failed to open: " << s.words[1].s << endl;
+            return;
+        }
+    }
+
+    SymmCipher cipher;
+    int64_t remote_iv;
+    int64_t remote_mm;
+
+    {
+        std::string remote_key = node->nodekey();
+        const char *iva = &remote_key[SymmCipher::KEYLENGTH];
+
+        cipher.setkey((byte*)&remote_key[0], node->type);
+        remote_iv = MemAccess::get<int64_t>(iva);
+        remote_mm = MemAccess::get<int64_t>(iva + sizeof(int64_t));
+    }
+
+    auto result = generate_metamac(cipher, *ifaccess, remote_iv);
+    if (!result.first)
+    {
+        cerr << "Failed to generate metamac for: "
+             << s.words[1].s
+             << endl;
+    }
+    else
+    {
+        const std::ios::fmtflags flags = cout.flags();
+
+        cout << s.words[2].s
+             << ": "
+             << std::hex
+             << (uint64_t)remote_mm
+             << "\n"
+             << s.words[1].s
+             << ": "
+             << (uint64_t)result.second
+             << endl;
+
+        cout.flags(flags);
+    }
 }
 
