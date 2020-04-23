@@ -1177,7 +1177,7 @@ struct StandardClient : public MegaApp
         }
         if (depth && n->node)
         {
-            EXPECT_EQ(n->node->displayname(), n->name) << "LocalNode attached to a Node with non-matching name/path: " << n->node->displaypath();   // todo: add a LocalNode function to get its path via parents, and display here also.
+            EXPECT_EQ(n->node->displayname(), n->name) << "LocalNode attached to a Node with non-matching name/path: " << n->localnodedisplaypath(*client.fsaccess) << " node:" << n->node->displaypath();
         }
         if (depth && mn->parent)
         {
@@ -4351,9 +4351,12 @@ struct OneWaySymmetryCase
         fs::create_directories(localTestBasePath, ec);
         ASSERT_TRUE(!ec);
         ASSERT_TRUE(buildLocalFolders(localTestBasePath, "f", 2, 2, 2));
+        ASSERT_TRUE(buildLocalFolders(localTestBasePath, "outside", 2, 1, 1));
 
         localModel.root->addkid(localModel.buildModelSubdirs("f", 2, 2, 2));
+        localModel.root->addkid(localModel.buildModelSubdirs("outside", 2, 1, 1));
         remoteModel.root->addkid(remoteModel.buildModelSubdirs("f", 2, 2, 2));
+        remoteModel.root->addkid(remoteModel.buildModelSubdirs("outside", 2, 1, 1));
 
         makeMtimeFile("file_older_1", -3600, localModel, remoteModel);
         makeMtimeFile("file_newer_1", 3600, localModel, remoteModel);
@@ -4398,8 +4401,11 @@ struct OneWaySymmetryCase
 
         if (reportaction) cout << name() << " action: remote rename " << n->displaypath() << " to " << newname << endl;
 
+        std::string oldname = n->attrs.map['n'];
         n->attrs.map['n'] = newname;
-        auto e = changeClient().client.setattr(n);
+        auto e = changeClient().client.setattr(n, nullptr, true);  //todo: instant speculative completion removal for this type of rename
+        n->attrs.map['n'] = oldname; // actual update will occur in sc processing
+
         ASSERT_TRUE(!e);
     }
 
@@ -4836,11 +4842,73 @@ struct OneWaySymmetryCase
             break;
 
         case action_moveOutOfSync:
-            source_move("f/f_1", "", true, false, false);
+            if (prep)
+            {
+                if (file)
+                {
+                    if (destinationMatchBefore == match_older) { destination_copy_renamed("f/f_1", "file1_f_1", "file0_f_0", "f/f_0", true, false, true); fileMayDiffer("f/f_0/file0_f_0"); }
+                    if (destinationMatchBefore == match_newer) { destination_copy_renamed("f/f_1", "file1_f_1", "file0_f_0", "f/f_0", true, false, true); fileMayDiffer("f/f_0/file0_f_0"); }
+                    if (destinationMatchBefore == match_absent) destination_delete("f/f_0/file0_f_0", true, false);
+                }
+                else
+                {
+                    if (destinationMatchBefore == match_older) destination_copy_renamed("f/f_0", "f_0_1", "f_1", "f", true, false, true);
+                    if (destinationMatchBefore == match_newer) destination_copy_renamed("f/f_0", "f_0_1", "f_1", "f", true, false, true);
+                    if (destinationMatchBefore == match_absent) destination_delete("f/f_1", true, false);
+                }
+            }
+            else if (act)
+            {
+                if (file)
+                {
+                    source_move("f/f_0/file0_f_0", "outside", true, false, false);
+                    if (propagateDeletes)
+                    {
+                        destinationModel().emulate_delete("f/f_0/file0_f_0");
+                    }
+                }
+                else
+                {
+                    source_move("f/f_0", "outside", true, false, false);
+                    if (propagateDeletes)
+                    {
+                        destinationModel().emulate_delete("f/f_0");
+                    }
+                }
+            }
             break;
 
         case action_moveIntoSync:
-            source_move("f_2", "f/f_1", true, false, false);
+            if (prep)
+            {
+                if (file)
+                {
+                    if (destinationMatchAfter == match_exact) destination_copy_renamed("outside", "file0_outside", "file0_outside", "f/f_0", true, false, false);  // not really renaming
+                    if (destinationMatchAfter == match_older) { destination_copy_renamed("f", "file_older_2", "file0_outside", "f/f_0", true, false, true); fileMayDiffer("f/f_0/file0_outside"); }
+                    if (destinationMatchAfter == match_newer) { destination_copy_renamed("f", "file_newer_2", "file0_outside", "f/f_0", true, false, true); fileMayDiffer("f/f_0/file0_outside"); }
+                }
+                else
+                {
+                    if (destinationMatchAfter == match_exact) destination_copy("outside", "f/f_0", true, false);
+                    if (destinationMatchAfter == match_older) destination_copy("outside", "f/f_0", true, false);    //todo:  actually make it older
+                    if (destinationMatchAfter == match_newer) destination_copy("outside", "f/f_0", true, false);
+                }
+            }
+            else if (act)
+            {
+                if (file)
+                {
+                    source_move("outside/file0_outside", "f/f_0", true, false, false);
+                    destinationModel().emulate_delete("f/f_0/file0_outside");
+                    destinationModel().emulate_copy("outside/file0_outside", "f/f_0");
+                }
+                else
+                {
+                    source_move("outside", "f/f_0", true, false, false);
+                    destinationModel().emulate_delete("f/f_0/outside");
+                    destinationModel().emulate_copy("outside", "f/f_0");
+                }
+            }
             break;
 
         case action_delete:
@@ -4898,7 +4966,7 @@ struct OneWaySymmetryCase
             }
         }
 
-        if (!initial) cout << "Checking setup state (should be no changes in oneway sync source)"<< name() << endl;
+        if (!initial) cout << "Checking setup state (should be no changes in oneway sync source): "<< name() << endl;
 
         // confirm source is unchanged after setup  (one-way is not sending changes to the wrong side)
         bool localfs = state.client.confirmModel(sync_tag, localModel.findnode("f"), StandardClient::CONFIRM_LOCALFS, true); // todo: later enable debris checks
@@ -4906,7 +4974,7 @@ struct OneWaySymmetryCase
         bool remote = state.client.confirmModel(sync_tag, remoteModel.findnode("f"), StandardClient::CONFIRM_REMOTE, true); // todo: later enable debris checks
         EXPECT_EQ(localfs, localnode);
         EXPECT_EQ(localnode, remote);
-        EXPECT_TRUE(localfs && localnode && remote);
+        EXPECT_TRUE(localfs && localnode && remote) << " failed in " << name();
     }
 
 
@@ -4933,7 +5001,7 @@ struct OneWaySymmetryCase
         bool remote = state.client.confirmModel(sync_tag, remoteModel.findnode("f"), StandardClient::CONFIRM_REMOTE, true); // todo: later enable debris checks
         EXPECT_EQ(localfs, localnode);
         EXPECT_EQ(localnode, remote);
-        EXPECT_TRUE(localfs && localnode && remote);
+        EXPECT_TRUE(localfs && localnode && remote) << " failed in " << name();
     }
 };
 
@@ -4960,7 +5028,7 @@ TEST(Sync, OneWay_Highlevel_Symmetries)
     std::map<std::string, OneWaySymmetryCase> cases;
 
     static bool singleCase = false;
-    static string singleNamedTest = "";//"rename_other_down_file_beforemismatch_afterabsent"; 
+    static string singleNamedTest = "";//"rename_self_down_file_beforenewer_afterexact";//"rename_other_down_file_beforemismatch_afterabsent"; 
     if (singleCase)
     {
         OneWaySymmetryCase testcase(allstate);
@@ -4976,14 +5044,18 @@ TEST(Sync, OneWay_Highlevel_Symmetries)
         cases.emplace(testcase.name(), move(testcase));
     }
     else
-    for (int selfChange = 0; selfChange < 1; ++selfChange)
+    for (int selfChange = 0; selfChange < 2; ++selfChange)
     {
+        //if (!selfChange) continue;
+
         for (int up = 0; up < 2; ++up)
         {
-            for (int action = (int)OneWaySymmetryCase::action_rename; action <= (int)OneWaySymmetryCase::action_moveWithinSync /*< (int)OneWaySymmetryCase::action_numactions*/; ++action)
+            for (int action = (int)OneWaySymmetryCase::action_rename; action < (int)OneWaySymmetryCase::action_numactions; ++action)
             {
                 for (int file = 1; file < 2; ++file)
                 {
+                    if (!file) continue;
+
                     for (int destinationMatchBefore = 0; destinationMatchBefore < 3; ++destinationMatchBefore)
                     {
                         for (int destinationMatchAfter = 0; destinationMatchAfter < 3; ++destinationMatchAfter)
@@ -4994,8 +5066,10 @@ TEST(Sync, OneWay_Highlevel_Symmetries)
                             {
                                 for (int forceOverwrites = 0; forceOverwrites < 2; ++forceOverwrites)
                                 {
-                                    for (int pauseDuringAction = 0; pauseDuringAction < 1; ++pauseDuringAction)
+                                    for (int pauseDuringAction = 0; pauseDuringAction < 2; ++pauseDuringAction)
                                     {
+                                        if (pauseDuringAction) continue;
+
                                         OneWaySymmetryCase testcase(allstate);
                                         testcase.selfChange = selfChange != 0;
                                         testcase.up = up;
@@ -5033,7 +5107,7 @@ TEST(Sync, OneWay_Highlevel_Symmetries)
         testcase.second.SetupForSync();
     }
 
-    cout << "Full-sync to the cloud for setup" << endl;
+    cout << "Full-sync all test folders to the cloud for setup" << endl;
     waitonsyncs(10s, &clientA1);
     CatchupClients(clientA1, clientA2);
     waitonsyncs(20s, &clientA1);
@@ -5042,7 +5116,7 @@ TEST(Sync, OneWay_Highlevel_Symmetries)
     future<bool> fb = clientA1.thread_do([](StandardClient& sc, promise<bool>& pb) { sc.client.delsync(sc.syncByTag(1), true); pb.set_value(true); });
     ASSERT_TRUE(waitonresults(&fb));
 
-    cout << "Setting up each sub-test's one-way sync" << endl;
+    cout << "Setting up each sub-test's one-way sync of 'f'" << endl;
     for (auto& testcase : cases)
     {
         testcase.second.SetupOneWaySync();

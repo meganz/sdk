@@ -954,10 +954,10 @@ void CommandGetFile::procresult()
     }
 }
 
-CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n, SymmCipher* cipher, const char* prevattr)
+CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n, SymmCipher* cipher, const char* prevattr, bool processActionpackets)
 {
     cmd("a");
-    notself(client);
+    if (!processActionpackets) notself(client);
 
     string at;
 

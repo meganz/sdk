@@ -1472,8 +1472,8 @@ WinDirNotify::WinDirNotify(LocalPath& localbasepath, const LocalPath& ignore) : 
     exit = false;
     active = 0;
 
-    notifybuf[0].resize(65534);
-    notifybuf[1].resize(65534);
+    notifybuf[0].resize(655340);
+    notifybuf[1].resize(655340);
 
     int added = WinFileSystemAccess::sanitizedriveletter(localbasepath);
     localbasepath.editStringDirect()->append("", 1);

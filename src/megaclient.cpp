@@ -6899,15 +6899,8 @@ void MegaClient::makeattr(SymmCipher* key, const std::unique_ptr<string>& attrst
 
 // update node attributes
 // (with speculative instant completion)
-error MegaClient::setattr(Node* n, const char *prevattr)
+error MegaClient::setattr(Node* n, const char *prevattr, bool processActionpackets)
 {
-#ifdef ENABLE_SYNC
-    if (n->localnode && !n->localnode->sync->getConfig().syncsToCloud())
-    {
-        return API_OK;
-    }
-#endif
-
     if (!checkaccess(n, FULL))
     {
         return API_EACCESS;
@@ -6924,7 +6917,7 @@ error MegaClient::setattr(Node* n, const char *prevattr)
     n->tag = reqtag;
     notifynode(n);
 
-    reqs.add(new CommandSetAttr(this, n, cipher, prevattr));
+    reqs.add(new CommandSetAttr(this, n, cipher, prevattr, processActionpackets));
 
     return API_OK;
 }

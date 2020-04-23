@@ -523,7 +523,7 @@ class MEGA_API CommandSetAttr : public Command
 public:
     void procresult();
 
-    CommandSetAttr(MegaClient*, Node*, SymmCipher*, const char* = NULL);
+    CommandSetAttr(MegaClient*, Node*, SymmCipher*, const char* = NULL, bool processActionpackets = false);
 };
 
 class MEGA_API CommandSetShare : public Command
