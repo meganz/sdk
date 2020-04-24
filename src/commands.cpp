@@ -7608,10 +7608,13 @@ CommandGetRegisteredContacts::CommandGetRegisteredContacts(MegaClient* client, c
 {
     cmd("usabd");
 
+    arg("v", 1);
+
     beginobject("e");
     for (const auto& pair : contacts)
     {
-        arg(pair.first, pair.second);
+        arg(Base64::btoa(pair.first).c_str(), // name is text-input from user, need conversion too
+            (byte *)pair.second, static_cast<int>(strlen(pair.second)));
     }
     endobject();
 
@@ -7669,7 +7672,9 @@ void CommandGetRegisteredContacts::processResult(MegaApp& app, JSON& json)
                     }
                     else
                     {
-                        registeredContacts.emplace_back(make_tuple(move(entryUserDetail), move(id), move(userDetail)));
+                        registeredContacts.emplace_back(
+                                    make_tuple(Base64::atob(entryUserDetail), move(id),
+                                               Base64::atob(userDetail)));
                     }
                     exit = true;
                     break;
