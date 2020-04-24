@@ -96,7 +96,13 @@ bool User::serialize(string* d)
 
     d->append((char*)&attrVersion, 1);
 
-    d->append((char*)&mBizMode, 1);
+    char bizMode = 0;
+    if (mBizMode != BIZ_MODE_UNKNOWN) // convert number to ascii
+    {
+        bizMode = '0' + mBizMode;
+    }
+
+    d->append((char*)&bizMode, 1);
     d->append("\0\0\0\0\0", 6);
 
     // serialization of attributes
@@ -179,8 +185,21 @@ User* User::unserialize(MegaClient* client, string* d)
     attrVersion = MemAccess::get<char>(ptr);
     ptr += sizeof(attrVersion);
 
-    BizMode bizMode = static_cast<BizMode>(MemAccess::get<char>(ptr));
-    ptr += sizeof(char);
+    char bizModeValue = MemAccess::get<char>(ptr);
+    ptr += sizeof(bizModeValue);
+    BizMode bizMode;
+    switch (bizModeValue)
+    {
+        case '0':
+            bizMode = BIZ_MODE_SUBUSER;
+            break;
+        case '1':
+            bizMode = BIZ_MODE_MASTER;
+            break;
+        default:
+            bizMode = BIZ_MODE_UNKNOWN;
+            break;
+    }
 
     for (i = 6; i--;)
     {
