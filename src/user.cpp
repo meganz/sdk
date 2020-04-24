@@ -171,7 +171,7 @@ User* User::unserialize(MegaClient* client, string* d)
     }
     ptr += l;
 
-    if (ptr + sizeof(char) > end)
+    if (ptr + sizeof(char) + sizeof(char) > end)
     {
         return NULL;
     }
