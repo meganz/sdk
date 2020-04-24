@@ -4595,6 +4595,15 @@ void exec_users(autocomplete::ACState& s)
                     cout << ", public key cached";
                 }
 
+                if (it->second.mBizMode == BIZ_MODE_MASTER)
+                {
+                    cout << ", business master user";
+                }
+                else if (it->second.mBizMode == BIZ_MODE_SUBUSER)
+                {
+                    cout << ", business sub-user";
+                }
+
                 cout << endl;
             }
         }
