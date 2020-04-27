@@ -4026,9 +4026,8 @@ void CommandGetUserData::procresult()
 
                     if (unshareableKey.size() == Base64Str<SymmCipher::BLOCKSIZE>::STRLEN)
                     {
-                        client->unshareablekey.swap(unshareableKey);
                         u->setattr(ATTR_UNSHAREABLE_KEY, &unshareableKey, &versionUnshareableKey);
-                        LOG_info << "Received unshareable key";
+                        client->unshareablekey.swap(unshareableKey);
                     }
                     else if (unshareableKey.empty())
                     {
