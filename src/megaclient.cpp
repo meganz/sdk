@@ -14036,8 +14036,8 @@ Node* MegaClient::nodebyfingerprint(FileFingerprint* fingerprint)
 
 Node* MegaClient::nodebyfingerprint(LocalNode* localNode)
 {
-    const node_vector *remoteNodes =
-      mFingerprints.nodesbyfingerprint(localNode);
+    std::unique_ptr<const node_vector>
+      remoteNodes(mFingerprints.nodesbyfingerprint(localNode));
 
     if (remoteNodes->empty())
         return nullptr;
