@@ -4161,38 +4161,43 @@ void CommandGetUserData::procresult()
 
 void CommandGetUserData::parseUserAttribute(std::string &value, std::string &version, bool asciiToBinary)
 {
-    string buf;
     string info;
-    client->json.storeobject(&info);
+    if (!client->json.storeobject(&info))
+    {
+        LOG_err << "Failed to parse user attribute from the array";
+        return;
+    }
+
+    string buf;
     JSON json;
     json.pos = info.c_str() + 1;
     for (;;)
     {
         switch (json.getnameid())
         {
-            case MAKENAMEID2('a','v'):
+            case MAKENAMEID2('a','v'):  // value
             {
                 json.storeobject(&buf);
                 break;
             }
-            case 'v':
+            case 'v':   // version
             {
                 json.storeobject(&version);
                 break;
             }
             case EOO:
             {
-                // convert from ASCII to binary the received data
-                if (asciiToBinary)
-                {
-                    value.resize(buf.size() / 4 * 3 + 3);
-                    value.resize(Base64::atob(buf.data(), (byte *)value.data(), int(value.size())));
-                }
-                else
-                {
-                    value = buf;
-                }
+                value = asciiToBinary ? Base64::atob(buf) : buf;
                 return;
+            }
+            default:
+            {
+                if (!json.storeobject())
+                {
+                    version.clear();
+                    LOG_err << "Failed to parse user attribute inside the array";
+                    return;
+                }
             }
         }
     }
