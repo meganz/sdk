@@ -3026,6 +3026,7 @@ void CommandPutUA::procresult()
         }
         else if (at == ATTR_UNSHAREABLE_KEY)
         {
+            LOG_info << "Unshareable key successfully created";
             client->unshareablekey.swap(av);
         }
     }
@@ -4029,14 +4030,12 @@ void CommandGetUserData::procresult()
                         u->setattr(ATTR_UNSHAREABLE_KEY, &unshareableKey, &versionUnshareableKey);
                         client->unshareablekey.swap(unshareableKey);
                     }
-                    else if (unshareableKey.empty())
+                    else if (unshareableKey.empty())    // it has not been created yet
                     {
+                        LOG_info << "Creating unshareable key...";
                         byte newunshareablekey[SymmCipher::BLOCKSIZE];
                         client->rng.genblock(newunshareablekey, sizeof(newunshareablekey));
-                        CommandPutUA* putua = new CommandPutUA(client, ATTR_UNSHAREABLE_KEY, newunshareablekey, sizeof(newunshareablekey), 0);
-                        putua->notself(client);
-                        client->reqs.add(putua);
-                        LOG_info << "Creating unshareable key";
+                        client->putua(ATTR_UNSHAREABLE_KEY, newunshareablekey, sizeof(newunshareablekey), 0);
                     }
                     else
                     {
