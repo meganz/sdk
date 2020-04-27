@@ -804,9 +804,12 @@ private:
     vector<TimerWithBackoff *> bttimers;
 
     // server-client command trigger connection
-    HttpReq* pendingsc;
+    std::unique_ptr<HttpReq> pendingsc;
+    std::unique_ptr<HttpReq> pendingscUserAlerts;
     BackoffTimer btsc;
     bool stopsc = false;
+    bool pendingscTimedOut = false;
+
 
     // badhost report
     HttpReq* badhostcs;
@@ -1582,6 +1585,12 @@ public:
     // -1: expired, 0: inactive (no business subscription), 1: active, 2: grace-period
     BizStatus mBizStatus;
 
+    // list of handles of the Master business account/s
+    std::set<handle> mBizMasters;
+
+    // whether the destructor has started running yet
+    bool destructorRunning = false;
+  
     // Keep track of high level operation counts and times, for performance analysis
     struct PerformanceStats
     {

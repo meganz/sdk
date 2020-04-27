@@ -25,12 +25,18 @@
 #define DEBRISFOLDER "Rubbish"
 
 namespace mega {
+
+class MEGA_API WinFileAccess;
+
 struct MEGA_API WinDirAccess : public DirAccess
 {
     bool ffdvalid;
     WIN32_FIND_DATAW ffd;
     HANDLE hFind;
     string globbase;
+
+    WIN32_FIND_DATAW currentItemAttributes;
+    friend class WinFileAccess;
 
 public:
     bool dopen(string*, FileAccess*, bool) override;
@@ -75,7 +81,7 @@ public:
     static bool istransient(DWORD);
     bool istransientorexists(DWORD);
 
-    void osversion(string*) const override;
+    void osversion(string*, bool includeArchExtraInfo) const override;
     void statsid(string*) const override;
 
     static void emptydirlocal(string*, dev_t = 0);
@@ -136,8 +142,8 @@ public:
     HANDLE hFind;
     WIN32_FIND_DATAW ffd;
 
-    bool fopen(string*, bool, bool);
-    bool fopen(string*, bool, bool, bool);
+    bool fopen(string*, bool, bool, DirAccess* iteratingDir) override;
+    bool fopen_impl(string*, bool, bool, bool, DirAccess* iteratingDir);
     void updatelocalname(string*) override;
     bool fread(string *, unsigned, unsigned, m_off_t);
     bool fwrite(const byte *, unsigned, m_off_t);

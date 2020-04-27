@@ -2778,11 +2778,20 @@ class MegaCLILogger : public ::mega::Logger {
 public:
     ofstream mLogFile;
 
-    void log(const char*, int loglevel, const char*, const char *message) override
+    void log(const char*, int loglevel, const char*, const char *message
+#ifdef ENABLE_LOG_PERFORMANCE
+                 , const char **directMessages, size_t *directMessagesSizes, unsigned numberMessages
+#endif
+    ) override
     {
         if (mLogFile.is_open())
         {
-            mLogFile << Waiter::ds << " " << SimpleLogger::toStr(static_cast<LogLevel>(loglevel)) << ": " << message << std::endl;
+            mLogFile << Waiter::ds << " " << SimpleLogger::toStr(static_cast<LogLevel>(loglevel)) << ": ";
+            if (message) mLogFile << message;
+#ifdef ENABLE_LOG_PERFORMANCE
+            for (unsigned i = 0; i < numberMessages; ++i) mLogFile.write(directMessages[i], directMessagesSizes[i]);
+#endif
+            mLogFile << std::endl;
         }
         else
         {
@@ -2798,7 +2807,10 @@ public:
             s.reserve(1024);
             s += ts;
             s += " ";
-            s += message;
+            if (message) s += message;
+#ifdef ENABLE_LOG_PERFORMANCE
+            for (unsigned i = 0; i < numberMessages; ++i) s.append(directMessages[i], directMessagesSizes[i]);
+#endif
             s += "\r\n";
             OutputDebugStringA(s.c_str());
 #else
@@ -2817,9 +2829,26 @@ public:
     }
 };
 
+void exec_fingerprint(autocomplete::ACState& s)
+{
+    string localfilepath, filepath = s.words[1].s;
+    client->fsaccess->path2local(&filepath, &localfilepath);
+    auto fa = client->fsaccess->newfileaccess();
+    if (fa->fopen(&localfilepath, true, false, nullptr))
+    {
+        FileFingerprint fp;
+        fp.genfingerprint(fa.get());
+        cout << Utils::stringToHex(std::string((const char*)&fp.size, sizeof(fp.size))) << "/" << 
+                Utils::stringToHex(std::string((const char*)&fp.mtime, sizeof(fp.mtime))) << "/" <<
+                Utils::stringToHex(std::string((const char*)&fp.crc, sizeof(fp.crc))) << endl;
+    }
+    else
+    {
+        cout << "Failed to open: " << filepath << endl;
+    }
+}
+
 MegaCLILogger gLogger;
-
-
 
 autocomplete::ACN autocompleteSyntax()
 {
@@ -2914,6 +2943,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_log, sequence(text("log"), either(text("utf8"), text("utf16"), text("codepage")), localFSFile()));
 #endif
     p->Add(exec_test, sequence(text("test"), opt(param("data"))));
+    p->Add(exec_fingerprint, sequence(text("fingerprint"), localFSFile("localfile")));
 #ifdef ENABLE_CHAT
     p->Add(exec_chats, sequence(text("chats")));
     p->Add(exec_chatc, sequence(text("chatc"), param("group"), repeat(opt(sequence(contactEmail(client), either(text("ro"), text("sta"), text("mod")))))));
@@ -4563,6 +4593,15 @@ void exec_users(autocomplete::ACState& s)
                 if (it->second.pubk.isvalid())
                 {
                     cout << ", public key cached";
+                }
+
+                if (it->second.mBizMode == BIZ_MODE_MASTER)
+                {
+                    cout << ", business master user";
+                }
+                else if (it->second.mBizMode == BIZ_MODE_SUBUSER)
+                {
+                    cout << ", business sub-user";
                 }
 
                 cout << endl;

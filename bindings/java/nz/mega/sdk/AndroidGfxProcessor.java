@@ -15,12 +15,13 @@ import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Matrix;
 import android.graphics.Rect;
-import android.media.ExifInterface;
 import android.media.MediaMetadataRetriever;
 import android.media.ThumbnailUtils;
 import android.net.Uri;
 import android.provider.BaseColumns;
 import android.provider.MediaStore;
+
+import androidx.exifinterface.media.ExifInterface;
 
 import static mega.privacy.android.app.utils.LogUtil.*;
 

@@ -3649,6 +3649,7 @@ void CommandGetUserData::procresult()
     bool b = false;
     BizMode m = BIZ_MODE_UNKNOWN;
     BizStatus s = BIZ_STATUS_UNKNOWN;
+    std::set<handle> masters;
     std::vector<std::pair<BizStatus, m_time_t>> sts;
 
     if (client->json.isnumeric())
@@ -3776,6 +3777,25 @@ void CommandGetUserData::procresult()
 
                         case 'm':   // mode
                             m = BizMode(client->json.getint32());
+                            break;
+
+                        case MAKENAMEID2('m', 'u'):
+                            if (client->json.enterarray())
+                            {
+                                for (;;)
+                                {
+                                    handle uh = client->json.gethandle(MegaClient::USERHANDLE);
+                                    if (!ISUNDEF(uh))
+                                    {
+                                        masters.emplace(uh);
+                                    }
+                                    else
+                                    {
+                                        break;
+                                    }
+                                }
+                                client->json.leavearray();
+                            }
                             break;
 
                         case MAKENAMEID3('s', 't', 's'):    // status timestamps
@@ -4061,6 +4081,9 @@ void CommandGetUserData::procresult()
                         }
 
                         client->mBizMode = m;
+                        // subusers must receive the list of master users
+                        assert(m != BIZ_MODE_SUBUSER || !masters.empty());
+                        client->mBizMasters = masters;
 
                         if (client->mBizStatus != s)
                         {
@@ -4092,7 +4115,16 @@ void CommandGetUserData::procresult()
                         // TODO: check if type of account has changed and notify with new event (not yet supported by API)
                     }
                 }
-                else
+            }
+            else
+            {
+                BizStatus oldStatus = client->mBizStatus;
+                client->mBizStatus = BIZ_STATUS_INACTIVE;
+                client->mBizMode = BIZ_MODE_UNKNOWN;
+                client->mBizMasters.clear();
+                client->mBizExpirationTs = client->mBizGracePeriodTs = 0;
+
+                if (client->mBizStatus != oldStatus)
                 {
                     BizStatus oldStatus = client->mBizStatus;
                     client->mBizStatus = BIZ_STATUS_INACTIVE;
@@ -7801,10 +7833,13 @@ CommandGetRegisteredContacts::CommandGetRegisteredContacts(MegaClient* client, c
 {
     cmd("usabd");
 
+    arg("v", 1);
+
     beginobject("e");
     for (const auto& pair : contacts)
     {
-        arg(pair.first, pair.second);
+        arg(Base64::btoa(pair.first).c_str(), // name is text-input from user, need conversion too
+            (byte *)pair.second, static_cast<int>(strlen(pair.second)));
     }
     endobject();
 
@@ -7862,7 +7897,9 @@ void CommandGetRegisteredContacts::processResult(MegaApp& app, JSON& json)
                     }
                     else
                     {
-                        registeredContacts.emplace_back(make_tuple(move(entryUserDetail), move(id), move(userDetail)));
+                        registeredContacts.emplace_back(
+                                    make_tuple(Base64::atob(entryUserDetail), move(id),
+                                               Base64::atob(userDetail)));
                     }
                     exit = true;
                     break;

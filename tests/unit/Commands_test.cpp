@@ -62,7 +62,7 @@ TEST(Commands, CommandGetRegisteredContacts_processResult_happyPath)
     MockApp_CommandGetRegisteredContacts app;
 
     JSON json;
-    json.pos = R"({"eud":"foo@mega.co.nz","id":"13","ud":"foo@mega.co.nz"},{"eud":"+64271234567","id":"42","ud":"+64 27 123 4567"})";
+    json.pos = R"({"eud":"Zm9vQG1lZ2EuY28ubno","id":"13","ud":"Zm9vQG1lZ2EuY28ubno"},{"eud":"KzY0MjcxMjM0NTY3","id":"42","ud":"KzY0IDI3IDEyMyA0NTY3"})";
     const auto jsonBegin = json.pos;
     const auto jsonLength = strlen(json.pos);
 
@@ -85,7 +85,7 @@ TEST(Commands, CommandGetRegisteredContacts_processResult_onlyOneContact)
     MockApp_CommandGetRegisteredContacts app;
 
     JSON json;
-    json.pos = R"({"eud":"foo@mega.co.nz","id":"13","ud":"foo@mega.co.nz"})";
+    json.pos = R"({"eud":"Zm9vQG1lZ2EuY28ubno","id":"13","ud":"Zm9vQG1lZ2EuY28ubno"})";
     const auto jsonBegin = json.pos;
     const auto jsonLength = strlen(json.pos);
 
@@ -107,7 +107,7 @@ TEST(Commands, CommandGetRegisteredContacts_processResult_extraFieldShouldBeIgno
     MockApp_CommandGetRegisteredContacts app;
 
     JSON json;
-    json.pos = R"({"eud":"foo@mega.co.nz","id":"13","ud":"foo@mega.co.nz","blah":"42"})";
+    json.pos = R"({"eud":"Zm9vQG1lZ2EuY28ubno","id":"13","ud":"Zm9vQG1lZ2EuY28ubno","YmxhaA":"42"})";
     const auto jsonBegin = json.pos;
     const auto jsonLength = strlen(json.pos);
 
@@ -129,7 +129,7 @@ TEST(Commands, CommandGetRegisteredContacts_processResult_invalidResponse)
     MockApp_CommandGetRegisteredContacts app;
 
     JSON json;
-    json.pos = R"({"eud":"foo@mega.co.nz","id":"13","blah":"foo@mega.co.nz"})";
+    json.pos = R"({"eud":"Zm9vQG1lZ2EuY28ubno","id":"13","YmxhaA":"42"})";
     const auto jsonBegin = json.pos;
     const auto jsonLength = strlen(json.pos);
 
