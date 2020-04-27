@@ -47,6 +47,8 @@ struct MEGA_API User : public Cacheable
     // contact establishment timestamp
     m_time_t ctime;
 
+    BizMode mBizMode = BIZ_MODE_UNKNOWN;
+
     struct
     {
         bool keyring : 1;   // private keys

@@ -19787,6 +19787,12 @@ void MegaApiImpl::sendPendingRequests()
             const char *email = request->getEmail();
             User *u = client->finduser(email);
             if(!u || u->show == HIDDEN || u->userhandle == client->me) { e = API_EARGS; break; }
+            if (client->mBizMode == BIZ_MODE_SUBUSER && u->mBizMode != BIZ_MODE_UNKNOWN)
+            {
+                e = API_EMASTERONLY;
+                break;
+            }
+
             e = client->removecontact(email, HIDDEN);
             break;
         }
