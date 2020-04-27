@@ -4865,6 +4865,7 @@ void CommandCreateEphemeralSession::procresult()
 {
     if (client->json.isnumeric())
     {
+        client->ephemeralSession = false;
         client->app->ephemeral_result((error)client->json.getint());
     }
     else
