@@ -2298,49 +2298,49 @@ bool operator==(const SyncConfig& lhs, const SyncConfig& rhs)
     return lhs.tie() == rhs.tie();
 }
 
-std::pair<bool, int64_t> generate_metamac(SymmCipher &cipher, FileAccess &ifaccess, const int64_t iv)
+std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, FileAccess &ifAccess, const int64_t iv)
 {
-    FileInputStream isaccess(&ifaccess);
+    FileInputStream isAccess(&ifAccess);
 
-    return generate_metamac(cipher, isaccess, iv);
+    return generateMetaMac(cipher, isAccess, iv);
 }
 
-std::pair<bool, int64_t> generate_metamac(SymmCipher &cipher, InputStreamAccess &isaccess, const int64_t iv)
+std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &isAccess, const int64_t iv)
 {
     static const m_off_t SZ_1024K = 1l << 20;
     static const m_off_t SZ_128K  = 128l << 10;
 
     std::vector<byte> buffer;
-    chunkmac_map chunk_macs;
-    m_off_t chunk_length = 0;
+    chunkmac_map chunkMacs;
+    m_off_t chunkLength = 0;
     m_off_t current = 0;
-    m_off_t remaining = isaccess.size();
+    m_off_t remaining = isAccess.size();
 
     buffer.reserve(SZ_1024K + SymmCipher::BLOCKSIZE);
 
     while (remaining > 0)
     {
-        chunk_length =
-          std::min(chunk_length + SZ_128K,
+        chunkLength =
+          std::min(chunkLength + SZ_128K,
                    std::min(remaining, SZ_1024K));
 
-        if (!isaccess.read(&buffer[0], (unsigned int)chunk_length))
+        if (!isAccess.read(&buffer[0], (unsigned int)chunkLength))
             return std::make_pair(false, 0l);
 
-        memset(&buffer[chunk_length], 0, SymmCipher::BLOCKSIZE);
+        memset(&buffer[chunkLength], 0, SymmCipher::BLOCKSIZE);
 
         cipher.ctr_crypt(&buffer[0],
-                         (unsigned int)chunk_length,
+                         (unsigned int)chunkLength,
                          current,
                          iv,
-                         chunk_macs[current].mac,
+                         chunkMacs[current].mac,
                          1);
 
-        current += chunk_length;
-        remaining -= chunk_length;
+        current += chunkLength;
+        remaining -= chunkLength;
     }
 
-    return std::make_pair(true, chunk_macs.macsmac(&cipher));
+    return std::make_pair(true, chunkMacs.macsmac(&cipher));
 }
 
 } // namespace

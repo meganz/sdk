@@ -7978,13 +7978,12 @@ void exec_metamac(autocomplete::ACState& s)
         return;
     }
 
-    auto ifaccess = client->fsaccess->newfileaccess();
+    auto ifAccess = client->fsaccess->newfileaccess();
     {
-        std::string local_path;
+        std::string localPath;
+        client->fsaccess->path2local(&s.words[1].s, &localPath);
 
-        client->fsaccess->path2local(&s.words[1].s, &local_path);
-
-        if (!ifaccess->fopen(&local_path, 1, 0))
+        if (!ifAccess->fopen(&localPath, 1, 0))
         {
             cerr << "Failed to open: " << s.words[1].s << endl;
             return;
@@ -7992,19 +7991,19 @@ void exec_metamac(autocomplete::ACState& s)
     }
 
     SymmCipher cipher;
-    int64_t remote_iv;
-    int64_t remote_mm;
+    int64_t remoteIv;
+    int64_t remoteMac;
 
     {
-        std::string remote_key = node->nodekey();
-        const char *iva = &remote_key[SymmCipher::KEYLENGTH];
+        std::string remoteKey = node->nodekey();
+        const char *iva = &remoteKey[SymmCipher::KEYLENGTH];
 
-        cipher.setkey((byte*)&remote_key[0], node->type);
-        remote_iv = MemAccess::get<int64_t>(iva);
-        remote_mm = MemAccess::get<int64_t>(iva + sizeof(int64_t));
+        cipher.setkey((byte*)&remoteKey[0], node->type);
+        remoteIv = MemAccess::get<int64_t>(iva);
+        remoteMac = MemAccess::get<int64_t>(iva + sizeof(int64_t));
     }
 
-    auto result = generate_metamac(cipher, *ifaccess, remote_iv);
+    auto result = generateMetaMac(cipher, *ifAccess, remoteIv);
     if (!result.first)
     {
         cerr << "Failed to generate metamac for: "
@@ -8016,12 +8015,12 @@ void exec_metamac(autocomplete::ACState& s)
         const std::ios::fmtflags flags = cout.flags();
 
         cout << s.words[2].s
-             << ": "
+             << " (remote): "
              << std::hex
-             << (uint64_t)remote_mm
+             << (uint64_t)remoteMac
              << "\n"
              << s.words[1].s
-             << ": "
+             << " (local): "
              << (uint64_t)result.second
              << endl;
 

@@ -495,9 +495,9 @@ struct FileAccess;
 struct InputStreamAccess;
 class SymmCipher;
 
-std::pair<bool, int64_t> generate_metamac(SymmCipher &cipher, FileAccess &ifaccess, const int64_t iv);
+std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, FileAccess &ifAccess, const int64_t iv);
 
-std::pair<bool, int64_t> generate_metamac(SymmCipher &cipher, InputStreamAccess &isaccess, const int64_t iv);
+std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &isAccess, const int64_t iv);
 
 } // namespace
 
