@@ -4126,15 +4126,7 @@ void CommandGetUserData::procresult()
 
                 if (client->mBizStatus != oldStatus)
                 {
-                    BizStatus oldStatus = client->mBizStatus;
-                    client->mBizStatus = BIZ_STATUS_INACTIVE;
-                    client->mBizMode = BIZ_MODE_UNKNOWN;
-                    client->mBizExpirationTs = client->mBizGracePeriodTs = 0;
-
-                    if (client->mBizStatus != oldStatus)
-                    {
-                        client->app->notify_business_status(client->mBizStatus);
-                    }
+                    client->app->notify_business_status(client->mBizStatus);
                 }
             }
 
