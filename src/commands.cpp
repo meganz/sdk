@@ -5147,6 +5147,7 @@ void CommandConfirmSignupLink2::procresult()
     {
         client->ephemeralSession = false;
         client->app->confirmsignuplink2_result(uh, name.c_str(), email.c_str(), API_OK);
+        client->getuserdata();
     }
     else
     {
@@ -5179,6 +5180,7 @@ void CommandConfirmSignupLink::procresult()
 
     client->ephemeralSession = false;
     client->app->confirmsignuplink_result(API_OK);
+    client->getuserdata();
 }
 
 CommandSetKeyPair::CommandSetKeyPair(MegaClient* client, const byte* privk,
