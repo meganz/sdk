@@ -3631,6 +3631,8 @@ void CommandGetUserData::procresult()
     handle me = UNDEF;
     string chatFolder;
     string versionChatFolder;
+    string cameraUploadFolder;
+    string versionCameraUploadFolder;
     string aliases;
     string versionAliases;
     string disableVersions;
@@ -3747,6 +3749,10 @@ void CommandGetUserData::procresult()
 
         case MAKENAMEID4('*', '!', 'c', 'f'):
             parseUserAttribute(chatFolder, versionChatFolder);
+            break;
+
+        case MAKENAMEID5('*', '!', 'c', 'a', 'm'):
+            parseUserAttribute(cameraUploadFolder, versionCameraUploadFolder);
             break;
 
         case MAKENAMEID8('*', '!', '>', 'a', 'l', 'i', 'a', 's'):
@@ -4004,6 +4010,21 @@ void CommandGetUserData::procresult()
                             // store the value for private user attributes (decrypted version of serialized TLV)
                             unique_ptr<string> tlvString(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
                             changes += u->updateattr(ATTR_MY_CHAT_FILES_FOLDER, tlvString.get(), &versionChatFolder);
+                        }
+                        else
+                        {
+                            LOG_err << "Cannot extract TLV records for ATTR_MY_CHAT_FILES_FOLDER";
+                        }
+                    }
+
+                    if (cameraUploadFolder.size())
+                    {
+                        unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&cameraUploadFolder, &client->key));
+                        if (tlvRecords)
+                        {
+                            // store the value for private user attributes (decrypted version of serialized TLV)
+                            unique_ptr<string> tlvString(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
+                            changes += u->updateattr(ATTR_CAMERA_UPLOADS_FOLDER, tlvString.get(), &versionCameraUploadFolder);
                         }
                         else
                         {
