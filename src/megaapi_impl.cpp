@@ -1769,6 +1769,10 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     {
         changed |= MegaUser::CHANGE_TYPE_ALIAS;
     }
+    if (user->changed.unshareablekey)
+    {
+        changed |= MegaUser::CHANGE_TYPE_UNSHAREABLE_KEY;
+    }
 }
 
 MegaUserPrivate::MegaUserPrivate(MegaUser *user) : MegaUser()

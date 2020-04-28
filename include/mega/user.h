@@ -79,6 +79,7 @@ struct MEGA_API User : public Cacheable
         bool myChatFilesFolder : 1;   // target folder for my chat files
         bool pushSettings : 1;  // push notification settings
         bool alias : 1; // user's aliases
+        bool unshareablekey : 1;    // key to encrypt unshareable node attributes
     } changed;
 
     // user's public key

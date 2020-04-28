@@ -1215,6 +1215,7 @@ class MegaUser
             CHANGE_TYPE_MY_CHAT_FILES_FOLDER        = 0x400000,
             CHANGE_TYPE_PUSH_SETTINGS               = 0x800000,
             CHANGE_TYPE_ALIAS                       = 0x1000000,
+            CHANGE_TYPE_UNSHAREABLE_KEY             = 0x2000000,
         };
 
         /**
@@ -1293,6 +1294,12 @@ class MegaUser
          * - MegaUser::CHANGE_TYPE_PUSH_SETTINGS = 0x800000
          * Check if settings for push notifications have changed
          *
+         * - MegaUser::CHANGE_TYPE_ALIAS    = 0x1000000
+         * Check if aliases have changed
+         *
+         * - MegaUser::CHANGE_TYPE_UNSHAREABLE_KEY = 0x2000000
+         * (internal) The unshareable key has been created
+         *
          * @return true if this user has an specific change
          */
         virtual bool hasChanged(int changeType);
@@ -1370,6 +1377,12 @@ class MegaUser
          *
          * - MegaUser::CHANGE_TYPE_PUSH_SETTINGS = 0x800000
          * Check if settings for push notifications have changed
+         *
+         * - MegaUser::CHANGE_TYPE_ALIAS    = 0x1000000
+         * Check if aliases have changed
+         *
+         * - MegaUser::CHANGE_TYPE_UNSHAREABLE_KEY = 0x2000000
+         * (internal) The unshareable key has been created
          *
          */
         virtual int getChanges();

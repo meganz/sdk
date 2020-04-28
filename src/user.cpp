@@ -846,6 +846,7 @@ int User::needversioning(attr_t at)
         case ATTR_CONTACT_LINK_VERIFICATION:
         case ATTR_ALIAS:
         case ATTR_CAMERA_UPLOADS_FOLDER:
+        case ATTR_UNSHAREABLE_KEY:
             return 1;
 
         case ATTR_STORAGE_STATE: //putua is forbidden for this attribute
@@ -1289,6 +1290,10 @@ bool User::setChanged(attr_t at)
 
         case ATTR_ALIAS:
             changed.alias = true;
+            break;
+
+        case ATTR_UNSHAREABLE_KEY:
+            changed.unshareablekey = true;
             break;
 
         default:
