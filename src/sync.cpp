@@ -851,9 +851,12 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, st
 
         l->init(this, l->type, p, path, std::move(shortname));
 
+#ifdef DEBUG
+        std::unique_ptr<string> shortnameCheck;
         assert(!l->localname.empty() && 
-                (!l->slocalname && l->localname == *client->fsaccess->fsShortname(*path) ||
+                (!l->slocalname && (!(shortnameCheck = client->fsaccess->fsShortname(*path)) || l->localname == *shortnameCheck) ||
                 (l->slocalname && !l->slocalname->empty() && *l->slocalname != l->localname)));
+#endif
 
         l->parent_dbid = parent_dbid;
         l->size = size;
