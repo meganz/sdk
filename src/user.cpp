@@ -376,6 +376,7 @@ void User::removeattr(attr_t at, const string *version)
     }
 }
 
+// updates the user attribute value+version only if different
 int User::updateattr(attr_t at, std::string *av, std::string *v)
 {
     if (attrs[at] == *av && (!needversioning(at) || (needversioning(at) && attrsv[at] == *v)))

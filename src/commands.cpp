@@ -4045,6 +4045,7 @@ void CommandGetUserData::procresult()
 
                     if (changes > 0)
                     {
+                        u->setTag(tag ? tag : -1);
                         client->notifyuser(u);
                     }
                 }
