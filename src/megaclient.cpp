@@ -3920,7 +3920,7 @@ void MegaClient::locallogout(bool removecaches)
     disconnect();
     closetc();
 
-    purgenodesusersabortsc();
+    purgenodesusersabortsc(false);
 
     reqs.clear();
 
@@ -11785,7 +11785,7 @@ bool MegaClient::areCredentialsVerified(handle uh)
     return false;
 }
 
-void MegaClient::purgenodesusersabortsc()
+void MegaClient::purgenodesusersabortsc(bool keepOwnUser)
 {
     app->clearing();
 
@@ -11836,7 +11836,6 @@ void MegaClient::purgenodesusersabortsc()
     }
 
     newshares.clear();
-
     nodenotify.clear();
     usernotify.clear();
     pcrnotify.clear();
@@ -11854,7 +11853,7 @@ void MegaClient::purgenodesusersabortsc()
     for (user_map::iterator it = users.begin(); it != users.end(); )
     {
         User *u = &(it->second);
-        if (u->userhandle != me || u->userhandle == UNDEF)
+        if ((!keepOwnUser || u->userhandle != me) || u->userhandle == UNDEF)
         {
             umindex.erase(u->email);
             uhindex.erase(u->userhandle);
@@ -11862,8 +11861,13 @@ void MegaClient::purgenodesusersabortsc()
         }
         else
         {
+            // if there are changes to notify, restore the notification in the queue
+            if (u->notified)
+            {
+                usernotify.push_back(u);
+            }
+
             u->dbid = 0;
-            u->notified = false;
             it++;
         }
     }

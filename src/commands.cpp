@@ -5208,7 +5208,7 @@ void CommandFetchNodes::procresult()
     WAIT_CLASS::bumpds();
     client->fnstats.timeToLastByte = Waiter::ds - client->fnstats.startTime;
 
-    client->purgenodesusersabortsc();
+    client->purgenodesusersabortsc(true);
 
     if (client->json.isnumeric())
     {
