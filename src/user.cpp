@@ -376,14 +376,15 @@ void User::removeattr(attr_t at, const string *version)
     }
 }
 
-void User::updateattr(attr_t at, std::string *av, std::string *v)
+int User::updateattr(attr_t at, std::string *av, std::string *v)
 {
     if (attrs[at] == *av && (!needversioning(at) || (needversioning(at) && attrsv[at] == *v)))
     {
-        return;
+        return 0;
     }
 
     setattr(at, av, v);
+    return 1;
 }
 
 // returns the value if there is value (even if it's invalid by now)
