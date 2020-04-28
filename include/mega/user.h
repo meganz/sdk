@@ -115,6 +115,7 @@ public:
     void invalidateattr(attr_t at);
     bool isattrvalid(attr_t at);
     void removeattr(attr_t at, const string *version = nullptr);
+    void updateattr(attr_t at, string *av, string *v);
 
     static string attr2string(attr_t at);
     static string attr2longname(attr_t at);

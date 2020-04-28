@@ -3923,47 +3923,47 @@ void CommandGetUserData::procresult()
 
                     if (firstname.size())
                     {
-                        u->setattr(ATTR_FIRSTNAME, &firstname, &versionFirstname);
+                        u->updateattr(ATTR_FIRSTNAME, &firstname, &versionFirstname);
                     }
 
                     if (lastname.size())
                     {
-                        u->setattr(ATTR_LASTNAME, &lastname, &versionLastname);
+                        u->updateattr(ATTR_LASTNAME, &lastname, &versionLastname);
                     }
 
                     if (language.size())
                     {
-                        u->setattr(ATTR_LANGUAGE, &language, &versionLanguage);
+                        u->updateattr(ATTR_LANGUAGE, &language, &versionLanguage);
                     }
 
                     if (birthday.size())
                     {
-                        u->setattr(ATTR_BIRTHDAY, &birthday, &versionBirthday);
+                        u->updateattr(ATTR_BIRTHDAY, &birthday, &versionBirthday);
                     }
 
                     if (birthmonth.size())
                     {
-                        u->setattr(ATTR_BIRTHMONTH, &birthmonth, &versionBirthmonth);
+                        u->updateattr(ATTR_BIRTHMONTH, &birthmonth, &versionBirthmonth);
                     }
 
                     if (birthyear.size())
                     {
-                        u->setattr(ATTR_BIRTHYEAR, &birthyear, &versionBirthyear);
+                        u->updateattr(ATTR_BIRTHYEAR, &birthyear, &versionBirthyear);
                     }
 
                     if (country.size())
                     {
-                        u->setattr(ATTR_COUNTRY, &country, &versionCountry);
+                        u->updateattr(ATTR_COUNTRY, &country, &versionCountry);
                     }
 
                     if (pwdReminderDialog.size())
                     {
-                        u->setattr(ATTR_PWD_REMINDER, &pwdReminderDialog, &versionPwdReminderDialog);
+                        u->updateattr(ATTR_PWD_REMINDER, &pwdReminderDialog, &versionPwdReminderDialog);
                     }
 
                     if (pushSetting.size())
                     {
-                        u->setattr(ATTR_PUSH_SETTINGS, &pushSetting, &versionPushSetting);
+                        u->updateattr(ATTR_PUSH_SETTINGS, &pushSetting, &versionPushSetting);
 
                         // initialize the settings for the intermediate layer by simulating there was a getua()
                         client->app->getua_result((byte*) pushSetting.data(), (unsigned) pushSetting.size(), ATTR_PUSH_SETTINGS);
@@ -3971,12 +3971,12 @@ void CommandGetUserData::procresult()
 
                     if (contactLinkVerification.size())
                     {
-                        u->setattr(ATTR_CONTACT_LINK_VERIFICATION, &contactLinkVerification, &versionContactLinkVerification);
+                        u->updateattr(ATTR_CONTACT_LINK_VERIFICATION, &contactLinkVerification, &versionContactLinkVerification);
                     }
 
                     if (disableVersions.size())
                     {
-                        u->setattr(ATTR_DISABLE_VERSIONS, &disableVersions, &versionDisableVersions);
+                        u->updateattr(ATTR_DISABLE_VERSIONS, &disableVersions, &versionDisableVersions);
 
                         // initialize the status of file-versioning for the client
                         client->versions_disabled = (disableVersions == "1");
@@ -4002,7 +4002,7 @@ void CommandGetUserData::procresult()
                         {
                             // store the value for private user attributes (decrypted version of serialized TLV)
                             unique_ptr<string> tlvString(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
-                            u->setattr(ATTR_MY_CHAT_FILES_FOLDER, tlvString.get(), &versionChatFolder);
+                            u->updateattr(ATTR_MY_CHAT_FILES_FOLDER, tlvString.get(), &versionChatFolder);
                         }
                         else
                         {
@@ -4017,7 +4017,7 @@ void CommandGetUserData::procresult()
                         {
                             // store the value for private user attributes (decrypted version of serialized TLV)
                             unique_ptr<string> tlvString(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
-                            u->setattr(ATTR_ALIAS, tlvString.get(), &versionAliases);
+                            u->updateattr(ATTR_ALIAS, tlvString.get(), &versionAliases);
                         }
                         else
                         {
@@ -4027,7 +4027,7 @@ void CommandGetUserData::procresult()
 
                     if (unshareableKey.size() == Base64Str<SymmCipher::BLOCKSIZE>::STRLEN)
                     {
-                        u->setattr(ATTR_UNSHAREABLE_KEY, &unshareableKey, &versionUnshareableKey);
+                        u->updateattr(ATTR_UNSHAREABLE_KEY, &unshareableKey, &versionUnshareableKey);
                         client->unshareablekey.swap(unshareableKey);
                     }
                     else if (unshareableKey.empty())    // it has not been created yet
