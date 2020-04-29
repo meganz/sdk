@@ -13691,9 +13691,7 @@ void MegaApiImpl::clearing()
     map<int, MegaSyncPrivate *>::iterator it;
     for (it = syncMap.begin(); it != syncMap.end(); )
     {
-        MegaSyncPrivate *sync = (MegaSyncPrivate *)it->second;
-        syncMap.erase(it++);
-        delete sync;
+        it = eraseSyncByIterator(it);
     }
 #endif
 }
@@ -16132,6 +16130,30 @@ void MegaApiImpl::fireOnFileSyncStateChanged(MegaSyncPrivate *sync, string *loca
     {
         listener->onSyncFileStateChanged(api, sync, localPath, newState);
     }
+}
+
+void MegaApiImpl::eraseSync(int tag)
+{
+    eraseSyncByIterator(syncMap.find(tag));
+}
+
+map<int, MegaSyncPrivate *>::iterator MegaApiImpl::eraseSyncByIterator(map<int, MegaSyncPrivate *>::iterator it)
+{
+    if (it == syncMap.end())
+    {
+        return it;
+    }
+
+    MegaSyncPrivate *sync = it->second;
+    if (client->syncConfigs)
+    {
+        client->syncConfigs->remove(sync->getLocalFolder());
+    }
+    auto toret = syncMap.erase(it);
+    fireonSyncDeleted(sync);
+    delete sync;
+
+    return toret;
 }
 
 #endif
@@ -20789,15 +20811,13 @@ void MegaApiImpl::sendPendingRequests()
                 if (syncMap.find(tag) != syncMap.end())
                 {
                     sync->appData = NULL;
-                    MegaSyncPrivate *megaSync = syncMap.at(tag);
-                    syncMap.erase(tag);
-                    delete megaSync;
+                    eraseSync(tag);
                 }
             }
             fireOnRequestFinish(request, MegaError(API_OK));
             break;
         }
-        case MegaRequest::TYPE_REMOVE_SYNC:
+        case MegaRequest::TYPE_REMOVE_SYNC: //TODO: ideally we should redo this and receive the tag directly
         {
             handle nodehandle = request->getNodeHandle();
             int tag = static_cast<int>(request->getNumber());
@@ -20824,9 +20844,7 @@ void MegaApiImpl::sendPendingRequests()
                     if (syncMap.find(tag) != syncMap.end())
                     {
                         sync->appData = NULL;
-                        MegaSyncPrivate *megaSync = syncMap.at(tag);
-                        syncMap.erase(tag);
-                        delete megaSync;
+                        eraseSync(tag);
                     }
 
                     found = true;
@@ -20853,12 +20871,7 @@ void MegaApiImpl::sendPendingRequests()
 
                 if (tag && syncMap.find(tag) != syncMap.end())
                 {
-                    //TODO: refactor the following
-                    MegaSyncPrivate *megaSync = syncMap.at(tag);
-                    syncMap.erase(tag);
-                    fireonSyncDeleted(megaSync);
-                    delete megaSync; //The sysconfig won't be deleted in this case yet.
-                                     //TODO: move the removal of the syncConfig from ~Sync to ~MegaSyncPrivate (or better of, call it explicitly here, rather than hide it there, that will cause second effects)
+                    eraseSync(tag);
                     found = true;
                 }
             }

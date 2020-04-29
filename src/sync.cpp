@@ -780,12 +780,6 @@ Sync::~Sync()
     // must be set to prevent remote mass deletion while rootlocal destructor runs
     assert(state == SYNC_CANCELED || state == SYNC_FAILED);
 
-    if (!statecachetable && client->syncConfigs)
-    {
-        // if there's no localnode cache then remove the sync config
-        client->syncConfigs->remove(mLocalPath);
-    }
-
     // unlock tmp lock
     tmpfa.reset();
 

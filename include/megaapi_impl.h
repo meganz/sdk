@@ -2704,6 +2704,11 @@ protected:
 
 #ifdef ENABLE_SYNC
         map<int, MegaSyncPrivate *> syncMap;
+
+        // removes a sync from syncmap and from cache
+        void eraseSync(int tag);
+        map<int, MegaSyncPrivate *>::iterator eraseSyncByIterator(map<int, MegaSyncPrivate *>::iterator it);
+
 #endif
 
         int pendingUploads;
