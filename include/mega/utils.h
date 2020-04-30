@@ -437,7 +437,8 @@ struct CacheableWriter
     string& dest;
 
     void serializebinary(byte* data, size_t len);
-    void serializecstr(const char* field, bool storeNull);  // may store the '\0' also for backward compatibility
+    void serializecstr(const char* field, bool storeNull);  // may store the '\0' also for backward compatibility. Only use for utf8!  (std::string storing double byte chars will only store 1 byte)
+    void serializepstr(const string* field);  // uses string size() not strlen
     void serializestring(const string& field);
     void serializecompressed64(int64_t field);
     void serializei64(int64_t field);

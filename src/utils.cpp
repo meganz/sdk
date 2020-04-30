@@ -73,6 +73,13 @@ void CacheableWriter::serializecstr(const char* field, bool storeNull)
     dest.append(field, ll);
 }
 
+void CacheableWriter::serializepstr(const string* field)
+{
+    unsigned short ll = (unsigned short)(field ? field->size() : 0);
+    dest.append((char*)&ll, sizeof(ll));
+    if (field) dest.append(field->data(), ll);
+}
+
 void CacheableWriter::serializestring(const string& field)
 {
     unsigned short ll = (unsigned short)field.size();
