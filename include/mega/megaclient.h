@@ -533,7 +533,10 @@ public:
     // add sync. Will fill syncError in case there is one
     error addsync(SyncConfig, const char*, string*, int &syncError, int = 0, void* = NULL);
 
-    void delsync(Sync*, bool = true);
+    void delsync(Sync*);
+
+    // disable synchronization. Won't be resumed automatically anymore, but keep it in cache
+    void disableSync(Sync*);
 
     // close all open HTTP connections
     void disconnect();

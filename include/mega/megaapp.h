@@ -313,7 +313,8 @@ struct MEGA_API MegaApp
         return true;
     }
 
-    virtual void sync_auto_resumed(const string&, handle, long long, int, int, const vector<string>&) { }
+    // after reading (and if resumable) adding a sync
+    virtual void sync_load(const SyncConfig &, int) { }
 
     // suggest reload due to possible race condition with other clients
     virtual void reload(const char*) { }

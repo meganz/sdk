@@ -2725,7 +2725,7 @@ class MegaRequest
             TYPE_SET_ATTR_USER, TYPE_RETRY_PENDING_CONNECTIONS,
             TYPE_REMOVE_CONTACT, TYPE_CREATE_ACCOUNT,
             TYPE_CONFIRM_ACCOUNT,
-            TYPE_QUERY_SIGNUP_LINK, TYPE_ADD_SYNC, TYPE_REMOVE_SYNC,
+            TYPE_QUERY_SIGNUP_LINK, TYPE_ADD_SYNC, TYPE_REMOVE_SYNC, TYPE_ENABLE_SYNC, //TODO: doc this
             TYPE_COPY_SYNC_CONFIG,
             TYPE_REMOVE_SYNCS, TYPE_PAUSE_TRANSFERS,
             TYPE_CANCEL_TRANSFER, TYPE_CANCEL_TRANSFERS,
@@ -4584,6 +4584,11 @@ public:
 
 
 #ifdef ENABLE_SYNC
+/**
+ * @brief INVALID_SYNC_TAG Invalid value for a sync tag
+ */
+const int INVALID_SYNC_TAG = 0;
+
 
 /**
  * @brief Provides information about a synchronization event
@@ -4793,8 +4798,9 @@ public:
     enum
     {
         //TODO: fully review if those states are enough!
+        SYNC_DISABLED = -3, //disabled by the user.TODO: docs
         SYNC_FAILED = -2,
-        SYNC_CANCELED = -1, //aka. DISABLED_BY_USER //TODO: rename?
+        SYNC_CANCELED = -1,
         SYNC_INITIALSCAN = 0,
         SYNC_ACTIVE
     };
@@ -4811,6 +4817,11 @@ public:
         LOCAL_PATH_TEMPORARY_UNAVAILABLE = 6, //Note, this is fatal when adding a sync!
         LOCAL_PATH_UNAVAILABLE = 7,
         REMOTE_NODE_NOT_FOUND = 8,
+        STORAGE_OVERQUOTA = 9,
+        BUSINESS_EXPIRED = 10,
+        FOREIGN_TARGET_OVERSTORAGE = 11,
+        REMOTE_PATH_HAS_CHANGED = 12,
+
     };
 
     virtual ~MegaSync();
@@ -12156,7 +12167,7 @@ class MegaApi
                                  long long localfp, bool enabled, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Resume a previously synced folder
+         * @brief Resume a previously synced folder //TODO: remove references toall those (perhaps reuse something for the enableSync case)
          *
          * This function should be called in the onRequestFinish callback for MegaApi::fetchNodes, before the callback
          * returns, to ensure that all changes made in the MEGA account while the synchronization was stopped
@@ -12309,6 +12320,9 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void disableSync(MegaSync *sync, MegaRequestListener *listener = NULL);
+
+        //TODO: docs
+        void enableSync(MegaSync *sync, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Remove all active synced folders

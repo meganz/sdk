@@ -778,7 +778,7 @@ Sync::Sync(MegaClient* cclient, SyncConfig config, const char* cdebris,
 Sync::~Sync()
 {
     // must be set to prevent remote mass deletion while rootlocal destructor runs
-    assert(state == SYNC_CANCELED || state == SYNC_FAILED);
+    assert(state == SYNC_CANCELED || state == SYNC_FAILED || state == SYNC_DISABLED);
 
     // unlock tmp lock
     tmpfa.reset();
@@ -889,14 +889,14 @@ const SyncConfig& Sync::getConfig() const
     return *config;
 }
 
-void Sync::setResumable(const bool isResumable) //TODO: consider renaming to isEnable here
+void Sync::setEnabled(const bool isEnabled)
 {
     if (client->syncConfigs)
     {
         const auto config = client->syncConfigs->get(mLocalPath);
         assert(config);
         auto newConfig = *config;
-        newConfig.setEnabled(isResumable);
+        newConfig.setEnabled(isEnabled);
         client->syncConfigs->insert(newConfig);
     }
 }

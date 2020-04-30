@@ -3139,6 +3139,11 @@ void MegaApi::disableSync(MegaSync *sync, MegaRequestListener *listener)
     pImpl->disableSync(sync ? sync->getMegaHandle() : UNDEF, listener);
 }
 
+void MegaApi::enableSync(MegaSync *sync, MegaRequestListener *listener)
+{
+    pImpl->enableSync(sync ? sync->getTag() : INVALID_SYNC_TAG, listener);
+}
+
 void MegaApi::removeSyncs(MegaRequestListener *listener)
 {
    pImpl->stopSyncs(listener);

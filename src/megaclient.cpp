@@ -2406,7 +2406,7 @@ void MegaClient::exec()
                         {
                             Sync* sync = *it++;
 
-                            if (sync->state == SYNC_CANCELED || sync->state == SYNC_FAILED)
+                            if (sync->state == SYNC_CANCELED || sync->state == SYNC_FAILED || sync->state == SYNC_DISABLED)
                             {
                                 delete sync;
                                 continue;
@@ -3765,21 +3765,9 @@ void MegaClient::resumeResumableSyncs()
         {
             const auto e = addsync(config, DEBRISFOLDER, nullptr, syncError);
         }
-        else
-        {
-            //TODO: review this. sync_auto_resumed might need to change and receive config.isResumable()
-//            assert(config.getError() != NO_ERROR); //otherwise, sync_auto_resumed will crash!
-            if (config.getError() == NO_ERROR)
-            {
-                syncError = UNKNOWN_ERROR;
-            }
-        }
 
-        //TODO: rename sync_auto_resumed? or indicate that should be called when error too
-        // idea for name: create_megasync_object_and_add_to_map
-        app->sync_auto_resumed(config.getLocalPath(), config.getRemoteNode(),
-                               static_cast<long long>(config.getLocalFingerprint()),
-                               config.getTag(), syncError, config.getRegExps());
+        app->sync_load(config, syncError);
+
         mSyncTag = std::max(mSyncTag, config.getTag());
     }
 }
@@ -12186,7 +12174,7 @@ error MegaClient::addsync(SyncConfig syncConfig, const char* debris, string* loc
     bool inshare = false;
     if (!remotenode)
     {
-        syncError = UNSUPPORTED_FILE_SYSTEM;
+        syncError = REMOTE_NODE_NOT_FOUND;
         return API_ENOENT;
     }
     error e = isnodesyncable(remotenode, &inshare);
@@ -13675,18 +13663,28 @@ void MegaClient::execmovetosyncdebris()
 
 // we cannot delete the Sync object directly, as it might have pending
 // operations on it
-void MegaClient::delsync(Sync* sync, bool deletecache)
+void MegaClient::delsync(Sync* sync)
 {
     sync->changestate(SYNC_CANCELED);
 
-    sync->setResumable(false);
-
-    if (deletecache && sync->statecachetable)
+    if (sync->statecachetable)
     {
         sync->statecachetable->remove();
         delete sync->statecachetable;
         sync->statecachetable = NULL;
     }
+
+    syncactivity = true;
+}
+
+
+// we cannot delete the Sync object directly, as it might have pending
+// operations on it
+void MegaClient::disableSync(Sync* sync)
+{
+    sync->changestate(SYNC_DISABLED); //This will cause the later deletion of Sync object
+
+    sync->setEnabled(false);
 
     syncactivity = true;
 }

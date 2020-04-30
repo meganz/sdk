@@ -77,7 +77,7 @@ public:
     const SyncConfig& getConfig() const;
 
     // sets whether this sync is resumable (default is true)
-    void setResumable(bool isResumable);
+    void setEnabled(bool isEnabled);
 
     void* appData = nullptr;
 

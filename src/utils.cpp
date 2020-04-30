@@ -2100,7 +2100,7 @@ void SyncConfig::setEnabled(bool enabled)
 
 bool SyncConfig::isResumable() const
 {
-    return mEnabled /*TODO: && !isPermanent(mError)*/;
+    return mEnabled && !isMegaSyncErrorPermanent(mError);
 }
 
 const std::string& SyncConfig::getLocalPath() const

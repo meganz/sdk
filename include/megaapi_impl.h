@@ -1021,8 +1021,7 @@ public:
     virtual bool isEnabled() const;
     virtual bool isTemporaryDisabled() const;
 
-    bool getTemporarilyDisabled() const;
-    void setTemporarilyDisabled(bool temporarilyDisabled);
+    void setTemporaryDisabled(bool temporaryDisabled);
 
 protected:
     MegaHandle megaHandle;
@@ -1031,15 +1030,15 @@ protected:
     int tag;
     long long fingerprint;
     MegaSyncListener *listener;
-    int state; //this refers to status (initiascan/active/failed/canceled)
-    //TODO: review status variables and ensure they end up in ctors
+    int state; //this refers to status (initiascan/active/failed/canceled/disabled)
+
     //holds error cause
-    int mError; //TODO: initialize
+    int mError;
 
     // if temporarily disabled
-    bool mTemporarilyDisabled; //TODO: initialize
+    bool mTemporaryDisabled;
 
-    // if sync is enabled
+    // if sync is enabled. No need to store this: state != SYNC_FAILED, SYNC_CANCELED,SYNC_DISABLED
     //bool mEnabled;
 
 
@@ -2254,6 +2253,8 @@ class MegaApiImpl : public MegaApp
 
         void removeSync(handle nodehandle, MegaRequestListener *listener=NULL);
         void disableSync(handle nodehandle, MegaRequestListener *listener=NULL);
+//        void disableSync(int syncTag, MegaRequestListener *listener = NULL); //TODO
+        void enableSync(int syncTag, MegaRequestListener *listener = NULL);
         int getNumActiveSyncs();
         void stopSyncs(MegaRequestListener *listener=NULL);
         bool isSynced(MegaNode *n);
@@ -2983,7 +2984,9 @@ protected:
         void syncupdate_treestate(LocalNode*) override;
         bool sync_syncable(Sync *, const char*, string *, Node *) override;
         bool sync_syncable(Sync *, const char*, string *) override;
-        void sync_auto_resumed(const string& localPath, handle remoteNode, long long localFp, int tag, int error, const vector<string>& regExp) override;
+
+        void sync_load(const SyncConfig &config, int error) override;
+
         void syncupdate_local_lockretry(bool) override;
 
         // for the exclusive use of sync_syncable

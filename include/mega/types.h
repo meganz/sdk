@@ -279,7 +279,13 @@ typedef enum { PUTNODES_APP, PUTNODES_SYNC, PUTNODES_SYNCDEBRIS } putsource_t;
 // maps handle-index pairs to file attribute handle
 typedef map<pair<handle, fatype>, pair<handle, int> > fa_map;
 
-typedef enum { SYNC_FAILED = -2, SYNC_CANCELED = -1, SYNC_INITIALSCAN = 0, SYNC_ACTIVE } syncstate_t;
+typedef enum {
+    SYNC_DISABLED = -3, //user disabled
+    SYNC_FAILED = -2,
+    SYNC_CANCELED = -1, // being deleted
+    SYNC_INITIALSCAN = 0,
+    SYNC_ACTIVE
+} syncstate_t;
 
 //TODO: can we use named enum? otherwise, use names that should cause less collisions
 typedef enum {
@@ -289,11 +295,28 @@ typedef enum {
     INVALID_REMOTE_TYPE = 3,
     INVALID_LOCAL_TYPE = 4,
     INITIAL_SCAN_FAILED = 5,
-    LOCAL_PATH_TEMPORARY_UNAVAILABLE = 6, //Note, this is fatal when adding a sync!
+    LOCAL_PATH_TEMPORARY_UNAVAILABLE = 6, //Note, this is fatal when adding a sync! TODO: review
     LOCAL_PATH_UNAVAILABLE = 7,
     REMOTE_NODE_NOT_FOUND = 8,
+    STORAGE_OVERQUOTA = 9,
+    BUSINESS_EXPIRED = 10,
+    FOREIGN_TARGET_OVERSTORAGE = 11,
+    REMOTE_PATH_HAS_CHANGED = 12,
 } syncerror_t;
 
+static bool isMegaSyncErrorPermanent(int e)
+{
+    switch (e)
+    {
+    case NO_ERROR:
+    case STORAGE_OVERQUOTA:
+    case BUSINESS_EXPIRED:
+    case FOREIGN_TARGET_OVERSTORAGE:
+        return false;
+    default:
+        return true;
+    }
+}
 typedef enum { SYNCDEL_NONE, SYNCDEL_DELETED, SYNCDEL_INFLIGHT, SYNCDEL_BIN,
                SYNCDEL_DEBRIS, SYNCDEL_DEBRISDAY, SYNCDEL_FAILED } syncdel_t;
 
