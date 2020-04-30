@@ -1558,6 +1558,20 @@ bool createFile(const fs::path &p, const string &filename)
     return createFile(p / fs::u8path(filename), filename.data(), filename.size());
 }
 
+bool createFileWithTimestamp(const fs::path &path,
+                             const std::vector<uint8_t> &data,
+                             const fs::file_time_type &timestamp)
+{
+    const bool result = createFile(path, data);
+
+    if (result)
+    {
+        fs::last_write_time(path, timestamp);
+    }
+
+    return result;
+}
+
 bool buildLocalFolders(fs::path targetfolder, const string& prefix, int n, int recurselevel, int filesperfolder)
 {
     if (suppressfiles) filesperfolder = 0;
@@ -1724,15 +1738,14 @@ TEST_F(SyncFingerprintCollision, DifferentMacSameName)
     auto result0 =
       client0->thread_do([&](StandardClient &sc, std::promise<bool> &p)
                          {
-                             ASSERT_TRUE(createFile(path1, data1));
-
-                             fs::last_write_time(
-                                path1, fs::last_write_time(path0));
-
-                             p.set_value(true);
+                             p.set_value(
+                               createFileWithTimestamp(
+                                 path1,
+                                 data1,
+                                 fs::last_write_time(path0)));
                          });
 
-    waitonresults(&result0);
+    ASSERT_TRUE(waitonresults(&result0));
     waitOnSyncs();
 
     addModelFile(model0, "d/d_0", "a", data0);
@@ -1759,15 +1772,14 @@ TEST_F(SyncFingerprintCollision, DifferentMacDifferentName)
     auto result0 =
       client0->thread_do([&](StandardClient &sc, std::promise<bool> &p)
                          {
-                             ASSERT_TRUE(createFile(path1, data1));
-
-                             fs::last_write_time(
-                                path1, fs::last_write_time(path0));
-
-                             p.set_value(true);
+                             p.set_value(
+                               createFileWithTimestamp(
+                                 path1,
+                                 data1,
+                                 fs::last_write_time(path0)));
                          });
 
-    waitonresults(&result0);
+    ASSERT_TRUE(waitonresults(&result0));
     waitOnSyncs();
 
     addModelFile(model0, "d/d_0", "a", data0);
@@ -1791,15 +1803,14 @@ TEST_F(SyncFingerprintCollision, SameMacDifferentName)
     auto result0 =
       client0->thread_do([&](StandardClient &sc, std::promise<bool> &p)
                          {
-                             ASSERT_TRUE(createFile(path1, data0));
-
-                             fs::last_write_time(
-                                path1, fs::last_write_time(path0));
-
-                             p.set_value(true);
+                             p.set_value(
+                               createFileWithTimestamp(
+                                 path1,
+                                 data0,
+                                 fs::last_write_time(path0)));
                          });
 
-    waitonresults(&result0);
+    ASSERT_TRUE(waitonresults(&result0));
     waitOnSyncs();
 
     addModelFile(model0, "d/d_0", "a", data0);
