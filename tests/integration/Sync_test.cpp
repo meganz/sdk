@@ -1731,13 +1731,8 @@ TEST_F(SyncFingerprintCollision, DifferentMacSameName)
 
                              p.set_value(true);
                          });
-    auto result1 =
-      client0->thread_do([&](StandardClient &sc, std::promise<bool> &p)
-                         {
-                             p.set_value(result0.get());
-                         });
 
-    waitonresults(&result1);
+    waitonresults(&result0);
     waitOnSyncs();
 
     addModelFile(model0, "d/d_0", "a", data0);
@@ -1771,13 +1766,8 @@ TEST_F(SyncFingerprintCollision, DifferentMacDifferentName)
 
                              p.set_value(true);
                          });
-    auto result1 =
-      client0->thread_do([&](StandardClient &sc, std::promise<bool> &p)
-                         {
-                             p.set_value(result0.get());
-                         });
 
-    waitonresults(&result1);
+    waitonresults(&result0);
     waitOnSyncs();
 
     addModelFile(model0, "d/d_0", "a", data0);
@@ -1808,13 +1798,8 @@ TEST_F(SyncFingerprintCollision, SameMacDifferentName)
 
                              p.set_value(true);
                          });
-    auto result1 =
-      client0->thread_do([&](StandardClient &sc, std::promise<bool> &p)
-                         {
-                             p.set_value(result0.get());
-                         });
 
-    waitonresults(&result1);
+    waitonresults(&result0);
     waitOnSyncs();
 
     addModelFile(model0, "d/d_0", "a", data0);
