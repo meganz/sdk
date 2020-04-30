@@ -14051,18 +14051,13 @@ Node* MegaClient::nodebyfingerprint(LocalNode* localNode)
                    remoteNodes->end(),
                    [&](const Node *remoteNode) -> bool
                    {
-                       return localNode->type == remoteNode->type
-                              && localName == remoteNode->displayname();
+                       return localName == remoteNode->displayname();
                    });
 
     if (remoteNode != remoteNodes->end())
         return *remoteNode;
 
     remoteNode = remoteNodes->begin();
-
-    // Metamac only has meaning for files.
-    if ((*remoteNode)->type != FILENODE)
-        return *remoteNode;
 
     // Compare the local file's metamac against a random candidate.
     // 
