@@ -1927,6 +1927,8 @@ void CommandLogin::procresult()
                     {
                         // decrypt and set private key
                         client->key.ecb_decrypt(privkbuf, len_privk);
+                        client->mPrivKey.resize(AsymmCipher::MAXKEYLENGTH * 2);
+                        client->mPrivKey.resize(Base64::btoa(privkbuf, len_privk, (char *)client->mPrivKey.data()));
 
                         if (!client->asymkey.setkey(AsymmCipher::PRIVKEY, privkbuf, len_privk))
                         {
@@ -1955,6 +1957,8 @@ void CommandLogin::procresult()
                 client->me = me;
                 client->uid = Base64Str<MegaClient::USERHANDLE>(client->me);
                 client->achievements_enabled = ach;
+                // Force to create own user
+                client->finduser(me, 1);
 
                 if (len_sek)
                 {
@@ -1964,9 +1968,6 @@ void CommandLogin::procresult()
 #ifdef ENABLE_SYNC
                 client->resetSyncConfigs();
 #endif
-
-                // fetch the unshareable key straight away, so we have it before fetchnodes-from-server completes .
-                client->reqs.add(new CommandUnshareableUA(client, true, 5));
 
                 return client->app->login_result(API_OK);
 
@@ -3023,6 +3024,11 @@ void CommandPutUA::procresult()
                 LOG_info << "File versioning is enabled";
             }
         }
+        else if (at == ATTR_UNSHAREABLE_KEY)
+        {
+            LOG_info << "Unshareable key successfully created";
+            client->unshareablekey.swap(av);
+        }
     }
 
     client->app->putua_result(e);
@@ -3370,102 +3376,6 @@ void CommandDelUA::procresult()
 
 #endif  // #ifdef DEBUG
 
-CommandUnshareableUA::CommandUnshareableUA(MegaClient* client, bool fetch, int triesleft)
-{
-    maxtries = triesleft;
-    fetching = fetch;
-    if (fetching)
-    {
-        cmd("uga");
-        arg("u", client->uid.c_str());
-        arg("ua", User::attr2string(ATTR_UNSHAREABLE_KEY).c_str());
-        arg("v", 1);
-    }
-    else
-    {
-        byte newunshareablekey[SymmCipher::BLOCKSIZE];
-        client->rng.genblock(newunshareablekey, sizeof(newunshareablekey));
-
-        cmd("up");
-        arg(User::attr2string(ATTR_UNSHAREABLE_KEY).c_str(), newunshareablekey, sizeof(newunshareablekey));
-        notself(client);
-    }
-    tag = 0;
-}
-
-void CommandUnshareableUA::procresult()
-{
-    if (client->json.isnumeric())
-    {
-        error e = (error)client->json.getint();
-
-        if (e == API_ENOENT && fetching && maxtries > 0)
-        {
-            // we can't get it because it doesn't exist yet, so make it now
-            LOG_info << "Creating unshareable key";
-            client->reqs.add(new CommandUnshareableUA(client, false, maxtries - 1));
-        }
-        else
-        {
-            LOG_err << "Could not get or create unshareable key";
-        }
-        return;
-    }
-    else if (!fetching)
-    {
-        LOG_info << "Successful creation of unshareable key";
-        // success uploading the key.  It just replies with [<uh>]
-        client->json.storeobject();
-        // fetch the value stored (protects somewhat against a creation race from multiple clients)
-        if (maxtries > 0)
-        {
-            client->reqs.add(new CommandUnshareableUA(client, true, maxtries - 1));
-        }
-    }
-    else
-    {
-        const char* ptr;
-        const char* end;
-        string buf;
-        for (;;)
-        {
-            switch (client->json.getnameid())
-            {
-            case MAKENAMEID2('a', 'v'):
-            {
-                if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
-                {
-                    return;
-                }
-                buf.assign(ptr, (end - ptr));
-                LOG_info << "Unshareable key received, size: " << buf.size();
-                break;
-            }
-            case EOO:
-            {
-                assert(fetching);
-                if (buf.size() == Base64Str<SymmCipher::BLOCKSIZE>::STRLEN)
-                {
-                    client->unshareablekey.swap(buf);
-                }
-                else
-                {
-                    LOG_err << "Unshareable key not included in reply, or wrong length";
-                }
-                return;
-            }
-
-            default:
-                if (!client->json.storeobject())
-                {
-                    LOG_err << "Bad field in unshareable reply";
-                    return;
-                }
-            }
-        }
-    }
-}
-
 CommandGetUserEmail::CommandGetUserEmail(MegaClient *client, const char *uid)
 {
     cmd("uge");
@@ -3687,6 +3597,7 @@ void CommandPubKeyRequest::invalidateUser()
 CommandGetUserData::CommandGetUserData(MegaClient *client)
 {
     cmd("ug");
+    arg("v", 1);
 
     tag = client->reqtag;
 }
@@ -3699,10 +3610,44 @@ void CommandGetUserData::procresult()
     string k;
     byte privkbuf[AsymmCipher::MAXKEYLENGTH * 2];
     int len_privk = 0;
+    byte pubkbuf[AsymmCipher::MAXKEYLENGTH];
+    int len_pubk = 0;
     m_time_t since = 0;
     int v = 0;
     string salt;
     string smsv;
+    string lastname;
+    string versionLastname;
+    string firstname;
+    string versionFirstname;
+    string language;
+    string versionLanguage;
+    string pwdReminderDialog;
+    string versionPwdReminderDialog;
+    string pushSetting;
+    string versionPushSetting;
+    string contactLinkVerification;
+    string versionContactLinkVerification;
+    handle me = UNDEF;
+    string chatFolder;
+    string versionChatFolder;
+    string cameraUploadFolder;
+    string versionCameraUploadFolder;
+    string aliases;
+    string versionAliases;
+    string disableVersions;
+    string versionDisableVersions;
+    string country;
+    string versionCountry;
+    string birthday;
+    string versionBirthday;
+    string birthmonth;
+    string versionBirthmonth;
+    string birthyear;
+    string versionBirthyear;
+    string email;
+    string unshareableKey;
+    string versionUnshareableKey;
 
     bool b = false;
     BizMode m = BIZ_MODE_UNKNOWN;
@@ -3722,6 +3667,7 @@ void CommandGetUserData::procresult()
 
     for (;;)
     {
+        string attributeName = client->json.getnameWithoutAdvance();
         switch (client->json.getnameid())
         {
         case MAKENAMEID3('a', 'a', 'v'):    // account authentication version
@@ -3736,7 +3682,7 @@ void CommandGetUserData::procresult()
             client->json.storeobject(&name);
             break;
 
-        case 'k':
+        case 'k':   // master key
             k.resize(SymmCipher::KEYLENGTH);
             client->json.storebinary((byte *)k.data(), int(k.size()));
             break;
@@ -3745,11 +3691,12 @@ void CommandGetUserData::procresult()
             since = client->json.getint();
             break;
 
-        case MAKENAMEID4('p', 'u', 'b', 'k'):
+        case MAKENAMEID4('p', 'u', 'b', 'k'):   // RSA public key
             client->json.storeobject(&pubk);
+            len_pubk = Base64::atob(pubk.c_str(), pubkbuf, sizeof pubkbuf);
             break;
 
-        case MAKENAMEID5('p', 'r', 'i', 'v', 'k'):
+        case MAKENAMEID5('p', 'r', 'i', 'v', 'k'):  // RSA private key (encrypted to MK)
             len_privk = client->json.storebinary(privkbuf, sizeof privkbuf);
             break;
 
@@ -3762,6 +3709,62 @@ void CommandGetUserData::procresult()
                 }
                 client->json.leaveobject();
             }
+            break;
+
+        case 'u':
+            me = client->json.gethandle(MegaClient::USERHANDLE);
+            break;
+
+        case MAKENAMEID8('l', 'a', 's', 't', 'n', 'a', 'm', 'e'):
+            parseUserAttribute(lastname, versionLastname);
+            break;
+
+        case MAKENAMEID6('^', '!', 'l', 'a', 'n', 'g'):
+            parseUserAttribute(language, versionLanguage);
+            break;
+
+        case MAKENAMEID8('b', 'i', 'r', 't', 'h', 'd', 'a', 'y'):
+            parseUserAttribute(birthday, versionBirthday);
+            break;
+
+        case MAKENAMEID7('c', 'o', 'u', 'n', 't', 'r', 'y'):
+            parseUserAttribute(country, versionCountry);
+            break;
+
+        case MAKENAMEID4('^', '!', 'p', 's'):
+            parseUserAttribute(pushSetting, versionPushSetting);
+            break;
+
+        case MAKENAMEID5('^', '!', 'p', 'r', 'd'):
+            parseUserAttribute(pwdReminderDialog, versionPwdReminderDialog);
+            break;
+
+        case MAKENAMEID4('^', 'c', 'l', 'v'):
+            parseUserAttribute(contactLinkVerification, versionContactLinkVerification);
+            break;
+
+        case MAKENAMEID4('^', '!', 'd', 'v'):
+            parseUserAttribute(disableVersions, versionDisableVersions);
+            break;
+
+        case MAKENAMEID4('*', '!', 'c', 'f'):
+            parseUserAttribute(chatFolder, versionChatFolder);
+            break;
+
+        case MAKENAMEID5('*', '!', 'c', 'a', 'm'):
+            parseUserAttribute(cameraUploadFolder, versionCameraUploadFolder);
+            break;
+
+        case MAKENAMEID8('*', '!', '>', 'a', 'l', 'i', 'a', 's'):
+            parseUserAttribute(aliases, versionAliases);
+            break;
+
+        case MAKENAMEID5('e', 'm', 'a', 'i', 'l'):
+            client->json.storeobject(&email);
+            break;
+
+        case MAKENAMEID5('*', '~', 'u', 's', 'k'):
+            parseUserAttribute(unshareableKey, versionUnshareableKey, false);
             break;
 
         case 'b':   // business account's info
@@ -3862,7 +3865,7 @@ void CommandGetUserData::procresult()
             }
             break;
 
-        case MAKENAMEID4('s', 'm', 's', 'v'):
+        case MAKENAMEID4('s', 'm', 's', 'v'):   // SMS verified phone number
             if (!client->json.storeobject(&smsv))
             {
                 LOG_err << "Invalid verified phone number (smsv)";
@@ -3871,100 +3874,272 @@ void CommandGetUserData::procresult()
             break;
 
         case EOO:
-            if (v)
+        {
+            if (me == client->me)
             {
-                client->accountversion = v;
-            }
-
-            if (salt.size())
-            {
-                Base64::atob(salt, client->accountsalt);
-            }
-
-            client->accountsince = since;
-            client->mSmsVerifiedPhone = smsv;
-
-            client->k = k;
-
-            if (len_privk)
-            {
-                client->key.ecb_decrypt(privkbuf, len_privk);
-                privk.resize(AsymmCipher::MAXKEYLENGTH * 2);
-                privk.resize(Base64::btoa(privkbuf, len_privk, (char *)privk.data()));
-            }
-
-            client->btugexpiration.backoff(MegaClient::USER_DATA_EXPIRATION_BACKOFF_SECS * 10);
-            client->cachedug = true;
-
-            if (b)  // business account
-            {
-                // integrity checks
-                if ((s < BIZ_STATUS_EXPIRED || s > BIZ_STATUS_GRACE_PERIOD)  // status not received or invalid
-                        || (m == BIZ_MODE_UNKNOWN))  // master flag not received or invalid
+                if (len_privk)
                 {
-                    std::string err = "GetUserData: invalid business status / account mode";
-                    LOG_err << err;
-                    client->sendevent(99450, err.c_str());
+                    client->key.ecb_decrypt(privkbuf, len_privk);
+                    privk.resize(AsymmCipher::MAXKEYLENGTH * 2);
+                    privk.resize(Base64::btoa(privkbuf, len_privk, (char *)privk.data()));
 
-                    client->mBizStatus = BIZ_STATUS_EXPIRED;
-                    client->mBizMode = BIZ_MODE_SUBUSER;
-                    client->mBizMasters.clear();
-                    client->mBizExpirationTs = client->mBizGracePeriodTs = 0;
-                    client->app->notify_business_status(client->mBizStatus);
-                }
-                else
-                {
-                    for (auto it : sts)
+                    // RSA private key should be already assigned at login
+                    assert(privk == client->mPrivKey);
+                    if (client->mPrivKey.empty())
                     {
-                        BizStatus status = it.first;
-                        m_time_t ts = it.second;
-                        if (status == BIZ_STATUS_EXPIRED)
+                        LOG_warn << "Private key not set by login, setting at `ug` response...";
+                        if (!client->asymkey.setkey(AsymmCipher::PRIVKEY, privkbuf, len_privk))
                         {
-                            client->mBizExpirationTs = ts;
+                            LOG_warn << "Error checking private key at `ug` response";
                         }
-                        else if (status == BIZ_STATUS_GRACE_PERIOD)
+                    }
+                }
+
+                if (len_pubk)
+                {
+                    client->pubk.setkey(AsymmCipher::PUBKEY, pubkbuf, len_pubk);
+                }
+
+                if (v)
+                {
+                    client->accountversion = v;
+                }
+
+                if (salt.size())
+                {
+                    Base64::atob(salt, client->accountsalt);
+                }
+
+                client->accountsince = since;
+                client->mSmsVerifiedPhone = smsv;
+
+                client->k = k;
+
+                client->btugexpiration.backoff(MegaClient::USER_DATA_EXPIRATION_BACKOFF_SECS * 10);
+                client->cachedug = true;
+
+                // pre-load received user attributes into cache
+                User* u = client->ownuser();
+                if (u)
+                {
+                    int changes = 0;
+                    if (u->email.empty())
+                    {
+                        u->email = email;
+                    }
+
+                    if (firstname.size())
+                    {
+                        changes += u->updateattr(ATTR_FIRSTNAME, &firstname, &versionFirstname);
+                    }
+
+                    if (lastname.size())
+                    {
+                        changes += u->updateattr(ATTR_LASTNAME, &lastname, &versionLastname);
+                    }
+
+                    if (language.size())
+                    {
+                        changes += u->updateattr(ATTR_LANGUAGE, &language, &versionLanguage);
+                    }
+
+                    if (birthday.size())
+                    {
+                        changes += u->updateattr(ATTR_BIRTHDAY, &birthday, &versionBirthday);
+                    }
+
+                    if (birthmonth.size())
+                    {
+                        changes += u->updateattr(ATTR_BIRTHMONTH, &birthmonth, &versionBirthmonth);
+                    }
+
+                    if (birthyear.size())
+                    {
+                        changes += u->updateattr(ATTR_BIRTHYEAR, &birthyear, &versionBirthyear);
+                    }
+
+                    if (country.size())
+                    {
+                        changes += u->updateattr(ATTR_COUNTRY, &country, &versionCountry);
+                    }
+
+                    if (pwdReminderDialog.size())
+                    {
+                        changes += u->updateattr(ATTR_PWD_REMINDER, &pwdReminderDialog, &versionPwdReminderDialog);
+                    }
+
+                    if (pushSetting.size())
+                    {
+                        changes += u->updateattr(ATTR_PUSH_SETTINGS, &pushSetting, &versionPushSetting);
+
+                        // initialize the settings for the intermediate layer by simulating there was a getua()
+                        client->app->getua_result((byte*) pushSetting.data(), (unsigned) pushSetting.size(), ATTR_PUSH_SETTINGS);
+                    }
+
+                    if (contactLinkVerification.size())
+                    {
+                        changes += u->updateattr(ATTR_CONTACT_LINK_VERIFICATION, &contactLinkVerification, &versionContactLinkVerification);
+                    }
+
+                    if (disableVersions.size())
+                    {
+                        changes += u->updateattr(ATTR_DISABLE_VERSIONS, &disableVersions, &versionDisableVersions);
+
+                        // initialize the status of file-versioning for the client
+                        client->versions_disabled = (disableVersions == "1");
+                        if (client->versions_disabled)
                         {
-                            client->mBizGracePeriodTs = ts;
+                            LOG_info << "File versioning is disabled";
                         }
                         else
                         {
-                            LOG_warn << "Unexpected status in b.sts. Status: " << status << "ts: " << ts;
+                            LOG_info << "File versioning is enabled";
                         }
                     }
-
-                    client->mBizMode = m;
-                    // subusers must receive the list of master users
-                    assert(m != BIZ_MODE_SUBUSER || !masters.empty());
-                    client->mBizMasters = masters;
-
-                    if (client->mBizStatus != s)
+                    else    // attribute does not exists
                     {
-                        client->mBizStatus = s;
-                        client->app->notify_business_status(s);
+                        LOG_info << "File versioning is enabled";
+                        client->versions_disabled = false;
                     }
 
-                    // if current business status will expire sooner than the scheduled `ug`, update the
-                    // backoff to a shorter one in order to refresh the business status asap
-                    m_time_t auxts = 0;
-                    m_time_t now = m_time(nullptr);
-                    if (client->mBizGracePeriodTs && client->mBizGracePeriodTs > now)
+                    if (chatFolder.size())
                     {
-                        auxts = client->mBizGracePeriodTs;
-                    }
-                    else if (client->mBizExpirationTs && client->mBizExpirationTs > now)
-                    {
-                        auxts = client->mBizExpirationTs;
-                    }
-                    if (auxts)
-                    {
-                        dstime diff = static_cast<dstime>((now - auxts) * 10);
-                        dstime current = client->btugexpiration.backoffdelta();
-                        if (current > diff)
+                        unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&chatFolder, &client->key));
+                        if (tlvRecords)
                         {
-                            client->btugexpiration.backoff(diff);
+                            // store the value for private user attributes (decrypted version of serialized TLV)
+                            unique_ptr<string> tlvString(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
+                            changes += u->updateattr(ATTR_MY_CHAT_FILES_FOLDER, tlvString.get(), &versionChatFolder);
+                        }
+                        else
+                        {
+                            LOG_err << "Cannot extract TLV records for ATTR_MY_CHAT_FILES_FOLDER";
                         }
                     }
-                    // TODO: check if type of account has changed and notify with new event (not yet supported by API)
+
+                    if (cameraUploadFolder.size())
+                    {
+                        unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&cameraUploadFolder, &client->key));
+                        if (tlvRecords)
+                        {
+                            // store the value for private user attributes (decrypted version of serialized TLV)
+                            unique_ptr<string> tlvString(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
+                            changes += u->updateattr(ATTR_CAMERA_UPLOADS_FOLDER, tlvString.get(), &versionCameraUploadFolder);
+                        }
+                        else
+                        {
+                            LOG_err << "Cannot extract TLV records for ATTR_CAMERA_UPLOADS_FOLDER";
+                        }
+                    }
+
+                    if (aliases.size())
+                    {
+                        unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&aliases, &client->key));
+                        if (tlvRecords)
+                        {
+                            // store the value for private user attributes (decrypted version of serialized TLV)
+                            unique_ptr<string> tlvString(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
+                            changes += u->updateattr(ATTR_ALIAS, tlvString.get(), &versionAliases);
+                        }
+                        else
+                        {
+                            LOG_err << "Cannot extract TLV records for ATTR_ALIAS";
+                        }
+                    }
+
+                    if (unshareableKey.size() == Base64Str<SymmCipher::BLOCKSIZE>::STRLEN)
+                    {
+                        changes += u->updateattr(ATTR_UNSHAREABLE_KEY, &unshareableKey, &versionUnshareableKey);
+                        client->unshareablekey.swap(unshareableKey);
+                    }
+                    else if (unshareableKey.empty())    // it has not been created yet
+                    {
+                        LOG_info << "Creating unshareable key...";
+                        byte newunshareablekey[SymmCipher::BLOCKSIZE];
+                        client->rng.genblock(newunshareablekey, sizeof(newunshareablekey));
+                        client->putua(ATTR_UNSHAREABLE_KEY, newunshareablekey, sizeof(newunshareablekey), 0);
+                    }
+                    else
+                    {
+                        LOG_err << "Unshareable key wrong length";
+                    }
+
+                    if (changes > 0)
+                    {
+                        u->setTag(tag ? tag : -1);
+                        client->notifyuser(u);
+                    }
+                }
+
+                if (b)  // business account
+                {
+                    // integrity checks
+                    if ((s < BIZ_STATUS_EXPIRED || s > BIZ_STATUS_GRACE_PERIOD)  // status not received or invalid
+                            || (m == BIZ_MODE_UNKNOWN))  // master flag not received or invalid
+                    {
+                        std::string err = "GetUserData: invalid business status / account mode";
+                        LOG_err << err;
+                        client->sendevent(99450, err.c_str());
+
+                        client->mBizStatus = BIZ_STATUS_EXPIRED;
+                        client->mBizMode = BIZ_MODE_SUBUSER;
+                        client->mBizExpirationTs = client->mBizGracePeriodTs = 0;
+                        client->app->notify_business_status(client->mBizStatus);
+                    }
+                    else
+                    {
+                        for (auto it : sts)
+                        {
+                            BizStatus status = it.first;
+                            m_time_t ts = it.second;
+                            if (status == BIZ_STATUS_EXPIRED)
+                            {
+                                client->mBizExpirationTs = ts;
+                            }
+                            else if (status == BIZ_STATUS_GRACE_PERIOD)
+                            {
+                                client->mBizGracePeriodTs = ts;
+                            }
+                            else
+                            {
+                                LOG_warn << "Unexpected status in b.sts. Status: " << status << "ts: " << ts;
+                            }
+                        }
+
+                        client->mBizMode = m;
+                        // subusers must receive the list of master users
+                        assert(m != BIZ_MODE_SUBUSER || !masters.empty());
+                        client->mBizMasters = masters;
+
+                        if (client->mBizStatus != s)
+                        {
+                            client->mBizStatus = s;
+                            client->app->notify_business_status(s);
+                        }
+
+                        // if current business status will expire sooner than the scheduled `ug`, update the
+                        // backoff to a shorter one in order to refresh the business status asap
+                        m_time_t auxts = 0;
+                        m_time_t now = m_time(nullptr);
+                        if (client->mBizGracePeriodTs && client->mBizGracePeriodTs > now)
+                        {
+                            auxts = client->mBizGracePeriodTs;
+                        }
+                        else if (client->mBizExpirationTs && client->mBizExpirationTs > now)
+                        {
+                            auxts = client->mBizExpirationTs;
+                        }
+                        if (auxts)
+                        {
+                            dstime diff = static_cast<dstime>((now - auxts) * 10);
+                            dstime current = client->btugexpiration.backoffdelta();
+                            if (current > diff)
+                            {
+                                client->btugexpiration.backoff(diff);
+                            }
+                        }
+                        // TODO: check if type of account has changed and notify with new event (not yet supported by API)
+                    }
                 }
             }
             else
@@ -3983,11 +4158,74 @@ void CommandGetUserData::procresult()
 
             client->app->userdata_result(&name, &pubk, &privk, API_OK);
             return;
-
+        }
         default:
-            if (!client->json.storeobject())
+            switch (User::string2attr(attributeName.c_str()))
             {
-                return client->app->userdata_result(NULL, NULL, NULL, API_EINTERNAL);
+                case ATTR_FIRSTNAME:
+                    parseUserAttribute(firstname, versionFirstname);
+                    break;
+
+                case ATTR_BIRTHMONTH:
+                    parseUserAttribute(birthmonth, versionBirthmonth);
+                    break;
+
+                case ATTR_BIRTHYEAR:
+                    parseUserAttribute(birthyear, versionBirthyear);
+                    break;
+
+                default:
+                    if (!client->json.storeobject())
+                    {
+                        return client->app->userdata_result(NULL, NULL, NULL, API_EINTERNAL);
+                    }
+                    break;
+            }
+
+            break;
+        }
+    }
+}
+
+void CommandGetUserData::parseUserAttribute(std::string &value, std::string &version, bool asciiToBinary)
+{
+    string info;
+    if (!client->json.storeobject(&info))
+    {
+        LOG_err << "Failed to parse user attribute from the array";
+        return;
+    }
+
+    string buf;
+    JSON json;
+    json.pos = info.c_str() + 1;
+    for (;;)
+    {
+        switch (json.getnameid())
+        {
+            case MAKENAMEID2('a','v'):  // value
+            {
+                json.storeobject(&buf);
+                break;
+            }
+            case 'v':   // version
+            {
+                json.storeobject(&version);
+                break;
+            }
+            case EOO:
+            {
+                value = asciiToBinary ? Base64::atob(buf) : buf;
+                return;
+            }
+            default:
+            {
+                if (!json.storeobject())
+                {
+                    version.clear();
+                    LOG_err << "Failed to parse user attribute inside the array";
+                    return;
+                }
             }
         }
     }
@@ -4655,6 +4893,7 @@ void CommandCreateEphemeralSession::procresult()
 {
     if (client->json.isnumeric())
     {
+        client->ephemeralSession = false;
         client->app->ephemeral_result((error)client->json.getint());
     }
     else
@@ -4906,6 +5145,7 @@ void CommandConfirmSignupLink2::procresult()
 
     if (!ISUNDEF(uh) && version == 2)
     {
+        client->ephemeralSession = false;
         client->app->confirmsignuplink2_result(uh, name.c_str(), email.c_str(), API_OK);
     }
     else
@@ -4937,6 +5177,7 @@ void CommandConfirmSignupLink::procresult()
 
     client->json.storeobject();
 
+    client->ephemeralSession = false;
     client->app->confirmsignuplink_result(API_OK);
 }
 
@@ -4949,6 +5190,10 @@ CommandSetKeyPair::CommandSetKeyPair(MegaClient* client, const byte* privk,
     arg("pubk", pubk, pubklen);
 
     tag = client->reqtag;
+
+    len = privklen;
+    privkBuffer.reset(new byte[privklen]);
+    memcpy(privkBuffer.get(), privk, len);
 }
 
 void CommandSetKeyPair::procresult()
@@ -4959,6 +5204,10 @@ void CommandSetKeyPair::procresult()
     }
 
     client->json.storeobject();
+
+    client->key.ecb_decrypt(privkBuffer.get(), len);
+    client->mPrivKey.resize(AsymmCipher::MAXKEYLENGTH * 2);
+    client->mPrivKey.resize(Base64::btoa(privkBuffer.get(), len, (char *)client->mPrivKey.data()));
 
     client->app->setkeypair_result(API_OK);
 }
@@ -4987,7 +5236,7 @@ void CommandFetchNodes::procresult()
     WAIT_CLASS::bumpds();
     client->fnstats.timeToLastByte = Waiter::ds - client->fnstats.startTime;
 
-    client->purgenodesusersabortsc();
+    client->purgenodesusersabortsc(true);
 
     if (client->json.isnumeric())
     {

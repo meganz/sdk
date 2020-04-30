@@ -1121,6 +1121,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     loggedout = false;
     cachedug = false;
     minstreamingrate = -1;
+    ephemeralSession = false;
 
 #ifndef EMSCRIPTEN
     autodownport = true;
@@ -3908,6 +3909,7 @@ void MegaClient::locallogout(bool removecaches)
     loggedout = false;
     cachedug = false;
     minstreamingrate = -1;
+    ephemeralSession = false;
 #ifdef USE_MEDIAINFO
     mediaFileInfo = MediaFileInfo();
 #endif
@@ -3918,7 +3920,7 @@ void MegaClient::locallogout(bool removecaches)
     disconnect();
     closetc();
 
-    purgenodesusersabortsc();
+    purgenodesusersabortsc(false);
 
     reqs.clear();
 
@@ -3985,7 +3987,11 @@ void MegaClient::locallogout(bool removecaches)
     resetKeyring();
 
     key.setkey(SymmCipher::zeroiv);
+    tckey.setkey(SymmCipher::zeroiv);
     asymkey.resetkey();
+    mPrivKey.clear();
+    pubk.resetkey();
+    resetKeyring();
     memset((char*)auth.c_str(), 0, auth.size());
     auth.clear();
     sessionkey.clear();
@@ -10487,9 +10493,7 @@ sessiontype_t MegaClient::loggedin()
         return NOTLOGGEDIN;
     }
 
-    User* u = finduser(me);
-
-    if (u && !u->email.size())
+    if (ephemeralSession)
     {
         return EPHEMERALACCOUNT;
     }
@@ -10576,6 +10580,7 @@ error MegaClient::changepw(const char* password, const char *pin)
 // create ephemeral session
 void MegaClient::createephemeral()
 {
+    ephemeralSession = true;
     byte keybuf[SymmCipher::KEYLENGTH];
     byte pwbuf[SymmCipher::KEYLENGTH];
     byte sscbuf[2 * SymmCipher::KEYLENGTH];
@@ -10595,6 +10600,7 @@ void MegaClient::createephemeral()
 
 void MegaClient::resumeephemeral(handle uh, const byte* pw, int ctag)
 {
+    ephemeralSession = true;
     reqs.add(new CommandResumeEphemeralSession(this, uh, pw, ctag ? ctag : reqtag));
 }
 
@@ -11042,41 +11048,6 @@ void MegaClient::fetchnodes(bool nocache)
 #endif
         app->fetchnodes_result(API_OK);
 
-        // if don't know fileversioning is enabled or disabled...
-        // (it can happen after AP invalidates the attribute, but app is closed before current value is retrieved and cached)
-        User *ownUser = finduser(me);
-        const string *av = ownUser->getattr(ATTR_DISABLE_VERSIONS);
-        if (av)
-        {
-            if (ownUser->isattrvalid((ATTR_DISABLE_VERSIONS)))
-            {
-                versions_disabled = !strcmp(av->c_str(), "1");
-                if (versions_disabled)
-                {
-                    LOG_info << "File versioning is disabled";
-                }
-                else
-                {
-                    LOG_info << "File versioning is enabled";
-                }
-            }
-            else
-            {
-                getua(ownUser, ATTR_DISABLE_VERSIONS, 0);
-                LOG_info << "File versioning option exist but is unknown. Fetching...";
-            }
-        }
-        else    // attribute does not exists
-        {
-            LOG_info << "File versioning is enabled";
-            versions_disabled = false;
-        }
-
-        av = ownUser->getattr(ATTR_PUSH_SETTINGS);
-        if (av && !ownUser->isattrvalid(ATTR_PUSH_SETTINGS))
-        {
-            getua(ownUser, ATTR_PUSH_SETTINGS);
-        }
         loadAuthrings();
 
         WAIT_CLASS::bumpds();
@@ -11110,20 +11081,15 @@ void MegaClient::fetchnodes(bool nocache)
 
         if (!loggedinfolderlink())
         {
+            getuserdata();
+
             if (loggedin() == FULLACCOUNT)
             {
                 fetchkeys();
                 loadAuthrings();
             }
-            if (!k.size())
-            {
-                getuserdata();
-            }
-
-            reqs.add(new CommandGetUA(this, uid.c_str(), ATTR_DISABLE_VERSIONS, NULL, 0));
 
             fetchtimezone();
-            reqs.add(new CommandGetUA(this, uid.c_str(), ATTR_PUSH_SETTINGS, NULL, 0));
         }
 
         reqs.add(new CommandFetchNodes(this, nocache));
@@ -11138,10 +11104,7 @@ void MegaClient::fetchkeys()
     discarduser(me);
     User *u = finduser(me, 1);
 
-    int creqtag = reqtag;
-    reqtag = 0;
-    reqs.add(new CommandPubKeyRequest(this, u));    // public RSA
-    reqtag = creqtag;
+    // RSA public key is retrieved by getuserdata
 
     getua(u, ATTR_KEYRING, 0);        // private Cu25519 & private Ed25519
     getua(u, ATTR_ED25519_PUBK, 0);
@@ -11822,7 +11785,7 @@ bool MegaClient::areCredentialsVerified(handle uh)
     return false;
 }
 
-void MegaClient::purgenodesusersabortsc()
+void MegaClient::purgenodesusersabortsc(bool keepOwnUser)
 {
     app->clearing();
 
@@ -11873,7 +11836,6 @@ void MegaClient::purgenodesusersabortsc()
     }
 
     newshares.clear();
-
     nodenotify.clear();
     usernotify.clear();
     pcrnotify.clear();
@@ -11891,7 +11853,7 @@ void MegaClient::purgenodesusersabortsc()
     for (user_map::iterator it = users.begin(); it != users.end(); )
     {
         User *u = &(it->second);
-        if (u->userhandle != me || u->userhandle == UNDEF)
+        if ((!keepOwnUser || u->userhandle != me) || u->userhandle == UNDEF)
         {
             umindex.erase(u->email);
             uhindex.erase(u->userhandle);
@@ -11899,8 +11861,13 @@ void MegaClient::purgenodesusersabortsc()
         }
         else
         {
+            // if there are changes to notify, restore the notification in the queue
+            if (u->notified)
+            {
+                usernotify.push_back(u);
+            }
+
             u->dbid = 0;
-            u->notified = false;
             it++;
         }
     }

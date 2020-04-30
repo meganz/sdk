@@ -1769,6 +1769,10 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     {
         changed |= MegaUser::CHANGE_TYPE_ALIAS;
     }
+    if (user->changed.unshareablekey)
+    {
+        changed |= MegaUser::CHANGE_TYPE_UNSHAREABLE_KEY;
+    }
 }
 
 MegaUserPrivate::MegaUserPrivate(MegaUser *user) : MegaUser()
@@ -5406,6 +5410,17 @@ void MegaApiImpl::resetCredentials(MegaUser *user, MegaRequestListener *listener
 
     requestQueue.push(request);
     waiter->notify();
+}
+
+char *MegaApiImpl::getMyRSAPrivateKey()
+{
+    SdkMutexGuard g(sdkMutex);
+    if (ISUNDEF(client->me) || client->mPrivKey.empty())
+    {
+        return nullptr;
+    }
+
+    return MegaApi::strdup(client->mPrivKey.c_str());
 }
 
 void MegaApiImpl::setLogLevel(int logLevel)
