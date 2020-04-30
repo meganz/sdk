@@ -12490,6 +12490,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 
                 if (l->sync->movetolocaldebris(localpath) || !fsaccess->transient_error)
                 {
+                    DBTableTransactionCommitter committer(tctable);
                     delete lit++->second;
                 }
                 else
