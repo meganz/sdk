@@ -1181,6 +1181,8 @@ public:
 
     Node* nodebyhandle(handle);
     Node* nodebyfingerprint(FileFingerprint*);
+    Node* nodebyfingerprint(LocalNode*);
+
     node_vector *nodesbyfingerprint(FileFingerprint* fingerprint);
     void nodesbyoriginalfingerprint(const char* fingerprint, Node* parent, node_vector *nv);
 

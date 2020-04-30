@@ -14034,6 +14034,62 @@ Node* MegaClient::nodebyfingerprint(FileFingerprint* fingerprint)
     return mFingerprints.nodebyfingerprint(fingerprint);
 }
 
+Node* MegaClient::nodebyfingerprint(LocalNode* localNode)
+{
+    std::unique_ptr<const node_vector>
+      remoteNodes(mFingerprints.nodesbyfingerprint(localNode));
+
+    if (remoteNodes->empty())
+        return nullptr;
+
+    std::string localName = localNode->localname;
+    fsaccess->local2name(&localName);
+    
+    // Only compare metamac if the node doesn't already exist.
+    node_vector::const_iterator remoteNode =
+      std::find_if(remoteNodes->begin(),
+                   remoteNodes->end(),
+                   [&](const Node *remoteNode) -> bool
+                   {
+                       return localName == remoteNode->displayname();
+                   });
+
+    if (remoteNode != remoteNodes->end())
+        return *remoteNode;
+
+    remoteNode = remoteNodes->begin();
+
+    // Compare the local file's metamac against a random candidate.
+    // 
+    // If we're unable to generate the metamac, fail in such a way that
+    // guarantees safe behavior.
+    // 
+    // That is, treat both nodes as distinct until we're absolutely certain
+    // they are identical.
+    auto ifAccess = fsaccess->newfileaccess();
+    std::string localPath;
+
+    localNode->getlocalpath(&localPath);
+
+    if (!ifAccess->fopen(&localPath, true, false))
+        return nullptr;
+
+    std::string remoteKey = (*remoteNode)->nodekey();
+    const char *iva = &remoteKey[SymmCipher::KEYLENGTH];
+
+    SymmCipher cipher;
+    cipher.setkey((byte*)&remoteKey[0], (*remoteNode)->type);
+
+    int64_t remoteIv = MemAccess::get<int64_t>(iva);
+    int64_t remoteMac = MemAccess::get<int64_t>(iva + sizeof(int64_t));
+
+    auto result = generateMetaMac(cipher, *ifAccess, remoteIv);
+    if (!result.first || result.second != remoteMac)
+        return nullptr;
+
+    return *remoteNode;
+}
+
 node_vector *MegaClient::nodesbyfingerprint(FileFingerprint* fingerprint)
 {
     return mFingerprints.nodesbyfingerprint(fingerprint);
