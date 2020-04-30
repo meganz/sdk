@@ -14034,6 +14034,7 @@ Node* MegaClient::nodebyfingerprint(FileFingerprint* fingerprint)
     return mFingerprints.nodebyfingerprint(fingerprint);
 }
 
+#ifdef ENABLE_SYNC
 Node* MegaClient::nodebyfingerprint(LocalNode* localNode)
 {
     std::unique_ptr<const node_vector>
@@ -14089,6 +14090,7 @@ Node* MegaClient::nodebyfingerprint(LocalNode* localNode)
 
     return *remoteNode;
 }
+#endif /* ENABLE_SYNC */
 
 node_vector *MegaClient::nodesbyfingerprint(FileFingerprint* fingerprint)
 {

@@ -1181,7 +1181,9 @@ public:
 
     Node* nodebyhandle(handle);
     Node* nodebyfingerprint(FileFingerprint*);
+#ifdef ENABLE_SYNC
     Node* nodebyfingerprint(LocalNode*);
+#endif /* ENABLE_SYNC */
 
     node_vector *nodesbyfingerprint(FileFingerprint* fingerprint);
     void nodesbyoriginalfingerprint(const char* fingerprint, Node* parent, node_vector *nv);
