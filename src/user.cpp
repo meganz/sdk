@@ -259,7 +259,11 @@ User* User::unserialize(MegaClient* client, string* d)
                 return NULL;
             }
 
-            u->attrs[key].assign(ptr, ll);
+            if (!u->isattrvalid(key))
+            {
+                u->attrs[key].assign(ptr, ll);
+            }
+
             ptr += ll;
 
             ll = MemAccess::get<short>(ptr);
@@ -272,7 +276,12 @@ User* User::unserialize(MegaClient* client, string* d)
                     client->discarduser(uh);
                     return NULL;
                 }
-                u->attrsv[key].assign(ptr,ll);
+
+                if (!u->isattrvalid(key))
+                {
+                    u->attrsv[key].assign(ptr,ll);
+                }
+
                 ptr += ll;
             }
         }
@@ -351,7 +360,11 @@ void User::invalidateattr(attr_t at)
 
 void User::removeattr(attr_t at, const string *version)
 {
-    setChanged(at);
+    if (isattrvalid(at))
+    {
+        setChanged(at);
+    }
+
     attrs.erase(at);
     if (version)
     {
@@ -361,6 +374,18 @@ void User::removeattr(attr_t at, const string *version)
     {
         attrsv.erase(at);
     }
+}
+
+// updates the user attribute value+version only if different
+int User::updateattr(attr_t at, std::string *av, std::string *v)
+{
+    if (attrsv[at] == *v)
+    {
+        return 0;
+    }
+
+    setattr(at, av, v);
+    return 1;
 }
 
 // returns the value if there is value (even if it's invalid by now)
@@ -821,6 +846,7 @@ int User::needversioning(attr_t at)
         case ATTR_CONTACT_LINK_VERIFICATION:
         case ATTR_ALIAS:
         case ATTR_CAMERA_UPLOADS_FOLDER:
+        case ATTR_UNSHAREABLE_KEY:
             return 1;
 
         case ATTR_STORAGE_STATE: //putua is forbidden for this attribute
@@ -1264,6 +1290,10 @@ bool User::setChanged(attr_t at)
 
         case ATTR_ALIAS:
             changed.alias = true;
+            break;
+
+        case ATTR_UNSHAREABLE_KEY:
+            changed.unshareablekey = true;
             break;
 
         default:
