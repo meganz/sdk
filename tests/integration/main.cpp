@@ -42,14 +42,8 @@ public:
         }
 #ifdef ENABLE_LOG_PERFORMANCE
         os << "] " << mega::SimpleLogger::toStr(static_cast<mega::LogLevel>(loglevel)) << ": ";
-        if (message)
-        {
-            os << message;
-        }
-        else
-        {
-            for (unsigned i = 0; i < numberMessages; ++i) os.write(directMessages[i], directMessagesSizes[i]);
-        }
+        if (message) os << message;
+        for (unsigned i = 0; i < numberMessages; ++i) os.write(directMessages[i], directMessagesSizes[i]);
 #else
         os << "] " << mega::SimpleLogger::toStr(static_cast<mega::LogLevel>(loglevel)) << ": " << message;
 #endif

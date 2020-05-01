@@ -123,7 +123,7 @@ struct MEGA_API MegaApp
     virtual void key_modified(handle, attr_t) { }
 
     // node addition has failed
-    virtual void putnodes_result(error, targettype_t, NewNode*) { }
+    virtual void putnodes_result(error, targettype_t, vector<NewNode>*) { }
 
     // share update result
     virtual void share_result(error) { }

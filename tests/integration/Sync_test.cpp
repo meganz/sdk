@@ -680,7 +680,7 @@ struct StandardClient : public MegaApp
 
         resultproc.prepresult(PRELOGIN, ++next_request_tag,
             [&](){ client.prelogin(user.c_str()); },
-            [this, &pb](error e) { pb.set_value(!e); });
+            [this, &pb](error e) { pb.set_value(!e); return true; });
         
     }
 
@@ -716,7 +716,7 @@ struct StandardClient : public MegaApp
                     ASSERT_TRUE(false) << "Login unexpected error";
                 }
             },
-            [this, &pb](error e) { pb.set_value(!e); });
+            [this, &pb](error e) { pb.set_value(!e); return true; });
 
     }
 
@@ -724,8 +724,105 @@ struct StandardClient : public MegaApp
     {
         resultproc.prepresult(LOGIN, ++next_request_tag,
             [&](){ client.login((byte*)session.data(), (int)session.size()); },
-            [this, &pb](error e) { pb.set_value(!e); });
+            [this, &pb](error e) { pb.set_value(!e);  return true; });
     }
+
+    void cloudCopyTreeAs(Node* n1, Node* n2, std::string newname, promise<bool>& pb)
+    {
+        resultproc.prepresult(PUTNODES, ++next_request_tag,
+            [&](){
+                TreeProcCopy tc;
+                client.proctree(n1, &tc, false, true);
+                tc.allocnodes();
+                client.proctree(n1, &tc, false, true);
+                tc.nn[0].parenthandle = UNDEF;
+
+                SymmCipher key;
+                AttrMap attrs;
+                string attrstring;
+                key.setkey((const ::mega::byte*)tc.nn[0].nodekey.data(), n1->type);
+                attrs = n1->attrs;
+                client.fsaccess->normalize(&newname);
+                attrs.map['n'] = newname;
+                attrs.getjson(&attrstring);
+                client.makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
+                client.putnodes(n2->nodehandle, std::move(tc.nn));
+            },
+            [this, &pb](error e) { 
+                pb.set_value(!e);  
+                return true; 
+            });
+    }
+
+    void uploadFolderTree_recurse(handle parent, handle& h, const fs::path& p, vector<NewNode>& newnodes)
+    {
+        NewNode n;
+        client.putnodes_prepareOneFolder(&n, p.filename().u8string());
+        handle thishandle = n.nodehandle = h++;
+        n.parenthandle = parent;
+        newnodes.emplace_back(std::move(n));
+        
+        for (fs::directory_iterator i(p); i != fs::directory_iterator(); ++i)
+        {
+            if (fs::is_directory(*i))
+            {
+                uploadFolderTree_recurse(thishandle, h, *i, newnodes);
+            }
+        }
+    }
+
+    void uploadFolderTree(fs::path p, Node* n2, promise<bool>& pb)
+    {
+        resultproc.prepresult(PUTNODES, ++next_request_tag,
+            [&](){
+                vector<NewNode> newnodes;
+                handle h = 1;
+                uploadFolderTree_recurse(UNDEF, h, p, newnodes);
+                client.putnodes(n2->nodehandle, std::move(newnodes));
+            },
+            [this, &pb](error e) { pb.set_value(!e);  return true; });
+    }
+
+    void uploadFilesInTree_recurse(Node* target, const fs::path& p, std::atomic<int>& inprogress, DBTableTransactionCommitter& committer)
+    {
+        if (fs::is_regular_file(p))
+        {
+            ++inprogress;
+            File* f = new File();
+            // full local path
+            f->localname = LocalPath::fromPath(p.u8string(), *client.fsaccess);
+            f->h = target->nodehandle;
+            f->name = p.filename().u8string();
+            client.startxfer(PUT, f, committer);
+        }
+        else if (fs::is_directory(p))
+        {
+            if (auto newtarget = client.childnodebyname(target, p.filename().u8string().c_str()))
+            {
+                for (fs::directory_iterator i(p); i != fs::directory_iterator(); ++i)
+                {
+                    uploadFilesInTree_recurse(newtarget, *i, inprogress, committer);
+                }
+            }
+        }
+    }
+
+
+    void uploadFilesInTree(fs::path p, Node* n2, std::atomic<int>& inprogress, std::promise<bool>& pb)
+    {
+        resultproc.prepresult(PUTNODES, ++next_request_tag,
+            [&](){
+                DBTableTransactionCommitter committer(client.tctable);
+                uploadFilesInTree_recurse(n2, p, inprogress, committer);
+            },
+            [this, &pb, &inprogress](error e) 
+            { 
+                if (!--inprogress) 
+                    pb.set_value(true); 
+                return !inprogress;
+            });
+    }
+    
 
 
     class TreeProcPrintTree : public TreeProc
@@ -766,6 +863,7 @@ struct StandardClient : public MegaApp
                     }
                 }
                 onFetchNodes = nullptr;
+                return true;
             });
     }
 
@@ -773,7 +871,7 @@ struct StandardClient : public MegaApp
     {
         NewNode newnode;
         client.putnodes_prepareOneFolder(&newnode, utf8Name);
-        return newnode;
+        return std::move(newnode);
     }
      
 
@@ -786,14 +884,14 @@ struct StandardClient : public MegaApp
         {
             int request_tag = 0;
             handle h = UNDEF;
-            std::function<void(error)> f;
-            id_callback(std::function<void(error)> cf, int tag, handle ch) : request_tag(tag), h(ch), f(cf) {}
+            std::function<bool(error)> f;
+            id_callback(std::function<bool(error)> cf, int tag, handle ch) : request_tag(tag), h(ch), f(cf) {}
         };
 
         recursive_mutex mtx;  // recursive because sometimes we need to set up new operations during a completion callback
         map<resultprocenum, deque<id_callback>> m;
 
-        void prepresult(resultprocenum rpe, int tag, std::function<void()>&& requestfunc, std::function<void(error)>&& f, handle h = UNDEF)
+        void prepresult(resultprocenum rpe, int tag, std::function<void()>&& requestfunc, std::function<bool(error)>&& f, handle h = UNDEF)
         {
             lock_guard<recursive_mutex> g(mtx);
             auto& entry = m[rpe];
@@ -804,6 +902,8 @@ struct StandardClient : public MegaApp
             client.reqtag = tag;
             requestfunc();
             client.reqtag = oldtag;
+
+            client.waiter->notify();
         }
 
         void processresult(resultprocenum rpe, error e, handle h = UNDEF)
@@ -846,8 +946,10 @@ struct StandardClient : public MegaApp
                 return;
             }
 
-            entry.front().f(e);
-            entry.pop_front();
+            if (entry.front().f(e))
+            {
+                entry.pop_front();
+            }
         }
     } resultproc;
 
@@ -866,6 +968,7 @@ struct StandardClient : public MegaApp
                     cout << "catchup reports: " << e << endl;
                 }
                 pb.set_value(!e);
+                return true;
             });
     }
 
@@ -886,6 +989,7 @@ struct StandardClient : public MegaApp
                                 cout << "delete of test base folder reply reports: " << e << endl;
                             }
                             deleteTestBaseFolder(false, pb);
+                            return true;
                         });
                     return;
                 }
@@ -921,12 +1025,12 @@ struct StandardClient : public MegaApp
             }
             else if (mayneedmaking)
             {
-                auto nn = new NewNode[1]; // freed by putnodes_result
-                nn[0] = makeSubfolder("mega_test_sync");
+                vector<NewNode> nn;
+                nn.emplace_back(makeSubfolder("mega_test_sync"));
 
                 resultproc.prepresult(PUTNODES, ++next_request_tag,
-                    [&](){ client.putnodes(root->nodehandle, nn, 1); },
-                    [this, &pb](error e) { ensureTestBaseFolder(false, pb); });
+                    [&](){ client.putnodes(root->nodehandle, std::move(nn)); },
+                    [this, &pb](error e) { ensureTestBaseFolder(false, pb); return true; });
                 
                 return;
             }
@@ -972,7 +1076,7 @@ struct StandardClient : public MegaApp
         }
         else
         {
-            auto nodearray = new NewNode[nodes.size()]; // freed by putnodes_result
+            vector<NewNode> nodearray(nodes.size());
             size_t i = 0;
             for (auto n = nodes.begin(); n != nodes.end(); ++n, ++i)
             {
@@ -980,13 +1084,14 @@ struct StandardClient : public MegaApp
             }
 
             resultproc.prepresult(PUTNODES, ++next_request_tag,
-                [&](){ client.putnodes(atnode->nodehandle, nodearray, (int)nodes.size()); },
+                [&](){ client.putnodes(atnode->nodehandle, std::move(nodearray)); },
                 [this, &pb](error e) {
                 pb.set_value(!e);
                 if (e) 
                 {
                     cout << "putnodes result: " << e << endl;
                 }
+                return true;
             });
         }
     }
@@ -1471,12 +1576,12 @@ struct StandardClient : public MegaApp
         resultproc.processresult(CATCHUP, error(API_OK));
     }
 
-    void putnodes_result(error e, targettype_t tt, NewNode* nn) override
+    void putnodes_result(error e, targettype_t tt, vector<NewNode>* nn) override
     {
         if (nn)  // ignore sync based putnodes
         {
             resultproc.processresult(PUTNODES, e);
-            delete[] nn;
+            nn->clear();
         }
     }
 
@@ -1491,7 +1596,7 @@ struct StandardClient : public MegaApp
         {
             resultproc.prepresult(UNLINK, ++next_request_tag,
                 [&](){ client.unlink(n); },
-                [this, &pb](error e) { pb.set_value(!e); });
+                [this, &pb](error e) { pb.set_value(!e); return true; });
         }
         else
         {
@@ -1511,7 +1616,7 @@ struct StandardClient : public MegaApp
             {
                 resultproc.prepresult(UNLINK, ++next_request_tag,
                     [&](){ client.unlink(ns[i]); },
-                    [this, &pb, i](error e) { if (!i) pb.set_value(!e); });
+                    [this, &pb, i](error e) { if (!i) pb.set_value(!e); return true; });
             }
         }
     }
@@ -1524,7 +1629,7 @@ struct StandardClient : public MegaApp
         {
             resultproc.prepresult(MOVENODE, ++next_request_tag,
                 [&](){ client.rename(n, p); },
-                [this, &pb](error e) { pb.set_value(!e); });
+                [this, &pb](error e) { pb.set_value(!e); return true; });
             return;
         }
         cout << "node or new parent not found" << endl;
@@ -1539,7 +1644,7 @@ struct StandardClient : public MegaApp
         {
             resultproc.prepresult(MOVENODE, ++next_request_tag,
                 [&](){ client.rename(n, p);},
-                [this, &pb](error e) { pb.set_value(!e); });
+                [this, &pb](error e) { pb.set_value(!e); return true; });
             return;
         }
         cout << "node or new parent not found by handle" << endl;
@@ -1554,7 +1659,7 @@ struct StandardClient : public MegaApp
         {
             resultproc.prepresult(MOVENODE, ++next_request_tag,
                 [&](){ client.rename(n, p, SYNCDEL_NONE, n->parent->nodehandle); },
-                [this, &pb](error e) { pb.set_value(!e); });
+                [this, &pb](error e) { pb.set_value(!e);  return true; });
             return;
         }
         cout << "node or rubbish or node parent not found" << endl;
@@ -1580,6 +1685,10 @@ struct StandardClient : public MegaApp
                         any_add_del = true;
                 }
                 if (!(client.todebris.empty() && client.tounlink.empty() && client.synccreate.empty()))
+                {
+                    any_add_del = true;
+                }
+                if (!client.transfers[GET].empty() || !client.transfers[PUT].empty())
                 {
                     any_add_del = true;
                 }
@@ -2833,7 +2942,7 @@ GTEST_TEST(Sync, PutnodesForMultipleFolders)
     StandardClient standardclient(localtestroot, "PutnodesForMultipleFolders");
     ASSERT_TRUE(standardclient.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD", true));
 
-    NewNode* newnodes = new NewNode[4];
+    vector<NewNode> newnodes(4);
     
     standardclient.client.putnodes_prepareOneFolder(&newnodes[0], "folder1");
     standardclient.client.putnodes_prepareOneFolder(&newnodes[1], "folder2");
@@ -2846,8 +2955,8 @@ GTEST_TEST(Sync, PutnodesForMultipleFolders)
 
     std::atomic<bool> putnodesDone{false};
     standardclient.resultproc.prepresult(StandardClient::PUTNODES, ++next_request_tag,
-        [&](){ standardclient.client.putnodes(targethandle, newnodes, 4, nullptr); },
-        [&putnodesDone](error e) { putnodesDone = true; });
+        [&](){ standardclient.client.putnodes(targethandle, std::move(newnodes), nullptr); },
+        [&putnodesDone](error e) { putnodesDone = true;  return true; });
     
     while (!putnodesDone)
     {
@@ -4277,6 +4386,7 @@ struct OneWaySymmetryCase
         fs::path localBaseFolder;
         std::string remoteBaseFolder = "oneway";   // leave out initial / so we can drill down from root node
         int next_sync_tag = 100;
+        std::string first_test_name;
 
         State(StandardClient& sc, StandardClient& sc2) : client(sc), nonsyncClient(sc2) {}
     };
@@ -4342,6 +4452,8 @@ struct OneWaySymmetryCase
         m2.findnode("f")->addkid(m2.makeModelSubfile(name));
     }
 
+    promise<bool> cloudCopySetupPromise;
+
     // prepares a local folder for testing, which will be two-way synced before the test
     void SetupForSync()
     {
@@ -4362,6 +4474,33 @@ struct OneWaySymmetryCase
         makeMtimeFile("file_newer_1", 3600, localModel, remoteModel);
         makeMtimeFile("file_older_2", -3600, localModel, remoteModel);
         makeMtimeFile("file_newer_2", 3600, localModel, remoteModel);
+
+        // for the first one, copy that to the cloud.
+        // for subsequent, duplicate in the cloud with this test's name.
+
+        Node* testRoot = changeClient().client.nodebyhandle(changeClient().basefolderhandle);
+        Node* n2 = changeClient().drillchildnodebyname(testRoot, state.remoteBaseFolder);
+        if (state.first_test_name.empty())
+        {
+            state.first_test_name = name();
+            promise<bool> pb;
+            changeClient().uploadFolderTree(localTestBasePath, n2, pb);
+            ASSERT_TRUE(pb.get_future().get());
+
+            promise<bool> pb2;
+            std::atomic<int> inprogress = 0;
+            changeClient().uploadFilesInTree(localTestBasePath, n2, inprogress, pb2);
+            ASSERT_TRUE(pb2.get_future().get());
+            cout << "Uploaded tree for " << name() << endl;
+        }
+        else
+        {
+            Node* n1 = changeClient().drillchildnodebyname(testRoot, state.remoteBaseFolder + "/" + state.first_test_name);
+            changeClient().cloudCopyTreeAs(n1, n2, name(), cloudCopySetupPromise);
+            ASSERT_TRUE(cloudCopySetupPromise.get_future().get());
+            cout << "Copied cloud tree for " << name() << endl;
+        }
+
     }
 
     void SetupOneWaySync()
@@ -4444,7 +4583,7 @@ struct OneWaySymmetryCase
         changeClient().client.proctree(n1, &tc, false, true);
         tc.allocnodes();
         changeClient().client.proctree(n1, &tc, false, true);
-        tc.nn->parenthandle = UNDEF;
+        tc.nn[0].parenthandle = UNDEF;
 
         SymmCipher key;
         AttrMap attrs;
@@ -4453,7 +4592,7 @@ struct OneWaySymmetryCase
         attrs = n1->attrs;
         attrs.getjson(&attrstring);
         state.client.client.makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
-        changeClient().client.putnodes(n2->nodehandle, tc.nn, tc.nc);
+        changeClient().client.putnodes(n2->nodehandle, std::move(tc.nn));
     }
 
     void remote_renamed_copy(std::string nodepath, std::string newparentpath, string newname, bool updatemodel, bool reportaction)
@@ -4474,9 +4613,8 @@ struct OneWaySymmetryCase
         TreeProcCopy tc;
         changeClient().client.proctree(n1, &tc, false, true);
         tc.allocnodes();
-        unsigned nc = tc.nc;
         changeClient().client.proctree(n1, &tc, false, true);
-        tc.nn->parenthandle = UNDEF;
+        tc.nn[0].parenthandle = UNDEF;
 
         SymmCipher key;
         AttrMap attrs;
@@ -4487,7 +4625,7 @@ struct OneWaySymmetryCase
         attrs.map['n'] = newname;
         attrs.getjson(&attrstring);
         state.client.client.makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
-        changeClient().client.putnodes(n2->nodehandle, tc.nn, nc);
+        changeClient().client.putnodes(n2->nodehandle, std::move(tc.nn));
     }
 
     void remote_renamed_move(std::string nodepath, std::string newparentpath, string newname, bool updatemodel, bool reportaction)
@@ -4979,6 +5117,7 @@ struct OneWaySymmetryCase
 
 
     // One-way sync is stable again after the change.  Check the results.
+    bool finalResult = false;
     void CheckResult(State&)
     {
         if (printTreesBeforeAndAfter)
@@ -5002,6 +5141,7 @@ struct OneWaySymmetryCase
         EXPECT_EQ(localfs, localnode);
         EXPECT_EQ(localnode, remote);
         EXPECT_TRUE(localfs && localnode && remote) << " failed in " << name();
+        finalResult = localfs && localnode && remote;
     }
 };
 
@@ -5011,6 +5151,8 @@ void CatchupClients(StandardClient& c1, StandardClient& c2)
     promise<bool> pb1, pb2;
     c1.catchup(pb1);
     c2.catchup(pb2);
+    c1.client.waiter->notify();
+    c2.client.waiter->notify();
     ASSERT_TRUE(pb1.get_future().get() && pb2.get_future().get());
 }
 
@@ -5023,12 +5165,16 @@ TEST(Sync, OneWay_Highlevel_Symmetries)
     StandardClient clientA2(localtestroot, "clientA2");   
     ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "oneway", 0, 0));
     ASSERT_TRUE(clientA2.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
+    fs::create_directory(clientA1.fsBasePath / fs::u8path("oneway"));
+    fs::create_directory(clientA2.fsBasePath / fs::u8path("oneway"));
 
     OneWaySymmetryCase::State allstate(clientA1, clientA2);
+    allstate.localBaseFolder = clientA1.fsBasePath / fs::u8path("oneway");
+
     std::map<std::string, OneWaySymmetryCase> cases;
 
     static bool singleCase = false;
-    static string singleNamedTest = "";//"rename_self_down_file_beforenewer_afterexact";//"rename_other_down_file_beforemismatch_afterabsent"; 
+    static string singleNamedTest = "";//"move_other_down_file_beforenewer_afterabsent_pd_fo";//"rename_other_down_file_beforemismatch_afterabsent"; 
     if (singleCase)
     {
         OneWaySymmetryCase testcase(allstate);
@@ -5046,7 +5192,7 @@ TEST(Sync, OneWay_Highlevel_Symmetries)
     else
     for (int selfChange = 0; selfChange < 2; ++selfChange)
     {
-        //if (!selfChange) continue;
+        if (selfChange) continue;
 
         for (int up = 0; up < 2; ++up)
         {
@@ -5056,16 +5202,22 @@ TEST(Sync, OneWay_Highlevel_Symmetries)
                 {
                     if (!file) continue;
 
-                    for (int destinationMatchBefore = 0; destinationMatchBefore < 3; ++destinationMatchBefore)
+                    for (int destinationMatchBefore = 0; destinationMatchBefore < 4; ++destinationMatchBefore)
                     {
-                        for (int destinationMatchAfter = 0; destinationMatchAfter < 3; ++destinationMatchAfter)
+                        for (int destinationMatchAfter = 0; destinationMatchAfter < 4; ++destinationMatchAfter)
                         {
+                            //if (!(destinationMatchBefore == OneWaySymmetryCase::match_exact && destinationMatchAfter == OneWaySymmetryCase::match_absent)) continue;
+
                             if (action == OneWaySymmetryCase::action_delete && destinationMatchAfter > 0) continue;  // only before matters for delete since there's only one path involved
 
-                            for (int propagateDeletes = 0; propagateDeletes < 1; ++propagateDeletes)
+                            for (int propagateDeletes = 0; propagateDeletes < 2; ++propagateDeletes)
                             {
+                                if (!propagateDeletes) continue;
+
                                 for (int forceOverwrites = 0; forceOverwrites < 2; ++forceOverwrites)
                                 {
+                                    if (!forceOverwrites) continue;
+
                                     for (int pauseDuringAction = 0; pauseDuringAction < 2; ++pauseDuringAction)
                                     {
                                         if (pauseDuringAction) continue;
@@ -5097,15 +5249,16 @@ TEST(Sync, OneWay_Highlevel_Symmetries)
         }
     }
 
-    // set up sync for A1, it should build matching cloud files/folders as the test cases add local files/folders
-    ASSERT_TRUE(clientA1.setupSync_mainthread("oneway", "oneway", 1));
-    allstate.localBaseFolder = clientA1.syncSet[1].localpath;
 
     cout << "Creating initial local files/folders for " << cases.size() << " one-way sync test cases" << endl;
     for (auto& testcase : cases)
     {
         testcase.second.SetupForSync();
     }
+
+    // set up sync for A1, it should build matching cloud files/folders as the test cases add local files/folders
+    ASSERT_TRUE(clientA1.setupSync_mainthread("oneway", "oneway", 1));
+    assert(allstate.localBaseFolder == clientA1.syncSet[1].localpath);
 
     cout << "Full-sync all test folders to the cloud for setup" << endl;
     waitonsyncs(10s, &clientA1);
@@ -5143,8 +5296,7 @@ TEST(Sync, OneWay_Highlevel_Symmetries)
     CatchupClients(clientA1, clientA2);
 
     cout << "Letting all " << cases.size() << " one-way syncs run" << endl;
-    WaitMillisec(10000);
-
+    waitonsyncs(5s, &clientA1, &clientA2);
 
     cout << "Checking one-way source is unchanged" << endl;
     for (auto& testcase : cases)
@@ -5172,7 +5324,7 @@ TEST(Sync, OneWay_Highlevel_Symmetries)
     {
         testcase.second.Modify(OneWaySymmetryCase::MainAction);
     }
-    WaitMillisec(1000);
+    waitonsyncs(5s, &clientA1, &clientA2);
     CatchupClients(clientA1, clientA2);
 
     int resumed = 0;
@@ -5192,7 +5344,8 @@ TEST(Sync, OneWay_Highlevel_Symmetries)
 
 
     cout << "Letting all " << cases.size() << " one-way syncs run" << endl;
-    WaitMillisec(10000);
+    
+    waitonsyncs(5s, &clientA1, &clientA2);
 
     CatchupClients(clientA1, clientA2);
 
@@ -5202,7 +5355,17 @@ TEST(Sync, OneWay_Highlevel_Symmetries)
     {
         testcase.second.CheckResult(allstate);
     }
-
+    int succeeded = 0, failed = 0;
+    for (auto& testcase : cases)
+    {
+        if (testcase.second.finalResult) ++succeeded;
+        else 
+        {
+            cout << "failed: " << testcase.second.name() << endl;
+            ++failed;
+        }
+    }
+    cout << "Succeeded: " << succeeded << " Failed: " << failed << endl;
 }
 
 #endif

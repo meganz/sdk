@@ -1632,7 +1632,7 @@ void LocalNode::setnotseen(int newnotseen)
         return;
     }
 
-    if (!newnotseen)
+    if (!newnotseen || mDetachedFromFS)
     {
         if (notseen)
         {

@@ -29,10 +29,9 @@ PubKeyAction::PubKeyAction()
     cmd = NULL; 
 }
 
-PubKeyActionPutNodes::PubKeyActionPutNodes(NewNode* newnodes, int numnodes, int ctag, Transfer *aTransfer)
+PubKeyActionPutNodes::PubKeyActionPutNodes(vector<NewNode> newnodes, int ctag, Transfer *aTransfer)
 {
-    nn = newnodes;
-    nc = numnodes;
+    nn = std::move(newnodes);
     tag = ctag;
     transfer = aTransfer;
 }
@@ -45,21 +44,21 @@ void PubKeyActionPutNodes::proc(MegaClient* client, User* u)
         int t;
 
         // re-encrypt all node keys to the user's public key
-        for (int i = nc; i--;)
+        for (auto i = nn.size(); i--;)
         {
             if (!(t = u->pubk.encrypt(client->rng, (const byte*)nn[i].nodekey.data(), nn[i].nodekey.size(), buf, sizeof buf)))
             {
-                return client->app->putnodes_result(API_EINTERNAL, USER_HANDLE, nn);
+                return client->app->putnodes_result(API_EINTERNAL, USER_HANDLE, &nn);
             }
 
             nn[i].nodekey.assign((char*)buf, t);
         }
 
-        client->reqs.add(new CommandPutNodes(client, UNDEF, u->uid.c_str(), nn, nc, tag, PUTNODES_APP, nullptr, transfer));
+        client->reqs.add(new CommandPutNodes(client, UNDEF, u->uid.c_str(), std::move(nn), tag, PUTNODES_APP, nullptr, transfer));
     }
     else
     {
-        client->app->putnodes_result(API_ENOENT, USER_HANDLE, nn);
+        client->app->putnodes_result(API_ENOENT, USER_HANDLE, &nn);
     }
 }
 

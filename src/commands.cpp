@@ -1017,14 +1017,12 @@ void CommandSetAttr::procresult()
 // (the result is not processed directly - we rely on the server-client
 // response)
 CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
-                                 const char* userhandle, NewNode* newnodes,
-                                 int numnodes, int ctag, putsource_t csource, const char *cauth, Transfer *aTransfer)
+                                 const char* userhandle, vector<NewNode>&& newnodes,
+                                 int ctag, putsource_t csource, const char *cauth, Transfer *aTransfer)
 {
     byte key[FILENODEKEYLENGTH];
-    int i;
 
-    nn = newnodes;
-    nnsize = numnodes;
+    nn = std::move(newnodes);
     type = userhandle ? USER_HANDLE : NODE_HANDLE;
     source = csource;
     transfer = aTransfer;
@@ -1052,39 +1050,38 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
 
     beginarray("n");
 
-    for (i = 0; i < numnodes; i++)
+    for (auto& nni : nn)
     {
         beginobject();
 
-        NewNode* nni = &nn[i];
-        switch (nni->source)
+        switch (nni.source)
         {
             case NEW_NODE:
-                arg("h", (byte*)&nni->nodehandle, MegaClient::NODEHANDLE);
+                arg("h", (byte*)&nni.nodehandle, MegaClient::NODEHANDLE);
                 break;
 
             case NEW_PUBLIC:
-                arg("ph", (byte*)&nni->nodehandle, MegaClient::NODEHANDLE);
+                arg("ph", (byte*)&nni.nodehandle, MegaClient::NODEHANDLE);
                 break;
 
             case NEW_UPLOAD:
-                arg("h", nni->uploadtoken, sizeof nn->uploadtoken);
+                arg("h", nni.uploadtoken, sizeof NewNode::uploadtoken);
 
                 // include pending file attributes for this upload
                 string s;
 
-                if (nni->fileattributes)
+                if (nni.fileattributes)
                 {
                     // if attributes are set on the newnode then the app is not using the pendingattr mechanism
-                    s.swap(*nni->fileattributes);
-                    nni->fileattributes.reset();
+                    s.swap(*nni.fileattributes);
+                    nni.fileattributes.reset();
                 }
                 else
                 {
-                    client->pendingattrstring(nn[i].uploadhandle, &s);
+                    client->pendingattrstring(nni.uploadhandle, &s);
 
 #ifdef USE_MEDIAINFO
-                    client->mediaFileInfo.addUploadMediaFileAttributes(nn[i].uploadhandle, &s);
+                    client->mediaFileInfo.addUploadMediaFileAttributes(nni.uploadhandle, &s);
 #endif
                 }
 
@@ -1094,27 +1091,27 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
                 }                
         }
 
-        if (!ISUNDEF(nn[i].parenthandle))
+        if (!ISUNDEF(nni.parenthandle))
         {
-            arg("p", (byte*)&nn[i].parenthandle, MegaClient::NODEHANDLE);
+            arg("p", (byte*)&nni.parenthandle, MegaClient::NODEHANDLE);
         }
 
-        if (nn[i].type == FILENODE && !ISUNDEF(nn[i].ovhandle))
+        if (nni.type == FILENODE && !ISUNDEF(nni.ovhandle))
         {
-            arg("ov", (byte*)&nn[i].ovhandle, MegaClient::NODEHANDLE);
+            arg("ov", (byte*)&nni.ovhandle, MegaClient::NODEHANDLE);
         }
 
-        arg("t", nn[i].type);
-        arg("a", (byte*)nn[i].attrstring->data(), int(nn[i].attrstring->size()));
+        arg("t", nni.type);
+        arg("a", (byte*)nni.attrstring->data(), int(nni.attrstring->size()));
 
-        if (nn[i].nodekey.size() <= sizeof key)
+        if (nni.nodekey.size() <= sizeof key)
         {
-            client->key.ecb_encrypt((byte*)nn[i].nodekey.data(), key, nn[i].nodekey.size());
-            arg("k", key, int(nn[i].nodekey.size()));
+            client->key.ecb_encrypt((byte*)nni.nodekey.data(), key, nni.nodekey.size());
+            arg("k", key, int(nni.nodekey.size()));
         }
         else
         {
-            arg("k", (const byte*)nn[i].nodekey.data(), int(nn[i].nodekey.size()));
+            arg("k", (const byte*)nni.nodekey.data(), int(nni.nodekey.size()));
         }
 
         endobject();
@@ -1131,17 +1128,17 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
         {
             ShareNodeKeys snk;
 
-            for (i = 0; i < numnodes; i++)
+            for (auto& nni : nn)
             {
-                switch (nn[i].source)
+                switch (nni.source)
                 {
                     case NEW_PUBLIC:
                     case NEW_NODE:
-                        snk.add(nn[i].nodekey, nn[i].nodehandle, tn, 0);
+                        snk.add(nni.nodekey, nni.nodehandle, tn, 0);
                         break;
 
                     case NEW_UPLOAD:
-                        snk.add(nn[i].nodekey, nn[i].nodehandle, tn, 0, nn[i].uploadtoken, (int)sizeof nn->uploadtoken);
+                        snk.add(nni.nodekey, nni.nodehandle, tn, 0, nni.uploadtoken, (int)sizeof NewNode::uploadtoken);
                         break;
                 }
             }
@@ -1233,19 +1230,19 @@ void CommandPutNodes::procresult()
 
             client->app->putnodes_result(e, type, NULL);
 
-            for (int i=0; i < nnsize; i++)
+            for (auto& nni : nn)
             {
-                nn[i].localnode.reset();
+                nni.localnode.reset();
             }
 
-            return client->putnodes_sync_result(e, nn, nnsize);
+            return client->putnodes_sync_result(e, nn);
         }
         else
         {
 #endif
             if (source == PUTNODES_APP)
             {
-                return client->app->putnodes_result(e, type, nn);
+                client->app->putnodes_result(e, type, &nn);
             }
 #ifdef ENABLE_SYNC
             else
@@ -1266,7 +1263,7 @@ void CommandPutNodes::procresult()
         {
             case 'f':
                 empty = !memcmp(client->json.pos, "[]", 2);
-                if (client->readnodes(&client->json, 1, source, nn, nnsize, tag, true))  // do apply keys to received nodes only as we go for command response, much much faster for many small responses
+                if (client->readnodes(&client->json, 1, source, &nn, tag, true))  // do apply keys to received nodes only as we go for command response, much much faster for many small responses
                 {
                     e = API_OK;
                 }
@@ -1279,7 +1276,7 @@ void CommandPutNodes::procresult()
                 break;
 
             case MAKENAMEID2('f', '2'):
-                if (!client->readnodes(&client->json, 1, PUTNODES_APP, NULL, 0, 0, true))  // do apply keys to received nodes only as we go for command response, much much faster for many small responses
+                if (!client->readnodes(&client->json, 1, PUTNODES_APP, nullptr, 0, true))  // do apply keys to received nodes only as we go for command response, much much faster for many small responses
                 {
                     LOG_err << "Parse error (readversions)";
                     e = API_EINTERNAL;
@@ -1309,7 +1306,7 @@ void CommandPutNodes::procresult()
     if (source == PUTNODES_SYNC)
     {
         client->app->putnodes_result(e, type, NULL);
-        client->putnodes_sync_result(e, nn, nnsize);
+        client->putnodes_sync_result(e, nn);
     }
     else
 #endif
@@ -1328,7 +1325,7 @@ void CommandPutNodes::procresult()
             }
         }
 #endif
-        client->app->putnodes_result((!e && empty) ? API_ENOENT : e, type, nn);
+        client->app->putnodes_result((!e && empty) ? API_ENOENT : e, type, &nn);
     }
 #ifdef ENABLE_SYNC
     else

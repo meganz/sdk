@@ -1142,7 +1142,7 @@ void DemoApp::fetchnodes_result(error e)
     }
 }
 
-void DemoApp::putnodes_result(error e, targettype_t t, NewNode* nn)
+void DemoApp::putnodes_result(error e, targettype_t t, vector<NewNode>* nn)
 {
     if (t == USER_HANDLE)
     {
@@ -1983,30 +1983,21 @@ class TreeProcCopy_mcli : public TreeProc
     // However some products are built with the megaapi_impl intermediate layer and some without so
     // we can avoid duplicated symbols in some products this way
 public:
-    NewNode * nn;
-    unsigned nc;
+    vector<NewNode> nn;
+    bool counting = true;
+    size_t nc = 0;
 
-
-    TreeProcCopy_mcli()
-    {
-        nn = NULL;
-        nc = 0;
-    }
 
     void allocnodes()
     {
-        nn = new NewNode[nc];
-    }
-
-    ~TreeProcCopy_mcli()
-    {
-        delete[] nn;
+        nn.resize(nc);
+        counting = false;
     }
 
     // determine node tree size (nn = NULL) or write node tree to new nodes array
     void proc(MegaClient* mc, Node* n)
     {
-        if (nn)
+        if (!counting)
         {
             string attrstring;
             SymmCipher key;
@@ -3639,10 +3630,10 @@ void exec_cp(autocomplete::ACState& s)
             if (tn)
             {
                 // add the new nodes
-                client->putnodes(tn->nodehandle, tc.nn, nc);
+                client->putnodes(tn->nodehandle, std::move(tc.nn));
 
                 // free in putnodes_result()
-                tc.nn = NULL;
+                tc.nn.clear();
             }
             else
             {
@@ -3827,7 +3818,7 @@ void exec_get(autocomplete::ACState& s)
 
 void uploadLocalFolderContent(LocalPath& localname, Node* cloudFolder);
 
-void uploadLocalPath(nodetype_t type, std::string name, LocalPath& localname, Node* parent, const std::string targetuser, DBTableTransactionCommitter& committer, int& total, bool recursive)
+void uploadLocalPath(nodetype_t type, std::string name, LocalPath& localname, Node* parent, const std::string targetuser, DBTableTransactionCommitter& committer, int& total, bool Y)
 {
 
     Node *previousNode = client->childnodebyname(parent, name.c_str(), false);

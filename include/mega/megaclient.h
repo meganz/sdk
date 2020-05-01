@@ -479,10 +479,10 @@ public:
 
     // add nodes to specified parent node (complete upload, copy files, make
     // folders)
-    void putnodes(handle, NewNode*, int, const char * = nullptr, Transfer * = nullptr);
+    void putnodes(handle, vector<NewNode>&&, const char * = nullptr, Transfer * = nullptr);
 
     // send files/folders to user
-    void putnodes(const char*, NewNode*, int, Transfer * = nullptr);
+    void putnodes(const char*, vector<NewNode>&&, Transfer * = nullptr);
 
     // attach file attribute to upload or node handle
     void putfa(handle, fatype, SymmCipher*, std::unique_ptr<string>, bool checkAccess = true);
@@ -1270,7 +1270,7 @@ public:
     handle currsyncid;
 
     // SyncDebris folder addition result
-    void putnodes_syncdebris_result(error, NewNode*);
+    void putnodes_syncdebris_result(error, vector<NewNode>&);
 
     // if no sync putnodes operation is in progress, apply the updates stored
     // in syncadded/syncdeleted/syncoverwritten to the remote tree
@@ -1280,7 +1280,7 @@ public:
     bool syncup(LocalNode*, dstime*);
 
     // sync putnodes() completion
-    void putnodes_sync_result(error, NewNode*, int);
+    void putnodes_sync_result(error, vector<NewNode>&);
 
     // start downloading/copy missing files, create missing directories
     bool syncdown(LocalNode*, LocalPath&, bool);
@@ -1304,7 +1304,7 @@ public:
 
     // unlink the LocalNode from the corresponding node
     // if the associated local file or folder still exists
-    void unlinkifexists(LocalNode*, FileAccess*, LocalPath& reuseBuffer);
+    bool unlinkifexists(LocalNode*, FileAccess*, LocalPath& reuseBuffer);
 #endif
 
     // recursively cancel transfers in a subtree
@@ -1339,7 +1339,7 @@ public:
     dstime lastDispatchTransfersDs = 0;
 
     // process object arrays by the API server
-    int readnodes(JSON*, int, putsource_t = PUTNODES_APP, NewNode* = NULL, int = 0, int = 0, bool applykeys = false);
+    int readnodes(JSON*, int, putsource_t = PUTNODES_APP, vector<NewNode>* = nullptr, int = 0, bool applykeys = false);
 
     void readok(JSON*);
     void readokelement(JSON*);

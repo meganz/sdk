@@ -501,8 +501,7 @@ public:
 
 class MEGA_API CommandPutNodes : public Command
 {
-    NewNode* nn;
-    int nnsize;
+    vector<NewNode> nn;
     targettype_t type;
     putsource_t source;
     handle targethandle;
@@ -511,7 +510,7 @@ class MEGA_API CommandPutNodes : public Command
 public:
     void procresult();
 
-    CommandPutNodes(MegaClient*, handle, const char*, NewNode*, int, int, putsource_t = PUTNODES_APP, const char *cauth = nullptr, Transfer *aTransfer = nullptr);
+    CommandPutNodes(MegaClient*, handle, const char*, vector<NewNode>&&, int, putsource_t, const char *cauth = nullptr, Transfer *aTransfer = nullptr);
 };
 
 class MEGA_API CommandSetAttr : public Command

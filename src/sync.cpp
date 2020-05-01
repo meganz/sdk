@@ -2003,8 +2003,10 @@ void Sync::deletemissing(LocalNode* l)
             {
                 fa = client->fsaccess->newfileaccess();
             }
-            client->unlinkifexists(it->second, fa.get(), path);
-            delete it++->second;
+            if (client->unlinkifexists(it->second, fa.get(), path))
+            {
+                delete it++->second;
+            }
         }
         else
         {

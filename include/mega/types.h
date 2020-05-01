@@ -813,13 +813,13 @@ public:
     TO* operator->() const { return ptr; }
     operator TO*() const { return ptr; }
 
-    // no copying
-    crossref_ptr(const crossref_ptr&) = delete;
-    void operator=(const crossref_ptr&) = delete;
+    // only allow copying if the pointers are null (check at runtime with assert)
+    crossref_ptr(const crossref_ptr&) { assert(!p.ptr); }
+    void operator=(const crossref_ptr&) { assert(!p.ptr && !ptr);  }
 
     // only allow move if the pointers are null (check at runtime with assert)
     crossref_ptr(crossref_ptr&& p) { assert(!p.ptr); }
-    void operator=(crossref_ptr&& p) { assert(!p.ptr); ptr = p; }
+    void operator=(crossref_ptr&& p) { assert(!p.ptr && !ptr); }
 };
 
 } // namespace

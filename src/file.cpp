@@ -288,7 +288,8 @@ void File::completed(Transfer* t, LocalNode* l)
 {
     if (t->type == PUT)
     {
-        NewNode* newnode = new NewNode[1];
+        vector<NewNode> newnodeVec(1);
+        auto newnode = &newnodeVec[0];
 
         // build new node
         newnode->source = NEW_UPLOAD;
@@ -330,7 +331,7 @@ void File::completed(Transfer* t, LocalNode* l)
             // drop file into targetuser's inbox
             int creqtag = t->client->reqtag;
             t->client->reqtag = tag;
-            t->client->putnodes(targetuser.c_str(), newnode, 1, t);
+            t->client->putnodes(targetuser.c_str(), std::move(newnodeVec), t);
             t->client->reqtag = creqtag;
         }
         else
@@ -369,7 +370,7 @@ void File::completed(Transfer* t, LocalNode* l)
 
             t->client->reqs.add(new CommandPutNodes(t->client,
                                                                   th, NULL,
-                                                                  newnode, 1,
+                                                                  std::move(newnodeVec),
                                                                   tag,
 #ifdef ENABLE_SYNC
                                                                   l ? PUTNODES_SYNC : PUTNODES_APP, nullptr, t));

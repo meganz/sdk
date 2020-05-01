@@ -2622,8 +2622,10 @@ void MegaClient::exec()
                             while (localsyncnotseen.size())
                             {
                                 LocalNode* l = *localsyncnotseen.begin();
-                                unlinkifexists(l, fa.get(), path);
-                                delete l;
+                                if (unlinkifexists(l, fa.get(), path))
+                                {
+                                    delete l;
+                                }
                             }
                         }
 
@@ -6951,13 +6953,13 @@ void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldern
 }
 
 // send new nodes to API for processing
-void MegaClient::putnodes(handle h, NewNode* newnodes, int numnodes, const char *cauth, Transfer *t)
+void MegaClient::putnodes(handle h, vector<NewNode>&& newnodes, const char *cauth, Transfer *t)
 {
-    reqs.add(new CommandPutNodes(this, h, NULL, newnodes, numnodes, reqtag, PUTNODES_APP, cauth, t));
+    reqs.add(new CommandPutNodes(this, h, NULL, std::move(newnodes), reqtag, PUTNODES_APP, cauth, t));
 }
 
 // drop nodes into a user's inbox (must have RSA keypair)
-void MegaClient::putnodes(const char* user, NewNode* newnodes, int numnodes, Transfer *transfer)
+void MegaClient::putnodes(const char* user,vector<NewNode>&& newnodes, Transfer *transfer)
 {
     User* u;
 
@@ -6965,10 +6967,10 @@ void MegaClient::putnodes(const char* user, NewNode* newnodes, int numnodes, Tra
 
     if (!(u = finduser(user, 0)) && !user)
     {
-        return app->putnodes_result(API_EARGS, USER_HANDLE, newnodes);
+        return app->putnodes_result(API_EARGS, USER_HANDLE, &newnodes);
     }
 
-    queuepubkeyreq(user, ::mega::make_unique<PubKeyActionPutNodes>(newnodes, numnodes, reqtag, transfer));
+    queuepubkeyreq(user, ::mega::make_unique<PubKeyActionPutNodes>(std::move(newnodes), reqtag, transfer));
 }
 
 // returns 1 if node has accesslevel a or better, 0 otherwise
@@ -7362,7 +7364,7 @@ uint64_t MegaClient::stringhash64(string* s, SymmCipher* c)
 }
 
 // read and add/verify node array
-int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, int nnsize, int tag, bool applykeys)
+int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNode>* nn, int tag, bool applykeys)
 {
     if (!j->enterarray())
     {
@@ -7615,29 +7617,29 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                     useralerts.noteSharedNode(u, t, ts, n);
                 }
 
-                if (nn && nni >= 0 && nni < nnsize)
+                if (nn && nni >= 0 && nni < nn->size())
                 {
-                    nn[nni].added = true;
+                    (*nn)[nni].added = true;
 
 #ifdef ENABLE_SYNC
                     if (source == PUTNODES_SYNC)
                     {
-                        if (nn[nni].localnode)
+                        if ((*nn)[nni].localnode)
                         {
                             // overwrites/updates: associate LocalNode with newly created Node
-                            nn[nni].localnode->setnode(n);
-                            nn[nni].localnode->treestate(TREESTATE_SYNCED);
+                            (*nn)[nni].localnode->setnode(n);
+                            (*nn)[nni].localnode->treestate(TREESTATE_SYNCED);
 
                             // updates cache with the new node associated
-                            nn[nni].localnode->sync->statecacheadd(nn[nni].localnode);
-                            nn[nni].localnode->newnode.reset(); // localnode ptr now null also
+                            (*nn)[nni].localnode->sync->statecacheadd((*nn)[nni].localnode);
+                            (*nn)[nni].localnode->newnode.reset(); // localnode ptr now null also
                         }
                     }
 #endif
 
-                    if (nn[nni].source == NEW_UPLOAD)
+                    if ((*nn)[nni].source == NEW_UPLOAD)
                     {
-                        handle uh = nn[nni].uploadhandle;
+                        handle uh = (*nn)[nni].uploadhandle;
 
                         // do we have pending file attributes for this upload? set them.
                         for (fa_map::iterator it = pendingfa.lower_bound(pair<handle, fatype>(uh, fatype(0)));
@@ -12597,32 +12599,43 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, bool rubbish)
             if (rit->second->localnode->parent)
             {
                 LOG_debug << "with a previous parent: " << rit->second->localnode->parent->name;
-                
-                LocalPath curpath = rit->second->localnode->getLocalPath();
-                rit->second->localnode->treestate(TREESTATE_SYNCING);
 
-                LOG_debug << "Renaming/moving from the previous location to the new one";
-                if (fsaccess->renamelocal(curpath, localpath))
+                if (!l->sync->getConfig().syncsToCloud() && l->type == FILENODE && rit->second->type == FILENODE
+                    && *static_cast<FileFingerprint*>(l) != *static_cast<FileFingerprint*>(rit->second))
                 {
-                    app->syncupdate_local_move(rit->second->localnode->sync,
-                                               rit->second->localnode, localpath.toPath(*fsaccess).c_str());
-
-                    // update LocalNode tree to reflect the move/rename
-                    auto ln = rit->second->localnode;
-                        
-                    ln->setnameparent(l, &localpath, true);
-                    ln->treestate(TREESTATE_SYNCED);
-
-                    // update filenames so that PUT transfers can continue seamlessly
-                    updateputs();
-                    syncactivity = true;
+                    // TODO: still working on this case
+					LOG_debug << "File fingerprint does not match so this file has had user intervention, skip moving it";
+                    l->node = nullptr;
+                    rit->second->localnode = nullptr;
                 }
-                else if (success && fsaccess->transient_error)
+                else
                 {
-                    // schedule retry
-                    blockedfile = curpath;
-                    LOG_debug << "Transient error moving localnode " << blockedfile.toPath(*fsaccess);
-                    success = false;
+                    LocalPath curpath = rit->second->localnode->getLocalPath();
+                    rit->second->localnode->treestate(TREESTATE_SYNCING);
+
+                    LOG_debug << "Renaming/moving from the previous location to the new one";
+                    if (fsaccess->renamelocal(curpath, localpath))
+                    {
+                        app->syncupdate_local_move(rit->second->localnode->sync,
+                                                   rit->second->localnode, localpath.toPath(*fsaccess).c_str());
+
+                        // update LocalNode tree to reflect the move/rename
+                        auto ln = rit->second->localnode;
+                        
+                        ln->setnameparent(l, &localpath, true);
+                        ln->treestate(TREESTATE_SYNCED);
+
+                        // update filenames so that PUT transfers can continue seamlessly
+                        updateputs();
+                        syncactivity = true;
+                    }
+                    else if (success && fsaccess->transient_error)
+                    {
+                        // schedule retry
+                        blockedfile = curpath;
+                        LOG_debug << "Transient error moving localnode " << blockedfile.toPath(*fsaccess);
+                        success = false;
+                    }
                 }
             }
             else
@@ -13303,8 +13316,6 @@ void MegaClient::syncupdate()
     string tattrstring;
     AttrMap tattrs;
     Node* n;
-    NewNode* nn;
-    NewNode* nnp;
     LocalNode* l;
 
     for (start = 0; start < synccreate.size(); start = end)
@@ -13320,7 +13331,9 @@ void MegaClient::syncupdate()
 
         // add nodes that can be created immediately: folders & existing files;
         // start uploads of new files
-        nn = nnp = new NewNode[end - start];
+        vector<NewNode> nn;
+        nn.reserve(end - start);
+
 
         DBTableTransactionCommitter committer(tctable);
         for (i = start; i < end; i++)
@@ -13336,6 +13349,8 @@ void MegaClient::syncupdate()
             if (l->type == FOLDERNODE || (n = nodebyfingerprint(l)))
             {
                 // create remote folder or copy file if it already exists
+                nn.emplace_back();
+                auto nnp = &nn.back();
                 nnp->source = NEW_NODE;
                 nnp->type = l->type;
                 nnp->syncid = l->syncid;
@@ -13390,7 +13405,6 @@ void MegaClient::syncupdate()
                 makeattr(&tkey, nnp->attrstring, tattrstring.c_str());
 
                 l->treestate(TREESTATE_SYNCING);
-                nnp++;
             }
             else if (l->type == FILENODE)
             {
@@ -13408,11 +13422,7 @@ void MegaClient::syncupdate()
             }
         }
 
-        if (nnp == nn)
-        {
-            delete[] nn;
-        }
-        else
+        if (!nn.empty())
         {
             // add nodes unless parent node has been deleted
             LocalNode *localNode = synccreate[start];
@@ -13425,7 +13435,7 @@ void MegaClient::syncupdate()
                        || localNode->h == localNode->parent->node->nodehandle); // if it's a file, it should match
                 reqs.add(new CommandPutNodes(this,
                                                 localNode->parent->node->nodehandle,
-                                                NULL, nn, int(nnp - nn),
+                                                NULL, std::move(nn),
                                                 localNode->sync->tag,
                                                 PUTNODES_SYNC));
 
@@ -13437,10 +13447,11 @@ void MegaClient::syncupdate()
     synccreate.clear();
 }
 
-void MegaClient::putnodes_sync_result(error e, NewNode* nn, int nni)
+void MegaClient::putnodes_sync_result(error e, vector<NewNode>& nn)
 {
     // check for file nodes that failed to copy and remove them from fingerprints
     // FIXME: retrigger sync decision upload them immediately
+    size_t nni = nn.size();
     while (nni--)
     {
         Node* n;
@@ -13470,7 +13481,7 @@ void MegaClient::putnodes_sync_result(error e, NewNode* nn, int nni)
         }
     }
 
-    delete[] nn;
+    nn.clear();
 
     syncadding--;
     syncactivity = true;
@@ -13550,39 +13561,50 @@ void MegaClient::proclocaltree(LocalNode* n, LocalTreeProc* tp)
     tp->proc(this, n);
 }
 
-void MegaClient::unlinkifexists(LocalNode *l, FileAccess *fa, LocalPath& reuseBuffer)
+bool MegaClient::unlinkifexists(LocalNode *l, FileAccess *fa, LocalPath& reuseBuffer)
 {
-    l->getLocalPath(reuseBuffer);
-    if (fa->fopen(reuseBuffer) || fa->type == FOLDERNODE)
+    if (l->sync->getConfig().syncsToCloud())
     {
-        LOG_warn << "Deletion of existing file avoided";
-        static bool reported99446 = false;
-        if (!reported99446)
+        l->getLocalPath(reuseBuffer);
+        if (fa->fopen(reuseBuffer) || fa->type == FOLDERNODE)
         {
-            sendevent(99446, "Deletion of existing file avoided", 0);
-            reported99446 = true;
-        }
+            LOG_warn << "Deletion of existing file avoided";
+            static bool reported99446 = false;
+            if (!reported99446)
+            {
+                sendevent(99446, "Deletion of existing file avoided", 0);
+                reported99446 = true;
+            }
 
-        // The local file or folder seems to be still there, but invisible
-        // for the sync engine, so we just stop syncing it
-        LocalTreeProcUnlinkNodes tpunlink;
-        proclocaltree(l, &tpunlink);
-    }
-#ifdef _WIN32
-    else if (fa->errorcode != ERROR_FILE_NOT_FOUND && fa->errorcode != ERROR_PATH_NOT_FOUND)
-    {
-        LOG_warn << "Unexpected error code for deleted file: " << fa->errorcode;
-        static bool reported99447 = false;
-        if (!reported99447)
-        {
-            ostringstream oss;
-            oss << fa->errorcode;
-            string message = oss.str();
-            sendevent(99447, message.c_str(), 0);
-            reported99447 = true;
+            // The local file or folder seems to be still there, but invisible
+            // for the sync engine, so we just stop syncing it
+            LocalTreeProcUnlinkNodes tpunlink;
+            proclocaltree(l, &tpunlink);
         }
+    #ifdef _WIN32
+        else if (fa->errorcode != ERROR_FILE_NOT_FOUND && fa->errorcode != ERROR_PATH_NOT_FOUND)
+        {
+            LOG_warn << "Unexpected error code for deleted file: " << fa->errorcode;
+            static bool reported99447 = false;
+            if (!reported99447)
+            {
+                ostringstream oss;
+                oss << fa->errorcode;
+                string message = oss.str();
+                sendevent(99447, message.c_str(), 0);
+                reported99447 = true;
+            }
+        }
+    #endif
+        return true;
     }
-#endif
+    else
+    {
+        // Keep the LocalNode so we know not to sync changes from the cloud to this path anymore
+        l->mDetachedFromFS = true;
+        l->setnotseen(false);
+        return false;
+    }
 }
 
 void MegaClient::execsyncunlink()
@@ -13721,18 +13743,14 @@ void MegaClient::execmovetosyncdebris()
         LOG_debug << "Creating daily SyncDebris folder: " << buf << " Target: " << target;
 
         // create missing component(s) of the sync debris folder of the day
-        NewNode* nn;
         SymmCipher tkey;
         string tattrstring;
         AttrMap tattrs;
-        int i = (target == SYNCDEL_DEBRIS) ? 1 : 2;
+        vector<NewNode> nnv((target == SYNCDEL_DEBRIS) ? 1 : 2);
 
-        nn = new NewNode[i] + i;
-
-        while (i--)
+        for (auto i = nnv.size(); i--; )
         {
-            nn--;
-
+            auto nn = &nnv[i];
             nn->source = NEW_NODE;
             nn->type = FOLDERNODE;
             nn->nodehandle = i;
@@ -13749,9 +13767,7 @@ void MegaClient::execmovetosyncdebris()
             makeattr(&tkey, nn->attrstring, tattrstring.c_str());
         }
 
-        reqs.add(new CommandPutNodes(this, tn->nodehandle, NULL, nn,
-                                        (target == SYNCDEL_DEBRIS) ? 1 : 2, -reqtag,
-                                        PUTNODES_SYNCDEBRIS));
+        reqs.add(new CommandPutNodes(this, tn->nodehandle, NULL, std::move(nnv), -reqtag, PUTNODES_SYNCDEBRIS));
     }
 }
 
@@ -13779,9 +13795,9 @@ void MegaClient::delsync(Sync* sync, bool deletecache)
     syncactivity = true;
 }
 
-void MegaClient::putnodes_syncdebris_result(error, NewNode* nn)
+void MegaClient::putnodes_syncdebris_result(error, vector<NewNode>& nn)
 {
-    delete[] nn;
+    nn.clear();
 
     syncdebrisadding = false;
 }
