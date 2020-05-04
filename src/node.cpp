@@ -1756,7 +1756,7 @@ bool LocalNode::serialize(string* d)
     }
     w.serializebyte(mSyncable);
     w.serializeexpansionflags(1);  // first flag indicates we are storing slocalname.  Storing it is much, much faster than looking it up on startup.
-    w.serializecstr(slocalname ? slocalname->c_str() : nullptr, false);
+    w.serializepstr(slocalname.get());
     return true;
 }
 
