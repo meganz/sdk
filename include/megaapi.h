@@ -2725,7 +2725,7 @@ class MegaRequest
             TYPE_SET_ATTR_USER, TYPE_RETRY_PENDING_CONNECTIONS,
             TYPE_REMOVE_CONTACT, TYPE_CREATE_ACCOUNT,
             TYPE_CONFIRM_ACCOUNT,
-            TYPE_QUERY_SIGNUP_LINK, TYPE_ADD_SYNC, TYPE_REMOVE_SYNC, TYPE_ENABLE_SYNC, //TODO: doc this
+            TYPE_QUERY_SIGNUP_LINK, TYPE_ADD_SYNC, TYPE_REMOVE_SYNC, TYPE_DISABLE_SYNC, TYPE_ENABLE_SYNC, //TODO: doc this
             TYPE_COPY_SYNC_CONFIG,
             TYPE_REMOVE_SYNCS, TYPE_PAUSE_TRANSFERS,
             TYPE_CANCEL_TRANSFER, TYPE_CANCEL_TRANSFERS,
@@ -4898,6 +4898,28 @@ public:
     /*TODO: doc*/
     virtual bool isEnabled() const;
     virtual bool isTemporaryDisabled() const;
+
+
+    /**
+     * @brief Returns a readable description of the error
+     *
+     * This function returns a pointer to a statically allocated buffer.
+     * You don't have to free the returned pointer
+     *
+     * @return Readable description of the error
+     */
+    const char * getMegaSyncErrorCode();
+
+    /**
+     * @brief Provides the error description associated with an error code
+     *
+     * This function returns a pointer to a statically allocated buffer.
+     * You don't have to free the returned pointer
+     *
+     * @param errorCode Error code for which the description will be returned
+     * @return Description associated with the error code
+     */
+    static const char *getMegaSyncErrorCode(int errorCode);
 };
 
 #endif
@@ -12292,10 +12314,9 @@ class MegaApi
          * The synchronization will stop but the cache of local files won't be deleted.
          * If you want to also delete the local cache use MegaApi::removeSync
          *
-         * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNC
+         * The associated request type with this request is MegaRequest::TYPE_DISABLE_SYNC
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
-         * - MegaRequest::getFlag - Returns false
          *
          * @param megaFolder MEGA folder
          * @param listener MegaRequestListener to track this request
@@ -12311,10 +12332,9 @@ class MegaApi
          * The synchronization will stop but the cache of local files won't be deleted.
          * If you want to also delete the local cache use MegaApi::removeSync
          *
-         * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNC
+         * The associated request type with this request is MegaRequest::TYPE_DISABLE_SYNC
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
-         * - MegaRequest::getFlag - Returns false
          *
          * @param sync Synchronization to disable
          * @param listener MegaRequestListener to track this request
@@ -12323,6 +12343,8 @@ class MegaApi
 
         //TODO: docs
         void enableSync(MegaSync *sync, MegaRequestListener *listener = NULL);
+        void enableSync(int tag, MegaRequestListener *listener = NULL);
+        void disableSync(int tag, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Remove all active synced folders

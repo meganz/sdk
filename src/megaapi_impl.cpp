@@ -3759,6 +3759,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_QUERY_SIGNUP_LINK: return "QUERY_SIGNUP_LINK";
         case TYPE_ADD_SYNC: return "ADD_SYNC";
         case TYPE_ENABLE_SYNC: return "ENABLE_SYNC";
+        case TYPE_DISABLE_SYNC: return "DISABLE_SYNC";
         case TYPE_COPY_SYNC_CONFIG: return "TYPE_COPY_SYNC_CONFIG";
         case TYPE_REMOVE_SYNC: return "REMOVE_SYNC";
         case TYPE_REMOVE_SYNCS: return "REMOVE_SYNCS";
@@ -8386,19 +8387,25 @@ void MegaApiImpl::removeSync(handle nodehandle, MegaRequestListener* listener)
 
 void MegaApiImpl::disableSync(handle nodehandle, MegaRequestListener *listener)
 {
-    //TODO: add new kind of request to actually DISABLE_SYNC
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SYNC, listener);
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_DISABLE_SYNC, listener);
     request->setNodeHandle(nodehandle);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::disableSync(int syncTag, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_DISABLE_SYNC, listener);
+    request->setNumDetails(syncTag);
     request->setFlag(false);
     requestQueue.push(request);
     waiter->notify();
 }
 
-
 void MegaApiImpl::enableSync(int syncTag, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ENABLE_SYNC, listener);
-    request->setTag(syncTag);
+    request->setNumDetails(syncTag);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -13680,7 +13687,9 @@ void MegaApiImpl::clearing()
     map<int, MegaSyncPrivate *>::iterator it;
     for (it = syncMap.begin(); it != syncMap.end(); )
     {
-        it = eraseSyncByIterator(it);
+        MegaSyncPrivate *sync = (MegaSyncPrivate *)it->second;
+        syncMap.erase(it++);
+        delete sync;
     }
 #endif
 }
@@ -20738,27 +20747,28 @@ void MegaApiImpl::sendPendingRequests()
 
             int syncError = 0;
             e = client->addsync(std::move(syncConfig), DEBRISFOLDER, NULL, syncError, nextSyncTag, sync);
+            request->setNumDetails(syncError); //TODO: doc this
             if (!e)
             {
                 Sync *s = client->syncs.back();
                 fsfp_t fsfp = s->fsfp;
+                sync->setError(syncError);
                 sync->setState(s->state);
                 sync->setLocalFingerprint(fsfp);
                 request->setNumber(fsfp);
                 syncMap[nextSyncTag] = sync;
+
                 fireOnSyncAdded(sync);
                 fireOnRequestFinish(request, MegaError(API_OK));
+                break;
             }
-            else
-            {
-                // TODO: return syncError somehow in the request
-                delete sync;
-            }
+
+            delete sync;
             break;
         }
         case MegaRequest::TYPE_ENABLE_SYNC:
         {
-            auto tag = request->getTag();
+            auto tag = request->getNumDetails(); //TODO: doc this and for all
             auto sync_it = syncMap.find(tag);
             if ( sync_it == syncMap.end() || !sync_it->second)
             {
@@ -20766,32 +20776,39 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-
             MegaSyncPrivate *sync = sync_it->second;
-
             assert(tag == sync->getTag());
 
+            //TODO: (unrelated to this position) in case of failure Settings should be updated!!! (reload configuration always when saving?)
+            //(maybe too overkill)
+            // TODO: or only reload if any request came false? nah, should all be addressed via callbacks before reqfinish
 
             SyncConfig syncConfig{tag, sync->getLocalFolder(), sync->getMegaHandle(),
                                 static_cast<fsfp_t>(sync->getLocalFingerprint()), regExpToVector(sync->getRegExp())};
 
             int syncError = 0;
             e = client->addsync(std::move(syncConfig), DEBRISFOLDER, NULL, syncError, tag, sync);
+            request->setNumDetails(syncError); //TODO: doc this
+
             if (!e)
             {
                 Sync *s = client->syncs.back();
                 fsfp_t fsfp = s->fsfp;
+                sync->setError(syncError);
                 sync->setState(s->state);
                 sync->setLocalFingerprint(fsfp); //Note to reviewer: should this be overriden or should a diff cause a failure?
                 request->setNumber(fsfp);
+                fireOnSyncStateChanged(sync); //TODO: that needs to lead to Platform::add
                 fireOnRequestFinish(request, MegaError(API_OK));
-                fireOnSyncStateChanged(sync);
-                //fireSyncedStateChanged or fireSyncEnabled -> that needs to lead to Platform::add
+                break;
             }
-            else
+
+            if (sync->getError() != syncError)
             {
-                // TODO: return syncError somehow in the request
+                sync->setError(syncError);
+                fireOnSyncStateChanged(sync);
             }
+
             break;
         }
         case MegaRequest::TYPE_COPY_SYNC_CONFIG:
@@ -20847,7 +20864,7 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_REMOVE_SYNC: //TODO: ideally we should redo this and receive the tag directly
         {
             handle nodehandle = request->getNodeHandle();
-            int tag = static_cast<int>(request->getNumber());
+            int tag = request->getNumDetails(); //TODO: review this for removesync (if makes sense
             sync_list::iterator it = client->syncs.begin();
             bool found = false;
             while(it != client->syncs.end())
@@ -20855,10 +20872,11 @@ void MegaApiImpl::sendPendingRequests()
                 Sync *sync = (*it);
                 it++;
 
-                if (!sync->localroot->node || sync->localroot->node->nodehandle == nodehandle)
+                if ((tag && tag == static_cast<MegaSync*>(sync->appData)->getTag())
+                        || !sync->localroot->node || sync->localroot->node->nodehandle == nodehandle)
                 {
-                    assert(!tag || tag == sync->tag);
-                    tag = sync->tag;
+                    assert(!tag || !sync->appData || tag == static_cast<MegaSync*>(sync->appData)->getTag());
+                    tag = static_cast<MegaSync*>(sync->appData)->getTag();
                     string path;
                     fsAccess->local2path(&sync->localroot->localname, &path);
                     if (!request->getFile() || sync->localroot->node)
@@ -20866,20 +20884,12 @@ void MegaApiImpl::sendPendingRequests()
                         request->setFile(path.c_str());
                     }
 
-                    if (request->getFlag())
-                    {
-                        client->delsync(sync);
+                    client->delsync(sync);
 
-                        if (syncMap.find(tag) != syncMap.end())
-                        {
-                            sync->appData = NULL;
-                            eraseSync(tag);
-                        }
-                    }
-                    else
+                    if (sync->appData && tag == static_cast<MegaSync*>(sync->appData)->getTag())
                     {
-                        //TODO: consider having a different request type that bacically does this:
-                        client->disableSync(sync);
+                        sync->appData = NULL;
+                        eraseSync(tag);
                     }
 
 
@@ -20908,6 +20918,46 @@ void MegaApiImpl::sendPendingRequests()
                 if (tag && syncMap.find(tag) != syncMap.end())
                 {
                     eraseSync(tag);
+                    found = true;
+                }
+            }
+
+            if (found)
+            {
+                fireOnRequestFinish(request, MegaError(API_OK));
+                break;
+            }
+            e = API_ENOENT;
+
+            break;
+        }
+        case MegaRequest::TYPE_DISABLE_SYNC:
+        {
+            int tag = request->getNumDetails(); //TODO: document this?
+            bool found = false;
+            sync_list::iterator it = client->syncs.begin();
+            while(it != client->syncs.end())
+            {
+                Sync *sync = (*it);
+                it++;
+
+                if (sync->appData && tag == static_cast<MegaSync*>(sync->appData)->getTag())
+                {
+                    client->disableSync(sync);
+                    found = true;
+                }
+            }
+
+            if (!found)
+            {
+                // still can be in the syncMap (non active syncs)
+                auto sync_it = syncMap.find(tag);
+                if (tag && sync_it != syncMap.end())
+                {
+                    auto megaSync = sync_it->second;
+                    megaSync->setState(SYNC_DISABLED);
+                    LOG_debug << "Sync state change: " << SYNC_DISABLED << " Path: " << megaSync->getLocalFolder();
+                    fireOnSyncStateChanged(megaSync);
                     found = true;
                 }
             }

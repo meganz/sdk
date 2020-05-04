@@ -3144,6 +3144,17 @@ void MegaApi::enableSync(MegaSync *sync, MegaRequestListener *listener)
     pImpl->enableSync(sync ? sync->getTag() : INVALID_SYNC_TAG, listener);
 }
 
+void MegaApi::enableSync(int tag, MegaRequestListener *listener)
+{
+    pImpl->enableSync(tag, listener);
+}
+
+void MegaApi::disableSync(int tag, MegaRequestListener *listener)
+{
+    pImpl->disableSync(tag, listener);
+}
+
+
 void MegaApi::removeSyncs(MegaRequestListener *listener)
 {
    pImpl->stopSyncs(listener);
@@ -5427,6 +5438,49 @@ bool MegaSync::isEnabled() const
 bool MegaSync::isTemporaryDisabled() const
 {
     return false;
+}
+
+
+const char* MegaSync::getMegaSyncErrorCode()
+{
+    return MegaSync::getMegaSyncErrorCode(getError());
+}
+
+const char* MegaSync::getMegaSyncErrorCode(int errorCode)
+{
+    switch(errorCode)
+    {
+    //TODO: change the strings to something more fruitful
+    case MegaSync::Error::NO_ERROR:
+        return "No error";
+    case MegaSync::Error::UNKNOWN_ERROR:
+        return "UNKNOWN_ERROR";
+    case MegaSync::Error::UNSUPPORTED_FILE_SYSTEM:
+        return "UNSUPPORTED_FILE_SYSTEM";
+    case MegaSync::Error::INVALID_REMOTE_TYPE:
+        return "INVALID_REMOTE_TYPE";
+    case MegaSync::Error::INVALID_LOCAL_TYPE:
+        return "INVALID_LOCAL_TYPE";
+    case MegaSync::Error::INITIAL_SCAN_FAILED:
+        return "INITIAL_SCAN_FAILED";
+    case MegaSync::Error::LOCAL_PATH_TEMPORARY_UNAVAILABLE:
+        return "LOCAL_PATH_TEMPORARY_UNAVAILABLE";
+    case MegaSync::Error::LOCAL_PATH_UNAVAILABLE:
+        return "LOCAL_PATH_UNAVAILABLE";
+    case MegaSync::Error::REMOTE_NODE_NOT_FOUND:
+        return "REMOTE_NODE_NOT_FOUND";
+    case MegaSync::Error::STORAGE_OVERQUOTA:
+        return "STORAGE_OVERQUOTA";
+    case MegaSync::Error::BUSINESS_EXPIRED:
+        return "BUSINESS_EXPIRED";
+    case MegaSync::Error::FOREIGN_TARGET_OVERSTORAGE:
+        return "FOREIGN_TARGET_OVERSTORAGE";
+    case MegaSync::Error::REMOTE_PATH_HAS_CHANGED:
+        return "REMOTE_PATH_HAS_CHANGED";
+
+    default:
+        return "Unknown error";
+    }
 }
 
 void MegaSyncListener::onSyncFileStateChanged(MegaApi *, MegaSync *, string *, int)
