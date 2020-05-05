@@ -3746,7 +3746,7 @@ void MegaClient::freeq(direction_t d)
 
 bool MegaClient::isFetchingNodesPendingCS()
 {
-    return pendingcs->includesFetchingNodes;
+    return pendingcs && pendingcs->includesFetchingNodes;
 }
 
 #ifdef ENABLE_SYNC

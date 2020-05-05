@@ -26,19 +26,14 @@
 
 namespace mega {
 
-bool Request::includesFetchingNodes() const
+bool Request::isFetchNodes() const
 {
-    return mIncludesFetchingNodes;
+    return cmds.size() == 1 && dynamic_cast<CommandFetchNodes*>(cmds.back());
 }
 
 void Request::add(Command* c)
 {
     cmds.push_back(c);
-
-    if (c->isFetchNodes())
-    {
-        mIncludesFetchingNodes = true;
-    }
 }
 
 size_t Request::size() const
@@ -158,7 +153,6 @@ void Request::swap(Request& r)
 {
     // we use swap to move between queues, but process only after it gets into the completedreqs
     cmds.swap(r.cmds);
-    mIncludesFetchingNodes = r.mIncludesFetchingNodes;
     assert(jsonresponse.empty() && r.jsonresponse.empty());
     assert(json.pos == NULL && r.json.pos == NULL);
     assert(processindex == 0 && r.processindex == 0);
@@ -223,7 +217,7 @@ void RequestDispatcher::serverrequest(string *out, bool& suppressSID, bool &incl
         nextreqs.push_back(Request());
     }
     inflightreq.get(out, suppressSID);
-    includesFetchingNodes = inflightreq.includesFetchingNodes();
+    includesFetchingNodes = inflightreq.isFetchNodes();
 #ifdef MEGA_MEASURE_CODE
     csRequestsSent += inflightreq.size();
     csBatchesSent += 1;
