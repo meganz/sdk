@@ -2317,13 +2317,11 @@ std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &
     static const m_off_t SZ_1024K = 1l << 20;
     static const m_off_t SZ_128K  = 128l << 10;
 
-    std::vector<byte> buffer;
+    std::unique_ptr<byte[]> buffer(new byte[SZ_1024K + SymmCipher::BLOCKSIZE]);
     chunkmac_map chunkMacs;
     m_off_t chunkLength = 0;
     m_off_t current = 0;
     m_off_t remaining = isAccess.size();
-
-    buffer.reserve(SZ_1024K + SymmCipher::BLOCKSIZE);
 
     while (remaining > 0)
     {
