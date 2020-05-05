@@ -26,9 +26,19 @@
 
 namespace mega {
 
+bool Request::includesFetchingNodes() const
+{
+    return mIncludesFetchingNodes;
+}
+
 void Request::add(Command* c)
 {
     cmds.push_back(c);
+
+    if (c->isFetchNodes())
+    {
+        mIncludesFetchingNodes = true;
+    }
 }
 
 size_t Request::size() const
@@ -148,6 +158,7 @@ void Request::swap(Request& r)
 {
     // we use swap to move between queues, but process only after it gets into the completedreqs
     cmds.swap(r.cmds);
+    mIncludesFetchingNodes = r.mIncludesFetchingNodes;
     assert(jsonresponse.empty() && r.jsonresponse.empty());
     assert(json.pos == NULL && r.json.pos == NULL);
     assert(processindex == 0 && r.processindex == 0);
@@ -189,6 +200,7 @@ void RequestDispatcher::add(Command *c)
         LOG_debug << "Starting an additional Request for a batch-separately command";
         nextreqs.push_back(Request());
     }
+
     nextreqs.back().add(c);
     if (c->batchSeparately)
     {
@@ -201,7 +213,7 @@ bool RequestDispatcher::cmdspending() const
     return !nextreqs.front().empty();
 }
 
-void RequestDispatcher::serverrequest(string *out, bool& suppressSID)
+void RequestDispatcher::serverrequest(string *out, bool& suppressSID, bool &includesFetchingNodes)
 {
     assert(inflightreq.empty());
     inflightreq.swap(nextreqs.front());
@@ -211,6 +223,7 @@ void RequestDispatcher::serverrequest(string *out, bool& suppressSID)
         nextreqs.push_back(Request());
     }
     inflightreq.get(out, suppressSID);
+    includesFetchingNodes = inflightreq.includesFetchingNodes();
 #ifdef MEGA_MEASURE_CODE
     csRequestsSent += inflightreq.size();
     csBatchesSent += 1;
