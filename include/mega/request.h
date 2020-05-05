@@ -37,8 +37,6 @@ private:
     JSON json;
     size_t processindex = 0;
 
-    // if any of the commands if fetch nodes
-    bool mIncludesFetchingNodes = false;
 
 public:
     void add(Command*);
@@ -58,8 +56,8 @@ public:
 
     bool stopProcessing = false;
 
-    // returns if any of the commands if fetch nodes
-    bool includesFetchingNodes() const;
+    // if contains only one command and that command is FetchNodes
+    bool isFetchNodes() const;
 };
 
 
