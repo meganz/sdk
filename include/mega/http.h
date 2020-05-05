@@ -224,6 +224,9 @@ struct MEGA_API HttpReq
 
     string outbuf;
 
+    // if the out payload includes a fetch nodes command
+    bool includesFetchingNodes = false;
+
     byte* buf;
     m_off_t buflen, bufpos, notifiedbufpos;
 

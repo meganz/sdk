@@ -37,6 +37,9 @@ private:
     JSON json;
     size_t processindex = 0;
 
+    // if any of the commands if fetch nodes
+    bool mIncludesFetchingNodes = false;
+
 public:
     void add(Command*);
 
@@ -54,6 +57,9 @@ public:
     void swap(Request&);
 
     bool stopProcessing = false;
+
+    // returns if any of the commands if fetch nodes
+    bool includesFetchingNodes() const;
 };
 
 
@@ -79,8 +85,12 @@ public:
 
     bool cmdspending() const;
 
-    // get the set of commands to be sent to the server (could be a retry)
-    void serverrequest(string*, bool& suppressSID);
+    /**
+     * @brief get the set of commands to be sent to the server (could be a retry)
+     * @param suppressSID
+     * @param includesFetchingNodes set to whether the commands include fetch nodes
+     */
+    void serverrequest(string*, bool& suppressSID, bool &includesFetchingNodes);
 
     // once the server response is determined, call one of these to specify the results
     void requeuerequest();

@@ -13819,6 +13819,10 @@ void MegaApiImpl::request_error(error e)
 
 void MegaApiImpl::request_response_progress(m_off_t currentProgress, m_off_t totalProgress)
 {
+    if (!client->isFetchingNodesPendingCS())
+    {
+        return;
+    }
     for (std::map<int,MegaRequestPrivate*>::iterator it = requestMap.begin(); it != requestMap.end(); it++)
     {
         MegaRequestPrivate *request = it->second;

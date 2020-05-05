@@ -1885,7 +1885,7 @@ void MegaClient::exec()
                     pendingcs->logname = clientname + "cs ";
 
                     bool suppressSID = true;
-                    reqs.serverrequest(pendingcs->out, suppressSID);
+                    reqs.serverrequest(pendingcs->out, suppressSID, pendingcs->includesFetchingNodes);
 
                     pendingcs->posturl = APIURL;
 
@@ -3743,6 +3743,12 @@ void MegaClient::freeq(direction_t d)
         delete it++->second;
     }
 }
+
+bool MegaClient::isFetchingNodesPendingCS()
+{
+    return pendingcs->includesFetchingNodes;
+}
+
 #ifdef ENABLE_SYNC
 void MegaClient::resumeResumableSyncs()
 {

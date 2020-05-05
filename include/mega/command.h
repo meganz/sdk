@@ -60,6 +60,8 @@ public:
     // some commands are guaranteed to work if we query without specifying a SID (eg. gmf)
     bool suppressSID;
 
+    virtual bool isFetchNodes() { return false;};
+
     void cmd(const char*);
     void notself(MegaClient*);
     virtual void cancel(void);
@@ -344,6 +346,9 @@ public:
     void procresult();
 
     CommandFetchNodes(MegaClient*, bool nocache = false);
+
+    virtual bool isFetchNodes() override { return true;}
+
 };
 
 // update own node keys
