@@ -68,8 +68,6 @@ const dstime TransferSlot::PROGRESSTIMEOUT = 10;
     const m_off_t TransferSlot::MAX_REQ_SIZE = 4194304; // 4 MB
 #endif
 
-const m_off_t TransferSlot::MAX_UPLOAD_GAP = 62914560; // 60 MB (up to 63 chunks)
-
 TransferSlot::TransferSlot(Transfer* ctransfer)
     : fa(ctransfer->client->fsaccess->newfileaccess(), ctransfer)
     , retrybt(ctransfer->client->rng, ctransfer->client->transferSlotsBackoff)
@@ -79,7 +77,6 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
     progressreported = 0;
     speed = meanSpeed = 0;
     progresscontiguous = 0;
-    delayedchunk = false;
 
     lastdata = Waiter::ds;
     errorcount = 0;
@@ -315,27 +312,6 @@ void TransferSlot::disconnect()
             reqs[i]->disconnect();
         }
     }
-}
-
-// coalesce block macs into file mac
-int64_t chunkmac_map::macsmac(SymmCipher *cipher)
-{
-    byte mac[SymmCipher::BLOCKSIZE] = { 0 };
-
-    for (chunkmac_map::iterator it = begin(); it != end(); it++)
-    {
-        assert(it->first == ChunkedHash::chunkfloor(it->first));
-        //LOG_debug << "macsmac input: " << it->first << ": " << Base64Str<sizeof it->second.mac>(it->second.mac);
-        SymmCipher::xorblock(it->second.mac, mac);
-        cipher->ecb_encrypt(mac);
-    }
-
-    uint32_t* m = (uint32_t*)mac;
-
-    m[0] ^= m[1];
-    m[1] = m[2] ^ m[3];
-
-    return MemAccess::get<int64_t>((const char*)mac);
 }
 
 int64_t TransferSlot::macsmac(chunkmac_map* m)
@@ -1145,7 +1121,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
         if (!chunkfailed)
         {
             LOG_warn << "Transfer failed due to a timeout";
-            transfer->failed(API_EAGAIN, committer);
+            return transfer->failed(API_EAGAIN, committer);  // either the (this) slot has been deleted, or the whole transfer including slot has been deleted
         }
         else
         {

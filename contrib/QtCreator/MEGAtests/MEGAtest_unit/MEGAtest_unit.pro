@@ -47,6 +47,7 @@ SOURCES += \
 
 HEADERS += \
 ../../../../tests/unit/constants.h \
+../../../../tests/unit/DefaultedDbTable.h \
 ../../../../tests/unit/DefaultedDirAccess.h \
 ../../../../tests/unit/DefaultedFileAccess.h \
 ../../../../tests/unit/DefaultedFileSystemAccess.h \

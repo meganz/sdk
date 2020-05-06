@@ -114,7 +114,11 @@ public:
 
     // Logger interface
 public:
-    void log(const char *time, int loglevel, const char *source, const char *message);
+    void log(const char *time, int loglevel, const char *source, const char *message
+        #ifdef ENABLE_LOG_PERFORMANCE
+            , const char **directMessages = nullptr, size_t *directMessagesSizes = nullptr, unsigned numberMessages = 0
+        #endif
+    );
 };
 
 // globals
@@ -344,7 +348,11 @@ SyncApp:: SyncApp(string local_folder_, string remote_folder_) :
     local_folder(local_folder_), remote_folder(remote_folder_), cwd(UNDEF), initial_fetch(true)
 {}
 
-void SyncApp::log(const char *time, int loglevel, const char *source, const char *message)
+void SyncApp::log(const char *time, int loglevel, const char *source, const char *message
+#ifdef ENABLE_LOG_PERFORMANCE
+                 , const char **directMessages, size_t *directMessagesSizes, unsigned numberMessages
+#endif
+                 )
 {
     if (!time)
     {
@@ -361,7 +369,12 @@ void SyncApp::log(const char *time, int loglevel, const char *source, const char
         message = "";
     }
 
-    cout << "[" << time << "][" << SimpleLogger::toStr((LogLevel)loglevel) << "] " << message << endl;
+    cout << "[" << time << "][" << SimpleLogger::toStr((LogLevel)loglevel) << "] ";
+    if (message) cout << message;
+#ifdef ENABLE_LOG_PERFORMANCE
+    for (unsigned i = 0; i < numberMessages; ++i) cout.write(directMessages[i], directMessagesSizes[i]);
+#endif
+    cout << endl;
 }
 
 void SyncApp::prelogin_result(int version, std::string* email, std::string *salt, error e)
@@ -419,10 +432,6 @@ void SyncApp::fetchnodes_result(error e)
         Node* n = nodebypath(remote_folder.c_str());
         if (client->checkaccess(n, FULL))
         {
-            string localname;
-
-            client->fsaccess->path2local(&local_folder, &localname);
-
             if (!n)
             {
                 LOG_err << remote_folder << ": Not found.";
@@ -435,7 +444,8 @@ void SyncApp::fetchnodes_result(error e)
             }
             else
             {
-                error err = client->addsync(SyncConfig{}, &localname, DEBRISFOLDER, NULL, n, 0);
+                SyncConfig syncConfig{local_folder, n->nodehandle, 0};
+                error err = client->addsync(std::move(syncConfig), DEBRISFOLDER, NULL);
                 if (err)
                 {
                     LOG_err << "Sync could not be added! ";

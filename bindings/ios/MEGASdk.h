@@ -62,7 +62,13 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
     MEGASortOrderTypeModificationAsc,
     MEGASortOrderTypeModificationDesc,
     MEGASortOrderTypeAlphabeticalAsc,
-    MEGASortOrderTypeAlphabeticalDesc
+    MEGASortOrderTypeAlphabeticalDesc,
+    MEGASortOrderTypePhotoAsc,
+    MEGASortOrderTypePhotoDesc,
+    MEGASortOrderTypeVideoAsc,
+    MEGASortOrderTypeVideoDesc,
+    MEGASortOrderTypeLinkCreationAsc,
+    MEGASortOrderTypeLinkCreationDesc
 };
 
 typedef NS_ENUM (NSInteger, MEGAEventType) {
@@ -1290,51 +1296,6 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest email] - Returns the email for the account
  * - [MEGARequest password] - Returns the password for the account
- * - [MEGARequest name] - Returns the name of the user
- *
- * If this request succeed, a confirmation email will be sent to the users.
- * If an account with the same email already exists, you will get the error code
- * MEGAErrorTypeApiEExist in onRequestFinish
- *
- * @param email Email for the account.
- * @param password Password for the account.
- * @param name Name of the user.
- * @param delegate Delegate to track this request.
- *
- * @deprecated This function is deprecated and will eventually be removed. Instead,
- * use the new version of [MEGASdk createAccountWithEmail:password:firstname:lastname:delegate:].
- */
-- (void)createAccountWithEmail:(NSString *)email password:(NSString *)password name:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate __attribute__((deprecated("This function is deprecated and will eventually be removed. Instead, use the new version of [MEGASdk createAccountWithEmail:password:firstname:lastname:delegate:]")));
-
-/**
- * @brief Initialize the creation of a new MEGA account.
- *
- * The associated request type with this request is MEGARequestTypeCreateAccount.
- * Valid data in the MEGARequest object received on callbacks:
- * - [MEGARequest email] - Returns the email for the account
- * - [MEGARequest password] - Returns the password for the account
- * - [MEGARequest name] - Returns the name of the user
- *
- * If this request succeed, a confirmation email will be sent to the users.
- * If an account with the same email already exists, you will get the error code
- * MEGAErrorTypeApiEExist in onRequestFinish
- *
- * @param email Email for the account.
- * @param password Password for the account.
- * @param name Name of the user.
- * @deprecated This function is deprecated and will eventually be removed. Instead,
- * use the new version of [MEGASdk createAccountWithEmail:password:firstname:lastname:].
- */
-- (void)createAccountWithEmail:(NSString *)email password:(NSString *)password name:(NSString *)name __attribute__((deprecated("This function is deprecated and will eventually be removed. Instead, use the new version of [MEGASdk createAccountWithEmail:password:firstname:lastname:]")));
-
-
-/**
- * @brief Initialize the creation of a new MEGA account.
- *
- * The associated request type with this request is MEGARequestTypeCreateAccount.
- * Valid data in the MEGARequest object received on callbacks:
- * - [MEGARequest email] - Returns the email for the account
- * - [MEGARequest password] - Returns the password for the account
  * - [MEGARequest name] - Returns the firstname of the user
  * - [MEGARequest text] - Returns the lastname of the user
  *
@@ -1344,7 +1305,7 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  *
  * If this request succeed, a new ephemeral session will be created for the new user
  * and a confirmation email will be sent to the specified email address. The app may
- * resume the create-account process by using MegaApi::resumeCreateAccount.
+ * resume the create-account process by using [MEGASdk resumeCreateAccountWithSessionId:].
  *
  * If an account with the same email already exists, you will get the error code
  * MEGAErrorTypeApiEExist in onRequestFinish
@@ -1373,7 +1334,7 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  *
  * If this request succeed, a new ephemeral session will be created for the new user
  * and a confirmation email will be sent to the specified email address. The app may
- * resume the create-account process by using MegaApi::resumeCreateAccount.
+ * resume the create-account process by using [MEGASdk resumeCreateAccountWithSessionId:].
  *
  * If an account with the same email already exists, you will get the error code
  * MEGAErrorTypeApiEExist in onRequestFinish
@@ -1384,6 +1345,85 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * @param lastname Lastname of the user
  */
 - (void)createAccountWithEmail:(NSString *)email password:(NSString *)password firstname:(NSString *)firstname lastname:(NSString *)lastname;
+
+/**
+ * @brief Initialize the creation of a new MEGA account, with firstname and lastname
+ *
+ * The associated request type with this request is MEGARequestTypeCreateAccount.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest email] - Returns the email for the account
+ * - [MEGARequest password] - Returns the password for the account
+ * - [MEGARequest name] - Returns the firstname of the user
+ * - [MEGARequest text] - Returns the lastname of the user
+ * - [MEGARequest nodeHandle] - Returns the last public node handle accessed
+ * - [MEGARequest access] - Returns the type of lastPublicHandle
+ * - [MEGARequest transferredBytes] - Returns the timestamp of the last access
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest sessionKey] - Returns the session id to resume the process
+ *
+ * If this request succeed, a new ephemeral session will be created for the new user
+ * and a confirmation email will be sent to the specified email address. The app may
+ * resume the create-account process by using [MEGASdk resumeCreateAccountWithSessionId:].
+ *
+ * If an account with the same email already exists, you will get the error code
+ * MEGAErrorTypeApiEExist in onRequestFinish
+ *
+ * @param email Email for the account
+ * @param password Password for the account
+ * @param firstname Firstname of the user
+ * @param lastname Lastname of the user
+ * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
+ * @param lastPublicHandleType Indicates the type of lastPublicHandle, valid values are:
+ *      - AffiliateTypeId = 1
+ *      - AffiliateTypeFileFolder = 2
+ *      - AffiliateTypeChat = 3
+ *      - AffiliateTypeContact = 4
+ *
+ * @param lastAccessTimestamp Timestamp of the last access
+ * @param delegate Delegate to track this request.
+ */
+- (void)createAccountWithEmail:(NSString *)email password:(NSString *)password firstname:(NSString *)firstname lastname:(NSString *)lastname lastPublicHandle:(uint64_t)lastPublicHandle lastPublicHandleType:(AffiliateType)lastPublicHandleType lastAccessTimestamp:(uint64_t)lastAccessTimestamp delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Initialize the creation of a new MEGA account, with firstname and lastname
+ *
+ * The associated request type with this request is MEGARequestTypeCreateAccount.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest email] - Returns the email for the account
+ * - [MEGARequest password] - Returns the password for the account
+ * - [MEGARequest name] - Returns the firstname of the user
+ * - [MEGARequest text] - Returns the lastname of the user
+ * - [MEGARequest nodeHandle] - Returns the last public node handle accessed
+ * - [MEGARequest access] - Returns the type of lastPublicHandle
+ * - [MEGARequest transferredBytes] - Returns the timestamp of the last access
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest sessionKey] - Returns the session id to resume the process
+ *
+ * If this request succeed, a new ephemeral session will be created for the new user
+ * and a confirmation email will be sent to the specified email address. The app may
+ * resume the create-account process by using [MEGASdk resumeCreateAccountWithSessionId:].
+ *
+ * If an account with the same email already exists, you will get the error code
+ * MEGAErrorTypeApiEExist in onRequestFinish
+ *
+ * @param email Email for the account
+ * @param password Password for the account
+ * @param firstname Firstname of the user
+ * @param lastname Lastname of the user
+ * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
+ * @param lastPublicHandleType Indicates the type of lastPublicHandle, valid values are:
+ *      - AffiliateTypeId = 1
+ *      - AffiliateTypeFileFolder = 2
+ *      - AffiliateTypeChat = 3
+ *      - AffiliateTypeContact = 4
+ *
+ * @param lastAccessTimestamp Timestamp of the last access
+ */
+- (void)createAccountWithEmail:(NSString *)email password:(NSString *)password firstname:(NSString *)firstname lastname:(NSString *)lastname lastPublicHandle:(uint64_t)lastPublicHandle lastPublicHandleType:(AffiliateType)lastPublicHandleType lastAccessTimestamp:(uint64_t)lastAccessTimestamp;
 
 /**
  * @brief Resume a registration process
@@ -1522,7 +1562,7 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
 - (void)fastSendSignupLinkWithEmail:(NSString *)email base64pwkey:(NSString *)base64pwkey name:(NSString *)name __attribute__((deprecated("This function only works using the old registration method and will be removed soon. Please use [MEGASdk sendSignupLinkWithEmail:name:password:] instead.")));
 
 /**
- * @brief Get information about a confirmation link.
+ * @brief Get information about a confirmation link or a new signup link.
  *
  * The associated request type with this request is MEGARequestTypeQuerySignUpLink.
  * Valid data in the MEGARequest object received on all callbacks:
@@ -1532,6 +1572,20 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest email] - Return the email associated with the confirmation link.
  * - [MEGARequest name] - Returns the name associated with the confirmation link.
+ * - [MEGARequest flag] - Returns true if the account was automatically confirmed, otherwise false
+ 
+ * If [MEGARequest flag] returns YES, the account was automatically confirmed and it's not needed
+ * to call [MEGASdk confirmAccountWithLink:password:delegate]. If it returns NO, it's needed to call [MEGASdk confirmAccountWithLink:password:delegate]
+ * as usual. New accounts (V2, starting from April 2018) do not require a confirmation with the password,
+ * but old confirmation links (V1) require it, so it's needed to check that parameter in onRequestFinish
+ * to know how to proceed.
+ *
+ * If already logged-in into a different account, you will get the error code MEGAErrorTypeApiEAccess
+ * in onRequestFinish.
+ * If logged-in into the account that is attempted to confirm and the account is already confirmed, you
+ * will get the error code MEGAErrorTypeApiEExpired in onRequestFinish.
+ * In both cases, the [MEGARequest email] will return the email of the account that was attempted
+ * to confirm, and the [MEGARequest name] will return the name.
  *
  * @param link Confirmation link
  * @param delegate Delegate to track this request
@@ -1539,7 +1593,7 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
 - (void)querySignupLink:(NSString *)link delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
- * @brief Get information about a confirmation link.
+ * @brief Get information about a confirmation link or a new signup link.
  *
  * The associated request type with this request is MEGARequestTypeQuerySignUpLink.
  * Valid data in the MEGARequest object received on all callbacks:
@@ -1549,6 +1603,20 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest email] - Return the email associated with the confirmation link.
  * - [MEGARequest name] - Returns the name associated with the confirmation link.
+ * - [MEGARequest flag] - Returns true if the account was automatically confirmed, otherwise false
+ 
+ * If [MEGARequest flag] returns YES, the account was automatically confirmed and it's not needed
+ * to call [MEGASdk confirmAccountWithLink:password:delegate]. If it returns NO, it's needed to call [MEGASdk confirmAccountWithLink:password:delegate]
+ * as usual. New accounts (V2, starting from April 2018) do not require a confirmation with the password,
+ * but old confirmation links (V1) require it, so it's needed to check that parameter in onRequestFinish
+ * to know how to proceed.
+ *
+ * If already logged-in into a different account, you will get the error code MEGAErrorTypeApiEAccess
+ * in onRequestFinish.
+ * If logged-in into the account that is attempted to confirm and the account is already confirmed, you
+ * will get the error code MEGAErrorTypeApiEExpired in onRequestFinish.
+ * In both cases, the [MEGARequest email] will return the email of the account that was attempted
+ * to confirm, and the [MEGARequest name] will return the name.
  *
  * @param link Confirmation link.
  */
@@ -1566,6 +1634,18 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest email] - Email of the account
  * - [MEGARequest name] - Name of the user
+ *
+ * As a result of a successfull confirmation, the app will receive the callback
+ * [MEGADelegate onEvent: event:] and [MEGAGlobalDelegate onEvent: event:] with an event of type
+ * EventAccountConfirmation. You can check the email used to confirm
+ * the account by checking [MEGAEvent text]. @see [MEGADelegate onEvent: event:].
+ *
+ * If already logged-in into a different account, you will get the error code MEGAErrorTypeApiEAccess
+ * in onRequestFinish.
+ * If logged-in into the account that is attempted to confirm and the account is already confirmed, you
+ * will get the error code MEGAErrorTypeApiEExpired in onRequestFinish.
+ * In both cases, the [MEGARequest email] will return the email of the account that was attempted
+ * to confirm, and the [MEGARequest name] will return the name.
  *
  * @param link Confirmation link.
  * @param password Password for the account.
@@ -1585,6 +1665,18 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest email] - Email of the account
  * - [MEGARequest name] - Name of the user
+ *
+ * As a result of a successfull confirmation, the app will receive the callback
+ * [MEGADelegate onEvent: event:] and [MEGAGlobalDelegate onEvent: event:] with an event of type
+ * EventAccountConfirmation. You can check the email used to confirm
+ * the account by checking [MEGAEvent text]. @see [MEGADelegate onEvent: event:].
+ *
+ * If already logged-in into a different account, you will get the error code MEGAErrorTypeApiEAccess
+ * in onRequestFinish.
+ * If logged-in into the account that is attempted to confirm and the account is already confirmed, you
+ * will get the error code MEGAErrorTypeApiEExpired in onRequestFinish.
+ * In both cases, the [MEGARequest email] will return the email of the account that was attempted
+ * to confirm, and the [MEGARequest name] will return the name.
  *
  * @param link Confirmation link.
  * @param password Password for the account.
@@ -2373,6 +2465,43 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * @param newParent New parent for the node.
  */
 - (void)moveNode:(MEGANode *)node newParent:(MEGANode *)newParent;
+
+/**
+ * @brief Move a node in the MEGA account.
+ *
+ * The associated request type with this request is MEGARequestTypeMove.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node to move
+ * - [MEGARequest parentHandle] - Returns the handle of the new parent for the node
+ * - [MEGARequest name] - Returns the name for the new node
+ *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEBusinessPastDue.
+ *
+ * @param node Node to move.
+ * @param newParent New parent for the node.
+ * @param newName Name for the new node.
+ * @param delegate Delegate to track this request.
+ */
+- (void)moveNode:(MEGANode *)node newParent:(MEGANode *)newParent newName:(NSString *)newName delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Move a node in the MEGA account.
+ *
+ * The associated request type with this request is MEGARequestTypeMove.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node to move
+ * - [MEGARequest parentHandle] - Returns the handle of the new parent for the node
+ * - [MEGARequest name] - Returns the name for the new node
+ *
+ * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+ * be called with the error code MEGAErrorTypeApiEBusinessPastDue.
+ *
+ * @param node Node to move.
+ * @param newParent New parent for the node.
+ * @param newName Name for the new node.
+ */
+- (void)moveNode:(MEGANode *)node newParent:(MEGANode *)newParent newName:(NSString *)newName;
 
 /**
  * @brief Copy a node in the MEGA account.
@@ -4661,6 +4790,8 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * The associated request type with this request is MEGARequestTypeSetAttrUser
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeMyChatFilesFolder
+ * - [MEGARequest megaStringDictionary] - Returns a megaStringDictionary.
+ * The key "h" in the map contains the nodehandle specified as parameter encoded in B64
  *
  * @param handle Handle of the node to be used as target folder
  * @param delegate MEGARequestDelegate to track this request
@@ -4673,6 +4804,8 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * The associated request type with this request is MEGARequestTypeSetAttrUser
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeMyChatFilesFolder
+ * - [MEGARequest megaStringDictionary] - Returns a megaStringDictionary.
+ * The key "h" in the map contains the nodehandle specified as parameter encoded in B64
  *
  * @param handle Handle of the node to be used as target folder
  */
@@ -4712,6 +4845,8 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * The associated request type with this request is MEGARequestTypeSetAttrUser
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeCameraUploadsFolder
+ * - [MEGARequest megaStringDictionary] - Returns a megaStringDictionary.
+ * The key "h" in the map contains the nodehandle specified as parameter encoded in B64
  *
  * @param handle Handle of the node to be used as target folder
  * @param delegate MEGARequestDelegate to track this request
@@ -4724,6 +4859,8 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * The associated request type with this request is MEGARequestTypeSetAttrUser
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeCameraUploadsFolder
+ * - [MEGARequest megaStringDictionary] - Returns a megaStringDictionary.
+ * The key "h" in the map contains the nodehandle specified as parameter encoded in B64
  *
  * @param handle Handle of the node to be used as target folder
  */
@@ -6168,10 +6305,26 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * Sort by modification time of the original file, descending
  *
  * - MEGASortOrderTypeAlphabeticalAsc = 9
- * Sort in alphabetical order, ascending
+ * Same behavior than MEGASortOrderTypeDefaultAsc
  *
  * - MEGASortOrderTypeAlphabeticalDesc = 10
- * Sort in alphabetical order, descending
+ * Same behavior than MEGASortOrderTypeDefaultDesc
+ *
+ * - MEGASortOrderTypePhotoAsc = 11
+ * Sort with photos first, then by date ascending
+ *
+ * - MEGASortOrderTypePhotoDesc = 12
+ * Sort with photos first, then by date descending
+ *
+ * - MEGASortOrderTypeVideoAsc = 13
+ * Sort with videos first, then by date ascending
+ *
+ * - MEGASortOrderTypeVideoDesc = 14
+ * Sort with videos first, then by date descending
+ *
+ * @deprecated MEGASortOrderTypeAlphabeticalAsc and MEGASortOrderTypeAlphabeticalDesc
+ * are equivalent to MEGASortOrderTypeDefaultAsc and MEGASortOrderTypeDefaultDesc.
+ * They will be eventually removed.
  *
  * @return List with all child MEGANode objects.
  */
@@ -6277,10 +6430,26 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * Sort by modification time of the original file, descending
  *
  * - MEGASortOrderTypeAlphabeticalAsc = 9
- * Sort in alphabetical order, ascending
+ * Same behavior than MEGASortOrderTypeDefaultAsc
  *
  * - MEGASortOrderTypeAlphabeticalDesc = 10
- * Sort in alphabetical order, descending
+ * Same behavior than MEGASortOrderTypeDefaultDesc
+ *
+ * - MEGASortOrderTypePhotoAsc = 11
+ * Sort with photos first, then by date ascending
+ *
+ * - MEGASortOrderTypePhotoDesc = 12
+ * Sort with photos first, then by date descending
+ *
+ * - MEGASortOrderTypeVideoAsc = 13
+ * Sort with videos first, then by date ascending
+ *
+ * - MEGASortOrderTypeVideoDesc = 14
+ * Sort with videos first, then by date descending
+ *
+ * @deprecated MEGASortOrderTypeAlphabeticalAsc and MEGASortOrderTypeAlphabeticalDesc
+ * are equivalent to MEGASortOrderTypeDefaultAsc and MEGASortOrderTypeDefaultDesc.
+ * They will be eventually removed.
  *
  * @return Lists with files and folders child MegaNode objects
  */
@@ -6484,6 +6653,9 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * @brief Get a list with all public links
  *
  * @param order Order for the returned list.
+ * Valid value for order are: MEGASortOrderTypeNone, MEGASortOrderTypeDefaultAsc,
+ * MEGASortOrderTypeDefaultDesc, MEGASortOrderTypeLinkCreationAsc,
+ * MEGASortOrderTypeLinkCreationDesc
  * @return List of MEGANode objects that are shared with everyone via public link
  */
 - (MEGANodeList *)publicLinks:(MEGASortOrderType)order;
@@ -6709,19 +6881,68 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
 - (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString recursive:(BOOL)recursive;
 
 /**
-* @brief Search nodes containing a search string in their name.
-*
-* The search is case-insensitive.
-*
-* @param node The parent node of the tree to explore.
-* @param searchString Search string. The search is case-insensitive.
-* @param cancelToken MEGACancelToken to be able to cancel the processing at any time.
-* @param recursive YES if you want to seach recursively in the node tree.
-* @param order MEGASortOrderType for the returned list.
-* NO if you want to seach in the children of the node only
-*
-* @return List of nodes that contain the desired string in their name.
-*/
+ * @brief Search nodes containing a search string in their name.
+ *
+ * The search is case-insensitive.
+ *
+ * @param node The parent node of the tree to explore.
+ * @param searchString Search string. The search is case-insensitive.
+ * @param cancelToken MEGACancelToken to be able to cancel the processing at any time.
+ * @param recursive YES if you want to seach recursively in the node tree.
+ * NO if you want to seach in the children of the node only
+ * @param order MEGASortOrderType for the returned list.
+ * Valid values for this parameter are:
+ * - MEGASortOrderTypeNone = 0
+ * Undefined order
+ *
+ * - MEGASortOrderTypeDefaultAsc = 1
+ * Folders first in alphabetical order, then files in the same order
+ *
+ * - MEGASortOrderTypeDefaultDesc = 2
+ * Files first in reverse alphabetical order, then folders in the same order
+ *
+ * - MEGASortOrderTypeSizeAsc = 3
+ * Sort by size, ascending
+ *
+ * - MEGASortOrderTypeSizeDesc = 4
+ * Sort by size, descending
+ *
+ * - MEGASortOrderTypeCreationAsc = 5
+ * Sort by creation time in MEGA, ascending
+ *
+ * - MEGASortOrderTypeCreationDesc = 6
+ * Sort by creation time in MEGA, descending
+ *
+ * - MEGASortOrderTypeModificationAsc = 7
+ * Sort by modification time of the original file, ascending
+ *
+ * - MEGASortOrderTypeModificationDesc = 8
+ * Sort by modification time of the original file, descending
+ *
+ * - MEGASortOrderTypeAlphabeticalAsc = 9
+ * Same behavior than MEGASortOrderTypeDefaultAsc
+ *
+ * - MEGASortOrderTypeAlphabeticalDesc = 10
+ * Same behavior than MEGASortOrderTypeDefaultDesc
+ *
+ * - MEGASortOrderTypePhotoAsc = 11
+ * Sort with photos first, then by date ascending
+ *
+ * - MEGASortOrderTypePhotoDesc = 12
+ * Sort with photos first, then by date descending
+ *
+ * - MEGASortOrderTypeVideoAsc = 13
+ * Sort with videos first, then by date ascending
+ *
+ * - MEGASortOrderTypeVideoDesc = 14
+ * Sort with videos first, then by date descending
+ *
+ * @deprecated MEGASortOrderTypeAlphabeticalAsc and MEGASortOrderTypeAlphabeticalDesc
+ * are equivalent to MEGASortOrderTypeDefaultAsc and MEGASortOrderTypeDefaultDesc.
+ * They will be eventually removed.
+ *
+ * @return List of nodes that contain the desired string in their name.
+ */
 - (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString cancelToken:(MEGACancelToken *)cancelToken recursive:(BOOL)recursive order:(MEGASortOrderType)order;
 
 /**

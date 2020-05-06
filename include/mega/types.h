@@ -308,8 +308,11 @@ typedef list<struct TransferSlot*> transferslot_list;
 // FIXME: use forward_list instad (C++11)
 typedef list<HttpReqCommandPutFA*> putfa_list;
 
-// map a FileFingerprint to the transfer for that FileFingerprint
-typedef map<FileFingerprint*, Transfer*, FileFingerprintCmp> transfer_map;
+/* maps a FileFingerprint to the transfer for that FileFingerprint,
+ * this map can contain two items for the same key (FileFingerprint)
+ * depending on the type of target (private/foreign) associated to the PUT transfers
+ */
+typedef multimap<FileFingerprint*, Transfer*, FileFingerprintCmp> transfer_map;
 
 typedef deque<Transfer*> transfer_list;
 
@@ -439,7 +442,7 @@ typedef enum {
     ATTR_LANGUAGE = 14,                     // private, non-encrypted - char array in B64 - non-versioned
     ATTR_PWD_REMINDER = 15,                 // private, non-encrypted - char array in B64 - non-versioned
     ATTR_DISABLE_VERSIONS = 16,             // private, non-encrypted - char array in B64 - non-versioned
-    ATTR_CONTACT_LINK_VERIFICATION = 17,    // private, non-encrypted - char array in B64 - non-versioned
+    ATTR_CONTACT_LINK_VERIFICATION = 17,    // private, non-encrypted - char array in B64 - versioned
     ATTR_RICH_PREVIEWS = 18,                // private - byte array
     ATTR_RUBBISH_TIME = 19,                 // private, non-encrypted - char array in B64 - non-versioned
     ATTR_LAST_PSA = 20,                     // private - char array
@@ -448,8 +451,8 @@ typedef enum {
     ATTR_CAMERA_UPLOADS_FOLDER = 23,        // private - byte array - non-versioned
     ATTR_MY_CHAT_FILES_FOLDER = 24,         // private - byte array - non-versioned
     ATTR_PUSH_SETTINGS = 25,                // private - non-encripted - char array in B64 - non-versioned
-    ATTR_UNSHAREABLE_KEY = 26,              // private - char array
-    ATTR_ALIAS = 27,                        // private - byte array - non-versioned
+    ATTR_UNSHAREABLE_KEY = 26,              // private - char array - versioned
+    ATTR_ALIAS = 27,                        // private - byte array - versioned
     ATTR_AUTHRSA = 28,                      // private - byte array
     ATTR_AUTHCU255 = 29,                    // private - byte array
 
@@ -664,7 +667,7 @@ namespace CodeCounter
 }
 
 // Holds the config of a sync. Can be extended with future config options
-class SyncConfig
+class SyncConfig : public Cacheable
 {
 public:
 
@@ -672,64 +675,166 @@ public:
     {
         TYPE_UP = 0x01, // sync up from local to remote
         TYPE_DOWN = 0x02, // sync down from remote to local
-        TYPE_DEFAULT = TYPE_UP | TYPE_DOWN, // Two-way sync
+        TYPE_TWOWAY = TYPE_UP | TYPE_DOWN, // Two-way sync
     };
 
-    SyncConfig() = default;
+    SyncConfig(std::string localPath,
+               const handle remoteNode,
+               const fsfp_t localFingerprint,
+               std::vector<std::string> regExps = {},
+               const Type syncType = TYPE_TWOWAY,
+               const bool syncDeletions = false,
+               const bool forceOverwrite = false);
 
-    SyncConfig(const Type syncType, const bool syncDeletions, const bool forceOverwrite)
-        : mSyncType{syncType}
-        , mSyncDeletions{syncDeletions}
-        , mForceOverwrite{forceOverwrite}
-    {}
+    // whether this sync is resumable
+    bool isResumable() const;
+
+    // sets whether this sync is resumable
+    void setResumable(bool active);
+
+    // returns the local path of the sync
+    const std::string& getLocalPath() const;
+
+    // returns the remote path of the sync
+    handle getRemoteNode() const;
+
+    // returns the local fingerprint
+    fsfp_t getLocalFingerprint() const;
+
+    // sets the local fingerprint
+    void setLocalFingerprint(fsfp_t fingerprint);
+
+    // returns the regular expressions
+    const std::vector<std::string>& getRegExps() const;
+
+    // returns the type of the sync
+    Type getType() const;
 
     // whether this is an up-sync from local to remote
-    bool isUpSync() const
-    {
-        return mSyncType & TYPE_UP;
-    }
+    bool isUpSync() const;
 
     // whether this is a down-sync from remote to local
-    bool isDownSync() const
-    {
-        return mSyncType & TYPE_DOWN;
-    }
+    bool isDownSync() const;
 
     // whether deletions are synced
-    bool syncDeletions() const
-    {
-        switch (mSyncType)
-        {
-            case TYPE_UP: return mSyncDeletions;
-            case TYPE_DOWN: return mSyncDeletions;
-            case TYPE_DEFAULT: return true;
-        }
-        assert(false);
-        return true;
-    }
+    bool syncDeletions() const;
 
     // whether changes are overwritten irregardless of file properties
-    bool forceOverwrite() const
-    {
-        switch (mSyncType)
-        {
-            case TYPE_UP: return mForceOverwrite;
-            case TYPE_DOWN: return mForceOverwrite;
-            case TYPE_DEFAULT: return false;
-        }
-        assert(false);
-        return false;
-    }
+    bool forceOverwrite() const;
+
+    // serializes the object to a string
+    bool serialize(string* data) override;
+
+    // deserializes the string to a SyncConfig object. Returns null in case of failure
+    static std::unique_ptr<SyncConfig> unserialize(const std::string& data);
 
 private:
+    friend bool operator==(const SyncConfig& lhs, const SyncConfig& rhs);
+
+    // Whether the sync is resumable
+    bool mResumable = true;
+
+    // the local path of the sync
+    std::string mLocalPath;
+
+    // the remote handle of the sync
+    handle mRemoteNode;
+
+    // the local fingerprint
+    fsfp_t mLocalFingerprint;
+
+    // list of regular expressions
+    std::vector<std::string> mRegExps;
+
     // type of the sync, defaults to bidirectional
-    Type mSyncType = TYPE_DEFAULT;
+    Type mSyncType;
 
     // whether deletions are synced (only relevant for one-way-sync)
-    bool mSyncDeletions = false;
+    bool mSyncDeletions;
 
     // whether changes are overwritten irregardless of file properties (only relevant for one-way-sync)
-    bool mForceOverwrite = false;
+    bool mForceOverwrite;
+
+    // need this to ensure serialization doesn't mutate state (Cacheable::serialize is non-const)
+    bool serialize(std::string& data) const;
+
+    // this is very handy for defining comparison operators
+    std::tuple<const bool&,
+               const std::string&,
+               const handle&,
+               const fsfp_t&,
+               const std::vector<std::string>&,
+               const Type&,
+               const bool&,
+               const bool&> tie() const
+    {
+        return std::tie(mResumable,
+                        mLocalPath,
+                        mRemoteNode,
+                        mLocalFingerprint,
+                        mRegExps,
+                        mSyncType,
+                        mSyncDeletions,
+                        mForceOverwrite);
+    }
+};
+
+bool operator==(const SyncConfig& lhs, const SyncConfig& rhs);
+
+
+// cross reference pointers.  For the case where two classes have pointers to each other, and they should
+// either always be NULL or if one refers to the other, the other refers to the one.
+// This class makes sure that the two pointers are always consistent, and also prevents copy/move (unless the pointers are NULL)
+template<class TO, class FROM>
+FROM*& crossref_other_ptr_ref(TO* s);  // to be supplied for each pair of classes (to assign to the right member thereof) (gets around circular declarations)
+
+template <class  TO, class  FROM>
+class MEGA_API  crossref_ptr 
+{
+    friend class crossref_ptr<FROM, TO>;
+
+    template<class A, class B>
+    friend B*& crossref_other_ptr_ref(A* s);  // friend so that specialization can access `ptr`
+
+    TO* ptr = nullptr;
+
+public:
+    crossref_ptr() = default;
+
+    ~crossref_ptr()
+    {
+        reset();
+    }
+
+    void crossref(TO* to, FROM* from) 
+    {
+        assert(to && from);
+        assert(ptr == nullptr);
+        assert( !(crossref_other_ptr_ref<TO, FROM>(to)) );
+        ptr = to;
+        crossref_other_ptr_ref<TO, FROM>(ptr) = from;
+    }
+
+    void reset()
+    {
+        if (ptr)
+        {
+            assert( !!(crossref_other_ptr_ref<TO, FROM>(ptr)) );
+            crossref_other_ptr_ref<TO, FROM>(ptr) = nullptr;
+            ptr = nullptr;
+        }
+    }
+
+    TO* operator->() const { return ptr; }
+    operator TO*() const { return ptr; }
+
+    // no copying
+    crossref_ptr(const crossref_ptr&) = delete;
+    void operator=(const crossref_ptr&) = delete;
+
+    // only allow move if the pointers are null (check at runtime with assert)
+    crossref_ptr(crossref_ptr&& p) { assert(!p.ptr); }
+    void operator=(crossref_ptr&& p) { assert(!p.ptr); ptr = p; }
 };
 
 } // namespace

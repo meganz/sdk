@@ -23,6 +23,8 @@
 #include "mega/logging.h"
 #include "mega/megaclient.h"
 #include "mega/base64.h"
+#include "mega/serialize64.h"
+#include "mega/filesystem.h"
 
 #include <iomanip>
 
@@ -72,11 +74,24 @@ void CacheableWriter::serializecstr(const char* field, bool storeNull)
     dest.append(field, ll);
 }
 
+void CacheableWriter::serializepstr(const string* field)
+{
+    unsigned short ll = (unsigned short)(field ? field->size() : 0);
+    dest.append((char*)&ll, sizeof(ll));
+    if (field) dest.append(field->data(), ll);
+}
+
 void CacheableWriter::serializestring(const string& field)
 {
     unsigned short ll = (unsigned short)field.size();
     dest.append((char*)&ll, sizeof(ll));
     dest.append(field.data(), ll);
+}
+
+void CacheableWriter::serializecompressed64(int64_t field)
+{
+    byte buf[sizeof field+1];
+    dest.append((const char*)buf, Serialize64::serialize(buf, field));
 }
 
 void CacheableWriter::serializei64(int64_t field)
@@ -90,6 +105,16 @@ void CacheableWriter::serializeu32(uint32_t field)
 }
 
 void CacheableWriter::serializehandle(handle field)
+{
+    dest.append((char*)&field, sizeof(field));
+}
+
+void CacheableWriter::serializenodehandle(handle field)
+{
+    dest.append((const char*)&field, MegaClient::NODEHANDLE);
+}
+
+void CacheableWriter::serializefsfp(fsfp_t field)
 {
     dest.append((char*)&field, sizeof(field));
 }
@@ -302,6 +327,27 @@ void chunkmac_map::finishedUploadChunks(m_off_t pos, m_off_t size, chunkmac_map&
     }
 }
 
+// coalesce block macs into file mac
+int64_t chunkmac_map::macsmac(SymmCipher *cipher)
+{
+    byte mac[SymmCipher::BLOCKSIZE] = { 0 };
+
+    for (chunkmac_map::iterator it = begin(); it != end(); it++)
+    {
+        assert(it->first == ChunkedHash::chunkfloor(it->first));
+        // LOG_debug << "macsmac input: " << it->first << ": " << Base64Str<sizeof it->second.mac>(it->second.mac);
+        SymmCipher::xorblock(it->second.mac, mac);
+        cipher->ecb_encrypt(mac);
+    }
+
+    uint32_t* m = (uint32_t*)mac;
+
+    m[0] ^= m[1];
+    m[1] = m[2] ^ m[3];
+
+    return MemAccess::get<int64_t>((const char*)mac);
+}
+
 bool CacheableReader::unserializechunkmacs(chunkmac_map& m)
 {
     if (m.unserialize(ptr, end))   // ptr is adjusted by reference
@@ -310,6 +356,21 @@ bool CacheableReader::unserializechunkmacs(chunkmac_map& m)
         return true;
     }
     return false;
+}
+
+bool CacheableReader::unserializecompressed64(uint64_t& field)
+{
+    int fieldSize;
+    if ((fieldSize = Serialize64::unserialize((byte*)ptr, static_cast<int>(end - ptr), &field)) < 0)
+    {
+        LOG_err << "Serialize64 unserialization failed - malformed field";
+        return false;
+    }
+    else
+    {
+        ptr += fieldSize;
+    }
+    return true;
 }
 
 bool CacheableReader::unserializei64(int64_t& field)
@@ -344,6 +405,31 @@ bool CacheableReader::unserializehandle(handle& field)
     }
     field = MemAccess::get<handle>(ptr);
     ptr += sizeof(handle);
+    fieldnum += 1;
+    return true;
+}
+
+bool CacheableReader::unserializenodehandle(handle& field)
+{
+    if (ptr + MegaClient::NODEHANDLE > end)
+    {
+        return false;
+    }
+    field = 0;
+    memcpy((char*)&field, ptr, MegaClient::NODEHANDLE);
+    ptr += MegaClient::NODEHANDLE;
+    fieldnum += 1;
+    return true;
+}
+
+bool CacheableReader::unserializefsfp(fsfp_t& field)
+{
+    if (ptr + sizeof(fsfp_t) > end)
+    {
+        return false;
+    }
+    field = MemAccess::get<fsfp_t>(ptr);
+    ptr += sizeof(fsfp_t);
     fieldnum += 1;
     return true;
 }
@@ -1708,7 +1794,7 @@ string escapewebdavchar(const char c)
     {
         escapesec[33] = "&#33;"; // !  //For some reason &Exclamation; was not properly handled (crashed) by gvfsd-dav
         escapesec[34] = "&quot;"; // "
-        escapesec[37] = "&percent;"; // %
+        escapesec[37] = "&percnt;"; // %
         escapesec[38] = "&amp;"; // &
         escapesec[39] = "&apos;"; // '
         escapesec[43] = "&add;"; // +
@@ -2036,21 +2122,231 @@ void NodeCounter::operator -= (const NodeCounter& o)
     versions -= o.versions;
 }
 
+SyncConfig::SyncConfig(std::string localPath,
+                       const handle remoteNode,
+                       const fsfp_t localFingerprint,
+                       std::vector<std::string> regExps,
+                       const Type syncType,
+                       const bool syncDeletions,
+                       const bool forceOverwrite)
+    : mLocalPath{std::move(localPath)}
+    , mRemoteNode{remoteNode}
+    , mLocalFingerprint{localFingerprint}
+    , mRegExps{std::move(regExps)}
+    , mSyncType{syncType}
+    , mSyncDeletions{syncDeletions}
+    , mForceOverwrite{forceOverwrite}
+{}
+
+bool SyncConfig::isResumable() const
+{
+    return mResumable;
+}
+
+void SyncConfig::setResumable(bool resumable)
+{
+    mResumable = resumable;
+}
+
+const std::string& SyncConfig::getLocalPath() const
+{
+    return mLocalPath;
+}
+
+handle SyncConfig::getRemoteNode() const
+{
+    return mRemoteNode;
+}
+
+handle SyncConfig::getLocalFingerprint() const
+{
+    return mLocalFingerprint;
+}
+
+void SyncConfig::setLocalFingerprint(fsfp_t fingerprint)
+{
+    mLocalFingerprint = fingerprint;
+}
+
+const std::vector<std::string>& SyncConfig::getRegExps() const
+{
+    return mRegExps;
+}
+
+SyncConfig::Type SyncConfig::getType() const
+{
+    return mSyncType;
+}
+
+bool SyncConfig::isUpSync() const
+{
+    return mSyncType & TYPE_UP;
+}
+
+bool SyncConfig::isDownSync() const
+{
+    return mSyncType & TYPE_DOWN;
+}
+
+bool SyncConfig::syncDeletions() const
+{
+    switch (mSyncType)
+    {
+        case TYPE_UP: return mSyncDeletions;
+        case TYPE_DOWN: return mSyncDeletions;
+        case TYPE_TWOWAY: return true;
+    }
+    assert(false);
+    return true;
+}
+
+bool SyncConfig::forceOverwrite() const
+{
+    switch (mSyncType)
+    {
+        case TYPE_UP: return mForceOverwrite;
+        case TYPE_DOWN: return mForceOverwrite;
+        case TYPE_TWOWAY: return false;
+    }
+    assert(false);
+    return false;
+}
+
+// This should be a const-method but can't be due to the broken Cacheable interface.
+// Do not mutate members in this function! Hence, we forward to a private const-method.
+bool SyncConfig::serialize(std::string* data)
+{
+    return const_cast<const SyncConfig*>(this)->serialize(*data);
+}
+
+std::unique_ptr<SyncConfig> SyncConfig::unserialize(const std::string& data)
+{
+    bool resumable;
+    std::string localPath;
+    handle remoteNode;
+    fsfp_t fingerprint;
+    uint32_t regExpCount;
+    std::vector<std::string> regExps;
+    uint32_t syncType;
+    bool syncDeletions;
+    bool forceOverwrite;
+
+    CacheableReader reader{data};
+    if (!reader.unserializebool(resumable))
+    {
+        return {};
+    }
+    if (!reader.unserializestring(localPath))
+    {
+        return {};
+    }
+    if (!reader.unserializehandle(remoteNode))
+    {
+        return {};
+    }
+    if (!reader.unserializefsfp(fingerprint))
+    {
+        return {};
+    }
+    if (!reader.unserializeu32(regExpCount))
+    {
+        return {};
+    }
+    for (uint32_t i = 0; i < regExpCount; ++i)
+    {
+        std::string regExp;
+        if (!reader.unserializestring(regExp))
+        {
+            return {};
+        }
+        regExps.push_back(std::move(regExp));
+    }
+    if (!reader.unserializeu32(syncType))
+    {
+        return {};
+    }
+    if (!reader.unserializebool(syncDeletions))
+    {
+        return {};
+    }
+    if (!reader.unserializebool(forceOverwrite))
+    {
+        return {};
+    }
+
+    auto syncConfig = std::unique_ptr<SyncConfig>{new SyncConfig{std::move(localPath),
+                    remoteNode, fingerprint, std::move(regExps),
+                    static_cast<Type>(syncType), syncDeletions, forceOverwrite}};
+    syncConfig->setResumable(resumable);
+    return syncConfig;
+}
+
+bool SyncConfig::serialize(std::string& data) const
+{
+    CacheableWriter writer{data};
+    writer.serializebool(mResumable);
+    writer.serializestring(mLocalPath);
+    writer.serializehandle(mRemoteNode);
+    writer.serializefsfp(mLocalFingerprint);
+    writer.serializeu32(static_cast<uint32_t>(mRegExps.size()));
+    for (const auto& regExp : mRegExps)
+    {
+        writer.serializestring(regExp);
+    }
+    writer.serializeu32(static_cast<uint32_t>(mSyncType));
+    writer.serializebool(mSyncDeletions);
+    writer.serializebool(mForceOverwrite);
+    writer.serializeexpansionflags();
+    return true;
+}
+
+bool operator==(const SyncConfig& lhs, const SyncConfig& rhs)
+{
+    return lhs.tie() == rhs.tie();
+}
+
+std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, FileAccess &ifAccess, const int64_t iv)
+{
+    FileInputStream isAccess(&ifAccess);
+
+    return generateMetaMac(cipher, isAccess, iv);
+}
+
+std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &isAccess, const int64_t iv)
+{
+    static const m_off_t SZ_1024K = 1l << 20;
+    static const m_off_t SZ_128K  = 128l << 10;
+
+    std::unique_ptr<byte[]> buffer(new byte[SZ_1024K + SymmCipher::BLOCKSIZE]);
+    chunkmac_map chunkMacs;
+    m_off_t chunkLength = 0;
+    m_off_t current = 0;
+    m_off_t remaining = isAccess.size();
+
+    while (remaining > 0)
+    {
+        chunkLength =
+          std::min(chunkLength + SZ_128K,
+                   std::min(remaining, SZ_1024K));
+
+        if (!isAccess.read(&buffer[0], (unsigned int)chunkLength))
+            return std::make_pair(false, 0l);
+
+        memset(&buffer[chunkLength], 0, SymmCipher::BLOCKSIZE);
+
+        cipher.ctr_crypt(&buffer[0],
+                         (unsigned int)chunkLength,
+                         current,
+                         iv,
+                         chunkMacs[current].mac,
+                         1);
+
+        current += chunkLength;
+        remaining -= chunkLength;
+    }
+
+    return std::make_pair(true, chunkMacs.macsmac(&cipher));
+}
+
 } // namespace
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

@@ -1819,9 +1819,19 @@ void MegaApi::resetCredentials(MegaUser *user, MegaRequestListener *listener)
     pImpl->resetCredentials(user, listener);
 }
 
+char *MegaApi::getMyRSAPrivateKey()
+{
+    return pImpl->getMyRSAPrivateKey();
+}
+
 void MegaApi::setLogLevel(int logLevel)
 {
     MegaApiImpl::setLogLevel(logLevel);
+}
+
+void MegaApi::setMaxPayloadLogSize(long long maxSize)
+{
+    MegaApiImpl::setMaxPayloadLogSize(maxSize);
 }
 
 void MegaApi::setLogToConsole(bool enable)
@@ -2056,14 +2066,14 @@ void MegaApi::setAccountAuth(const char *auth)
     pImpl->setAccountAuth(auth);
 }
 
-void MegaApi::createAccount(const char* email, const char* password, const char* name, MegaRequestListener *listener)
-{
-    pImpl->createAccount(email, password, name, listener);
-}
-
 void MegaApi::createAccount(const char* email, const char* password, const char* firstname, const char*  lastname, MegaRequestListener *listener)
 {
-    pImpl->createAccount(email, password, firstname, lastname, listener);
+    pImpl->createAccount(email, password, firstname, lastname, UNDEF, AFFILIATE_TYPE_INVALID, 0, listener);
+}
+
+void MegaApi::createAccount(const char* email, const char* password, const char* firstname, const char* lastname, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener)
+{
+    pImpl->createAccount(email, password, firstname, lastname, lastPublicHandle, lastPublicHandleType, lastAccessTimestamp, listener);
 }
 
 void MegaApi::resumeCreateAccount(const char* sid, MegaRequestListener *listener)
@@ -2174,6 +2184,11 @@ bool MegaApi::createLocalFolder(const char *localPath)
 void MegaApi::moveNode(MegaNode *node, MegaNode *newParent, MegaRequestListener *listener)
 {
     pImpl->moveNode(node, newParent, listener);
+}
+
+void MegaApi::moveNode(MegaNode *node, MegaNode *newParent, const char *newName, MegaRequestListener *listener)
+{
+    pImpl->moveNode(node, newParent, newName, listener);
 }
 
 void MegaApi::copyNode(MegaNode *node, MegaNode* target, MegaRequestListener *listener)
@@ -2438,7 +2453,12 @@ void MegaApi::disableExport(MegaNode *node, MegaRequestListener *listener)
 
 void MegaApi::fetchNodes(MegaRequestListener *listener)
 {
-    pImpl->fetchNodes(listener);
+    pImpl->fetchNodes(false, listener);
+}
+
+void MegaApi::fetchNodesAndResumeSyncs(MegaRequestListener *listener)
+{
+    pImpl->fetchNodes(true, listener);
 }
 
 void MegaApi::getCloudStorageUsed(MegaRequestListener *listener)
@@ -3079,12 +3099,12 @@ MegaNode *MegaApi::getSyncedNode(string *path)
 
 void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener *listener)
 {
-    pImpl->syncFolder(localFolder, megaFolder, NULL, listener);
+    pImpl->syncFolder(localFolder, megaFolder, NULL, 0, listener);
 }
 
 void MegaApi::resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRequestListener *listener)
 {
-    pImpl->resumeSync(localFolder, localfp, megaFolder, NULL, listener);
+    pImpl->syncFolder(localFolder, megaFolder, NULL, localfp, listener);
 }
 
 #ifdef USE_PCRE
@@ -5247,7 +5267,11 @@ bool MegaAccountDetails::isTemporalBandwidthValid()
     return false;
 }
 
-void MegaLogger::log(const char* /*time*/, int /*loglevel*/, const char* /*source*/, const char* /*message*/)
+void MegaLogger::log(const char* /*time*/, int /*loglevel*/, const char* /*source*/, const char* /*message*/
+#ifdef ENABLE_LOG_PERFORMANCE
+                     , const char ** /*directMessages*/, size_t * /*directMessagesSizes*/, int /*numberMessages*/
+#endif
+                     )
 {
 
 }
@@ -5801,6 +5825,17 @@ void MegaApiLock::lockOnce()
         api->lockMutex();
         locked = true;
     }
+}
+
+
+bool MegaApiLock::tryLockFor(long long time)
+{
+    if (!locked)
+    {
+        locked = api->tryLockMutexFor(time);
+    }
+
+    return locked;
 }
 
 void MegaApiLock::unlockOnce()

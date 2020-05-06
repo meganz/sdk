@@ -44,6 +44,8 @@
 
 namespace mega {
 
+class SyncConfigBag;
+
 class MEGA_API FetchNodesStats
 {
 public:
@@ -261,6 +263,8 @@ public:
     // pseudo-random number generator
     PrnGen rng;
 
+    bool ephemeralSession = false;
+
     static string getPublicLink(bool newLinkFormat, nodetype_t type, handle ph, const char *key);
 
 #ifdef ENABLE_CHAT
@@ -429,6 +433,9 @@ public:
     // prefix and encrypt attribute json
     void makeattr(SymmCipher*, string*, const char*, int = -1) const;
 
+    // convenience version of the above (frequently we are passing a NodeBase's attrstring)
+    void makeattr(SymmCipher*, const std::unique_ptr<string>&, const char*, int = -1) const;
+
     // check node access level
     int checkaccess(Node*, accesslevel_t);
 
@@ -442,12 +449,15 @@ public:
     void unlinkversions();
 
     // move node to new parent folder
-    error rename(Node*, Node*, syncdel_t = SYNCDEL_NONE, handle = UNDEF);
+    error rename(Node*, Node*, syncdel_t = SYNCDEL_NONE, handle = UNDEF, const char *newName = nullptr);
+
+    // find a transfer by fingerprint and target type (private/foreign) in transfers or cached transfers
+    transfer_map::iterator getTransferByFileFingerprint(FileFingerprint *f, transfer_map &transfers, bool foreign);
 
     // start/stop/pause file transfer
     bool startxfer(direction_t, File*, DBTableTransactionCommitter&, bool skipdupes = false, bool startfirst = false, bool donotpersist = false);
     void stopxfer(File* f, DBTableTransactionCommitter* committer);
-    void pausexfers(direction_t, bool, bool = false);
+    void pausexfers(direction_t, bool pause, bool hard, DBTableTransactionCommitter& committer);
 
     // maximum number of connections per transfer
     static const unsigned MAX_NUM_CONNECTIONS = 6;
@@ -470,6 +480,12 @@ public:
 
     // indicates whether all startup syncs have been fully scanned
     bool syncsup;
+
+    // A collection of sync configs backed by a database table
+    std::unique_ptr<SyncConfigBag> syncConfigs;
+
+    // whether we allow the automatic resumption of syncs
+    bool allowAutoResumeSyncs = true;
 #endif
 
     // if set, symlinks will be followed except in recursive deletions
@@ -487,10 +503,10 @@ public:
 
     // add nodes to specified parent node (complete upload, copy files, make
     // folders)
-    void putnodes(handle, NewNode*, int, const char * = NULL);
+    void putnodes(handle, NewNode*, int, const char * = nullptr, Transfer * = nullptr);
 
     // send files/folders to user
-    void putnodes(const char*, NewNode*, int);
+    void putnodes(const char*, NewNode*, int, Transfer * = nullptr);
 
     // attach file attribute to upload or node handle
     void putfa(handle, fatype, SymmCipher*, std::unique_ptr<string>, bool checkAccess = true);
@@ -502,7 +518,7 @@ public:
     void checkfacompletion(handle, Transfer* = NULL);
 
     // attach/update/delete a user attribute
-    void putua(attr_t at, const byte* av = NULL, unsigned avl = 0, int ctag = -1);
+    void putua(attr_t at, const byte* av = NULL, unsigned avl = 0, int ctag = -1, handle lastPublicHandle = UNDEF, int phtype = 0, int64_t ts = 0);
 
     // attach/update multiple versioned user attributes at once
     void putua(userattr_map *attrs, int ctag = -1);
@@ -541,7 +557,7 @@ public:
     // add/delete sync
     error isnodesyncable(Node*, bool* = NULL);
 
-    error addsync(SyncConfig, string*, const char*, string*, Node*, fsfp_t = 0, int = 0, void* = NULL);
+    error addsync(SyncConfig, const char*, string*, int = 0, void* = NULL);
 
     void delsync(Sync*, bool = true);
 
@@ -816,9 +832,12 @@ private:
     vector<TimerWithBackoff *> bttimers;
 
     // server-client command trigger connection
-    HttpReq* pendingsc;
+    std::unique_ptr<HttpReq> pendingsc;
+    std::unique_ptr<HttpReq> pendingscUserAlerts;
     BackoffTimer btsc;
     bool stopsc = false;
+    bool pendingscTimedOut = false;
+
 
     // badhost report
     HttpReq* badhostcs;
@@ -871,6 +890,11 @@ private:
 
     // maximum number of concurrent putfa
     static const int MAXPUTFA;
+
+#ifdef ENABLE_SYNC
+    // Resumes all resumable syncs
+    void resumeResumableSyncs();
+#endif
 
     // update time at which next deferred transfer retry kicks in
     void nexttransferretry(direction_t d, dstime*);
@@ -976,7 +1000,7 @@ public:
     bool gfxdisabled;
     
     // DB access
-    DbAccess* dbaccess;
+    DbAccess* dbaccess = nullptr;
 
     // state cache table for logged in user
     DbTable* sctable;
@@ -1187,6 +1211,10 @@ public:
 
     Node* nodebyhandle(handle);
     Node* nodebyfingerprint(FileFingerprint*);
+#ifdef ENABLE_SYNC
+    Node* nodebyfingerprint(LocalNode*);
+#endif /* ENABLE_SYNC */
+
     node_vector *nodesbyfingerprint(FileFingerprint* fingerprint);
     void nodesbyoriginalfingerprint(const char* fingerprint, Node* parent, node_vector *nv);
 
@@ -1377,7 +1405,7 @@ public:
     vector<Node*> childnodesbyname(Node*, const char*, bool = false);
 
     // purge account state and abort server-client connection
-    void purgenodesusersabortsc();
+    void purgenodesusersabortsc(bool keepOwnUser);
 
     static const int USERHANDLE = 8;
     static const int PCRHANDLE = 8;
@@ -1406,6 +1434,7 @@ public:
 
     // account access (full account): RSA private key
     AsymmCipher asymkey;
+    string mPrivKey;    // serialized version for apps
 
     // RSA public key
     AsymmCipher pubk;
@@ -1462,8 +1491,8 @@ public:
     PendingContactRequest* findpcr(handle);
 
     // queue public key request for user
-    void queuepubkeyreq(User*, PubKeyAction*);
-    void queuepubkeyreq(const char*, PubKeyAction*);
+    void queuepubkeyreq(User*, std::unique_ptr<PubKeyAction>);
+    void queuepubkeyreq(const char*, std::unique_ptr<PubKeyAction>);
 
     // rewrite foreign keys of the node (tree)
     void rewriteforeignkeys(Node* n);
@@ -1588,6 +1617,12 @@ public:
     // -1: expired, 0: inactive (no business subscription), 1: active, 2: grace-period
     BizStatus mBizStatus;
 
+    // list of handles of the Master business account/s
+    std::set<handle> mBizMasters;
+
+    // whether the destructor has started running yet
+    bool destructorRunning = false;
+  
     MegaClientAsyncQueue mAsyncQueue;
 
     // Keep track of high level operation counts and times, for performance analysis
@@ -1611,6 +1646,10 @@ public:
         CodeCounter::DurationSum transfersActiveTime;
         std::string report(bool reset, HttpIO* httpio, Waiter* waiter, const RequestDispatcher& reqs);
     } performanceStats;
+
+#ifdef ENABLE_SYNC
+    void resetSyncConfigs();
+#endif
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
     ~MegaClient();

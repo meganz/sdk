@@ -172,6 +172,28 @@ std::string JSON::getname()
     return name;
 }
 
+std::string JSON::getnameWithoutAdvance() const
+{
+    const char* ptr = pos;
+    string name;
+
+    if (*ptr == ',' || *ptr == ':')
+    {
+        ptr++;
+    }
+
+    if (*ptr++ == '"')
+    {
+        while (*ptr && *ptr != '"')
+        {
+            name += *ptr;
+            ptr++;
+        }
+    }
+
+    return name;
+}
+
 // pos points to [,]"name":...
 // returns nameid and repositons pos after :
 // no unescaping supported

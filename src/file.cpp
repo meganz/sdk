@@ -304,9 +304,9 @@ void File::completed(Transfer* t, LocalNode* l)
         newnode->type = FILENODE;
         newnode->parenthandle = UNDEF;
 #ifdef ENABLE_SYNC
-        if ((newnode->localnode = l))
+        if (l)
         {
-            l->newnode = newnode;
+            l->newnode.crossref(newnode, l);
             newnode->syncid = l->syncid;
         }
 #endif
@@ -322,7 +322,7 @@ void File::completed(Transfer* t, LocalNode* l)
 
         attrs.getjson(&tattrstring);
 
-        newnode->attrstring = new string;
+        newnode->attrstring.reset(new string);
         t->client->makeattr(t->transfercipher(), newnode->attrstring, tattrstring.c_str());
 
         if (targetuser.size())
@@ -330,7 +330,7 @@ void File::completed(Transfer* t, LocalNode* l)
             // drop file into targetuser's inbox
             int creqtag = t->client->reqtag;
             t->client->reqtag = tag;
-            t->client->putnodes(targetuser.c_str(), newnode, 1);
+            t->client->putnodes(targetuser.c_str(), newnode, 1, t);
             t->client->reqtag = creqtag;
         }
         else
@@ -372,9 +372,9 @@ void File::completed(Transfer* t, LocalNode* l)
                                                                   newnode, 1,
                                                                   tag,
 #ifdef ENABLE_SYNC
-                                                                  l ? PUTNODES_SYNC : PUTNODES_APP));
+                                                                  l ? PUTNODES_SYNC : PUTNODES_APP, nullptr, t));
 #else
-                                                                  PUTNODES_APP));
+                                                                  PUTNODES_APP, nullptr, t));
 #endif
         }
     }
@@ -586,7 +586,7 @@ void SyncFileGet::updatelocalname()
 // add corresponding LocalNode (by path), then self-destruct
 void SyncFileGet::completed(Transfer*, LocalNode*)
 {
-    LocalNode *ll = sync->checkpath(NULL, &localname);
+    LocalNode *ll = sync->checkpath(NULL, &localname, nullptr, nullptr, false, nullptr);
     if (ll && ll != (LocalNode*)~0 && n
             && (*(FileFingerprint *)ll) == (*(FileFingerprint *)n))
     {

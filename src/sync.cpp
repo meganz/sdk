@@ -511,12 +511,145 @@ bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, h
     return success;
 }
 
+SyncConfigBag::SyncConfigBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, PrnGen& rng, const std::string& id)
+{
+    std::string dbname = "syncconfigs_" + id;
+    mTable.reset(dbaccess.open(rng, &fsaccess, &dbname, false, false));
+    if (!mTable)
+    {
+        LOG_err << "Unable to open DB table: " << dbname;
+        assert(false);
+        return;
+    }
+
+    mTable->rewind();
+
+    uint32_t tableId;
+    std::string data;
+    while (mTable->next(&tableId, &data))
+    {
+        auto syncConfig = SyncConfig::unserialize(data);
+        if (!syncConfig)
+        {
+            LOG_err << "Unable to unserialize sync config at id: " << tableId;
+            assert(false);
+            continue;
+        }
+        syncConfig->dbid = tableId;
+
+        mSyncConfigs.insert(std::make_pair(syncConfig->getLocalPath(), *syncConfig));
+        if (tableId > mTable->nextid)
+        {
+            mTable->nextid = tableId;
+        }
+    }
+    ++mTable->nextid;
+}
+
+void SyncConfigBag::insert(const SyncConfig& syncConfig)
+{
+    auto insertOrUpdate = [this](const uint32_t id, const SyncConfig& syncConfig)
+    {
+        std::string data;
+        const_cast<SyncConfig&>(syncConfig).serialize(&data);
+        DBTableTransactionCommitter committer{mTable.get()};
+        if (!mTable->put(id, &data)) // put either inserts or updates
+        {
+            LOG_err << "Incomplete database put at id: " << mTable->nextid;
+            assert(false);
+            mTable->abort();
+            return false;
+        }
+        return true;
+    };
+
+    map<string, SyncConfig>::iterator syncConfigIt = mSyncConfigs.find(syncConfig.getLocalPath());
+    if (syncConfigIt == mSyncConfigs.end()) // syncConfig is new
+    {
+        if (mTable)
+        {
+            if (!insertOrUpdate(mTable->nextid, syncConfig))
+            {
+                return;
+            }
+        }
+        auto insertPair = mSyncConfigs.insert(std::make_pair(syncConfig.getLocalPath(), syncConfig));
+        if (mTable)
+        {
+            insertPair.first->second.dbid = mTable->nextid;
+            ++mTable->nextid;
+        }
+    }
+    else // syncConfig exists already
+    {
+        const uint32_t tableId = syncConfigIt->second.dbid;
+        if (mTable)
+        {
+            if (!insertOrUpdate(tableId, syncConfig))
+            {
+                return;
+            }
+        }
+        syncConfigIt->second = syncConfig;
+        syncConfigIt->second.dbid = tableId;
+    }
+}
+
+void SyncConfigBag::remove(const std::string& localPath)
+{
+    auto syncConfigPair = mSyncConfigs.find(localPath);
+    if (syncConfigPair != mSyncConfigs.end())
+    {
+        if (mTable)
+        {
+            DBTableTransactionCommitter committer{mTable.get()};
+            if (!mTable->del(syncConfigPair->second.dbid))
+            {
+                LOG_err << "Incomplete database del at id: " << syncConfigPair->second.dbid;
+                assert(false);
+                mTable->abort();
+                return;
+            }
+        }
+        mSyncConfigs.erase(syncConfigPair);
+    }
+}
+
+const SyncConfig* SyncConfigBag::get(const std::string& localPath) const
+{
+    auto syncConfigPair = mSyncConfigs.find(localPath);
+    if (syncConfigPair != mSyncConfigs.end())
+    {
+        return &syncConfigPair->second;
+    }
+    return nullptr;
+}
+
+void SyncConfigBag::clear()
+{
+    if (mTable)
+    {
+        mTable->truncate();
+        mTable->nextid = 0;
+    }
+    mSyncConfigs.clear();
+}
+
+std::vector<SyncConfig> SyncConfigBag::all() const
+{
+    std::vector<SyncConfig> syncConfigs;
+    for (const auto& syncConfigPair : mSyncConfigs)
+    {
+        syncConfigs.push_back(syncConfigPair.second);
+    }
+    return syncConfigs;
+}
+
 // new Syncs are automatically inserted into the session's syncs list
 // and a full read of the subtree is initiated
-Sync::Sync(MegaClient* cclient, SyncConfig config, string* crootpath, const char* cdebris,
-           string* clocaldebris, Node* remotenode, fsfp_t cfsfp, bool cinshare, int ctag, void *cappdata)
+Sync::Sync(MegaClient* cclient, SyncConfig config, const char* cdebris,
+           string* clocaldebris, Node* remotenode, bool cinshare, int ctag, void *cappdata)
 : localroot(new LocalNode)
-, mConfig(config)
 {
     isnetwork = false;
     client = cclient;
@@ -540,26 +673,31 @@ Sync::Sync(MegaClient* cclient, SyncConfig config, string* crootpath, const char
     fullscan = true;
     scanseqno = 0;
 
+    mLocalPath = config.getLocalPath();
+    string crootpath;
+    client->fsaccess->path2local(&mLocalPath, &crootpath);
+
     if (cdebris)
     {
         debris = cdebris;
         client->fsaccess->path2local(&debris, &localdebris);
 
-        dirnotify.reset(client->fsaccess->newdirnotify(crootpath, &localdebris));
+        dirnotify.reset(client->fsaccess->newdirnotify(&crootpath, &localdebris));
 
         localdebris.insert(0, client->fsaccess->localseparator);
-        localdebris.insert(0, *crootpath);
+        localdebris.insert(0, crootpath);
     }
     else
     {
         localdebris = *clocaldebris;
 
         // FIXME: pass last segment of localdebris
-        dirnotify.reset(client->fsaccess->newdirnotify(crootpath, &localdebris));
+        dirnotify.reset(client->fsaccess->newdirnotify(&crootpath, &localdebris));
     }
     dirnotify->sync = this;
 
     // set specified fsfp or get from fs if none
+    const auto cfsfp = config.getLocalFingerprint();
     if (cfsfp)
     {
         fsfp = cfsfp;
@@ -567,25 +705,26 @@ Sync::Sync(MegaClient* cclient, SyncConfig config, string* crootpath, const char
     else
     {
         fsfp = dirnotify->fsfingerprint();
+        config.setLocalFingerprint(fsfp);
     }
 
     fsstableids = dirnotify->fsstableids();
     LOG_info << "Filesystem IDs are stable: " << fsstableids;
 
-    localroot->init(this, FOLDERNODE, NULL, crootpath);
+    localroot->init(this, FOLDERNODE, NULL, &crootpath, nullptr);  // the root node must have the absolute path.  We don't store shortname, to avoid accidentally using relative paths.
     localroot->setnode(remotenode);
 
 #ifdef __APPLE__
     if (macOSmajorVersion() >= 19) //macOS catalina+
     {
         LOG_debug << "macOS 10.15+ filesystem detected. Checking fseventspath.";
-        string supercrootpath = "/System/Volumes/Data" + *crootpath;
+        string supercrootpath = "/System/Volumes/Data" + crootpath;
 
         int fd = open(supercrootpath.c_str(), O_RDONLY);
         if (fd == -1)
         {
             LOG_debug << "Unable to open path using fseventspath.";
-            mFsEventsPath = *crootpath;
+            mFsEventsPath = crootpath;
         }
         else
         {
@@ -593,7 +732,7 @@ Sync::Sync(MegaClient* cclient, SyncConfig config, string* crootpath, const char
             if (fcntl(fd, F_GETPATH, buf) < 0)
             {
                 LOG_debug << "Using standard paths to detect filesystem notifications.";
-                mFsEventsPath = *crootpath;
+                mFsEventsPath = crootpath;
             }
             else
             {
@@ -615,7 +754,7 @@ Sync::Sync(MegaClient* cclient, SyncConfig config, string* crootpath, const char
 
         auto fas = client->fsaccess->newfileaccess(false);
 
-        if (fas->fopen(crootpath, true, false))
+        if (fas->fopen(&crootpath, true, false))
         {
             tableid[0] = fas->fsid;
             tableid[1] = remotenode->nodehandle;
@@ -629,12 +768,23 @@ Sync::Sync(MegaClient* cclient, SyncConfig config, string* crootpath, const char
             readstatecache();
         }
     }
+
+    if (client->syncConfigs)
+    {
+        client->syncConfigs->insert(config);
+    }
 }
 
 Sync::~Sync()
 {
     // must be set to prevent remote mass deletion while rootlocal destructor runs
     assert(state == SYNC_CANCELED || state == SYNC_FAILED);
+
+    if (!statecachetable && client->syncConfigs)
+    {
+        // if there's no localnode cache then remove the sync config
+        client->syncConfigs->remove(mLocalPath);
+    }
 
     // unlock tmp lock
     tmpfa.reset();
@@ -687,12 +837,40 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, st
         // clear localname to force newnode = true in setnameparent
         l->localname.clear();
 
-        l->init(this, l->type, p, path);
+        // if we already have the shortname from database, use that, otherwise (db is from old code) look it up
+        std::unique_ptr<string> shortname;
+        if (l->slocalname_in_db)
+        {
+            // null if there is no shortname, or the shortname matches the localname.
+            shortname.reset(l->slocalname.release());
+        }
+        else
+        {
+            shortname = client->fsaccess->fsShortname(*path);
+        }
+
+        l->init(this, l->type, p, path, std::move(shortname));
+
+#ifdef DEBUG
+        auto sn = client->fsaccess->fsShortname(*path);
+        assert(!l->localname.empty() && 
+                (!l->slocalname && (!sn || l->localname == *sn) ||
+                (l->slocalname && sn && !l->slocalname->empty() && *l->slocalname != l->localname && *l->slocalname == *sn)));
+#endif
 
         l->parent_dbid = parent_dbid;
         l->size = size;
         l->setfsid(fsid, client->fsidnode);
         l->setnode(node);
+
+        if (!l->slocalname_in_db)
+        {
+            statecacheadd(l);
+            if (insertq.size() > 50000)
+            {
+                cachenodes();  // periodically output updated nodes with shortname updates, so people who restart megasync still make progress towards a fast startup
+            }
+        }
 
         if (maxdepth)
         {
@@ -726,6 +904,7 @@ bool Sync::readstatecache()
 
         // recursively build LocalNode tree, set scanseqnos to sync's current scanseqno
         addstatecachechildren(0, &tmap, &localroot->localname, localroot.get(), 100);
+        cachenodes();
 
         // trigger a single-pass full scan to identify deleted nodes
         fullscan = true;
@@ -739,7 +918,22 @@ bool Sync::readstatecache()
 
 const SyncConfig& Sync::getConfig() const
 {
-    return mConfig;
+    assert(client->syncConfigs && "Calling getConfig() requires sync configs");
+    const auto config = client->syncConfigs->get(mLocalPath);
+    assert(config);
+    return *config;
+}
+
+void Sync::setResumable(const bool isResumable)
+{
+    if (client->syncConfigs)
+    {
+        const auto config = client->syncConfigs->get(mLocalPath);
+        assert(config);
+        auto newConfig = *config;
+        newConfig.setResumable(isResumable);
+        client->syncConfigs->insert(newConfig);
+    }
 }
 
 // remove LocalNode from DB cache
@@ -990,7 +1184,7 @@ bool Sync::scan(string* localpath, FileAccess* fa)
                         if (initializing)
                         {
                             // preload all cached LocalNodes
-                            l = checkpath(NULL, localpath);
+                            l = checkpath(NULL, localpath, nullptr, nullptr, false, da);
                         }
 
                         if (!l || l == (LocalNode*)~0)
@@ -1022,7 +1216,7 @@ bool Sync::scan(string* localpath, FileAccess* fa)
 // path references a new FOLDERNODE: returns created node
 // path references a existing FILENODE: returns node
 // otherwise, returns NULL
-LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, dstime *backoffds, bool wejustcreatedthisfolder)
+LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, dstime *backoffds, bool wejustcreatedthisfolder, DirAccess* iteratingDir)
 {
     LocalNode* ll = l;
     bool newnode = false, changed = false;
@@ -1141,7 +1335,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
 
         // match cached LocalNode state during initial/rescan to prevent costly re-fingerprinting
         // (just compare the fsids, sizes and mtimes to detect changes)
-        if (fa->fopen(localname ? localpath : &tmppath, false, false))
+        if (fa->fopen(localname ? localpath : &tmppath, false, false, iteratingDir))
         {
             if (cl && fa->fsidvalid && fa->fsid == cl->fsid)
             {
@@ -1257,7 +1451,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                                         client->app->syncupdate_local_move(this, it->second, path.c_str());
 
                                         // (in case of a move, this synchronously updates l->parent and l->node->parent)
-                                        it->second->setnameparent(parent, localname ? localpath : &tmppath);
+                                        it->second->setnameparent(parent, localname ? localpath : &tmppath, client->fsaccess->fsShortname(localname ? *localpath : tmppath));
 
                                         // mark as seen / undo possible deletion
                                         it->second->setnotseen(0);
@@ -1475,7 +1669,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
 
                     // (in case of a move, this synchronously updates l->parent
                     // and l->node->parent)
-                    it->second->setnameparent(parent, localname ? localpath : &tmppath);
+                    it->second->setnameparent(parent, localname ? localpath : &tmppath, client->fsaccess->fsShortname(localname ? *localpath : tmppath));
 
                     // make sure that active PUTs receive their updated filenames
                     client->updateputs();
@@ -1501,7 +1695,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                     // this is a new node: add
                     LOG_debug << "New localnode.  Parent: " << (parent ? parent->name : "NO");
                     l = new LocalNode;
-                    l->init(this, fa->type, parent, localname ? localpath : &tmppath);
+                    l->init(this, fa->type, parent, localname ? localpath : &tmppath, client->fsaccess->fsShortname(localname ? *localpath : tmppath));
 
                     if (fa->fsidvalid)
                     {
@@ -1658,7 +1852,7 @@ dstime Sync::procscanq(int q)
         if ((l = dirnotify->notifyq[q].front().localnode) != (LocalNode*)~0)
         {
             dstime backoffds = 0;
-            l = checkpath(l, &dirnotify->notifyq[q].front().path, NULL, &backoffds);
+            l = checkpath(l, &dirnotify->notifyq[q].front().path, NULL, &backoffds, false, nullptr);
             if (backoffds)
             {
                 LOG_verbose << "Scanning deferred during " << backoffds << " ds";

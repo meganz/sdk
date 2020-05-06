@@ -125,10 +125,60 @@ class Logger
 public:
     virtual ~Logger() = default;
     // Note: `time` and `source` are null in performance mode
-    virtual void log(const char *time, int loglevel, const char *source, const char *message) = 0;
+    virtual void log(const char *time, int loglevel, const char *source, const char *message
+#ifdef ENABLE_LOG_PERFORMANCE
+          , const char **directMessages = nullptr, size_t *directMessagesSizes = nullptr, unsigned numberMessages = 0
+#endif
+                     ) = 0;
 };
 
 typedef std::vector<std::ostream *> OutputStreams;
+
+const static size_t LOGGER_CHUNKS_SIZE = 1024;
+
+/**
+ * @brief holds a const char * and its size to pass to SimpleLogger, to use the direct logging logic
+ */
+class DirectMessage{
+
+private:
+    const static size_t directMsgThreshold = 1024; //below this, the msg will be buffered as a normal message
+    bool mForce = false;
+    size_t mSize = 0;
+    const char *mConstChar = nullptr;
+
+public:
+
+    DirectMessage( const char *constChar, bool force = false) //force will set size as max, so as to stay above directMsgThreshold
+    {
+        mConstChar = constChar;
+        mSize = strlen(constChar);
+        mForce = force;
+    }
+
+    template<typename T, typename std::enable_if<std::is_integral<T>::value>::type* = nullptr>
+    DirectMessage( const char *constChar, T size, bool force = false)
+    {
+        mConstChar = constChar;
+        mSize = static_cast<size_t>(size);
+        mForce = force;
+    }
+
+    size_t size() const
+    {
+        return mSize;
+    }
+
+    bool isBigEnoughToOutputDirectly(size_t bufferedSize) const
+    {
+        return (mForce || mSize > directMsgThreshold || mSize + bufferedSize + 40 >= LOGGER_CHUNKS_SIZE /*room for [file:line]*/ );
+    }
+
+    const char *constChar() const
+    {
+        return mConstChar;
+    }
+};
 
 class OutputMap : public std::array<OutputStreams, unsigned(logMax)+1> {};
 
@@ -150,10 +200,21 @@ class SimpleLogger
     static OutputMap outputs;
     static OutputStreams getOutput(enum LogLevel ll);
 #else
-    std::array<char, 256> mBuffer; // will be stack-allocated since SimpleLogger is stack-allocated
-    std::array<char, 256>::iterator mBufferIt;
-    using DiffType = std::array<char, 256>::difference_type;
+
+#ifdef WIN32
+    static thread_local std::array<char, LOGGER_CHUNKS_SIZE> mBuffer;
+#else
+    static __thread std::array<char, LOGGER_CHUNKS_SIZE> mBuffer;
+#endif
+    std::array<char, LOGGER_CHUNKS_SIZE>::iterator mBufferIt;
+
+    using DiffType = std::array<char, LOGGER_CHUNKS_SIZE>::difference_type;
     using NumBuf = std::array<char, 24>;
+    const char* filenameStr;
+    int lineNum;
+
+    std::vector<DirectMessage> mDirectMessages;
+    std::vector<std::string *> mCopiedParts;
 
     template<typename DataIterator>
     void copyToBuffer(const DataIterator dataIt, DiffType currentSize)
@@ -172,10 +233,24 @@ class SimpleLogger
         }
     }
 
-    void outputBuffer()
+    void outputBuffer(bool lastcall = false)
     {
         *mBufferIt = '\0';
-        if (logger)
+        if (!mDirectMessages.empty()) // some part has already been passed as direct, we'll do all directly
+        {
+            if (lastcall) //the mBuffer can be reused
+            {
+                mDirectMessages.push_back(DirectMessage(mBuffer.data(), std::distance(mBuffer.begin(), mBufferIt)));
+            }
+            else //reached LOGGER_CHUNKS_SIZE, we need to copy mBuffer contents
+            {
+                std::string *newStr  = new string(mBuffer.data());
+                mCopiedParts.emplace_back( newStr);
+                string * back = mCopiedParts[mCopiedParts.size()-1];
+                mDirectMessages.push_back(DirectMessage(back->data(), back->size()));
+            }
+        }
+        else if (logger)
         {
             logger->log(nullptr, level, nullptr, mBuffer.data());
         }
@@ -278,6 +353,7 @@ class SimpleLogger
     {
         copyToBuffer(value.begin(), static_cast<DiffType>(value.size()));
     }
+
 #endif
 
 public:
@@ -285,26 +361,17 @@ public:
 
     static enum LogLevel logCurrentLevel;
 
+    static long long maxPayloadLogSize; //above this, the msg will be truncated by [ ... ]
+
     SimpleLogger(const enum LogLevel ll, const char* filename, const int line)
     : level{ll}
 #ifdef ENABLE_LOG_PERFORMANCE
     , mBufferIt{mBuffer.begin()}
+    , filenameStr(filename)
+    , lineNum(line)
 #endif
     {
-#ifdef ENABLE_LOG_PERFORMANCE
-        const char * actualFileName = strrchr(filename, '/'); //The project part of the path uses `/` for Windows too.
-        if (actualFileName)
-        {
-            logValue(actualFileName+1);
-        }
-        else
-        {
-            logValue(filename);
-        }
-        copyToBuffer(":", 1);
-        logValue(line);
-        copyToBuffer(" ", 1);
-#else
+#ifndef ENABLE_LOG_PERFORMANCE
         if (!logger)
         {
             return;
@@ -324,7 +391,34 @@ public:
     ~SimpleLogger()
     {
 #ifdef ENABLE_LOG_PERFORMANCE
-        outputBuffer();
+        copyToBuffer(" [", 2);
+        logValue(filenameStr);  // put filename and line last, to keep the main text nicely column aligned
+        copyToBuffer(":", 1);
+        logValue(lineNum);
+        copyToBuffer("]", 1);
+        outputBuffer(true);
+
+        if (!mDirectMessages.empty())
+        {
+            if (logger)
+            {
+                std::unique_ptr<const char *[]> dm(new const char *[mDirectMessages.size()]);
+                std::unique_ptr<size_t[]> dms(new size_t[mDirectMessages.size()]);
+                unsigned i = 0;
+                for (const auto & d : mDirectMessages)
+                {
+                    dm[i] = d.constChar();
+                    dms[i] = d.size();
+                    i++;
+                }
+
+                logger->log(nullptr, level, nullptr, "", dm.get(), dms.get(), static_cast<int>(i));
+            }
+        }
+        for (auto &s: mCopiedParts)
+        {
+            delete s;
+        }
 #else
         OutputStreams::iterator iter;
         OutputStreams vec;
@@ -418,6 +512,37 @@ public:
     }
 #endif
 
+
+
+    SimpleLogger& operator<<(const DirectMessage &obj)
+    {
+#ifndef ENABLE_LOG_PERFORMANCE
+    *this << obj.constChar();
+#else
+        if (!obj.isBigEnoughToOutputDirectly(static_cast<size_t>(std::distance(mBuffer.begin(), mBufferIt)))) //don't bother with little msg
+        {
+            *this << obj.constChar();
+        }
+        else
+        {
+            if (mBufferIt != mBuffer.begin()) //something was appended to the buffer before this direct msg
+            {
+                *mBufferIt = '\0';
+                std::string *newStr  = new string(mBuffer.data());
+                mCopiedParts.emplace_back( newStr);
+                string * back = mCopiedParts[mCopiedParts.size()-1];
+
+                mDirectMessages.push_back(DirectMessage(back->data(), back->size()));
+                mBufferIt = mBuffer.begin();
+            }
+
+            mDirectMessages.push_back(DirectMessage(obj.constChar(), obj.size()));
+        }
+
+#endif
+        return *this;
+    }
+
     // set output class
     static void setOutputClass(Logger *logger_class)
     {
@@ -429,6 +554,13 @@ public:
     {
         SimpleLogger::logCurrentLevel = ll;
     }
+
+    // set the limit of size to requests payload
+    static void setMaxPayloadLogSize(long long size)
+    {
+        maxPayloadLogSize = size;
+    }
+
 
 #ifndef ENABLE_LOG_PERFORMANCE
     // register output stream for log level
@@ -442,32 +574,39 @@ public:
 #endif
 };
 
+// source file leaf name - maybe to be compile time calculated one day
+template<std::size_t N> inline const char* log_file_leafname(const char(&fullpath)[N])
+{
+    for (auto i = N; i--; ) if (fullpath[i] == '/' || fullpath[i] == '\\') return &fullpath[i+1];
+    return fullpath;
+}
+
 #define LOG_verbose \
     if (::mega::SimpleLogger::logCurrentLevel < ::mega::logMax) ;\
     else \
-        ::mega::SimpleLogger(::mega::logMax, __FILE__, __LINE__)
+        ::mega::SimpleLogger(::mega::logMax, ::mega::log_file_leafname(__FILE__), __LINE__)
 
 #define LOG_debug \
     if (::mega::SimpleLogger::logCurrentLevel < ::mega::logDebug) ;\
     else \
-        ::mega::SimpleLogger(::mega::logDebug, __FILE__, __LINE__)
+        ::mega::SimpleLogger(::mega::logDebug, ::mega::log_file_leafname(__FILE__), __LINE__)
 
 #define LOG_info \
     if (::mega::SimpleLogger::logCurrentLevel < ::mega::logInfo) ;\
     else \
-        ::mega::SimpleLogger(::mega::logInfo, __FILE__, __LINE__)
+        ::mega::SimpleLogger(::mega::logInfo, ::mega::log_file_leafname(__FILE__), __LINE__)
 
 #define LOG_warn \
     if (::mega::SimpleLogger::logCurrentLevel < ::mega::logWarning) ;\
     else \
-        ::mega::SimpleLogger(::mega::logWarning, __FILE__, __LINE__)
+        ::mega::SimpleLogger(::mega::logWarning, ::mega::log_file_leafname(__FILE__), __LINE__)
 
 #define LOG_err \
     if (::mega::SimpleLogger::logCurrentLevel < ::mega::logError) ;\
     else \
-        ::mega::SimpleLogger(::mega::logError, __FILE__, __LINE__)
+        ::mega::SimpleLogger(::mega::logError, ::mega::log_file_leafname(__FILE__), __LINE__)
 
 #define LOG_fatal \
-    ::mega::SimpleLogger(::mega::logFatal, __FILE__, __LINE__)
+    ::mega::SimpleLogger(::mega::logFatal, ::mega::log_file_leafname(__FILE__), __LINE__)
 
 } // namespace

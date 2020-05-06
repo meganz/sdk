@@ -118,28 +118,41 @@ int responseprogress = -1;
 int attempts = 0;
 
 #ifdef ENABLE_SYNC
-// sync config used when creating a new sync
-static SyncConfig syncConfig;
 
-// converts the given sync config to a string
-static std::string syncConfigToString(const SyncConfig& config)
+struct NewSyncConfig
 {
-    auto getOptions = [](const SyncConfig& config)
+    SyncConfig::Type type;
+    bool syncDeletions;
+    bool forceOverwrite;
+
+    static NewSyncConfig from(const SyncConfig& config)
+    {
+        return NewSyncConfig{config.getType(), config.syncDeletions(), config.forceOverwrite()};
+    }
+};
+
+// sync configuration used when creating a new sync
+static NewSyncConfig newSyncConfig;
+
+// converts the given sync configuration to a string
+static std::string syncConfigToString(const NewSyncConfig& config)
+{
+    auto getOptions = [](const NewSyncConfig& config)
     {
         std::string desc;
         desc += ", syncDeletions ";
-        desc += config.syncDeletions() ? "ON" : "OFF";
+        desc += config.syncDeletions ? "ON" : "OFF";
         desc += ", forceOverwrite ";
-        desc += config.forceOverwrite() ? "ON" : "OFF";
+        desc += config.forceOverwrite ? "ON" : "OFF";
         return desc;
     };
 
     std::string description;
-    if (config.isUpSync() && config.isDownSync())
+    if (config.type == SyncConfig::TYPE_TWOWAY)
     {
         description = "TWOWAY";
     }
-    else if (config.isUpSync())
+    else if (config.type & SyncConfig::TYPE_UP)
     {
         description = "UP";
         description += getOptions(config);
@@ -152,9 +165,9 @@ static std::string syncConfigToString(const SyncConfig& config)
     return description;
 }
 
-// creates a SyncConfig object from config options as strings.
+// creates a NewSyncConfig object from config options as strings.
 // returns a pair where `first` is success and `second` is the sync config.
-static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::string syncDel = {}, std::string overwrite = {})
+static std::pair<bool, NewSyncConfig> syncConfigFromStrings(std::string type, std::string syncDel = {}, std::string overwrite = {})
 {
     auto toLower = [](std::string& s)
     {
@@ -176,17 +189,17 @@ static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::
     }
     else if (type == "twoway")
     {
-        syncType = SyncConfig::TYPE_DEFAULT;
+        syncType = SyncConfig::TYPE_TWOWAY;
     }
     else
     {
-        return std::make_pair(false, SyncConfig{});
+        return std::make_pair(false, NewSyncConfig{});
     }
 
     bool syncDeletions = false;
     bool forceOverwrite = false;
 
-    if (syncType != SyncConfig::TYPE_DEFAULT)
+    if (syncType != SyncConfig::TYPE_TWOWAY)
     {
         if (syncDel == "on")
         {
@@ -198,7 +211,7 @@ static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::
         }
         else
         {
-            return std::make_pair(false, SyncConfig{});
+            return std::make_pair(false, NewSyncConfig{});
         }
 
         if (overwrite == "on")
@@ -211,11 +224,11 @@ static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::
         }
         else
         {
-            return std::make_pair(false, SyncConfig{});
+            return std::make_pair(false, NewSyncConfig{});
         }
     }
 
-    return std::make_pair(true, SyncConfig{syncType, syncDeletions, forceOverwrite});
+    return std::make_pair(true, NewSyncConfig{syncType, syncDeletions, forceOverwrite});
 }
 #endif
 
@@ -397,7 +410,7 @@ void DemoApp::transfer_update(Transfer* /*t*/)
     // (this is handled in the prompt logic)
 }
 
-void DemoApp::transfer_failed(Transfer* t, error e, dstime)
+void DemoApp::transfer_failed(Transfer* t, error e, dstime, handle)
 {
     displaytransferdetails(t, "failed (");
     cout << errorstring(e) << ")" << endl;
@@ -1748,62 +1761,73 @@ void TreeProcListOutShares::proc(MegaClient*, Node* n)
 
 bool handles_on = false;
 
-static void dumptree(Node* n, bool recurse, int depth = 0, const char* title = NULL)
+static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstream* toFile)
 {
+    std::ostream& stream = toFile ? *toFile : cout;
+    string titleTmp;
+
     if (depth)
     {
-        if (!title && !(title = n->displayname()))
+        if (!toFile)
         {
-            title = "CRYPTO_ERROR";
+            if (!title && !(title = n->displayname()))
+            {
+                title = "CRYPTO_ERROR";
+            }
+
+            for (int i = depth; i--; )
+            {
+                stream << "\t";
+            }
+        }
+        else
+        {
+            titleTmp = n->displaypath();
+            title = titleTmp.c_str();
         }
 
-        for (int i = depth; i--; )
-        {
-            cout << "\t";
-        }
-
-        cout << title << " (";
+        stream << title << " (";
 
         switch (n->type)
         {
             case FILENODE:
-                cout << n->size;
+                stream << n->size;
 
                 if (handles_on)
                 {
                     Base64Str<MegaClient::NODEHANDLE> handlestr(n->nodehandle);
-                    cout << " " << handlestr.chars;
+                    stream << " " << handlestr.chars;
                 }
 
                 const char* p;
                 if ((p = strchr(n->fileattrstring.c_str(), ':')))
                 {
-                    cout << ", has attributes " << p + 1;
+                    stream << ", has attributes " << p + 1;
                 }
 
                 if (n->plink)
                 {
-                    cout << ", shared as exported";
+                    stream << ", shared as exported";
                     if (n->plink->ets)
                     {
-                        cout << " temporal";
+                        stream << " temporal";
                     }
                     else
                     {
-                        cout << " permanent";
+                        stream << " permanent";
                     }
-                    cout << " file link";
+                    stream << " file link";
                 }
 
                 break;
 
             case FOLDERNODE:
-                cout << "folder";
+                stream << "folder";
 
                 if (handles_on)
                 {
                     Base64Str<MegaClient::NODEHANDLE> handlestr(n->nodehandle);
-                    cout << " " << handlestr.chars;
+                    stream << " " << handlestr.chars;
                 }
 
                 if(n->outshares)
@@ -1812,23 +1836,23 @@ static void dumptree(Node* n, bool recurse, int depth = 0, const char* title = N
                     {
                         if (it->first)
                         {
-                            cout << ", shared with " << it->second->user->email << ", access "
+                            stream << ", shared with " << it->second->user->email << ", access "
                                  << getAccessLevelStr(it->second->access);
                         }
                     }
 
                     if (n->plink)
                     {
-                        cout << ", shared as exported";
+                        stream << ", shared as exported";
                         if (n->plink->ets)
                         {
-                            cout << " temporal";
+                            stream << " temporal";
                         }
                         else
                         {
-                            cout << " permanent";
+                            stream << " permanent";
                         }
-                        cout << " folder link";
+                        stream << " folder link";
                     }
                 }
 
@@ -1838,7 +1862,7 @@ static void dumptree(Node* n, bool recurse, int depth = 0, const char* title = N
                     {
                         if (it->first)
                         {
-                            cout << ", shared (still pending) with " << it->second->pcr->targetemail << ", access "
+                            stream << ", shared (still pending) with " << it->second->pcr->targetemail << ", access "
                                  << getAccessLevelStr(it->second->access);
                         }                        
                     }
@@ -1846,15 +1870,15 @@ static void dumptree(Node* n, bool recurse, int depth = 0, const char* title = N
 
                 if (n->inshare)
                 {
-                    cout << ", inbound " << getAccessLevelStr(n->inshare->access) << " share";
+                    stream << ", inbound " << getAccessLevelStr(n->inshare->access) << " share";
                 }
                 break;
 
             default:
-                cout << "unsupported type, please upgrade";
+                stream << "unsupported type, please upgrade";
         }
 
-        cout << ")" << (n->changed.removed ? " (DELETED)" : "") << endl;
+        stream << ")" << (n->changed.removed ? " (DELETED)" : "") << endl;
 
         if (!recurse)
         {
@@ -1866,7 +1890,7 @@ static void dumptree(Node* n, bool recurse, int depth = 0, const char* title = N
     {
         for (node_list::iterator it = n->children.begin(); it != n->children.end(); it++)
         {
-            dumptree(*it, recurse, depth + 1);
+            dumptree(*it, recurse, depth + 1, NULL, toFile);
         }
     }
 }
@@ -2021,7 +2045,7 @@ public:
                 tattrs.map.erase(it);
             }
 
-            t->attrstring = new string;
+            t->attrstring.reset(new string);
             tattrs.getjson(&attrstring);
             mc->makeattr(&key, t->attrstring, attrstring.c_str());
         }
@@ -2389,6 +2413,55 @@ void exec_find(autocomplete::ACState& s)
     }
 }
 
+bool recurse_findemptysubfoldertrees(Node* n, bool moveToTrash)
+{
+    if (n->type == FILENODE)
+    {
+        return false;
+    }
+
+    std::vector<Node*> emptyFolders;
+    bool empty = true;
+    Node* trash = client->nodebyhandle(client->rootnodes[2]);
+    for (auto c : n->children)
+    {
+        bool subfolderEmpty = recurse_findemptysubfoldertrees(c, moveToTrash);
+        if (subfolderEmpty)
+        {
+            emptyFolders.push_back(c);
+        }
+        empty = empty && subfolderEmpty;
+    }
+    if (!empty)
+    {
+        for (auto c : emptyFolders)
+        {
+            if (moveToTrash)
+            {
+                cout << "moving to trash: " << c->displaypath() << endl;
+                client->rename(c, trash);
+            }
+            else
+            {
+                cout << "empty folder tree at: " << c->displaypath() << endl;
+            }
+        }
+    }
+    return empty;
+}
+
+void exec_findemptysubfoldertrees(autocomplete::ACState& s)
+{
+    bool moveToTrash = s.extractflag("-movetotrash");
+    if (Node* n = client->nodebyhandle(cwd))
+    {
+        if (recurse_findemptysubfoldertrees(n, moveToTrash))
+        {
+            cout << "the search root path only contains empty folders: " << n->displaypath() << endl;
+        }
+    }
+}
+
 bool typematchesnodetype(nodetype_t pathtype, nodetype_t nodetype)
 {
     switch (pathtype)
@@ -2705,11 +2778,20 @@ class MegaCLILogger : public ::mega::Logger {
 public:
     ofstream mLogFile;
 
-    void log(const char*, int loglevel, const char*, const char *message) override
+    void log(const char*, int loglevel, const char*, const char *message
+#ifdef ENABLE_LOG_PERFORMANCE
+                 , const char **directMessages, size_t *directMessagesSizes, unsigned numberMessages
+#endif
+    ) override
     {
         if (mLogFile.is_open())
         {
-            mLogFile << Waiter::ds << " " << SimpleLogger::toStr(static_cast<LogLevel>(loglevel)) << ": " << message << std::endl;
+            mLogFile << Waiter::ds << " " << SimpleLogger::toStr(static_cast<LogLevel>(loglevel)) << ": ";
+            if (message) mLogFile << message;
+#ifdef ENABLE_LOG_PERFORMANCE
+            for (unsigned i = 0; i < numberMessages; ++i) mLogFile.write(directMessages[i], directMessagesSizes[i]);
+#endif
+            mLogFile << std::endl;
         }
         else
         {
@@ -2725,7 +2807,10 @@ public:
             s.reserve(1024);
             s += ts;
             s += " ";
-            s += message;
+            if (message) s += message;
+#ifdef ENABLE_LOG_PERFORMANCE
+            for (unsigned i = 0; i < numberMessages; ++i) s.append(directMessages[i], directMessagesSizes[i]);
+#endif
             s += "\r\n";
             OutputDebugStringA(s.c_str());
 #else
@@ -2744,9 +2829,26 @@ public:
     }
 };
 
+void exec_fingerprint(autocomplete::ACState& s)
+{
+    string localfilepath, filepath = s.words[1].s;
+    client->fsaccess->path2local(&filepath, &localfilepath);
+    auto fa = client->fsaccess->newfileaccess();
+    if (fa->fopen(&localfilepath, true, false, nullptr))
+    {
+        FileFingerprint fp;
+        fp.genfingerprint(fa.get());
+        cout << Utils::stringToHex(std::string((const char*)&fp.size, sizeof(fp.size))) << "/" << 
+                Utils::stringToHex(std::string((const char*)&fp.mtime, sizeof(fp.mtime))) << "/" <<
+                Utils::stringToHex(std::string((const char*)&fp.crc, sizeof(fp.crc))) << endl;
+    }
+    else
+    {
+        cout << "Failed to open: " << filepath << endl;
+    }
+}
+
 MegaCLILogger gLogger;
-
-
 
 autocomplete::ACN autocompleteSyntax()
 {
@@ -2761,7 +2863,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_confirm, sequence(text("confirm")));
     p->Add(exec_session, sequence(text("session"), opt(sequence(text("autoresume"), opt(param("id"))))));
     p->Add(exec_mount, sequence(text("mount")));
-    p->Add(exec_ls, sequence(text("ls"), opt(flag("-R")), opt(remoteFSFolder(client, &cwd))));
+    p->Add(exec_ls, sequence(text("ls"), opt(flag("-R")), opt(sequence(flag("-tofile"), param("filename"))), opt(remoteFSFolder(client, &cwd))));
     p->Add(exec_cd, sequence(text("cd"), opt(remoteFSFolder(client, &cwd))));
     p->Add(exec_pwd, sequence(text("pwd")));
     p->Add(exec_lcd, sequence(text("lcd"), opt(localFSFolder())));
@@ -2790,13 +2892,13 @@ autocomplete::ACN autocompleteSyntax()
 #endif
     p->Add(exec_smsverify, sequence(text("smsverify"), either(sequence(text("send"), param("phonenumber"), opt(param("reverifywhitelisted"))), sequence(text("code"), param("verificationcode")))));
     p->Add(exec_verifiedphonenumber, sequence(text("verifiedphone")));
-    p->Add(exec_mkdir, sequence(text("mkdir"), opt(flag("-allowduplicate")), remoteFSFolder(client, &cwd)));
+    p->Add(exec_mkdir, sequence(text("mkdir"), opt(flag("-allowduplicate")), opt(flag("-exactleafname")), remoteFSFolder(client, &cwd)));
     p->Add(exec_rm, sequence(text("rm"), remoteFSPath(client, &cwd), opt(sequence(flag("-regexchild"), param("regex")))));
     p->Add(exec_mv, sequence(text("mv"), remoteFSPath(client, &cwd, "src"), remoteFSPath(client, &cwd, "dst")));
     p->Add(exec_cp, sequence(text("cp"), remoteFSPath(client, &cwd, "src"), either(remoteFSPath(client, &cwd, "dst"), param("dstemail"))));
     p->Add(exec_du, sequence(text("du"), remoteFSPath(client, &cwd)));
 #ifdef ENABLE_SYNC
-    p->Add(exec_sync, sequence(text("sync"), opt(sequence(localFSPath(), either(remoteFSPath(client, &cwd, "dst"), param("cancelslot"))))));
+    p->Add(exec_sync, sequence(text("sync"), opt(either(sequence(localFSPath(), remoteFSPath(client, &cwd, "dst")), param("cancelslot")))));
     p->Add(exec_syncconfig, sequence(text("syncconfig"), opt(sequence(param("type (TWOWAY/UP/DOWN)"), opt(sequence(param("syncDeletions (ON/OFF)"), param("forceOverwrite (ON/OFF)")))))));
 #endif
     p->Add(exec_export, sequence(text("export"), remoteFSPath(client, &cwd), opt(either(param("expiretime"), text("del")))));
@@ -2841,6 +2943,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_log, sequence(text("log"), either(text("utf8"), text("utf16"), text("codepage")), localFSFile()));
 #endif
     p->Add(exec_test, sequence(text("test"), opt(param("data"))));
+    p->Add(exec_fingerprint, sequence(text("fingerprint"), localFSFile("localfile")));
 #ifdef ENABLE_CHAT
     p->Add(exec_chats, sequence(text("chats")));
     p->Add(exec_chatc, sequence(text("chatc"), param("group"), repeat(opt(sequence(contactEmail(client), either(text("ro"), text("sta"), text("mod")))))));
@@ -2877,6 +2980,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_quit, either(text("quit"), text("q"), text("exit")));
 
     p->Add(exec_find, sequence(text("find"), text("raided")));
+    p->Add(exec_findemptysubfoldertrees, sequence(text("findemptysubfoldertrees"), opt(flag("-movetotrash"))));
 
 #ifdef MEGA_MEASURE_CODE
     p->Add(exec_deferRequests, sequence(text("deferrequests"), repeat(either(flag("-putnodes")))));
@@ -2899,6 +3003,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_showattributes, sequence(text("showattributes"), remoteFSPath(client, &cwd)));
 
     p->Add(exec_setmaxconnections, sequence(text("setmaxconnections"), either(text("put"), text("get")), opt(wholenumber(4))));
+    p->Add(exec_metamac, sequence(text("metamac"), localFSPath(), remoteFSPath(client, &cwd)));
 
     return autocompleteTemplate = std::move(p);
 }
@@ -3191,6 +3296,14 @@ void exec_ls(autocomplete::ACState& s)
 {
     Node* n;
     bool recursive = s.extractflag("-R");
+    string toFilename;
+    bool toFileFlag = s.extractflagparam("-tofile", toFilename);
+
+    ofstream toFile;
+    if (toFileFlag)
+    {
+        toFile.open(toFilename);
+    }
 
     if (s.words.size() > 1)
     {
@@ -3203,7 +3316,7 @@ void exec_ls(autocomplete::ACState& s)
 
     if (n)
     {
-        dumptree(n, recursive);
+        dumptree(n, recursive, 0, NULL, toFileFlag ? &toFile : nullptr);
     }
 }
 
@@ -3536,7 +3649,7 @@ void exec_cp(autocomplete::ACState& s)
 
                 // JSON-encode object and encrypt attribute string
                 attrs.getjson(&attrstring);
-                tc.nn->attrstring = new string;
+                tc.nn->attrstring.reset(new string);
                 client->makeattr(&key, tc.nn->attrstring, attrstring.c_str());
             }
 
@@ -3779,7 +3892,6 @@ void uploadLocalPath(nodetype_t type, std::string name, std::string localname, N
     }
     else if (type == FOLDERNODE && recursive)
     {
-
         if (previousNode)
         {
             if (previousNode->type == FILENODE)
@@ -4100,9 +4212,6 @@ void exec_sync(autocomplete::ACState& s)
 
         if (client->checkaccess(n, FULL))
         {
-            string localname;
-
-            client->fsaccess->path2local(&s.words[1].s, &localname);
 
             if (!n)
             {
@@ -4114,7 +4223,9 @@ void exec_sync(autocomplete::ACState& s)
             }
             else
             {
-                error e = client->addsync(syncConfig, &localname, DEBRISFOLDER, NULL, n);
+                SyncConfig syncConfig{s.words[1].s, n->nodehandle, 0, {}, newSyncConfig.type,
+                            newSyncConfig.syncDeletions, newSyncConfig.forceOverwrite};
+                error e = client->addsync(std::move(syncConfig), DEBRISFOLDER, NULL);
 
                 if (e)
                 {
@@ -4161,7 +4272,7 @@ void exec_sync(autocomplete::ACState& s)
                         nodepath((*it)->localroot->node->nodehandle, &remotepath);
                         client->fsaccess->local2path(&(*it)->localroot->localname, &localpath);
 
-                        cout << i++ << " (" << syncConfigToString((*it)->getConfig()) << "): " << localpath << " to " << remotepath << " - "
+                        cout << i++ << " (" << syncConfigToString(NewSyncConfig::from((*it)->getConfig())) << "): " << localpath << " to " << remotepath << " - "
                                 << syncstatenames[(*it)->state] << ", " << (*it)->localbytes
                                 << " byte(s) in " << (*it)->localnodes[FILENODE] << " file(s) and "
                                 << (*it)->localnodes[FOLDERNODE] << " folder(s)" << endl;
@@ -4180,11 +4291,11 @@ void exec_syncconfig(autocomplete::ACState& s)
 {
     if (s.words.size() == 1)
     {
-        cout << "Current sync config: " << syncConfigToString(syncConfig) << endl;
+        cout << "Current sync config: " << syncConfigToString(newSyncConfig) << endl;
     }
     else if (s.words.size() == 2 || s.words.size() == 4)
     {
-        std::pair<bool, SyncConfig> pair;
+        std::pair<bool, NewSyncConfig> pair;
         if (s.words.size() == 2)
         {
             pair = syncConfigFromStrings(s.words[1].s);
@@ -4196,7 +4307,7 @@ void exec_syncconfig(autocomplete::ACState& s)
 
         if (pair.first)
         {
-            syncConfig = pair.second;
+            newSyncConfig = pair.second;
             cout << "Successfully applied new sync config!" << endl;
         }
         else
@@ -4486,6 +4597,15 @@ void exec_users(autocomplete::ACState& s)
                     cout << ", public key cached";
                 }
 
+                if (it->second.mBizMode == BIZ_MODE_MASTER)
+                {
+                    cout << ", business master user";
+                }
+                else if (it->second.mBizMode == BIZ_MODE_SUBUSER)
+                {
+                    cout << ", business sub-user";
+                }
+
                 cout << endl;
             }
         }
@@ -4499,12 +4619,24 @@ void exec_users(autocomplete::ACState& s)
 void exec_mkdir(autocomplete::ACState& s)
 {
     bool allowDuplicate = s.extractflag("-allowduplicate");
+    bool exactLeafName = s.extractflag("-exactleafname");
 
     if (s.words.size() > 1)
     {
         string newname;
 
-        if (Node* n = nodebypath(s.words[1].s.c_str(), NULL, &newname))
+        Node* n;
+        if (exactLeafName) 
+        {
+            n = client->nodebyhandle(cwd);
+            newname = s.words[1].s;
+        }
+        else 
+        {
+            n = nodebypath(s.words[1].s.c_str(), NULL, &newname);
+        }
+        
+        if (n)
         {
             if (!client->checkaccess(n, RDWR))
             {
@@ -4746,10 +4878,12 @@ void exec_pause(autocomplete::ACState& s)
         getarg = true;
         putarg = true;
     }
+    
+    DBTableTransactionCommitter committer(client->tctable);
 
     if (getarg)
     {
-        client->pausexfers(GET, client->xferpaused[GET] ^= true, hardarg);
+        client->pausexfers(GET, client->xferpaused[GET] ^= true, hardarg, committer);
         if (client->xferpaused[GET])
         {
             cout << "GET transfers paused. Resume using the same command." << endl;
@@ -4762,7 +4896,7 @@ void exec_pause(autocomplete::ACState& s)
 
     if (putarg)
     {
-        client->pausexfers(PUT, client->xferpaused[PUT] ^= true, hardarg);
+        client->pausexfers(PUT, client->xferpaused[PUT] ^= true, hardarg, committer);
         if (client->xferpaused[PUT])
         {
             cout << "PUT transfers paused. Resume using the same command." << endl;
@@ -6734,19 +6868,34 @@ void DemoApp::whyamiblocked_result(int code)
         {
             reason = "Your account has been suspended due to multiple breaches of Mega's Terms of Service. Please check your email inbox.";
         }
+        else if (code == 300)
+        {
+            reason = "Your account has been suspended due to copyright violations. Please check your email inbox.";
+        }
+        else if (code == 400)
+        {
+            reason = "Your account has been disabled by your administrator. You may contact your business account administrator for further details.";
+        }
+        else if (code == 401)
+        {
+            reason = "Your account has been removed by your administrator. You may contact your business account administrator for further details.";
+        }
         else if (code == 500)
         {
-            reason = "Your account has been blocked, pending verification via SMS.";
+            reason = "Your account has been blocked pending verification via SMS.";
         }
-        //else if (code == 300) --> default reason
-
+        else if (code == 700)
+        {
+            reason = "Your account has been temporarily suspended for your safety. Please verify your email and follow its steps to unlock your account.";
+        }
+        //else if (code == ACCOUNT_BLOCKED_DEFAULT) --> default reason
 
         cout << "Reason: " << reason << endl;
 
-        if (code != 500)
+        if (code != 500 && code != 700)
         {
             cout << "Logging out..." << endl;
-            client->locallogout(false);
+            client->locallogout(true);
         }
     }
 }
@@ -6890,7 +7039,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
         newnode->nodehandle = ph;
         newnode->parenthandle = UNDEF;
         newnode->nodekey.assign((char*)key, FILENODEKEYLENGTH);
-        newnode->attrstring = new string(*a);
+        newnode->attrstring.reset(new string(*a));
 
         while ((name = json.getnameid()) != EOO && json.storeobject((t = &attrs.map[name])))
         {
@@ -7817,5 +7966,67 @@ void DemoAppFolder::nodes_updated(Node **n, int count)
 
     cout << "The folder link contains ";
     nodestats(c[1], "");
+}
+
+void exec_metamac(autocomplete::ACState& s)
+{
+    Node *node = nodebypath(s.words[2].s.c_str());
+    if (!node || node->type != FILENODE)
+    {
+        cerr << s.words[2].s
+             << (node ? ": No such file or directory"
+                      : ": Not a file")
+             << endl;
+        return;
+    }
+
+    auto ifAccess = client->fsaccess->newfileaccess();
+    {
+        std::string localPath;
+        client->fsaccess->path2local(&s.words[1].s, &localPath);
+
+        if (!ifAccess->fopen(&localPath, 1, 0))
+        {
+            cerr << "Failed to open: " << s.words[1].s << endl;
+            return;
+        }
+    }
+
+    SymmCipher cipher;
+    int64_t remoteIv;
+    int64_t remoteMac;
+
+    {
+        std::string remoteKey = node->nodekey();
+        const char *iva = &remoteKey[SymmCipher::KEYLENGTH];
+
+        cipher.setkey((byte*)&remoteKey[0], node->type);
+        remoteIv = MemAccess::get<int64_t>(iva);
+        remoteMac = MemAccess::get<int64_t>(iva + sizeof(int64_t));
+    }
+
+    auto result = generateMetaMac(cipher, *ifAccess, remoteIv);
+    if (!result.first)
+    {
+        cerr << "Failed to generate metamac for: "
+             << s.words[1].s
+             << endl;
+    }
+    else
+    {
+        const std::ios::fmtflags flags = cout.flags();
+
+        cout << s.words[2].s
+             << " (remote): "
+             << std::hex
+             << (uint64_t)remoteMac
+             << "\n"
+             << s.words[1].s
+             << " (local): "
+             << (uint64_t)result.second
+             << endl;
+
+        cout.flags(flags);
+    }
 }
 

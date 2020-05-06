@@ -181,6 +181,8 @@ public class MegaApiJava {
     public final static int ORDER_PHOTO_DESC = MegaApi.ORDER_PHOTO_DESC;
     public final static int ORDER_VIDEO_ASC = MegaApi.ORDER_VIDEO_ASC;
     public final static int ORDER_VIDEO_DESC = MegaApi.ORDER_VIDEO_DESC;
+    public final static int ORDER_LINK_CREATION_ASC = MegaApi.ORDER_LINK_CREATION_ASC;
+    public final static int ORDER_LINK_CREATION_DESC = MegaApi.ORDER_LINK_CREATION_DESC;
 
     public final static int TCP_SERVER_DENY_ALL = MegaApi.TCP_SERVER_DENY_ALL;
     public final static int TCP_SERVER_ALLOW_ALL = MegaApi.TCP_SERVER_ALLOW_ALL;
@@ -432,6 +434,50 @@ public class MegaApiJava {
      */
     @Deprecated public String getStringHash(String base64pwkey, String inBuf) {
         return megaApi.getStringHash(base64pwkey, inBuf);
+    }
+
+    /**
+     * Get an URL to transfer the current session to the webclient
+     *
+     * This function creates a new session for the link so logging out in the web client won't log out
+     * the current session.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_SESSION_TRANSFER_URL
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getLink - URL to open the desired page with the same account
+     *
+     * You take the ownership of the returned value.
+     *
+     * @param path Path inside https://mega.nz/# that we want to open with the current session
+     *
+     * For example, if you want to open https://mega.nz/#pro, the parameter of this function should be "pro".
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getSessionTransferURL(String path, MegaRequestListenerInterface listener){
+        megaApi.getSessionTransferURL(path, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Get an URL to transfer the current session to the webclient
+     *
+     * This function creates a new session for the link so logging out in the web client won't log out
+     * the current session.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_SESSION_TRANSFER_URL
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getLink - URL to open the desired page with the same account
+     *
+     * You take the ownership of the returned value.
+     *
+     * @param path Path inside https://mega.nz/# that we want to open with the current session
+     *
+     * For example, if you want to open https://mega.nz/#pro, the parameter of this function should be "pro".
+     */
+    public void getSessionTransferURL(String path){
+        megaApi.getSessionTransferURL(path);
     }
 
     /**
@@ -1200,49 +1246,34 @@ public class MegaApiJava {
     }
 
     /**
-     * Initialize the creation of a new MEGA account.
-     * <p>
-     * The associated request type with this request is MegaRequest.TYPE_CREATE_ACCOUNT.
-     * Valid data in the MegaRequest object received on callbacks: <br>
-     * - MegaRequest.getEmail() - Returns the email for the account. <br>
-     * - MegaRequest.getPassword() - Returns the password for the account. <br>
-     * - MegaRequest.getName() - Returns the name of the user. <br>
-     * <p>
-     * If this request succeed, a confirmation email will be sent to the users.
+     * Initialize the creation of a new MEGA account, with firstname and lastname
+     *
+     * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getEmail - Returns the email for the account
+     * - MegaRequest::getPassword - Returns the password for the account
+     * - MegaRequest::getName - Returns the firstname of the user
+     * - MegaRequest::getText - Returns the lastname of the user
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getSessionKey - Returns the session id to resume the process
+     *
+     * If this request succeeds, a new ephemeral session will be created for the new user
+     * and a confirmation email will be sent to the specified email address. The app may
+     * resume the create-account process by using MegaApi::resumeCreateAccount.
+     *
      * If an account with the same email already exists, you will get the error code
-     * MegaError.API_EEXIST in onRequestFinish().
-     * 
-     * @param email
-     *            Email for the account.
-     * @param password
-     *            Password for the account.
-     * @param name
-     *            Name of the user.
-     * @param listener
-     *            MegaRequestListener to track this request.
+     * MegaError::API_EEXIST in onRequestFinish
      *
-     * @deprecated This function is deprecated and will eventually be removed. Instead,
-     * use the new version with firstname and lastname.
+     * @param email Email for the account
+     * @param password Password for the account
+     * @param firstname Firstname of the user
+     * @param lastname Lastname of the user
+     * @param listener MegaRequestListener to track this request
      */
-    public void createAccount(String email, String password, String name, MegaRequestListenerInterface listener) {
-        megaApi.createAccount(email, password, name, createDelegateRequestListener(listener));
-    }
-
-    /**
-     * Initialize the creation of a new MEGA account.
-     * 
-     * @param email
-     *            Email for the account.
-     * @param password
-     *            Password for the account.
-     * @param name
-     *            Name of the user.
-     *
-     * @deprecated This function is deprecated and will eventually be removed. Instead,
-     * use the new version with firstname and lastname.
-     */
-    public void createAccount(String email, String password, String name) {
-        megaApi.createAccount(email, password, name);
+    public void createAccount(String email, String password, String firstname, String lastname, MegaRequestListenerInterface listener){
+    	megaApi.createAccount(email, password, firstname, lastname, createDelegateRequestListener(listener));
     }
 
     /**
@@ -1259,7 +1290,7 @@ public class MegaApiJava {
      * is MegaError::API_OK:
      * - MegaRequest::getSessionKey - Returns the session id to resume the process
      *
-     * If this request succeed, a new ephemeral session will be created for the new user
+     * If this request succeeds, a new ephemeral session will be created for the new user
      * and a confirmation email will be sent to the specified email address. The app may
      * resume the create-account process by using MegaApi::resumeCreateAccount.
      *
@@ -1270,10 +1301,97 @@ public class MegaApiJava {
      * @param password Password for the account
      * @param firstname Firstname of the user
      * @param lastname Lastname of the user
+     */
+    public void createAccount(String email, String password, String firstname, String lastname){
+        megaApi.createAccount(email, password, firstname, lastname);
+    }
+
+    /**
+     * Initialize the creation of a new MEGA account, with firstname and lastname
+     *
+     * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getEmail - Returns the email for the account
+     * - MegaRequest::getPassword - Returns the password for the account
+     * - MegaRequest::getName - Returns the firstname of the user
+     * - MegaRequest::getText - Returns the lastname of the user
+     * - MegaRequest::getNodeHandle - Returns the last public node handle accessed
+     * - MegaRequest::getAccess - Returns the type of lastPublicHandle
+     * - MegaRequest::getTransferredBytes - Returns the timestamp of the last access
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getSessionKey - Returns the session id to resume the process
+     *
+     * If this request succeeds, a new ephemeral session will be created for the new user
+     * and a confirmation email will be sent to the specified email address. The app may
+     * resume the create-account process by using MegaApi::resumeCreateAccount.
+     *
+     * If an account with the same email already exists, you will get the error code
+     * MegaError::API_EEXIST in onRequestFinish
+     *
+     * @param email Email for the account
+     * @param password Password for the account
+     * @param firstname Firstname of the user
+     * @param lastname Lastname of the user
+     * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
+     * @param lastPublicHandleType Indicates the type of lastPublicHandle, valid values are:
+     *      - MegaApi::AFFILIATE_TYPE_ID = 1
+     *      - MegaApi::AFFILIATE_TYPE_FILE_FOLDER = 2
+     *      - MegaApi::AFFILIATE_TYPE_CHAT = 3
+     *      - MegaApi::AFFILIATE_TYPE_CONTACT = 4
+     *
+     * @param lastAccessTimestamp Timestamp of the last access
      * @param listener MegaRequestListener to track this request
      */
-    public void createAccount(String email, String password, String firstname, String lastname, MegaRequestListenerInterface listener){
-    	megaApi.createAccount(email, password, firstname, lastname, createDelegateRequestListener(listener));
+    public void createAccount(String email, String password, String firstname, String lastname,
+                              long lastPublicHandle, int lastPublicHandleType, long lastAccessTimestamp,
+                              MegaRequestListenerInterface listener) {
+        megaApi.createAccount(email, password, firstname,
+                lastname, lastPublicHandle, lastPublicHandleType, lastAccessTimestamp,
+                createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Initialize the creation of a new MEGA account, with firstname and lastname
+     *
+     * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getEmail - Returns the email for the account
+     * - MegaRequest::getPassword - Returns the password for the account
+     * - MegaRequest::getName - Returns the firstname of the user
+     * - MegaRequest::getText - Returns the lastname of the user
+     * - MegaRequest::getNodeHandle - Returns the last public node handle accessed
+     * - MegaRequest::getAccess - Returns the type of lastPublicHandle
+     * - MegaRequest::getTransferredBytes - Returns the timestamp of the last access
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getSessionKey - Returns the session id to resume the process
+     *
+     * If this request succeeds, a new ephemeral session will be created for the new user
+     * and a confirmation email will be sent to the specified email address. The app may
+     * resume the create-account process by using MegaApi::resumeCreateAccount.
+     *
+     * If an account with the same email already exists, you will get the error code
+     * MegaError::API_EEXIST in onRequestFinish
+     *
+     * @param email Email for the account
+     * @param password Password for the account
+     * @param firstname Firstname of the user
+     * @param lastname Lastname of the user
+     * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
+     * @param lastPublicHandleType Indicates the type of lastPublicHandle, valid values are:
+     *      - MegaApi::AFFILIATE_TYPE_ID = 1
+     *      - MegaApi::AFFILIATE_TYPE_FILE_FOLDER = 2
+     *      - MegaApi::AFFILIATE_TYPE_CHAT = 3
+     *      - MegaApi::AFFILIATE_TYPE_CONTACT = 4
+     *
+     * @param lastAccessTimestamp Timestamp of the last access
+     */
+    public void createAccount(String email, String password, String firstname, String lastname,
+                              long lastPublicHandle, int lastPublicHandleType, long lastAccessTimestamp) {
+        megaApi.createAccount(email, password, firstname, lastname, lastPublicHandle, lastPublicHandleType, lastAccessTimestamp);
     }
 
     /**
@@ -2314,6 +2432,47 @@ public class MegaApiJava {
      */
     public void moveNode(MegaNode node, MegaNode newParent) {
         megaApi.moveNode(node, newParent);
+    }
+
+    /**
+     * Move a node in the MEGA account changing the file name
+     *
+     * The associated request type with this request is MegaRequest::TYPE_MOVE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node to move
+     * - MegaRequest::getParentHandle - Returns the handle of the new parent for the node
+     * - MegaRequest::getName - Returns the name for the new node
+     *
+     * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * @param node Node to move
+     * @param newParent New parent for the node
+     * @param newName Name for the new node
+     * @param listener MegaRequestListener to track this request
+     */
+    void moveNode(MegaNode node, MegaNode newParent, String newName, MegaRequestListenerInterface listener) {
+        megaApi.moveNode(node, newParent, newName, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Move a node in the MEGA account changing the file name
+     *
+     * The associated request type with this request is MegaRequest::TYPE_MOVE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node to move
+     * - MegaRequest::getParentHandle - Returns the handle of the new parent for the node
+     * - MegaRequest::getName - Returns the name for the new node
+     *
+     * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+     * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     *
+     * @param node Node to move
+     * @param newParent New parent for the node
+     * @param newName Name for the new node
+     */
+    void moveNode(MegaNode node, MegaNode newParent, String newName) {
+        megaApi.moveNode(node, newParent, newName);
     }
 
     /**
@@ -4946,6 +5105,8 @@ public class MegaApiJava {
      * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
      * Valid data in the MegaRequest object received on callbacks:
      * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER
+     * - MegaRequest::getMegaStringMap - Returns a MegaStringMap.
+     * The key "h" in the map contains the nodehandle specified as parameter encoded in B64
      *
      * @param nodehandle MegaHandle of the node to be used as target folder
      * @param listener MegaRequestListener to track this request
@@ -4981,6 +5142,8 @@ public class MegaApiJava {
      * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
      * - MegaRequest::getFlag - Returns false
      * - MegaRequest::getNodehandle - Returns the provided node handle
+     * - MegaRequest::getMegaStringMap - Returns a MegaStringMap.
+     * The key "h" in the map contains the nodehandle specified as parameter encoded in B64
      *
      * @param nodehandle MegaHandle of the node to be used as primary target folder
      * @param listener MegaRequestListener to track this request
@@ -4997,6 +5160,8 @@ public class MegaApiJava {
      * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
      * - MegaRequest::getFlag - Returns true
      * - MegaRequest::getNodehandle - Returns the provided node handle
+     * - MegaRequest::getMegaStringMap - Returns a MegaStringMap.
+     * The key "sh" in the map contains the nodehandle specified as parameter encoded in B64
      *
      * @param nodehandle MegaHandle of the node to be used as secondary target folder
      * @param listener MegaRequestListener to track this request
@@ -5022,7 +5187,7 @@ public class MegaApiJava {
      *
      * @param listener MegaRequestListener to track this request
      */
-    void getCameraUploadsFolder(MegaRequestListenerInterface listener){
+    public void getCameraUploadsFolder(MegaRequestListenerInterface listener){
         megaApi.getCameraUploadsFolder(createDelegateRequestListener(listener));
     }
 
@@ -5042,7 +5207,7 @@ public class MegaApiJava {
      *
      * @param listener MegaRequestListener to track this request
      */
-    void getCameraUploadsFolderSecondary(MegaRequestListenerInterface listener){
+    public void getCameraUploadsFolderSecondary(MegaRequestListenerInterface listener){
         megaApi.getCameraUploadsFolderSecondary(createDelegateRequestListener(listener));
     }
 
@@ -7241,7 +7406,8 @@ public class MegaApiJava {
      * Get a list with all public links
      *
      * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
-     * MegaApi::ORDER_DEFAULT_DESC
+     * MegaApi::ORDER_DEFAULT_DESC, MegaApi::ORDER_LINK_CREATION_ASC,
+     * MegaApi::ORDER_LINK_CREATION_DESC
      *
      * You take the ownership of the returned value
      *

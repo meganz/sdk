@@ -15,7 +15,7 @@
  * You should have received a copy of the license along with this
  * program.
  */
-#ifdef ENABLE_CHAT
+
 #include <gtest/gtest.h>
 
 #include <mega/megaclient.h>
@@ -24,6 +24,8 @@
 
 #include "DefaultedFileSystemAccess.h"
 #include "utils.h"
+
+#ifdef ENABLE_CHAT
 
 namespace
 {

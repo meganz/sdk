@@ -437,11 +437,15 @@ struct CacheableWriter
     string& dest;
 
     void serializebinary(byte* data, size_t len);
-    void serializecstr(const char* field, bool storeNull);  // may store the '\0' also for backward compatibility
+    void serializecstr(const char* field, bool storeNull);  // may store the '\0' also for backward compatibility. Only use for utf8!  (std::string storing double byte chars will only store 1 byte)
+    void serializepstr(const string* field);  // uses string size() not strlen
     void serializestring(const string& field);
+    void serializecompressed64(int64_t field);
     void serializei64(int64_t field);
     void serializeu32(uint32_t field);
     void serializehandle(handle field);
+    void serializenodehandle(handle field);
+    void serializefsfp(fsfp_t field);
     void serializebool(bool field);
     void serializebyte(byte field);
     void serializedouble(double field);
@@ -463,17 +467,21 @@ struct CacheableReader
     bool unserializebinary(byte* data, size_t len);
     bool unserializecstr(string& s, bool removeNull); // set removeNull if this field stores the terminating '\0' at the end
     bool unserializestring(string& s);
+    bool unserializecompressed64(uint64_t& field);
     bool unserializei64(int64_t& s);
     bool unserializeu32(uint32_t& s);
     bool unserializebyte(byte& s);
     bool unserializedouble(double& s);
     bool unserializehandle(handle& s);
+    bool unserializenodehandle(handle& s);
+    bool unserializefsfp(fsfp_t& s);
     bool unserializebool(bool& s);
     bool unserializechunkmacs(chunkmac_map& m);
 
     bool unserializeexpansionflags(unsigned char field[8], unsigned usedFlagCount);
 
     void eraseused(string& d); // must be the same string, unchanged
+    bool hasdataleft() { return end > ptr; }
 };
 
 template<typename T, typename U>
@@ -483,6 +491,14 @@ void hashCombine(T& seed, const U& v)
     // the magic number is the twos complement version of the golden ratio
     seed ^= std::hash<U>{}(v) + 0x9e3779b9 + (seed<<6) + (seed>>2);
 }
+
+struct FileAccess;
+struct InputStreamAccess;
+class SymmCipher;
+
+std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, FileAccess &ifAccess, const int64_t iv);
+
+std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &isAccess, const int64_t iv);
 
 } // namespace
 

@@ -212,7 +212,7 @@ struct MEGA_API HttpReq
 
     string posturl;
 
-    bool protect;
+    bool protect; // check pinned public key
     bool minspeed;
 
     bool sslcheckfailed;

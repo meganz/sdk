@@ -17,7 +17,13 @@ project(MegaSDK)
 
 #indicate which dependent libraries to use in the build
 set (USE_CRYPTOPP 1 CACHE STRING "")
-set (USE_OPENSSL 1 CACHE STRING "")
+
+if (CMAKE_HOST_APPLE)
+    set (USE_OPENSSL 0 CACHE STRING "")
+else()
+    set (USE_OPENSSL 1 CACHE STRING "")
+ENDIF()
+
 set (USE_CURL 1 CACHE STRING "")
 set (USE_SQLITE 1 CACHE STRING "")
 set (USE_MEDIAINFO 1 CACHE STRING "")
@@ -31,18 +37,29 @@ set (USE_WEBRTC 0 CACHE STRING "")
 set (USE_LIBUV 0 CACHE STRING "")
 set (USE_QT 0 CACHE STRING "")
 set (USE_PDFIUM 0 CACHE STRING "")
+set (USE_LIBRAW 0 CACHE STRING "")
 
 if (USE_QT)
     set( USE_CPPTHREAD 0)
 else()
     set( USE_CPPTHREAD 1)
-ENDIF()
+endif()
+
+set (HAVE_LIBUV ${USE_LIBUV})
+set (HAVE_LIBRAW ${USE_LIBRAW})
+
+if (WIN32 AND NOT USE_PREBUILT_3RDPARTY)
+    set (USE_THIRDPARTY_FROM_VCPKG 1 CACHE STRING "")
+else()
+    set (USE_THIRDPARTY_FROM_VCPKG 0 CACHE STRING "")
+endif()
+
+message(STATUS " Using 3rd party from vcpkg = ${USE_THIRDPARTY_FROM_VCPKG}")
 
 if (WIN32)
     set (NO_READLINE 1 CACHE STRING "")
     set (UNCHECKED_ITERATORS 0 CACHE STRING "")
     set (USE_PREBUILT_3RDPARTY 0 CACHE STRING "")
-    set (HAVE_LIBUV ${USE_LIBUV})
     IF (USE_WEBRTC)
         IF ("${WebRtcDir}" STREQUAL "")
             SET (WebRtcDir "${Mega3rdPartyDir}/libwebrtc/build32debug")
@@ -50,8 +67,7 @@ if (WIN32)
     ENDIF()
 else(WIN32)
     set(NO_READLINE 0)
-    set(USE_PREBUILT_3RDPARTY 0)
-    set(HAVE_LIBUV 0)
+    set(USE_PREBUILT_3RDPARTY 0 CACHE STRING "")
 endif(WIN32)
 
 if (USE_WEBRTC)
@@ -92,6 +108,12 @@ else()
     message(STATUS "Building 64 bit")
 endif()
 
+if(APPLE)
+    set(CMAKE_CXX_STANDARD 11)
+    set(CMAKE_CXX_STANDARD_REQUIRED ON)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk" )
+endif()
+
 if ("${MEGA_PROJECT_NAME}" STREQUAL "")
     set(MEGA_PROJECT_NAME "MegaSDK" CACHE STRING "")
 endif()
@@ -114,6 +136,37 @@ ELSE(WIN32)
     endif()
 ENDIF(WIN32)
 
+# Since we offer some Qt support in the SDK, set up those dependencies here
+if (USE_QT)
+
+    #For convenience, added some default qt paths if none is specified by CMAKE_PREFIX_PATH
+    if (CMAKE_HOST_WIN32 AND (NOT DEFINED CMAKE_PREFIX_PATH) )
+        if (build_64_bit)
+            set (QT_BASE_PATH "C:/Qt/Qt5.6.3_64/5.6.3/msvc2015" CACHE STRING "Specify your QT install folder if it is nonstandard")
+            set(CMAKE_PREFIX_PATH "${QT_BASE_PATH};${CMAKE_PREFIX_PATH}") 
+        else()
+            set (QT_BASE_PATH "C:/Qt/Qt5.6.3/5.6.3/msvc2015" CACHE STRING "Specify your QT install folder if it is nonstandard")
+            set(CMAKE_PREFIX_PATH "${QT_BASE_PATH};${CMAKE_PREFIX_PATH}")
+        ENDIF()
+    ENDIF()
+
+    message(STATUS "CMAKE_PREFIX_PATH (should contain the QT install path): ${CMAKE_PREFIX_PATH}")
+
+    foreach (PKG IN LISTS MEGA_QT_REQUIRED_COMPONENTS) 
+        message(STATUS "Finding Qt package ${PKG}")
+        find_package(Qt5 COMPONENTS ${PKG} REQUIRED)
+    endforeach(PKG)
+
+    # get qt version
+    if ("${QT_QMAKE_EXECUTABLE}" STREQUAL "")
+        set(QT_QMAKE_EXECUTABLE "${QT_DIR}/bin/qmake.exe")
+    endif()
+
+    execute_process(COMMAND ${QT_QMAKE_EXECUTABLE} -query QT_VERSION OUTPUT_VARIABLE QT_VERSION OUTPUT_STRIP_TRAILING_WHITESPACE)
+    message(STATUS "Using QT ${QT_VERSION} from ${Qt5_DIR} ${QT_DIR}")
+
+endif(USE_QT)
+
 # currently supported scenarios for getting 3rd party libraries:
 #  - prebuilt libraries, in a folder from mega    (set USE_PREBUILT_3RDPARTY and prebulit_dir (if the default does not suit))
 #  - vcpkg built dependencies (there are some scripts that do most of that)  (do not set USE_PREBUILT_3RDPARTY, and set vcpkg_dir if the default does not suit, also set )
@@ -123,37 +176,55 @@ if (USE_PREBUILT_3RDPARTY)
     if ("${prebuilt_dir}" STREQUAL "")
         SET (prebuilt_dir ${Mega3rdPartyDir} CACHE STRING "Location of prebuilt 3rd party folder from MEGA.nz")
     ENDIF()
-else (USE_PREBUILT_3RDPARTY)
+
+    include_directories( "${Mega3rdPartyDir}/include" )
+    include_directories( "${Mega3rdPartyDir}/include/curl" )
+    include_directories( "${Mega3rdPartyDir}/include/libsodium" )
+    include_directories( "${Mega3rdPartyDir}/include/cares" )
+    include_directories( "${Mega3rdPartyDir}/include/mediainfo" )
+    include_directories( "${Mega3rdPartyDir}/include/zenlib" )
+    include_directories( "${Mega3rdPartyDir}/include/pdfium" )
+    include_directories( "${Mega3rdPartyDir}/include/zlib" )
+    include_directories( "${Mega3rdPartyDir}/include/libuv" )
+    include_directories( "${Mega3rdPartyDir}/include/ffmpeg" )
+
+    link_directories( "${Mega3rdPartyDir}/libs" )
+
+elseif (USE_THIRDPARTY_FROM_VCPKG) #vcpkg or system
+
+    #determine VCPKG triplet
     IF(WIN32)
-        # assuming VCPKG at this point if we are on windows
         if (UNCHECKED_ITERATORS)
             if(build_64_bit)
-                set(VCPKG_TRIPLET "x64-windows-static-uncheckediterators" CACHE STRING "")
+                set(VCPKG_TRIPLET "x64-windows-mega-uncheckediterators" CACHE STRING "")
             else(build_64_bit)
-                set(VCPKG_TRIPLET "x86-windows-static-uncheckediterators" CACHE STRING "")
+                set(VCPKG_TRIPLET "x86-windows-mega-uncheckediterators" CACHE STRING "")
             endif(build_64_bit)
         else() 
             if(build_64_bit)
-                set(VCPKG_TRIPLET "x64-windows-static" CACHE STRING "")
+                set(VCPKG_TRIPLET "x64-windows-mega" CACHE STRING "")
             else(build_64_bit)
-                set(VCPKG_TRIPLET "x86-windows-static" CACHE STRING "")
+                set(VCPKG_TRIPLET "x86-windows-mega" CACHE STRING "")
             endif(build_64_bit)
         endif()
-        set(vcpkg_dir "${Mega3rdPartyDir}/vcpkg/installed/${VCPKG_TRIPLET}")
+
     ELSE(WIN32)
-        # case for linux.  VCPKG or system/usr libraries
-        set (USE_THIRDPARTY_FROM_VCPKG 0 CACHE STRING "")
-        if (USE_THIRDPARTY_FROM_VCPKG)
+         IF(CMAKE_HOST_APPLE)
+            set(VCPKG_TRIPLET "x64-osx" CACHE STRING "")
+        ELSE(CMAKE_HOST_APPLE)
             set(VCPKG_TRIPLET "x64-linux" CACHE STRING "")
-            set(vcpkg_dir "${Mega3rdPartyDir}/vcpkg/installed/${VCPKG_TRIPLET}")
-            include_directories( "${vcpkg_dir}/include" )
-            link_directories( "${vcpkg_dir}/lib" )
-        else()
-            include_directories( "${Mega3rdPartyDir}/include" )
-            link_directories( "${Mega3rdPartyDir}/lib" )
-        endif()
+        endif(CMAKE_HOST_APPLE)
     ENDIF(WIN32)
+
+    set(vcpkg_dir "${Mega3rdPartyDir}/vcpkg/installed/${VCPKG_TRIPLET}")
 endif()
+
+message(STATUS, " prebuilt_dir = ${Mega3rdPartyDir}")
+message(STATUS, " USE_PREBUILT_3RDPARTY = ${USE_PREBUILT_3RDPARTY}")
+message(STATUS, " Mega3rdPartyDir = ${Mega3rdPartyDir}")
+message(STATUS, " USE_THIRDPARTY_FROM_VCPKG = ${USE_THIRDPARTY_FROM_VCPKG}")
+message(STATUS, " vcpkg_dir = ${vcpkg_dir}")
+
 
 if (NOT CMAKE_BUILD_TYPE)
     message("Generated with config types: ${CMAKE_CONFIGURATION_TYPES}")
@@ -213,6 +284,7 @@ check_function_exists(aio_write, HAVE_AIO_RT)
 
 
 function(ImportStaticLibrary libName includeDir lib32debug lib32release lib64debug lib64release)
+    # function to import a library with different files for 32/64 & debug/release
     add_library(${libName} STATIC IMPORTED)
     set_property(TARGET ${libName} PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${includeDir})
     if(build_64_bit)
@@ -224,9 +296,9 @@ function(ImportStaticLibrary libName includeDir lib32debug lib32release lib64deb
     endif(build_64_bit)
 endfunction(ImportStaticLibrary)
 
-function(ImportVcpkgLibrary libName includeDir)
+function(ImportALibrary libName includeDir) #receives also libfileDebug & libfileRelease
     # supports alternating debug/release lib names for libraries that have more than one .lib
-    # (however it seems the IMPORTED_LLOCAION only supports a single one, so it only supports one debug and one release (for now))
+    # (however it seems the IMPORTED_LOCATION only supports a single one, so it only supports one debug and one release (for now))
     add_library(${libName} STATIC IMPORTED)
     set_property(TARGET ${libName} PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${includeDir})
     set (d 1)
@@ -239,7 +311,24 @@ function(ImportVcpkgLibrary libName includeDir)
             set(d 1)
         endif()
     endforeach(libfile)
-endfunction(ImportVcpkgLibrary)
+endfunction(ImportALibrary)
+
+function(ImportStdVcpkgLibrary libName winDbg win linDbg lin)
+    if (WIN32 OR EXISTS ${vcpkg_dir}/lib/${lin}.a)
+        add_library(${libName} STATIC IMPORTED)
+        message("adding library: " ${vcpkg_dir}/lib/${lin}.a)
+        # function that imports vcpkg libraries (receiving different names for win/linux)
+        set_property(TARGET ${libName} PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${vcpkg_dir}/include)
+        if (WIN32)
+            set_property(TARGET ${libName} APPEND PROPERTY IMPORTED_LOCATION  ${vcpkg_dir}/lib/${win}.lib)
+            set_property(TARGET ${libName} APPEND PROPERTY IMPORTED_LOCATION_DEBUG ${vcpkg_dir}/debug/lib/${winDbg}.lib)
+        else()
+                set_property(TARGET ${libName} APPEND PROPERTY IMPORTED_LOCATION  ${vcpkg_dir}/lib/${lin}.a)
+                set_property(TARGET ${libName} APPEND PROPERTY IMPORTED_LOCATION_DEBUG ${vcpkg_dir}/debug/lib/${linDbg}.a)
+        endif()
+    endif()
+
+endfunction(ImportStdVcpkgLibrary)
 
 function(ImportHeaderLibrary libName includeDir)
     add_library(${libName} INTERFACE IMPORTED)
@@ -247,176 +336,239 @@ function(ImportHeaderLibrary libName includeDir)
 endfunction(ImportHeaderLibrary)
 
 IF(WIN32)
-    if(USE_PREBUILT_3RDPARTY)
+if(USE_PREBUILT_3RDPARTY) #TODO: do this explicitly for !Win32? (currently relying on lib path & -lLIBNAME)
     
-        ImportVcpkgLibrary(z               "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/zlibstat.lib" "${prebuilt_dir}/libs/x32/zlibstat.lib") 	
+        ImportALibrary(z               "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/zlibstat.lib" "${prebuilt_dir}/libs/x32/zlibstat.lib")
         
         IF(USE_CRYPTOPP)
-            ImportVcpkgLibrary(cryptopp        "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/cryptopp.lib"  "${prebuilt_dir}/libs/x32/cryptopp.lib")
+            ImportALibrary(cryptopp        "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/cryptopp.lib"  "${prebuilt_dir}/libs/x32/cryptopp.lib")
         ENDIF(USE_CRYPTOPP)
 
         IF(USE_CURL)
-            ImportVcpkgLibrary(curl        "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/libcurl.lib"  "${prebuilt_dir}/libs/x32/libcurl.lib")
-            ImportVcpkgLibrary(cares       "${prebuilt_dir}/include/cares" "${prebuilt_dir}/libs/x32d/cares.lib" "${prebuilt_dir}/libs/x32/cares.lib")
+            ImportALibrary(curl        "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/libcurl.lib"  "${prebuilt_dir}/libs/x32/libcurl.lib")
+            ImportALibrary(cares       "${prebuilt_dir}/include/cares" "${prebuilt_dir}/libs/x32d/cares.lib" "${prebuilt_dir}/libs/x32/cares.lib")
         ENDIF(USE_CURL)
         
         IF(USE_SODIUM)
-            ImportVcpkgLibrary(sodium      "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/sodium.lib"  "${prebuilt_dir}/libs/x32/sodium.lib")
+            ImportALibrary(sodium      "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/sodium.lib"  "${prebuilt_dir}/libs/x32/sodium.lib")
         ENDIF(USE_SODIUM)
         
         IF(USE_OPENSSL)
-            ImportVcpkgLibrary(ssl         "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/ssleay32.lib" "${prebuilt_dir}/libs/x32/ssleay32.lib")
-            ImportVcpkgLibrary(crypto      "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/libeay32.lib" "${prebuilt_dir}/libs/x32/libeay32.lib")
+            ImportALibrary(ssl         "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/ssleay32.lib" "${prebuilt_dir}/libs/x32/ssleay32.lib")
+            ImportALibrary(crypto      "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/libeay32.lib" "${prebuilt_dir}/libs/x32/libeay32.lib")
         ENDIF(USE_OPENSSL)
         
         IF(USE_MEDIAINFO)
-            ImportVcpkgLibrary(mediainfo    "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/MediaInfo.lib" "${prebuilt_dir}/libs/x32/MediaInfo.lib")
-            ImportVcpkgLibrary(zen      	"${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/ZenLib.lib" "${prebuilt_dir}/libs/x32/ZenLib.lib")
+            ImportALibrary(mediainfo    "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/MediaInfo.lib" "${prebuilt_dir}/libs/x32/MediaInfo.lib")
+            ImportALibrary(zen          "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/ZenLib.lib" "${prebuilt_dir}/libs/x32/ZenLib.lib")
         ENDIF(USE_MEDIAINFO)
         
         IF(HAVE_FFMPEG)
-            ImportVcpkgLibrary(ffmpeg_avformat "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avformat.lib" "${prebuilt_dir}/libs/x32/avformat.lib")
-            ImportVcpkgLibrary(ffmpeg_avutil "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avutil.lib" "${prebuilt_dir}/libs/x32/avutil.lib")
-            ImportVcpkgLibrary(ffmpeg_avcodec "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avcodec.lib" "${prebuilt_dir}/libs/x32/avcodec.lib")
-            ImportVcpkgLibrary(ffmpeg_avfilter "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avfilter.lib" "${prebuilt_dir}/libs/x32/avfilter.lib")
-            ImportVcpkgLibrary(ffmpeg_avdevice "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avdevice.lib" "${prebuilt_dir}/libs/x32/avdevice.lib")
-            ImportVcpkgLibrary(ffmpeg_swscale  "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/swscale.lib"  "${prebuilt_dir}/libs/x32/swscale.lib")
-            ImportVcpkgLibrary(ffmpeg_swresample "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/swresample.lib"  "${prebuilt_dir}/libs/x32/swresample.lib")
+        IF(WIN32)
+            ImportALibrary(avutil "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avutil.lib" "${prebuilt_dir}/libs/x32/avutil.lib")
+            ImportALibrary(avformat "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avformat.lib" "${prebuilt_dir}/libs/x32/avformat.lib")
+            ImportALibrary(avcodec "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avcodec.lib" "${prebuilt_dir}/libs/x32/avcodec.lib")
+            ImportALibrary(avfilter "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avfilter.lib" "${prebuilt_dir}/libs/x32/avfilter.lib")
+            ImportALibrary(avdevice "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avdevice.lib" "${prebuilt_dir}/libs/x32/avdevice.lib")
+            ImportALibrary(swscale  "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/swscale.lib"  "${prebuilt_dir}/libs/x32/swscale.lib")
+            ImportALibrary(swresample "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/swresample.lib"  "${prebuilt_dir}/libs/x32/swresample.lib")
+        else()
+            ImportALibrary(avformat "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avformat.lib" "${prebuilt_dir}/libs/x32/avformat.lib")
+            ImportALibrary(avutil "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avutil.lib" "${prebuilt_dir}/libs/x32/avutil.lib")
+            ImportALibrary(avcodec "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avcodec.lib" "${prebuilt_dir}/libs/x32/avcodec.lib")
+            ImportALibrary(avfilter "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avfilter.lib" "${prebuilt_dir}/libs/x32/avfilter.lib")
+            ImportALibrary(avdevice "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avdevice.lib" "${prebuilt_dir}/libs/x32/avdevice.lib")
+            ImportALibrary(swscale  "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/swscale.lib"  "${prebuilt_dir}/libs/x32/swscale.lib")
+            ImportALibrary(swresample "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/swresample.lib"  "${prebuilt_dir}/libs/x32/swresample.lib")
+
+        endif()
         ENDIF(HAVE_FFMPEG)
         
         IF(USE_LIBUV)
-            ImportVcpkgLibrary(uv       "${prebuilt_dir}/include/libuv" "${prebuilt_dir}/libs/x32d/libuv.lib" "${prebuilt_dir}/libs/x32/libuv.lib")
-            SET(HAVE_LIBUV 1)
+            ImportALibrary(uv       "${prebuilt_dir}/include/libuv" "${prebuilt_dir}/libs/x32d/libuv.lib" "${prebuilt_dir}/libs/x32/libuv.lib")
         ENDIF(USE_LIBUV)
 
+        IF(USE_LIBRAW)
+            add_definitions( -DLIBRAW_NODLL)
+            ImportALibrary(raw       "${prebuilt_dir}/include/libraw" "${prebuilt_dir}/libs/x32d/libraw.lib" "${prebuilt_dir}/libs/x32/libraw.lib")
+        ENDIF(USE_LIBRAW)
+
         IF(USE_PDFIUM)
-            ImportVcpkgLibrary(pdfium       "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/pdfium.lib" "${prebuilt_dir}/libs/x32/pdfium.lib")
+            ImportALibrary(pdfium       "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/pdfium.lib" "${prebuilt_dir}/libs/x32/pdfium.lib")
         ENDIF(USE_PDFIUM)
         
-        ImportVcpkgLibrary(gtest           "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/gtestd.lib" "${prebuilt_dir}/libs/x32/gtest.lib")
+        ImportALibrary(gtest           "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/gtestd.lib" "${prebuilt_dir}/libs/x32/gtest.lib")
 
-    else(USE_PREBUILT_3RDPARTY)
+    endif(USE_PREBUILT_3RDPARTY)
+endif(WIN32)
 
+if (USE_THIRDPARTY_FROM_VCPKG)
         IF(USE_CRYPTOPP)
-            ImportVcpkgLibrary(cryptopp        "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/cryptopp-static.lib"  "${vcpkg_dir}/lib/cryptopp-static.lib")
+            ImportStdVcpkgLibrary(cryptopp        cryptopp-static cryptopp-static libcryptopp libcryptopp)
         ENDIF(USE_CRYPTOPP)
 
         IF(USE_SODIUM)
-            ImportVcpkgLibrary(sodium          "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/libsodium.lib"  "${vcpkg_dir}/lib/libsodium.lib")
+            ImportStdVcpkgLibrary(sodium          libsodium libsodium libsodium libsodium)
         ENDIF(USE_SODIUM)
 
-        ImportVcpkgLibrary(z               "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/zlibd.lib" "${vcpkg_dir}/lib/zlib.lib") 
-        #find_package(zlib CONFIG REQUIRED PATHS "${vcpkg_dir}/share/zlib" NO_DEFAULT_PATH )
+        ImportStdVcpkgLibrary(z               zlibd zlib libz libz) 
 
         IF(USE_CURL)
             IF(USE_WEBRTC)
-                ImportVcpkgLibrary(curl         "${Mega3rdPartyDir}/curl/include" "${Mega3rdPartyDir}/curl/build32/lib/Debug/libcurl-d.lib" "${Mega3rdPartyDir}/curl/build32/lib/Release/libcurl.lib")
+                ImportStdVcpkgLibrary(curl         "${Mega3rdPartyDir}/curl/include" "${Mega3rdPartyDir}/curl/build32/lib/Debug/libcurl-d.lib" "${Mega3rdPartyDir}/curl/build32/lib/Release/libcurl.lib")
             ELSE()
-                ImportVcpkgLibrary(curl        "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/libcurl-d.lib"  "${vcpkg_dir}/lib/libcurl.lib")
+                ImportStdVcpkgLibrary(curl        libcurl-d libcurl libcurl-d libcurl)
                 #find_package(CURL CONFIG REQUIRED PATHS "${vcpkg_dir}/share/curl" NO_DEFAULT_PATH )
             ENDIF()
         ENDIF()
         IF(USE_CURL)
-            ImportVcpkgLibrary(cares       "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/cares.lib" "${vcpkg_dir}/lib/cares.lib")
+            ImportStdVcpkgLibrary(cares       cares cares libcares libcares)
         ENDIF()
 
         IF(USE_OPENSSL)
             IF(USE_WEBRTC)
                 include_directories( "${WebRtcDir}/webrtc/src/third_party/boringssl/src/include" )
             ELSE()
-                ImportVcpkgLibrary(ssl         "${vcpkg_dir}/include"  "${vcpkg_dir}/debug/lib/ssleay32.lib" "${vcpkg_dir}/lib/ssleay32.lib")
-                ImportVcpkgLibrary(crypto      "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/libeay32.lib" "${vcpkg_dir}/lib/libeay32.lib")
+                #ImportStdVcpkgLibrary(ssl         ssleay32 ssleay32 libssl libssl) # prior openssl 1.1.0
+                ImportStdVcpkgLibrary(ssl         libssl libssl libssl libssl)
+                #ImportStdVcpkgLibrary(crypto      libeay32 libeay32 libcrypto libcrypto) # prior openssl 1.1.0
+                ImportStdVcpkgLibrary(crypto      libcrypto libcrypto libcrypto libcrypto)
+
             ENDIF()
         ENDIF()
 
         IF(USE_WEBRTC)
-            ImportVcpkgLibrary(webrtc "${WebRtcDir}/include" "${WebRtcDir}/lib/webrtc.lib" "${WebRtcDir}/lib/webrtc.lib")
+            ImportALibrary(webrtc "${WebRtcDir}/include" "${WebRtcDir}/lib/webrtc.lib" "${WebRtcDir}/lib/webrtc.lib")
             add_definitions( -DWEBRTC_WIN )
         ENDIF()
     
-        ImportVcpkgLibrary(gtest           "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/gtestd.lib" "${vcpkg_dir}/lib/gtest.lib") 
+        ImportStdVcpkgLibrary(gtest           gtestd gtest libgtestd libgtest) 
 
         IF(USE_MEDIAINFO)
-            ImportVcpkgLibrary(zen       "${vcpkg_dir}/include"  "${vcpkg_dir}/debug/lib/zend.lib" "${vcpkg_dir}/lib/zen.lib")
-            ImportVcpkgLibrary(mediainfo "${vcpkg_dir}/include"  "${vcpkg_dir}/debug/lib/mediainfod.lib" "${vcpkg_dir}/lib/mediainfo.lib")
-
-#            ImportStaticLibrary(mediainfo   "${Mega3rdPartyDir}/MediaInfoLib-mw/Source"
-#                                            "${Mega3rdPartyDir}/MediaInfoLib-mw/Project/MSVC2017/Win32/Debug/MediaInfo-Static.lib"
-#                                            "${Mega3rdPartyDir}/MediaInfoLib-mw/Project/MSVC2017/Win32/Release/MediaInfo-Static.lib"
-#                                            "${Mega3rdPartyDir}/MediaInfoLib-mw/Project/MSVC2017/x64/Debug/MediaInfo-Static.lib"
-#                                            "${Mega3rdPartyDir}/MediaInfoLib-mw/Project/MSVC2017/x64/Release/MediaInfo-Static.lib")
-
-#            ImportStaticLibrary(zen         "${Mega3rdPartyDir}/ZenLib/Source"
-#                                            "${Mega3rdPartyDir}/MediaInfoLib-mw/Project/MSVC2017/Win32/Debug/ZenLib.lib"
-#                                            "${Mega3rdPartyDir}/MediaInfoLib-mw/Project/MSVC2017/Win32/Release/ZenLib.lib"
-#                                            "${Mega3rdPartyDir}/MediaInfoLib-mw/Project/MSVC2017/x64/Debug/ZenLib.lib"
-#                                            "${Mega3rdPartyDir}/MediaInfoLib-mw/Project/MSVC2017/x64/Release/ZenLib.lib")
+            IF(CMAKE_HOST_APPLE)
+                set(DEBUG_SUFIX _debug)
+            endif()
+            ImportStdVcpkgLibrary(zen        zend zen libzen${DEBUG_SUFIX} libzen)
+            ImportStdVcpkgLibrary(mediainfo  mediainfod mediainfo libmediainfo${DEBUG_SUFIX} libmediainfo)
         ENDIF(USE_MEDIAINFO)
 
         IF(USE_FREEIMAGE)
-            ImportVcpkgLibrary(freeimage    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/FreeImaged.lib"  "${vcpkg_dir}/lib/FreeImage.lib")
-            ImportVcpkgLibrary(freeimage_Iex "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/Iex-2_3_d.lib"  "${vcpkg_dir}/lib/Iex-2_3.lib")
-            ImportVcpkgLibrary(freeimage_IexMath "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/IexMath-2_3_d.lib"  "${vcpkg_dir}/lib/IexMath-2_3.lib")
-            ImportVcpkgLibrary(freeimage_IlmImf "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/IlmImf-2_3_d.lib"  "${vcpkg_dir}/lib/IlmImf-2_3.lib")
-            ImportVcpkgLibrary(freeimage_IlmImfUtil "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/IlmImfUtil-2_3_d.lib"  "${vcpkg_dir}/lib/IlmImfUtil-2_3.lib")
-            ImportVcpkgLibrary(freeimage_IlmThread "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/IlmThread-2_3_d.lib"  "${vcpkg_dir}/lib/IlmThread-2_3.lib")
-            ImportVcpkgLibrary(freeimage_jpeg "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/jpegd.lib"  "${vcpkg_dir}/lib/jpeg.lib")
-            ImportVcpkgLibrary(freeimage_turbojpeg "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/turbojpegd.lib"  "${vcpkg_dir}/lib/turbojpeg.lib")
-            ImportVcpkgLibrary(freeimage_jpegxr "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/jpegxrd.lib"  "${vcpkg_dir}/lib/jpegxr.lib")
-            ImportVcpkgLibrary(freeimage_jxrglue "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/jxrglued.lib"  "${vcpkg_dir}/lib/jxrglue.lib")
-            ImportVcpkgLibrary(freeimage_openjp2 "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/openjp2.lib"  "${vcpkg_dir}/lib/openjp2.lib")
-            ImportVcpkgLibrary(freeimage_half "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/half-2_3_d.lib"  "${vcpkg_dir}/lib/half-2_3.lib")
-            ImportVcpkgLibrary(freeimage_jasper "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/jasperd.lib"  "${vcpkg_dir}/lib/jasper.lib")
-            ImportVcpkgLibrary(freeimage_libpng "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/libpng16d.lib"  "${vcpkg_dir}/lib/libpng16.lib")
-            ImportVcpkgLibrary(freeimage_lzma    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/lzmad.lib"  "${vcpkg_dir}/lib/lzma.lib")
-            ImportVcpkgLibrary(freeimage_lcms2    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/lcmsd.lib"  "${vcpkg_dir}/lib/lcms.lib")
-            ImportVcpkgLibrary(freeimage_raw    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/rawd.lib"  "${vcpkg_dir}/lib/raw.lib")
-            ImportVcpkgLibrary(freeimage_tiff    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/tiffd.lib"  "${vcpkg_dir}/lib/tiff.lib")
-            ImportVcpkgLibrary(freeimage_tiffxx    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/tiffxxd.lib"  "${vcpkg_dir}/lib/tiffxx.lib")
-            ImportVcpkgLibrary(freeimage_webp    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/webpd.lib"  "${vcpkg_dir}/lib/webp.lib")
-            ImportVcpkgLibrary(freeimage_webpdecoder    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/webpdecoderd.lib"  "${vcpkg_dir}/lib/webpdecoder.lib")
-            ImportVcpkgLibrary(freeimage_webpdemux    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/webpdemuxd.lib"  "${vcpkg_dir}/lib/webpdemux.lib")
-            ImportVcpkgLibrary(freeimage_webpmux    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/libwebpmuxd.lib"  "${vcpkg_dir}/lib/libwebpmux.lib")
+            ImportALibrary(freeimage    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/FreeImaged.lib"  "${vcpkg_dir}/lib/FreeImage.lib")
+            ImportALibrary(freeimage_Iex "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/Iex-2_3_d.lib"  "${vcpkg_dir}/lib/Iex-2_3.lib")
+            ImportALibrary(freeimage_IexMath "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/IexMath-2_3_d.lib"  "${vcpkg_dir}/lib/IexMath-2_3.lib")
+            ImportALibrary(freeimage_IlmImf "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/IlmImf-2_3_d.lib"  "${vcpkg_dir}/lib/IlmImf-2_3.lib")
+            ImportALibrary(freeimage_IlmImfUtil "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/IlmImfUtil-2_3_d.lib"  "${vcpkg_dir}/lib/IlmImfUtil-2_3.lib")
+            ImportALibrary(freeimage_IlmThread "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/IlmThread-2_3_d.lib"  "${vcpkg_dir}/lib/IlmThread-2_3.lib")
+            ImportALibrary(freeimage_jpeg "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/jpegd.lib"  "${vcpkg_dir}/lib/jpeg.lib")
+            ImportALibrary(freeimage_turbojpeg "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/turbojpegd.lib"  "${vcpkg_dir}/lib/turbojpeg.lib")
+            ImportALibrary(freeimage_jpegxr "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/jpegxrd.lib"  "${vcpkg_dir}/lib/jpegxr.lib")
+            ImportALibrary(freeimage_jxrglue "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/jxrglued.lib"  "${vcpkg_dir}/lib/jxrglue.lib")
+            ImportALibrary(freeimage_openjp2 "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/openjp2.lib"  "${vcpkg_dir}/lib/openjp2.lib")
+            ImportALibrary(freeimage_half "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/half-2_3_d.lib"  "${vcpkg_dir}/lib/half-2_3.lib")
+            ImportALibrary(freeimage_jasper "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/jasperd.lib"  "${vcpkg_dir}/lib/jasper.lib")
+            ImportALibrary(freeimage_libpng "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/libpng16d.lib"  "${vcpkg_dir}/lib/libpng16.lib")
+            ImportALibrary(freeimage_lzma    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/lzmad.lib"  "${vcpkg_dir}/lib/lzma.lib")
+            ImportALibrary(freeimage_lcms2    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/lcmsd.lib"  "${vcpkg_dir}/lib/lcms.lib")
+            ImportALibrary(freeimage_raw    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/rawd.lib"  "${vcpkg_dir}/lib/raw.lib")
+            ImportALibrary(freeimage_tiff    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/tiffd.lib"  "${vcpkg_dir}/lib/tiff.lib")
+            ImportALibrary(freeimage_tiffxx    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/tiffxxd.lib"  "${vcpkg_dir}/lib/tiffxx.lib")
+            ImportALibrary(freeimage_webp    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/webpd.lib"  "${vcpkg_dir}/lib/webp.lib")
+            ImportALibrary(freeimage_webpdecoder    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/webpdecoderd.lib"  "${vcpkg_dir}/lib/webpdecoder.lib")
+            ImportALibrary(freeimage_webpdemux    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/webpdemuxd.lib"  "${vcpkg_dir}/lib/webpdemux.lib")
+            ImportALibrary(freeimage_webpmux    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/libwebpmuxd.lib"  "${vcpkg_dir}/lib/libwebpmux.lib")
+
+            set (freeimage_deps freeimage_Iex freeimage_IexMath freeimage_IlmImf freeimage_IlmImfUtil
+                freeimage_IlmThread freeimage_jpeg freeimage_turbojpeg freeimage_jpegxr freeimage_jxrglue freeimage_openjp2
+                freeimage_half freeimage_jasper freeimage_libpng freeimage_lzma freeimage_lcms2 freeimage_raw freeimage_tiff
+                freeimage_tiffxx freeimage_webp freeimage_webpdecoder freeimage_webpdemux freeimage_webpmux )
+
+
         ENDIF(USE_FREEIMAGE)
 
         IF(HAVE_FFMPEG)
-            ImportVcpkgLibrary(ffmpeg_avformat "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/avformat.lib" "${vcpkg_dir}/lib/avformat.lib")
-            ImportVcpkgLibrary(ffmpeg_avutil "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/avutil.lib" "${vcpkg_dir}/lib/avutil.lib")
-            ImportVcpkgLibrary(ffmpeg_avcodec "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/avcodec.lib" "${vcpkg_dir}/lib/avcodec.lib")
-            ImportVcpkgLibrary(ffmpeg_avfilter "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/avfilter.lib" "${vcpkg_dir}/lib/avfilter.lib")
-            ImportVcpkgLibrary(ffmpeg_avdevice "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/avdevice.lib" "${vcpkg_dir}/lib/avdevice.lib")
-            ImportVcpkgLibrary(ffmpeg_swscale  "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/swscale.lib"  "${vcpkg_dir}/lib/swscale.lib")
-            ImportVcpkgLibrary(ffmpeg_swresample "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/swresample.lib"  "${vcpkg_dir}/lib/swresample.lib")
+            ImportStdVcpkgLibrary(avformat avformat avformat libavformat libavformat)
+            ImportStdVcpkgLibrary(avutil avutil avutil libavutil libavutil)
+            ImportStdVcpkgLibrary(avcodec avcodec avcodec libavcodec libavcodec)
+            ImportStdVcpkgLibrary(avfilter avfilter avfilter libavfilter libavfilter)
+            ImportStdVcpkgLibrary(avdevice avdevice avdevice libavdevice libavdevice)
+            ImportStdVcpkgLibrary(swscale  swscale swscale libswscale libswscale)
+            ImportStdVcpkgLibrary(swresample swresample swresample libswresample libswresample)
         ENDIF(HAVE_FFMPEG)
 
         IF(USE_SQLITE)
-            ImportVcpkgLibrary(sqlite3          "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/sqlite3.lib" "${vcpkg_dir}/lib/sqlite3.lib")
+            ImportStdVcpkgLibrary(sqlite3          sqlite3 sqlite3 libsqlite3 libsqlite3)
         ENDIF(USE_SQLITE)
 
         IF(USE_LIBUV)
-            ImportVcpkgLibrary(uv       "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/libuv.lib" "${vcpkg_dir}/lib/libuv.lib")
-            SET(HAVE_LIBUV 1)
+            ImportStdVcpkgLibrary(uv       libuv libuv liblibuv liblibuv)
         ENDIF(USE_LIBUV)
 
-    endif(USE_PREBUILT_3RDPARTY)
-    
-    add_definitions(-D_CRT_SECURE_NO_WARNINGS -DCURL_STATICLIB -DCARES_STATICLIB -DWIN32_LEAN_AND_MEAN -DUNICODE -DSODIUM_STATIC -DPCRE_STATICWIN32 -D_CONSOLE )
-    SET(Mega_PlatformSpecificIncludes ${MegaDir}/include/mega/$<IF:${USE_CURL},wincurl,win32>)
-    SET(Mega_PlatformSpecificLibs ws2_32 winhttp Shlwapi Secur32.lib  $<${USE_WEBRTC}:Wldap32.lib> )
+        IF(USE_LIBRAW)
+            ImportStdVcpkgLibrary(raw                  rawd raw librawd libraw)
+            ImportStdVcpkgLibrary(raw_lcms           lcmsd lcms liblcmsd liblcms)
 
-    SET(Mega_PlatformSpecificFiles ${MegaDir}/src/win32/console.cpp 
+            IF(NOT CMAKE_HOST_APPLE)
+            ImportStdVcpkgLibrary(raw_jasper           jasperd jasper libjasperd libjasper)
+            ImportStdVcpkgLibrary(raw_libjpeg_turbo    turbojpegd turbojpeg libturbojpeg libturbojpeg)
+            SET(raw_deps raw_jasper raw_libjpeg_turbo raw_lcms)
+            else()
+                SET(raw_deps  raw_lcms)
+            endif()
+
+            IF(NOT CMAKE_HOST_APPLE AND NOT CMAKE_HOST_WIN32)
+                set(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} -fopenmp)
+            ENDIF()
+
+        ENDIF(USE_LIBRAW)
+
+        IF(USE_PDFIUM)
+            ImportStdVcpkgLibrary(pdfium       pdfium pdfium libpdfium libpdfium)
+
+            ImportStdVcpkgLibrary(freetype     freetyped freetype libfreetyped libfreetype)
+            ImportStdVcpkgLibrary(icu          icuucd icuuc libicuuc libicuuc)
+            ImportStdVcpkgLibrary(lcms         lcmsd lcms liblcmsd liblcms)
+            ImportStdVcpkgLibrary(turbojpeg    jpegd jpeg libjpeg libjpeg)
+            ImportStdVcpkgLibrary(openjpeg     openjp2 openjp2 libopenjp2 libopenjp2)
+
+            IF (CMAKE_HOST_APPLE)
+                ImportStdVcpkgLibrary(bzip2       bz2 bz2 libbz2d libbz2)
+                set (pdfium_deps bzip2)
+            ELSEIF (CMAKE_HOST_UNIX)
+                set(ENV{PKG_CONFIG_PATH} "${vcpkg_dir}/lib/pkgconfig")
+                include(FindPkgConfig)
+                pkg_check_modules(FTYPECONF freetype2)
+                set(freetype_deps ${FTYPECONF_STATIC_LIBRARIES})
+            ENDIF(CMAKE_HOST_APPLE)
+
+            set(pdfium_deps  ${pdfium_deps} freetype ${freetype_deps} icu lcms turbojpeg openjpeg)
+        ENDIF(USE_PDFIUM)
+
+endif(USE_THIRDPARTY_FROM_VCPKG)
+
+#we must compile with UNICODE defined or our link symbols won't match libmediainfo
+# Migration from autotools note: there was a check that determined if libmediainfo was compiled with UNICODE.
+set(UNICODE 1)
+
+if(WIN32)
+    
+    add_definitions(-D_CRT_SECURE_NO_WARNINGS -DCURL_STATICLIB -DCARES_STATICLIB -DWIN32_LEAN_AND_MEAN -DSODIUM_STATIC -DPCRE_STATICWIN32 -D_CONSOLE )
+    SET(Mega_PlatformSpecificIncludes ${MegaDir}/include/mega/$<IF:${USE_CURL},wincurl,win32>)
+    SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} ws2_32 winhttp Shlwapi Secur32.lib  $<$<OR:${USE_CURL},${USE_WEBRTC}>:Wldap32.lib> )
+    IF(USE_LIBUV)
+        SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} Kernel32.lib Iphlpapi.lib Userenv.lib Psapi.lib )
+    ENDIF(USE_LIBUV)
+
+    SET(Mega_PlatformSpecificFiles ${MegaDir}/src/win32/console.cpp
     ${MegaDir}/src/win32/consolewaiter.cpp 
     ${MegaDir}/src/win32/fs.cpp 
     $<IF:${USE_CURL},${MegaDir}/src/posix/net.cpp,${MegaDir}/src/win32/net.cpp>
     ${MegaDir}/src/win32/waiter.cpp 
     $<${USE_CPPTHREAD}:${MegaDir}/src/thread/cppthread.cpp>
-    $<${USE_QT}:${MegaDir}/src/thread/qtthread.cpp >
     )
-
 
 ELSE(WIN32)
 
-    add_definitions(-DUSE_PTHREAD )
+    set(USE_PTHREAD 1)
 
     check_include_file(glob.h HAVE_GLOB_H)
     if (HAVE_GLOB_H)
@@ -425,30 +577,40 @@ ELSE(WIN32)
         set(GLOB_H_FOUND 0)   #some versions on some platforms leave it undefined if not found
     endif()
 
-    SET(Mega_PlatformSpecificFiles $<$<NOT:${GLOB_H_FOUND}>:${MegaDir}/src/mega_glob.c> ${MegaDir}/src/posix/console.cpp ${MegaDir}/src/posix/consolewaiter.cpp ${MegaDir}/src/posix/fs.cpp ${MegaDir}/src/posix/net.cpp ${MegaDir}/src/posix/waiter.cpp ${MegaDir}/src/thread/posixthread.cpp )
+    SET(Mega_PlatformSpecificFiles $<$<NOT:${GLOB_H_FOUND}>:${MegaDir}/src/mega_glob.c> ${MegaDir}/src/posix/console.cpp ${MegaDir}/src/posix/consolewaiter.cpp ${MegaDir}/src/posix/fs.cpp ${MegaDir}/src/posix/net.cpp ${MegaDir}/src/posix/waiter.cpp ${MegaDir}/src/thread/posixthread.cpp $<${USE_CPPTHREAD}:${MegaDir}/src/thread/cppthread.cpp> )
     IF(APPLE)
         SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles} ${MegaDir}/src/osx/osxutils.mm )
     ENDIF()
+
     SET(Mega_PlatformSpecificIncludes ${MegaDir}/include/mega/posix)
-    SET(Mega_PlatformSpecificLibs crypto pthread z dl termcap)
+
+    SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} pthread z dl termcap)
     IF(APPLE)
-        SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} "-framework Cocoa -framework SystemConfiguration")
+        SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} "-framework Cocoa -framework SystemConfiguration -framework Security")
     ELSE()
-        SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} rt stdc++fs)
+        SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} crypto rt stdc++fs)
     ENDIF()
+
     IF(USE_WEBRTC)
-        ImportVcpkgLibrary(webrtc "${WebRtcDir}/include" "${WebRtcDir}/lib/webrtc.lib" "${WebRtcDir}/lib/webrtc.lib")
         add_definitions( -DWEBRTC_POSIX )
     ENDIF()
 
 ENDIF(WIN32)
 
 configure_file ("${MegaDir}/contrib/cmake/config.h.in" "${MegaDir}/include/mega/config.h" )
-
+add_definitions( -DHAVE_CONFIG_H) #otherwise, it won't be included in Windows build!
 
 SET(Mega_CryptoFiles ${MegaDir}/src/crypto/cryptopp.cpp ${MegaDir}/src/crypto/sodium.cpp)
 SET(Mega_DbFiles ${MegaDir}/src/db/sqlite.cpp ${MegaDir}/src/db/sqlite.cpp )
 SET(Mega_GfxFiles ${MegaDir}/src/gfx/external.cpp ${MegaDir}/src/gfx/freeimage.cpp ) 
+
+if(WIN32)
+    SET(WIN_EXTRA_INCLUDE $<${USE_PREBUILT_3RDPARTY}:${prebuilt_dir}/libs/sqlite3.c>)
+endif()
+
+if(CMAKE_HOST_APPLE)
+    SET(MACOS_EXTRA_INCLUDE $<${USE_PREBUILT_3RDPARTY}:${prebuilt_dir}/sqlite3.c>)
+endif()
 
 add_library(Mega STATIC
             ${MegaDir}/include/megaapi.h
@@ -456,7 +618,7 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/osx/osxutils.h
             ${MegaDir}/include/mega/transferslot.h
             ${MegaDir}/include/mega/thread/qtthread.h
-            ${MegaDir}/include/mega/thread/win32thread.h
+            ${MegaDir}/include/mega/thread/win32thread.h #TODO:only win32
             ${MegaDir}/include/mega/thread/cppthread.h
             ${MegaDir}/include/mega/thread/posixthread.h
             ${MegaDir}/include/mega/thread/libuvthread.h
@@ -582,34 +744,52 @@ add_library(Mega STATIC
             ${MegaDir}/src/useralerts.cpp 
             ${MegaDir}/src/utils.cpp 
             ${MegaDir}/src/waiterbase.cpp 
-            ${Mega_PlatformSpecificFiles} ${Mega_CryptoFiles} ${Mega_DbFiles} ${Mega_GfxFiles}  
-            $<${USE_PREBUILT_3RDPARTY}:${prebuilt_dir}/libs/sqlite3.c>  
+            ${Mega_PlatformSpecificFiles} ${Mega_CryptoFiles} ${Mega_DbFiles} ${Mega_GfxFiles}
+            ${WIN_EXTRA_INCLUDE}
+            ${MACOS_EXTRA_INCLUDE}
             $<${USE_LIBUV}:${MegaDir}/src/mega_evt_tls.cpp> 
-            $<${USE_QT}:${MegaDir}/src/gfx/qt.cpp>)
+            $<${USE_QT}:${MegaDir}/src/gfx/qt.cpp>
+            $<${USE_QT}:${MegaDir}/src/thread/qtthread.cpp >
+            )
 
 target_include_directories(Mega PRIVATE ${MegaDir}/include ${Mega_PlatformSpecificIncludes})
 target_include_directories(Mega PUBLIC ${MegaDir}/include ${Mega_PlatformSpecificIncludes})
-target_link_libraries(Mega PUBLIC z 
-                $<${USE_CRYPTOPP}:cryptopp> 
-                $<${USE_SODIUM}:sodium> 
-                $<$<AND:${USE_OPENSSL},$<NOT:${USE_WEBRTC}>>:ssl> 
-                $<$<AND:${USE_OPENSSL},$<NOT:${USE_WEBRTC}>>:crypto> 
-                $<${USE_WEBRTC}:webrtc> 
-                $<${USE_CURL}:curl>  
-                $<${USE_CURL}:cares> 
-                $<$<NOT:${USE_PREBUILT_3RDPARTY}>:$<${USE_SQLITE}:sqlite3>>
-                $<${USE_MEDIAINFO}:mediainfo> $<${USE_MEDIAINFO}:zen> 
-                $<${USE_LIBUV}:uv> 
-                $<${USE_FREEIMAGE}:freeimage> $<${USE_FREEIMAGE}:freeimage_IlmImf> $<${USE_FREEIMAGE}:freeimage_IlmImfUtil> $<${USE_FREEIMAGE}:freeimage_IlmThread> $<${USE_FREEIMAGE}:freeimage_Iex> $<${USE_FREEIMAGE}:freeimage_IexMath>
-                                              $<${USE_FREEIMAGE}:freeimage_jpeg> $<${USE_FREEIMAGE}:freeimage_turbojpeg> $<${USE_FREEIMAGE}:freeimage_jpegxr> $<${USE_FREEIMAGE}:freeimage_jxrglue> $<${USE_FREEIMAGE}:freeimage_openjp2>
-                                              $<${USE_FREEIMAGE}:freeimage_lzma>  $<${USE_FREEIMAGE}:freeimage_lcms2>  $<${USE_FREEIMAGE}:freeimage_raw>
-                                              $<${USE_FREEIMAGE}:freeimage_tiff>  $<${USE_FREEIMAGE}:freeimage_tiffxx>  
-                                              $<${USE_FREEIMAGE}:freeimage_jasper>  $<${USE_FREEIMAGE}:freeimage_libpng>  $<${USE_FREEIMAGE}:freeimage_half>
-                                              $<${USE_FREEIMAGE}:freeimage_webp> $<${USE_FREEIMAGE}:freeimage_webpdecoder>  $<${USE_FREEIMAGE}:freeimage_webpdemux>  $<${USE_FREEIMAGE}:freeimage_webpmux>                                               
-                $<${HAVE_FFMPEG}:ffmpeg_avformat> $<${HAVE_FFMPEG}:ffmpeg_avcodec> $<${HAVE_FFMPEG}:ffmpeg_avutil> $<${HAVE_FFMPEG}:ffmpeg_avfilter> $<${HAVE_FFMPEG}:ffmpeg_avdevice> $<${HAVE_FFMPEG}:ffmpeg_avdevice > 
-                $<${HAVE_FFMPEG}:ffmpeg_swscale>  $<${HAVE_FFMPEG}:ffmpeg_swresample>  
-                $<${USE_PDFIUM}:pdfium>
-                ${Mega_PlatformSpecificLibs})
+
+if (WIN32)
+    set(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs}
+        $<${HAVE_FFMPEG}:avfilter> $<${HAVE_FFMPEG}:avdevice> $<${HAVE_FFMPEG}:avdevice> $<${HAVE_FFMPEG}:swresample>
+        $<${HAVE_FFMPEG}:avformat> $<${HAVE_FFMPEG}:avcodec> $<${HAVE_FFMPEG}:avutil> $<${HAVE_FFMPEG}:swscale>
+        )
+else()
+    set(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs}
+        $<${HAVE_FFMPEG}:avformat> $<${HAVE_FFMPEG}:avcodec> $<${HAVE_FFMPEG}:avutil> $<${HAVE_FFMPEG}:swscale>
+        )
+    if (CMAKE_HOST_APPLE)
+        set(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} $<${HAVE_FFMPEG}:-liconv>)
+    endif()
+endif()
+
+foreach (PKG IN LISTS MEGA_QT_LINK_LIBRARIES) 
+    target_link_libraries(Mega PUBLIC ${PKG} )
+endforeach(PKG)
+
+target_link_libraries(Mega PUBLIC
+                        $<${USE_CRYPTOPP}:cryptopp>
+                        $<${USE_SODIUM}:sodium>
+                        $<${USE_WEBRTC}:webrtc>
+                        $<${USE_MEDIAINFO}:mediainfo> $<${USE_MEDIAINFO}:zen>
+                        $<${USE_CURL}:curl>
+                        $<${USE_CURL}:cares>
+                        $<$<AND:${USE_OPENSSL},$<NOT:${USE_WEBRTC}>>:ssl>
+                        $<$<AND:${USE_OPENSSL},$<NOT:${USE_WEBRTC}>>:crypto>
+                        $<$<NOT:${USE_PREBUILT_3RDPARTY}>:$<${USE_SQLITE}:sqlite3>>
+                        $<${USE_LIBUV}:uv>
+                        $<${USE_LIBRAW}:raw> $<${USE_LIBRAW}:${raw_deps}>
+                        $<${USE_FREEIMAGE}:freeimage> $<${USE_FREEIMAGE}:${freeimage_deps}>
+                        $<${USE_PDFIUM}:pdfium> $<${USE_PDFIUM}:${pdfium_deps}>
+                        z
+                        ${Mega_PlatformSpecificLibs})
+
 target_compile_definitions(Mega PUBLIC 
                 $<${USE_MEDIAINFO}:USE_MEDIAINFO> 
                 $<${USE_SQLITE}:USE_SQLITE> 
@@ -628,8 +808,8 @@ target_compile_definitions(Mega PUBLIC
                 $<${USE_QT}:USE_QT>
                 $<${USE_PDFIUM}:HAVE_PDFIUM>)
 
-if(WIN32)
-target_link_libraries(Mega PUBLIC crypt32.lib)
+if (WIN32)
+    target_link_libraries(Mega PUBLIC crypt32.lib)
 endif(WIN32)
 
 OPTION( ENABLE_CODECOVERAGE "Enable code coverage testing support" )
@@ -668,6 +848,7 @@ add_executable(test_unit
     ${MegaDir}/tests/unit/Commands_test.cpp
     ${MegaDir}/tests/unit/constants.h
     ${MegaDir}/tests/unit/Crypto_test.cpp
+    ${MegaDir}/tests/unit/DefaultedDbTable.h
     ${MegaDir}/tests/unit/DefaultedDirAccess.h
     ${MegaDir}/tests/unit/DefaultedFileAccess.h
     ${MegaDir}/tests/unit/DefaultedFileSystemAccess.h
@@ -708,6 +889,9 @@ target_compile_definitions(test_integration PRIVATE _SILENCE_TR1_NAMESPACE_DEPRE
 target_compile_definitions(tool_purge_account PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
 target_link_libraries(test_unit gtest Mega )
 target_link_libraries(test_integration gtest Mega )
+if(APPLE)
+    target_link_libraries(test_integration "-framework Security" )
+endif()
 target_link_libraries(tool_purge_account gtest Mega )
 
 if(WIN32)
