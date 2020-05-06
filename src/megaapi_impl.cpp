@@ -32082,7 +32082,8 @@ void MegaPushNotificationSettingsPrivate::setGlobalDnd(int64_t timestamp)
     assert(timestamp > 0);
     if (!isGlobalEnabled())
     {
-        LOG_warn << "setGlobalDnd(): global notifications were disabled. Now are enabled";
+        LOG_warn << "setGlobalDnd(): global notifications are currently disabled."
+                    " Setting a new time period for DND mode";
     }
     mGlobalDND = timestamp;
 }
@@ -32156,6 +32157,11 @@ void MegaPushNotificationSettingsPrivate::setChatDnd(MegaHandle chatid, int64_t 
 void MegaPushNotificationSettingsPrivate::setChatsDnd(int64_t timestamp)
 {
     assert(timestamp > 0);
+    if (!isGlobalEnabled())
+    {
+        LOG_warn << "setChatsDnd(): global chats notifications are currently disabled."
+                    " Setting a new time period for DND mode";
+    }
     mGlobalChatsDND = timestamp;
 }
 
