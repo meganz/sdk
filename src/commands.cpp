@@ -3875,271 +3875,270 @@ void CommandGetUserData::procresult()
 
         case EOO:
         {
-            if (me == client->me)
+            assert(me == client->me);
+
+            if (len_privk)
             {
-                if (len_privk)
-                {
-                    client->key.ecb_decrypt(privkbuf, len_privk);
-                    privk.resize(AsymmCipher::MAXKEYLENGTH * 2);
-                    privk.resize(Base64::btoa(privkbuf, len_privk, (char *)privk.data()));
+                client->key.ecb_decrypt(privkbuf, len_privk);
+                privk.resize(AsymmCipher::MAXKEYLENGTH * 2);
+                privk.resize(Base64::btoa(privkbuf, len_privk, (char *)privk.data()));
 
-                    // RSA private key should be already assigned at login
-                    assert(privk == client->mPrivKey);
-                    if (client->mPrivKey.empty())
+                // RSA private key should be already assigned at login
+                assert(privk == client->mPrivKey);
+                if (client->mPrivKey.empty())
+                {
+                    LOG_warn << "Private key not set by login, setting at `ug` response...";
+                    if (!client->asymkey.setkey(AsymmCipher::PRIVKEY, privkbuf, len_privk))
                     {
-                        LOG_warn << "Private key not set by login, setting at `ug` response...";
-                        if (!client->asymkey.setkey(AsymmCipher::PRIVKEY, privkbuf, len_privk))
-                        {
-                            LOG_warn << "Error checking private key at `ug` response";
-                        }
+                        LOG_warn << "Error checking private key at `ug` response";
                     }
                 }
+            }
 
-                if (len_pubk)
+            if (len_pubk)
+            {
+                client->pubk.setkey(AsymmCipher::PUBKEY, pubkbuf, len_pubk);
+            }
+
+            if (v)
+            {
+                client->accountversion = v;
+            }
+
+            if (salt.size())
+            {
+                Base64::atob(salt, client->accountsalt);
+            }
+
+            client->accountsince = since;
+            client->mSmsVerifiedPhone = smsv;
+
+            client->k = k;
+
+            client->btugexpiration.backoff(MegaClient::USER_DATA_EXPIRATION_BACKOFF_SECS * 10);
+            client->cachedug = true;
+
+            // pre-load received user attributes into cache
+            User* u = client->ownuser();
+            if (u)
+            {
+                int changes = 0;
+                if (u->email.empty())
                 {
-                    client->pubk.setkey(AsymmCipher::PUBKEY, pubkbuf, len_pubk);
+                    u->email = email;
                 }
 
-                if (v)
+                if (firstname.size())
                 {
-                    client->accountversion = v;
+                    changes += u->updateattr(ATTR_FIRSTNAME, &firstname, &versionFirstname);
                 }
 
-                if (salt.size())
+                if (lastname.size())
                 {
-                    Base64::atob(salt, client->accountsalt);
+                    changes += u->updateattr(ATTR_LASTNAME, &lastname, &versionLastname);
                 }
 
-                client->accountsince = since;
-                client->mSmsVerifiedPhone = smsv;
-
-                client->k = k;
-
-                client->btugexpiration.backoff(MegaClient::USER_DATA_EXPIRATION_BACKOFF_SECS * 10);
-                client->cachedug = true;
-
-                // pre-load received user attributes into cache
-                User* u = client->ownuser();
-                if (u)
+                if (language.size())
                 {
-                    int changes = 0;
-                    if (u->email.empty())
+                    changes += u->updateattr(ATTR_LANGUAGE, &language, &versionLanguage);
+                }
+
+                if (birthday.size())
+                {
+                    changes += u->updateattr(ATTR_BIRTHDAY, &birthday, &versionBirthday);
+                }
+
+                if (birthmonth.size())
+                {
+                    changes += u->updateattr(ATTR_BIRTHMONTH, &birthmonth, &versionBirthmonth);
+                }
+
+                if (birthyear.size())
+                {
+                    changes += u->updateattr(ATTR_BIRTHYEAR, &birthyear, &versionBirthyear);
+                }
+
+                if (country.size())
+                {
+                    changes += u->updateattr(ATTR_COUNTRY, &country, &versionCountry);
+                }
+
+                if (pwdReminderDialog.size())
+                {
+                    changes += u->updateattr(ATTR_PWD_REMINDER, &pwdReminderDialog, &versionPwdReminderDialog);
+                }
+
+                if (pushSetting.size())
+                {
+                    changes += u->updateattr(ATTR_PUSH_SETTINGS, &pushSetting, &versionPushSetting);
+
+                    // initialize the settings for the intermediate layer by simulating there was a getua()
+                    client->app->getua_result((byte*) pushSetting.data(), (unsigned) pushSetting.size(), ATTR_PUSH_SETTINGS);
+                }
+
+                if (contactLinkVerification.size())
+                {
+                    changes += u->updateattr(ATTR_CONTACT_LINK_VERIFICATION, &contactLinkVerification, &versionContactLinkVerification);
+                }
+
+                if (disableVersions.size())
+                {
+                    changes += u->updateattr(ATTR_DISABLE_VERSIONS, &disableVersions, &versionDisableVersions);
+
+                    // initialize the status of file-versioning for the client
+                    client->versions_disabled = (disableVersions == "1");
+                    if (client->versions_disabled)
                     {
-                        u->email = email;
+                        LOG_info << "File versioning is disabled";
                     }
-
-                    if (firstname.size())
-                    {
-                        changes += u->updateattr(ATTR_FIRSTNAME, &firstname, &versionFirstname);
-                    }
-
-                    if (lastname.size())
-                    {
-                        changes += u->updateattr(ATTR_LASTNAME, &lastname, &versionLastname);
-                    }
-
-                    if (language.size())
-                    {
-                        changes += u->updateattr(ATTR_LANGUAGE, &language, &versionLanguage);
-                    }
-
-                    if (birthday.size())
-                    {
-                        changes += u->updateattr(ATTR_BIRTHDAY, &birthday, &versionBirthday);
-                    }
-
-                    if (birthmonth.size())
-                    {
-                        changes += u->updateattr(ATTR_BIRTHMONTH, &birthmonth, &versionBirthmonth);
-                    }
-
-                    if (birthyear.size())
-                    {
-                        changes += u->updateattr(ATTR_BIRTHYEAR, &birthyear, &versionBirthyear);
-                    }
-
-                    if (country.size())
-                    {
-                        changes += u->updateattr(ATTR_COUNTRY, &country, &versionCountry);
-                    }
-
-                    if (pwdReminderDialog.size())
-                    {
-                        changes += u->updateattr(ATTR_PWD_REMINDER, &pwdReminderDialog, &versionPwdReminderDialog);
-                    }
-
-                    if (pushSetting.size())
-                    {
-                        changes += u->updateattr(ATTR_PUSH_SETTINGS, &pushSetting, &versionPushSetting);
-
-                        // initialize the settings for the intermediate layer by simulating there was a getua()
-                        client->app->getua_result((byte*) pushSetting.data(), (unsigned) pushSetting.size(), ATTR_PUSH_SETTINGS);
-                    }
-
-                    if (contactLinkVerification.size())
-                    {
-                        changes += u->updateattr(ATTR_CONTACT_LINK_VERIFICATION, &contactLinkVerification, &versionContactLinkVerification);
-                    }
-
-                    if (disableVersions.size())
-                    {
-                        changes += u->updateattr(ATTR_DISABLE_VERSIONS, &disableVersions, &versionDisableVersions);
-
-                        // initialize the status of file-versioning for the client
-                        client->versions_disabled = (disableVersions == "1");
-                        if (client->versions_disabled)
-                        {
-                            LOG_info << "File versioning is disabled";
-                        }
-                        else
-                        {
-                            LOG_info << "File versioning is enabled";
-                        }
-                    }
-                    else    // attribute does not exists
+                    else
                     {
                         LOG_info << "File versioning is enabled";
-                        client->versions_disabled = false;
                     }
+                }
+                else    // attribute does not exists
+                {
+                    LOG_info << "File versioning is enabled";
+                    client->versions_disabled = false;
+                }
 
-                    if (chatFolder.size())
+                if (chatFolder.size())
+                {
+                    unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&chatFolder, &client->key));
+                    if (tlvRecords)
                     {
-                        unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&chatFolder, &client->key));
-                        if (tlvRecords)
-                        {
-                            // store the value for private user attributes (decrypted version of serialized TLV)
-                            unique_ptr<string> tlvString(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
-                            changes += u->updateattr(ATTR_MY_CHAT_FILES_FOLDER, tlvString.get(), &versionChatFolder);
-                        }
-                        else
-                        {
-                            LOG_err << "Cannot extract TLV records for ATTR_MY_CHAT_FILES_FOLDER";
-                        }
-                    }
-
-                    if (cameraUploadFolder.size())
-                    {
-                        unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&cameraUploadFolder, &client->key));
-                        if (tlvRecords)
-                        {
-                            // store the value for private user attributes (decrypted version of serialized TLV)
-                            unique_ptr<string> tlvString(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
-                            changes += u->updateattr(ATTR_CAMERA_UPLOADS_FOLDER, tlvString.get(), &versionCameraUploadFolder);
-                        }
-                        else
-                        {
-                            LOG_err << "Cannot extract TLV records for ATTR_CAMERA_UPLOADS_FOLDER";
-                        }
-                    }
-
-                    if (aliases.size())
-                    {
-                        unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&aliases, &client->key));
-                        if (tlvRecords)
-                        {
-                            // store the value for private user attributes (decrypted version of serialized TLV)
-                            unique_ptr<string> tlvString(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
-                            changes += u->updateattr(ATTR_ALIAS, tlvString.get(), &versionAliases);
-                        }
-                        else
-                        {
-                            LOG_err << "Cannot extract TLV records for ATTR_ALIAS";
-                        }
-                    }
-
-                    if (unshareableKey.size() == Base64Str<SymmCipher::BLOCKSIZE>::STRLEN)
-                    {
-                        changes += u->updateattr(ATTR_UNSHAREABLE_KEY, &unshareableKey, &versionUnshareableKey);
-                        client->unshareablekey.swap(unshareableKey);
-                    }
-                    else if (unshareableKey.empty())    // it has not been created yet
-                    {
-                        LOG_info << "Creating unshareable key...";
-                        byte newunshareablekey[SymmCipher::BLOCKSIZE];
-                        client->rng.genblock(newunshareablekey, sizeof(newunshareablekey));
-                        client->putua(ATTR_UNSHAREABLE_KEY, newunshareablekey, sizeof(newunshareablekey), 0);
+                        // store the value for private user attributes (decrypted version of serialized TLV)
+                        unique_ptr<string> tlvString(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
+                        changes += u->updateattr(ATTR_MY_CHAT_FILES_FOLDER, tlvString.get(), &versionChatFolder);
                     }
                     else
                     {
-                        LOG_err << "Unshareable key wrong length";
-                    }
-
-                    if (changes > 0)
-                    {
-                        u->setTag(tag ? tag : -1);
-                        client->notifyuser(u);
+                        LOG_err << "Cannot extract TLV records for ATTR_MY_CHAT_FILES_FOLDER";
                     }
                 }
 
-                if (b)  // business account
+                if (cameraUploadFolder.size())
                 {
-                    // integrity checks
-                    if ((s < BIZ_STATUS_EXPIRED || s > BIZ_STATUS_GRACE_PERIOD)  // status not received or invalid
-                            || (m == BIZ_MODE_UNKNOWN))  // master flag not received or invalid
+                    unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&cameraUploadFolder, &client->key));
+                    if (tlvRecords)
                     {
-                        std::string err = "GetUserData: invalid business status / account mode";
-                        LOG_err << err;
-                        client->sendevent(99450, err.c_str());
-
-                        client->mBizStatus = BIZ_STATUS_EXPIRED;
-                        client->mBizMode = BIZ_MODE_SUBUSER;
-                        client->mBizExpirationTs = client->mBizGracePeriodTs = 0;
-                        client->app->notify_business_status(client->mBizStatus);
+                        // store the value for private user attributes (decrypted version of serialized TLV)
+                        unique_ptr<string> tlvString(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
+                        changes += u->updateattr(ATTR_CAMERA_UPLOADS_FOLDER, tlvString.get(), &versionCameraUploadFolder);
                     }
                     else
                     {
-                        for (auto it : sts)
-                        {
-                            BizStatus status = it.first;
-                            m_time_t ts = it.second;
-                            if (status == BIZ_STATUS_EXPIRED)
-                            {
-                                client->mBizExpirationTs = ts;
-                            }
-                            else if (status == BIZ_STATUS_GRACE_PERIOD)
-                            {
-                                client->mBizGracePeriodTs = ts;
-                            }
-                            else
-                            {
-                                LOG_warn << "Unexpected status in b.sts. Status: " << status << "ts: " << ts;
-                            }
-                        }
-
-                        client->mBizMode = m;
-                        // subusers must receive the list of master users
-                        assert(m != BIZ_MODE_SUBUSER || !masters.empty());
-                        client->mBizMasters = masters;
-
-                        if (client->mBizStatus != s)
-                        {
-                            client->mBizStatus = s;
-                            client->app->notify_business_status(s);
-                        }
-
-                        // if current business status will expire sooner than the scheduled `ug`, update the
-                        // backoff to a shorter one in order to refresh the business status asap
-                        m_time_t auxts = 0;
-                        m_time_t now = m_time(nullptr);
-                        if (client->mBizGracePeriodTs && client->mBizGracePeriodTs > now)
-                        {
-                            auxts = client->mBizGracePeriodTs;
-                        }
-                        else if (client->mBizExpirationTs && client->mBizExpirationTs > now)
-                        {
-                            auxts = client->mBizExpirationTs;
-                        }
-                        if (auxts)
-                        {
-                            dstime diff = static_cast<dstime>((now - auxts) * 10);
-                            dstime current = client->btugexpiration.backoffdelta();
-                            if (current > diff)
-                            {
-                                client->btugexpiration.backoff(diff);
-                            }
-                        }
-                        // TODO: check if type of account has changed and notify with new event (not yet supported by API)
+                        LOG_err << "Cannot extract TLV records for ATTR_CAMERA_UPLOADS_FOLDER";
                     }
+                }
+
+                if (aliases.size())
+                {
+                    unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&aliases, &client->key));
+                    if (tlvRecords)
+                    {
+                        // store the value for private user attributes (decrypted version of serialized TLV)
+                        unique_ptr<string> tlvString(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
+                        changes += u->updateattr(ATTR_ALIAS, tlvString.get(), &versionAliases);
+                    }
+                    else
+                    {
+                        LOG_err << "Cannot extract TLV records for ATTR_ALIAS";
+                    }
+                }
+
+                if (unshareableKey.size() == Base64Str<SymmCipher::BLOCKSIZE>::STRLEN)
+                {
+                    changes += u->updateattr(ATTR_UNSHAREABLE_KEY, &unshareableKey, &versionUnshareableKey);
+                    client->unshareablekey.swap(unshareableKey);
+                }
+                else if (unshareableKey.empty())    // it has not been created yet
+                {
+                    LOG_info << "Creating unshareable key...";
+                    byte newunshareablekey[SymmCipher::BLOCKSIZE];
+                    client->rng.genblock(newunshareablekey, sizeof(newunshareablekey));
+                    client->putua(ATTR_UNSHAREABLE_KEY, newunshareablekey, sizeof(newunshareablekey), 0);
+                }
+                else
+                {
+                    LOG_err << "Unshareable key wrong length";
+                }
+
+                if (changes > 0)
+                {
+                    u->setTag(tag ? tag : -1);
+                    client->notifyuser(u);
+                }
+            }
+
+            if (b)  // business account
+            {
+                // integrity checks
+                if ((s < BIZ_STATUS_EXPIRED || s > BIZ_STATUS_GRACE_PERIOD)  // status not received or invalid
+                        || (m == BIZ_MODE_UNKNOWN))  // master flag not received or invalid
+                {
+                    std::string err = "GetUserData: invalid business status / account mode";
+                    LOG_err << err;
+                    client->sendevent(99450, err.c_str());
+
+                    client->mBizStatus = BIZ_STATUS_EXPIRED;
+                    client->mBizMode = BIZ_MODE_SUBUSER;
+                    client->mBizExpirationTs = client->mBizGracePeriodTs = 0;
+                    client->app->notify_business_status(client->mBizStatus);
+                }
+                else
+                {
+                    for (auto it : sts)
+                    {
+                        BizStatus status = it.first;
+                        m_time_t ts = it.second;
+                        if (status == BIZ_STATUS_EXPIRED)
+                        {
+                            client->mBizExpirationTs = ts;
+                        }
+                        else if (status == BIZ_STATUS_GRACE_PERIOD)
+                        {
+                            client->mBizGracePeriodTs = ts;
+                        }
+                        else
+                        {
+                            LOG_warn << "Unexpected status in b.sts. Status: " << status << "ts: " << ts;
+                        }
+                    }
+
+                    client->mBizMode = m;
+                    // subusers must receive the list of master users
+                    assert(m != BIZ_MODE_SUBUSER || !masters.empty());
+                    client->mBizMasters = masters;
+
+                    if (client->mBizStatus != s)
+                    {
+                        client->mBizStatus = s;
+                        client->app->notify_business_status(s);
+                    }
+
+                    // if current business status will expire sooner than the scheduled `ug`, update the
+                    // backoff to a shorter one in order to refresh the business status asap
+                    m_time_t auxts = 0;
+                    m_time_t now = m_time(nullptr);
+                    if (client->mBizGracePeriodTs && client->mBizGracePeriodTs > now)
+                    {
+                        auxts = client->mBizGracePeriodTs;
+                    }
+                    else if (client->mBizExpirationTs && client->mBizExpirationTs > now)
+                    {
+                        auxts = client->mBizExpirationTs;
+                    }
+                    if (auxts)
+                    {
+                        dstime diff = static_cast<dstime>((now - auxts) * 10);
+                        dstime current = client->btugexpiration.backoffdelta();
+                        if (current > diff)
+                        {
+                            client->btugexpiration.backoff(diff);
+                        }
+                    }
+                    // TODO: check if type of account has changed and notify with new event (not yet supported by API)
                 }
             }
             else
