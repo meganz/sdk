@@ -4354,6 +4354,14 @@ public:
     virtual void setChatDnd(MegaHandle chatid, int64_t timestamp);
 
     /**
+     * @brief Set the Global DND for chats for a period of time
+     * No chat notifications will be generated until the specified timestamp.
+     *
+     * @param timestamp Timestamp until DND mode is enabled (in seconds since the Epoch)
+     */
+    virtual void setChatsDnd(int64_t timestamp);
+
+    /**
      * @brief Enable or disable "Always notify" setting
      *
      * Notifications for this chat will always be generated, even if they are globally

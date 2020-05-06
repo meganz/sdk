@@ -32153,6 +32153,12 @@ void MegaPushNotificationSettingsPrivate::setChatDnd(MegaHandle chatid, int64_t 
     mChatDND[chatid] = timestamp;
 }
 
+void MegaPushNotificationSettingsPrivate::setChatsDnd(int64_t timestamp)
+{
+    assert(timestamp > 0);
+    mGlobalChatsDND = timestamp;
+}
+
 void MegaPushNotificationSettingsPrivate::enableChatAlwaysNotify(MegaHandle chatid, bool enable)
 {
     assert(!ISUNDEF(chatid));
