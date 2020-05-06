@@ -4390,6 +4390,7 @@ char *MegaApi::getMimeType(const char *extension)
         {"fif", "application/fractals"},
         {"filters", "Application/xml"},
         {"fla", "application/octet-stream"},
+        {"flac", "audio/flac"},
         {"flr", "x-world/x-vrml"},
         {"flv", "video/x-flv"},
         {"fsscript", "application/fsharp-script"},
