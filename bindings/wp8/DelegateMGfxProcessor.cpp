@@ -78,3 +78,9 @@ void DelegateMGfxProcessor::freeBitmap()
 	if (processor != nullptr)
 		processor->freeBitmap();
 }
+
+void DelegateMGfxProcessor::startProcessingThread()
+{
+	if (processor != nullptr)
+		processor->startProcessingThread();
+}
