@@ -517,7 +517,7 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
     }
     else
     {
-        LOG_debug << "Removing transfer";
+        LOG_debug << "Removing transfer: " << this->tag;
         state = TRANSFERSTATE_FAILED;
         finished = true;
 
@@ -533,7 +533,9 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
                     client->syncdownrequired = true;
                 }
 #endif
-                client->app->file_removed(*it, e);
+                auto f = *it;
+                it++; // the next line will remove the current item and invalidate that iterator
+                removeTransferFile(e, f, &committer);
             }
         }
 
@@ -542,6 +544,10 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
             client->app->transfer_removed(this);
             ++client->performanceStats.transferFails;
             delete this;
+        }
+        else
+        {
+            LOG_debug << "skipping transfer removal: files NOT empty. tag=" << this->tag;
         }
     }
 }
