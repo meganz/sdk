@@ -729,6 +729,8 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                     break;
 
                 case REQ_ASYNCIO:
+                    assert(asyncIO);
+                    assert(asyncIO[i]);
                     if (asyncIO[i]->finished)
                     {
                         LOG_verbose << "Processing finished async fs operation";
