@@ -376,3 +376,5 @@ void exec_find(autocomplete::ACState& s);
 void exec_treecompare(autocomplete::ACState& s);
 void exec_querytransferquota(autocomplete::ACState& s);
 #endif
+void exec_metamac(autocomplete::ACState& s);
+

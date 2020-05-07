@@ -1,4 +1,5 @@
 echo off
+SETLOCAL EnableExtensions
 
 set DIR=%~dp0
 
@@ -8,34 +9,38 @@ set OVERLAYTRIPLETS=--overlay-triplets=%DIR%vcpkg_extra_triplets
 
 :GETOPTS
  if /I "%1" == "-h" ( goto Help ) ^
- else (if /I "%1" == "-r" (set REMOVEBEFORE=true )^
+ else (if /I "%1" == "-r" (set REMOVEBEFORE=true)^
  else (if /I "%1" == "-d" (set DEPS_FILE=%2 & shift )^
  else (if /I "%1" == "-p" (set PORTS_FILE=%2 & shift )^
  else (if /I "%1" == "-t" (set OVERLAYTRIPLETS=--overlay-triplets=%2 & shift )^
+ else (if /I "%1" == "-o" (set OVERRIDEVCPKGPORTS=true)^
  else (^
  echo "%1"|>nul findstr /rx \"-.*\" && goto Help REM if parameter starts width - and has not been recognized, go to Help
  if "%1" neq "" (if "%TRIPLET%" == "" (set TRIPLET=%1% ))^
- else (goto :START)))))
+ else (goto :START)))))))
  
- shift & goto GETOPTS
+ shift
+ goto GETOPTS
  
 :START
 
 if "%TRIPLET%" == ""  goto Help
 
-
-
-
-
-Setlocal
-
 set "OVERLAYPORTS= "
+set VCPKG=vcpkg
+
+IF "%OVERRIDEVCPKGPORTS%" == "true" (goto portsOverrided) else (goto portsOverlaid)
+exit /b 0
+
+
+:portsOverlaid
+echo "Using overlaid ports from: %PORTS_FILE%" 
+Setlocal
 
 Setlocal EnableDelayedExpansion
 for /f "eol=# tokens=* delims=," %%l in ('type %PORTS_FILE%') do ^
 set "OVERLAYPORTS=--overlay-ports=%DIR%vcpkg_extra_ports/%%l !OVERLAYPORTS!"
 
-set VCPKG=vcpkg
 WHERE vcpkg >nul || set VCPKG=./vcpkg.exe & 2>nul ren %%~dpi.\ports ports_moved
 
 REM rename vcpkg's ports folder, to prevent using those ports
@@ -43,7 +48,26 @@ for /f %%i IN ('WHERE vcpkg') DO (
 set vcpkgpath=%%~dpi
 2>nul ren %%~dpi.\ports ports_moved
 )
+goto doBuild
 
+:copyPort
+echo %1 %2
+set mydir=%1
+for /D %%A in (%mydir%/..) do set PORTNAME=%%~nA
+if not exist  %2\%PORTNAME%-OLD ren %2\%PORTNAME% %PORTNAME%-OLD
+if exist %2\%PORTNAME% rmdir %2\%PORTNAME% /s /q
+xcopy /E /F /R %1 %2\%PORTNAME%\
+exit /b 0
+
+:portsOverrided
+echo "Overriding VCPKG ports with those in: %PORTS_FILE%" 
+
+for /f %%i IN ('WHERE vcpkg') DO ( set vcpkgports=%%~dpi.\ports )
+for /f "eol=# tokens=* delims=," %%l in ('type %PORTS_FILE%') do ( CALL :copyPort "%DIR%vcpkg_extra_ports\%%l" %vcpkgports%)
+goto doBuild
+
+
+:doBuild
 for /f "eol=# tokens=* delims=," %%l in ('type %DEPS_FILE%') do ^
 call :build_one %%l
 
@@ -69,6 +93,7 @@ if %errorlevel% neq 0 (
 exit /b 0
 
 :help
+    echo off
     echo.
     echo Usage:
     echo  $app [-d deps_file] [-p ports_file] [-t triplets_path] TRIPLET
@@ -102,5 +127,6 @@ exit /b 0
     echo  -p : paths to ports file with dependencies/versions too look for. By default: %DIR%preferred-ports.txt
     echo  -t : overlay triplets path. By default %DIR%vcpkg_extra_triplets
     echo  -r : remove before install
+    echo  -o : override vcpkg ports by the overlaid ports (will copy the previous ones into PORT-OLD)
     echo.
 

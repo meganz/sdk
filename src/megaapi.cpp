@@ -1819,6 +1819,11 @@ void MegaApi::resetCredentials(MegaUser *user, MegaRequestListener *listener)
     pImpl->resetCredentials(user, listener);
 }
 
+char *MegaApi::getMyRSAPrivateKey()
+{
+    return pImpl->getMyRSAPrivateKey();
+}
+
 void MegaApi::setLogLevel(int logLevel)
 {
     MegaApiImpl::setLogLevel(logLevel);
@@ -5825,6 +5830,17 @@ void MegaApiLock::lockOnce()
         api->lockMutex();
         locked = true;
     }
+}
+
+
+bool MegaApiLock::tryLockFor(long long time)
+{
+    if (!locked)
+    {
+        locked = api->tryLockMutexFor(time);
+    }
+
+    return locked;
 }
 
 void MegaApiLock::unlockOnce()

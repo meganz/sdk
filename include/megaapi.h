@@ -1215,6 +1215,7 @@ class MegaUser
             CHANGE_TYPE_MY_CHAT_FILES_FOLDER        = 0x400000,
             CHANGE_TYPE_PUSH_SETTINGS               = 0x800000,
             CHANGE_TYPE_ALIAS                       = 0x1000000,
+            CHANGE_TYPE_UNSHAREABLE_KEY             = 0x2000000,
         };
 
         /**
@@ -1293,6 +1294,12 @@ class MegaUser
          * - MegaUser::CHANGE_TYPE_PUSH_SETTINGS = 0x800000
          * Check if settings for push notifications have changed
          *
+         * - MegaUser::CHANGE_TYPE_ALIAS    = 0x1000000
+         * Check if aliases have changed
+         *
+         * - MegaUser::CHANGE_TYPE_UNSHAREABLE_KEY = 0x2000000
+         * (internal) The unshareable key has been created
+         *
          * @return true if this user has an specific change
          */
         virtual bool hasChanged(int changeType);
@@ -1370,6 +1377,12 @@ class MegaUser
          *
          * - MegaUser::CHANGE_TYPE_PUSH_SETTINGS = 0x800000
          * Check if settings for push notifications have changed
+         *
+         * - MegaUser::CHANGE_TYPE_ALIAS    = 0x1000000
+         * Check if aliases have changed
+         *
+         * - MegaUser::CHANGE_TYPE_UNSHAREABLE_KEY = 0x2000000
+         * (internal) The unshareable key has been created
          *
          */
         virtual int getChanges();
@@ -6708,6 +6721,18 @@ public:
     void lockOnce();
 
     /**
+     * @brief Tries to lock the MegaApi if this instance does not currently have a lock on it yet.
+     *
+     * If the lock is succeeded in the expected time, the behaviour is the same as lockOnce().
+     *
+     * @param time Milliseconds to wait for locking
+     *
+     * @return if the locking succeded
+     */
+    bool tryLockFor(long long time);
+
+
+    /**
      * @brief Release the lock on the MegaApi if one is still held by this instance
      *
      * The MegaApi will be unable to continue work until all MegaApiLock objects release
@@ -7949,8 +7974,16 @@ class MegaApi
          *
          * If MegaRequest::getFlag returns true, the account was automatically confirmed and it's not needed
          * to call MegaApi::confirmAccount. If it returns false, it's needed to call MegaApi::confirmAccount
-         * as usual. New accounts do not require a confirmation with the password, but old confirmation links
-         * require it, so it's needed to check that parameter in onRequestFinish to know how to proceed.
+         * as usual. New accounts (V2, starting from April 2018) do not require a confirmation with the password,
+         * but old confirmation links (V1) require it, so it's needed to check that parameter in onRequestFinish
+         * to know how to proceed.
+         *
+         * If already logged-in into a different account, you will get the error code MegaError::API_EACCESS
+         * in onRequestFinish.
+         * If logged-in into the account that is attempted to confirm and the account is already confirmed, you
+         * will get the error code MegaError::API_EEXPIRED in onRequestFinish.
+         * In both cases, the MegaRequest::getEmail will return the email of the account that was attempted
+         * to confirm, and the MegaRequest::getName will return the name.
          *
          * @param link Confirmation link (#confirm) or new signup link (#newsignup)
          * @param listener MegaRequestListener to track this request
@@ -7974,6 +8007,13 @@ class MegaApi
          * MegaListener::onEvent and MegaGlobalListener::onEvent with an event of type
          * MegaEvent::EVENT_ACCOUNT_CONFIRMATION. You can check the email used to confirm
          * the account by checking MegaEvent::getText. @see MegaListener::onEvent.
+         *
+         * If already logged-in into a different account, you will get the error code MegaError::API_EACCESS
+         * in onRequestFinish.
+         * If logged-in into the account that is attempted to confirm and the account is already confirmed, you
+         * will get the error code MegaError::API_EEXPIRED in onRequestFinish.
+         * In both cases, the MegaRequest::getEmail will return the email of the account that was attempted
+         * to confirm, and the MegaRequest::getName will return the name.
          *
          * @param link Confirmation link
          * @param password Password of the account
@@ -8141,6 +8181,9 @@ class MegaApi
          *
          * If the logged in account has not been sent the unlock email before,
          * onRequestFinish will be called with the error code MegaError::API_EARGS.
+         *
+         * If the logged in account has already sent the unlock email and until it's available again,
+         * onRequestFinish will be called with the error code MegaError::API_ETEMPUNAVAIL.
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -8398,6 +8441,8 @@ class MegaApi
         *
         * Other clients will be notified that alerts to this point have been seen.
         *
+        * The associated request type with this request is MegaRequest::TYPE_USERALERT_ACKNOWLEDGE.
+        *
         * @param listener MegaRequestListener to track this request
         *
         * @see MegaApi::getUserAlerts
@@ -8597,6 +8642,19 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void resetCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Returns RSA private key of the currently logged-in account
+         *
+         * If the MegaApi object is not logged-in or there is no private key available,
+         * this function returns NULL.
+         *
+         * You take the ownership of the returned value.
+         * Use delete [] to free it.
+         *
+         * @return RSA private key of the current account
+         */
+        char *getMyRSAPrivateKey();
 
         /**
          * @brief Set the active log level
@@ -10525,6 +10583,8 @@ class MegaApi
          * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER
+         * - MegaRequest::getMegaStringMap - Returns a MegaStringMap.
+         * The key "h" in the map contains the nodehandle specified as parameter encoded in B64
          *
          * @param nodehandle MegaHandle of the node to be used as target folder
          * @param listener MegaRequestListener to track this request
@@ -10556,6 +10616,8 @@ class MegaApi
          * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
          * - MegaRequest::getFlag - Returns false
          * - MegaRequest::getNodehandle - Returns the provided node handle
+         * - MegaRequest::getMegaStringMap - Returns a MegaStringMap.
+         * The key "h" in the map contains the nodehandle specified as parameter encoded in B64
          *
          * @param nodehandle MegaHandle of the node to be used as primary target folder
          * @param listener MegaRequestListener to track this request
@@ -10570,6 +10632,8 @@ class MegaApi
          * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
          * - MegaRequest::getFlag - Returns true
          * - MegaRequest::getNodehandle - Returns the provided node handle
+         * - MegaRequest::getMegaStringMap - Returns a MegaStringMap.
+         * The key "sh" in the map contains the nodehandle specified as parameter encoded in B64
          *
          * @param nodehandle MegaHandle of the node to be used as secondary target folder
          * @param listener MegaRequestListener to track this request
@@ -10836,6 +10900,10 @@ class MegaApi
          * MegaError::API_ESID. It should not be taken as an error, since the reason
          * is that the logout action has been notified before the reception of the
          * logout response itself.
+         *
+         * In case of an automatic logout (ie. when the account become blocked by
+         * ToS infringment), the MegaRequest::getParamType indicates the error that
+         * triggered the automatic logout (MegaError::API_EBLOCKED for the example).
          *
          * @param listener MegaRequestListener to track this request
          */

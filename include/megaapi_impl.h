@@ -139,7 +139,7 @@ public:
     void postLog(int logLevel, const char *message, const char *filename, int line);
     void log(const char *time, int loglevel, const char *source, const char *message
 #ifdef ENABLE_LOG_PERFORMANCE
-             , const char **directMessages, size_t *directMessagesSizes, int numberMessages
+             , const char **directMessages, size_t *directMessagesSizes, unsigned numberMessages
 #endif
             ) override;
 
@@ -2069,6 +2069,7 @@ class MegaApiImpl : public MegaApp
         bool areCredentialsVerified(MegaUser *user);
         void verifyCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
         void resetCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
+        char* getMyRSAPrivateKey();
         static void setLogLevel(int logLevel);
         static void setMaxPayloadLogSize(long long maxSize);
         static void addLoggerClass(MegaLogger *megaLogger);
@@ -2598,6 +2599,7 @@ class MegaApiImpl : public MegaApp
         void yield();
         void lockMutex();
         void unlockMutex();
+        bool tryLockMutexFor(long long time);
 
 protected:
         static const unsigned int MAX_SESSION_LENGTH;
@@ -3047,18 +3049,6 @@ public:
     ExternalInputStream(MegaInputStream *inputStream);
     virtual m_off_t size();
     virtual bool read(byte *buffer, unsigned size);
-};
-
-class FileInputStream : public InputStreamAccess
-{
-    FileAccess *fileAccess;
-    m_off_t offset;
-
-public:
-    FileInputStream(FileAccess *fileAccess);
-    virtual m_off_t size();
-    virtual bool read(byte *buffer, unsigned size);
-    virtual ~FileInputStream();
 };
 
 #ifdef HAVE_LIBUV
