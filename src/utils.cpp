@@ -23,6 +23,8 @@
 #include "mega/logging.h"
 #include "mega/megaclient.h"
 #include "mega/base64.h"
+#include "mega/serialize64.h"
+#include "mega/filesystem.h"
 
 #include <iomanip>
 
@@ -72,11 +74,24 @@ void CacheableWriter::serializecstr(const char* field, bool storeNull)
     dest.append(field, ll);
 }
 
+void CacheableWriter::serializepstr(const string* field)
+{
+    unsigned short ll = (unsigned short)(field ? field->size() : 0);
+    dest.append((char*)&ll, sizeof(ll));
+    if (field) dest.append(field->data(), ll);
+}
+
 void CacheableWriter::serializestring(const string& field)
 {
     unsigned short ll = (unsigned short)field.size();
     dest.append((char*)&ll, sizeof(ll));
     dest.append(field.data(), ll);
+}
+
+void CacheableWriter::serializecompressed64(int64_t field)
+{
+    byte buf[sizeof field+1];
+    dest.append((const char*)buf, Serialize64::serialize(buf, field));
 }
 
 void CacheableWriter::serializei64(int64_t field)
@@ -92,6 +107,11 @@ void CacheableWriter::serializeu32(uint32_t field)
 void CacheableWriter::serializehandle(handle field)
 {
     dest.append((char*)&field, sizeof(field));
+}
+
+void CacheableWriter::serializenodehandle(handle field)
+{
+    dest.append((const char*)&field, MegaClient::NODEHANDLE);
 }
 
 void CacheableWriter::serializefsfp(fsfp_t field)
@@ -309,6 +329,25 @@ void chunkmac_map::finishedUploadChunks(m_off_t pos, m_off_t size)
     }
 }
 
+// coalesce block macs into file mac
+int64_t chunkmac_map::macsmac(SymmCipher *cipher)
+{
+    byte mac[SymmCipher::BLOCKSIZE] = { 0 };
+
+    for (chunkmac_map::iterator it = begin(); it != end(); it++)
+    {
+        SymmCipher::xorblock(it->second.mac, mac);
+        cipher->ecb_encrypt(mac);
+    }
+
+    uint32_t* m = (uint32_t*)mac;
+
+    m[0] ^= m[1];
+    m[1] = m[2] ^ m[3];
+
+    return MemAccess::get<int64_t>((const char*)mac);
+}
+
 bool CacheableReader::unserializechunkmacs(chunkmac_map& m)
 {
     if (m.unserialize(ptr, end))   // ptr is adjusted by reference
@@ -317,6 +356,21 @@ bool CacheableReader::unserializechunkmacs(chunkmac_map& m)
         return true;
     }
     return false;
+}
+
+bool CacheableReader::unserializecompressed64(uint64_t& field)
+{
+    int fieldSize;
+    if ((fieldSize = Serialize64::unserialize((byte*)ptr, static_cast<int>(end - ptr), &field)) < 0)
+    {
+        LOG_err << "Serialize64 unserialization failed - malformed field";
+        return false;
+    }
+    else
+    {
+        ptr += fieldSize;
+    }
+    return true;
 }
 
 bool CacheableReader::unserializei64(int64_t& field)
@@ -351,6 +405,19 @@ bool CacheableReader::unserializehandle(handle& field)
     }
     field = MemAccess::get<handle>(ptr);
     ptr += sizeof(handle);
+    fieldnum += 1;
+    return true;
+}
+
+bool CacheableReader::unserializenodehandle(handle& field)
+{
+    if (ptr + MegaClient::NODEHANDLE > end)
+    {
+        return false;
+    }
+    field = 0;
+    memcpy((char*)&field, ptr, MegaClient::NODEHANDLE);
+    ptr += MegaClient::NODEHANDLE;
     fieldnum += 1;
     return true;
 }
@@ -2238,4 +2305,48 @@ bool operator==(const SyncConfig& lhs, const SyncConfig& rhs)
     return lhs.tie() == rhs.tie();
 }
 
+std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, FileAccess &ifAccess, const int64_t iv)
+{
+    FileInputStream isAccess(&ifAccess);
+
+    return generateMetaMac(cipher, isAccess, iv);
+}
+
+std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &isAccess, const int64_t iv)
+{
+    static const m_off_t SZ_1024K = 1l << 20;
+    static const m_off_t SZ_128K  = 128l << 10;
+
+    std::unique_ptr<byte[]> buffer(new byte[SZ_1024K + SymmCipher::BLOCKSIZE]);
+    chunkmac_map chunkMacs;
+    m_off_t chunkLength = 0;
+    m_off_t current = 0;
+    m_off_t remaining = isAccess.size();
+
+    while (remaining > 0)
+    {
+        chunkLength =
+          std::min(chunkLength + SZ_128K,
+                   std::min(remaining, SZ_1024K));
+
+        if (!isAccess.read(&buffer[0], (unsigned int)chunkLength))
+            return std::make_pair(false, 0l);
+
+        memset(&buffer[chunkLength], 0, SymmCipher::BLOCKSIZE);
+
+        cipher.ctr_crypt(&buffer[0],
+                         (unsigned int)chunkLength,
+                         current,
+                         iv,
+                         chunkMacs[current].mac,
+                         1);
+
+        current += chunkLength;
+        remaining -= chunkLength;
+    }
+
+    return std::make_pair(true, chunkMacs.macsmac(&cipher));
+}
+
 } // namespace
+
