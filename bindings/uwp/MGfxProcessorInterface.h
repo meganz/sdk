@@ -37,5 +37,6 @@ namespace mega
 		int getBitmapDataSize(int w, int h, int px, int py, int rw, int rh);
 		bool getBitmapData(Platform::WriteOnlyArray<unsigned char>^ data);
 		void freeBitmap();
+		void startProcessingThread();
 	};
 }

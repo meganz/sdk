@@ -37,6 +37,7 @@ namespace mega
 		virtual int getBitmapDataSize(int w, int h, int px, int py, int rw, int rh);
 		virtual bool getBitmapData(char *bitmapData, size_t size);
 		virtual void freeBitmap();
+		virtual void startProcessingThread();
 	
 	private:
 		MGfxProcessorInterface^ processor;
