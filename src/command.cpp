@@ -48,6 +48,57 @@ const char* Command::getstring() const
 }
 
 // add opcode
+bool Command::checkError(int64_t& e, JSON& json, ErrorDetails& errorDetails)
+{
+    e = API_EINTERNAL;
+    if (json.isnumeric())
+    {
+        e = json.getint();
+        return true;
+    }
+    else
+    {
+        const char* ptr = json.pos;
+        if (*ptr == ',')
+        {
+            ptr++;
+        }
+
+        std::string errJson(ptr, 6);
+
+        if (errJson == "\"err\":")
+        {
+            errorDetails.exits = true;
+            json.enterobject();
+            for (;;)
+            {
+                switch (json.getnameid())
+                {
+                    case MAKENAMEID3('e', 'r', 'r'):
+                        e = json.getint();
+                        break;
+                    case 'u':
+                        errorDetails.u = json.getint();
+                        break;
+                    case 'l':
+                        errorDetails.l  = json.getint();
+                        break;
+                    case EOO:
+                        json.leaveobject();
+                        return true;
+                        break;
+                    default:
+                        json.storeobject();
+                        break;
+
+                }
+            }
+        }
+
+        return false;
+    }
+}
+
 void Command::cmd(const char* cmd)
 {
     json.append("\"a\":\"");
