@@ -389,6 +389,10 @@ bool Transfer::isForeign()
 void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime timeleft, handle targetHandle)
 {
     bool defer = false;
+    bool cannotContinue = (e == API_EARGS
+                           || (e == API_EBLOCKED && type == GET)
+                           || (e == API_EREAD && type == PUT)
+                           || (e == API_EWRITE && type == GET));
 
     LOG_debug << "Transfer failed with error " << e;
 
@@ -430,7 +434,7 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
             }
         }
     }
-    else if (e == API_EARGS || (e == API_EBLOCKED && type == GET))
+    else if (cannotContinue)
     {
         client->app->transfer_failed(this, e);
     }
@@ -462,8 +466,10 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
          * If the transfer failed with API_EARGS, the target handle is invalid. For a sync-transfer,
          * the actionpacket will eventually remove the target and the sync-engine will force to
          * disable the synchronization of the folder. For non-sync-transfers, remove the file directly.
+         * Same happens with API_EWRITE (for downloads) and API_EREAD (for uploads), or when the account
+         * is blocked (cannot download any more).
          */
-        if (e == API_EARGS || (e == API_EBLOCKED && type == GET))
+        if (cannotContinue)
         {
              File *f = (*it++);
              if (f->syncxfer && e == API_EARGS)
