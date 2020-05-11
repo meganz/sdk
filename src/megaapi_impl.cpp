@@ -32170,7 +32170,7 @@ void MegaPushNotificationSettingsPrivate::setChatsDnd(int64_t timestamp)
     if (!isChatsEnabled())
     {
         LOG_warn << "setChatsDnd(): global chats notifications are currently disabled."
-                    " Setting a new time period for DND mode";
+                    " Setting a new time period for chats DND mode";
     }
     mGlobalChatsDND = timestamp;
 }
