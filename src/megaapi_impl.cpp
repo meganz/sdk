@@ -31996,6 +31996,11 @@ int64_t MegaPushNotificationSettingsPrivate::getGlobalDnd() const
     return mGlobalDND;
 }
 
+int64_t MegaPushNotificationSettingsPrivate::getChatsDnd() const
+{
+    return mGlobalChatsDND;
+}
+
 bool MegaPushNotificationSettingsPrivate::isGlobalScheduleEnabled() const
 {
     return (mGlobalScheduleStart != -1 && mGlobalScheduleEnd != -1 && !mGlobalScheduleTimezone.empty());

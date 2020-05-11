@@ -4276,6 +4276,19 @@ public:
     virtual bool isChatsEnabled() const;
 
     /**
+     * @brief Returns the timestamp until the chats DND mode is enabled
+     *
+     * This method returns a valid value only if MegaPushNotificationSettings::isChatsEnabled
+     * returns false.
+     *
+     * If there's no DND mode established, this function returns -1.
+     * @note a DND value of 0 means the DND does not expire.
+     *
+     * @return Timestamp until chats DND mode is enabled (in seconds since the Epoch)
+     */
+    virtual int64_t getChatsDnd() const;
+
+    /**
      * @brief Enable or disable notifications globally
      *
      * If notifications are globally disabled, the DND global setting will be
