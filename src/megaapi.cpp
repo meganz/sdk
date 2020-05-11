@@ -6372,6 +6372,11 @@ bool MegaPushNotificationSettings::isGlobalDndEnabled() const
     return false;
 }
 
+bool MegaPushNotificationSettings::isGlobalChatsDndEnabled() const
+{
+    return false;
+}
+
 int64_t MegaPushNotificationSettings::getGlobalDnd() const
 {
     return 0;

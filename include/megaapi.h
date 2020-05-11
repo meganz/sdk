@@ -4164,6 +4164,12 @@ public:
     virtual bool isGlobalDndEnabled() const;
 
     /**
+     * @brief Returns whether Do-Not-Disturb mode for chats is enabled or not
+     * @return True if enabled, false otherwise
+     */
+    virtual bool isGlobalChatsDndEnabled() const;
+
+    /**
      * @brief Returns the timestamp until the DND mode is enabled
      *
      * This method returns a valid value only if MegaPushNotificationSettings::isGlobalEnabled
@@ -4279,7 +4285,7 @@ public:
      * @brief Returns the timestamp until the chats DND mode is enabled
      *
      * This method returns a valid value only if MegaPushNotificationSettings::isChatsEnabled
-     * returns false.
+     * returns false and MegaPushNotificationSettings::isGlobalChatsDndEnabled returns true.
      *
      * If there's no DND mode established, this function returns -1.
      * @note a DND value of 0 means the DND does not expire.

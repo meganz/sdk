@@ -9961,7 +9961,7 @@ bool MegaApiImpl::isChatNotifiable(MegaHandle chatid)
             return true;
         }
 
-        return (!mPushSettings->isChatDndEnabled(chatid) && isGlobalNotifiable() && mPushSettings->isChatsEnabled());
+        return (!mPushSettings->isChatDndEnabled(chatid) && isGlobalNotifiable() && !mPushSettings->isGlobalChatsDndEnabled());
     }
 
     return true;
@@ -31928,7 +31928,7 @@ string MegaPushNotificationSettingsPrivate::generateJson() const
         json.append(",");
     }
 
-    if (mGlobalChatsDND > -1)
+    if (isGlobalChatsDndEnabled())
     {
         json.append("\"CHAT\":{\"dnd\":").append(std::to_string(mGlobalChatsDND)).append("}");
         json.append(",");
@@ -31989,6 +31989,11 @@ bool MegaPushNotificationSettingsPrivate::isGlobalEnabled() const
 bool MegaPushNotificationSettingsPrivate::isGlobalDndEnabled() const
 {
     return (mGlobalDND == 0 || mGlobalDND > m_time(NULL));
+}
+
+bool MegaPushNotificationSettingsPrivate::isGlobalChatsDndEnabled() const
+{
+    return (mGlobalChatsDND == 0 || mGlobalChatsDND > m_time(NULL));
 }
 
 int64_t MegaPushNotificationSettingsPrivate::getGlobalDnd() const
