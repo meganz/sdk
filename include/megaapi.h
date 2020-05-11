@@ -4165,6 +4165,7 @@ public:
 
     /**
      * @brief Returns whether Do-Not-Disturb mode for chats is enabled or not
+     
      * @return True if enabled, false otherwise
      */
     virtual bool isGlobalChatsDndEnabled() const;
