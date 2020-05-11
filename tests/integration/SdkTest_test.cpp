@@ -274,7 +274,7 @@ int SdkTest::getApiIndex(MegaApi* api)
     for (int i = int(megaApi.size()); i--; )  if (megaApi[i].get() == api) apiIndex = i;
     if (apiIndex == -1)
     {
-        LOG_err << "Instance of MegaApi not recognized";
+        LOG_warn << "Instance of MegaApi not recognized";   // does happen during shutdown
     }
     return apiIndex;
 }
@@ -3724,7 +3724,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
             }
             WaitMillisec(100);
         }
-        ASSERT_TRUE(onTransferUpdate_progress == onTransferUpdate_filesize);
+        ASSERT_EQ(onTransferUpdate_progress, onTransferUpdate_filesize);
         ASSERT_GE(exitresumecount, 3u);
         ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], 1)) << "Download cloudraid transfer with pauses failed";
         ASSERT_EQ(MegaError::API_OK, mApi[0].lastError) << "Cannot download the cloudraid file (error: " << mApi[0].lastError << ")";
@@ -3831,7 +3831,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
         ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], 180)) << "Cloudraid download with timeout errors timed out (180 seconds)";
         ASSERT_EQ(MegaError::API_OK, mApi[0].lastError) << "Cannot download the cloudraid file (error: " << mApi[0].lastError << ")";
         ASSERT_GE(onTransferUpdate_filesize, 0u);
-        ASSERT_TRUE(onTransferUpdate_progress == onTransferUpdate_filesize);
+        ASSERT_EQ(onTransferUpdate_progress, onTransferUpdate_filesize);
         ASSERT_LT(DebugTestHook::countdownToTimeout, 0);
     }
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";

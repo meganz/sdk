@@ -52,7 +52,7 @@ namespace mega {
             FilePiece(m_off_t p, HttpReq::http_buf_t* b); // takes ownership of the buffer
             void swap(FilePiece& other);
 
-            // encrypt & mac
+            // decrypt & mac
             bool finalize(bool parallel, m_off_t filesize, int64_t ctriv, SymmCipher *cipher, chunkmac_map* source_chunkmacs);
 
         };
