@@ -32162,7 +32162,7 @@ void MegaPushNotificationSettingsPrivate::setChatDnd(MegaHandle chatid, int64_t 
 void MegaPushNotificationSettingsPrivate::setChatsDnd(int64_t timestamp)
 {
     assert(timestamp > 0);
-    if (!isGlobalEnabled())
+    if (!isChatsEnabled())
     {
         LOG_warn << "setChatsDnd(): global chats notifications are currently disabled."
                     " Setting a new time period for DND mode";
