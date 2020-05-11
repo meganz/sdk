@@ -6377,7 +6377,7 @@ int64_t MegaPushNotificationSettings::getGlobalDnd() const
     return 0;
 }
 
-int64_t MegaPushNotificationSettings::getChatsDnd() const
+int64_t MegaPushNotificationSettings::getGlobalChatsDnd() const
 {
     return 0;
 }

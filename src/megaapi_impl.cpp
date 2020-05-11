@@ -31996,7 +31996,7 @@ int64_t MegaPushNotificationSettingsPrivate::getGlobalDnd() const
     return mGlobalDND;
 }
 
-int64_t MegaPushNotificationSettingsPrivate::getChatsDnd() const
+int64_t MegaPushNotificationSettingsPrivate::getGlobalChatsDnd() const
 {
     return mGlobalChatsDND;
 }

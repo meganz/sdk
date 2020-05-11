@@ -858,7 +858,7 @@ public:
     bool isGlobalEnabled() const override;
     bool isGlobalDndEnabled() const override;
     int64_t getGlobalDnd() const override;
-    int64_t getChatsDnd() const override;
+    int64_t getGlobalChatsDnd() const override;
     bool isGlobalScheduleEnabled() const override;
     int getGlobalScheduleStart() const override;
     int getGlobalScheduleEnd() const override;

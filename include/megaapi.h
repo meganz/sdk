@@ -4286,7 +4286,7 @@ public:
      *
      * @return Timestamp until chats DND mode is enabled (in seconds since the Epoch)
      */
-    virtual int64_t getChatsDnd() const;
+    virtual int64_t getGlobalChatsDnd() const;
 
     /**
      * @brief Enable or disable notifications globally
@@ -4368,6 +4368,7 @@ public:
 
     /**
      * @brief Set the Global DND for chats for a period of time
+     *
      * No chat notifications will be generated until the specified timestamp.
      *
      * @param timestamp Timestamp until DND mode is enabled (in seconds since the Epoch)
