@@ -3668,6 +3668,21 @@ MegaNodeList *MegaApi::search(const char *searchString, MegaCancelToken *cancelT
     return pImpl->search(searchString, cancelToken, order);
 }
 
+MegaNodeList* MegaApi::searchOnInShares(const char *searchString, MegaCancelToken *cancelToken, int order)
+{
+    return pImpl->searchInAllShares(searchString, cancelToken, order, MegaApi::TARGET_INSHARE);
+}
+
+MegaNodeList* MegaApi::searchOnOutShares(const char *searchString, MegaCancelToken *cancelToken, int order)
+{
+    return pImpl->searchInAllShares(searchString, cancelToken, order, MegaApi::TARGET_OUTSHARE);
+}
+
+MegaNodeList* MegaApi::searchOnPublicLinks(const char *searchString, MegaCancelToken *cancelToken, int order)
+{
+    return pImpl->searchInAllShares(searchString, cancelToken, order, MegaApi::TARGET_PUBLICLINK);
+}
+
 long long MegaApi::getSize(MegaNode *n)
 {
     return pImpl->getSize(n);

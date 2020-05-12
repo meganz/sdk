@@ -10621,6 +10621,68 @@ bool MegaApiImpl::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, boo
     return result;
 }
 
+MegaNodeList* MegaApiImpl::searchInAllShares(const char *searchString, MegaCancelToken *cancelToken, int order, int target)
+{
+    if (!searchString)
+    {
+        return new MegaNodeListPrivate();
+    }
+
+    if (cancelToken && cancelToken->isCancelled())
+    {
+        return new MegaNodeListPrivate();
+    }
+
+    if (target < MegaApi::TARGET_INSHARE || target > MegaApi::TARGET_PUBLICLINK)
+    {
+        return new MegaNodeListPrivate();
+    }
+
+    SdkMutexGuard g(sdkMutex);
+
+    if (cancelToken && cancelToken->isCancelled())
+    {
+        return new MegaNodeListPrivate();
+    }
+
+    node_vector result;
+    Node *node;
+    if (target == MegaApi::TARGET_INSHARE || target == MegaApi::TARGET_OUTSHARE)
+    {
+        // Search in inShares or outShares
+        ::mega::unique_ptr<MegaShareList> shares (target == MegaApi::TARGET_INSHARE
+                                                  ? getInSharesList(MegaApi::ORDER_NONE)
+                                                  : getOutShares(MegaApi::ORDER_NONE));
+
+        for (int i = 0; i < shares->size() && !(cancelToken && cancelToken->isCancelled()); i++)
+        {
+           node = client->nodebyhandle(shares->get(i)->getNodeHandle());
+           SearchTreeProcessor searchProcessor(searchString);
+           processTree(node, &searchProcessor, true, cancelToken);
+           vector<Node *>& vNodes  = searchProcessor.getResults();
+           result.insert(result.end(), vNodes.begin(), vNodes.end());
+        }
+    }
+    else
+    {
+        // Search in public links
+        ::mega::unique_ptr<MegaNodeList> publicLinks(getPublicLinks(MegaApi::ORDER_NONE));
+
+        for (int i = 0; i < publicLinks->size() && !(cancelToken && cancelToken->isCancelled()); i++)
+        {
+            node = client->nodebyhandle(publicLinks->get(i)->getHandle());
+            SearchTreeProcessor searchProcessor(searchString);
+            processTree(node, &searchProcessor, true, cancelToken);
+            vector<Node *>& vNodes  = searchProcessor.getResults();
+            result.insert(result.end(), vNodes.begin(), vNodes.end());
+        }
+    }
+
+    sortByComparatorFunction(result, order, *client);
+    MegaNodeList *nodeList = new MegaNodeListPrivate(result.data(), int(result.size()));
+    return nodeList;
+}
+
 MegaNodeList *MegaApiImpl::search(const char *searchString, MegaCancelToken *cancelToken, int order)
 {
     if(!searchString)
