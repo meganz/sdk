@@ -12286,6 +12286,9 @@ class MegaApi
          */
         void removeSync(MegaNode *megaFolder, MegaRequestListener *listener = NULL);
 
+        //TODO: docs
+        void removeSync(int syncTag, MegaRequestListener *listener = NULL);
+
         /**
          * @brief Remove a synced folder
          *

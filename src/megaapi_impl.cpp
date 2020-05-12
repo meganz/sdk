@@ -8375,11 +8375,19 @@ void MegaApiImpl::copySyncDataToCache(const char *localFolder, MegaHandle megaHa
     waiter->notify();
 }
 
-//TODO: addRemoveSyncByTag and diableSyncByTag, and storeTag in request->number
 void MegaApiImpl::removeSync(handle nodehandle, MegaRequestListener* listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SYNC, listener);
     request->setNodeHandle(nodehandle);
+    request->setFlag(true);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::removeSync(int syncTag, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SYNC, listener);
+    request->setNumDetails(syncTag);
     request->setFlag(true);
     requestQueue.push(request);
     waiter->notify();
@@ -20861,10 +20869,17 @@ void MegaApiImpl::sendPendingRequests()
             fireOnRequestFinish(request, MegaError(API_OK));
             break;
         }
-        case MegaRequest::TYPE_REMOVE_SYNC: //TODO: ideally we should redo this and receive the tag directly
+        case MegaRequest::TYPE_REMOVE_SYNC:
         {
             handle nodehandle = request->getNodeHandle();
-            int tag = request->getNumDetails(); //TODO: review this for removesync (if makes sense
+            int tag = request->getNumDetails();
+
+            if (tag == INVALID_SYNC_TAG && nodehandle == INVALID_HANDLE)
+            {
+                e = API_EARGS;
+                break;
+            }
+
             sync_list::iterator it = client->syncs.begin();
             bool found = false;
             while(it != client->syncs.end())
@@ -20872,7 +20887,7 @@ void MegaApiImpl::sendPendingRequests()
                 Sync *sync = (*it);
                 it++;
 
-                if ((tag && tag == static_cast<MegaSync*>(sync->appData)->getTag())
+                if ((tag && tag == static_cast<MegaSync*>(sync->appData)->getTag()) //find matching (tag or node handle)
                         || !sync->localroot->node || sync->localroot->node->nodehandle == nodehandle)
                 {
                     assert(!tag || !sync->appData || tag == static_cast<MegaSync*>(sync->appData)->getTag());
@@ -20884,8 +20899,10 @@ void MegaApiImpl::sendPendingRequests()
                         request->setFile(path.c_str());
                     }
 
+                    //remove active sync
                     client->delsync(sync);
 
+                    //get the sync out of SyncMap
                     if (sync->appData && tag == static_cast<MegaSync*>(sync->appData)->getTag())
                     {
                         sync->appData = NULL;
@@ -20894,15 +20911,14 @@ void MegaApiImpl::sendPendingRequests()
 
 
                     found = true;
+                    break;
                 }
             }
 
 
-            if (!found)
+            if (!found) // still can be in the syncMap (non active syncs)
             {
-                // still can be in the syncMap (non active syncs)
-
-                if (!tag)
+                if (!tag) //no tag provided, look for handle
                 {
                     for (auto it = syncMap.begin(); it != syncMap.end(); it++)
                     {

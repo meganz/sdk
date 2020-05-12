@@ -2252,6 +2252,7 @@ class MegaApiImpl : public MegaApp
                                           long long localfp, bool enabled, MegaRequestListener *listener = NULL);
 
         void removeSync(handle nodehandle, MegaRequestListener *listener=NULL);
+        void removeSync(int syncTag, MegaRequestListener *listener=NULL);
         void disableSync(handle nodehandle, MegaRequestListener *listener=NULL);
         void disableSync(int syncTag, MegaRequestListener *listener = NULL);
         void enableSync(int syncTag, MegaRequestListener *listener = NULL);
