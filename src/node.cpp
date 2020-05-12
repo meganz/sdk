@@ -1102,7 +1102,7 @@ void Node::setpubliclink(handle ph, m_time_t cts, m_time_t ets, bool takendown)
     }
     else            // update
     {
-        client->mPublicLinks.erase(ph);
+        client->mPublicLinks.erase(plink->ph);
         plink->ph = ph;
         plink->cts = cts;
         plink->ets = ets;
