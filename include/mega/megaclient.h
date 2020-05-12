@@ -1327,6 +1327,9 @@ public:
     // client-server request double-buffering
     RequestDispatcher reqs;
 
+    // returns if the current pendingcs includes a fetch nodes command
+    bool isFetchingNodesPendingCS();
+
     // upload handle -> node handle map (filled by upload completion)
     handlepair_set uhnh;
 
