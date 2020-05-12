@@ -3964,6 +3964,7 @@ void MegaClient::locallogout(bool removecaches)
     mBizMode = BIZ_MODE_UNKNOWN;
     mBizStatus = BIZ_STATUS_UNKNOWN;
     mBizMasters.clear();
+    mPublicLinks.clear();
     scpaused = false;
 
     for (fafc_map::iterator cit = fafcs.begin(); cit != fafcs.end(); cit++)
@@ -6054,6 +6055,7 @@ void MegaClient::sc_ph()
                 {
                     if (n->plink)
                     {
+                        mPublicLinks.erase(n->plink->ph);
                         delete n->plink;
                         n->plink = NULL;
                     }

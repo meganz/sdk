@@ -176,6 +176,7 @@ Node::~Node()
         (*it)->parent = NULL;
     }
 
+    client->mPublicLinks.erase(plink->ph);
     delete plink;
     delete inshare;
     delete sharekey;
@@ -421,6 +422,7 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
         plink = new PublicLink(ph, cts, ets, takendown);
     }
     n->plink = plink;
+    client->mPublicLinks[plink->ph] = n->nodehandle;
 
     n->setfingerprint();
 
@@ -1096,11 +1098,13 @@ void Node::setpubliclink(handle ph, m_time_t cts, m_time_t ets, bool takendown)
     }
     else            // update
     {
+        client->mPublicLinks.erase(ph);
         plink->ph = ph;
         plink->cts = cts;
         plink->ets = ets;
         plink->takendown = takendown;
     }
+    client->mPublicLinks[ph] = nodehandle;
 }
 
 PublicLink::PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown)

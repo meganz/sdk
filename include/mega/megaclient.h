@@ -1256,6 +1256,9 @@ public:
     // maps local fsid to corresponding LocalNode*
     handlelocalnode_map fsidnode;
 
+    // maps public handle to node handle
+    std::map<handle, handle> mPublicLinks;
+
     // local nodes that need to be added remotely
     localnode_vector synccreate;
 
