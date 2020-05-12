@@ -176,7 +176,11 @@ Node::~Node()
         (*it)->parent = NULL;
     }
 
-    client->mPublicLinks.erase(plink->ph);
+    if (plink)
+    {
+        client->mPublicLinks.erase(plink->ph);
+    }
+
     delete plink;
     delete inshare;
     delete sharekey;
@@ -420,9 +424,9 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
         }
 
         plink = new PublicLink(ph, cts, ets, takendown);
+        client->mPublicLinks[plink->ph] = n->nodehandle;
     }
     n->plink = plink;
-    client->mPublicLinks[plink->ph] = n->nodehandle;
 
     n->setfingerprint();
 
