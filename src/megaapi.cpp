@@ -1819,6 +1819,11 @@ void MegaApi::resetCredentials(MegaUser *user, MegaRequestListener *listener)
     pImpl->resetCredentials(user, listener);
 }
 
+char *MegaApi::getMyRSAPrivateKey()
+{
+    return pImpl->getMyRSAPrivateKey();
+}
+
 void MegaApi::setLogLevel(int logLevel)
 {
     MegaApiImpl::setLogLevel(logLevel);
@@ -4385,6 +4390,7 @@ char *MegaApi::getMimeType(const char *extension)
         {"fif", "application/fractals"},
         {"filters", "Application/xml"},
         {"fla", "application/octet-stream"},
+        {"flac", "audio/flac"},
         {"flr", "x-world/x-vrml"},
         {"flv", "video/x-flv"},
         {"fsscript", "application/fsharp-script"},

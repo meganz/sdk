@@ -1769,6 +1769,10 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     {
         changed |= MegaUser::CHANGE_TYPE_ALIAS;
     }
+    if (user->changed.unshareablekey)
+    {
+        changed |= MegaUser::CHANGE_TYPE_UNSHAREABLE_KEY;
+    }
 }
 
 MegaUserPrivate::MegaUserPrivate(MegaUser *user) : MegaUser()
@@ -5406,6 +5410,17 @@ void MegaApiImpl::resetCredentials(MegaUser *user, MegaRequestListener *listener
 
     requestQueue.push(request);
     waiter->notify();
+}
+
+char *MegaApiImpl::getMyRSAPrivateKey()
+{
+    SdkMutexGuard g(sdkMutex);
+    if (ISUNDEF(client->me) || client->mPrivKey.empty())
+    {
+        return nullptr;
+    }
+
+    return MegaApi::strdup(client->mPrivKey.c_str());
 }
 
 void MegaApiImpl::setLogLevel(int logLevel)
@@ -19788,6 +19803,12 @@ void MegaApiImpl::sendPendingRequests()
             const char *email = request->getEmail();
             User *u = client->finduser(email);
             if(!u || u->show == HIDDEN || u->userhandle == client->me) { e = API_EARGS; break; }
+            if (client->mBizMode == BIZ_MODE_SUBUSER && u->mBizMode != BIZ_MODE_UNKNOWN)
+            {
+                e = API_EMASTERONLY;
+                break;
+            }
+
             e = client->removecontact(email, HIDDEN);
             break;
         }
@@ -23362,46 +23383,6 @@ bool ExternalInputStream::read(byte *buffer, unsigned size)
     return inputStream->read((char *)buffer, size);
 }
 
-
-FileInputStream::FileInputStream(FileAccess *fileAccess)
-{
-    this->fileAccess = fileAccess;
-    this->offset = 0;
-}
-
-m_off_t FileInputStream::size()
-{
-    return fileAccess->size;
-}
-
-bool FileInputStream::read(byte *buffer, unsigned size)
-{
-    if (!buffer)
-    {
-        if ((offset + size) <= fileAccess->size)
-        {
-            offset += size;
-            return true;
-        }
-
-        LOG_warn << "Invalid seek on FileInputStream";
-        return false;
-    }
-
-    if (fileAccess->frawread(buffer, size, offset, true))
-    {
-        offset += size;
-        return true;
-    }
-
-    LOG_warn << "Invalid read on FileInputStream";
-    return false;
-}
-
-FileInputStream::~FileInputStream()
-{
-
-}
 
 MegaTreeProcCopy::MegaTreeProcCopy(MegaClient *client)
 {

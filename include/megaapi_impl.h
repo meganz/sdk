@@ -2069,6 +2069,7 @@ class MegaApiImpl : public MegaApp
         bool areCredentialsVerified(MegaUser *user);
         void verifyCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
         void resetCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
+        char* getMyRSAPrivateKey();
         static void setLogLevel(int logLevel);
         static void setMaxPayloadLogSize(long long maxSize);
         static void addLoggerClass(MegaLogger *megaLogger);
@@ -3047,18 +3048,6 @@ public:
     ExternalInputStream(MegaInputStream *inputStream);
     virtual m_off_t size();
     virtual bool read(byte *buffer, unsigned size);
-};
-
-class FileInputStream : public InputStreamAccess
-{
-    FileAccess *fileAccess;
-    m_off_t offset;
-
-public:
-    FileInputStream(FileAccess *fileAccess);
-    virtual m_off_t size();
-    virtual bool read(byte *buffer, unsigned size);
-    virtual ~FileInputStream();
 };
 
 #ifdef HAVE_LIBUV
