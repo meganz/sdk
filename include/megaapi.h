@@ -15657,6 +15657,7 @@ class MegaApi
          *  - MegaApi::PUSH_NOTIFICATION_ANDROID    = 1
          *  - MegaApi::PUSH_NOTIFICATION_IOS_VOIP   = 2
          *  - MegaApi::PUSH_NOTIFICATION_IOS_STD    = 3
+         *  - MegaApi::PUSH_NOTIFICATION_ANDROID_HUAWEI = 4
          *
          * The associated request type with this request is MegaRequest::TYPE_REGISTER_PUSH_NOTIFICATION
          * Valid data in the MegaRequest object received on callbacks:
