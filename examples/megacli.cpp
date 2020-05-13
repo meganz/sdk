@@ -410,7 +410,7 @@ void DemoApp::transfer_update(Transfer* /*t*/)
     // (this is handled in the prompt logic)
 }
 
-void DemoApp::transfer_failed(Transfer* t, error e, dstime, handle)
+void DemoApp::transfer_failed(Transfer* t, error e, dstime)
 {
     displaytransferdetails(t, "failed (");
     cout << errorstring(e) << ")" << endl;
@@ -3892,6 +3892,7 @@ void uploadLocalPath(nodetype_t type, std::string name, std::string localname, N
     }
     else if (type == FOLDERNODE && recursive)
     {
+
         if (previousNode)
         {
             if (previousNode->type == FILENODE)
