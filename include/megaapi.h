@@ -4154,6 +4154,9 @@ public:
      * the modification of the global parameters (dnd & schedule) or not.
      *
      * @return True if notifications are enabled, false if disabled
+     *
+     * @deprecated This method is deprecated, use isGlobalDndEnabled instead of this.
+     * Note that isGlobalDndEnabled returns the opposite value to isGlobalEnabled
      */
     virtual bool isGlobalEnabled() const;
 
@@ -4279,6 +4282,9 @@ public:
     /**
      * @brief Returns whether notifications about chats are enabled or not
      * @return True if enabled, false otherwise
+     *
+     * @deprecated This method is deprecated, use isGlobalChatsDndEnabled instead of this.
+     * Note that isGlobalChatsDndEnabled returns the opposite result to isChatsEnabled;
      */
     virtual bool isChatsEnabled() const;
 

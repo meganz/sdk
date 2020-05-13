@@ -31983,12 +31983,17 @@ MegaPushNotificationSettingsPrivate::~MegaPushNotificationSettingsPrivate()
 
 bool MegaPushNotificationSettingsPrivate::isGlobalEnabled() const
 {
-    return (mGlobalDND == -1 || (mGlobalDND > 0 && mGlobalDND < m_time(NULL)));
+    return !isGlobalDndEnabled();
 }
 
 bool MegaPushNotificationSettingsPrivate::isGlobalDndEnabled() const
 {
     return (mGlobalDND == 0 || mGlobalDND > m_time(NULL));
+}
+
+bool MegaPushNotificationSettingsPrivate::isChatsEnabled() const
+{
+    return !isGlobalChatsDndEnabled();
 }
 
 bool MegaPushNotificationSettingsPrivate::isGlobalChatsDndEnabled() const
@@ -32065,11 +32070,6 @@ bool MegaPushNotificationSettingsPrivate::isContactsEnabled() const
 bool MegaPushNotificationSettingsPrivate::isSharesEnabled() const
 {
     return (mSharesDND == -1 || (mSharesDND > 0 && mSharesDND < m_time(NULL)));
-}
-
-bool MegaPushNotificationSettingsPrivate::isChatsEnabled() const
-{
-    return (mGlobalChatsDND == -1 || (mGlobalChatsDND > 0 && mGlobalChatsDND < m_time(NULL)));
 }
 
 MegaPushNotificationSettings *MegaPushNotificationSettingsPrivate::copy() const
