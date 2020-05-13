@@ -47,7 +47,7 @@ const char* Command::getstring() const
     return json.c_str();
 }
 
-// add opcode
+//return true when the response is numeric or there is an error
 bool Command::checkError(int64_t& e, JSON& json, ErrorDetails& errorDetails)
 {
     e = API_EINTERNAL;
@@ -90,7 +90,6 @@ bool Command::checkError(int64_t& e, JSON& json, ErrorDetails& errorDetails)
                     default:
                         json.storeobject();
                         break;
-
                 }
             }
         }
@@ -99,6 +98,7 @@ bool Command::checkError(int64_t& e, JSON& json, ErrorDetails& errorDetails)
     }
 }
 
+// add opcode
 void Command::cmd(const char* cmd)
 {
     json.append("\"a\":\"");
