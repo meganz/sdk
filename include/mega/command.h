@@ -92,7 +92,7 @@ public:
     Command();
     virtual ~Command() = default;
 
-    bool static checkError(int64_t &e, JSON &json, ErrorDetails &errorDetails);
+    static bool checkError(int64_t &e, JSON &json, ErrorDetails &errorDetails);
 
     MEGA_DEFAULT_COPY_MOVE(Command)
 };
