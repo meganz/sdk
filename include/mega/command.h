@@ -101,8 +101,8 @@ class ErrorDetails
 {
 public:
     bool exits = false;
-    int64_t u = 0;
-    int64_t l = 0;
+    int64_t u = 0; // user status
+    int64_t l = 0; // link status
 };
 
 // list of new file attributes to write
