@@ -86,7 +86,6 @@ bool Command::checkError(int64_t& e, JSON& json, ErrorDetails& errorDetails)
                     case EOO:
                         json.leaveobject();
                         return true;
-                        break;
                     default:
                         json.storeobject();
                         break;
