@@ -6864,7 +6864,8 @@ class MegaApi
         enum {
             PUSH_NOTIFICATION_ANDROID = 1,
             PUSH_NOTIFICATION_IOS_VOIP = 2,
-            PUSH_NOTIFICATION_IOS_STD = 3
+            PUSH_NOTIFICATION_IOS_STD = 3,
+            PUSH_NOTIFICATION_ANDROID_HUAWEI = 4
         };
 
         enum {
