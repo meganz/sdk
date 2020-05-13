@@ -4177,7 +4177,7 @@ public:
      * @brief Returns the timestamp until the DND mode is enabled
      *
      * This method returns a valid value only if MegaPushNotificationSettings::isGlobalDndEnabled
-     * returns true and MegaPushNotificationSettings::isGlobalDndEnabled returns true.
+     * returns true.
      *
      * If there's no DND mode established, this function returns -1.
      * @note a DND value of 0 means the DND does not expire.
@@ -4250,7 +4250,7 @@ public:
      * @brief Returns the timestamp until the Do-Not-Disturb mode for a chat
      *
      * This method returns a valid value only if MegaPushNotificationSettings::isChatDndEnabled
-     * returns true and MegaPushNotificationSettings::isChatDndEnabled returns true.
+     * returns true.
      *
      * If there's no DND mode established for the specified chat, this function returns -1.
      * @note a DND value of 0 means the DND does not expire.
@@ -4295,7 +4295,7 @@ public:
      * @brief Returns the timestamp until the chats DND mode is enabled
      *
      * This method returns a valid value only if MegaPushNotificationSettings::isGlobalChatsDndEnabled
-     * returns true and MegaPushNotificationSettings::isGlobalChatsDndEnabled returns true.
+     * returns true.
      *
      * If there's no DND mode established, this function returns -1.
      * @note a DND value of 0 means the DND does not expire.
@@ -4389,7 +4389,7 @@ public:
      *
      * @param timestamp Timestamp until DND mode is enabled (in seconds since the Epoch)
      */
-    virtual void setChatsDnd(int64_t timestamp);
+    virtual void setGlobalChatsDnd(int64_t timestamp);
 
     /**
      * @brief Enable or disable "Always notify" setting

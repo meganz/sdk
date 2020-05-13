@@ -6477,7 +6477,7 @@ void MegaPushNotificationSettings::setChatDnd(MegaHandle /*chatid*/, int64_t /*t
 
 }
 
-void MegaPushNotificationSettings::setChatsDnd(int64_t /*timestamp*/)
+void MegaPushNotificationSettings::setGlobalChatsDnd(int64_t /*timestamp*/)
 {
 
 }

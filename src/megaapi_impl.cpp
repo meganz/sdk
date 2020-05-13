@@ -32162,7 +32162,7 @@ void MegaPushNotificationSettingsPrivate::setChatDnd(MegaHandle chatid, int64_t 
     mChatDND[chatid] = timestamp;
 }
 
-void MegaPushNotificationSettingsPrivate::setChatsDnd(int64_t timestamp)
+void MegaPushNotificationSettingsPrivate::setGlobalChatsDnd(int64_t timestamp)
 {
     assert(timestamp > 0);
     if (isGlobalChatsDndEnabled())
