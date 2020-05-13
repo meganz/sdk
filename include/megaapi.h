@@ -4176,8 +4176,8 @@ public:
     /**
      * @brief Returns the timestamp until the DND mode is enabled
      *
-     * This method returns a valid value only if MegaPushNotificationSettings::isGlobalEnabled
-     * returns false and MegaPushNotificationSettings::isGlobalDndEnabled returns true.
+     * This method returns a valid value only if MegaPushNotificationSettings::isGlobalDndEnabled
+     * returns true and MegaPushNotificationSettings::isGlobalDndEnabled returns true.
      *
      * If there's no DND mode established, this function returns -1.
      * @note a DND value of 0 means the DND does not expire.
@@ -4232,6 +4232,9 @@ public:
      *
      * @param chatid MegaHandle that identifies the chat room
      * @return True if enabled, false otherwise
+     *
+     * @deprecated This method is deprecated, use isChatDndEnabled instead of this.
+     * Note that isChatDndEnabled returns the opposite value to isChatEnabled
      */
     virtual bool isChatEnabled(MegaHandle chatid) const;
 
@@ -4246,8 +4249,8 @@ public:
     /**
      * @brief Returns the timestamp until the Do-Not-Disturb mode for a chat
      *
-     * This method returns a valid value only if MegaPushNotificationSettings::isChatEnabled
-     * returns false and MegaPushNotificationSettings::isChatDndEnabled returns true.
+     * This method returns a valid value only if MegaPushNotificationSettings::isChatDndEnabled
+     * returns true and MegaPushNotificationSettings::isChatDndEnabled returns true.
      *
      * If there's no DND mode established for the specified chat, this function returns -1.
      * @note a DND value of 0 means the DND does not expire.
@@ -4291,8 +4294,8 @@ public:
     /**
      * @brief Returns the timestamp until the chats DND mode is enabled
      *
-     * This method returns a valid value only if MegaPushNotificationSettings::isChatsEnabled
-     * returns false and MegaPushNotificationSettings::isGlobalChatsDndEnabled returns true.
+     * This method returns a valid value only if MegaPushNotificationSettings::isGlobalChatsDndEnabled
+     * returns true and MegaPushNotificationSettings::isGlobalChatsDndEnabled returns true.
      *
      * If there's no DND mode established, this function returns -1.
      * @note a DND value of 0 means the DND does not expire.

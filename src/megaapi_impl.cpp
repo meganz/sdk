@@ -32033,9 +32033,7 @@ const char *mega::MegaPushNotificationSettingsPrivate::getGlobalScheduleTimezone
 
 bool MegaPushNotificationSettingsPrivate::isChatEnabled(MegaHandle chatid) const
 {
-    std::map<uint64_t, m_time_t>::const_iterator it = mChatDND.find(chatid);
-    m_time_t chatDND = (it != mChatDND.end()) ? it->second : -1;
-    return (chatDND == -1 || (chatDND > 0 && chatDND < m_time(NULL)));
+    return !isChatDndEnabled(chatid);
 }
 
 bool MegaPushNotificationSettingsPrivate::isChatDndEnabled(MegaHandle chatid) const
@@ -32079,7 +32077,7 @@ MegaPushNotificationSettings *MegaPushNotificationSettingsPrivate::copy() const
 
 void MegaPushNotificationSettingsPrivate::enableGlobal(bool enable)
 {
-    if (isGlobalEnabled() == enable)
+    if (!isGlobalDndEnabled() == enable)
     {
         return;
     }
@@ -32090,7 +32088,7 @@ void MegaPushNotificationSettingsPrivate::enableGlobal(bool enable)
 void MegaPushNotificationSettingsPrivate::setGlobalDnd(int64_t timestamp)
 {
     assert(timestamp > 0);
-    if (!isGlobalEnabled())
+    if (isGlobalDndEnabled())
     {
         LOG_warn << "setGlobalDnd(): global notifications are currently disabled."
                     " Setting a new time period for DND mode";
@@ -32100,7 +32098,7 @@ void MegaPushNotificationSettingsPrivate::setGlobalDnd(int64_t timestamp)
 
 void MegaPushNotificationSettingsPrivate::disableGlobalDnd()
 {
-    if (!isGlobalEnabled())
+    if (isGlobalDndEnabled())
     {
         LOG_warn << "disableGlobalDnd(): global notifications were disabled. Now are enabled";
     }
@@ -32131,7 +32129,7 @@ void MegaPushNotificationSettingsPrivate::disableGlobalSchedule()
 void MegaPushNotificationSettingsPrivate::enableChat(MegaHandle chatid, bool enable)
 {
     assert(!ISUNDEF(chatid));
-    if (isChatEnabled(chatid) == enable)
+    if (!isChatDndEnabled(chatid) == enable)
     {
         return;
     }
@@ -32167,7 +32165,7 @@ void MegaPushNotificationSettingsPrivate::setChatDnd(MegaHandle chatid, int64_t 
 void MegaPushNotificationSettingsPrivate::setChatsDnd(int64_t timestamp)
 {
     assert(timestamp > 0);
-    if (!isChatsEnabled())
+    if (isGlobalChatsDndEnabled())
     {
         LOG_warn << "setChatsDnd(): global chats notifications are currently disabled."
                     " Setting a new time period for chats DND mode";
@@ -32180,9 +32178,9 @@ void MegaPushNotificationSettingsPrivate::enableChatAlwaysNotify(MegaHandle chat
     assert(!ISUNDEF(chatid));
     if (enable)
     {
-        if (!isChatEnabled(chatid) || isChatDndEnabled(chatid))
+        if (isChatDndEnabled(chatid))
         {
-            LOG_warn << "enableChatAlwaysNotify(): notifications are now enabled, DND mode is disabled";
+            LOG_warn << "enableChatAlwaysNotify(): notifications are now disabled, DND mode is enabled";
             enableChat(chatid, true);
         }
 
