@@ -9425,7 +9425,13 @@ public class MegaApiJava {
             case API_ESID:
                 return app.getString(R.string.api_esid);
             case API_EBLOCKED:
-                return app.getString(R.string.api_eblocked);
+                if (error.getErrorString().equals("Not accessible due to ToS/AUP violation")) {
+                    return app.getString(R.string.api_eblocked_ec_import_ec_download);
+                } else if (error.getErrorString().equals("Blocked")) {
+                    return app.getString(R.string.api_eblocked);
+                } else {
+                    return error.getErrorString();
+                }
             case API_EOVERQUOTA:
                 return app.getString(R.string.api_eoverquota);
             case API_ETEMPUNAVAIL:
