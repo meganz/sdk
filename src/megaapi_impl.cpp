@@ -31027,29 +31027,6 @@ MegaTextChatListPrivate::MegaTextChatListPrivate(textchat_map *list)
 }
 #endif
 
-
-PublicLinkProcessor::PublicLinkProcessor()
-{
-
-}
-
-bool PublicLinkProcessor::processNode(Node *node)
-{
-    if(node->plink)
-    {
-        nodes.push_back(node);
-    }
-
-    return true;
-}
-
-PublicLinkProcessor::~PublicLinkProcessor() {}
-
-vector<Node *> &PublicLinkProcessor::getNodes()
-{
-    return nodes;
-}
-
 MegaTransferDataPrivate::MegaTransferDataPrivate(TransferList *transferList, long long notificationNumber)
 {
     numDownloads = int(transferList->transfers[GET].size());
