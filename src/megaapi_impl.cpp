@@ -10439,9 +10439,16 @@ MegaNodeList *MegaApiImpl::getPublicLinks(int order)
 {
     sdkMutex.lock();
 
-    PublicLinkProcessor linkProcessor;
-    processTree(client->nodebyhandle(client->rootnodes[0]), &linkProcessor, true);
-    node_vector nodes = linkProcessor.getNodes();
+    Node *n;
+    node_vector nodes;
+    for (const auto& item : client->mPublicLinks)
+    {
+        n = client->nodebyhandle(item.second);
+        if (n)
+        {
+            nodes.emplace_back(n);
+        }
+    }
     sortByComparatorFunction(nodes, order, *client);
     MegaNodeList *nodeList = new MegaNodeListPrivate(nodes.data(), int(nodes.size()));
 
