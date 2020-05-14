@@ -557,6 +557,9 @@ if(WIN32)
     IF(USE_LIBUV)
         SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} Kernel32.lib Iphlpapi.lib Userenv.lib Psapi.lib )
     ENDIF(USE_LIBUV)
+    IF(USE_CURL)
+        SET(Mega_PlatformSpecificLibs Kernel32.lib ) # c-ares needs LoadLibrary
+    ENDIF(USE_LIBUV)
 
     SET(Mega_PlatformSpecificFiles ${MegaDir}/src/win32/console.cpp
     ${MegaDir}/src/win32/consolewaiter.cpp 

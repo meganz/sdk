@@ -30,7 +30,11 @@
 
 #define HAVE_FILESYSTEM
 
-#if (__cplusplus >= 201700L)
+#ifdef WINDOWS_PHONE
+    #define _SILENCE_EXPERIMENTAL_FILESYSTEM_DEPRECATION_WARNING
+    #include <experimental/filesystem>
+    namespace fs = std::experimental::filesystem;
+#elif (__cplusplus >= 201700L)
     #include <filesystem>
     namespace fs = std::filesystem;
 #else

@@ -4,6 +4,7 @@ SETLOCAL EnableExtensions
 set DIR=%~dp0
 
 set PORTS_FILE="%DIR%preferred-ports.txt"
+set PORTS_FOLDER="%DIR%vcpkg_extra_ports"
 set DEPS_FILE="%DIR%3rdparty_deps.txt"
 set OVERLAYTRIPLETS=--overlay-triplets=%DIR%vcpkg_extra_triplets
 
@@ -11,13 +12,14 @@ set OVERLAYTRIPLETS=--overlay-triplets=%DIR%vcpkg_extra_triplets
  if /I "%1" == "-h" ( goto Help ) ^
  else (if /I "%1" == "-r" (set REMOVEBEFORE=true)^
  else (if /I "%1" == "-d" (set DEPS_FILE=%2 & shift )^
- else (if /I "%1" == "-p" (set PORTS_FILE=%2 & shift )^
+ else (if /I "%1" == "-p" (set PORTS_FILE=%2& shift )^
+ else (if /I "%1" == "-pf" (set PORTS_FOLDER=%2& shift )^
  else (if /I "%1" == "-t" (set OVERLAYTRIPLETS=--overlay-triplets=%2 & shift )^
  else (if /I "%1" == "-o" (set OVERRIDEVCPKGPORTS=true)^
  else (^
  echo "%1"|>nul findstr /rx \"-.*\" && goto Help REM if parameter starts width - and has not been recognized, go to Help
  if "%1" neq "" (if "%TRIPLET%" == "" (set TRIPLET=%1% ))^
- else (goto :START)))))))
+ else (goto :START))))))))
  
  shift
  goto GETOPTS
@@ -39,7 +41,7 @@ Setlocal
 
 Setlocal EnableDelayedExpansion
 for /f "eol=# tokens=* delims=," %%l in ('type %PORTS_FILE%') do ^
-set "OVERLAYPORTS=--overlay-ports=%DIR%vcpkg_extra_ports/%%l !OVERLAYPORTS!"
+set "OVERLAYPORTS=--overlay-ports=%PORTS_FOLDER%/%%l !OVERLAYPORTS!"
 
 WHERE vcpkg >nul || set VCPKG=./vcpkg.exe & 2>nul ren %%~dpi.\ports ports_moved
 
@@ -63,7 +65,7 @@ exit /b 0
 echo "Overriding VCPKG ports with those in: %PORTS_FILE%" 
 
 for /f %%i IN ('WHERE vcpkg') DO ( set vcpkgports=%%~dpi.\ports )
-for /f "eol=# tokens=* delims=," %%l in ('type %PORTS_FILE%') do ( CALL :copyPort "%DIR%vcpkg_extra_ports\%%l" %vcpkgports%)
+for /f "eol=# tokens=* delims=," %%l in ('type %PORTS_FILE%') do ( CALL :copyPort "%PORTS_FOLDER%\%%l" %vcpkgports%)
 goto doBuild
 
 

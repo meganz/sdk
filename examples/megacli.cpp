@@ -31,10 +31,13 @@
 #include <readline/history.h>
 #endif
 
-#if (__cplusplus >= 201700L)
+#ifdef WINDOWS_PHONE
+    #define _SILENCE_EXPERIMENTAL_FILESYSTEM_DEPRECATION_WARNING
+    #include <experimental/filesystem>
+    namespace fs = std::experimental::filesystem;
+#elif (__cplusplus >= 201700L)
     #include <filesystem>
     namespace fs = std::filesystem;
-    #define USE_FILESYSTEM
 #elif !defined(__MINGW32__) && !defined(__ANDROID__) && (!defined(__GNUC__) || (__GNUC__*100+__GNUC_MINOR__) >= 503)
 #define USE_FILESYSTEM
 #ifdef WIN32

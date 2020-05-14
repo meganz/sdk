@@ -517,7 +517,9 @@ bool WinConsole::setShellConsole(UINT codepage, UINT failover_codepage)
     if (!ok)
     {
         codepage = CP_UTF8;
+#ifndef WINDOWS_PHONE
         failover_codepage = GetOEMCP();
+#endif
         SetConsoleCP(codepage);
         SetConsoleOutputCP(codepage);
     }
