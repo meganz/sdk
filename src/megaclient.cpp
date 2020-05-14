@@ -23,6 +23,7 @@
 #include "mega/mediafileattribute.h"
 #include <cctype>
 #include <algorithm>
+#include <future>
 
 #undef min // avoid issues with std::min and std::max
 #undef max
@@ -33,6 +34,83 @@ namespace mega {
 // FIXME: support invite links (including responding to sharekey requests)
 // FIXME: instead of copying nodes, move if the source is in the rubbish to reduce node creation load on the servers
 // FIXME: prevent synced folder from being moved into another synced folder
+
+
+void MegaClientAsyncQueue::push(std::function<void(SymmCipher&)> f)
+{
+    if (mThreads.empty())
+    {
+        if (f)
+        {
+            f(mZeroThreadsCipher);
+        }
+    }
+    else
+    {
+        {
+            std::lock_guard<std::mutex> g(mMutex);
+            mQueue.emplace_back(std::move(f));
+        }
+        mConditionVariable.notify_one();
+    }
+}
+
+MegaClientAsyncQueue::MegaClientAsyncQueue(Waiter& w, unsigned threadCount)
+    : mWaiter(w)
+{
+    for (int i = threadCount; i--; )
+    {
+        try
+        {
+            mThreads.emplace_back([this]()
+            {
+                asyncThreadLoop();
+            });
+        }
+        catch (std::system_error& e)
+        {
+            LOG_err << "Failed to start worker thread: " << e.what();
+            break;
+        }
+    }
+    LOG_debug << "MegaClient Worker threads running: " << mThreads.size();
+}
+
+MegaClientAsyncQueue::~MegaClientAsyncQueue()
+{
+    clearQueue();
+    push(nullptr);
+    mConditionVariable.notify_all();
+    for (auto& t : mThreads)
+    {
+        t.join();
+    }
+}
+
+void MegaClientAsyncQueue::clearQueue()
+{
+    std::lock_guard<std::mutex> g(mMutex);
+    mQueue.clear();
+}
+
+void MegaClientAsyncQueue::asyncThreadLoop()
+{
+    SymmCipher cipher;
+    for (;;)
+    {
+        std::function<void(SymmCipher&)> f;
+        {
+            std::unique_lock<std::mutex> g(mMutex);
+            mConditionVariable.wait(g, [this]() { return !mQueue.empty(); });
+            f = std::move(mQueue.front());
+            if (!f) return;   // nullptr is not popped, and causes all the threads to exit
+            mQueue.pop_front();
+        }
+        f(cipher);
+        mWaiter.notify();
+    }
+}
+
 
 bool MegaClient::disablepkp = false;
 
@@ -1080,11 +1158,12 @@ void MegaClient::init()
     mNodeCounters = NodeCounterMap();
 }
 
-MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, DbAccess* d, GfxProc* g, const char* k, const char* u)
+MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, DbAccess* d, GfxProc* g, const char* k, const char* u, unsigned workerThreadCount)
     : useralerts(*this), btugexpiration(rng), btcs(rng), btbadhost(rng), btworkinglock(rng), btsc(rng), btpfa(rng)
 #ifdef ENABLE_SYNC
     ,syncfslockretrybt(rng), syncdownbt(rng), syncnaglebt(rng), syncextrabt(rng), syncscanbt(rng)
 #endif
+    , mAsyncQueue(*w, workerThreadCount)
 {
     sctable = NULL;
     pendingsccommit = false;
@@ -3388,7 +3467,7 @@ void MegaClient::dispatchTransfers()
                     // generate fresh random encryption key/CTR IV for this file
                     byte keyctriv[SymmCipher::KEYLENGTH + sizeof(int64_t)];
                     rng.genblock(keyctriv, sizeof keyctriv);
-                    memcpy(nexttransfer->transferkey, keyctriv, SymmCipher::KEYLENGTH);
+                    memcpy(nexttransfer->transferkey.data(), keyctriv, SymmCipher::KEYLENGTH);
                     nexttransfer->ctriv = MemAccess::get<uint64_t>((const char*)keyctriv + SymmCipher::KEYLENGTH);
                 }
                 else
@@ -3422,8 +3501,8 @@ void MegaClient::dispatchTransfers()
 
                         if (k)
                         {
-                            memcpy(nexttransfer->transferkey, k, SymmCipher::KEYLENGTH);
-                            SymmCipher::xorblock(k + SymmCipher::KEYLENGTH, nexttransfer->transferkey);
+                            memcpy(nexttransfer->transferkey.data(), k, SymmCipher::KEYLENGTH);
+                            SymmCipher::xorblock(k + SymmCipher::KEYLENGTH, nexttransfer->transferkey.data());
                             nexttransfer->ctriv = MemAccess::get<int64_t>((const char*)k + SymmCipher::KEYLENGTH);
                             nexttransfer->metamac = MemAccess::get<int64_t>((const char*)k + SymmCipher::KEYLENGTH + sizeof(int64_t));
                             break;
@@ -3878,6 +3957,8 @@ void MegaClient::logout()
 
 void MegaClient::locallogout(bool removecaches)
 {
+    mAsyncQueue.clearQueue();
+
     if (removecaches)
     {
         removeCaches();

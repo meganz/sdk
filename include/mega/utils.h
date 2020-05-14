@@ -428,7 +428,7 @@ public:
     void calcprogress(m_off_t size, m_off_t& chunkpos, m_off_t& completedprogress, m_off_t* lastblockprogress = nullptr);
     m_off_t nextUnprocessedPosFrom(m_off_t pos);
     m_off_t expandUnprocessedPiece(m_off_t pos, m_off_t npos, m_off_t fileSize, m_off_t maxReqSize);
-    void finishedUploadChunks(m_off_t pos, m_off_t size);
+    void finishedUploadChunks(m_off_t pos, m_off_t size, chunkmac_map& macs);
 };
 
 struct CacheableWriter

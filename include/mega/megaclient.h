@@ -22,6 +22,9 @@
 #ifndef MEGACLIENT_H
 #define MEGACLIENT_H 1
 
+#include <condition_variable>
+#include <thread>
+
 #include "json.h"
 #include "db.h"
 #include "gfx.h"
@@ -179,6 +182,31 @@ public:
      */
     dstime timeToTransfersResumed;
 };
+
+
+// Helper class for MegaClient.  
+// Maintains a small thread pool for executing independent operations such as encrypt/decrypt a block of data
+// The number of threads can be 0 (eg. for helper MegaApi that deals with public folder links) in which case something queued is 
+// immediately executed synchronously on the caller's thread
+struct MegaClientAsyncQueue
+{
+    void push(std::function<void(SymmCipher&)> f);
+    void clearQueue();
+
+    MegaClientAsyncQueue(Waiter& w, unsigned threadCount);
+    ~MegaClientAsyncQueue();
+
+private:
+    Waiter& mWaiter;
+    std::mutex mMutex;
+    std::condition_variable mConditionVariable;
+    std::deque<std::function<void(SymmCipher&)>> mQueue;
+    std::vector<std::thread> mThreads;
+    SymmCipher mZeroThreadsCipher;
+
+    void asyncThreadLoop();
+};
+
 
 class MEGA_API MegaClient
 {
@@ -1595,6 +1623,8 @@ public:
     // whether the destructor has started running yet
     bool destructorRunning = false;
   
+    MegaClientAsyncQueue mAsyncQueue;
+
     // Keep track of high level operation counts and times, for performance analysis
     struct PerformanceStats
     {
@@ -1621,7 +1651,7 @@ public:
     void resetSyncConfigs();
 #endif
 
-    MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
+    MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
     ~MegaClient();
 };
 } // namespace

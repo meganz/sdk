@@ -6935,8 +6935,12 @@ class MegaApi
          * @param userAgent User agent to use in network requests
          * If you pass NULL to this parameter, a default user agent will be used
          *
+         * @param workerThreadCount The number of worker threads for encryption or other operations
+         * Using worker threads means that synchronous function calls on MegaApi will be blocked less,
+         * and uploads and downloads can proceed more quickly on very fast connections.
+         *
          */
-        MegaApi(const char *appKey, const char *basePath = NULL, const char *userAgent = NULL);
+        MegaApi(const char *appKey, const char *basePath = NULL, const char *userAgent = NULL, unsigned workerThreadCount = 1);
 
         /**
          * @brief MegaApi Constructor that allows to use a custom GFX processor
@@ -6959,8 +6963,12 @@ class MegaApi
          * @param userAgent User agent to use in network requests
          * If you pass NULL to this parameter, a default user agent will be used
          *
+         * @param workerThreadCount The number of worker threads for encryption or other operations
+         * Using worker threads means that synchronous function calls on MegaApi will be blocked less,
+         * and uploads and downloads can proceed more quickly on very fast connections.
+         *
          */
-        MegaApi(const char *appKey, MegaGfxProcessor* processor, const char *basePath = NULL, const char *userAgent = NULL);
+        MegaApi(const char *appKey, MegaGfxProcessor* processor, const char *basePath = NULL, const char *userAgent = NULL, unsigned workerThreadCount = 1);
 
 #ifdef ENABLE_SYNC
         /**
@@ -6998,8 +7006,12 @@ class MegaApi
          *
          * @param fseventsfd Open file descriptor of /dev/fsevents
          *
+         * @param workerThreadCount The number of worker threads for encryption or other operations
+         * Using worker threads means that synchronous function calls on MegaApi will be blocked less,
+         * and uploads and downloads can proceed more quickly on very fast connections.
+         *
          */
-        MegaApi(const char *appKey, const char *basePath, const char *userAgent, int fseventsfd);
+        MegaApi(const char *appKey, const char *basePath, const char *userAgent, int fseventsfd, unsigned workerThreadCount = 1);
 #endif
 
         virtual ~MegaApi();

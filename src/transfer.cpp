@@ -153,7 +153,7 @@ bool Transfer::serialize(string *d)
     d->append((const char*)filekey, sizeof(filekey));
     d->append((const char*)&ctriv, sizeof(ctriv));
     d->append((const char*)&metamac, sizeof(metamac));
-    d->append((const char*)transferkey, sizeof (transferkey));
+    d->append((const char*)transferkey.data(), sizeof (transferkey));
 
     chunkmacs.serialize(*d);
 
@@ -243,7 +243,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     t->metamac = MemAccess::get<int64_t>(ptr);
     ptr += sizeof(int64_t);
 
-    memcpy(t->transferkey, ptr, SymmCipher::KEYLENGTH);
+    memcpy(t->transferkey.data(), ptr, SymmCipher::KEYLENGTH);
     ptr += SymmCipher::KEYLENGTH;
 
     t->localfilename.assign(filepath, ll);
@@ -359,7 +359,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
 
 SymmCipher *Transfer::transfercipher()
 {
-    client->tmptransfercipher.setkey(transferkey);
+    client->tmptransfercipher.setkey(transferkey.data());
     return &client->tmptransfercipher;
 }
 
@@ -1286,7 +1286,7 @@ void DirectReadNode::enqueue(m_off_t offset, m_off_t count, int reqtag, void* ap
 bool DirectReadSlot::processAnyOutputPieces()
 {
     bool continueDirectRead = true;
-    TransferBufferManager::FilePiece* outputPiece;
+    std::shared_ptr<TransferBufferManager::FilePiece> outputPiece;
     while (continueDirectRead && (outputPiece = dr->drbuf.getAsyncOutputBufferPointer(0)))
     {
         size_t len = outputPiece->buf.datalen();

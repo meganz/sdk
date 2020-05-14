@@ -5034,22 +5034,22 @@ MegaTransferPrivate *MegaApiImpl::getMegaTransferPrivate(int tag)
 
 ExternalLogger MegaApiImpl::externalLogger;
 
-MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent)
+MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, unsigned workerThreadCount)
 {
-    init(api, appKey, processor, basePath, userAgent);
+    init(api, appKey, processor, basePath, userAgent, -1, workerThreadCount);
 }
 
-MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, const char *basePath, const char *userAgent)
+MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, const char *basePath, const char *userAgent, unsigned workerThreadCount)
 {
-    init(api, appKey, NULL, basePath, userAgent);
+    init(api, appKey, NULL, basePath, userAgent, -1, workerThreadCount);
 }
 
-MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, const char *basePath, const char *userAgent, int fseventsfd)
+MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, const char *basePath, const char *userAgent, int fseventsfd, unsigned workerThreadCount)
 {
-    init(api, appKey, NULL, basePath, userAgent, fseventsfd);
+    init(api, appKey, NULL, basePath, userAgent, fseventsfd, workerThreadCount);
 }
 
-void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, int fseventsfd)
+void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, int fseventsfd, unsigned clientWorkerThreadCount)
 {
     this->api = api;
 
@@ -5143,7 +5143,7 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     {
         this->appKey = appKey;
     }
-    client = new MegaClient(this, waiter, httpio, fsAccess, dbAccess, gfxAccess, appKey, userAgent);
+    client = new MegaClient(this, waiter, httpio, fsAccess, dbAccess, gfxAccess, appKey, userAgent, clientWorkerThreadCount);
 
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
     httpio->unlock();

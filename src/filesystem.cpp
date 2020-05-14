@@ -154,7 +154,7 @@ void FileSystemAccess::normalize(string* filename) const
         i += strlen(substring);
     }
 
-    *filename = result;
+    *filename = std::move(result);
 }
 
 // convert from local encoding, then unescape escaped forbidden characters

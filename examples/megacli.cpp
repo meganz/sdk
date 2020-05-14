@@ -4188,7 +4188,8 @@ void exec_open(autocomplete::ACState& s)
                                             "Gk8DyQBS",
                                             "megacli_folder/" TOSTRING(MEGA_MAJOR_VERSION)
                                             "." TOSTRING(MEGA_MINOR_VERSION)
-                                            "." TOSTRING(MEGA_MICRO_VERSION));
+                                            "." TOSTRING(MEGA_MICRO_VERSION),
+                                            2);
         }
         else
         {
@@ -7878,7 +7879,8 @@ int main()
                             "Gk8DyQBS",
                             "megacli/" TOSTRING(MEGA_MAJOR_VERSION)
                             "." TOSTRING(MEGA_MINOR_VERSION)
-                            "." TOSTRING(MEGA_MICRO_VERSION));
+                            "." TOSTRING(MEGA_MICRO_VERSION),
+                            2);
 
     ac::ACN acs = autocompleteSyntax();
 #if defined(WIN32) && defined(NO_READLINE)

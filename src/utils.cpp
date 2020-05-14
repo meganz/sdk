@@ -317,15 +317,13 @@ m_off_t chunkmac_map::expandUnprocessedPiece(m_off_t pos, m_off_t npos, m_off_t 
     return npos;
 }
 
-void chunkmac_map::finishedUploadChunks(m_off_t pos, m_off_t size)
+void chunkmac_map::finishedUploadChunks(m_off_t pos, m_off_t size, chunkmac_map& macs)
 {
-    m_off_t startpos = pos;
-    m_off_t finalpos = startpos + size;
-    while (startpos < finalpos)
+    for (auto& m : macs)
     {
-        (*this)[startpos].finished = true;
-        LOG_verbose << "Upload chunk completed: " << startpos;
-        startpos = ChunkedHash::chunkceil(startpos, finalpos);
+        m.second.finished = true;
+        (*this)[m.first] = m.second;
+        LOG_verbose << "Upload chunk completed: " << m.first;
     }
 }
 
@@ -336,6 +334,8 @@ int64_t chunkmac_map::macsmac(SymmCipher *cipher)
 
     for (chunkmac_map::iterator it = begin(); it != end(); it++)
     {
+        assert(it->first == ChunkedHash::chunkfloor(it->first));
+        // LOG_debug << "macsmac input: " << it->first << ": " << Base64Str<sizeof it->second.mac>(it->second.mac);
         SymmCipher::xorblock(it->second.mac, mac);
         cipher->ecb_encrypt(mac);
     }
