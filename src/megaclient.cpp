@@ -451,8 +451,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
                 if (n->localnode && (n->localnode->sync->state == SYNC_ACTIVE || n->localnode->sync->state == SYNC_INITIALSCAN))
                 {
                     LOG_warn << "Existing inbound share sync or part thereof lost full access";
-                    n->localnode->sync->errorcode = API_EACCESS;
-                    n->localnode->sync->changestate(SYNC_FAILED);
+                    n->localnode->sync->changestate(SYNC_FAILED, SHARE_NON_FULL_ACCESS);
                 }
             } while ((n = n->parent));
 
@@ -462,8 +461,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
                 if ((*it)->inshare && ((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN) && !checkaccess((*it)->localroot->node, FULL))
                 {
                     LOG_warn << "Existing inbound share sync lost full access";
-                    (*it)->errorcode = API_EACCESS;
-                    (*it)->changestate(SYNC_FAILED);
+                    (*it)->changestate(SYNC_FAILED, SHARE_NON_FULL_ACCESS);
                 }
             }
 
@@ -2275,8 +2273,7 @@ void MegaClient::exec()
                 {
                     LOG_err << "Local fingerprint mismatch. Previous: " << (*it)->fsfp
                             << "  Current: " << current;
-                    (*it)->errorcode = API_EFAILED;
-                    (*it)->changestate(SYNC_FAILED);
+                    (*it)->changestate(SYNC_FAILED, LOCAL_FINGERPRINT_MISMATCH);
                 }
             }
         }
@@ -2562,8 +2559,7 @@ void MegaClient::exec()
                         if (!(*it)->localroot->node)
                         {
                             LOG_err << "The remote root node doesn't exist";
-                            (*it)->errorcode = API_ENOENT;
-                            (*it)->changestate(SYNC_FAILED);
+                            (*it)->changestate(SYNC_FAILED, REMOTE_NODE_NOT_FOUND);
                         }
                     }
 
@@ -2749,8 +2745,7 @@ void MegaClient::exec()
                         if (!(*it)->localroot->node)
                         {
                             LOG_err << "The remote root node doesn't exist";
-                            (*it)->errorcode = API_ENOENT;
-                            (*it)->changestate(SYNC_FAILED);
+                            (*it)->changestate(SYNC_FAILED, REMOTE_NODE_NOT_FOUND);
                         }
                         else
                         {
@@ -6612,7 +6607,7 @@ void MegaClient::notifypurge(void)
             if (((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN)
              && (*it)->localroot->node->changed.removed)
             {
-                delsync(*it);
+                failSync(*it, INITIAL_SCAN_FAILED);
             }
         }
 #endif
@@ -12236,7 +12231,7 @@ error MegaClient::addsync(SyncConfig syncConfig, const char* debris, string* loc
             else
             {
                 LOG_err << "Initial scan failed";
-                sync->changestate(SYNC_FAILED);
+                sync->changestate(SYNC_FAILED, INITIAL_SCAN_FAILED);
                 syncError = INITIAL_SCAN_FAILED;
                 delete sync;
                 e = API_EFAILED;
@@ -13384,8 +13379,8 @@ void MegaClient::putnodes_sync_result(error e, NewNode* nn, int nni)
 
         if (e && e != API_EEXPIRED && nn[nni].localnode && nn[nni].localnode->sync)
         {
-            nn[nni].localnode->sync->errorcode = e;
-            nn[nni].localnode->sync->changestate(SYNC_FAILED);
+            nn[nni].localnode->sync->apiErrorCode = e;
+            nn[nni].localnode->sync->changestate(SYNC_FAILED, PUT_NODES_ERROR);
         }
     }
 
@@ -13405,7 +13400,7 @@ void MegaClient::movetosyncdebris(Node* dn, bool unlink)
     if (dn->localnode)
     {
         dn->tag = dn->localnode->sync->tag;
-        dn->localnode->node = NULL;
+        dn->localnode->node = NULL; //TODO: this will cause a later REMOTE_NODE_NOT_FOUND. somehow we need to identify this to produce a REMOTE_NODE_MOVED_TO_SYNC_DEBRIS error
         dn->localnode = NULL;
     }
 
@@ -13677,14 +13672,23 @@ void MegaClient::delsync(Sync* sync)
     syncactivity = true;
 }
 
-
-// we cannot delete the Sync object directly, as it might have pending
-// operations on it
-void MegaClient::disableSync(Sync* sync)
+void MegaClient::failSync(Sync* sync, syncerror_t syncerror)
 {
-    sync->changestate(SYNC_DISABLED); //This will cause the later deletion of Sync object
+    sync->changestate(SYNC_FAILED, syncerror);
 
-    sync->setEnabled(false);
+    syncactivity = true;
+}
+
+
+void MegaClient::disableSync(Sync* sync, syncerror_t syncError)
+{
+    sync->errorcode = syncError;
+    sync->changestate(SYNC_DISABLED, syncError); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
+
+    if (syncError == NO_ERROR)
+    {
+        sync->setEnabled(false);
+    }
 
     syncactivity = true;
 }

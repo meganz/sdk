@@ -76,7 +76,7 @@ public:
     // returns the sync config
     const SyncConfig& getConfig() const;
 
-    // sets whether this sync is resumable (default is true)
+    // sets whether this sync is enabled by the user (default is true)
     void setEnabled(bool isEnabled);
 
     void* appData = nullptr;
@@ -122,7 +122,7 @@ public:
     void cachenodes();
 
     // change state, signal to application
-    void changestate(syncstate_t);
+    void changestate(syncstate_t, syncerror_t newSyncError = NO_ERROR);
 
     // process and remove one directory notification queue item from *notify
     dstime procscanq(int);
@@ -176,7 +176,8 @@ public:
     bool fsstableids = false;
 
     // Error that causes a cancellation
-    error errorcode = API_OK;
+    syncerror_t errorcode = NO_ERROR;
+    error apiErrorCode; //in case a cancellation is caused by a regular error (unused)
 
     // true if the sync hasn't loaded cached LocalNodes yet
     bool initializing = true;

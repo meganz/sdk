@@ -4821,7 +4821,9 @@ public:
         BUSINESS_EXPIRED = 10,
         FOREIGN_TARGET_OVERSTORAGE = 11,
         REMOTE_PATH_HAS_CHANGED = 12,
-
+        SHARE_NON_FULL_ACCESS = 13, //Existing inbound share sync or part thereof lost full access
+        LOCAL_FINGERPRINT_MISMATCH = 14,
+        PUT_NODES_ERROR = 15,
     };
 
     virtual ~MegaSync();
@@ -4896,8 +4898,11 @@ public:
 
 
     /*TODO: doc*/
-    virtual bool isEnabled() const;
-    virtual bool isTemporaryDisabled() const;
+    virtual bool isEnabled() const; // enabled by user
+
+    virtual bool isActive() const; // not disabled by user nor failed (nor being removed)
+
+    virtual bool isTemporaryDisabled() const; //disabled automatically for a transient reason
 
 
     /**

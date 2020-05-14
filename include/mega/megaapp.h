@@ -282,7 +282,7 @@ struct MEGA_API MegaApp
     virtual void transfer_complete(Transfer*) { }
 
     // sync status updates and events
-    virtual void syncupdate_state(Sync*, syncstate_t) { }
+    virtual void syncupdate_state(Sync*, syncstate_t, syncerror_t) { }
     virtual void syncupdate_scanning(bool) { }
     virtual void syncupdate_local_folder_addition(Sync*, LocalNode*, const char*) { }
     virtual void syncupdate_local_folder_deletion(Sync*, LocalNode*) { }
@@ -315,6 +315,7 @@ struct MEGA_API MegaApp
 
     // after reading (and if resumable) adding a sync
     virtual void sync_load(const SyncConfig &, int) { }
+    virtual void sync_removed(Sync *, int ) { }
 
     // suggest reload due to possible race condition with other clients
     virtual void reload(const char*) { }

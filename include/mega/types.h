@@ -280,7 +280,7 @@ typedef enum { PUTNODES_APP, PUTNODES_SYNC, PUTNODES_SYNCDEBRIS } putsource_t;
 typedef map<pair<handle, fatype>, pair<handle, int> > fa_map;
 
 typedef enum {
-    SYNC_DISABLED = -3, //user disabled
+    SYNC_DISABLED = -3, //user disabled (if no syncError, otherwise automatically disabled . i.e SYNC_TEMPORARY_DISABLED)
     SYNC_FAILED = -2,
     SYNC_CANCELED = -1, // being deleted
     SYNC_INITIALSCAN = 0,
@@ -302,6 +302,9 @@ typedef enum {
     BUSINESS_EXPIRED = 10,
     FOREIGN_TARGET_OVERSTORAGE = 11,
     REMOTE_PATH_HAS_CHANGED = 12,
+    SHARE_NON_FULL_ACCESS = 13, //Existing inbound share sync or part thereof lost full access
+    LOCAL_FINGERPRINT_MISMATCH = 14,
+    PUT_NODES_ERROR = 15,
 } syncerror_t;
 
 static bool isMegaSyncErrorPermanent(int e)

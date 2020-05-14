@@ -1011,6 +1011,7 @@ public:
     void setListener(MegaSyncListener *listener);
     MegaSyncListener *getListener();
     virtual int getState() const;
+
     void setState(int state);
     virtual MegaRegExp* getRegExp() const;
     void setRegExp(MegaRegExp *regExp);
@@ -1018,10 +1019,11 @@ public:
     virtual int getError() const;
     void setError(int error);
 
-    virtual bool isEnabled() const;
-    virtual bool isTemporaryDisabled() const;
+    void disable(int error = NO_ERROR); //disable. NO_ERROR = user disable
 
-    void setTemporaryDisabled(bool temporaryDisabled);
+    virtual bool isEnabled() const; //enabled by user
+    virtual bool isActive() const; //not disabled by user nor failed (nor being removed)
+    virtual bool isTemporaryDisabled() const; //disabled automatically for a transient reason
 
 protected:
     MegaHandle megaHandle;
@@ -1035,10 +1037,10 @@ protected:
     //holds error cause
     int mError;
 
-    // if temporarily disabled
-    bool mTemporaryDisabled;
+    // if temporarily disabled. No need to store this: state == SYNC_DISABLED with mError != NO_ERROR
+//    bool mTemporaryDisabled;
 
-    // if sync is enabled. No need to store this: state != SYNC_FAILED, SYNC_CANCELED,SYNC_DISABLED
+    // if sync is enabled. No need to store this: state != SYNC_DISABLED (or state == SYNC_DISABLED but due to a transient error)
     //bool mEnabled;
 
 
@@ -2654,6 +2656,12 @@ protected:
         void fireOnSyncAdded(MegaSyncPrivate *sync);
         void fireonSyncDeleted(MegaSyncPrivate *sync);
         void fireOnFileSyncStateChanged(MegaSyncPrivate *sync, string *localPath, int newState);
+
+        /**
+         * @brief updates sync state and fires change for app's callbacks
+         */
+        void updateMegaSyncPrivateState(MegaSyncPrivate*, syncstate_t, syncerror_t);
+
 #endif
 
 #ifdef ENABLE_CHAT
@@ -2965,7 +2973,7 @@ protected:
 
 #ifdef ENABLE_SYNC
         // sync status updates and events
-        void syncupdate_state(Sync*, syncstate_t) override;
+        void syncupdate_state(Sync*, syncstate_t, syncerror_t) override;
         void syncupdate_scanning(bool scanning) override;
         void syncupdate_local_folder_addition(Sync* sync, LocalNode *localNode, const char *path) override;
         void syncupdate_local_folder_deletion(Sync* sync, LocalNode *localNode) override;
@@ -2987,6 +2995,7 @@ protected:
         bool sync_syncable(Sync *, const char*, string *) override;
 
         void sync_load(const SyncConfig &config, int error) override;
+        void sync_removed(Sync *sync, int error) override;
 
         void syncupdate_local_lockretry(bool) override;
 

@@ -5440,11 +5440,15 @@ bool MegaSync::isEnabled() const
     return true;
 }
 
-bool MegaSync::isTemporaryDisabled() const
+bool MegaSync::isActive() const
 {
     return false;
 }
 
+bool MegaSync::isTemporaryDisabled() const
+{
+    return false;
+}
 
 const char* MegaSync::getMegaSyncErrorCode()
 {

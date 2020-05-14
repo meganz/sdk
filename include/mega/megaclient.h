@@ -535,8 +535,11 @@ public:
 
     void delsync(Sync*);
 
-    // disable synchronization. Won't be resumed automatically anymore, but keep it in cache
-    void disableSync(Sync*);
+    void failSync(Sync* sync, syncerror_t syncerror);
+
+    // disable synchronization.
+    // If no error passed, it entails a manual disable: won't be resumed automatically anymore, but it will be kept in cache
+    void disableSync(Sync*, syncerror_t syncError =  NO_ERROR);
 
     // close all open HTTP connections
     void disconnect();

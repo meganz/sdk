@@ -656,7 +656,7 @@ Sync::Sync(MegaClient* cclient, SyncConfig config, const char* cdebris,
     tag = ctag;
     inshare = cinshare;
     appData = cappdata;
-    errorcode = API_OK;
+    errorcode = NO_ERROR;
     tmpfa = NULL;
     initializing = true;
     updatedfilesize = ~0;
@@ -975,20 +975,23 @@ void Sync::cachenodes()
     }
 }
 
-void Sync::changestate(syncstate_t newstate)
+void Sync::changestate(syncstate_t newstate, syncerror_t newSyncError)
 {
-    if (newstate != state)
+    if (newstate != state || newSyncError != errorcode )
     {
-        client->app->syncupdate_state(this, newstate);
+        client->app->syncupdate_state(this, newstate, newSyncError);
 
-        if (newstate == SYNC_FAILED && statecachetable)
-        {
-            statecachetable->remove();
-            delete statecachetable;
-            statecachetable = NULL;
-        }
+        //        if (newstate == SYNC_FAILED && statecachetable)
+        //        {
+        //            statecachetable->remove();
+        //            delete statecachetable;
+        //            statecachetable = NULL;
+        //        }
+
+        //TODO: review: should syncConfig be udpated / cached persisted? (true for non temporary errors at least!)
 
         state = newstate;
+        errorcode = newSyncError;
         fullscan = false;
     }
 }
@@ -1698,8 +1701,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                 {
                     // root node cannot be a file
                     LOG_err << "The local root node is a file";
-                    errorcode = API_EFAILED;
-                    changestate(SYNC_FAILED);
+                    changestate(SYNC_FAILED, INVALID_LOCAL_TYPE);
                 }
                 else
                 {
