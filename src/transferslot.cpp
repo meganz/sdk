@@ -445,7 +445,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                 }
             }
 
-            switch (reqs[i]->status)
+            switch (static_cast<reqstatus_t>(reqs[i]->status))
             {
                 case REQ_INFLIGHT:
                     p += reqs[i]->transferred(client);
