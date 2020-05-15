@@ -36,82 +36,6 @@ namespace mega {
 // FIXME: prevent synced folder from being moved into another synced folder
 
 
-void MegaClientAsyncQueue::push(std::function<void(SymmCipher&)> f)
-{
-    if (mThreads.empty())
-    {
-        if (f)
-        {
-            f(mZeroThreadsCipher);
-        }
-    }
-    else
-    {
-        {
-            std::lock_guard<std::mutex> g(mMutex);
-            mQueue.emplace_back(std::move(f));
-        }
-        mConditionVariable.notify_one();
-    }
-}
-
-MegaClientAsyncQueue::MegaClientAsyncQueue(Waiter& w, unsigned threadCount)
-    : mWaiter(w)
-{
-    for (int i = threadCount; i--; )
-    {
-        try
-        {
-            mThreads.emplace_back([this]()
-            {
-                asyncThreadLoop();
-            });
-        }
-        catch (std::system_error& e)
-        {
-            LOG_err << "Failed to start worker thread: " << e.what();
-            break;
-        }
-    }
-    LOG_debug << "MegaClient Worker threads running: " << mThreads.size();
-}
-
-MegaClientAsyncQueue::~MegaClientAsyncQueue()
-{
-    clearQueue();
-    push(nullptr);
-    mConditionVariable.notify_all();
-    for (auto& t : mThreads)
-    {
-        t.join();
-    }
-}
-
-void MegaClientAsyncQueue::clearQueue()
-{
-    std::lock_guard<std::mutex> g(mMutex);
-    mQueue.clear();
-}
-
-void MegaClientAsyncQueue::asyncThreadLoop()
-{
-    SymmCipher cipher;
-    for (;;)
-    {
-        std::function<void(SymmCipher&)> f;
-        {
-            std::unique_lock<std::mutex> g(mMutex);
-            mConditionVariable.wait(g, [this]() { return !mQueue.empty(); });
-            f = std::move(mQueue.front());
-            if (!f) return;   // nullptr is not popped, and causes all the threads to exit
-            mQueue.pop_front();
-        }
-        f(cipher);
-        mWaiter.notify();
-    }
-}
-
-
 bool MegaClient::disablepkp = false;
 
 // root URL for API access
@@ -10917,6 +10841,7 @@ void MegaClient::closetc(bool remove)
 
     for (int d = GET; d == GET || d == PUT; d += PUT - GET)
     {
+        DBTableTransactionCommitter committer(tctable);
         while (cachedtransfers[d].size())
         {
             transfer_map::iterator it = cachedtransfers[d].begin();
