@@ -5119,12 +5119,14 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     if(processor)
     {
         GfxProcExternal *externalGfx = new GfxProcExternal();
+        externalGfx->startProcessingThread();
         externalGfx->setProcessor(processor);
         gfxAccess = externalGfx;
     }
     else
     {
         gfxAccess = new MegaGfxProc();
+        gfxAccess->startProcessingThread();
     }
 
     if(!userAgent)
@@ -5156,26 +5158,12 @@ MegaApiImpl::~MegaApiImpl()
     thread.join();
 
     delete mPushSettings;
-    delete mTimezones;
+    delete mTimezones;    
 
-    requestMap.erase(request->getTag());
+    assert(requestMap.empty());
+    assert(backupsMap.empty());
+    assert(transferMap.empty());
 
-    for (std::map<int, MegaBackupController *>::iterator it = backupsMap.begin(); it != backupsMap.end(); ++it)
-    {
-        delete it->second;
-    }
-
-    for (std::map<int,MegaRequestPrivate*>::iterator it = requestMap.begin(); it != requestMap.end(); it++)
-    {
-        delete it->second;
-    }
-
-    for (std::map<int, MegaTransferPrivate *>::iterator it = transferMap.begin(); it != transferMap.end(); it++)
-    {
-        delete it->second;
-    }
-
-    delete client;    //  only delete client now that transfers that might refer to it are finally removed.
     delete gfxAccess;
     delete fsAccess;
     delete waiter;
@@ -6245,10 +6233,7 @@ void MegaApiImpl::loop()
             sendPendingScRequest();
             if (threadExit)
             {
-                // The ~MegaApiImpl() destructor is responsible for deleting the client after join()ing the thread
-                // But first call locallogout() which may call back to the app (on this thread as usual) to close some requestMap items etc
-                client->locallogout(false);
-                return;
+                break;
             }
 
             sdkMutex.lock();
@@ -6256,6 +6241,10 @@ void MegaApiImpl::loop()
             sdkMutex.unlock();
         }
     }
+
+    sdkMutex.lock();
+    delete client;
+    sdkMutex.unlock();
 }
 
 
@@ -7308,7 +7297,7 @@ bool MegaApiImpl::isScheduleNotifiable()
     }
 }
 
-// clears backups and requests/transfers notifying failure with EACCESS (and  resets total up/down bytes)
+// clears backups/requests/transfers notifying failure with EACCESS (and resets total up/down bytes)
 void MegaApiImpl::abortPendingActions(error preverror)
 {
     if (!preverror)
@@ -7316,12 +7305,14 @@ void MegaApiImpl::abortPendingActions(error preverror)
         preverror = API_EACCESS;
     }
 
+    // -- Backups --
     for (auto it : backupsMap)
     {
         delete it.second;
     }
     backupsMap.clear();
 
+    // -- CS Requests in progress --
     deque<MegaRequestPrivate*> requests;
     for (auto requestPair : requestMap)
     {
@@ -7332,9 +7323,15 @@ void MegaApiImpl::abortPendingActions(error preverror)
     }
     for (auto request : requests)
     {
+        if (request->getType() == MegaRequest::TYPE_DELETE)
+        {
+            continue; // this request is finished at MegaApiImpl dtor
+        }
         fireOnRequestFinish(request, preverror);
     }
+    requestMap.clear();
 
+    // -- Transfers in progress --
     {
         DBTableTransactionCommitter committer(client->tctable);
         while (!transferMap.empty())
@@ -7345,16 +7342,15 @@ void MegaApiImpl::abortPendingActions(error preverror)
             fireOnTransferFinish(transfer, preverror, committer);
         }
         assert(transferMap.empty());
-    }
+        transferMap.clear();
 
-    requestMap.clear();
-    transferMap.clear();
-
-    {
-        DBTableTransactionCommitter committer(client->tctable);
+        // -- Transfers in the queue --
+        // clear also the queued transfers, not yet started (and not added to cache)
         while (MegaTransferPrivate *transfer = transferQueue.pop())
         {
-            delete transfer;   // committer needed here
+            fireOnTransferStart(transfer);
+            transfer->setState(MegaTransfer::STATE_FAILED);
+            fireOnTransferFinish(transfer, preverror, committer);
         }
     }
 
@@ -10766,7 +10762,7 @@ const char *MegaApiImpl::getVersion()
 char *MegaApiImpl::getOperatingSystemVersion()
 {
     string version;
-    fsAccess->osversion(&version);
+    fsAccess->osversion(&version, false);
     return MegaApi::strdup(version.c_str());
 }
 
@@ -11264,15 +11260,12 @@ char *MegaApiImpl::getFingerprint(MegaNode *n)
     return MegaApi::strdup(n->getFingerprint());
 }
 
-void MegaApiImpl::transfer_failed(Transfer* t, error e, dstime timeleft, handle targetHandle)
+void MegaApiImpl::transfer_failed(Transfer* t, error e, dstime timeleft)
 {
     for (file_list::iterator it = t->files.begin(); it != t->files.end(); it++)
     {
         MegaTransferPrivate* transfer = getMegaTransferPrivate((*it)->tag);
-
-        // uploads with multiple targets may fail for some targets, but success for other ones --> only notify failed ones
-        if (!transfer
-            || (t->type == PUT && !ISUNDEF(targetHandle) && transfer->getParentHandle() != targetHandle))
+        if (!transfer)
         {
             continue;
         }
@@ -13823,6 +13816,10 @@ void MegaApiImpl::request_error(error e)
 
 void MegaApiImpl::request_response_progress(m_off_t currentProgress, m_off_t totalProgress)
 {
+    if (!client->isFetchingNodesPendingCS())
+    {
+        return;
+    }
     for (std::map<int,MegaRequestPrivate*>::iterator it = requestMap.begin(); it != requestMap.end(); it++)
     {
         MegaRequestPrivate *request = it->second;
@@ -14025,9 +14022,6 @@ void MegaApiImpl::logout_result(error e)
         mPushSettings = NULL;
         delete mTimezones;
         mTimezones = NULL;
-
-        fireOnRequestFinish(request, MegaError(preverror));
-        return;
     }
     fireOnRequestFinish(request,MegaError(e));
 }
@@ -14934,19 +14928,6 @@ void MegaApiImpl::whyamiblocked_result(int code)
         return;
     }
 
-    if (request->getFlag()
-            && code != 500  // don't log out if we can be unblocked via sms verification
-            && code != 700) // don't log out if we can be unblocked via verification email (weak account protection)
-    {
-        client->locallogout(true);
-
-        MegaRequestPrivate *logoutRequest = new MegaRequestPrivate(MegaRequest::TYPE_LOGOUT);
-        logoutRequest->setFlag(false);
-        logoutRequest->setParamType(API_EBLOCKED);
-        requestQueue.push(logoutRequest);
-        waiter->notify();
-    }
-
     if (code <= 0)
     {
         MegaError megaError(code);
@@ -14963,6 +14944,10 @@ void MegaApiImpl::whyamiblocked_result(int code)
         else if (code == MegaApi::ACCOUNT_BLOCKED_TOS_NON_COPYRIGHT)
         {
             reason = "Your account has been suspended due to multiple breaches of Mega's Terms of Service. Please check your email inbox.";
+        }
+        else if (code == MegaApi::ACCOUNT_BLOCKED_TOS_COPYRIGHT)
+        {
+            reason = "Your account has been suspended due to copyright violations. Please check your email inbox.";
         }
         else if (code == MegaApi::ACCOUNT_BLOCKED_SUBUSER_DISABLED)
         {
@@ -14982,6 +14967,7 @@ void MegaApiImpl::whyamiblocked_result(int code)
         }
         //else if (code == ACCOUNT_BLOCKED_DEFAULT) --> default reason
 
+        bool logoutAllowed = request->getFlag();
         request->setNumber(code);
         request->setText(reason.c_str());
         fireOnRequestFinish(request, API_OK);
@@ -14990,6 +14976,20 @@ void MegaApiImpl::whyamiblocked_result(int code)
         event->setNumber(code);
         event->setText(reason.c_str());
         fireOnEvent(event);
+
+        // (don't log out if we can be unblocked by email or sms)
+        if (logoutAllowed
+                && code != MegaApi::ACCOUNT_BLOCKED_VERIFICATION_SMS
+                && code != MegaApi::ACCOUNT_BLOCKED_VERIFICATION_EMAIL)
+        {
+            client->locallogout(true);
+
+            MegaRequestPrivate *logoutRequest = new MegaRequestPrivate(MegaRequest::TYPE_LOGOUT);
+            logoutRequest->setFlag(false);
+            logoutRequest->setParamType(API_EBLOCKED);
+            requestQueue.push(logoutRequest);
+            waiter->notify();
+        }
     }
 }
 
@@ -15309,7 +15309,7 @@ void MegaApiImpl::querysignuplink_result(error e)
     fireOnRequestFinish(request, megaError);
 }
 
-void MegaApiImpl::querysignuplink_result(handle, const char* email, const char* name, const byte* pwc, const byte*, const byte* c, size_t len)
+void MegaApiImpl::querysignuplink_result(handle uh, const char* email, const char* name, const byte* pwc, const byte*, const byte* c, size_t len)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
@@ -15319,9 +15319,15 @@ void MegaApiImpl::querysignuplink_result(handle, const char* email, const char* 
     request->setEmail(email);
     request->setName(name);
 
-    if(request->getType() == MegaRequest::TYPE_QUERY_SIGNUP_LINK)
+    error e = API_OK;
+    if (uh != client->me)
     {
-        fireOnRequestFinish(request, MegaError(API_OK));
+        e = API_EACCESS;
+    }
+    
+    if(request->getType() == MegaRequest::TYPE_QUERY_SIGNUP_LINK || e)
+    {
+        fireOnRequestFinish(request, MegaError(e));
         return;
     }
 
@@ -15380,6 +15386,8 @@ void MegaApiImpl::confirmsignuplink2_result(handle, const char *name, const char
 
     if (!e)
     {
+        assert(strcmp(email, request->getEmail()) == 0);
+        assert(strcmp(name, request->getName()) == 0);
         request->setName(name);
         request->setEmail(email);
         request->setFlag(true);
@@ -17794,7 +17802,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                         else
                         {
                             MegaTransferPrivate* prevTransfer = NULL;
-                            transfer_map::iterator it = client->getTransferByFileFingerprint(f, client->transfers[PUT], client->isForeignNode(f->h));
+                            transfer_map::iterator it = client->transfers[PUT].find(f);
                             if (it != client->transfers[PUT].end())
                             {
                                 Transfer *t = it->second;
@@ -18314,7 +18322,7 @@ void MegaApiImpl::sendPendingRequests()
         {
             nextTag = client->nextreqtag();
             request->setTag(nextTag);
-            requestMap[nextTag]=request;
+            requestMap[nextTag] = request;
             fireOnRequestStart(request);
         }
         else
@@ -19912,25 +19920,44 @@ void MegaApiImpl::sendPendingRequests()
             {
                 ptr = tptr+8;
 
-                unsigned len = unsigned((strlen(link)-(ptr-link))*3/4+4);
-                byte *c = new byte[len];
-                len = Base64::atob(ptr,c,len);
-                if (len)
+                string code = Base64::atob(string(ptr));
+                if (!code.empty())
                 {
-                    if (len > 13 && !memcmp("ConfirmCodeV2", c, 13))
+                    if (code.find("ConfirmCodeV2") != string::npos)
                     {
-                        client->confirmsignuplink2(c, len);
+                        // “ConfirmCodeV2” (13B) || Email Confirmation Token (15B) || Email (>=5B) || \t || Fullname || Hash (8B)
+                        size_t posEmail = 13 + 15;
+                        size_t endEmail = code.find("\t", posEmail);
+                        if (endEmail != string::npos)
+                        {
+                            string email = code.substr(posEmail, endEmail - posEmail);
+                            request->setEmail(email.c_str());
+                            request->setName(code.substr(endEmail + 1, code.size() - endEmail - 9).c_str());
+
+                            sessiontype_t session = client->loggedin();
+                            if (session == FULLACCOUNT)
+                            {
+                                e = (client->ownuser()->email == email) ? API_EEXPIRED : API_EACCESS;
+                            }
+                            else    // not-logged-in / ephemeral account / partially confirmed
+                            {
+                                client->confirmsignuplink2((const byte*)code.data(), code.size());
+                            }
+                        }
+                        else
+                        {
+                            e = API_EARGS;
+                        }
                     }
                     else
                     {
-                        client->querysignuplink(c, len);
+                        client->querysignuplink((const byte*)code.data(), code.size());
                     }
                 }
                 else
                 {
                     e = API_EARGS;
                 }
-                delete[] c;
                 break;
             }
             else if ((tptr = strstr(ptr,"#newsignup")))
@@ -19988,14 +20015,34 @@ void MegaApiImpl::sendPendingRequests()
 
             if ((tptr = strstr(ptr,"#confirm"))) ptr = tptr+8;
 
-            unsigned len = unsigned((strlen(link)-(ptr-link))*3/4+4);
-            byte *c = new byte[len];
-            len = Base64::atob(ptr,c,len);
-            if (len)
+            string code = Base64::atob(string(ptr));
+            if (!code.empty())
             {
-                if (len > 13 && !memcmp("ConfirmCodeV2", c, 13))
+                if (code.find("ConfirmCodeV2") != string::npos)
                 {
-                    client->confirmsignuplink2(c, len);
+                    // “ConfirmCodeV2” (13B) || Email Confirmation Token (15B) || Email (>=5B) || \t || Fullname || Hash (8B)
+                    size_t posEmail = 13 + 15;
+                    size_t endEmail = code.find("\t", posEmail);
+                    if (endEmail != string::npos)
+                    {
+                        string email = code.substr(posEmail, endEmail - posEmail);
+                        request->setEmail(email.c_str());
+                        request->setName(code.substr(endEmail + 1, code.size() - endEmail - 9).c_str());
+
+                        sessiontype_t session = client->loggedin();
+                        if (session == FULLACCOUNT)
+                        {
+                            e = (client->ownuser()->email == email) ? API_EEXPIRED : API_EACCESS;
+                        }
+                        else    // not-logged-in / ephemeral account / partially confirmed
+                        {
+                            client->confirmsignuplink2((const byte*)code.data(), code.size());
+                        }
+                    }
+                    else
+                    {
+                        e = API_EARGS;
+                    }
                 }
                 else if (!password && !pwkey)
                 {
@@ -20003,14 +20050,13 @@ void MegaApiImpl::sendPendingRequests()
                 }
                 else
                 {
-                    client->querysignuplink(c, len);
+                    client->querysignuplink((const byte*)code.data(), code.size());
                 }
             }
             else
             {
                 e = API_EARGS;
             }
-            delete[] c;
             break;
         }
         case MegaRequest::TYPE_GET_RECOVERY_LINK:
@@ -20713,6 +20759,7 @@ void MegaApiImpl::sendPendingRequests()
             ftpServerStop();
             sdkMutex.lock();
 #endif
+            abortPendingActions();
             threadExit = 1;
             break;
         }
@@ -21850,6 +21897,18 @@ void MegaApiImpl::unlockMutex()
     sdkMutex.unlock();
 }
 
+bool MegaApiImpl::tryLockMutexFor(long long time)
+{
+    if (time <= 0)
+    {
+        return sdkMutex.try_lock();
+    }
+    else
+    {
+        return sdkMutex.try_lock_for(std::chrono::milliseconds(time));
+    }
+}
+
 TreeProcCopy::TreeProcCopy()
 {
     nn = NULL;
@@ -22418,7 +22477,7 @@ void ExternalLogger::postLog(int logLevel, const char *message, const char *file
 
 void ExternalLogger::log(const char *time, int loglevel, const char *source, const char *message
 #ifdef ENABLE_LOG_PERFORMANCE
-          , const char **directMessages = nullptr, size_t *directMessagesSizes = nullptr, int numberMessages = 0
+          , const char **directMessages = nullptr, size_t *directMessagesSizes = nullptr, unsigned numberMessages = 0
 #endif
                          )
 {

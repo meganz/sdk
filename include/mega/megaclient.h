@@ -421,9 +421,6 @@ public:
     // move node to new parent folder
     error rename(Node*, Node*, syncdel_t = SYNCDEL_NONE, handle = UNDEF, const char *newName = nullptr);
 
-    // find a transfer by fingerprint and target type (private/foreign) in transfers or cached transfers
-    transfer_map::iterator getTransferByFileFingerprint(FileFingerprint *f, transfer_map &transfers, bool foreign);
-
     // start/stop/pause file transfer
     bool startxfer(direction_t, File*, DBTableTransactionCommitter&, bool skipdupes = false, bool startfirst = false, bool donotpersist = false);
     void stopxfer(File* f, DBTableTransactionCommitter* committer);
@@ -473,10 +470,10 @@ public:
 
     // add nodes to specified parent node (complete upload, copy files, make
     // folders)
-    void putnodes(handle, NewNode*, int, const char * = nullptr, Transfer * = nullptr);
+    void putnodes(handle, NewNode*, int, const char * = NULL);
 
     // send files/folders to user
-    void putnodes(const char*, NewNode*, int, Transfer * = nullptr);
+    void putnodes(const char*, NewNode*, int);
 
     // attach file attribute to upload or node handle
     void putfa(handle, fatype, SymmCipher*, std::unique_ptr<string>, bool checkAccess = true);
@@ -802,9 +799,12 @@ private:
     vector<TimerWithBackoff *> bttimers;
 
     // server-client command trigger connection
-    HttpReq* pendingsc;
+    std::unique_ptr<HttpReq> pendingsc;
+    std::unique_ptr<HttpReq> pendingscUserAlerts;
     BackoffTimer btsc;
     bool stopsc = false;
+    bool pendingscTimedOut = false;
+
 
     // badhost report
     HttpReq* badhostcs;
@@ -1318,6 +1318,9 @@ public:
     // client-server request double-buffering
     RequestDispatcher reqs;
 
+    // returns if the current pendingcs includes a fetch nodes command
+    bool isFetchingNodesPendingCS();
+
     // upload handle -> node handle map (filled by upload completion)
     handlepair_set uhnh;
 
@@ -1579,6 +1582,12 @@ public:
     // -1: expired, 0: inactive (no business subscription), 1: active, 2: grace-period
     BizStatus mBizStatus;
 
+    // list of handles of the Master business account/s
+    std::set<handle> mBizMasters;
+
+    // whether the destructor has started running yet
+    bool destructorRunning = false;
+  
     // Keep track of high level operation counts and times, for performance analysis
     struct PerformanceStats
     {

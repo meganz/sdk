@@ -277,7 +277,7 @@ struct MEGA_API MegaApp
     virtual void transfer_added(Transfer*) { }
     virtual void transfer_removed(Transfer*) { }
     virtual void transfer_prepare(Transfer*) { }
-    virtual void transfer_failed(Transfer*, error, dstime = 0, handle = UNDEF) { }
+    virtual void transfer_failed(Transfer*, error, dstime = 0) { }
     virtual void transfer_update(Transfer*) { }
     virtual void transfer_complete(Transfer*) { }
 

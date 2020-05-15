@@ -127,14 +127,14 @@ public:
     // Note: `time` and `source` are null in performance mode
     virtual void log(const char *time, int loglevel, const char *source, const char *message
 #ifdef ENABLE_LOG_PERFORMANCE
-          , const char **directMessages = nullptr, size_t *directMessagesSizes = nullptr, int numberMessages = 0
+          , const char **directMessages = nullptr, size_t *directMessagesSizes = nullptr, unsigned numberMessages = 0
 #endif
                      ) = 0;
 };
 
 typedef std::vector<std::ostream *> OutputStreams;
 
-const static int LOGGER_CHUNKS_SIZE = 1024;
+const static size_t LOGGER_CHUNKS_SIZE = 1024;
 
 /**
  * @brief holds a const char * and its size to pass to SimpleLogger, to use the direct logging logic
@@ -160,7 +160,7 @@ public:
     DirectMessage( const char *constChar, T size, bool force = false)
     {
         mConstChar = constChar;
-        mSize = size;
+        mSize = static_cast<size_t>(size);
         mForce = force;
     }
 
@@ -169,9 +169,9 @@ public:
         return mSize;
     }
 
-    bool isBigEnoughToOutputDirectly(int bufferedSize) const
+    bool isBigEnoughToOutputDirectly(size_t bufferedSize) const
     {
-        return (mForce || mSize > directMsgThreshold || mSize >= std::max(0, LOGGER_CHUNKS_SIZE - bufferedSize - 40/*room for [file:line]*/) );
+        return (mForce || mSize > directMsgThreshold || mSize + bufferedSize + 40 >= LOGGER_CHUNKS_SIZE /*room for [file:line]*/ );
     }
 
     const char *constChar() const
@@ -200,7 +200,12 @@ class SimpleLogger
     static OutputMap outputs;
     static OutputStreams getOutput(enum LogLevel ll);
 #else
-    std::array<char, LOGGER_CHUNKS_SIZE> mBuffer; // will be stack-allocated since SimpleLogger is stack-allocated
+
+#ifdef WIN32
+    static thread_local std::array<char, LOGGER_CHUNKS_SIZE> mBuffer;
+#else
+    static __thread std::array<char, LOGGER_CHUNKS_SIZE> mBuffer;
+#endif
     std::array<char, LOGGER_CHUNKS_SIZE>::iterator mBufferIt;
 
     using DiffType = std::array<char, LOGGER_CHUNKS_SIZE>::difference_type;
@@ -349,12 +354,6 @@ class SimpleLogger
         copyToBuffer(value.begin(), static_cast<DiffType>(value.size()));
     }
 
-#ifdef _WIN32
-    void logValue(const std::wstring& value)
-    {
-        copyToBuffer(value.begin(), static_cast<DiffType>(value.size()));
-    }
-#endif
 #endif
 
 public:
@@ -405,7 +404,7 @@ public:
             {
                 std::unique_ptr<const char *[]> dm(new const char *[mDirectMessages.size()]);
                 std::unique_ptr<size_t[]> dms(new size_t[mDirectMessages.size()]);
-                int i = 0;
+                unsigned i = 0;
                 for (const auto & d : mDirectMessages)
                 {
                     dm[i] = d.constChar();
@@ -413,7 +412,7 @@ public:
                     i++;
                 }
 
-                logger->log(nullptr, level, nullptr, "", dm.get(), dms.get(), i);
+                logger->log(nullptr, level, nullptr, "", dm.get(), dms.get(), static_cast<int>(i));
             }
         }
         for (auto &s: mCopiedParts)
@@ -520,7 +519,7 @@ public:
 #ifndef ENABLE_LOG_PERFORMANCE
     *this << obj.constChar();
 #else
-        if (!obj.isBigEnoughToOutputDirectly(std::distance(mBuffer.begin(), mBufferIt))) //don't bother with little msg
+        if (!obj.isBigEnoughToOutputDirectly(static_cast<size_t>(std::distance(mBuffer.begin(), mBufferIt)))) //don't bother with little msg
         {
             *this << obj.constChar();
         }

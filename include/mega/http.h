@@ -211,7 +211,7 @@ struct MEGA_API HttpReq
 
     string posturl;
 
-    bool protect;
+    bool protect; // check pinned public key
     bool minspeed;
 
     bool sslcheckfailed;
@@ -223,6 +223,9 @@ struct MEGA_API HttpReq
     size_t outpos;
 
     string outbuf;
+
+    // if the out payload includes a fetch nodes command
+    bool includesFetchingNodes = false;
 
     byte* buf;
     m_off_t buflen, bufpos, notifiedbufpos;

@@ -139,7 +139,7 @@ public:
     void postLog(int logLevel, const char *message, const char *filename, int line);
     void log(const char *time, int loglevel, const char *source, const char *message
 #ifdef ENABLE_LOG_PERFORMANCE
-             , const char **directMessages, size_t *directMessagesSizes, int numberMessages
+             , const char **directMessages, size_t *directMessagesSizes, unsigned numberMessages
 #endif
             ) override;
 
@@ -2597,6 +2597,7 @@ class MegaApiImpl : public MegaApp
         void yield();
         void lockMutex();
         void unlockMutex();
+        bool tryLockMutexFor(long long time);
 
 protected:
         static const unsigned int MAX_SESSION_LENGTH;
@@ -2878,7 +2879,7 @@ protected:
         File* file_resume(string*, direction_t *type) override;
 
         void transfer_prepare(Transfer*) override;
-        void transfer_failed(Transfer*, error error, dstime timeleft, handle targetHandle = UNDEF) override;
+        void transfer_failed(Transfer*, error error, dstime timeleft) override;
         void transfer_update(Transfer*) override;
 
         dstime pread_failure(error, int, void*, dstime) override;
