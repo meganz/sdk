@@ -680,7 +680,7 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
 *
 * @param delegate MEGARequestDelegate to track this request
 */
-- (void)getSessionTransferURL:(NSURL *)url delegate:(id<MEGARequestDelegate>)delegate;
+- (void)getSessionTransferURL:(NSString *)path delegate:(id<MEGARequestDelegate>)delegate;
 
 /* This function creates a new session for the link so logging out in the web client won't log out
 * the current session.
@@ -694,7 +694,7 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
 *
 * For example, if you want to open https://mega.nz/#pro, the parameter of this function should be "pro".
 */
-- (void)getSessionTransferURL:(NSURL *)url;
+- (void)getSessionTransferURL:(NSString *)path;
 
 #pragma mark - Login Requests
 
