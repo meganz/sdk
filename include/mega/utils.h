@@ -23,6 +23,8 @@
 #define MEGA_UTILS_H 1
 
 #include <type_traits>
+#include <condition_variable>
+#include <thread>
 
 #include "types.h"
 #include "mega/logging.h"

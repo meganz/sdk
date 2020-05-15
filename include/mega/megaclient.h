@@ -22,9 +22,6 @@
 #ifndef MEGACLIENT_H
 #define MEGACLIENT_H 1
 
-#include <condition_variable>
-#include <thread>
-
 #include "json.h"
 #include "db.h"
 #include "gfx.h"
