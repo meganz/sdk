@@ -445,7 +445,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                 }
             }
 
-            switch (reqs[i]->status)
+            switch (static_cast<reqstatus_t>(reqs[i]->status))
             {
                 case REQ_INFLIGHT:
                     p += reqs[i]->transferred(client);
@@ -526,7 +526,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                                     errorcount = 0;
                                     transfer->failcount = 0;
 
-                                    transfer->chunkmacs.finishedUploadChunks(reqs[i]->pos, reqs[i]->size, static_cast<HttpReqUL*>(reqs[i].get())->mChunkmacs);
+                                    transfer->chunkmacs.finishedUploadChunks(static_cast<HttpReqUL*>(reqs[i].get())->mChunkmacs);
 
                                     updatecontiguousprogress();
 
@@ -591,7 +591,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                             return transfer->failed(e, committer);
                         }
 
-                        transfer->chunkmacs.finishedUploadChunks(reqs[i]->pos, reqs[i]->size, static_cast<HttpReqUL*>(reqs[i].get())->mChunkmacs);
+                        transfer->chunkmacs.finishedUploadChunks(static_cast<HttpReqUL*>(reqs[i].get())->mChunkmacs);
                         transfer->progresscompleted += reqs[i]->size;
 
                         updatecontiguousprogress();

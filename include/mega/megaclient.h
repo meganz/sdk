@@ -22,9 +22,6 @@
 #ifndef MEGACLIENT_H
 #define MEGACLIENT_H 1
 
-#include <condition_variable>
-#include <thread>
-
 #include "json.h"
 #include "db.h"
 #include "gfx.h"
@@ -181,30 +178,6 @@ public:
      * The resumption of transfers is done after the filesystem is current
      */
     dstime timeToTransfersResumed;
-};
-
-
-// Helper class for MegaClient.  
-// Maintains a small thread pool for executing independent operations such as encrypt/decrypt a block of data
-// The number of threads can be 0 (eg. for helper MegaApi that deals with public folder links) in which case something queued is 
-// immediately executed synchronously on the caller's thread
-struct MegaClientAsyncQueue
-{
-    void push(std::function<void(SymmCipher&)> f);
-    void clearQueue();
-
-    MegaClientAsyncQueue(Waiter& w, unsigned threadCount);
-    ~MegaClientAsyncQueue();
-
-private:
-    Waiter& mWaiter;
-    std::mutex mMutex;
-    std::condition_variable mConditionVariable;
-    std::deque<std::function<void(SymmCipher&)>> mQueue;
-    std::vector<std::thread> mThreads;
-    SymmCipher mZeroThreadsCipher;
-
-    void asyncThreadLoop();
 };
 
 

@@ -36,82 +36,6 @@ namespace mega {
 // FIXME: prevent synced folder from being moved into another synced folder
 
 
-void MegaClientAsyncQueue::push(std::function<void(SymmCipher&)> f)
-{
-    if (mThreads.empty())
-    {
-        if (f)
-        {
-            f(mZeroThreadsCipher);
-        }
-    }
-    else
-    {
-        {
-            std::lock_guard<std::mutex> g(mMutex);
-            mQueue.emplace_back(std::move(f));
-        }
-        mConditionVariable.notify_one();
-    }
-}
-
-MegaClientAsyncQueue::MegaClientAsyncQueue(Waiter& w, unsigned threadCount)
-    : mWaiter(w)
-{
-    for (int i = threadCount; i--; )
-    {
-        try
-        {
-            mThreads.emplace_back([this]()
-            {
-                asyncThreadLoop();
-            });
-        }
-        catch (std::system_error& e)
-        {
-            LOG_err << "Failed to start worker thread: " << e.what();
-            break;
-        }
-    }
-    LOG_debug << "MegaClient Worker threads running: " << mThreads.size();
-}
-
-MegaClientAsyncQueue::~MegaClientAsyncQueue()
-{
-    clearQueue();
-    push(nullptr);
-    mConditionVariable.notify_all();
-    for (auto& t : mThreads)
-    {
-        t.join();
-    }
-}
-
-void MegaClientAsyncQueue::clearQueue()
-{
-    std::lock_guard<std::mutex> g(mMutex);
-    mQueue.clear();
-}
-
-void MegaClientAsyncQueue::asyncThreadLoop()
-{
-    SymmCipher cipher;
-    for (;;)
-    {
-        std::function<void(SymmCipher&)> f;
-        {
-            std::unique_lock<std::mutex> g(mMutex);
-            mConditionVariable.wait(g, [this]() { return !mQueue.empty(); });
-            f = std::move(mQueue.front());
-            if (!f) return;   // nullptr is not popped, and causes all the threads to exit
-            mQueue.pop_front();
-        }
-        f(cipher);
-        mWaiter.notify();
-    }
-}
-
-
 bool MegaClient::disablepkp = false;
 
 // root URL for API access
@@ -1443,7 +1367,7 @@ void MegaClient::exec()
             while (it != pendinghttp.end())
             {
                 GenericHttpReq *req = it->second;
-                switch (req->status)
+                switch (static_cast<reqstatus_t>(req->status))
                 {
                 case REQ_FAILURE:
                     if (!req->httpstatus && (!req->maxretries || (req->numretry + 1) < req->maxretries))
@@ -1518,7 +1442,7 @@ void MegaClient::exec()
                     fa->progressreported = p;
                 }
 
-                switch (fa->status)
+                switch (static_cast<reqstatus_t>(fa->status))
                 {
                     case REQ_SUCCESS:
                         if (fa->in.size() == sizeof(handle))
@@ -1654,7 +1578,7 @@ void MegaClient::exec()
                 fc = cit->second;
 
                 // is this request currently in flight?
-                switch (fc->req.status)
+                switch (static_cast<reqstatus_t>(fc->req.status))
                 {
                     case REQ_SUCCESS:
                         if (fc->req.contenttype.find("text/html") != string::npos
@@ -1760,7 +1684,7 @@ void MegaClient::exec()
                     performanceStats.csRequestWaitTime.stop();
                 }
 
-                switch (pendingcs->status)
+                switch (static_cast<reqstatus_t>(pendingcs->status))
                 {
                     case REQ_READY:
                         break;
@@ -1990,7 +1914,7 @@ void MegaClient::exec()
         // handle the request for the last 50 UserAlerts
         if (pendingscUserAlerts)
         {
-            switch (pendingscUserAlerts->status)
+            switch (static_cast<reqstatus_t>(pendingscUserAlerts->status))
             {
             case REQ_SUCCESS:
                 if (*pendingscUserAlerts->in.c_str() == '{')
@@ -2038,7 +1962,7 @@ void MegaClient::exec()
         // handle API server-client requests
         if (!jsonsc.pos && !pendingscUserAlerts && pendingsc && !loggingout)
         {
-            switch (pendingsc->status)
+            switch (static_cast<reqstatus_t>(pendingsc->status))
             {
             case REQ_SUCCESS:
                 pendingscTimedOut = false;
@@ -10917,6 +10841,7 @@ void MegaClient::closetc(bool remove)
 
     for (int d = GET; d == GET || d == PUT; d += PUT - GET)
     {
+        DBTableTransactionCommitter committer(tctable);
         while (cachedtransfers[d].size())
         {
             transfer_map::iterator it = cachedtransfers[d].begin();
