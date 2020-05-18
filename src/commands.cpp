@@ -64,17 +64,16 @@ void HttpReqCommandPutFA::procresult()
 {
     client->looprequested = true;
 
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        if (e == API_EAGAIN || e == API_ERATELIMIT)
+        if (errorDetails.err == API_EAGAIN || errorDetails.err == API_ERATELIMIT)
         {
             status = REQ_FAILURE;
         }
         else
         {
-            if (e == API_EACCESS)
+            if (errorDetails.err == API_EACCESS)
             {
                 // create a custom attribute indicating thumbnail can't be restored from this account
                 Node *n = client->nodebyhandle(th);
@@ -96,7 +95,7 @@ void HttpReqCommandPutFA::procresult()
             }
 
             status = REQ_SUCCESS;
-            return client->app->putfa_result(th, type, static_cast<error>(e));
+            return client->app->putfa_result(th, type, errorDetails.err);
         }
     }
     else
@@ -167,9 +166,8 @@ void CommandGetFA::procresult()
     fafc_map::iterator it = client->fafcs.find(part);
     client->looprequested = true;
 
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
         if (it != client->fafcs.end())
         {            
@@ -181,7 +179,7 @@ void CommandGetFA::procresult()
                 it->second->fafs[0].erase(fafsit++);
             }
 
-            it->second->e = static_cast<error>(e);
+            it->second->e = errorDetails.err;
             it->second->req.status = REQ_FAILURE;
         }
 
@@ -277,9 +275,8 @@ CommandAttachFA::CommandAttachFA(MegaClient *client, handle nh, fatype t, const 
 
 void CommandAttachFA::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (!checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (!checkError(errorDetails, client->json))
     {
          string fa;
 
@@ -295,10 +292,10 @@ void CommandAttachFA::procresult()
              return client->app->putfa_result(h, type, fa.c_str());
          }
 
-         e = API_EINTERNAL;
+         errorDetails.err = API_EINTERNAL;
     }
 
-    client->app->putfa_result(h, type, static_cast<error>(e));
+    client->app->putfa_result(h, type, errorDetails.err);
 }
 
 // request upload target URL
@@ -381,13 +378,12 @@ void CommandPutFile::procresult()
         canceled = true;
     }
 
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
         if (!canceled)
         {
-            tslot->transfer->failed(static_cast<error>(e), *client->mTctableRequestCommitter);
+            tslot->transfer->failed(errorDetails.err, *client->mTctableRequestCommitter);
         }
        
         return;
@@ -448,14 +444,12 @@ CommandPutFileBackgroundURL::CommandPutFileBackgroundURL(m_off_t size, int putmb
 void CommandPutFileBackgroundURL::procresult()
 {
     string url;
-
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
         if (!canceled)
         {
-            client->app->backgrounduploadurl_result(static_cast<error>(e), NULL);
+            client->app->backgrounduploadurl_result(errorDetails.err, NULL);
         }
         return;
     }
@@ -531,13 +525,12 @@ void CommandDirectRead::procresult()
         drn->pendingcmd = NULL;
     }
 
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
         if (!canceled && drn)
         {
-            return drn->cmdresult(static_cast<error>(e));
+            return drn->cmdresult(errorDetails);
         }
     }
     else
@@ -683,9 +676,8 @@ void CommandGetFile::procresult()
         tslot->pendingcmd = NULL;
     }
 
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
         if (canceled)
         {
@@ -694,14 +686,14 @@ void CommandGetFile::procresult()
 
         if (tslot)
         {
-            return tslot->transfer->failed(static_cast<error>(e), *client->mTctableRequestCommitter);
+            return tslot->transfer->failed(errorDetails.err, *client->mTctableRequestCommitter);
         }
 
-        return client->app->checkfile_result(ph, static_cast<error>(e));
+        return client->app->checkfile_result(ph, errorDetails.err);
     }
 
     const char* at = NULL;
-    error err = API_EINTERNAL;
+    error e = API_EINTERNAL;
     m_off_t s = -1;
     dstime tl = 0;
     int d = 0;
@@ -740,7 +732,7 @@ void CommandGetFile::procresult()
                         tempurls.push_back(tu);
                     }
                 }
-                err = API_OK;
+                e = API_OK;
                 break;
 
             case 's':
@@ -782,7 +774,7 @@ void CommandGetFile::procresult()
                 break;
 
             case 'e':
-                err = (error)client->json.getint();
+                e = (error)client->json.getint();
                 break;
 
             case MAKENAMEID2('t', 'l'):
@@ -792,7 +784,7 @@ void CommandGetFile::procresult()
             case EOO:
                 if (d || !at)
                 {
-                    err = at ? API_EBLOCKED : API_EINTERNAL;
+                    e = at ? API_EBLOCKED : API_EINTERNAL;
 
                     if (canceled)
                     {
@@ -801,10 +793,10 @@ void CommandGetFile::procresult()
 
                     if (tslot)
                     {
-                        return tslot->transfer->failed(err, *client->mTctableRequestCommitter);
+                        return tslot->transfer->failed(e, *client->mTctableRequestCommitter);
                     }
 
-                    return client->app->checkfile_result(ph, err);
+                    return client->app->checkfile_result(ph, e);
                 }
                 else
                 {
@@ -891,17 +883,17 @@ void CommandGetFile::procresult()
                                             return tslot->progress();
                                         }
 
-                                        if (err == API_EOVERQUOTA && tl <= 0)
+                                        if (e == API_EOVERQUOTA && tl <= 0)
                                         {
                                             // default retry interval
                                             tl = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS;
                                         }
                                         
-                                        return tslot->transfer->failed(err, *client->mTctableRequestCommitter, err == API_EOVERQUOTA ? tl * 10 : 0);
+                                        return tslot->transfer->failed(e, *client->mTctableRequestCommitter, e == API_EOVERQUOTA ? tl * 10 : 0);
                                     }
                                     else
                                     {
-                                        return client->app->checkfile_result(ph, err, filekey, s, ts, tm,
+                                        return client->app->checkfile_result(ph, e, filekey, s, ts, tm,
                                                                              &filenamestring,
                                                                              &filefingerprint,
                                                                              &fileattrstring);
@@ -981,12 +973,11 @@ CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n, SymmCipher* cipher, 
 
 void CommandSetAttr::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
 #ifdef ENABLE_SYNC
-        if(!e && syncop)
+        if(errorDetails.err == API_OK && syncop)
         {
             Node* node = client->nodebyhandle(h);
             if(node)
@@ -1008,7 +999,7 @@ void CommandSetAttr::procresult()
             }
         }
 #endif
-        client->app->setattr_result(h, static_cast<error>(e));
+        client->app->setattr_result(h, errorDetails.err);
     }
     else
     {
@@ -1187,16 +1178,15 @@ void CommandPutNodes::procresult()
         client->pendingfiles.erase(pit);
     }
 
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        LOG_debug << "Putnodes error " << e;
-        if (e == API_EOVERQUOTA)
+        LOG_debug << "Putnodes error " << errorDetails.err;
+        if (errorDetails.err == API_EOVERQUOTA)
         {
             if (transfer)
             {
-                transfer->failed(static_cast<error>(e), *client->mTctableRequestCommitter, 0, targethandle);
+                transfer->failed(errorDetails.err, *client->mTctableRequestCommitter, 0, targethandle);
                 // Transfer::failed() will activate overquota if appropriate
             }
 
@@ -1225,7 +1215,7 @@ void CommandPutNodes::procresult()
 #ifdef ENABLE_SYNC
         if (source == PUTNODES_SYNC)
         {
-            if (e == API_EACCESS)
+            if (errorDetails.err == API_EACCESS)
             {
                 int creqtag = client->reqtag;
                 client->reqtag = 0;
@@ -1233,32 +1223,32 @@ void CommandPutNodes::procresult()
                 client->reqtag = creqtag;
             }
 
-            client->app->putnodes_result(static_cast<error>(e), type, NULL);
+            client->app->putnodes_result(errorDetails.err, type, NULL);
 
             for (int i=0; i < nnsize; i++)
             {
                 nn[i].localnode.reset();
             }
 
-            return client->putnodes_sync_result(static_cast<error>(e), nn, nnsize);
+            return client->putnodes_sync_result(errorDetails.err, nn, nnsize);
         }
         else
         {
 #endif
             if (source == PUTNODES_APP)
             {
-                return client->app->putnodes_result(static_cast<error>(e), type, nn);
+                return client->app->putnodes_result(errorDetails.err, type, nn);
             }
 #ifdef ENABLE_SYNC
             else
             {
-                return client->putnodes_syncdebris_result(static_cast<error>(e), nn);
+                return client->putnodes_syncdebris_result(errorDetails.err, nn);
             }
         }
 #endif
     }
 
-    e = API_EINTERNAL;
+    error e = API_EINTERNAL;
 
     bool noexit = true;
     bool empty = false;
@@ -1310,8 +1300,8 @@ void CommandPutNodes::procresult()
 #ifdef ENABLE_SYNC
     if (source == PUTNODES_SYNC)
     {
-        client->app->putnodes_result(static_cast<error>(e), type, NULL);
-        client->putnodes_sync_result(static_cast<error>(e), nn, nnsize);
+        client->app->putnodes_result(e, type, NULL);
+        client->putnodes_sync_result(e, nn, nnsize);
     }
     else
 #endif
@@ -1330,12 +1320,12 @@ void CommandPutNodes::procresult()
             }
         }
 #endif
-        client->app->putnodes_result((!e && empty) ? API_ENOENT : static_cast<error>(e), type, nn);
+        client->app->putnodes_result((!e && empty) ? API_ENOENT : e, type, nn);
     }
 #ifdef ENABLE_SYNC
     else
     {
-        client->putnodes_syncdebris_result(static_cast<error>(e), nn);
+        client->putnodes_syncdebris_result(e, nn);
     }
 #endif
 }
@@ -1362,13 +1352,12 @@ CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t
 
 void CommandMoveNode::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
         // movements should not result on overquota error
         // (also, a movement between different accounts is not allowed, but performed by copy+delete)
-        assert(e != API_EOVERQUOTA);
+        assert(errorDetails.err != API_EOVERQUOTA);
 
 #ifdef ENABLE_SYNC
         if (syncdel != SYNCDEL_NONE)
@@ -1377,7 +1366,7 @@ void CommandMoveNode::procresult()
 
             if (syncn)
             {
-                if (e == API_OK)
+                if (errorDetails.err == API_OK)
                 {
                     Node* n;
 
@@ -1465,7 +1454,7 @@ void CommandMoveNode::procresult()
         }
 #endif
         // Movement of shares and pending shares into Rubbish should remove them
-        if (!e)
+        if (errorDetails.err == API_OK)
         {
             Node *n = client->nodebyhandle(h);
             if (n && (n->pendingshares || n->outshares))
@@ -1514,7 +1503,7 @@ void CommandMoveNode::procresult()
             client->reqtag = creqtag;
         }
 
-        client->app->rename_result(h, static_cast<error>(e));
+        client->app->rename_result(h, errorDetails.err);
     }
     else
     {
@@ -1541,11 +1530,10 @@ CommandDelNode::CommandDelNode(MegaClient* client, handle th, bool keepversions)
 
 void CommandDelNode::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        client->app->unlink_result(h, static_cast<error>(e));
+        client->app->unlink_result(h, errorDetails.err);
     }
     else
     {
@@ -1590,8 +1578,8 @@ CommandDelVersions::CommandDelVersions(MegaClient* client)
 void CommandDelVersions::procresult()
 {    
     int64_t e;
-    ErrorDetails errorDetails;
-    checkError(e, client->json, errorDetails);
+    Error errorDetails;
+    checkError(errorDetails, client->json);
     client->app->unlinkversions_result(static_cast<error>(e));
 }
 
@@ -1616,11 +1604,10 @@ CommandKillSessions::CommandKillSessions(MegaClient* client, handle sessionid)
 }
 void CommandKillSessions::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    checkError(e, client->json, errorDetails);
+    Error errorDetails;
+    checkError(errorDetails, client->json);
 
-    client->app->sessions_killed(h, static_cast<error>(e));
+    client->app->sessions_killed(h, errorDetails.err);
 }
 
 CommandLogout::CommandLogout(MegaClient *client)
@@ -1634,22 +1621,21 @@ CommandLogout::CommandLogout(MegaClient *client)
 
 void CommandLogout::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    checkError(e, client->json, errorDetails);
+    Error errorDetails;
+    checkError(errorDetails, client->json);
     MegaApp *app = client->app;
     if (client->loggingout > 0)
     {
         client->loggingout--;
     }
-    if(!e)
+    if(!errorDetails.err)
     {
         // notify client after cache removal, as before
         client->loggedout = true;
     }
     else
     {
-        app->logout_result(static_cast<error>(e));
+        app->logout_result(errorDetails.err);
     }
 }
 
@@ -1665,11 +1651,10 @@ CommandPrelogin::CommandPrelogin(MegaClient* client, const char* email)
 
 void CommandPrelogin::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        return client->app->prelogin_result(0, NULL, NULL, static_cast<error>(e));
+        return client->app->prelogin_result(0, NULL, NULL, errorDetails.err);
     }
 
     int v = 0;
@@ -1783,11 +1768,10 @@ CommandLogin::CommandLogin(MegaClient* client, const char* email, const byte *em
 // process login result
 void CommandLogin::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        return client->app->login_result(static_cast<error>(e));
+        return client->app->login_result(errorDetails.err);
     }
 
     byte hash[SymmCipher::KEYLENGTH];
@@ -2142,11 +2126,10 @@ bool CommandSetShare::procuserresult(MegaClient* client)
 // process result of share addition/modification
 void CommandSetShare::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        return client->app->share_result(static_cast<error>(e));
+        return client->app->share_result(errorDetails.err);
     }
 
     for (;;)
@@ -2269,12 +2252,11 @@ CommandSetPendingContact::CommandSetPendingContact(MegaClient* client, const cha
 
 void CommandSetPendingContact::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
         handle pcrhandle = UNDEF;
-        if (!e) // response for delete & remind actions is always numeric
+        if (errorDetails.err == API_OK) // response for delete & remind actions is always numeric
         {
             // find the PCR by email
             PendingContactRequest *pcr = NULL;
@@ -2315,11 +2297,11 @@ void CommandSetPendingContact::procresult()
             }
         }
 
-        return client->app->setpcr_result(pcrhandle, static_cast<error>(e), this->action);
+        return client->app->setpcr_result(pcrhandle, errorDetails.err, this->action);
     }
 
     // if the PCR has been added, the response contains full details
-    handle p = UNDEF;    
+    handle p = UNDEF;
     m_time_t ts = 0;
     m_time_t uts = 0;
     const char *eValue = NULL;
@@ -2331,7 +2313,7 @@ void CommandSetPendingContact::procresult()
         switch (client->json.getnameid())
         {
             case 'p':
-                p = client->json.gethandle(MegaClient::PCRHANDLE);  
+                p = client->json.gethandle(MegaClient::PCRHANDLE);
                 break;
             case 'm':
                 m = client->json.getvalue();
@@ -2352,7 +2334,7 @@ void CommandSetPendingContact::procresult()
                 if (ISUNDEF(p))
                 {
                     LOG_err << "Error in CommandSetPendingContact. Undefined handle";
-                    client->app->setpcr_result(UNDEF, API_EINTERNAL, this->action);                    
+                    client->app->setpcr_result(UNDEF, API_EINTERNAL, this->action);
                     return;
                 }
 
@@ -2407,8 +2389,8 @@ CommandUpdatePendingContact::CommandUpdatePendingContact(MegaClient* client, han
 void CommandUpdatePendingContact::procresult()
 {
     int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
         return client->app->updatepcr_result(static_cast<error>(e), this->action);
     }
@@ -2429,11 +2411,10 @@ CommandEnumerateQuotaItems::CommandEnumerateQuotaItems(MegaClient* client)
 
 void CommandEnumerateQuotaItems::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        return client->app->enumeratequotaitems_result(static_cast<error>(e));
+        return client->app->enumeratequotaitems_result(errorDetails.err);
     }
 
     while (client->json.enterobject())
@@ -2599,11 +2580,10 @@ CommandPurchaseAddItem::CommandPurchaseAddItem(MegaClient* client, int itemclass
 
 void CommandPurchaseAddItem::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        return client->app->additem_result(static_cast<error>(e));
+        return client->app->additem_result(errorDetails.err);
     }
 
     handle item = client->json.gethandle(8);
@@ -2641,11 +2621,10 @@ CommandPurchaseCheckout::CommandPurchaseCheckout(MegaClient* client, int gateway
 
 void CommandPurchaseCheckout::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        return client->app->checkout_result(NULL, static_cast<error>(e));
+        return client->app->checkout_result(NULL, errorDetails.err);
     }
 
     //Expected response: "EUR":{"res":X,"code":Y}}
@@ -2724,12 +2703,11 @@ CommandRemoveContact::CommandRemoveContact(MegaClient* client, const char* m, vi
 
 void CommandRemoveContact::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (!checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (!checkError(errorDetails, client->json))
     {
         client->json.storeobject();
-        e = API_OK;
+        errorDetails.err = API_OK;
 
         User *u = client->finduser(email.c_str());
         if (u)
@@ -2738,7 +2716,7 @@ void CommandRemoveContact::procresult()
         }
     }
 
-    client->app->removecontact_result(static_cast<error>(e));
+    client->app->removecontact_result(errorDetails.err);
 }
 
 
@@ -2770,16 +2748,15 @@ CommandPutMultipleUAVer::CommandPutMultipleUAVer(MegaClient *client, const usera
 
 void CommandPutMultipleUAVer::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
         int creqtag = client->reqtag;
         client->reqtag = 0;
         client->sendevent(99419, "Error attaching keys");
         client->reqtag = creqtag;
 
-        return client->app->putua_result(static_cast<error>(e));
+        return client->app->putua_result(errorDetails.err);
     }
 
     User *u = client->ownuser();
@@ -2911,11 +2888,10 @@ CommandPutUAVer::CommandPutUAVer(MegaClient* client, attr_t at, const byte* av, 
 
 void CommandPutUAVer::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        client->app->putua_result(static_cast<error>(e));
+        client->app->putua_result(errorDetails.err);
     }
     else
     {
@@ -3000,12 +2976,11 @@ CommandPutUA::CommandPutUA(MegaClient* /*client*/, attr_t at, const byte* av, un
 
 void CommandPutUA::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (!checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (!checkError(errorDetails, client->json))
     {
         client->json.storeobject(); // [<uh>]
-        e = API_OK;
+        errorDetails.err = API_OK;
 
         User *u = client->ownuser();
         assert(u);
@@ -3038,7 +3013,7 @@ void CommandPutUA::procresult()
         }
     }
 
-    client->app->putua_result(static_cast<error>(e));
+    client->app->putua_result(errorDetails.err);
 }
 
 CommandGetUA::CommandGetUA(MegaClient* /*client*/, const char* uid, attr_t at, const char* ph, int ctag)
@@ -3067,30 +3042,29 @@ void CommandGetUA::procresult()
 {
     User *u = client->finduser(uid.c_str());
 
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        if (e == API_ENOENT && u)
+        if (errorDetails.err == API_ENOENT && u)
         {
             u->removeattr(at);
         }
 
-        client->app->getua_result(static_cast<error>(e));
+        client->app->getua_result(errorDetails.err);
 
         if (isFromChatPreview())    // if `mcuga` was sent, no need to do anything else
         {
             return;
         }
 
-        if (u && u->userhandle == client->me && e != API_EBLOCKED)
+        if (u && u->userhandle == client->me && errorDetails.err != API_EBLOCKED)
         {
             if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK)
             {
                 client->initializekeys(); // we have now all the required data
             }
 
-            if (e == API_ENOENT && User::isAuthring(at))
+            if (errorDetails.err == API_ENOENT && User::isAuthring(at))
             {
                 // authring not created yet, will do it upon retrieval of public keys
                 client->mAuthRings.erase(at);
@@ -3105,7 +3079,7 @@ void CommandGetUA::procresult()
         }
 
         // if the attr does not exist, initialize it
-        if (at == ATTR_DISABLE_VERSIONS && e == API_ENOENT)
+        if (at == ATTR_DISABLE_VERSIONS && errorDetails.err == API_ENOENT)
         {
             LOG_info << "File versioning is enabled";
             client->versions_disabled = false;
@@ -3346,11 +3320,10 @@ CommandDelUA::CommandDelUA(MegaClient *client, const char *an)
 
 void CommandDelUA::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        client->app->delua_result(static_cast<error>(e));
+        client->app->delua_result(errorDetails.err);
     }
     else
     {
@@ -3395,11 +3368,10 @@ CommandGetUserEmail::CommandGetUserEmail(MegaClient *client, const char *uid)
 
 void CommandGetUserEmail::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        return client->app->getuseremail_result(NULL, static_cast<error>(e));
+        return client->app->getuseremail_result(NULL, errorDetails.err);
     }
 
     string email;
@@ -3508,13 +3480,12 @@ void CommandPubKeyRequest::procresult()
     int len_pubk = 0;
     handle uh = UNDEF;
 
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        if(e != API_ENOENT) //API_ENOENT = unregistered users or accounts without a public key yet
+        if(errorDetails.err != API_ENOENT) //API_ENOENT = unregistered users or accounts without a public key yet
         {
-            LOG_err << "Unexpected error in CommandPubKeyRequest: " << e;
+            LOG_err << "Unexpected error in CommandPubKeyRequest: " << errorDetails.err;
         }
     }
     else
@@ -3667,15 +3638,14 @@ void CommandGetUserData::procresult()
     std::set<handle> masters;
     std::vector<std::pair<BizStatus, m_time_t>> sts;
 
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        if (!e)
+        if (!errorDetails.err)
         {
-            e = API_ENOENT;
+            errorDetails.err = API_ENOENT;
         }
-        return client->app->userdata_result(NULL, NULL, NULL, static_cast<error>(e));
+        return client->app->userdata_result(NULL, NULL, NULL, errorDetails.err);
     }
 
     for (;;)
@@ -4256,23 +4226,22 @@ CommandGetMiscFlags::CommandGetMiscFlags(MegaClient *client)
 
 void CommandGetMiscFlags::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        if (!e)
+        if (!errorDetails.err)
         {
             LOG_err << "Unexpected response for gmf: no flags, but no error";
-            e = API_ENOENT;
+            errorDetails.err = API_ENOENT;
         }
-        LOG_err << "gmf failed: " << e;
+        LOG_err << "gmf failed: " << errorDetails.err;
     }
     else
     {
-        e = client->readmiscflags(&client->json);
+        errorDetails.err = client->readmiscflags(&client->json);
     }
 
-    client->app->getmiscflags_result(static_cast<error>(e));
+    client->app->getmiscflags_result(errorDetails.err);
 }
 
 CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, AccountDetails* ad, bool storage, bool transfer, bool pro, int source)
@@ -4310,11 +4279,10 @@ void CommandGetUserQuota::procresult()
     bool got_storage_used = false;
     int uslw = -1;
 
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        return client->app->account_details(details, static_cast<error>(e));
+        return client->app->account_details(details, errorDetails.err);
     }
 
     details->pro_level = 0;
@@ -4603,9 +4571,8 @@ CommandQueryTransferQuota::CommandQueryTransferQuota(MegaClient* client, m_off_t
 
 void CommandQueryTransferQuota::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (!checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (!checkError(errorDetails, client->json))
     {
         LOG_err << "Unexpected response: " << client->json.pos;
         client->json.storeobject();
@@ -4616,7 +4583,7 @@ void CommandQueryTransferQuota::procresult()
         return client->app->querytransferquota_result(0);
     }
 
-    return client->app->querytransferquota_result(static_cast<int>(e));
+    return client->app->querytransferquota_result(errorDetails.err);
 }
 
 CommandGetUserTransactions::CommandGetUserTransactions(MegaClient* client, AccountDetails* ad)
@@ -4757,11 +4724,10 @@ CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t ets)
 
 void CommandSetPH::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        return client->app->exportnode_result(static_cast<error>(e));
+        return client->app->exportnode_result(errorDetails.err);
     }
 
     handle ph = client->json.gethandle();
@@ -4799,11 +4765,10 @@ CommandGetPH::CommandGetPH(MegaClient* client, handle cph, const byte* ckey, int
 
 void CommandGetPH::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        return client->app->openfilelink_result(static_cast<error>(e));
+        return client->app->openfilelink_result(errorDetails.err);
     }
 
     m_off_t s = -1;
@@ -4880,11 +4845,10 @@ CommandSetMasterKey::CommandSetMasterKey(MegaClient* client, const byte* newkey,
 
 void CommandSetMasterKey::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        client->app->changepw_result(static_cast<error>(e));
+        client->app->changepw_result(errorDetails.err);
     }
     else
     {
@@ -4914,8 +4878,8 @@ CommandCreateEphemeralSession::CommandCreateEphemeralSession(MegaClient* client,
 void CommandCreateEphemeralSession::procresult()
 {
     int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
         client->ephemeralSession = false;
         client->app->ephemeral_result(static_cast<error>(e));
@@ -4946,11 +4910,10 @@ void CommandResumeEphemeralSession::procresult()
     byte sidbuf[MegaClient::SIDLEN];
     int havek = 0, havecsid = 0;
 
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        return client->app->ephemeral_result(static_cast<error>(e));
+        return client->app->ephemeral_result(errorDetails.err);
     }
 
     for (;;)
@@ -5007,8 +4970,8 @@ CommandCancelSignup::CommandCancelSignup(MegaClient *client)
 void CommandCancelSignup::procresult()
 {
     int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
         return client->app->cancelsignup_result(static_cast<error>(e));
     }
@@ -5029,11 +4992,10 @@ CommandWhyAmIblocked::CommandWhyAmIblocked(MegaClient *client)
 
 void CommandWhyAmIblocked::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        return client->app->whyamiblocked_result(static_cast<error>(e));
+        return client->app->whyamiblocked_result(errorDetails.err);
     }
 
     client->json.storeobject();
@@ -5053,11 +5015,10 @@ CommandSendSignupLink::CommandSendSignupLink(MegaClient* client, const char* ema
 
 void CommandSendSignupLink::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        return client->app->sendsignuplink_result(static_cast<error>(e));
+        return client->app->sendsignuplink_result(errorDetails.err);
     }
 
     client->json.storeobject();
@@ -5089,11 +5050,10 @@ CommandSendSignupLink2::CommandSendSignupLink2(MegaClient* client, const char* e
 
 void CommandSendSignupLink2::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        return client->app->sendsignuplink_result(static_cast<error>(e));
+        return client->app->sendsignuplink_result(errorDetails.err);
     }
 
     client->json.storeobject();
@@ -5122,11 +5082,10 @@ void CommandQuerySignupLink::procresult()
     byte pwcheckbuf[SymmCipher::KEYLENGTH];
     byte kcbuf[SymmCipher::KEYLENGTH];
 
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        return client->app->querysignuplink_result(static_cast<error>(e));
+        return client->app->querysignuplink_result(errorDetails.err);
     }
 
     if (client->json.storebinary(&name) && client->json.storebinary(&email)
@@ -5167,11 +5126,10 @@ void CommandConfirmSignupLink2::procresult()
     handle uh = UNDEF;
     int version = 0;
 
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        client->app->confirmsignuplink2_result(UNDEF, NULL, NULL, static_cast<error>(e));
+        client->app->confirmsignuplink2_result(UNDEF, NULL, NULL, errorDetails.err);
     }
 
     if (client->json.storebinary(&email) && client->json.storebinary(&name))
@@ -5209,8 +5167,8 @@ CommandConfirmSignupLink::CommandConfirmSignupLink(MegaClient* client,
 void CommandConfirmSignupLink::procresult()
 {
     int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
         return client->app->confirmsignuplink_result(static_cast<error>(e));
     }
@@ -5238,11 +5196,10 @@ CommandSetKeyPair::CommandSetKeyPair(MegaClient* client, const byte* privk,
 
 void CommandSetKeyPair::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        return client->app->setkeypair_result(static_cast<error>(e));
+        return client->app->setkeypair_result(errorDetails.err);
     }
 
     client->json.storeobject();
@@ -5280,12 +5237,11 @@ void CommandFetchNodes::procresult()
 
     client->purgenodesusersabortsc(true);
 
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
         client->fetchingnodes = false;
-        return client->app->fetchnodes_result(static_cast<error>(e));
+        return client->app->fetchnodes_result(errorDetails.err);
     }
 
     for (;;)
@@ -5422,11 +5378,10 @@ CommandReportEvent::CommandReportEvent(MegaClient *client, const char *event, co
 
 void CommandReportEvent::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        client->app->reportevent_result(static_cast<error>(e));
+        client->app->reportevent_result(errorDetails.err);
     }
     else
     {
@@ -5471,11 +5426,10 @@ CommandSubmitPurchaseReceipt::CommandSubmitPurchaseReceipt(MegaClient *client, i
 
 void CommandSubmitPurchaseReceipt::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        client->app->submitpurchasereceipt_result(static_cast<error>(e));
+        client->app->submitpurchasereceipt_result(errorDetails.err);
     }
     else
     {
@@ -5499,11 +5453,10 @@ CommandCreditCardStore::CommandCreditCardStore(MegaClient* client, const char *c
 
 void CommandCreditCardStore::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        client->app->creditcardstore_result(static_cast<error>(e));
+        client->app->creditcardstore_result(errorDetails.err);
     }
     else
     {
@@ -5521,18 +5474,15 @@ CommandCreditCardQuerySubscriptions::CommandCreditCardQuerySubscriptions(MegaCli
 
 void CommandCreditCardQuerySubscriptions::procresult()
 {
-    int64_t number;
-    ErrorDetails errorDetails;
-    if (checkError(number, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        if(number >= 0)
-        {
-            client->app->creditcardquerysubscriptions_result(number, API_OK);
-        }
-        else
-        {
-            client->app->creditcardquerysubscriptions_result(0, static_cast<error>(number));
-        }
+        client->app->creditcardquerysubscriptions_result(0, errorDetails.err);
+    }
+    else if (client->json.isnumeric())
+    {
+        int number = int(client->json.getint());
+        client->app->creditcardquerysubscriptions_result(number, API_OK);
     }
     else
     {
@@ -5555,11 +5505,10 @@ CommandCreditCardCancelSubscriptions::CommandCreditCardCancelSubscriptions(MegaC
 
 void CommandCreditCardCancelSubscriptions::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        client->app->creditcardcancelsubscriptions_result(static_cast<error>(e));
+        client->app->creditcardcancelsubscriptions_result(errorDetails.err);
     }
     else
     {
@@ -5581,11 +5530,10 @@ void CommandCopySession::procresult()
     byte sidbuf[AsymmCipher::MAXKEYLENGTH];
     int len_csid = 0;
 
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        client->app->copysession_result(NULL, static_cast<error>(e));
+        client->app->copysession_result(NULL, errorDetails.err);
         return;
     }
 
@@ -5631,10 +5579,40 @@ void CommandGetPaymentMethods::procresult()
 {
     int methods = 0;
     int64_t value;
-    ErrorDetails errorDetails;
-    error e = API_EINTERNAL;
-    while (checkError(value, client->json, errorDetails))
+    Error errorDetails;
+
+    if (checkError(errorDetails, client->json))
     {
+        if (errorDetails.err < 0)
+        {
+            client->app->getpaymentmethods_result(methods, errorDetails.err);
+
+            //Consume remaining values if they exist
+            while(client->json.isnumeric())
+            {
+                client->json.getint();
+            }
+            return;
+        }
+
+        value = static_cast<int64_t>(errorDetails.err);
+    }
+    else if (client->json.isnumeric())
+    {
+        value = client->json.getint();
+    }
+    else
+    {
+        LOG_err << "Parse error in ufpq";
+        client->app->getpaymentmethods_result(methods, API_EINTERNAL);
+        return;
+    }
+
+    methods |= 1 << value;
+
+    while (client->json.isnumeric())
+    {
+        value = client->json.getint();
         if (value < 0)
         {
             client->app->getpaymentmethods_result(methods, static_cast<error>(value));
@@ -5648,10 +5626,9 @@ void CommandGetPaymentMethods::procresult()
         }
 
         methods |= 1 << value;
-        e = API_OK;
     }
 
-    client->app->getpaymentmethods_result(methods, e);
+    client->app->getpaymentmethods_result(methods, API_OK);
 }
 
 CommandUserFeedbackStore::CommandUserFeedbackStore(MegaClient *client, const char *type, const char *blob, const char *uid)
@@ -5675,11 +5652,10 @@ CommandUserFeedbackStore::CommandUserFeedbackStore(MegaClient *client, const cha
 
 void CommandUserFeedbackStore::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        client->app->userfeedbackstore_result(static_cast<error>(e));
+        client->app->userfeedbackstore_result(errorDetails.err);
     }
     else
     {
@@ -5699,11 +5675,10 @@ CommandSendEvent::CommandSendEvent(MegaClient *client, int type, const char *des
 
 void CommandSendEvent::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        client->app->sendevent_result(static_cast<error>(e));
+        client->app->sendevent_result(errorDetails.err);
     }
     else
     {
@@ -5724,11 +5699,10 @@ CommandSupportTicket::CommandSupportTicket(MegaClient *client, const char *messa
 
 void CommandSupportTicket::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        client->app->supportticket_result(static_cast<error>(e));
+        client->app->supportticket_result(errorDetails.err);
     }
     else
     {
@@ -5746,11 +5720,10 @@ CommandCleanRubbishBin::CommandCleanRubbishBin(MegaClient *client)
 
 void CommandCleanRubbishBin::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        client->app->cleanrubbishbin_result(static_cast<error>(e));
+        client->app->cleanrubbishbin_result(errorDetails.err);
     }
     else
     {
@@ -5775,11 +5748,10 @@ CommandGetRecoveryLink::CommandGetRecoveryLink(MegaClient *client, const char *e
 
 void CommandGetRecoveryLink::procresult()
 {    
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        client->app->getrecoverylink_result(static_cast<error>(e));
+        client->app->getrecoverylink_result(errorDetails.err);
     }
     else    // error
     {
@@ -5808,10 +5780,22 @@ void CommandQueryRecoveryLink::procresult()
     handle uh;
 
     int64_t type;
-    ErrorDetails errorDetails;
-    if (!checkError(type, client->json, errorDetails) || type < 0)
+    Error errorDetails;
+
+    if (checkError(errorDetails, client->json) && errorDetails.err < 0)
     {
-        return client->app->queryrecoverylink_result(static_cast<error>(type));
+        return client->app->queryrecoverylink_result(errorDetails.err);
+    }
+
+    type = static_cast<uint64_t>(errorDetails.err);
+    if (type != API_OK)
+    {
+        if (!client->json.isnumeric())
+        {
+            return client->app->queryrecoverylink_result(API_EINTERNAL);
+        }
+
+        type = client->json.getint();
     }
 
     if ( !client->json.storeobject(&email)  ||
@@ -5862,11 +5846,10 @@ CommandGetPrivateKey::CommandGetPrivateKey(MegaClient *client, const char *code)
 
 void CommandGetPrivateKey::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))   // error
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))   // error
     {
-        return client->app->getprivatekey_result(static_cast<error>(e));
+        return client->app->getprivatekey_result(errorDetails.err);
     }
     else
     {
@@ -5919,11 +5902,10 @@ CommandConfirmRecoveryLink::CommandConfirmRecoveryLink(MegaClient *client, const
 
 void CommandConfirmRecoveryLink::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        return client->app->confirmrecoverylink_result(static_cast<error>(e));
+        return client->app->confirmrecoverylink_result(errorDetails.err);
     }
     else   // error
     {
@@ -5942,13 +5924,12 @@ CommandConfirmCancelLink::CommandConfirmCancelLink(MegaClient *client, const cha
 
 void CommandConfirmCancelLink::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
         MegaApp *app = client->app;
-        app->confirmcancellink_result(static_cast<error>(e));
-        if (!e)
+        app->confirmcancellink_result(errorDetails.err);
+        if (!errorDetails.err)
         {
             app->request_error(API_ESID);
         }
@@ -5969,11 +5950,10 @@ CommandResendVerificationEmail::CommandResendVerificationEmail(MegaClient *clien
 
 void CommandResendVerificationEmail::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        client->app->resendverificationemail_result(static_cast<error>(e));
+        client->app->resendverificationemail_result(errorDetails.err);
     }
     else
     {
@@ -5993,11 +5973,10 @@ CommandValidatePassword::CommandValidatePassword(MegaClient *client, const char 
 
 void CommandValidatePassword::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        return client->app->validatepassword_result(static_cast<error>(e));
+        return client->app->validatepassword_result(errorDetails.err);
     }
     else
     {
@@ -6031,11 +6010,10 @@ CommandGetEmailLink::CommandGetEmailLink(MegaClient *client, const char *email, 
 
 void CommandGetEmailLink::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        return client->app->getemaillink_result(static_cast<error>(e));
+        return client->app->getemaillink_result(errorDetails.err);
     }
     else    // error
     {
@@ -6068,11 +6046,10 @@ CommandConfirmEmailLink::CommandConfirmEmailLink(MegaClient *client, const char 
 
 void CommandConfirmEmailLink::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        if (!e)
+        if (!errorDetails.err)
         {
             User *u = client->finduser(client->me);
 
@@ -6087,7 +6064,7 @@ void CommandConfirmEmailLink::procresult()
             // TODO: once we manage multiple emails, add the new email to the list of emails
         }
 
-        return client->app->confirmemaillink_result(static_cast<error>(e));
+        return client->app->confirmemaillink_result(errorDetails.err);
     }
     else   // error
     {
@@ -6109,11 +6086,10 @@ void CommandGetVersion::procresult()
     int versioncode = 0;
     string versionstring;
 
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        client->app->getversion_result(0, NULL, static_cast<error>(e));
+        client->app->getversion_result(0, NULL, errorDetails.err);
         return;
     }
 
@@ -6152,11 +6128,10 @@ CommandGetLocalSSLCertificate::CommandGetLocalSSLCertificate(MegaClient *client)
 
 void CommandGetLocalSSLCertificate::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        client->app->getlocalsslcertificate_result(0, NULL, static_cast<error>(e));
+        client->app->getlocalsslcertificate_result(0, NULL, errorDetails.err);
         return;
     }
 
@@ -6278,11 +6253,10 @@ CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, bool public
 
 void CommandChatCreate::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        client->app->chatcreate_result(NULL, static_cast<error>(e));
+        client->app->chatcreate_result(NULL, errorDetails.err);
         delete chatPeers;
     }
     else
@@ -6393,11 +6367,10 @@ CommandChatInvite::CommandChatInvite(MegaClient *client, handle chatid, handle u
 
 void CommandChatInvite::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        if (e == API_OK)
+        if (errorDetails.err == API_OK)
         {
             if (client->chats.find(chatid) == client->chats.end())
             {
@@ -6423,7 +6396,7 @@ void CommandChatInvite::procresult()
             client->notifychat(chat);
         }
 
-        client->app->chatinvite_result(static_cast<error>(e));
+        client->app->chatinvite_result(errorDetails.err);
     }
     else
     {
@@ -6454,11 +6427,10 @@ CommandChatRemove::CommandChatRemove(MegaClient *client, handle chatid, handle u
 
 void CommandChatRemove::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        if (e == API_OK)
+        if (errorDetails.err == API_OK)
         {
             if (client->chats.find(chatid) == client->chats.end())
             {
@@ -6508,7 +6480,7 @@ void CommandChatRemove::procresult()
             client->notifychat(chat);
         }
 
-        client->app->chatremove_result(static_cast<error>(e));
+        client->app->chatremove_result(errorDetails.err);
     }
     else
     {
@@ -6532,11 +6504,10 @@ CommandChatURL::CommandChatURL(MegaClient *client, handle chatid)
 
 void CommandChatURL::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        client->app->chaturl_result(NULL, static_cast<error>(e));
+        client->app->chaturl_result(NULL, errorDetails.err);
     }
     else
     {
@@ -6572,11 +6543,10 @@ CommandChatGrantAccess::CommandChatGrantAccess(MegaClient *client, handle chatid
 
 void CommandChatGrantAccess::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        if (e == API_OK)
+        if (errorDetails.err == API_OK)
         {
             if (client->chats.find(chatid) == client->chats.end())
             {
@@ -6592,7 +6562,7 @@ void CommandChatGrantAccess::procresult()
             client->notifychat(chat);
         }
 
-        client->app->chatgrantaccess_result(static_cast<error>(e));
+        client->app->chatgrantaccess_result(errorDetails.err);
     }
     else
     {
@@ -6621,11 +6591,10 @@ CommandChatRemoveAccess::CommandChatRemoveAccess(MegaClient *client, handle chat
 
 void CommandChatRemoveAccess::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        if (e == API_OK)
+        if (errorDetails.err == API_OK)
         {
             if (client->chats.find(chatid) == client->chats.end())
             {
@@ -6641,7 +6610,7 @@ void CommandChatRemoveAccess::procresult()
             client->notifychat(chat);
         }
 
-        client->app->chatremoveaccess_result(static_cast<error>(e));
+        client->app->chatremoveaccess_result(errorDetails.err);
     }
     else
     {
@@ -6670,11 +6639,10 @@ CommandChatUpdatePermissions::CommandChatUpdatePermissions(MegaClient *client, h
 
 void CommandChatUpdatePermissions::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {       
-        if (e == API_OK)
+        if (errorDetails.err == API_OK)
         {
             if (client->chats.find(chatid) == client->chats.end())
             {
@@ -6722,7 +6690,7 @@ void CommandChatUpdatePermissions::procresult()
             client->notifychat(chat);
         }
 
-        client->app->chatupdatepermissions_result(static_cast<error>(e));
+        client->app->chatupdatepermissions_result(errorDetails.err);
     }
     else
     {
@@ -6749,11 +6717,10 @@ CommandChatTruncate::CommandChatTruncate(MegaClient *client, handle chatid, hand
 
 void CommandChatTruncate::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        if (e == API_OK)
+        if (errorDetails.err == API_OK)
         {
             if (client->chats.find(chatid) == client->chats.end())
             {
@@ -6767,7 +6734,7 @@ void CommandChatTruncate::procresult()
             client->notifychat(chat);
         }
 
-        client->app->chattruncate_result(static_cast<error>(e));
+        client->app->chattruncate_result(errorDetails.err);
     }
     else
     {
@@ -6794,11 +6761,10 @@ CommandChatSetTitle::CommandChatSetTitle(MegaClient *client, handle chatid, cons
 
 void CommandChatSetTitle::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        if (e == API_OK)
+        if (errorDetails.err == API_OK)
         {
             if (client->chats.find(chatid) == client->chats.end())
             {
@@ -6814,7 +6780,7 @@ void CommandChatSetTitle::procresult()
             client->notifychat(chat);
         }
 
-        client->app->chatsettitle_result(static_cast<error>(e));
+        client->app->chatsettitle_result(errorDetails.err);
     }
     else
     {
@@ -6833,11 +6799,10 @@ CommandChatPresenceURL::CommandChatPresenceURL(MegaClient *client)
 
 void CommandChatPresenceURL::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        client->app->chatpresenceurl_result(NULL, static_cast<error>(e));
+        client->app->chatpresenceurl_result(NULL, errorDetails.err);
     }
     else
     {
@@ -6865,11 +6830,10 @@ CommandRegisterPushNotification::CommandRegisterPushNotification(MegaClient *cli
 
 void CommandRegisterPushNotification::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        client->app->registerpushnotification_result(static_cast<error>(e));
+        client->app->registerpushnotification_result(errorDetails.err);
     }
     else
     {
@@ -6896,11 +6860,10 @@ CommandArchiveChat::CommandArchiveChat(MegaClient *client, handle chatid, bool a
 
 void CommandArchiveChat::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        if (e == API_OK)
+        if (errorDetails.err == API_OK)
         {
             textchat_map::iterator it = client->chats.find(mChatid);
             if (it == client->chats.end())
@@ -6917,7 +6880,7 @@ void CommandArchiveChat::procresult()
             client->notifychat(chat);
         }
 
-        client->app->archivechat_result(static_cast<error>(e));
+        client->app->archivechat_result(errorDetails.err);
     }
     else
     {
@@ -6945,11 +6908,10 @@ void CommandRichLink::procresult()
     //                      "ic":"<format>:<icon_B64>",
     //                      "i":"<format>:<image>"}}]
 
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        return client->app->richlinkrequest_result(NULL, static_cast<error>(e));
+        return client->app->richlinkrequest_result(NULL, errorDetails.err);
     }
 
 
@@ -7028,18 +6990,17 @@ CommandChatLink::CommandChatLink(MegaClient *client, handle chatid, bool del, bo
 
 void CommandChatLink::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        if (e == API_OK && !mDelete)
+        if (errorDetails.err == API_OK && !mDelete)
         {
             LOG_err << "Unexpected response for create/get chatlink";
             client->app->chatlink_result(UNDEF, API_EINTERNAL);
             return;
         }
 
-        client->app->chatlink_result(UNDEF, static_cast<error>(e));
+        client->app->chatlink_result(UNDEF, errorDetails.err);
     }
     else
     {
@@ -7066,11 +7027,10 @@ CommandChatLinkURL::CommandChatLinkURL(MegaClient *client, handle publichandle)
 
 void CommandChatLinkURL::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, static_cast<error>(e));
+        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, errorDetails.err);
     }
     else
     {
@@ -7150,11 +7110,10 @@ CommandChatLinkClose::CommandChatLinkClose(MegaClient *client, handle chatid, co
 
 void CommandChatLinkClose::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        if (e == API_OK)
+        if (errorDetails.err == API_OK)
         {
             textchat_map::iterator it = client->chats.find(mChatid);
             if (it == client->chats.end())
@@ -7175,7 +7134,7 @@ void CommandChatLinkClose::procresult()
             client->notifychat(chat);
         }
 
-        client->app->chatlinkclose_result(static_cast<error>(e));
+        client->app->chatlinkclose_result(errorDetails.err);
     }
     else
     {
@@ -7194,11 +7153,10 @@ CommandChatLinkJoin::CommandChatLinkJoin(MegaClient *client, handle publichandle
 
 void CommandChatLinkJoin::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        client->app->chatlinkjoin_result(static_cast<error>(e));
+        client->app->chatlinkjoin_result(errorDetails.err);
     }
     else
     {
@@ -7229,11 +7187,10 @@ CommandGetMegaAchievements::CommandGetMegaAchievements(MegaClient *client, Achie
 
 void CommandGetMegaAchievements::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        client->app->getmegaachievements_result(details, static_cast<error>(e));
+        client->app->getmegaachievements_result(details, errorDetails.err);
         return;
     }
 
@@ -7434,11 +7391,10 @@ CommandGetWelcomePDF::CommandGetWelcomePDF(MegaClient *client)
 
 void CommandGetWelcomePDF::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        client->app->getwelcomepdf_result(UNDEF, NULL, static_cast<error>(e));
+        client->app->getwelcomepdf_result(UNDEF, NULL, errorDetails.err);
         return;
     }
 
@@ -7489,24 +7445,31 @@ CommandMediaCodecs::CommandMediaCodecs(MegaClient* c, Callback cb)
 
 void CommandMediaCodecs::procresult()
 {    
-    m_off_t result;
-    ErrorDetails errorDetails;
-    if (checkError(result, client->json, errorDetails))
+    Error errorDetails;
+    int64_t result;
+    if (checkError(errorDetails, client->json))
     {
-        if (result < 0)
+        if (errorDetails.err < 0)
         {
-            LOG_err << "mc result: " << result;
+            LOG_err << "mc result: " << errorDetails.err;
         }
 
-        int version = static_cast<int>(result);
-        callback(client, version);
+        result = static_cast<int64_t>(errorDetails.err);
+    }
+    else if (client->json.isnumeric())
+    {
+        result = client->json.getint();
     }
     else
     {
         // It's wrongly formatted, consume this one so the next command can be processed.
         LOG_err << "mc response badly formatted";
         client->json.storeobject();
+        return;
     }
+
+    int version = static_cast<int>(result);
+    callback(client, version);
 }
 
 CommandContactLinkCreate::CommandContactLinkCreate(MegaClient *client, bool renew)
@@ -7525,11 +7488,10 @@ CommandContactLinkCreate::CommandContactLinkCreate(MegaClient *client, bool rene
 
 void CommandContactLinkCreate::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        client->app->contactlinkcreate_result(static_cast<error>(e), UNDEF);
+        client->app->contactlinkcreate_result(errorDetails.err, UNDEF);
     }
     else
     {
@@ -7556,11 +7518,10 @@ void CommandContactLinkQuery::procresult()
     string lastname;
     string avatar;
 
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        return client->app->contactlinkquery_result(static_cast<error>(e), h, &email, &firstname, &lastname, &avatar);
+        return client->app->contactlinkquery_result(errorDetails.err, h, &email, &firstname, &lastname, &avatar);
     }
 
     for (;;)
@@ -7607,11 +7568,10 @@ CommandContactLinkDelete::CommandContactLinkDelete(MegaClient *client, handle h)
 
 void CommandContactLinkDelete::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        client->app->contactlinkdelete_result(static_cast<error>(e));
+        client->app->contactlinkdelete_result(errorDetails.err);
     }
     else
     {
@@ -7637,11 +7597,10 @@ CommandKeepMeAlive::CommandKeepMeAlive(MegaClient *client, int type, bool enable
 
 void CommandKeepMeAlive::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        client->app->keepmealive_result(static_cast<error>(e));
+        client->app->keepmealive_result(errorDetails.err);
     }
     else
     {
@@ -7662,11 +7621,10 @@ CommandMultiFactorAuthSetup::CommandMultiFactorAuthSetup(MegaClient *client, con
 
 void CommandMultiFactorAuthSetup::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        return client->app->multifactorauthsetup_result(NULL, static_cast<error>(e));
+        return client->app->multifactorauthsetup_result(NULL, errorDetails.err);
     }
 
     string code;
@@ -7688,8 +7646,8 @@ CommandMultiFactorAuthCheck::CommandMultiFactorAuthCheck(MegaClient *client, con
 void CommandMultiFactorAuthCheck::procresult()
 {
     int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
         client->app->multifactorauthcheck_result(static_cast<error>(e));
     }
@@ -7710,11 +7668,10 @@ CommandMultiFactorAuthDisable::CommandMultiFactorAuthDisable(MegaClient *client,
 
 void CommandMultiFactorAuthDisable::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        client->app->multifactorauthdisable_result(static_cast<error>(e));
+        client->app->multifactorauthdisable_result(errorDetails.err);
     }
     else    // error
     {
@@ -7732,11 +7689,10 @@ CommandGetPSA::CommandGetPSA(MegaClient *client)
 
 void CommandGetPSA::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        return client->app->getpsa_result(static_cast<error>(e), 0, NULL, NULL, NULL, NULL, NULL);
+        return client->app->getpsa_result(errorDetails.err, 0, NULL, NULL, NULL, NULL, NULL);
     }
 
     int id = 0;
@@ -7798,11 +7754,10 @@ CommandFetchTimeZone::CommandFetchTimeZone(MegaClient *client, const char *timez
 
 void CommandFetchTimeZone::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        return client->app->fetchtimezone_result(static_cast<error>(e), NULL, NULL, -1);
+        return client->app->fetchtimezone_result(errorDetails.err, NULL, NULL, -1);
     }
 
     string currenttz;
@@ -7879,11 +7834,10 @@ CommandSetLastAcknowledged::CommandSetLastAcknowledged(MegaClient* client)
 
 void CommandSetLastAcknowledged::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        client->app->acknowledgeuseralerts_result(static_cast<error>(e));
+        client->app->acknowledgeuseralerts_result(errorDetails.err);
     }
     else
     {
@@ -7922,11 +7876,10 @@ bool CommandSMSVerificationSend::isPhoneNumber(const string& s)
 
 void CommandSMSVerificationSend::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        client->app->smsverificationsend_result(static_cast<error>(e));
+        client->app->smsverificationsend_result(errorDetails.err);
     }
     else
     {
@@ -7962,11 +7915,10 @@ bool CommandSMSVerificationCheck::isVerificationCode(const string& s)
 
 void CommandSMSVerificationCheck::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        return client->app->smsverificationcheck_result(static_cast<error>(e), nullptr);
+        return client->app->smsverificationcheck_result(errorDetails.err, nullptr);
     }
 
     string phoneNumber;
@@ -8004,11 +7956,10 @@ void CommandGetRegisteredContacts::procresult()
 
 void CommandGetRegisteredContacts::processResult(MegaApp& app, JSON& json)
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, json))
     {
-        app.getregisteredcontacts_result(static_cast<error>(e), nullptr);
+        app.getregisteredcontacts_result(errorDetails.err, nullptr);
         return;
     }
 
@@ -8094,11 +8045,10 @@ void CommandGetCountryCallingCodes::procresult()
 
 void CommandGetCountryCallingCodes::processResult(MegaApp& app, JSON& json)
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, json))
     {
-        app.getcountrycallingcodes_result(static_cast<error>(e), nullptr);
+        app.getcountrycallingcodes_result(errorDetails.err, nullptr);
         return;
     }
 
@@ -8182,11 +8132,10 @@ CommandFolderLinkInfo::CommandFolderLinkInfo(MegaClient* client, handle publicha
 
 void CommandFolderLinkInfo::procresult()
 {
-    int64_t e;
-    ErrorDetails errorDetails;
-    if (checkError(e, client->json, errorDetails))
+    Error errorDetails;
+    if (checkError(errorDetails, client->json))
     {
-        return client->app->folderlinkinfo_result(static_cast<error>(e), UNDEF, UNDEF, NULL, NULL, 0, 0, 0, 0, 0);
+        return client->app->folderlinkinfo_result(errorDetails.err, UNDEF, UNDEF, NULL, NULL, 0, 0, 0, 0, 0);
     }
     string attr;
     string key;

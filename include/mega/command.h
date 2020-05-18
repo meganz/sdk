@@ -31,7 +31,6 @@ namespace mega {
 
 struct JSON;
 struct MegaApp;
-class ErrorDetails;
 // request command component
 class MEGA_API Command
 {
@@ -92,17 +91,9 @@ public:
     Command();
     virtual ~Command() = default;
 
-    static bool checkError(int64_t &e, JSON &json, ErrorDetails &errorDetails);
+    static bool checkError(Error &errorDetails, JSON &json);
 
     MEGA_DEFAULT_COPY_MOVE(Command)
-};
-
-class ErrorDetails
-{
-public:
-    bool exits = false;
-    int64_t u = 0; // user status
-    int64_t l = 0; // link status
 };
 
 // list of new file attributes to write

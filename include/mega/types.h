@@ -209,6 +209,15 @@ typedef enum ErrorCodes
     API_EBUSINESSPASTDUE = -28      ///< Business account expired
 } error;
 
+class Error
+{
+public:
+    error err = API_EINTERNAL;
+    bool exits = false;
+    int64_t u = 0; // user status
+    int64_t l = 0; // link status
+};
+
 // returned by loggedin()
 typedef enum { NOTLOGGEDIN, EPHEMERALACCOUNT, CONFIRMEDACCOUNT, FULLACCOUNT } sessiontype_t;
 
