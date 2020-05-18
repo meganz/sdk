@@ -50,9 +50,10 @@ const char* Command::getstring() const
 //return true when the response is an error in other case return false and it doesn't advance the pointer
 bool Command::checkError(Error& errorDetails, JSON& json)
 {
-    errorDetails.err = API_EINTERNAL;
-    if (json.isNumericError(errorDetails.err))
+    error e;
+    if (json.isNumericError(e))
     {
+        errorDetails.setError(e);
         return true;
     }
     else
@@ -67,20 +68,20 @@ bool Command::checkError(Error& errorDetails, JSON& json)
 
         if (errJson == "\"err\":")
         {
-            errorDetails.exits = true;
+            errorDetails.setExtraErrorInfo(true);
             json.enterobject();
             for (;;)
             {
                 switch (json.getnameid())
                 {
                     case MAKENAMEID3('e', 'r', 'r'):
-                        errorDetails.err = static_cast<error>(json.getint());
+                        errorDetails.setError(static_cast<error>(json.getint()));
                         break;
                     case 'u':
-                        errorDetails.u = json.getint();
+                        errorDetails.setUserStatus(json.getint());
                         break;
                     case 'l':
-                        errorDetails.l  = json.getint();
+                       errorDetails.setLinkStatus(json.getint());
                         break;
                     case EOO:
                         json.leaveobject();

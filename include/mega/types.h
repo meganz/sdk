@@ -212,10 +212,18 @@ typedef enum ErrorCodes
 class Error
 {
 public:
-    error err = API_EINTERNAL;
-    bool exits = false;
-    int64_t u = 0; // user status
-    int64_t l = 0; // link status
+    void setError(error err) { mError = err; }
+    void setUserStatus(int64_t u) { mUserStatus = u; }
+    void setLinkStatus(int64_t l) { mLinkStatus = l; }
+    void setExtraErrorInfo(bool extraInfo) { mExtraErrorInfo = extraInfo; }
+    error getError() const { return mError; }
+
+
+private:
+    error mError = API_EINTERNAL;
+    bool  mExtraErrorInfo = false;
+    int64_t mUserStatus = 0; // user status
+    int64_t mLinkStatus = 0; // link status
 };
 
 // returned by loggedin()
