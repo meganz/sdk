@@ -21332,7 +21332,8 @@ void MegaApiImpl::sendPendingRequests()
 
             if ((deviceType != MegaApi::PUSH_NOTIFICATION_ANDROID &&
                  deviceType != MegaApi::PUSH_NOTIFICATION_IOS_VOIP &&
-                 deviceType != MegaApi::PUSH_NOTIFICATION_IOS_STD)
+                 deviceType != MegaApi::PUSH_NOTIFICATION_IOS_STD &&
+                 deviceType != MegaApi::PUSH_NOTIFICATION_ANDROID_HUAWEI)
                     || token == NULL)
             {
                 e = API_EARGS;
