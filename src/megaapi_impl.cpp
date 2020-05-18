@@ -10443,7 +10443,8 @@ MegaNodeList *MegaApiImpl::getPublicLinks(int order)
     node_vector nodes;
     for (const auto& item : client->mPublicLinks)
     {
-        n = client->nodebyhandle(item.second);
+        assert(client->nodebyhandle(item.second));
+        nodes.emplace_back(client->nodebyhandle(item.second));
         if (n)
         {
             nodes.emplace_back(n);
