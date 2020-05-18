@@ -10641,7 +10641,7 @@ MegaNodeList* MegaApiImpl::searchInAllShares(const char *searchString, MegaCance
         return new MegaNodeListPrivate();
     }
 
-    if (target < MegaApi::TARGET_INSHARE || target > MegaApi::TARGET_PUBLICLINK)
+    if (target < TARGET_INSHARE || target > TARGET_PUBLICLINK)
     {
         return new MegaNodeListPrivate();
     }
@@ -10655,10 +10655,10 @@ MegaNodeList* MegaApiImpl::searchInAllShares(const char *searchString, MegaCance
 
     node_vector result;
     Node *node;
-    if (target == MegaApi::TARGET_INSHARE || target == MegaApi::TARGET_OUTSHARE)
+    if (target == TARGET_INSHARE || target == TARGET_OUTSHARE)
     {
         // Search in inShares or outShares
-        ::mega::unique_ptr<MegaShareList> shares (target == MegaApi::TARGET_INSHARE
+        ::mega::unique_ptr<MegaShareList> shares (target == TARGET_INSHARE
                                                   ? getInSharesList(MegaApi::ORDER_NONE)
                                                   : getOutShares(MegaApi::ORDER_NONE));
 
