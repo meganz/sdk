@@ -1114,11 +1114,23 @@ void DemoApp::unlink_result(handle, error e)
     }
 }
 
-void DemoApp::fetchnodes_result(error e)
+void DemoApp::fetchnodes_result(const Error& e)
 {
     if (e)
     {
-        cout << "File/folder retrieval failed (" << errorstring(e) << ")" << endl;
+        if (e == API_ENOENT && e.hasExtraInfo())
+        {
+            if (e.getUserStatus() == 7)
+            {
+                cout << "File/folder retrieval failed due to user ETD and ";
+            }
+
+            cout << "link  status is " << getLinkErrorString(e.getLinkStatus()) << endl;
+        }
+        else
+        {
+            cout << "File/folder retrieval failed (" << errorstring(e) << ")" << endl;
+        }
         pdf_to_import = false;
     }
     else
@@ -1411,6 +1423,21 @@ void DemoApp::notify_retry(dstime dsdelta, retryreason_t)
     else
     {
         cout << "Retried API request completed" << endl;
+    }
+}
+
+string DemoApp::getLinkErrorString(long long linkStatus)
+{
+    switch (linkStatus)
+    {
+        case 0:
+            return "Undeleted";
+        case 1:
+            return "Deleted/down";
+        case 2:
+            return "Down due to an ETD specifically";
+        default:
+            return "Unkown link status";
     }
 }
 
@@ -7902,11 +7929,24 @@ void DemoAppFolder::login_result(error e)
     }
 }
 
-void DemoAppFolder::fetchnodes_result(error e)
+void DemoAppFolder::fetchnodes_result(const Error& e)
 {
     if (e)
     {
-        cout << "File/folder retrieval failed (" << errorstring(e) << ")" << endl;
+        if (e == API_ENOENT && e.hasExtraInfo())
+        {
+            if (e.getUserStatus() == 7)
+            {
+                cout << "File/folder retrieval failed due to user ETD and ";
+            }
+
+            cout << "link  status is " << getLinkErrorString(e.getLinkStatus()) << endl;
+        }
+        else
+        {
+            cout << "File/folder retrieval failed (" << errorstring(e) << ")" << endl;
+        }
+
         pdf_to_import = false;
     }
     else

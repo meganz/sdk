@@ -12984,9 +12984,14 @@ void MegaApiImpl::unlinkversions_result(error e)
     fireOnRequestFinish(request, MegaError(e));
 }
 
-void MegaApiImpl::fetchnodes_result(error e)
+void MegaApiImpl::fetchnodes_result(const Error &e)
 {    
     MegaError megaError(e);
+    if (e.hasExtraInfo())
+    {
+        megaError.setExtraErrorInfo(e.getUserStatus(), e.getLinkStatus());
+    }
+
     MegaRequestPrivate* request = NULL;
     if (!client->restag)
     {

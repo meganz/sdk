@@ -158,7 +158,7 @@ struct DemoApp : public MegaApp
     void rename_result(handle, error) override;
     void unlink_result(handle, error) override;
 
-    void fetchnodes_result(error) override;
+    void fetchnodes_result(const Error&) override;
 
     void putnodes_result(error, targettype_t, NewNode*) override;
 
@@ -260,12 +260,14 @@ struct DemoApp : public MegaApp
     void clearing() override;
 
     void notify_retry(dstime, retryreason_t) override;
+
+    string getLinkErrorString(long long linkStatus);
 };
 
 struct DemoAppFolder : public DemoApp
 {
     void login_result(error);
-    void fetchnodes_result(error);
+    void fetchnodes_result(const Error&);
 
     void nodes_updated(Node **, int);
     void users_updated(User**, int) {}

@@ -2811,7 +2811,7 @@ protected:
         void catchup_result() override;
         void key_modified(handle, attr_t) override;
 
-        void fetchnodes_result(error) override;
+        void fetchnodes_result(const Error&) override;
         void putnodes_result(error, targettype_t, NewNode*) override;
 
         // share update result

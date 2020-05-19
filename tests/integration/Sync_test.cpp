@@ -1180,7 +1180,7 @@ struct StandardClient : public MegaApp
         resultproc.processresult(LOGIN, e);
     }
 
-    void fetchnodes_result(error e) override
+    void fetchnodes_result(const Error& e) override
     {
         cout << clientname << " Fetchnodes: " << e << endl;
         resultproc.processresult(FETCHNODES, e);

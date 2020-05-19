@@ -111,7 +111,7 @@ struct MEGA_API MegaApp
     virtual void userattr_update(User*, int, const char*) { }
 
     // node fetch result
-    virtual void fetchnodes_result(error) { }
+    virtual void fetchnodes_result(const Error&) { }
 
     // nodes now (nearly) current
     virtual void nodes_current() { }
