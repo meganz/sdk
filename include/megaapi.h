@@ -4154,6 +4154,9 @@ public:
      * the modification of the global parameters (dnd & schedule) or not.
      *
      * @return True if notifications are enabled, false if disabled
+     *
+     * @deprecated This method is deprecated, use isGlobalDndEnabled instead of this.
+     * Note that isGlobalDndEnabled returns the opposite value to isGlobalEnabled
      */
     virtual bool isGlobalEnabled() const;
 
@@ -4164,10 +4167,17 @@ public:
     virtual bool isGlobalDndEnabled() const;
 
     /**
+     * @brief Returns whether Do-Not-Disturb mode for chats is enabled or not
+     
+     * @return True if enabled, false otherwise
+     */
+    virtual bool isGlobalChatsDndEnabled() const;
+
+    /**
      * @brief Returns the timestamp until the DND mode is enabled
      *
-     * This method returns a valid value only if MegaPushNotificationSettings::isGlobalEnabled
-     * returns false and MegaPushNotificationSettings::isGlobalDndEnabled returns true.
+     * This method returns a valid value only if MegaPushNotificationSettings::isGlobalDndEnabled
+     * returns true.
      *
      * If there's no DND mode established, this function returns -1.
      * @note a DND value of 0 means the DND does not expire.
@@ -4222,6 +4232,9 @@ public:
      *
      * @param chatid MegaHandle that identifies the chat room
      * @return True if enabled, false otherwise
+     *
+     * @deprecated This method is deprecated, use isChatDndEnabled instead of this.
+     * Note that isChatDndEnabled returns the opposite value to isChatEnabled
      */
     virtual bool isChatEnabled(MegaHandle chatid) const;
 
@@ -4236,8 +4249,8 @@ public:
     /**
      * @brief Returns the timestamp until the Do-Not-Disturb mode for a chat
      *
-     * This method returns a valid value only if MegaPushNotificationSettings::isChatEnabled
-     * returns false and MegaPushNotificationSettings::isChatDndEnabled returns true.
+     * This method returns a valid value only if MegaPushNotificationSettings::isChatDndEnabled
+     * returns true.
      *
      * If there's no DND mode established for the specified chat, this function returns -1.
      * @note a DND value of 0 means the DND does not expire.
@@ -4272,8 +4285,24 @@ public:
     /**
      * @brief Returns whether notifications about chats are enabled or not
      * @return True if enabled, false otherwise
+     *
+     * @deprecated This method is deprecated, use isGlobalChatsDndEnabled instead of this.
+     * Note that isGlobalChatsDndEnabled returns the opposite result to isChatsEnabled;
      */
     virtual bool isChatsEnabled() const;
+
+    /**
+     * @brief Returns the timestamp until the chats DND mode is enabled
+     *
+     * This method returns a valid value only if MegaPushNotificationSettings::isGlobalChatsDndEnabled
+     * returns true.
+     *
+     * If there's no DND mode established, this function returns -1.
+     * @note a DND value of 0 means the DND does not expire.
+     *
+     * @return Timestamp until chats DND mode is enabled (in seconds since the Epoch)
+     */
+    virtual int64_t getGlobalChatsDnd() const;
 
     /**
      * @brief Enable or disable notifications globally
@@ -4352,6 +4381,15 @@ public:
      * @param timestamp Timestamp until DND mode is enabled (in seconds since the Epoch)
      */
     virtual void setChatDnd(MegaHandle chatid, int64_t timestamp);
+
+    /**
+     * @brief Set the Global DND for chats for a period of time
+     *
+     * No chat notifications will be generated until the specified timestamp.
+     *
+     * @param timestamp Timestamp until DND mode is enabled (in seconds since the Epoch)
+     */
+    virtual void setGlobalChatsDnd(int64_t timestamp);
 
     /**
      * @brief Enable or disable "Always notify" setting

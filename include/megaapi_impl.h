@@ -857,7 +857,9 @@ public:
 
     bool isGlobalEnabled() const override;
     bool isGlobalDndEnabled() const override;
+    bool isGlobalChatsDndEnabled() const override;
     int64_t getGlobalDnd() const override;
+    int64_t getGlobalChatsDnd() const override;
     bool isGlobalScheduleEnabled() const override;
     int getGlobalScheduleStart() const override;
     int getGlobalScheduleEnd() const override;
@@ -882,6 +884,7 @@ public:
 
     void enableChat(MegaHandle chatid, bool enable) override;
     void setChatDnd(MegaHandle chatid, int64_t timestamp) override;
+    void setGlobalChatsDnd(int64_t timestamp) override;
     void enableChatAlwaysNotify(MegaHandle chatid, bool enable) override;
 
     void enableContacts(bool enable) override;
