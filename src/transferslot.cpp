@@ -136,6 +136,7 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
         LOG_warn << "Error getting RAM usage info";
     }
 #endif
+    LOG_warn << "TransferSlot() created" << this;
 }
 
 bool TransferSlot::createconnectionsonce()
@@ -160,6 +161,7 @@ bool TransferSlot::createconnectionsonce()
 // reused on a new slot)
 TransferSlot::~TransferSlot()
 {
+    LOG_warn << "~TransferSlot() begins " << this;
     if (transfer->type == GET && !transfer->finished
             && transfer->progresscompleted != transfer->size
             && !transfer->asyncopencontext)
@@ -277,6 +279,7 @@ TransferSlot::~TransferSlot()
     }
 
     delete[] asyncIO;
+    LOG_warn << "~TransferSlot() ends " << this;
 }
 
 void TransferSlot::toggleport(HttpReqXfer *req)

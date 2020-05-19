@@ -1234,6 +1234,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
 
 MegaClient::~MegaClient()
 {
+LOG_warn << "~MegaClient() begins";
     destructorRunning = true;
     locallogout(false);
 
@@ -1243,6 +1244,7 @@ MegaClient::~MegaClient()
     delete sctable;
     delete tctable;
     delete dbaccess;
+    LOG_warn << "~MegaClient() ends";
 }
 
 #ifdef ENABLE_SYNC

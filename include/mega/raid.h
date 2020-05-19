@@ -50,6 +50,7 @@ namespace mega {
             FilePiece();
             FilePiece(m_off_t p, size_t len);    // makes a buffer of the specified size (with extra space for SymmCipher::ctr_crypt padding)
             FilePiece(m_off_t p, HttpReq::http_buf_t* b); // takes ownership of the buffer
+            ~FilePiece();
             void swap(FilePiece& other);
 
             // decrypt & mac

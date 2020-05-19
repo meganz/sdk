@@ -110,12 +110,14 @@ RaidBufferManager::FilePiece::FilePiece()
     : pos(0)
     , buf(NULL, 0, 0)
 {
+    LOG_warn << "FilePiece " << this << " constructed";
 }
 
 RaidBufferManager::FilePiece::FilePiece(m_off_t p, size_t len)
     : pos(p)
     , buf(new byte[len + std::min<size_t>(SymmCipher::BLOCKSIZE, RAIDSECTOR)], 0, len)   // SymmCipher::ctr_crypt requirement: decryption: data must be padded to BLOCKSIZE.  Also make sure we can xor up to RAIDSECTOR more for convenience
 {
+    LOG_warn << "FilePiece " << this << " constructed " << pos;
 }
 
 
@@ -125,6 +127,12 @@ RaidBufferManager::FilePiece::FilePiece(m_off_t p, HttpReq::http_buf_t* b) // ta
 {
     buf.swap(*b);  // take its buffer and copy other members
     delete b;  // client no longer owns it so we must delete.  Similar to move semantics where we would just assign
+    LOG_warn << "FilePiece " << this << " constructed " << pos;
+}
+
+RaidBufferManager::FilePiece::~FilePiece() 
+{
+    LOG_warn << "FilePiece " << this << " destructed " << pos;
 }
 
 void RaidBufferManager::FilePiece::swap(FilePiece& other)
@@ -666,11 +674,13 @@ bool RaidBufferManager::FilePiece::finalize(bool parallel, m_off_t filesize, int
             {
                 if (parallel)
                 {
+                    LOG_warn << "FilePiece " << pos << " parallel crypt";
                     // these parts can be done on a thread - they are independent chunks, or the earlier part of the chunk is already done.
                     cipher->ctr_crypt(chunkstart, chunksize, startpos, ctriv, chunkmac.mac, false, !chunkmac.finished && !chunkmac.offset);
                     LOG_debug << "Finished chunk: " << startpos << " - " << endpos << "   Size: " << chunksize;
                     chunkmac.finished = true;
                     chunkmac.offset = 0;
+                    LOG_warn << "FilePiece " << pos << " parallel crypt done";
                 }
                 else
                 {
@@ -679,11 +689,15 @@ bool RaidBufferManager::FilePiece::finalize(bool parallel, m_off_t filesize, int
             }
             else if (!parallel)
             {
+                LOG_warn << "FilePiece " << pos << " non-parallel crypt";
+
                 // these part chunks must be done serially (and first), since later parts of a chunk need the mac of earlier parts as input.
                 cipher->ctr_crypt(chunkstart, chunksize, startpos, ctriv, chunkmac.mac, false, !chunkmac.finished && !chunkmac.offset);
                 LOG_debug << "Decrypted partial chunk: " << startpos << " - " << endpos << "   Size: " << chunksize;
                 chunkmac.finished = false;
                 chunkmac.offset += chunksize;
+
+                LOG_warn << "FilePiece " << pos << " non-parallel crypt done";
             }
         }
         chunkstart += chunksize;

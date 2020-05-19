@@ -2390,13 +2390,18 @@ MegaClientAsyncQueue::MegaClientAsyncQueue(Waiter& w, unsigned threadCount)
 
 MegaClientAsyncQueue::~MegaClientAsyncQueue()
 {
+    LOG_warn << "~MegaClientAsyncQueue() begins";
+
     clearQueue();
+    LOG_warn << "~MegaClientAsyncQueue() queue cleared";
     push(nullptr);
     mConditionVariable.notify_all();
+    LOG_warn << "~MegaClientAsyncQueue() joining threads";
     for (auto& t : mThreads)
     {
         t.join();
     }
+    LOG_warn << "~MegaClientAsyncQueue() ends";
 }
 
 void MegaClientAsyncQueue::clearQueue()
