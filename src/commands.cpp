@@ -4806,16 +4806,14 @@ void CommandGetPH::procresult()
                 }
                 else
                 {
-                    errorDetails.setError(API_EINTERNAL);
-                    client->app->openfilelink_result(errorDetails);
+                    client->app->openfilelink_result(API_EINTERNAL);
                 }
                 return;
 
             default:
                 if (!client->json.storeobject())
                 {
-                    errorDetails.setError(API_EINTERNAL);
-                    client->app->openfilelink_result(errorDetails);
+                    client->app->openfilelink_result(API_EINTERNAL);
                 }
         }
     }

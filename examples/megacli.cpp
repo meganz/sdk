@@ -6998,9 +6998,9 @@ void DemoApp::exportnode_result(handle h, handle ph)
 }
 
 // the requested link could not be opened
-void DemoApp::openfilelink_result(error e)
+void DemoApp::openfilelink_result(const Error& e)
 {
-    if (e)
+    if (e != API_OK)
     {
         if (pdf_to_import) // import welcome pdf has failed
         {
@@ -7008,6 +7008,15 @@ void DemoApp::openfilelink_result(error e)
         }
         else
         {
+            if (e == API_ENOENT && e.hasExtraInfo())
+            {
+                cout << "File/folder retrieval failed: " << getExtraInfoErrorString(e) << endl;
+            }
+            else
+            {
+                cout << "File/folder retrieval failed (" << errorstring(e) << ")" << endl;
+            }
+
             cout << "Failed to open link: " << errorstring(e) << endl;
         }
     }

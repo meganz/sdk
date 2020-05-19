@@ -2867,7 +2867,7 @@ protected:
         void exportnode_result(handle, handle) override;
 
         // exported link access result
-        void openfilelink_result(error) override;
+        void openfilelink_result(const Error&) override;
         void openfilelink_result(handle, const byte*, m_off_t, string*, string*, int) override;
 
         // retrieval of public link information

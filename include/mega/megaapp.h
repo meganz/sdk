@@ -179,7 +179,7 @@ struct MEGA_API MegaApp
     virtual void exportnode_result(handle, handle) { }
 
     // exported link access result
-    virtual void openfilelink_result(error) { }
+    virtual void openfilelink_result(const Error&) { }
     virtual void openfilelink_result(handle, const byte*, m_off_t, string*, string*, int) { }
 
     // node opening result

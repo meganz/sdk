@@ -14172,9 +14172,14 @@ void MegaApiImpl::exportnode_result(handle h, handle ph)
 }
 
 // the requested link could not be opened
-void MegaApiImpl::openfilelink_result(error result)
+void MegaApiImpl::openfilelink_result(const Error& result)
 {
     MegaError megaError(result);
+    if (result.hasExtraInfo())
+    {
+        megaError.setExtraErrorInfo(result.getUserStatus(), result.getLinkStatus());
+    }
+
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || ((request->getType() != MegaRequest::TYPE_IMPORT_LINK) &&
