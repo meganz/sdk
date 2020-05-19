@@ -68,14 +68,13 @@ bool Command::checkError(Error& errorDetails, JSON& json)
 
         if (errJson == "\"err\":")
         {
-            errorDetails.setExtraErrorInfo(true);
             json.enterobject();
             for (;;)
             {
                 switch (json.getnameid())
                 {
                     case MAKENAMEID3('e', 'r', 'r'):
-                        errorDetails.setError(static_cast<error>(json.getint()));
+                        errorDetails.setErrorWithExtraInfo(static_cast<error>(json.getint()));
                         break;
                     case 'u':
                         errorDetails.setUserStatus(json.getint());
