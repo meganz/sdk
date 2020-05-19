@@ -6560,18 +6560,7 @@ void CommandSetChatRetentionTime::procresult()
 {
     if (client->json.isnumeric())
     {
-        error e = (error) client->json.getint();
-        if (e == API_OK)
-        {
-            if (client->chats.find(mChatid) == client->chats.end())
-            {
-                // set retention time succeed for a non-existing chatroom
-                client->app->setchatretentiontime_result(API_EINTERNAL);
-                return;
-            }
-        }
-
-        client->app->setchatretentiontime_result(e);
+        client->app->setchatretentiontime_result(static_cast<error>(client->json.getint()));
     }
     else
     {
