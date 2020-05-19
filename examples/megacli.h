@@ -261,7 +261,7 @@ struct DemoApp : public MegaApp
 
     void notify_retry(dstime, retryreason_t) override;
 
-    string getLinkErrorString(long long linkStatus);
+    string getExtraInfoErrorString(const Error&);
 };
 
 struct DemoAppFolder : public DemoApp

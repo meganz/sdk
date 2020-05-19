@@ -1120,12 +1120,7 @@ void DemoApp::fetchnodes_result(const Error& e)
     {
         if (e == API_ENOENT && e.hasExtraInfo())
         {
-            if (e.getUserStatus() == 7)
-            {
-                cout << "File/folder retrieval failed due to user ETD and ";
-            }
-
-            cout << "link  status is " << getLinkErrorString(e.getLinkStatus()) << endl;
+            cout << "File/folder retrieval failed: " << getExtraInfoErrorString(e) << endl;
         }
         else
         {
@@ -1426,19 +1421,33 @@ void DemoApp::notify_retry(dstime dsdelta, retryreason_t)
     }
 }
 
-string DemoApp::getLinkErrorString(long long linkStatus)
+string DemoApp::getExtraInfoErrorString(const Error& e)
 {
-    switch (linkStatus)
+    string textError;
+
+    if (e.getUserStatus() == 7)
+    {
+        textError.append("User status is suppend due to ETD. ");
+    }
+
+    textError.append("Link status is: ");
+    switch (e.getLinkStatus())
     {
         case 0:
-            return "Undeleted";
+            textError.append("Undeleted");
+            break;
         case 1:
-            return "Deleted/down";
+            textError.append("Deleted/down");
+            break;
         case 2:
-            return "Down due to an ETD specifically";
+            textError.append("Down due to an ETD specifically");
+            break;
         default:
-            return "Unkown link status";
+            textError.append("Unkown link status");
+            break;
     }
+
+    return textError;
 }
 
 static void store_line(char*);
@@ -7935,16 +7944,7 @@ void DemoAppFolder::fetchnodes_result(const Error& e)
     {
         if (e == API_ENOENT && e.hasExtraInfo())
         {
-            if (e.getUserStatus() == 7)
-            {
-                cout << "File/folder retrieval failed due to user ETD and ";
-            }
-
-            cout << "link  status is " << getLinkErrorString(e.getLinkStatus()) << endl;
-        }
-        else
-        {
-            cout << "File/folder retrieval failed (" << errorstring(e) << ")" << endl;
+            cout << "File/folder retrieval failed: " << getExtraInfoErrorString(e) << endl;
         }
 
         pdf_to_import = false;
