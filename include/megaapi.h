@@ -15635,7 +15635,7 @@ class MegaApi
 
         /**
          * @brief Allows a logged in operator/moderator to specify a message retention timeframe
-         * after which all messages in the chat are automatically deleted.
+         * after which older messages in the chat are automatically deleted.
          *
          * @note Use inSeconds param only for testing.
          *
@@ -15651,7 +15651,7 @@ class MegaApi
          * - MegaError::API_EACCESS - If the logged in user doesn't have operator privileges
          *
          * @param chatid MegaHandle that identifies the chat room
-         * @param period retention timeframe after which all messages in the chat are automatically deleted
+         * @param period retention timeframe after which older messages in the chat are automatically deleted
          * @param inSeconds indicate API that period is specified in seconds. Only for testing
          * @param listener MegaRequestListener to track this request
          */
