@@ -7008,16 +7008,15 @@ void DemoApp::openfilelink_result(const Error& e)
         }
         else
         {
-            if (e == API_ENOENT && e.hasExtraInfo())
+            if (e == API_ETOOMANY && e.hasExtraInfo())
             {
-                cout << "File/folder retrieval failed: " << getExtraInfoErrorString(e) << endl;
+                cout << "Failed to open link: " << getExtraInfoErrorString(e) << endl;
             }
             else
             {
-                cout << "File/folder retrieval failed (" << errorstring(e) << ")" << endl;
+                cout << "Failed to open link: " << errorstring(e) << endl;
             }
 
-            cout << "Failed to open link: " << errorstring(e) << endl;
         }
     }
     pdf_to_import = false;
