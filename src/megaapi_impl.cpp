@@ -10671,11 +10671,10 @@ MegaNodeList* MegaApiImpl::searchInAllShares(const char *searchString, MegaCance
     else
     {
         // Search in public links
-        ::mega::unique_ptr<MegaNodeList> publicLinks(getPublicLinks(MegaApi::ORDER_NONE));
-
-        for (int i = 0; i < publicLinks->size() && !(cancelToken && cancelToken->isCancelled()); i++)
+        for (auto it = client->mPublicLinks.begin(); it != client->mPublicLinks.end()
+             && !(cancelToken && cancelToken->isCancelled()); it++)
         {
-            node = client->nodebyhandle(publicLinks->get(i)->getHandle());
+            node = client->nodebyhandle(it->first);
             SearchTreeProcessor searchProcessor(searchString);
             processTree(node, &searchProcessor, true, cancelToken);
             vector<Node *>& vNodes  = searchProcessor.getResults();
