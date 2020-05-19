@@ -199,7 +199,7 @@ struct DemoApp : public MegaApp
 
     void folderlinkinfo_result(error, handle, handle, string *, string*, m_off_t, uint32_t, uint32_t, m_off_t, uint32_t) override;
 
-    void checkfile_result(handle, error) override;
+    void checkfile_result(handle, const Error&) override;
     void checkfile_result(handle, error, byte*, m_off_t, m_time_t, m_time_t, string*, string*, string*) override;
 
     dstime pread_failure(error, int, void*, dstime) override;
@@ -208,7 +208,7 @@ struct DemoApp : public MegaApp
     void transfer_added(Transfer*) override;
     void transfer_removed(Transfer*) override;
     void transfer_prepare(Transfer*) override;
-    void transfer_failed(Transfer*, error, dstime, handle) override;
+    void transfer_failed(Transfer*, const Error &, dstime, handle) override;
     void transfer_update(Transfer*) override;
     void transfer_complete(Transfer*) override;
 

@@ -106,7 +106,7 @@ struct MEGA_API Transfer : public FileFingerprint
     bool isForeign();
 
     // signal failure.  Either the transfer's slot or the transfer itself (including slot) will be deleted.
-    void failed(error, DBTableTransactionCommitter&, dstime = 0, handle targetHandle = UNDEF);
+    void failed(Error, DBTableTransactionCommitter&, dstime = 0, handle targetHandle = UNDEF);
 
     // signal completion
     void complete(DBTableTransactionCommitter&);

@@ -11275,7 +11275,7 @@ char *MegaApiImpl::getFingerprint(MegaNode *n)
     return MegaApi::strdup(n->getFingerprint());
 }
 
-void MegaApiImpl::transfer_failed(Transfer* t, error e, dstime timeleft, handle targetHandle)
+void MegaApiImpl::transfer_failed(Transfer* t, const Error &e, dstime timeleft, handle targetHandle)
 {
     for (file_list::iterator it = t->files.begin(); it != t->files.end(); it++)
     {
@@ -11666,7 +11666,7 @@ void MegaApiImpl::file_added(File *f)
     fireOnTransferStart(transfer);
 }
 
-void MegaApiImpl::file_removed(File *f, error e)
+void MegaApiImpl::file_removed(File *f, const Error &e)
 {
     MegaTransferPrivate* transfer = getMegaTransferPrivate(f->tag);
     if (transfer)
@@ -15424,7 +15424,7 @@ void MegaApiImpl::setkeypair_result(error)
 
 }
 
-void MegaApiImpl::checkfile_result(handle h, error e)
+void MegaApiImpl::checkfile_result(handle h, const Error &e)
 {
     if(e)
     {
@@ -15433,9 +15433,21 @@ void MegaApiImpl::checkfile_result(handle h, error e)
             MegaTransferPrivate *transfer = iter->second;
             if (transfer->getNodeHandle() == h)
             {
-                transfer->setLastError(MegaError(e));
-                transfer->setState(MegaTransfer::STATE_RETRYING);
-                fireOnTransferTemporaryError(transfer, MegaError(e));
+                if (e == API_ETOOMANY && e.hasExtraInfo())
+                {
+                    DBTableTransactionCommitter committer(client->tctable);
+                    MegaError err = MegaError(e);
+                    err.setExtraErrorInfo(e.getUserStatus(), e.getLinkStatus());
+                    transfer->setLastError(err);
+                    transfer->setState(MegaTransfer::STATE_FAILED);
+                    fireOnTransferFinish(transfer, MegaError(e), committer);
+                }
+                else
+                {
+                    transfer->setLastError(MegaError(e));
+                    transfer->setState(MegaTransfer::STATE_RETRYING);
+                    fireOnTransferTemporaryError(transfer, MegaError(e));
+                }
             }
         }
     }
@@ -15793,6 +15805,11 @@ void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, MegaError 
     {
         LOG_warn << "Transfer (" << transfer->getTransferString() << ") finished with error: " << e.getErrorString()
                     << " File: " << transfer->getFileName();
+
+        if (e.hasExtraInfo() && e.getErrorCode() == API_ETOOMANY)
+        {
+            LOG_warn << "ETD affected: user status: " << e.getUserStatus() << "  link status: " << e.getLinkStatus();
+        }
     }
     else
     {
@@ -16282,7 +16299,7 @@ void MegaApiImpl::processTransferComplete(Transfer *tr, MegaTransferPrivate *tra
     }
 }
 
-void MegaApiImpl::processTransferFailed(Transfer *tr, MegaTransferPrivate *transfer, error e, dstime timeleft)
+void MegaApiImpl::processTransferFailed(Transfer *tr, MegaTransferPrivate *transfer, const Error& e, dstime timeleft)
 {
     MegaError megaError(e, timeleft / 10);
     transfer->setStartTime(Waiter::ds);
@@ -16292,12 +16309,23 @@ void MegaApiImpl::processTransferFailed(Transfer *tr, MegaTransferPrivate *trans
     transfer->setMeanSpeed(0);
     transfer->setLastError(megaError);
     transfer->setPriority(tr->priority);
-    transfer->setState(MegaTransfer::STATE_RETRYING);
-    transfer->setForeignOverquota(e == API_EOVERQUOTA && client->isForeignNode(transfer->getParentHandle()));
-    fireOnTransferTemporaryError(transfer, megaError);
+    if (e == API_ETOOMANY && e.hasExtraInfo())
+    {
+        megaError.setExtraErrorInfo(e.getUserStatus(), e.getLinkStatus());
+        transfer->setState(MegaTransfer::STATE_FAILED);
+        transfer->setForeignOverquota(false);
+        fireOnTransferTemporaryError(transfer, megaError);
+    }
+    else
+    {
+        transfer->setState(MegaTransfer::STATE_RETRYING);
+        transfer->setForeignOverquota(e == API_EOVERQUOTA && client->isForeignNode(transfer->getParentHandle()));
+        fireOnTransferTemporaryError(transfer, megaError);
+    }
+
 }
 
-void MegaApiImpl::processTransferRemoved(Transfer *tr, MegaTransferPrivate *transfer, error e)
+void MegaApiImpl::processTransferRemoved(Transfer *tr, MegaTransferPrivate *transfer, const Error& e)
 {
     m_off_t deltaSize = tr->size - transfer->getTransferredBytes();
     if (tr->type == GET)
@@ -16334,7 +16362,13 @@ void MegaApiImpl::processTransferRemoved(Transfer *tr, MegaTransferPrivate *tran
     transfer->setState(e == API_EINCOMPLETE ? MegaTransfer::STATE_CANCELLED : MegaTransfer::STATE_FAILED);
     transfer->setPriority(tr->priority);
     DBTableTransactionCommitter committer(client->tctable);
-    fireOnTransferFinish(transfer, e, committer);
+    MegaError err(e);
+    if (e == API_ETOOMANY && e.hasExtraInfo())
+    {
+        err.setExtraErrorInfo(e.getUserStatus(), e.getLinkStatus());
+    }
+
+    fireOnTransferFinish(transfer, err, committer);
 }
 
 MegaError MegaApiImpl::checkAccess(MegaNode* megaNode, int level)

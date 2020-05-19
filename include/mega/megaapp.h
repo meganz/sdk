@@ -183,7 +183,7 @@ struct MEGA_API MegaApp
     virtual void openfilelink_result(handle, const byte*, m_off_t, string*, string*, int) { }
 
     // node opening result
-    virtual void checkfile_result(handle, error) { }
+    virtual void checkfile_result(handle, const Error&) { }
     virtual void checkfile_result(handle, error, byte*, m_off_t, m_time_t, m_time_t, string*, string*, string*) { }
 
     // URL suitable for iOS (or other system) background upload feature
@@ -270,14 +270,14 @@ struct MEGA_API MegaApp
 
     // global transfer queue updates
     virtual void file_added(File*) { }
-    virtual void file_removed(File*, error) { }
+    virtual void file_removed(File*, const Error&) { }
     virtual void file_complete(File*) { }
     virtual File* file_resume(string*, direction_t*) { return NULL; }
 
     virtual void transfer_added(Transfer*) { }
     virtual void transfer_removed(Transfer*) { }
     virtual void transfer_prepare(Transfer*) { }
-    virtual void transfer_failed(Transfer*, error, dstime = 0, handle = UNDEF) { }
+    virtual void transfer_failed(Transfer*, const Error&, dstime = 0, handle = UNDEF) { }
     virtual void transfer_update(Transfer*) { }
     virtual void transfer_complete(Transfer*) { }
 

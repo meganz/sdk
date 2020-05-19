@@ -2637,8 +2637,8 @@ protected:
         void processTransferPrepare(Transfer *t, MegaTransferPrivate *transfer);
         void processTransferUpdate(Transfer *tr, MegaTransferPrivate *transfer);
         void processTransferComplete(Transfer *tr, MegaTransferPrivate *transfer);
-        void processTransferFailed(Transfer *tr, MegaTransferPrivate *transfer, error error, dstime timeleft);
-        void processTransferRemoved(Transfer *tr, MegaTransferPrivate *transfer, error e);
+        void processTransferFailed(Transfer *tr, MegaTransferPrivate *transfer, const Error &e, dstime timeleft);
+        void processTransferRemoved(Transfer *tr, MegaTransferPrivate *transfer, const Error &e);
 
         MegaApi *api;
         MegaThread thread;
@@ -2847,7 +2847,7 @@ protected:
         void sendevent_result(error) override;
         void supportticket_result(error) override;
 
-        void checkfile_result(handle h, error e) override;
+        void checkfile_result(handle h, const Error& e) override;
         void checkfile_result(handle h, error e, byte* filekey, m_off_t size, m_time_t ts, m_time_t tm, string* filename, string* fingerprint, string* fileattrstring) override;
 
         // user invites/attributes
@@ -2875,12 +2875,12 @@ protected:
 
         // global transfer queue updates (separate signaling towards the queued objects)
         void file_added(File*) override;
-        void file_removed(File*, error e) override;
+        void file_removed(File*, const Error& e) override;
         void file_complete(File*) override;
         File* file_resume(string*, direction_t *type) override;
 
         void transfer_prepare(Transfer*) override;
-        void transfer_failed(Transfer*, error error, dstime timeleft, handle targetHandle = UNDEF) override;
+        void transfer_failed(Transfer*, const Error& error, dstime timeleft, handle targetHandle = UNDEF) override;
         void transfer_update(Transfer*) override;
 
         dstime pread_failure(error, int, void*, dstime) override;

@@ -386,7 +386,7 @@ bool Transfer::isForeign()
 
 // transfer attempt failed, notify all related files, collect request on
 // whether to abort the transfer, kill transfer if unanimous
-void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime timeleft, handle targetHandle)
+void Transfer::failed(Error e, DBTableTransactionCommitter& committer, dstime timeleft, handle targetHandle)
 {
     bool defer = false;
 
@@ -430,7 +430,7 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
             }
         }
     }
-    else if (e == API_EARGS || (e == API_EBLOCKED && type == GET))
+    else if (e == API_EARGS || (e == API_EBLOCKED && type == GET) || (e == API_ETOOMANY && type == GET && e.hasExtraInfo()))
     {
         client->app->transfer_failed(this, e);
     }
@@ -463,7 +463,7 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
          * the actionpacket will eventually remove the target and the sync-engine will force to
          * disable the synchronization of the folder. For non-sync-transfers, remove the file directly.
          */
-        if (e == API_EARGS || (e == API_EBLOCKED && type == GET))
+        if (e == API_EARGS || (e == API_EBLOCKED && type == GET) || (e == API_ETOOMANY && type == GET && e.hasExtraInfo()))
         {
              File *f = (*it++);
              if (f->syncxfer && e == API_EARGS)

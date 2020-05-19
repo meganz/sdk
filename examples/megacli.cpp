@@ -410,10 +410,17 @@ void DemoApp::transfer_update(Transfer* /*t*/)
     // (this is handled in the prompt logic)
 }
 
-void DemoApp::transfer_failed(Transfer* t, error e, dstime, handle)
+void DemoApp::transfer_failed(Transfer* t, const Error& e, dstime, handle)
 {
     displaytransferdetails(t, "failed (");
-    cout << errorstring(e) << ")" << endl;
+    if (e == API_ETOOMANY && e.hasExtraInfo())
+    {
+         cout << getExtraInfoErrorString(e) << ")" << endl;
+    }
+    else
+    {
+        cout << errorstring(e) << ")" << endl;
+    }
 }
 
 void DemoApp::transfer_complete(Transfer* t)
@@ -7200,9 +7207,16 @@ void DemoApp::folderlinkinfo_result(error e, handle owner, handle /*ph*/, string
     publiclink.clear();
 }
 
-void DemoApp::checkfile_result(handle /*h*/, error e)
+void DemoApp::checkfile_result(handle /*h*/, const Error& e)
 {
-    cout << "Link check failed: " << errorstring(e) << endl;
+    if (e == API_ETOOMANY && e.hasExtraInfo())
+    {
+         cout << "Link check failed: " << getExtraInfoErrorString(e) << endl;
+    }
+    else
+    {
+        cout << "Link check failed: " << errorstring(e) << endl;
+    }
 }
 
 void DemoApp::checkfile_result(handle h, error e, byte* filekey, m_off_t size, m_time_t /*ts*/, m_time_t tm, string* filename,
