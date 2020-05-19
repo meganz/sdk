@@ -20909,7 +20909,7 @@ void MegaApiImpl::sendPendingRequests()
             int number = int(request->getNumber());
             const char *text = request->getText();
 
-            if(number < 99000 || (number >= 99150 && (number < 99200 || number >= 99600)) || !text)
+            if(number < 98900 || (number >= 99150 && (number < 99200 || number >= 99600)) || !text)
             {
                 e = API_EARGS;
                 break;
