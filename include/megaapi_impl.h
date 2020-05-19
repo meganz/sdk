@@ -137,7 +137,11 @@ public:
     void setLogLevel(int logLevel);
     void setLogToConsole(bool enable);
     void postLog(int logLevel, const char *message, const char *filename, int line);
-    void log(const char *time, int loglevel, const char *source, const char *message) override;
+    void log(const char *time, int loglevel, const char *source, const char *message
+#ifdef ENABLE_LOG_PERFORMANCE
+             , const char **directMessages, size_t *directMessagesSizes, unsigned numberMessages
+#endif
+            ) override;
 
 private:
     std::recursive_mutex mutex;
@@ -922,17 +926,16 @@ protected:
 class MegaSyncEventPrivate: public MegaSyncEvent
 {
 public:
-    MegaSyncEventPrivate(int type);
-    virtual ~MegaSyncEventPrivate();
+    explicit MegaSyncEventPrivate(int type);
 
-    virtual MegaSyncEvent *copy();
+    MegaSyncEvent *copy() override;
 
-    virtual int getType() const;
-    virtual const char *getPath() const;
-    virtual MegaHandle getNodeHandle() const;
-    virtual const char *getNewPath() const;
-    virtual const char* getPrevName() const;
-    virtual MegaHandle getPrevParent() const;
+    int getType() const override;
+    const char *getPath() const override;
+    MegaHandle getNodeHandle() const override;
+    const char *getNewPath() const override;
+    const char* getPrevName() const override;
+    MegaHandle getPrevParent() const override;
 
     void setPath(const char* path);
     void setNodeHandle(MegaHandle nodeHandle);
@@ -942,11 +945,11 @@ public:
 
 protected:
     int type;
-    const char* path;
-    const char* newPath;
-    const char* prevName;
-    MegaHandle nodeHandle;
-    MegaHandle prevParent;
+    std::unique_ptr<char[]> path;
+    std::unique_ptr<char[]> newPath;
+    std::unique_ptr<char[]> prevName;
+    MegaHandle nodeHandle = INVALID_HANDLE;
+    MegaHandle prevParent = INVALID_HANDLE;
 };
 
 class MegaRegExpPrivate
@@ -1946,9 +1949,9 @@ class TransferQueue
 class MegaApiImpl : public MegaApp
 {
     public:
-        MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath = NULL, const char *userAgent = NULL);
-        MegaApiImpl(MegaApi *api, const char *appKey, const char *basePath = NULL, const char *userAgent = NULL);
-        MegaApiImpl(MegaApi *api, const char *appKey, const char *basePath, const char *userAgent, int fseventsfd);
+        MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath = NULL, const char *userAgent = NULL, unsigned workerThreadCount = 1);
+        MegaApiImpl(MegaApi *api, const char *appKey, const char *basePath = NULL, const char *userAgent = NULL, unsigned workerThreadCount = 1);
+        MegaApiImpl(MegaApi *api, const char *appKey, const char *basePath, const char *userAgent, int fseventsfd, unsigned workerThreadCount = 1);
         virtual ~MegaApiImpl();
 
         static MegaApiImpl* ImplOf(MegaApi*);
@@ -2066,7 +2069,9 @@ class MegaApiImpl : public MegaApp
         bool areCredentialsVerified(MegaUser *user);
         void verifyCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
         void resetCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
+        char* getMyRSAPrivateKey();
         static void setLogLevel(int logLevel);
+        static void setMaxPayloadLogSize(long long maxSize);
         static void addLoggerClass(MegaLogger *megaLogger);
         static void removeLoggerClass(MegaLogger *megaLogger);
         static void setLogToConsole(bool enable);
@@ -2420,6 +2425,8 @@ class MegaApiImpl : public MegaApp
         static bool nodeComparatorPhotoDESC(Node *i, Node *j, MegaClient& mc);
         static bool nodeComparatorVideoASC(Node *i, Node *j, MegaClient& mc);
         static bool nodeComparatorVideoDESC(Node *i, Node *j, MegaClient& mc);
+        static bool nodeComparatorPublicLinkCreationASC(Node *i, Node *j);
+        static bool nodeComparatorPublicLinkCreationDESC(Node *i, Node *j);
         static int typeComparator(Node *i, Node *j);
         static bool userComparatorDefaultASC (User *i, User *j);
 
@@ -2592,11 +2599,12 @@ class MegaApiImpl : public MegaApp
         void yield();
         void lockMutex();
         void unlockMutex();
+        bool tryLockMutexFor(long long time);
 
 protected:
         static const unsigned int MAX_SESSION_LENGTH;
 
-        void init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath = NULL, const char *userAgent = NULL, int fseventsfd = -1);
+        void init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath /*= NULL*/, const char *userAgent /*= NULL*/, int fseventsfd /*= -1*/, unsigned clientWorkerThreadCount /*= 1*/);
 
         static void *threadEntryPoint(void *param);
         static ExternalLogger externalLogger;
@@ -3042,18 +3050,6 @@ public:
     ExternalInputStream(MegaInputStream *inputStream);
     virtual m_off_t size();
     virtual bool read(byte *buffer, unsigned size);
-};
-
-class FileInputStream : public InputStreamAccess
-{
-    FileAccess *fileAccess;
-    m_off_t offset;
-
-public:
-    FileInputStream(FileAccess *fileAccess);
-    virtual m_off_t size();
-    virtual bool read(byte *buffer, unsigned size);
-    virtual ~FileInputStream();
 };
 
 #ifdef HAVE_LIBUV

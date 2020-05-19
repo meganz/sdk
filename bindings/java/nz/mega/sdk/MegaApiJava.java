@@ -22,6 +22,11 @@ import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
+import mega.privacy.android.app.MegaApplication;
+import mega.privacy.android.app.R;
+
+import static nz.mega.sdk.MegaError.*;
+
 /**
  * Java Application Programming Interface (API) to access MEGA SDK services on a MEGA account or shared public folder.
  * <p>
@@ -181,6 +186,8 @@ public class MegaApiJava {
     public final static int ORDER_PHOTO_DESC = MegaApi.ORDER_PHOTO_DESC;
     public final static int ORDER_VIDEO_ASC = MegaApi.ORDER_VIDEO_ASC;
     public final static int ORDER_VIDEO_DESC = MegaApi.ORDER_VIDEO_DESC;
+    public final static int ORDER_LINK_CREATION_ASC = MegaApi.ORDER_LINK_CREATION_ASC;
+    public final static int ORDER_LINK_CREATION_DESC = MegaApi.ORDER_LINK_CREATION_DESC;
 
     public final static int TCP_SERVER_DENY_ALL = MegaApi.TCP_SERVER_DENY_ALL;
     public final static int TCP_SERVER_ALLOW_ALL = MegaApi.TCP_SERVER_ALLOW_ALL;
@@ -432,6 +439,50 @@ public class MegaApiJava {
      */
     @Deprecated public String getStringHash(String base64pwkey, String inBuf) {
         return megaApi.getStringHash(base64pwkey, inBuf);
+    }
+
+    /**
+     * Get an URL to transfer the current session to the webclient
+     *
+     * This function creates a new session for the link so logging out in the web client won't log out
+     * the current session.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_SESSION_TRANSFER_URL
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getLink - URL to open the desired page with the same account
+     *
+     * You take the ownership of the returned value.
+     *
+     * @param path Path inside https://mega.nz/# that we want to open with the current session
+     *
+     * For example, if you want to open https://mega.nz/#pro, the parameter of this function should be "pro".
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getSessionTransferURL(String path, MegaRequestListenerInterface listener){
+        megaApi.getSessionTransferURL(path, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Get an URL to transfer the current session to the webclient
+     *
+     * This function creates a new session for the link so logging out in the web client won't log out
+     * the current session.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_SESSION_TRANSFER_URL
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getLink - URL to open the desired page with the same account
+     *
+     * You take the ownership of the returned value.
+     *
+     * @param path Path inside https://mega.nz/# that we want to open with the current session
+     *
+     * For example, if you want to open https://mega.nz/#pro, the parameter of this function should be "pro".
+     */
+    public void getSessionTransferURL(String path){
+        megaApi.getSessionTransferURL(path);
     }
 
     /**
@@ -5059,6 +5110,8 @@ public class MegaApiJava {
      * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
      * Valid data in the MegaRequest object received on callbacks:
      * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER
+     * - MegaRequest::getMegaStringMap - Returns a MegaStringMap.
+     * The key "h" in the map contains the nodehandle specified as parameter encoded in B64
      *
      * @param nodehandle MegaHandle of the node to be used as target folder
      * @param listener MegaRequestListener to track this request
@@ -5094,6 +5147,8 @@ public class MegaApiJava {
      * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
      * - MegaRequest::getFlag - Returns false
      * - MegaRequest::getNodehandle - Returns the provided node handle
+     * - MegaRequest::getMegaStringMap - Returns a MegaStringMap.
+     * The key "h" in the map contains the nodehandle specified as parameter encoded in B64
      *
      * @param nodehandle MegaHandle of the node to be used as primary target folder
      * @param listener MegaRequestListener to track this request
@@ -5110,6 +5165,8 @@ public class MegaApiJava {
      * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
      * - MegaRequest::getFlag - Returns true
      * - MegaRequest::getNodehandle - Returns the provided node handle
+     * - MegaRequest::getMegaStringMap - Returns a MegaStringMap.
+     * The key "sh" in the map contains the nodehandle specified as parameter encoded in B64
      *
      * @param nodehandle MegaHandle of the node to be used as secondary target folder
      * @param listener MegaRequestListener to track this request
@@ -7354,7 +7411,8 @@ public class MegaApiJava {
      * Get a list with all public links
      *
      * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
-     * MegaApi::ORDER_DEFAULT_DESC
+     * MegaApi::ORDER_DEFAULT_DESC, MegaApi::ORDER_LINK_CREATION_ASC,
+     * MegaApi::ORDER_LINK_CREATION_DESC
      *
      * You take the ownership of the returned value
      *
@@ -9303,5 +9361,112 @@ public class MegaApiJava {
      */
     public void cancelCreateAccount(MegaRequestListenerInterface listener){
         megaApi.cancelCreateAccount(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Gets the translated string of an error received in a request.
+     *
+     * @param error MegaError received in the request
+     * @return The translated string
+     */
+    public static String getTranslatedErrorString(MegaError error) {
+        MegaApplication app = MegaApplication.getInstance();
+        if (app == null) {
+            return error.getErrorString();
+        }
+
+        if (error.getErrorCode() > 0) {
+            return app.getString(R.string.api_error_http);
+        }
+
+        switch (error.getErrorCode()) {
+            case API_OK:
+                return app.getString(R.string.api_ok);
+            case API_EINTERNAL:
+                return app.getString(R.string.api_einternal);
+            case API_EARGS:
+                return app.getString(R.string.api_eargs);
+            case API_EAGAIN:
+                return app.getString(R.string.api_eagain);
+            case API_ERATELIMIT:
+                return app.getString(R.string.api_eratelimit);
+            case API_EFAILED:
+                return app.getString(R.string.api_efailed);
+            case API_ETOOMANY:
+                if (error.getErrorString().equals("Terms of Service breached")) {
+                    return app.getString(R.string.api_etoomany_ec_download);
+                } else if (error.getErrorString().equals("Too many concurrent connections or transfers")){
+                    return app.getString(R.string.api_etoomay);
+                } else {
+                    return error.getErrorString();
+                }
+            case API_ERANGE:
+                return app.getString(R.string.api_erange);
+            case API_EEXPIRED:
+                return app.getString(R.string.api_eexpired);
+            case API_ENOENT:
+                return app.getString(R.string.api_enoent);
+            case API_ECIRCULAR:
+                if (error.getErrorString().equals("Upload produces recursivity")) {
+                    return app.getString(R.string.api_ecircular_ec_upload);
+                } else if (error.getErrorString().equals("Circular linkage detected")){
+                    return app.getString(R.string.api_ecircular);
+                } else {
+                    return error.getErrorString();
+                }
+            case API_EACCESS:
+                return app.getString(R.string.api_eaccess);
+            case API_EEXIST:
+                return app.getString(R.string.api_eexist);
+            case API_EINCOMPLETE:
+                return app.getString(R.string.api_eincomplete);
+            case API_EKEY:
+                return app.getString(R.string.api_ekey);
+            case API_ESID:
+                return app.getString(R.string.api_esid);
+            case API_EBLOCKED:
+                if (error.getErrorString().equals("Not accessible due to ToS/AUP violation")) {
+                    return app.getString(R.string.api_eblocked_ec_import_ec_download);
+                } else if (error.getErrorString().equals("Blocked")) {
+                    return app.getString(R.string.api_eblocked);
+                } else {
+                    return error.getErrorString();
+                }
+            case API_EOVERQUOTA:
+                return app.getString(R.string.api_eoverquota);
+            case API_ETEMPUNAVAIL:
+                return app.getString(R.string.api_etempunavail);
+            case API_ETOOMANYCONNECTIONS:
+                return app.getString(R.string.api_etoomanyconnections);
+            case API_EWRITE:
+                return app.getString(R.string.api_ewrite);
+            case API_EREAD:
+                return app.getString(R.string.api_eread);
+            case API_EAPPKEY:
+                return app.getString(R.string.api_eappkey);
+            case API_ESSL:
+                return app.getString(R.string.api_essl);
+            case API_EGOINGOVERQUOTA:
+                return app.getString(R.string.api_egoingoverquota);
+            case API_EMFAREQUIRED:
+                return app.getString(R.string.api_emfarequired);
+            case API_EMASTERONLY:
+                return app.getString(R.string.api_emasteronly);
+            case API_EBUSINESSPASTDUE:
+                return app.getString(R.string.api_ebusinesspastdue);
+            case PAYMENT_ECARD:
+                return app.getString(R.string.payment_ecard);
+            case PAYMENT_EBILLING:
+                return app.getString(R.string.payment_ebilling);
+            case PAYMENT_EFRAUD:
+                return app.getString(R.string.payment_efraud);
+            case PAYMENT_ETOOMANY:
+                return app.getString(R.string.payment_etoomay);
+            case PAYMENT_EBALANCE:
+                return app.getString(R.string.payment_ebalance);
+            case PAYMENT_EGENERIC:
+            default:
+                return app.getString(R.string.payment_egeneric_api_error_unknown);
+        }
     }
 }

@@ -68,30 +68,32 @@ struct MEGA_API AsyncIOContext
     FileAccess *fa;
 };
 
+struct MEGA_API DirAccess;
+
 // generic host file/directory access interface
 struct MEGA_API FileAccess
 {
     // file size
-    m_off_t size;
+    m_off_t size = 0;
 
     // mtime of a file opened for reading
-    m_time_t mtime;
+    m_time_t mtime = 0;
 
     // local filesystem record id (survives renames & moves)
-    handle fsid;
-    bool fsidvalid;
+    handle fsid = 0;
+    bool fsidvalid = false;
 
     // type of opened path
-    nodetype_t type;
+    nodetype_t type = TYPE_UNKNOWN;
 
     // if opened path is a symlink
     bool mIsSymLink = false;
 
     // if the open failed, retry indicates a potentially transient reason
-    bool retry;
+    bool retry = false;
 
     //error code related to the last call to fopen() without parameters
-    int errorcode;
+    int errorcode = 0;
 
     // for files "opened" in nonblocking mode, the current local filename
     string nonblocking_localname;
@@ -101,7 +103,8 @@ struct MEGA_API FileAccess
 
     // blocking mode: open for reading, writing or reading and writing.
     // This one really does open the file, and openf(), closef() will have no effect
-    virtual bool fopen(string*, bool, bool) = 0;
+    // If iteratingDir is supplied, this fopen() call must be for the directory entry being iterated by dopen()/dnext()
+    virtual bool fopen(string*, bool read, bool write, DirAccess* iteratingDir = nullptr) = 0;
 
     // nonblocking open: Only prepares for opening.  Actually stats the file/folder, getting mtime, size, type.
     // Call openf() afterwards to actually open it if required.  For folders, returns false with type==FOLDERNODE.
@@ -167,6 +170,18 @@ struct MEGA_API InputStreamAccess
     virtual m_off_t size() = 0;
     virtual bool read(byte *, unsigned) = 0;
     virtual ~InputStreamAccess() { }
+};
+
+class MEGA_API FileInputStream : public InputStreamAccess
+{
+    FileAccess *fileAccess;
+    m_off_t offset;
+
+public:
+    FileInputStream(FileAccess *fileAccess);
+
+    m_off_t size() override;
+    bool read(byte *buffer, unsigned size) override;
 };
 
 // generic host directory enumeration
@@ -327,6 +342,9 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     int getdefaultfolderpermissions() { return 0700; }
     void setdefaultfolderpermissions(int) { }
 
+    // convenience function for getting filesystem shortnames
+    std::unique_ptr<string> fsShortname(string& localpath);
+
     // set whenever an operation fails due to a transient condition (e.g. locking violation)
     bool transient_error;
     
@@ -338,8 +356,9 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // set whenever an operation fails because the target already exists
     bool target_exists;
 
-    // append local operating system version information to string
-    virtual void osversion(string*) const { }
+    // append local operating system version information to string.
+    // Set includeArchExtraInfo to know if the app is 32 bit running on 64 bit (on windows, that is via the WOW subsystem)
+    virtual void osversion(string*, bool includeArchExtraInfo) const { }
 
     // append id for stats
     virtual void statsid(string*) const { }

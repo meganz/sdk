@@ -93,9 +93,10 @@ struct MEGA_API TransferSlot
     // file attributes mutable
     int fileattrsmutable;
 
-    // maximum number of parallel connections and connection array
+    // maximum number of parallel connections and connection array. 
+    // shared_ptr for convenient coordination with the worker threads that do encrypt/decrypt on this data.
     int connections;
-    HttpReqXfer** reqs;
+    vector<std::shared_ptr<HttpReqXfer>> reqs;
 
     // Manage download input buffers and file output buffers for file download.  Raid-aware, and automatically performs decryption and mac.
     TransferBufferManager transferbuf;

@@ -1678,20 +1678,20 @@ bool MegaTreeProcessor::processMegaNode(MegaNode*)
 MegaTreeProcessor::~MegaTreeProcessor()
 { }
 
-MegaApi::MegaApi(const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent)
+MegaApi::MegaApi(const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, unsigned workerThreadCount)
 {
-    pImpl = new MegaApiImpl(this, appKey, processor, basePath, userAgent);
+    pImpl = new MegaApiImpl(this, appKey, processor, basePath, userAgent, workerThreadCount);
 }
 
-MegaApi::MegaApi(const char *appKey, const char *basePath, const char *userAgent)
+MegaApi::MegaApi(const char *appKey, const char *basePath, const char *userAgent, unsigned workerThreadCount)
 {
-    pImpl = new MegaApiImpl(this, appKey, basePath, userAgent);
+    pImpl = new MegaApiImpl(this, appKey, basePath, userAgent, workerThreadCount);
 }
 
 #ifdef ENABLE_SYNC
-MegaApi::MegaApi(const char *appKey, const char *basePath, const char *userAgent, int fseventsfd)
+MegaApi::MegaApi(const char *appKey, const char *basePath, const char *userAgent, int fseventsfd, unsigned workerThreadCount)
 {
-    pImpl = new MegaApiImpl(this, appKey, basePath, userAgent, fseventsfd);
+    pImpl = new MegaApiImpl(this, appKey, basePath, userAgent, fseventsfd, workerThreadCount);
 }
 #endif
 
@@ -1819,9 +1819,19 @@ void MegaApi::resetCredentials(MegaUser *user, MegaRequestListener *listener)
     pImpl->resetCredentials(user, listener);
 }
 
+char *MegaApi::getMyRSAPrivateKey()
+{
+    return pImpl->getMyRSAPrivateKey();
+}
+
 void MegaApi::setLogLevel(int logLevel)
 {
     MegaApiImpl::setLogLevel(logLevel);
+}
+
+void MegaApi::setMaxPayloadLogSize(long long maxSize)
+{
+    MegaApiImpl::setMaxPayloadLogSize(maxSize);
 }
 
 void MegaApi::setLogToConsole(bool enable)
@@ -3100,12 +3110,12 @@ void MegaApi::resumeSync(const char *localFolder, MegaNode *megaFolder, long lon
 #ifdef USE_PCRE
 void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
 {
-    pImpl->syncFolder(localFolder, megaFolder, regExp, listener);
+    pImpl->syncFolder(localFolder, megaFolder, regExp, 0, listener);
 }
 
 void MegaApi::resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRegExp *regExp, MegaRequestListener *listener)
 {
-    pImpl->resumeSync(localFolder, localfp, megaFolder, regExp, listener);
+    pImpl->syncFolder(localFolder, megaFolder, regExp, localfp, listener);
 }
 #endif
 
@@ -4380,6 +4390,7 @@ char *MegaApi::getMimeType(const char *extension)
         {"fif", "application/fractals"},
         {"filters", "Application/xml"},
         {"fla", "application/octet-stream"},
+        {"flac", "audio/flac"},
         {"flr", "x-world/x-vrml"},
         {"flv", "video/x-flv"},
         {"fsscript", "application/fsharp-script"},
@@ -5262,7 +5273,11 @@ bool MegaAccountDetails::isTemporalBandwidthValid()
     return false;
 }
 
-void MegaLogger::log(const char* /*time*/, int /*loglevel*/, const char* /*source*/, const char* /*message*/)
+void MegaLogger::log(const char* /*time*/, int /*loglevel*/, const char* /*source*/, const char* /*message*/
+#ifdef ENABLE_LOG_PERFORMANCE
+                     , const char ** /*directMessages*/, size_t * /*directMessagesSizes*/, int /*numberMessages*/
+#endif
+                     )
 {
 
 }
@@ -5816,6 +5831,17 @@ void MegaApiLock::lockOnce()
         api->lockMutex();
         locked = true;
     }
+}
+
+
+bool MegaApiLock::tryLockFor(long long time)
+{
+    if (!locked)
+    {
+        locked = api->tryLockMutexFor(time);
+    }
+
+    return locked;
 }
 
 void MegaApiLock::unlockOnce()

@@ -305,7 +305,7 @@ TEST(Serialization, CacheableReaderWriter_fsfp_t)
     mega::CacheableReader reader{data};
     fsfp_t fsfp;
     ASSERT_TRUE(reader.unserializefsfp(fsfp));
-    ASSERT_EQ(1, reader.fieldnum);
+    ASSERT_EQ(1u, reader.fieldnum);
     ASSERT_EQ(reader.ptr, data.c_str() + data.size());
     ASSERT_EQ(42, fsfp);
 }
@@ -380,8 +380,8 @@ TEST(Serialization, LocalNode_forFolder_withoutParent_withoutNode)
     l.setfsid(10, client.cli->fsidnode);
     std::string data;
     ASSERT_TRUE(l.serialize(&data));
-    ASSERT_EQ(43u, data.size());
-    auto dl = mega::LocalNode::unserialize(sync.get(), &data);
+    ASSERT_EQ(45u, data.size());
+    std::unique_ptr<mega::LocalNode> dl{mega::LocalNode::unserialize(sync.get(), &data)};
     checkDeserializedLocalNode(*dl, l);
 }
 
@@ -399,8 +399,8 @@ TEST(Serialization, LocalNode_forFile_withoutNode)
     std::iota(l->crc.begin(), l->crc.end(), 1);
     std::string data;
     ASSERT_TRUE(l->serialize(&data));
-    ASSERT_EQ(63u, data.size());
-    auto dl = mega::LocalNode::unserialize(sync.get(), &data);
+    ASSERT_EQ(65u, data.size());
+    std::unique_ptr<mega::LocalNode> dl{mega::LocalNode::unserialize(sync.get(), &data)};
     checkDeserializedLocalNode(*dl, *l);
 }
 
@@ -417,8 +417,8 @@ TEST(Serialization, LocalNode_forFile_withoutNode_withMaxMtime)
     std::iota(l->crc.begin(), l->crc.end(), 1);
     std::string data;
     ASSERT_TRUE(l->serialize(&data));
-    ASSERT_EQ(67u, data.size());
-    auto dl = mega::LocalNode::unserialize(sync.get(), &data);
+    ASSERT_EQ(69u, data.size());
+    std::unique_ptr<mega::LocalNode> dl{mega::LocalNode::unserialize(sync.get(), &data)};
     checkDeserializedLocalNode(*dl, *l);
 }
 
@@ -426,14 +426,12 @@ TEST(Serialization, LocalNode_forFolder_withoutParent)
 {
     MockClient client;
     auto sync = mt::makeSync(*client.cli, "wicked");
-    auto& n = mt::makeNode(*client.cli, mega::FOLDERNODE, 42);
     auto& l = *sync->localroot;
     l.setfsid(10, client.cli->fsidnode);
-    l.node = &n;
     std::string data;
     ASSERT_TRUE(l.serialize(&data));
-    ASSERT_EQ(43u, data.size());
-    auto dl = mega::LocalNode::unserialize(sync.get(), &data);
+    ASSERT_EQ(45u, data.size());
+    std::unique_ptr<mega::LocalNode> dl{mega::LocalNode::unserialize(sync.get(), &data)};
     checkDeserializedLocalNode(*dl, l);
 }
 
@@ -450,8 +448,8 @@ TEST(Serialization, LocalNode_forFolder)
     l->node = &n;
     std::string data;
     ASSERT_TRUE(l->serialize(&data));
-    ASSERT_EQ(42u, data.size());
-    auto dl = mega::LocalNode::unserialize(sync.get(), &data);
+    ASSERT_EQ(44u, data.size());
+    std::unique_ptr<mega::LocalNode> dl{mega::LocalNode::unserialize(sync.get(), &data)};
     checkDeserializedLocalNode(*dl, *l);
 }
 
@@ -478,7 +476,7 @@ TEST(Serialization, LocalNode_forFolder_32bit)
     };
     const std::string data(reinterpret_cast<const char*>(rawData.data()), rawData.size());
 
-    auto dl = mega::LocalNode::unserialize(sync.get(), &data);
+    std::unique_ptr<mega::LocalNode> dl{mega::LocalNode::unserialize(sync.get(), &data)};
     checkDeserializedLocalNode(*dl, *l);
 }
 
@@ -503,7 +501,7 @@ TEST(Serialization, LocalNode_forFolder_oldLocalNodeWithoutSyncable)
     };
     const std::string data(reinterpret_cast<const char*>(rawData.data()), rawData.size());
 
-    auto dl = mega::LocalNode::unserialize(sync.get(), &data);
+    std::unique_ptr<mega::LocalNode> dl{mega::LocalNode::unserialize(sync.get(), &data)};
     checkDeserializedLocalNode(*dl, *l);
 }
 
@@ -523,8 +521,8 @@ TEST(Serialization, LocalNode_forFile)
     std::iota(l->crc.begin(), l->crc.end(), 1);
     std::string data;
     ASSERT_TRUE(l->serialize(&data));
-    ASSERT_EQ(59u, data.size());
-    auto dl = mega::LocalNode::unserialize(sync.get(), &data);
+    ASSERT_EQ(61u, data.size());
+    std::unique_ptr<mega::LocalNode> dl{mega::LocalNode::unserialize(sync.get(), &data)};
     checkDeserializedLocalNode(*dl, *l);
 }
 
@@ -552,7 +550,7 @@ TEST(Serialization, LocalNode_forFiles_oldLocalNodeWithoutSyncable)
     };
     const std::string data(rawData.data(), rawData.size());
 
-    auto dl = mega::LocalNode::unserialize(sync.get(), &data);
+    std::unique_ptr<mega::LocalNode> dl{mega::LocalNode::unserialize(sync.get(), &data)};
     checkDeserializedLocalNode(*dl, *l);
 }
 
@@ -581,7 +579,7 @@ TEST(Serialization, LocalNode_forFile_32bit)
     };
     const std::string data(rawData.data(), rawData.size());
 
-    auto dl = mega::LocalNode::unserialize(sync.get(), &data);
+    std::unique_ptr<mega::LocalNode> dl{mega::LocalNode::unserialize(sync.get(), &data)};
     checkDeserializedLocalNode(*dl, *l);
 }
 #endif
@@ -616,7 +614,7 @@ TEST(Serialization, Node_whenNodeIsEncrypted)
 {
     MockClient client;
     auto& n = mt::makeNode(*client.cli, mega::FILENODE, 42);
-    n.attrstring = new std::string; // owned by Node
+    n.attrstring.reset(new std::string);
     std::string data;
     ASSERT_FALSE(n.serialize(&data));
 }
@@ -632,126 +630,126 @@ TEST(Serialization, Node_whenTypeIsUnsupported)
 TEST(Serialization, Node_forFile_withoutParent_withoutShares_withoutAttrs_withoutFileAttrString_withoutPlink)
 {
     MockClient client;
-    auto& n = mt::makeNode(*client.cli, mega::FILENODE, 42);
-    n.size = 12;
-    n.owner = 43;
-    n.ctime = 44;
+    std::unique_ptr<mega::Node> n{&mt::makeNode(*client.cli, mega::FILENODE, 42)};
+    n->size = 12;
+    n->owner = 43;
+    n->ctime = 44;
     std::string data;
-    ASSERT_TRUE(n.serialize(&data));
+    ASSERT_TRUE(n->serialize(&data));
     ASSERT_EQ(90u, data.size());
     mega::node_vector dp;
     auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
-    checkDeserializedNode(*dn, n);
+    checkDeserializedNode(*dn, *n);
 }
 
 TEST(Serialization, Node_forFolder_withoutParent_withoutShares_withoutAttrs_withoutFileAttrString_withoutPlink)
 {
     MockClient client;
-    auto& n = mt::makeNode(*client.cli, mega::FOLDERNODE, 42);
-    n.size = -1;
-    n.owner = 43;
-    n.ctime = 44;
+    std::unique_ptr<mega::Node> n{&mt::makeNode(*client.cli, mega::FOLDERNODE, 42)};
+    n->size = -1;
+    n->owner = 43;
+    n->ctime = 44;
     std::string data;
-    ASSERT_TRUE(n.serialize(&data));
+    ASSERT_TRUE(n->serialize(&data));
     ASSERT_EQ(71u, data.size());
     mega::node_vector dp;
     auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
-    checkDeserializedNode(*dn, n);
+    checkDeserializedNode(*dn, *n);
 }
 
 TEST(Serialization, Node_forFile_withoutShares_withoutAttrs_withoutFileAttrString_withoutPlink)
 {
     MockClient client;
     auto& parent = mt::makeNode(*client.cli, mega::FOLDERNODE, 43);
-    auto& n = mt::makeNode(*client.cli, mega::FILENODE, 42, &parent);
-    n.size = 12;
-    n.owner = 88;
-    n.ctime = 44;
+    std::unique_ptr<mega::Node> n{&mt::makeNode(*client.cli, mega::FILENODE, 42, &parent)};
+    n->size = 12;
+    n->owner = 88;
+    n->ctime = 44;
     std::string data;
-    ASSERT_TRUE(n.serialize(&data));
+    ASSERT_TRUE(n->serialize(&data));
     ASSERT_EQ(90u, data.size());
     mega::node_vector dp;
     auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
-    checkDeserializedNode(*dn, n);
+    checkDeserializedNode(*dn, *n);
 }
 
 TEST(Serialization, Node_forFile_withoutShares_withoutFileAttrString_withoutPlink)
 {
     MockClient client;
     auto& parent = mt::makeNode(*client.cli, mega::FOLDERNODE, 43);
-    auto& n = mt::makeNode(*client.cli, mega::FILENODE, 42, &parent);
-    n.size = 12;
-    n.owner = 88;
-    n.ctime = 44;
-    n.attrs.map = {
+    std::unique_ptr<mega::Node> n{&mt::makeNode(*client.cli, mega::FILENODE, 42, &parent)};
+    n->size = 12;
+    n->owner = 88;
+    n->ctime = 44;
+    n->attrs.map = {
         {101, "foo"},
         {102, "bar"},
     };
     std::string data;
-    ASSERT_TRUE(n.serialize(&data));
+    ASSERT_TRUE(n->serialize(&data));
     ASSERT_EQ(104u, data.size());
     mega::node_vector dp;
     auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
-    checkDeserializedNode(*dn, n);
+    checkDeserializedNode(*dn, *n);
 }
 
 TEST(Serialization, Node_forFile_withoutShares_withoutPlink)
 {
     MockClient client;
     auto& parent = mt::makeNode(*client.cli, mega::FOLDERNODE, 43);
-    auto& n = mt::makeNode(*client.cli, mega::FILENODE, 42, &parent);
-    n.size = 12;
-    n.owner = 88;
-    n.ctime = 44;
-    n.attrs.map = {
+    std::unique_ptr<mega::Node> n{&mt::makeNode(*client.cli, mega::FILENODE, 42, &parent)};
+    n->size = 12;
+    n->owner = 88;
+    n->ctime = 44;
+    n->attrs.map = {
         {101, "foo"},
         {102, "bar"},
     };
-    n.fileattrstring = "blah";
+    n->fileattrstring = "blah";
     std::string data;
-    ASSERT_TRUE(n.serialize(&data));
+    ASSERT_TRUE(n->serialize(&data));
     ASSERT_EQ(108u, data.size());
     mega::node_vector dp;
     auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
-    checkDeserializedNode(*dn, n);
+    checkDeserializedNode(*dn, *n);
 }
 
 TEST(Serialization, Node_forFile_withoutShares)
 {
     MockClient client;
     auto& parent = mt::makeNode(*client.cli, mega::FOLDERNODE, 43);
-    auto& n = mt::makeNode(*client.cli, mega::FILENODE, 42, &parent);
-    n.size = 12;
-    n.owner = 88;
-    n.ctime = 44;
-    n.attrs.map = {
+    std::unique_ptr<mega::Node> n{&mt::makeNode(*client.cli, mega::FILENODE, 42, &parent)};
+    n->size = 12;
+    n->owner = 88;
+    n->ctime = 44;
+    n->attrs.map = {
         {101, "foo"},
         {102, "bar"},
     };
-    n.fileattrstring = "blah";
-    n.plink = new mega::PublicLink{n.nodehandle, 1, 2, false};
+    n->fileattrstring = "blah";
+    n->plink = new mega::PublicLink{n->nodehandle, 1, 2, false};
     std::string data;
-    ASSERT_TRUE(n.serialize(&data));
+    ASSERT_TRUE(n->serialize(&data));
     ASSERT_EQ(131u, data.size());
     mega::node_vector dp;
     auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
-    checkDeserializedNode(*dn, n);
+    checkDeserializedNode(*dn, *n);
 }
 
 TEST(Serialization, Node_forFile_withoutShares_32bit)
 {
     MockClient client;
     auto& parent = mt::makeNode(*client.cli, mega::FOLDERNODE, 43);
-    auto& n = mt::makeNode(*client.cli, mega::FILENODE, 42, &parent);
-    n.size = 12;
-    n.owner = 88;
-    n.ctime = 44;
-    n.attrs.map = {
+    std::unique_ptr<mega::Node> n{&mt::makeNode(*client.cli, mega::FILENODE, 42, &parent)};
+    n->size = 12;
+    n->owner = 88;
+    n->ctime = 44;
+    n->attrs.map = {
         {101, "foo"},
         {102, "bar"},
     };
-    n.fileattrstring = "blah";
-    n.plink = new mega::PublicLink{n.nodehandle, 1, 2, false};
+    n->fileattrstring = "blah";
+    n->plink = new mega::PublicLink{n->nodehandle, 1, 2, false};
 
     // This is the result of serialization on 32bit Windows
     const std::array<char, 131> rawData = {
@@ -771,103 +769,103 @@ TEST(Serialization, Node_forFile_withoutShares_32bit)
 
     mega::node_vector dp;
     auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
-    checkDeserializedNode(*dn, n);
+    checkDeserializedNode(*dn, *n);
 }
 
 TEST(Serialization, Node_forFolder_withoutShares_withoutAttrs_withoutFileAttrString_withoutPlink)
 {
     MockClient client;
     auto& parent = mt::makeNode(*client.cli, mega::FOLDERNODE, 43);
-    auto& n = mt::makeNode(*client.cli, mega::FOLDERNODE, 42, &parent);
-    n.size = -1;
-    n.owner = 88;
-    n.ctime = 44;
+    std::unique_ptr<mega::Node> n{&mt::makeNode(*client.cli, mega::FOLDERNODE, 42, &parent)};
+    n->size = -1;
+    n->owner = 88;
+    n->ctime = 44;
     std::string data;
-    ASSERT_TRUE(n.serialize(&data));
+    ASSERT_TRUE(n->serialize(&data));
     ASSERT_EQ(71u, data.size());
     mega::node_vector dp;
     auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
-    checkDeserializedNode(*dn, n);
+    checkDeserializedNode(*dn, *n);
 }
 
 TEST(Serialization, Node_forFolder_withoutShares_withoutFileAttrString_withoutPlink)
 {
     MockClient client;
     auto& parent = mt::makeNode(*client.cli, mega::FOLDERNODE, 43);
-    auto& n = mt::makeNode(*client.cli, mega::FOLDERNODE, 42, &parent);
-    n.size = -1;
-    n.owner = 88;
-    n.ctime = 44;
-    n.attrs.map = {
+    std::unique_ptr<mega::Node> n{&mt::makeNode(*client.cli, mega::FOLDERNODE, 42, &parent)};
+    n->size = -1;
+    n->owner = 88;
+    n->ctime = 44;
+    n->attrs.map = {
         {101, "foo"},
         {102, "bar"},
     };
     std::string data;
-    ASSERT_TRUE(n.serialize(&data));
+    ASSERT_TRUE(n->serialize(&data));
     ASSERT_EQ(85u, data.size());
     mega::node_vector dp;
     auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
-    checkDeserializedNode(*dn, n);
+    checkDeserializedNode(*dn, *n);
 }
 
 TEST(Serialization, Node_forFolder_withoutShares_withoutPlink)
 {
     MockClient client;
     auto& parent = mt::makeNode(*client.cli, mega::FOLDERNODE, 43);
-    auto& n = mt::makeNode(*client.cli, mega::FOLDERNODE, 42, &parent);
-    n.size = -1;
-    n.owner = 88;
-    n.ctime = 44;
-    n.attrs.map = {
+    std::unique_ptr<mega::Node> n{&mt::makeNode(*client.cli, mega::FOLDERNODE, 42, &parent)};
+    n->size = -1;
+    n->owner = 88;
+    n->ctime = 44;
+    n->attrs.map = {
         {101, "foo"},
         {102, "bar"},
     };
-    n.fileattrstring = "blah";
+    n->fileattrstring = "blah";
     std::string data;
-    ASSERT_TRUE(n.serialize(&data));
+    ASSERT_TRUE(n->serialize(&data));
     ASSERT_EQ(85u, data.size());
     mega::node_vector dp;
     auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
-    checkDeserializedNode(*dn, n, true);
+    checkDeserializedNode(*dn, *n, true);
 }
 
 TEST(Serialization, Node_forFolder_withoutShares)
 {
     MockClient client;
     auto& parent = mt::makeNode(*client.cli, mega::FOLDERNODE, 43);
-    auto& n = mt::makeNode(*client.cli, mega::FOLDERNODE, 42, &parent);
-    n.size = -1;
-    n.owner = 88;
-    n.ctime = 44;
-    n.attrs.map = {
+    std::unique_ptr<mega::Node> n{&mt::makeNode(*client.cli, mega::FOLDERNODE, 42, &parent)};
+    n->size = -1;
+    n->owner = 88;
+    n->ctime = 44;
+    n->attrs.map = {
         {101, "foo"},
         {102, "bar"},
     };
-    n.fileattrstring = "blah";
-    n.plink = new mega::PublicLink{n.nodehandle, 1, 2, false};
+    n->fileattrstring = "blah";
+    n->plink = new mega::PublicLink{n->nodehandle, 1, 2, false};
     std::string data;
-    ASSERT_TRUE(n.serialize(&data));
+    ASSERT_TRUE(n->serialize(&data));
 
     ASSERT_EQ(108u, data.size());
     mega::node_vector dp;
     auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
-    checkDeserializedNode(*dn, n, true);
+    checkDeserializedNode(*dn, *n, true);
 }
 
 TEST(Serialization, Node_forFolder_withoutShares_32bit)
 {
     MockClient client;
     auto& parent = mt::makeNode(*client.cli, mega::FOLDERNODE, 43);
-    auto& n = mt::makeNode(*client.cli, mega::FOLDERNODE, 42, &parent);
-    n.size = -1;
-    n.owner = 88;
-    n.ctime = 44;
-    n.attrs.map = {
+    std::unique_ptr<mega::Node> n{&mt::makeNode(*client.cli, mega::FOLDERNODE, 42, &parent)};
+    n->size = -1;
+    n->owner = 88;
+    n->ctime = 44;
+    n->attrs.map = {
         {101, "foo"},
         {102, "bar"},
     };
-    n.fileattrstring = "blah";
-    n.plink = new mega::PublicLink{n.nodehandle, 1, 2, false};
+    n->fileattrstring = "blah";
+    n->plink = new mega::PublicLink{n->nodehandle, 1, 2, false};
 
     // This is the result of serialization on 32bit Windows
     const std::array<unsigned char, 108> rawData = {
@@ -887,5 +885,5 @@ TEST(Serialization, Node_forFolder_withoutShares_32bit)
 
     mega::node_vector dp;
     auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
-    checkDeserializedNode(*dn, n, true);
+    checkDeserializedNode(*dn, *n, true);
 }

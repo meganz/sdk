@@ -153,7 +153,7 @@ bool Transfer::serialize(string *d)
     d->append((const char*)filekey, sizeof(filekey));
     d->append((const char*)&ctriv, sizeof(ctriv));
     d->append((const char*)&metamac, sizeof(metamac));
-    d->append((const char*)transferkey, sizeof (transferkey));
+    d->append((const char*)transferkey.data(), sizeof (transferkey));
 
     chunkmacs.serialize(*d);
 
@@ -243,7 +243,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     t->metamac = MemAccess::get<int64_t>(ptr);
     ptr += sizeof(int64_t);
 
-    memcpy(t->transferkey, ptr, SymmCipher::KEYLENGTH);
+    memcpy(t->transferkey.data(), ptr, SymmCipher::KEYLENGTH);
     ptr += SymmCipher::KEYLENGTH;
 
     t->localfilename.assign(filepath, ll);
@@ -359,7 +359,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
 
 SymmCipher *Transfer::transfercipher()
 {
-    client->tmptransfercipher.setkey(transferkey);
+    client->tmptransfercipher.setkey(transferkey.data());
     return &client->tmptransfercipher;
 }
 
@@ -416,7 +416,7 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
             }
         }
     }
-    else if (e == API_EARGS)
+    else if (e == API_EARGS || (e == API_EBLOCKED && type == GET))
     {
         client->app->transfer_failed(this, e);
     }
@@ -446,16 +446,16 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
          * the actionpacket will eventually remove the target and the sync-engine will force to
          * disable the synchronization of the folder. For non-sync-transfers, remove the file directly.
          */
-        if (e == API_EARGS)
+        if (e == API_EARGS || (e == API_EBLOCKED && type == GET))
         {
              File *f = (*it++);
-             if (f->syncxfer)
+             if (f->syncxfer && e == API_EARGS)
              {
                 defer = true;
              }
              else
              {
-                removeTransferFile(API_EARGS, f, &committer);
+                removeTransferFile(e, f, &committer);
              }
              continue;
         }
@@ -1286,7 +1286,7 @@ void DirectReadNode::enqueue(m_off_t offset, m_off_t count, int reqtag, void* ap
 bool DirectReadSlot::processAnyOutputPieces()
 {
     bool continueDirectRead = true;
-    TransferBufferManager::FilePiece* outputPiece;
+    std::shared_ptr<TransferBufferManager::FilePiece> outputPiece;
     while (continueDirectRead && (outputPiece = dr->drbuf.getAsyncOutputBufferPointer(0)))
     {
         size_t len = outputPiece->buf.datalen();

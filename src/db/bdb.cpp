@@ -90,6 +90,8 @@ BdbTable::BdbTable(DbEnv* env)
 
 BdbTable::~BdbTable()
 {
+    resetCommitter();
+
     if (dbcursor)
     {
         dbcursor->close();

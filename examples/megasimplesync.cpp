@@ -114,7 +114,11 @@ public:
 
     // Logger interface
 public:
-    void log(const char *time, int loglevel, const char *source, const char *message);
+    void log(const char *time, int loglevel, const char *source, const char *message
+        #ifdef ENABLE_LOG_PERFORMANCE
+            , const char **directMessages = nullptr, size_t *directMessagesSizes = nullptr, unsigned numberMessages = 0
+        #endif
+    );
 };
 
 // globals
@@ -344,7 +348,11 @@ SyncApp:: SyncApp(string local_folder_, string remote_folder_) :
     local_folder(local_folder_), remote_folder(remote_folder_), cwd(UNDEF), initial_fetch(true)
 {}
 
-void SyncApp::log(const char *time, int loglevel, const char *source, const char *message)
+void SyncApp::log(const char *time, int loglevel, const char *source, const char *message
+#ifdef ENABLE_LOG_PERFORMANCE
+                 , const char **directMessages, size_t *directMessagesSizes, unsigned numberMessages
+#endif
+                 )
 {
     if (!time)
     {
@@ -361,7 +369,12 @@ void SyncApp::log(const char *time, int loglevel, const char *source, const char
         message = "";
     }
 
-    cout << "[" << time << "][" << SimpleLogger::toStr((LogLevel)loglevel) << "] " << message << endl;
+    cout << "[" << time << "][" << SimpleLogger::toStr((LogLevel)loglevel) << "] ";
+    if (message) cout << message;
+#ifdef ENABLE_LOG_PERFORMANCE
+    for (unsigned i = 0; i < numberMessages; ++i) cout.write(directMessages[i], directMessagesSizes[i]);
+#endif
+    cout << endl;
 }
 
 void SyncApp::prelogin_result(int version, std::string* email, std::string *salt, error e)
@@ -618,7 +631,7 @@ int main(int argc, char *argv[])
                         #else
                                                     NULL,
                         #endif
-                            "N9tSBJDC", "megasimplesync");
+                            "N9tSBJDC", "megasimplesync", 2);
 
     // if MEGA_DEBUG env variable is set
     if (getenv("MEGA_DEBUG"))

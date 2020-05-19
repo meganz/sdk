@@ -1355,18 +1355,15 @@ AM_CONDITIONAL([USE_LIBMEDIAINFO], [test "x$libmediainfo" = "xtrue"])
 openssl=false
 cares=false
 if test "x$WIN32" = "xno" ; then
+    if test "$HAVE_PTHREAD" = "yes"; then
+        SAVE_LDFLAGS="-pthread $SAVE_LDFLAGS"
+        LDFLAGS="-pthread $LDFLAGS"
+    fi
 
     # librt #TODO: allow --with-rt=...
     AC_CHECK_LIB([rt], [aio_write], [
     SAVE_LDFLAGS="-lrt $SAVE_LDFLAGS"
     LDFLAGS="-lrt $LDFLAGS"
-    if test "$HAVE_PTHREAD" = "yes"; then
-        SAVE_LDFLAGS="-pthread $SAVE_LDFLAGS"
-        LDFLAGS="-pthread $LDFLAGS"
-    fi    
-#    LIBRT_CXXFLAGS="-lrt "
-#    LIBRT_CPPFLAGS="-lrt "
-#    LIBRT_LDFLAGS="-lrt "
     AC_DEFINE(HAVE_AIO_RT, [1], [Define to indicate AIO presence in librt])
     ],
     )

@@ -78,7 +78,7 @@ struct MEGA_API Transfer : public FileFingerprint
     int64_t metamac;
 
     // file crypto key and shared cipher
-    byte transferkey[SymmCipher::KEYLENGTH];
+    std::array<byte, SymmCipher::KEYLENGTH> transferkey;
     SymmCipher *transfercipher();
 
     chunkmac_map chunkmacs;
@@ -102,7 +102,7 @@ struct MEGA_API Transfer : public FileFingerprint
     MegaClient* client;
     int tag;
 
-    // signal failure
+    // signal failure.  Either the transfer's slot or the transfer itself (including slot) will be deleted.
     void failed(error, DBTableTransactionCommitter&, dstime = 0);
 
     // signal completion

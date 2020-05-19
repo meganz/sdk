@@ -62,7 +62,13 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
     MEGASortOrderTypeModificationAsc,
     MEGASortOrderTypeModificationDesc,
     MEGASortOrderTypeAlphabeticalAsc,
-    MEGASortOrderTypeAlphabeticalDesc
+    MEGASortOrderTypeAlphabeticalDesc,
+    MEGASortOrderTypePhotoAsc,
+    MEGASortOrderTypePhotoDesc,
+    MEGASortOrderTypeVideoAsc,
+    MEGASortOrderTypeVideoDesc,
+    MEGASortOrderTypeLinkCreationAsc,
+    MEGASortOrderTypeLinkCreationDesc
 };
 
 typedef NS_ENUM (NSInteger, MEGAEventType) {
@@ -659,6 +665,36 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * @return YES if this feature is enabled. Otherwise NO.
  */
 - (BOOL)appleVoipPushEnabled;
+
+/* This function creates a new session for the link so logging out in the web client won't log out
+* the current session.
+*
+* The associated request type with this request is MEGARequestTypeGetSessionTransferUrl
+* Valid data in the MEGARequest object received in onRequestFinish when the error code
+* is MEGAErrorTypeApiOk:
+* - [MEGARequest link] - URL to open the desired page with the same account
+*
+* @param url URL inside https://mega.nz/# that we want to open with the current session
+*
+* For example, if you want to open https://mega.nz/#pro, the parameter of this function should be "pro".
+*
+* @param delegate MEGARequestDelegate to track this request
+*/
+- (void)getSessionTransferURL:(NSString *)path delegate:(id<MEGARequestDelegate>)delegate;
+
+/* This function creates a new session for the link so logging out in the web client won't log out
+* the current session.
+*
+* The associated request type with this request is MEGARequestTypeGetSessionTransferUrl
+* Valid data in the MEGARequest object received in onRequestFinish when the error code
+* is MEGAErrorTypeApiOk:
+* - [MEGARequest link] - URL to open the desired page with the same account
+*
+* @param url URL inside https://mega.nz/# that we want to open with the current session
+*
+* For example, if you want to open https://mega.nz/#pro, the parameter of this function should be "pro".
+*/
+- (void)getSessionTransferURL:(NSString *)path;
 
 #pragma mark - Login Requests
 
@@ -1556,7 +1592,7 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
 - (void)fastSendSignupLinkWithEmail:(NSString *)email base64pwkey:(NSString *)base64pwkey name:(NSString *)name __attribute__((deprecated("This function only works using the old registration method and will be removed soon. Please use [MEGASdk sendSignupLinkWithEmail:name:password:] instead.")));
 
 /**
- * @brief Get information about a confirmation link.
+ * @brief Get information about a confirmation link or a new signup link.
  *
  * The associated request type with this request is MEGARequestTypeQuerySignUpLink.
  * Valid data in the MEGARequest object received on all callbacks:
@@ -1566,6 +1602,20 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest email] - Return the email associated with the confirmation link.
  * - [MEGARequest name] - Returns the name associated with the confirmation link.
+ * - [MEGARequest flag] - Returns true if the account was automatically confirmed, otherwise false
+ 
+ * If [MEGARequest flag] returns YES, the account was automatically confirmed and it's not needed
+ * to call [MEGASdk confirmAccountWithLink:password:delegate]. If it returns NO, it's needed to call [MEGASdk confirmAccountWithLink:password:delegate]
+ * as usual. New accounts (V2, starting from April 2018) do not require a confirmation with the password,
+ * but old confirmation links (V1) require it, so it's needed to check that parameter in onRequestFinish
+ * to know how to proceed.
+ *
+ * If already logged-in into a different account, you will get the error code MEGAErrorTypeApiEAccess
+ * in onRequestFinish.
+ * If logged-in into the account that is attempted to confirm and the account is already confirmed, you
+ * will get the error code MEGAErrorTypeApiEExpired in onRequestFinish.
+ * In both cases, the [MEGARequest email] will return the email of the account that was attempted
+ * to confirm, and the [MEGARequest name] will return the name.
  *
  * @param link Confirmation link
  * @param delegate Delegate to track this request
@@ -1573,7 +1623,7 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
 - (void)querySignupLink:(NSString *)link delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
- * @brief Get information about a confirmation link.
+ * @brief Get information about a confirmation link or a new signup link.
  *
  * The associated request type with this request is MEGARequestTypeQuerySignUpLink.
  * Valid data in the MEGARequest object received on all callbacks:
@@ -1583,6 +1633,20 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest email] - Return the email associated with the confirmation link.
  * - [MEGARequest name] - Returns the name associated with the confirmation link.
+ * - [MEGARequest flag] - Returns true if the account was automatically confirmed, otherwise false
+ 
+ * If [MEGARequest flag] returns YES, the account was automatically confirmed and it's not needed
+ * to call [MEGASdk confirmAccountWithLink:password:delegate]. If it returns NO, it's needed to call [MEGASdk confirmAccountWithLink:password:delegate]
+ * as usual. New accounts (V2, starting from April 2018) do not require a confirmation with the password,
+ * but old confirmation links (V1) require it, so it's needed to check that parameter in onRequestFinish
+ * to know how to proceed.
+ *
+ * If already logged-in into a different account, you will get the error code MEGAErrorTypeApiEAccess
+ * in onRequestFinish.
+ * If logged-in into the account that is attempted to confirm and the account is already confirmed, you
+ * will get the error code MEGAErrorTypeApiEExpired in onRequestFinish.
+ * In both cases, the [MEGARequest email] will return the email of the account that was attempted
+ * to confirm, and the [MEGARequest name] will return the name.
  *
  * @param link Confirmation link.
  */
@@ -1600,6 +1664,18 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest email] - Email of the account
  * - [MEGARequest name] - Name of the user
+ *
+ * As a result of a successfull confirmation, the app will receive the callback
+ * [MEGADelegate onEvent: event:] and [MEGAGlobalDelegate onEvent: event:] with an event of type
+ * EventAccountConfirmation. You can check the email used to confirm
+ * the account by checking [MEGAEvent text]. @see [MEGADelegate onEvent: event:].
+ *
+ * If already logged-in into a different account, you will get the error code MEGAErrorTypeApiEAccess
+ * in onRequestFinish.
+ * If logged-in into the account that is attempted to confirm and the account is already confirmed, you
+ * will get the error code MEGAErrorTypeApiEExpired in onRequestFinish.
+ * In both cases, the [MEGARequest email] will return the email of the account that was attempted
+ * to confirm, and the [MEGARequest name] will return the name.
  *
  * @param link Confirmation link.
  * @param password Password for the account.
@@ -1619,6 +1695,18 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest email] - Email of the account
  * - [MEGARequest name] - Name of the user
+ *
+ * As a result of a successfull confirmation, the app will receive the callback
+ * [MEGADelegate onEvent: event:] and [MEGAGlobalDelegate onEvent: event:] with an event of type
+ * EventAccountConfirmation. You can check the email used to confirm
+ * the account by checking [MEGAEvent text]. @see [MEGADelegate onEvent: event:].
+ *
+ * If already logged-in into a different account, you will get the error code MEGAErrorTypeApiEAccess
+ * in onRequestFinish.
+ * If logged-in into the account that is attempted to confirm and the account is already confirmed, you
+ * will get the error code MEGAErrorTypeApiEExpired in onRequestFinish.
+ * In both cases, the [MEGARequest email] will return the email of the account that was attempted
+ * to confirm, and the [MEGARequest name] will return the name.
  *
  * @param link Confirmation link.
  * @param password Password for the account.
@@ -4732,6 +4820,8 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * The associated request type with this request is MEGARequestTypeSetAttrUser
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeMyChatFilesFolder
+ * - [MEGARequest megaStringDictionary] - Returns a megaStringDictionary.
+ * The key "h" in the map contains the nodehandle specified as parameter encoded in B64
  *
  * @param handle Handle of the node to be used as target folder
  * @param delegate MEGARequestDelegate to track this request
@@ -4744,6 +4834,8 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * The associated request type with this request is MEGARequestTypeSetAttrUser
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeMyChatFilesFolder
+ * - [MEGARequest megaStringDictionary] - Returns a megaStringDictionary.
+ * The key "h" in the map contains the nodehandle specified as parameter encoded in B64
  *
  * @param handle Handle of the node to be used as target folder
  */
@@ -4783,6 +4875,8 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * The associated request type with this request is MEGARequestTypeSetAttrUser
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeCameraUploadsFolder
+ * - [MEGARequest megaStringDictionary] - Returns a megaStringDictionary.
+ * The key "h" in the map contains the nodehandle specified as parameter encoded in B64
  *
  * @param handle Handle of the node to be used as target folder
  * @param delegate MEGARequestDelegate to track this request
@@ -4795,6 +4889,8 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * The associated request type with this request is MEGARequestTypeSetAttrUser
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeCameraUploadsFolder
+ * - [MEGARequest megaStringDictionary] - Returns a megaStringDictionary.
+ * The key "h" in the map contains the nodehandle specified as parameter encoded in B64
  *
  * @param handle Handle of the node to be used as target folder
  */
@@ -6239,10 +6335,26 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * Sort by modification time of the original file, descending
  *
  * - MEGASortOrderTypeAlphabeticalAsc = 9
- * Sort in alphabetical order, ascending
+ * Same behavior than MEGASortOrderTypeDefaultAsc
  *
  * - MEGASortOrderTypeAlphabeticalDesc = 10
- * Sort in alphabetical order, descending
+ * Same behavior than MEGASortOrderTypeDefaultDesc
+ *
+ * - MEGASortOrderTypePhotoAsc = 11
+ * Sort with photos first, then by date ascending
+ *
+ * - MEGASortOrderTypePhotoDesc = 12
+ * Sort with photos first, then by date descending
+ *
+ * - MEGASortOrderTypeVideoAsc = 13
+ * Sort with videos first, then by date ascending
+ *
+ * - MEGASortOrderTypeVideoDesc = 14
+ * Sort with videos first, then by date descending
+ *
+ * @deprecated MEGASortOrderTypeAlphabeticalAsc and MEGASortOrderTypeAlphabeticalDesc
+ * are equivalent to MEGASortOrderTypeDefaultAsc and MEGASortOrderTypeDefaultDesc.
+ * They will be eventually removed.
  *
  * @return List with all child MEGANode objects.
  */
@@ -6348,10 +6460,26 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * Sort by modification time of the original file, descending
  *
  * - MEGASortOrderTypeAlphabeticalAsc = 9
- * Sort in alphabetical order, ascending
+ * Same behavior than MEGASortOrderTypeDefaultAsc
  *
  * - MEGASortOrderTypeAlphabeticalDesc = 10
- * Sort in alphabetical order, descending
+ * Same behavior than MEGASortOrderTypeDefaultDesc
+ *
+ * - MEGASortOrderTypePhotoAsc = 11
+ * Sort with photos first, then by date ascending
+ *
+ * - MEGASortOrderTypePhotoDesc = 12
+ * Sort with photos first, then by date descending
+ *
+ * - MEGASortOrderTypeVideoAsc = 13
+ * Sort with videos first, then by date ascending
+ *
+ * - MEGASortOrderTypeVideoDesc = 14
+ * Sort with videos first, then by date descending
+ *
+ * @deprecated MEGASortOrderTypeAlphabeticalAsc and MEGASortOrderTypeAlphabeticalDesc
+ * are equivalent to MEGASortOrderTypeDefaultAsc and MEGASortOrderTypeDefaultDesc.
+ * They will be eventually removed.
  *
  * @return Lists with files and folders child MegaNode objects
  */
@@ -6555,6 +6683,9 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * @brief Get a list with all public links
  *
  * @param order Order for the returned list.
+ * Valid value for order are: MEGASortOrderTypeNone, MEGASortOrderTypeDefaultAsc,
+ * MEGASortOrderTypeDefaultDesc, MEGASortOrderTypeLinkCreationAsc,
+ * MEGASortOrderTypeLinkCreationDesc
  * @return List of MEGANode objects that are shared with everyone via public link
  */
 - (MEGANodeList *)publicLinks:(MEGASortOrderType)order;
@@ -6780,19 +6911,68 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
 - (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString recursive:(BOOL)recursive;
 
 /**
-* @brief Search nodes containing a search string in their name.
-*
-* The search is case-insensitive.
-*
-* @param node The parent node of the tree to explore.
-* @param searchString Search string. The search is case-insensitive.
-* @param cancelToken MEGACancelToken to be able to cancel the processing at any time.
-* @param recursive YES if you want to seach recursively in the node tree.
-* @param order MEGASortOrderType for the returned list.
-* NO if you want to seach in the children of the node only
-*
-* @return List of nodes that contain the desired string in their name.
-*/
+ * @brief Search nodes containing a search string in their name.
+ *
+ * The search is case-insensitive.
+ *
+ * @param node The parent node of the tree to explore.
+ * @param searchString Search string. The search is case-insensitive.
+ * @param cancelToken MEGACancelToken to be able to cancel the processing at any time.
+ * @param recursive YES if you want to seach recursively in the node tree.
+ * NO if you want to seach in the children of the node only
+ * @param order MEGASortOrderType for the returned list.
+ * Valid values for this parameter are:
+ * - MEGASortOrderTypeNone = 0
+ * Undefined order
+ *
+ * - MEGASortOrderTypeDefaultAsc = 1
+ * Folders first in alphabetical order, then files in the same order
+ *
+ * - MEGASortOrderTypeDefaultDesc = 2
+ * Files first in reverse alphabetical order, then folders in the same order
+ *
+ * - MEGASortOrderTypeSizeAsc = 3
+ * Sort by size, ascending
+ *
+ * - MEGASortOrderTypeSizeDesc = 4
+ * Sort by size, descending
+ *
+ * - MEGASortOrderTypeCreationAsc = 5
+ * Sort by creation time in MEGA, ascending
+ *
+ * - MEGASortOrderTypeCreationDesc = 6
+ * Sort by creation time in MEGA, descending
+ *
+ * - MEGASortOrderTypeModificationAsc = 7
+ * Sort by modification time of the original file, ascending
+ *
+ * - MEGASortOrderTypeModificationDesc = 8
+ * Sort by modification time of the original file, descending
+ *
+ * - MEGASortOrderTypeAlphabeticalAsc = 9
+ * Same behavior than MEGASortOrderTypeDefaultAsc
+ *
+ * - MEGASortOrderTypeAlphabeticalDesc = 10
+ * Same behavior than MEGASortOrderTypeDefaultDesc
+ *
+ * - MEGASortOrderTypePhotoAsc = 11
+ * Sort with photos first, then by date ascending
+ *
+ * - MEGASortOrderTypePhotoDesc = 12
+ * Sort with photos first, then by date descending
+ *
+ * - MEGASortOrderTypeVideoAsc = 13
+ * Sort with videos first, then by date ascending
+ *
+ * - MEGASortOrderTypeVideoDesc = 14
+ * Sort with videos first, then by date descending
+ *
+ * @deprecated MEGASortOrderTypeAlphabeticalAsc and MEGASortOrderTypeAlphabeticalDesc
+ * are equivalent to MEGASortOrderTypeDefaultAsc and MEGASortOrderTypeDefaultDesc.
+ * They will be eventually removed.
+ *
+ * @return List of nodes that contain the desired string in their name.
+ */
 - (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString cancelToken:(MEGACancelToken *)cancelToken recursive:(BOOL)recursive order:(MEGASortOrderType)order;
 
 /**

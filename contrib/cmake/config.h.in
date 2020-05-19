@@ -25,6 +25,11 @@
 /* Define to 1 if you have the <dirent.h> header file, and it defines `DIR'. */
 #cmakedefine HAVE_DIRENT_H
 
+#ifndef _WIN32
+/* Define to 1 if you have the `fdopendir' function. */
+#define HAVE_FDOPENDIR 1
+#endif
+
 /* Define to use FFMPEG */
 #ifndef HAVE_FFMPEG
 #cmakedefine HAVE_FFMPEG 
@@ -36,13 +41,11 @@
 /* Define to 1 if you have the <glob.h> header file. */
 #cmakedefine HAVE_GLOB_H
 
-#ifndef _WIN32
-/* Define to 1 if you have the `fdopendir' function. */
-#define HAVE_FDOPENDIR 1
-#endif
+/* Define to use libraw */
+#cmakedefine HAVE_LIBRAW 1
 
 /* Define to use libuv */
-/* #undef HAVE_LIBUV */
+#cmakedefine HAVE_LIBUV 1
 
 /* Define to 1 if you have the <malloc.h> header file. */
 #define HAVE_MALLOC_H 1
@@ -52,9 +55,6 @@
 
 /* Define to 1 if you have the <mcheck.h> header file. */
 #define HAVE_MCHECK_H 1
-
-/* Define to 1 if you have the <MediaInfo/MediaInfo.h> header file. */
-/* #undef HAVE_MEDIAINFO_MEDIAINFO_H */
 
 /* Define to 1 if you have the <memory.h> header file. */
 #define HAVE_MEMORY_H 1
@@ -193,13 +193,13 @@
 /* #undef TM_IN_SYS_TIME */
 
 /* Define to use UNICODE (for MediaInfo) */
-/* #undef UNICODE */
+#cmakedefine UNICODE 1
 
 /* Define to use c-ares */
 #define USE_CARES 1
 
 /* Define to use libcryptopp */
-#define USE_CRYPTOPP 1
+#cmakedefine USE_CRYPTOPP 1
 
 /* Define to use Berkeley DB */
 #define USE_DB 0
@@ -213,25 +213,25 @@
 /* #undef USE_IOS */
 
 /* Define to use libmediainfo */
-/* #undef USE_MEDIAINFO */
+#cmakedefine USE_MEDIAINFO 1
 
 /* Defined if MEGA API enabled */
-#define USE_MEGAAPI 1
+#cmakedefine USE_MEGAAPI 1
 
 /* Define to use OpenSSL */
-#define USE_OPENSSL 1
+#cmakedefine USE_OPENSSL 1
 
 /* Define to use libpcre */
-/* #undef USE_PCRE */
+#cmakedefine USE_PCRE 1
 
 /* Defined if pthreads are available */
-#define USE_PTHREAD 1
+#cmakedefine USE_PTHREAD 1
 
 /* Define to use libsodium */
-#define USE_SODIUM 1
+#cmakedefine USE_SODIUM 1
 
 /* Define to use SQLite */
-#define USE_SQLITE 1
+#cmakedefine USE_SQLITE 1
 
 /* Enable extensions on AIX 3, Interix.  */
 #ifndef _ALL_SOURCE
