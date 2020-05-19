@@ -7710,7 +7710,7 @@ MegaTransfer *MegaApiImpl::getFirstTransfer(int type)
 
     MegaTransfer* transfer = NULL;
     sdkMutex.lock();
-    transfer_list::iterator it = client->transferlist.begin((direction_t)type);
+    auto it = client->transferlist.begin((direction_t)type);
     if (it != client->transferlist.end((direction_t)type))
     {
          Transfer *t = (*it);
@@ -7753,8 +7753,8 @@ MegaTransferList *MegaApiImpl::getTransfers()
     vector<MegaTransfer *> transfers;
     for (int d = GET; d == GET || d == PUT; d += PUT - GET)
     {
-        transfer_list::iterator end = client->transferlist.end((direction_t)d);
-        for (transfer_list::iterator it = client->transferlist.begin((direction_t)d); it != end; it++)
+        auto end = client->transferlist.end((direction_t)d);
+        for (auto it = client->transferlist.begin((direction_t)d); it != end; it++)
         {
             Transfer *t = (*it);
             for (file_list::iterator it2 = t->files.begin(); it2 != t->files.end(); it2++)
@@ -7813,8 +7813,8 @@ MegaTransferList *MegaApiImpl::getTransfers(int type)
 
     sdkMutex.lock();
     vector<MegaTransfer *> transfers;
-    transfer_list::iterator end = client->transferlist.end((direction_t)type);
-    for (transfer_list::iterator it = client->transferlist.begin((direction_t)type); it != end; it++)
+    auto end = client->transferlist.end((direction_t)type);
+    for (auto it = client->transferlist.begin((direction_t)type); it != end; it++)
     {
         Transfer *t = (*it);
         for (file_list::iterator it2 = t->files.begin(); it2 != t->files.end(); it2++)
@@ -16938,42 +16938,24 @@ MegaNodeList *MegaApiImpl::getChildren(MegaNode* p, int order)
         return new MegaNodeListPrivate();
     }
 
-    sdkMutex.lock();
-    Node *parent = client->nodebyhandle(p->getHandle());
-    if (!parent || parent->type == FILENODE)
-    {
-        sdkMutex.unlock();
-        return new MegaNodeListPrivate();
-    }
-
     node_vector childrenNodes;
 
-    if (std::function<bool(Node*, Node*)> comparatorFunction = getComparatorFunction(order, *client))
+    SdkMutexGuard guard(sdkMutex);
+
+    Node *parent = client->nodebyhandle(p->getHandle());
+    if (parent && parent->type != FILENODE)
     {
+        childrenNodes.reserve(parent->children.size());
         for (node_list::iterator it = parent->children.begin(); it != parent->children.end(); )
         {
-            Node *n = *it++;
-            const node_vector::iterator i = std::lower_bound(childrenNodes.begin(), childrenNodes.end(), n, comparatorFunction);
-            childrenNodes.insert(i, n);
+            childrenNodes.push_back(*it++);
+        }
+        if (std::function<bool(Node*, Node*)> comparatorFunction = getComparatorFunction(order, *client))
+        {
+            std::sort(childrenNodes.begin(), childrenNodes.end(), comparatorFunction);
         }
     }
-    else
-    {
-        for (node_list::iterator it = parent->children.begin(); it != parent->children.end(); )
-            childrenNodes.push_back(*it++);
-    }
-
-    MegaNodeListPrivate *result = NULL;
-    if (childrenNodes.size())
-    {
-        result = new MegaNodeListPrivate(childrenNodes.data(), int(childrenNodes.size()));
-    }
-    else
-    {
-        result = new MegaNodeListPrivate();
-    }
-    sdkMutex.unlock();
-    return result;
+    return new MegaNodeListPrivate(childrenNodes.data(), int(childrenNodes.size()));;
 }
 
 MegaNodeList *MegaApiImpl::getVersions(MegaNode *node)
@@ -24907,7 +24889,7 @@ void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, string *pa
     }
     else
     {
-        children = megaApi->getChildren(node);
+        children = megaApi->getChildren(node, MegaApi::ORDER_NONE);  // no order is much faster for a very large folder (or nested folders with large subfolders)
         deleteChildren = true;
     }
 
@@ -30988,7 +30970,7 @@ MegaTransferDataPrivate::MegaTransferDataPrivate(TransferList *transferList, lon
     numDownloads = int(transferList->transfers[GET].size());
     downloadTags.reserve(numDownloads);
     downloadPriorities.reserve(numDownloads);
-    for (transfer_list::iterator it = transferList->begin(GET); it != transferList->end(GET); it++)
+    for (auto it = transferList->begin(GET); it != transferList->end(GET); it++)
     {
         Transfer *transfer = (*it);
         for (file_list::iterator fit = transfer->files.begin(); fit != transfer->files.end(); fit++)
@@ -31003,7 +30985,7 @@ MegaTransferDataPrivate::MegaTransferDataPrivate(TransferList *transferList, lon
     numUploads = int(transferList->transfers[PUT].size());
     uploadTags.reserve(numUploads);
     uploadPriorities.reserve(numUploads);
-    for (transfer_list::iterator it = transferList->begin(PUT); it != transferList->end(PUT); it++)
+    for (auto it = transferList->begin(PUT); it != transferList->end(PUT); it++)
     {
         Transfer *transfer = (*it);
         for (file_list::iterator fit = transfer->files.begin(); fit != transfer->files.end(); fit++)

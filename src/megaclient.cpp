@@ -1080,6 +1080,7 @@ void MegaClient::init()
     notifyStorageChangeOnStateCurrent = false;
     mNotifiedSumSize = 0;
     mNodeCounters = NodeCounterMap();
+    mOptimizePurgeNodes = false;
 }
 
 MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, DbAccess* d, GfxProc* g, const char* k, const char* u, unsigned workerThreadCount)
@@ -3735,10 +3736,12 @@ void MegaClient::checkfacompletion(handle th, Transfer* t)
 void MegaClient::freeq(direction_t d)
 {
     DBTableTransactionCommitter committer(tctable);
-    for (transfer_map::iterator it = transfers[d].begin(); it != transfers[d].end(); )
+    for (auto transferPtr : transfers[d])
     {
-        delete it++->second;
+        transferPtr.second->mOptimizedDelete = true;  // so it doesn't remove itself from this list while deleting
+        delete transferPtr.second;
     }
+    transfers[d].clear();
 }
 
 bool MegaClient::isFetchingNodesPendingCS()
@@ -11809,12 +11812,14 @@ void MegaClient::purgenodesusersabortsc(bool keepOwnUser)
     syncs.clear();
 #endif
 
+    mOptimizePurgeNodes = true;
+    mFingerprints.clear();
     for (node_map::iterator it = nodes.begin(); it != nodes.end(); it++)
     {
         delete it->second;
     }
-
     nodes.clear();
+    mOptimizePurgeNodes = false;
 
 #ifdef ENABLE_SYNC
     todebris.clear();

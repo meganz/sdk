@@ -311,7 +311,42 @@ typedef list<HttpReqCommandPutFA*> putfa_list;
 // map a FileFingerprint to the transfer for that FileFingerprint
 typedef map<FileFingerprint*, Transfer*, FileFingerprintCmp> transfer_map;
 
-typedef deque<Transfer*> transfer_list;
+template <class T, class E>
+class deque_with_lazy_bulk_erase
+{
+    deque<E> mDeque;
+
+    bool erasing = false;
+public:
+
+    typedef typename deque<E>::iterator iterator;
+
+    void erase(iterator i)
+    {
+        assert(i != mDeque.end());
+        i->erase();
+        erasing = true;
+    }
+
+    void applyErase()
+    {
+        if (erasing)
+        {
+            auto newEnd = std::remove_if(mDeque.begin(), mDeque.end(), [](const E& e) { return e.isErased(); } );
+            mDeque.erase(newEnd, mDeque.end());
+            erasing = false;
+        }
+    }
+
+    size_t size() { applyErase(); return mDeque.size(); }
+    iterator begin(bool canHandleErasedElements = false) { if (!canHandleErasedElements) applyErase(); return mDeque.begin(); }
+    iterator end(bool canHandleErasedElements = false) { if (!canHandleErasedElements) applyErase(); return mDeque.end(); }
+    void push_front(T t) { applyErase(); mDeque.push_front(E(t)); }
+    void push_back(T t) { applyErase(); mDeque.push_back(E(t)); }
+    void insert(iterator i, T t) { applyErase(); mDeque.insert(i, E(t)); }
+    T& operator[](size_t n) { applyErase(); return mDeque[n]; }
+
+};
 
 // map a request tag with pending dbids of transfers and files
 typedef map<int, vector<uint32_t> > pendingdbid_map;
