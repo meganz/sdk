@@ -10443,12 +10443,9 @@ MegaNodeList *MegaApiImpl::getPublicLinks(int order)
     node_vector nodes;
     for (const auto& item : client->mPublicLinks)
     {
-        assert(client->nodebyhandle(item.second));
-        nodes.emplace_back(client->nodebyhandle(item.second));
-        if (n)
-        {
-            nodes.emplace_back(n);
-        }
+        n = client->nodebyhandle(item.first);
+        assert(n);
+        nodes.emplace_back(n);
     }
     sortByComparatorFunction(nodes, order, *client);
     MegaNodeList *nodeList = new MegaNodeListPrivate(nodes.data(), int(nodes.size()));
