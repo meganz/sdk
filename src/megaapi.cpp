@@ -1237,6 +1237,10 @@ MegaError::MegaError(const MegaError &megaError)
 {
 	errorCode = megaError.getErrorCode();
     value = megaError.getValue();
+
+    mExtraInfo = megaError.hasExtraInfo();
+    mUserStatus = megaError.getUserStatus();
+    mLinkStatus = megaError.getLinkStatus();
 }
 
 MegaError::~MegaError()
@@ -1246,7 +1250,14 @@ MegaError::~MegaError()
 
 MegaError* MegaError::copy()
 {
-	return new MegaError(*this);
+    return new MegaError(*this);
+}
+
+void MegaError::setExtraErrorInfo(long long userStatus, long long linkStatus)
+{
+    mExtraInfo = true;
+    mUserStatus = userStatus;
+    mLinkStatus = linkStatus;
 }
 
 int MegaError::getErrorCode() const 
@@ -1257,6 +1268,21 @@ int MegaError::getErrorCode() const
 long long MegaError::getValue() const
 {
     return value;
+}
+
+bool MegaError::hasExtraInfo() const
+{
+    return mExtraInfo;
+}
+
+long long MegaError::getUserStatus() const
+{
+    return mUserStatus;
+}
+
+long long MegaError::getLinkStatus() const
+{
+    return mLinkStatus;
 }
 
 const char* MegaError::getErrorString() const

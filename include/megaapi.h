@@ -5287,6 +5287,15 @@ public:
          */
         MegaError* copy();
 
+        /**
+         * @brief Add extra information for an error
+         *
+         * @param userStatus Extra information error about user
+         * @param linkStatus Extra information error about link
+         */
+        void setExtraErrorInfo(long long userStatus, long long linkStatus);
+
+
 		/**
 		 * @brief Returns the error code associated with this MegaError
 		 * @return Error code associated with this MegaError
@@ -5305,6 +5314,40 @@ public:
          * @return Value associated with the error
          */
         long long getValue() const;
+
+        /**
+         * @brief Returns true if error has extra info
+         *
+         * @note The request that can return extra info are: TYPE_FETCH_NODES with error ENOENT and
+         * TYPE_GET_PUBLIC_NODE and TYPE_IMPORT_LINK with error ETOOMANY
+         *
+         * @return True if error has extra info
+         */
+        bool hasExtraInfo() const;
+
+        /**
+         * @brief Returns the user status
+         *
+         * This method only returns a valid value when hasExtraInfo is true
+         * Possible values:
+         *  7 -> represents an ETD/ToS 'severe' suspension level
+         *
+         * @return user status
+         */
+        long long getUserStatus() const;
+
+        /**
+         * @brief Returns the link status
+         *
+         * This method only returns a valid value when hasExtraInfo is true
+         * Possible values:
+         *  0 -> is undeleted
+         *  1 -> is deleted/down
+         *  2 -> down due to an ETD specifically
+         *
+         * @return link status
+         */
+        long long getLinkStatus() const;
 
 		/**
 		 * @brief Returns a readable description of the error
@@ -5384,6 +5427,9 @@ public:
         //< 0 = API error code, > 0 = http error, 0 = No error
 		int errorCode;
         long long value;
+        bool mExtraInfo = false;
+        long long mUserStatus = 0;
+        long long mLinkStatus = 0;
 };
 
 /**
