@@ -6373,7 +6373,17 @@ bool MegaPushNotificationSettings::isGlobalDndEnabled() const
     return false;
 }
 
+bool MegaPushNotificationSettings::isGlobalChatsDndEnabled() const
+{
+    return false;
+}
+
 int64_t MegaPushNotificationSettings::getGlobalDnd() const
+{
+    return 0;
+}
+
+int64_t MegaPushNotificationSettings::getGlobalChatsDnd() const
 {
     return 0;
 }
@@ -6464,6 +6474,11 @@ void MegaPushNotificationSettings::enableChat(MegaHandle /*chatid*/, bool /*enab
 }
 
 void MegaPushNotificationSettings::setChatDnd(MegaHandle /*chatid*/, int64_t /*timestamp*/)
+{
+
+}
+
+void MegaPushNotificationSettings::setGlobalChatsDnd(int64_t /*timestamp*/)
 {
 
 }
