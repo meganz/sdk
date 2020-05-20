@@ -78,7 +78,7 @@ struct MEGA_API Transfer : public FileFingerprint
     int64_t metamac;
 
     // file crypto key and shared cipher
-    byte transferkey[SymmCipher::KEYLENGTH];
+    std::array<byte, SymmCipher::KEYLENGTH> transferkey;
     SymmCipher *transfercipher();
 
     chunkmac_map chunkmacs;
@@ -102,11 +102,8 @@ struct MEGA_API Transfer : public FileFingerprint
     MegaClient* client;
     int tag;
 
-    // returns true if the transfer contains foreign targets, false if targets are private
-    bool isForeign();
-
     // signal failure.  Either the transfer's slot or the transfer itself (including slot) will be deleted.
-    void failed(Error, DBTableTransactionCommitter&, dstime = 0, handle targetHandle = UNDEF);
+    void failed(const Error&, DBTableTransactionCommitter&, dstime = 0);
 
     // signal completion
     void complete(DBTableTransactionCommitter&);

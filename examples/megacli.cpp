@@ -410,7 +410,7 @@ void DemoApp::transfer_update(Transfer* /*t*/)
     // (this is handled in the prompt logic)
 }
 
-void DemoApp::transfer_failed(Transfer* t, const Error& e, dstime, handle)
+void DemoApp::transfer_failed(Transfer* t, const Error& e, dstime)
 {
     displaytransferdetails(t, "failed (");
     if (e == API_ETOOMANY && e.hasExtraInfo())
@@ -3935,6 +3935,7 @@ void uploadLocalPath(nodetype_t type, std::string name, std::string localname, N
     }
     else if (type == FOLDERNODE && recursive)
     {
+
         if (previousNode)
         {
             if (previousNode->type == FILENODE)
@@ -4230,7 +4231,8 @@ void exec_open(autocomplete::ACState& s)
                                             "Gk8DyQBS",
                                             "megacli_folder/" TOSTRING(MEGA_MAJOR_VERSION)
                                             "." TOSTRING(MEGA_MINOR_VERSION)
-                                            "." TOSTRING(MEGA_MICRO_VERSION));
+                                            "." TOSTRING(MEGA_MICRO_VERSION),
+                                            2);
         }
         else
         {
@@ -7935,7 +7937,8 @@ int main()
                             "Gk8DyQBS",
                             "megacli/" TOSTRING(MEGA_MAJOR_VERSION)
                             "." TOSTRING(MEGA_MINOR_VERSION)
-                            "." TOSTRING(MEGA_MICRO_VERSION));
+                            "." TOSTRING(MEGA_MICRO_VERSION),
+                            2);
 
     ac::ACN acs = autocompleteSyntax();
 #if defined(WIN32) && defined(NO_READLINE)

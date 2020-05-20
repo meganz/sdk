@@ -148,7 +148,7 @@ typedef uint32_t dstime;
 #define TOSTRING(x) STRINGIFY(x)
 
 // HttpReq states
-typedef enum { REQ_READY, REQ_PREPARED, REQ_INFLIGHT, REQ_SUCCESS, REQ_FAILURE, REQ_DONE, REQ_ASYNCIO } reqstatus_t;
+typedef enum { REQ_READY, REQ_PREPARED, REQ_ENCRYPTING, REQ_DECRYPTING, REQ_DECRYPTED, REQ_INFLIGHT, REQ_SUCCESS, REQ_FAILURE, REQ_DONE, REQ_ASYNCIO } reqstatus_t;
 
 typedef enum { USER_HANDLE, NODE_HANDLE } targettype_t;
 
@@ -345,11 +345,8 @@ typedef list<struct TransferSlot*> transferslot_list;
 // FIXME: use forward_list instad (C++11)
 typedef list<HttpReqCommandPutFA*> putfa_list;
 
-/* maps a FileFingerprint to the transfer for that FileFingerprint,
- * this map can contain two items for the same key (FileFingerprint)
- * depending on the type of target (private/foreign) associated to the PUT transfers
- */
-typedef multimap<FileFingerprint*, Transfer*, FileFingerprintCmp> transfer_map;
+// map a FileFingerprint to the transfer for that FileFingerprint
+typedef map<FileFingerprint*, Transfer*, FileFingerprintCmp> transfer_map;
 
 typedef deque<Transfer*> transfer_list;
 

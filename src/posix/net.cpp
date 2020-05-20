@@ -1339,7 +1339,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
     }
     else
     {
-        if (req->out->size() < SimpleLogger::maxPayloadLogSize)
+        if (req->out->size() < size_t(SimpleLogger::maxPayloadLogSize))
         {
             LOG_debug << httpctx->req->logname << "Sending " << req->out->size() << ": " << DirectMessage(req->out->c_str(), req->out->size());
         }
@@ -2138,7 +2138,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                     }
                     else
                     {
-                        if (req->in.size() < SimpleLogger::maxPayloadLogSize)
+                        if (req->in.size() < size_t(SimpleLogger::maxPayloadLogSize))
                         {
                             LOG_debug << req->logname << "Received " << req->in.size() << ": " << DirectMessage(req->in.c_str(), req->in.size());
                         }
@@ -2354,6 +2354,8 @@ size_t CurlHttpIO::read_data(void* ptr, size_t size, size_t nmemb, void* source)
     {
         return 0;
     }
+
+    req->lastdata = Waiter::ds;
 
     if (httpio->maxspeed[PUT])
     {

@@ -631,7 +631,7 @@ int main(int argc, char *argv[])
                         #else
                                                     NULL,
                         #endif
-                            "N9tSBJDC", "megasimplesync");
+                            "N9tSBJDC", "megasimplesync", 2);
 
     // if MEGA_DEBUG env variable is set
     if (getenv("MEGA_DEBUG"))

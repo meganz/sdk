@@ -666,6 +666,36 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  */
 - (BOOL)appleVoipPushEnabled;
 
+/* This function creates a new session for the link so logging out in the web client won't log out
+* the current session.
+*
+* The associated request type with this request is MEGARequestTypeGetSessionTransferUrl
+* Valid data in the MEGARequest object received in onRequestFinish when the error code
+* is MEGAErrorTypeApiOk:
+* - [MEGARequest link] - URL to open the desired page with the same account
+*
+* @param url URL inside https://mega.nz/# that we want to open with the current session
+*
+* For example, if you want to open https://mega.nz/#pro, the parameter of this function should be "pro".
+*
+* @param delegate MEGARequestDelegate to track this request
+*/
+- (void)getSessionTransferURL:(NSString *)path delegate:(id<MEGARequestDelegate>)delegate;
+
+/* This function creates a new session for the link so logging out in the web client won't log out
+* the current session.
+*
+* The associated request type with this request is MEGARequestTypeGetSessionTransferUrl
+* Valid data in the MEGARequest object received in onRequestFinish when the error code
+* is MEGAErrorTypeApiOk:
+* - [MEGARequest link] - URL to open the desired page with the same account
+*
+* @param url URL inside https://mega.nz/# that we want to open with the current session
+*
+* For example, if you want to open https://mega.nz/#pro, the parameter of this function should be "pro".
+*/
+- (void)getSessionTransferURL:(NSString *)path;
+
 #pragma mark - Login Requests
 
 /**

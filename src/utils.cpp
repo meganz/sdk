@@ -317,15 +317,13 @@ m_off_t chunkmac_map::expandUnprocessedPiece(m_off_t pos, m_off_t npos, m_off_t 
     return npos;
 }
 
-void chunkmac_map::finishedUploadChunks(m_off_t pos, m_off_t size)
+void chunkmac_map::finishedUploadChunks(chunkmac_map& macs)
 {
-    m_off_t startpos = pos;
-    m_off_t finalpos = startpos + size;
-    while (startpos < finalpos)
+    for (auto& m : macs)
     {
-        (*this)[startpos].finished = true;
-        LOG_verbose << "Upload chunk completed: " << startpos;
-        startpos = ChunkedHash::chunkceil(startpos, finalpos);
+        m.second.finished = true;
+        (*this)[m.first] = m.second;
+        LOG_verbose << "Upload chunk completed: " << m.first;
     }
 }
 
@@ -336,6 +334,8 @@ int64_t chunkmac_map::macsmac(SymmCipher *cipher)
 
     for (chunkmac_map::iterator it = begin(); it != end(); it++)
     {
+        assert(it->first == ChunkedHash::chunkfloor(it->first));
+        // LOG_debug << "macsmac input: " << it->first << ": " << Base64Str<sizeof it->second.mac>(it->second.mac);
         SymmCipher::xorblock(it->second.mac, mac);
         cipher->ecb_encrypt(mac);
     }
@@ -2346,6 +2346,81 @@ std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &
     }
 
     return std::make_pair(true, chunkMacs.macsmac(&cipher));
+}
+
+void MegaClientAsyncQueue::push(std::function<void(SymmCipher&)> f)
+{
+    if (mThreads.empty())
+    {
+        if (f)
+        {
+            f(mZeroThreadsCipher);
+        }
+    }
+    else
+    {
+        {
+            std::lock_guard<std::mutex> g(mMutex);
+            mQueue.emplace_back(std::move(f));
+        }
+        mConditionVariable.notify_one();
+    }
+}
+
+MegaClientAsyncQueue::MegaClientAsyncQueue(Waiter& w, unsigned threadCount)
+    : mWaiter(w)
+{
+    for (int i = threadCount; i--; )
+    {
+        try
+        {
+            mThreads.emplace_back([this]()
+            {
+                asyncThreadLoop();
+            });
+        }
+        catch (std::system_error& e)
+        {
+            LOG_err << "Failed to start worker thread: " << e.what();
+            break;
+        }
+    }
+    LOG_debug << "MegaClient Worker threads running: " << mThreads.size();
+}
+
+MegaClientAsyncQueue::~MegaClientAsyncQueue()
+{
+    clearQueue();
+    push(nullptr);
+    mConditionVariable.notify_all();
+    for (auto& t : mThreads)
+    {
+        t.join();
+    }
+}
+
+void MegaClientAsyncQueue::clearQueue()
+{
+    std::lock_guard<std::mutex> g(mMutex);
+    mQueue.clear();
+}
+
+void MegaClientAsyncQueue::asyncThreadLoop()
+{
+    SymmCipher cipher;
+    for (;;)
+    {
+        std::function<void(SymmCipher&)> f;
+        {
+            std::unique_lock<std::mutex> g(mMutex);
+            mConditionVariable.wait(g, [this]() { return !mQueue.empty(); });
+            f = std::move(mQueue.front());
+            if (!f) return;   // nullptr is not popped, and causes all the threads to exit
+            mQueue.pop_front();
+        }
+        f(cipher);
+        mWaiter.notify();
+    }
 }
 
 } // namespace

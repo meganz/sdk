@@ -23,6 +23,8 @@
 #define MEGA_UTILS_H 1
 
 #include <type_traits>
+#include <condition_variable>
+#include <thread>
 
 #include "types.h"
 #include "mega/logging.h"
@@ -428,7 +430,7 @@ public:
     void calcprogress(m_off_t size, m_off_t& chunkpos, m_off_t& completedprogress, m_off_t* lastblockprogress = nullptr);
     m_off_t nextUnprocessedPosFrom(m_off_t pos);
     m_off_t expandUnprocessedPiece(m_off_t pos, m_off_t npos, m_off_t fileSize, m_off_t maxReqSize);
-    void finishedUploadChunks(m_off_t pos, m_off_t size);
+    void finishedUploadChunks(chunkmac_map& macs);
 };
 
 struct CacheableWriter
@@ -499,6 +501,29 @@ class SymmCipher;
 std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, FileAccess &ifAccess, const int64_t iv);
 
 std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &isAccess, const int64_t iv);
+
+// Helper class for MegaClient.  Suitable for expansion/templatizing for other use caes.
+// Maintains a small thread pool for executing independent operations such as encrypt/decrypt a block of data
+// The number of threads can be 0 (eg. for helper MegaApi that deals with public folder links) in which case something queued is 
+// immediately executed synchronously on the caller's thread
+struct MegaClientAsyncQueue
+{
+    void push(std::function<void(SymmCipher&)> f);
+    void clearQueue();
+
+    MegaClientAsyncQueue(Waiter& w, unsigned threadCount);
+    ~MegaClientAsyncQueue();
+
+private:
+    Waiter& mWaiter;
+    std::mutex mMutex;
+    std::condition_variable mConditionVariable;
+    std::deque<std::function<void(SymmCipher&)>> mQueue;
+    std::vector<std::thread> mThreads;
+    SymmCipher mZeroThreadsCipher;
+
+    void asyncThreadLoop();
+};
 
 } // namespace
 

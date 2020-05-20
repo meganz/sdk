@@ -25,6 +25,7 @@
 #include "types.h"
 #include "waiter.h"
 #include "backofftimer.h"
+#include "utils.h"
 
 #ifndef _WIN32
 #include <sys/types.h>
@@ -200,7 +201,7 @@ struct MEGA_API HttpIO : public EventTrigger
 // outgoing HTTP request
 struct MEGA_API HttpReq
 {
-    reqstatus_t status;
+    std::atomic<reqstatus_t> status;
     m_off_t pos;
 
     int httpstatus;
@@ -223,6 +224,9 @@ struct MEGA_API HttpReq
     size_t outpos;
 
     string outbuf;
+
+    // if the out payload includes a fetch nodes command
+    bool includesFetchingNodes = false;
 
     byte* buf;
     m_off_t buflen, bufpos, notifiedbufpos;
@@ -379,7 +383,7 @@ struct MEGA_API HttpReqXfer : public HttpReq
 {
     unsigned size;
 
-    virtual void prepare(const char*, SymmCipher*, chunkmac_map*, uint64_t, m_off_t, m_off_t) = 0;
+    virtual void prepare(const char*, SymmCipher*, uint64_t, m_off_t, m_off_t) = 0;
 
     HttpReqXfer() : HttpReq(true), size(0) { }
 };
@@ -387,7 +391,9 @@ struct MEGA_API HttpReqXfer : public HttpReq
 // file chunk upload
 struct MEGA_API HttpReqUL : public HttpReqXfer
 {
-    void prepare(const char*, SymmCipher*, chunkmac_map*, uint64_t, m_off_t, m_off_t);
+    chunkmac_map mChunkmacs;
+
+    void prepare(const char*, SymmCipher*, uint64_t, m_off_t, m_off_t);
 
     m_off_t transferred(MegaClient*);
 
@@ -400,7 +406,7 @@ struct MEGA_API HttpReqDL : public HttpReqXfer
     m_off_t dlpos;
     bool buffer_released;
 
-    void prepare(const char*, SymmCipher*, chunkmac_map*, uint64_t, m_off_t, m_off_t);
+    void prepare(const char*, SymmCipher*, uint64_t, m_off_t, m_off_t);
 
     HttpReqDL();
     ~HttpReqDL() { }

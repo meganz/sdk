@@ -370,12 +370,15 @@ struct StandardClient : public MegaApp
 #else
             NULL,
 #endif
-            "N9tSBJDC", USER_AGENT.c_str())
+            "N9tSBJDC", USER_AGENT.c_str(), THREADS_PER_MEGACLIENT )
         , clientname(name)
         , fsBasePath(basepath / fs::u8path(name))
         , clientthread([this]() { threadloop(); })
     {
         client.clientname = clientname + " ";
+#ifdef GFX_CLASS
+        gfx.startProcessingThread();
+#endif
     }
 
     ~StandardClient()
@@ -384,7 +387,7 @@ struct StandardClient : public MegaApp
         thread_do([](MegaClient& mc, promise<bool>&) { 
             #ifdef _WIN32
                 // logout stalls in windows due to the issue above
-                mc.purgenodesusersabortsc(); 
+                mc.purgenodesusersabortsc(false); 
             #else
                 mc.logout();
             #endif
@@ -400,7 +403,7 @@ struct StandardClient : public MegaApp
         thread_do([](MegaClient& mc, promise<bool>&) {
             #ifdef _WIN32
                 // logout stalls in windows due to the issue above
-                mc.purgenodesusersabortsc();
+                mc.purgenodesusersabortsc(false);
             #else
                 mc.locallogout(false);
             #endif

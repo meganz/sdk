@@ -330,7 +330,7 @@ void File::completed(Transfer* t, LocalNode* l)
             // drop file into targetuser's inbox
             int creqtag = t->client->reqtag;
             t->client->reqtag = tag;
-            t->client->putnodes(targetuser.c_str(), newnode, 1, t);
+            t->client->putnodes(targetuser.c_str(), newnode, 1);
             t->client->reqtag = creqtag;
         }
         else
@@ -372,9 +372,9 @@ void File::completed(Transfer* t, LocalNode* l)
                                                                   newnode, 1,
                                                                   tag,
 #ifdef ENABLE_SYNC
-                                                                  l ? PUTNODES_SYNC : PUTNODES_APP, nullptr, t));
+                                                                  l ? PUTNODES_SYNC : PUTNODES_APP));
 #else
-                                                                  PUTNODES_APP, nullptr, t));
+                                                                  PUTNODES_APP));
 #endif
         }
     }
