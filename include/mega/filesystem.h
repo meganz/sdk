@@ -24,10 +24,10 @@
 
 #if defined (__linux__) || defined (__ANDROID__)
 #include <sys/vfs.h>
-#elif defined  (__APPLE__)
+#elif defined  (__APPLE__) || defined (USE_IOS)
 #include <sys/mount.h>
 #include <sys/param.h>
-#elif defined(_WIN32) || defined(_WIN64)
+#elif defined(_WIN32) || defined(_WIN64) || defined(WINDOWS_PHONE)
 #include <Windows.h>
 #endif
 
@@ -285,7 +285,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     string getValidPath(const string *path) const;
     const char *fstypetostring(int type) const;
     int getlocalfstype(const std::string *dstPath) const;
-    void unescapefsincompatible(string*) const;
+    void unescapefsincompatible(string*, const std::string *) const;
 
     // convert MEGA path (UTF-8) to local format
     virtual void path2local(string*, string*) const = 0;
@@ -293,7 +293,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     // convert MEGA-formatted filename (UTF-8) to local filesystem name; escape
     // forbidden characters using urlencode
-    void local2name(string*) const;
+    void local2name(string*, const std::string *localPath = nullptr) const;
 
     // convert local path to MEGA format (UTF-8) with unescaping
     void name2local(string*, const std::string *dstPath = nullptr) const;

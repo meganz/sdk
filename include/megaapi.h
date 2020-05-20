@@ -14432,6 +14432,7 @@ class MegaApi
          *
          * @param filename Name to convert (UTF8)
          * @return Converted name (UTF8)
+         * @deprecated There is a new prototype that includes path for filesystem detection
          */
         char* escapeFsIncompatible(const char *filename);
 
@@ -14458,14 +14459,34 @@ class MegaApi
         /**
          * @brief Unescape a file name escaped with MegaApi::escapeFsIncompatible
          *
-         * The input string must be UTF8 encoded. The returned value will be UTF8 too.
+         * This method will unescape those sequences that once has been unescaped results
+         * in any character of the following list: \/:?\"<>|*
          *
+         * The input string must be UTF8 encoded. The returned value will be UTF8 too.
          * You take the ownership of the returned value
          *
          * @param name Escaped name to convert (UTF8)
          * @return Converted name (UTF8)
+         * @deprecated There is a new prototype that includes path for filesystem detection
          */
         char* unescapeFsIncompatible(const char* name);
+
+        /**
+         * @brief Unescape a file name escaped with MegaApi::escapeFsIncompatible
+         *
+         * If no localPath is provided or filesystem type it's not supported, this method will
+         * unescape those sequences that once has been unescaped results in any character
+         * of the following list: \/:?\"<>|*
+         * Otherwise it will unescape those characters forbidden in local filesystem type
+         *
+         * The input string must be UTF8 encoded. The returned value will be UTF8 too.
+         * You take the ownership of the returned value
+         *
+         * @param name Escaped name to convert (UTF8)
+         * @param localPath local path
+         * @return Converted name (UTF8)
+         */
+        char* unescapeFsIncompatible(const char *name, const char *localPath);
 
 
         /**

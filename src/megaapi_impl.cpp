@@ -8006,9 +8006,18 @@ void MegaApiImpl::startUpload(bool startFirst, const char *localPath, MegaNode *
 
     transfer->setBackupTransfer(isBackup);
 
-    if(fileName)
+    if (fileName || transfer->getFileName())
     {
-        transfer->setFileName(fileName);
+       std::string auxName = fileName
+               ? fileName
+               : transfer->getFileName();
+
+       std::string path = localPath
+               ? localPath
+               : "";
+
+       client->fsaccess->unescapefsincompatible(&auxName, &path);
+       transfer->setFileName(auxName.c_str());
     }
 
     transfer->setTime(mtime);
@@ -8288,7 +8297,7 @@ int MegaApiImpl::syncPathState(string* path)
             {
                 size_t index = fsAccess->lastpartlocal(path);
                 string name = path->substr(index);
-                fsAccess->local2name(&name);
+                fsAccess->local2name(&name, path);
                 if (is_syncable(sync, name.c_str(), path))
                 {
                     auto fa = fsAccess->newfileaccess();
@@ -8565,7 +8574,7 @@ bool MegaApiImpl::isSyncable(const char *path, long long size)
 
             size_t index = fsAccess->lastpartlocal(&localpath);
             name = localpath.substr(index);
-            fsAccess->local2name(&name);
+            fsAccess->local2name(&name, &localpath);
             result = is_syncable(sync, name.c_str(), &localpath);
             break;
         }
@@ -8737,14 +8746,15 @@ char *MegaApiImpl::escapeFsIncompatible(const char *filename, const char *dstPat
     return MegaApi::strdup(name.c_str());
 }
 
-char *MegaApiImpl::unescapeFsIncompatible(const char *name)
+char *MegaApiImpl::unescapeFsIncompatible(const char *name, const char *path)
 {
     if(!name)
     {
         return NULL;
     }
     string filename = name;
-    client->fsaccess->unescapefsincompatible(&filename);
+    string localpath = path ? path : "";
+    client->fsaccess->unescapefsincompatible(&filename, &localpath);
     return MegaApi::strdup(filename.c_str());
 }
 
@@ -23583,7 +23593,7 @@ void MegaFolderUploadController::onFolderAvailable(MegaHandle handle)
             localPath.append(localname);
 
             string name = localname;
-            client->fsaccess->local2name(&name);
+            client->fsaccess->local2name(&name, &localPath);
             if (dirEntryType == FILENODE)
             {
                 pendingTransfers++;
@@ -24375,7 +24385,7 @@ void MegaBackupController::onFolderAvailable(MegaHandle handle)
                 if(fa->fopen(&localPath, true, false))
                 {
                     string name = localname;
-                    client->fsaccess->local2name(&name);
+                    client->fsaccess->local2name(&name, &localPath);
                     if(fa->type == FILENODE)
                     {
                         pendingTransfers++;
