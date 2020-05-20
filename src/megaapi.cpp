@@ -2356,6 +2356,16 @@ char *MegaApi::getUserAvatarColor(const char *userhandle)
     return MegaApiImpl::getUserAvatarColor(userhandle);
 }
 
+char *MegaApi::getUserAvatarSecondaryColor(MegaUser *user)
+{
+    return MegaApiImpl::getUserAvatarSecondaryColor(user);
+}
+
+char *MegaApi::getUserAvatarSecondaryColor(const char *userhandle)
+{
+    return MegaApiImpl::getUserAvatarSecondaryColor(userhandle);
+}
+
 void MegaApi::setAvatar(const char *dstFilePath, MegaRequestListener *listener)
 {
     pImpl->setAvatar(dstFilePath, listener);
