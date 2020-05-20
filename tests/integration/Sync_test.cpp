@@ -376,6 +376,9 @@ struct StandardClient : public MegaApp
         , clientthread([this]() { threadloop(); })
     {
         client.clientname = clientname + " ";
+#ifdef GFX_CLASS
+        gfx.startProcessingThread();
+#endif
     }
 
     ~StandardClient()
