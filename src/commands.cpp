@@ -1551,10 +1551,9 @@ CommandDelVersions::CommandDelVersions(MegaClient* client)
 
 void CommandDelVersions::procresult()
 {    
-    int64_t e;
     Error errorDetails;
     checkError(errorDetails, client->json);
-    client->app->unlinkversions_result(static_cast<error>(e));
+    client->app->unlinkversions_result(errorDetails);
 }
 
 CommandKillSessions::CommandKillSessions(MegaClient* client)
@@ -2362,11 +2361,10 @@ CommandUpdatePendingContact::CommandUpdatePendingContact(MegaClient* client, han
 
 void CommandUpdatePendingContact::procresult()
 {
-    int64_t e;
     Error errorDetails;
     if (checkError(errorDetails, client->json))
     {
-        return client->app->updatepcr_result(static_cast<error>(e), this->action);
+        return client->app->updatepcr_result(errorDetails, this->action);
     }
    
     LOG_err << "Unexpected response for CommandUpdatePendingContact";
@@ -4851,12 +4849,11 @@ CommandCreateEphemeralSession::CommandCreateEphemeralSession(MegaClient* client,
 
 void CommandCreateEphemeralSession::procresult()
 {
-    int64_t e;
     Error errorDetails;
     if (checkError(errorDetails, client->json))
     {
         client->ephemeralSession = false;
-        client->app->ephemeral_result(static_cast<error>(e));
+        client->app->ephemeral_result(errorDetails);
     }
     else
     {
@@ -4943,11 +4940,10 @@ CommandCancelSignup::CommandCancelSignup(MegaClient *client)
 
 void CommandCancelSignup::procresult()
 {
-    int64_t e;
     Error errorDetails;
     if (checkError(errorDetails, client->json))
     {
-        return client->app->cancelsignup_result(static_cast<error>(e));
+        return client->app->cancelsignup_result(errorDetails);
     }
 
     client->json.storeobject();
@@ -5140,11 +5136,10 @@ CommandConfirmSignupLink::CommandConfirmSignupLink(MegaClient* client,
 
 void CommandConfirmSignupLink::procresult()
 {
-    int64_t e;
     Error errorDetails;
     if (checkError(errorDetails, client->json))
     {
-        return client->app->confirmsignuplink_result(static_cast<error>(e));
+        return client->app->confirmsignuplink_result(errorDetails);
     }
 
     client->json.storeobject();
@@ -7619,11 +7614,10 @@ CommandMultiFactorAuthCheck::CommandMultiFactorAuthCheck(MegaClient *client, con
 
 void CommandMultiFactorAuthCheck::procresult()
 {
-    int64_t e;
     Error errorDetails;
     if (checkError(errorDetails, client->json))
     {
-        client->app->multifactorauthcheck_result(static_cast<error>(e));
+        client->app->multifactorauthcheck_result(errorDetails);
     }
     else    // error
     {
