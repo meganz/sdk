@@ -11824,7 +11824,7 @@ dstime MegaApiImpl::pread_failure(const Error &e, int retry, void* param, dstime
         }
         DBTableTransactionCommitter committer(client->tctable);
         MegaError err = MegaError(e);
-        if (e.hasExtraInfo())
+        if (e == API_ETOOMANY && e.hasExtraInfo())
         {
             err.setExtraErrorInfo(e.getUserStatus(), e.getLinkStatus());
         }
@@ -14182,7 +14182,7 @@ void MegaApiImpl::exportnode_result(handle h, handle ph)
 void MegaApiImpl::openfilelink_result(const Error& result)
 {
     MegaError megaError(result);
-    if (result.hasExtraInfo())
+    if (result == API_ETOOMANY && result.hasExtraInfo())
     {
         megaError.setExtraErrorInfo(result.getUserStatus(), result.getLinkStatus());
     }
