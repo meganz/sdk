@@ -5356,8 +5356,11 @@ public:
         /**
          * @brief Returns true if error has extra info
          *
-         * @note The request that can return extra info are: TYPE_FETCH_NODES with error ENOENT and
-         * TYPE_GET_PUBLIC_NODE and TYPE_IMPORT_LINK with error ETOOMANY
+         * @note This method can return true for:
+         *   - MegaRequest::TYPE_FETCH_NODES with error ENOENT
+         *   - MegaRequest::TYPE_GET_PUBLIC_NODE with error ETOOMANY
+         *   - MegaRequest::TYPE_IMPORT_LINK with error ETOOMANY
+         *   - MegaTransferListener::onTransferFinish with error ETOOMANY
          *
          * @return True if error has extra info
          */

@@ -16318,10 +16318,11 @@ void MegaApiImpl::processTransferFailed(Transfer *tr, MegaTransferPrivate *trans
     transfer->setPriority(tr->priority);
     if (e == API_ETOOMANY && e.hasExtraInfo())
     {
+        DBTableTransactionCommitter committer(client->tctable);
         megaError.setExtraErrorInfo(e.getUserStatus(), e.getLinkStatus());
         transfer->setState(MegaTransfer::STATE_FAILED);
         transfer->setForeignOverquota(false);
-        fireOnTransferTemporaryError(transfer, megaError);
+        fireOnTransferFinish(transfer, megaError, committer);
     }
     else
     {
