@@ -1182,7 +1182,7 @@ void DirectReadNode::dispatch()
 }
 
 // abort all active reads, remove pending reads and reschedule with app-supplied backoff
-void DirectReadNode::retry(error e, dstime timeleft)
+void DirectReadNode::retry(const Error& e, dstime timeleft)
 {
     if (reads.empty())
     {
@@ -1210,7 +1210,7 @@ void DirectReadNode::retry(error e, dstime timeleft)
         {
             dstime retryds = client->app->pread_failure(e, retries, (*it)->appdata, timeleft);
 
-            if (retryds < minretryds)
+            if (retryds < minretryds && !(e == API_ETOOMANY && e.hasExtraInfo()))
             {
                 minretryds = retryds;
             }
@@ -1250,7 +1250,7 @@ void DirectReadNode::retry(error e, dstime timeleft)
     }
 }
 
-void DirectReadNode::cmdresult(error e, dstime timeleft)
+void DirectReadNode::cmdresult(const Error &e, dstime timeleft)
 {
     pendingcmd = NULL;
 

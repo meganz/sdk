@@ -7273,9 +7273,9 @@ bool DemoApp::pread_data(byte* data, m_off_t len, m_off_t pos, m_off_t, m_off_t,
     return true;
 }
 
-dstime DemoApp::pread_failure(error e, int retry, void* /*appdata*/, dstime)
+dstime DemoApp::pread_failure(const Error &e, int retry, void* /*appdata*/, dstime)
 {
-    if (retry < 5)
+    if (retry < 5 && !(e == API_ETOOMANY && e.hasExtraInfo()))
     {
         cout << "Retrying read (" << errorstring(e) << ", attempt #" << retry << ")" << endl;
         return (dstime)(retry*10);

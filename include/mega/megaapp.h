@@ -190,7 +190,7 @@ struct MEGA_API MegaApp
     virtual void backgrounduploadurl_result(error, string*) { }
 
     // pread result
-    virtual dstime pread_failure(error, int, void*, dstime) { return ~(dstime)0; }
+    virtual dstime pread_failure(const Error&, int, void*, dstime) { return ~(dstime)0; }
     virtual bool pread_data(byte*, m_off_t, m_off_t, m_off_t, m_off_t, void*) { return false; }
 
     // event reporting result

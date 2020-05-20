@@ -202,7 +202,7 @@ struct DemoApp : public MegaApp
     void checkfile_result(handle, const Error&) override;
     void checkfile_result(handle, error, byte*, m_off_t, m_time_t, m_time_t, string*, string*, string*) override;
 
-    dstime pread_failure(error, int, void*, dstime) override;
+    dstime pread_failure(const Error&, int, void*, dstime) override;
     bool pread_data(byte*, m_off_t, m_off_t, m_off_t, m_off_t, void*) override;
 
     void transfer_added(Transfer*) override;

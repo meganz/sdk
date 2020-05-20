@@ -2883,7 +2883,7 @@ protected:
         void transfer_failed(Transfer*, const Error& error, dstime timeleft, handle targetHandle = UNDEF) override;
         void transfer_update(Transfer*) override;
 
-        dstime pread_failure(error, int, void*, dstime) override;
+        dstime pread_failure(const Error&, int, void*, dstime) override;
         bool pread_data(byte*, m_off_t, m_off_t, m_off_t, m_off_t, void*) override;
 
         void reportevent_result(error) override;

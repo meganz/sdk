@@ -11794,7 +11794,7 @@ File *MegaApiImpl::file_resume(string *d, direction_t *type)
     return file;
 }
 
-dstime MegaApiImpl::pread_failure(error e, int retry, void* param, dstime timeLeft)
+dstime MegaApiImpl::pread_failure(const Error &e, int retry, void* param, dstime timeLeft)
 {
     MegaTransferPrivate *transfer = (MegaTransferPrivate *)param;
     transfer->setUpdateTime(Waiter::ds);
@@ -11802,7 +11802,7 @@ dstime MegaApiImpl::pread_failure(error e, int retry, void* param, dstime timeLe
     transfer->setSpeed(0);
     transfer->setMeanSpeed(0);
     transfer->setLastBytes(NULL);
-    if (retry <= transfer->getMaxRetries() && e != API_EINCOMPLETE)
+    if (retry <= transfer->getMaxRetries() && e != API_EINCOMPLETE && !(e == API_ETOOMANY && e.hasExtraInfo()))
     {	
         transfer->setLastError(MegaError(e));
         transfer->setState(MegaTransfer::STATE_RETRYING);
@@ -11817,7 +11817,7 @@ dstime MegaApiImpl::pread_failure(error e, int retry, void* param, dstime timeLe
     }
     else
     {
-        if (e && e != API_EINCOMPLETE)
+        if (e && (e != API_EINCOMPLETE || (e == API_ETOOMANY && e.hasExtraInfo())))
         {
             transfer->setState(MegaTransfer::STATE_FAILED);
         }
@@ -11826,7 +11826,13 @@ dstime MegaApiImpl::pread_failure(error e, int retry, void* param, dstime timeLe
             transfer->setState(MegaTransfer::STATE_COMPLETED);
         }
         DBTableTransactionCommitter committer(client->tctable);
-        fireOnTransferFinish(transfer, MegaError(e), committer);
+        MegaError err = MegaError(e);
+        if (e.hasExtraInfo())
+        {
+            err.setExtraErrorInfo(e.getUserStatus(), e.getLinkStatus());
+        }
+
+        fireOnTransferFinish(transfer, err, committer);
         return NEVER;
     }
 }
