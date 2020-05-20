@@ -474,6 +474,7 @@ void SdkTest::onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* 
     // there could be a race on these getting set?
     LOG_info << "lastError (by transfer) for MegaApi " << apiIndex << ": " << mApi[apiIndex].lastError;
 
+    onTranferFinishedCount += 1;
 
     if (mApi[apiIndex].lastError == MegaError::API_OK)
         mApi[apiIndex].h = transfer->getNodeHandle();
@@ -3495,7 +3496,11 @@ static void incrementFilename(string& s)
 struct second_timer 
 {
     m_time_t t;
+    m_time_t pause_t;
     second_timer() { t = m_time(); }
+    void reset () { t = m_time(); }
+    void pause() { pause_t = m_time(); }
+    void resume() { t += m_time() - pause_t; }
     size_t elapsed() { return size_t(m_time() - t); }
 };
 
@@ -3655,7 +3660,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
     // smaller chunk sizes so we can get plenty of pauses
     #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
     globalMegaTestHooks.onSetIsRaid = ::mega::DebugTestHook::onSetIsRaid_morechunks;
-#endif
+    #endif
 
     // plain cloudraid download
     {
@@ -3693,7 +3698,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
     // cloudraid download with periodic full exit and resume from session ID
     // plain cloudraid download
     {
-        megaApi[0]->setMaxDownloadSpeed(32 * 1024 * 1024 * 8 / 120 / 2); // should take 1 minute (enough time for 3 exit/resume)
+        megaApi[0]->setMaxDownloadSpeed(32 * 1024 * 1024 * 8 / 30); // should take 30 seconds, not counting exit/resume session
         mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
         megaApi[0]->startDownload(nimported, filename.c_str());
 
@@ -3704,7 +3709,9 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
         m_off_t lastprogress = 0;
         unsigned exitresumecount = 0;
         second_timer t;
-        while (t.elapsed() < 120 && (onTransferUpdate_filesize == 0 || onTransferUpdate_progress < onTransferUpdate_filesize))
+        auto initialOnTranferFinishedCount = onTranferFinishedCount;
+        auto lastOnTranferFinishedCount = onTranferFinishedCount;
+        while (t.elapsed() < 180 && onTranferFinishedCount < initialOnTranferFinishedCount + 2)
         {
             if (onTransferUpdate_progress > lastprogress + onTransferUpdate_filesize/6)
             {
@@ -3716,16 +3723,32 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
                 mApi[0].megaApi = megaApi[0].get();
                 megaApi[0]->setLogLevel(MegaApi::LOG_LEVEL_DEBUG);
                 megaApi[0]->addListener(this);
-                megaApi[0]->setMaxDownloadSpeed(32 * 1024 * 1024 * 8 / 120 / 2); // should take 1 minute (enough time for 3 exit/resume)
+                megaApi[0]->setMaxDownloadSpeed(32 * 1024 * 1024 * 8 / 30); // should take 30 seconds, not counting exit/resume session
 
+                t.pause();
                 ASSERT_NO_FATAL_FAILURE(resumeSession(sessionId.c_str()));
                 ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+                t.resume();
+
                 lastprogress = onTransferUpdate_progress;
             }
-            WaitMillisec(100);
+            else if (onTranferFinishedCount > lastOnTranferFinishedCount)
+            {
+                t.reset();
+                lastOnTranferFinishedCount = onTranferFinishedCount;
+                cout << "new download" << endl;
+                deleteFile(filename.c_str());
+                onTransferUpdate_progress = 0;
+                onTransferUpdate_filesize = 0;
+                lastprogress = 0;
+                mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
+                megaApi[0]->startDownload(nimported, filename.c_str());
+            }
+            WaitMillisec(1);
         }
         ASSERT_EQ(onTransferUpdate_progress, onTransferUpdate_filesize);
-        ASSERT_GE(exitresumecount, 3u);
+        ASSERT_EQ(initialOnTranferFinishedCount + 2, onTranferFinishedCount);
+        ASSERT_GE(exitresumecount, 6u);
         ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], 1)) << "Download cloudraid transfer with pauses failed";
         ASSERT_EQ(MegaError::API_OK, mApi[0].lastError) << "Cannot download the cloudraid file (error: " << mApi[0].lastError << ")";
     }

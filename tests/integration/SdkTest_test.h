@@ -152,6 +152,7 @@ public:
 
     m_off_t onTransferUpdate_progress;
     m_off_t onTransferUpdate_filesize;
+    unsigned onTranferFinishedCount = 0;
 
     std::mutex lastEventMutex;
     std::unique_ptr<MegaEvent> lastEvent;

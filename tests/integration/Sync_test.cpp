@@ -1702,7 +1702,7 @@ public:
     {
         std::vector<uint8_t> data(length);
 
-        std::generate_n(data.begin(), data.size(), std::rand);
+        std::generate_n(data.begin(), data.size(), [](){ return (uint8_t)std::rand(); });
 
         return data;
     }
