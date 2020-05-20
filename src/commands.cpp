@@ -95,7 +95,7 @@ void HttpReqCommandPutFA::procresult()
             }
 
             status = REQ_SUCCESS;
-            return client->app->putfa_result(th, type, errorDetails.getError());
+            return client->app->putfa_result(th, type, errorDetails);
         }
     }
     else
@@ -179,7 +179,7 @@ void CommandGetFA::procresult()
                 it->second->fafs[0].erase(fafsit++);
             }
 
-            it->second->e = errorDetails.getError();
+            it->second->e = errorDetails;
             it->second->req.status = REQ_FAILURE;
         }
 
@@ -292,7 +292,7 @@ void CommandAttachFA::procresult()
              return client->app->putfa_result(h, type, fa.c_str());
          }
 
-         errorDetails.setError(API_EINTERNAL);
+         errorDetails = API_EINTERNAL;
     }
 
     client->app->putfa_result(h, type, errorDetails);
@@ -535,7 +535,6 @@ void CommandDirectRead::procresult()
     }
     else
     {
-        error e = API_EINTERNAL;
         dstime tl = 0;
         std::vector<std::string> tempurls;
 
@@ -568,11 +567,11 @@ void CommandDirectRead::procresult()
                     if (tempurls.size() == 1 || tempurls.size() == RAIDPARTS)
                     {
                         drn->tempurls.swap(tempurls);
-                        e = API_OK;
+                        errorDetails = API_OK;
                     }
                     else
                     {
-                        e = API_EINCOMPLETE;
+                        errorDetails = API_EINCOMPLETE;
                     }
                     break;
 
@@ -584,11 +583,11 @@ void CommandDirectRead::procresult()
                     break;
 
                 case 'd':
-                    e = API_EBLOCKED;
+                    errorDetails = API_EBLOCKED;
                     break;
 
                 case 'e':
-                    e = (error)client->json.getint();
+                    errorDetails = (error)client->json.getint();
                     break;
 
                 case MAKENAMEID2('t', 'l'):
@@ -598,13 +597,13 @@ void CommandDirectRead::procresult()
                 case EOO:
                     if (!canceled && drn)
                     {
-                        if (e == API_EOVERQUOTA && !tl)
+                        if (errorDetails == API_EOVERQUOTA && !tl)
                         {
                             // default retry interval
                             tl = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS;
                         }
 
-                        drn->cmdresult(e, e == API_EOVERQUOTA ? tl * 10 : 0);
+                        drn->cmdresult(errorDetails, errorDetails == API_EOVERQUOTA ? tl * 10 : 0);
                     }
 
                     return;
@@ -614,7 +613,7 @@ void CommandDirectRead::procresult()
                     {
                         if (!canceled && drn)
                         {
-                            drn->cmdresult(e);
+                            drn->cmdresult(errorDetails);
                         }
                         
                         return;
@@ -693,7 +692,6 @@ void CommandGetFile::procresult()
     }
 
     const char* at = NULL;
-    error e = API_EINTERNAL;
     m_off_t s = -1;
     dstime tl = 0;
     int d = 0;
@@ -732,7 +730,7 @@ void CommandGetFile::procresult()
                         tempurls.push_back(tu);
                     }
                 }
-                e = API_OK;
+                errorDetails = API_OK;
                 break;
 
             case 's':
@@ -774,7 +772,7 @@ void CommandGetFile::procresult()
                 break;
 
             case 'e':
-                e = (error)client->json.getint();
+                errorDetails = (error)client->json.getint();
                 break;
 
             case MAKENAMEID2('t', 'l'):
@@ -784,7 +782,7 @@ void CommandGetFile::procresult()
             case EOO:
                 if (d || !at)
                 {
-                    e = at ? API_EBLOCKED : API_EINTERNAL;
+                    errorDetails = at ? API_EBLOCKED : API_EINTERNAL;
 
                     if (canceled)
                     {
@@ -793,10 +791,10 @@ void CommandGetFile::procresult()
 
                     if (tslot)
                     {
-                        return tslot->transfer->failed(e, *client->mTctableRequestCommitter);
+                        return tslot->transfer->failed(errorDetails, *client->mTctableRequestCommitter);
                     }
 
-                    return client->app->checkfile_result(ph, e);
+                    return client->app->checkfile_result(ph, errorDetails);
                 }
                 else
                 {
@@ -883,17 +881,17 @@ void CommandGetFile::procresult()
                                             return tslot->progress();
                                         }
 
-                                        if (e == API_EOVERQUOTA && tl <= 0)
+                                        if (errorDetails == API_EOVERQUOTA && tl <= 0)
                                         {
                                             // default retry interval
                                             tl = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS;
                                         }
                                         
-                                        return tslot->transfer->failed(e, *client->mTctableRequestCommitter, e == API_EOVERQUOTA ? tl * 10 : 0);
+                                        return tslot->transfer->failed(errorDetails, *client->mTctableRequestCommitter, errorDetails == API_EOVERQUOTA ? tl * 10 : 0);
                                     }
                                     else
                                     {
-                                        return client->app->checkfile_result(ph, e, filekey, s, ts, tm,
+                                        return client->app->checkfile_result(ph, errorDetails, filekey, s, ts, tm,
                                                                              &filenamestring,
                                                                              &filefingerprint,
                                                                              &fileattrstring);
@@ -1221,8 +1219,6 @@ void CommandPutNodes::procresult()
 #endif
     }
 
-    error e = API_EINTERNAL;
-
     bool noexit = true;
     bool empty = false;
     while (noexit)
@@ -1233,12 +1229,12 @@ void CommandPutNodes::procresult()
                 empty = !memcmp(client->json.pos, "[]", 2);
                 if (client->readnodes(&client->json, 1, source, nn, nnsize, tag, true))  // do apply keys to received nodes only as we go for command response, much much faster for many small responses
                 {
-                    e = API_OK;
+                    errorDetails = API_OK;
                 }
                 else
                 {
                     LOG_err << "Parse error (readnodes)";
-                    e = API_EINTERNAL;
+                    errorDetails = API_EINTERNAL;
                     noexit = false;
                 }
                 break;
@@ -1247,7 +1243,7 @@ void CommandPutNodes::procresult()
                 if (!client->readnodes(&client->json, 1, PUTNODES_APP, NULL, 0, 0, true))  // do apply keys to received nodes only as we go for command response, much much faster for many small responses
                 {
                     LOG_err << "Parse error (readversions)";
-                    e = API_EINTERNAL;
+                    errorDetails = API_EINTERNAL;
                     noexit = false;
                 }
                 break;
@@ -1258,7 +1254,7 @@ void CommandPutNodes::procresult()
                     continue;
                 }
 
-                e = API_EINTERNAL;
+                errorDetails = API_EINTERNAL;
                 LOG_err << "Parse error (PutNodes)";
 
                 // fall through
@@ -1273,8 +1269,8 @@ void CommandPutNodes::procresult()
 #ifdef ENABLE_SYNC
     if (source == PUTNODES_SYNC)
     {
-        client->app->putnodes_result(e, type, NULL);
-        client->putnodes_sync_result(e, nn, nnsize);
+        client->app->putnodes_result(errorDetails, type, NULL);
+        client->putnodes_sync_result(errorDetails, nn, nnsize);
     }
     else
 #endif
@@ -1293,12 +1289,12 @@ void CommandPutNodes::procresult()
             }
         }
 #endif
-        client->app->putnodes_result((!e && empty) ? API_ENOENT : e, type, nn);
+        client->app->putnodes_result((!errorDetails && empty) ? API_ENOENT : errorDetails.getError(), type, nn);
     }
 #ifdef ENABLE_SYNC
     else
     {
-        client->putnodes_syncdebris_result(e, nn);
+        client->putnodes_syncdebris_result(errorDetails, nn);
     }
 #endif
 }
@@ -1511,7 +1507,6 @@ void CommandDelNode::procresult()
     }
     else
     {
-        error err = API_EINTERNAL;
         for (;;)
         {
             switch (client->json.getnameid())
@@ -1521,7 +1516,7 @@ void CommandDelNode::procresult()
                     {
                         if(client->json.isnumeric())
                         {
-                            err = (error)client->json.getint();
+                            errorDetails = (error)client->json.getint();
                         }
 
                         client->json.leavearray();
@@ -1529,7 +1524,7 @@ void CommandDelNode::procresult()
                     break;
 
                 case EOO:
-                    client->app->unlink_result(h, err);
+                    client->app->unlink_result(h, errorDetails);
                     return;
 
                 default:
@@ -2609,7 +2604,6 @@ void CommandPurchaseCheckout::procresult()
     }
 
     string errortype;
-    error err = API_EINTERNAL;
     for (;;)
     {
         switch (client->json.getnameid())
@@ -2617,7 +2611,7 @@ void CommandPurchaseCheckout::procresult()
             case MAKENAMEID3('r', 'e', 's'):
                 if (client->json.isnumeric())
                 {
-                    err = (error)client->json.getint();
+                    errorDetails = (error)client->json.getint();
                 }
                 else
                 {
@@ -2625,7 +2619,7 @@ void CommandPurchaseCheckout::procresult()
                     if (errortype == "S")
                     {
                         errortype.clear();
-                        err = API_OK;
+                        errorDetails = API_OK;
                     }
                 }
                 break;
@@ -2633,7 +2627,7 @@ void CommandPurchaseCheckout::procresult()
             case MAKENAMEID4('c', 'o', 'd', 'e'):
                 if (client->json.isnumeric())
                 {
-                    err = (error)client->json.getint();
+                    errorDetails = (error)client->json.getint();
                 }
                 else
                 {
@@ -2642,13 +2636,13 @@ void CommandPurchaseCheckout::procresult()
                 break;
             case EOO:
                 client->json.leaveobject();
-                if (!errortype.size() || errortype == "FI" || err == API_OK)
+                if (!errortype.size() || errortype == "FI" || errorDetails == API_OK)
                 {
-                    client->app->checkout_result(NULL, err);
+                    client->app->checkout_result(NULL, errorDetails);
                 }
                 else
                 {
-                    client->app->checkout_result(errortype.c_str(), err);
+                    client->app->checkout_result(errortype.c_str(), errorDetails);
                 }
                 return;
             default:
@@ -2679,7 +2673,7 @@ void CommandRemoveContact::procresult()
     if (!checkError(errorDetails, client->json))
     {
         client->json.storeobject();
-        errorDetails.setError(API_OK);
+        errorDetails = API_OK;
 
         User *u = client->finduser(email.c_str());
         if (u)
@@ -2952,7 +2946,7 @@ void CommandPutUA::procresult()
     if (!checkError(errorDetails, client->json))
     {
         client->json.storeobject(); // [<uh>]
-        errorDetails.setError(API_OK);
+        errorDetails = API_OK;
 
         User *u = client->ownuser();
         assert(u);
@@ -3615,7 +3609,7 @@ void CommandGetUserData::procresult()
     {
         if (!errorDetails)
         {
-            errorDetails.setError(API_ENOENT);
+            errorDetails = API_ENOENT;
         }
         return client->app->userdata_result(NULL, NULL, NULL, errorDetails);
     }
@@ -4204,13 +4198,13 @@ void CommandGetMiscFlags::procresult()
         if (!errorDetails)
         {
             LOG_err << "Unexpected response for gmf: no flags, but no error";
-            errorDetails.setError(API_ENOENT);
+            errorDetails = API_ENOENT;
         }
         LOG_err << "gmf failed: " << errorDetails;
     }
     else
     {
-        errorDetails.setError(client->readmiscflags(&client->json));
+        errorDetails = client->readmiscflags(&client->json);
     }
 
     client->app->getmiscflags_result(errorDetails);
