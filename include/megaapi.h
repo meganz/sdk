@@ -4783,7 +4783,9 @@ public:
 
 
     //TODO: doc
-    virtual void onSyncAdded(MegaApi *api, MegaSync *sync);
+    virtual void onSyncAdded(MegaApi *api, MegaSync *sync, int additionState);
+    virtual void onSyncDisabled(MegaApi *api, MegaSync *sync);
+    //TODO: onSyncEnabled
     virtual void onSyncDeleted(MegaApi *api, MegaSync *sync);
 
 
@@ -4824,6 +4826,17 @@ public:
         SHARE_NON_FULL_ACCESS = 13, //Existing inbound share sync or part thereof lost full access
         LOCAL_FINGERPRINT_MISMATCH = 14,
         PUT_NODES_ERROR = 15,
+        ACTIVE_SYNC_BELOW_PATH = 16, // there's a synced node below the path to be synced
+        ACTIVE_SYNC_ABOVE_PATH = 17, // there's a synced node above the path to be synced
+    };
+
+    enum SyncAdded
+    {
+        NEW  = 1,
+        FROM_CACHE = 2, // just restored from cache (keeping its former state: active if it was active)
+        FROM_CACHE_FAILED_TO_RESUME = 4, // restored from cache, but activation failed: implies change in state
+        FROM_CACHE_REENABLED  = 5, // restored from cache: reenabled after some failure: implies change in state
+        REENABLED_FAILED = 6, //attempt to reenable lead to a failure: might not imply change in state, and does not change "active" state
     };
 
     virtual ~MegaSync();
@@ -6354,7 +6367,8 @@ class MegaListener
     virtual void onSyncEvent(MegaApi *api, MegaSync *sync, MegaSyncEvent *event);
 
     //TODO: doc
-    virtual void onSyncAdded(MegaApi *api, MegaSync *sync);
+    virtual void onSyncAdded(MegaApi *api, MegaSync *sync, int additionState); //TODO: note in doc the additionState & meaning
+    virtual void onSyncDisabled(MegaApi *api, MegaSync *sync);
     virtual void onSyncDeleted(MegaApi *api, MegaSync *sync);
 
 

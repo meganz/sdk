@@ -12565,30 +12565,47 @@ void MegaApiImpl::folderlinkinfo_result(error e, handle owner, handle /*ph*/, st
 }
 
 #ifdef ENABLE_SYNC
-void MegaApiImpl::updateMegaSyncPrivateState(MegaSyncPrivate *megaSync, syncstate_t newstate, syncerror_t syncerror)
+void MegaApiImpl::saveSyncConfig(MegaSyncPrivate *megaSync)
 {
+    if (client->syncConfigs)
+    {
+        const auto config = client->syncConfigs->get(megaSync->getLocalFolder());
+        assert(config);
+        auto newConfig = *config;
+        newConfig.setEnabled(megaSync->isEnabled());
+        newConfig.setError(megaSync->getError());
+        assert(newConfig.getTag() == megaSync->getTag());
+        client->syncConfigs->insert(newConfig);
+    }
+}
+
+void MegaApiImpl::updateMegaSyncPrivateState(MegaSyncPrivate *megaSync, syncstate_t newstate,
+                                             syncerror_t syncerror, bool fireDisableEvent)
+{
+
+    auto previousState = megaSync->getState();
+    bool wasActive = megaSync->isActive(); // Beware: new sync is active (constructor set state to INITIAL_SCAN)
+    bool wasEnabled = megaSync->isEnabled();
+    bool wasTemporaryDisabled = megaSync->isTemporaryDisabled();
     megaSync->setState(newstate);
     megaSync->setError(syncerror);
     LOG_debug << "Sync state change: " << newstate << " syncError: " << syncerror << " Path: " << megaSync->getLocalFolder();
+    LOG_verbose << "Sync previous state change: " << previousState << " wasActive: " << wasActive << " wasEnabled: " << wasEnabled << " Path: " << megaSync->getLocalFolder();
 
-//    if (newstate == SYNC_FAILED)
-//    {
-//        MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC);
+    saveSyncConfig(megaSync);
 
-//        if(sync->localroot->node)
-//        {
-//            request->setNodeHandle(sync->localroot->node->nodehandle);
-//        }
+    fireOnSyncStateChanged(megaSync); // TODO: note in the docs that this should precede onSyncDisabled
 
-//        int nextTag = client->nextreqtag();
-//        request->setTag(nextTag);
-//        requestMap[nextTag]=request;
-//        fireOnRequestFinish(request, MegaError(sync->errorcode));
-//    }
-    //TODO: consider if we want to send some new callback onSyncDisabled, beyond the onSyncStateChanged, for
-    // apps to more easily handle that, without needing to keep sync previous state
-    fireOnSyncStateChanged(megaSync);
+    if (fireDisableEvent && ( (wasActive && !megaSync->isActive()) || (wasTemporaryDisabled && !megaSync->isEnabled()) ) )
+    {
+        //TODO: note in the doc that this can also be fired for enable->disable case, not only for inactive -> active situations,
+        // i.e. when a temporarily disabled (inactive) transitions to failed (inactive).
+        // TODO: Consider passing a DisablingState (with some special case for TEMPORARY_DISABLED_TO_FAILED_TRANSITION)
+        // or simpler: a flag failed_to_reenable, or a separate callback: onReenableFailed
+        fireOnSyncDisabled(megaSync);
+    }
 }
+
 void MegaApiImpl::syncupdate_state(Sync *sync, syncstate_t newstate, syncerror_t syncerror)
 {
     if(syncMap.find(sync->tag) == syncMap.end()) return;
@@ -12887,7 +12904,10 @@ void MegaApiImpl::sync_load(const SyncConfig &config, int error)
         sync->setRegExp(re.get());
     }
 
-    if ( config.isResumable() && !error) //the sync was actually resumed
+    bool resumed = config.isResumable() && !error;//the sync was actually resumed
+    bool wasEnabled = config.getEnabled();
+    bool failedToResume = config.isResumable() && error;//the sync could not be resumed
+    if (resumed)
     {
         Sync *s = client->syncs.back();
         s->appData = sync;
@@ -12899,10 +12919,18 @@ void MegaApiImpl::sync_load(const SyncConfig &config, int error)
         sync->setState(error? SYNC_FAILED : SYNC_DISABLED);
     }
 
-    syncMap[config.getTag()] = sync;
-    fireOnSyncAdded(sync);
-    //TODO: inform sync failedif (error!=0)
+    saveSyncConfig(sync);
 
+    syncMap[config.getTag()] = sync;
+
+    if (!wasEnabled && config.isResumable())
+    {
+        fireOnSyncAdded(sync, failedToResume ? MegaSync::REENABLED_FAILED : MegaSync::FROM_CACHE_REENABLED);
+    }
+    else
+    {
+        fireOnSyncAdded(sync, failedToResume ? MegaSync::FROM_CACHE_FAILED_TO_RESUME : MegaSync::FROM_CACHE);
+    }
 }
 
 void MegaApiImpl::syncupdate_local_lockretry(bool waiting)
@@ -16100,22 +16128,41 @@ void MegaApiImpl::fireOnSyncEvent(MegaSyncPrivate *sync, MegaSyncEvent *event)
 }
 
 
-void MegaApiImpl::fireOnSyncAdded(MegaSyncPrivate *sync)
+void MegaApiImpl::fireOnSyncAdded(MegaSyncPrivate *sync, int additionState)
 {
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
-        (*it++)->onSyncAdded(api, sync);
+        (*it++)->onSyncAdded(api, sync, additionState);
     }
 
     for(set<MegaSyncListener *>::iterator it = syncListeners.begin(); it != syncListeners.end() ;)
     {
-        (*it++)->onSyncAdded(api, sync);
+        (*it++)->onSyncAdded(api, sync, additionState);
     }
 
     MegaSyncListener* listener = sync->getListener();
     if(listener)
     {
-        listener->onSyncAdded(api, sync);
+        listener->onSyncAdded(api, sync, additionState);
+    }
+}
+
+void MegaApiImpl::fireOnSyncDisabled(MegaSyncPrivate *sync)
+{
+    for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
+    {
+        (*it++)->onSyncDisabled(api, sync);
+    }
+
+    for(set<MegaSyncListener *>::iterator it = syncListeners.begin(); it != syncListeners.end() ;)
+    {
+        (*it++)->onSyncDisabled(api, sync);
+    }
+
+    MegaSyncListener* listener = sync->getListener();
+    if(listener)
+    {
+        listener->onSyncDisabled(api, sync);
     }
 }
 
@@ -20786,7 +20833,7 @@ void MegaApiImpl::sendPendingRequests()
                                   regExpToVector(request->getRegExp())};
 
             int syncError = 0;
-            e = client->addsync(std::move(syncConfig), DEBRISFOLDER, NULL, syncError, nextSyncTag, sync);
+            e = client->addsync(std::move(syncConfig), DEBRISFOLDER, NULL, syncError, sync);
             request->setNumDetails(syncError); //TODO: doc this
             if (!e)
             {
@@ -20798,7 +20845,9 @@ void MegaApiImpl::sendPendingRequests()
                 request->setNumber(fsfp);
                 syncMap[nextSyncTag] = sync;
 
-                fireOnSyncAdded(sync);
+                saveSyncConfig(sync);
+
+                fireOnSyncAdded(sync, MegaSync::NEW); //TODO: pass NEW_SYNC
                 fireOnRequestFinish(request, MegaError(API_OK));
                 break;
             }
@@ -20827,7 +20876,7 @@ void MegaApiImpl::sendPendingRequests()
                                 static_cast<fsfp_t>(sync->getLocalFingerprint()), regExpToVector(sync->getRegExp())};
 
             int syncError = 0;
-            e = client->addsync(std::move(syncConfig), DEBRISFOLDER, NULL, syncError, tag, sync);
+            e = client->addsync(std::move(syncConfig), DEBRISFOLDER, NULL, syncError, sync);
             request->setNumDetails(syncError); //TODO: doc this
 
             if (!e) //sync added (enabled) fine
@@ -20837,17 +20886,21 @@ void MegaApiImpl::sendPendingRequests()
                 sync->setLocalFingerprint(fsfp); //Note to reviewer: should this be overriden or should a diff cause a failure?
                 request->setNumber(fsfp);
 
-                updateMegaSyncPrivateState(sync, s->state, static_cast<syncerror_t>(syncError)); //TODO: that needs to lead to Platform::add (for new syncs)
+                updateMegaSyncPrivateState(sync, s->state, static_cast<syncerror_t>(syncError), false); //TODO: that needs to lead to Platform::add (for new syncs)
                 fireOnRequestFinish(request, MegaError(API_OK));
                 break;
             }
 
             if (sync->getError() != syncError || sync->getState() != SYNC_FAILED) //add sync failed and reported a new syncError
             {
-                updateMegaSyncPrivateState(sync, SYNC_FAILED, static_cast<syncerror_t>(syncError));
+                updateMegaSyncPrivateState(sync, SYNC_FAILED, static_cast<syncerror_t>(syncError), false);
+                //we don't fire onDisable in this case (it was not enabled in the first place), plus, the error is in the request already.
+
                 //TODO: note to reviewer: we set the state to FAILED (i.e: isEnabled = true: from the user perspective it has been enabled)
                 // Alternatively, we could set it as SYNC_DISABLED, NO_ERROR and asume the failure in the req finish is enough for the app
             }
+
+
 
             break;
         }
@@ -20981,7 +21034,7 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_DISABLE_SYNC:
         {
-            int tag = request->getNumDetails(); //TODO: document this?
+            int tag = request->getNumDetails(); //TODO: document this
             bool found = false;
             sync_list::iterator it = client->syncs.begin();
             while(it != client->syncs.end())
@@ -21003,7 +21056,7 @@ void MegaApiImpl::sendPendingRequests()
                 if (tag && sync_it != syncMap.end())
                 {
                     auto megaSync = sync_it->second;
-                    updateMegaSyncPrivateState(megaSync, SYNC_DISABLED, NO_ERROR);
+                    updateMegaSyncPrivateState(megaSync, SYNC_DISABLED, NO_ERROR, false);
 
                     found = true;
                 }

@@ -2653,15 +2653,18 @@ protected:
         void fireOnGlobalSyncStateChanged();
         void fireOnSyncStateChanged(MegaSyncPrivate *sync);
         void fireOnSyncEvent(MegaSyncPrivate *sync, MegaSyncEvent *event);
-        void fireOnSyncAdded(MegaSyncPrivate *sync);
+        void fireOnSyncAdded(MegaSyncPrivate *sync, int additionState);
+        void fireOnSyncDisabled(MegaSyncPrivate *sync);
         void fireonSyncDeleted(MegaSyncPrivate *sync);
         void fireOnFileSyncStateChanged(MegaSyncPrivate *sync, string *localPath, int newState);
 
         /**
          * @brief updates sync state and fires change for app's callbacks
          */
-        void updateMegaSyncPrivateState(MegaSyncPrivate*, syncstate_t, syncerror_t);
+        void updateMegaSyncPrivateState(MegaSyncPrivate*, syncstate_t, syncerror_t, bool fireDisableEvent = true);
 
+        // to update/create db entry associated to a sync
+        void saveSyncConfig(MegaSyncPrivate *megaSync);
 #endif
 
 #ifdef ENABLE_CHAT

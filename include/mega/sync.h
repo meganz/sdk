@@ -76,9 +76,6 @@ public:
     // returns the sync config
     const SyncConfig& getConfig() const;
 
-    // sets whether this sync is enabled by the user (default is true)
-    void setEnabled(bool isEnabled);
-
     void* appData = nullptr;
 
     MegaClient* client = nullptr;

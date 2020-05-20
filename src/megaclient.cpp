@@ -12064,12 +12064,13 @@ void MegaClient::updateputs()
     }
 }
 
-error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare)
+error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, int *syncError)
 {
 #ifdef ENABLE_SYNC
     // cannot sync files, rubbish bins or inboxes
     if (remotenode->type != FOLDERNODE && remotenode->type != ROOTNODE)
     {
+        if(syncError) *syncError = INVALID_REMOTE_TYPE;
         return API_EACCESS;
     }
 
@@ -12086,6 +12087,7 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare)
             do {
                 if (n == remotenode)
                 {
+                    if(syncError) *syncError = ACTIVE_SYNC_BELOW_PATH;
                     return API_EEXIST;
                 }
             } while ((n = n->parent));
@@ -12102,6 +12104,7 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare)
             if (((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN)
              && n == (*it)->localroot->node)
             {
+                if(syncError) *syncError = ACTIVE_SYNC_BELOW_PATH;
                 return API_EEXIST;
             }
         }
@@ -12110,7 +12113,11 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare)
         {
             // we need FULL access to sync
             // FIXME: allow downsyncing from RDONLY and limited syncing to RDWR shares
-            if (n->inshare->access != FULL) return API_EACCESS;
+            if (n->inshare->access != FULL)
+            {
+                if(syncError) *syncError = SHARE_NON_FULL_ACCESS;
+                return API_EACCESS;
+            }
 
             inshare = true;
         }
@@ -12133,6 +12140,7 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare)
                         do {
                             if (n == remotenode)
                             {
+                                if(syncError) *syncError = SHARE_NON_FULL_ACCESS;
                                 return API_EACCESS;
                             }
                         } while ((n = n->parent));
@@ -12161,7 +12169,7 @@ error MegaClient::addtimer(TimerWithBackoff *twb)
 // check sync path, add sync if folder
 // disallow nested syncs (there is only one LocalNode pointer per node)
 // (FIXME: perform the same check for local paths!)
-error MegaClient::addsync(SyncConfig syncConfig, const char* debris, string* localdebris, int &syncError, int tag, void *appData)
+error MegaClient::addsync(SyncConfig syncConfig, const char* debris, string* localdebris, int &syncError, void *appData)
 {
 #ifdef ENABLE_SYNC
     syncError = NO_ERROR;
@@ -12172,10 +12180,9 @@ error MegaClient::addsync(SyncConfig syncConfig, const char* debris, string* loc
         syncError = REMOTE_NODE_NOT_FOUND;
         return API_ENOENT;
     }
-    error e = isnodesyncable(remotenode, &inshare);
+    error e = isnodesyncable(remotenode, &inshare, &syncError);
     if (e)
     {
-        syncError = INVALID_REMOTE_TYPE;
         return e;
     }
 
@@ -12205,6 +12212,7 @@ error MegaClient::addsync(SyncConfig syncConfig, const char* debris, string* loc
         if (fa->type == FOLDERNODE)
         {
             LOG_debug << "Adding sync: " << syncConfig.getLocalPath();
+            int tag = syncConfig.getTag();
 
             Sync* sync = new Sync(this, std::move(syncConfig), debris, localdebris, remotenode, inshare, tag, appData);
             sync->isnetwork = isnetwork;
@@ -12231,7 +12239,7 @@ error MegaClient::addsync(SyncConfig syncConfig, const char* debris, string* loc
             else
             {
                 LOG_err << "Initial scan failed";
-                sync->changestate(SYNC_FAILED, INITIAL_SCAN_FAILED);
+                sync->changestate(SYNC_FAILED, INITIAL_SCAN_FAILED); //note, this only causes fireOnSyncXXX if there's a MegaSync object in the map already
                 syncError = INITIAL_SCAN_FAILED;
                 delete sync;
                 e = API_EFAILED;
@@ -13684,11 +13692,6 @@ void MegaClient::disableSync(Sync* sync, syncerror_t syncError)
 {
     sync->errorcode = syncError;
     sync->changestate(SYNC_DISABLED, syncError); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
-
-    if (syncError == NO_ERROR)
-    {
-        sync->setEnabled(false);
-    }
 
     syncactivity = true;
 }

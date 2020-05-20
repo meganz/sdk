@@ -1647,7 +1647,9 @@ void MegaListener::onSyncFileStateChanged(MegaApi *, MegaSync *, string *, int)
 { }
 void MegaListener::onSyncEvent(MegaApi *, MegaSync *, MegaSyncEvent *)
 { }
-void MegaListener::onSyncAdded(MegaApi *, MegaSync *)
+void MegaListener::onSyncAdded(MegaApi *, MegaSync *, int additionState)
+{ }
+void MegaListener::onSyncDisabled(MegaApi *, MegaSync *)
 { }
 void MegaListener::onSyncDeleted(MegaApi *, MegaSync *)
 { }
@@ -5486,6 +5488,16 @@ const char* MegaSync::getMegaSyncErrorCode(int errorCode)
         return "FOREIGN_TARGET_OVERSTORAGE";
     case MegaSync::Error::REMOTE_PATH_HAS_CHANGED:
         return "REMOTE_PATH_HAS_CHANGED";
+    case MegaSync::Error::SHARE_NON_FULL_ACCESS:
+        return "SHARE_NON_FULL_ACCESS";
+    case MegaSync::Error::LOCAL_FINGERPRINT_MISMATCH:
+        return "LOCAL_FINGERPRINT_MISMATCH";
+    case MegaSync::Error::PUT_NODES_ERROR:
+        return "PUT_NODES_ERROR";
+    case MegaSync::Error::ACTIVE_SYNC_BELOW_PATH:
+        return "ACTIVE_SYNC_BELOW_PATH";
+    case MegaSync::Error::ACTIVE_SYNC_ABOVE_PATH:
+        return "ACTIVE_SYNC_ABOVE_PATH";
 
     default:
         return "Unknown error";
@@ -5501,7 +5513,10 @@ void MegaSyncListener::onSyncStateChanged(MegaApi *, MegaSync *)
 void MegaSyncListener::onSyncEvent(MegaApi *, MegaSync *, MegaSyncEvent *)
 { }
 
-void MegaSyncListener::onSyncAdded(MegaApi *, MegaSync *)
+void MegaSyncListener::onSyncAdded(MegaApi *, MegaSync *, int additionState)
+{ }
+
+void MegaSyncListener::onSyncDisabled(MegaApi *, MegaSync *)
 { }
 
 void MegaSyncListener::onSyncDeleted(MegaApi *, MegaSync *)

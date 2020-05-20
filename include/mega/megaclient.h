@@ -527,11 +527,15 @@ public:
     // add timer
     error addtimer(TimerWithBackoff *twb);
 
-    // add/delete sync
-    error isnodesyncable(Node*, bool* = NULL);
+    /**
+     * @brief isnodesyncable
+     * @param syncError filled with syncerror_t
+     * @return
+     */
+    error isnodesyncable(Node*, bool* = NULL, int *syncError = nullptr);
 
     // add sync. Will fill syncError in case there is one
-    error addsync(SyncConfig, const char*, string*, int &syncError, int = 0, void* = NULL);
+    error addsync(SyncConfig, const char*, string*, int &syncError, void* = NULL);
 
     void delsync(Sync*);
 

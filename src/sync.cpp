@@ -768,11 +768,6 @@ Sync::Sync(MegaClient* cclient, SyncConfig config, const char* cdebris,
             readstatecache();
         }
     }
-
-    if (client->syncConfigs)
-    {
-        client->syncConfigs->insert(config);
-    }
 }
 
 Sync::~Sync()
@@ -889,18 +884,6 @@ const SyncConfig& Sync::getConfig() const
     return *config;
 }
 
-void Sync::setEnabled(const bool isEnabled)
-{
-    if (client->syncConfigs)
-    {
-        const auto config = client->syncConfigs->get(mLocalPath);
-        assert(config);
-        auto newConfig = *config;
-        newConfig.setEnabled(isEnabled);
-        client->syncConfigs->insert(newConfig);
-    }
-}
-
 // remove LocalNode from DB cache
 void Sync::statecachedel(LocalNode* l)
 {
@@ -980,15 +963,6 @@ void Sync::changestate(syncstate_t newstate, syncerror_t newSyncError)
     if (newstate != state || newSyncError != errorcode )
     {
         client->app->syncupdate_state(this, newstate, newSyncError);
-
-        //        if (newstate == SYNC_FAILED && statecachetable)
-        //        {
-        //            statecachetable->remove();
-        //            delete statecachetable;
-        //            statecachetable = NULL;
-        //        }
-
-        //TODO: review: should syncConfig be udpated / cached persisted? (true for non temporary errors at least!)
 
         state = newstate;
         errorcode = newSyncError;

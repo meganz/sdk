@@ -305,6 +305,8 @@ typedef enum {
     SHARE_NON_FULL_ACCESS = 13, //Existing inbound share sync or part thereof lost full access
     LOCAL_FINGERPRINT_MISMATCH = 14,
     PUT_NODES_ERROR = 15,
+    ACTIVE_SYNC_BELOW_PATH = 16, // there's a synced node below the path to be synced
+    ACTIVE_SYNC_ABOVE_PATH = 17, // there's a synced node above the path to be synced
 } syncerror_t;
 
 static bool isMegaSyncErrorPermanent(int e)
