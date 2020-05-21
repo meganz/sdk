@@ -293,9 +293,10 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     bool islchex(char) const;
     bool islocalfscompatible(unsigned char, const FileSystemType = FS_DEFAULT) const;
     void escapefsincompatible(string*, const std::string *dstPath = nullptr) const;
-    // Path can contains filename or debris directory, so if last path character
-    // is not path separator remove last level
-    void getValidPath(const string *path, std::string &validPath) const;
+
+    // Obtain a valid path by removing filename or debris directory from originalPath
+    // returns true if tempPath is modified, otherwise returns false
+    bool getValidPath(const string *originalPath, std::string &tempPath) const;
     const char *fstypetostring(const FileSystemType type) const;
     FileSystemType getlocalfstype(const std::string *dstPath) const;
     void unescapefsincompatible(string*, const std::string *) const;

@@ -167,23 +167,24 @@ bool FileSystemAccess::islocalfscompatible(unsigned char c, const FileSystemType
     }
 }
 
-void FileSystemAccess::getValidPath(const string *path, string &validPath) const
+bool FileSystemAccess::getValidPath(const string *originalPath, string &tempPath) const
 {
-    if (!path || path->empty())
+    if (!originalPath || originalPath->empty())
     {
-        return;
+        return false;
     }
 
     string separator = getPathSeparator();
     for (size_t i = 0; i < separator.size(); i++)
     {
-        size_t pos = path->rfind(separator[i]);
-        if (pos != std::string::npos && pos != path->size() - 1)
+        size_t pos = originalPath->rfind(separator[i]);
+        if (pos != std::string::npos && pos != originalPath->size() - 1)
         {
-            validPath = path->substr(0, pos + 1);
-            return;
+            tempPath = originalPath->substr(0, pos + 1);
+            return true;
         }
     }
+    return false;
 }
 
 // replace characters that are not allowed in local fs names with a %xx escape sequence
@@ -200,10 +201,16 @@ void FileSystemAccess::escapefsincompatible(string* name, const string *dstPath)
         return;
     }
 
-    string validPath;
-    getValidPath(dstPath, validPath);
+    string tempPath;
+    const string *validPath = &tempPath;
+    if (!getValidPath(dstPath, tempPath) && dstPath)
+    {
+        // if getValidPath returns false and dstPath is not null, dstPath is valid
+        validPath = dstPath;
+    }
+
     char buf[4];
-    FileSystemType fileSystemType = getlocalfstype(&validPath);
+    FileSystemType fileSystemType = getlocalfstype(validPath);
     size_t utf8seqsize = 0;
     size_t i = 0;
     unsigned char c = '0';
@@ -238,9 +245,15 @@ void FileSystemAccess::unescapefsincompatible(string *name, const string *localP
         return;
     }
 
-    string validPath;
-    getValidPath(localPath, validPath);
-    FileSystemType fileSystemType = getlocalfstype(&validPath);
+    string tempPath;
+    const string *validPath = &tempPath;
+    if (!getValidPath(localPath, tempPath) && localPath)
+    {
+        // if getValidPath returns false and localPath is not null, localPath is valid
+        validPath = localPath;
+    }
+
+    FileSystemType fileSystemType = getlocalfstype(validPath);
     for (int i = int(name->size()) - 2; i-- > 0; )
     {
         // conditions for unescaping: %xx must be well-formed
