@@ -48,7 +48,7 @@ bool FileSystemAccess::islchex(char c) const
     return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
 }
 
-const char *FileSystemAccess::fstypetostring(int type) const
+const char *FileSystemAccess::fstypetostring(const FileSystemType type) const
 {
     switch (type)
     {
@@ -64,12 +64,12 @@ const char *FileSystemAccess::fstypetostring(int type) const
             return "HFS";
         case FS_APFS:
             return "APFS";
-        default:
+        case FS_DEFAULT:
             return "DEFAULT FS";
     }
 }
 
-int FileSystemAccess::getlocalfstype(const string *dstPath) const
+FileSystemType FileSystemAccess::getlocalfstype(const string *dstPath) const
 {
     if (!dstPath || dstPath->empty())
     {
@@ -144,7 +144,7 @@ int FileSystemAccess::getlocalfstype(const string *dstPath) const
 }
 
 // Group different filesystems types in families, according to its restricted charsets
-bool FileSystemAccess::islocalfscompatible(unsigned char c, int fileSystemType) const
+bool FileSystemAccess::islocalfscompatible(unsigned char c, const FileSystemType fileSystemType) const
 {
     switch (fileSystemType)
     {
@@ -160,7 +160,7 @@ bool FileSystemAccess::islocalfscompatible(unsigned char c, int fileSystemType) 
             return !strchr("\\/:?\"<>|*+,.;=[]", c);
         case FS_EXFAT:
         case FS_NTFS:
-        default:
+        case FS_DEFAULT:
             // ExFAT, NTFS restricted characters => " * / : < > ? \ |
             // If filesystem couldn't be detected we'll use a restrictive charset to avoid issues.
             return !strchr("\\/:?\"<>|*", c);
@@ -203,7 +203,7 @@ void FileSystemAccess::escapefsincompatible(string* name, const string *dstPath)
     }
 
     char buf[4];
-    int fileSystemType = getlocalfstype(&validPath);
+    FileSystemType fileSystemType = getlocalfstype(&validPath);
     size_t utf8seqsize = 0, i = 0;
     unsigned char c = '0';
     while (i < name->size())
@@ -238,7 +238,7 @@ void FileSystemAccess::unescapefsincompatible(string *name, const string *localP
         return;
     }
 
-    int fileSystemType = getlocalfstype(&validPath);
+    FileSystemType fileSystemType = getlocalfstype(&validPath);
     for (int i = int(name->size()) - 2; i-- > 0; )
     {
         // conditions for unescaping: %xx must be well-formed
