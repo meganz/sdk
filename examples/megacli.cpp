@@ -410,7 +410,7 @@ void DemoApp::transfer_update(Transfer* /*t*/)
     // (this is handled in the prompt logic)
 }
 
-void DemoApp::transfer_failed(Transfer* t, error e, dstime, handle)
+void DemoApp::transfer_failed(Transfer* t, error e, dstime)
 {
     displaytransferdetails(t, "failed (");
     cout << errorstring(e) << ")" << endl;
@@ -2829,9 +2829,26 @@ public:
     }
 };
 
+void exec_fingerprint(autocomplete::ACState& s)
+{
+    string localfilepath, filepath = s.words[1].s;
+    client->fsaccess->path2local(&filepath, &localfilepath);
+    auto fa = client->fsaccess->newfileaccess();
+    if (fa->fopen(&localfilepath, true, false, nullptr))
+    {
+        FileFingerprint fp;
+        fp.genfingerprint(fa.get());
+        cout << Utils::stringToHex(std::string((const char*)&fp.size, sizeof(fp.size))) << "/" << 
+                Utils::stringToHex(std::string((const char*)&fp.mtime, sizeof(fp.mtime))) << "/" <<
+                Utils::stringToHex(std::string((const char*)&fp.crc, sizeof(fp.crc))) << endl;
+    }
+    else
+    {
+        cout << "Failed to open: " << filepath << endl;
+    }
+}
+
 MegaCLILogger gLogger;
-
-
 
 autocomplete::ACN autocompleteSyntax()
 {
@@ -2881,7 +2898,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_cp, sequence(text("cp"), remoteFSPath(client, &cwd, "src"), either(remoteFSPath(client, &cwd, "dst"), param("dstemail"))));
     p->Add(exec_du, sequence(text("du"), remoteFSPath(client, &cwd)));
 #ifdef ENABLE_SYNC
-    p->Add(exec_sync, sequence(text("sync"), opt(sequence(localFSPath(), either(remoteFSPath(client, &cwd, "dst"), param("cancelslot"))))));
+    p->Add(exec_sync, sequence(text("sync"), opt(either(sequence(localFSPath(), remoteFSPath(client, &cwd, "dst")), param("cancelslot")))));
     p->Add(exec_syncconfig, sequence(text("syncconfig"), opt(sequence(param("type (TWOWAY/UP/DOWN)"), opt(sequence(param("syncDeletions (ON/OFF)"), param("forceOverwrite (ON/OFF)")))))));
 #endif
     p->Add(exec_export, sequence(text("export"), remoteFSPath(client, &cwd), opt(either(param("expiretime"), text("del")))));
@@ -2926,6 +2943,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_log, sequence(text("log"), either(text("utf8"), text("utf16"), text("codepage")), localFSFile()));
 #endif
     p->Add(exec_test, sequence(text("test"), opt(param("data"))));
+    p->Add(exec_fingerprint, sequence(text("fingerprint"), localFSFile("localfile")));
 #ifdef ENABLE_CHAT
     p->Add(exec_chats, sequence(text("chats")));
     p->Add(exec_chatc, sequence(text("chatc"), param("group"), repeat(opt(sequence(contactEmail(client), either(text("ro"), text("sta"), text("mod")))))));
@@ -2985,6 +3003,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_showattributes, sequence(text("showattributes"), remoteFSPath(client, &cwd)));
 
     p->Add(exec_setmaxconnections, sequence(text("setmaxconnections"), either(text("put"), text("get")), opt(wholenumber(4))));
+    p->Add(exec_metamac, sequence(text("metamac"), localFSPath(), remoteFSPath(client, &cwd)));
 
     return autocompleteTemplate = std::move(p);
 }
@@ -3873,6 +3892,7 @@ void uploadLocalPath(nodetype_t type, std::string name, std::string localname, N
     }
     else if (type == FOLDERNODE && recursive)
     {
+
         if (previousNode)
         {
             if (previousNode->type == FILENODE)
@@ -4168,7 +4188,8 @@ void exec_open(autocomplete::ACState& s)
                                             "Gk8DyQBS",
                                             "megacli_folder/" TOSTRING(MEGA_MAJOR_VERSION)
                                             "." TOSTRING(MEGA_MINOR_VERSION)
-                                            "." TOSTRING(MEGA_MICRO_VERSION));
+                                            "." TOSTRING(MEGA_MICRO_VERSION),
+                                            2);
         }
         else
         {
@@ -4575,6 +4596,15 @@ void exec_users(autocomplete::ACState& s)
                 if (it->second.pubk.isvalid())
                 {
                     cout << ", public key cached";
+                }
+
+                if (it->second.mBizMode == BIZ_MODE_MASTER)
+                {
+                    cout << ", business master user";
+                }
+                else if (it->second.mBizMode == BIZ_MODE_SUBUSER)
+                {
+                    cout << ", business sub-user";
                 }
 
                 cout << endl;
@@ -7849,7 +7879,8 @@ int main()
                             "Gk8DyQBS",
                             "megacli/" TOSTRING(MEGA_MAJOR_VERSION)
                             "." TOSTRING(MEGA_MINOR_VERSION)
-                            "." TOSTRING(MEGA_MICRO_VERSION));
+                            "." TOSTRING(MEGA_MICRO_VERSION),
+                            2);
 
     ac::ACN acs = autocompleteSyntax();
 #if defined(WIN32) && defined(NO_READLINE)
@@ -7936,5 +7967,67 @@ void DemoAppFolder::nodes_updated(Node **n, int count)
 
     cout << "The folder link contains ";
     nodestats(c[1], "");
+}
+
+void exec_metamac(autocomplete::ACState& s)
+{
+    Node *node = nodebypath(s.words[2].s.c_str());
+    if (!node || node->type != FILENODE)
+    {
+        cerr << s.words[2].s
+             << (node ? ": No such file or directory"
+                      : ": Not a file")
+             << endl;
+        return;
+    }
+
+    auto ifAccess = client->fsaccess->newfileaccess();
+    {
+        std::string localPath;
+        client->fsaccess->path2local(&s.words[1].s, &localPath);
+
+        if (!ifAccess->fopen(&localPath, 1, 0))
+        {
+            cerr << "Failed to open: " << s.words[1].s << endl;
+            return;
+        }
+    }
+
+    SymmCipher cipher;
+    int64_t remoteIv;
+    int64_t remoteMac;
+
+    {
+        std::string remoteKey = node->nodekey();
+        const char *iva = &remoteKey[SymmCipher::KEYLENGTH];
+
+        cipher.setkey((byte*)&remoteKey[0], node->type);
+        remoteIv = MemAccess::get<int64_t>(iva);
+        remoteMac = MemAccess::get<int64_t>(iva + sizeof(int64_t));
+    }
+
+    auto result = generateMetaMac(cipher, *ifAccess, remoteIv);
+    if (!result.first)
+    {
+        cerr << "Failed to generate metamac for: "
+             << s.words[1].s
+             << endl;
+    }
+    else
+    {
+        const std::ios::fmtflags flags = cout.flags();
+
+        cout << s.words[2].s
+             << " (remote): "
+             << std::hex
+             << (uint64_t)remoteMac
+             << "\n"
+             << s.words[1].s
+             << " (local): "
+             << (uint64_t)result.second
+             << endl;
+
+        cout.flags(flags);
+    }
 }
 

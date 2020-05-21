@@ -419,6 +419,14 @@ using namespace mega;
     return self.megaApi->appleVoipPushEnabled();
 }
 
+- (void)getSessionTransferURL:(NSString *)path delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getSessionTransferURL(path.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)getSessionTransferURL:(NSString *)path {
+    self.megaApi->getSessionTransferURL(path.UTF8String);
+}
+
 #pragma mark - Login Requests
 
 - (BOOL)multiFactorAuthAvailable {

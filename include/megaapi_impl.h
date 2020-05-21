@@ -857,7 +857,9 @@ public:
 
     bool isGlobalEnabled() const override;
     bool isGlobalDndEnabled() const override;
+    bool isGlobalChatsDndEnabled() const override;
     int64_t getGlobalDnd() const override;
+    int64_t getGlobalChatsDnd() const override;
     bool isGlobalScheduleEnabled() const override;
     int getGlobalScheduleStart() const override;
     int getGlobalScheduleEnd() const override;
@@ -882,6 +884,7 @@ public:
 
     void enableChat(MegaHandle chatid, bool enable) override;
     void setChatDnd(MegaHandle chatid, int64_t timestamp) override;
+    void setGlobalChatsDnd(int64_t timestamp) override;
     void enableChatAlwaysNotify(MegaHandle chatid, bool enable) override;
 
     void enableContacts(bool enable) override;
@@ -1949,9 +1952,9 @@ class TransferQueue
 class MegaApiImpl : public MegaApp
 {
     public:
-        MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath = NULL, const char *userAgent = NULL);
-        MegaApiImpl(MegaApi *api, const char *appKey, const char *basePath = NULL, const char *userAgent = NULL);
-        MegaApiImpl(MegaApi *api, const char *appKey, const char *basePath, const char *userAgent, int fseventsfd);
+        MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath = NULL, const char *userAgent = NULL, unsigned workerThreadCount = 1);
+        MegaApiImpl(MegaApi *api, const char *appKey, const char *basePath = NULL, const char *userAgent = NULL, unsigned workerThreadCount = 1);
+        MegaApiImpl(MegaApi *api, const char *appKey, const char *basePath, const char *userAgent, int fseventsfd, unsigned workerThreadCount = 1);
         virtual ~MegaApiImpl();
 
         static MegaApiImpl* ImplOf(MegaApi*);
@@ -2069,6 +2072,7 @@ class MegaApiImpl : public MegaApp
         bool areCredentialsVerified(MegaUser *user);
         void verifyCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
         void resetCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
+        char* getMyRSAPrivateKey();
         static void setLogLevel(int logLevel);
         static void setMaxPayloadLogSize(long long maxSize);
         static void addLoggerClass(MegaLogger *megaLogger);
@@ -2602,7 +2606,7 @@ class MegaApiImpl : public MegaApp
 protected:
         static const unsigned int MAX_SESSION_LENGTH;
 
-        void init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath = NULL, const char *userAgent = NULL, int fseventsfd = -1);
+        void init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath /*= NULL*/, const char *userAgent /*= NULL*/, int fseventsfd /*= -1*/, unsigned clientWorkerThreadCount /*= 1*/);
 
         static void *threadEntryPoint(void *param);
         static ExternalLogger externalLogger;
@@ -2879,7 +2883,7 @@ protected:
         File* file_resume(string*, direction_t *type) override;
 
         void transfer_prepare(Transfer*) override;
-        void transfer_failed(Transfer*, error error, dstime timeleft, handle targetHandle = UNDEF) override;
+        void transfer_failed(Transfer*, error error, dstime timeleft) override;
         void transfer_update(Transfer*) override;
 
         dstime pread_failure(error, int, void*, dstime) override;
@@ -3047,18 +3051,6 @@ public:
     ExternalInputStream(MegaInputStream *inputStream);
     virtual m_off_t size();
     virtual bool read(byte *buffer, unsigned size);
-};
-
-class FileInputStream : public InputStreamAccess
-{
-    FileAccess *fileAccess;
-    m_off_t offset;
-
-public:
-    FileInputStream(FileAccess *fileAccess);
-    virtual m_off_t size();
-    virtual bool read(byte *buffer, unsigned size);
-    virtual ~FileInputStream();
 };
 
 #ifdef HAVE_LIBUV

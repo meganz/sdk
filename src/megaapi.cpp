@@ -1678,20 +1678,20 @@ bool MegaTreeProcessor::processMegaNode(MegaNode*)
 MegaTreeProcessor::~MegaTreeProcessor()
 { }
 
-MegaApi::MegaApi(const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent)
+MegaApi::MegaApi(const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, unsigned workerThreadCount)
 {
-    pImpl = new MegaApiImpl(this, appKey, processor, basePath, userAgent);
+    pImpl = new MegaApiImpl(this, appKey, processor, basePath, userAgent, workerThreadCount);
 }
 
-MegaApi::MegaApi(const char *appKey, const char *basePath, const char *userAgent)
+MegaApi::MegaApi(const char *appKey, const char *basePath, const char *userAgent, unsigned workerThreadCount)
 {
-    pImpl = new MegaApiImpl(this, appKey, basePath, userAgent);
+    pImpl = new MegaApiImpl(this, appKey, basePath, userAgent, workerThreadCount);
 }
 
 #ifdef ENABLE_SYNC
-MegaApi::MegaApi(const char *appKey, const char *basePath, const char *userAgent, int fseventsfd)
+MegaApi::MegaApi(const char *appKey, const char *basePath, const char *userAgent, int fseventsfd, unsigned workerThreadCount)
 {
-    pImpl = new MegaApiImpl(this, appKey, basePath, userAgent, fseventsfd);
+    pImpl = new MegaApiImpl(this, appKey, basePath, userAgent, fseventsfd, workerThreadCount);
 }
 #endif
 
@@ -1817,6 +1817,11 @@ void MegaApi::verifyCredentials(MegaUser *user, MegaRequestListener *listener)
 void MegaApi::resetCredentials(MegaUser *user, MegaRequestListener *listener)
 {
     pImpl->resetCredentials(user, listener);
+}
+
+char *MegaApi::getMyRSAPrivateKey()
+{
+    return pImpl->getMyRSAPrivateKey();
 }
 
 void MegaApi::setLogLevel(int logLevel)
@@ -3105,12 +3110,12 @@ void MegaApi::resumeSync(const char *localFolder, MegaNode *megaFolder, long lon
 #ifdef USE_PCRE
 void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
 {
-    pImpl->syncFolder(localFolder, megaFolder, regExp, listener);
+    pImpl->syncFolder(localFolder, megaFolder, regExp, 0, listener);
 }
 
 void MegaApi::resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRegExp *regExp, MegaRequestListener *listener)
 {
-    pImpl->resumeSync(localFolder, localfp, megaFolder, regExp, listener);
+    pImpl->syncFolder(localFolder, megaFolder, regExp, localfp, listener);
 }
 #endif
 
@@ -4385,6 +4390,7 @@ char *MegaApi::getMimeType(const char *extension)
         {"fif", "application/fractals"},
         {"filters", "Application/xml"},
         {"fla", "application/octet-stream"},
+        {"flac", "audio/flac"},
         {"flr", "x-world/x-vrml"},
         {"flv", "video/x-flv"},
         {"fsscript", "application/fsharp-script"},
@@ -6377,7 +6383,17 @@ bool MegaPushNotificationSettings::isGlobalDndEnabled() const
     return false;
 }
 
+bool MegaPushNotificationSettings::isGlobalChatsDndEnabled() const
+{
+    return false;
+}
+
 int64_t MegaPushNotificationSettings::getGlobalDnd() const
+{
+    return 0;
+}
+
+int64_t MegaPushNotificationSettings::getGlobalChatsDnd() const
 {
     return 0;
 }
@@ -6468,6 +6484,11 @@ void MegaPushNotificationSettings::enableChat(MegaHandle /*chatid*/, bool /*enab
 }
 
 void MegaPushNotificationSettings::setChatDnd(MegaHandle /*chatid*/, int64_t /*timestamp*/)
+{
+
+}
+
+void MegaPushNotificationSettings::setGlobalChatsDnd(int64_t /*timestamp*/)
 {
 
 }

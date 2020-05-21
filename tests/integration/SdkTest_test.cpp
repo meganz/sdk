@@ -229,7 +229,7 @@ void SdkTest::SetUp()
 
     if (megaApi[0].get() == NULL)
     {
-        megaApi[0].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str()));
+        megaApi[0].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str(), THREADS_PER_MEGACLIENT));
         mApi[0].megaApi = megaApi[0].get();
 
         megaApi[0]->setLoggingName("0");
@@ -290,7 +290,7 @@ int SdkTest::getApiIndex(MegaApi* api)
     for (int i = int(megaApi.size()); i--; )  if (megaApi[i].get() == api) apiIndex = i;
     if (apiIndex == -1)
     {
-        LOG_err << "Instance of MegaApi not recognized";
+        LOG_warn << "Instance of MegaApi not recognized";   // does happen during shutdown
     }
     return apiIndex;
 }
@@ -305,6 +305,9 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
     if (apiIndex < 0) return;
     mApi[apiIndex].requestFlags[request->getType()] = true;
     mApi[apiIndex].lastError = e->getErrorCode();
+
+    // there could be a race on these getting set?
+    LOG_info << "lastError (by request) for MegaApi " << apiIndex << ": " << mApi[apiIndex].lastError;
 
     switch(request->getType())
     {
@@ -481,7 +484,12 @@ void SdkTest::onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* 
     if (apiIndex < 0) return;
 
     mApi[apiIndex].transferFlags[transfer->getType()] = true;
-    mApi[apiIndex].lastError = e->getErrorCode();
+    mApi[apiIndex].lastError = e->getErrorCode();   // todo: change the rest of the transfer test code to use lastTransferError instead.
+    mApi[apiIndex].lastTransferError = e->getErrorCode();
+
+    // there could be a race on these getting set?
+    LOG_info << "lastError (by transfer) for MegaApi " << apiIndex << ": " << mApi[apiIndex].lastError;
+
 
     if (mApi[apiIndex].lastError == MegaError::API_OK)
         mApi[apiIndex].h = transfer->getNodeHandle();
@@ -728,8 +736,9 @@ bool SdkTest::synchronousTransfer(unsigned apiIndex, int type, std::function<voi
     flag = false;
     f();
     auto result = waitForResponse(&flag, timeout);
-    EXPECT_TRUE(result) << "Transfer (type " << type << ") failed after " << timeout << " seconds";
+    EXPECT_TRUE(result) << "Transfer (type " << type << ") not finished yet after " << timeout << " seconds";
     if (!result) mApi[apiIndex].lastError = -999; // local timeout
+    if (!result) mApi[apiIndex].lastTransferError = -999; // local timeout    TODO: switch all transfer code to use lastTransferError .  Some still uses lastError
     return result;
 }
 
@@ -802,7 +811,7 @@ void SdkTest::getMegaApiAux(unsigned index)
         }
         ASSERT_LT((size_t) 0, mApi[index].pwd.length()) << "Set the auxiliar password at the environment variable $MEGA_PWD_AUX" << strIndex;
 
-        megaApi[index].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(index).c_str(), USER_AGENT.c_str()));
+        megaApi[index].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(index).c_str(), USER_AGENT.c_str(), THREADS_PER_MEGACLIENT));
         mApi[index].megaApi = megaApi[index].get();
 
         megaApi[index]->setLoggingName(to_string(index).c_str());
@@ -1882,30 +1891,6 @@ TEST_F(SdkTest, SdkTestContacts)
     delete u;
 }
 
-/**
- * @brief TEST_F SdkTestShares
- *
- * Initialize a test scenario by:
- *
- * - Creating/uploading some folders/files to share
- * - Creating a new contact to share to
- *
- * Performs different operations related to sharing:
- *
- * - Share a folder with an existing contact
- * - Check the correctness of the outgoing share
- * - Check the reception and correctness of the incoming share
- * - Modify the access level
- * - Revoke the access to the share
- * - Share a folder with a non registered email
- * - Check the correctness of the pending outgoing share
- * - Create a file public link
- * - Import a file public link
- * - Get a node from a file public link
- * - Remove a public link
- * - Create a folder public link
- */
-
 bool SdkTest::checkAlert(int apiIndex, const string& title, const string& path)
 {
     bool ok = false;
@@ -1966,7 +1951,29 @@ bool SdkTest::checkAlert(int apiIndex, const string& title, handle h, int n)
     return ok;
 }
 
-
+/**
+ * @brief TEST_F SdkTestShares
+ *
+ * Initialize a test scenario by:
+ *
+ * - Creating/uploading some folders/files to share
+ * - Creating a new contact to share to
+ *
+ * Performs different operations related to sharing:
+ *
+ * - Share a folder with an existing contact
+ * - Check the correctness of the outgoing share
+ * - Check the reception and correctness of the incoming share
+ * - Modify the access level
+ * - Revoke the access to the share
+ * - Share a folder with a non registered email
+ * - Check the correctness of the pending outgoing share
+ * - Create a file public link
+ * - Import a file public link
+ * - Get a node from a file public link
+ * - Remove a public link
+ * - Create a folder public link
+ */
 TEST_F(SdkTest, SdkTestShares)
 {
     LOG_info << "___TEST Shares___";
@@ -2015,21 +2022,15 @@ TEST_F(SdkTest, SdkTestShares)
 
     MegaNode *nNoAuth = megaApi[0]->getNodeByHandle(hfile1);
 
-    mApi[1].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
-    megaApi[1]->startDownload(nNoAuth, "unauthorized_node");
-    ASSERT_TRUE( waitForResponse(&mApi[1].transferFlags[MegaTransfer::TYPE_DOWNLOAD], 600) )
-            << "Download transfer not finished after " << maxTimeout << " seconds";
+    int transferError = synchronousStartDownload(1, nNoAuth, "unauthorized_node");
 
-    bool hasFailed = (mApi[1].lastError != API_OK);
+    bool hasFailed = (transferError != API_OK);
     ASSERT_TRUE(hasFailed) << "Download of node without authorization successful! (it should fail)";
 
     MegaNode *nAuth = megaApi[0]->authorizeNode(nNoAuth);
 
-    mApi[1].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
-    megaApi[1]->startDownload(nAuth, "authorized_node");
-    ASSERT_TRUE( waitForResponse(&mApi[1].transferFlags[MegaTransfer::TYPE_DOWNLOAD], 600) )
-            << "Download transfer not finished after " << maxTimeout << " seconds";
-    ASSERT_EQ(MegaError::API_OK, mApi[1].lastError) << "Cannot download authorized node (error: " << mApi[1].lastError << ")";
+    transferError = synchronousStartDownload(1, nAuth, "authorized_node");
+    ASSERT_EQ(MegaError::API_OK, transferError) << "Cannot download authorized node (error: " << mApi[1].lastError << ")";
 
     delete nNoAuth;
     delete nAuth;
@@ -2355,6 +2356,271 @@ TEST_F(SdkTest, SdkTestShareKeys)
     ASSERT_STREQ(bView2->get(0)->getName(), "NO_KEY");  // TODO: This is technically not correct but a current side effect of avoiding going back to the servers frequently - to be fixed soon.  For now choose the value that matches production
     ASSERT_STREQ(bView2->get(1)->getName(), "NO_KEY");
 }
+
+string localpathToUtf8Leaf(const string& itemlocalname, FSACCESS_CLASS& fsa)
+{
+    string::size_type pos = 0, testpos = 0;
+    while (string::npos != (testpos = itemlocalname.find(fsa.localseparator, pos)))
+    {
+        pos = testpos + fsa.localseparator.size();
+    }
+
+    string leafNameLocal = itemlocalname.substr(pos);
+    string leafNameUtf8;
+    fsa.local2path(&leafNameLocal, &leafNameUtf8);
+    return leafNameUtf8;
+}
+
+string fspathToLocal(const fs::path& p, FSACCESS_CLASS& fsa)
+{
+    string path(p.u8string());
+    string local;
+    fsa.path2local(&path, &local);
+    return local;
+}
+    
+
+
+TEST_F(SdkTest, SdkTestFolderIteration)
+{
+
+    for (int testcombination = 0; testcombination < 2; testcombination++)
+    {
+        bool openWithNameOrUseFileAccess = testcombination == 0;
+
+        error_code ec;
+        if (fs::exists("test_SdkTestFolderIteration")) 
+        {
+            fs::remove_all("test_SdkTestFolderIteration", ec);
+            ASSERT_TRUE(!ec) << "could not remove old test folder";
+        }
+
+        fs::create_directory("test_SdkTestFolderIteration", ec);
+        ASSERT_TRUE(!ec) << "could not create test folder";
+
+        fs::path iteratePath = fs::current_path() / "test_SdkTestFolderIteration";
+
+        // make a directory
+        fs::create_directory(iteratePath / "folder");
+
+        // make a file
+        {
+            ofstream f( (iteratePath / "file.txt").u8string().c_str());
+            f << "file content";
+        }
+
+        // make some content to test the glob flag
+        {
+            fs::create_directory(iteratePath / "glob1folder");
+            fs::create_directory(iteratePath / "glob2folder");
+            ofstream f1( (iteratePath / "glob1file.txt").u8string().c_str());
+            ofstream f2( (iteratePath / "glob2file.txt").u8string().c_str());
+            f1 << "file content";
+            f2 << "file content";
+        }
+        unsigned glob_entries = 4;
+
+        // make a symlink to a folder (not recoginised by our dnext() on windows currently)
+        fs::create_directory_symlink(iteratePath / "folder", iteratePath / "folderlink", ec);
+        ASSERT_TRUE(!ec) << "could not create folder symlink";
+
+        // make a symlinnk to a file
+        fs::create_symlink(iteratePath / "file.txt", iteratePath / "filelink.txt", ec);
+        ASSERT_TRUE(!ec) << "could not create folder symlink";
+
+        // note on windows:  symlinks are excluded by skipAttributes for FILE_ATTRIBUTE_REPARSE_POINT (also see https://docs.microsoft.com/en-us/windows/win32/fileio/determining-whether-a-directory-is-a-volume-mount-point)
+
+        struct FileAccessFields
+        {
+            m_off_t size = -2;
+            m_time_t mtime = 2;
+            handle fsid = 3;
+            bool fsidvalid = false;
+            nodetype_t type = (nodetype_t)-9;
+            bool mIsSymLink = false;
+            bool retry = false;
+            int errorcode = -998;
+
+            FileAccessFields() = default;
+
+            FileAccessFields(const FileAccess& f) 
+            {
+                size = f.size;
+                mtime = f.mtime;
+                fsid = f.fsid;
+                fsidvalid = f.fsidvalid;
+                type = f.type;
+                mIsSymLink = f.mIsSymLink;
+                retry = f.retry;
+                errorcode = f.errorcode;
+            }
+            bool operator == (const FileAccessFields& f) const
+            {
+                if (size != f.size) { EXPECT_EQ(size, f.size); return false; }
+                if (mtime != f.mtime) { EXPECT_EQ(mtime, f.mtime); return false; }
+                
+                if (!mIsSymLink)
+                {
+                    // do we need fsid to be correct for symlink?  Seems on mac plain vs iterated differ
+                    if (fsid != f.fsid) { EXPECT_EQ(fsid, f.fsid); return false; }
+                }
+                
+                if (fsidvalid != f.fsidvalid) { EXPECT_EQ(fsidvalid, f.fsidvalid); return false; }
+                if (type != f.type) { EXPECT_EQ(type, f.type); return false; }
+                if (mIsSymLink != f.mIsSymLink) { EXPECT_EQ(mIsSymLink, f.mIsSymLink); return false; }
+                if (retry != f.retry) { EXPECT_EQ(retry, f.retry); return false; }
+                if (errorcode != f.errorcode) { EXPECT_EQ(errorcode, f.errorcode); return false; }
+                return true;
+            }
+        };
+
+        // capture results from the ways of gettnig the file info
+        std::map<std::string, FileAccessFields > plain_fopen;
+        std::map<std::string, FileAccessFields > iterate_fopen;
+        std::map<std::string, FileAccessFields > plain_follow_fopen;
+        std::map<std::string, FileAccessFields > iterate_follow_fopen;
+
+        FSACCESS_CLASS fsa;
+        string localdir = fspathToLocal(iteratePath, fsa);
+
+        std::unique_ptr<FileAccess> fopen_directory(fsa.newfileaccess(false));  // false = don't follow symlinks
+        ASSERT_TRUE(fopen_directory->fopen(&localdir, true, false));
+
+        // now open and iterate the directory, not following symlinks (either by name or fopen'd directory)
+        std::unique_ptr<DirAccess> da(fsa.newdiraccess());
+        if (da->dopen(openWithNameOrUseFileAccess ? &localdir : NULL, openWithNameOrUseFileAccess ? NULL : fopen_directory.get(), false))
+        {
+            nodetype_t type;
+            string itemlocalname;
+            while (da->dnext(&localdir, &itemlocalname, false, &type))
+            {
+                string leafNameUtf8 = localpathToUtf8Leaf(itemlocalname, fsa);
+
+                std::unique_ptr<FileAccess> plain_fopen_fa(fsa.newfileaccess(false));
+                std::unique_ptr<FileAccess> iterate_fopen_fa(fsa.newfileaccess(false));
+
+                string localpath = fspathToLocal(iteratePath / leafNameUtf8, fsa);
+
+                ASSERT_TRUE(plain_fopen_fa->fopen(&localpath, true, false));
+                plain_fopen[leafNameUtf8] = *plain_fopen_fa;
+
+                ASSERT_TRUE(iterate_fopen_fa->fopen(&localpath, true, false, da.get()));
+                iterate_fopen[leafNameUtf8] = *iterate_fopen_fa;
+            }
+        }
+
+        std::unique_ptr<FileAccess> fopen_directory2(fsa.newfileaccess(true));  // true = follow symlinks
+        ASSERT_TRUE(fopen_directory2->fopen(&localdir, true, false));
+
+        // now open and iterate the directory, following symlinks (either by name or fopen'd directory)
+        std::unique_ptr<DirAccess> da_follow(fsa.newdiraccess());
+        if (da_follow->dopen(openWithNameOrUseFileAccess ? &localdir : NULL, openWithNameOrUseFileAccess ? NULL : fopen_directory2.get(), false))
+        {
+            nodetype_t type;
+            string itemlocalname;
+            while (da_follow->dnext(&localdir, &itemlocalname, true, &type))
+            {
+                string leafNameUtf8 = localpathToUtf8Leaf(itemlocalname, fsa);
+
+                std::unique_ptr<FileAccess> plain_follow_fopen_fa(fsa.newfileaccess(true));
+                std::unique_ptr<FileAccess> iterate_follow_fopen_fa(fsa.newfileaccess(true));
+            
+                string localpath = fspathToLocal(iteratePath / leafNameUtf8, fsa);
+
+                ASSERT_TRUE(plain_follow_fopen_fa->fopen(&localpath, true, false));
+                plain_follow_fopen[leafNameUtf8] = *plain_follow_fopen_fa;
+
+                ASSERT_TRUE(iterate_follow_fopen_fa->fopen(&localpath, true, false, da_follow.get()));
+                iterate_follow_fopen[leafNameUtf8] = *iterate_follow_fopen_fa;
+            }
+        }
+
+    #ifdef WIN32
+        std::set<std::string> plain_names { "folder", "file.txt" }; // currently on windows, any type of symlink is ignored when iterating directories
+        std::set<std::string> follow_names { "folder", "file.txt"};
+    #else
+        std::set<std::string> plain_names { "folder", "file.txt" };
+        std::set<std::string> follow_names { "folder", "file.txt", "folderlink", "filelink.txt" };
+    #endif
+
+        ASSERT_EQ(plain_fopen.size(), plain_names.size() + glob_entries);
+        ASSERT_EQ(iterate_fopen.size(), plain_names.size() + glob_entries);
+        ASSERT_EQ(plain_follow_fopen.size(), follow_names.size() + glob_entries);
+        ASSERT_EQ(iterate_follow_fopen.size(), follow_names.size() + glob_entries);
+
+        for (auto& name : follow_names)
+        {
+            bool expected_non_follow = plain_names.find(name) != plain_names.end();
+            bool issymlink = name.find("link") != string::npos;
+            
+            if (expected_non_follow)
+            {
+                ASSERT_TRUE(plain_fopen.find(name) != plain_fopen.end()) << name;
+                ASSERT_TRUE(iterate_fopen.find(name) != iterate_fopen.end()) << name;
+
+                auto& plain = plain_fopen[name];
+                auto& iterate = iterate_fopen[name];
+
+                ASSERT_EQ(plain, iterate)  << name;
+                ASSERT_TRUE(plain.mIsSymLink == issymlink);
+            }
+            
+            ASSERT_TRUE(plain_follow_fopen.find(name) != plain_follow_fopen.end()) << name;
+            ASSERT_TRUE(iterate_follow_fopen.find(name) != iterate_follow_fopen.end()) << name;
+
+            auto& plain_follow = plain_follow_fopen[name];
+            auto& iterate_follow = iterate_follow_fopen[name];
+
+            ASSERT_EQ(plain_follow, iterate_follow) << name;
+            ASSERT_TRUE(plain_follow.mIsSymLink == issymlink);
+        }
+
+        //ASSERT_EQ(plain_fopen["folder"].size, 0);  size field is not set for folders
+        ASSERT_EQ(plain_fopen["folder"].type, FOLDERNODE);
+        ASSERT_EQ(plain_fopen["folder"].fsidvalid, true);
+        ASSERT_EQ(plain_fopen["folder"].mIsSymLink, false);
+
+        ASSERT_EQ(plain_fopen["file.txt"].size, 12);
+        ASSERT_EQ(plain_fopen["file.txt"].fsidvalid, true);
+        ASSERT_EQ(plain_fopen["file.txt"].type, FILENODE);
+        ASSERT_EQ(plain_fopen["file.txt"].mIsSymLink, false);
+
+// on windows and mac and linux, without the follow flag on, directory iteration does not report symlinks (currently)
+//
+//        //ASSERT_EQ(plain_fopen["folder"].size, 0);  size field is not set for folders
+//        ASSERT_EQ(plain_fopen["folderlink"].type, FOLDERNODE);
+//        ASSERT_EQ(plain_fopen["folderlink"].fsidvalid, true);
+//        ASSERT_EQ(plain_fopen["folderlink"].mIsSymLink, true);
+//
+//        ASSERT_EQ(plain_fopen["filelink.txt"].size, 12);
+//        ASSERT_EQ(plain_fopen["filelink.txt"].fsidvalid, true);
+//        ASSERT_EQ(plain_fopen["filelink.txt"].type, FILENODE);
+//        ASSERT_EQ(plain_fopen["filelink.txt"].mIsSymLink, true);
+//
+        ASSERT_TRUE(plain_fopen.find("folderlink") == plain_fopen.end());
+        ASSERT_TRUE(plain_fopen.find("filelink.txt") == plain_fopen.end());
+        
+        // check the glob flag
+        string localdirGlob = fspathToLocal(iteratePath / "glob1*", fsa);
+        std::unique_ptr<DirAccess> da2(fsa.newdiraccess());
+        if (da2->dopen(&localdirGlob, NULL, true))
+        {
+            nodetype_t type;
+            string itemlocalname;
+            set<string> remainingExpected { "glob1folder", "glob1file.txt" };
+            while (da2->dnext(&localdir, &itemlocalname, true, &type))
+            {
+                string leafNameUtf8 = localpathToUtf8Leaf(itemlocalname, fsa);
+                ASSERT_EQ(leafNameUtf8.substr(0, 5), string("glob1"));
+                ASSERT_TRUE(remainingExpected.find(leafNameUtf8) != remainingExpected.end());
+                remainingExpected.erase(leafNameUtf8);
+            }
+            ASSERT_EQ(remainingExpected.size(), 0u);
+        }
+
+    }
+}
+
 
 
 /**
@@ -3432,7 +3698,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
         ASSERT_GE(onTransferUpdate_filesize, 0u);
         ASSERT_TRUE(onTransferUpdate_progress == onTransferUpdate_filesize);
         ASSERT_GE(pausecount, 3);
-        ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], 1))<< "Download cloudraid transfer with pauses failed";
+        ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], 30))<< "Download cloudraid transfer with pauses failed";
         ASSERT_EQ(MegaError::API_OK, mApi[0].lastError) << "Cannot download the cloudraid file (error: " << mApi[0].lastError << ")";
     }
 
@@ -3462,7 +3728,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
                 exitresumecount += 1;
                 WaitMillisec(100);
                 
-                megaApi[0].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str()));
+                megaApi[0].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str(), THREADS_PER_MEGACLIENT));
                 mApi[0].megaApi = megaApi[0].get();
                 megaApi[0]->setLogLevel(MegaApi::LOG_LEVEL_DEBUG);
                 megaApi[0]->addListener(this);
@@ -3474,7 +3740,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
             }
             WaitMillisec(100);
         }
-        ASSERT_TRUE(onTransferUpdate_progress == onTransferUpdate_filesize);
+        ASSERT_EQ(onTransferUpdate_progress, onTransferUpdate_filesize);
         ASSERT_GE(exitresumecount, 3u);
         ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], 1)) << "Download cloudraid transfer with pauses failed";
         ASSERT_EQ(MegaError::API_OK, mApi[0].lastError) << "Cannot download the cloudraid file (error: " << mApi[0].lastError << ")";
@@ -3581,7 +3847,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
         ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], 180)) << "Cloudraid download with timeout errors timed out (180 seconds)";
         ASSERT_EQ(MegaError::API_OK, mApi[0].lastError) << "Cannot download the cloudraid file (error: " << mApi[0].lastError << ")";
         ASSERT_GE(onTransferUpdate_filesize, 0u);
-        ASSERT_TRUE(onTransferUpdate_progress == onTransferUpdate_filesize);
+        ASSERT_EQ(onTransferUpdate_progress, onTransferUpdate_filesize);
         ASSERT_LT(DebugTestHook::countdownToTimeout, 0);
     }
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";

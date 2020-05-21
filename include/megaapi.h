@@ -1215,6 +1215,7 @@ class MegaUser
             CHANGE_TYPE_MY_CHAT_FILES_FOLDER        = 0x400000,
             CHANGE_TYPE_PUSH_SETTINGS               = 0x800000,
             CHANGE_TYPE_ALIAS                       = 0x1000000,
+            CHANGE_TYPE_UNSHAREABLE_KEY             = 0x2000000,
         };
 
         /**
@@ -1293,6 +1294,12 @@ class MegaUser
          * - MegaUser::CHANGE_TYPE_PUSH_SETTINGS = 0x800000
          * Check if settings for push notifications have changed
          *
+         * - MegaUser::CHANGE_TYPE_ALIAS    = 0x1000000
+         * Check if aliases have changed
+         *
+         * - MegaUser::CHANGE_TYPE_UNSHAREABLE_KEY = 0x2000000
+         * (internal) The unshareable key has been created
+         *
          * @return true if this user has an specific change
          */
         virtual bool hasChanged(int changeType);
@@ -1370,6 +1377,12 @@ class MegaUser
          *
          * - MegaUser::CHANGE_TYPE_PUSH_SETTINGS = 0x800000
          * Check if settings for push notifications have changed
+         *
+         * - MegaUser::CHANGE_TYPE_ALIAS    = 0x1000000
+         * Check if aliases have changed
+         *
+         * - MegaUser::CHANGE_TYPE_UNSHAREABLE_KEY = 0x2000000
+         * (internal) The unshareable key has been created
          *
          */
         virtual int getChanges();
@@ -4141,6 +4154,9 @@ public:
      * the modification of the global parameters (dnd & schedule) or not.
      *
      * @return True if notifications are enabled, false if disabled
+     *
+     * @deprecated This method is deprecated, use isGlobalDndEnabled instead of this.
+     * Note that isGlobalDndEnabled returns the opposite value to isGlobalEnabled
      */
     virtual bool isGlobalEnabled() const;
 
@@ -4151,10 +4167,17 @@ public:
     virtual bool isGlobalDndEnabled() const;
 
     /**
+     * @brief Returns whether Do-Not-Disturb mode for chats is enabled or not
+     
+     * @return True if enabled, false otherwise
+     */
+    virtual bool isGlobalChatsDndEnabled() const;
+
+    /**
      * @brief Returns the timestamp until the DND mode is enabled
      *
-     * This method returns a valid value only if MegaPushNotificationSettings::isGlobalEnabled
-     * returns false and MegaPushNotificationSettings::isGlobalDndEnabled returns true.
+     * This method returns a valid value only if MegaPushNotificationSettings::isGlobalDndEnabled
+     * returns true.
      *
      * If there's no DND mode established, this function returns -1.
      * @note a DND value of 0 means the DND does not expire.
@@ -4209,6 +4232,9 @@ public:
      *
      * @param chatid MegaHandle that identifies the chat room
      * @return True if enabled, false otherwise
+     *
+     * @deprecated This method is deprecated, use isChatDndEnabled instead of this.
+     * Note that isChatDndEnabled returns the opposite value to isChatEnabled
      */
     virtual bool isChatEnabled(MegaHandle chatid) const;
 
@@ -4223,8 +4249,8 @@ public:
     /**
      * @brief Returns the timestamp until the Do-Not-Disturb mode for a chat
      *
-     * This method returns a valid value only if MegaPushNotificationSettings::isChatEnabled
-     * returns false and MegaPushNotificationSettings::isChatDndEnabled returns true.
+     * This method returns a valid value only if MegaPushNotificationSettings::isChatDndEnabled
+     * returns true.
      *
      * If there's no DND mode established for the specified chat, this function returns -1.
      * @note a DND value of 0 means the DND does not expire.
@@ -4259,8 +4285,24 @@ public:
     /**
      * @brief Returns whether notifications about chats are enabled or not
      * @return True if enabled, false otherwise
+     *
+     * @deprecated This method is deprecated, use isGlobalChatsDndEnabled instead of this.
+     * Note that isGlobalChatsDndEnabled returns the opposite result to isChatsEnabled;
      */
     virtual bool isChatsEnabled() const;
+
+    /**
+     * @brief Returns the timestamp until the chats DND mode is enabled
+     *
+     * This method returns a valid value only if MegaPushNotificationSettings::isGlobalChatsDndEnabled
+     * returns true.
+     *
+     * If there's no DND mode established, this function returns -1.
+     * @note a DND value of 0 means the DND does not expire.
+     *
+     * @return Timestamp until chats DND mode is enabled (in seconds since the Epoch)
+     */
+    virtual int64_t getGlobalChatsDnd() const;
 
     /**
      * @brief Enable or disable notifications globally
@@ -4339,6 +4381,15 @@ public:
      * @param timestamp Timestamp until DND mode is enabled (in seconds since the Epoch)
      */
     virtual void setChatDnd(MegaHandle chatid, int64_t timestamp);
+
+    /**
+     * @brief Set the Global DND for chats for a period of time
+     *
+     * No chat notifications will be generated until the specified timestamp.
+     *
+     * @param timestamp Timestamp until DND mode is enabled (in seconds since the Epoch)
+     */
+    virtual void setGlobalChatsDnd(int64_t timestamp);
 
     /**
      * @brief Enable or disable "Always notify" setting
@@ -6851,7 +6902,8 @@ class MegaApi
         enum {
             PUSH_NOTIFICATION_ANDROID = 1,
             PUSH_NOTIFICATION_IOS_VOIP = 2,
-            PUSH_NOTIFICATION_IOS_STD = 3
+            PUSH_NOTIFICATION_IOS_STD = 3,
+            PUSH_NOTIFICATION_ANDROID_HUAWEI = 4
         };
 
         enum {
@@ -6922,8 +6974,12 @@ class MegaApi
          * @param userAgent User agent to use in network requests
          * If you pass NULL to this parameter, a default user agent will be used
          *
+         * @param workerThreadCount The number of worker threads for encryption or other operations
+         * Using worker threads means that synchronous function calls on MegaApi will be blocked less,
+         * and uploads and downloads can proceed more quickly on very fast connections.
+         *
          */
-        MegaApi(const char *appKey, const char *basePath = NULL, const char *userAgent = NULL);
+        MegaApi(const char *appKey, const char *basePath = NULL, const char *userAgent = NULL, unsigned workerThreadCount = 1);
 
         /**
          * @brief MegaApi Constructor that allows to use a custom GFX processor
@@ -6946,8 +7002,12 @@ class MegaApi
          * @param userAgent User agent to use in network requests
          * If you pass NULL to this parameter, a default user agent will be used
          *
+         * @param workerThreadCount The number of worker threads for encryption or other operations
+         * Using worker threads means that synchronous function calls on MegaApi will be blocked less,
+         * and uploads and downloads can proceed more quickly on very fast connections.
+         *
          */
-        MegaApi(const char *appKey, MegaGfxProcessor* processor, const char *basePath = NULL, const char *userAgent = NULL);
+        MegaApi(const char *appKey, MegaGfxProcessor* processor, const char *basePath = NULL, const char *userAgent = NULL, unsigned workerThreadCount = 1);
 
 #ifdef ENABLE_SYNC
         /**
@@ -6985,8 +7045,12 @@ class MegaApi
          *
          * @param fseventsfd Open file descriptor of /dev/fsevents
          *
+         * @param workerThreadCount The number of worker threads for encryption or other operations
+         * Using worker threads means that synchronous function calls on MegaApi will be blocked less,
+         * and uploads and downloads can proceed more quickly on very fast connections.
+         *
          */
-        MegaApi(const char *appKey, const char *basePath, const char *userAgent, int fseventsfd);
+        MegaApi(const char *appKey, const char *basePath, const char *userAgent, int fseventsfd, unsigned workerThreadCount = 1);
 #endif
 
         virtual ~MegaApi();
@@ -8169,6 +8233,9 @@ class MegaApi
          * If the logged in account has not been sent the unlock email before,
          * onRequestFinish will be called with the error code MegaError::API_EARGS.
          *
+         * If the logged in account has already sent the unlock email and until it's available again,
+         * onRequestFinish will be called with the error code MegaError::API_ETEMPUNAVAIL.
+         *
          * @param listener MegaRequestListener to track this request
          */
         void resendVerificationEmail(MegaRequestListener *listener = NULL);
@@ -8425,6 +8492,8 @@ class MegaApi
         *
         * Other clients will be notified that alerts to this point have been seen.
         *
+        * The associated request type with this request is MegaRequest::TYPE_USERALERT_ACKNOWLEDGE.
+        *
         * @param listener MegaRequestListener to track this request
         *
         * @see MegaApi::getUserAlerts
@@ -8624,6 +8693,19 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void resetCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Returns RSA private key of the currently logged-in account
+         *
+         * If the MegaApi object is not logged-in or there is no private key available,
+         * this function returns NULL.
+         *
+         * You take the ownership of the returned value.
+         * Use delete [] to free it.
+         *
+         * @return RSA private key of the current account
+         */
+        char *getMyRSAPrivateKey();
 
         /**
          * @brief Set the active log level
@@ -10920,6 +11002,7 @@ class MegaApi
          * is sent to MEGA servers.
          *
          * @note Event types are restricted to the following ranges:
+         *  - MEGAcmd:   [98900, 99000)
          *  - MEGAchat:  [99000, 99150)
          *  - Android:   [99200, 99300)
          *  - iOS:       [99300, 99400)
@@ -15666,6 +15749,7 @@ class MegaApi
          *  - MegaApi::PUSH_NOTIFICATION_ANDROID    = 1
          *  - MegaApi::PUSH_NOTIFICATION_IOS_VOIP   = 2
          *  - MegaApi::PUSH_NOTIFICATION_IOS_STD    = 3
+         *  - MegaApi::PUSH_NOTIFICATION_ANDROID_HUAWEI = 4
          *
          * The associated request type with this request is MegaRequest::TYPE_REGISTER_PUSH_NOTIFICATION
          * Valid data in the MegaRequest object received on callbacks:

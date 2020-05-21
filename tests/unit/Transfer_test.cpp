@@ -39,7 +39,9 @@ void checkTransfers(const mega::Transfer& exp, const mega::Transfer& act)
     ASSERT_TRUE(std::equal(exp.filekey, exp.filekey + mega::FILENODEKEYLENGTH, act.filekey));
     ASSERT_EQ(exp.ctriv, act.ctriv);
     ASSERT_EQ(exp.metamac, act.metamac);
-    ASSERT_TRUE(std::equal(exp.transferkey, exp.transferkey + mega::SymmCipher::KEYLENGTH, act.transferkey));
+    ASSERT_TRUE(std::equal(exp.transferkey.data(),
+                           exp.transferkey.data() + mega::SymmCipher::KEYLENGTH,
+                           act.transferkey.data()));
     ASSERT_EQ(exp.lastaccesstime, act.lastaccesstime);
     ASSERT_TRUE(std::equal(exp.ultoken, exp.ultoken + mega::NewNode::UPLOADTOKENLEN, act.ultoken));
     ASSERT_EQ(exp.tempurls, act.tempurls);
@@ -60,7 +62,9 @@ TEST(Transfer, serialize_unserialize)
     std::fill(tf.filekey, tf.filekey + mega::FILENODEKEYLENGTH, 'X');
     tf.ctriv = 1;
     tf.metamac = 2;
-    std::fill(tf.transferkey, tf.transferkey + mega::SymmCipher::KEYLENGTH, 'Y');
+    std::fill(tf.transferkey.data(),
+              tf.transferkey.data() + mega::SymmCipher::KEYLENGTH,
+              'Y');
     tf.lastaccesstime = 3;
     tf.ultoken = new mega::byte[mega::NewNode::UPLOADTOKENLEN];
     std::fill(tf.ultoken, tf.ultoken + mega::NewNode::UPLOADTOKENLEN, 'Z');
@@ -94,7 +98,9 @@ TEST(Transfer, unserialize_32bit)
     std::fill(tf.filekey, tf.filekey + mega::FILENODEKEYLENGTH, 'X');
     tf.ctriv = 1;
     tf.metamac = 2;
-    std::fill(tf.transferkey, tf.transferkey + mega::SymmCipher::KEYLENGTH, 'Y');
+    std::fill(tf.transferkey.data(),
+              tf.transferkey.data() + mega::SymmCipher::KEYLENGTH,
+              'Y');
     tf.lastaccesstime = 3;
     tf.ultoken = new mega::byte[mega::NewNode::UPLOADTOKENLEN];
     std::fill(tf.ultoken, tf.ultoken + mega::NewNode::UPLOADTOKENLEN, 'Z');
