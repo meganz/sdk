@@ -1874,18 +1874,6 @@ class PendingOutShareProcessor : public TreeProcessor
         vector<handle> handles;
 };
 
-class PublicLinkProcessor : public TreeProcessor
-{
-    public:
-        PublicLinkProcessor();
-        virtual bool processNode(Node* node);
-        virtual ~PublicLinkProcessor();
-        vector<Node *> &getNodes();
-
-    protected:
-        vector<Node *> nodes;
-};
-
 class SizeProcessor : public TreeProcessor
 {
     protected:
@@ -1958,6 +1946,8 @@ class MegaApiImpl : public MegaApp
         virtual ~MegaApiImpl();
 
         static MegaApiImpl* ImplOf(MegaApi*);
+
+        enum { TARGET_INSHARE = 0, TARGET_OUTSHARE, TARGET_PUBLICLINK, };
 
         //Multiple listener management.
         void addListener(MegaListener* listener);
@@ -2361,6 +2351,8 @@ class MegaApiImpl : public MegaApp
         MegaNodeList* search(MegaNode* node, const char* searchString, MegaCancelToken *cancelToken, bool recursive = 1, int order = MegaApi::ORDER_NONE);
         bool processMegaTree(MegaNode* node, MegaTreeProcessor* processor, bool recursive = 1);
         MegaNodeList* search(const char* searchString, MegaCancelToken *cancelToken, int order = MegaApi::ORDER_NONE);
+
+        MegaNodeList* searchInAllShares(const char *searchString, MegaCancelToken *cancelToken, int order, int target);
 
         MegaNode *createForeignFileNode(MegaHandle handle, const char *key, const char *name, m_off_t size, m_off_t mtime,
                                        MegaHandle parentHandle, const char *privateauth, const char *publicauth, const char *chatauth);

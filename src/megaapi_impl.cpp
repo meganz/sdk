@@ -10439,9 +10439,14 @@ MegaNodeList *MegaApiImpl::getPublicLinks(int order)
 {
     sdkMutex.lock();
 
-    PublicLinkProcessor linkProcessor;
-    processTree(client->nodebyhandle(client->rootnodes[0]), &linkProcessor, true);
-    node_vector nodes = linkProcessor.getNodes();
+    Node *n;
+    node_vector nodes;
+    for (const auto& item : client->mPublicLinks)
+    {
+        n = client->nodebyhandle(item.first);
+        assert(n);
+        nodes.emplace_back(n);
+    }
     sortByComparatorFunction(nodes, order, *client);
     MegaNodeList *nodeList = new MegaNodeListPrivate(nodes.data(), int(nodes.size()));
 
@@ -10619,6 +10624,67 @@ bool MegaApiImpl::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, boo
     bool result = processor->processMegaNode(n);
     sdkMutex.unlock();
     return result;
+}
+
+MegaNodeList* MegaApiImpl::searchInAllShares(const char *searchString, MegaCancelToken *cancelToken, int order, int target)
+{
+    if (!searchString)
+    {
+        return new MegaNodeListPrivate();
+    }
+
+    if (cancelToken && cancelToken->isCancelled())
+    {
+        return new MegaNodeListPrivate();
+    }
+
+    if (target < TARGET_INSHARE || target > TARGET_PUBLICLINK)
+    {
+        return new MegaNodeListPrivate();
+    }
+
+    SdkMutexGuard g(sdkMutex);
+
+    if (cancelToken && cancelToken->isCancelled())
+    {
+        return new MegaNodeListPrivate();
+    }
+
+    node_vector result;
+    Node *node;
+    if (target == TARGET_INSHARE || target == TARGET_OUTSHARE)
+    {
+        // Search in inShares or outShares
+        ::mega::unique_ptr<MegaShareList> shares (target == TARGET_INSHARE
+                                                  ? getInSharesList(MegaApi::ORDER_NONE)
+                                                  : getOutShares(MegaApi::ORDER_NONE));
+
+        for (int i = 0; i < shares->size() && !(cancelToken && cancelToken->isCancelled()); i++)
+        {
+           node = client->nodebyhandle(shares->get(i)->getNodeHandle());
+           SearchTreeProcessor searchProcessor(searchString);
+           processTree(node, &searchProcessor, true, cancelToken);
+           vector<Node *>& vNodes  = searchProcessor.getResults();
+           result.insert(result.end(), vNodes.begin(), vNodes.end());
+        }
+    }
+    else
+    {
+        // Search in public links
+        for (auto it = client->mPublicLinks.begin(); it != client->mPublicLinks.end()
+             && !(cancelToken && cancelToken->isCancelled()); it++)
+        {
+            node = client->nodebyhandle(it->first);
+            SearchTreeProcessor searchProcessor(searchString);
+            processTree(node, &searchProcessor, true, cancelToken);
+            vector<Node *>& vNodes  = searchProcessor.getResults();
+            result.insert(result.end(), vNodes.begin(), vNodes.end());
+        }
+    }
+
+    sortByComparatorFunction(result, order, *client);
+    MegaNodeList *nodeList = new MegaNodeListPrivate(result.data(), int(result.size()));
+    return nodeList;
 }
 
 MegaNodeList *MegaApiImpl::search(const char *searchString, MegaCancelToken *cancelToken, int order)
@@ -30959,29 +31025,6 @@ MegaTextChatListPrivate::MegaTextChatListPrivate(textchat_map *list)
     }
 }
 #endif
-
-
-PublicLinkProcessor::PublicLinkProcessor()
-{
-
-}
-
-bool PublicLinkProcessor::processNode(Node *node)
-{
-    if(node->plink)
-    {
-        nodes.push_back(node);
-    }
-
-    return true;
-}
-
-PublicLinkProcessor::~PublicLinkProcessor() {}
-
-vector<Node *> &PublicLinkProcessor::getNodes()
-{
-    return nodes;
-}
 
 MegaTransferDataPrivate::MegaTransferDataPrivate(TransferList *transferList, long long notificationNumber)
 {
