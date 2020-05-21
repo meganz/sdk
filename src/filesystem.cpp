@@ -253,9 +253,9 @@ void FileSystemAccess::unescapefsincompatible(string *name, const string *localP
 
 std::string FileSystemAccess::getPathSeparator()
 {
-#if defined (__linux__) || defined (__ANDROID__) || defined  (__APPLE__)
+#if defined (__linux__) || defined (__ANDROID__) || defined  (__APPLE__) || defined (USE_IOS)
 return "/";
-#elif defined(_WIN32) || defined(_WIN64)
+#elif defined(_WIN32) || defined(_WIN64) || defined(WINDOWS_PHONE)
 return "\\";
 #elif
 // Default case
