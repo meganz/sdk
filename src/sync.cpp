@@ -595,7 +595,7 @@ void SyncConfigBag::insert(const SyncConfig& syncConfig)
     }
 }
 
-void SyncConfigBag::remove(const std::string& localPath)
+bool SyncConfigBag::remove(const std::string& localPath)
 {
     auto syncConfigPair = mSyncConfigs.find(localPath);
     if (syncConfigPair != mSyncConfigs.end())
@@ -608,11 +608,35 @@ void SyncConfigBag::remove(const std::string& localPath)
                 LOG_err << "Incomplete database del at id: " << syncConfigPair->second.dbid;
                 assert(false);
                 mTable->abort();
-                return;
+                return false; //TODO: review this?
             }
         }
         mSyncConfigs.erase(syncConfigPair);
+        return true;
     }
+    return false;
+}
+
+bool SyncConfigBag::removeByTag(const int tag)
+{
+    auto config = get(tag);
+    if (config)
+    {
+        if (mTable)
+        {
+            DBTableTransactionCommitter committer{mTable.get()};
+            if (!mTable->del(config->dbid))
+            {
+                LOG_err << "Incomplete database del at id: " << config->dbid;
+                assert(false);
+                mTable->abort();
+                return false; //TODO: review this?
+            }
+        }
+        mSyncConfigs.erase(config->getLocalPath()); //TODO: review this if moved to tag as primary key
+        return true;
+    }
+    return false;
 }
 
 const SyncConfig* SyncConfigBag::get(const std::string& localPath) const
@@ -621,6 +645,30 @@ const SyncConfig* SyncConfigBag::get(const std::string& localPath) const
     if (syncConfigPair != mSyncConfigs.end())
     {
         return &syncConfigPair->second;
+    }
+    return nullptr;
+}
+
+const SyncConfig* SyncConfigBag::get(const int tag) const
+{
+    for (auto it = mSyncConfigs.begin(); it != mSyncConfigs.end(); it++)
+    {
+        if (it->second.getTag() == tag)
+        {
+            return &it->second;
+        }
+    }
+    return nullptr;
+}
+
+const SyncConfig* SyncConfigBag::get(const mega::handle remoteHandle) const
+{
+    for (auto it = mSyncConfigs.begin(); it != mSyncConfigs.end(); it++)
+    {
+        if (it->second.getRemoteNode() == remoteHandle)
+        {
+            return &it->second;
+        }
     }
     return nullptr;
 }
@@ -964,7 +1012,7 @@ void Sync::changestate(syncstate_t newstate, syncerror_t newSyncError)
     {
         if (newstate != SYNC_CANCELED)
         {
-            client->app->syncupdate_state(this, newstate, newSyncError);
+            client->changeSyncState(tag, newstate, newSyncError);
         }
 
         state = newstate;

@@ -2657,18 +2657,6 @@ protected:
         void fireOnSyncDisabled(MegaSyncPrivate *sync);
         void fireonSyncDeleted(MegaSyncPrivate *sync);
         void fireOnFileSyncStateChanged(MegaSyncPrivate *sync, string *localPath, int newState);
-
-        /**
-         * @brief updates sync state and fires change for app's callbacks
-         */
-        void updateMegaSyncPrivateState(MegaSyncPrivate*, syncstate_t, syncerror_t, bool fireDisableEvent = true);
-
-        /**
-         * @brief to update/create db entry associated to a sync
-         * @param megaSync
-         * @param config use this config (for new entries)
-         */
-        void saveSyncConfig(MegaSyncPrivate *megaSync, const SyncConfig *config = nullptr);
 #endif
 
 #ifdef ENABLE_CHAT
@@ -2980,7 +2968,10 @@ protected:
 
 #ifdef ENABLE_SYNC
         // sync status updates and events
-        void syncupdate_state(Sync*, syncstate_t, syncerror_t) override;
+
+        // updates sync state and fires change for app's callbacks //TODO: doc
+        void syncupdate_state(int tag, syncstate_t, syncerror_t, bool fireDisableEvent = true) override;
+
         void syncupdate_scanning(bool scanning) override;
         void syncupdate_local_folder_addition(Sync* sync, LocalNode *localNode, const char *path) override;
         void syncupdate_local_folder_deletion(Sync* sync, LocalNode *localNode) override;
@@ -3002,7 +2993,8 @@ protected:
         bool sync_syncable(Sync *, const char*, string *) override;
 
         void sync_load(const SyncConfig &config, int error) override;
-        void sync_removed(Sync *sync, int error) override;
+
+        void sync_removed(int tag) override;
 
         void syncupdate_local_lockretry(bool) override;
 

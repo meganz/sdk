@@ -53,10 +53,19 @@ public:
     void insert(const SyncConfig& syncConfig);
 
     // Removes a sync config at the given local path
-    void remove(const std::string& localPath);
+    bool remove(const std::string& localPath);
+
+    // Removes a sync config with a given tag
+    bool removeByTag(const int tag);
 
     // Returns the sync config at the given local path
     const SyncConfig* get(const std::string& localPath) const;
+
+    // Returns the sync config with the given remote handle
+    const SyncConfig* get(const mega::handle remoteHandle) const;
+
+    // Returns the sync config at the tag
+    const SyncConfig* get(const int tag) const;
 
     // Removes all sync configs
     void clear();

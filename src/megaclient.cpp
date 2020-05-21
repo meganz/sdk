@@ -3759,6 +3759,14 @@ void MegaClient::resumeResumableSyncs()
         if (config.isResumable())
         {
             const auto e = addsync(config, DEBRISFOLDER, nullptr, syncError);
+
+            if (e)
+            {
+                // update config entry with the error, if any. otherwise addsync would have updated it
+                // TODO: what if the error is temporary? //TODO: review all this!!! probably we don't want to try and resume those at startup ...
+                // otherwise we might break the logic pertaining restoring
+                saveAndUpdateSyncConfig(&config, SYNC_FAILED, static_cast<syncerror_t>(syncError) );
+            }
         }
 
         app->sync_load(config, syncError);
@@ -11077,6 +11085,9 @@ void MegaClient::fetchnodes(bool nocache)
         for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
         {
             (*it)->changestate(SYNC_CANCELED);
+            //TODO: should this cause a eraseSync from SyncMap?
+            // should the state be propagated? sync cache removed?
+            // why is this even called?
         }
 #endif
 
@@ -12235,6 +12246,9 @@ error MegaClient::addsync(SyncConfig syncConfig, const char* debris, string* loc
                 e = API_OK;
                 sync->initializing = false;
                 LOG_debug << "Initial scan finished. New / modified files: " << sync->dirnotify->notifyq[DirNotify::DIREVENTS].size();
+                //TODO: note for reviewer: previously we added the config upon sync constructor, but we probably want to only add it if
+                // initial scan goes well. otherwise, the sync won't be created, nor added to the cache
+                saveAndUpdateSyncConfig(&syncConfig, sync->state, static_cast<syncerror_t>(syncError) );
             }
             else
             {
@@ -13677,16 +13691,102 @@ void MegaClient::delsync(Sync* sync)
         sync->statecachetable = NULL;
     }
 
+    removeSyncConfig(sync->tag);
+
+    sync->appData = nullptr;
+
     syncactivity = true;
 }
+
+error MegaClient::removeSyncConfig(int tag)
+{
+    error e = API_OK;
+
+    if (!syncConfigs || !syncConfigs->removeByTag(tag))
+    {
+        LOG_err << "Found no config for tag " << tag << " upon sync removal";
+        e = API_ENOENT;
+    }
+
+    app->sync_removed(tag);
+    return e;
+}
+
+error MegaClient::removeSyncConfigByNodeHandle(mega::handle nodeHandle)
+{
+    auto tag = 0;
+
+    auto config = syncConfigs?syncConfigs->get(nodeHandle):nullptr;
+    if (config)
+    {
+        tag = config->getTag();
+        return removeSyncConfig(config->getTag());
+    }
+
+    LOG_err << "Found no config for handle " << nodeHandle << " upon sync removal";
+    return API_ENOENT;
+}
+
+error MegaClient::saveAndUpdateSyncConfig(const SyncConfig *config, syncstate_t newstate, syncerror_t syncerror)
+{
+    if (syncConfigs)
+    {
+        assert(config);
+        auto newConfig = *config;
+
+        auto isEnabled = [](syncstate_t state, syncerror_t error) -> bool
+        {
+            return state != SYNC_CANCELED && (state != SYNC_DISABLED || error != NO_ERROR );
+        };
+
+        newConfig.setEnabled(isEnabled(newstate, syncerror));
+        newConfig.setError(syncerror);
+
+        syncConfigs->insert(newConfig);
+        return API_OK;
+    }
+    return API_ENOENT;
+}
+
+//TODO: doc
+error MegaClient::changeSyncState(int tag, syncstate_t newstate, syncerror_t newSyncError, bool fireDisableEvent)
+{
+    error e = API_OK;
+
+    if (!syncConfigs)
+    {
+        LOG_err << "no SyncConfig upon changeSyncState";
+        e = API_ENOENT;
+    }
+    auto config = syncConfigs?syncConfigs->get(tag):nullptr;
+    assert(config);
+    if (config)
+    {
+        auto isEnabled = [](syncstate_t state, syncerror_t error) -> bool
+        {
+            return state != SYNC_CANCELED && (state != SYNC_DISABLED || error != NO_ERROR );
+        };
+
+        if ( (config->getError() != newSyncError) || (config->getEnabled() != isEnabled(newstate, newSyncError)) )
+        {
+            e = saveAndUpdateSyncConfig(config, newstate, newSyncError);
+        }
+    }
+    else
+    {
+        e = API_ENOENT;
+    }
+
+    app->syncupdate_state(tag, newstate, newSyncError, fireDisableEvent);
+}
+
 
 void MegaClient::failSync(Sync* sync, syncerror_t syncerror)
 {
-    sync->changestate(SYNC_FAILED, syncerror);
+    sync->changestate(SYNC_FAILED, syncerror); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
 
     syncactivity = true;
 }
-
 
 void MegaClient::disableSync(Sync* sync, syncerror_t syncError)
 {
@@ -13696,6 +13796,23 @@ void MegaClient::disableSync(Sync* sync, syncerror_t syncError)
     syncactivity = true;
 }
 
+void MegaClient::failSyncs(syncerror_t syncError)
+{
+    for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
+    {
+        (*it)->changestate(SYNC_DISABLED, syncError); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
+    }
+    syncactivity = true;
+}
+
+void MegaClient::disableSyncs(syncerror_t syncError)
+{
+    for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++) //Note: we are not disabling inactive syncs!
+    {
+        (*it)->changestate(SYNC_FAILED, syncError);//This will cause the later deletion of Sync (not MegaSyncPrivate) object
+    }
+    syncactivity = true;
+}
 void MegaClient::putnodes_syncdebris_result(error, NewNode* nn)
 {
     delete[] nn;

@@ -537,13 +537,30 @@ public:
     // add sync. Will fill syncError in case there is one
     error addsync(SyncConfig, const char*, string*, int &syncError, void* = NULL);
 
+    // removes an active sync
     void delsync(Sync*);
+
+    //TODO: doc all these
+
+    error removeSyncConfig(int tag);
+    error removeSyncConfigByNodeHandle(handle nodeHandle);
+    error saveAndUpdateSyncConfig(const SyncConfig *config, syncstate_t newstate, syncerror_t syncerror);
+
 
     void failSync(Sync* sync, syncerror_t syncerror);
 
     // disable synchronization.
     // If no error passed, it entails a manual disable: won't be resumed automatically anymore, but it will be kept in cache
     void disableSync(Sync*, syncerror_t syncError =  NO_ERROR);
+
+    void failSyncs(syncerror_t syncError =  NO_ERROR);
+    void disableSyncs(syncerror_t syncError =  NO_ERROR);
+
+    void restoreSyncs();
+
+    //TODO: doc
+    error changeSyncState(int tag, syncstate_t newstate, syncerror_t newSyncError, bool fireDisableEvent = true);
+
 
     // close all open HTTP connections
     void disconnect();
