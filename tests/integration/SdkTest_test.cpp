@@ -3736,7 +3736,6 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
             {
                 t.reset();
                 lastOnTranferFinishedCount = onTranferFinishedCount;
-                cout << "new download" << endl;
                 deleteFile(filename.c_str());
                 onTransferUpdate_progress = 0;
                 onTransferUpdate_filesize = 0;
