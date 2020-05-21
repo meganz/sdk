@@ -167,30 +167,28 @@ bool FileSystemAccess::islocalfscompatible(unsigned char c, const FileSystemType
     }
 }
 
-string FileSystemAccess::getValidPath(const string *path) const
+void FileSystemAccess::getValidPath(const string *path, string &validPath) const
 {
-    string validPath = path ? (*path) : "";
-    string separator = getPathSeparator();
-    if (separator != "/" && separator != "\\")
+    if (!path || path->empty())
     {
-        return validPath;
+        return;
     }
 
-    if (!validPath.empty())
+    string separator = getPathSeparator();
+    for (size_t i = 0; i < separator.size(); i++)
     {
-        size_t pos = validPath.rfind(separator);
-        if (pos != std::string::npos && pos != validPath.size() - 1)
+        size_t pos = path->rfind(separator[i]);
+        if (pos != std::string::npos && pos != path->size() - 1)
         {
-            validPath = validPath.substr(0, pos + 1);
+            validPath = path->substr(0, pos + 1);
+            return;
         }
     }
-    return validPath;
 }
 
 // replace characters that are not allowed in local fs names with a %xx escape sequence
 void FileSystemAccess::escapefsincompatible(string* name, const string *dstPath) const
 {
-    string validPath = getValidPath(dstPath);
     if (!name->compare(".."))
     {
         name->replace(0, 2, "%2e%2e");
@@ -202,6 +200,8 @@ void FileSystemAccess::escapefsincompatible(string* name, const string *dstPath)
         return;
     }
 
+    string validPath;
+    getValidPath(dstPath, validPath);
     char buf[4];
     FileSystemType fileSystemType = getlocalfstype(&validPath);
     size_t utf8seqsize = 0;
@@ -227,7 +227,6 @@ void FileSystemAccess::escapefsincompatible(string* name, const string *dstPath)
 
 void FileSystemAccess::unescapefsincompatible(string *name, const string *localPath) const
 {
-    string validPath = getValidPath(localPath);
     if (!name->compare("%2e%2e"))
     {
         name->replace(0, 6, "..");
@@ -239,6 +238,8 @@ void FileSystemAccess::unescapefsincompatible(string *name, const string *localP
         return;
     }
 
+    string validPath;
+    getValidPath(localPath, validPath);
     FileSystemType fileSystemType = getlocalfstype(&validPath);
     for (int i = int(name->size()) - 2; i-- > 0; )
     {
@@ -259,7 +260,7 @@ void FileSystemAccess::unescapefsincompatible(string *name, const string *localP
     }
 }
 
-std::string FileSystemAccess::getPathSeparator()
+const char *FileSystemAccess::getPathSeparator()
 {
 #if defined (__linux__) || defined (__ANDROID__) || defined  (__APPLE__) || defined (USE_IOS)
 return "/";

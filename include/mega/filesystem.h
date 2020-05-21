@@ -295,7 +295,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     void escapefsincompatible(string*, const std::string *dstPath = nullptr) const;
     // Path can contains filename or debris directory, so if last path character
     // is not path separator remove last level
-    string getValidPath(const string *path) const;
+    void getValidPath(const string *path, std::string &validPath) const;
     const char *fstypetostring(const FileSystemType type) const;
     FileSystemType getlocalfstype(const std::string *dstPath) const;
     void unescapefsincompatible(string*, const std::string *) const;
@@ -311,8 +311,8 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // convert local path to MEGA format (UTF-8) with unescaping
     void name2local(string*, const std::string *dstPath = nullptr) const;
 
-    // returns a string that contains the separator character for the target system
-    static std::string getPathSeparator();
+    // returns a const char pointer that contains the separator character for the target system
+    static const char *getPathSeparator();
 
     //Normalize UTF-8 string
     void normalize(string *) const;
