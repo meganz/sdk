@@ -204,7 +204,8 @@ void FileSystemAccess::escapefsincompatible(string* name, const string *dstPath)
 
     char buf[4];
     FileSystemType fileSystemType = getlocalfstype(&validPath);
-    size_t utf8seqsize = 0, i = 0;
+    size_t utf8seqsize = 0;
+    size_t i = 0;
     unsigned char c = '0';
     while (i < name->size())
     {
