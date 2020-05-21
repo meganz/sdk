@@ -2663,8 +2663,12 @@ protected:
          */
         void updateMegaSyncPrivateState(MegaSyncPrivate*, syncstate_t, syncerror_t, bool fireDisableEvent = true);
 
-        // to update/create db entry associated to a sync
-        void saveSyncConfig(MegaSyncPrivate *megaSync);
+        /**
+         * @brief to update/create db entry associated to a sync
+         * @param megaSync
+         * @param config use this config (for new entries)
+         */
+        void saveSyncConfig(MegaSyncPrivate *megaSync, const SyncConfig *config = nullptr);
 #endif
 
 #ifdef ENABLE_CHAT

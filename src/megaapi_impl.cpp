@@ -12565,11 +12565,14 @@ void MegaApiImpl::folderlinkinfo_result(error e, handle owner, handle /*ph*/, st
 }
 
 #ifdef ENABLE_SYNC
-void MegaApiImpl::saveSyncConfig(MegaSyncPrivate *megaSync)
+void MegaApiImpl::saveSyncConfig(MegaSyncPrivate *megaSync, const SyncConfig *config)
 {
     if (client->syncConfigs)
     {
-        const auto config = client->syncConfigs->get(megaSync->getLocalFolder());
+        if (!config)
+        {
+            config = client->syncConfigs->get(megaSync->getLocalFolder());
+        }
         assert(config);
         auto newConfig = *config;
         newConfig.setEnabled(megaSync->isEnabled());
@@ -20833,7 +20836,7 @@ void MegaApiImpl::sendPendingRequests()
                                   regExpToVector(request->getRegExp())};
 
             int syncError = 0;
-            e = client->addsync(std::move(syncConfig), DEBRISFOLDER, NULL, syncError, sync);
+            e = client->addsync(syncConfig, DEBRISFOLDER, NULL, syncError, sync);
             request->setNumDetails(syncError); //TODO: doc this
             if (!e)
             {
@@ -20845,7 +20848,7 @@ void MegaApiImpl::sendPendingRequests()
                 request->setNumber(fsfp);
                 syncMap[nextSyncTag] = sync;
 
-                saveSyncConfig(sync);
+                saveSyncConfig(sync, &syncConfig);
 
                 fireOnSyncAdded(sync, MegaSync::NEW); //TODO: pass NEW_SYNC
                 fireOnRequestFinish(request, MegaError(API_OK));
@@ -23452,7 +23455,7 @@ void MegaSyncPrivate::disable(int error)
 
 bool MegaSyncPrivate::isEnabled() const
 {
-    return state != SYNC_DISABLED || mError != NO_ERROR;
+    return state != SYNC_CANCELED && (state != SYNC_DISABLED || mError != NO_ERROR );
 }
 
 bool MegaSyncPrivate::isActive() const

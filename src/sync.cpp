@@ -960,9 +960,12 @@ void Sync::cachenodes()
 
 void Sync::changestate(syncstate_t newstate, syncerror_t newSyncError)
 {
-    if (newstate != state || newSyncError != errorcode )
+    if (newstate != state || newSyncError != errorcode)
     {
-        client->app->syncupdate_state(this, newstate, newSyncError);
+        if (newstate != SYNC_CANCELED)
+        {
+            client->app->syncupdate_state(this, newstate, newSyncError);
+        }
 
         state = newstate;
         errorcode = newSyncError;

@@ -4802,7 +4802,7 @@ public:
         //TODO: fully review if those states are enough!
         SYNC_DISABLED = -3, //disabled by the user.TODO: docs
         SYNC_FAILED = -2,
-        SYNC_CANCELED = -1,
+        SYNC_CANCELED = -1, //removed
         SYNC_INITIALSCAN = 0,
         SYNC_ACTIVE
     };
