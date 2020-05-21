@@ -156,8 +156,8 @@ bool FileSystemAccess::islocalfscompatible(unsigned char c, const FileSystemType
             // ext2/ext3/ext4 restricted characters =>  / NULL
             return c != '\x00' && c != '\x2F';
         case FS_FAT32:
-            // FAT32 restricted characters => " * / : < > ? \ | + , . ; = [ ]
-            return !strchr("\\/:?\"<>|*+,.;=[]", c);
+            // FAT32 restricted characters => " * / : < > ? \ | + , ; = [ ]
+            return !strchr("\\/:?\"<>|*+,;=[]", c);
         case FS_EXFAT:
         case FS_NTFS:
         case FS_DEFAULT:
