@@ -11814,6 +11814,7 @@ void MegaClient::purgenodesusersabortsc(bool keepOwnUser)
 
     mOptimizePurgeNodes = true;
     mFingerprints.clear();
+    mNodeCounters.clear();
     for (node_map::iterator it = nodes.begin(); it != nodes.end(); it++)
     {
         delete it->second;

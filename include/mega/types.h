@@ -314,9 +314,14 @@ typedef map<FileFingerprint*, Transfer*, FileFingerprintCmp> transfer_map;
 template <class T, class E>
 class deque_with_lazy_bulk_erase
 {
+    // This is a wrapper class for deque.  Erasing an element from the middle of a deque is not cheap since all the subsequent elements need to be shuffled back.
+    // This wrapper intercepts the erase() calls for single items, and instead marks each one as 'erased'.  
+    // The supplied template class E contains the normal deque entry T, plus a flag or similar to mark an entry erased.
+    // Any other operation on the deque performs all the gathered erases in a single std::remove_if for efficiency.
+    // This makes an enormous difference when cancelling 100k transfers in MEGAsync's transfers window for example.
     deque<E> mDeque;
+    bool mErasing = false;
 
-    bool erasing = false;
 public:
 
     typedef typename deque<E>::iterator iterator;
@@ -325,26 +330,26 @@ public:
     {
         assert(i != mDeque.end());
         i->erase();
-        erasing = true;
+        mErasing = true;
     }
 
     void applyErase()
     {
-        if (erasing)
+        if (mErasing)
         {
             auto newEnd = std::remove_if(mDeque.begin(), mDeque.end(), [](const E& e) { return e.isErased(); } );
             mDeque.erase(newEnd, mDeque.end());
-            erasing = false;
+            mErasing = false;
         }
     }
 
-    size_t size() { applyErase(); return mDeque.size(); }
+    size_t size()                                        { applyErase(); return mDeque.size(); }
     iterator begin(bool canHandleErasedElements = false) { if (!canHandleErasedElements) applyErase(); return mDeque.begin(); }
-    iterator end(bool canHandleErasedElements = false) { if (!canHandleErasedElements) applyErase(); return mDeque.end(); }
-    void push_front(T t) { applyErase(); mDeque.push_front(E(t)); }
-    void push_back(T t) { applyErase(); mDeque.push_back(E(t)); }
-    void insert(iterator i, T t) { applyErase(); mDeque.insert(i, E(t)); }
-    T& operator[](size_t n) { applyErase(); return mDeque[n]; }
+    iterator end(bool canHandleErasedElements = false)   { if (!canHandleErasedElements) applyErase(); return mDeque.end(); }
+    void push_front(T t)                                 { applyErase(); mDeque.push_front(E(t)); }
+    void push_back(T t)                                  { applyErase(); mDeque.push_back(E(t)); }
+    void insert(iterator i, T t)                         { applyErase(); mDeque.insert(i, E(t)); }
+    T& operator[](size_t n)                              { applyErase(); return mDeque[n]; }
 
 };
 

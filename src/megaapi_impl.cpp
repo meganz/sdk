@@ -16955,7 +16955,7 @@ MegaNodeList *MegaApiImpl::getChildren(MegaNode* p, int order)
             std::sort(childrenNodes.begin(), childrenNodes.end(), comparatorFunction);
         }
     }
-    return new MegaNodeListPrivate(childrenNodes.data(), int(childrenNodes.size()));;
+    return new MegaNodeListPrivate(childrenNodes.data(), int(childrenNodes.size()));
 }
 
 MegaNodeList *MegaApiImpl::getVersions(MegaNode *node)
