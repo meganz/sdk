@@ -47,7 +47,7 @@ enum
 #endif
 
 // Enumeration for filesystem families
-enum FileSystem {FS_DEFAULT = -1, FS_APPLE = 0, FS_UNIX = 1, FS_FAT32 = 2, FS_WIN = 3};
+enum FileSystem {FS_DEFAULT = -1, FS_APFS = 0, FS_HFS = 1, FS_EXT = 2, FS_FAT32 = 3, FS_EXFAT = 4, FS_NTFS = 5};
 
 // generic host filesystem node ID interface
 struct MEGA_API FsNodeId

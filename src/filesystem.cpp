@@ -52,14 +52,18 @@ const char *FileSystemAccess::fstypetostring(int type) const
 {
     switch (type)
     {
-        case FS_UNIX:
-            return "UNIX";
+        case FS_NTFS:
+            return "NTFS";
+        case FS_EXFAT:
+            return "EXFAT";
         case FS_FAT32:
             return "FAT32";
-        case FS_APPLE:
-            return "APPLE";
-        case FS_WIN:
-            return "WINDOWS";
+        case FS_EXT:
+            return "EXT";
+        case FS_HFS:
+            return "HFS";
+        case FS_APFS:
+            return "APFS";
         default:
             return "DEFAULT FS";
     }
@@ -79,13 +83,13 @@ int FileSystemAccess::getlocalfstype(const string *dstPath) const
         switch (fileStat.f_type)
         {
             case EXT2_SUPER_MAGIC:
-                return FS_UNIX;
+                return FS_EXT;
             case MSDOS_SUPER_MAGIC:
                 return FS_FAT32;
             case HFS_SUPER_MAGIC:
-                return FS_APPLE;
+                return FS_HFS;
             case NTFS_SB_MAGIC:
-                return FS_WIN;
+                return FS_NTFS;
             default:
                 return FS_DEFAULT;
         }
@@ -94,14 +98,17 @@ int FileSystemAccess::getlocalfstype(const string *dstPath) const
     struct statfs fileStat;
     if (!statfs(dstPath->c_str(), &fileStat))
     {
-        if (!strcmp(fileStat.f_fstypename, "apfs")
-                || !strcmp(fileStat.f_fstypename, "hfs"))
+        if (!strcmp(fileStat.f_fstypename, "apfs"))
         {
-            return FS_APPLE;
+            return FS_APFS;
+        }
+        if (!strcmp(fileStat.f_fstypename, "hfs"))
+        {
+            return FS_HFS;
         }
         if (!strcmp(fileStat.f_fstypename, "ntfs"))
         {
-            return FS_WIN;
+            return FS_NTFS;
         }
         if (!strcmp(fileStat.f_fstypename, "msdos"))
         {
@@ -119,12 +126,15 @@ int FileSystemAccess::getlocalfstype(const string *dstPath) const
                              &serialNumber, &maxComponentLen, &fileSystemFlags,
                              fileSystemName, sizeof(fileSystemName)) == true)
     {
-        if (!strcmp(fileSystemName, "NTFS")
-                || !strcmp(fileSystemName, "exFAT"))
+        if (!strcmp(fileSystemName, "NTFS"))
         {
-            return FS_WIN;
+            return FS_NTFS;
         }
-        else if (!strcmp(fileSystemName, "FAT32"))
+        if (!strcmp(fileSystemName, "exFAT"))
+        {
+            return FS_EXFAT;
+        }
+        if (!strcmp(fileSystemName, "FAT32"))
         {
             return FS_FAT32;
         }
@@ -143,18 +153,20 @@ bool FileSystemAccess::islocalfscompatible(unsigned char c, int fileSystemType) 
 {
     switch (fileSystemType)
     {
-        case FS_APPLE:
+        case FS_APFS:
+        case FS_HFS:
             // APFS, HFS, HFS+ restricted characters => :
             return c != '\x3A';
-        case FS_UNIX:
+        case FS_EXT:
             // ext2/ext3/ext4 restricted characters =>  / NULL
             return c != '\x00' && c != '\x2F';
         case FS_FAT32:
             // FAT32 restricted characters => " * / : < > ? \ | + , . ; = [ ]
             return !strchr("\\/:?\"<>|*+,.;=[]", c);
-        case FS_WIN:
+        case FS_EXFAT:
+        case FS_NTFS:
         default:
-            // NTFS restricted characters => " * / : < > ? \ |
+            // ExFAT, NTFS restricted characters => " * / : < > ? \ |
             // If filesystem couldn't be detected we'll use a restrictive charset to avoid issues.
             return !strchr("\\/:?\"<>|*", c);
     }
