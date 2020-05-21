@@ -694,7 +694,8 @@ bool RaidBufferManager::FilePiece::finalize(bool parallel, m_off_t filesize, int
     }
 
     finalized = !queueParallel;
-    if (finalized) finalizedCV.notify_one();
+    if (finalized)
+        finalizedCV.notify_one();
 
     return queueParallel;
 }
