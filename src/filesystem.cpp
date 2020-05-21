@@ -214,12 +214,12 @@ void FileSystemAccess::escapefsincompatible(string* name, const string *dstPath)
         assert (utf8seqsize);
         if (utf8seqsize == 1 && !islocalfscompatible(c, fileSystemType))
         {
-            std::string inc = name->substr(i, 1);
+            const char incompatibleChar = name->at(i);
             sprintf(buf, "%%%02x", c);
             name->replace(i, 1, buf);
             LOG_debug << "Escape incompatible character for filesystem type "
                       << fstypetostring(fileSystemType)
-                      << ", replace '" << inc << "' by '" << buf << "'\n";
+                      << ", replace '" << std::string(&incompatibleChar, 1) << "' by '" << buf << "'\n";
         }
         i += utf8seqsize;
     }
@@ -249,11 +249,11 @@ void FileSystemAccess::unescapefsincompatible(string *name, const string *localP
 
             if (!islocalfscompatible(static_cast<unsigned char>(c), fileSystemType))
             {
-                std::string inc = name->substr(i, 3);
+                std::string incompatibleChar = name->substr(i, 3);
                 name->replace(i, 3, &c, 1);
                 LOG_debug << "Unescape incompatible character for filesystem type "
                           << fstypetostring(fileSystemType)
-                          << ", replace '" << inc << "' by '" << name->substr(i, 1) << "'\n";
+                          << ", replace '" << incompatibleChar << "' by '" << name->substr(i, 1) << "'\n";
             }
         }
     }
