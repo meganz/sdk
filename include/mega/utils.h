@@ -508,8 +508,8 @@ std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &
 // immediately executed synchronously on the caller's thread
 struct MegaClientAsyncQueue
 {
-    void push(std::function<void(SymmCipher&)> f);
-    void clearQueue();
+    void push(std::function<void(SymmCipher&)> f, bool discardable);
+    void clearDiscardable();
 
     MegaClientAsyncQueue(Waiter& w, unsigned threadCount);
     ~MegaClientAsyncQueue();
@@ -518,7 +518,17 @@ private:
     Waiter& mWaiter;
     std::mutex mMutex;
     std::condition_variable mConditionVariable;
-    std::deque<std::function<void(SymmCipher&)>> mQueue;
+    
+    struct Entry
+    {
+        bool discardable = false;
+        std::function<void(SymmCipher&)> f;
+        Entry(bool disc, std::function<void(SymmCipher&)>&& func)
+             : discardable(disc), f(func)
+        {}
+    };
+
+    std::deque<Entry> mQueue;
     std::vector<std::thread> mThreads;
     SymmCipher mZeroThreadsCipher;
 
