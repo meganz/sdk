@@ -202,9 +202,10 @@ TransferSlot::~TransferSlot()
         {
             if (HttpReqDL *downloadRequest = static_cast<HttpReqDL*>(reqs[i].get()))
             {
-                switch (downloadRequest->status)
+                switch (static_cast<reqstatus_t>(downloadRequest->status))
                 {
                     case REQ_INFLIGHT:
+                    {
                         if (fa && downloadRequest && downloadRequest->status == REQ_INFLIGHT
                             && downloadRequest->contentlength == downloadRequest->size
                             && downloadRequest->bufpos >= SymmCipher::BLOCKSIZE)
@@ -214,14 +215,19 @@ TransferSlot::~TransferSlot()
                             transferbuf.submitBuffer(i, new TransferBufferManager::FilePiece(downloadRequest->dlpos, buf)); // resets size & bufpos of downloadrequest.
                         }
                         break;
+                    }
 
                     case REQ_DECRYPTING:
+                    {
                         LOG_info << "Waiting for block decryption";
                         std::mutex finalizedMutex; 
                         std::unique_lock<std::mutex> guard(finalizedMutex);
                         auto outputPiece = transferbuf.getAsyncOutputBufferPointer(i);
                         outputPiece->finalizedCV.wait(guard, [&](){ return outputPiece->finalized; });
                         downloadRequest->status = REQ_DECRYPTED;
+                        break;
+                    }
+                    default:
                         break;
                 }
             }
