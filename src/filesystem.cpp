@@ -154,7 +154,7 @@ void FileSystemAccess::normalize(string* filename) const
         i += strlen(substring);
     }
 
-    *filename = result;
+    *filename = std::move(result);
 }
 
 // convert from local encoding, then unescape escaped forbidden characters
@@ -165,6 +165,16 @@ void FileSystemAccess::local2name(string* filename) const
     local2path(&t, filename);
 
     unescapefsincompatible(filename);
+}
+
+std::unique_ptr<string> FileSystemAccess::fsShortname(string& localname)
+{
+    string s;
+    if (getsname(&localname, &s))
+    {
+        return ::mega::make_unique<string>(std::move(s));
+    }
+    return nullptr;
 }
 
 // default DirNotify: no notification available
@@ -602,6 +612,41 @@ void AsyncIOContext::finish()
         // We could have been consumed and external event
         waiter->notify();
     }
+}
+
+FileInputStream::FileInputStream(FileAccess *fileAccess)
+{
+    this->fileAccess = fileAccess;
+    this->offset = 0;
+}
+
+m_off_t FileInputStream::size()
+{
+    return fileAccess->size;
+}
+
+bool FileInputStream::read(byte *buffer, unsigned size)
+{
+    if (!buffer)
+    {
+        if ((offset + size) <= fileAccess->size)
+        {
+            offset += size;
+            return true;
+        }
+
+        LOG_warn << "Invalid seek on FileInputStream";
+        return false;
+    }
+
+    if (fileAccess->frawread(buffer, size, offset, true))
+    {
+        offset += size;
+        return true;
+    }
+
+    LOG_warn << "Invalid read on FileInputStream";
+    return false;
 }
 
 } // namespace

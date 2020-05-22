@@ -213,7 +213,7 @@ void SdkTest::SetUp()
 
     if (megaApi[0].get() == NULL)
     {
-        megaApi[0].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str()));
+        megaApi[0].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str(), THREADS_PER_MEGACLIENT));
         mApi[0].megaApi = megaApi[0].get();
 
         megaApi[0]->setLoggingName("0");
@@ -274,7 +274,7 @@ int SdkTest::getApiIndex(MegaApi* api)
     for (int i = int(megaApi.size()); i--; )  if (megaApi[i].get() == api) apiIndex = i;
     if (apiIndex == -1)
     {
-        LOG_err << "Instance of MegaApi not recognized";
+        LOG_warn << "Instance of MegaApi not recognized";   // does happen during shutdown
     }
     return apiIndex;
 }
@@ -289,6 +289,9 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
     if (apiIndex < 0) return;
     mApi[apiIndex].requestFlags[request->getType()] = true;
     mApi[apiIndex].lastError = e->getErrorCode();
+
+    // there could be a race on these getting set?
+    LOG_info << "lastError (by request) for MegaApi " << apiIndex << ": " << mApi[apiIndex].lastError;
 
     switch(request->getType())
     {
@@ -465,7 +468,13 @@ void SdkTest::onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* 
     if (apiIndex < 0) return;
 
     mApi[apiIndex].transferFlags[transfer->getType()] = true;
-    mApi[apiIndex].lastError = e->getErrorCode();
+    mApi[apiIndex].lastError = e->getErrorCode();   // todo: change the rest of the transfer test code to use lastTransferError instead.
+    mApi[apiIndex].lastTransferError = e->getErrorCode();
+
+    // there could be a race on these getting set?
+    LOG_info << "lastError (by transfer) for MegaApi " << apiIndex << ": " << mApi[apiIndex].lastError;
+
+    onTranferFinishedCount += 1;
 
     if (mApi[apiIndex].lastError == MegaError::API_OK)
         mApi[apiIndex].h = transfer->getNodeHandle();
@@ -712,8 +721,9 @@ bool SdkTest::synchronousTransfer(unsigned apiIndex, int type, std::function<voi
     flag = false;
     f();
     auto result = waitForResponse(&flag, timeout);
-    EXPECT_TRUE(result) << "Transfer (type " << type << ") failed after " << timeout << " seconds";
+    EXPECT_TRUE(result) << "Transfer (type " << type << ") not finished yet after " << timeout << " seconds";
     if (!result) mApi[apiIndex].lastError = -999; // local timeout
+    if (!result) mApi[apiIndex].lastTransferError = -999; // local timeout    TODO: switch all transfer code to use lastTransferError .  Some still uses lastError
     return result;
 }
 
@@ -786,7 +796,7 @@ void SdkTest::getMegaApiAux(unsigned index)
         }
         ASSERT_LT((size_t) 0, mApi[index].pwd.length()) << "Set the auxiliar password at the environment variable $MEGA_PWD_AUX" << strIndex;
 
-        megaApi[index].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(index).c_str(), USER_AGENT.c_str()));
+        megaApi[index].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(index).c_str(), USER_AGENT.c_str(), THREADS_PER_MEGACLIENT));
         mApi[index].megaApi = megaApi[index].get();
 
         megaApi[index]->setLoggingName(to_string(index).c_str());
@@ -1866,30 +1876,6 @@ TEST_F(SdkTest, SdkTestContacts)
     delete u;
 }
 
-/**
- * @brief TEST_F SdkTestShares
- *
- * Initialize a test scenario by:
- *
- * - Creating/uploading some folders/files to share
- * - Creating a new contact to share to
- *
- * Performs different operations related to sharing:
- *
- * - Share a folder with an existing contact
- * - Check the correctness of the outgoing share
- * - Check the reception and correctness of the incoming share
- * - Modify the access level
- * - Revoke the access to the share
- * - Share a folder with a non registered email
- * - Check the correctness of the pending outgoing share
- * - Create a file public link
- * - Import a file public link
- * - Get a node from a file public link
- * - Remove a public link
- * - Create a folder public link
- */
-
 bool SdkTest::checkAlert(int apiIndex, const string& title, const string& path)
 {
     bool ok = false;
@@ -1950,7 +1936,29 @@ bool SdkTest::checkAlert(int apiIndex, const string& title, handle h, int n)
     return ok;
 }
 
-
+/**
+ * @brief TEST_F SdkTestShares
+ *
+ * Initialize a test scenario by:
+ *
+ * - Creating/uploading some folders/files to share
+ * - Creating a new contact to share to
+ *
+ * Performs different operations related to sharing:
+ *
+ * - Share a folder with an existing contact
+ * - Check the correctness of the outgoing share
+ * - Check the reception and correctness of the incoming share
+ * - Modify the access level
+ * - Revoke the access to the share
+ * - Share a folder with a non registered email
+ * - Check the correctness of the pending outgoing share
+ * - Create a file public link
+ * - Import a file public link
+ * - Get a node from a file public link
+ * - Remove a public link
+ * - Create a folder public link
+ */
 TEST_F(SdkTest, SdkTestShares)
 {
     LOG_info << "___TEST Shares___";
@@ -1999,21 +2007,15 @@ TEST_F(SdkTest, SdkTestShares)
 
     MegaNode *nNoAuth = megaApi[0]->getNodeByHandle(hfile1);
 
-    mApi[1].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
-    megaApi[1]->startDownload(nNoAuth, "unauthorized_node");
-    ASSERT_TRUE( waitForResponse(&mApi[1].transferFlags[MegaTransfer::TYPE_DOWNLOAD], 600) )
-            << "Download transfer not finished after " << maxTimeout << " seconds";
+    int transferError = synchronousStartDownload(1, nNoAuth, "unauthorized_node");
 
-    bool hasFailed = (mApi[1].lastError != API_OK);
+    bool hasFailed = (transferError != API_OK);
     ASSERT_TRUE(hasFailed) << "Download of node without authorization successful! (it should fail)";
 
     MegaNode *nAuth = megaApi[0]->authorizeNode(nNoAuth);
 
-    mApi[1].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
-    megaApi[1]->startDownload(nAuth, "authorized_node");
-    ASSERT_TRUE( waitForResponse(&mApi[1].transferFlags[MegaTransfer::TYPE_DOWNLOAD], 600) )
-            << "Download transfer not finished after " << maxTimeout << " seconds";
-    ASSERT_EQ(MegaError::API_OK, mApi[1].lastError) << "Cannot download authorized node (error: " << mApi[1].lastError << ")";
+    transferError = synchronousStartDownload(1, nAuth, "authorized_node");
+    ASSERT_EQ(MegaError::API_OK, transferError) << "Cannot download authorized node (error: " << mApi[1].lastError << ")";
 
     delete nNoAuth;
     delete nAuth;
@@ -3494,7 +3496,11 @@ static void incrementFilename(string& s)
 struct second_timer 
 {
     m_time_t t;
+    m_time_t pause_t;
     second_timer() { t = m_time(); }
+    void reset () { t = m_time(); }
+    void pause() { pause_t = m_time(); }
+    void resume() { t += m_time() - pause_t; }
     size_t elapsed() { return size_t(m_time() - t); }
 };
 
@@ -3654,7 +3660,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
     // smaller chunk sizes so we can get plenty of pauses
     #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
     globalMegaTestHooks.onSetIsRaid = ::mega::DebugTestHook::onSetIsRaid_morechunks;
-#endif
+    #endif
 
     // plain cloudraid download
     {
@@ -3692,7 +3698,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
     // cloudraid download with periodic full exit and resume from session ID
     // plain cloudraid download
     {
-        megaApi[0]->setMaxDownloadSpeed(32 * 1024 * 1024 * 8 / 120 / 2); // should take 1 minute (enough time for 3 exit/resume)
+        megaApi[0]->setMaxDownloadSpeed(32 * 1024 * 1024 * 8 / 30); // should take 30 seconds, not counting exit/resume session
         mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
         megaApi[0]->startDownload(nimported, filename.c_str());
 
@@ -3703,7 +3709,9 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
         m_off_t lastprogress = 0;
         unsigned exitresumecount = 0;
         second_timer t;
-        while (t.elapsed() < 120 && (onTransferUpdate_filesize == 0 || onTransferUpdate_progress < onTransferUpdate_filesize))
+        auto initialOnTranferFinishedCount = onTranferFinishedCount;
+        auto lastOnTranferFinishedCount = onTranferFinishedCount;
+        while (t.elapsed() < 180 && onTranferFinishedCount < initialOnTranferFinishedCount + 2)
         {
             if (onTransferUpdate_progress > lastprogress + onTransferUpdate_filesize/6)
             {
@@ -3711,20 +3719,35 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
                 exitresumecount += 1;
                 WaitMillisec(100);
                 
-                megaApi[0].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str()));
+                megaApi[0].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str(), THREADS_PER_MEGACLIENT));
                 mApi[0].megaApi = megaApi[0].get();
                 megaApi[0]->setLogLevel(MegaApi::LOG_LEVEL_DEBUG);
                 megaApi[0]->addListener(this);
-                megaApi[0]->setMaxDownloadSpeed(32 * 1024 * 1024 * 8 / 120 / 2); // should take 1 minute (enough time for 3 exit/resume)
+                megaApi[0]->setMaxDownloadSpeed(32 * 1024 * 1024 * 8 / 30); // should take 30 seconds, not counting exit/resume session
 
+                t.pause();
                 ASSERT_NO_FATAL_FAILURE(resumeSession(sessionId.c_str()));
                 ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+                t.resume();
+
                 lastprogress = onTransferUpdate_progress;
             }
-            WaitMillisec(100);
+            else if (onTranferFinishedCount > lastOnTranferFinishedCount)
+            {
+                t.reset();
+                lastOnTranferFinishedCount = onTranferFinishedCount;
+                deleteFile(filename.c_str());
+                onTransferUpdate_progress = 0;
+                onTransferUpdate_filesize = 0;
+                lastprogress = 0;
+                mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
+                megaApi[0]->startDownload(nimported, filename.c_str());
+            }
+            WaitMillisec(1);
         }
-        ASSERT_TRUE(onTransferUpdate_progress == onTransferUpdate_filesize);
-        ASSERT_GE(exitresumecount, 3u);
+        ASSERT_EQ(onTransferUpdate_progress, onTransferUpdate_filesize);
+        ASSERT_EQ(initialOnTranferFinishedCount + 2, onTranferFinishedCount);
+        ASSERT_GE(exitresumecount, 6u);
         ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], 1)) << "Download cloudraid transfer with pauses failed";
         ASSERT_EQ(MegaError::API_OK, mApi[0].lastError) << "Cannot download the cloudraid file (error: " << mApi[0].lastError << ")";
     }
@@ -3830,7 +3853,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
         ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], 180)) << "Cloudraid download with timeout errors timed out (180 seconds)";
         ASSERT_EQ(MegaError::API_OK, mApi[0].lastError) << "Cannot download the cloudraid file (error: " << mApi[0].lastError << ")";
         ASSERT_GE(onTransferUpdate_filesize, 0u);
-        ASSERT_TRUE(onTransferUpdate_progress == onTransferUpdate_filesize);
+        ASSERT_EQ(onTransferUpdate_progress, onTransferUpdate_filesize);
         ASSERT_LT(DebugTestHook::countdownToTimeout, 0);
     }
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";

@@ -75,8 +75,10 @@ struct Model
         enum nodetype { file, folder };
         nodetype type = folder;
         string name;
+        vector<uint8_t> data;
         vector<unique_ptr<ModelNode>> kids;
         ModelNode* parent = nullptr;
+
         string path() 
         {
             string s;
@@ -117,13 +119,28 @@ struct Model
         return n;
     }
 
-    unique_ptr<ModelNode> makeModelSubfile(const string& utf8Name)
+    unique_ptr<ModelNode> makeModelSubfile(const string& u8name, const void *data, const size_t data_length)
     {
-        unique_ptr<ModelNode> n(new ModelNode);
-        n->name = utf8Name;
-        n->type = ModelNode::file;
-        return n;
+        unique_ptr<ModelNode> node(new ModelNode());
+        const uint8_t * const m = reinterpret_cast<const uint8_t *>(data);
+
+        node->name = u8name;
+        node->data.assign(m, m + data_length);
+        node->type = ModelNode::file;
+
+        return node;
     }
+
+    unique_ptr<ModelNode> makeModelSubfile(const string& u8name, const std::vector<uint8_t> &data)
+    {
+        return makeModelSubfile(u8name, data.data(), data.size());
+    }
+
+    unique_ptr<ModelNode> makeModelSubfile(const string& u8name)
+    {
+        return makeModelSubfile(u8name, u8name.data(), u8name.size());
+    }
+
 
     unique_ptr<ModelNode> buildModelSubdirs(const string& prefix, int n, int recurselevel, int filesperdir)
     {
@@ -353,12 +370,15 @@ struct StandardClient : public MegaApp
 #else
             NULL,
 #endif
-            "N9tSBJDC", USER_AGENT.c_str())
+            "N9tSBJDC", USER_AGENT.c_str(), THREADS_PER_MEGACLIENT )
         , clientname(name)
         , fsBasePath(basepath / fs::u8path(name))
         , clientthread([this]() { threadloop(); })
     {
         client.clientname = clientname + " ";
+#ifdef GFX_CLASS
+        gfx.startProcessingThread();
+#endif
     }
 
     ~StandardClient()
@@ -367,7 +387,7 @@ struct StandardClient : public MegaApp
         thread_do([](MegaClient& mc, promise<bool>&) { 
             #ifdef _WIN32
                 // logout stalls in windows due to the issue above
-                mc.purgenodesusersabortsc(); 
+                mc.purgenodesusersabortsc(false); 
             #else
                 mc.logout();
             #endif
@@ -383,7 +403,7 @@ struct StandardClient : public MegaApp
         thread_do([](MegaClient& mc, promise<bool>&) {
             #ifdef _WIN32
                 // logout stalls in windows due to the issue above
-                mc.purgenodesusersabortsc();
+                mc.purgenodesusersabortsc(false);
             #else
                 mc.locallogout(false);
             #endif
@@ -1025,11 +1045,18 @@ struct StandardClient : public MegaApp
 
         if (pathtype == FILENODE && p.filename().u8string() != "lock")
         {
-            ifstream fs(p, ios::binary);
-            char filedata[1024];
-            fs.read(filedata, sizeof(filedata));
-            EXPECT_EQ(size_t(fs.gcount()), p.filename().u8string().size()) << " file is not expected size " << p;
-            EXPECT_TRUE(!memcmp(filedata, p.filename().u8string().data(), p.filename().u8string().size())) << " file data mismatch " << p;
+            std::vector<uint8_t> buffer;
+            std::ifstream istream(p, ios::binary);
+
+            buffer.reserve(mn->data.size());
+
+            istream.read(reinterpret_cast<char *>(buffer.data()), buffer.capacity());
+
+            if (static_cast<size_t>(istream.gcount()) != buffer.capacity()
+                || !std::equal(mn->data.begin(), mn->data.end(), buffer.begin()))
+            {
+                return false;
+            }
         }
 
         if (pathtype != FOLDERNODE)
@@ -1511,20 +1538,41 @@ fs::path makeNewTestRoot(fs::path p)
 
 //std::atomic<int> fileSizeCount = 20;
 
+bool createFile(const fs::path &path, const void *data, const size_t data_length)
+{
+#if (__cplusplus >= 201700L)
+    ofstream ostream(path, ios::binary);
+#else
+    ofstream ostream(path.u8string(), ios::binary);
+#endif
+
+    ostream.write(reinterpret_cast<const char *>(data), data_length);
+
+    return ostream.good();
+}
+
+bool createFile(const fs::path &path, const std::vector<uint8_t> &data)
+{
+    return createFile(path, data.data(), data.size());
+}
+
 bool createFile(const fs::path &p, const string &filename)
 {
-    fs::path fp = p / fs::u8path(filename);
-#if (__cplusplus >= 201700L)
-    ofstream fs(fp/*, ios::binary*/);
-#else
-    ofstream fs(fp.u8string()/*, ios::binary*/);
-#endif
-    fs << filename;
-    if (fs.bad())
+    return createFile(p / fs::u8path(filename), filename.data(), filename.size());
+}
+
+bool createFileWithTimestamp(const fs::path &path,
+                             const std::vector<uint8_t> &data,
+                             const fs::file_time_type &timestamp)
+{
+    const bool result = createFile(path, data);
+
+    if (result)
     {
-        return false;
+        fs::last_write_time(path, timestamp);
     }
-    return true;
+
+    return result;
 }
 
 bool buildLocalFolders(fs::path targetfolder, const string& prefix, int n, int recurselevel, int filesperfolder)
@@ -1584,6 +1632,198 @@ bool createSpecialFiles(fs::path targetfolder, const string& prefix, int n = 1)
 #endif
 
 } // anonymous
+
+class SyncFingerprintCollision
+  : public ::testing::Test
+{
+public:
+    SyncFingerprintCollision()
+      : client0()
+      , client1()
+      , model0()
+      , model1()
+      , arbitraryFileLength(16384)
+    {
+        const fs::path root = makeNewTestRoot(LOCAL_TEST_FOLDER);
+
+        client0 = std::make_unique<StandardClient>(root, "c0");
+        client1 = std::make_unique<StandardClient>(root, "c1");
+
+        client0->logcb = true;
+        client1->logcb = true;
+    }
+
+    ~SyncFingerprintCollision()
+    {
+    }
+
+    void SetUp() override
+    {
+        ASSERT_TRUE(client0->login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "d", 1, 2));
+        ASSERT_TRUE(client1->login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
+        ASSERT_EQ(client0->basefolderhandle, client1->basefolderhandle);
+
+        model0.root->addkid(model0.buildModelSubdirs("d", 2, 1, 0));
+        model1.root->addkid(model1.buildModelSubdirs("d", 2, 1, 0));
+
+        startSyncs();
+        waitOnSyncs();
+        confirmModels();
+    }
+
+    void addModelFile(Model &model,
+                      const std::string &directory,
+                      const std::string &file, 
+                      const std::vector<uint8_t> &content)
+    {
+        auto *node = model.findnode(directory);
+        ASSERT_NE(node, nullptr);
+
+        node->addkid(model.makeModelSubfile(file, content));
+    }
+
+    void confirmModel(StandardClient &client, Model &model, const int id)
+    {
+        ASSERT_TRUE(client.confirmModel_mainthread(model.findnode("d"), id));
+    }
+
+    void confirmModels()
+    {
+        confirmModel(*client0, model0, 0);
+        confirmModel(*client1, model1, 1);
+    }
+
+    const fs::path &localRoot(const StandardClient &client) const
+    {
+        return client.syncSet.at(0).localpath;
+    }
+
+    std::vector<uint8_t> randomData(const std::size_t length) const
+    {
+        std::vector<uint8_t> data(length);
+
+        std::generate_n(data.begin(), data.size(), [](){ return (uint8_t)std::rand(); });
+
+        return data;
+    }
+
+    void startSyncs()
+    {
+        ASSERT_TRUE(client0->setupSync_mainthread("s0", "d", 0));
+        ASSERT_TRUE(client1->setupSync_mainthread("s1", "d", 1));
+    }
+
+    void waitOnSyncs()
+    {
+        waitonsyncs(chrono::seconds(4), client0.get(), client1.get());
+    }
+
+    std::unique_ptr<StandardClient> client0;
+    std::unique_ptr<StandardClient> client1;
+    Model model0;
+    Model model1;
+    const std::size_t arbitraryFileLength;
+}; /* SyncFingerprintCollision */
+
+TEST_F(SyncFingerprintCollision, DifferentMacSameName)
+{
+    auto data0 = randomData(arbitraryFileLength);
+    auto data1 = data0;
+    const auto path0 = localRoot(*client0) / "d_0" / "a";
+    const auto path1 = localRoot(*client0) / "d_1" / "a";
+
+    // Alter MAC but leave fingerprint untouched.
+    data1[0x41] = static_cast<uint8_t>(~data1[0x41]);
+
+    ASSERT_TRUE(createFile(path0, data0));
+    waitOnSyncs();
+
+    auto result0 =
+      client0->thread_do([&](StandardClient &sc, std::promise<bool> &p)
+                         {
+                             p.set_value(
+                               createFileWithTimestamp(
+                                 path1,
+                                 data1,
+                                 fs::last_write_time(path0)));
+                         });
+
+    ASSERT_TRUE(waitonresults(&result0));
+    waitOnSyncs();
+
+    addModelFile(model0, "d/d_0", "a", data0);
+    addModelFile(model0, "d/d_1", "a", data1);
+    addModelFile(model1, "d/d_0", "a", data0);
+    addModelFile(model1, "d/d_1", "a", data0);
+    model1.ensureLocalDebrisTmpLock("d");
+
+    confirmModels();
+}
+
+TEST_F(SyncFingerprintCollision, DifferentMacDifferentName)
+{
+    auto data0 = randomData(arbitraryFileLength);
+    auto data1 = data0;
+    const auto path0 = localRoot(*client0) / "d_0" / "a";
+    const auto path1 = localRoot(*client0) / "d_0" / "b";
+
+    data1[0x41] = static_cast<uint8_t>(~data1[0x41]);
+
+    ASSERT_TRUE(createFile(path0, data0));
+    waitOnSyncs();
+
+    auto result0 =
+      client0->thread_do([&](StandardClient &sc, std::promise<bool> &p)
+                         {
+                             p.set_value(
+                               createFileWithTimestamp(
+                                 path1,
+                                 data1,
+                                 fs::last_write_time(path0)));
+                         });
+
+    ASSERT_TRUE(waitonresults(&result0));
+    waitOnSyncs();
+
+    addModelFile(model0, "d/d_0", "a", data0);
+    addModelFile(model0, "d/d_0", "b", data1);
+    addModelFile(model1, "d/d_0", "a", data0);
+    addModelFile(model1, "d/d_0", "b", data1);
+    model1.ensureLocalDebrisTmpLock("d");
+
+    confirmModels();
+}
+
+TEST_F(SyncFingerprintCollision, SameMacDifferentName)
+{
+    auto data0 = randomData(arbitraryFileLength);
+    const auto path0 = localRoot(*client0) / "d_0" / "a";
+    const auto path1 = localRoot(*client0) / "d_0" / "b";
+
+    ASSERT_TRUE(createFile(path0, data0));
+    waitOnSyncs();
+
+    auto result0 =
+      client0->thread_do([&](StandardClient &sc, std::promise<bool> &p)
+                         {
+                             p.set_value(
+                               createFileWithTimestamp(
+                                 path1,
+                                 data0,
+                                 fs::last_write_time(path0)));
+                         });
+
+    ASSERT_TRUE(waitonresults(&result0));
+    waitOnSyncs();
+
+    addModelFile(model0, "d/d_0", "a", data0);
+    addModelFile(model0, "d/d_0", "b", data0);
+    addModelFile(model1, "d/d_0", "a", data0);
+    addModelFile(model1, "d/d_0", "b", data0);
+    model1.ensureLocalDebrisTmpLock("d");
+
+    confirmModels();
+}
 
 GTEST_TEST(Sync, BasicSync_DelRemoteFolder)
 {

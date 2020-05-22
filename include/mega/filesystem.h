@@ -172,6 +172,18 @@ struct MEGA_API InputStreamAccess
     virtual ~InputStreamAccess() { }
 };
 
+class MEGA_API FileInputStream : public InputStreamAccess
+{
+    FileAccess *fileAccess;
+    m_off_t offset;
+
+public:
+    FileInputStream(FileAccess *fileAccess);
+
+    m_off_t size() override;
+    bool read(byte *buffer, unsigned size) override;
+};
+
 // generic host directory enumeration
 struct MEGA_API DirAccess
 {
@@ -329,6 +341,9 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // default permissions for new folder
     int getdefaultfolderpermissions() { return 0700; }
     void setdefaultfolderpermissions(int) { }
+
+    // convenience function for getting filesystem shortnames
+    std::unique_ptr<string> fsShortname(string& localpath);
 
     // set whenever an operation fails due to a transient condition (e.g. locking violation)
     bool transient_error;
