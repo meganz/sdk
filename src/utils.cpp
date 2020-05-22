@@ -2348,7 +2348,7 @@ std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &
     return std::make_pair(true, chunkMacs.macsmac(&cipher));
 }
 
-void MegaClientAsyncQueue::push(std::function<void(SymmCipher&)> f)
+void MegaClientAsyncQueue::push(std::function<void(SymmCipher&)> f, bool discardable)
 {
     if (mThreads.empty())
     {
@@ -2361,7 +2361,7 @@ void MegaClientAsyncQueue::push(std::function<void(SymmCipher&)> f)
     {
         {
             std::lock_guard<std::mutex> g(mMutex);
-            mQueue.emplace_back(std::move(f));
+            mQueue.emplace_back(discardable, std::move(f));
         }
         mConditionVariable.notify_one();
     }
@@ -2390,19 +2390,22 @@ MegaClientAsyncQueue::MegaClientAsyncQueue(Waiter& w, unsigned threadCount)
 
 MegaClientAsyncQueue::~MegaClientAsyncQueue()
 {
-    clearQueue();
-    push(nullptr);
+    clearDiscardable();
+    push(nullptr, false);
     mConditionVariable.notify_all();
+    LOG_warn << "~MegaClientAsyncQueue() joining threads";
     for (auto& t : mThreads)
     {
         t.join();
     }
+    LOG_warn << "~MegaClientAsyncQueue() ends";
 }
 
-void MegaClientAsyncQueue::clearQueue()
+void MegaClientAsyncQueue::clearDiscardable()
 {
     std::lock_guard<std::mutex> g(mMutex);
-    mQueue.clear();
+    auto newEnd = std::remove_if(mQueue.begin(), mQueue.end(), [](Entry& entry){ return entry.discardable; });
+    mQueue.erase(newEnd, mQueue.end());
 }
 
 void MegaClientAsyncQueue::asyncThreadLoop()
@@ -2414,7 +2417,7 @@ void MegaClientAsyncQueue::asyncThreadLoop()
         {
             std::unique_lock<std::mutex> g(mMutex);
             mConditionVariable.wait(g, [this]() { return !mQueue.empty(); });
-            f = std::move(mQueue.front());
+            f = std::move(mQueue.front().f);
             if (!f) return;   // nullptr is not popped, and causes all the threads to exit
             mQueue.pop_front();
         }

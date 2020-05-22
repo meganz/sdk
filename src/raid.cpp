@@ -638,6 +638,7 @@ m_off_t TransferBufferManager::calcOutputChunkPos(m_off_t acquiredpos)
 // decrypt, mac downloaded chunk
 bool RaidBufferManager::FilePiece::finalize(bool parallel, m_off_t filesize, int64_t ctriv, SymmCipher *cipher, chunkmac_map* source_chunkmacs)
 {
+    assert(!finalized);
     bool queueParallel = false;
 
     byte *chunkstart = buf.datastart();
@@ -691,6 +692,11 @@ bool RaidBufferManager::FilePiece::finalize(bool parallel, m_off_t filesize, int
         endpos = ChunkedHash::chunkceil(startpos, finalpos);
         chunksize = static_cast<unsigned>(endpos - startpos);
     }
+
+    finalized = !queueParallel;
+    if (finalized)
+        finalizedCV.notify_one();
+
     return queueParallel;
 }
 

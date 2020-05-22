@@ -3881,7 +3881,7 @@ void MegaClient::logout()
 
 void MegaClient::locallogout(bool removecaches)
 {
-    mAsyncQueue.clearQueue();
+    mAsyncQueue.clearDiscardable();
 
     if (removecaches)
     {
