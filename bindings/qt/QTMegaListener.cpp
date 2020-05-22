@@ -158,6 +158,13 @@ void QTMegaListener::onSyncDisabled(MegaApi *api, MegaSync *sync)
     QCoreApplication::postEvent(this, event, INT_MIN);
 }
 
+void QTMegaListener::onSyncEnabled(MegaApi *api, MegaSync *sync)
+{
+    QTMegaEvent *event = new QTMegaEvent(api, (QEvent::Type)QTMegaEvent::OnSyncEnabled);
+    event->setSync(sync->copy());
+    QCoreApplication::postEvent(this, event, INT_MIN);
+}
+
 void QTMegaListener::onSyncDeleted(MegaApi *api, MegaSync *sync)
 {
     QTMegaEvent *event = new QTMegaEvent(api, (QEvent::Type)QTMegaEvent::OnSyncDeleted);
@@ -231,6 +238,9 @@ void QTMegaListener::customEvent(QEvent *e)
         break;
         case QTMegaEvent::OnSyncDisabled:
             if(listener) listener->onSyncDisabled(event->getMegaApi(), event->getSync());
+        break;
+        case QTMegaEvent::OnSyncEnabled:
+            if(listener) listener->onSyncEnabled(event->getMegaApi(), event->getSync());
         break;
         case QTMegaEvent::OnSyncDeleted:
             if(listener) listener->onSyncDeleted(event->getMegaApi(), event->getSync());

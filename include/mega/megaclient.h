@@ -556,9 +556,14 @@ public:
     void failSyncs(syncerror_t syncError =  NO_ERROR);
     void disableSyncs(syncerror_t syncError =  NO_ERROR);
 
+    error enableSync(int tag, int &syncError);
+    error enableSync(const SyncConfig *syncConfig, int &syncError);
+
+
     void restoreSyncs();
 
     //TODO: doc
+    error changeSyncState(const SyncConfig *config, syncstate_t newstate, syncerror_t newSyncError, bool fireDisableEvent);
     error changeSyncState(int tag, syncstate_t newstate, syncerror_t newSyncError, bool fireDisableEvent = true);
 
 

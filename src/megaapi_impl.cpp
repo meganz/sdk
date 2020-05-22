@@ -5274,7 +5274,7 @@ int MegaApiImpl::getBusinessStatus()
     m_time_t now = m_time(nullptr);
 
     // Check if current status has expired (based on ts of transition) and update status
-    BizStatus oldStatus = client->mBizStatus;
+    BizStatus prevBizStatus = client->mBizStatus;
     if (client->mBizExpirationTs && client->mBizExpirationTs < now)
     {
         client->mBizStatus = BIZ_STATUS_EXPIRED;
@@ -5285,8 +5285,21 @@ int MegaApiImpl::getBusinessStatus()
         client->mBizStatus = BIZ_STATUS_GRACE_PERIOD;
     }
 
-    if (client->mBizStatus != oldStatus)
+    //TODO: refactor client->setBizStatus(newBizStatus);
+
+    auto mBizStatus = client->mBizStatus;
+
+    if (mBizStatus != prevBizStatus)
     {
+        if (mBizStatus == BIZ_STATUS_EXPIRED) //transitioning to expired (this cannot happen here anyway)
+        {
+            client->disableSyncs(BUSINESS_EXPIRED);
+        }
+        if (prevBizStatus == BIZ_STATUS_EXPIRED) //transitioning to not expired.
+        {//TODO: note for reviewer: MEGAsync would only restore when transitioning to BIZ_STATUS_ACTIVE. I believe this is more accurate
+            client->restoreSyncs();
+        }
+
         client->app->notify_business_status(client->mBizStatus);
     }
 
@@ -12595,6 +12608,11 @@ void MegaApiImpl::syncupdate_state(int tag, syncstate_t newstate, syncerror_t sy
         fireOnSyncDisabled(megaSync);
     }
 
+    if (!wasActive && megaSync->isActive())
+    {
+        fireOnSyncEnabled(megaSync);
+    }
+
     client->abortbackoff(false);
 }
 
@@ -15724,6 +15742,12 @@ void MegaApiImpl::fireOnRequestStart(MegaRequestPrivate *request)
 
 void MegaApiImpl::fireOnRequestFinish(MegaRequestPrivate *request, MegaError e)
 {
+    if (e.getErrorCode() == API_EBUSINESSPASTDUE)
+    {
+        //Ideally, this piece of code should be in MegaClient, but that would entail handling it for every request
+        client->disableSyncs(BUSINESS_EXPIRED);
+    }
+
     MegaError *megaError = new MegaError(e);
     activeRequest = request;
     activeError = megaError;
@@ -16140,6 +16164,25 @@ void MegaApiImpl::fireOnSyncDisabled(MegaSyncPrivate *sync)
     if(listener)
     {
         listener->onSyncDisabled(api, sync);
+    }
+}
+
+void MegaApiImpl::fireOnSyncEnabled(MegaSyncPrivate *sync)
+{
+    for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
+    {
+        (*it++)->onSyncEnabled(api, sync);
+    }
+
+    for(set<MegaSyncListener *>::iterator it = syncListeners.begin(); it != syncListeners.end() ;)
+    {
+        (*it++)->onSyncEnabled(api, sync);
+    }
+
+    MegaSyncListener* listener = sync->getListener();
+    if(listener)
+    {
+        listener->onSyncEnabled(api, sync);
     }
 }
 
@@ -20847,37 +20890,21 @@ void MegaApiImpl::sendPendingRequests()
             //(maybe too overkill)
             // TODO: or only reload if any request came false? nah, should all be addressed via callbacks before reqfinish
 
-            SyncConfig syncConfig{tag, sync->getLocalFolder(), sync->getMegaHandle(),
-                                static_cast<fsfp_t>(sync->getLocalFingerprint()), regExpToVector(sync->getRegExp())};
+            int syncError = NO_ERROR;
 
-            int syncError = 0;
-            e = client->addsync(std::move(syncConfig), DEBRISFOLDER, NULL, syncError, sync);
+            e = client->enableSync(tag, syncError);
+            //TODO: note to reviewer: in case this fails with a non temporary error, this sets the sync
+            // to FAILED (i.e. isEnabled = true: from the user perspective it has been enabled)
+            // Alternatively, we could keep/enforce a SYNC_DISABLED, NO_ERROR and asume the failure in the req finish is enough for the app
+            // and that we do not want to update the sync configuration
+
             request->setNumDetails(syncError); //TODO: doc this
 
             if (!e) //sync added (enabled) fine
             {
-                Sync *s = client->syncs.back();
-                fsfp_t fsfp = s->fsfp;
-                sync->setLocalFingerprint(fsfp); //Note to reviewer: should this be overriden or should a diff cause a failure?
-                request->setNumber(fsfp);
-
-                auto change_error = client->changeSyncState(sync->getTag(), s->state, static_cast<syncerror_t>(syncError), false);
-
-                assert(!change_error); //TODO: review this
                 fireOnRequestFinish(request, MegaError(API_OK));
                 break;
             }
-
-            if (sync->getError() != syncError || sync->getState() != SYNC_FAILED) //add sync failed and reported a new syncError
-            {
-                client->changeSyncState(sync->getTag(), SYNC_FAILED, static_cast<syncerror_t>(syncError), false);
-                //we don't fire onDisable in this case (it was not enabled in the first place), plus, the error is in the request already.
-
-                //TODO: note to reviewer: we set the state to FAILED (i.e: isEnabled = true: from the user perspective it has been enabled)
-                // Alternatively, we could set it as SYNC_DISABLED, NO_ERROR and asume the failure in the req finish is enough for the app
-            }
-
-
 
             break;
         }

@@ -196,7 +196,7 @@ public:
     m_time_t updatedfilets = 0;
     m_time_t updatedfileinitialts = 0;
 
-    Sync(MegaClient*, SyncConfig, const char*, string*, Node*, bool, int, void*);
+    Sync(MegaClient*, SyncConfig &, const char*, string*, Node*, bool, int, void*);
     ~Sync();
 
     static const int SCANNING_DELAY_DS;

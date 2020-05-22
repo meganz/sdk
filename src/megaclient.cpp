@@ -909,6 +909,9 @@ void MegaClient::activateoverquota(dstime timeleft)
     if (timeleft)
     {
         LOG_warn << "Bandwidth overquota";
+
+        disableSyncs(BANDWIDTH_OVERQUOTA);
+
         overquotauntil = Waiter::ds + timeleft;
         for (int d = GET; d == GET || d == PUT; d += PUT - GET)
         {
@@ -932,6 +935,7 @@ void MegaClient::activateoverquota(dstime timeleft)
     else if (setstoragestatus(STORAGE_RED))
     {
         LOG_warn << "Storage overquota";
+
         for (transfer_map::iterator it = transfers[PUT].begin(); it != transfers[PUT].end(); it++)
         {
             Transfer *t = it->second;
@@ -3771,9 +3775,11 @@ void MegaClient::resumeResumableSyncs()
 
         app->sync_load(config, syncError);
 
+
         mSyncTag = std::max(mSyncTag, config.getTag());
     }
 }
+
 #endif
 // determine next scheduled transfer retry
 void MegaClient::nexttransferretry(direction_t d, dstime* dsmin)
@@ -4952,11 +4958,19 @@ bool MegaClient::setstoragestatus(storagestatus_t status)
 {
     if (ststatus != status)
     {
-        storagestatus_t pststatus = ststatus;
+        storagestatus_t previousStatus = ststatus;
         ststatus = status;
+
         app->notify_storage(ststatus);
-        if (pststatus == STORAGE_RED)
+
+        if (ststatus == STORAGE_RED) //transitioning to RED
         {
+            disableSyncs(STORAGE_OVERQUOTA);
+        }
+
+        if (previousStatus == STORAGE_RED) //transition from RED
+        {
+            restoreSyncs();
             abortbackoff(true);
         }
         return true;
@@ -6554,6 +6568,18 @@ void MegaClient::sc_ub()
                     // If new status is active, reset timestamps of transitions
                     mBizGracePeriodTs = 0;
                     mBizExpirationTs = 0;
+                }
+
+                if (prevBizStatus != mBizStatus) //has changed
+                {
+                    if (mBizStatus == BIZ_STATUS_EXPIRED) //transitioning to expired
+                    {
+                        disableSyncs(BUSINESS_EXPIRED);
+                    }
+                    if (prevBizStatus == BIZ_STATUS_EXPIRED) //taransitioning to not expired
+                    {
+                        restoreSyncs();
+                    }
                 }
 
                 app->notify_business_status(mBizStatus);
@@ -12225,7 +12251,7 @@ error MegaClient::addsync(SyncConfig syncConfig, const char* debris, string* loc
             LOG_debug << "Adding sync: " << syncConfig.getLocalPath();
             int tag = syncConfig.getTag();
 
-            Sync* sync = new Sync(this, std::move(syncConfig), debris, localdebris, remotenode, inshare, tag, appData);
+            Sync* sync = new Sync(this, syncConfig, debris, localdebris, remotenode, inshare, tag, appData);
             sync->isnetwork = isnetwork;
 
             if (!sync->fsstableids)
@@ -12246,8 +12272,10 @@ error MegaClient::addsync(SyncConfig syncConfig, const char* debris, string* loc
                 e = API_OK;
                 sync->initializing = false;
                 LOG_debug << "Initial scan finished. New / modified files: " << sync->dirnotify->notifyq[DirNotify::DIREVENTS].size();
+
                 //TODO: note for reviewer: previously we added the config upon sync constructor, but we probably want to only add it if
                 // initial scan goes well. otherwise, the sync won't be created, nor added to the cache
+                // note, Sync constructor now receives the syncConfig as reference, to be able to write -at least- fingerprints for new syncs
                 saveAndUpdateSyncConfig(&syncConfig, sync->state, static_cast<syncerror_t>(syncError) );
             }
             else
@@ -13749,6 +13777,31 @@ error MegaClient::saveAndUpdateSyncConfig(const SyncConfig *config, syncstate_t 
 }
 
 //TODO: doc
+
+error MegaClient::changeSyncState(const SyncConfig *config, syncstate_t newstate, syncerror_t newSyncError, bool fireDisableEvent)
+{
+    error e = API_OK;
+    assert(config);
+    if (config)
+    {
+        auto isEnabled = [](syncstate_t state, syncerror_t error) -> bool
+        {
+            return state != SYNC_CANCELED && (state != SYNC_DISABLED || error != NO_ERROR );
+        };
+
+        if ( (config->getError() != newSyncError) || (config->getEnabled() != isEnabled(newstate, newSyncError)) ) //has changed
+        {
+            e = saveAndUpdateSyncConfig(config, newstate, newSyncError);
+        }
+    }
+    else
+    {
+        e = API_ENOENT;
+    }
+
+    app->syncupdate_state(config->getTag(), newstate, newSyncError, fireDisableEvent);
+}
+
 error MegaClient::changeSyncState(int tag, syncstate_t newstate, syncerror_t newSyncError, bool fireDisableEvent)
 {
     error e = API_OK;
@@ -13760,24 +13813,7 @@ error MegaClient::changeSyncState(int tag, syncstate_t newstate, syncerror_t new
     }
     auto config = syncConfigs?syncConfigs->get(tag):nullptr;
     assert(config);
-    if (config)
-    {
-        auto isEnabled = [](syncstate_t state, syncerror_t error) -> bool
-        {
-            return state != SYNC_CANCELED && (state != SYNC_DISABLED || error != NO_ERROR );
-        };
-
-        if ( (config->getError() != newSyncError) || (config->getEnabled() != isEnabled(newstate, newSyncError)) )
-        {
-            e = saveAndUpdateSyncConfig(config, newstate, newSyncError);
-        }
-    }
-    else
-    {
-        e = API_ENOENT;
-    }
-
-    app->syncupdate_state(tag, newstate, newSyncError, fireDisableEvent);
+    e = changeSyncState(config, newstate, newSyncError, fireDisableEvent);
 }
 
 
@@ -13800,7 +13836,7 @@ void MegaClient::failSyncs(syncerror_t syncError)
 {
     for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
     {
-        (*it)->changestate(SYNC_DISABLED, syncError); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
+        (*it)->changestate(SYNC_FAILED, syncError); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
     }
     syncactivity = true;
 }
@@ -13809,10 +13845,66 @@ void MegaClient::disableSyncs(syncerror_t syncError)
 {
     for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++) //Note: we are not disabling inactive syncs!
     {
-        (*it)->changestate(SYNC_FAILED, syncError);//This will cause the later deletion of Sync (not MegaSyncPrivate) object
+        (*it)->changestate(SYNC_DISABLED, syncError);//This will cause the later deletion of Sync (not MegaSyncPrivate) object
     }
     syncactivity = true;
 }
+
+error MegaClient::enableSync(const SyncConfig *syncConfig, int &syncError)
+{
+    syncError = NO_ERROR;
+
+    auto newConfig = *syncConfig;
+
+    const auto e = addsync(newConfig, DEBRISFOLDER, nullptr, syncError);
+    //NOTICE: addsync reuses fingreprint. It only gets updated for new syncs (config->fingerprint is unset)
+
+    syncstate_t newstate = isMegaSyncErrorPermanent(syncError)?SYNC_FAILED:SYNC_DISABLED;
+
+    if (!e) //enabled fine
+    {
+        Sync *s = syncs.back();
+        newstate = s->state;
+    }
+
+    // change, so that cache is updatedd & the app gets noticed
+    //we don't fire onDisable in this case (it was not enabled in the first place).
+    auto change_error = changeSyncState(&newConfig, newstate, static_cast<syncerror_t>(syncError), false);
+
+    return e;
+}
+
+error MegaClient::enableSync(int tag, int &syncError)
+{
+    if (!syncConfigs)
+    {
+        return API_ENOENT;
+    }
+
+    auto syncConfig = syncConfigs->get(tag);
+
+    if (!syncConfig)
+    {
+        return API_ENOENT;
+    }
+
+    return enableSync(syncConfig, syncError);
+}
+
+void MegaClient::restoreSyncs()
+{
+    for (const auto& config : syncConfigs->all())
+    {
+        int syncError = config.getError();
+
+        if (config.isResumable())
+        {
+            const auto e = enableSync(&config, syncError);
+        }
+    }
+    syncactivity = true;
+}
+
 void MegaClient::putnodes_syncdebris_result(error, NewNode* nn)
 {
     delete[] nn;

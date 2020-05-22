@@ -1651,6 +1651,8 @@ void MegaListener::onSyncAdded(MegaApi *, MegaSync *, int additionState)
 { }
 void MegaListener::onSyncDisabled(MegaApi *, MegaSync *)
 { }
+void MegaListener::onSyncEnabled(MegaApi *, MegaSync *)
+{ }
 void MegaListener::onSyncDeleted(MegaApi *, MegaSync *)
 { }
 void MegaListener::onSyncStateChanged(MegaApi *, MegaSync *)
@@ -5517,6 +5519,9 @@ void MegaSyncListener::onSyncAdded(MegaApi *, MegaSync *, int additionState)
 { }
 
 void MegaSyncListener::onSyncDisabled(MegaApi *, MegaSync *)
+{ }
+
+void MegaSyncListener::onSyncEnabled(MegaApi *, MegaSync *)
 { }
 
 void MegaSyncListener::onSyncDeleted(MegaApi *, MegaSync *)

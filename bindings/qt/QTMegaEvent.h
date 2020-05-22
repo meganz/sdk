@@ -31,6 +31,7 @@ public:
         OnFileSyncStateChanged,
         OnSyncAdded,
         OnSyncDisabled,
+        OnSyncEnabled,
         OnSyncDeleted,
         OnGlobalSyncStateChanged
 #endif

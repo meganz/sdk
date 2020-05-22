@@ -695,7 +695,7 @@ std::vector<SyncConfig> SyncConfigBag::all() const
 
 // new Syncs are automatically inserted into the session's syncs list
 // and a full read of the subtree is initiated
-Sync::Sync(MegaClient* cclient, SyncConfig config, const char* cdebris,
+Sync::Sync(MegaClient* cclient, SyncConfig &config, const char* cdebris,
            string* clocaldebris, Node* remotenode, bool cinshare, int ctag, void *cappdata)
 : localroot(new LocalNode)
 {
@@ -745,7 +745,7 @@ Sync::Sync(MegaClient* cclient, SyncConfig config, const char* cdebris,
     dirnotify->sync = this;
 
     // set specified fsfp or get from fs if none
-    const auto cfsfp = config.getLocalFingerprint();
+    const auto cfsfp = config.getLocalFingerprint(); //TODO: when resuming ... this might have changed, it shall be checked afterwards and produce (LOCAL_FINGERPRINT_MISMATCH)... TODO: test
     if (cfsfp)
     {
         fsfp = cfsfp;

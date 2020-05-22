@@ -4785,6 +4785,7 @@ public:
     //TODO: doc
     virtual void onSyncAdded(MegaApi *api, MegaSync *sync, int additionState);
     virtual void onSyncDisabled(MegaApi *api, MegaSync *sync);
+    virtual void onSyncEnabled(MegaApi *api, MegaSync *sync);
     //TODO: onSyncEnabled
     virtual void onSyncDeleted(MegaApi *api, MegaSync *sync);
 
@@ -4828,6 +4829,7 @@ public:
         PUT_NODES_ERROR = 15,
         ACTIVE_SYNC_BELOW_PATH = 16, // there's a synced node below the path to be synced
         ACTIVE_SYNC_ABOVE_PATH = 17, // there's a synced node above the path to be synced
+        BANDWIDTH_OVERQUOTA = 18,
     };
 
     enum SyncAdded
@@ -6369,6 +6371,7 @@ class MegaListener
     //TODO: doc
     virtual void onSyncAdded(MegaApi *api, MegaSync *sync, int additionState); //TODO: note in doc the additionState & meaning
     virtual void onSyncDisabled(MegaApi *api, MegaSync *sync);
+    virtual void onSyncEnabled(MegaApi *api, MegaSync *sync);
     virtual void onSyncDeleted(MegaApi *api, MegaSync *sync);
 
 

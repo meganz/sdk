@@ -307,6 +307,9 @@ typedef enum {
     PUT_NODES_ERROR = 15,
     ACTIVE_SYNC_BELOW_PATH = 16, // there's a synced node below the path to be synced
     ACTIVE_SYNC_ABOVE_PATH = 17, // there's a synced node above the path to be synced
+    BANDWIDTH_OVERQUOTA = 18,
+
+
 } syncerror_t;
 
 static bool isMegaSyncErrorPermanent(int e)
