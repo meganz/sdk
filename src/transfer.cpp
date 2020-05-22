@@ -429,6 +429,8 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
         ++client->performanceStats.transferTempErrors;
     }
 
+    bool alreadyDisabled = false;
+
     for (file_list::iterator it = files.begin(); it != files.end();)
     {
         // Remove files with foreign targets, if transfer failed with a (foreign) storage overquota
@@ -437,6 +439,15 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
                 && client->isForeignNode((*it)->h))
         {
             File *f = (*it++);
+
+            if (!alreadyDisabled)
+            {
+                //TODO: note for reviewer: this was done by megasync. But perhaps we want to disable only the affected sync?
+                // plus: there's not getting out of this situation: only restarting would try re-enabling it
+                client->disableSyncs(FOREIGN_TARGET_OVERSTORAGE);
+                alreadyDisabled = true;
+            }
+
             removeTransferFile(API_EOVERQUOTA, f, &committer);
             continue;
         }
@@ -514,6 +525,14 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
                 client->syncdownrequired = true;
             }
 #endif
+
+            if (e == API_EBUSINESSPASTDUE && !alreadyDisabled)
+            {
+                client->disableSyncs(BUSINESS_EXPIRED);
+                alreadyDisabled = true;
+            }
+
+            //TODO: handle her the onTransferFinish disables
             client->app->file_removed(*it, e);
         }
         client->app->transfer_removed(this);
