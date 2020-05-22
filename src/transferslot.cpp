@@ -202,7 +202,7 @@ TransferSlot::~TransferSlot()
         {
             if (HttpReqDL *downloadRequest = static_cast<HttpReqDL*>(reqs[i].get()))
             {
-                switch (downloadRequest->status)
+                switch (static_cast<reqstatus_t>(downloadRequest->status))
                 {
                     case REQ_INFLIGHT:
                         if (fa && downloadRequest && downloadRequest->status == REQ_INFLIGHT
