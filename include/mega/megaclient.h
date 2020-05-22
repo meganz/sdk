@@ -1200,6 +1200,9 @@ public:
     // generate & return upload handle
     handle getuploadhandle();
 
+    // maps node handle to public handle
+    std::map<handle, handle> mPublicLinks;
+
 #ifdef ENABLE_SYNC    
     // sync debris folder name in //bin
     static const char* const SYNCDEBRISFOLDERNAME;
@@ -1253,9 +1256,6 @@ public:
 
     // maps local fsid to corresponding LocalNode*
     handlelocalnode_map fsidnode;
-
-    // maps node handle to public handle
-    std::map<handle, handle> mPublicLinks;
 
     // local nodes that need to be added remotely
     localnode_vector synccreate;
