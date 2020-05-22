@@ -209,14 +209,8 @@ void FileSystemAccess::escapefsincompatible(string* name, const string *dstPath)
         validPath = dstPath;
     }
 
-    FileSystemType fileSystemType = getlocalfstype(validPath);
-    if (name->at(0) == '.' && (fileSystemType >= FS_FAT32 && fileSystemType <= FS_NTFS))
-    {
-        // If first character is '.', escape it for fat32, exFat and ntfs filesystems
-        name->replace(0, 1, "%2e");
-    }
-
     char buf[4];
+    FileSystemType fileSystemType = getlocalfstype(validPath);
     size_t utf8seqsize = 0;
     size_t i = 0;
     unsigned char c = '0';
@@ -260,12 +254,6 @@ void FileSystemAccess::unescapefsincompatible(string *name, const string *localP
     }
 
     FileSystemType fileSystemType = getlocalfstype(validPath);
-    if (!name->compare(0, 3, "%2e") && (fileSystemType >= FS_FAT32 && fileSystemType <= FS_NTFS))
-    {
-        // If first character is '.' escaped, unescape it for fat32, exFat and ntfs filesystems
-        name->replace(0, 3, ".");
-    }
-
     for (int i = int(name->size()) - 2; i-- > 0; )
     {
         // conditions for unescaping: %xx must be well-formed
