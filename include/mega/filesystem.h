@@ -47,7 +47,7 @@ enum
 #endif
 
 // Enumeration for filesystem families
-enum FileSystemType {FS_DEFAULT = -1, FS_APFS = 0, FS_HFS = 1, FS_EXT = 2, FS_FAT32 = 3, FS_EXFAT = 4, FS_NTFS = 5};
+enum FileSystemType {FS_UNKNOWN = -1, FS_APFS = 0, FS_HFS = 1, FS_EXT = 2, FS_FAT32 = 3, FS_EXFAT = 4, FS_NTFS = 5};
 
 // generic host filesystem node ID interface
 struct MEGA_API FsNodeId
@@ -291,13 +291,13 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     // check if character is lowercase hex ASCII
     bool islchex(char) const;
-    bool islocalfscompatible(unsigned char, const FileSystemType = FS_DEFAULT) const;
+    bool islocalfscompatible(unsigned char, FileSystemType = FS_UNKNOWN) const;
     void escapefsincompatible(string*, const std::string *dstPath = nullptr) const;
 
     // Obtain a valid path by removing filename or debris directory from originalPath
     // returns true if tempPath is modified, otherwise returns false
     bool getValidPath(const string *originalPath, std::string &tempPath) const;
-    const char *fstypetostring(const FileSystemType type) const;
+    const char *fstypetostring(FileSystemType type) const;
     FileSystemType getlocalfstype(const std::string *dstPath) const;
     void unescapefsincompatible(string*, const std::string *) const;
 

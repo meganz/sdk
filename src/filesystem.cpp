@@ -48,7 +48,7 @@ bool FileSystemAccess::islchex(char c) const
     return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
 }
 
-const char *FileSystemAccess::fstypetostring(const FileSystemType type) const
+const char *FileSystemAccess::fstypetostring(FileSystemType type) const
 {
     switch (type)
     {
@@ -64,16 +64,18 @@ const char *FileSystemAccess::fstypetostring(const FileSystemType type) const
             return "HFS";
         case FS_APFS:
             return "APFS";
-        case FS_DEFAULT:
-            return "DEFAULT FS";
+        case FS_UNKNOWN:    // fall through
+            return "UNKNOWN FS";
     }
+
+    return "UNKNOWN FS";
 }
 
 FileSystemType FileSystemAccess::getlocalfstype(const string *dstPath) const
 {
     if (!dstPath || dstPath->empty())
     {
-        return FS_DEFAULT;
+        return FS_UNKNOWN;
     }
 
 #if defined (__linux__) || defined (__ANDROID__)
@@ -91,7 +93,7 @@ FileSystemType FileSystemAccess::getlocalfstype(const string *dstPath) const
             case NTFS_SB_MAGIC:
                 return FS_NTFS;
             default:
-                return FS_DEFAULT;
+                return FS_UNKNOWN;
         }
     }
 #elif defined  (__APPLE__) || defined (USE_IOS)
@@ -140,11 +142,11 @@ FileSystemType FileSystemAccess::getlocalfstype(const string *dstPath) const
         }
     }
 #endif
-    return FS_DEFAULT;
+    return FS_UNKNOWN;
 }
 
 // Group different filesystems types in families, according to its restricted charsets
-bool FileSystemAccess::islocalfscompatible(unsigned char c, const FileSystemType fileSystemType) const
+bool FileSystemAccess::islocalfscompatible(unsigned char c, FileSystemType fileSystemType) const
 {
     switch (fileSystemType)
     {
@@ -160,7 +162,7 @@ bool FileSystemAccess::islocalfscompatible(unsigned char c, const FileSystemType
             return !strchr("\\/:?\"<>|*+,;=[]", c);
         case FS_EXFAT:
         case FS_NTFS:
-        case FS_DEFAULT:
+        case FS_UNKNOWN:
             // ExFAT, NTFS restricted characters => " * / : < > ? \ |
             // If filesystem couldn't be detected we'll use a restrictive charset to avoid issues.
             return !strchr("\\/:?\"<>|*", c);
