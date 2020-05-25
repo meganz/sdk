@@ -1,6 +1,8 @@
 include(vcpkg_common_functions)
 
-vcpkg_check_linkage(ONLY_STATIC_LIBRARY)
+# we are deliberately building a static-crt version for MEGAUpdater
+set(VCPKG_CRT_LINKAGE "static")
+vcpkg_check_linkage(ONLY_STATIC_CRT)
 
 vcpkg_from_github(
   OUT_SOURCE_PATH CMAKE_SOURCE_PATH
@@ -10,6 +12,7 @@ vcpkg_from_github(
   HEAD_REF master
   PATCHES
     cmake.patch
+    staticcrt.patch
 )
 
 vcpkg_from_github(
@@ -50,11 +53,11 @@ vcpkg_configure_cmake(
 )
 
 vcpkg_install_cmake()
-vcpkg_fixup_cmake_targets(CONFIG_PATH lib/cmake/cryptopp)
+vcpkg_fixup_cmake_targets(CONFIG_PATH lib/cmake/cryptopp-staticcrt)
 
 # There is no way to suppress installation of the headers and resource files in debug build.
 file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/include)
 
 # Handle copyright
-file(COPY ${SOURCE_PATH}/License.txt DESTINATION ${CURRENT_PACKAGES_DIR}/share/cryptopp)
-file(RENAME ${CURRENT_PACKAGES_DIR}/share/cryptopp/License.txt ${CURRENT_PACKAGES_DIR}/share/cryptopp/copyright)
+file(COPY ${SOURCE_PATH}/License.txt DESTINATION ${CURRENT_PACKAGES_DIR}/share/cryptopp-staticcrt)
+file(RENAME ${CURRENT_PACKAGES_DIR}/share/cryptopp-staticcrt/License.txt ${CURRENT_PACKAGES_DIR}/share/cryptopp-staticcrt/copyright)
