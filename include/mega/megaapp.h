@@ -313,8 +313,8 @@ struct MEGA_API MegaApp
         return true;
     }
 
-    // after reading (and if resumable) adding a sync
-    virtual void sync_load(const SyncConfig &, int) { }
+    // after an attempt to auto-resume a cache sync
+    virtual void sync_auto_resume_result(const SyncConfig &, syncerror_t error) { }
 
     //TODO: doc
     virtual void sync_removed(int tag) { }

@@ -5484,46 +5484,45 @@ const char* MegaSync::getMegaSyncErrorCode(int errorCode)
 {
     switch(errorCode)
     {
-    //TODO: change the strings to something more fruitful
     case MegaSync::Error::NO_ERROR:
         return "No error";
     case MegaSync::Error::UNKNOWN_ERROR:
-        return "UNKNOWN_ERROR";
+        return "Unknown error";
     case MegaSync::Error::UNSUPPORTED_FILE_SYSTEM:
-        return "UNSUPPORTED_FILE_SYSTEM";
+        return "File system not supported";
     case MegaSync::Error::INVALID_REMOTE_TYPE:
-        return "INVALID_REMOTE_TYPE";
+        return "Remote node is not valid";
     case MegaSync::Error::INVALID_LOCAL_TYPE:
-        return "INVALID_LOCAL_TYPE";
+        return "Local path is not valid";
     case MegaSync::Error::INITIAL_SCAN_FAILED:
-        return "INITIAL_SCAN_FAILED";
+        return "Initial scan failed";
     case MegaSync::Error::LOCAL_PATH_TEMPORARY_UNAVAILABLE:
-        return "LOCAL_PATH_TEMPORARY_UNAVAILABLE";
+        return "Local path temporarily unavailable";
     case MegaSync::Error::LOCAL_PATH_UNAVAILABLE:
-        return "LOCAL_PATH_UNAVAILABLE";
+        return "Local path not available";
     case MegaSync::Error::REMOTE_NODE_NOT_FOUND:
-        return "REMOTE_NODE_NOT_FOUND";
+        return "Remote node not found";
     case MegaSync::Error::STORAGE_OVERQUOTA:
-        return "STORAGE_OVERQUOTA";
+        return "Reached storage quota limit";
     case MegaSync::Error::BUSINESS_EXPIRED:
-        return "BUSINESS_EXPIRED";
+        return "Business account expired";
     case MegaSync::Error::FOREIGN_TARGET_OVERSTORAGE:
-        return "FOREIGN_TARGET_OVERSTORAGE";
+        return "Foreign target storage quota reached";
     case MegaSync::Error::REMOTE_PATH_HAS_CHANGED:
-        return "REMOTE_PATH_HAS_CHANGED";
+        return "Remote path has changed";
     case MegaSync::Error::SHARE_NON_FULL_ACCESS:
-        return "SHARE_NON_FULL_ACCESS";
+        return "Share without full access";
     case MegaSync::Error::LOCAL_FINGERPRINT_MISMATCH:
-        return "LOCAL_FINGERPRINT_MISMATCH";
+        return "Local fingerprint mismatch";
     case MegaSync::Error::PUT_NODES_ERROR:
-        return "PUT_NODES_ERROR";
+        return "Put nodes error";
     case MegaSync::Error::ACTIVE_SYNC_BELOW_PATH:
-        return "ACTIVE_SYNC_BELOW_PATH";
+        return "Active sync below path";
     case MegaSync::Error::ACTIVE_SYNC_ABOVE_PATH:
-        return "ACTIVE_SYNC_ABOVE_PATH";
+        return "Active sync above path";
 
     default:
-        return "Unknown error";
+        return "Undefined error";
     }
 }
 

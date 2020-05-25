@@ -5295,6 +5295,7 @@ int MegaApiImpl::getBusinessStatus()
 
     if (mBizStatus != prevBizStatus)
     {
+#ifdef ENABLE_SYNC
         if (mBizStatus == BIZ_STATUS_EXPIRED) //transitioning to expired (this cannot happen here anyway)
         {
             client->disableSyncs(BUSINESS_EXPIRED);
@@ -5303,7 +5304,7 @@ int MegaApiImpl::getBusinessStatus()
         {//TODO: note for reviewer: MEGAsync would only restore when transitioning to BIZ_STATUS_ACTIVE. I believe this is more accurate
             client->restoreSyncs();
         }
-
+#endif
         client->app->notify_business_status(client->mBizStatus);
     }
 
@@ -12958,13 +12959,12 @@ bool MegaApiImpl::sync_syncable(Sync *sync, const char *name, string *localpath)
     return result;
 }
 
-//TODO: doc this
 void MegaApiImpl::sync_removed(int tag)
 {
     eraseSync(tag);
 }
 
-void MegaApiImpl::sync_load(const SyncConfig &config, int error) //TODO: revert name
+void MegaApiImpl::sync_auto_resume_result(const SyncConfig &config, syncerror_t error)
 {
     MegaSyncPrivate *sync = new MegaSyncPrivate(config.getLocalPath().c_str(), config.getRemoteNode(), config.getTag());
     sync->setLocalFingerprint(static_cast<long long>(config.getLocalFingerprint()));
@@ -15824,11 +15824,13 @@ void MegaApiImpl::fireOnRequestStart(MegaRequestPrivate *request)
 
 void MegaApiImpl::fireOnRequestFinish(MegaRequestPrivate *request, MegaError e)
 {
+#ifdef ENABLE_SYNC
     if (e.getErrorCode() == API_EBUSINESSPASTDUE)
     {
         //Ideally, this piece of code should be in MegaClient, but that would entail handling it for every request
         client->disableSyncs(BUSINESS_EXPIRED);
     }
+#endif
 
     MegaError *megaError = new MegaError(e);
     activeRequest = request;
@@ -20940,7 +20942,7 @@ void MegaApiImpl::sendPendingRequests()
                                   static_cast<fsfp_t>(request->getNumber()), 
                                   regExpToVector(request->getRegExp())};
 
-            int syncError = 0;
+            syncerror_t syncError = NO_ERROR;
             e = client->addsync(syncConfig, DEBRISFOLDER, NULL, syncError, sync);
             request->setNumDetails(syncError); //TODO: doc this
             if (!e)
@@ -20978,7 +20980,7 @@ void MegaApiImpl::sendPendingRequests()
             //(maybe too overkill)
             // TODO: or only reload if any request came false? nah, should all be addressed via callbacks before reqfinish
 
-            int syncError = NO_ERROR;
+            syncerror_t syncError = NO_ERROR;
 
             e = client->enableSync(tag, syncError);
             //TODO: note to reviewer: in case this fails with a non temporary error, this sets the sync
@@ -21051,8 +21053,8 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            sync_list::iterator it = client->syncs.begin();
             bool found = false;
+            sync_list::iterator it = client->syncs.begin();
             while(it != client->syncs.end())
             {
                 Sync *sync = (*it);
@@ -21100,7 +21102,15 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_DISABLE_SYNC:
         {
+            handle nodehandle = request->getNodeHandle();
             int tag = request->getNumDetails(); //TODO: document this
+
+            if (tag == INVALID_SYNC_TAG && nodehandle == INVALID_HANDLE)
+            {
+                e = API_EARGS;
+                break;
+            }
+
             bool found = false;
             sync_list::iterator it = client->syncs.begin();
             while(it != client->syncs.end())
@@ -21108,17 +21118,26 @@ void MegaApiImpl::sendPendingRequests()
                 Sync *sync = (*it);
                 it++;
 
-                if (tag == sync->tag)
+                if ((tag == sync->tag) //find matching (tag or node handle)
+                    || !sync->localroot->node || sync->localroot->node->nodehandle == nodehandle)
+
                 {
                     client->disableSync(sync);
                     found = true;
                 }
             }
 
-            if (!found)
+            if (!found) // still can be in non active syncs
             {
-                // still can be in non active syncs
-                e = client->changeSyncState(tag, SYNC_DISABLED, NO_ERROR, false);
+                if (!tag) //no tag provided, look for handle
+                {
+                    e = client->changeSyncStateByNodeHandle(nodehandle, SYNC_DISABLED, NO_ERROR, false);
+
+                }
+                else
+                {
+                    e = client->changeSyncState(tag, SYNC_DISABLED, NO_ERROR, false);
+                }
             }
 
             if (!e)

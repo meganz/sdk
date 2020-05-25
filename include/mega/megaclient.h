@@ -527,45 +527,65 @@ public:
     // add timer
     error addtimer(TimerWithBackoff *twb);
 
+#ifdef ENABLE_SYNC
     /**
-     * @brief isnodesyncable
-     * @param syncError filled with syncerror_t
-     * @return
+     * @brief is node syncable
+     * @param isinshare filled with whether the node is within an inshare.
+     * @param syncError filled with syncerror_t with the sync error that makes the node unsyncable
+     * @return API_OK if syncable. (regular) error otherwise
      */
-    error isnodesyncable(Node*, bool* = NULL, int *syncError = nullptr);
+    error isnodesyncable(Node*, bool * isinshare = NULL, syncerror_t *syncError = nullptr);
 
-    // add sync. Will fill syncError in case there is one
-    error addsync(SyncConfig, const char*, string*, int &syncError, void* = NULL);
+    /**
+     * @brief add sync. Will fill syncError in case there is one.
+     * It will persist the sync configuration if everything goes fine.
+     * @param syncError filled with syncerror_t with the sync error that prevented the addition
+     * @return API_OK if added. (regular) error otherwise.
+     */
+    error addsync(SyncConfig, const char*, string*, syncerror_t &syncError, void* = NULL);
 
-    // removes an active sync
+
+    // removes an active sync (transition to pre-removal state).
+    // This will entail the removal of the sync cache & configuration cache (see removeSyncConfig)
     void delsync(Sync*);
 
-    //TODO: doc all these
-
+    // remove sync configuration. It will remove sync configuration cache & call app's callback sync_removed
     error removeSyncConfig(int tag);
     error removeSyncConfigByNodeHandle(handle nodeHandle);
     error saveAndUpdateSyncConfig(const SyncConfig *config, syncstate_t newstate, syncerror_t syncerror);
 
-
+    // transition the cache to failed
     void failSync(Sync* sync, syncerror_t syncerror);
 
-    // disable synchronization.
+    // disable synchronization. (transition to disable_state)
     // If no error passed, it entails a manual disable: won't be resumed automatically anymore, but it will be kept in cache
     void disableSync(Sync*, syncerror_t syncError =  NO_ERROR);
 
+    // fail all active syncs
     void failSyncs(syncerror_t syncError =  NO_ERROR);
+
+    //disable all active syncs
+    // If no error passed, it entails a manual disable: won't be resumed automatically anymore, but it will be kept in cache
     void disableSyncs(syncerror_t syncError =  NO_ERROR);
 
-    error enableSync(int tag, int &syncError);
-    error enableSync(const SyncConfig *syncConfig, int &syncError);
-
-
+    // restore all configured syncs that were in a temporary error state (not manually disabled)
     void restoreSyncs();
 
-    //TODO: doc
+    // attempts to enable a sync. will fill syncError with the syncerror_t error (if any)
+    error enableSync(int tag, syncerror_t &syncError);
+    error enableSync(const SyncConfig *syncConfig, syncerror_t &syncError);
+
+    /**
+     * @brief updates the state of a synchronization. it will persist the changes and call app syncupdate_state handler
+     * @param fireDisableEvent passed to the app: if when the change entails a transition to inactive, the transition should be
+     * forwarded to the application listeners
+     * @return error if any
+     */
     error changeSyncState(const SyncConfig *config, syncstate_t newstate, syncerror_t newSyncError, bool fireDisableEvent);
     error changeSyncState(int tag, syncstate_t newstate, syncerror_t newSyncError, bool fireDisableEvent = true);
+    error changeSyncStateByNodeHandle(mega::handle nodeHandle, syncstate_t newstate, syncerror_t newSyncError, bool fireDisableEvent);
 
+#endif
 
     // close all open HTTP connections
     void disconnect();

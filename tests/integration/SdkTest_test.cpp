@@ -613,17 +613,11 @@ void SdkTest::loginBySessionId(unsigned int apiIndex, const std::string& session
     ASSERT_TRUE(mApi[apiIndex].megaApi->isLoggedIn());
 }
 
-void SdkTest::fetchnodes(unsigned int apiIndex, int timeout, bool resumeSyncs)
+void SdkTest::fetchnodes(unsigned int apiIndex, int timeout, bool resumeSyncs) //TODO: remove resumeSyncs parameter (done by default)
 {
     mApi[apiIndex].requestFlags[MegaRequest::TYPE_FETCH_NODES] = false;
-    if (resumeSyncs)
-    {
-        mApi[apiIndex].megaApi->fetchNodesAndResumeSyncs();
-    }
-    else
-    {
-        mApi[apiIndex].megaApi->fetchNodes();
-    }
+
+    mApi[apiIndex].megaApi->fetchNodes();
 
     ASSERT_TRUE( waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_FETCH_NODES], timeout) )
             << "Fetchnodes failed after " << timeout  << " seconds";
@@ -4543,6 +4537,16 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
         ASSERT_EQ(API_OK, syncTracker.waitForResult());
     };
 
+    //TODO: prepare this!
+//    auto enableSync = [this, &megaNode](const fs::path& p, const long long localfp)
+//    {
+//        RequestTracker syncTracker;
+//        auto node = megaNode(p.filename().u8string());
+//        megaApi[0]->enableSync(node->getHandle(), localfp, &syncTracker); //TODO: should this use case exist? or with localpath?
+//        ASSERT_EQ(API_OK, syncTracker.waitForResult());
+//    };
+
+
     auto resumeSync = [this, &megaNode](const fs::path& p, const long long localfp)
     {
         RequestTracker syncTracker;
@@ -4562,8 +4566,21 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     auto checkSyncOK = [this, &megaNode](const fs::path& p)
     {
         auto node = megaNode(p.filename().u8string());
-        return std::unique_ptr<MegaSync>{megaApi[0]->getSyncByNode(node.get())} != nullptr;
+        //return std::unique_ptr<MegaSync>{megaApi[0]->getSyncByNode(node.get())} != nullptr; //disabled syncs are not OK but foundable
+        std::unique_ptr<MegaSync> sync{megaApi[0]->getSyncByNode(node.get())};
+        if (!sync) return false;
+        return sync->isEnabled();
+
     };
+
+    auto checkSyncDisabled = [this, &megaNode](const fs::path& p)
+    {
+        auto node = megaNode(p.filename().u8string());
+        std::unique_ptr<MegaSync> sync{megaApi[0]->getSyncByNode(node.get())};
+        if (!sync) return false;
+        return !sync->isEnabled();
+    };
+
 
     auto reloginViaSession = [this, &session]()
     {
@@ -4582,14 +4599,15 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     ASSERT_TRUE(checkSyncOK(sync4Path));
     const auto sync2LocalFp = localFp(sync2Path); // need this for manual resume
 
-    disableSync(sync2Path);
+    disableSync(sync2Path); //This no longer removes the sync: ASSERT_FALSE(checkSyncOK(sync2Path)); will fail
     removeSync(sync3Path);
 
     // wait for the sync removals to actually take place
     std::this_thread::sleep_for(std::chrono::seconds{20});
 
     ASSERT_TRUE(checkSyncOK(sync1Path));
-    ASSERT_FALSE(checkSyncOK(sync2Path));
+    //ASSERT_FALSE(checkSyncOK(sync2Path));
+    ASSERT_TRUE(checkSyncDisabled(sync2Path));
     ASSERT_FALSE(checkSyncOK(sync3Path));
     ASSERT_TRUE(checkSyncOK(sync4Path));
 
@@ -4604,11 +4622,13 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
 
     ASSERT_TRUE(checkSyncOK(sync1Path));
     ASSERT_FALSE(checkSyncOK(sync2Path));
+    ASSERT_TRUE(checkSyncDisabled(sync2Path));
     ASSERT_FALSE(checkSyncOK(sync3Path));
     ASSERT_TRUE(checkSyncOK(sync4Path));
 
     // check if we can still resume manually
-    resumeSync(sync2Path, sync2LocalFp);
+    removeSync(sync2Path);
+    resumeSync(sync2Path, sync2LocalFp); //TODO: this won't resume if already exists (although disabled)! we want enableSync, not resume!
 
     ASSERT_TRUE(checkSyncOK(sync1Path));
     ASSERT_TRUE(checkSyncOK(sync2Path));

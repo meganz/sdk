@@ -121,14 +121,18 @@ int attempts = 0;
 
 struct NewSyncConfig
 {
-    SyncConfig::Type type;
-    bool syncDeletions;
-    bool forceOverwrite;
+    SyncConfig::Type type = SyncConfig::Type::TYPE_TWOWAY;
+    bool syncDeletions = true;
+    bool forceOverwrite = false;
 
     static NewSyncConfig from(const SyncConfig& config)
     {
         return NewSyncConfig{config.getType(), config.syncDeletions(), config.forceOverwrite()};
     }
+
+    NewSyncConfig(SyncConfig::Type t = SyncConfig::TYPE_TWOWAY, bool s = true, bool f = false)
+        : type(t), syncDeletions(s), forceOverwrite(f)
+    {}
 };
 
 // sync configuration used when creating a new sync
@@ -458,8 +462,10 @@ static void syncstat(Sync* sync)
          << " file(s) and " << sync->localnodes[FOLDERNODE] << " folder(s)" << endl;
 }
 
-void DemoApp::syncupdate_state(Sync*, syncstate_t newstate)
+void DemoApp::syncupdate_state(int tag, syncstate_t newstate, syncerror_t syncError, bool fireDisableEvent)
 {
+    cout << "Sync state updated: " << tag << " newstate: " << newstate << " error: " << syncError << endl;
+
     switch (newstate)
     {
         case SYNC_ACTIVE:
@@ -472,6 +478,17 @@ void DemoApp::syncupdate_state(Sync*, syncstate_t newstate)
         default:
             ;
     }
+}
+
+void DemoApp::sync_auto_resume_result(const SyncConfig &config, syncerror_t error)
+{
+    cout << "Sync - auresumed " <<config.getTag() << " " << config.getLocalPath()  << " enabled: " << config.getEnabled()  << " syncError: " << error << endl;
+}
+
+void DemoApp::sync_removed(int tag)
+{
+    cout << "Sync - removed: " << tag << endl;
+
 }
 
 void DemoApp::syncupdate_scanning(bool active)
@@ -4224,9 +4241,11 @@ void exec_sync(autocomplete::ACState& s)
             }
             else
             {
-                SyncConfig syncConfig{s.words[1].s, n->nodehandle, 0, {}, newSyncConfig.type,
+                static int syncTag = 2027;
+                SyncConfig syncConfig{syncTag++, s.words[1].s, n->nodehandle, 0, {}, true, newSyncConfig.type,
                             newSyncConfig.syncDeletions, newSyncConfig.forceOverwrite};
-                error e = client->addsync(std::move(syncConfig), DEBRISFOLDER, NULL);
+                syncerror_t syncError;
+                error e = client->addsync(std::move(syncConfig), DEBRISFOLDER, NULL, syncError);
 
                 if (e)
                 {
@@ -4247,9 +4266,10 @@ void exec_sync(autocomplete::ACState& s)
         {
             if ((*it)->state > SYNC_CANCELED && i++ == cancel)
             {
+                auto tag = (*it)->tag;
                 client->delsync(*it);
 
-                cout << "Sync " << cancel << " deactivated and removed." << endl;
+                cout << "Sync " << cancel << " deactivated and removed. tag: " << tag << endl;
                 break;
             }
         }

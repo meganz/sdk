@@ -2966,8 +2966,22 @@ protected:
 #ifdef ENABLE_SYNC
         // sync status updates and events
 
-        // updates sync state and fires change for app's callbacks //TODO: doc
+        /**
+         * @brief updates sync state and fires changes corresponding callbacks:
+         * - fireOnSyncStateChanged: this will be fired regardless
+         * - firOnSyncDisabled: when transitioning from active to inactive sync
+         * - fireOnSyncEnabled: when transitioning from inactive to active sync
+         * @param tag
+         * @param fireDisableEvent if when the change entails a transition to inactive should call to fireOnSyncDisabled. Should
+         * be false when adding a new sync (there was no sync: failure implies no transition)
+         */
         void syncupdate_state(int tag, syncstate_t, syncerror_t, bool fireDisableEvent = true) override;
+
+        // this will fill syncMap with a new MegaSyncPrivate, and fire onSyncAdded indicating the result of that addition
+        void sync_auto_resume_result(const SyncConfig &config, syncerror_t error) override;
+
+        // removes the sync from syncMap and fires onSyncDeleted callback
+        void sync_removed(int tag) override;
 
         void syncupdate_scanning(bool scanning) override;
         void syncupdate_local_folder_addition(Sync* sync, LocalNode *localNode, const char *path) override;
@@ -2988,11 +3002,6 @@ protected:
         void syncupdate_treestate(LocalNode*) override;
         bool sync_syncable(Sync *, const char*, string *, Node *) override;
         bool sync_syncable(Sync *, const char*, string *) override;
-
-        void sync_load(const SyncConfig &config, int error) override;
-
-        void sync_removed(int tag) override;
-
         void syncupdate_local_lockretry(bool) override;
 
         // for the exclusive use of sync_syncable
