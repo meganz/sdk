@@ -301,13 +301,16 @@ typedef enum {
     STORAGE_OVERQUOTA = 9,
     BUSINESS_EXPIRED = 10,
     FOREIGN_TARGET_OVERSTORAGE = 11,
-    REMOTE_PATH_HAS_CHANGED = 12,
-    SHARE_NON_FULL_ACCESS = 13, //Existing inbound share sync or part thereof lost full access
-    LOCAL_FINGERPRINT_MISMATCH = 14,
-    PUT_NODES_ERROR = 15,
-    ACTIVE_SYNC_BELOW_PATH = 16, // there's a synced node below the path to be synced
-    ACTIVE_SYNC_ABOVE_PATH = 17, // there's a synced node above the path to be synced
-    BANDWIDTH_OVERQUOTA = 18,
+    REMOTE_PATH_HAS_CHANGED = 12, //TODO: this might be removed: not an error? TODO: review
+    REMOTE_PATH_DELETED = 13,
+    SHARE_NON_FULL_ACCESS = 14, //Existing inbound share sync or part thereof lost full access
+    LOCAL_FINGERPRINT_MISMATCH = 15,
+    PUT_NODES_ERROR = 16,
+    ACTIVE_SYNC_BELOW_PATH = 17, // there's a synced node below the path to be synced
+    ACTIVE_SYNC_ABOVE_PATH = 18, // there's a synced node above the path to be synced
+    BANDWIDTH_OVERQUOTA = 19,
+    REMOTE_NODE_MOVED_TO_RUBBISH = 20, // moved to rubbish
+    REMOTE_NODE_INSIDE_RUBBISH = 21, //attempted to be added in rubbish
 
 
 } syncerror_t;

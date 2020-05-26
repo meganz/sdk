@@ -2276,7 +2276,7 @@ void MegaClient::exec()
                 {
                     LOG_err << "Local fingerprint mismatch. Previous: " << (*it)->fsfp
                             << "  Current: " << current;
-                    (*it)->changestate(SYNC_FAILED, LOCAL_FINGERPRINT_MISMATCH);
+                    (*it)->changestate(SYNC_FAILED, current?LOCAL_FINGERPRINT_MISMATCH:LOCAL_PATH_UNAVAILABLE);
                 }
             }
         }
@@ -6660,10 +6660,27 @@ void MegaClient::notifypurge(void)
         // check for deleted syncs
         for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
         {
-            if (((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN)
-             && (*it)->localroot->node->changed.removed)
+            if ((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN)
             {
-                failSync(*it, INITIAL_SCAN_FAILED);
+                if ((*it)->localroot->node->changed.removed)
+                {
+                    //TODO: add log messages here and there
+                    failSync(*it, REMOTE_PATH_DELETED);
+                }
+                else if((*it)->localroot->node->changed.parent)
+                {
+                    handle rubbishHandle = rootnodes[RUBBISHNODE - ROOTNODE];
+                    auto p = (*it)->localroot->node->parent;
+                    while (p)
+                    {
+                        if (p->nodehandle == rubbishHandle)
+                        {
+                            failSync(*it, REMOTE_NODE_MOVED_TO_RUBBISH);
+                            break;
+                        }
+                        p = p->parent;
+                    }
+                }
             }
         }
 #endif
@@ -12151,9 +12168,11 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, syncerror_t 
         }
     }
 
-    // any active syncs above?
+    // any active syncs above? or node within //bin or inside non full access inshare
     n = remotenode;
     inshare = false;
+
+    handle rubbishHandle = rootnodes[RUBBISHNODE - ROOTNODE];
 
     do {
         for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
@@ -12177,6 +12196,12 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, syncerror_t 
             }
 
             inshare = true;
+        }
+
+        if (n->nodehandle == rubbishHandle)
+        {
+            if(syncError) *syncError = REMOTE_NODE_INSIDE_RUBBISH;
+            return API_EACCESS;
         }
     } while ((n = n->parent));
 
@@ -13468,7 +13493,7 @@ void MegaClient::movetosyncdebris(Node* dn, bool unlink)
     if (dn->localnode)
     {
         dn->tag = dn->localnode->sync->tag;
-        dn->localnode->node = NULL; //TODO: this will cause a later REMOTE_NODE_NOT_FOUND. somehow we need to identify this to produce a REMOTE_NODE_MOVED_TO_SYNC_DEBRIS error
+        dn->localnode->node = NULL;
         dn->localnode = NULL;
     }
 

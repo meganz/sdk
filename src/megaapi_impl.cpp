@@ -17675,6 +17675,22 @@ char* MegaApiImpl::getNodePath(MegaNode *node)
     return stringToArray(path);
 }
 
+char* MegaApiImpl::getNodePathByNodeHandle(MegaHandle handle)
+{
+    sdkMutex.lock();
+    Node *n = client->nodebyhandle(handle);
+    if(!n)
+    {
+        sdkMutex.unlock();
+        return NULL;
+    }
+
+    string path = n->displaypath();
+    sdkMutex.unlock();
+
+    return stringToArray(path);
+}
+
 MegaNode* MegaApiImpl::getNodeByPath(const char *path, MegaNode* node)
 {
     if(!path) return NULL;
@@ -21018,7 +21034,7 @@ void MegaApiImpl::sendPendingRequests()
             }
             else
             {
-                e = API_ENOENT; //TODO: rethink error?
+                e = API_ENOENT;
             }
 
             if (!e)

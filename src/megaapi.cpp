@@ -3955,6 +3955,11 @@ char *MegaApi::getNodePath(MegaNode *node)
     return pImpl->getNodePath(node);
 }
 
+char *MegaApi::getNodePathByNodeHandle(MegaHandle handle)
+{
+    return pImpl->getNodePathByNodeHandle(handle);
+}
+
 MegaNode* MegaApi::getNodeByPath(const char *path, MegaNode* node)
 {
     return pImpl->getNodeByPath(path, node);
@@ -5510,6 +5515,8 @@ const char* MegaSync::getMegaSyncErrorCode(int errorCode)
         return "Foreign target storage quota reached";
     case MegaSync::Error::REMOTE_PATH_HAS_CHANGED:
         return "Remote path has changed";
+    case MegaSync::Error::REMOTE_NODE_MOVED_TO_RUBBISH:
+        return "Remote node moved to Rubbish Bin";
     case MegaSync::Error::SHARE_NON_FULL_ACCESS:
         return "Share without full access";
     case MegaSync::Error::LOCAL_FINGERPRINT_MISMATCH:
@@ -5520,7 +5527,10 @@ const char* MegaSync::getMegaSyncErrorCode(int errorCode)
         return "Active sync below path";
     case MegaSync::Error::ACTIVE_SYNC_ABOVE_PATH:
         return "Active sync above path";
-
+    case MegaSync::Error::REMOTE_PATH_DELETED:
+        return "Remove node has been deleted";
+    case MegaSync::Error::REMOTE_NODE_INSIDE_RUBBISH:
+        return "Remove node is inside Rubbish Bin";
     default:
         return "Undefined error";
     }

@@ -4875,12 +4875,15 @@ public:
         BUSINESS_EXPIRED = 10,
         FOREIGN_TARGET_OVERSTORAGE = 11,
         REMOTE_PATH_HAS_CHANGED = 12,
-        SHARE_NON_FULL_ACCESS = 13, //Existing inbound share sync or part thereof lost full access
-        LOCAL_FINGERPRINT_MISMATCH = 14,
-        PUT_NODES_ERROR = 15,
-        ACTIVE_SYNC_BELOW_PATH = 16, // there's a synced node below the path to be synced
-        ACTIVE_SYNC_ABOVE_PATH = 17, // there's a synced node above the path to be synced
-        BANDWIDTH_OVERQUOTA = 18,
+        REMOTE_PATH_DELETED = 13, // node deleted
+        SHARE_NON_FULL_ACCESS = 14, //Existing inbound share sync or part thereof lost full access
+        LOCAL_FINGERPRINT_MISMATCH = 15,
+        PUT_NODES_ERROR = 16,
+        ACTIVE_SYNC_BELOW_PATH = 17, // there's a synced node below the path to be synced
+        ACTIVE_SYNC_ABOVE_PATH = 18, // there's a synced node above the path to be synced
+        BANDWIDTH_OVERQUOTA = 19,
+        REMOTE_NODE_MOVED_TO_RUBBISH = 20, // moved to rubbish
+        REMOTE_NODE_INSIDE_RUBBISH = 21, //attempted to be added in rubbish
     };
 
     enum SyncAdded
@@ -12287,6 +12290,29 @@ class MegaApi
         void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener *listener = NULL);
 
         //TODO: add docs. note that it returns tag in request->getNumber
+
+        /**
+         * @brief Copy sync data to SDK cache.
+         *
+         * This function is destined to allow transition from Sync management based on Apps cache into SDK
+         * based cache.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_COPY_SYNC_CONFIG
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
+         * - MegaRequest::getFile - Returns the path of the local folder
+         * - MegaRequest::getFlag - if sync is enabled
+
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNumber - tag assigned to the sync (MegaApi::copySyncDataToCache)
+         *
+         * @param localFolder Local folder
+         * @param megaHandle MEGA folder
+         * @param localfp Filesystem fingerprint
+         * @param enabled If the sync is enabled by the user
+         * @param listener MegaRequestListener to track this request
+         */
         void copySyncDataToCache(const char *localFolder, MegaHandle megaHandle,
                                  long long localfp, bool enabled, MegaRequestListener *listener = NULL);
 
@@ -13145,6 +13171,20 @@ class MegaApi
          * @return The path of the node
          */
         char* getNodePath(MegaNode *node);
+
+        /**
+         * @brief Get the path of a Node given its MegaHandle
+         *
+         * If the node doesn't exist, this function returns NULL.
+         * You can recoved the node later using MegaApi::getNodeByPath
+         * except if the path contains names with '/', '\' or ':' characters.
+         *
+         * You take the ownership of the returned value
+         *
+         * @param node MegaNode for which the path will be returned
+         * @return The path of the node
+         */
+        char* getNodePathByNodeHandle(MegaHandle handle);
 
         /**
          * @brief Get the MegaNode in a specific path in the MEGA account
