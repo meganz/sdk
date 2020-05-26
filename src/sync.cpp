@@ -116,7 +116,7 @@ set<string> collectAllPathsInFolder(Sync& sync, MegaApp& app, FileSystemAccess& 
     while (da->dnext(&localpath, &localname, false))
     {
         auto name = localname;
-        fsaccess.local2name(&name);
+        fsaccess.local2name(&name, &localpath);
 
         if (localpathSize > 0)
         {
@@ -1165,7 +1165,7 @@ bool Sync::scan(string* localpath, FileAccess* fa)
             while (da->dnext(localpath, &localname, client->followsymlinks))
             {
                 name = localname;
-                client->fsaccess->local2name(&name);
+                client->fsaccess->local2name(&name, localpath);
 
                 if (t)
                 {
@@ -1290,7 +1290,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
         }
 
         string name = newname.size() ? newname : l->name;
-        client->fsaccess->local2name(&name);
+        client->fsaccess->local2name(&name, localpath);
 
         if (!client->app->sync_syncable(this, name.c_str(), &tmppath))
         {

@@ -12280,7 +12280,7 @@ void MegaClient::stopxfers(LocalNode* l, DBTableTransactionCommitter& committer)
 // of identical names to avoid flapping)
 // apply standard unescaping, if necessary (use *strings as ephemeral storage
 // space)
-void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, list<string>* strings) const
+void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, list<string>* strings, const string *localPath) const
 {
     Node** npp;
 
@@ -12291,7 +12291,7 @@ void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, list
         // perform one round of unescaping to ensure that the resulting local
         // filename matches
         fsaccess->path2local(name, &tmplocalname);
-        fsaccess->local2name(&tmplocalname);
+        fsaccess->local2name(&tmplocalname, localPath);
 
         strings->push_back(tmplocalname);
         name = &strings->back();
@@ -12350,12 +12350,12 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
         {
             size_t t = localpath->size();
             string localname = ait->second;
-            fsaccess->name2local(&localname);
+            fsaccess->name2local(&localname, localpath);
             localpath->append(fsaccess->localseparator);
             localpath->append(localname);
             if (app->sync_syncable(l->sync, ait->second.c_str(), localpath, *it))
             {
-                addchild(&nchildren, &ait->second, *it, &strings);
+                addchild(&nchildren, &ait->second, *it, &strings, &l->sync->localdebris);
             }
             else
             {
@@ -12525,7 +12525,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 
         localname = rit->second->attrs.map.find('n')->second;
 
-        fsaccess->name2local(&localname);
+        fsaccess->name2local(&localname, localpath);
         localpath->append(fsaccess->localseparator);
         localpath->append(localname);
 
@@ -12742,7 +12742,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                     continue;
                 }
 
-                addchild(&nchildren, &ait->second, *it, &strings);
+                addchild(&nchildren, &ait->second, *it, &strings, &l->sync->localdebris);
             }
         }
     }
@@ -12760,7 +12760,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
         }
 
         localname = *lit->first;
-        fsaccess->local2name(&localname);
+        fsaccess->local2name(&localname, &l->sync->localdebris);
         if (!localname.size() || !ll->name.size())
         {
             if (!ll->reported)
