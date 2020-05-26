@@ -9993,6 +9993,27 @@ void MegaApiImpl::setCameraUploadsFolder(MegaHandle nodehandle, bool secondary, 
     waiter->notify();
 }
 
+void MegaApiImpl::setCameraUploadsFolders(MegaHandle primaryFolder, MegaHandle secondaryFolder, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
+
+    MegaStringMapPrivate stringMap;
+    if (!ISUNDEF(primaryFolder))
+    {
+        stringMap.set("h", Base64Str<MegaClient::NODEHANDLE>(primaryFolder));
+    }
+    if (!ISUNDEF(secondaryFolder))
+    {
+        stringMap.set("sh", Base64Str<MegaClient::NODEHANDLE>(secondaryFolder));
+    }
+    request->setMegaStringMap(&stringMap);
+    request->setParamType(MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER);
+    request->setNodeHandle(primaryFolder);
+    request->setParentHandle(secondaryFolder);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::getMyChatFilesFolder(MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);

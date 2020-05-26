@@ -2643,6 +2643,11 @@ void MegaApi::setCameraUploadsFolderSecondary(MegaHandle nodehandle, MegaRequest
     pImpl->setCameraUploadsFolder(nodehandle, true, listener);
 }
 
+void MegaApi::setCameraUploadsFolders(MegaHandle primaryFolder, MegaHandle secondaryFolder, MegaRequestListener *listener)
+{
+    pImpl->setCameraUploadsFolders(primaryFolder, secondaryFolder, listener);
+}
+
 void MegaApi::getCameraUploadsFolder(MegaRequestListener *listener)
 {
     pImpl->getCameraUploadsFolder(false, listener);
