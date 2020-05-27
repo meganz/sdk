@@ -51,25 +51,23 @@ NS_ASSUME_NONNULL_BEGIN
 @interface MEGAPushNotificationSettings : NSObject
 
 /**
- * @brief Getter returns the timestamp (in seconds since the Epoch) until the DND mode is enabled and setter can be used to set the global DND mode for a period of time.
- *
- * This property returns valid value only if the value of property globalDNDEnabled is YES.
- * No notifications will be generated until the specified timestamp.
- *
- * If notifications were globally disabled, this function will enable them
- * back (but will not generate notification until the specified timestamp).
- *
- * If there's no DND mode established, this property returns -1.
- * @note a DND value of 0 means the DND does not expire.
- *
- */
-@property (assign, nonatomic) int64_t globalDNDTimestamp;
+* @brief Getter returns the timestamp (in seconds since the Epoch) until the chats DND mode is enabled and setter can be used to set the global DND mode for chat for a period of time.
+*
+* This property returns valid value only if the value of property globalChatsDndEnabled is YES.
+* No chat notifications will be generated until the specified timestamp.
+*
+*
+* If there's no DND mode established, this function returns -1.
+* @note a DND value of 0 means the DND does not expire.
+*
+*/
+@property (assign, nonatomic) int64_t globalChatsDNDTimestamp;
 
 /**
- * @brief Returns whether Do-Not-Disturb mode is enabled or not
- * @return YES if enabled, NO otherwise
- */
-@property (readonly, nonatomic, getter=isGlobalDNDEnabled) BOOL globalDNDEnabled;
+* @brief Getter returns whether Do-Not-Disturb mode for chats is enabled or not and setter can be used to enable or disable notifications related to all chats.
+*/
+@property (assign, nonatomic) BOOL globalChatsDndEnabled;
+
 
 /**
  * @brief Returns whether Do-Not-Disturb mode for a chat is enabled or not
@@ -122,23 +120,6 @@ NS_ASSUME_NONNULL_BEGIN
  * @param timestamp timestamp until DND mode is enabled (in seconds since the Epoch)
  */
 - (void)setChatDndForChatId:(int64_t)chatId untilTimestamp:(int64_t)timestamp;
-
-/**
- * @brief Disable the globally specified DND mode
- */
-- (void)disableGlobalDND;
-
-/**
- * @brief Enable or disable notifications globally
- *
- * If notifications are globally disabled, the DND global setting will be
- * cleared and the specified schedule, if any, will have no effect.
- *
- * @note When notifications are globally disabled, settings per chat still apply.
- *
- * @param enabled YES to enable, NO to disable
- */
-- (void)setGlobalEnabled:(BOOL)enabled;
 
 @end
 
