@@ -23,7 +23,7 @@
 #define MEGA_FILESYSTEM_H 1
 
 #if defined (__linux__) && !defined (__ANDROID__)
-#include </usr/include/linux/magic.h>
+#include <linux/magic.h>
 #endif
 
 #if defined (__linux__) || defined (__ANDROID__) // __ANDROID__ is always included in __linux__
