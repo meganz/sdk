@@ -317,6 +317,12 @@ public:
     // check the reason of being blocked
     void whyamiblocked();
 
+    // block. This stops quering for action packets
+    void block();
+
+    // called when unblocked. Resumes querying for action packets
+    void unblock();
+
     // dump current session
     int dumpsession(byte*, size_t);
 
@@ -803,6 +809,8 @@ private:
     std::unique_ptr<HttpReq> pendingscUserAlerts;
     BackoffTimer btsc;
     bool stopsc = false;
+    bool mScStoppedDueToBlock = false;
+
     bool pendingscTimedOut = false;
 
 
