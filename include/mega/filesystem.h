@@ -22,7 +22,11 @@
 #ifndef MEGA_FILESYSTEM_H
 #define MEGA_FILESYSTEM_H 1
 
-#if defined (__linux__) || defined (__ANDROID__)
+#if defined (__linux__) && !defined (__ANDROID__)
+#include <linux/magic.h>
+#endif
+
+#if defined (__linux__) || defined (__ANDROID__) // __ANDROID__ is always included in __linux__
 #include <sys/vfs.h>
 #elif defined  (__APPLE__) || defined (USE_IOS)
 #include <sys/mount.h>
@@ -34,17 +38,18 @@
 #include "types.h"
 #include "waiter.h"
 
-namespace mega {
-
-#if defined (__linux__) || defined (__ANDROID__)
-enum
-{
-    EXT2_SUPER_MAGIC      = 0xef53, // includes ext3/ext4
-    MSDOS_SUPER_MAGIC     = 0x4d44,
-    HFS_SUPER_MAGIC       = 0x4244,
-    NTFS_SB_MAGIC         = 0x5346544e,
-};
+// Define magic constants in case they are not defined in headers
+#if defined (__linux__) && !defined (__ANDROID__)
+#ifndef HFS_SUPER_MAGIC
+#define HFS_SUPER_MAGIC 0x4244
 #endif
+
+#ifndef NTFS_SB_MAGIC
+#define NTFS_SB_MAGIC   0x5346544e
+#endif
+#endif
+
+namespace mega {
 
 // Enumeration for filesystem families
 enum FileSystemType {FS_UNKNOWN = -1, FS_APFS = 0, FS_HFS = 1, FS_EXT = 2, FS_FAT32 = 3, FS_EXFAT = 4, FS_NTFS = 5};
