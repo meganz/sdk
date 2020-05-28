@@ -1597,15 +1597,14 @@ class MegaChildrenListsPrivate : public MegaChildrenLists
     public:
         MegaChildrenListsPrivate();
         MegaChildrenListsPrivate(MegaChildrenLists*);
-        MegaChildrenListsPrivate(MegaNodeListPrivate *folderList, MegaNodeListPrivate *fileList);
-        virtual ~MegaChildrenListsPrivate();
+        MegaChildrenListsPrivate(unique_ptr<MegaNodeListPrivate> folderList, unique_ptr<MegaNodeListPrivate> fileList);
         virtual MegaChildrenLists *copy();
         virtual MegaNodeList* getFolderList();
         virtual MegaNodeList* getFileList();
 
     protected:
-        MegaNodeList *folders;
-        MegaNodeList *files;
+        unique_ptr<MegaNodeList> folders;
+        unique_ptr<MegaNodeList> files;
 };
 
 class MegaUserListPrivate : public MegaUserList
@@ -2276,14 +2275,13 @@ class MegaApiImpl : public MegaApp
 		int getNumChildren(MegaNode* parent);
 		int getNumChildFiles(MegaNode* parent);
 		int getNumChildFolders(MegaNode* parent);
-        MegaNodeList* getChildren(MegaNode *parent, int order=1);
+        MegaNodeList* getChildren(MegaNode *parent, int order);
         MegaNodeList* getVersions(MegaNode *node);
         int getNumVersions(MegaNode *node);
         bool hasVersions(MegaNode *node);
         void getFolderInfo(MegaNode *node, MegaRequestListener *listener);
         MegaChildrenLists* getFileFolderChildren(MegaNode *parent, int order=1);
         bool hasChildren(MegaNode *parent);
-        int getIndex(MegaNode* node, int order=1);
         MegaNode *getChildNode(MegaNode *parent, const char* name);
         MegaNode *getParentNode(MegaNode *node);
         char *getNodePath(MegaNode *node);

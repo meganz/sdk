@@ -114,7 +114,10 @@ Node::~Node()
     client->preadabort(this);
 
     // remove node's fingerprint from hash
-    client->mFingerprints.remove(this);
+    if (!client->mOptimizePurgeNodes)
+    {
+        client->mFingerprints.remove(this);
+    }
 
 #ifdef ENABLE_SYNC
     // remove from todebris node_set
@@ -151,29 +154,32 @@ Node::~Node()
     }
 
 
-    // remove from parent's children
-    if (parent)
+    if (!client->mOptimizePurgeNodes)
     {
-        parent->children.erase(child_it);
-    }
+        // remove from parent's children
+        if (parent)
+        {
+            parent->children.erase(child_it);
+        }
 
-    Node* fa = firstancestor();
-    handle ancestor = fa->nodehandle;
-    if (ancestor == client->rootnodes[0] || ancestor == client->rootnodes[1] || ancestor == client->rootnodes[2] || fa->inshare)
-    {
-        client->mNodeCounters[firstancestor()->nodehandle] -= subnodeCounts();
-    }
+        Node* fa = firstancestor();
+        handle ancestor = fa->nodehandle;
+        if (ancestor == client->rootnodes[0] || ancestor == client->rootnodes[1] || ancestor == client->rootnodes[2] || fa->inshare)
+        {
+            client->mNodeCounters[firstancestor()->nodehandle] -= subnodeCounts();
+        }
 
-    if (inshare)
-    {
-        client->mNodeCounters.erase(nodehandle);
-    }
+        if (inshare)
+        {
+            client->mNodeCounters.erase(nodehandle);
+        }
 
-    // delete child-parent associations (normally not used, as nodes are
-    // deleted bottom-up)
-    for (node_list::iterator it = children.begin(); it != children.end(); it++)
-    {
-        (*it)->parent = NULL;
+        // delete child-parent associations (normally not used, as nodes are
+        // deleted bottom-up)
+        for (node_list::iterator it = children.begin(); it != children.end(); it++)
+        {
+            (*it)->parent = NULL;
+        }
     }
 
     if (plink)
