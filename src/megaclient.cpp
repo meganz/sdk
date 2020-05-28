@@ -2088,6 +2088,7 @@ void MegaClient::exec()
             LOG_verbose << " Megaclient exec is pending resolutions."
                         << " scpaused=" << scpaused
                         << " stopsc=" << stopsc
+                        << " mScStoppedDueToBlock=" << mScStoppedDueToBlock
                         << " jsonsc.pos=" << jsonsc.pos
                         << " syncsup=" << syncsup
                         << " statecurrent=" << statecurrent

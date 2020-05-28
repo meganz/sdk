@@ -317,10 +317,10 @@ public:
     // check the reason of being blocked
     void whyamiblocked();
 
-    // block. This stops quering for action packets
+    // stops querying for action packets due to the account being blocked (-16 on sc channel)
     void block();
 
-    // called when unblocked. Resumes querying for action packets
+    // resumes querying for action packets when the account is unblocked (if it was previously stopped due to being blocked)
     void unblock();
 
     // dump current session
