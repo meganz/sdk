@@ -2440,6 +2440,58 @@ void MegaClientAsyncQueue::asyncThreadLoop()
     }
 }
 
+bool readLines(FileAccess& ifAccess, string_vector& destination)
+{
+    FileInputStream isAccess(&ifAccess);
+
+    return readLines(isAccess, destination);
+}
+
+bool readLines(InputStreamAccess& isAccess, string_vector& destination)
+{
+    std::string input(isAccess.size(), '\0');
+
+    return isAccess.read((byte*)input.data(), isAccess.size())
+           && readLines(input, destination);
+}
+
+bool readLines(const std::string& input, string_vector& destination)
+{
+    const char *current = input.data();
+    const char *end = current + input.size();
+
+    while (current < end && (*current == '\r' || *current == '\n'))
+    {
+        ++current;
+    }
+
+    while (current < end)
+    {
+        const char *delim = current;
+        const char *whitespace = current;
+
+        while (delim < end && *delim != '\r' && *delim != '\n')
+        {
+            ++delim;
+            whitespace += std::isspace(*whitespace) > 0;
+        }
+
+        if (delim != whitespace)
+        {
+            destination.emplace_back(current, delim);
+        }
+
+        while (delim < end && (*delim == '\r' || *delim == '\n'))
+        {
+            ++delim;
+        }
+
+        current = delim;
+    }
+
+    return true;
+}
+
 bool wildcardMatch(const char* pszString, const char* pszMatch)
 //  cf. http://www.planet-source-code.com/vb/scripts/ShowCode.asp?txtCodeId=1680&lngWId=3
 {

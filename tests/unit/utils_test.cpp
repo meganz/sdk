@@ -34,3 +34,31 @@ TEST(utils, hashCombine_integer)
     ASSERT_EQ(2654435811ull, hash);
 #endif
 }
+
+TEST(utils, readLines)
+{
+    static const std::string input =
+        "\r"
+        "\n"
+        "     \r"
+        "  a\r\n"
+        "b\n"
+        "c\r"
+        "  d  \r"
+        "     \n"
+        "efg\n";
+    static const std::vector<std::string> expected = {
+        "  a",
+        "b",
+        "c",
+        "  d  ",
+        "efg"
+    };
+
+    std::vector<std::string> output;
+
+    ASSERT_TRUE(mega::readLines(input, output));
+    ASSERT_EQ(output.size(), expected.size());
+    ASSERT_TRUE(std::equal(expected.begin(), expected.end(), output.begin()));
+}
+
