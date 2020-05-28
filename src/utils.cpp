@@ -2440,5 +2440,63 @@ void MegaClientAsyncQueue::asyncThreadLoop()
     }
 }
 
+bool wildcardMatch(const char* pszString, const char* pszMatch)
+//  cf. http://www.planet-source-code.com/vb/scripts/ShowCode.asp?txtCodeId=1680&lngWId=3
+{
+    const char* cp = nullptr;
+    const char* mp = nullptr;
+
+    while ((*pszString) && (*pszMatch != '*'))
+    {
+        if ((*pszMatch != *pszString) && (*pszMatch != '?'))
+        {
+            return false;
+        }
+        pszMatch++;
+        pszString++;
+    }
+
+    while (*pszString)
+    {
+        if (*pszMatch == '*')
+        {
+            if (!*++pszMatch)
+            {
+                return true;
+            }
+            mp = pszMatch;
+            cp = pszString + 1;
+        }
+        else if ((*pszMatch == *pszString) || (*pszMatch == '?'))
+        {
+            pszMatch++;
+            pszString++;
+        }
+        else
+        {
+            pszMatch = mp;
+            pszString = cp++;
+        }
+    }
+    while (*pszMatch == '*')
+    {
+        pszMatch++;
+    }
+    return !*pszMatch;
+}
+
+bool wildcardMatch(const char* string, const string_vector &patterns)
+{
+    for (auto &pattern : patterns)
+    {
+        if (wildcardMatch(string, pattern.c_str()))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 } // namespace
 
