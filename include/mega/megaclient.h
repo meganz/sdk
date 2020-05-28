@@ -320,6 +320,12 @@ public:
     // check the reason of being blocked
     void whyamiblocked();
 
+    // stops querying for action packets due to the account being blocked (-16 on sc channel)
+    void block();
+
+    // resumes querying for action packets when the account is unblocked (if it was previously stopped due to being blocked)
+    void unblock();
+
     // dump current session
     int dumpsession(byte*, size_t);
 
@@ -806,6 +812,8 @@ private:
     std::unique_ptr<HttpReq> pendingscUserAlerts;
     BackoffTimer btsc;
     bool stopsc = false;
+    bool mScStoppedDueToBlock = false;
+
     bool pendingscTimedOut = false;
 
 
