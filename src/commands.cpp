@@ -5244,6 +5244,7 @@ CommandCopySession::CommandCopySession(MegaClient *client)
 {
     cmd("us");
     arg("c", 1);
+    batchSeparately = true;  // don't let any other commands that might get batched with it cause the whole batch to fail when blocked
     tag = client->reqtag;
 }
 
@@ -5623,6 +5624,8 @@ void CommandConfirmCancelLink::procresult()
 CommandResendVerificationEmail::CommandResendVerificationEmail(MegaClient *client)
 {
     cmd("era");
+    batchSeparately = true;  // don't let any other commands that might get batched with it cause the whole batch to fail
+
     tag = client->reqtag;
 }
 
