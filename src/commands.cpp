@@ -4737,7 +4737,14 @@ void CommandWhyAmIblocked::procresult()
 {
     if (client->json.isnumeric())
     {
-        return client->app->whyamiblocked_result(int(client->json.getint()));
+        int response = int(client->json.getint());
+
+        if (!response) //unblocked
+        {
+            client->unblock();
+        }
+
+        return client->app->whyamiblocked_result(response);
     }
 
     client->json.storeobject();
