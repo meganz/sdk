@@ -1301,7 +1301,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
         isroot = l == localroot.get() && !newname.size();
     }
 
-    LOG_verbose << "Scanning: " << path;
+    LOG_verbose << "Scanning: " << path << " in=" << initializing << " full=" << fullscan << " l=" << l;
 
     // postpone moving nodes into nonexistent parents
     if (parent && !parent->node)
@@ -1852,6 +1852,8 @@ dstime Sync::procscanq(int q)
         if ((l = dirnotify->notifyq[q].front().localnode) != (LocalNode*)~0)
         {
             dstime backoffds = 0;
+            LOG_verbose << "Checkpath: " << dirnotify->notifyq[q].front().path ;
+
             l = checkpath(l, &dirnotify->notifyq[q].front().path, NULL, &backoffds, false, nullptr);
             if (backoffds)
             {
