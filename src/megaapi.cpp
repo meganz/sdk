@@ -3890,11 +3890,6 @@ bool MegaApi::hasChildren(MegaNode *parent)
     return pImpl->hasChildren(parent);
 }
 
-int MegaApi::getIndex(MegaNode *node, int order)
-{
-    return pImpl->getIndex(node, order);
-}
-
 MegaNode *MegaApi::getChildNode(MegaNode *parent, const char* name)
 {
     return pImpl->getChildNode(parent, name);

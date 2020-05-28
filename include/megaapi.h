@@ -12971,18 +12971,6 @@ class MegaApi
         bool hasChildren(MegaNode *parent);
 
         /**
-         * @brief Get the current index of the node in the parent folder for a specific sorting order
-         *
-         * If the node doesn't exist or it doesn't have a parent node (because it's a root node)
-         * this function returns -1
-         *
-         * @param node Node to check
-         * @param order Sorting order to use
-         * @return Index of the node in its parent folder
-         */
-        int getIndex(MegaNode* node, int order = 1);
-
-        /**
          * @brief Get the child node with the provided name
          *
          * If the node doesn't exist, this function returns NULL

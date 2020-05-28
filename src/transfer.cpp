@@ -1633,7 +1633,7 @@ void TransferList::addtransfer(Transfer *transfer, DBTableTransactionCommitter& 
     else
     {
         transfer_list::iterator it = std::lower_bound(transfers[transfer->type].begin(), transfers[transfer->type].end(), LazyEraseTransferPtr(transfer), priority_comparator);
-        assert(it == transfers[transfer->type].end() || (*it)->priority != transfer->priority);
+        assert(it == transfers[transfer->type].end() || it->transfer->priority != transfer->priority);
         transfers[transfer->type].insert(it, transfer);
     }
 }
@@ -1765,7 +1765,7 @@ void TransferList::movetransfer(transfer_list::iterator it, transfer_list::itera
 
     transfers[transfer->type].erase(it);
     transfer_list::iterator fit = transfers[transfer->type].begin() + dstindex;
-    assert(fit == transfers[transfer->type].end() || (*fit)->priority != transfer->priority);
+    assert(fit == transfers[transfer->type].end() || fit->transfer->priority != transfer->priority);
     transfers[transfer->type].insert(fit, transfer);
     client->transfercacheadd(transfer, &committer);
     client->app->transfer_update(transfer);
