@@ -2243,6 +2243,7 @@ class MegaApiImpl : public MegaApp
         //Sync
         int syncPathState(string *path);
         MegaNode *getSyncedNode(string *path);
+        void syncFolder(const char *localFolder, MegaHandle megaHandle, MegaRegExp *regExp = NULL, long long localfp = 0, MegaRequestListener* listener = NULL);
         void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp = NULL, long long localfp = 0, MegaRequestListener* listener = NULL);
         void copySyncDataToCache(const char *localFolder, MegaHandle megaHandle,
                                           long long localfp, bool enabled, MegaRequestListener *listener = NULL);
@@ -2707,6 +2708,7 @@ protected:
 
 #ifdef ENABLE_SYNC
         map<int, MegaSyncPrivate *> syncMap;
+        bool mFirstSyncResumed = false;
 
         // removes a sync from syncmap and from cache
         void eraseSync(int tag);
@@ -2980,6 +2982,9 @@ protected:
 
         // this will fill syncMap with a new MegaSyncPrivate, and fire onSyncAdded indicating the result of that addition
         void sync_auto_resume_result(const SyncConfig &config, syncerror_t error) override;
+
+        // this will call will fire EVENT_FIRST_SYNC_RESUMING for the first sync to be resumed
+        virtual void sync_about_to_be_resumed(const SyncConfig &) override;
 
         // removes the sync from syncMap and fires onSyncDeleted callback
         void sync_removed(int tag) override;

@@ -5278,35 +5278,19 @@ int MegaApiImpl::getBusinessStatus()
     m_time_t now = m_time(nullptr);
 
     // Check if current status has expired (based on ts of transition) and update status
-    BizStatus prevBizStatus = client->mBizStatus;
+
+    BizStatus newBizStatus = client->mBizStatus;
     if (client->mBizExpirationTs && client->mBizExpirationTs < now)
     {
-        client->mBizStatus = BIZ_STATUS_EXPIRED;
+        newBizStatus = BIZ_STATUS_EXPIRED;
 
     }
     else if (client->mBizGracePeriodTs && client->mBizGracePeriodTs < now)
     {
-        client->mBizStatus = BIZ_STATUS_GRACE_PERIOD;
+        newBizStatus = BIZ_STATUS_GRACE_PERIOD;
     }
 
-    //TODO: refactor client->setBizStatus(newBizStatus);
-
-    auto mBizStatus = client->mBizStatus;
-
-    if (mBizStatus != prevBizStatus)
-    {
-#ifdef ENABLE_SYNC
-        if (mBizStatus == BIZ_STATUS_EXPIRED) //transitioning to expired (this cannot happen here anyway)
-        {
-            client->disableSyncs(BUSINESS_EXPIRED);
-        }
-        if (prevBizStatus == BIZ_STATUS_EXPIRED) //transitioning to not expired.
-        {//TODO: note for reviewer: MEGAsync would only restore when transitioning to BIZ_STATUS_ACTIVE. I believe this is more accurate
-            client->restoreSyncs();
-        }
-#endif
-        client->app->notify_business_status(client->mBizStatus);
-    }
+    client->setBusinessStatus(newBizStatus);
 
     // Prevent return apps unknown status
     return (client->mBizStatus == BIZ_STATUS_UNKNOWN)
@@ -8359,11 +8343,10 @@ MegaNode *MegaApiImpl::getSyncedNode(string *path)
     return node;
 }
 
-//TODO: add syncFolder version that takes MegaHandle directly
-void MegaApiImpl::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp, long long localfp, MegaRequestListener *listener)
+void MegaApiImpl::syncFolder(const char *localFolder, MegaHandle megaHandle, MegaRegExp *regExp, long long localfp, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC);
-    if(megaFolder) request->setNodeHandle(megaFolder->getHandle());
+    if (megaHandle != INVALID_HANDLE) request->setNodeHandle(megaHandle);
     if(localFolder)
     {
         string path(localFolder);
@@ -8379,6 +8362,11 @@ void MegaApiImpl::syncFolder(const char *localFolder, MegaNode *megaFolder, Mega
     request->setNumber(localfp);
     requestQueue.push(request);
     waiter->notify();
+}
+
+void MegaApiImpl::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp, long long localfp, MegaRequestListener *listener)
+{
+    syncFolder(localFolder, megaFolder?megaFolder->getHandle():INVALID_HANDLE, regExp, localfp, listener);
 }
 
 void MegaApiImpl::copySyncDataToCache(const char *localFolder, MegaHandle megaHandle,
@@ -12676,13 +12664,12 @@ void MegaApiImpl::syncupdate_state(int tag, syncstate_t newstate, syncerror_t sy
     LOG_debug << "Sync state change: " << newstate << " syncError: " << syncerror << " Path: " << megaSync->getLocalFolder();
     LOG_verbose << "Sync previous state change: " << previousState << " wasActive: " << wasActive << " wasEnabled: " << wasEnabled << " Path: " << megaSync->getLocalFolder();
 
-    fireOnSyncStateChanged(megaSync); // TODO: note in the docs that this should precede onSyncDisabled
+    fireOnSyncStateChanged(megaSync);
 
     if (fireDisableEvent && ( (wasActive && !megaSync->isActive()) || (wasTemporaryDisabled && !megaSync->isEnabled()) ) )
     {
-        //TODO: note in the doc that this can also be fired for enable->disable case, not only for inactive -> active situations,
-        // i.e. when a temporarily disabled (inactive) transitions to failed (inactive).
-        // TODO: Consider passing a DisablingState (with some special case for TEMPORARY_DISABLED_TO_FAILED_TRANSITION)
+        // TODO: note for reviewer: Spcecial case: when a temporarily disabled (inactive) transitions to failed (inactive).
+        // Consider passing a DisablingState (with some special case for TEMPORARY_DISABLED_TO_FAILED_TRANSITION)
         // or simpler: a flag failed_to_reenable, or a separate callback: onReenableFailed
         fireOnSyncDisabled(megaSync);
     }
@@ -12964,6 +12951,7 @@ void MegaApiImpl::sync_removed(int tag)
     eraseSync(tag);
 }
 
+
 void MegaApiImpl::sync_auto_resume_result(const SyncConfig &config, syncerror_t error)
 {
     MegaSyncPrivate *sync = new MegaSyncPrivate(config.getLocalPath().c_str(), config.getRemoteNode(), config.getTag());
@@ -13003,6 +12991,16 @@ void MegaApiImpl::sync_auto_resume_result(const SyncConfig &config, syncerror_t 
     else
     {
         fireOnSyncAdded(sync, failedToResume ? MegaSync::FROM_CACHE_FAILED_TO_RESUME : MegaSync::FROM_CACHE);
+    }
+}
+
+void MegaApiImpl::sync_about_to_be_resumed(const SyncConfig &config)
+{
+    if (!mFirstSyncResumed)
+    {
+        MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_FIRST_SYNC_RESUMING);
+        fireOnEvent(event);
+        mFirstSyncResumed = true;
     }
 }
 
@@ -14199,6 +14197,8 @@ void MegaApiImpl::logout_result(error e)
         excludedPaths.clear();
         syncLowerSizeLimit = 0;
         syncUpperSizeLimit = 0;
+
+        mFirstSyncResumed = false;
 
         delete mPushSettings;
         mPushSettings = NULL;
@@ -20960,7 +20960,7 @@ void MegaApiImpl::sendPendingRequests()
 
             syncerror_t syncError = NO_ERROR;
             e = client->addsync(syncConfig, DEBRISFOLDER, NULL, syncError, sync);
-            request->setNumDetails(syncError); //TODO: doc this
+            request->setNumDetails(syncError);
             if (!e)
             {
                 Sync *s = client->syncs.back();
@@ -20971,7 +20971,7 @@ void MegaApiImpl::sendPendingRequests()
                 request->setNumber(fsfp);
                 syncMap[nextSyncTag] = sync;
 
-                fireOnSyncAdded(sync, MegaSync::NEW); //TODO: pass NEW_SYNC
+                fireOnSyncAdded(sync, MegaSync::NEW);
                 fireOnRequestFinish(request, MegaError(API_OK));
                 break;
             }
@@ -20981,7 +20981,7 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_ENABLE_SYNC:
         {
-            auto tag = request->getNumDetails(); //TODO: doc this and for all
+            auto tag = request->getNumDetails();
             auto sync_it = syncMap.find(tag);
             if ( sync_it == syncMap.end() || !sync_it->second)
             {
@@ -20989,22 +20989,15 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            MegaSyncPrivate *sync = sync_it->second;
-            assert(tag == sync->getTag());
-
-            //TODO: (unrelated to this position) in case of failure Settings should be updated!!! (reload configuration always when saving?)
-            //(maybe too overkill)
-            // TODO: or only reload if any request came false? nah, should all be addressed via callbacks before reqfinish
-
             syncerror_t syncError = NO_ERROR;
 
             e = client->enableSync(tag, syncError);
             //TODO: note to reviewer: in case this fails with a non temporary error, this sets the sync
-            // to FAILED (i.e. isEnabled = true: from the user perspective it has been enabled)
-            // Alternatively, we could keep/enforce a SYNC_DISABLED, NO_ERROR and asume the failure in the req finish is enough for the app
-            // and that we do not want to update the sync configuration
+            // to FAILED (which oddly entails: isEnabled = true: from the user perspective it has been enabled)
+            // Alternatively, we could keep/enforce a SYNC_DISABLED+NO_ERROR (i.e. manually disabled) and
+            //  asume the failure in the req finish is enough for the app and that we do not want to update the sync configuration
 
-            request->setNumDetails(syncError); //TODO: doc this
+            request->setNumDetails(syncError);
 
             if (!e) //sync added (enabled) fine
             {
@@ -21119,7 +21112,7 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_DISABLE_SYNC:
         {
             handle nodehandle = request->getNodeHandle();
-            int tag = request->getNumDetails(); //TODO: document this
+            int tag = request->getNumDetails();
 
             if (tag == INVALID_SYNC_TAG && nodehandle == INVALID_HANDLE)
             {

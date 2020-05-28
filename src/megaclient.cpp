@@ -913,7 +913,7 @@ void MegaClient::activateoverquota(dstime timeleft)
         LOG_warn << "Bandwidth overquota";
 
 #ifdef ENABLE_SYNC
-        disableSyncs(BANDWIDTH_OVERQUOTA);
+        disableSyncs(BANDWIDTH_OVERQUOTA); //TODO: Note for reviewer: currently not in MEGAsync. although similar to STORAGE_OVERQUOTA
 #endif
         overquotauntil = Waiter::ds + timeleft;
         for (int d = GET; d == GET || d == PUT; d += PUT - GET)
@@ -3767,15 +3767,17 @@ void MegaClient::resumeResumableSyncs()
 
         if (config.isResumable())
         {
+            app->sync_about_to_be_resumed(config);
             LOG_debug << "Resuming cached sync: " << config.getTag() << " " << config.getLocalPath() << " fsfp= " << config.getLocalFingerprint() << " error = " << syncError ;
             const auto e = addsync(config, DEBRISFOLDER, nullptr, syncError);
 
             if (e)
             {
                 // update config entry with the error, if any. otherwise addsync would have updated it
-                // TODO: what if the error is temporary? //TODO: review all this!!! probably we don't want to try and resume those at startup ...
-                // otherwise we might break the logic pertaining restoring
                 saveAndUpdateSyncConfig(&config, SYNC_FAILED, static_cast<syncerror_t>(syncError) );
+                // TODO: what if the error is temporary? probably we don't want to try and resume those at startup ...
+                // otherwise we might break the logic pertaining restoring syncs
+                // If we do want to resume them, and decide not to set it to failed, and not persist this, onSyncAdded will need the error somehow
             }
         }
 
@@ -6547,11 +6549,36 @@ void MegaClient::sc_la()
     }
 }
 
+void MegaClient::setBusinessStatus(BizStatus newBizStatus)
+{
+    BizStatus prevBizStatus = mBizStatus;
+
+    mBizStatus = newBizStatus;
+
+    if (prevBizStatus != mBizStatus) //has changed
+    {
+#ifdef ENABLE_SYNC
+        if (mBizStatus == BIZ_STATUS_EXPIRED) //transitioning to expired
+        {
+            disableSyncs(BUSINESS_EXPIRED);
+        }
+        if (prevBizStatus == BIZ_STATUS_EXPIRED) //taransitioning to not expired
+        {//TODO: note for reviewer: MEGAsync would only restore when transitioning to BIZ_STATUS_ACTIVE. I believe this is more accurate
+            restoreSyncs();
+        }
+#endif
+    }
+
+    app->notify_business_status(mBizStatus);
+
+}
+
 void MegaClient::sc_ub()
 {
     BizStatus status = BIZ_STATUS_UNKNOWN;
     BizMode mode = BIZ_MODE_UNKNOWN;
     BizStatus prevBizStatus = mBizStatus;
+
     for (;;)
     {
         switch (jsonsc.getnameid())
@@ -6579,8 +6606,9 @@ void MegaClient::sc_ub()
                     return;
                 }
 
-                mBizStatus = status;
                 mBizMode = mode;
+
+                setBusinessStatus(status);
 
                 // FIXME: if API decides to include the expiration ts, remove the block below
                 if (mBizStatus == BIZ_STATUS_ACTIVE)
@@ -6590,21 +6618,6 @@ void MegaClient::sc_ub()
                     mBizExpirationTs = 0;
                 }
 
-                if (prevBizStatus != mBizStatus) //has changed
-                {
-#ifdef ENABLE_SYNC
-                    if (mBizStatus == BIZ_STATUS_EXPIRED) //transitioning to expired
-                    {
-                        disableSyncs(BUSINESS_EXPIRED);
-                    }
-                    if (prevBizStatus == BIZ_STATUS_EXPIRED) //taransitioning to not expired
-                    {
-                        restoreSyncs();
-                    }
-#endif
-                }
-
-                app->notify_business_status(mBizStatus);
                 if (prevBizStatus == BIZ_STATUS_INACTIVE)
                 {
                     app->account_updated();
@@ -6664,7 +6677,6 @@ void MegaClient::notifypurge(void)
             {
                 if ((*it)->localroot->node->changed.removed)
                 {
-                    //TODO: add log messages here and there
                     failSync(*it, REMOTE_PATH_DELETED);
                 }
                 else if((*it)->localroot->node->changed.parent)
@@ -13886,6 +13898,8 @@ error MegaClient::changeSyncStateByNodeHandle(mega::handle nodeHandle, syncstate
 
 void MegaClient::failSync(Sync* sync, syncerror_t syncerror)
 {
+    LOG_err << "Failing sync: " << sync->getConfig().getLocalPath() << " error = " << syncerror;
+
     sync->changestate(SYNC_FAILED, syncerror); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
 
     syncactivity = true;

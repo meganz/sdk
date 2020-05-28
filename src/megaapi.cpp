@@ -3105,26 +3105,21 @@ void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequ
     pImpl->syncFolder(localFolder, megaFolder, NULL, 0, listener);
 }
 
+void MegaApi::syncFolder(const char *localFolder, MegaHandle megaHandle, MegaRequestListener *listener)
+{
+    pImpl->syncFolder(localFolder, megaHandle, NULL, 0, listener);
+}
+
 void MegaApi::copySyncDataToCache(const char *localFolder, MegaHandle megaHandle,
                                   long long localfp, bool enabled, MegaRequestListener *listener)
 {
     pImpl->copySyncDataToCache(localFolder, megaHandle, localfp, enabled, listener);
 }
 
-void MegaApi::resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRequestListener *listener)
-{
-    pImpl->syncFolder(localFolder, megaFolder, NULL, localfp, listener);
-}
-
 #ifdef USE_PCRE
 void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
 {
     pImpl->syncFolder(localFolder, megaFolder, regExp, 0, listener);
-}
-
-void MegaApi::resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRegExp *regExp, MegaRequestListener *listener)
-{
-    pImpl->syncFolder(localFolder, megaFolder, regExp, localfp, listener);
 }
 #endif
 

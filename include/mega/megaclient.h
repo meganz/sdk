@@ -438,6 +438,9 @@ public:
     // set max connections per transfer
     void setmaxconnections(direction_t, int);
 
+    // updates business status
+    void setBusinessStatus(BizStatus newBizStatus);
+
     // enqueue/abort direct read
     void pread(Node*, m_off_t, m_off_t, void*);
     void pread(handle, SymmCipher* key, int64_t, m_off_t, m_off_t, void*, bool = false,  const char* = NULL, const char* = NULL, const char* = NULL);

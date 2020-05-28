@@ -535,7 +535,6 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
             }
 #endif
 
-            //TODO: handle her the onTransferFinish disables
             client->app->file_removed(*it, e);
         }
         client->app->transfer_removed(this);

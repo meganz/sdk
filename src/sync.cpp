@@ -608,7 +608,6 @@ bool SyncConfigBag::remove(const std::string& localPath)
                 LOG_err << "Incomplete database del at id: " << syncConfigPair->second.dbid;
                 assert(false);
                 mTable->abort();
-                return false; //TODO: review this?
             }
         }
         mSyncConfigs.erase(syncConfigPair);
@@ -630,10 +629,14 @@ bool SyncConfigBag::removeByTag(const int tag)
                 LOG_err << "Incomplete database del at id: " << config->dbid;
                 assert(false);
                 mTable->abort();
-                return false; //TODO: review this?
             }
         }
-        mSyncConfigs.erase(config->getLocalPath()); //TODO: review this if moved to tag as primary key
+        mSyncConfigs.erase(config->getLocalPath());
+        //TODO: review this if moved to tag as primary key
+        // Note for reviewer: having local path as primary key will impede having a failed sync
+        // for a path and an enabled one at the same time. Thus, requiring the user to remove the failed one
+        // before adding a valid one
+
         return true;
     }
     return false;
@@ -745,7 +748,9 @@ Sync::Sync(MegaClient* cclient, SyncConfig &config, const char* cdebris,
     dirnotify->sync = this;
 
     // set specified fsfp or get from fs if none
-    const auto cfsfp = config.getLocalFingerprint(); //TODO: when resuming ... this might have changed, it shall be checked afterwards and produce (LOCAL_FINGERPRINT_MISMATCH)... TODO: test
+    const auto cfsfp = config.getLocalFingerprint();
+    //TODO: when resuming ... this might have changed, it shall be checked afterwards and produce (LOCAL_FINGERPRINT_MISMATCH)... TODO: test
+
     if (cfsfp)
     {
         fsfp = cfsfp;
@@ -1039,6 +1044,7 @@ void Sync::changestate(syncstate_t newstate, syncerror_t newSyncError)
 {
     if (newstate != state || newSyncError != errorcode)
     {
+        LOG_debug << "Sync state/error changing. from " << state << "/" << errorcode << " to "  << newstate << "/" << newSyncError;
         if (newstate != SYNC_CANCELED)
         {
             client->changeSyncState(tag, newstate, newSyncError);

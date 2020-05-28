@@ -313,6 +313,9 @@ struct MEGA_API MegaApp
         return true;
     }
 
+    // before attempting a sync resume
+    virtual void sync_about_to_be_resumed(const SyncConfig &) { }
+
     // after an attempt to auto-resume a cache sync
     virtual void sync_auto_resume_result(const SyncConfig &, syncerror_t error) { }
 
