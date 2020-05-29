@@ -387,6 +387,7 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
 
     if (e == API_EOVERQUOTA)
     {
+        assert(type != PUT || !timeleft); //only expected overstorage overquota for uploads
         if (!slot)
         {
             bt.backoff(timeleft ? timeleft : NEVER);

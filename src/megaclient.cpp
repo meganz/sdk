@@ -13789,7 +13789,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
                 transferlist.movetofirst(t, committer);
             }
 
-            if (overquotauntil && overquotauntil > Waiter::ds)
+            if (overquotauntil && overquotauntil > Waiter::ds && d != PUT)
             {
                 dstime timeleft = dstime(overquotauntil - Waiter::ds);
                 t->failed(API_EOVERQUOTA, committer, timeleft);
