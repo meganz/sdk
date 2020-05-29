@@ -15823,7 +15823,9 @@ class MegaApi
         void archiveChat(MegaHandle chatid, int archive, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Allows a logged in operator/moderator to specify a message retention timeframe
+         * @brief Set a retention timeframe after which older messages in the chat are automatically deleted.
+         *
+         * Allows a logged in operator/moderator to specify a message retention timeframe
          * after which older messages in the chat are automatically deleted.
          *
          * @note Use inSeconds param only for testing.

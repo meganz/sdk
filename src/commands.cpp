@@ -6820,7 +6820,6 @@ CommandSetChatRetentionTime::CommandSetChatRetentionTime(MegaClient *client, han
         arg("ds", inSeconds);
     }
 
-    notself(client);
     tag = client->reqtag;
 }
 
