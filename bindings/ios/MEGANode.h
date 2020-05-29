@@ -180,7 +180,7 @@ typedef NS_ENUM(NSUInteger, MEGANodeChangeType) {
  * The value is only valid for nodes of type MEGANodeTypeFile.
  *
  */
-@property (readonly, nonatomic) NSDate *publicLinkCreationTime;
+@property (readonly, nonatomic, nullable) NSDate *publicLinkCreationTime;
 
 /**
  * @brief Handle to identify this MEGANode.
