@@ -6995,37 +6995,6 @@ public class MegaApiJava {
     }
 
     /**
-     * Get the current index of the node in the parent folder for a specific sorting order.
-     * <p>
-     * If the node does not exist or it does not have a parent node (because it's a root node)
-     * this function returns -1.
-     * 
-     * @param node
-     *            Node to check.
-     * @param order
-     *            Sorting order to use.
-     * @return Index of the node in its parent folder.
-     */
-    public int getIndex(MegaNode node, int order) {
-        return megaApi.getIndex(node, order);
-    }
-
-    /**
-     * Get the current index of the node in the parent folder.
-     * <p>
-     * If the node does not exist or it does not have a parent node (because it's a root node)
-     * this function returns -1.
-     * 
-     * @param node
-     *            Node to check.
-     * 
-     * @return Index of the node in its parent folder.
-     */
-    public int getIndex(MegaNode node) {
-        return megaApi.getIndex(node);
-    }
-
-    /**
      * Get the child node with the provided name.
      * <p>
      * If the node does not exist, this function returns null.
