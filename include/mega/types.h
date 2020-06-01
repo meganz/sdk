@@ -328,6 +328,7 @@ static bool isMegaSyncErrorPermanent(int e)
         return true;
     }
 }
+
 typedef enum { SYNCDEL_NONE, SYNCDEL_DELETED, SYNCDEL_INFLIGHT, SYNCDEL_BIN,
                SYNCDEL_DEBRIS, SYNCDEL_DEBRISDAY, SYNCDEL_FAILED } syncdel_t;
 

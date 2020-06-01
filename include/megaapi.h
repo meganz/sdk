@@ -3481,6 +3481,7 @@ public:
         EVENT_MISC_FLAGS_READY          = 11,
 #ifdef ENABLE_SYNC
         EVENT_FIRST_SYNC_RESUMING       = 12, // when a first sync is about to be resumed
+        EVENT_SYNC_RESTORED             = 13, // after restoring syncs
 #endif
     };
 
@@ -5121,6 +5122,62 @@ public:
      */
     static const char *getMegaSyncErrorCode(int errorCode);
 };
+
+
+/**
+ * @brief List of MegaSync objects
+ *
+ * A MegaSyncList has the ownership of the MegaSync objects that it contains, so they will be
+ * only valid until the SyncList is deleted. If you want to retain a MegaMode returned by
+ * a MegaSyncList, use MegaSync::copy.
+ *
+ * Objects of this class are immutable.
+ *
+ * @see MegaApi::getChildren, MegaApi::search, MegaApi::getInShares
+ */
+class MegaSyncList
+{
+    protected:
+        MegaSyncList();
+
+    public:
+        /**
+         * @brief Creates a new instance of MegaSyncList
+         * @return A pointer to the superclass of the private object
+         */
+        static MegaSyncList * createInstance();
+
+        virtual ~MegaSyncList();
+
+        virtual MegaSyncList *copy() const;
+
+        /**
+         * @brief Returns the MegaSync at the position i in the MegaSyncList
+         *
+         * The MegaSyncList retains the ownership of the returned MegaSync. It will be only valid until
+         * the MegaSyncList is deleted.
+         *
+         * If the index is >= the size of the list, this function returns NULL.
+         *
+         * @param i Position of the MegaSync that we want to get for the list
+         * @return MegaSync at the position i in the list
+         */
+        virtual MegaSync* get(int i) const;
+
+        /**
+         * @brief Returns the number of MegaSync objects in the list
+         * @return Number of MegaSync objects in the list
+         */
+        virtual int size() const;
+
+        /**
+         * @brief Add new sync to list
+         * @param sync MegaSync to be added. The sync inserted is a copy from 'sync'
+         */
+        virtual void addSync(MegaSync* sync);
+};
+
+
 
 #endif
 
@@ -12724,6 +12781,16 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void removeSyncs(MegaRequestListener *listener = NULL);
+
+
+        /**
+         * @brief Get all configured syncs
+         *
+         * You take the ownership of the returned value
+         *
+         * @return List of MegaSync objects with all syncs
+         */
+        MegaSyncList* getSyncs();
 
         /**
          * @brief Get the number of active synced folders

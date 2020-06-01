@@ -182,7 +182,7 @@ public:
     bool fsstableids = false;
 
     // Error that causes a cancellation
-    syncerror_t errorcode = NO_ERROR;
+    syncerror_t errorCode = NO_ERROR;
     error apiErrorCode; //in case a cancellation is caused by a regular error (unused)
 
     // true if the sync hasn't loaded cached LocalNodes yet

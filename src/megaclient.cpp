@@ -13907,7 +13907,7 @@ void MegaClient::failSync(Sync* sync, syncerror_t syncerror)
 
 void MegaClient::disableSync(Sync* sync, syncerror_t syncError)
 {
-    sync->errorcode = syncError;
+    sync->errorCode = syncError;
     sync->changestate(SYNC_DISABLED, syncError); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
 
     syncactivity = true;
@@ -13985,9 +13985,17 @@ void MegaClient::restoreSyncs()
 
         if (config.isResumable())
         {
+            LOG_verbose << "Restoring sync: " << config.getLocalPath();
             const auto e = enableSync(&config, syncError);
         }
+        else
+        {
+            LOG_verbose << "Skipping restoring sync: " << config.getLocalPath()
+                        << " enabled=" << config.getEnabled() << " error=" << syncError;;
+        }
     }
+
+    app->syncs_restored();
     syncactivity = true;
 }
 

@@ -313,6 +313,9 @@ struct MEGA_API MegaApp
         return true;
     }
 
+    // after all syncs have been restored
+    virtual void syncs_restored() { }
+
     // before attempting a sync resume
     virtual void sync_about_to_be_resumed(const SyncConfig &) { }
 

@@ -8435,6 +8435,24 @@ void MegaApiImpl::enableSync(int syncTag, MegaRequestListener *listener)
     waiter->notify();
 }
 
+MegaSyncList *MegaApiImpl::getSyncs()
+{
+    sdkMutex.lock();
+
+    vector<MegaSyncPrivate*> vMegaSyncs;
+
+    for (auto it = syncMap.begin(); it != syncMap.end(); it++)
+    {
+        vMegaSyncs.push_back(static_cast<MegaSyncPrivate*>(it->second));
+    }
+
+    MegaSyncList *syncList = new MegaSyncListPrivate(vMegaSyncs.data(), int(vMegaSyncs.size()));
+
+    sdkMutex.unlock();
+
+    return syncList;
+}
+
 int MegaApiImpl::getNumActiveSyncs()
 {
     sdkMutex.lock();
@@ -12992,6 +13010,12 @@ void MegaApiImpl::sync_auto_resume_result(const SyncConfig &config, syncerror_t 
     {
         fireOnSyncAdded(sync, failedToResume ? MegaSync::FROM_CACHE_FAILED_TO_RESUME : MegaSync::FROM_CACHE);
     }
+}
+
+void MegaApiImpl::syncs_restored()
+{
+    MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_SYNC_RESTORED);
+    fireOnEvent(event);
 }
 
 void MegaApiImpl::sync_about_to_be_resumed(const SyncConfig &config)
@@ -23551,6 +23575,85 @@ bool MegaSyncPrivate::isActive() const
 bool MegaSyncPrivate::isTemporaryDisabled() const
 {
     return state == SYNC_DISABLED && mError != NO_ERROR;
+}
+
+
+MegaSyncListPrivate::MegaSyncListPrivate()
+{
+    list = NULL;
+    s = 0;
+}
+
+MegaSyncListPrivate::MegaSyncListPrivate(MegaSyncPrivate** newlist, int size)
+{
+    list = NULL; s = size;
+    if(!size) return;
+
+    list = new MegaSync*[size];
+    for(int i=0; i<size; i++)
+        list[i] = newlist[i]->copy();
+}
+
+MegaSyncListPrivate::MegaSyncListPrivate(const MegaSyncListPrivate *syncList)
+{
+    s = syncList->size();
+    if (!s)
+    {
+        list = NULL;
+        return;
+    }
+
+    list = new MegaSync*[s];
+    for (int i = 0; i<s; i++)
+    {
+        list[i] = new MegaSyncPrivate(static_cast<MegaSyncPrivate *>(syncList->get(i)));
+    }
+}
+
+MegaSyncListPrivate::~MegaSyncListPrivate()
+{
+    if(!list)
+        return;
+
+    for(int i=0; i<s; i++)
+        delete list[i];
+    delete [] list;
+}
+
+MegaSyncList *MegaSyncListPrivate::copy() const
+{
+    return new MegaSyncListPrivate(this);
+}
+
+MegaSync *MegaSyncListPrivate::get(int i) const
+{
+    if(!list || (i < 0) || (i >= s))
+        return NULL;
+
+    return list[i];
+}
+
+int MegaSyncListPrivate::size() const
+{
+    return s;
+}
+
+void MegaSyncListPrivate::addSync(MegaSync *sync)
+{
+    MegaSync** copyList = list;
+    s = s + 1;
+    list = new MegaSync*[s];
+    for (int i = 0; i < s - 1; ++i)
+    {
+        list[i] = copyList[i];
+    }
+
+    list[s - 1] = sync->copy();
+
+    if (copyList != NULL)
+    {
+        delete [] copyList;
+    }
 }
 
 MegaSyncEventPrivate::MegaSyncEventPrivate(int type)

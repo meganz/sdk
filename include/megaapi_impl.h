@@ -1049,6 +1049,25 @@ protected:
 
 };
 
+
+class MegaSyncListPrivate : public MegaSyncList
+{
+    public:
+        MegaSyncListPrivate();
+        MegaSyncListPrivate(MegaSyncPrivate **newlist, int size);
+        MegaSyncListPrivate(const MegaSyncListPrivate *syncList);
+        virtual ~MegaSyncListPrivate();
+        MegaSyncList *copy() const override;
+        MegaSync* get(int i) const override;
+        int size() const override;
+
+        void addSync(MegaSync* sync) override;
+
+    protected:
+        MegaSync** list;
+        int s;
+};
+
 #endif
 
 
@@ -2253,6 +2272,8 @@ class MegaApiImpl : public MegaApp
         void disableSync(handle nodehandle, MegaRequestListener *listener=NULL);
         void disableSync(int syncTag, MegaRequestListener *listener = NULL);
         void enableSync(int syncTag, MegaRequestListener *listener = NULL);
+        MegaSyncList *getSyncs();
+
         int getNumActiveSyncs();
         void stopSyncs(MegaRequestListener *listener=NULL);
         bool isSynced(MegaNode *n);
@@ -2983,7 +3004,10 @@ protected:
         // this will fill syncMap with a new MegaSyncPrivate, and fire onSyncAdded indicating the result of that addition
         void sync_auto_resume_result(const SyncConfig &config, syncerror_t error) override;
 
-        // this will call will fire EVENT_FIRST_SYNC_RESUMING for the first sync to be resumed
+        // this will call will fire SYNCS_RESTORED
+        virtual void syncs_restored();
+
+        // this will call will fire EVENT_FIRST_SYNC_RESUMING before the first sync is resumed
         virtual void sync_about_to_be_resumed(const SyncConfig &) override;
 
         // removes the sync from syncMap and fires onSyncDeleted callback

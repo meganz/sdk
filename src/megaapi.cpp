@@ -3163,10 +3163,14 @@ void MegaApi::disableSync(int tag, MegaRequestListener *listener)
     pImpl->disableSync(tag, listener);
 }
 
-
 void MegaApi::removeSyncs(MegaRequestListener *listener)
 {
    pImpl->stopSyncs(listener);
+}
+
+MegaSyncList* MegaApi::getSyncs()
+{
+   return pImpl->getSyncs();
 }
 
 int MegaApi::getNumActiveSyncs()
@@ -5529,6 +5533,42 @@ const char* MegaSync::getMegaSyncErrorCode(int errorCode)
     default:
         return "Undefined error";
     }
+}
+
+
+MegaSyncList *MegaSyncList::createInstance()
+{
+    return new MegaSyncListPrivate();
+}
+
+MegaSyncList::MegaSyncList()
+{
+
+}
+
+MegaSyncList::~MegaSyncList()
+{
+
+}
+
+MegaSyncList *MegaSyncList::copy() const
+{
+    return NULL;
+}
+
+MegaSync *MegaSyncList::get(int) const
+{
+    return NULL;
+}
+
+int MegaSyncList::size() const
+{
+    return 0;
+}
+
+void MegaSyncList::addSync(MegaSync *sync)
+{
+
 }
 
 void MegaSyncListener::onSyncFileStateChanged(MegaApi *, MegaSync *, string *, int)

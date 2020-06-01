@@ -707,7 +707,7 @@ Sync::Sync(MegaClient* cclient, SyncConfig &config, const char* cdebris,
     tag = ctag;
     inshare = cinshare;
     appData = cappdata;
-    errorcode = NO_ERROR;
+    errorCode = NO_ERROR;
     tmpfa = NULL;
     initializing = true;
     updatedfilesize = ~0;
@@ -1042,16 +1042,16 @@ void Sync::cachenodes()
 
 void Sync::changestate(syncstate_t newstate, syncerror_t newSyncError)
 {
-    if (newstate != state || newSyncError != errorcode)
+    if (newstate != state || newSyncError != errorCode)
     {
-        LOG_debug << "Sync state/error changing. from " << state << "/" << errorcode << " to "  << newstate << "/" << newSyncError;
+        LOG_debug << "Sync state/error changing. from " << state << "/" << errorCode << " to "  << newstate << "/" << newSyncError;
         if (newstate != SYNC_CANCELED)
         {
             client->changeSyncState(tag, newstate, newSyncError);
         }
 
         state = newstate;
-        errorcode = newSyncError;
+        errorCode = newSyncError;
         fullscan = false;
     }
 }
