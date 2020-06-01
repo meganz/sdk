@@ -67,11 +67,13 @@ struct TransferTracker : public ::mega::MegaTransferListener
         finished = true;
         promiseResult.set_value(result);
     }
-    int waitForResult(int seconds = maxTimeout)
+    int waitForResult(MegaApi *api, int seconds = maxTimeout)
     {
         auto f = promiseResult.get_future();
         if (std::future_status::ready != f.wait_for(std::chrono::seconds(seconds)))
         {
+            assert(api);
+            api->removeTransferListener(this);
             return -999; // local timeout
         }
         return f.get();
@@ -94,11 +96,13 @@ struct RequestTracker : public ::mega::MegaRequestListener
         finished = true;
         promiseResult.set_value(result);
     }
-    int waitForResult(int seconds = maxTimeout)
+    int waitForResult(MegaApi *api, int seconds = maxTimeout)
     {
         auto f = promiseResult.get_future();
         if (std::future_status::ready != f.wait_for(std::chrono::seconds(seconds)))
         {
+            assert(api);
+            api->removeRequestListener(this);
             return -999; // local timeout
         }
         return f.get();
@@ -228,7 +232,7 @@ public:
 
 
     // convenience functions - make a request and wait for the result via listener, return the result code.  To add new functions to call, just copy the line
-    template<typename ... requestArgs> int doRequestLogout(unsigned apiIndex, requestArgs... args) { RequestTracker rt; megaApi[apiIndex]->logout(args..., &rt); return rt.waitForResult(); }
+    template<typename ... requestArgs> int doRequestLogout(unsigned apiIndex, requestArgs... args) { RequestTracker rt; megaApi[apiIndex]->logout(args..., &rt); return rt.waitForResult(megaApi[apiIndex].get()); }
 
     void createFile(string filename, bool largeFile = true);
     int64_t getFilesize(string filename);
