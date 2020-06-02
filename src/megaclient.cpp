@@ -4992,6 +4992,11 @@ bool MegaClient::setstoragestatus(storagestatus_t status)
     {
         storagestatus_t pststatus = ststatus;
         ststatus = status;
+        if (pststatus == STORAGE_PAYWALL)
+        {
+            mOverquotaDeadlineTs = 0;
+            mOverquotaWarningTs.clear();
+        }
         app->notify_storage(ststatus);
         if (pststatus == STORAGE_RED || pststatus == STORAGE_PAYWALL)
         {
