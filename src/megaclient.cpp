@@ -902,11 +902,12 @@ void MegaClient::acknowledgeuseralerts()
     useralerts.acknowledgeAll();
 }
 
-void MegaClient::activateoverquota(dstime timeleft)
+void MegaClient::activateoverquota(dstime timeleft, bool isPaywall)
 {
     if (timeleft)
     {
-        LOG_warn << "Bandwidth overquota";
+        assert(!isPaywall);
+        LOG_warn << "Bandwidth overquota for " << timeleft << " seconds";
         overquotauntil = Waiter::ds + timeleft;
         for (int d = GET; d == GET || d == PUT; d += PUT - GET)
         {
@@ -927,20 +928,24 @@ void MegaClient::activateoverquota(dstime timeleft)
             }
         }
     }
-    else if (setstoragestatus(STORAGE_RED))
+    else if (setstoragestatus(isPaywall ? STORAGE_PAYWALL : STORAGE_RED))
     {
         LOG_warn << "Storage overquota";
-        for (transfer_map::iterator it = transfers[PUT].begin(); it != transfers[PUT].end(); it++)
+        int end = (isPaywall) ? PUT : GET;  // in Paywall state, none DLs/UPs can progress
+        for (int d = GET; d <= end; d += PUT - GET)
         {
-            Transfer *t = it->second;
-            t->bt.backoff(NEVER);
-            if (t->slot)
+            for (transfer_map::iterator it = transfers[d].begin(); it != transfers[d].end(); it++)
             {
-                t->state = TRANSFERSTATE_RETRYING;
-                t->slot->retrybt.backoff(NEVER);
-                t->slot->retrying = true;
-                app->transfer_failed(t, API_EOVERQUOTA, 0);
-                ++performanceStats.transferTempErrors;
+                Transfer *t = it->second;
+                t->bt.backoff(NEVER);
+                if (t->slot)
+                {
+                    t->state = TRANSFERSTATE_RETRYING;
+                    t->slot->retrybt.backoff(NEVER);
+                    t->slot->retrying = true;
+                    app->transfer_failed(t, isPaywall ? API_EPAYWALL : API_EOVERQUOTA, 0);
+                    ++performanceStats.transferTempErrors;
+                }
             }
         }
     }
@@ -3217,21 +3222,25 @@ bool MegaClient::abortbackoff(bool includexfers)
     if (includexfers)
     {
         overquotauntil = 0;
-        int end = (ststatus != STORAGE_RED) ? PUT : GET;
-        for (int d = GET; d <= end; d += PUT - GET)
+        if (ststatus != STORAGE_PAYWALL)    // in ODQ Paywall, ULs/DLs are not allowed
         {
-            for (transfer_map::iterator it = transfers[d].begin(); it != transfers[d].end(); it++)
+            // in ODQ Red, only ULs are disallowed
+            int end = (ststatus != STORAGE_RED) ? PUT : GET;
+            for (int d = GET; d <= end; d += PUT - GET)
             {
-                if (it->second->bt.arm())
+                for (transfer_map::iterator it = transfers[d].begin(); it != transfers[d].end(); it++)
                 {
-                    r = true;
-                }
-
-                if (it->second->slot && it->second->slot->retrying)
-                {
-                    if (it->second->slot->retrybt.arm())
+                    if (it->second->bt.arm())
                     {
                         r = true;
+                    }
+
+                    if (it->second->slot && it->second->slot->retrying)
+                    {
+                        if (it->second->slot->retrybt.arm())
+                        {
+                            r = true;
+                        }
                     }
                 }
             }
@@ -4973,12 +4982,15 @@ bool MegaClient::slotavail() const
 
 bool MegaClient::setstoragestatus(storagestatus_t status)
 {
-    if (ststatus != status)
+    // transition from paywall to red should not happen
+    assert(status != STORAGE_RED || ststatus != STORAGE_PAYWALL);
+
+    if (ststatus != status && (status != STORAGE_RED || ststatus != STORAGE_PAYWALL))
     {
         storagestatus_t pststatus = ststatus;
         ststatus = status;
         app->notify_storage(ststatus);
-        if (pststatus == STORAGE_RED)
+        if (pststatus == STORAGE_RED || pststatus == STORAGE_PAYWALL)
         {
             abortbackoff(true);
         }

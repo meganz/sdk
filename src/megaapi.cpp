@@ -1350,6 +1350,8 @@ const char* MegaError::getErrorString(int errorCode, ErrorContexts context)
             return "Access denied for users";
         case API_EBUSINESSPASTDUE:
             return "Business account has expired";
+        case API_EPAYWALL:
+            return "Over Disk Quota Paywall";
         case PAYMENT_ECARD:
             return "Credit card rejected";
         case PAYMENT_EBILLING:

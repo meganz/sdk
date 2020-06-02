@@ -306,7 +306,13 @@ const char* errorstring(error e)
         case API_EGOINGOVERQUOTA:
             return "Not enough quota";
         case API_EMFAREQUIRED:
-            return "Required 2FA pin";
+            return "Multi-factor authentication required";
+        case API_EMASTERONLY:
+            return "Access denied for users";
+        case API_EBUSINESSPASTDUE:
+            return "Business account has expired";
+        case API_EPAYWALL:
+            return "Over Disk Quota Paywall";
         default:
             return "Unknown error";
     }

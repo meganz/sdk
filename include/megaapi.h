@@ -6029,6 +6029,11 @@ class MegaGlobalListener
          *     After calling it, this callback will be called again with the corresponding
          *     state if there is really a change.
          *
+         *     - MegaApi::STORAGE_STATE_PAYWALL = 4
+         *     The account has been full for a long time. Now most of actions are disallowed.
+         *     It's needed to call MegaApi::getUserData to check the deadline/warnings
+         *     timestamps. @see MegaApi::getOverquotaDeadlineTs and MegaApi::getOverquotaWarningsTs.
+         *
          * - MegaEvent::EVENT_NODES_CURRENT: when all external changes have been received
          *
          * - MegaEvent::EVENT_MEDIA_INFO_READY: when codec-mappings have been received
@@ -6533,6 +6538,11 @@ class MegaListener
          *     After calling it, this callback will be called again with the corresponding
          *     state if there is really a change.
          *
+         *     - MegaApi::STORAGE_STATE_PAYWALL = 4
+         *     The account has been full for a long time. Now most of actions are disallowed.
+         *     It's needed to call MegaApi::getUserData to check the deadline/warnings
+         *     timestamps. @see MegaApi::getOverquotaDeadlineTs and MegaApi::getOverquotaWarningsTs.
+         *
          * - MegaEvent::EVENT_NODES_CURRENT: when all external changes have been received
          *
          * - MegaEvent::EVENT_MEDIA_INFO_READY: when codec-mappings have been received
@@ -6933,7 +6943,8 @@ class MegaApi
             STORAGE_STATE_GREEN = 0,
             STORAGE_STATE_ORANGE = 1,
             STORAGE_STATE_RED = 2,
-            STORAGE_STATE_CHANGE = 3
+            STORAGE_STATE_CHANGE = 3,
+            STORAGE_STATE_PAYWALL = 4,
         };
 
         enum {
@@ -8616,6 +8627,21 @@ class MegaApi
          *      MegaApi::BUSINESS_STATUS_GRACE_PERIOD = 2
          */
         int getBusinessStatus();
+
+        /**
+         * @brief Returns the deadline to remedy the storage overquota situation
+         * @return Timestamp representing the deadline to remedy the overquota
+         */
+        int64_t getOverquotaDeadlineTs();
+
+        /**
+         * @brief Returns when the user was warned about overquota state
+         *
+         * You take the ownership of the returned value.
+         *
+         * @return MegaIntegerList with the timestamp corresponding to each warning
+         */
+        MegaIntegerList *getOverquotaWarningsTs();
 
         /**
          * @brief Check if the password is correct for the current account
