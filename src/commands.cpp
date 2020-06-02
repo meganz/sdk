@@ -62,16 +62,18 @@ HttpReqCommandPutFA::HttpReqCommandPutFA(MegaClient* client, handle cth, fatype 
 
 void HttpReqCommandPutFA::procresult()
 {
-    error e;
     client->looprequested = true;
 
     if (client->json.isnumeric())
     {
-        e = (error)client->json.getint();
-
+        error e = static_cast<error>(client->json.getint());
         if (e == API_EAGAIN || e == API_ERATELIMIT)
         {
             status = REQ_FAILURE;
+        }
+        else if (e == API_EPAYWALL)
+        {
+            client->activateoverquota(0, true);
         }
         else
         {
@@ -170,6 +172,12 @@ void CommandGetFA::procresult()
 
     if (client->json.isnumeric())
     {
+        error e = static_cast<error>(client->json.getint());
+        if (e == API_EPAYWALL)
+        {
+            client->activateoverquota(0, true);
+        }
+
         if (it != client->fafcs.end())
         {            
             faf_map::iterator fafsit;
@@ -180,7 +188,7 @@ void CommandGetFA::procresult()
                 it->second->fafs[0].erase(fafsit++);
             }
 
-            it->second->e = (error)client->json.getint();
+            it->second->e = e;
             it->second->req.status = REQ_FAILURE;
         }
 
@@ -280,7 +288,11 @@ void CommandAttachFA::procresult()
 
     if (client->json.isnumeric())
     {
-         e = (error)client->json.getint();
+        e = static_cast<error>(client->json.getint());
+        if (e == API_EPAYWALL)
+        {
+            client->activateoverquota(0, true);
+        }
     }
     else
     {
@@ -386,9 +398,15 @@ void CommandPutFile::procresult()
 
     if (client->json.isnumeric())
     {
+        error e = static_cast<error>(client->json.getint());
+        if (e == API_EPAYWALL)
+        {
+            client->activateoverquota(0, true);
+        }
+
         if (!canceled)
         {
-            tslot->transfer->failed(error(client->json.getint()), *client->mTctableRequestCommitter);
+            tslot->transfer->failed(e, *client->mTctableRequestCommitter);
         }
        
         return;
@@ -452,7 +470,12 @@ void CommandPutFileBackgroundURL::procresult()
 
     if (client->json.isnumeric())
     {
-        error e = (error)client->json.getint();
+        error e = static_cast<error>(client->json.getint());
+        if (e == API_EPAYWALL)
+        {
+            client->activateoverquota(0, true);
+        }
+
         if (!canceled)
         {
             client->app->backgrounduploadurl_result(e, NULL);
@@ -533,9 +556,15 @@ void CommandDirectRead::procresult()
 
     if (client->json.isnumeric())
     {
+        error e = static_cast<error>(client->json.getint());
+        if (e == API_EPAYWALL)
+        {
+            client->activateoverquota(0, true);
+        }
+
         if (!canceled && drn)
         {
-            return drn->cmdresult(error(client->json.getint()));
+            return drn->cmdresult(e);
         }
     }
     else
@@ -607,6 +636,10 @@ void CommandDirectRead::procresult()
                         {
                             // default retry interval
                             tl = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS;
+                        }
+                        else if (e == API_EPAYWALL)
+                        {
+                            client->activateoverquota(0, true);
                         }
 
                         drn->cmdresult(e, e == API_EOVERQUOTA ? tl * 10 : 0);
@@ -683,7 +716,11 @@ void CommandGetFile::procresult()
 
     if (client->json.isnumeric())
     {
-        error e = (error)client->json.getint();
+        error e = static_cast<error>(client->json.getint());
+        if (e == API_EPAYWALL)
+        {
+            client->activateoverquota(0, true);
+        }
 
         if (canceled)
         {
@@ -981,7 +1018,12 @@ void CommandSetAttr::procresult()
 {
     if (client->json.isnumeric())
     {
-        error e = (error)client->json.getint();
+        error e = static_cast<error>(client->json.getint());
+        if (e == API_EPAYWALL)
+        {
+            client->activateoverquota(0, true);
+        }
+
 #ifdef ENABLE_SYNC
         if(!e && syncop)
         {
@@ -1189,9 +1231,9 @@ void CommandPutNodes::procresult()
     {
         e = (error)client->json.getint();
         LOG_debug << "Putnodes error " << e;
-        if (e == API_EOVERQUOTA)
+        if (e == API_EOVERQUOTA || e == API_EPAYWALL)
         {
-            client->activateoverquota(0);
+            client->activateoverquota(0, (e == API_EPAYWALL));
         }
 #ifdef ENABLE_SYNC
         if (source == PUTNODES_SYNC)
@@ -1336,9 +1378,9 @@ void CommandMoveNode::procresult()
     if (client->json.isnumeric())
     {
         error e = (error)client->json.getint();
-        if (e == API_EOVERQUOTA)
+        if (e == API_EOVERQUOTA || e == API_EPAYWALL)
         {
-            client->activateoverquota(0);
+            client->activateoverquota(0, (e == API_EPAYWALL));
         }
 
 #ifdef ENABLE_SYNC
@@ -1514,7 +1556,13 @@ void CommandDelNode::procresult()
 {
     if (client->json.isnumeric())
     {
-        client->app->unlink_result(h, (error)client->json.getint());
+        error e = (error)client->json.getint();
+        if (e == API_EPAYWALL)
+        {
+            client->activateoverquota(0, true);
+        }
+
+        client->app->unlink_result(h, e);
     }
     else
     {
@@ -1561,7 +1609,11 @@ void CommandDelVersions::procresult()
     error e = API_EINTERNAL;
     if (client->json.isnumeric())
     {
-        e = (error)client->json.getint();
+        error e = static_cast<error>(client->json.getint());
+        if (e == API_EPAYWALL)
+        {
+            client->activateoverquota(0, true);
+        }
     }
     client->app->unlinkversions_result(e);
 }
@@ -2116,7 +2168,13 @@ void CommandSetShare::procresult()
 {
     if (client->json.isnumeric())
     {
-        return client->app->share_result(error(client->json.getint()));
+        error e = static_cast<error>(client->json.getint());
+        if (e == API_EPAYWALL)
+        {
+            client->activateoverquota(0, true);
+        }
+
+        return client->app->share_result(e);
     }
 
     for (;;)
@@ -2241,7 +2299,11 @@ void CommandSetPendingContact::procresult()
 {
     if (client->json.isnumeric())
     {
-        error e = (error)client->json.getint();
+        error e = static_cast<error>(client->json.getint());
+        if (e == API_EPAYWALL)
+        {
+            client->activateoverquota(0, true);
+        }
 
         handle pcrhandle = UNDEF;
         if (!e) // response for delete & remind actions is always numeric
@@ -2378,7 +2440,13 @@ void CommandUpdatePendingContact::procresult()
 {
     if (client->json.isnumeric())
     {
-        return client->app->updatepcr_result((error)client->json.getint(), this->action);
+        error e = static_cast<error>(client->json.getint());
+        if (e == API_EPAYWALL)
+        {
+            client->activateoverquota(0, true);
+        }
+
+        return client->app->updatepcr_result(e, this->action);
     }
    
     LOG_err << "Unexpected response for CommandUpdatePendingContact";
@@ -2690,7 +2758,11 @@ void CommandRemoveContact::procresult()
 
     if (client->json.isnumeric())
     {
-        e = (error)client->json.getint();
+        e = static_cast<error>(client->json.getint());
+        if (e == API_EPAYWALL)
+        {
+            client->activateoverquota(0, true);
+        }
     }
     else
     {
@@ -4715,7 +4787,13 @@ void CommandSetPH::procresult()
 {
     if (client->json.isnumeric())
     {
-        return client->app->exportnode_result(error(client->json.getint()));
+        error e = static_cast<error>(client->json.getint());
+        if (e == API_EPAYWALL)
+        {
+            client->activateoverquota(0, true);
+        }
+
+        return client->app->exportnode_result(e);
     }
 
     handle ph = client->json.gethandle();
@@ -4755,7 +4833,12 @@ void CommandGetPH::procresult()
 {
     if (client->json.isnumeric())
     {
-        return client->app->openfilelink_result(error(client->json.getint()));
+        error e = static_cast<error>(client->json.getint());
+        if (e == API_EPAYWALL)
+        {
+            client->activateoverquota(0, true);
+        }
+        return client->app->openfilelink_result(e);
     }
 
     m_off_t s = -1;
@@ -5673,7 +5756,13 @@ void CommandCleanRubbishBin::procresult()
 {
     if (client->json.isnumeric())
     {
-        client->app->cleanrubbishbin_result(error(client->json.getint()));
+        error e = static_cast<error>(client->json.getint());
+        if (e == API_EPAYWALL)
+        {
+            client->activateoverquota(0, true);
+        }
+
+        client->app->cleanrubbishbin_result(e);
     }
     else
     {
@@ -5946,7 +6035,13 @@ void CommandGetEmailLink::procresult()
 {
     if (client->json.isnumeric())
     {
-        return client->app->getemaillink_result((error)client->json.getint());
+        error e = static_cast<error>(client->json.getint());
+        if (e == API_EPAYWALL)
+        {
+            client->activateoverquota(0, true);
+        }
+
+        return client->app->getemaillink_result(e);
     }
     else    // error
     {
@@ -5981,7 +6076,11 @@ void CommandConfirmEmailLink::procresult()
 {
     if (client->json.isnumeric())
     {
-        error e = (error)client->json.getint();
+        error e = static_cast<error>(client->json.getint());
+        if (e == API_EPAYWALL)
+        {
+            client->activateoverquota(0, true);
+        }
 
         if (!e)
         {
@@ -7783,7 +7882,13 @@ void CommandSMSVerificationSend::procresult()
 {
     if (client->json.isnumeric())
     {
-        client->app->smsverificationsend_result((error)client->json.getint());
+        error e = static_cast<error>(client->json.getint());
+        if (e == API_EPAYWALL)
+        {
+            client->activateoverquota(0, true);
+        }
+
+        client->app->smsverificationsend_result(e);
     }
     else
     {
@@ -7821,7 +7926,13 @@ void CommandSMSVerificationCheck::procresult()
 {
     if (client->json.isnumeric())
     {
-        return client->app->smsverificationcheck_result(static_cast<error>(client->json.getint()), nullptr);
+        error e = static_cast<error>(client->json.getint());
+        if (e == API_EPAYWALL)
+        {
+            client->activateoverquota(0, true);
+        }
+
+        return client->app->smsverificationcheck_result(e, nullptr);
     }
 
     string phoneNumber;
@@ -7861,7 +7972,13 @@ void CommandGetRegisteredContacts::processResult(MegaApp& app, JSON& json)
 {
     if (json.isnumeric())
     {
-        app.getregisteredcontacts_result(static_cast<error>(json.getint()), nullptr);
+        error e = static_cast<error>(json.getint());
+        if (e == API_EPAYWALL)
+        {
+            app.client->activateoverquota(0, true);
+        }
+
+        app.getregisteredcontacts_result(e, nullptr);
         return;
     }
 
