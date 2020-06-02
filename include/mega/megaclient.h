@@ -758,14 +758,14 @@ public:
     // timestamp until the bandwidth is overquota in deciseconds, related to Waiter::ds
     m_time_t overquotauntil;
 
-    // timestamp when a business account will enter into Grace Period
-    m_time_t mBizGracePeriodTs;
-
-    // timestamp when a business account will finally expire
-    m_time_t mBizExpirationTs;
-
     // storage status
     storagestatus_t ststatus;
+
+    // warning timestamps related to storage overquota in paywall mode
+    vector<m_time_t> mOverquotaWarningTs;
+
+    // deadline timestamp related to storage overquota in paywall mode
+    m_time_t mOverquotaDeadlineTs;
 
     // minimum bytes per second for streaming (0 == no limit, -1 == use default)
     int minstreamingrate;
@@ -1606,6 +1606,12 @@ public:
 
     // list of handles of the Master business account/s
     std::set<handle> mBizMasters;
+
+    // timestamp when a business account will enter into Grace Period
+    m_time_t mBizGracePeriodTs;
+
+    // timestamp when a business account will finally expire
+    m_time_t mBizExpirationTs;
 
     // whether the destructor has started running yet
     bool destructorRunning = false;

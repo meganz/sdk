@@ -1153,13 +1153,14 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     xferpaused[PUT] = false;
     xferpaused[GET] = false;
     putmbpscap = 0;
-    overquotauntil = 0;
     mBizGracePeriodTs = 0;
     mBizExpirationTs = 0;
     mBizMode = BIZ_MODE_UNKNOWN;
     mBizStatus = BIZ_STATUS_UNKNOWN;
 
+    overquotauntil = 0;
     ststatus = STORAGE_UNKNOWN;
+    mOverquotaDeadlineTs = 0;
     looprequested = false;
 
     mFetchingAuthrings = false;
@@ -3992,6 +3993,8 @@ void MegaClient::locallogout(bool removecaches)
     fetchnodestag = 0;
     ststatus = STORAGE_UNKNOWN;
     overquotauntil = 0;
+    mOverquotaDeadlineTs = 0;
+    mOverquotaWarningTs.clear();
     mBizGracePeriodTs = 0;
     mBizExpirationTs = 0;
     mBizMode = BIZ_MODE_UNKNOWN;

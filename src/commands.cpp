@@ -3694,6 +3694,10 @@ void CommandGetUserData::procresult()
     string unshareableKey;
     string versionUnshareableKey;
 
+    bool uspw = false;
+    vector<m_time_t> warningTs;
+    m_time_t deadlineTs = -1;
+
     bool b = false;
     BizMode m = BIZ_MODE_UNKNOWN;
     BizStatus s = BIZ_STATUS_UNKNOWN;
@@ -3917,6 +3921,52 @@ void CommandGetUserData::procresult()
                 assert(false);
             }
             break;
+
+        case MAKENAMEID4('u', 's', 'p', 'w'):   // user paywall data
+        {
+            uspw = true;
+
+            if (client->json.enterobject())
+            {
+                bool endobject = false;
+                while (!endobject)
+                {
+                    switch (client->json.getnameid())
+                    {
+                        case MAKENAMEID2('d', 'l'): // deadline timestamp
+                            deadlineTs = client->json.getint();
+                            break;
+
+                        case MAKENAMEID3('w', 't', 's'):    // warning timestamps
+                            // ie. "wts":[1591803600,1591813600,1591823600
+
+                            if (client->json.enterarray())
+                            {
+                                m_time_t ts;
+                                while (client->json.isnumeric() && (ts = client->json.getint()) != -1)
+                                {
+                                    warningTs.push_back(ts);
+                                }
+
+                                client->json.leavearray();
+                            }
+                            break;
+
+                        case EOO:
+                            endobject = true;
+                            break;
+
+                        default:
+                            if (!client->json.storeobject())
+                            {
+                                return client->app->userdata_result(NULL, NULL, NULL, API_EINTERNAL);
+                            }
+                    }
+                }
+                client->json.leaveobject();
+            }
+            break;
+        }
 
         case EOO:
         {
@@ -4198,6 +4248,21 @@ void CommandGetUserData::procresult()
                 {
                     client->app->notify_business_status(client->mBizStatus);
                 }
+            }
+
+            if (uspw)
+            {
+                if (deadlineTs == -1 || warningTs.empty())
+                {
+                    LOG_err << "uspw received with missing timestamps";
+                }
+                else
+                {
+                    client->mOverquotaWarningTs = std::move(warningTs);
+                    client->mOverquotaDeadlineTs = deadlineTs;
+                    client->activateoverquota(0, true);
+                }
+
             }
 
             client->app->userdata_result(&name, &pubk, &privk, API_OK);
