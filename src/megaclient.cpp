@@ -13815,6 +13815,10 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
             {
                 t->failed(API_EOVERQUOTA, committer);
             }
+            else if (ststatus == STORAGE_PAYWALL)
+            {
+                t->failed(API_EPAYWALL, committer);
+            }
         }
         else
         {
@@ -13923,6 +13927,10 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
             else if (d == PUT && ststatus == STORAGE_RED)
             {
                 t->failed(API_EOVERQUOTA, committer);
+            }
+            else if (ststatus == STORAGE_PAYWALL)
+            {
+                t->failed(API_EPAYWALL, committer);
             }
         }
 

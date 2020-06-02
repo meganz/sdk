@@ -385,12 +385,12 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
 
     LOG_debug << "Transfer failed with error " << e;
 
-    if (e == API_EOVERQUOTA)
+    if (e == API_EOVERQUOTA || e == API_EPAYWALL)
     {
         if (!slot)
         {
             bt.backoff(timeleft ? timeleft : NEVER);
-            client->activateoverquota(timeleft);
+            client->activateoverquota(timeleft, (e == API_EPAYWALL));
             client->app->transfer_failed(this, e, timeleft);
             ++client->performanceStats.transferTempErrors;
         }
@@ -416,7 +416,7 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
             else
             {
                 bt.backoff(timeleft ? timeleft : NEVER);
-                client->activateoverquota(timeleft);
+                client->activateoverquota(timeleft, (e == API_EPAYWALL));
             }
         }
     }
@@ -513,7 +513,8 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
 #ifdef ENABLE_SYNC
             if((*it)->syncxfer
                 && e != API_EBUSINESSPASTDUE
-                && e != API_EOVERQUOTA)
+                && e != API_EOVERQUOTA
+                && e != API_EPAYWALL)
             {
                 client->syncdownrequired = true;
             }
@@ -1205,6 +1206,10 @@ void DirectReadNode::retry(error e, dstime timeleft)
         {
             minretryds = timeleft;
         }
+    }
+    else if (e == API_EPAYWALL)
+    {
+        minretryds = NEVER;
     }
 
     tempurls.clear();
