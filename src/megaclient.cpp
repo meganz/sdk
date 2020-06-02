@@ -14557,9 +14557,9 @@ void MegaClient::getwelcomepdf()
     reqs.add(new CommandGetWelcomePDF(this));
 }
 
-void MegaClient::setchatretentiontime(handle chatid, int period, bool inSeconds)
+void MegaClient::setchatretentiontime(handle chatid, int period)
 {
-    reqs.add(new CommandSetChatRetentionTime(this, chatid, period, inSeconds));
+    reqs.add(new CommandSetChatRetentionTime(this, chatid, period));
 }
 
 #ifdef MEGA_MEASURE_CODE

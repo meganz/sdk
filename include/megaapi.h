@@ -15825,16 +15825,13 @@ class MegaApi
         /**
          * @brief Set a retention timeframe after which older messages in the chat are automatically deleted.
          *
-         * Allows a logged in operator/moderator to specify a message retention timeframe
+         * Allows a logged in operator/moderator to specify a message retention timeframe in seconds,
          * after which older messages in the chat are automatically deleted.
-         *
-         * @note Use inSeconds param only for testing.
          *
          * The associated request type with this request is MegaRequest::TYPE_SET_RETENTION_TIME
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the chat identifier
          * - MegaRequest::getNumdetails - Returns the retention timeframe
-         * - MegaRequest::getFlag - Returns true if period is specified in seconds, otherwise returns false.
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_EARGS - If the chatid is invalid
@@ -15842,11 +15839,10 @@ class MegaApi
          * - MegaError::API_EACCESS - If the logged in user doesn't have operator privileges
          *
          * @param chatid MegaHandle that identifies the chat room
-         * @param period retention timeframe after which older messages in the chat are automatically deleted
-         * @param inSeconds indicate API that period is specified in seconds. Only for testing
+         * @param period retention timeframe in seconds, after which older messages in the chat are automatically deleted
          * @param listener MegaRequestListener to track this request
          */
-        void setChatRetentionTime(MegaHandle chatid, int period, bool inSeconds = false, MegaRequestListener *listener = NULL);
+        void setChatRetentionTime(MegaHandle chatid, int period, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Request rich preview information for specified URL

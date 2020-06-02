@@ -2537,7 +2537,7 @@ class MegaApiImpl : public MegaApp
         bool hasAccessToAttachment(MegaHandle chatid, MegaHandle h, MegaHandle uh);
         const char* getFileAttribute(MegaHandle h);
         void archiveChat(MegaHandle chatid, int archive, MegaRequestListener *listener = NULL);
-        void setChatRetentionTime(MegaHandle chatid, int period, bool inSeconds, MegaRequestListener *listener = NULL);
+        void setChatRetentionTime(MegaHandle chatid, int period, MegaRequestListener *listener = NULL);
         void requestRichPreview(const char *url, MegaRequestListener *listener = NULL);
         void chatLinkHandle(MegaHandle chatid, bool del, bool createifmissing, MegaRequestListener *listener = NULL);
         void getChatLinkURL(MegaHandle publichandle, MegaRequestListener *listener = NULL);

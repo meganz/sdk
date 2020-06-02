@@ -6807,19 +6807,14 @@ void CommandArchiveChat::procresult()
     }
 }
 
-CommandSetChatRetentionTime::CommandSetChatRetentionTime(MegaClient *client, handle chatid, int period, bool inSeconds)
+CommandSetChatRetentionTime::CommandSetChatRetentionTime(MegaClient *client, handle chatid, int period)
 {
     mChatid = chatid;
 
     cmd("mcsr");
     arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
     arg("d", period);
-
-    if (inSeconds)
-    {
-        arg("ds", inSeconds);
-    }
-
+    arg("ds", 1);
     tag = client->reqtag;
 }
 
