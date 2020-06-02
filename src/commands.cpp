@@ -4597,7 +4597,8 @@ void CommandGetUserQuota::procresult()
                     if (details->storage_used >= details->storage_max)
                     {
                         LOG_debug << "Account full";
-                        client->activateoverquota(0);
+                        bool isPaywall = (client->ststatus == STORAGE_PAYWALL);
+                        client->activateoverquota(0, isPaywall);
                     }
                     else if (details->storage_used >= (details->storage_max / 10000 * uslw))
                     {
