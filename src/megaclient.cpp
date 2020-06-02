@@ -13486,7 +13486,10 @@ void MegaClient::proclocaltree(LocalNode* n, LocalTreeProc* tp)
 
 void MegaClient::unlinkifexists(LocalNode *l, FileAccess *fa, std::string *path)
 {
-    l->getlocalpath(path);
+    // sdisable = true for this call.  In the case where we are doing a full scan due to fs notificaions failing, and a file was renamed but retains the same shortname, we would check the presence of the wrong file.
+    // Also shortnames are slowly being deprecated by Microsoft, so using full names is now the normal case anyway.
+    l->getlocalpath(path, true);
+
     if (fa->fopen(path) || fa->type == FOLDERNODE)
     {
         LOG_warn << "Deletion of existing file avoided";

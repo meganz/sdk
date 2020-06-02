@@ -118,8 +118,8 @@ FileSystemType FileSystemAccess::getlocalfstype(const string *dstPath) const
         }
     }
 #elif defined(_WIN32) || defined(_WIN64) || defined(WINDOWS_PHONE)
-    TCHAR volumeName[MAX_PATH + 1] = { 0 };
-    TCHAR fileSystemName[MAX_PATH + 1] = { 0 };
+    CHAR volumeName[MAX_PATH + 1] = { 0 };
+    CHAR fileSystemName[MAX_PATH + 1] = { 0 };
     DWORD serialNumber = 0;
     DWORD maxComponentLen = 0;
     DWORD fileSystemFlags = 0;

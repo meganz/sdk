@@ -1342,9 +1342,16 @@ void WinDirNotify::process(DWORD dwBytes)
     {
         assert(dwBytes >= offsetof(FILE_NOTIFY_INFORMATION, FileName) + sizeof(wchar_t));
 
-        char* ptr = (char*)notifybuf[active].data();
-
-        active ^= 1;
+        string processbuf;
+        if (dwBytes <= 65534)
+        {
+            processbuf = notifybuf;  // avoid big realloc
+        }
+        else
+        {
+            processbuf.swap(notifybuf);  // use existing buffer, a new one will be allocated for receiving
+        }
+        char* ptr = (char*)processbuf.data();
 
         readchanges();
 
@@ -1414,14 +1421,38 @@ void WinDirNotify::process(DWORD dwBytes)
 void WinDirNotify::readchanges()
 {
 #ifndef WINDOWS_PHONE
-    if (ReadDirectoryChangesW(hDirectory, (LPVOID)notifybuf[active].data(),
-                              (DWORD)notifybuf[active].size(), TRUE,
+    try
+    {
+        notifybuf.resize(655340);  // 640k decent size buffer in case of really large filesystem changes (should not be too much memory on PCs)
+    }
+    catch (std::bad_alloc&)
+    {
+        notifybuf.resize(65534);  // if we're a bit low on memory, do the best we can with 64k
+    }
+
+    auto readRet = ReadDirectoryChangesW(hDirectory, (LPVOID)notifybuf.data(),
+                              (DWORD)notifybuf.size(), TRUE,
                               FILE_NOTIFY_CHANGE_FILE_NAME
                             | FILE_NOTIFY_CHANGE_DIR_NAME
                             | FILE_NOTIFY_CHANGE_LAST_WRITE
                             | FILE_NOTIFY_CHANGE_SIZE
                             | FILE_NOTIFY_CHANGE_CREATION,
-                              &dwBytes, &overlapped, completion))
+                              &dwBytes, &overlapped, completion);
+
+    if (!readRet && GetLastError() == ERROR_INVALID_PARAMETER)
+    {
+        // ReadDirectoryChangesW fails with ERROR_INVALID_PARAMETER when the buffer length is greater than 64 KB and the application is monitoring a directory over the network. This is due to a packet size limitation with the underlying file sharing protocols.
+        readRet = ReadDirectoryChangesW(hDirectory, (LPVOID)notifybuf.data(),
+                            (DWORD)65534, TRUE,
+                            FILE_NOTIFY_CHANGE_FILE_NAME
+                            | FILE_NOTIFY_CHANGE_DIR_NAME
+                            | FILE_NOTIFY_CHANGE_LAST_WRITE
+                            | FILE_NOTIFY_CHANGE_SIZE
+                            | FILE_NOTIFY_CHANGE_CREATION,
+                            &dwBytes, &overlapped, completion);
+    }
+
+    if (readRet)
     {
         failed = 0;
         enabled = true;
@@ -1454,15 +1485,24 @@ WinDirNotify::WinDirNotify(string* localbasepath, string* ignore) : DirNotify(lo
     overlapped.hEvent = this;
     enabled = false;
     exit = false;
-    active = 0;
-
-    notifybuf[0].resize(65534);
-    notifybuf[1].resize(65534);
 
     int added = WinFileSystemAccess::sanitizedriveletter(localbasepath);
     localbasepath->append("", 1);
 
-    if ((hDirectory = CreateFileW((LPCWSTR)localbasepath->data(),
+    // ReadDirectoryChangesW: If you opened the file using the short name, you can receive change notifications for the short name.  (so make sure it's a long name)
+    std::wstring longname;
+    auto r = localbasepath->size() / sizeof(wchar_t) + 20;
+    longname.resize(r);
+    auto rr = GetLongPathNameW((LPCWSTR)localbasepath->data(), (LPWSTR)longname.data(), DWORD(r));
+
+    longname.resize(rr);
+    if (rr >= r)
+    {
+        rr = GetLongPathNameW((LPCWSTR)localbasepath->data(), (LPWSTR)longname.data(), rr);
+        longname.resize(rr);
+    }
+
+    if ((hDirectory = CreateFileW((LPCWSTR)longname.data(),
                                   FILE_LIST_DIRECTORY,
                                   FILE_SHARE_READ | FILE_SHARE_WRITE,
                                   NULL,

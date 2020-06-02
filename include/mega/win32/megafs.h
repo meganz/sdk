@@ -104,8 +104,7 @@ struct MEGA_API WinDirNotify : public DirNotify
 
     bool enabled;
     bool exit;
-    int active;
-    string notifybuf[2];
+    string notifybuf;
 
     DWORD dwBytes;
     OVERLAPPED overlapped;
