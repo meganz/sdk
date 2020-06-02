@@ -5530,6 +5530,8 @@ const char* MegaSync::getMegaSyncErrorCode(int errorCode)
         return "Remove node has been deleted";
     case MegaSync::Error::REMOTE_NODE_INSIDE_RUBBISH:
         return "Remove node is inside Rubbish Bin";
+    case MegaSync::Error::VBOXSHAREDFOLDER_UNSUPPORTED:
+        return "Unsupported VBoxSharedFolderFS filesystem";
     default:
         return "Undefined error";
     }

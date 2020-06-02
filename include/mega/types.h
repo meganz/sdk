@@ -291,26 +291,27 @@ typedef enum {
 typedef enum {
     NO_ERROR = 0,
     UNKNOWN_ERROR = 1,
-    UNSUPPORTED_FILE_SYSTEM = 2,
-    INVALID_REMOTE_TYPE = 3,
-    INVALID_LOCAL_TYPE = 4,
-    INITIAL_SCAN_FAILED = 5,
-    LOCAL_PATH_TEMPORARY_UNAVAILABLE = 6, //Note, this is fatal when adding a sync! TODO: review
-    LOCAL_PATH_UNAVAILABLE = 7,
-    REMOTE_NODE_NOT_FOUND = 8,
-    STORAGE_OVERQUOTA = 9,
-    BUSINESS_EXPIRED = 10,
-    FOREIGN_TARGET_OVERSTORAGE = 11,
+    UNSUPPORTED_FILE_SYSTEM = 2, //File system type is not supported
+    INVALID_REMOTE_TYPE = 3, //Remote type is not a folder that can be synced
+    INVALID_LOCAL_TYPE = 4, //Local path does not refer to a folder
+    INITIAL_SCAN_FAILED = 5, //The initial scan failed
+    LOCAL_PATH_TEMPORARY_UNAVAILABLE = 6, //Local path is temporarily unavailable: this is fatal when adding a sync
+    LOCAL_PATH_UNAVAILABLE = 7, //Local path is not available (can't be open)
+    REMOTE_NODE_NOT_FOUND = 8, //Remote node does no longer exists
+    STORAGE_OVERQUOTA = 9, //Account reached storage overquota
+    BUSINESS_EXPIRED = 10, //Business account expired
+    FOREIGN_TARGET_OVERSTORAGE = 11, //Sync transfer fails (upload into an inshare whose account is overquota)
     REMOTE_PATH_HAS_CHANGED = 12, //TODO: this might be removed: not an error? TODO: review
-    REMOTE_PATH_DELETED = 13,
+    REMOTE_PATH_DELETED = 13, //Remote path has been deleted
     SHARE_NON_FULL_ACCESS = 14, //Existing inbound share sync or part thereof lost full access
-    LOCAL_FINGERPRINT_MISMATCH = 15,
-    PUT_NODES_ERROR = 16,
-    ACTIVE_SYNC_BELOW_PATH = 17, // there's a synced node below the path to be synced
-    ACTIVE_SYNC_ABOVE_PATH = 18, // there's a synced node above the path to be synced
-    BANDWIDTH_OVERQUOTA = 19,
-    REMOTE_NODE_MOVED_TO_RUBBISH = 20, // moved to rubbish
-    REMOTE_NODE_INSIDE_RUBBISH = 21, //attempted to be added in rubbish
+    LOCAL_FINGERPRINT_MISMATCH = 15, //Filesystem fingerprint does not match the one stored for the synchronization
+    PUT_NODES_ERROR = 16, // Error processing put nodes result
+    ACTIVE_SYNC_BELOW_PATH = 17, // There's a synced node below the path to be synced
+    ACTIVE_SYNC_ABOVE_PATH = 18, // There's a synced node above the path to be synced
+    BANDWIDTH_OVERQUOTA = 19, // Account reached bandwidth overquota
+    REMOTE_NODE_MOVED_TO_RUBBISH = 20, // Moved to rubbish
+    REMOTE_NODE_INSIDE_RUBBISH = 21, // Attempted to be added in rubbish
+    VBOXSHAREDFOLDER_UNSUPPORTED = 22, // Found unsupported VBoxSharedFolderFS
 
 
 } syncerror_t;

@@ -54,7 +54,7 @@ public:
     DirAccess* newdiraccess() override;
     DirNotify* newdirnotify(string*, string*) override;
 
-    bool issyncsupported(string*, bool* = NULL) override;
+    bool issyncsupported(string*, bool* = NULL, syncerror_t* = nullptr) override;
 
     void tmpnamelocal(string*) const override;
 

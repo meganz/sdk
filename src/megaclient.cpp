@@ -12287,10 +12287,10 @@ error MegaClient::addsync(SyncConfig syncConfig, const char* debris, string* loc
     }
     
     bool isnetwork = false;
-    if (!fsaccess->issyncsupported(&rootpath, &isnetwork))
+    if (!fsaccess->issyncsupported(&rootpath, &isnetwork, &syncError))
     {
         LOG_warn << "Unsupported filesystem";
-        syncError = UNSUPPORTED_FILE_SYSTEM;
+        if (!syncError) syncError = UNSUPPORTED_FILE_SYSTEM;
         return API_EFAILED;
     }
 

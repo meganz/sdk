@@ -323,7 +323,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     virtual bool getextension(string*, char*, size_t) const = 0;
 
     // check if synchronization is supported for a specific path
-    virtual bool issyncsupported(string*, bool* = NULL) { return true; }
+    virtual bool issyncsupported(string*, bool* = NULL, syncerror_t* = nullptr) { return true; }
 
     // add notification (has to be called for all directories in tree for full crossplatform support)
     virtual void addnotify(LocalNode*, string*) { }

@@ -1524,7 +1524,7 @@ DirNotify* WinFileSystemAccess::newdirnotify(string* localpath, string* ignore)
     return dirnotify;
 }
 
-bool WinFileSystemAccess::issyncsupported(string *localpath, bool *isnetwork)
+bool WinFileSystemAccess::issyncsupported(string *localpath, bool *isnetwork, syncerror_t *syncError)
 {
     WCHAR VBoxSharedFolderFS[] = L"VBoxSharedFolderFS";
     string path, fsname;
@@ -1540,7 +1540,7 @@ bool WinFileSystemAccess::issyncsupported(string *localpath, bool *isnetwork)
         && !memcmp(fsname.data(), VBoxSharedFolderFS, sizeof(VBoxSharedFolderFS)))
     {
         LOG_warn << "VBoxSharedFolderFS is not supported because it doesn't provide ReadDirectoryChanges() nor unique file identifiers";
-        //TODO: this should be conveyed into the corresponding MegaSync::Error
+        if (syncError) *syncError = VBOXSHAREDFOLDER_UNSUPPORTED;
         result = false;
     }
 
