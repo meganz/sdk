@@ -1690,6 +1690,29 @@ public:
     virtual void addMegaHandle(MegaHandle megaHandle);
 };
 
+class MegaIntegerList
+{
+public:
+    virtual ~MegaIntegerList();
+    virtual MegaIntegerList *copy() const;
+
+    /**
+     * @brief Returns the integer at the position i in the MegaIntegerList
+     *
+     * If the index is >= the size of the list, this function returns -1.
+     *
+     * @param i Position of the integer that we want to get for the list
+     * @return Integer at the position i in the list
+     */
+    virtual int64_t get(int i) const;
+
+    /**
+     * @brief Returns the number of integer values in the list
+     * @return Number of integer values in the list
+     */
+    virtual int size() const;
+};
+
 /**
  * @brief Represents the outbound sharing of a folder with a user in MEGA
  *

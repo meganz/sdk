@@ -5297,6 +5297,16 @@ int MegaApiImpl::getBusinessStatus()
             : client->mBizStatus;
 }
 
+int64_t MegaApiImpl::getOverquotaDeadlineTs()
+{
+    return client->mOverquotaDeadlineTs;
+}
+
+MegaIntegerList *MegaApiImpl::getOverquotaWarningsTs()
+{
+    return new MegaIntegerListPrivate(client->mOverquotaWarningTs);
+}
+
 bool MegaApiImpl::checkPassword(const char *password)
 {
     sdkMutex.lock();
@@ -31213,6 +31223,35 @@ unsigned int MegaHandleListPrivate::size() const
 void MegaHandleListPrivate::addMegaHandle(MegaHandle h)
 {
     mList.push_back(h);
+}
+
+MegaIntegerListPrivate::MegaIntegerListPrivate(const vector<int64_t> &integers)
+    : mIntegers(integers)
+{
+
+}
+
+MegaIntegerListPrivate::~MegaIntegerListPrivate()
+{
+
+}
+
+MegaIntegerList* MegaIntegerListPrivate::copy() const
+{
+    return new MegaIntegerListPrivate(mIntegers);
+}
+
+int64_t MegaIntegerListPrivate::get(int i) const
+{
+    if (i >= static_cast<int>(mIntegers.size()))
+        return -1;
+
+    return mIntegers.at(i);
+}
+
+int MegaIntegerListPrivate::size() const
+{
+    return static_cast<int>(mIntegers.size());
 }
 
 MegaChildrenListsPrivate::MegaChildrenListsPrivate(MegaChildrenLists *list)
