@@ -1335,7 +1335,7 @@ void CommandPutNodes::procresult()
 #endif
 }
 
-CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t csyncdel, handle prevparent)
+CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t csyncdel, handle prevparent, bool noSIC)
 {
     h = n->nodehandle;
     syncdel = csyncdel;
@@ -1344,7 +1344,7 @@ CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t
     syncop = pp != UNDEF;
 
     cmd("m");
-    notself(client);
+    if (noSIC) notself(client);
     arg("n", (byte*)&h, MegaClient::NODEHANDLE);
     arg("t", (byte*)&t->nodehandle, MegaClient::NODEHANDLE);
 

@@ -377,7 +377,7 @@ class MEGA_API CommandMoveNode : public Command
 public:
     void procresult();
 
-    CommandMoveNode(MegaClient*, Node*, Node*, syncdel_t, handle = UNDEF);
+    CommandMoveNode(MegaClient*, Node*, Node*, syncdel_t, handle, bool noSIC);
 };
 
 class MEGA_API CommandSingleKeyCR : public Command

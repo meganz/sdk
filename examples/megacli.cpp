@@ -2001,7 +2001,7 @@ public:
         {
             string attrstring;
             SymmCipher key;
-            NewNode* t = nn + --nc;
+            NewNode* t = &nn[--nc];
 
             // copy node
             t->source = NEW_NODE;
@@ -3544,7 +3544,6 @@ void exec_cp(autocomplete::ACState& s)
             }
 
             TreeProcCopy_mcli tc;
-            unsigned nc;
             handle ovhandle = UNDEF;
 
             if (!n->keyApplied())
@@ -3598,7 +3597,6 @@ void exec_cp(autocomplete::ACState& s)
             client->proctree(n, &tc, false, ovhandle != UNDEF);
 
             tc.allocnodes();
-            nc = tc.nc;
 
             // build new nodes array
             client->proctree(n, &tc, false, ovhandle != UNDEF);
@@ -3615,17 +3613,17 @@ void exec_cp(autocomplete::ACState& s)
                 attrs.map = n->attrs.map;
                 attrs.map['n'] = sname;
 
-                key.setkey((const byte*)tc.nn->nodekey.data(), tc.nn->type);
+                key.setkey((const byte*)tc.nn[0].nodekey.data(), tc.nn[0].type);
 
                 // JSON-encode object and encrypt attribute string
                 attrs.getjson(&attrstring);
-                tc.nn->attrstring.reset(new string);
-                client->makeattr(&key, tc.nn->attrstring, attrstring.c_str());
+                tc.nn[0].attrstring.reset(new string);
+                client->makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
             }
 
             // tree root: no parent
-            tc.nn->parenthandle = UNDEF;
-            tc.nn->ovhandle = ovhandle;
+            tc.nn[0].parenthandle = UNDEF;
+            tc.nn[0].ovhandle = ovhandle;
 
             if (tn)
             {
@@ -3641,10 +3639,10 @@ void exec_cp(autocomplete::ACState& s)
                 {
                     cout << "Attempting to drop into user " << targetuser << "'s inbox..." << endl;
 
-                    client->putnodes(targetuser.c_str(), tc.nn, nc);
+                    client->putnodes(targetuser.c_str(), std::move(tc.nn));
 
                     // free in putnodes_result()
-                    tc.nn = NULL;
+                    tc.nn.clear();
                 }
                 else
                 {
@@ -3818,7 +3816,7 @@ void exec_get(autocomplete::ACState& s)
 
 void uploadLocalFolderContent(LocalPath& localname, Node* cloudFolder);
 
-void uploadLocalPath(nodetype_t type, std::string name, LocalPath& localname, Node* parent, const std::string targetuser, DBTableTransactionCommitter& committer, int& total, bool Y)
+void uploadLocalPath(nodetype_t type, std::string name, LocalPath& localname, Node* parent, const std::string targetuser, DBTableTransactionCommitter& committer, int& total, bool recursive)
 {
 
     Node *previousNode = client->childnodebyname(parent, name.c_str(), false);
@@ -3877,8 +3875,8 @@ void uploadLocalPath(nodetype_t type, std::string name, LocalPath& localname, No
         }
         else
         {
-            auto nn = new NewNode[1];
-            client->putnodes_prepareOneFolder(nn, name);
+            vector<NewNode> nn(1);
+            client->putnodes_prepareOneFolder(&nn[0], name);
 
             gOnPutNodeTag[gNextClientTag] = [localname](Node* parent) {
                 auto tmp = localname;
@@ -3886,7 +3884,7 @@ void uploadLocalPath(nodetype_t type, std::string name, LocalPath& localname, No
             };
 
             client->reqtag = gNextClientTag++;
-            client->putnodes(parent->nodehandle, nn, 1);
+            client->putnodes(parent->nodehandle, std::move(nn));
             client->reqtag = 0;
         }
     }
@@ -4622,9 +4620,9 @@ void exec_mkdir(autocomplete::ACState& s)
 
             if (newname.size())
             {
-                auto nn = new NewNode[1];
-                client->putnodes_prepareOneFolder(nn, newname);
-                client->putnodes(n->nodehandle, nn, 1);
+                vector<NewNode> nn(1);
+                client->putnodes_prepareOneFolder(&nn[0], newname);
+                client->putnodes(n->nodehandle, std::move(nn));
             }
             else if (allowDuplicate && n->parent && n->parent->nodehandle != UNDEF)
             {
@@ -4632,9 +4630,9 @@ void exec_mkdir(autocomplete::ACState& s)
                 auto leafname = s.words[1].s;
                 auto pos = leafname.find_last_of("/");
                 if (pos != string::npos) leafname.erase(0, pos + 1);
-                auto nn = new NewNode[1];
-                client->putnodes_prepareOneFolder(nn, leafname);
-                client->putnodes(n->parent->nodehandle, nn, 1);
+                vector<NewNode> nn(1);
+                client->putnodes_prepareOneFolder(&nn[0], leafname);
+                client->putnodes(n->parent->nodehandle, std::move(nn));
             }
             else
             {
@@ -7004,15 +7002,15 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
         nameid name;
         string* t;
         json.begin((char*)buf + 5);
-        NewNode* newnode = new NewNode[1];
+        vector<NewNode> newnode(1);
 
         // set up new node as folder node
-        newnode->source = NEW_PUBLIC;
-        newnode->type = FILENODE;
-        newnode->nodehandle = ph;
-        newnode->parenthandle = UNDEF;
-        newnode->nodekey.assign((char*)key, FILENODEKEYLENGTH);
-        newnode->attrstring.reset(new string(*a));
+        newnode[0].source = NEW_PUBLIC;
+        newnode[0].type = FILENODE;
+        newnode[0].nodehandle = ph;
+        newnode[0].parenthandle = UNDEF;
+        newnode[0].nodekey.assign((char*)key, FILENODEKEYLENGTH);
+        newnode[0].attrstring.reset(new string(*a));
 
         while ((name = json.getnameid()) != EOO && json.storeobject((t = &attrs.map[name])))
         {
@@ -7047,11 +7045,11 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
                     }
                 }
 
-                newnode->ovhandle = !client->versions_disabled ? ovn->nodehandle : UNDEF;
+                newnode[0].ovhandle = !client->versions_disabled ? ovn->nodehandle : UNDEF;
             }
         }
 
-        client->putnodes(n->nodehandle, newnode, 1);
+        client->putnodes(n->nodehandle, std::move(newnode));
     }
     else
     {

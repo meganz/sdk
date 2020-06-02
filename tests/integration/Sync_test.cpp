@@ -1268,6 +1268,37 @@ struct StandardClient : public MegaApp
             return false;
         }
 
+        if (n->type == FILENODE && !n->mDetachedFromFS)
+        {
+            LocalPath lp = n->getLocalPath();
+
+            if (auto fa = client.fsaccess->newfileaccess())
+            {
+                if (fa->fopen(lp, true, false))
+                {
+                    FileFingerprint ff;
+                    if (ff.genfingerprint(fa.get()))
+                    {
+                        if (ff != *n)
+                        {
+                            cout << "LocalNode fingerprint does not match on-disk file's fingerprint: " << lp.toPath(*client.fsaccess) << endl;
+                            return false;
+                        }
+                    }
+                    else
+                    {
+                        cout << "Failed to get on-disk file's fingerprint: " << lp.toPath(*client.fsaccess) << endl;
+                        return false;
+                    }
+                }
+            }
+            else
+            {
+                cout << "Failed to open LocalNode's on-disk file: " << lp.toPath(*client.fsaccess) << endl;
+                return false;
+            }
+        }
+
         string localpath;
         n->getlocalpath(&localpath, false);
         client.fsaccess->local2name(&localpath);
@@ -4563,7 +4594,7 @@ struct OneWaySymmetryCase
 
         if (reportaction) cout << name() << " action: remote move " << n1->displaypath() << " to " << n2->displaypath() << endl;
 
-        auto e = changeClient().client.rename(n1, n2);
+        auto e = changeClient().client.rename(n1, n2, SYNCDEL_NONE, UNDEF, nullptr, true);
         ASSERT_TRUE(!e);
     }
 
@@ -4808,7 +4839,7 @@ struct OneWaySymmetryCase
         // avoid name clashes in any one folder
         if (sourcefolder != "f") destination_copy(sourcefolder + "/" + oldname, "f", updatemodel, reportaction);
         destination_rename("f/" + oldname, newname, updatemodel, reportaction, false);
-        destination_move("f/" + newname, targetfolder, updatemodel, reportaction, deleteTargetFirst);
+        if (targetfolder != "f") destination_move("f/" + newname, targetfolder, updatemodel, reportaction, deleteTargetFirst);
     }
 
     void destination_rename_move(std::string sourcefolder, std::string oldname, std::string newname, std::string targetfolder, bool updatemodel, bool reportaction, bool deleteTargetFirst, std::string deleteNameInTargetFirst)
@@ -4941,11 +4972,12 @@ struct OneWaySymmetryCase
             {
                 if (file)
                 {
+                    destination_copy_renamed("f/f_1", "file0_f_1", "original", "f", true, false, false);  
                     if (destinationMatchAfter == match_exact) destination_copy_renamed("f/f_1", "file0_f_1", "file0_f_1", "f/f_0", true, false, false);  // not really renaming
-                    if (destinationMatchAfter == match_older) { destination_copy_renamed("f/f_0", "file0_f_0", "file0_f_1", "f/f_0", true, false, true); fileMayDiffer("f/f_0/file0_f_1"); }
-                    if (destinationMatchAfter == match_newer) { destination_copy_renamed("f/f_0", "file0_f_0", "file0_f_1", "f/f_0", true, false, true); fileMayDiffer("f/f_0/file0_f_1"); }
-                    if (destinationMatchBefore == match_older) { destination_copy_renamed("f/f_1", "file1_f_1", "file0_f_1", "f/f_1", true, false, true); fileMayDiffer("f/f_1/file0_f_1"); }
-                    if (destinationMatchBefore == match_newer) { destination_copy_renamed("f/f_1", "file1_f_1", "file0_f_1", "f/f_1", true, false, true); fileMayDiffer("f/f_1/file0_f_1"); }
+                    if (destinationMatchAfter == match_older) { destination_copy_renamed("f", "file_older_2", "file0_f_1", "f/f_0", true, false, true); fileMayDiffer("f/f_0/file0_f_1"); }
+                    if (destinationMatchAfter == match_newer) { destination_copy_renamed("f", "file_newer_2", "file0_f_1", "f/f_0", true, false, true); fileMayDiffer("f/f_0/file0_f_1"); }
+                    if (destinationMatchBefore == match_older) { destination_copy_renamed("f", "file_older_1", "file0_f_1", "f/f_1", true, false, true); fileMayDiffer("f/f_1/file0_f_1"); }
+                    if (destinationMatchBefore == match_newer) { destination_copy_renamed("f", "file_newer_1", "file0_f_1", "f/f_1", true, false, true); fileMayDiffer("f/f_1/file0_f_1"); }
                     if (destinationMatchBefore == match_absent) destination_delete("f/f_1/file0_f_1", true, false);
                 }
                 else
@@ -4966,6 +4998,11 @@ struct OneWaySymmetryCase
                     if (destinationMatchBefore == match_exact && destinationMatchAfter == match_absent)
                     {
                         destinationModel().emulate_move("f/f_1/file0_f_1", "f/f_0");
+                    }
+                    else if (forceOverwrites || destinationMatchAfter != match_newer)
+                    {
+                        // we don't imitiate the move, but the one-way will upload/download the file from the source
+                        destinationModel().emulate_rename_copy("f/original", "f/f_0", "file0_f_1");
                     }
                 }
                 else
@@ -5151,9 +5188,8 @@ void CatchupClients(StandardClient& c1, StandardClient& c2)
     promise<bool> pb1, pb2;
     c1.catchup(pb1);
     c2.catchup(pb2);
-    c1.client.waiter->notify();
-    c2.client.waiter->notify();
     ASSERT_TRUE(pb1.get_future().get() && pb2.get_future().get());
+    cout << "Caught up" << endl;
 }
 
 TEST(Sync, OneWay_Highlevel_Symmetries)
@@ -5174,7 +5210,7 @@ TEST(Sync, OneWay_Highlevel_Symmetries)
     std::map<std::string, OneWaySymmetryCase> cases;
 
     static bool singleCase = false;
-    static string singleNamedTest = "";//"move_other_down_file_beforenewer_afterabsent_pd_fo";//"rename_other_down_file_beforemismatch_afterabsent"; 
+    static string singleNamedTest = "move_other_down_file_beforenewer_afterabsent_pd_fo";//"rename_other_down_file_beforemismatch_afterabsent"; 
     if (singleCase)
     {
         OneWaySymmetryCase testcase(allstate);
@@ -5221,6 +5257,9 @@ TEST(Sync, OneWay_Highlevel_Symmetries)
                                     for (int pauseDuringAction = 0; pauseDuringAction < 2; ++pauseDuringAction)
                                     {
                                         if (pauseDuringAction) continue;
+
+                                        if (forceOverwrites && destinationMatchBefore == OneWaySymmetryCase::match_older) continue;  // the sync would overwrite the setup
+
 
                                         OneWaySymmetryCase testcase(allstate);
                                         testcase.selfChange = selfChange != 0;

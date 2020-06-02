@@ -2785,7 +2785,7 @@ void MegaClient::exec()
                             LocalPath localpath = (*it)->localroot->localname;
                             if ((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN)
                             {
-                                LOG_debug << "Running syncdown on demand";
+                                LOG_debug << "Running syncdown on demand: " << localpath.toPath(*fsaccess);
                                 if (!syncdown((*it)->localroot.get(), localpath, true))
                                 {
                                     // a local filesystem item was locked - schedule periodic retry
@@ -4474,6 +4474,7 @@ bool MegaClient::procsc()
                                         break;
                                     }
                                 }
+
 
                                 // run syncdown() to process the deletion before continuing
                                 applykeys();
@@ -7076,7 +7077,7 @@ error MegaClient::checkmove(Node* fn, Node* tn)
 
 // move node to new parent node (for changing the filename, use setattr and
 // modify the 'n' attribute)
-error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent, const char *newName)
+error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent, const char *newName, bool noSIC)
 {
     error e;
 
@@ -7147,7 +7148,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent,
         // rewrite keys of foreign nodes that are moved out of an outbound share
         rewriteforeignkeys(n);
 
-        reqs.add(new CommandMoveNode(this, n, p, syncdel, prevparent));
+        reqs.add(new CommandMoveNode(this, n, p, syncdel, prevparent, noSIC));
         if (updateNodeAttributes)
         {
             setattr(n);
@@ -12459,36 +12460,35 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, bool rubbish)
                     // both files are identical
                     nchildren.erase(rit);
                 }
-                else if (!ll->sync->getConfig().forceOverwrite())
+                else if (ll->sync->getConfig().forceOverwrite())
                 {
-                    // file exists on both sides - do not overwrite if local version newer or same
-                    if (ll->mtime > rit->second->mtime)
-                    {
-                        overwriteLocalnode = false;
-                        // local version is newer
-                        LOG_debug << "LocalNode is newer: " << ll->name << " LNmtime: " << ll->mtime << " Nmtime: " << rit->second->mtime;
-                        nchildren.erase(rit);
-                    }
-                    else if (ll->mtime == rit->second->mtime
-                             && (ll->size > rit->second->size
-                                 || (ll->size == rit->second->size && memcmp(ll->crc.data(), rit->second->crc.data(), sizeof ll->crc) > 0)))
+                    LOG_debug << "LocalNode differs, force overwriting: " << ll->name << " LNmtime: " << ll->mtime << " Nmtime: " << rit->second->mtime;
+                }
+                else if (ll->mtime > rit->second->mtime)
+                {
+                    // do not overwrite if local version newer or same
+                    overwriteLocalnode = false;
+                    LOG_debug << "LocalNode is newer: " << ll->name << " LNmtime: " << ll->mtime << " Nmtime: " << rit->second->mtime;
+                    nchildren.erase(rit);
+                }
+                else if (ll->mtime == rit->second->mtime
+                            && (ll->size > rit->second->size
+                                || (ll->size == rit->second->size && memcmp(ll->crc.data(), rit->second->crc.data(), sizeof ll->crc) > 0)))
 
+                {
+                    overwriteLocalnode = false;
+                    if (ll->size < rit->second->size)
                     {
-                        overwriteLocalnode = false;
-                        if (ll->size < rit->second->size)
-                        {
-                            LOG_warn << "Syncdown. Same mtime but lower size: " << ll->name
-                                     << " mtime: " << ll->mtime << " LNsize: " << ll->size << " Nsize: " << rit->second->size
-                                     << " Nhandle: " << LOG_NODEHANDLE(rit->second->nodehandle);
-                        }
-                        else
-                        {
-                            LOG_warn << "Syncdown. Same mtime and size, but bigger CRC: " << ll->name
-                                     << " mtime: " << ll->mtime << " size: " << ll->size << " Nhandle: " << LOG_NODEHANDLE(rit->second->nodehandle);
-                        }
-
-                        nchildren.erase(rit);
+                        LOG_warn << "Syncdown. Same mtime but lower size: " << ll->name
+                                    << " mtime: " << ll->mtime << " LNsize: " << ll->size << " Nsize: " << rit->second->size
+                                    << " Nhandle: " << LOG_NODEHANDLE(rit->second->nodehandle);
                     }
+                    else
+                    {
+                        LOG_warn << "Syncdown. Same mtime and size, but bigger CRC: " << ll->name
+                                    << " mtime: " << ll->mtime << " size: " << ll->size << " Nhandle: " << LOG_NODEHANDLE(rit->second->nodehandle);
+                    }
+                    nchildren.erase(rit);
                 }
                 else if (ll->mDetachedFromFS)
                 {
@@ -12584,9 +12584,11 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, bool rubbish)
     {
 
         localname = rit->second->attrs.map.find('n')->second;
+        LocalPath localHereName = LocalPath::fromName(localname, *fsaccess);
 
         ScopedLengthRestore restoreLen(localpath);
-        localpath.separatorAppend(LocalPath::fromName(localname, *fsaccess), *fsaccess, true);
+
+        localpath.separatorAppend(localHereName, *fsaccess, true);
 
         LOG_debug << "Unsynced remote node in syncdown: " << localpath.toPath(*fsaccess) << " Nsize: " << rit->second->size
                   << " Nmtime: " << rit->second->mtime << " Nhandle: " << LOG_NODEHANDLE(rit->second->nodehandle);
@@ -12600,15 +12602,47 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, bool rubbish)
             {
                 LOG_debug << "with a previous parent: " << rit->second->localnode->parent->name;
 
-                if (!l->sync->getConfig().syncsToCloud() && l->type == FILENODE && rit->second->type == FILENODE
-                    && *static_cast<FileFingerprint*>(l) != *static_cast<FileFingerprint*>(rit->second))
+                bool detached = false;
+                if (!l->sync->getConfig().syncsToCloud())
                 {
-                    // TODO: still working on this case
-					LOG_debug << "File fingerprint does not match so this file has had user intervention, skip moving it";
-                    l->node = nullptr;
-                    rit->second->localnode = nullptr;
+                    LocalNode* sourceLocalNode = rit->second->localnode;
+                    LocalNode* targetLocalNode = nullptr;
+                    auto targetLocalNodeIter = l->children.find(&localHereName);
+                    if (targetLocalNodeIter != l->children.end())
+                    {
+                        // there is already a localnode with this name at the move-to path
+                        targetLocalNode = targetLocalNodeIter->second;
+                    }
+
+                    if (sourceLocalNode && sourceLocalNode->type == FILENODE && rit->second->type == FILENODE &&
+                        *static_cast<FileFingerprint*>(sourceLocalNode) != *static_cast<FileFingerprint*>(rit->second))
+                    {
+                        // TODO: still working on this case
+					    LOG_debug << "File fingerprint did not match at the original location so this file has had user intervention, detaching it";
+                        sourceLocalNode->node = nullptr;
+                        rit->second->localnode = nullptr;
+                        detached = true;
+                    }
+
+                    if (targetLocalNode && targetLocalNode->type == FILENODE && rit->second->type == FILENODE)
+                    {
+                        if (rit->second->localnode)
+                        {
+                            rit->second->localnode->node = nullptr;
+                            rit->second->localnode = nullptr;
+                        }
+                        if (targetLocalNode->node)
+                        {
+                            targetLocalNode->node->localnode = nullptr;
+                            targetLocalNode->node = nullptr;
+                        }
+                        rit->second->localnode = targetLocalNode;
+                        targetLocalNode->node = rit->second;
+                        detached = true;
+                    }
                 }
-                else
+
+                if (!detached)
                 {
                     LocalPath curpath = rit->second->localnode->getLocalPath();
                     rit->second->localnode->treestate(TREESTATE_SYNCING);

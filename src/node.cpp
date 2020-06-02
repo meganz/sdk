@@ -1816,7 +1816,7 @@ void LocalNode::getlocalpath(string* path, bool sdisable, const std::string* loc
     {
         // use short name, if available (less likely to overflow MAXPATH,
         // perhaps faster?) and sdisable not set
-        if (!sdisable && l->slocalname->editStringDirect())
+        if (!sdisable &&  l->slocalname && l->slocalname->editStringDirect())
         {
             path->insert(0, *(l->slocalname->editStringDirect()));
         }

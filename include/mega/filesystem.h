@@ -87,22 +87,28 @@ public:
 
 class MEGA_API LocalPath
 {
+#if defined(WIN32) && defined(DEBUG)
+    wchar_t* debug = nullptr;
+    void setDebug() { debug = (wchar_t*)localpath.data(); }
+#else
+    inline void setDebug() { }
+#endif
     std::string localpath;
 
     friend class ScopedLengthRestore;
     size_t getLength() { return localpath.size(); }
-    void setLength(size_t length) { localpath.resize(length); }
+    void setLength(size_t length) { localpath.resize(length); setDebug(); }
 
 public:
 
     LocalPath() {}
-    explicit LocalPath(string&& s) : localpath(std::move(s)) {}
+    explicit LocalPath(string&& s) : localpath(std::move(s)) { setDebug(); }
 
     std::string* editStringDirect();
     const std::string* editStringDirect() const;
     bool empty() const;
-    void clear() { localpath.clear(); }
-    void truncate(size_t bytePos) { localpath.resize(bytePos); }
+    void clear() { localpath.clear(); setDebug(); }
+    void truncate(size_t bytePos) { localpath.resize(bytePos); setDebug(); }
     size_t lastpartlocal(const FileSystemAccess& fsaccess) const;
     void append(const LocalPath& additionalPath);
     void separatorAppend(const LocalPath& additionalPath, const FileSystemAccess& fsaccess, bool separatorAlways);

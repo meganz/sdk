@@ -605,7 +605,7 @@ const std::string* LocalPath::editStringDirect() const
 std::string* LocalPath::editStringDirect()
 {
     // this function for compatibiltiy while converting to use LocalPath class.  TODO: phase out this function
-    return const_cast<std::string*>(&localpath);
+    return &localpath;
 }
 
 bool LocalPath::empty() const
@@ -621,6 +621,7 @@ size_t LocalPath::lastpartlocal(const FileSystemAccess& fsaccess) const
 void LocalPath::append(const LocalPath& additionalPath)
 {
     localpath.append(additionalPath.localpath);
+    setDebug(); 
 }
 
 void LocalPath::separatorAppend(const LocalPath& additionalPath, const FileSystemAccess& fsaccess, bool separatorAlways)
@@ -631,12 +632,14 @@ void LocalPath::separatorAppend(const LocalPath& additionalPath, const FileSyste
     }
 
     localpath.append(additionalPath.localpath);
+    setDebug(); 
 }
 
 void LocalPath::separatorPrepend(const LocalPath& additionalPath, const FileSystemAccess& fsaccess)
 {
     localpath.insert(0, fsaccess.localseparator);
     localpath.insert(0, additionalPath.localpath);
+    setDebug(); 
 }
 
 void LocalPath::trimTrailingSeparator(const FileSystemAccess& fsaccess)
@@ -648,6 +651,7 @@ void LocalPath::trimTrailingSeparator(const FileSystemAccess& fsaccess)
     {
         localpath.resize((int(localpath.size()) & -int(fsaccess.localseparator.size())) - fsaccess.localseparator.size());
     }
+    setDebug(); 
 }
 
 bool LocalPath::findNextSeparator(size_t& separatorBytePos, const FileSystemAccess& fsaccess) const
