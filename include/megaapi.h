@@ -6054,7 +6054,7 @@ class MegaGlobalListener
          *
          *     - MegaApi::STORAGE_STATE_PAYWALL = 4
          *     The account has been full for a long time. Now most of actions are disallowed.
-         *     It's needed to call MegaApi::getUserData to check the deadline/warnings
+         *     It's needed to call MegaApi::getUserData in order to retrieve the deadline/warnings
          *     timestamps. @see MegaApi::getOverquotaDeadlineTs and MegaApi::getOverquotaWarningsTs.
          *
          * - MegaEvent::EVENT_NODES_CURRENT: when all external changes have been received
@@ -6563,7 +6563,7 @@ class MegaListener
          *
          *     - MegaApi::STORAGE_STATE_PAYWALL = 4
          *     The account has been full for a long time. Now most of actions are disallowed.
-         *     It's needed to call MegaApi::getUserData to check the deadline/warnings
+         *     It's needed to call MegaApi::getUserData in order to retrieve the deadline/warnings
          *     timestamps. @see MegaApi::getOverquotaDeadlineTs and MegaApi::getOverquotaWarningsTs.
          *
          * - MegaEvent::EVENT_NODES_CURRENT: when all external changes have been received
@@ -8653,12 +8653,23 @@ class MegaApi
 
         /**
          * @brief Returns the deadline to remedy the storage overquota situation
+         *
+         * This value is valid only when MegaApi::getUserData has been called after
+         * receiving a callback MegaListener/MegaGlobalListener::onEvent of type
+         * MegaEvent::EVENT_STORAGE, reporting STORAGE_STATE_PAYWALL.
+         * The value will become invalid once the state of storage changes.
+         *
          * @return Timestamp representing the deadline to remedy the overquota
          */
         int64_t getOverquotaDeadlineTs();
 
         /**
          * @brief Returns when the user was warned about overquota state
+         *
+         * This value is valid only when MegaApi::getUserData has been called after
+         * receiving a callback MegaListener/MegaGlobalListener::onEvent of type
+         * MegaEvent::EVENT_STORAGE, reporting STORAGE_STATE_PAYWALL.
+         * The value will become invalid once the state of storage changes.
          *
          * You take the ownership of the returned value.
          *
