@@ -202,7 +202,9 @@ class SimpleLogger
 #else
 
 #ifdef WIN32
-    static thread_local std::array<char, LOGGER_CHUNKS_SIZE> mBuffer;
+    //static thread_local 
+    // Keep this as a normal class member on WIN32 until we abandon XP (Qt fonts appear with strikethrough on XP otherwise)
+    std::array<char, LOGGER_CHUNKS_SIZE> mBuffer;
 #else
     static __thread std::array<char, LOGGER_CHUNKS_SIZE> mBuffer;
 #endif
