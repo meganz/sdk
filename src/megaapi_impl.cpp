@@ -13018,6 +13018,12 @@ void MegaApiImpl::syncs_restored()
     fireOnEvent(event);
 }
 
+void MegaApiImpl::syncs_disabled()
+{
+    MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_SYNC_DISABLED);
+    fireOnEvent(event);
+}
+
 void MegaApiImpl::sync_about_to_be_resumed(const SyncConfig &config)
 {
     if (!mFirstSyncResumed)

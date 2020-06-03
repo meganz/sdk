@@ -13924,10 +13924,18 @@ void MegaClient::failSyncs(syncerror_t syncError)
 
 void MegaClient::disableSyncs(syncerror_t syncError)
 {
+    bool anySyncDisabled = false;
     for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++) //Note: we are not disabling inactive syncs!
     {
         (*it)->changestate(SYNC_DISABLED, syncError);//This will cause the later deletion of Sync (not MegaSyncPrivate) object
+        anySyncDisabled = true;
     }
+
+    if (anySyncDisabled)
+    {
+        app->syncs_disabled();
+    }
+
     syncactivity = true;
 }
 

@@ -3004,8 +3004,11 @@ protected:
         // this will fill syncMap with a new MegaSyncPrivate, and fire onSyncAdded indicating the result of that addition
         void sync_auto_resume_result(const SyncConfig &config, syncerror_t error) override;
 
-        // this will call will fire SYNCS_RESTORED
+        // this will call will fire EVENT_SYNCS_RESTORED
         virtual void syncs_restored();
+
+        // this will call will fire EVENT_SYNCS_DISABLED
+        virtual void syncs_disabled();
 
         // this will call will fire EVENT_FIRST_SYNC_RESUMING before the first sync is resumed
         virtual void sync_about_to_be_resumed(const SyncConfig &) override;
