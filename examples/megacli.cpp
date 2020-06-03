@@ -1434,7 +1434,7 @@ string DemoApp::getExtraInfoErrorString(const Error& e)
 
     if (e.getUserStatus() == 7)
     {
-        textError.append("User status is suppend due to ETD. ");
+        textError.append("User status is suspended due to ETD. ");
     }
 
     textError.append("Link status is: ");
@@ -1450,7 +1450,7 @@ string DemoApp::getExtraInfoErrorString(const Error& e)
             textError.append("Down due to an ETD specifically");
             break;
         default:
-            textError.append("Unkown link status");
+            textError.append("Unknown link status");
             break;
     }
 
@@ -7009,7 +7009,7 @@ void DemoApp::exportnode_result(handle h, handle ph)
 // the requested link could not be opened
 void DemoApp::openfilelink_result(const Error& e)
 {
-    if (e != API_OK)
+    if (e)
     {
         if (pdf_to_import) // import welcome pdf has failed
         {
@@ -7970,6 +7970,10 @@ void DemoAppFolder::fetchnodes_result(const Error& e)
         if (e == API_ENOENT && e.hasExtraInfo())
         {
             cout << "File/folder retrieval failed: " << getExtraInfoErrorString(e) << endl;
+        }
+        else
+        {
+            cout << "File/folder retrieval failed (" << errorstring(e) << ")" << endl;
         }
 
         pdf_to_import = false;

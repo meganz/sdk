@@ -213,27 +213,17 @@ class Error
 {
 public:
     Error(error err = API_EINTERNAL)
+        : mError(err)
+        , mExtraErrorInfo(false)
+    { }
+
+    void setErrorCode(error err)
     {
         mError = err;
-        mExtraErrorInfo = false;
     }
 
-    void setError(error err)
-    {
-        mError = err;
-        mExtraErrorInfo = false;
-    }
-
-    void setErrorWithExtraInfo(error err)
-    {
-        mError = err;
-        mExtraErrorInfo = true;
-    }
-
-    void setUserStatus(int64_t u) { mUserStatus = u; }
-    void setLinkStatus(int64_t l) { mLinkStatus = l; }
-    void setExtraErrorInfo(bool extraInfo) { mExtraErrorInfo = extraInfo; }
-    error getError() const { return mError; }
+    void setUserStatus(int64_t u) { mUserStatus = u; mExtraErrorInfo = true; }
+    void setLinkStatus(int64_t l) { mLinkStatus = l; mExtraErrorInfo = true; }
     bool hasExtraInfo() const { return mExtraErrorInfo; }
     int64_t getUserStatus() const { return mUserStatus; }
     int64_t getLinkStatus() const { return mLinkStatus; }

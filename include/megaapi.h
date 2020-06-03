@@ -5333,7 +5333,6 @@ public:
          */
         void setExtraErrorInfo(long long userStatus, long long linkStatus);
 
-
 		/**
 		 * @brief Returns the error code associated with this MegaError
 		 * @return Error code associated with this MegaError

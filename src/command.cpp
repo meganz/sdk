@@ -47,13 +47,13 @@ const char* Command::getstring() const
     return json.c_str();
 }
 
-//return true when the response is an error in other case return false and it doesn't advance the pointer
+//return true when the response is an error, false otherwise (in that case it doesn't consume JSON chars)
 bool Command::checkError(Error& errorDetails, JSON& json)
 {
     error e;
     if (json.isNumericError(e))
     {
-        errorDetails.setError(e);
+        errorDetails.setErrorCode(e);
         return true;
     }
     else
@@ -74,7 +74,7 @@ bool Command::checkError(Error& errorDetails, JSON& json)
                 switch (json.getnameid())
                 {
                     case MAKENAMEID3('e', 'r', 'r'):
-                        errorDetails.setErrorWithExtraInfo(static_cast<error>(json.getint()));
+                        errorDetails.setErrorCode(static_cast<error>(json.getint()));
                         break;
                     case 'u':
                         errorDetails.setUserStatus(json.getint());
