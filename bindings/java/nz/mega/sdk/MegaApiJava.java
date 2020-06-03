@@ -159,6 +159,7 @@ public class MegaApiJava {
     public final static int STORAGE_STATE_ORANGE = MegaApi.STORAGE_STATE_ORANGE;
     public final static int STORAGE_STATE_RED = MegaApi.STORAGE_STATE_RED;
     public final static int STORAGE_STATE_CHANGE = MegaApi.STORAGE_STATE_CHANGE;
+    public final static int STORAGE_STATE_PAYWALL = MegaApi.STORAGE_STATE_PAYWALL;
 
     public final static int BUSINESS_STATUS_EXPIRED = MegaApi.BUSINESS_STATUS_EXPIRED;
     public final static int BUSINESS_STATUS_INACTIVE = MegaApi.BUSINESS_STATUS_INACTIVE;
@@ -2233,6 +2234,36 @@ public class MegaApiJava {
      */
     public int getBusinessStatus() {
         return megaApi.getBusinessStatus();
+    }
+
+    /**
+     * Returns the deadline to remedy the storage overquota situation
+     *
+     * This value is valid only when MegaApi::getUserData has been called after
+     * receiving a callback MegaListener/MegaGlobalListener::onEvent of type
+     * MegaEvent::EVENT_STORAGE, reporting STORAGE_STATE_PAYWALL.
+     * The value will become invalid once the state of storage changes.
+     *
+     * @return Timestamp representing the deadline to remedy the overquota
+     */
+    public long getOverquotaDeadlineTs() {
+        return megaApi.getOverquotaDeadlineTs();
+    }
+
+    /**
+     * Returns when the user was warned about overquota state
+     *
+     * This value is valid only when MegaApi::getUserData has been called after
+     * receiving a callback MegaListener/MegaGlobalListener::onEvent of type
+     * MegaEvent::EVENT_STORAGE, reporting STORAGE_STATE_PAYWALL.
+     * The value will become invalid once the state of storage changes.
+     *
+     * You take the ownership of the returned value.
+     *
+     * @return MegaIntegerList with the timestamp corresponding to each warning
+     */
+    public MegaIntegerList getOverquotaWarningsTs() {
+        return megaApi.getOverquotaWarningsTs();
     }
 
     /**
@@ -9443,6 +9474,8 @@ public class MegaApiJava {
                 return app.getString(R.string.api_emasteronly);
             case API_EBUSINESSPASTDUE:
                 return app.getString(R.string.api_ebusinesspastdue);
+            case API_EPAYWALL:
+                return app.getString(R.string.api_epaywall);
             case PAYMENT_ECARD:
                 return app.getString(R.string.payment_ecard);
             case PAYMENT_EBILLING:
