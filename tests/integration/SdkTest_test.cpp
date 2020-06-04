@@ -4523,7 +4523,7 @@ TEST_F(SdkTest, invalidFileNames)
         delete [] escapedFileName;
     }
 
-    TransferTracker uploadListener;
+    TransferTracker uploadListener(megaApi[0].get());
     megaApi[0]->startUpload(uploadPath.u8string().c_str(), std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get(), &uploadListener);
     ASSERT_EQ(API_OK, uploadListener.waitForResult());
 
@@ -4555,7 +4555,7 @@ TEST_F(SdkTest, invalidFileNames)
         fs::remove_all(downloadPath);
     }
     fs::create_directories(downloadPath);
-    TransferTracker downloadListener;
+    TransferTracker downloadListener(megaApi[0].get());
     megaApi[0]->startDownload(authNode.get(), downloadPath.u8string().c_str(), &downloadListener);
     ASSERT_EQ(API_OK, downloadListener.waitForResult());
 
@@ -4589,7 +4589,7 @@ TEST_F(SdkTest, RecursiveUploadWithLogout)
     ASSERT_TRUE(buildLocalFolders(p.u8string().c_str(), "newkid", 3, 2, 10));
 
     // start uploading
-    TransferTracker uploadListener;
+    TransferTracker uploadListener(megaApi[0].get());
     megaApi[0]->startUpload(p.u8string().c_str(), std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get(), &uploadListener);
     WaitMillisec(500);
 
@@ -4620,11 +4620,12 @@ TEST_F(SdkTest, DISABLED_RecursiveDownloadWithLogout)
     ASSERT_TRUE(buildLocalFolders(uploadpath.u8string().c_str(), "newkid", 3, 2, 10));
 
     // upload all of those
-    TransferTracker uploadListener, downloadListener;
+    TransferTracker uploadListener(megaApi[0].get());
     megaApi[0]->startUpload(uploadpath.u8string().c_str(), std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get(), &uploadListener);
     ASSERT_EQ(API_OK, uploadListener.waitForResult());
 
     // ok now try the download
+    TransferTracker downloadListener(megaApi[0].get());
     megaApi[0]->startDownload(megaApi[0]->getNodeByPath("/uploadme_mega_auto_test_sdk"), downloadpath.u8string().c_str(), &downloadListener);
     WaitMillisec(1000);
     ASSERT_TRUE(downloadListener.started);
@@ -4669,7 +4670,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
         std::unique_ptr<MegaNode> baseNode{megaApi[0]->getNodeByPath(("/" + basePath.u8string()).c_str())};
         if (baseNode)
         {
-            RequestTracker removeTracker;
+            RequestTracker removeTracker(megaApi[0].get());
             megaApi[0]->remove(baseNode.get(), &removeTracker);
             ASSERT_EQ(API_OK, removeTracker.waitForResult());
         }
@@ -4689,7 +4690,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     }
 
     // transfer the folder and its subfolders
-    TransferTracker uploadListener;
+    TransferTracker uploadListener(megaApi[0].get());
     megaApi[0]->startUpload(basePath.u8string().c_str(), megaApi[0]->getRootNode(), &uploadListener);
     ASSERT_EQ(API_OK, uploadListener.waitForResult());
 
@@ -4722,7 +4723,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
 
     auto syncFolder = [this, &megaNode](const fs::path& p)
     {
-        RequestTracker syncTracker;
+        RequestTracker syncTracker(megaApi[0].get());
         auto node = megaNode(p.filename().u8string());
         megaApi[0]->syncFolder(p.u8string().c_str(), node.get(), &syncTracker);
         ASSERT_EQ(API_OK, syncTracker.waitForResult());
@@ -4730,7 +4731,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
 
     auto disableSync = [this, &megaNode](const fs::path& p)
     {
-        RequestTracker syncTracker;
+        RequestTracker syncTracker(megaApi[0].get());
         auto node = megaNode(p.filename().u8string());
         megaApi[0]->disableSync(node.get(), &syncTracker);
         ASSERT_EQ(API_OK, syncTracker.waitForResult());
@@ -4738,7 +4739,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
 
     auto resumeSync = [this, &megaNode](const fs::path& p, const long long localfp)
     {
-        RequestTracker syncTracker;
+        RequestTracker syncTracker(megaApi[0].get());
         auto node = megaNode(p.filename().u8string());
         megaApi[0]->resumeSync(p.u8string().c_str(), node.get(), localfp, &syncTracker);
         ASSERT_EQ(API_OK, syncTracker.waitForResult());
@@ -4746,7 +4747,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
 
     auto removeSync = [this, &megaNode](const fs::path& p)
     {
-        RequestTracker syncTracker;
+        RequestTracker syncTracker(megaApi[0].get());
         auto node = megaNode(p.filename().u8string());
         megaApi[0]->removeSync(node.get(), &syncTracker);
         ASSERT_EQ(API_OK, syncTracker.waitForResult());
