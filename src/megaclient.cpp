@@ -2248,7 +2248,8 @@ void MegaClient::exec()
 
         slotit = tslots.begin();
 
-        // handle active unpaused transfers
+
+        if (!mBlocked) // handle active unpaused transfers
         {
             DBTableTransactionCommitter committer(tctable);
 
@@ -2263,6 +2264,10 @@ void MegaClient::exec()
                     (*it)->doio(this, committer);
                 }
             }
+        }
+        else
+        {
+            LOG_debug << "skipping slots doio while blocked";
         }
 
 #ifdef ENABLE_SYNC
@@ -3941,6 +3946,7 @@ void MegaClient::locallogout(bool removecaches)
     pendingcs = NULL;
     stopsc = false;
     mScStoppedDueToBlock = false;
+    mBlocked = false;
 
     for (putfa_list::iterator it = queuedfa.begin(); it != queuedfa.end(); it++)
     {
@@ -4953,7 +4959,7 @@ void MegaClient::putfa(handle th, fatype t, SymmCipher* key, std::unique_ptr<str
 // has the limit of concurrent transfer tslots been reached?
 bool MegaClient::slotavail() const
 {
-    return tslots.size() < MAXTOTALTRANSFERS;
+    return !mBlocked && tslots.size() < MAXTOTALTRANSFERS;
 }
 
 bool MegaClient::setstoragestatus(storagestatus_t status)
@@ -10506,6 +10512,8 @@ void MegaClient::block()
         stopsc = true; // stop consuming action packets
         mScStoppedDueToBlock = true;
     }
+
+    mBlocked = true;
 }
 
 void MegaClient::unblock()
@@ -10515,6 +10523,8 @@ void MegaClient::unblock()
         stopsc = false; // will resume querying for action packets
     }
     mScStoppedDueToBlock = false;
+
+    mBlocked = false;
 }
 
 error MegaClient::changepw(const char* password, const char *pin)

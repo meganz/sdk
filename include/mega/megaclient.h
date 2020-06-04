@@ -318,9 +318,11 @@ public:
     void whyamiblocked();
 
     // stops querying for action packets due to the account being blocked (-16 on sc channel)
+    // and pauses transfer and removes transfer slot availability
     void block();
 
     // resumes querying for action packets when the account is unblocked (if it was previously stopped due to being blocked)
+    // and resumes transfers
     void unblock();
 
     // dump current session
@@ -810,6 +812,7 @@ private:
     BackoffTimer btsc;
     bool stopsc = false;
     bool mScStoppedDueToBlock = false;
+    bool mBlocked = false; // account is blocked
 
     bool pendingscTimedOut = false;
 
