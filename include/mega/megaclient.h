@@ -540,6 +540,16 @@ public:
     error isnodesyncable(Node*, bool * isinshare = NULL, syncerror_t *syncError = nullptr);
 
     /**
+     * @brief is local path syncable
+     * @param newPath path to check
+     * @param syncTag tag to exclude in checking (that of the new sync)
+     * @param syncError filled with syncerror_t with the sync error that makes the node unsyncable
+     * @return API_OK if syncable. (regular) error otherwise
+     */
+    error isLocalPathSyncable(std::string newPath, int newSyncTag = 0, syncerror_t *syncError = nullptr);
+
+
+    /**
      * @brief add sync. Will fill syncError in case there is one.
      * It will persist the sync configuration if everything goes fine.
      * @param syncError filled with syncerror_t with the sync error that prevented the addition

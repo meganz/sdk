@@ -13018,9 +13018,10 @@ void MegaApiImpl::syncs_restored()
     fireOnEvent(event);
 }
 
-void MegaApiImpl::syncs_disabled()
+void MegaApiImpl::syncs_disabled(syncerror_t reason)
 {
     MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_SYNC_DISABLED);
+    event->setNumber(reason);
     fireOnEvent(event);
 }
 
@@ -16366,7 +16367,7 @@ map<int, MegaSyncPrivate *>::iterator MegaApiImpl::eraseSyncByIterator(map<int, 
     MegaSyncPrivate *sync = it->second;
     if (client->syncConfigs)
     {
-        client->syncConfigs->remove(sync->getLocalFolder());
+        client->syncConfigs->removeByTag(sync->getTag());
     }
     auto toret = syncMap.erase(it);
     fireonSyncDeleted(sync);

@@ -286,6 +286,10 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     //Normalize UTF-8 string
     void normalize(string *) const;
 
+    // returns if local path1 contains local path2 (this does not expanse the paths)
+    // true if both paths are the same
+    bool contains(string *localPath1, string *localPath2) const;
+
     // generate local temporary file name
     virtual void tmpnamelocal(string*) const = 0;
 

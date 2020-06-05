@@ -537,7 +537,7 @@ SyncConfigBag::SyncConfigBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, Prn
         }
         syncConfig->dbid = tableId;
 
-        mSyncConfigs.insert(std::make_pair(syncConfig->getLocalPath(), *syncConfig));
+        mSyncConfigs.insert(std::make_pair(syncConfig->getTag(), *syncConfig));
         if (tableId > mTable->nextid)
         {
             mTable->nextid = tableId;
@@ -563,7 +563,7 @@ void SyncConfigBag::insert(const SyncConfig& syncConfig)
         return true;
     };
 
-    map<string, SyncConfig>::iterator syncConfigIt = mSyncConfigs.find(syncConfig.getLocalPath()); //TODO: change primary key: use tag ?
+    map<int, SyncConfig>::iterator syncConfigIt = mSyncConfigs.find(syncConfig.getTag());
     if (syncConfigIt == mSyncConfigs.end()) // syncConfig is new
     {
         if (mTable)
@@ -573,7 +573,7 @@ void SyncConfigBag::insert(const SyncConfig& syncConfig)
                 return;
             }
         }
-        auto insertPair = mSyncConfigs.insert(std::make_pair(syncConfig.getLocalPath(), syncConfig));
+        auto insertPair = mSyncConfigs.insert(std::make_pair(syncConfig.getTag(), syncConfig));
         if (mTable)
         {
             insertPair.first->second.dbid = mTable->nextid;
@@ -595,9 +595,9 @@ void SyncConfigBag::insert(const SyncConfig& syncConfig)
     }
 }
 
-bool SyncConfigBag::remove(const std::string& localPath)
+bool SyncConfigBag::removeByTag(const int tag)
 {
-    auto syncConfigPair = mSyncConfigs.find(localPath);
+    auto syncConfigPair = mSyncConfigs.find(tag);
     if (syncConfigPair != mSyncConfigs.end())
     {
         if (mTable)
@@ -616,62 +616,12 @@ bool SyncConfigBag::remove(const std::string& localPath)
     return false;
 }
 
-bool SyncConfigBag::removeByTag(const int tag)
+const SyncConfig* SyncConfigBag::get(const int tag) const
 {
-    auto config = get(tag);
-    if (config)
-    {
-        if (mTable)
-        {
-            DBTableTransactionCommitter committer{mTable.get()};
-            if (!mTable->del(config->dbid))
-            {
-                LOG_err << "Incomplete database del at id: " << config->dbid;
-                assert(false);
-                mTable->abort();
-            }
-        }
-        mSyncConfigs.erase(config->getLocalPath());
-        //TODO: review this if moved to tag as primary key
-        // Note for reviewer: having local path as primary key will impede having a failed sync
-        // for a path and an enabled one at the same time. Thus, requiring the user to remove the failed one
-        // before adding a valid one
-
-        return true;
-    }
-    return false;
-}
-
-const SyncConfig* SyncConfigBag::get(const std::string& localPath) const
-{
-    auto syncConfigPair = mSyncConfigs.find(localPath);
+    auto syncConfigPair = mSyncConfigs.find(tag);
     if (syncConfigPair != mSyncConfigs.end())
     {
         return &syncConfigPair->second;
-    }
-    return nullptr;
-}
-
-const SyncConfig* SyncConfigBag::get(const int tag) const
-{
-    for (auto it = mSyncConfigs.begin(); it != mSyncConfigs.end(); it++)
-    {
-        if (it->second.getTag() == tag)
-        {
-            return &it->second;
-        }
-    }
-    return nullptr;
-}
-
-const SyncConfig* SyncConfigBag::get(const mega::handle remoteHandle) const
-{
-    for (auto it = mSyncConfigs.begin(); it != mSyncConfigs.end(); it++)
-    {
-        if (it->second.getRemoteNode() == remoteHandle)
-        {
-            return &it->second;
-        }
     }
     return nullptr;
 }
@@ -961,7 +911,7 @@ bool Sync::readstatecache()
 const SyncConfig& Sync::getConfig() const
 {
     assert(client->syncConfigs && "Calling getConfig() requires sync configs");
-    const auto config = client->syncConfigs->get(mLocalPath);
+    const auto config = client->syncConfigs->get(tag);
     assert(config);
     return *config;
 }

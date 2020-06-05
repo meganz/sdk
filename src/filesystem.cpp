@@ -121,6 +121,41 @@ void FileSystemAccess::name2local(string* filename) const
     path2local(&t, filename);
 }
 
+
+bool FileSystemAccess::contains(string *localPath1, string *localPath2) const
+{
+    //localpath1 contains localpath2?
+
+    if (!localPath1 || !localPath2)
+    {
+        return false;
+    }
+
+    if (localPath1->size() > localPath2->size())
+    {
+        return false;
+    }
+
+    if (localPath1->size() == localPath2->size())
+    {
+        return *localPath1 == *localPath2;
+    }
+
+    if(localPath2->find(*localPath1) != 0) //path2 does not begin by path1
+    {
+        return  false;
+    }
+
+    if (localPath2->substr(localPath1->size()).find(localseparator) == 0) //the first different character should be a separator
+    {
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
+
 void FileSystemAccess::normalize(string* filename) const
 {
     if (!filename) return;

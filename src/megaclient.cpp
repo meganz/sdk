@@ -912,9 +912,6 @@ void MegaClient::activateoverquota(dstime timeleft)
     {
         LOG_warn << "Bandwidth overquota";
 
-#ifdef ENABLE_SYNC
-        disableSyncs(BANDWIDTH_OVERQUOTA); //TODO: Note for reviewer: currently not in MEGAsync. although similar to STORAGE_OVERQUOTA
-#endif
         overquotauntil = Waiter::ds + timeleft;
         for (int d = GET; d == GET || d == PUT; d += PUT - GET)
         {
@@ -4990,7 +4987,7 @@ bool MegaClient::setstoragestatus(storagestatus_t status)
         if (previousStatus == STORAGE_RED) //transition from RED
         {
 #ifdef ENABLE_SYNC
-            restoreSyncs();
+            restoreSyncs(); //STORAGE_OVERQUOTA
 #endif
             abortbackoff(true);
         }
@@ -6564,7 +6561,7 @@ void MegaClient::setBusinessStatus(BizStatus newBizStatus)
         }
         if (prevBizStatus == BIZ_STATUS_EXPIRED) //taransitioning to not expired
         {//TODO: note for reviewer: MEGAsync would only restore when transitioning to BIZ_STATUS_ACTIVE. I believe this is more accurate
-            restoreSyncs();
+            restoreSyncs(); //BUSINESS_EXPIRED
         }
 #endif
     }
@@ -12254,6 +12251,50 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, syncerror_t 
 #endif
 }
 
+error MegaClient::isLocalPathSyncable(string newPath, int newSyncTag, syncerror_t *syncError)
+{
+    if (!newPath.size())
+    {
+        if (syncError) *syncError = INVALID_LOCAL_TYPE;
+        return API_EARGS;
+    }
+
+    string newLocallyEncodedPath;
+    string newLocallyEncodedAbsolutePath;
+
+    fsaccess->path2local(&newPath, &newLocallyEncodedPath);
+
+    fsaccess->expanselocalpath(&newLocallyEncodedPath, &newLocallyEncodedAbsolutePath);
+
+    for (const auto& config : syncConfigs->all())
+    {
+        if (config.getTag() == newSyncTag)
+        {
+            continue;
+        }
+        string otherPath = config.getLocalPath();
+        string otherLocallyEncodedPath;
+        string otherLocallyEncodedAbsolutePath;
+
+        fsaccess->path2local(&otherPath, &otherLocallyEncodedPath);
+
+        fsaccess->expanselocalpath(&otherLocallyEncodedPath, &otherLocallyEncodedAbsolutePath);
+
+        if (config.getError() == NO_ERROR &&
+                ( fsaccess->contains(&newLocallyEncodedAbsolutePath, &otherLocallyEncodedAbsolutePath)
+                || fsaccess->contains(&otherLocallyEncodedAbsolutePath, &newLocallyEncodedAbsolutePath)
+                ) )
+
+        {
+
+            if (syncError) *syncError = LOCAL_PATH_SYNC_COLLISION;
+            return API_EARGS;
+        }
+    }
+
+    return API_OK;
+}
+
 // check sync path, add sync if folder
 // disallow nested syncs (there is only one LocalNode pointer per node)
 // (FIXME: perform the same check for local paths!)
@@ -12300,12 +12341,20 @@ error MegaClient::addsync(SyncConfig syncConfig, const char* debris, string* loc
         if (fa->type == FOLDERNODE)
         {
             LOG_debug << "Adding sync: " << syncConfig.getLocalPath();
-
-            LOG_debug << "Adding sync: " << syncConfig.getLocalPath() << " fsfp before = "  << syncConfig.getLocalFingerprint();
             int tag = syncConfig.getTag();
 
+            // TODO: note localpath is stored as utf8 in syncconfig!!!! Note: we probably want to have it expansed to store the full canonical path!
+            // so that the app does not need to carry that burden. Although it might not be required given the following test does expands the configured
+            // paths to use canonical paths:
+            e = isLocalPathSyncable(syncConfig.getLocalPath(), tag, &syncError);
+            if (e)
+            {
+                LOG_warn << "Local path already synchronized: ";
+                if (!syncError) syncError = UNSUPPORTED_FILE_SYSTEM;
+                return API_EFAILED;
+            }
+
             Sync* sync = new Sync(this, syncConfig, debris, localdebris, remotenode, inshare, tag, appData);
-            LOG_debug << "After sync constructor: " << syncConfig.getLocalPath() << " fsfp after = "  << syncConfig.getLocalFingerprint();
 
             sync->isnetwork = isnetwork;
 
@@ -13933,7 +13982,7 @@ void MegaClient::disableSyncs(syncerror_t syncError)
 
     if (anySyncDisabled)
     {
-        app->syncs_disabled();
+        app->syncs_disabled(syncError);
     }
 
     syncactivity = true;

@@ -52,17 +52,8 @@ public:
     // Adds a new sync config or updates if exists already
     void insert(const SyncConfig& syncConfig);
 
-    // Removes a sync config at the given local path
-    bool remove(const std::string& localPath);
-
     // Removes a sync config with a given tag
     bool removeByTag(const int tag);
-
-    // Returns the sync config at the given local path
-    const SyncConfig* get(const std::string& localPath) const;
-
-    // Returns the sync config with the given remote handle
-    const SyncConfig* get(const mega::handle remoteHandle) const;
 
     // Returns the sync config at the tag
     const SyncConfig* get(const int tag) const;
@@ -75,7 +66,7 @@ public:
 
 private:
     std::unique_ptr<DbTable> mTable; // table for caching the sync configs
-    std::map<std::string, SyncConfig> mSyncConfigs; // map of local paths to sync configs
+    std::map<int, SyncConfig> mSyncConfigs; // map of tag to sync configs
 };
 
 class MEGA_API Sync

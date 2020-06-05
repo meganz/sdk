@@ -3008,7 +3008,7 @@ protected:
         virtual void syncs_restored();
 
         // this will call will fire EVENT_SYNCS_DISABLED
-        virtual void syncs_disabled();
+        virtual void syncs_disabled(syncerror_t reason);
 
         // this will call will fire EVENT_FIRST_SYNC_RESUMING before the first sync is resumed
         virtual void sync_about_to_be_resumed(const SyncConfig &) override;

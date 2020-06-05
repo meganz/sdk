@@ -308,12 +308,10 @@ typedef enum {
     PUT_NODES_ERROR = 16, // Error processing put nodes result
     ACTIVE_SYNC_BELOW_PATH = 17, // There's a synced node below the path to be synced
     ACTIVE_SYNC_ABOVE_PATH = 18, // There's a synced node above the path to be synced
-    BANDWIDTH_OVERQUOTA = 19, // Account reached bandwidth overquota
-    REMOTE_NODE_MOVED_TO_RUBBISH = 20, // Moved to rubbish
-    REMOTE_NODE_INSIDE_RUBBISH = 21, // Attempted to be added in rubbish
-    VBOXSHAREDFOLDER_UNSUPPORTED = 22, // Found unsupported VBoxSharedFolderFS
-
-
+    REMOTE_NODE_MOVED_TO_RUBBISH = 19, // Moved to rubbish
+    REMOTE_NODE_INSIDE_RUBBISH = 20, // Attempted to be added in rubbish
+    VBOXSHAREDFOLDER_UNSUPPORTED = 21, // Found unsupported VBoxSharedFolderFS
+    LOCAL_PATH_SYNC_COLLISION = 22, //Local path includes a synced path or is included within one
 } syncerror_t;
 
 static bool isMegaSyncErrorPermanent(int e)

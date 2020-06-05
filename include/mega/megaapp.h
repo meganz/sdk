@@ -317,7 +317,7 @@ struct MEGA_API MegaApp
     virtual void syncs_restored() { }
 
     // after all syncs have been disabled
-    virtual void syncs_disabled() { }
+    virtual void syncs_disabled(syncerror_t) { }
 
     // before attempting a sync resume
     virtual void sync_about_to_be_resumed(const SyncConfig &) { }
