@@ -6777,6 +6777,14 @@ public class MegaApiJava {
     }
 
     /**
+     * Get the total number of nodes in the account
+     * @return Total number of nodes in the account
+     */
+    public long getNumNodes() {
+        return megaApi.getNumNodes();
+    }
+
+    /**
      * Starts an unbuffered download of a node (file) from the user's MEGA account.
      *
      * @param node The MEGA node to download.
