@@ -1497,7 +1497,7 @@ void LocalNode::setnotseen(int newnotseen)
         {
             notseen_it = sync->client->localsyncnotseen.insert(this).first;
         }
-
+        LOG_warn << "SET NOT SEEN";
         notseen = newnotseen;
     }
 }
@@ -1568,13 +1568,7 @@ LocalNode::~LocalNode()
         // deactivate corresponding notifyq records
         for (int q = DirNotify::RETRY; q >= DirNotify::EXTRA; q--)
         {
-            for (notify_deque::iterator it = sync->dirnotify->notifyq[q].begin(); it != sync->dirnotify->notifyq[q].end(); it++)
-            {
-                if ((*it).localnode == this)
-                {
-                    (*it).localnode = (LocalNode*)~0;
-                }
-            }
+            sync->dirnotify->notifyq[q].replaceLocalNodePointers(this, (LocalNode*)~0);
         }
     }
     
@@ -1621,6 +1615,7 @@ LocalNode::~LocalNode()
         }
         else
         {
+            LOG_warn << "MOVEING TO SYNC DEBRIS";
             sync->client->movetosyncdebris(node, sync->inshare);
         }
     }

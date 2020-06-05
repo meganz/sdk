@@ -1312,6 +1312,7 @@ bool WinDirNotify::fsstableids() const
 
 VOID CALLBACK WinDirNotify::completion(DWORD dwErrorCode, DWORD dwBytes, LPOVERLAPPED lpOverlapped)
 {
+    assert( std::this_thread::get_id() == smNotifierThread->get_id());
 #ifndef WINDOWS_PHONE
     WinDirNotify *dirnotify = (WinDirNotify*)lpOverlapped->hEvent;
     if (!dirnotify->exit && dwErrorCode != ERROR_OPERATION_ABORTED)
@@ -1327,6 +1328,10 @@ VOID CALLBACK WinDirNotify::completion(DWORD dwErrorCode, DWORD dwBytes, LPOVERL
 
 void WinDirNotify::process(DWORD dwBytes)
 {
+    //auto t0 = std::chrono::high_resolution_clock::now();
+    assert( std::this_thread::get_id() == smNotifierThread->get_id());
+
+    //std::cout << "Received fs notifcation bytes: " << dwBytes << std::endl;
 #ifndef WINDOWS_PHONE
     if (!dwBytes)
     {
@@ -1383,7 +1388,7 @@ void WinDirNotify::process(DWORD dwBytes)
                                                      NULL, NULL));
 #ifdef ENABLE_SYNC
 
-                    LOG_debug << "Filesystem notification. Root: " << (localrootnode ? localrootnode->name.c_str() : "NULL") << "   Path: " << path;
+///                    LOG_debug << "Filesystem notification. Root: " << (localrootnode ? localrootnode->name.c_str() : "NULL") << "   Path: " << path;
 #endif
                 }
 #ifdef ENABLE_SYNC
@@ -1401,7 +1406,7 @@ void WinDirNotify::process(DWORD dwBytes)
                                                  int(path.size() + 1),
                                                  NULL, NULL));
 #ifdef ENABLE_SYNC
-                LOG_debug << "Skipped filesystem notification. Root: " << (localrootnode ? localrootnode->name.c_str() : "NULL") << "   Path: " << path;
+///                LOG_debug << "Skipped filesystem notification. Root: " << (localrootnode ? localrootnode->name.c_str() : "NULL") << "   Path: " << path;
 #endif
             }
 
@@ -1415,21 +1420,28 @@ void WinDirNotify::process(DWORD dwBytes)
         }
     }
 #endif
+    //auto t1 = std::chrono::high_resolution_clock::now();
+    //std::cout << "process: " << std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count() << std::endl;
+    clientWaiter->notify();
 }
 
 // request change notifications on the subtree under hDirectory
 void WinDirNotify::readchanges()
 {
-#ifndef WINDOWS_PHONE
-    try
-    {
-        notifybuf.resize(655340);  // 640k decent size buffer in case of really large filesystem changes (should not be too much memory on PCs)
-    }
-    catch (std::bad_alloc&)
-    {
-        notifybuf.resize(65534);  // if we're a bit low on memory, do the best we can with 64k
-    }
+    assert( std::this_thread::get_id() == smNotifierThread->get_id());
 
+#ifndef WINDOWS_PHONE
+    if (notifybuf.empty())
+    {
+        try
+        {
+            notifybuf.resize(4*1024*1024);  // 640k decent size buffer in case of really large filesystem changes (should not be too much memory on PCs)
+        }
+        catch (std::bad_alloc&)
+        {
+            notifybuf.resize(65534);  // if we're a bit low on memory, do the best we can with 64k
+        }
+    }
     auto readRet = ReadDirectoryChangesW(hDirectory, (LPVOID)notifybuf.data(),
                               (DWORD)notifybuf.size(), TRUE,
                               FILE_NOTIFY_CHANGE_FILE_NAME
@@ -1478,8 +1490,62 @@ void WinDirNotify::readchanges()
 #endif
 }
 
-WinDirNotify::WinDirNotify(string* localbasepath, string* ignore) : DirNotify(localbasepath, ignore)
+std::mutex WinDirNotify::smNotifyMutex;
+std::atomic<unsigned> WinDirNotify::smNotifierCount{0};
+HANDLE WinDirNotify::smEventHandle = NULL;
+std::deque<std::function<void()>> WinDirNotify::smQueue;
+std::unique_ptr<std::thread> WinDirNotify::smNotifierThread;
+
+void WinDirNotify::notifierThreadFunction()
 {
+    LOG_debug << "Filesytem notify thread started";
+    bool recheck = false;
+    for (;;)
+    {
+        if (!recheck) 
+        {
+            WaitForSingleObjectEx(smEventHandle, INFINITE, TRUE);  // alertable, so filesystem notify callbacks can occur on this thread during this time.
+            ResetEvent(smEventHandle);
+        }
+        recheck = false;
+
+        std::function<void()> f;
+        {
+            std::unique_lock<std::mutex> g(smNotifyMutex);
+            if (!smQueue.empty())
+            {
+                f = std::move(smQueue.front());
+                if (!f) return;   // nullptr to cause the thread to exit
+                smQueue.pop_front();
+            }
+        }
+        if (f) 
+        {
+            f();
+            recheck = true;
+        }
+    }
+    LOG_debug << "Filesytem notify thread stopped";
+}
+
+WinDirNotify::WinDirNotify(string* localbasepath, string* ignore, WinFileSystemAccess* owner, Waiter* waiter) : DirNotify(localbasepath, ignore)
+{
+    fsaccess = owner;
+    fsaccess->dirnotifys.insert(this);
+    clientWaiter = waiter;
+
+    {
+        std::lock_guard<std::mutex> g(smNotifyMutex);
+        if (++smNotifierCount == 1)
+        {
+            smQueue.clear();
+            smEventHandle = CreateEvent(NULL, FALSE, FALSE, NULL);
+
+            // One thread to notify them all
+            smNotifierThread.reset(new std::thread([](){ notifierThreadFunction(); }));
+        }
+    }
+
 #ifndef WINDOWS_PHONE
     ZeroMemory(&overlapped, sizeof(overlapped));
     overlapped.hEvent = this;
@@ -1501,6 +1567,7 @@ WinDirNotify::WinDirNotify(string* localbasepath, string* ignore) : DirNotify(lo
         rr = GetLongPathNameW((LPCWSTR)localbasepath->data(), (LPWSTR)longname.data(), rr);
         longname.resize(rr);
     }
+    localbasepath->resize(localbasepath->size() - added - 1);
 
     if ((hDirectory = CreateFileW((LPCWSTR)longname.data(),
                                   FILE_LIST_DIRECTORY,
@@ -1511,7 +1578,12 @@ WinDirNotify::WinDirNotify(string* localbasepath, string* ignore) : DirNotify(lo
                                   NULL)) != INVALID_HANDLE_VALUE)
     {
         failed = 0;
-        readchanges();
+
+        {
+            std::lock_guard<std::mutex> g(smNotifyMutex);
+            smQueue.push_back([this](){ readchanges(); });
+        }
+        SetEvent(smEventHandle);
     }
     else
     {
@@ -1520,7 +1592,6 @@ WinDirNotify::WinDirNotify(string* localbasepath, string* ignore) : DirNotify(lo
         LOG_err << "Unable to initialize filesystem notifications. Error: " << failed;
     }
 
-    localbasepath->resize(localbasepath->size() - added - 1);
 #endif
 }
 
@@ -1533,10 +1604,14 @@ WinDirNotify::~WinDirNotify()
     {
         if (enabled)
         {
-            CancelIo(hDirectory);
+            {
+                std::lock_guard<std::mutex> g(smNotifyMutex);
+                smQueue.push_back([this](){ CancelIo(hDirectory); });
+            }
+            SetEvent(smEventHandle);
             while (enabled)
             {
-                SleepEx(INFINITE, true);
+                SleepEx(10, true);
             }
         }
 
@@ -1544,6 +1619,22 @@ WinDirNotify::~WinDirNotify()
     }
     fsaccess->dirnotifys.erase(this);
 #endif
+
+    {
+        if (--smNotifierCount == 0)
+        {
+            {
+                std::lock_guard<std::mutex> g(smNotifyMutex);
+                smQueue.push_back(nullptr);
+            }
+            SetEvent(smEventHandle);
+            smNotifierThread->join();
+            smNotifierThread.reset();
+            CloseHandle(smEventHandle);
+            smQueue.clear();
+        }
+    }
+
 }
 
 std::unique_ptr<FileAccess> WinFileSystemAccess::newfileaccess(bool followSymLinks)
@@ -1556,12 +1647,9 @@ DirAccess* WinFileSystemAccess::newdiraccess()
     return new WinDirAccess();
 }
 
-DirNotify* WinFileSystemAccess::newdirnotify(string* localpath, string* ignore)
+DirNotify* WinFileSystemAccess::newdirnotify(string* localpath, string* ignore, Waiter* waiter)
 {
-    WinDirNotify *dirnotify = new WinDirNotify(localpath, ignore);
-    dirnotify->fsaccess = this;
-    dirnotifys.insert(dirnotify);
-    return dirnotify;
+    return new WinDirNotify(localpath, ignore, this, waiter);
 }
 
 bool WinFileSystemAccess::issyncsupported(string *localpath, bool *isnetwork)

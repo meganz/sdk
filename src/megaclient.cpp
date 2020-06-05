@@ -2370,19 +2370,19 @@ void MegaClient::exec()
                     Sync* sync = *it++;
                     if (sync->isnetwork && (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN))
                     {
-                        while (sync->dirnotify->notifyq[DirNotify::EXTRA].size())
+                        Notification notification;
+                        while (sync->dirnotify->notifyq[DirNotify::EXTRA].popFront(notification))
                         {
                             dstime dsmin = Waiter::ds - Sync::EXTRA_SCANNING_DELAY_DS;
-                            Notification &notification = sync->dirnotify->notifyq[DirNotify::EXTRA].front();
                             if (notification.timestamp <= dsmin)
                             {
                                 LOG_debug << "Processing extra fs notification: " << notification.path;
                                 sync->dirnotify->notify(DirNotify::DIREVENTS, notification.localnode,
                                                         notification.path.data(), notification.path.size());
-                                sync->dirnotify->notifyq[DirNotify::EXTRA].pop_front();
                             }
                             else
                             {
+                                sync->dirnotify->notifyq[DirNotify::EXTRA].unpopFront(notification);
                                 dstime delay = (notification.timestamp - dsmin) + 1;
                                 if (delay < mindelay)
                                 {
@@ -2500,14 +2500,15 @@ void MegaClient::exec()
                         sync->cachenodes();
 
                         totalpending += sync->dirnotify->notifyq[q].size();
+                        Notification notification;
                         if (q == DirNotify::DIREVENTS)
                         {
                             scanningpending += sync->dirnotify->notifyq[q].size();
                         }
-                        else if (!syncfslockretry && sync->dirnotify->notifyq[DirNotify::RETRY].size())
+                        else if (!syncfslockretry && sync->dirnotify->notifyq[DirNotify::RETRY].peekFront(notification))
                         {
                             syncfslockretrybt.backoff(Sync::SCANNING_DELAY_DS);
-                            fsaccess->local2path(&sync->dirnotify->notifyq[DirNotify::RETRY].front().path, &blockedfile);
+                            fsaccess->local2path(&notification.path, &blockedfile);
                             syncfslockretry = true;
                         }
                     }
@@ -2603,6 +2604,7 @@ void MegaClient::exec()
                             auto fa = fsaccess->newfileaccess();
                             while (localsyncnotseen.size())
                             {
+                                LOG_warn << "PROCESSING LOCAL SYNC NOT SEEN";
                                 LocalNode* l = *localsyncnotseen.begin();
                                 unlinkifexists(l, fa.get(), &path);
                                 delete l;

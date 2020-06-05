@@ -2148,7 +2148,7 @@ GTEST_TEST(Sync, BasicSync_MoveExistingIntoNewLocalFolder)
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
 }
 
-GTEST_TEST(Sync, DISABLED_BasicSync_MoveSeveralExistingIntoDeepNewLocalFolders)
+GTEST_TEST(Sync, BasicSync_MoveSeveralExistingIntoDeepNewLocalFolders)
 {
     // historic case:  in the local filesystem, create a new folder then move an existing file/folder into it
     fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
@@ -2160,7 +2160,7 @@ GTEST_TEST(Sync, DISABLED_BasicSync_MoveSeveralExistingIntoDeepNewLocalFolders)
     ASSERT_EQ(clientA1.basefolderhandle, clientA2.basefolderhandle);
 
     Model model;
-    model.root->addkid(model.buildModelSubdirs("f", 3, 3, 0));
+    model.root->addkid(model.buildModelSubdirs("f", 3, 3, 3));
 
     // set up sync for A1, it should build matching local folders
     ASSERT_TRUE(clientA1.setupSync_mainthread("sync1", "f", 1));
@@ -2169,11 +2169,12 @@ GTEST_TEST(Sync, DISABLED_BasicSync_MoveSeveralExistingIntoDeepNewLocalFolders)
     clientA1.logcb = clientA2.logcb = true;
 
     // check everything matches (model has expected state of remote and local)
-    ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
-    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
+    //ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
+    //ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
 
     // make new folder tree in the local filesystem
     ASSERT_TRUE(buildLocalFolders(clientA1.syncSet[1].localpath, "new", 3, 3, 3));
+    //ASSERT_TRUE(buildLocalFolders(clientA1.syncSet[1].localpath, "new", 7, 7, 7));
     // move already synced folders to serveral parts of it - one under another moved folder too
     error_code rename_error;
     fs::rename(clientA1.syncSet[1].localpath / "f_0", clientA1.syncSet[1].localpath / "new" / "new_0" / "new_0_1" / "new_0_1_2" / "f_0", rename_error);

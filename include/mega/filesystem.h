@@ -37,6 +37,7 @@
 
 #include "types.h"
 #include "waiter.h"
+#include <mutex>
 
 // Define magic constants in case they are not defined in headers
 #if defined (__linux__) && !defined (__ANDROID__)
@@ -224,6 +225,28 @@ struct MEGA_API DirAccess
     virtual ~DirAccess() { }
 };
 
+struct Notification
+{
+    dstime timestamp;
+    string path;
+    LocalNode* localnode;
+};
+
+struct NotificationDeque : ThreadSafeDeque<Notification> 
+{
+    void replaceLocalNodePointers(LocalNode* check, LocalNode* newvalue)
+    {
+        std::lock_guard<std::mutex> g(m); 
+        for (auto& n : mNotifications)
+        {
+            if (n.localnode == check)
+            {
+                n.localnode = newvalue;
+            }
+        }
+    }
+};
+
 // generic filesystem change notification
 struct MEGA_API DirNotify
 {
@@ -232,7 +255,8 @@ struct MEGA_API DirNotify
     // notifyq[EXTRA] is like DIREVENTS, but delays its processing (for network filesystems)
     // notifyq[DIREVENTS] is fed with filesystem changes
     // notifyq[RETRY] receives transient errors that need to be retried
-    notify_deque notifyq[NUMQUEUES];
+    // Thread safe so that a separate thread can listen for filesystem notifications (for windows for now, maybe more platforms later)
+    NotificationDeque notifyq[NUMQUEUES];
 
     // set if no notification available on this platform or a permanent failure
     // occurred
@@ -292,7 +316,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     // instantiate DirNotify object (default to periodic scanning handler if no
     // notification configured) with given root path
-    virtual DirNotify* newdirnotify(string*, string*);
+    virtual DirNotify* newdirnotify(string*, string*, Waiter*);
 
     // check if character is lowercase hex ASCII
     bool islchex(char) const;

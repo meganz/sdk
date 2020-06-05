@@ -1845,7 +1845,7 @@ DirAccess* PosixFileSystemAccess::newdiraccess()
     return new PosixDirAccess();
 }
 
-DirNotify* PosixFileSystemAccess::newdirnotify(string* localpath, string* ignore)
+DirNotify* PosixFileSystemAccess::newdirnotify(string* localpath, string* ignore, Waiter*)
 {
     PosixDirNotify* dirnotify = new PosixDirNotify(localpath, ignore);
 
