@@ -1772,6 +1772,11 @@ void MegaClient::exec()
                                     e = API_EINTERNAL;
                                 }
 
+                                if (e == API_EBLOCKED && sid.size())
+                                {
+                                    block();
+                                }
+
                                 app->request_error(e);
                                 delete pendingcs;
                                 pendingcs = NULL;
@@ -2009,7 +2014,7 @@ void MegaClient::exec()
                     else if (e == API_EBLOCKED)
                     {
                         app->request_error(API_EBLOCKED);
-                        block();
+                        block(true);
                     }
                     else
                     {
@@ -10505,13 +10510,15 @@ void MegaClient::whyamiblocked()
     reqs.add(new CommandWhyAmIblocked(this));
 }
 
-void MegaClient::block()
+void MegaClient::block(bool fromServerClientResponse)
 {
-    if (!stopsc)
+    if (!stopsc && fromServerClientResponse)
     {
         stopsc = true; // stop consuming action packets
         mScStoppedDueToBlock = true;
     }
+
+    LOG_verbose << "Blocking MegaClient, fromServerClientResponse: " << fromServerClientResponse;
 
     mBlocked = true;
 }
@@ -10523,6 +10530,8 @@ void MegaClient::unblock()
         stopsc = false; // will resume querying for action packets
     }
     mScStoppedDueToBlock = false;
+
+    LOG_verbose << "Unblocking MegaClient";
 
     mBlocked = false;
 }

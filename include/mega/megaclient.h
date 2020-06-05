@@ -319,7 +319,7 @@ public:
 
     // stops querying for action packets due to the account being blocked (-16 on sc channel)
     // and pauses transfer and removes transfer slot availability
-    void block();
+    void block(bool fromServerClientResponse = false);
 
     // resumes querying for action packets when the account is unblocked (if it was previously stopped due to being blocked)
     // and resumes transfers
