@@ -637,10 +637,6 @@ void CommandDirectRead::procresult()
                             // default retry interval
                             tl = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS;
                         }
-                        else if (e == API_EPAYWALL)
-                        {
-                            client->activateoverquota(0, true);
-                        }
 
                         drn->cmdresult(e, e == API_EOVERQUOTA ? tl * 10 : 0);
                     }
