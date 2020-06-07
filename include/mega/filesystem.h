@@ -36,6 +36,7 @@
 #endif
 
 #include "types.h"
+#include "utils.h"
 #include "waiter.h"
 #include <mutex>
 
