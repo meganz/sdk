@@ -168,10 +168,6 @@ RaidBufferManager::~RaidBufferManager()
     {
         clearOwningFilePieces(raidinputparts[i]);
     }
-    for (std::map<unsigned, FilePiece*>::iterator i = asyncoutputbuffers.begin(); i != asyncoutputbuffers.end(); ++i)
-    {
-        delete i->second;
-    }
 }
 
 void RaidBufferManager::setIsRaid(const std::vector<std::string>& tempUrls, m_off_t resumepos, m_off_t readtopos, m_off_t filesize, m_off_t maxRequestSize)
@@ -292,13 +288,13 @@ void RaidBufferManager::submitBuffer(unsigned connectionNum, FilePiece* piece)
     {
         finalize(*piece);
         assert(asyncoutputbuffers.find(connectionNum) == asyncoutputbuffers.end() || !asyncoutputbuffers[connectionNum]);
-        asyncoutputbuffers[connectionNum] = piece;
+        asyncoutputbuffers[connectionNum].reset(piece);
     }
 }
 
-RaidBufferManager::FilePiece* RaidBufferManager::getAsyncOutputBufferPointer(unsigned connectionNum)
+std::shared_ptr<RaidBufferManager::FilePiece> RaidBufferManager::getAsyncOutputBufferPointer(unsigned connectionNum)
 {
-    std::map<unsigned, FilePiece*>::iterator i = asyncoutputbuffers.find(connectionNum);
+    auto i = asyncoutputbuffers.find(connectionNum);
     if (isRaid() && (i == asyncoutputbuffers.end() || !i->second))
     {
         combineRaidParts(connectionNum);
@@ -310,7 +306,7 @@ RaidBufferManager::FilePiece* RaidBufferManager::getAsyncOutputBufferPointer(uns
 
 void RaidBufferManager::bufferWriteCompleted(unsigned connectionNum, bool success)
 {
-    std::map<unsigned, FilePiece*>::iterator aob = asyncoutputbuffers.find(connectionNum);
+    auto aob = asyncoutputbuffers.find(connectionNum);
     if (aob != asyncoutputbuffers.end())
     {
         assert(aob->second);
@@ -321,8 +317,7 @@ void RaidBufferManager::bufferWriteCompleted(unsigned connectionNum, bool succes
                 bufferWriteCompletedAction(*aob->second);
             }
 
-            delete aob->second;
-            aob->second = NULL;
+            aob->second.reset();
         }
     }
 }
@@ -506,7 +501,7 @@ void RaidBufferManager::combineRaidParts(unsigned connectionNum)
         if (outputrec->buf.datalen() > 0)
         {
             finalize(*outputrec);
-            asyncoutputbuffers[connectionNum] = outputrec;
+            asyncoutputbuffers[connectionNum].reset(outputrec);
         }
         else
         {
@@ -641,36 +636,52 @@ m_off_t TransferBufferManager::calcOutputChunkPos(m_off_t acquiredpos)
 }
 
 // decrypt, mac downloaded chunk
-void TransferBufferManager::finalize(FilePiece& r)
+bool RaidBufferManager::FilePiece::finalize(bool parallel, m_off_t filesize, int64_t ctriv, SymmCipher *cipher, chunkmac_map* source_chunkmacs)
 {
-    byte *chunkstart = r.buf.datastart();
-    m_off_t startpos = r.pos;
-    m_off_t finalpos = startpos + r.buf.datalen();
-    assert(finalpos <= transfer->size);
-    if (finalpos != transfer->size)
+    assert(!finalized);
+    bool queueParallel = false;
+
+    byte *chunkstart = buf.datastart();
+    m_off_t startpos = pos;
+    m_off_t finalpos = startpos + buf.datalen();
+    assert(finalpos <= filesize);
+    if (finalpos != filesize)
     {
         finalpos &= -SymmCipher::BLOCKSIZE;
     }
 
     m_off_t endpos = ChunkedHash::chunkceil(startpos, finalpos);
     unsigned chunksize = static_cast<unsigned>(endpos - startpos);
-    SymmCipher *cipher = transfer->transfercipher();
+    
     while (chunksize)
     {
         m_off_t chunkid = ChunkedHash::chunkfloor(startpos);
-        ChunkMAC &chunkmac = r.chunkmacs[chunkid];
+        ChunkMAC &chunkmac = chunkmacs[chunkid];
         if (!chunkmac.finished)
         {
-            chunkmac = transfer->chunkmacs[chunkid];
-            cipher->ctr_crypt(chunkstart, chunksize, startpos, transfer->ctriv, chunkmac.mac, false, !chunkmac.finished && !chunkmac.offset);
-            if (endpos == ChunkedHash::chunkceil(chunkid, transfer->size))
+            if (source_chunkmacs)
             {
-                LOG_debug << "Finished chunk: " << startpos << " - " << endpos << "   Size: " << chunksize;
-                chunkmac.finished = true;
-                chunkmac.offset = 0;
+                chunkmac = (*source_chunkmacs)[chunkid];
             }
-            else
+            if (endpos == ChunkedHash::chunkceil(chunkid, filesize))
             {
+                if (parallel)
+                {
+                    // these parts can be done on a thread - they are independent chunks, or the earlier part of the chunk is already done.
+                    cipher->ctr_crypt(chunkstart, chunksize, startpos, ctriv, chunkmac.mac, false, !chunkmac.finished && !chunkmac.offset);
+                    LOG_debug << "Finished chunk: " << startpos << " - " << endpos << "   Size: " << chunksize;
+                    chunkmac.finished = true;
+                    chunkmac.offset = 0;
+                }
+                else
+                {
+                    queueParallel = true;
+                }
+            }
+            else if (!parallel)
+            {
+                // these part chunks must be done serially (and first), since later parts of a chunk need the mac of earlier parts as input.
+                cipher->ctr_crypt(chunkstart, chunksize, startpos, ctriv, chunkmac.mac, false, !chunkmac.finished && !chunkmac.offset);
                 LOG_debug << "Decrypted partial chunk: " << startpos << " - " << endpos << "   Size: " << chunksize;
                 chunkmac.finished = false;
                 chunkmac.offset += chunksize;
@@ -681,6 +692,17 @@ void TransferBufferManager::finalize(FilePiece& r)
         endpos = ChunkedHash::chunkceil(startpos, finalpos);
         chunksize = static_cast<unsigned>(endpos - startpos);
     }
+
+    finalized = !queueParallel;
+    if (finalized)
+        finalizedCV.notify_one();
+
+    return queueParallel;
+}
+
+void TransferBufferManager::finalize(FilePiece& r)
+{
+    // for transfers (as opposed to DirectRead), decrypt/mac is now done on threads
 }
 
 
@@ -810,7 +832,7 @@ m_off_t& TransferBufferManager::transferPos(unsigned connectionNum)
 {
     return isRaid() ? RaidBufferManager::transferPos(connectionNum) : transfer->pos;
 }
-std::pair<m_off_t, m_off_t> TransferBufferManager::nextNPosForConnection(unsigned connectionNum, m_off_t maxRequestSize, unsigned connectionCount, bool& newInputBufferSupplied, bool& pauseConnectionForRaid)
+std::pair<m_off_t, m_off_t> TransferBufferManager::nextNPosForConnection(unsigned connectionNum, m_off_t maxRequestSize, unsigned connectionCount, bool& newInputBufferSupplied, bool& pauseConnectionForRaid, m_off_t uploadSpeed)
 {
     // returning a pair for clarity - specifying the beginning and end position of the next data block, as the 'current pos' may be updated during this function
     newInputBufferSupplied = false;
@@ -827,6 +849,29 @@ std::pair<m_off_t, m_off_t> TransferBufferManager::nextNPosForConnection(unsigne
         if (!transfer->size)
         {
             transfer->pos = 0;
+        }
+
+        if (transfer->type == PUT)
+        {
+            if (transfer->pos < 1024 * 1024)
+            {
+                npos = ChunkedHash::chunkceil(npos, transfer->size);
+            }
+
+            // choose upload chunks that are big enough to saturate the connection, so we don't start HTTP PUT request too frequently
+            // make them smaller at the end of the file so we still have the last parts delivered in parallel
+            m_off_t maxsize = 32 * 1024 * 1024;
+            if (npos + 2 * maxsize > transfer->size) maxsize /= 2;
+            if (npos + maxsize > transfer->size) maxsize /= 2;
+            if (npos + maxsize > transfer->size) maxsize /= 2;
+            m_off_t speedsize = std::min<m_off_t>(maxsize, uploadSpeed * 2 / 3);    // two seconds of data over 3 connections
+            m_off_t sizesize = transfer->size > 32 * 1024 * 1024 ? 8 * 1024 * 1024 : 0;  // start with large-ish portions for large files.
+            m_off_t targetsize = std::max<m_off_t>(sizesize, speedsize);
+            
+            while (npos < transfer->pos + targetsize && npos < transfer->size)
+            {
+                npos = ChunkedHash::chunkceil(npos, transfer->size);
+            }
         }
 
         if (transfer->type == GET && transfer->size && npos > transfer->pos)

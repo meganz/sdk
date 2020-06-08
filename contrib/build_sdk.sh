@@ -227,7 +227,7 @@ package_configure() {
     fi
 
     if [ $cross_compiling -eq 1 ] && [ -f $conf_f0 ]; then
-        conf="$conf_f0 os/compiler:$openssl_cross_option"
+        conf="$conf_f0 $openssl_cross_option"
     elif [ $cross_compiling -eq 0 ] && [ -f $conf_f1 ]; then  # ./config is used to figure out which compiler; if we are cross compiling then skip that and use configure directly, $CC $CXX etc specify the tools
         conf="$conf_f1"
     elif [ -f $conf_f2 ]; then
@@ -327,12 +327,12 @@ openssl_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="OpenSSL"
-    local openssl_ver="1.0.2h"
-    local openssl_url="https://www.openssl.org/source/openssl-$openssl_ver.tar.gz"
-    local openssl_md5="9392e65072ce4b614c1392eefc1f23d0"
-
-    local openssl_file="openssl-$openssl_ver.tar.gz"
-    local openssl_dir="openssl-$openssl_ver"
+    local openssl_ver="1.1.1"
+    local openssl_rel="d"
+    local openssl_url="https://www.openssl.org/source/old/${openssl_ver}/openssl-$openssl_${openssl_ver}${openssl_rel}.tar.gz"
+    local openssl_md5="3be209000dbc7e1b95bcdf47980a3baa"
+    local openssl_file="openssl-${openssl_ver}${openssl_rel}.tar.gz"
+    local openssl_dir="openssl-${openssl_ver}${openssl_rel}"
     if [ $use_dynamic -eq 1 ]; then
     local openssl_params="--openssldir=$install_dir shared $extra_openssl_params"
     else
@@ -392,9 +392,9 @@ cryptopp_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="Crypto++"
-    local cryptopp_ver="800"
+    local cryptopp_ver="820"
     local cryptopp_url="http://www.cryptopp.com/cryptopp$cryptopp_ver.zip"
-    local cryptopp_md5="f5affc19468c78fd8c5694c664cbd8ec"
+    local cryptopp_md5="8a8bcb436af83e16d2227bd4ac642243"
     local cryptopp_file="cryptopp$cryptopp_ver.zip"
     local cryptopp_dir="cryptopp$cryptopp_ver"
 
@@ -414,6 +414,7 @@ cryptopp_pkg() {
 
     #modify Makefile so that it does not use specific cpu architecture optimizations
     sed "s#CXXFLAGS += -march=native#CXXFLAGS += #g" -i $cryptopp_dir/GNUmakefile
+    sed -i -e "160,165d" $cryptopp_dir/GNUmakefile
     
     if [ $android_build -eq 1 ]; then
         cp ${ANDROID_NDK_ROOT}/sources/android/cpufeatures/cpu-features.h $cryptopp_dir/
@@ -463,10 +464,10 @@ libuv_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="libuv"
-    local libuv_ver="v1.8.0"
-    local libuv_url="https://dist.libuv.org/dist/$libuv_ver/libuv-$libuv_ver.tar.gz"
-    local libuv_md5="f4229c4360625e973ae933cb92e1faf7"
-    local libuv_file="libuv-$libuv_ver.tar.gz"
+    local libuv_ver="1.34.2"
+    local libuv_url="https://github.com/libuv/libuv/archive/v${libuv_ver}.tar.gz"
+    local libuv_md5="5b57d93320a4aac3e66de94a1d4da98d"
+    local libuv_file="v${libuv_ver}.tar.gz"
     local libuv_dir="libuv-$libuv_ver"
     if [ $use_dynamic -eq 1 ]; then
         local libuv_params="--enable-shared"
@@ -506,9 +507,9 @@ libraw_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="libraw"
-    local libraw_ver="0.19.0"
+    local libraw_ver="0.19.5"
     local libraw_url="https://www.libraw.org/data/LibRaw-$libraw_ver.tar.gz"
-    local libraw_md5="789b03f0ec39eebcba3ae8a0e5b780ac"
+    local libraw_md5="865ab9a40910709ff86988e8c0a7d146"
     local libraw_file="libraw-$libraw_ver.tar.gz"
     local libraw_dir="LibRaw-$libraw_ver"
     if [ $use_dynamic -eq 1 ]; then
@@ -605,9 +606,9 @@ sqlite_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="SQLite"
-    local sqlite_ver="3100100"
-    local sqlite_url="http://www.sqlite.org/2016/sqlite-autoconf-$sqlite_ver.tar.gz"
-    local sqlite_md5="f315a86cb3e8671fe473baa8d34746f6"
+    local sqlite_ver="3300100"
+    local sqlite_url="http://www.sqlite.org/2019/sqlite-autoconf-$sqlite_ver.tar.gz"
+    local sqlite_md5="51252dc6bc9094ba11ab151ba650ff3c"
     local sqlite_file="sqlite-$sqlite_ver.tar.gz"
     local sqlite_dir="sqlite-autoconf-$sqlite_ver"
     if [ $use_dynamic -eq 1 ]; then
@@ -638,9 +639,9 @@ cares_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="c-ares"
-    local cares_ver="1.10.0"
+    local cares_ver="1.14.0"
     local cares_url="http://c-ares.haxx.se/download/c-ares-$cares_ver.tar.gz"
-    local cares_md5="1196067641411a75d3cbebe074fd36d8"
+    local cares_md5="e57b37a7c46283e83c21cde234df10c7"
     local cares_file="cares-$cares_ver.tar.gz"
     local cares_dir="c-ares-$cares_ver"
     if [ $use_dynamic -eq 1 ]; then
@@ -671,9 +672,9 @@ curl_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="cURL"
-    local curl_ver="7.59.0"
+    local curl_ver="7.68.0"
     local curl_url="http://curl.haxx.se/download/curl-$curl_ver.tar.gz"
-    local curl_md5="a44f98c25c7506e7103039b542aa5ad8"
+    local curl_md5="f68d6f716ff06d357f476ea4ea57a3d6"
     local curl_file="curl-$curl_ver.tar.gz"
     local curl_dir="curl-$curl_ver"
     local openssl_flags=""
@@ -786,9 +787,9 @@ freeimage_pkg() {
     local install_dir=$2
     local cwd=$3
     local name="FreeImage"
-    local freeimage_ver="3170"
+    local freeimage_ver="3180"
     local freeimage_url="http://downloads.sourceforge.net/freeimage/FreeImage$freeimage_ver.zip"
-    local freeimage_md5="459e15f0ec75d6efa3c7bd63277ead86"
+    local freeimage_md5="f8ba138a3be233a3eed9c456e42e2578"
     local freeimage_file="freeimage-$freeimage_ver.zip"
     local freeimage_dir_extract="freeimage-$freeimage_ver"
     local freeimage_dir="freeimage-$freeimage_ver/FreeImage"
@@ -812,7 +813,7 @@ freeimage_pkg() {
 
     #patch to fix problem with raw strings
     find $freeimage_dir_extract/FreeImage/Source/LibWebP -type f -exec sed -i -e 's/"#\([A-X]\)"/" #\1 "/g' {} \;
-    
+
     #patch to fix problem with newest compilers
     sed -i "s#CXXFLAGS += -D__ANSI__#CXXFLAGS += -D__ANSI__ -std=c++98#g" $freeimage_dir_extract/FreeImage/Makefile.gnu 
 
@@ -820,8 +821,9 @@ freeimage_pkg() {
     #as gcc building for 32 bit linux has long as 32 bit.  Also some files have the utf-8 BOM which old gcc doesn't like
     export CFLAGS="$CFLAGS -fdollars-in-identifiers"
     export CXXFLAGS="$CXXFLAGS -fdollars-in-identifiers"
+
     find $freeimage_dir/Source/OpenEXR/IlmImf/ -name "*.cpp" | xargs sed -i -e "s/0xffffffffffffffffL/0xffffffffffffffffull/" 
-    find $freeimage_dir/Source/LibRawLite/internal/ -name "*.cpp" | xargs sed -i -e "s/\(0x[0-9A-Fa-f]\{9,16\}\)/\1ull/g" 
+
     if command -v dos2unix; then
         find $freeimage_dir/Source/LibRawLite/internal/ -name "*.cpp" | xargs dos2unix
         find $freeimage_dir/Source/LibRawLite/internal/ -name "*.h" | xargs dos2unix
@@ -842,21 +844,9 @@ freeimage_pkg() {
         export FREEIMAGE_LIBRARY_TYPE=STATIC
     fi
 
-cat << EOF > $build_dir/freeimage_neon_arm64_patch
-138c138
-< #  define PNG_FILTER_OPTIMIZATIONS png_init_filter_functions_neon
----
-> //#  define PNG_FILTER_OPTIMIZATIONS png_init_filter_functions_neon
-1931,1932c1931,1932
-< PNG_INTERNAL_FUNCTION(void, png_init_filter_functions_neon,
-<    (png_structp png_ptr, unsigned int bpp), PNG_EMPTY);
----
-> //PNG_INTERNAL_FUNCTION(void, png_init_filter_functions_neon,
-> //   (png_structp png_ptr, unsigned int bpp), PNG_EMPTY);
-EOF
     # freeimage's LibPNG has a problem with deciding to use neon on 64 bit arm, resulting in a missing symbol
     if [ "$ARCH" == "aarch64" ]; then
-      (patch `find . -name pngpriv.h` < $build_dir/freeimage_neon_arm64_patch)
+        export CFLAGS="$CFLAGS -DPNG_ARM_NEON_OPT=0"
     fi 
 
     if [ "$(expr substr $(uname -s) 1 10)" != "MINGW32_NT" ]; then
@@ -1327,8 +1317,8 @@ main() {
                 echo "* cross-compiling"
                 ;;
             C)
-               configure_cross_options="$OPTARG"
-               echo "* configure cross compile options: $configure_cross_options"
+                configure_cross_options="$OPTARG"
+                echo "* configure cross compile options: $configure_cross_options"
                 ;;
             O)
                 openssl_cross_option="$OPTARG"

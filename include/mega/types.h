@@ -148,7 +148,7 @@ typedef uint32_t dstime;
 #define TOSTRING(x) STRINGIFY(x)
 
 // HttpReq states
-typedef enum { REQ_READY, REQ_PREPARED, REQ_INFLIGHT, REQ_SUCCESS, REQ_FAILURE, REQ_DONE, REQ_ASYNCIO } reqstatus_t;
+typedef enum { REQ_READY, REQ_PREPARED, REQ_ENCRYPTING, REQ_DECRYPTING, REQ_DECRYPTED, REQ_INFLIGHT, REQ_SUCCESS, REQ_FAILURE, REQ_DONE, REQ_ASYNCIO } reqstatus_t;
 
 typedef enum { USER_HANDLE, NODE_HANDLE } targettype_t;
 
@@ -308,13 +308,51 @@ typedef list<struct TransferSlot*> transferslot_list;
 // FIXME: use forward_list instad (C++11)
 typedef list<HttpReqCommandPutFA*> putfa_list;
 
-/* maps a FileFingerprint to the transfer for that FileFingerprint,
- * this map can contain two items for the same key (FileFingerprint)
- * depending on the type of target (private/foreign) associated to the PUT transfers
- */
-typedef multimap<FileFingerprint*, Transfer*, FileFingerprintCmp> transfer_map;
+// map a FileFingerprint to the transfer for that FileFingerprint
+typedef map<FileFingerprint*, Transfer*, FileFingerprintCmp> transfer_map;
 
-typedef deque<Transfer*> transfer_list;
+template <class T, class E>
+class deque_with_lazy_bulk_erase
+{
+    // This is a wrapper class for deque.  Erasing an element from the middle of a deque is not cheap since all the subsequent elements need to be shuffled back.
+    // This wrapper intercepts the erase() calls for single items, and instead marks each one as 'erased'.  
+    // The supplied template class E contains the normal deque entry T, plus a flag or similar to mark an entry erased.
+    // Any other operation on the deque performs all the gathered erases in a single std::remove_if for efficiency.
+    // This makes an enormous difference when cancelling 100k transfers in MEGAsync's transfers window for example.
+    deque<E> mDeque;
+    bool mErasing = false;
+
+public:
+
+    typedef typename deque<E>::iterator iterator;
+
+    void erase(iterator i)
+    {
+        assert(i != mDeque.end());
+        i->erase();
+        mErasing = true;
+    }
+
+    void applyErase()
+    {
+        if (mErasing)
+        {
+            auto newEnd = std::remove_if(mDeque.begin(), mDeque.end(), [](const E& e) { return e.isErased(); } );
+            mDeque.erase(newEnd, mDeque.end());
+            mErasing = false;
+        }
+    }
+
+    size_t size()                                        { applyErase(); return mDeque.size(); }
+    size_t empty()                                        { applyErase(); return mDeque.empty(); }
+    iterator begin(bool canHandleErasedElements = false) { if (!canHandleErasedElements) applyErase(); return mDeque.begin(); }
+    iterator end(bool canHandleErasedElements = false)   { if (!canHandleErasedElements) applyErase(); return mDeque.end(); }
+    void push_front(T t)                                 { applyErase(); mDeque.push_front(E(t)); }
+    void push_back(T t)                                  { applyErase(); mDeque.push_back(E(t)); }
+    void insert(iterator i, T t)                         { applyErase(); mDeque.insert(i, E(t)); }
+    T& operator[](size_t n)                              { applyErase(); return mDeque[n]; }
+
+};
 
 // map a request tag with pending dbids of transfers and files
 typedef map<int, vector<uint32_t> > pendingdbid_map;
@@ -442,7 +480,7 @@ typedef enum {
     ATTR_LANGUAGE = 14,                     // private, non-encrypted - char array in B64 - non-versioned
     ATTR_PWD_REMINDER = 15,                 // private, non-encrypted - char array in B64 - non-versioned
     ATTR_DISABLE_VERSIONS = 16,             // private, non-encrypted - char array in B64 - non-versioned
-    ATTR_CONTACT_LINK_VERIFICATION = 17,    // private, non-encrypted - char array in B64 - non-versioned
+    ATTR_CONTACT_LINK_VERIFICATION = 17,    // private, non-encrypted - char array in B64 - versioned
     ATTR_RICH_PREVIEWS = 18,                // private - byte array
     ATTR_RUBBISH_TIME = 19,                 // private, non-encrypted - char array in B64 - non-versioned
     ATTR_LAST_PSA = 20,                     // private - char array
@@ -451,8 +489,8 @@ typedef enum {
     ATTR_CAMERA_UPLOADS_FOLDER = 23,        // private - byte array - non-versioned
     ATTR_MY_CHAT_FILES_FOLDER = 24,         // private - byte array - non-versioned
     ATTR_PUSH_SETTINGS = 25,                // private - non-encripted - char array in B64 - non-versioned
-    ATTR_UNSHAREABLE_KEY = 26,              // private - char array
-    ATTR_ALIAS = 27,                        // private - byte array - non-versioned
+    ATTR_UNSHAREABLE_KEY = 26,              // private - char array - versioned
+    ATTR_ALIAS = 27,                        // private - byte array - versioned
     ATTR_AUTHRSA = 28,                      // private - byte array
     ATTR_AUTHCU255 = 29,                    // private - byte array
 

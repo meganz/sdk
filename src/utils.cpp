@@ -23,6 +23,8 @@
 #include "mega/logging.h"
 #include "mega/megaclient.h"
 #include "mega/base64.h"
+#include "mega/serialize64.h"
+#include "mega/filesystem.h"
 
 #include <iomanip>
 
@@ -72,11 +74,24 @@ void CacheableWriter::serializecstr(const char* field, bool storeNull)
     dest.append(field, ll);
 }
 
+void CacheableWriter::serializepstr(const string* field)
+{
+    unsigned short ll = (unsigned short)(field ? field->size() : 0);
+    dest.append((char*)&ll, sizeof(ll));
+    if (field) dest.append(field->data(), ll);
+}
+
 void CacheableWriter::serializestring(const string& field)
 {
     unsigned short ll = (unsigned short)field.size();
     dest.append((char*)&ll, sizeof(ll));
     dest.append(field.data(), ll);
+}
+
+void CacheableWriter::serializecompressed64(int64_t field)
+{
+    byte buf[sizeof field+1];
+    dest.append((const char*)buf, Serialize64::serialize(buf, field));
 }
 
 void CacheableWriter::serializei64(int64_t field)
@@ -92,6 +107,11 @@ void CacheableWriter::serializeu32(uint32_t field)
 void CacheableWriter::serializehandle(handle field)
 {
     dest.append((char*)&field, sizeof(field));
+}
+
+void CacheableWriter::serializenodehandle(handle field)
+{
+    dest.append((const char*)&field, MegaClient::NODEHANDLE);
 }
 
 void CacheableWriter::serializefsfp(fsfp_t field)
@@ -297,16 +317,35 @@ m_off_t chunkmac_map::expandUnprocessedPiece(m_off_t pos, m_off_t npos, m_off_t 
     return npos;
 }
 
-void chunkmac_map::finishedUploadChunks(m_off_t pos, m_off_t size)
+void chunkmac_map::finishedUploadChunks(chunkmac_map& macs)
 {
-    m_off_t startpos = pos;
-    m_off_t finalpos = startpos + size;
-    while (startpos < finalpos)
+    for (auto& m : macs)
     {
-        (*this)[startpos].finished = true;
-        LOG_verbose << "Upload chunk completed: " << startpos;
-        startpos = ChunkedHash::chunkceil(startpos, finalpos);
+        m.second.finished = true;
+        (*this)[m.first] = m.second;
+        LOG_verbose << "Upload chunk completed: " << m.first;
     }
+}
+
+// coalesce block macs into file mac
+int64_t chunkmac_map::macsmac(SymmCipher *cipher)
+{
+    byte mac[SymmCipher::BLOCKSIZE] = { 0 };
+
+    for (chunkmac_map::iterator it = begin(); it != end(); it++)
+    {
+        assert(it->first == ChunkedHash::chunkfloor(it->first));
+        // LOG_debug << "macsmac input: " << it->first << ": " << Base64Str<sizeof it->second.mac>(it->second.mac);
+        SymmCipher::xorblock(it->second.mac, mac);
+        cipher->ecb_encrypt(mac);
+    }
+
+    uint32_t* m = (uint32_t*)mac;
+
+    m[0] ^= m[1];
+    m[1] = m[2] ^ m[3];
+
+    return MemAccess::get<int64_t>((const char*)mac);
 }
 
 bool CacheableReader::unserializechunkmacs(chunkmac_map& m)
@@ -317,6 +356,21 @@ bool CacheableReader::unserializechunkmacs(chunkmac_map& m)
         return true;
     }
     return false;
+}
+
+bool CacheableReader::unserializecompressed64(uint64_t& field)
+{
+    int fieldSize;
+    if ((fieldSize = Serialize64::unserialize((byte*)ptr, static_cast<int>(end - ptr), &field)) < 0)
+    {
+        LOG_err << "Serialize64 unserialization failed - malformed field";
+        return false;
+    }
+    else
+    {
+        ptr += fieldSize;
+    }
+    return true;
 }
 
 bool CacheableReader::unserializei64(int64_t& field)
@@ -351,6 +405,19 @@ bool CacheableReader::unserializehandle(handle& field)
     }
     field = MemAccess::get<handle>(ptr);
     ptr += sizeof(handle);
+    fieldnum += 1;
+    return true;
+}
+
+bool CacheableReader::unserializenodehandle(handle& field)
+{
+    if (ptr + MegaClient::NODEHANDLE > end)
+    {
+        return false;
+    }
+    field = 0;
+    memcpy((char*)&field, ptr, MegaClient::NODEHANDLE);
+    ptr += MegaClient::NODEHANDLE;
     fieldnum += 1;
     return true;
 }
@@ -1472,6 +1539,20 @@ TLVstore::~TLVstore()
 {
 }
 
+size_t Utils::utf8SequenceSize(unsigned char c)
+{
+    int aux = static_cast<int>(c);
+    if (aux >= 0 && aux <= 127)     return 1;
+    else if ((aux & 0xE0) == 0xC0)  return 2;
+    else if ((aux & 0xF0) == 0xE0)  return 3;
+    else if ((aux & 0xF8) == 0xF0)  return 4;
+    else
+    {
+        LOG_err << "Malformed UTF-8 sequence, interpret character " << c << " as literal";
+        return 1;
+    }
+}
+
 bool Utils::utf8toUnicode(const uint8_t *src, unsigned srclen, string *result)
 {
     uint8_t utf8cp1;
@@ -2238,4 +2319,126 @@ bool operator==(const SyncConfig& lhs, const SyncConfig& rhs)
     return lhs.tie() == rhs.tie();
 }
 
+std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, FileAccess &ifAccess, const int64_t iv)
+{
+    FileInputStream isAccess(&ifAccess);
+
+    return generateMetaMac(cipher, isAccess, iv);
+}
+
+std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &isAccess, const int64_t iv)
+{
+    static const m_off_t SZ_1024K = 1l << 20;
+    static const m_off_t SZ_128K  = 128l << 10;
+
+    std::unique_ptr<byte[]> buffer(new byte[SZ_1024K + SymmCipher::BLOCKSIZE]);
+    chunkmac_map chunkMacs;
+    m_off_t chunkLength = 0;
+    m_off_t current = 0;
+    m_off_t remaining = isAccess.size();
+
+    while (remaining > 0)
+    {
+        chunkLength =
+          std::min(chunkLength + SZ_128K,
+                   std::min(remaining, SZ_1024K));
+
+        if (!isAccess.read(&buffer[0], (unsigned int)chunkLength))
+            return std::make_pair(false, 0l);
+
+        memset(&buffer[chunkLength], 0, SymmCipher::BLOCKSIZE);
+
+        cipher.ctr_crypt(&buffer[0],
+                         (unsigned int)chunkLength,
+                         current,
+                         iv,
+                         chunkMacs[current].mac,
+                         1);
+
+        current += chunkLength;
+        remaining -= chunkLength;
+    }
+
+    return std::make_pair(true, chunkMacs.macsmac(&cipher));
+}
+
+void MegaClientAsyncQueue::push(std::function<void(SymmCipher&)> f, bool discardable)
+{
+    if (mThreads.empty())
+    {
+        if (f)
+        {
+            f(mZeroThreadsCipher);
+        }
+    }
+    else
+    {
+        {
+            std::lock_guard<std::mutex> g(mMutex);
+            mQueue.emplace_back(discardable, std::move(f));
+        }
+        mConditionVariable.notify_one();
+    }
+}
+
+MegaClientAsyncQueue::MegaClientAsyncQueue(Waiter& w, unsigned threadCount)
+    : mWaiter(w)
+{
+    for (int i = threadCount; i--; )
+    {
+        try
+        {
+            mThreads.emplace_back([this]()
+            {
+                asyncThreadLoop();
+            });
+        }
+        catch (std::system_error& e)
+        {
+            LOG_err << "Failed to start worker thread: " << e.what();
+            break;
+        }
+    }
+    LOG_debug << "MegaClient Worker threads running: " << mThreads.size();
+}
+
+MegaClientAsyncQueue::~MegaClientAsyncQueue()
+{
+    clearDiscardable();
+    push(nullptr, false);
+    mConditionVariable.notify_all();
+    LOG_warn << "~MegaClientAsyncQueue() joining threads";
+    for (auto& t : mThreads)
+    {
+        t.join();
+    }
+    LOG_warn << "~MegaClientAsyncQueue() ends";
+}
+
+void MegaClientAsyncQueue::clearDiscardable()
+{
+    std::lock_guard<std::mutex> g(mMutex);
+    auto newEnd = std::remove_if(mQueue.begin(), mQueue.end(), [](Entry& entry){ return entry.discardable; });
+    mQueue.erase(newEnd, mQueue.end());
+}
+
+void MegaClientAsyncQueue::asyncThreadLoop()
+{
+    SymmCipher cipher;
+    for (;;)
+    {
+        std::function<void(SymmCipher&)> f;
+        {
+            std::unique_lock<std::mutex> g(mMutex);
+            mConditionVariable.wait(g, [this]() { return !mQueue.empty(); });
+            f = std::move(mQueue.front().f);
+            if (!f) return;   // nullptr is not popped, and causes all the threads to exit
+            mQueue.pop_front();
+        }
+        f(cipher);
+        mWaiter.notify();
+    }
+}
+
 } // namespace
+

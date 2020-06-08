@@ -22,6 +22,11 @@ import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
+import mega.privacy.android.app.MegaApplication;
+import mega.privacy.android.app.R;
+
+import static nz.mega.sdk.MegaError.*;
+
 /**
  * Java Application Programming Interface (API) to access MEGA SDK services on a MEGA account or shared public folder.
  * <p>
@@ -5172,6 +5177,26 @@ public class MegaApiJava {
     }
 
     /**
+     * Set Camera Uploads for both primary and secondary target folder.
+     *
+     * If only one of the target folders wants to be set, simply pass a INVALID_HANDLE to
+     * as the other target folder and it will remain untouched.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
+     * - MegaRequest::getNodehandle - Returns the provided node handle for primary folder
+     * - MegaRequest::getParentHandle - Returns the provided node handle for secondary folder
+     *
+     * @param primaryFolder MegaHandle of the node to be used as primary target folder
+     * @param secondaryFolder MegaHandle of the node to be used as secondary target folder
+     * @param listener MegaRequestListener to track this request
+     */
+    public void setCameraUploadsFolders(long primaryFolder, long secondaryFolder, MegaRequestListenerInterface listener) {
+        megaApi.setCameraUploadsFolders(primaryFolder, secondaryFolder, createDelegateRequestListener(listener));
+    }
+
+    /**
      * Gets Camera Uploads primary target folder.
      *
      * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
@@ -6967,37 +6992,6 @@ public class MegaApiJava {
      */
     public boolean hasChildren(MegaNode parent){
         return megaApi.hasChildren(parent);
-    }
-
-    /**
-     * Get the current index of the node in the parent folder for a specific sorting order.
-     * <p>
-     * If the node does not exist or it does not have a parent node (because it's a root node)
-     * this function returns -1.
-     * 
-     * @param node
-     *            Node to check.
-     * @param order
-     *            Sorting order to use.
-     * @return Index of the node in its parent folder.
-     */
-    public int getIndex(MegaNode node, int order) {
-        return megaApi.getIndex(node, order);
-    }
-
-    /**
-     * Get the current index of the node in the parent folder.
-     * <p>
-     * If the node does not exist or it does not have a parent node (because it's a root node)
-     * this function returns -1.
-     * 
-     * @param node
-     *            Node to check.
-     * 
-     * @return Index of the node in its parent folder.
-     */
-    public int getIndex(MegaNode node) {
-        return megaApi.getIndex(node);
     }
 
     /**
@@ -9356,5 +9350,112 @@ public class MegaApiJava {
      */
     public void cancelCreateAccount(MegaRequestListenerInterface listener){
         megaApi.cancelCreateAccount(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Gets the translated string of an error received in a request.
+     *
+     * @param error MegaError received in the request
+     * @return The translated string
+     */
+    public static String getTranslatedErrorString(MegaError error) {
+        MegaApplication app = MegaApplication.getInstance();
+        if (app == null) {
+            return error.getErrorString();
+        }
+
+        if (error.getErrorCode() > 0) {
+            return app.getString(R.string.api_error_http);
+        }
+
+        switch (error.getErrorCode()) {
+            case API_OK:
+                return app.getString(R.string.api_ok);
+            case API_EINTERNAL:
+                return app.getString(R.string.api_einternal);
+            case API_EARGS:
+                return app.getString(R.string.api_eargs);
+            case API_EAGAIN:
+                return app.getString(R.string.api_eagain);
+            case API_ERATELIMIT:
+                return app.getString(R.string.api_eratelimit);
+            case API_EFAILED:
+                return app.getString(R.string.api_efailed);
+            case API_ETOOMANY:
+                if (error.getErrorString().equals("Terms of Service breached")) {
+                    return app.getString(R.string.api_etoomany_ec_download);
+                } else if (error.getErrorString().equals("Too many concurrent connections or transfers")){
+                    return app.getString(R.string.api_etoomay);
+                } else {
+                    return error.getErrorString();
+                }
+            case API_ERANGE:
+                return app.getString(R.string.api_erange);
+            case API_EEXPIRED:
+                return app.getString(R.string.api_eexpired);
+            case API_ENOENT:
+                return app.getString(R.string.api_enoent);
+            case API_ECIRCULAR:
+                if (error.getErrorString().equals("Upload produces recursivity")) {
+                    return app.getString(R.string.api_ecircular_ec_upload);
+                } else if (error.getErrorString().equals("Circular linkage detected")){
+                    return app.getString(R.string.api_ecircular);
+                } else {
+                    return error.getErrorString();
+                }
+            case API_EACCESS:
+                return app.getString(R.string.api_eaccess);
+            case API_EEXIST:
+                return app.getString(R.string.api_eexist);
+            case API_EINCOMPLETE:
+                return app.getString(R.string.api_eincomplete);
+            case API_EKEY:
+                return app.getString(R.string.api_ekey);
+            case API_ESID:
+                return app.getString(R.string.api_esid);
+            case API_EBLOCKED:
+                if (error.getErrorString().equals("Not accessible due to ToS/AUP violation")) {
+                    return app.getString(R.string.api_eblocked_ec_import_ec_download);
+                } else if (error.getErrorString().equals("Blocked")) {
+                    return app.getString(R.string.api_eblocked);
+                } else {
+                    return error.getErrorString();
+                }
+            case API_EOVERQUOTA:
+                return app.getString(R.string.api_eoverquota);
+            case API_ETEMPUNAVAIL:
+                return app.getString(R.string.api_etempunavail);
+            case API_ETOOMANYCONNECTIONS:
+                return app.getString(R.string.api_etoomanyconnections);
+            case API_EWRITE:
+                return app.getString(R.string.api_ewrite);
+            case API_EREAD:
+                return app.getString(R.string.api_eread);
+            case API_EAPPKEY:
+                return app.getString(R.string.api_eappkey);
+            case API_ESSL:
+                return app.getString(R.string.api_essl);
+            case API_EGOINGOVERQUOTA:
+                return app.getString(R.string.api_egoingoverquota);
+            case API_EMFAREQUIRED:
+                return app.getString(R.string.api_emfarequired);
+            case API_EMASTERONLY:
+                return app.getString(R.string.api_emasteronly);
+            case API_EBUSINESSPASTDUE:
+                return app.getString(R.string.api_ebusinesspastdue);
+            case PAYMENT_ECARD:
+                return app.getString(R.string.payment_ecard);
+            case PAYMENT_EBILLING:
+                return app.getString(R.string.payment_ebilling);
+            case PAYMENT_EFRAUD:
+                return app.getString(R.string.payment_efraud);
+            case PAYMENT_ETOOMANY:
+                return app.getString(R.string.payment_etoomay);
+            case PAYMENT_EBALANCE:
+                return app.getString(R.string.payment_ebalance);
+            case PAYMENT_EGENERIC:
+            default:
+                return app.getString(R.string.payment_egeneric_api_error_unknown);
+        }
     }
 }

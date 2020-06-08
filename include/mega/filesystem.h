@@ -22,10 +22,38 @@
 #ifndef MEGA_FILESYSTEM_H
 #define MEGA_FILESYSTEM_H 1
 
+#if defined (__linux__) && !defined (__ANDROID__)
+#include <linux/magic.h>
+#endif
+
+#if defined (__linux__) || defined (__ANDROID__) // __ANDROID__ is always included in __linux__
+#include <sys/vfs.h>
+#elif defined  (__APPLE__) || defined (USE_IOS)
+#include <sys/mount.h>
+#include <sys/param.h>
+#elif defined(_WIN32) || defined(_WIN64) || defined(WINDOWS_PHONE)
+#include <Windows.h>
+#endif
+
 #include "types.h"
 #include "waiter.h"
 
+// Define magic constants in case they are not defined in headers
+#if defined (__linux__) && !defined (__ANDROID__)
+#ifndef HFS_SUPER_MAGIC
+#define HFS_SUPER_MAGIC 0x4244
+#endif
+
+#ifndef NTFS_SB_MAGIC
+#define NTFS_SB_MAGIC   0x5346544e
+#endif
+#endif
+
 namespace mega {
+
+// Enumeration for filesystem families
+enum FileSystemType {FS_UNKNOWN = -1, FS_APFS = 0, FS_HFS = 1, FS_EXT = 2, FS_FAT32 = 3, FS_EXFAT = 4, FS_NTFS = 5};
+
 // generic host filesystem node ID interface
 struct MEGA_API FsNodeId
 {
@@ -68,30 +96,32 @@ struct MEGA_API AsyncIOContext
     FileAccess *fa;
 };
 
+struct MEGA_API DirAccess;
+
 // generic host file/directory access interface
 struct MEGA_API FileAccess
 {
     // file size
-    m_off_t size;
+    m_off_t size = 0;
 
     // mtime of a file opened for reading
-    m_time_t mtime;
+    m_time_t mtime = 0;
 
     // local filesystem record id (survives renames & moves)
-    handle fsid;
-    bool fsidvalid;
+    handle fsid = 0;
+    bool fsidvalid = false;
 
     // type of opened path
-    nodetype_t type;
+    nodetype_t type = TYPE_UNKNOWN;
 
     // if opened path is a symlink
     bool mIsSymLink = false;
 
     // if the open failed, retry indicates a potentially transient reason
-    bool retry;
+    bool retry = false;
 
     //error code related to the last call to fopen() without parameters
-    int errorcode;
+    int errorcode = 0;
 
     // for files "opened" in nonblocking mode, the current local filename
     string nonblocking_localname;
@@ -101,7 +131,8 @@ struct MEGA_API FileAccess
 
     // blocking mode: open for reading, writing or reading and writing.
     // This one really does open the file, and openf(), closef() will have no effect
-    virtual bool fopen(string*, bool, bool) = 0;
+    // If iteratingDir is supplied, this fopen() call must be for the directory entry being iterated by dopen()/dnext()
+    virtual bool fopen(string*, bool read, bool write, DirAccess* iteratingDir = nullptr) = 0;
 
     // nonblocking open: Only prepares for opening.  Actually stats the file/folder, getting mtime, size, type.
     // Call openf() afterwards to actually open it if required.  For folders, returns false with type==FOLDERNODE.
@@ -167,6 +198,18 @@ struct MEGA_API InputStreamAccess
     virtual m_off_t size() = 0;
     virtual bool read(byte *, unsigned) = 0;
     virtual ~InputStreamAccess() { }
+};
+
+class MEGA_API FileInputStream : public InputStreamAccess
+{
+    FileAccess *fileAccess;
+    m_off_t offset;
+
+public:
+    FileInputStream(FileAccess *fileAccess);
+
+    m_off_t size() override;
+    bool read(byte *buffer, unsigned size) override;
 };
 
 // generic host directory enumeration
@@ -253,9 +296,15 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     // check if character is lowercase hex ASCII
     bool islchex(char) const;
-    bool islocalfscompatible(unsigned char) const;
-    void escapefsincompatible(string*) const;
-    void unescapefsincompatible(string*) const;
+    bool islocalfscompatible(unsigned char, FileSystemType = FS_UNKNOWN) const;
+    void escapefsincompatible(string*, const std::string *dstPath = nullptr) const;
+
+    // Obtain a valid path by removing filename or debris directory from originalPath
+    // returns true if tempPath is modified, otherwise returns false
+    bool getValidPath(const string *originalPath, std::string &tempPath) const;
+    const char *fstypetostring(FileSystemType type) const;
+    FileSystemType getlocalfstype(const std::string *dstPath) const;
+    void unescapefsincompatible(string*, const std::string *) const;
 
     // convert MEGA path (UTF-8) to local format
     virtual void path2local(string*, string*) const = 0;
@@ -263,10 +312,13 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     // convert MEGA-formatted filename (UTF-8) to local filesystem name; escape
     // forbidden characters using urlencode
-    void local2name(string*) const;
+    void local2name(string*, const std::string *localPath = nullptr) const;
 
     // convert local path to MEGA format (UTF-8) with unescaping
-    void name2local(string*) const;
+    void name2local(string*, const std::string *dstPath = nullptr) const;
+
+    // returns a const char pointer that contains the separator character for the target system
+    static const char *getPathSeparator();
 
     //Normalize UTF-8 string
     void normalize(string *) const;
@@ -326,6 +378,9 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // default permissions for new folder
     int getdefaultfolderpermissions() { return 0700; }
     void setdefaultfolderpermissions(int) { }
+
+    // convenience function for getting filesystem shortnames
+    std::unique_ptr<string> fsShortname(string& localpath);
 
     // set whenever an operation fails due to a transient condition (e.g. locking violation)
     bool transient_error;

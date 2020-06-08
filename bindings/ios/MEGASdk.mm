@@ -419,6 +419,14 @@ using namespace mega;
     return self.megaApi->appleVoipPushEnabled();
 }
 
+- (void)getSessionTransferURL:(NSString *)path delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getSessionTransferURL(path.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)getSessionTransferURL:(NSString *)path {
+    self.megaApi->getSessionTransferURL(path.UTF8String);
+}
+
 #pragma mark - Login Requests
 
 - (BOOL)multiFactorAuthAvailable {
@@ -2078,10 +2086,34 @@ using namespace mega;
     return ret;
 }
 
+- (NSString *)escapeFsIncompatible:(NSString *)name destinationPath:(NSString *)destinationPath {
+    if (name == nil) return nil;
+    
+    const char *val = self.megaApi->escapeFsIncompatible(name.UTF8String, destinationPath.UTF8String);
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete [] val;
+    return ret;
+}
+
 - (NSString *)unescapeFsIncompatible:(NSString *)localName {
     if (localName == nil) return nil;
     
     const char *val = self.megaApi->unescapeFsIncompatible([localName UTF8String]);
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete [] val;
+    return ret;
+}
+
+- (NSString *)unescapeFsIncompatible:(NSString *)localName destinationPath:(NSString *)destinationPath {
+    if (localName == nil) return nil;
+    
+    const char *val = self.megaApi->unescapeFsIncompatible(localName.UTF8String, destinationPath.UTF8String);
     if (!val) return nil;
     
     NSString *ret = [[NSString alloc] initWithUTF8String:val];

@@ -330,7 +330,7 @@ void File::completed(Transfer* t, LocalNode* l)
             // drop file into targetuser's inbox
             int creqtag = t->client->reqtag;
             t->client->reqtag = tag;
-            t->client->putnodes(targetuser.c_str(), newnode, 1, t);
+            t->client->putnodes(targetuser.c_str(), newnode, 1);
             t->client->reqtag = creqtag;
         }
         else
@@ -372,9 +372,9 @@ void File::completed(Transfer* t, LocalNode* l)
                                                                   newnode, 1,
                                                                   tag,
 #ifdef ENABLE_SYNC
-                                                                  l ? PUTNODES_SYNC : PUTNODES_APP, nullptr, t));
+                                                                  l ? PUTNODES_SYNC : PUTNODES_APP));
 #else
-                                                                  PUTNODES_APP, nullptr, t));
+                                                                  PUTNODES_APP));
 #endif
         }
     }
@@ -472,7 +472,7 @@ void SyncFileGet::prepare()
         string tmpname, lockname;
 
         tmpname = "tmp";
-        sync->client->fsaccess->name2local(&tmpname);
+        sync->client->fsaccess->name2local(&tmpname, &sync->localdebris);
 
         if (!sync->tmpfa)
         {
@@ -491,7 +491,7 @@ void SyncFileGet::prepare()
                 // lock it
                 transfer->localfilename.append(sync->client->fsaccess->localseparator);
                 lockname = "lock";
-                sync->client->fsaccess->name2local(&lockname);
+                sync->client->fsaccess->name2local(&lockname, &sync->localdebris);
                 transfer->localfilename.append(lockname);
 
                 if (sync->tmpfa->fopen(&transfer->localfilename, false, true))
@@ -574,7 +574,7 @@ void SyncFileGet::updatelocalname()
         {
             string tmpname = ait->second;
 
-            sync->client->fsaccess->name2local(&tmpname);
+            sync->client->fsaccess->name2local(&tmpname, &sync->localdebris);
             n->parent->localnode->getlocalpath(&localname);
 
             localname.append(sync->client->fsaccess->localseparator);
@@ -586,7 +586,7 @@ void SyncFileGet::updatelocalname()
 // add corresponding LocalNode (by path), then self-destruct
 void SyncFileGet::completed(Transfer*, LocalNode*)
 {
-    LocalNode *ll = sync->checkpath(NULL, &localname);
+    LocalNode *ll = sync->checkpath(NULL, &localname, nullptr, nullptr, false, nullptr);
     if (ll && ll != (LocalNode*)~0 && n
             && (*(FileFingerprint *)ll) == (*(FileFingerprint *)n))
     {

@@ -666,6 +666,36 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  */
 - (BOOL)appleVoipPushEnabled;
 
+/* This function creates a new session for the link so logging out in the web client won't log out
+* the current session.
+*
+* The associated request type with this request is MEGARequestTypeGetSessionTransferUrl
+* Valid data in the MEGARequest object received in onRequestFinish when the error code
+* is MEGAErrorTypeApiOk:
+* - [MEGARequest link] - URL to open the desired page with the same account
+*
+* @param url URL inside https://mega.nz/# that we want to open with the current session
+*
+* For example, if you want to open https://mega.nz/#pro, the parameter of this function should be "pro".
+*
+* @param delegate MEGARequestDelegate to track this request
+*/
+- (void)getSessionTransferURL:(NSString *)path delegate:(id<MEGARequestDelegate>)delegate;
+
+/* This function creates a new session for the link so logging out in the web client won't log out
+* the current session.
+*
+* The associated request type with this request is MEGARequestTypeGetSessionTransferUrl
+* Valid data in the MEGARequest object received in onRequestFinish when the error code
+* is MEGAErrorTypeApiOk:
+* - [MEGARequest link] - URL to open the desired page with the same account
+*
+* @param url URL inside https://mega.nz/# that we want to open with the current session
+*
+* For example, if you want to open https://mega.nz/#pro, the parameter of this function should be "pro".
+*/
+- (void)getSessionTransferURL:(NSString *)path;
+
 #pragma mark - Login Requests
 
 /**
@@ -7068,6 +7098,22 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
 - (nullable NSString *)escapeFsIncompatible:(NSString *)name;
 
 /**
+ * @brief Make a name suitable for a file name in the local filesystem
+ *
+ * This function escapes (%xx) forbidden characters in the local filesystem if needed.
+ * You can revert this operation using [MEGASdk unescapeFsIncompatible:]
+ *
+ * The input string must be UTF8 encoded. The returned value will be UTF8 too.
+ *
+ * You take the ownership of the returned value
+ *
+ * @param name Name to convert (UTF8)
+ * @param destinationPath Destination file path
+ * @return Converted name (UTF8)
+ */
+- (nullable NSString *)escapeFsIncompatible:(NSString *)name destinationPath:(NSString *)destinationPath;
+
+/**
  * @brief Unescape a file name escaped with [MEGASdk escapeFsIncompatible:]
  *
  * The input string must be UTF8 encoded. The returned value will be UTF8 too.
@@ -7076,6 +7122,17 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * @return Converted name (UTF8)
  */
 - (nullable NSString *)unescapeFsIncompatible:(NSString *)localName;
+
+/**
+ * @brief Unescape a file name escaped with [MEGASdk escapeFsIncompatible:]
+ *
+ * The input string must be UTF8 encoded. The returned value will be UTF8 too.
+ *
+ * @param localName Escaped name to convert (UTF8)
+ * @param destinationPath Destination file path
+ * @return Converted name (UTF8)
+ */
+- (nullable NSString *)unescapeFsIncompatible:(NSString *)localName  destinationPath:(NSString *)destinationPath;
 
 /**
  * @brief Change the API URL

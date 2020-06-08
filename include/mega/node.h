@@ -288,11 +288,15 @@ struct MEGA_API LocalNode : public File
     // whether this node can be synced to the remote tree
     bool mSyncable = true;
 
+    // whether this node knew its shortname (otherwise it was loaded from an old db)
+    bool slocalname_in_db = false;
+
     // children by name
     localnode_map children;
 
     // for botched filesystems with legacy secondary ("short") names
-    string* slocalname = nullptr;
+    // Filesystem notifications could arrive with long or short names, and we need to recognise which LocalNode corresponds.
+    std::unique_ptr<string> slocalname;   // null means either the entry has no shortname or it's the same as the (normal) longname
     localnode_map schildren;
 
     // local filesystem node ID (inode...) for rename/move detection
@@ -373,10 +377,10 @@ struct MEGA_API LocalNode : public File
     // fsidnodes is a map from fsid to LocalNode, keeping track of all fs ids.
     void setfsid(handle newfsid, handlelocalnode_map& fsidnodes);
 
-    void setnameparent(LocalNode*, string*);
+    void setnameparent(LocalNode*, string*, std::unique_ptr<string>);
 
     LocalNode();
-    void init(Sync*, nodetype_t, LocalNode*, string*);
+    void init(Sync*, nodetype_t, LocalNode*, string*, std::unique_ptr<string>);
 
     bool serialize(string*) override;
     static LocalNode* unserialize( Sync* sync, const string* sData );

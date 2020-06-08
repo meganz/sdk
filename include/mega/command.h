@@ -242,6 +242,10 @@ public:
     void procresult();
 
     CommandSetKeyPair(MegaClient*, const byte*, unsigned, const byte*, unsigned);
+
+private:
+    std::unique_ptr<byte> privkBuffer;
+    unsigned len;
 };
 
 // set visibility
@@ -316,18 +320,6 @@ public:
     void procresult();
 };
 #endif
-
-// Tries to fetch the unshareable-attribute key, creates it if necessary
-class MEGA_API CommandUnshareableUA : public Command
-{
-    bool fetching;
-    int maxtries;
-public:
-    CommandUnshareableUA(MegaClient*, bool fetch, int triesleft);
-
-    void procresult();
-};
-
 
 class MEGA_API CommandGetUserEmail : public Command
 {
@@ -506,12 +498,11 @@ class MEGA_API CommandPutNodes : public Command
     targettype_t type;
     putsource_t source;
     handle targethandle;
-    Transfer *transfer;
 
 public:
     void procresult();
 
-    CommandPutNodes(MegaClient*, handle, const char*, NewNode*, int, int, putsource_t = PUTNODES_APP, const char *cauth = nullptr, Transfer *aTransfer = nullptr);
+    CommandPutNodes(MegaClient*, handle, const char*, NewNode*, int, int, putsource_t = PUTNODES_APP, const char *cauth = NULL);
 };
 
 class MEGA_API CommandSetAttr : public Command
@@ -548,6 +539,9 @@ public:
     void procresult();
 
     CommandGetUserData(MegaClient*);
+
+protected:
+    void parseUserAttribute(std::string& value, std::string &version, bool asciiToBinary = true);
 };
 
 class MEGA_API CommandGetMiscFlags : public Command

@@ -180,6 +180,7 @@ public:
     dstime timeToTransfersResumed;
 };
 
+
 class MEGA_API MegaClient
 {
 public:
@@ -234,6 +235,8 @@ public:
 	
     // pseudo-random number generator
     PrnGen rng;
+
+    bool ephemeralSession = false;
 
     static string getPublicLink(bool newLinkFormat, nodetype_t type, handle ph, const char *key);
 
@@ -316,6 +319,12 @@ public:
 
     // check the reason of being blocked
     void whyamiblocked();
+
+    // stops querying for action packets due to the account being blocked (-16 on sc channel)
+    void block();
+
+    // resumes querying for action packets when the account is unblocked (if it was previously stopped due to being blocked)
+    void unblock();
 
     // dump current session
     int dumpsession(byte*, size_t);
@@ -421,9 +430,6 @@ public:
     // move node to new parent folder
     error rename(Node*, Node*, syncdel_t = SYNCDEL_NONE, handle = UNDEF, const char *newName = nullptr);
 
-    // find a transfer by fingerprint and target type (private/foreign) in transfers or cached transfers
-    transfer_map::iterator getTransferByFileFingerprint(FileFingerprint *f, transfer_map &transfers, bool foreign);
-
     // start/stop/pause file transfer
     bool startxfer(direction_t, File*, DBTableTransactionCommitter&, bool skipdupes = false, bool startfirst = false, bool donotpersist = false);
     void stopxfer(File* f, DBTableTransactionCommitter* committer);
@@ -473,10 +479,10 @@ public:
 
     // add nodes to specified parent node (complete upload, copy files, make
     // folders)
-    void putnodes(handle, NewNode*, int, const char * = nullptr, Transfer * = nullptr);
+    void putnodes(handle, NewNode*, int, const char * = NULL);
 
     // send files/folders to user
-    void putnodes(const char*, NewNode*, int, Transfer * = nullptr);
+    void putnodes(const char*, NewNode*, int);
 
     // attach file attribute to upload or node handle
     void putfa(handle, fatype, SymmCipher*, std::unique_ptr<string>, bool checkAccess = true);
@@ -806,6 +812,8 @@ private:
     std::unique_ptr<HttpReq> pendingscUserAlerts;
     BackoffTimer btsc;
     bool stopsc = false;
+    bool mScStoppedDueToBlock = false;
+
     bool pendingscTimedOut = false;
 
 
@@ -912,7 +920,7 @@ private:
     unsigned addnode(node_vector*, Node*) const;
 
     // add child for consideration in syncup()/syncdown()
-    void addchild(remotenode_map*, string*, Node*, list<string>*) const;
+    void addchild(remotenode_map*, string*, Node*, list<string>*, const string *localPath) const;
 
     // crypto request response
     void cr_response(node_vector*, node_vector*, JSON*);
@@ -1112,6 +1120,9 @@ public:
     // FileFingerprint to node mapping
     Fingerprints mFingerprints;
 
+    // flag to skip removing nodes from mFingerprints when all nodes get deleted
+    bool mOptimizePurgeNodes = false;
+
     // send updates to app when the storage size changes
     int64_t mNotifiedSumSize = 0;
 
@@ -1181,6 +1192,10 @@ public:
 
     Node* nodebyhandle(handle);
     Node* nodebyfingerprint(FileFingerprint*);
+#ifdef ENABLE_SYNC
+    Node* nodebyfingerprint(LocalNode*);
+#endif /* ENABLE_SYNC */
+
     node_vector *nodesbyfingerprint(FileFingerprint* fingerprint);
     void nodesbyoriginalfingerprint(const char* fingerprint, Node* parent, node_vector *nv);
 
@@ -1195,6 +1210,9 @@ public:
 
     // generate & return upload handle
     handle getuploadhandle();
+
+    // maps node handle to public handle
+    std::map<handle, handle> mPublicLinks;
 
 #ifdef ENABLE_SYNC    
     // sync debris folder name in //bin
@@ -1321,6 +1339,9 @@ public:
     // client-server request double-buffering
     RequestDispatcher reqs;
 
+    // returns if the current pendingcs includes a fetch nodes command
+    bool isFetchingNodesPendingCS();
+
     // upload handle -> node handle map (filled by upload completion)
     handlepair_set uhnh;
 
@@ -1371,7 +1392,7 @@ public:
     vector<Node*> childnodesbyname(Node*, const char*, bool = false);
 
     // purge account state and abort server-client connection
-    void purgenodesusersabortsc();
+    void purgenodesusersabortsc(bool keepOwnUser);
 
     static const int USERHANDLE = 8;
     static const int PCRHANDLE = 8;
@@ -1400,6 +1421,7 @@ public:
 
     // account access (full account): RSA private key
     AsymmCipher asymkey;
+    string mPrivKey;    // serialized version for apps
 
     // RSA public key
     AsymmCipher pubk;
@@ -1582,6 +1604,14 @@ public:
     // -1: expired, 0: inactive (no business subscription), 1: active, 2: grace-period
     BizStatus mBizStatus;
 
+    // list of handles of the Master business account/s
+    std::set<handle> mBizMasters;
+
+    // whether the destructor has started running yet
+    bool destructorRunning = false;
+  
+    MegaClientAsyncQueue mAsyncQueue;
+
     // Keep track of high level operation counts and times, for performance analysis
     struct PerformanceStats
     {
@@ -1608,7 +1638,7 @@ public:
     void resetSyncConfigs();
 #endif
 
-    MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
+    MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
     ~MegaClient();
 };
 } // namespace
