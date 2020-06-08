@@ -1330,7 +1330,6 @@ void WinDirNotify::process(DWORD dwBytes)
 {
     assert( std::this_thread::get_id() == smNotifierThread->get_id());
 
-    //std::cout << "Received fs notifcation bytes: " << dwBytes << std::endl;
 #ifndef WINDOWS_PHONE
     if (!dwBytes)
     {

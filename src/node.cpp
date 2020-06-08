@@ -1615,7 +1615,6 @@ LocalNode::~LocalNode()
         }
         else
         {
-            LOG_warn << "MOVEING TO SYNC DEBRIS";
             sync->client->movetosyncdebris(node, sync->inshare);
         }
     }
