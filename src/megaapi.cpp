@@ -1186,9 +1186,9 @@ char *MegaTransfer::getLastBytes() const
     return NULL;
 }
 
-MegaError MegaTransfer::getLastError() const
+const MegaError *MegaTransfer::getLastError() const
 {
-    return MegaError(API_OK);
+    return nullptr;
 }
 
 bool MegaTransfer::isFolderTransfer() const
@@ -1221,28 +1221,6 @@ long long MegaTransfer::getNotificationNumber() const
     return 0;
 }
 
-MegaError::MegaError(int errorCode)
-{
-    this->errorCode = errorCode;
-    this->value = 0;
-}
-
-MegaError::MegaError(int errorCode, long long value)
-{
-    this->errorCode = errorCode;
-    this->value = value;
-}
-
-MegaError::MegaError(const MegaError &megaError)
-{
-	errorCode = megaError.getErrorCode();
-    value = megaError.getValue();
-
-    mExtraInfo = megaError.hasExtraInfo();
-    mUserStatus = megaError.getUserStatus();
-    mLinkStatus = megaError.getLinkStatus();
-}
-
 MegaError::~MegaError()
 {
 
@@ -1250,44 +1228,37 @@ MegaError::~MegaError()
 
 MegaError* MegaError::copy()
 {
-    return new MegaError(*this);
-}
-
-void MegaError::setExtraErrorInfo(long long userStatus, long long linkStatus)
-{
-    mExtraInfo = true;
-    mUserStatus = userStatus;
-    mLinkStatus = linkStatus;
+    return nullptr;
 }
 
 int MegaError::getErrorCode() const 
 { 
-    return errorCode;
+    return 0;
 }
 
 long long MegaError::getValue() const
 {
-    return value;
+    return 0;
 }
 
 bool MegaError::hasExtraInfo() const
 {
-    return mExtraInfo;
+    return false;
 }
 
 long long MegaError::getUserStatus() const
 {
-    return mUserStatus;
+    return 0;
 }
 
 long long MegaError::getLinkStatus() const
 {
-    return mLinkStatus;
+    return 0;
 }
 
 const char* MegaError::getErrorString() const
 {
-    return MegaError::getErrorString(errorCode);
+    return NULL;
 }
 
 const char* MegaError::getErrorString(int errorCode)
@@ -1396,17 +1367,17 @@ const char* MegaError::getErrorString(int errorCode, ErrorContexts context)
 
 const char* MegaError::toString() const 
 { 
-	return getErrorString(); 
+    return nullptr;
 }
 
 const char* MegaError::__str__() const 
 { 
-	return getErrorString();
+    return nullptr;
 }
 
 const char *MegaError::__toString() const
 {
-	return getErrorString();
+    return nullptr;
 }
 
 MegaContactRequest::~MegaContactRequest()

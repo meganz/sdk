@@ -3868,9 +3868,12 @@ class MegaTransfer
 
         /**
          * @brief Returns the last error related to the transfer
+         *
+         * The ownship of returned value is kept by MegaTransfer
+         *
          * @return Last error related to the transfer
          */
-        virtual MegaError getLastError() const;
+        virtual const MegaError* getLastError() const;
 
         /**
          * @brief Returns true if the transfer is a folder transfer
@@ -5292,25 +5295,7 @@ public:
         API_EC_UPLOAD = 3,        ///< Upload transfer context.
     };
 
-    /**
-     * @brief Creates a new MegaError object
-     * @param errorCode Error code for this error
-     */
-    MegaError(int errorCode = MegaError::API_OK);
-
-    /**
-     * @brief Creates a new MegaError object
-     * @param errorCode Error code for this error
-     * @param value Value associated to the error
-     */
-    MegaError(int errorCode, long long value);
-
-    /**
-     * @brief Creates a new MegaError object copying another one
-     * @param megaError MegaError object to be copied
-     */
-    MegaError(const MegaError &megaError);
-    virtual ~MegaError();
+        virtual ~MegaError();
 
         /**
          * @brief Creates a copy of this MegaError object
@@ -5323,21 +5308,15 @@ public:
          *
          * @return Copy of the MegaError object
          */
-        MegaError* copy();
+        virtual MegaError* copy();
 
-        /**
-         * @brief Add extra information for an error
-         *
-         * @param userStatus Extra information error about user
-         * @param linkStatus Extra information error about link
-         */
-        void setExtraErrorInfo(long long userStatus, long long linkStatus);
 
 		/**
 		 * @brief Returns the error code associated with this MegaError
+         *
 		 * @return Error code associated with this MegaError
 		 */
-		int getErrorCode() const;
+        virtual int getErrorCode() const;
 
         /**
          * @brief Returns a value associated with the error
@@ -5350,7 +5329,7 @@ public:
          *
          * @return Value associated with the error
          */
-        long long getValue() const;
+        virtual long long getValue() const;
 
         /**
          * @brief Returns true if error has extra info
@@ -5363,7 +5342,7 @@ public:
          *
          * @return True if error has extra info
          */
-        bool hasExtraInfo() const;
+        virtual bool hasExtraInfo() const;
 
         /**
          * @brief Returns the user status
@@ -5374,7 +5353,7 @@ public:
          *
          * @return user status
          */
-        long long getUserStatus() const;
+        virtual long long getUserStatus() const;
 
         /**
          * @brief Returns the link status
@@ -5387,7 +5366,7 @@ public:
          *
          * @return link status
          */
-        long long getLinkStatus() const;
+        virtual long long getLinkStatus() const;
 
 		/**
 		 * @brief Returns a readable description of the error
@@ -5397,7 +5376,7 @@ public:
 		 *
 		 * @return Readable description of the error
 		 */
-		const char* getErrorString() const;
+        virtual const char* getErrorString() const;
 
 		/**
 		 * @brief Returns a readable description of the error
@@ -5410,7 +5389,7 @@ public:
 		 *
 		 * @return Readable description of the error
 		 */
-        const char* toString() const;
+        virtual const char* toString() const;
 
 		/**
 		 * @brief Returns a readable description of the error
@@ -5423,7 +5402,7 @@ public:
 		 *
 		 * @return Readable description of the error
 		 */
-		const char* __str__() const;
+        virtual const char* __str__() const;
 
 		/**
 		 * @brief Returns a readable description of the error
@@ -5436,7 +5415,7 @@ public:
 		 *
 		 * @return Readable description of the error
 		 */
-		const char* __toString() const;
+        virtual const char* __toString() const;
 
 		/**
 		 * @brief Provides the error description associated with an error code
@@ -5461,15 +5440,6 @@ public:
          * @return Description associated with the error code
          */
         static const char *getErrorString(int errorCode, ErrorContexts context);
-
-
-    private:
-        //< 0 = API error code, > 0 = http error, 0 = No error
-		int errorCode;
-        long long value;
-        bool mExtraInfo = false;
-        long long mUserStatus = 0;
-        long long mLinkStatus = 0;
 };
 
 /**
