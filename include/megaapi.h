@@ -13571,6 +13571,8 @@ class MegaApi
          * - MegaShare::ACCESS_READWRITE
          * - MegaShare::ACCESS_READ
          *
+         * You take ownership of the returned value
+         *
          * @return MegaError object with the result.
          * Valid values for the error code are:
          * - MegaError::API_OK - The node has the required access level
@@ -13578,10 +13580,13 @@ class MegaApi
          * - MegaError::API_ENOENT - The node doesn't exist in the account
          * - MegaError::API_EARGS - Invalid parameters
          */
-        MegaError checkAccess(MegaNode* node, int level);
+        MegaError* checkAccess(MegaNode* node, int level);
 
         /**
          * @brief Check if a node can be moved to a target node
+         *
+         * You take ownership of the returned value
+         *
          * @param node Node to check
          * @param target Target for the move operation
          * @return MegaError object with the result:
@@ -13592,7 +13597,7 @@ class MegaApi
          * - MegaError::API_ENOENT - The node or the target doesn't exist in the account
          * - MegaError::API_EARGS - Invalid parameters
          */
-        MegaError checkMove(MegaNode* node, MegaNode* target);
+        MegaError* checkMove(MegaNode* node, MegaNode* target);
 
         /**
          * @brief Check if the MEGA filesystem is available in the local computer

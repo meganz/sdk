@@ -2367,8 +2367,8 @@ class MegaApiImpl : public MegaApp
         MegaNode* getNodeByCRC(const char *crc, MegaNode* parent);
 
         //Permissions
-        MegaError checkAccess(MegaNode* node, int level);
-        MegaError checkMove(MegaNode* node, MegaNode* target);
+        MegaError *checkAccess(MegaNode* node, int level);
+        MegaError *checkMove(MegaNode* node, MegaNode* target);
 
         bool isFilesystemAvailable();
         MegaNode *getRootNode();
