@@ -1649,7 +1649,7 @@ void renameLocalFolders(fs::path targetfolder, const string& newprefix)
     std::list<fs::path> toRename;
     for (fs::directory_iterator i(targetfolder); i != fs::directory_iterator(); ++i)
     {
-        if (i->is_directory())
+        if (fs::is_directory(i->path()))
         {
             renameLocalFolders(i->path(), newprefix);
         }
