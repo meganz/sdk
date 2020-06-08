@@ -1435,6 +1435,9 @@ void WinDirNotify::readchanges()
 #ifndef WINDOWS_PHONE
     if (notifybuf.size() != 65534)
     {
+        // Use 65534 for the buffer size becaues (from doco): 
+        // ReadDirectoryChangesW fails with ERROR_INVALID_PARAMETER when the buffer length is greater than 64 KB and the application is 
+        // monitoring a directory over the network. This is due to a packet size limitation with the underlying file sharing protocols.
         notifybuf.resize(65534);
     }
     auto readRet = ReadDirectoryChangesW(hDirectory, (LPVOID)notifybuf.data(),
@@ -1448,7 +1451,6 @@ void WinDirNotify::readchanges()
 
     if (!readRet && GetLastError() == ERROR_INVALID_PARAMETER)
     {
-        // ReadDirectoryChangesW fails with ERROR_INVALID_PARAMETER when the buffer length is greater than 64 KB and the application is monitoring a directory over the network. This is due to a packet size limitation with the underlying file sharing protocols.
         readRet = ReadDirectoryChangesW(hDirectory, (LPVOID)notifybuf.data(),
                             (DWORD)65534, TRUE,
                             FILE_NOTIFY_CHANGE_FILE_NAME
