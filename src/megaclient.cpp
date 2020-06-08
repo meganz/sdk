@@ -2604,7 +2604,6 @@ void MegaClient::exec()
                             auto fa = fsaccess->newfileaccess();
                             while (localsyncnotseen.size())
                             {
-                                LOG_warn << "PROCESSING LOCAL SYNC NOT SEEN";
                                 LocalNode* l = *localsyncnotseen.begin();
                                 unlinkifexists(l, fa.get(), &path);
                                 delete l;
@@ -2689,22 +2688,25 @@ void MegaClient::exec()
                                         {
                                             sync->fullscan = false;
 
+                                            string failedReason;
+                                            auto failed = sync->dirnotify->getFailed(failedReason);
+
                                             if (syncscanbt.armed()
-                                                    && (sync->dirnotify->failed || fsaccess->notifyfailed
-                                                        || sync->dirnotify->error || fsaccess->notifyerr))
+                                                    && (failed || fsaccess->notifyfailed
+                                                        || sync->dirnotify->mErrorCount.load() || fsaccess->notifyerr))
                                             {
-                                                LOG_warn << "Sync scan failed " << sync->dirnotify->failed
+                                                LOG_warn << "Sync scan failed " << failed
                                                          << " " << fsaccess->notifyfailed
-                                                         << " " << sync->dirnotify->error
+                                                         << " " << sync->dirnotify->mErrorCount.load()
                                                          << " " << fsaccess->notifyerr;
-                                                if (sync->dirnotify->failed)
+                                                if (failed)
                                                 {
-                                                    LOG_warn << "The cause was: " << sync->dirnotify->failreason;
+                                                    LOG_warn << "The cause was: " << failedReason;
                                                 }
                                                 scanfailed = true;
 
                                                 sync->scan(&sync->localroot->localname, NULL);
-                                                sync->dirnotify->error = 0;
+                                                sync->dirnotify->mErrorCount = 0;
                                                 sync->fullscan = true;
                                                 sync->scanseqno++;
                                             }
@@ -2774,7 +2776,7 @@ void MegaClient::exec()
                                     // and force a full rescan afterwards as the local item may
                                     // be subject to changes that are notified with obsolete paths
                                     success = false;
-                                    (*it)->dirnotify->error = true;
+                                    (*it)->dirnotify->mErrorCount = true;
                                 }
 
                                 (*it)->cachenodes();

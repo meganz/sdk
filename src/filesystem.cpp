@@ -365,11 +365,29 @@ DirNotify::DirNotify(string* clocalbasepath, string* cignore)
     localbasepath = *clocalbasepath;
     ignore = *cignore;
 
-    failed = 1;
-    failreason = "Not initialized";
-    error = 0;
+    mFailed = 1;
+    mFailReason = "Not initialized";
+    mErrorCount = 0;
     sync = NULL;
 }
+
+
+void DirNotify::setFailed(int errCode, const string& reason)
+{
+    std::lock_guard<std::mutex> g(mMutex);
+    mFailed = errCode;
+    mFailReason = reason;
+}
+
+int DirNotify::getFailed(string& reason)
+{
+    if (mFailed) 
+    {
+        reason = mFailReason;
+    }
+    return mFailed;
+}
+
 
 // notify base LocalNode + relative path/filename
 void DirNotify::notify(notifyqueue q, LocalNode* l, const char* localpath, size_t len, bool immediate)

@@ -75,7 +75,6 @@ typedef unsigned char byte;
 #include <memory>
 #include <string>
 #include <chrono>
-#include <mutex>
 
 namespace mega {
 

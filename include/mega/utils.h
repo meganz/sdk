@@ -25,6 +25,7 @@
 #include <type_traits>
 #include <condition_variable>
 #include <thread>
+#include <mutex>
 
 #include "types.h"
 #include "mega/logging.h"

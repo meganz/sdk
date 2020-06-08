@@ -38,7 +38,6 @@
 #include "types.h"
 #include "utils.h"
 #include "waiter.h"
-#include <mutex>
 
 // Define magic constants in case they are not defined in headers
 #if defined (__linux__) && !defined (__ANDROID__)
@@ -259,15 +258,24 @@ struct MEGA_API DirNotify
     // Thread safe so that a separate thread can listen for filesystem notifications (for windows for now, maybe more platforms later)
     NotificationDeque notifyq[NUMQUEUES];
 
+private:
+    // these next few fields may be updated by notification-reading threads
+    std::mutex mMutex;
+
     // set if no notification available on this platform or a permanent failure
     // occurred
-    int failed;
+    int mFailed;
 
     // reason of the permanent failure of filesystem notifications
-    string failreason;
+    string mFailReason;
 
-    // set if a temporary error occurred
-    int error;
+public:
+    // set if a temporary error occurred.  May be set from a thread.
+    std::atomic<int> mErrorCount;
+
+    // thread safe setter/getters
+    void setFailed(int errCode, const string& reason);
+    int  getFailed(string& reason);
 
     // base path
     string localbasepath;

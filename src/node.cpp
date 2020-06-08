@@ -1497,7 +1497,7 @@ void LocalNode::setnotseen(int newnotseen)
         {
             notseen_it = sync->client->localsyncnotseen.insert(this).first;
         }
-        LOG_warn << "SET NOT SEEN";
+
         notseen = newnotseen;
     }
 }

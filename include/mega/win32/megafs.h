@@ -94,26 +94,19 @@ public:
 
 struct MEGA_API WinDirNotify : public DirNotify
 {
-    HANDLE hDirectory;
-
-    void addnotify(LocalNode*, string*) override;
-
-    fsfp_t fsfingerprint() const override;
-    bool fsstableids() const override;
-
-    WinDirNotify(string*, string*, WinFileSystemAccess* owner, Waiter* waiter);
-    ~WinDirNotify();
-
 private:
-    std::atomic<bool> exit;
-    std::atomic<bool> enabled;
-
     WinFileSystemAccess* fsaccess;
-    Waiter* clientWaiter;
 
 #ifdef ENABLE_SYNC
     LocalNode* localrootnode;
 #endif
+
+    HANDLE hDirectory;
+
+    std::atomic<bool> mOverlappedExit;
+    std::atomic<bool> mOverlappedEnabled;
+
+    Waiter* clientWaiter;
 
     string notifybuf;
     DWORD dwBytes;
@@ -130,6 +123,16 @@ private:
     static std::unique_ptr<std::thread> smNotifierThread;
 
     static void notifierThreadFunction();
+
+public:
+
+    void addnotify(LocalNode*, string*) override;
+
+    fsfp_t fsfingerprint() const override;
+    bool fsstableids() const override;
+    
+    WinDirNotify(string*, string*, WinFileSystemAccess* owner, Waiter* waiter);
+    ~WinDirNotify();
 };
 
 #ifndef WINDOWS_PHONE
