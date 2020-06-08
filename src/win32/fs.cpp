@@ -1449,18 +1449,6 @@ void WinDirNotify::readchanges()
                             | FILE_NOTIFY_CHANGE_CREATION,
                               &dwBytes, &overlapped, completion);
 
-    if (!readRet && GetLastError() == ERROR_INVALID_PARAMETER)
-    {
-        readRet = ReadDirectoryChangesW(hDirectory, (LPVOID)notifybuf.data(),
-                            (DWORD)65534, TRUE,
-                            FILE_NOTIFY_CHANGE_FILE_NAME
-                            | FILE_NOTIFY_CHANGE_DIR_NAME
-                            | FILE_NOTIFY_CHANGE_LAST_WRITE
-                            | FILE_NOTIFY_CHANGE_SIZE
-                            | FILE_NOTIFY_CHANGE_CREATION,
-                            &dwBytes, &overlapped, completion);
-    }
-
     if (readRet)
     {
         setFailed(0, "");
