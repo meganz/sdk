@@ -1492,7 +1492,7 @@ std::unique_ptr<std::thread> WinDirNotify::smNotifierThread;
 
 void WinDirNotify::notifierThreadFunction()
 {
-    LOG_debug << "Filesytem notify thread started";
+    LOG_debug << "Filesystem notify thread started";
     bool recheck = false;
     for (;;)
     {
@@ -1519,7 +1519,7 @@ void WinDirNotify::notifierThreadFunction()
             recheck = true;
         }
     }
-    LOG_debug << "Filesytem notify thread stopped";
+    LOG_debug << "Filesystem notify thread stopped";
 }
 
 WinDirNotify::WinDirNotify(string* localbasepath, string* ignore, WinFileSystemAccess* owner, Waiter* waiter) : DirNotify(localbasepath, ignore)

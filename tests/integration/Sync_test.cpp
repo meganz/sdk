@@ -1174,7 +1174,7 @@ struct StandardClient : public MegaApp
             return false;
         }
 
-        //// compare model aganst nodes representing remote state
+        // compare model against nodes representing remote state
         int descendants = 0;
         bool firstreported = false;
         if (confirm & CONFIRM_REMOTE && !recursiveConfirm(mnode, client.nodebyhandle(si->second.h), descendants, "Sync " + to_string(syncid), 0, firstreported))
@@ -2087,7 +2087,7 @@ GTEST_TEST(Sync, BasicSync_AddLocalFolder)
 
 
 // todo: add this test once the sync can keep up with file system notifications - at the moment
-// it's too slow becuase we wait for the cloud before processing the next layer of files+folders.
+// it's too slow because we wait for the cloud before processing the next layer of files+folders.
 // So if we add enough changes to exercise the notification queue, we can't check the results because
 // it's far too slow at the syncing stage.
 GTEST_TEST(Sync, BasicSync_MassNotifyFromLocalFolderTree)
