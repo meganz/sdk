@@ -64,6 +64,10 @@ const char *FileSystemAccess::fstypetostring(FileSystemType type) const
             return "HFS";
         case FS_APFS:
             return "APFS";
+        case FS_FUSE:
+            return "FUSE";
+        case FS_SDCARDFS:
+            return "SDCARDFS";
         case FS_UNKNOWN:    // fall through
             return "UNKNOWN FS";
     }
@@ -78,7 +82,8 @@ FileSystemType FileSystemAccess::getlocalfstype(const string *dstPath) const
         return FS_UNKNOWN;
     }
 
-#if defined (__linux__) || defined (__ANDROID__)
+#if defined (__linux__) && !defined (__ANDROID__)
+    // Filesystem detection for Linux
     struct statfs fileStat;
     if (!statfs(dstPath->c_str(), &fileStat))
     {
@@ -96,7 +101,32 @@ FileSystemType FileSystemAccess::getlocalfstype(const string *dstPath) const
                 return FS_UNKNOWN;
         }
     }
+#elif defined (__ANDROID__)
+    // Filesystem detection for Android
+    struct statfs fileStat;
+    if (!statfs(dstPath->c_str(), &fileStat))
+    {
+        switch (fileStat.f_type)
+        {
+            case EXT2_SUPER_MAGIC:
+                return FS_EXT;
+            case MSDOS_SUPER_MAGIC:
+                return FS_FAT32;
+            case HFS_SUPER_MAGIC:
+                return FS_HFS;
+            case NTFS_SB_MAGIC:
+                return FS_NTFS;
+            case SDCARDFS_SUPER_MAGIC:
+                return FS_SDCARDFS;
+            case FUSEBLK_SUPER_MAGIC:
+            case FUSECTL_SUPER_MAGIC:
+                return FS_FUSE;
+            default:
+                return FS_UNKNOWN;
+        }
+    }
 #elif defined  (__APPLE__) || defined (USE_IOS)
+    // Filesystem detection for Apple and iOS
     struct statfs fileStat;
     if (!statfs(dstPath->c_str(), &fileStat))
     {
@@ -118,6 +148,7 @@ FileSystemType FileSystemAccess::getlocalfstype(const string *dstPath) const
         }
     }
 #elif defined(_WIN32) || defined(_WIN64) || defined(WINDOWS_PHONE)
+    // Filesystem detection for Windows
     TCHAR volumeName[MAX_PATH + 1] = { 0 };
     TCHAR fileSystemName[MAX_PATH + 1] = { 0 };
     DWORD serialNumber = 0;
@@ -160,9 +191,16 @@ bool FileSystemAccess::islocalfscompatible(unsigned char c, FileSystemType fileS
         case FS_FAT32:
             // FAT32 restricted characters => " * / : < > ? \ | + , ; = [ ]
             return !strchr("\\/:?\"<>|*+,;=[]", c);
+        case FS_FUSE:
+        case FS_SDCARDFS:
         case FS_EXFAT:
         case FS_NTFS:
         case FS_UNKNOWN:
+            // FUSE and SDCARDFS are Android filesystem wrappers used to mount traditional filesystems
+            // as ext4, Fat32, extFAT...
+            // So we will consider that restricted characters for these wrappers are the same
+            // as for Android => " * / : < > ? \ |
+
             // ExFAT, NTFS restricted characters => " * / : < > ? \ |
             // If filesystem couldn't be detected we'll use a restrictive charset to avoid issues.
             return !strchr("\\/:?\"<>|*", c);
