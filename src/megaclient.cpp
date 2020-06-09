@@ -1061,6 +1061,7 @@ void MegaClient::init()
     pendingsc.reset();
     pendingscUserAlerts.reset();
     stopsc = false;
+    mScStoppedDueToBlock = false;
 
     btcs.reset();
     btsc.reset();
@@ -2008,7 +2009,7 @@ void MegaClient::exec()
                     else if (e == API_EBLOCKED)
                     {
                         app->request_error(API_EBLOCKED);
-                        stopsc = true;
+                        block();
                     }
                     else
                     {
@@ -2081,6 +2082,21 @@ void MegaClient::exec()
             syncops = true;
         }
         syncactivity = false;
+
+        if (stopsc || scpaused || !statecurrent || !syncsup)
+        {
+            LOG_verbose << " Megaclient exec is pending resolutions."
+                        << " scpaused=" << scpaused
+                        << " stopsc=" << stopsc
+                        << " mScStoppedDueToBlock=" << mScStoppedDueToBlock
+                        << " jsonsc.pos=" << jsonsc.pos
+                        << " syncsup=" << syncsup
+                        << " statecurrent=" << statecurrent
+                        << " syncadding=" << syncadding
+                        << " syncactivity=" << syncactivity
+                        << " syncdownrequired=" << syncdownrequired
+                        << " syncdownretry=" << syncdownretry;
+        }
 
         // do not process the SC result until all preconfigured syncs are up and running
         // except if SC packets are required to complete a fetchnodes
@@ -2355,7 +2371,7 @@ void MegaClient::exec()
                             Notification &notification = sync->dirnotify->notifyq[DirNotify::EXTRA].front();
                             if (notification.timestamp <= dsmin)
                             {
-                                LOG_debug << "Processing extra fs notification";
+                                LOG_debug << "Processing extra fs notification: " << notification.path;
                                 sync->dirnotify->notify(DirNotify::DIREVENTS, notification.localnode,
                                                         notification.path.data(), notification.path.size());
                                 sync->dirnotify->notifyq[DirNotify::EXTRA].pop_front();
@@ -3924,6 +3940,7 @@ void MegaClient::locallogout(bool removecaches)
     delete pendingcs;
     pendingcs = NULL;
     stopsc = false;
+    mScStoppedDueToBlock = false;
 
     for (putfa_list::iterator it = queuedfa.begin(); it != queuedfa.end(); it++)
     {
@@ -10480,6 +10497,24 @@ void MegaClient::whyamiblocked()
 
     // queue the actual request
     reqs.add(new CommandWhyAmIblocked(this));
+}
+
+void MegaClient::block()
+{
+    if (!stopsc)
+    {
+        stopsc = true; // stop consuming action packets
+        mScStoppedDueToBlock = true;
+    }
+}
+
+void MegaClient::unblock()
+{
+    if (stopsc && mScStoppedDueToBlock)
+    {
+        stopsc = false; // will resume querying for action packets
+    }
+    mScStoppedDueToBlock = false;
 }
 
 error MegaClient::changepw(const char* password, const char *pin)
