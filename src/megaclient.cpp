@@ -1061,7 +1061,6 @@ void MegaClient::init()
     pendingsc.reset();
     pendingscUserAlerts.reset();
     stopsc = false;
-    mScStoppedDueToBlock = false;
 
     btcs.reset();
     btsc.reset();
@@ -2088,12 +2087,12 @@ void MegaClient::exec()
         }
         syncactivity = false;
 
-        if (stopsc || scpaused || !statecurrent || !syncsup)
+        if (stopsc || mBlocked || scpaused || !statecurrent || !syncsup)
         {
             LOG_verbose << " Megaclient exec is pending resolutions."
                         << " scpaused=" << scpaused
                         << " stopsc=" << stopsc
-                        << " mScStoppedDueToBlock=" << mScStoppedDueToBlock
+                        << " mBlocked=" << mBlocked
                         << " jsonsc.pos=" << jsonsc.pos
                         << " syncsup=" << syncsup
                         << " statecurrent=" << statecurrent
@@ -2129,7 +2128,7 @@ void MegaClient::exec()
 #endif
         }
 
-        if (!pendingsc && !pendingscUserAlerts && *scsn && btsc.armed() && !stopsc)
+        if (!pendingsc && !pendingscUserAlerts && *scsn && btsc.armed() && !stopsc && !mBlocked)
         {
             if (useralerts.begincatchup)
             {
@@ -2962,7 +2961,7 @@ int MegaClient::preparewait()
         }
 
         // retry failed server-client requests
-        if (!pendingsc && !pendingscUserAlerts && *scsn && !stopsc)
+        if (!pendingsc && !pendingscUserAlerts && *scsn && !stopsc && !mBlocked)
         {
             btsc.update(&nds);
         }
@@ -3950,7 +3949,6 @@ void MegaClient::locallogout(bool removecaches)
     delete pendingcs;
     pendingcs = NULL;
     stopsc = false;
-    mScStoppedDueToBlock = false;
     mBlocked = false;
 
     for (putfa_list::iterator it = queuedfa.begin(); it != queuedfa.end(); it++)
@@ -10512,12 +10510,6 @@ void MegaClient::whyamiblocked()
 
 void MegaClient::block(bool fromServerClientResponse)
 {
-    if (!stopsc && fromServerClientResponse)
-    {
-        stopsc = true; // stop consuming action packets
-        mScStoppedDueToBlock = true;
-    }
-
     LOG_verbose << "Blocking MegaClient, fromServerClientResponse: " << fromServerClientResponse;
 
     mBlocked = true;
@@ -10525,12 +10517,6 @@ void MegaClient::block(bool fromServerClientResponse)
 
 void MegaClient::unblock()
 {
-    if (stopsc && mScStoppedDueToBlock)
-    {
-        stopsc = false; // will resume querying for action packets
-    }
-    mScStoppedDueToBlock = false;
-
     LOG_verbose << "Unblocking MegaClient";
 
     mBlocked = false;
