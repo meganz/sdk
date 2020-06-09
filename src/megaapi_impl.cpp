@@ -1237,6 +1237,8 @@ bool MegaApiImpl::is_syncable(Sync *sync, const char *name, string *localpath)
 
     MegaRegExp *regExp = NULL;
 #ifdef USE_PCRE
+    //TODO: Relaying on MegaSyncPrivate for this makes no sense. While resuming syncs, there might not be a MegaSyncPrivate
+    // in the first place at this point when doing first scan. Per sync inclusions should be included in Sync object
     MegaSyncPrivate* megaSync = (MegaSyncPrivate *)sync->appData;
     if (megaSync)
     {
@@ -12931,7 +12933,7 @@ void MegaApiImpl::syncupdate_treestate(LocalNode *l)
 
 bool MegaApiImpl::sync_syncable(Sync *sync, const char *name, string *localpath, Node *node)
 {
-    if (!sync || !sync->appData || (node->type == FILENODE && !is_syncable(node->size)))
+    if (!sync || (node->type == FILENODE && !is_syncable(node->size)))
     {
         return false;
     }
@@ -12950,8 +12952,7 @@ bool MegaApiImpl::sync_syncable(Sync *sync, const char *name, string *localpath)
         {
             mSyncable_fa = fsAccess->newfileaccess();
         }
-        if (!sync || !sync->appData
-            || ((syncLowerSizeLimit || syncUpperSizeLimit)
+        if (!sync || ((syncLowerSizeLimit || syncUpperSizeLimit)
                 && mSyncable_fa->fopen(localpath) && !is_syncable(mSyncable_fa->size)))
         {
             return false;
@@ -12974,6 +12975,8 @@ void MegaApiImpl::sync_auto_resume_result(const SyncConfig &config, syncerror_t 
 {
     MegaSyncPrivate *sync = new MegaSyncPrivate(config.getLocalPath().c_str(), config.getRemoteNode(), config.getTag());
     sync->setLocalFingerprint(static_cast<long long>(config.getLocalFingerprint()));
+
+    sync->setMegaFolderYielding(getNodePathByNodeHandle(config.getRemoteNode()));
 
     if (!config.getRegExps().empty()) //TODO: add this code to MegaSyncPrivate constructor?
     {
@@ -13009,6 +13012,54 @@ void MegaApiImpl::sync_auto_resume_result(const SyncConfig &config, syncerror_t 
     else
     {
         fireOnSyncAdded(sync, failedToResume ? MegaSync::FROM_CACHE_FAILED_TO_RESUME : MegaSync::FROM_CACHE);
+    }
+}
+
+void MegaApiImpl::syncupdate_remote_root_moved(const SyncConfig &config)
+{
+    auto syncpair = syncMap.find(config.getTag());
+    if( syncpair == syncMap.end())
+    {
+        LOG_err << " updating state for moved missing sync: tag = " << config.getTag();
+        return;
+    }
+    MegaSyncPrivate* megaSync = syncpair->second;
+
+    auto oldpath = megaSync->getMegaFolder();
+    char * newpath = getNodePathByNodeHandle(config.getRemoteNode());
+    if ( (!oldpath && newpath) || (!newpath && oldpath) || strcmp(newpath, oldpath))
+    {
+        LOG_verbose << " remote path moved for moved sync: " << config.getTag() << " old: " << oldpath << " new: " << newpath;
+        megaSync->setMegaFolderYielding(newpath);
+        fireOnSyncStateChanged(megaSync);
+    }
+    else
+    {
+        delete newpath;
+    }
+}
+
+void MegaApiImpl::syncupdate_remote_root_attrs_changed(const SyncConfig &config)
+{
+    auto syncpair = syncMap.find(config.getTag());
+    if( syncpair == syncMap.end())
+    {
+        LOG_err << " updating state for changed missing sync: tag = " << config.getTag();
+        return;
+    }
+    MegaSyncPrivate* megaSync = syncpair->second;
+
+    auto oldpath = megaSync->getMegaFolder();
+    char * newpath = getNodePathByNodeHandle(config.getRemoteNode());
+    if ( (!oldpath && newpath) || (!newpath && oldpath) || strcmp(newpath, oldpath))
+    {
+        LOG_verbose << " remote path renamed for sync: " << config.getTag() << " old: " << oldpath << " new: " << newpath;
+        megaSync->setMegaFolderYielding(newpath);
+        fireOnSyncStateChanged(megaSync);
+    }
+    else
+    {
+        delete newpath;
     }
 }
 
@@ -20990,7 +21041,7 @@ void MegaApiImpl::sendPendingRequests()
                                   regExpToVector(request->getRegExp())};
 
             syncerror_t syncError = NO_ERROR;
-            e = client->addsync(syncConfig, DEBRISFOLDER, NULL, syncError, sync);
+            e = client->addsync(syncConfig, DEBRISFOLDER, NULL, syncError, true, sync);
             request->setNumDetails(syncError);
             if (!e)
             {
@@ -20999,6 +21050,7 @@ void MegaApiImpl::sendPendingRequests()
                 sync->setError(syncError);
                 sync->setState(s->state);
                 sync->setLocalFingerprint(fsfp);
+                sync->setMegaFolderYielding(getNodePathByNodeHandle(node->nodehandle));
                 request->setNumber(fsfp);
                 syncMap[nextSyncTag] = sync;
 
@@ -23233,6 +23285,7 @@ MegaSyncPrivate::MegaSyncPrivate(const char *path, handle nodehandle, int tag)
     this->megaHandle = nodehandle;
     this->localFolder = NULL;
     setLocalFolder(path);
+    this->megaFolder = NULL;
     this->state = SYNC_INITIALSCAN;
     this->fingerprint = 0;
     this->regExp = NULL;
@@ -23243,9 +23296,11 @@ MegaSyncPrivate::MegaSyncPrivate(const char *path, handle nodehandle, int tag)
 MegaSyncPrivate::MegaSyncPrivate(MegaSyncPrivate *sync)
 {
     this->regExp = NULL;
-    this->localFolder = NULL;
     this->setTag(sync->getTag());
+    this->localFolder = NULL;
     this->setLocalFolder(sync->getLocalFolder());
+    this->megaFolder = NULL;
+    this->setMegaFolder(sync->getMegaFolder());
     this->setMegaHandle(sync->getMegaHandle());
     this->setLocalFingerprint(sync->getLocalFingerprint());
     this->setState(sync->getState());
@@ -23257,6 +23312,7 @@ MegaSyncPrivate::MegaSyncPrivate(MegaSyncPrivate *sync)
 MegaSyncPrivate::~MegaSyncPrivate()
 {
     delete [] localFolder;
+    delete [] megaFolder;
     delete regExp;
 }
 
@@ -23287,6 +23343,29 @@ void MegaSyncPrivate::setLocalFolder(const char *path)
         delete [] localFolder;
     }
     localFolder =  MegaApi::strdup(path);
+}
+
+const char *MegaSyncPrivate::getMegaFolder() const
+{
+    return megaFolder;
+}
+
+void MegaSyncPrivate::setMegaFolder(const char *path)
+{
+    if (megaFolder)
+    {
+        delete [] megaFolder;
+    }
+    megaFolder = MegaApi::strdup(path);
+}
+
+void MegaSyncPrivate::setMegaFolderYielding(char *path)
+{
+    if (megaFolder)
+    {
+        delete [] megaFolder;
+    }
+    megaFolder = path;
 }
 
 long long MegaSyncPrivate::getLocalFingerprint() const

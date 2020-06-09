@@ -313,6 +313,12 @@ struct MEGA_API MegaApp
         return true;
     }
 
+    // after a root node of a sync changed its parent
+    virtual void syncupdate_remote_root_moved(const SyncConfig &) { }
+
+    // after a root node of a sync changed its attributes (potential rename)
+    virtual void syncupdate_remote_root_attrs_changed(const SyncConfig &) { }
+
     // after all syncs have been restored
     virtual void syncs_restored() { }
 

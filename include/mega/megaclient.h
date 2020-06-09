@@ -555,7 +555,7 @@ public:
      * @param syncError filled with syncerror_t with the sync error that prevented the addition
      * @return API_OK if added. (regular) error otherwise.
      */
-    error addsync(SyncConfig, const char*, string*, syncerror_t &syncError, void* = NULL);
+    error addsync(SyncConfig, const char*, string*, syncerror_t &syncError, bool delayInitialScan = false, void* = NULL);
 
 
     // removes an active sync (transition to pre-removal state).

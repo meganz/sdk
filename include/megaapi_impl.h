@@ -1007,6 +1007,9 @@ public:
     void setMegaHandle(MegaHandle handle);
     virtual const char* getLocalFolder() const;
     void setLocalFolder(const char*path);
+    virtual const char* getMegaFolder() const;
+    void setMegaFolder(const char *path);
+    void setMegaFolderYielding(char *path); //MEGAsync acquires the ownership of path
     virtual long long getLocalFingerprint() const;
     void setLocalFingerprint(long long fingerprint);
     virtual int getTag() const;
@@ -1031,6 +1034,7 @@ public:
 protected:
     MegaHandle megaHandle;
     char *localFolder;
+    char *megaFolder;
     MegaRegExp *regExp;
     int tag;
     long long fingerprint;
@@ -3003,6 +3007,12 @@ protected:
 
         // this will fill syncMap with a new MegaSyncPrivate, and fire onSyncAdded indicating the result of that addition
         void sync_auto_resume_result(const SyncConfig &config, syncerror_t error) override;
+
+        // this will fire onSyncStateChange if remote path of the synced node has changed
+        virtual void syncupdate_remote_root_moved(const SyncConfig &) override;
+
+        // this will fire onSyncStateChange if remote path of the synced node has changed
+        virtual void syncupdate_remote_root_attrs_changed(const SyncConfig &config) override;
 
         // this will call will fire EVENT_SYNCS_RESTORED
         virtual void syncs_restored();

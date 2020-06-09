@@ -5006,6 +5006,16 @@ public:
     virtual const char* getLocalFolder() const;
 
     /**
+     * @brief Get the path of the remote folder that is being synced
+     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaSync object is deleted.
+     *
+     * @return Local folder that is being synced
+     */
+    virtual const char* getMegaFolder() const;
+
+    /**
      * @brief Gets an unique identifier of the local folder that is being synced
      * @return Unique identifier of the local folder that is being synced
      */

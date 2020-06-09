@@ -2278,6 +2278,52 @@ void MegaClient::exec()
             }
         }
 
+        // do the initial scan for newly added syncs
+        for (it = syncs.begin(); it != syncs.end(); it++)
+        {
+            Sync *sync = *it;
+            if (sync->initializing && sync->state == SYNC_INITIALSCAN)
+            {
+                const auto &syncConfig = sync->getConfig();
+                string localPath = sync->getConfig().getLocalPath();
+                string rootpath;
+                fsaccess->path2local(&localPath, &rootpath);
+                auto fa = fsaccess->newfileaccess();
+
+                if (fa->fopen(&rootpath, true, false))
+                {
+                    if (fa->type == FOLDERNODE)
+                    {
+                        LOG_debug << "Initial delayed scan: " << syncConfig.getLocalPath();
+
+                        if (sync->scan(&rootpath, fa.get()))
+                        {
+                            //syncsup = false; These syncs should not delay action packets
+                            sync->initializing = false;
+                            LOG_debug << "Initial delayed scan finished. New / modified files: " << sync->dirnotify->notifyq[DirNotify::DIREVENTS].size();
+                            saveAndUpdateSyncConfig(&sync->getConfig(), sync->state, NO_ERROR );
+                        }
+                        else
+                        {
+                            LOG_err << "Initial delayed scan failed";
+                            failSync(sync, INITIAL_SCAN_FAILED);
+                            sync->changestate(SYNC_FAILED, INITIAL_SCAN_FAILED); //note, this only causes fireOnSyncXXX if there's a MegaSync object in the map already
+                        }
+
+                        syncactivity = true;
+                    }
+                    else
+                    {
+                        failSync(sync, INVALID_LOCAL_TYPE);
+                    }
+                }
+                else
+                {
+                    failSync(sync, fa->retry ? LOCAL_PATH_TEMPORARY_UNAVAILABLE : LOCAL_PATH_UNAVAILABLE);
+                }
+            }
+        }
+
         if (!syncsup)
         {
             // set syncsup if there are no initializing syncs
@@ -6698,6 +6744,20 @@ void MegaClient::notifypurge(void)
         if (!fetchingnodes)
         {
             app->nodes_updated(&nodenotify[0], t);
+        }
+
+        // check for renamed/moved sync root folders
+        for (const auto& config : syncConfigs->all())
+        {
+            Node *n = nodebyhandle(config.getRemoteNode());
+            if (n && n->changed.attrs)
+            {
+                app->syncupdate_remote_root_attrs_changed(config);
+            }
+            if (n && n->changed.parent)
+            {
+                app->syncupdate_remote_root_moved(config);
+            }
         }
 
         // check all notified nodes for removed status and purge
@@ -12298,7 +12358,7 @@ error MegaClient::isLocalPathSyncable(string newPath, int newSyncTag, syncerror_
 // check sync path, add sync if folder
 // disallow nested syncs (there is only one LocalNode pointer per node)
 // (FIXME: perform the same check for local paths!)
-error MegaClient::addsync(SyncConfig syncConfig, const char* debris, string* localdebris, syncerror_t &syncError, void *appData)
+error MegaClient::addsync(SyncConfig syncConfig, const char* debris, string* localdebris, syncerror_t &syncError, bool delayInitialScan, void *appData)
 {
 #ifdef ENABLE_SYNC
     syncError = NO_ERROR;
@@ -12370,27 +12430,34 @@ error MegaClient::addsync(SyncConfig syncConfig, const char* debris, string* loc
                 }
             }
 
-            if (sync->scan(&rootpath, fa.get()))
+            if (delayInitialScan)
             {
-                syncsup = false;
                 e = API_OK;
-                sync->initializing = false;
-                LOG_debug << "Initial scan finished. New / modified files: " << sync->dirnotify->notifyq[DirNotify::DIREVENTS].size();
-
-                //TODO: note for reviewer: previously we added the config upon sync constructor, but we probably want to only add it if
-                // initial scan goes well. otherwise, the sync won't be created, nor added to the cache
-                // note, Sync constructor now receives the syncConfig as reference, to be able to write -at least- fingerprints for new syncs
                 saveAndUpdateSyncConfig(&syncConfig, sync->state, static_cast<syncerror_t>(syncError) );
             }
             else
             {
-                LOG_err << "Initial scan failed";
-                sync->changestate(SYNC_FAILED, INITIAL_SCAN_FAILED); //note, this only causes fireOnSyncXXX if there's a MegaSync object in the map already
-                syncError = INITIAL_SCAN_FAILED;
-                delete sync;
-                e = API_EFAILED;
-            }
+                LOG_debug << "Initial scan sync: " << syncConfig.getLocalPath();
 
+                if (sync->scan(&rootpath, fa.get()))
+                {
+                    syncsup = false;
+                    e = API_OK;
+                    sync->initializing = false;
+                    LOG_debug << "Initial scan finished. New / modified files: " << sync->dirnotify->notifyq[DirNotify::DIREVENTS].size();
+
+                    // Sync constructor now receives the syncConfig as reference, to be able to write -at least- fingerprints for new syncs
+                    saveAndUpdateSyncConfig(&syncConfig, sync->state, static_cast<syncerror_t>(syncError) );
+                }
+                else
+                {
+                    LOG_err << "Initial scan failed";
+                    sync->changestate(SYNC_FAILED, INITIAL_SCAN_FAILED); //note, this only causes fireOnSyncXXX if there's a MegaSync object in the map already
+                    syncError = INITIAL_SCAN_FAILED;
+                    delete sync;
+                    e = API_EFAILED;
+                }
+            }
             syncactivity = true;
         }
         else
@@ -13994,7 +14061,7 @@ error MegaClient::enableSync(const SyncConfig *syncConfig, syncerror_t &syncErro
 
     auto newConfig = *syncConfig;
 
-    const auto e = addsync(newConfig, DEBRISFOLDER, nullptr, syncError);
+    const auto e = addsync(newConfig, DEBRISFOLDER, nullptr, syncError, true);
     //NOTICE: addsync reuses fingreprint. It only gets updated for new syncs (config->fingerprint is unset)
 
     syncstate_t newstate = isMegaSyncErrorPermanent(syncError)?SYNC_FAILED:SYNC_DISABLED;

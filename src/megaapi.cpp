@@ -5444,6 +5444,11 @@ const char *MegaSync::getLocalFolder() const
     return NULL;
 }
 
+const char *MegaSync::getMegaFolder() const
+{
+    return NULL;
+}
+
 long long MegaSync::getLocalFingerprint() const
 {
     return 0;
