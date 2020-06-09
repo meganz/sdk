@@ -2370,19 +2370,19 @@ void MegaClient::exec()
                     Sync* sync = *it++;
                     if (sync->isnetwork && (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN))
                     {
-                        while (sync->dirnotify->notifyq[DirNotify::EXTRA].size())
+                        Notification notification;
+                        while (sync->dirnotify->notifyq[DirNotify::EXTRA].popFront(notification))
                         {
                             dstime dsmin = Waiter::ds - Sync::EXTRA_SCANNING_DELAY_DS;
-                            Notification &notification = sync->dirnotify->notifyq[DirNotify::EXTRA].front();
                             if (notification.timestamp <= dsmin)
                             {
                                 LOG_debug << "Processing extra fs notification: " << notification.path;
                                 sync->dirnotify->notify(DirNotify::DIREVENTS, notification.localnode,
                                                         notification.path.data(), notification.path.size());
-                                sync->dirnotify->notifyq[DirNotify::EXTRA].pop_front();
                             }
                             else
                             {
+                                sync->dirnotify->notifyq[DirNotify::EXTRA].unpopFront(notification);
                                 dstime delay = (notification.timestamp - dsmin) + 1;
                                 if (delay < mindelay)
                                 {
@@ -2500,14 +2500,15 @@ void MegaClient::exec()
                         sync->cachenodes();
 
                         totalpending += sync->dirnotify->notifyq[q].size();
+                        Notification notification;
                         if (q == DirNotify::DIREVENTS)
                         {
                             scanningpending += sync->dirnotify->notifyq[q].size();
                         }
-                        else if (!syncfslockretry && sync->dirnotify->notifyq[DirNotify::RETRY].size())
+                        else if (!syncfslockretry && sync->dirnotify->notifyq[DirNotify::RETRY].peekFront(notification))
                         {
                             syncfslockretrybt.backoff(Sync::SCANNING_DELAY_DS);
-                            fsaccess->local2path(&sync->dirnotify->notifyq[DirNotify::RETRY].front().path, &blockedfile);
+                            fsaccess->local2path(&notification.path, &blockedfile);
                             syncfslockretry = true;
                         }
                     }
@@ -2687,22 +2688,25 @@ void MegaClient::exec()
                                         {
                                             sync->fullscan = false;
 
+                                            string failedReason;
+                                            auto failed = sync->dirnotify->getFailed(failedReason);
+
                                             if (syncscanbt.armed()
-                                                    && (sync->dirnotify->failed || fsaccess->notifyfailed
-                                                        || sync->dirnotify->error || fsaccess->notifyerr))
+                                                    && (failed || fsaccess->notifyfailed
+                                                        || sync->dirnotify->mErrorCount.load() || fsaccess->notifyerr))
                                             {
-                                                LOG_warn << "Sync scan failed " << sync->dirnotify->failed
+                                                LOG_warn << "Sync scan failed " << failed
                                                          << " " << fsaccess->notifyfailed
-                                                         << " " << sync->dirnotify->error
+                                                         << " " << sync->dirnotify->mErrorCount.load()
                                                          << " " << fsaccess->notifyerr;
-                                                if (sync->dirnotify->failed)
+                                                if (failed)
                                                 {
-                                                    LOG_warn << "The cause was: " << sync->dirnotify->failreason;
+                                                    LOG_warn << "The cause was: " << failedReason;
                                                 }
                                                 scanfailed = true;
 
                                                 sync->scan(&sync->localroot->localname, NULL);
-                                                sync->dirnotify->error = 0;
+                                                sync->dirnotify->mErrorCount = 0;
                                                 sync->fullscan = true;
                                                 sync->scanseqno++;
                                             }
@@ -2772,7 +2776,7 @@ void MegaClient::exec()
                                     // and force a full rescan afterwards as the local item may
                                     // be subject to changes that are notified with obsolete paths
                                     success = false;
-                                    (*it)->dirnotify->error = true;
+                                    (*it)->dirnotify->mErrorCount = true;
                                 }
 
                                 (*it)->cachenodes();
@@ -13486,7 +13490,11 @@ void MegaClient::proclocaltree(LocalNode* n, LocalTreeProc* tp)
 
 void MegaClient::unlinkifexists(LocalNode *l, FileAccess *fa, std::string *path)
 {
-    l->getlocalpath(path);
+    // sdisable = true for this call.  In the case where we are doing a full scan due to fs notifications failing,
+    // and a file was renamed but retains the same shortname, we would check the presence of the wrong file.
+    // Also shortnames are slowly being deprecated by Microsoft, so using full names is now the normal case anyway.
+    l->getlocalpath(path, true);
+
     if (fa->fopen(path) || fa->type == FOLDERNODE)
     {
         LOG_warn << "Deletion of existing file avoided";
