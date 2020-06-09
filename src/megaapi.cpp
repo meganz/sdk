@@ -1226,7 +1226,7 @@ MegaError::~MegaError()
 
 }
 
-MegaError* MegaError::copy()
+MegaError* MegaError::copy() const
 {
     return nullptr;
 }

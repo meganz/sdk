@@ -5308,7 +5308,7 @@ public:
          *
          * @return Copy of the MegaError object
          */
-        virtual MegaError* copy();
+        virtual MegaError* copy() const;
 
 
 		/**
