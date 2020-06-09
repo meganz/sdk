@@ -183,8 +183,8 @@ bool FileSystemAccess::islocalfscompatible(unsigned char c, FileSystemType fileS
     {
         case FS_APFS:
         case FS_HFS:
-            // APFS, HFS, HFS+ restricted characters => :
-            return c != '\x3A';
+            // APFS, HFS, HFS+ restricted characters => : /
+            return c != '\x3A' && c != '\x2F';
         case FS_EXT:
             // ext2/ext3/ext4 restricted characters =>  / NULL
             return c != '\x00' && c != '\x2F';
