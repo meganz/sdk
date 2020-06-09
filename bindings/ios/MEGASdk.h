@@ -5400,6 +5400,32 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  */
 - (void)killSession:(uint64_t)sessionHandle;
 
+/**
+ * @brief Returns the deadline to remedy the storage overquota situation
+ *
+ * This value is valid only when MegaApi::getUserData has been called after
+ * receiving a callback MegaListener/MegaGlobalListener::onEvent of type
+ * MegaEvent::EVENT_STORAGE, reporting STORAGE_STATE_PAYWALL.
+ * The value will become invalid once the state of storage changes.
+ *
+ * @return Timestamp representing the deadline to remedy the overquota
+*/
+- (uint64_t)getOverquotaDeadlineTs;
+
+/**
+ * @brief Returns when the user was warned about overquota state
+ *
+ * This value is valid only when MegaApi::getUserData has been called after
+ * receiving a callback MegaListener/MegaGlobalListener::onEvent of type
+ * MegaEvent::EVENT_STORAGE, reporting STORAGE_STATE_PAYWALL.
+ * The value will become invalid once the state of storage changes.
+ *
+ * You take the ownership of the returned value.
+ *
+ * @return An array of `NSNumber` with the timestamp corresponding to each warning
+*/
+-(nonnull NSArray<NSNumber *> *)getOverquotaWarningsTs;
+
 #pragma mark - Transfers
 
 /**

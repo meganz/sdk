@@ -1497,6 +1497,26 @@ using namespace mega;
     self.megaApi->killSession(sessionHandle);
 }
 
+- (uint64_t)getOverquotaDeadlineTs {
+    return self.megaApi->getOverquotaDeadlineTs();
+}
+
+- (nonnull NSArray<NSNumber *> *)getOverquotaWarningsTs {
+    MegaIntegerList *warningTimestampList = self.megaApi->getOverquotaWarningsTs();
+
+    int sizeOfWarningTimestamps = warningTimestampList->size();
+    if (sizeOfWarningTimestamps == 0) {
+        return [[NSMutableArray alloc] initWithCapacity:0];
+    }
+
+    NSMutableArray *warningTimestampArray = [[NSMutableArray alloc] initWithCapacity:sizeOfWarningTimestamps];
+    for(int i = 0; i < sizeOfWarningTimestamps; i ++) {
+        NSNumber *timestampObject = [[NSNumber alloc] initWithLongLong:warningTimestampList->get(i)];
+        [warningTimestampArray addObject:timestampObject];
+    }
+    return warningTimestampArray;
+}
+
 #pragma mark - Transfer
 
 - (MEGATransfer *)transferByTag:(NSInteger)transferTag {
