@@ -180,6 +180,7 @@ public:
     dstime timeToTransfersResumed;
 };
 
+
 class MEGA_API MegaClient
 {
 public:
@@ -234,6 +235,8 @@ public:
 	
     // pseudo-random number generator
     PrnGen rng;
+
+    bool ephemeralSession = false;
 
     static string getPublicLink(bool newLinkFormat, nodetype_t type, handle ph, const char *key);
 
@@ -921,7 +924,7 @@ private:
     unsigned addnode(node_vector*, Node*) const;
 
     // add child for consideration in syncup()/syncdown()
-    void addchild(remotenode_map*, string*, Node*, list<string>*) const;
+    void addchild(remotenode_map*, string*, Node*, list<string>*, const string *localPath) const;
 
     // crypto request response
     void cr_response(node_vector*, node_vector*, JSON*);
@@ -1121,6 +1124,9 @@ public:
     // FileFingerprint to node mapping
     Fingerprints mFingerprints;
 
+    // flag to skip removing nodes from mFingerprints when all nodes get deleted
+    bool mOptimizePurgeNodes = false;
+
     // send updates to app when the storage size changes
     int64_t mNotifiedSumSize = 0;
 
@@ -1190,6 +1196,10 @@ public:
 
     Node* nodebyhandle(handle);
     Node* nodebyfingerprint(FileFingerprint*);
+#ifdef ENABLE_SYNC
+    Node* nodebyfingerprint(LocalNode*);
+#endif /* ENABLE_SYNC */
+
     node_vector *nodesbyfingerprint(FileFingerprint* fingerprint);
     void nodesbyoriginalfingerprint(const char* fingerprint, Node* parent, node_vector *nv);
 
@@ -1204,6 +1214,9 @@ public:
 
     // generate & return upload handle
     handle getuploadhandle();
+
+    // maps node handle to public handle
+    std::map<handle, handle> mPublicLinks;
 
 #ifdef ENABLE_SYNC    
     // sync debris folder name in //bin
@@ -1383,7 +1396,7 @@ public:
     vector<Node*> childnodesbyname(Node*, const char*, bool = false);
 
     // purge account state and abort server-client connection
-    void purgenodesusersabortsc();
+    void purgenodesusersabortsc(bool keepOwnUser);
 
     static const int USERHANDLE = 8;
     static const int PCRHANDLE = 8;
@@ -1412,6 +1425,7 @@ public:
 
     // account access (full account): RSA private key
     AsymmCipher asymkey;
+    string mPrivKey;    // serialized version for apps
 
     // RSA public key
     AsymmCipher pubk;
@@ -1600,6 +1614,8 @@ public:
     // whether the destructor has started running yet
     bool destructorRunning = false;
   
+    MegaClientAsyncQueue mAsyncQueue;
+
     // Keep track of high level operation counts and times, for performance analysis
     struct PerformanceStats
     {
@@ -1626,7 +1642,7 @@ public:
     void resetSyncConfigs();
 #endif
 
-    MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
+    MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
     ~MegaClient();
 };
 } // namespace

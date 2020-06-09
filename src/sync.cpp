@@ -116,7 +116,7 @@ set<string> collectAllPathsInFolder(Sync& sync, MegaApp& app, FileSystemAccess& 
     while (da->dnext(&localpath, &localname, false))
     {
         auto name = localname;
-        fsaccess.local2name(&name);
+        fsaccess.local2name(&name, &localpath);
 
         if (localpathSize > 0)
         {
@@ -852,10 +852,14 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, st
         l->init(this, l->type, p, path, std::move(shortname));
 
 #ifdef DEBUG
-        auto sn = client->fsaccess->fsShortname(*path);
-        assert(!l->localname.empty() && 
+        auto fa = client->fsaccess->newfileaccess(false);
+        if (fa->fopen(path))  // exists, is file
+        {
+            auto sn = client->fsaccess->fsShortname(*path);
+            assert(!l->localname.empty() && 
                 (!l->slocalname && (!sn || l->localname == *sn) ||
                 (l->slocalname && sn && !l->slocalname->empty() && *l->slocalname != l->localname && *l->slocalname == *sn)));
+        }
 #endif
 
         l->parent_dbid = parent_dbid;
@@ -1165,7 +1169,7 @@ bool Sync::scan(string* localpath, FileAccess* fa)
             while (da->dnext(localpath, &localname, client->followsymlinks))
             {
                 name = localname;
-                client->fsaccess->local2name(&name);
+                client->fsaccess->local2name(&name, localpath);
 
                 if (t)
                 {
@@ -1290,7 +1294,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
         }
 
         string name = newname.size() ? newname : l->name;
-        client->fsaccess->local2name(&name);
+        client->fsaccess->local2name(&name, localpath);
 
         if (!client->app->sync_syncable(this, name.c_str(), &tmppath))
         {

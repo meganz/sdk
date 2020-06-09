@@ -490,7 +490,7 @@ bool PosixFileAccess::fopen(string* f, bool read, bool write, DirAccess* iterati
 
     if (!statok)
     {
-         mIsSymLink = !lstat(f->c_str(), &statbuf) && S_ISLNK(statbuf.st_mode);
+        mIsSymLink = !lstat(f->c_str(), &statbuf) && S_ISLNK(statbuf.st_mode);
         if (mIsSymLink && !PosixFileAccess::mFoundASymlink)
         {
             LOG_warn << "Enabling symlink check for syncup.";

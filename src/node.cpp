@@ -114,7 +114,10 @@ Node::~Node()
     client->preadabort(this);
 
     // remove node's fingerprint from hash
-    client->mFingerprints.remove(this);
+    if (!client->mOptimizePurgeNodes)
+    {
+        client->mFingerprints.remove(this);
+    }
 
 #ifdef ENABLE_SYNC
     // remove from todebris node_set
@@ -151,29 +154,37 @@ Node::~Node()
     }
 
 
-    // remove from parent's children
-    if (parent)
+    if (!client->mOptimizePurgeNodes)
     {
-        parent->children.erase(child_it);
+        // remove from parent's children
+        if (parent)
+        {
+            parent->children.erase(child_it);
+        }
+
+        Node* fa = firstancestor();
+        handle ancestor = fa->nodehandle;
+        if (ancestor == client->rootnodes[0] || ancestor == client->rootnodes[1] || ancestor == client->rootnodes[2] || fa->inshare)
+        {
+            client->mNodeCounters[firstancestor()->nodehandle] -= subnodeCounts();
+        }
+
+        if (inshare)
+        {
+            client->mNodeCounters.erase(nodehandle);
+        }
+
+        // delete child-parent associations (normally not used, as nodes are
+        // deleted bottom-up)
+        for (node_list::iterator it = children.begin(); it != children.end(); it++)
+        {
+            (*it)->parent = NULL;
+        }
     }
 
-    Node* fa = firstancestor();
-    handle ancestor = fa->nodehandle;
-    if (ancestor == client->rootnodes[0] || ancestor == client->rootnodes[1] || ancestor == client->rootnodes[2] || fa->inshare)
+    if (plink)
     {
-        client->mNodeCounters[firstancestor()->nodehandle] -= subnodeCounts();
-    }
-
-    if (inshare)
-    {
-        client->mNodeCounters.erase(nodehandle);
-    }
-
-    // delete child-parent associations (normally not used, as nodes are
-    // deleted bottom-up)
-    for (node_list::iterator it = children.begin(); it != children.end(); it++)
-    {
-        (*it)->parent = NULL;
+        client->mPublicLinks.erase(nodehandle);
     }
 
     delete plink;
@@ -419,6 +430,7 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
         }
 
         plink = new PublicLink(ph, cts, ets, takendown);
+        client->mPublicLinks[n->nodehandle] = plink->ph;
     }
     n->plink = plink;
 
@@ -1092,15 +1104,18 @@ void Node::setpubliclink(handle ph, m_time_t cts, m_time_t ets, bool takendown)
 {
     if (!plink) // creation
     {
+        assert(client->mPublicLinks.find(nodehandle) == client->mPublicLinks.end());
         plink = new PublicLink(ph, cts, ets, takendown);
     }
     else            // update
     {
+        assert(client->mPublicLinks.find(nodehandle) != client->mPublicLinks.end());
         plink->ph = ph;
         plink->cts = cts;
         plink->ets = ets;
         plink->takendown = takendown;
     }
+    client->mPublicLinks[nodehandle] = ph;
 }
 
 PublicLink::PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown)
@@ -1182,7 +1197,7 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath, std::u
             localname.assign(newlocalpath->data() + p, newlocalpath->size() - p);
 
             name = localname;
-            sync->client->fsaccess->local2name(&name);
+            sync->client->fsaccess->local2name(&name, newlocalpath);
 
             if (node)
             {
@@ -1829,7 +1844,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     l->slocalname.reset(shortname.empty() ? nullptr : new string(std::move(shortname)));
     l->slocalname_in_db = 0 != expansionflags[0];
     l->name = l->localname;
-    sync->client->fsaccess->local2name(&l->name);
+    sync->client->fsaccess->local2name(&l->name, &sync->localdebris);
 
     memcpy(l->crc.data(), crc, sizeof crc);
     l->mtime = mtime;

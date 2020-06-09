@@ -57,6 +57,12 @@ struct TransferTracker : public ::mega::MegaTransferListener
     std::atomic<bool> finished = { false };
     std::atomic<int> result = { INT_MAX };
     std::promise<int> promiseResult;
+    MegaApi *mApi;
+
+    TransferTracker(MegaApi *api): mApi(api)
+    {
+
+    }
     void onTransferStart(MegaApi *api, MegaTransfer *transfer) override
     {
         started = true;
@@ -67,11 +73,16 @@ struct TransferTracker : public ::mega::MegaTransferListener
         finished = true;
         promiseResult.set_value(result);
     }
-    int waitForResult(int seconds = maxTimeout)
+    int waitForResult(int seconds = maxTimeout, bool unregisterListenerOnTimeout = true)
     {
         auto f = promiseResult.get_future();
         if (std::future_status::ready != f.wait_for(std::chrono::seconds(seconds)))
         {
+            assert(mApi);
+            if (unregisterListenerOnTimeout)
+            {
+                mApi->removeTransferListener(this);
+            }
             return -999; // local timeout
         }
         return f.get();
@@ -84,6 +95,12 @@ struct RequestTracker : public ::mega::MegaRequestListener
     std::atomic<bool> finished = { false };
     std::atomic<int> result = { INT_MAX };
     std::promise<int> promiseResult;
+    MegaApi *mApi;
+
+    RequestTracker(MegaApi *api): mApi(api)
+    {
+
+    }
     void onRequestStart(MegaApi* api, MegaRequest *request) override
     {
         started = true;
@@ -94,11 +111,16 @@ struct RequestTracker : public ::mega::MegaRequestListener
         finished = true;
         promiseResult.set_value(result);
     }
-    int waitForResult(int seconds = maxTimeout)
+    int waitForResult(int seconds = maxTimeout, bool unregisterListenerOnTimeout = true)
     {
         auto f = promiseResult.get_future();
         if (std::future_status::ready != f.wait_for(std::chrono::seconds(seconds)))
         {
+            assert(mApi);
+            if (unregisterListenerOnTimeout)
+            {
+                mApi->removeRequestListener(this);
+            }
             return -999; // local timeout
         }
         return f.get();
@@ -116,6 +138,7 @@ public:
         string email;
         string pwd;
         int lastError;
+        int lastTransferError;
         
         // flags to monitor the completion of requests/transfers
         bool requestFlags[MegaRequest::TOTAL_OF_REQUEST_TYPES];
@@ -151,6 +174,7 @@ public:
 
     m_off_t onTransferUpdate_progress;
     m_off_t onTransferUpdate_filesize;
+    unsigned onTranferFinishedCount = 0;
 
     std::mutex lastEventMutex;
     std::unique_ptr<MegaEvent> lastEvent;
@@ -205,6 +229,7 @@ public:
 
     // convenience functions - template args just make it easy to code, no need to copy all the exact argument types with listener defaults etc. To add a new one, just copy a line and change the flag and the function called.
     template<typename ... Args> int synchronousStartUpload(unsigned apiIndex, Args... args) { synchronousTransfer(apiIndex, MegaTransfer::TYPE_UPLOAD, [this, apiIndex, args...]() { megaApi[apiIndex]->startUpload(args...); }); return mApi[apiIndex].lastError; }
+    template<typename ... Args> int synchronousStartDownload(unsigned apiIndex, Args... args) { synchronousTransfer(apiIndex, MegaTransfer::TYPE_DOWNLOAD, [this, apiIndex, args...]() { megaApi[apiIndex]->startDownload(args...); }); return mApi[apiIndex].lastTransferError; }
     template<typename ... Args> int synchronousCatchup(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_CATCHUP, [this, apiIndex, args...]() { megaApi[apiIndex]->catchup(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousCreateAccount(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_CREATE_ACCOUNT, [this, apiIndex, args...]() { megaApi[apiIndex]->createAccount(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousResumeCreateAccount(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_CREATE_ACCOUNT, [this, apiIndex, args...]() { megaApi[apiIndex]->resumeCreateAccount(args...); }); return mApi[apiIndex].lastError; }
@@ -225,7 +250,7 @@ public:
 
 
     // convenience functions - make a request and wait for the result via listener, return the result code.  To add new functions to call, just copy the line
-    template<typename ... requestArgs> int doRequestLogout(unsigned apiIndex, requestArgs... args) { RequestTracker rt; megaApi[apiIndex]->logout(args..., &rt); return rt.waitForResult(); }
+    template<typename ... requestArgs> int doRequestLogout(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->logout(args..., &rt); return rt.waitForResult(); }
 
     void createFile(string filename, bool largeFile = true);
     int64_t getFilesize(string filename);

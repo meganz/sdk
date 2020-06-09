@@ -47,6 +47,8 @@ struct MEGA_API User : public Cacheable
     // contact establishment timestamp
     m_time_t ctime;
 
+    BizMode mBizMode = BIZ_MODE_UNKNOWN;
+
     struct
     {
         bool keyring : 1;   // private keys
@@ -77,6 +79,7 @@ struct MEGA_API User : public Cacheable
         bool myChatFilesFolder : 1;   // target folder for my chat files
         bool pushSettings : 1;  // push notification settings
         bool alias : 1; // user's aliases
+        bool unshareablekey : 1;    // key to encrypt unshareable node attributes
     } changed;
 
     // user's public key
@@ -113,6 +116,7 @@ public:
     void invalidateattr(attr_t at);
     bool isattrvalid(attr_t at);
     void removeattr(attr_t at, const string *version = nullptr);
+    int updateattr(attr_t at, string *av, string *v);
 
     static string attr2string(attr_t at);
     static string attr2longname(attr_t at);
