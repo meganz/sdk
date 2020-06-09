@@ -1063,7 +1063,7 @@ void MegaClient::init()
     pendingsc.reset();
     pendingscUserAlerts.reset();
     stopsc = false;
-    mScStoppedDueToBlock = false;
+    mBlocked = false;
 
     btcs.reset();
     btsc.reset();
