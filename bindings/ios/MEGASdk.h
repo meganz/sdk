@@ -174,7 +174,8 @@ typedef NS_ENUM(NSUInteger, StorageState) {
     StorageStateGreen = 0,
     StorageStateOrange = 1,
     StorageStateRed = 2,
-    StorageStateChange = 3
+    StorageStateChange = 3,
+    StorageStatePaywall = 4
 };
 
 typedef NS_ENUM(NSInteger, SMSState) {
