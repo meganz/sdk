@@ -887,6 +887,9 @@ private:
     void closetc(bool remove = false);
 
     // server-client command processing
+    bool sc_checkSequenceTag(const string& tag);
+    bool sc_checkActionPacket();
+
     void sc_updatenode();
     Node* sc_deltree();
     handle sc_newnodes();
@@ -1033,6 +1036,11 @@ public:
 
     // MegaClient-Server response JSON
     JSON json;
+
+    // actionpacket sequence tags
+    string currst;  
+    bool currstSeen = false;
+    int currstCSTag = 0;
 
     // Server-MegaClient request JSON and processing state flag ("processing a element")
     JSON jsonsc;

@@ -1877,19 +1877,24 @@ void MegaClient::exec()
 
             if (btcs.armed())
             {
-                if (reqs.cmdspending())
+                if (reqs.cmdspending() && !reqs.cmdsInflight())
                 {
                     pendingcs = new HttpReq();
                     pendingcs->protect = true;
                     pendingcs->logname = clientname + "cs ";
 
                     bool suppressSID = true;
-                    reqs.serverrequest(pendingcs->out, suppressSID, pendingcs->includesFetchingNodes);
+                    bool v3 = false;
+                    reqs.serverrequest(pendingcs->out, suppressSID, pendingcs->includesFetchingNodes, v3);
 
                     pendingcs->posturl = APIURL;
 
                     pendingcs->posturl.append("cs?id=");
                     pendingcs->posturl.append(reqid, sizeof reqid);
+                    if (v3)
+                    {
+                        pendingcs->posturl.append("&v=3");
+                    }
                     if (!suppressSID)
                     {
                         pendingcs->posturl.append(auth);
@@ -2859,7 +2864,7 @@ void MegaClient::exec()
 
         httpio->updatedownloadspeed();
         httpio->updateuploadspeed();
-    } while (httpio->doio() || execdirectreads() || (!pendingcs && reqs.cmdspending() && btcs.armed()) || looprequested);
+    } while (httpio->doio() || execdirectreads() || (!pendingcs && !reqs.cmdsInflight() && reqs.cmdspending() && btcs.armed()) || looprequested);
 
 
     NodeCounter storagesum;
@@ -4338,6 +4343,7 @@ bool MegaClient::procsc()
 
                     if (!insca_notlast)
                     {
+                        sc_checkSequenceTag(string());
                         app->catchup_result();
                     }
                     return true;
@@ -4361,6 +4367,19 @@ bool MegaClient::procsc()
 
         if (insca)
         {
+            auto actionpacketStart = jsonsc.pos;
+            if (jsonsc.enterobject())
+            {
+                if (!sc_checkActionPacket())
+                {
+                    // We can't continue actionpackets until we know the next currst to match against, wait for the CS request to deliver it.
+                    assert(reqs.cmdsInflight());
+                    jsonsc.pos = actionpacketStart;
+                    return false;
+                }
+            }
+            jsonsc.pos = actionpacketStart;
+
             if (jsonsc.enterobject())
             {
                 // the "a" attribute is guaranteed to be the first in the object
@@ -5020,6 +5039,89 @@ error MegaClient::smsverificationcheck(const std::string &verificationCode)
     return API_OK;
 }
 
+bool MegaClient::sc_checkSequenceTag(const string& tag)
+{
+    if (tag.empty())
+    {
+        if (!currst.empty() && currstSeen)
+        {
+            LOG_verbose << "st tag exhausted for " << currst;
+            reqs.process_ap(this);
+        }
+        return false;
+    }
+    else
+    {
+        for (;;)
+        {
+            if (currst.empty())
+            {
+                if (reqs.cmdsInflight())
+                {
+                    LOG_verbose << "st tag " << tag << " wait for cs requests";
+                    return false;  // we can't tell yet if a command will give us a tag to wait for
+                }
+                else
+                {
+                    LOG_verbose << "st tag " << tag << " no tag pending";
+                    return true;  // nothing pending, process everything
+                }
+            }
+            else
+            {
+                if (tag == currst)
+                {
+                    LOG_verbose << "st tag " << tag << " matched";
+                    // there may be more than one, process until a different one arrives
+                    currstSeen = true;
+                    return true;
+                }
+                else if (currstSeen)
+                {
+                    LOG_verbose << "st tag " << tag << " processing for " << currst;
+                    reqs.process_ap(this);
+                    continue;   // we may have a new currst now
+                }
+                else
+                {
+                    // We know there is a currst that we must receive, but we have not encountered it yet.  Continue with actionpackets
+                    LOG_verbose << "st tag " << tag << " catching up";
+                    assert(tag.size() < currst.size() || (tag.size() == currst.size() && tag < currst));
+                    return true;
+                }
+            }
+            break;
+        }
+    }
+}
+
+bool MegaClient::sc_checkActionPacket()
+{
+    string tag;
+
+    for (;;)
+    {
+        switch (jsonsc.getnameid())
+        {
+        case 'a': 
+        case 'i':
+            jsonsc.storeobject();
+            break;
+        
+        case MAKENAMEID2('s', 't'):
+            jsonsc.storeobject(&tag);
+            return sc_checkSequenceTag(tag);
+
+        default:
+            // if we reach any other tag, then 'st' is not present.
+            return sc_checkSequenceTag(tag);
+        }
+
+    }
+    return true;
+}
+
+
 // server-client node update processing
 void MegaClient::sc_updatenode()
 {
@@ -5086,6 +5188,11 @@ void MegaClient::sc_updatenode()
 
                         if (notify)
                         {
+                            if (!currst.empty() && currstSeen)
+                            {
+                                // keep the node's tag updated with the tag of the last command to modify it.
+                                n->tag = currstCSTag;
+                            }
                             notifynode(n);
                         }
                     }
@@ -6900,9 +7007,13 @@ error MegaClient::setattr(Node* n, const char *prevattr)
         return API_EKEY;
     }
 
-    n->changed.attrs = true;
-    n->tag = reqtag;
-    notifynode(n);
+    // only call back once the actionpackets are processed
+    // todo: work out a mechanism that the node itself is not updated until then (ie defer change to attrs)
+    // tag will instead be set on the node during actionpakcet processing before nodenotify by aligning with the command and getting the tag from it then
+
+    //n->changed.attrs = true;
+    //n->tag = reqtag;
+    //notifynode(n);
 
     reqs.add(new CommandSetAttr(this, n, cipher, prevattr));
 

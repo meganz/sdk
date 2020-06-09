@@ -955,9 +955,10 @@ void CommandGetFile::procresult()
 }
 
 CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n, SymmCipher* cipher, const char* prevattr)
+    : Command(true)
 {
     cmd("a");
-    notself(client);
+    //notself(client);
 
     string at;
 
@@ -982,29 +983,6 @@ void CommandSetAttr::procresult()
     if (client->json.isnumeric())
     {
         error e = (error)client->json.getint();
-#ifdef ENABLE_SYNC
-        if(!e && syncop)
-        {
-            Node* node = client->nodebyhandle(h);
-            if(node)
-            {
-                Sync* sync = NULL;
-                for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
-                {
-                    if((*it)->tag == tag)
-                    {
-                        sync = (*it);
-                        break;
-                    }
-                }
-
-                if(sync)
-                {
-                    client->app->syncupdate_remote_rename(sync, node, pa.c_str());
-                }
-            }
-        }
-#endif
         client->app->setattr_result(h, e);
     }
     else
@@ -1012,6 +990,35 @@ void CommandSetAttr::procresult()
         client->json.storeobject();
         client->app->setattr_result(h, API_EINTERNAL);
     }
+}
+
+void CommandSetAttr::procresultV3()
+{
+#ifdef ENABLE_SYNC
+    if(syncop)
+    {
+        Node* node = client->nodebyhandle(h);
+        if(node)
+        {
+            Sync* sync = NULL;
+            for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
+            {
+                if((*it)->tag == tag)
+                {
+                    sync = (*it);
+                    break;
+                }
+            }
+
+            if(sync)
+            {
+                client->app->syncupdate_remote_rename(sync, node, pa.c_str());
+            }
+        }
+    }
+#endif
+
+    client->app->setattr_result(h, API_OK);
 }
 
 // (the result is not processed directly - we rely on the server-client

@@ -67,8 +67,6 @@ void Request::process(MegaClient* client)
     {
         Command* cmd = cmds[processindex];
 
-        // in future we may exit this loop early here, when processing actionpackets associated with the command
-
         client->restag = cmd->tag;
 
         cmd->client = client;
@@ -93,15 +91,40 @@ void Request::process(MegaClient* client)
         }
         else
         {
-            cmd->procresult();
+            if (mV3 && client->json.pos && *client->json.pos == '"')
+            {
+                json = client->json;
+                string st;
+                client->json.storeobject(&st);
+                
+                if (client->currst == st)
+                {
+                    client->currst.clear();
+                    client->currstSeen = false;
+                    cmd->procresultV3();  // call for success case, and carry on
+                }
+                else
+                {
+                    // result processing paused until we encounter and process actionpackets matching client->currst
+                    client->currst = st;
+                    client->currstSeen = false;
+                    client->currstCSTag = cmd->tag;
+                    client->json.pos = nullptr;
+                    return;  
+                }
+            }
+            else
+            {
+                cmd->procresult();
+            }
         }
     }
     json = client->json;
+    client->json.pos = nullptr;
     if (processindex == cmds.size() || stopProcessing)
     {
         clear();
     }
-    client->mTctableRequestCommitter = nullptr;
 }
 
 void Request::serverresponse(std::string&& movestring, MegaClient* client)
@@ -156,6 +179,7 @@ void Request::swap(Request& r)
     assert(jsonresponse.empty() && r.jsonresponse.empty());
     assert(json.pos == NULL && r.json.pos == NULL);
     assert(processindex == 0 && r.processindex == 0);
+    std::swap(mV3, r.mV3);
 }
 
 RequestDispatcher::RequestDispatcher()
@@ -195,6 +219,16 @@ void RequestDispatcher::add(Command *c)
         nextreqs.push_back(Request());
     }
 
+    if (!nextreqs.back().empty() && nextreqs.back().mV3 != c->mV3)
+    {
+        LOG_debug << "Starting an additional Request for v3 transition " << c->mV3;
+        nextreqs.push_back(Request());
+    }
+    if (nextreqs.back().empty())
+    {
+        nextreqs.back().mV3 = c->mV3;
+    }
+
     nextreqs.back().add(c);
     if (c->batchSeparately)
     {
@@ -207,7 +241,12 @@ bool RequestDispatcher::cmdspending() const
     return !nextreqs.front().empty();
 }
 
-void RequestDispatcher::serverrequest(string *out, bool& suppressSID, bool &includesFetchingNodes)
+bool RequestDispatcher::cmdsInflight() const
+{
+    return !inflightreq.empty();
+}
+
+void RequestDispatcher::serverrequest(string *out, bool& suppressSID, bool &includesFetchingNodes, bool& v3)
 {
     assert(inflightreq.empty());
     inflightreq.swap(nextreqs.front());
@@ -218,6 +257,7 @@ void RequestDispatcher::serverrequest(string *out, bool& suppressSID, bool &incl
     }
     inflightreq.get(out, suppressSID);
     includesFetchingNodes = inflightreq.isFetchNodes();
+    v3 = inflightreq.mV3;
 #ifdef MEGA_MEASURE_CODE
     csRequestsSent += inflightreq.size();
     csBatchesSent += 1;
@@ -248,7 +288,6 @@ void RequestDispatcher::serverresponse(std::string&& movestring, MegaClient *cli
     processing = true;
     inflightreq.serverresponse(std::move(movestring), client);
     inflightreq.process(client);
-    assert(inflightreq.empty());
     processing = false;
     if (clearWhenSafe)
     {
@@ -269,6 +308,14 @@ void RequestDispatcher::servererror(error e, MegaClient *client)
     {
         clear();
     }
+}
+
+void RequestDispatcher::process_ap(MegaClient* client)
+{
+    assert(!inflightreq.empty());
+    processing = true;
+    inflightreq.process(client);
+    processing = false;
 }
 
 void RequestDispatcher::clear()

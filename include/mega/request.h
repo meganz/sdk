@@ -37,7 +37,6 @@ private:
     JSON json;
     size_t processindex = 0;
 
-
 public:
     void add(Command*);
 
@@ -47,15 +46,16 @@ public:
 
     void serverresponse(string&& movestring, MegaClient*);
     void servererror(error e, MegaClient* client);
-
+	
     void process(MegaClient* client);
 
     void clear();
     bool empty() const; 
     void swap(Request&);
-
     bool stopProcessing = false;
 
+    bool mV3 = false;
+	
     // if contains only one command and that command is FetchNodes
     bool isFetchNodes() const;
 };
@@ -73,6 +73,9 @@ class MEGA_API RequestDispatcher
     bool processing = false;
     bool clearWhenSafe = false;
 
+    // these ones have completed, but we haven't received all the corresponding actionpackets yet
+    deque<Request> completedreqs;
+
     static const int MAX_COMMANDS = 10000;
 
 public:
@@ -82,18 +85,22 @@ public:
     void add(Command*);
 
     bool cmdspending() const;
+    bool cmdsInflight() const;
 
     /**
      * @brief get the set of commands to be sent to the server (could be a retry)
      * @param suppressSID
      * @param includesFetchingNodes set to whether the commands include fetch nodes
      */
-    void serverrequest(string*, bool& suppressSID, bool &includesFetchingNodes);
+    void serverrequest(string*, bool& suppressSID, bool &includesFetchingNodes, bool& v3);
 
     // once the server response is determined, call one of these to specify the results
     void requeuerequest();
     void serverresponse(string&& movestring, MegaClient*);
+
     void servererror(error, MegaClient*);
+
+    void process_ap(MegaClient* client);
 
     void clear();
 

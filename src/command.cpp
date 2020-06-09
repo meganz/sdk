@@ -24,7 +24,7 @@
 #include "mega/megaclient.h"
 
 namespace mega {
-Command::Command()
+Command::Command(bool isV3)
 {
     persistent = false;
     level = -1;
@@ -33,6 +33,7 @@ Command::Command()
     client = NULL;
     tag = 0;
     batchSeparately = false;
+    mV3 = isV3;
     suppressSID = false;
 }
 
@@ -260,6 +261,11 @@ void Command::procresult()
                 }
         }
     }
+}
+
+void Command::procresultV3()
+{
+    assert(false);  // if v3 was turned on, we should have overridden this callback.
 }
 
 } // namespace

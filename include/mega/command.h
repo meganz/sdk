@@ -57,6 +57,9 @@ public:
     // some commands can only succeed if they are in their own batch.  eg. smss, when the account is blocked pending validation
     bool batchSeparately;
 
+    // true if the command processing has been updated to use the URI v3 system, where successful state updates arrive via actionpackets.
+    bool mV3;
+
     // some commands are guaranteed to work if we query without specifying a SID (eg. gmf)
     bool suppressSID;
 
@@ -85,11 +88,16 @@ public:
     void closeobject();
     int elements();
 
+    // procresult() handles pre-V3 or failure responses via cs json directly
     virtual void procresult();
+
+    // v3 commands that succeed have procresultV3 called instead, after the command completes
+    // and both the response and the actionpackets are received.
+    virtual void procresultV3();
 
     const char* getstring() const;
 
-    Command();
+    Command(bool isV3 = false);
     virtual ~Command() = default;
 
     MEGA_DEFAULT_COPY_MOVE(Command)
@@ -513,6 +521,7 @@ class MEGA_API CommandSetAttr : public Command
 
 public:
     void procresult();
+    void procresultV3();
 
     CommandSetAttr(MegaClient*, Node*, SymmCipher*, const char* = NULL);
 };

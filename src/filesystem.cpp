@@ -126,7 +126,7 @@ FileSystemType FileSystemAccess::getlocalfstype(const string *dstPath) const
 
     if (GetVolumeInformationA(dstPath->c_str(), volumeName, sizeof(volumeName),
                              &serialNumber, &maxComponentLen, &fileSystemFlags,
-                             fileSystemName, sizeof(fileSystemName)) == true)
+                             fileSystemName, sizeof(fileSystemName)))
     {
         if (!strcmp(fileSystemName, "NTFS"))
         {
@@ -163,6 +163,7 @@ bool FileSystemAccess::islocalfscompatible(unsigned char c, FileSystemType fileS
         case FS_EXFAT:
         case FS_NTFS:
         case FS_UNKNOWN:
+        default:
             // ExFAT, NTFS restricted characters => " * / : < > ? \ |
             // If filesystem couldn't be detected we'll use a restrictive charset to avoid issues.
             return !strchr("\\/:?\"<>|*", c);
