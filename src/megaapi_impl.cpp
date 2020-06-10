@@ -11929,8 +11929,7 @@ dstime MegaApiImpl::pread_failure(const Error &e, int retry, void* param, dstime
             transfer->setState(MegaTransfer::STATE_COMPLETED);
         }
         DBTableTransactionCommitter committer(client->tctable);
-        MegaErrorPrivate err = MegaErrorPrivate(e);
-        fireOnTransferFinish(transfer, err, committer);
+        fireOnTransferFinish(transfer, e, committer);
         return NEVER;
     }
 }
@@ -15536,8 +15535,7 @@ void MegaApiImpl::checkfile_result(handle h, const Error &e)
                 if (e == API_ETOOMANY && e.hasExtraInfo())
                 {
                     DBTableTransactionCommitter committer(client->tctable);
-                    MegaErrorPrivate err = MegaErrorPrivate(e);
-                    transfer->setLastError(err);
+                    transfer->setLastError(e);
                     transfer->setState(MegaTransfer::STATE_FAILED);
                     fireOnTransferFinish(transfer, MegaErrorPrivate(e), committer);
                 }
@@ -16461,8 +16459,7 @@ void MegaApiImpl::processTransferRemoved(Transfer *tr, MegaTransferPrivate *tran
     transfer->setState(e == API_EINCOMPLETE ? MegaTransfer::STATE_CANCELLED : MegaTransfer::STATE_FAILED);
     transfer->setPriority(tr->priority);
     DBTableTransactionCommitter committer(client->tctable);
-    MegaErrorPrivate err(e);
-    fireOnTransferFinish(transfer, err, committer);
+    fireOnTransferFinish(transfer, e, committer);
 }
 
 MegaError* MegaApiImpl::checkAccess(MegaNode* megaNode, int level)
