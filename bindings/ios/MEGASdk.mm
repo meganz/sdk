@@ -1501,7 +1501,7 @@ using namespace mega;
     return [[NSDate alloc] initWithTimeIntervalSince1970:self.megaApi->getOverquotaDeadlineTs()];
 }
 
-- (nonnull NSArray<NSDate *> *)overquotaWarningTimes {
+- (nonnull NSArray<NSDate *> *)overquotaWarningDateList {
     MegaIntegerList *warningTimeIntervalList = self.megaApi->getOverquotaWarningsTs();
 
     int sizeOfWarningTimestamps = warningTimeIntervalList->size();

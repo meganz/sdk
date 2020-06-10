@@ -5425,7 +5425,7 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  *
  * @return An array of `NSDate` with the timestamp corresponding to each warning
 */
--(nonnull NSArray<NSDate *> *)overquotaWarningTimes;
+-(nonnull NSArray<NSDate *> *)overquotaWarningDateList;
 
 #pragma mark - Transfers
 
