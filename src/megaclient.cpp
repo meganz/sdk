@@ -1063,6 +1063,7 @@ void MegaClient::init()
     pendingsc.reset();
     pendingscUserAlerts.reset();
     stopsc = false;
+    mScStoppedDueToBlock = false;
 
     btcs.reset();
     btsc.reset();
@@ -1080,6 +1081,7 @@ void MegaClient::init()
     notifyStorageChangeOnStateCurrent = false;
     mNotifiedSumSize = 0;
     mNodeCounters = NodeCounterMap();
+    mOptimizePurgeNodes = false;
 }
 
 MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, DbAccess* d, GfxProc* g, const char* k, const char* u, unsigned workerThreadCount)
@@ -2016,7 +2018,7 @@ void MegaClient::exec()
                     else if (e == API_EBLOCKED)
                     {
                         app->request_error(API_EBLOCKED);
-                        stopsc = true;
+                        block();
                     }
                     else
                     {
@@ -2089,6 +2091,21 @@ void MegaClient::exec()
             syncops = true;
         }
         syncactivity = false;
+
+        if (stopsc || scpaused || !statecurrent || !syncsup)
+        {
+            LOG_verbose << " Megaclient exec is pending resolutions."
+                        << " scpaused=" << scpaused
+                        << " stopsc=" << stopsc
+                        << " mScStoppedDueToBlock=" << mScStoppedDueToBlock
+                        << " jsonsc.pos=" << jsonsc.pos
+                        << " syncsup=" << syncsup
+                        << " statecurrent=" << statecurrent
+                        << " syncadding=" << syncadding
+                        << " syncactivity=" << syncactivity
+                        << " syncdownrequired=" << syncdownrequired
+                        << " syncdownretry=" << syncdownretry;
+        }
 
         // do not process the SC result until all preconfigured syncs are up and running
         // except if SC packets are required to complete a fetchnodes
@@ -2357,19 +2374,19 @@ void MegaClient::exec()
                     Sync* sync = *it++;
                     if (sync->isnetwork && (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN))
                     {
-                        while (sync->dirnotify->notifyq[DirNotify::EXTRA].size())
+                        Notification notification;
+                        while (sync->dirnotify->notifyq[DirNotify::EXTRA].popFront(notification))
                         {
                             dstime dsmin = Waiter::ds - Sync::EXTRA_SCANNING_DELAY_DS;
-                            Notification &notification = sync->dirnotify->notifyq[DirNotify::EXTRA].front();
                             if (notification.timestamp <= dsmin)
                             {
-                                LOG_debug << "Processing extra fs notification";
+                                LOG_debug << "Processing extra fs notification: " << notification.path;
                                 sync->dirnotify->notify(DirNotify::DIREVENTS, notification.localnode,
                                                         notification.path.data(), notification.path.size());
-                                sync->dirnotify->notifyq[DirNotify::EXTRA].pop_front();
                             }
                             else
                             {
+                                sync->dirnotify->notifyq[DirNotify::EXTRA].unpopFront(notification);
                                 dstime delay = (notification.timestamp - dsmin) + 1;
                                 if (delay < mindelay)
                                 {
@@ -2487,14 +2504,15 @@ void MegaClient::exec()
                         sync->cachenodes();
 
                         totalpending += sync->dirnotify->notifyq[q].size();
+                        Notification notification;
                         if (q == DirNotify::DIREVENTS)
                         {
                             scanningpending += sync->dirnotify->notifyq[q].size();
                         }
-                        else if (!syncfslockretry && sync->dirnotify->notifyq[DirNotify::RETRY].size())
+                        else if (!syncfslockretry && sync->dirnotify->notifyq[DirNotify::RETRY].peekFront(notification))
                         {
                             syncfslockretrybt.backoff(Sync::SCANNING_DELAY_DS);
-                            fsaccess->local2path(&sync->dirnotify->notifyq[DirNotify::RETRY].front().path, &blockedfile);
+                            fsaccess->local2path(&notification.path, &blockedfile);
                             syncfslockretry = true;
                         }
                     }
@@ -2674,22 +2692,25 @@ void MegaClient::exec()
                                         {
                                             sync->fullscan = false;
 
+                                            string failedReason;
+                                            auto failed = sync->dirnotify->getFailed(failedReason);
+
                                             if (syncscanbt.armed()
-                                                    && (sync->dirnotify->failed || fsaccess->notifyfailed
-                                                        || sync->dirnotify->error || fsaccess->notifyerr))
+                                                    && (failed || fsaccess->notifyfailed
+                                                        || sync->dirnotify->mErrorCount.load() || fsaccess->notifyerr))
                                             {
-                                                LOG_warn << "Sync scan failed " << sync->dirnotify->failed
+                                                LOG_warn << "Sync scan failed " << failed
                                                          << " " << fsaccess->notifyfailed
-                                                         << " " << sync->dirnotify->error
+                                                         << " " << sync->dirnotify->mErrorCount.load()
                                                          << " " << fsaccess->notifyerr;
-                                                if (sync->dirnotify->failed)
+                                                if (failed)
                                                 {
-                                                    LOG_warn << "The cause was: " << sync->dirnotify->failreason;
+                                                    LOG_warn << "The cause was: " << failedReason;
                                                 }
                                                 scanfailed = true;
 
                                                 sync->scan(&sync->localroot->localname, NULL);
-                                                sync->dirnotify->error = 0;
+                                                sync->dirnotify->mErrorCount = 0;
                                                 sync->fullscan = true;
                                                 sync->scanseqno++;
                                             }
@@ -2759,7 +2780,7 @@ void MegaClient::exec()
                                     // and force a full rescan afterwards as the local item may
                                     // be subject to changes that are notified with obsolete paths
                                     success = false;
-                                    (*it)->dirnotify->error = true;
+                                    (*it)->dirnotify->mErrorCount = true;
                                 }
 
                                 (*it)->cachenodes();
@@ -3739,10 +3760,12 @@ void MegaClient::checkfacompletion(handle th, Transfer* t)
 void MegaClient::freeq(direction_t d)
 {
     DBTableTransactionCommitter committer(tctable);
-    for (transfer_map::iterator it = transfers[d].begin(); it != transfers[d].end(); )
+    for (auto transferPtr : transfers[d])
     {
-        delete it++->second;
+        transferPtr.second->mOptimizedDelete = true;  // so it doesn't remove itself from this list while deleting
+        delete transferPtr.second;
     }
+    transfers[d].clear();
 }
 
 bool MegaClient::isFetchingNodesPendingCS()
@@ -3885,7 +3908,7 @@ void MegaClient::logout()
 
 void MegaClient::locallogout(bool removecaches)
 {
-    mAsyncQueue.clearQueue();
+    mAsyncQueue.clearDiscardable();
 
     if (removecaches)
     {
@@ -3935,6 +3958,7 @@ void MegaClient::locallogout(bool removecaches)
     delete pendingcs;
     pendingcs = NULL;
     stopsc = false;
+    mScStoppedDueToBlock = false;
 
     for (putfa_list::iterator it = queuedfa.begin(); it != queuedfa.end(); it++)
     {
@@ -3972,6 +3996,7 @@ void MegaClient::locallogout(bool removecaches)
     mBizMode = BIZ_MODE_UNKNOWN;
     mBizStatus = BIZ_STATUS_UNKNOWN;
     mBizMasters.clear();
+    mPublicLinks.clear();
     scpaused = false;
 
     for (fafc_map::iterator cit = fafcs.begin(); cit != fafcs.end(); cit++)
@@ -6062,6 +6087,7 @@ void MegaClient::sc_ph()
                 {
                     if (n->plink)
                     {
+                        mPublicLinks.erase(n->nodehandle);
                         delete n->plink;
                         n->plink = NULL;
                     }
@@ -10523,6 +10549,24 @@ void MegaClient::whyamiblocked()
     reqs.add(new CommandWhyAmIblocked(this));
 }
 
+void MegaClient::block()
+{
+    if (!stopsc)
+    {
+        stopsc = true; // stop consuming action packets
+        mScStoppedDueToBlock = true;
+    }
+}
+
+void MegaClient::unblock()
+{
+    if (stopsc && mScStoppedDueToBlock)
+    {
+        stopsc = false; // will resume querying for action packets
+    }
+    mScStoppedDueToBlock = false;
+}
+
 error MegaClient::changepw(const char* password, const char *pin)
 {
     User* u;
@@ -11813,12 +11857,15 @@ void MegaClient::purgenodesusersabortsc(bool keepOwnUser)
     syncs.clear();
 #endif
 
+    mOptimizePurgeNodes = true;
+    mFingerprints.clear();
+    mNodeCounters.clear();
     for (node_map::iterator it = nodes.begin(); it != nodes.end(); it++)
     {
         delete it->second;
     }
-
     nodes.clear();
+    mOptimizePurgeNodes = false;
 
 #ifdef ENABLE_SYNC
     todebris.clear();
@@ -12282,7 +12329,7 @@ void MegaClient::stopxfers(LocalNode* l, DBTableTransactionCommitter& committer)
 // of identical names to avoid flapping)
 // apply standard unescaping, if necessary (use *strings as ephemeral storage
 // space)
-void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, list<string>* strings) const
+void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, list<string>* strings, const string *localPath) const
 {
     Node** npp;
 
@@ -12293,7 +12340,7 @@ void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, list
         // perform one round of unescaping to ensure that the resulting local
         // filename matches
         fsaccess->path2local(name, &tmplocalname);
-        fsaccess->local2name(&tmplocalname);
+        fsaccess->local2name(&tmplocalname, localPath);
 
         strings->push_back(tmplocalname);
         name = &strings->back();
@@ -12352,12 +12399,12 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
         {
             size_t t = localpath->size();
             string localname = ait->second;
-            fsaccess->name2local(&localname);
+            fsaccess->name2local(&localname, localpath);
             localpath->append(fsaccess->localseparator);
             localpath->append(localname);
             if (app->sync_syncable(l->sync, ait->second.c_str(), localpath, *it))
             {
-                addchild(&nchildren, &ait->second, *it, &strings);
+                addchild(&nchildren, &ait->second, *it, &strings, &l->sync->localdebris);
             }
             else
             {
@@ -12527,7 +12574,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 
         localname = rit->second->attrs.map.find('n')->second;
 
-        fsaccess->name2local(&localname);
+        fsaccess->name2local(&localname, localpath);
         localpath->append(fsaccess->localseparator);
         localpath->append(localname);
 
@@ -12744,7 +12791,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                     continue;
                 }
 
-                addchild(&nchildren, &ait->second, *it, &strings);
+                addchild(&nchildren, &ait->second, *it, &strings, &l->sync->localdebris);
             }
         }
     }
@@ -12762,7 +12809,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
         }
 
         localname = *lit->first;
-        fsaccess->local2name(&localname);
+        fsaccess->local2name(&localname, &l->sync->localdebris);
         if (!localname.size() || !ll->name.size())
         {
             if (!ll->reported)
@@ -13447,7 +13494,11 @@ void MegaClient::proclocaltree(LocalNode* n, LocalTreeProc* tp)
 
 void MegaClient::unlinkifexists(LocalNode *l, FileAccess *fa, std::string *path)
 {
-    l->getlocalpath(path);
+    // sdisable = true for this call.  In the case where we are doing a full scan due to fs notifications failing,
+    // and a file was renamed but retains the same shortname, we would check the presence of the wrong file.
+    // Also shortnames are slowly being deprecated by Microsoft, so using full names is now the normal case anyway.
+    l->getlocalpath(path, true);
+
     if (fa->fopen(path) || fa->type == FOLDERNODE)
     {
         LOG_warn << "Deletion of existing file avoided";

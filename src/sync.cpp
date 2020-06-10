@@ -116,7 +116,7 @@ set<string> collectAllPathsInFolder(Sync& sync, MegaApp& app, FileSystemAccess& 
     while (da->dnext(&localpath, &localname, false))
     {
         auto name = localname;
-        fsaccess.local2name(&name);
+        fsaccess.local2name(&name, &localpath);
 
         if (localpathSize > 0)
         {
@@ -682,7 +682,7 @@ Sync::Sync(MegaClient* cclient, SyncConfig config, const char* cdebris,
         debris = cdebris;
         client->fsaccess->path2local(&debris, &localdebris);
 
-        dirnotify.reset(client->fsaccess->newdirnotify(&crootpath, &localdebris));
+        dirnotify.reset(client->fsaccess->newdirnotify(&crootpath, &localdebris, client->waiter));
 
         localdebris.insert(0, client->fsaccess->localseparator);
         localdebris.insert(0, crootpath);
@@ -692,7 +692,7 @@ Sync::Sync(MegaClient* cclient, SyncConfig config, const char* cdebris,
         localdebris = *clocaldebris;
 
         // FIXME: pass last segment of localdebris
-        dirnotify.reset(client->fsaccess->newdirnotify(&crootpath, &localdebris));
+        dirnotify.reset(client->fsaccess->newdirnotify(&crootpath, &localdebris, client->waiter));
     }
     dirnotify->sync = this;
 
@@ -852,10 +852,14 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, st
         l->init(this, l->type, p, path, std::move(shortname));
 
 #ifdef DEBUG
-        auto sn = client->fsaccess->fsShortname(*path);
-        assert(!l->localname.empty() && 
+        auto fa = client->fsaccess->newfileaccess(false);
+        if (fa->fopen(path))  // exists, is file
+        {
+            auto sn = client->fsaccess->fsShortname(*path);
+            assert(!l->localname.empty() && 
                 (!l->slocalname && (!sn || l->localname == *sn) ||
                 (l->slocalname && sn && !l->slocalname->empty() && *l->slocalname != l->localname && *l->slocalname == *sn)));
+        }
 #endif
 
         l->parent_dbid = parent_dbid;
@@ -1165,7 +1169,7 @@ bool Sync::scan(string* localpath, FileAccess* fa)
             while (da->dnext(localpath, &localname, client->followsymlinks))
             {
                 name = localname;
-                client->fsaccess->local2name(&name);
+                client->fsaccess->local2name(&name, localpath);
 
                 if (t)
                 {
@@ -1290,7 +1294,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
         }
 
         string name = newname.size() ? newname : l->name;
-        client->fsaccess->local2name(&name);
+        client->fsaccess->local2name(&name, localpath);
 
         if (!client->app->sync_syncable(this, name.c_str(), &tmppath))
         {
@@ -1301,7 +1305,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
         isroot = l == localroot.get() && !newname.size();
     }
 
-    LOG_verbose << "Scanning: " << path;
+    LOG_verbose << "Scanning: " << path << " in=" << initializing << " full=" << fullscan << " l=" << l;
 
     // postpone moving nodes into nonexistent parents
     if (parent && !parent->node)
@@ -1830,33 +1834,101 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
     return l;
 }
 
+bool Sync::checkValidNotification(int q, Notification& notification)
+{
+    // This code moved from filtering before going on notifyq, to filtering after when it's thread-safe to do so 
+
+    if (q == DirNotify::DIREVENTS || q == DirNotify::EXTRA)
+    {
+        Notification next;
+        while (dirnotify->notifyq[q].peekFront(next)
+            && next.localnode == notification.localnode && next.path == notification.path)
+        {
+            dirnotify->notifyq[q].popFront(next);  // this is the only thread removing from the queue so it will be the same item
+            if (!notification.timestamp || !next.timestamp)
+            {
+                notification.timestamp = 0;  // immediate
+            }
+            else
+            {
+                notification.timestamp = std::max(notification.timestamp, next.timestamp);
+            }
+            LOG_debug << "Next notification repeats, skipping duplicate";
+        }
+    }
+
+    if (notification.timestamp && !initializing && q == DirNotify::DIREVENTS)
+    {
+        string tmppath;
+        if (notification.localnode)
+        {
+            notification.localnode->getlocalpath(&tmppath);
+        }
+
+        if (!notification.path.empty())
+        {
+            if (tmppath.size())
+            {
+                tmppath.append(client->fsaccess->localseparator);
+            }
+
+            tmppath.append(notification.path);
+        }
+        attr_map::iterator ait;
+        auto fa = client->fsaccess->newfileaccess(false);
+        bool success = fa->fopen(&tmppath, false, false);
+        LocalNode *ll = localnodebypath(notification.localnode, &notification.path);
+        if ((!ll && !success && !fa->retry) // deleted file
+            || (ll && success && ll->node && ll->node->localnode == ll
+                && (ll->type != FILENODE || (*(FileFingerprint *)ll) == (*(FileFingerprint *)ll->node))
+                && (ait = ll->node->attrs.map.find('n')) != ll->node->attrs.map.end()
+                && ait->second == ll->name
+                && fa->fsidvalid && fa->fsid == ll->fsid && fa->type == ll->type
+                && (ll->type != FILENODE || (ll->mtime == fa->mtime && ll->size == fa->size))))
+        {
+            LOG_debug << "Self filesystem notification skipped";
+            return false;
+        }
+    }
+    return true;
+}
+
 // add or refresh local filesystem item from scan stack, add items to scan stack
 // returns 0 if a parent node is missing, ~0 if control should be yielded, or the time
 // until a retry should be made (500 ms minimum latency).
 dstime Sync::procscanq(int q)
 {
-    size_t t = dirnotify->notifyq[q].size();
     dstime dsmin = Waiter::ds - SCANNING_DELAY_DS;
     LocalNode* l;
 
-    while (t--)
+    Notification notification;
+    while (dirnotify->notifyq[q].popFront(notification))
     {
-        LOG_verbose << "Scanning... Remaining files: " << t;
-
-        if (dirnotify->notifyq[q].front().timestamp > dsmin)
+        if (!checkValidNotification(q, notification))
         {
-            LOG_verbose << "Scanning postponed. Modification too recent";
-            return dirnotify->notifyq[q].front().timestamp - dsmin;
+            continue;
         }
 
-        if ((l = dirnotify->notifyq[q].front().localnode) != (LocalNode*)~0)
+        LOG_verbose << "Scanning... Remaining files: " << dirnotify->notifyq[q].size();
+
+        if (notification.timestamp > dsmin)
+        {
+            LOG_verbose << "Scanning postponed. Modification too recent";
+            dirnotify->notifyq[q].unpopFront(notification);
+            return notification.timestamp - dsmin;
+        }
+
+        if ((l = notification.localnode) != (LocalNode*)~0)
         {
             dstime backoffds = 0;
-            l = checkpath(l, &dirnotify->notifyq[q].front().path, NULL, &backoffds, false, nullptr);
+            LOG_verbose << "Checkpath: " << notification.path ;
+
+            l = checkpath(l, &notification.path, NULL, &backoffds, false, nullptr);
             if (backoffds)
             {
                 LOG_verbose << "Scanning deferred during " << backoffds << " ds";
-                dirnotify->notifyq[q].front().timestamp = Waiter::ds + backoffds - SCANNING_DELAY_DS;
+                notification.timestamp = Waiter::ds + backoffds - SCANNING_DELAY_DS;
+                dirnotify->notifyq[q].unpopFront(notification);
                 return backoffds;
             }
             updatedfilesize = ~0;
@@ -1867,17 +1939,16 @@ dstime Sync::procscanq(int q)
             if (l == (LocalNode*)~0)
             {
                 LOG_verbose << "Scanning deferred";
+                dirnotify->notifyq[q].unpopFront(notification);
                 return 0;
             }
         }
         else
         {
             string utf8path;
-            client->fsaccess->local2path(&dirnotify->notifyq[q].front().path, &utf8path);
+            client->fsaccess->local2path(&notification.path, &utf8path);
             LOG_debug << "Notification skipped: " << utf8path;
         }
-
-        dirnotify->notifyq[q].pop_front();
 
         // we return control to the application in case a filenode was added
         // (in order to avoid lengthy blocking episodes due to multiple
@@ -1889,14 +1960,14 @@ dstime Sync::procscanq(int q)
         }
     }
 
-    if (dirnotify->notifyq[q].size())
+    if (dirnotify->notifyq[q].empty())
     {
         if (q == DirNotify::DIREVENTS)
         {
             client->syncactivity = true;
         }
     }
-    else if (!dirnotify->notifyq[!q].size())
+    else if (dirnotify->notifyq[!q].empty())
     {
         cachenodes();
     }

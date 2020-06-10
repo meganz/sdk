@@ -1,6 +1,7 @@
 bzip2/1.0.6-4
 c-ares/2019-5-2-1
 cryptopp/8.2.0
+cryptopp-staticcrt/8.2.0
 curl/7.68.0
 ffmpeg/4.2-3
 gtest/2019-10-09

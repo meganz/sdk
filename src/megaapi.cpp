@@ -2640,6 +2640,11 @@ void MegaApi::setCameraUploadsFolderSecondary(MegaHandle nodehandle, MegaRequest
     pImpl->setCameraUploadsFolder(nodehandle, true, listener);
 }
 
+void MegaApi::setCameraUploadsFolders(MegaHandle primaryFolder, MegaHandle secondaryFolder, MegaRequestListener *listener)
+{
+    pImpl->setCameraUploadsFolders(primaryFolder, secondaryFolder, listener);
+}
+
 void MegaApi::getCameraUploadsFolder(MegaRequestListener *listener)
 {
     pImpl->getCameraUploadsFolder(false, listener);
@@ -3665,6 +3670,21 @@ MegaNodeList *MegaApi::search(const char *searchString, MegaCancelToken *cancelT
     return pImpl->search(searchString, cancelToken, order);
 }
 
+MegaNodeList* MegaApi::searchOnInShares(const char *searchString, MegaCancelToken *cancelToken, int order)
+{
+    return pImpl->searchInAllShares(searchString, cancelToken, order, MegaApiImpl::TARGET_INSHARE);
+}
+
+MegaNodeList* MegaApi::searchOnOutShares(const char *searchString, MegaCancelToken *cancelToken, int order)
+{
+    return pImpl->searchInAllShares(searchString, cancelToken, order, MegaApiImpl::TARGET_OUTSHARE);
+}
+
+MegaNodeList* MegaApi::searchOnPublicLinks(const char *searchString, MegaCancelToken *cancelToken, int order)
+{
+    return pImpl->searchInAllShares(searchString, cancelToken, order, MegaApiImpl::TARGET_PUBLICLINK);
+}
+
 long long MegaApi::getSize(MegaNode *n)
 {
     return pImpl->getSize(n);
@@ -3885,11 +3905,6 @@ MegaChildrenLists *MegaApi::getFileFolderChildren(MegaNode *p, int order)
 bool MegaApi::hasChildren(MegaNode *parent)
 {
     return pImpl->hasChildren(parent);
-}
-
-int MegaApi::getIndex(MegaNode *node, int order)
-{
-    return pImpl->getIndex(node, order);
 }
 
 MegaNode *MegaApi::getChildNode(MegaNode *parent, const char* name)
@@ -5039,12 +5054,22 @@ void MegaApi::utf8ToUtf16(const char* utf8data, string* utf16string)
 
 char *MegaApi::escapeFsIncompatible(const char *filename)
 {
-    return pImpl->escapeFsIncompatible(filename);
+    return pImpl->escapeFsIncompatible(filename, NULL);
+}
+
+char *MegaApi::escapeFsIncompatible(const char *filename, const char *dstPath)
+{
+    return pImpl->escapeFsIncompatible(filename, dstPath);
 }
 
 char *MegaApi::unescapeFsIncompatible(const char *name)
 {
-    return pImpl->unescapeFsIncompatible(name);
+    return pImpl->unescapeFsIncompatible(name, NULL);
+}
+
+char *MegaApi::unescapeFsIncompatible(const char *name, const char *localPath)
+{
+    return pImpl->unescapeFsIncompatible(name, localPath);
 }
 
 bool MegaApi::createThumbnail(const char *imagePath, const char *dstPath)

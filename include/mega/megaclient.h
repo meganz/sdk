@@ -320,6 +320,12 @@ public:
     // check the reason of being blocked
     void whyamiblocked();
 
+    // stops querying for action packets due to the account being blocked (-16 on sc channel)
+    void block();
+
+    // resumes querying for action packets when the account is unblocked (if it was previously stopped due to being blocked)
+    void unblock();
+
     // dump current session
     int dumpsession(byte*, size_t);
 
@@ -806,6 +812,8 @@ private:
     std::unique_ptr<HttpReq> pendingscUserAlerts;
     BackoffTimer btsc;
     bool stopsc = false;
+    bool mScStoppedDueToBlock = false;
+
     bool pendingscTimedOut = false;
 
 
@@ -912,7 +920,7 @@ private:
     unsigned addnode(node_vector*, Node*) const;
 
     // add child for consideration in syncup()/syncdown()
-    void addchild(remotenode_map*, string*, Node*, list<string>*) const;
+    void addchild(remotenode_map*, string*, Node*, list<string>*, const string *localPath) const;
 
     // crypto request response
     void cr_response(node_vector*, node_vector*, JSON*);
@@ -1112,6 +1120,9 @@ public:
     // FileFingerprint to node mapping
     Fingerprints mFingerprints;
 
+    // flag to skip removing nodes from mFingerprints when all nodes get deleted
+    bool mOptimizePurgeNodes = false;
+
     // send updates to app when the storage size changes
     int64_t mNotifiedSumSize = 0;
 
@@ -1199,6 +1210,9 @@ public:
 
     // generate & return upload handle
     handle getuploadhandle();
+
+    // maps node handle to public handle
+    std::map<handle, handle> mPublicLinks;
 
 #ifdef ENABLE_SYNC    
     // sync debris folder name in //bin

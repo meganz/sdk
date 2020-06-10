@@ -1,5 +1,6 @@
 zlib
 cryptopp
+cryptopp-staticcrt
 libsodium
 sqlite3
 openssl
@@ -67,6 +68,9 @@ libwebsockets
 # - If using the latest Pdfium, use at least VS2017 and skip the branch checkout above, and substitute the pdfium-masterbranch-CMakeLists.txt in vcpkg/ports/pdfium and make this one small patch (other changes may be needed if the master branch has changed):
 #      in pdfium\core\fxcrt\fx_memory_wrappers.h(26)   comment out the static_assert (uint8_t counts as an arithmentic type)
 
-
 pdfium
 pdfium-freetype
+
+# If building for use with MEGAChat messaging then libwebsocket is needed (but voice/video calling needs WebRTC which changes the dependencies a lot, openssl in particular)
+libwebsockets
+

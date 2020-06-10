@@ -5177,6 +5177,26 @@ public class MegaApiJava {
     }
 
     /**
+     * Set Camera Uploads for both primary and secondary target folder.
+     *
+     * If only one of the target folders wants to be set, simply pass a INVALID_HANDLE to
+     * as the other target folder and it will remain untouched.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
+     * - MegaRequest::getNodehandle - Returns the provided node handle for primary folder
+     * - MegaRequest::getParentHandle - Returns the provided node handle for secondary folder
+     *
+     * @param primaryFolder MegaHandle of the node to be used as primary target folder
+     * @param secondaryFolder MegaHandle of the node to be used as secondary target folder
+     * @param listener MegaRequestListener to track this request
+     */
+    public void setCameraUploadsFolders(long primaryFolder, long secondaryFolder, MegaRequestListenerInterface listener) {
+        megaApi.setCameraUploadsFolders(primaryFolder, secondaryFolder, createDelegateRequestListener(listener));
+    }
+
+    /**
      * Gets Camera Uploads primary target folder.
      *
      * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
@@ -6972,37 +6992,6 @@ public class MegaApiJava {
      */
     public boolean hasChildren(MegaNode parent){
         return megaApi.hasChildren(parent);
-    }
-
-    /**
-     * Get the current index of the node in the parent folder for a specific sorting order.
-     * <p>
-     * If the node does not exist or it does not have a parent node (because it's a root node)
-     * this function returns -1.
-     * 
-     * @param node
-     *            Node to check.
-     * @param order
-     *            Sorting order to use.
-     * @return Index of the node in its parent folder.
-     */
-    public int getIndex(MegaNode node, int order) {
-        return megaApi.getIndex(node, order);
-    }
-
-    /**
-     * Get the current index of the node in the parent folder.
-     * <p>
-     * If the node does not exist or it does not have a parent node (because it's a root node)
-     * this function returns -1.
-     * 
-     * @param node
-     *            Node to check.
-     * 
-     * @return Index of the node in its parent folder.
-     */
-    public int getIndex(MegaNode node) {
-        return megaApi.getIndex(node);
     }
 
     /**

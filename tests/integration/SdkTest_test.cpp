@@ -188,6 +188,22 @@ namespace
         return true;
     }
 
+    bool createLocalFile(fs::path path, const char *name)
+    {
+        if (!name)
+        {
+           return false;
+        }
+
+        fs::path fp = path / fs::u8path(name);
+#if (__cplusplus >= 201700L)
+        ofstream fs(fp/*, ios::binary*/);
+#else
+        ofstream fs(fp.u8string()/*, ios::binary*/);
+#endif
+        fs << name;
+        return true;
+    }
 }
 
 
@@ -474,6 +490,7 @@ void SdkTest::onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* 
     // there could be a race on these getting set?
     LOG_info << "lastError (by transfer) for MegaApi " << apiIndex << ": " << mApi[apiIndex].lastError;
 
+    onTranferFinishedCount += 1;
 
     if (mApi[apiIndex].lastError == MegaError::API_OK)
         mApi[apiIndex].h = transfer->getNodeHandle();
@@ -3495,7 +3512,11 @@ static void incrementFilename(string& s)
 struct second_timer 
 {
     m_time_t t;
+    m_time_t pause_t;
     second_timer() { t = m_time(); }
+    void reset () { t = m_time(); }
+    void pause() { pause_t = m_time(); }
+    void resume() { t += m_time() - pause_t; }
     size_t elapsed() { return size_t(m_time() - t); }
 };
 
@@ -3655,7 +3676,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
     // smaller chunk sizes so we can get plenty of pauses
     #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
     globalMegaTestHooks.onSetIsRaid = ::mega::DebugTestHook::onSetIsRaid_morechunks;
-#endif
+    #endif
 
     // plain cloudraid download
     {
@@ -3693,7 +3714,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
     // cloudraid download with periodic full exit and resume from session ID
     // plain cloudraid download
     {
-        megaApi[0]->setMaxDownloadSpeed(32 * 1024 * 1024 * 8 / 120 / 2); // should take 1 minute (enough time for 3 exit/resume)
+        megaApi[0]->setMaxDownloadSpeed(32 * 1024 * 1024 * 8 / 30); // should take 30 seconds, not counting exit/resume session
         mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
         megaApi[0]->startDownload(nimported, filename.c_str());
 
@@ -3704,7 +3725,9 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
         m_off_t lastprogress = 0;
         unsigned exitresumecount = 0;
         second_timer t;
-        while (t.elapsed() < 120 && (onTransferUpdate_filesize == 0 || onTransferUpdate_progress < onTransferUpdate_filesize))
+        auto initialOnTranferFinishedCount = onTranferFinishedCount;
+        auto lastOnTranferFinishedCount = onTranferFinishedCount;
+        while (t.elapsed() < 180 && onTranferFinishedCount < initialOnTranferFinishedCount + 2)
         {
             if (onTransferUpdate_progress > lastprogress + onTransferUpdate_filesize/6)
             {
@@ -3716,16 +3739,31 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
                 mApi[0].megaApi = megaApi[0].get();
                 megaApi[0]->setLogLevel(MegaApi::LOG_LEVEL_DEBUG);
                 megaApi[0]->addListener(this);
-                megaApi[0]->setMaxDownloadSpeed(32 * 1024 * 1024 * 8 / 120 / 2); // should take 1 minute (enough time for 3 exit/resume)
+                megaApi[0]->setMaxDownloadSpeed(32 * 1024 * 1024 * 8 / 30); // should take 30 seconds, not counting exit/resume session
 
+                t.pause();
                 ASSERT_NO_FATAL_FAILURE(resumeSession(sessionId.c_str()));
                 ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+                t.resume();
+
                 lastprogress = onTransferUpdate_progress;
             }
-            WaitMillisec(100);
+            else if (onTranferFinishedCount > lastOnTranferFinishedCount)
+            {
+                t.reset();
+                lastOnTranferFinishedCount = onTranferFinishedCount;
+                deleteFile(filename.c_str());
+                onTransferUpdate_progress = 0;
+                onTransferUpdate_filesize = 0;
+                lastprogress = 0;
+                mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
+                megaApi[0]->startDownload(nimported, filename.c_str());
+            }
+            WaitMillisec(1);
         }
         ASSERT_EQ(onTransferUpdate_progress, onTransferUpdate_filesize);
-        ASSERT_GE(exitresumecount, 3u);
+        ASSERT_EQ(initialOnTranferFinishedCount + 2, onTranferFinishedCount);
+        ASSERT_GE(exitresumecount, 6u);
         ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], 1)) << "Download cloudraid transfer with pauses failed";
         ASSERT_EQ(MegaError::API_OK, mApi[0].lastError) << "Cannot download the cloudraid file (error: " << mApi[0].lastError << ")";
     }
@@ -4358,6 +4396,182 @@ TEST_F(SdkTest, SdkGetRegisteredContacts)
     ASSERT_EQ(js2, std::get<2>(table[1])); // ud
 }
 
+TEST_F(SdkTest, invalidFileNames)
+{
+    LOG_info << "___TEST invalidFileNames___";
+
+#if defined (__linux__) || defined (__ANDROID__)
+    std::string aux = fs::current_path().string();
+    if (fileSystemAccess.getlocalfstype(&aux) == FS_EXT)
+    {
+        // Escape set of characters and check if it's the expected one
+        const char *name = megaApi[0]->escapeFsIncompatible("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~", fs::current_path().c_str());
+        ASSERT_TRUE (!strcmp(name, "!\"#$%&'()*+,-.%2f:;<=>?@[\\]^_`{|}~"));
+        delete [] name;
+
+        // Unescape set of characters and check if it's the expected one
+        name = megaApi[0]->unescapeFsIncompatible("%21%22%23%24%25%26%27%28%29%2a%2b%2c%2d"
+                                                            "%2e%2f%30%31%32%33%34%35%36%37"
+                                                            "%38%39%3a%3b%3c%3d%3e%3f%40%5b"
+                                                            "%5c%5d%5e%5f%60%7b%7c%7d%7e",
+                                                            fs::current_path().c_str());
+
+        ASSERT_TRUE(!strcmp(name, "%21%22%23%24%25%26%27%28%29%2a%2b%2c%2d%2e"
+                                  "/%30%31%32%33%34%35%36%37%38%39%3a%3b%3c%3d%3e"
+                                  "%3f%40%5b%5c%5d%5e%5f%60%7b%7c%7d%7e"));
+        delete [] name;
+    }
+#elif defined  (__APPLE__) || defined (USE_IOS)
+    std::string aux = fs::current_path().string();
+    if (fileSystemAccess.getlocalfstype(&aux) == FS_APFS
+            || fileSystemAccess.getlocalfstype(&aux) == FS_HFS)
+    {
+        // Escape set of characters and check if it's the expected one
+        const char *name = megaApi[0]->escapeFsIncompatible("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~", fs::current_path().c_str());
+        ASSERT_TRUE (!strcmp(name, "!\"#$%&'()*+,-./%3a;<=>?@[\\]^_`{|}~"));
+        delete [] name;
+
+        // Unescape set of characters and check if it's the expected one
+        name = megaApi[0]->unescapeFsIncompatible("%21%22%23%24%25%26%27%28%29%2a%2b%2c%2d"
+                                                            "%2e%2f%30%31%32%33%34%35%36%37"
+                                                            "%38%39%3a%3b%3c%3d%3e%3f%40%5b"
+                                                            "%5c%5d%5e%5f%60%7b%7c%7d%7e",
+                                                            fs::current_path().c_str());
+
+        ASSERT_TRUE(!strcmp(name, "%21%22%23%24%25%26%27%28%29%2a%2b%2c%2d%2e"
+                                  "%2f%30%31%32%33%34%35%36%37%38%39:%3b%3c%3d%3e"
+                                  "%3f%40%5b%5c%5d%5e%5f%60%7b%7c%7d%7e"));
+        delete [] name;
+    }
+#elif defined(_WIN32) || defined(_WIN64) || defined(WINDOWS_PHONE)
+    std::string aux = fs::current_path().string();
+    if (fileSystemAccess.getlocalfstype(&aux) == FS_NTFS)
+    {
+        // Escape set of characters and check if it's the expected one
+        const char *name = megaApi[0]->escapeFsIncompatible("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~", fs::current_path().u8string().c_str());
+        ASSERT_TRUE (!strcmp(name, "!%22#$%&'()%2a+,-.%2f%3a;%3c=%3e%3f@[%5c]^_`{%7c}~"));
+        delete [] name;
+
+        // Unescape set of characters and check if it's the expected one
+        name = megaApi[0]->unescapeFsIncompatible("%21%22%23%24%25%26%27%28%29%2a%2b%2c%2d"
+                                                            "%2e%2f%30%31%32%33%34%35%36%37"
+                                                            "%38%39%3a%3b%3c%3d%3e%3f%40%5b"
+                                                            "%5c%5d%5e%5f%60%7b%7c%7d%7e",
+                                                            fs::current_path().u8string().c_str());
+
+        ASSERT_TRUE(!strcmp(name, "%21\"%23%24%25%26%27%28%29*%2b%2c%2d"
+                                  "%2e/%30%31%32%33%34%35%36%37"
+                                  "%38%39:%3b<%3d>?%40%5b"
+                                  "\\%5d%5e%5f%60%7b|%7d%7e"));
+
+        delete [] name;
+    }
+#endif
+
+    // Maps filename unescaped (original) to filename escaped (expected result): f%2ff => f/f
+    std::unique_ptr<MegaStringMap> fileNamesStringMap = std::unique_ptr<MegaStringMap>{MegaStringMap::createInstance()};
+    fs::path uploadPath = fs::current_path() / "upload_invalid_filenames";
+    if (fs::exists(uploadPath))
+    {
+        fs::remove_all(uploadPath);
+    }
+    fs::create_directories(uploadPath);
+
+    for (int i = 0x01; i <= 0xA0; i++)
+    {
+        // skip [0-9] [A-Z] [a-z]
+        if ((i >= 0x30 && i <= 0x39)
+                || (i >= 0x41 && i <= 0x5A)
+                || (i >= 0x61 && i <= 0x7A))
+        {
+            continue;
+        }
+
+        // Create file with unescaped character ex: f%5cf
+        char unescapedName[6];
+        sprintf(unescapedName, "f%%%02xf", i);
+        if (createLocalFile(uploadPath, unescapedName))
+        {
+            const char *unescapedFileName = megaApi[0]->unescapeFsIncompatible(unescapedName, uploadPath.u8string().c_str());
+            fileNamesStringMap->set(unescapedName, unescapedFileName);
+            delete [] unescapedFileName;
+        }
+
+        // Create another file with the original character if supported f\f
+        if ((i >= 0x01 && i <= 0x20)
+                || (i >= 0x7F && i <= 0xA0))
+        {
+            // Skip control characters
+            continue;
+        }
+
+        char escapedName[4];
+        sprintf(escapedName, "f%cf", i);
+        const char *escapedFileName = megaApi[0]->escapeFsIncompatible(escapedName, uploadPath.u8string().c_str());
+        if (escapedFileName && !strcmp(escapedName, escapedFileName))
+        {
+            // Only create those files with supported characters, those ones that need unescaping
+            // has been created above
+            if (createLocalFile(uploadPath, escapedName))
+            {
+                const char * unescapedFileName = megaApi[0]->unescapeFsIncompatible(escapedName, uploadPath.u8string().c_str());
+                fileNamesStringMap->set(escapedName, unescapedFileName);
+                delete [] unescapedFileName;
+            }
+        }
+        delete [] escapedFileName;
+    }
+
+    TransferTracker uploadListener(megaApi[0].get());
+    megaApi[0]->startUpload(uploadPath.u8string().c_str(), std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get(), &uploadListener);
+    ASSERT_EQ(API_OK, uploadListener.waitForResult());
+
+    ::mega::unique_ptr <MegaNode> n(megaApi[0]->getNodeByPath("/upload_invalid_filenames"));
+    ASSERT_TRUE(n.get());
+    ::mega::unique_ptr <MegaNode> authNode(megaApi[0]->authorizeNode(n.get()));
+    ASSERT_TRUE(authNode.get());
+    MegaNodeList *children(authNode->getChildren());
+    ASSERT_TRUE(children && children->size());
+
+    for (int i = 0; i < children->size(); i++)
+    {
+        MegaNode *child = children->get(i);
+        const char *uploadedName = child->getName();
+        const char *uploadedNameEscaped = megaApi[0]->escapeFsIncompatible(child->getName(), uploadPath.u8string().c_str());
+        const char *expectedName = fileNamesStringMap->get(uploadedNameEscaped);
+        delete [] uploadedNameEscaped;
+
+        // Conditions to check if uploaded fileName is correct:
+        // 1) Escaped uploaded filename must be found in fileNamesStringMap (original filename found)
+        // 2) Uploaded filename must be equal than the expected value (original filename unescaped)
+        ASSERT_TRUE (uploadedName && expectedName && !strcmp(uploadedName, expectedName));
+    }
+
+    // Download files
+    fs::path downloadPath = fs::current_path() / "download_invalid_filenames";
+    if (fs::exists(downloadPath))
+    {
+        fs::remove_all(downloadPath);
+    }
+    fs::create_directories(downloadPath);
+    TransferTracker downloadListener(megaApi[0].get());
+    megaApi[0]->startDownload(authNode.get(), downloadPath.u8string().c_str(), &downloadListener);
+    ASSERT_EQ(API_OK, downloadListener.waitForResult());
+
+    for (fs::directory_iterator itpath (downloadPath); itpath != fs::directory_iterator(); ++itpath)
+    {
+        std::string downloadedName = itpath->path().filename().u8string();
+        if (!downloadedName.compare(".") || !downloadedName.compare(".."))
+        {
+            continue;
+        }
+
+        // Conditions to check if downloaded fileName is correct:
+        // download filename must be found in fileNamesStringMap (original filename found)
+        ASSERT_TRUE(fileNamesStringMap->get(downloadedName.c_str()));
+    }
+}
+
 TEST_F(SdkTest, RecursiveUploadWithLogout)
 {
     LOG_info << "___TEST RecursiveUploadWithLogout___";
@@ -4374,7 +4588,7 @@ TEST_F(SdkTest, RecursiveUploadWithLogout)
     ASSERT_TRUE(buildLocalFolders(p.u8string().c_str(), "newkid", 3, 2, 10));
 
     // start uploading
-    TransferTracker uploadListener;
+    TransferTracker uploadListener(megaApi[0].get());
     megaApi[0]->startUpload(p.u8string().c_str(), std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get(), &uploadListener);
     WaitMillisec(500);
 
@@ -4405,11 +4619,12 @@ TEST_F(SdkTest, DISABLED_RecursiveDownloadWithLogout)
     ASSERT_TRUE(buildLocalFolders(uploadpath.u8string().c_str(), "newkid", 3, 2, 10));
 
     // upload all of those
-    TransferTracker uploadListener, downloadListener;
+    TransferTracker uploadListener(megaApi[0].get());
     megaApi[0]->startUpload(uploadpath.u8string().c_str(), std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get(), &uploadListener);
     ASSERT_EQ(API_OK, uploadListener.waitForResult());
 
     // ok now try the download
+    TransferTracker downloadListener(megaApi[0].get());
     megaApi[0]->startDownload(megaApi[0]->getNodeByPath("/uploadme_mega_auto_test_sdk"), downloadpath.u8string().c_str(), &downloadListener);
     WaitMillisec(1000);
     ASSERT_TRUE(downloadListener.started);
@@ -4454,7 +4669,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
         std::unique_ptr<MegaNode> baseNode{megaApi[0]->getNodeByPath(("/" + basePath.u8string()).c_str())};
         if (baseNode)
         {
-            RequestTracker removeTracker;
+            RequestTracker removeTracker(megaApi[0].get());
             megaApi[0]->remove(baseNode.get(), &removeTracker);
             ASSERT_EQ(API_OK, removeTracker.waitForResult());
         }
@@ -4474,7 +4689,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     }
 
     // transfer the folder and its subfolders
-    TransferTracker uploadListener;
+    TransferTracker uploadListener(megaApi[0].get());
     megaApi[0]->startUpload(basePath.u8string().c_str(), megaApi[0]->getRootNode(), &uploadListener);
     ASSERT_EQ(API_OK, uploadListener.waitForResult());
 
@@ -4507,7 +4722,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
 
     auto syncFolder = [this, &megaNode](const fs::path& p)
     {
-        RequestTracker syncTracker;
+        RequestTracker syncTracker(megaApi[0].get());
         auto node = megaNode(p.filename().u8string());
         megaApi[0]->syncFolder(p.u8string().c_str(), node.get(), &syncTracker);
         ASSERT_EQ(API_OK, syncTracker.waitForResult());
@@ -4515,7 +4730,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
 
     auto disableSync = [this, &megaNode](const fs::path& p)
     {
-        RequestTracker syncTracker;
+        RequestTracker syncTracker(megaApi[0].get());
         auto node = megaNode(p.filename().u8string());
         megaApi[0]->disableSync(node.get(), &syncTracker);
         ASSERT_EQ(API_OK, syncTracker.waitForResult());
@@ -4523,7 +4738,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
 
     auto resumeSync = [this, &megaNode](const fs::path& p, const long long localfp)
     {
-        RequestTracker syncTracker;
+        RequestTracker syncTracker(megaApi[0].get());
         auto node = megaNode(p.filename().u8string());
         megaApi[0]->resumeSync(p.u8string().c_str(), node.get(), localfp, &syncTracker);
         ASSERT_EQ(API_OK, syncTracker.waitForResult());
@@ -4531,7 +4746,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
 
     auto removeSync = [this, &megaNode](const fs::path& p)
     {
-        RequestTracker syncTracker;
+        RequestTracker syncTracker(megaApi[0].get());
         auto node = megaNode(p.filename().u8string());
         megaApi[0]->removeSync(node.get(), &syncTracker);
         ASSERT_EQ(API_OK, syncTracker.waitForResult());
