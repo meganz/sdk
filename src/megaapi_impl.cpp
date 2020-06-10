@@ -15775,9 +15775,9 @@ void MegaApiImpl::fireOnRequestStart(MegaRequestPrivate *request)
 
 void MegaApiImpl::fireOnRequestFinish(MegaRequestPrivate *request, const MegaErrorPrivate& e)
 {
-    MegaError *megaError = new MegaErrorPrivate(e);
+    std::unique_ptr<MegaErrorPrivate>megaError(new MegaErrorPrivate(e));
     activeRequest = request;
-    activeError = megaError;
+    activeError = megaError.get();
 
     if(e.getErrorCode())
     {
@@ -15790,18 +15790,18 @@ void MegaApiImpl::fireOnRequestFinish(MegaRequestPrivate *request, const MegaErr
 
     for(set<MegaRequestListener *>::iterator it = requestListeners.begin(); it != requestListeners.end() ;)
     {
-        (*it++)->onRequestFinish(api, request, megaError);
+        (*it++)->onRequestFinish(api, request, megaError.get());
     }
 
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
-        (*it++)->onRequestFinish(api, request, megaError);
+        (*it++)->onRequestFinish(api, request, megaError.get());
     }
 
     MegaRequestListener* listener = request->getListener();
     if(listener)
     {
-        listener->onRequestFinish(api, request, megaError);
+        listener->onRequestFinish(api, request, megaError.get());
     }
 
     requestMap.erase(request->getTag());
@@ -15809,7 +15809,6 @@ void MegaApiImpl::fireOnRequestFinish(MegaRequestPrivate *request, const MegaErr
     activeRequest = NULL;
     activeError = NULL;
     delete request;
-    delete megaError;
 }
 
 void MegaApiImpl::fireOnRequestUpdate(MegaRequestPrivate *request)
@@ -15837,31 +15836,30 @@ void MegaApiImpl::fireOnRequestUpdate(MegaRequestPrivate *request)
 
 void MegaApiImpl::fireOnRequestTemporaryError(MegaRequestPrivate *request, const MegaErrorPrivate& e)
 {
-    MegaError *megaError = new MegaErrorPrivate(e);
+    std::unique_ptr<MegaErrorPrivate> megaError(new MegaErrorPrivate(e));
     activeRequest = request;
-    activeError = megaError;
+    activeError = megaError.get();
 
     request->setNumRetry(request->getNumRetry() + 1);
 
     for(set<MegaRequestListener *>::iterator it = requestListeners.begin(); it != requestListeners.end() ;)
     {
-        (*it++)->onRequestTemporaryError(api, request, megaError);
+        (*it++)->onRequestTemporaryError(api, request, megaError.get());
     }
 
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
-        (*it++)->onRequestTemporaryError(api, request, megaError);
+        (*it++)->onRequestTemporaryError(api, request, megaError.get());
     }
 
     MegaRequestListener* listener = request->getListener();
     if(listener)
     {
-        listener->onRequestTemporaryError(api, request, megaError);
+        listener->onRequestTemporaryError(api, request, megaError.get());
     }
 
     activeRequest = NULL;
     activeError = NULL;
-    delete megaError;
 }
 
 void MegaApiImpl::fireOnTransferStart(MegaTransferPrivate *transfer)
@@ -15891,9 +15889,9 @@ void MegaApiImpl::fireOnTransferStart(MegaTransferPrivate *transfer)
 
 void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, const MegaErrorPrivate& e, DBTableTransactionCommitter& committer)
 {
-    MegaError *megaError = new MegaErrorPrivate(e);
+    std::unique_ptr<MegaErrorPrivate> megaError(new MegaErrorPrivate(e));
     activeTransfer = transfer;
-    activeError = megaError;
+    activeError = megaError.get();
     notificationNumber++;
     transfer->setNotificationNumber(notificationNumber);
     transfer->setLastError(e);
@@ -15915,18 +15913,18 @@ void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, const Mega
 
     for(set<MegaTransferListener *>::iterator it = transferListeners.begin(); it != transferListeners.end() ;)
     {
-        (*it++)->onTransferFinish(api, transfer, megaError);
+        (*it++)->onTransferFinish(api, transfer, megaError.get());
     }
 
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
-        (*it++)->onTransferFinish(api, transfer, megaError);
+        (*it++)->onTransferFinish(api, transfer, megaError.get());
     }
 
     MegaTransferListener* listener = transfer->getListener();
     if(listener)
     {
-        listener->onTransferFinish(api, transfer, megaError);
+        listener->onTransferFinish(api, transfer, megaError.get());
     }
 
     transferMap.erase(transfer->getTag());
@@ -15934,14 +15932,13 @@ void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, const Mega
     activeTransfer = NULL;
     activeError = NULL;
     delete transfer;  // committer needs to be present for this one, db updated
-    delete megaError;
 }
 
 void MegaApiImpl::fireOnTransferTemporaryError(MegaTransferPrivate *transfer, const MegaErrorPrivate &e)
 {
-    MegaError *megaError = new MegaError(e);
+    std::unique_ptr<MegaErrorPrivate> megaError(new MegaErrorPrivate(e));
     activeTransfer = transfer;
-    activeError = megaError;
+    activeError = megaError.get();
     notificationNumber++;
     transfer->setNotificationNumber(notificationNumber);
 
@@ -15949,23 +15946,22 @@ void MegaApiImpl::fireOnTransferTemporaryError(MegaTransferPrivate *transfer, co
 
     for(set<MegaTransferListener *>::iterator it = transferListeners.begin(); it != transferListeners.end() ;)
     {
-        (*it++)->onTransferTemporaryError(api, transfer, megaError);
+        (*it++)->onTransferTemporaryError(api, transfer, megaError.get());
     }
 
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
-        (*it++)->onTransferTemporaryError(api, transfer, megaError);
+        (*it++)->onTransferTemporaryError(api, transfer, megaError.get());
     }
 
     MegaTransferListener* listener = transfer->getListener();
     if(listener)
     {
-        listener->onTransferTemporaryError(api, transfer, megaError);
+        listener->onTransferTemporaryError(api, transfer, megaError.get());
     }
 
     activeTransfer = NULL;
     activeError = NULL;
-    delete megaError;
 }
 
 MegaClient *MegaApiImpl::getMegaClient()
