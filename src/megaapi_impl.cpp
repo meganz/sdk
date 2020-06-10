@@ -9290,17 +9290,19 @@ void MegaApiImpl::fireOnStreamingStart(MegaTransferPrivate *transfer)
         (*it)->onTransferStart(api, transfer);
 }
 
-void MegaApiImpl::fireOnStreamingTemporaryError(MegaTransferPrivate *transfer, MegaError e)
+void MegaApiImpl::fireOnStreamingTemporaryError(MegaTransferPrivate *transfer, MegaErrorPrivate *e)
 {
+    std::unique_ptr<MegaErrorPrivate> megaError(e);
     for(set<MegaTransferListener *>::iterator it = httpServerListeners.begin(); it != httpServerListeners.end() ; it++)
-        (*it)->onTransferTemporaryError(api, transfer, &e);
+        (*it)->onTransferTemporaryError(api, transfer, megaError.get());
 }
 
-void MegaApiImpl::fireOnStreamingFinish(MegaTransferPrivate *transfer, MegaError e)
+void MegaApiImpl::fireOnStreamingFinish(MegaTransferPrivate *transfer, MegaErrorPrivate *e)
 {
-    if(e.getErrorCode())
+    std::unique_ptr<MegaErrorPrivate> megaError(e);
+    if(e->getErrorCode())
     {
-        LOG_warn << "Streaming request finished with error: " << e.getErrorString();
+        LOG_warn << "Streaming request finished with error: " << e->getErrorString();
     }
     else
     {
@@ -9308,7 +9310,7 @@ void MegaApiImpl::fireOnStreamingFinish(MegaTransferPrivate *transfer, MegaError
     }
 
     for(set<MegaTransferListener *>::iterator it = httpServerListeners.begin(); it != httpServerListeners.end() ; it++)
-        (*it)->onTransferFinish(api, transfer, &e);
+        (*it)->onTransferFinish(api, transfer, megaError.get());
 
     delete transfer;
 }
@@ -22424,7 +22426,7 @@ MegaErrorPrivate::~MegaErrorPrivate()
 
 MegaError* MegaErrorPrivate::copy() const
 {
-    return new MegaError(*this);
+    return new MegaErrorPrivate(*this);
 }
 
 int MegaErrorPrivate::getErrorCode() const
@@ -26262,7 +26264,7 @@ void MegaHTTPServer::processOnAsyncEventClose(MegaTCPContext* tcpctx)
     if (httpctx->transfer)
     {
         httpctx->megaApi->cancelTransfer(httpctx->transfer.get());
-        httpctx->megaApi->fireOnStreamingFinish(httpctx->transfer.release(), MegaErrorPrivate(httpctx->resultCode)); // transfer will be deleted in fireOnStreamingFinish
+        httpctx->megaApi->fireOnStreamingFinish(httpctx->transfer.release(), new MegaErrorPrivate(httpctx->resultCode)); // transfer will be deleted in fireOnStreamingFinish
     }
 
     delete httpctx->node;

@@ -2502,8 +2502,8 @@ class MegaApiImpl : public MegaApp
         void httpServerRemoveListener(MegaTransferListener *listener);
 
         void fireOnStreamingStart(MegaTransferPrivate *transfer);
-        void fireOnStreamingTemporaryError(MegaTransferPrivate *transfer, MegaError e);
-        void fireOnStreamingFinish(MegaTransferPrivate *transfer, MegaError e);
+        void fireOnStreamingTemporaryError(MegaTransferPrivate *transfer, MegaErrorPrivate* e);
+        void fireOnStreamingFinish(MegaTransferPrivate *transfer, MegaErrorPrivate *e);
 
         //FTP
         bool ftpServerStart(bool localOnly = true, int port = 4990, int dataportBegin = 1500, int dataPortEnd = 1600, bool useTLS = false, const char *certificatepath = NULL, const char *keypath = NULL);
