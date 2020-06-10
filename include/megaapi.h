@@ -5440,6 +5440,11 @@ public:
          * @return Description associated with the error code
          */
         static const char *getErrorString(int errorCode, ErrorContexts context);
+
+protected:
+        MegaError(int e);
+        //< 0 = API error code, > 0 = http error, 0 = No error
+        int errorCode;
 };
 
 /**

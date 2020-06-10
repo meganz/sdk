@@ -131,7 +131,7 @@ class MegaErrorPrivate : public MegaError
 {
 public:
     MegaErrorPrivate(int errorCode = MegaError::API_OK);
-    MegaErrorPrivate(int errorCode, long long value);
+    MegaErrorPrivate(int errorCode, long long mValue);
     MegaErrorPrivate(const Error &err);
     MegaErrorPrivate(const MegaError &megaError);
     virtual ~MegaErrorPrivate();
@@ -147,9 +147,7 @@ public:
     const char* __toString() const override;
 
 private:
-    //< 0 = API error code, > 0 = http error, 0 = No error
-    int errorCode;
-    long long value;
+    long long mValue;
     bool mExtraInfo = false;
     long long mUserStatus = 0;
     long long mLinkStatus = 0;
@@ -221,7 +219,7 @@ protected:
     int pendingTransfers;
     std::set<MegaTransferPrivate*> subTransfers;
     int mIncompleteTransfers = { 0 };
-    int mLastError = { API_OK };
+    MegaErrorPrivate mLastError = { API_OK };
 };
 
 class MegaFolderUploadController : public MegaRequestListener, public MegaTransferListener, public MegaRecursiveOperation
@@ -681,7 +679,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         void setForeignOverquota(bool backupTransfer);
         void setStreamingTransfer(bool streamingTransfer);
         void setLastBytes(char *lastBytes);
-        void setLastError(const MegaErrorPrivate &e);
+        void setLastError(const MegaError *e);
         void setFolderTransferTag(int tag);
         void setNotificationNumber(long long notificationNumber);
         void setListener(MegaTransferListener *listener);
@@ -775,7 +773,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
 
         MegaTransferListener *listener;
         Transfer *transfer;
-        MegaErrorPrivate lastError;
+        MegaErrorPrivate *lastError = nullptr;
         int folderTransferTag;
         const char* appData;
         unique_ptr<MegaRecursiveOperation> recursiveOperation;
@@ -2530,8 +2528,8 @@ class MegaApiImpl : public MegaApp
         void ftpServerRemoveListener(MegaTransferListener *listener);
 
         void fireOnFtpStreamingStart(MegaTransferPrivate *transfer);
-        void fireOnFtpStreamingTemporaryError(MegaTransferPrivate *transfer, const MegaErrorPrivate &e);
-        void fireOnFtpStreamingFinish(MegaTransferPrivate *transfer, const MegaErrorPrivate &e);
+        void fireOnFtpStreamingTemporaryError(MegaTransferPrivate *transfer, MegaErrorPrivate *e);
+        void fireOnFtpStreamingFinish(MegaTransferPrivate *transfer, MegaErrorPrivate *e);
 
 #endif
 
@@ -2597,9 +2595,9 @@ class MegaApiImpl : public MegaApp
         void getCountryCallingCodes(MegaRequestListener *listener = NULL);
 
         void fireOnTransferStart(MegaTransferPrivate *transfer);
-        void fireOnTransferFinish(MegaTransferPrivate *transfer, MegaErrorPrivate *e, DBTableTransactionCommitter& committer);
+        void fireOnTransferFinish(MegaTransferPrivate *transfer, MegaError *e, DBTableTransactionCommitter& committer);
         void fireOnTransferUpdate(MegaTransferPrivate *transfer);
-        void fireOnTransferTemporaryError(MegaTransferPrivate *transfer, MegaErrorPrivate* e);
+        void fireOnTransferTemporaryError(MegaTransferPrivate *transfer, MegaError* e);
         map<int, MegaTransferPrivate *> transferMap;
 
         MegaClient *getMegaClient();
@@ -2613,9 +2611,9 @@ class MegaApiImpl : public MegaApp
         error processAbortBackupRequest(MegaRequestPrivate *request, error e);
         void fireOnBackupStateChanged(MegaBackupController *backup);
         void fireOnBackupStart(MegaBackupController *backup);
-        void fireOnBackupFinish(MegaBackupController *backup, MegaErrorPrivate* e);
+        void fireOnBackupFinish(MegaBackupController *backup, MegaError* e);
         void fireOnBackupUpdate(MegaBackupController *backup);
-        void fireOnBackupTemporaryError(MegaBackupController *backup, MegaErrorPrivate* e);
+        void fireOnBackupTemporaryError(MegaBackupController *backup, MegaError *e);
 
         void yield();
         void lockMutex();

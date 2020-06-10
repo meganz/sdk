@@ -2205,7 +2205,7 @@ MegaTransferPrivate::MegaTransferPrivate(int type, MegaTransferListener *listene
     this->startFirst = false;
     this->backupTransfer = false;
     this->foreignOverquota = false;
-    this->lastError = API_OK;
+    this->lastError = nullptr;
     this->folderTransferTag = 0;
     this->appData = NULL;
     this->state = STATE_NONE;
@@ -2254,7 +2254,7 @@ MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
     this->setStartFirst(transfer->shouldStartFirst());
     this->setBackupTransfer(transfer->isBackupTransfer());
     this->setForeignOverquota(transfer->isForeignOverquota());
-    this->setLastError(*transfer->getLastError());
+    this->setLastError(transfer->lastError);
     this->setFolderTransferTag(transfer->getFolderTransferTag());
     this->setAppData(transfer->getAppData());
     this->setNotificationNumber(transfer->getNotificationNumber());
@@ -2427,7 +2427,7 @@ char * MegaTransferPrivate::getLastBytes() const
 
 const MegaError* MegaTransferPrivate::getLastError() const
 {
-    return &this->lastError;
+    return lastError;
 }
 
 bool MegaTransferPrivate::isFolderTransfer() const
@@ -2773,9 +2773,12 @@ void MegaTransferPrivate::setLastBytes(char *lastBytes)
     this->lastBytes = lastBytes;
 }
 
-void MegaTransferPrivate::setLastError(const MegaErrorPrivate& e)
+void MegaTransferPrivate::setLastError(const MegaError *e)
 {
-    this->lastError = e;
+    if (lastError)
+        delete lastError;
+
+    lastError = e ? static_cast<MegaErrorPrivate*>(e->copy()) : nullptr;
 }
 
 void MegaTransferPrivate::setFolderTransferTag(int tag)
@@ -2899,6 +2902,7 @@ MegaTransferPrivate::~MegaTransferPrivate()
     delete [] fileName;
     delete [] appData;
     delete publicNode;
+    delete lastError;
 }
 
 const char * MegaTransferPrivate::toString() const
@@ -9292,14 +9296,14 @@ void MegaApiImpl::fireOnStreamingStart(MegaTransferPrivate *transfer)
 
 void MegaApiImpl::fireOnStreamingTemporaryError(MegaTransferPrivate *transfer, MegaErrorPrivate *e)
 {
-    std::unique_ptr<MegaErrorPrivate> megaError(e);
     for(set<MegaTransferListener *>::iterator it = httpServerListeners.begin(); it != httpServerListeners.end() ; it++)
-        (*it)->onTransferTemporaryError(api, transfer, megaError.get());
+        (*it)->onTransferTemporaryError(api, transfer, e);
+
+    delete e;
 }
 
 void MegaApiImpl::fireOnStreamingFinish(MegaTransferPrivate *transfer, MegaErrorPrivate *e)
 {
-    std::unique_ptr<MegaErrorPrivate> megaError(e);
     if(e->getErrorCode())
     {
         LOG_warn << "Streaming request finished with error: " << e->getErrorString();
@@ -9310,9 +9314,10 @@ void MegaApiImpl::fireOnStreamingFinish(MegaTransferPrivate *transfer, MegaError
     }
 
     for(set<MegaTransferListener *>::iterator it = httpServerListeners.begin(); it != httpServerListeners.end() ; it++)
-        (*it)->onTransferFinish(api, transfer, megaError.get());
+        (*it)->onTransferFinish(api, transfer, e);
 
     delete transfer;
+    delete e;
 }
 
 bool MegaApiImpl::ftpServerStart(bool localOnly, int port, int dataportBegin, int dataPortEnd, bool useTLS, const char *certificatepath, const char *keypath)
@@ -9607,29 +9612,30 @@ void MegaApiImpl::fireOnFtpStreamingStart(MegaTransferPrivate *transfer)
         (*it)->onTransferStart(api, transfer);
 }
 
-void MegaApiImpl::fireOnFtpStreamingTemporaryError(MegaTransferPrivate *transfer, const MegaErrorPrivate& e)
+void MegaApiImpl::fireOnFtpStreamingTemporaryError(MegaTransferPrivate *transfer, MegaErrorPrivate* e)
 {
-    std::unique_ptr<MegaErrorPrivate>err(new MegaErrorPrivate(e));
     for(set<MegaTransferListener *>::iterator it = ftpServerListeners.begin(); it != ftpServerListeners.end() ; it++)
-        (*it)->onTransferTemporaryError(api, transfer, err.get());
+        (*it)->onTransferTemporaryError(api, transfer, e);
+
+    delete e;
 }
 
-void MegaApiImpl::fireOnFtpStreamingFinish(MegaTransferPrivate *transfer, const MegaErrorPrivate &e)
+void MegaApiImpl::fireOnFtpStreamingFinish(MegaTransferPrivate *transfer, MegaErrorPrivate *e)
 {
-    if(e.getErrorCode())
+    if(e->getErrorCode())
     {
-        LOG_warn << "Streaming request finished with error: " << e.getErrorString();
+        LOG_warn << "Streaming request finished with error: " << e->getErrorString();
     }
     else
     {
         LOG_info << "Streaming request finished";
     }
 
-    std::unique_ptr<MegaErrorPrivate>err(new MegaErrorPrivate(e));
     for(set<MegaTransferListener *>::iterator it = ftpServerListeners.begin(); it != ftpServerListeners.end() ; it++)
-        (*it)->onTransferFinish(api, transfer, err.get());
+        (*it)->onTransferFinish(api, transfer, e);
 
     delete transfer;
+    delete e;
 }
 
 #endif
@@ -11909,9 +11915,10 @@ dstime MegaApiImpl::pread_failure(const Error &e, int retry, void* param, dstime
     transfer->setLastBytes(NULL);
     if (retry <= transfer->getMaxRetries() && e != API_EINCOMPLETE && !(e == API_ETOOMANY && e.hasExtraInfo()))
     {	
-        transfer->setLastError(MegaErrorPrivate(e));
+        MegaErrorPrivate *megaError = new MegaErrorPrivate(e, timeLeft / 10);
+        transfer->setLastError(megaError);
         transfer->setState(MegaTransfer::STATE_RETRYING);
-        fireOnTransferTemporaryError(transfer, new MegaErrorPrivate(e, timeLeft / 10));
+        fireOnTransferTemporaryError(transfer, megaError);
         LOG_debug << "Streaming temporarily failed " << retry;
         if (retry <= 1)
         {
@@ -15480,18 +15487,19 @@ void MegaApiImpl::checkfile_result(handle h, const Error &e)
             MegaTransferPrivate *transfer = iter->second;
             if (transfer->getNodeHandle() == h)
             {
+                MegaErrorPrivate *megaError = new MegaErrorPrivate(e);
+                transfer->setLastError(megaError);
+
                 if (e == API_ETOOMANY && e.hasExtraInfo())
                 {
                     DBTableTransactionCommitter committer(client->tctable);
-                    transfer->setLastError(e);
                     transfer->setState(MegaTransfer::STATE_FAILED);
-                    fireOnTransferFinish(transfer, new MegaErrorPrivate(e), committer);
+                    fireOnTransferFinish(transfer, megaError, committer);
                 }
                 else
                 {
-                    transfer->setLastError(MegaErrorPrivate(e));
                     transfer->setState(MegaTransfer::STATE_RETRYING);
-                    fireOnTransferTemporaryError(transfer, new MegaErrorPrivate(e));
+                    fireOnTransferTemporaryError(transfer, megaError);
                 }
             }
         }
@@ -15507,9 +15515,10 @@ void MegaApiImpl::checkfile_result(handle h, error e, byte*, m_off_t, m_time_t, 
             MegaTransferPrivate *transfer = iter->second;
             if (transfer->getNodeHandle() == h)
             {
-                transfer->setLastError(MegaErrorPrivate(e));
+                MegaErrorPrivate *megaError = new MegaErrorPrivate(e);
+                transfer->setLastError(megaError);
                 transfer->setState(MegaTransfer::STATE_RETRYING);
-                fireOnTransferTemporaryError(transfer, new MegaErrorPrivate(e));
+                fireOnTransferTemporaryError(transfer, megaError);
             }
         }
     }
@@ -15723,9 +15732,8 @@ void MegaApiImpl::fireOnRequestStart(MegaRequestPrivate *request)
 
 void MegaApiImpl::fireOnRequestFinish(MegaRequestPrivate *request, MegaErrorPrivate* e)
 {
-    std::unique_ptr<MegaErrorPrivate>megaError(e);
     activeRequest = request;
-    activeError = megaError.get();
+    activeError = e->copy();
 
     if(e->getErrorCode())
     {
@@ -15738,18 +15746,18 @@ void MegaApiImpl::fireOnRequestFinish(MegaRequestPrivate *request, MegaErrorPriv
 
     for(set<MegaRequestListener *>::iterator it = requestListeners.begin(); it != requestListeners.end() ;)
     {
-        (*it++)->onRequestFinish(api, request, megaError.get());
+        (*it++)->onRequestFinish(api, request, e);
     }
 
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
-        (*it++)->onRequestFinish(api, request, megaError.get());
+        (*it++)->onRequestFinish(api, request, e);
     }
 
     MegaRequestListener* listener = request->getListener();
     if(listener)
     {
-        listener->onRequestFinish(api, request, megaError.get());
+        listener->onRequestFinish(api, request, e);
     }
 
     requestMap.erase(request->getTag());
@@ -15757,6 +15765,7 @@ void MegaApiImpl::fireOnRequestFinish(MegaRequestPrivate *request, MegaErrorPriv
     activeRequest = NULL;
     activeError = NULL;
     delete request;
+    delete e;
 }
 
 void MegaApiImpl::fireOnRequestUpdate(MegaRequestPrivate *request)
@@ -15784,30 +15793,30 @@ void MegaApiImpl::fireOnRequestUpdate(MegaRequestPrivate *request)
 
 void MegaApiImpl::fireOnRequestTemporaryError(MegaRequestPrivate *request, MegaErrorPrivate *e)
 {
-    std::unique_ptr<MegaErrorPrivate> megaError(e);
     activeRequest = request;
-    activeError = megaError.get();
+    activeError = e;
 
     request->setNumRetry(request->getNumRetry() + 1);
 
     for(set<MegaRequestListener *>::iterator it = requestListeners.begin(); it != requestListeners.end() ;)
     {
-        (*it++)->onRequestTemporaryError(api, request, megaError.get());
+        (*it++)->onRequestTemporaryError(api, request, e);
     }
 
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
-        (*it++)->onRequestTemporaryError(api, request, megaError.get());
+        (*it++)->onRequestTemporaryError(api, request, e);
     }
 
     MegaRequestListener* listener = request->getListener();
     if(listener)
     {
-        listener->onRequestTemporaryError(api, request, megaError.get());
+        listener->onRequestTemporaryError(api, request, e);
     }
 
     activeRequest = NULL;
     activeError = NULL;
+    delete e;
 }
 
 void MegaApiImpl::fireOnTransferStart(MegaTransferPrivate *transfer)
@@ -15835,14 +15844,13 @@ void MegaApiImpl::fireOnTransferStart(MegaTransferPrivate *transfer)
     activeTransfer = NULL;
 }
 
-void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, MegaErrorPrivate* e, DBTableTransactionCommitter& committer)
+void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, MegaError* e, DBTableTransactionCommitter& committer)
 {
-    std::unique_ptr<MegaErrorPrivate> megaError(e);
     activeTransfer = transfer;
-    activeError = megaError.get();
+    activeError = e;
     notificationNumber++;
     transfer->setNotificationNumber(notificationNumber);
-    transfer->setLastError(*e);
+    transfer->setLastError(e);
 
     if(e->getErrorCode())
     {
@@ -15861,18 +15869,18 @@ void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, MegaErrorP
 
     for(set<MegaTransferListener *>::iterator it = transferListeners.begin(); it != transferListeners.end() ;)
     {
-        (*it++)->onTransferFinish(api, transfer, megaError.get());
+        (*it++)->onTransferFinish(api, transfer, e);
     }
 
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
-        (*it++)->onTransferFinish(api, transfer, megaError.get());
+        (*it++)->onTransferFinish(api, transfer, e);
     }
 
     MegaTransferListener* listener = transfer->getListener();
     if(listener)
     {
-        listener->onTransferFinish(api, transfer, megaError.get());
+        listener->onTransferFinish(api, transfer, e);
     }
 
     transferMap.erase(transfer->getTag());
@@ -15880,13 +15888,13 @@ void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, MegaErrorP
     activeTransfer = NULL;
     activeError = NULL;
     delete transfer;  // committer needs to be present for this one, db updated
+    delete e;
 }
 
-void MegaApiImpl::fireOnTransferTemporaryError(MegaTransferPrivate *transfer, MegaErrorPrivate *e)
+void MegaApiImpl::fireOnTransferTemporaryError(MegaTransferPrivate *transfer, MegaError *e)
 {
-    std::unique_ptr<MegaErrorPrivate> megaError(e);
     activeTransfer = transfer;
-    activeError = megaError.get();
+    activeError = e;
     notificationNumber++;
     transfer->setNotificationNumber(notificationNumber);
 
@@ -15894,22 +15902,23 @@ void MegaApiImpl::fireOnTransferTemporaryError(MegaTransferPrivate *transfer, Me
 
     for(set<MegaTransferListener *>::iterator it = transferListeners.begin(); it != transferListeners.end() ;)
     {
-        (*it++)->onTransferTemporaryError(api, transfer, megaError.get());
+        (*it++)->onTransferTemporaryError(api, transfer, e);
     }
 
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
-        (*it++)->onTransferTemporaryError(api, transfer, megaError.get());
+        (*it++)->onTransferTemporaryError(api, transfer, e);
     }
 
     MegaTransferListener* listener = transfer->getListener();
     if(listener)
     {
-        listener->onTransferTemporaryError(api, transfer, megaError.get());
+        listener->onTransferTemporaryError(api, transfer, e);
     }
 
     activeTransfer = NULL;
     activeError = NULL;
+    delete e;
 }
 
 MegaClient *MegaApiImpl::getMegaClient()
@@ -16178,46 +16187,46 @@ void MegaApiImpl::fireOnBackupStart(MegaBackupController *backup)
 
 }
 
-void MegaApiImpl::fireOnBackupFinish(MegaBackupController *backup, MegaErrorPrivate* e)
+void MegaApiImpl::fireOnBackupFinish(MegaBackupController *backup, MegaError *e)
 {
-    std::unique_ptr<MegaErrorPrivate>megaError(e);
-
     for(set<MegaBackupListener *>::iterator it = backupListeners.begin(); it != backupListeners.end() ;)
     {
-        (*it++)->onBackupFinish(api, backup, megaError.get());
+        (*it++)->onBackupFinish(api, backup, e);
     }
 
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
-        (*it++)->onBackupFinish(api, backup, megaError.get());
+        (*it++)->onBackupFinish(api, backup, e);
     }
 
     MegaBackupListener* listener = backup->getBackupListener();
     if(listener)
     {
-        listener->onBackupFinish(api, backup, megaError.get());
+        listener->onBackupFinish(api, backup, e);
     }
+
+    delete e;
 }
 
-void MegaApiImpl::fireOnBackupTemporaryError(MegaBackupController *backup, MegaErrorPrivate* e)
+void MegaApiImpl::fireOnBackupTemporaryError(MegaBackupController *backup, MegaError* e)
 {
-    std::unique_ptr<MegaErrorPrivate>megaError(e);
-
     for(set<MegaBackupListener *>::iterator it = backupListeners.begin(); it != backupListeners.end() ;)
     {
-        (*it++)->onBackupTemporaryError(api, backup, megaError.get());
+        (*it++)->onBackupTemporaryError(api, backup, e);
     }
 
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
-        (*it++)->onBackupTemporaryError(api, backup, megaError.get());
+        (*it++)->onBackupTemporaryError(api, backup, e);
     }
 
     MegaBackupListener* listener = backup->getBackupListener();
     if(listener)
     {
-        listener->onBackupTemporaryError(api, backup, megaError.get());
+        listener->onBackupTemporaryError(api, backup, e);
     }
+
+    delete e;
 }
 
 void MegaApiImpl::fireOnBackupUpdate(MegaBackupController *backup)
@@ -16338,7 +16347,7 @@ void MegaApiImpl::processTransferComplete(Transfer *tr, MegaTransferPrivate *tra
 
 void MegaApiImpl::processTransferFailed(Transfer *tr, MegaTransferPrivate *transfer, const Error& e, dstime timeleft)
 {
-    MegaErrorPrivate megaError(e, timeleft / 10);
+    MegaErrorPrivate *megaError = new MegaErrorPrivate(e, timeleft / 10);
     transfer->setStartTime(Waiter::ds);
     transfer->setUpdateTime(Waiter::ds);
     transfer->setDeltaSize(0);
@@ -16351,7 +16360,7 @@ void MegaApiImpl::processTransferFailed(Transfer *tr, MegaTransferPrivate *trans
         DBTableTransactionCommitter committer(client->tctable);
         transfer->setState(MegaTransfer::STATE_FAILED);
         transfer->setForeignOverquota(false);
-        fireOnTransferFinish(transfer, new MegaErrorPrivate(e, timeleft / 10), committer);
+        fireOnTransferFinish(transfer, megaError, committer);
     }
     else
     {
@@ -20405,7 +20414,7 @@ void MegaApiImpl::sendPendingRequests()
                     }
                 #endif
 
-                megaTransfer->setLastError(MegaErrorPrivate(API_EINCOMPLETE));
+                megaTransfer->setLastError(new MegaErrorPrivate(API_EINCOMPLETE));
 
                 bool found = false;
                 file_list files = transfer->files;
@@ -22389,30 +22398,31 @@ bool MegaAccountDetailsPrivate::isTemporalBandwidthValid()
 }
 
 MegaErrorPrivate::MegaErrorPrivate(int errorCode)
+    : MegaError(errorCode)
 {
-    this->errorCode = errorCode;
-    this->value = 0;
+    this->mValue = 0;
 }
 
 MegaErrorPrivate::MegaErrorPrivate(int errorCode, long long value)
+    : MegaError(errorCode)
 {
-    this->errorCode = errorCode;
-    this->value = value;
+    mValue = value;
 }
 
 MegaErrorPrivate::MegaErrorPrivate(const Error& err)
+    : MegaError(err)
 {
-    errorCode = static_cast<int>(err);
-    value = 0;
+    mValue = 0;
     mExtraInfo = err.hasExtraInfo();
     mLinkStatus = err.getLinkStatus();
     mUserStatus = err.getUserStatus();
 }
 
 MegaErrorPrivate::MegaErrorPrivate(const MegaError &megaError)
+    : MegaError(megaError.getErrorCode())
 {
     errorCode = megaError.getErrorCode();
-    value = megaError.getValue();
+    mValue = megaError.getValue();
 
     mExtraInfo = megaError.hasExtraInfo();
     mUserStatus = megaError.getUserStatus();
@@ -22436,7 +22446,7 @@ int MegaErrorPrivate::getErrorCode() const
 
 long long MegaErrorPrivate::getValue() const
 {
-    return value;
+    return mValue;
 }
 
 bool MegaErrorPrivate::hasExtraInfo() const
@@ -23659,7 +23669,7 @@ void MegaFolderUploadController::checkCompletion()
     {
         LOG_debug << "Folder transfer finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
         transfer->setState(MegaTransfer::STATE_COMPLETED);
-        transfer->setLastError(mLastError);
+        transfer->setLastError(&mLastError);
         DBTableTransactionCommitter committer(client->tctable);
         megaApi->fireOnTransferFinish(transfer, !mIncompleteTransfers ? new MegaErrorPrivate(API_OK) : new MegaErrorPrivate(API_EINCOMPLETE), committer);
     }
@@ -24631,8 +24641,7 @@ void MegaBackupController::onTransferUpdate(MegaApi *, MegaTransfer *t)
 void MegaBackupController::onTransferTemporaryError(MegaApi *, MegaTransfer *t, MegaError *e)
 {
     LOG_verbose << " at MegaBackupController::onTransferTemporaryError";
-    MegaErrorPrivate* megaError = static_cast<MegaErrorPrivate *>(e);
-    megaApi->fireOnBackupTemporaryError(this, megaError);
+    megaApi->fireOnBackupTemporaryError(this, e);
 }
 
 void MegaBackupController::onTransferFinish(MegaApi *, MegaTransfer *t, MegaError *e)
@@ -25020,7 +25029,7 @@ void MegaFolderDownloadController::checkCompletion()
     {
         LOG_debug << "Folder download finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
         transfer->setState(MegaTransfer::STATE_COMPLETED);
-        transfer->setLastError(mLastError);
+        transfer->setLastError(&mLastError);
         DBTableTransactionCommitter committer(client->tctable);
         megaApi->fireOnTransferFinish(transfer, !mIncompleteTransfers ? new MegaErrorPrivate(API_OK) : new MegaErrorPrivate(API_EINCOMPLETE), committer);
     }
@@ -30493,7 +30502,7 @@ void MegaFTPDataServer::processAsyncEvent(MegaTCPContext *tcpctx)
             else
             {
                 LOG_debug << "Skipping startStreaming call since empty file";
-                ftpdatactx->megaApi->fireOnFtpStreamingFinish(ftpdatactx->transfer, MegaErrorPrivate(API_OK));
+                ftpdatactx->megaApi->fireOnFtpStreamingFinish(ftpdatactx->transfer, new MegaErrorPrivate(API_OK));
                 ftpdatactx->transfer = NULL; // this has been deleted in fireOnStreamingFinish
                 fds->processWriteFinished(ftpdatactx, 0);
             }
@@ -30525,7 +30534,7 @@ void MegaFTPDataServer::processOnAsyncEventClose(MegaTCPContext* tcpctx)
     if (ftpdatactx->transfer)
     {
         ftpdatactx->megaApi->cancelTransfer(ftpdatactx->transfer);
-        ftpdatactx->megaApi->fireOnFtpStreamingFinish(ftpdatactx->transfer, MegaErrorPrivate(ftpdatactx->ecode));
+        ftpdatactx->megaApi->fireOnFtpStreamingFinish(ftpdatactx->transfer, new MegaErrorPrivate(ftpdatactx->ecode));
         ftpdatactx->transfer = NULL; // this has been deleted in fireOnStreamingFinish
     }
 

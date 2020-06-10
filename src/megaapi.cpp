@@ -1221,6 +1221,11 @@ long long MegaTransfer::getNotificationNumber() const
     return 0;
 }
 
+MegaError::MegaError(int e)
+{
+    errorCode = e;
+}
+
 MegaError::~MegaError()
 {
 
