@@ -311,7 +311,8 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     // check if character is lowercase hex ASCII
     bool islchex(char) const;
-    bool islocalfscompatible(unsigned char, FileSystemType = FS_UNKNOWN) const;
+    bool isControlChar(unsigned char c) const;
+    bool islocalfscompatible(unsigned char, bool isEscape, FileSystemType = FS_UNKNOWN) const;
     void escapefsincompatible(string*, const std::string *dstPath = nullptr) const;
 
     // Obtain a valid path by removing filename or debris directory from originalPath

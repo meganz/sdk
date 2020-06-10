@@ -176,8 +176,13 @@ FileSystemType FileSystemAccess::getlocalfstype(const string *dstPath) const
     return FS_UNKNOWN;
 }
 
+bool FileSystemAccess::isControlChar(unsigned char c) const
+{
+    return (c <= '\x1F' || c == '\x7F');
+}
+
 // Group different filesystems types in families, according to its restricted charsets
-bool FileSystemAccess::islocalfscompatible(unsigned char c, FileSystemType fileSystemType) const
+bool FileSystemAccess::islocalfscompatible(unsigned char c, bool isEscape, FileSystemType fileSystemType) const
 {
     switch (fileSystemType)
     {
@@ -189,19 +194,26 @@ bool FileSystemAccess::islocalfscompatible(unsigned char c, FileSystemType fileS
             // ext2/ext3/ext4 restricted characters =>  / NULL
             return c != '\x00' && c != '\x2F';
         case FS_FAT32:
+            // Control characters will be escaped but not unescaped
             // FAT32 restricted characters => " * / : < > ? \ | + , ; = [ ]
-            return !strchr("\\/:?\"<>|*+,;=[]", c);
-        case FS_FUSE:
-        case FS_SDCARDFS:
+            return (isControlChar(c) && isEscape)
+                        ? false
+                        : !strchr("\\/:?\"<>|*+,;=[]", c);
         case FS_EXFAT:
         case FS_NTFS:
+            // Control characters will be escaped but not unescaped
+            // ExFAT, NTFS restricted characters => " * / : < > ? \ |
+            return (isControlChar(c) && isEscape)
+                        ? false
+                        : !strchr("\\/:?\"<>|*", c);
+        case FS_FUSE:
+        case FS_SDCARDFS:
         case FS_UNKNOWN:
             // FUSE and SDCARDFS are Android filesystem wrappers used to mount traditional filesystems
             // as ext4, Fat32, extFAT...
             // So we will consider that restricted characters for these wrappers are the same
             // as for Android => " * / : < > ? \ |
 
-            // ExFAT, NTFS restricted characters => " * / : < > ? \ |
             // If filesystem couldn't be detected we'll use a restrictive charset to avoid issues.
             return !strchr("\\/:?\"<>|*", c);
     }
@@ -259,7 +271,7 @@ void FileSystemAccess::escapefsincompatible(string* name, const string *dstPath)
         c = static_cast<unsigned char>((*name)[i]);
         utf8seqsize = Utils::utf8SequenceSize(c);
         assert (utf8seqsize);
-        if (utf8seqsize == 1 && !islocalfscompatible(c, fileSystemType))
+        if (utf8seqsize == 1 && !islocalfscompatible(c, true, fileSystemType))
         {
             const char incompatibleChar = name->at(i);
             sprintf(buf, "%%%02x", c);
@@ -301,7 +313,7 @@ void FileSystemAccess::unescapefsincompatible(string *name, const string *localP
         {
             char c = static_cast<char>((MegaClient::hexval((*name)[i + 1]) << 4) + MegaClient::hexval((*name)[i + 2]));
 
-            if (!islocalfscompatible(static_cast<unsigned char>(c), fileSystemType))
+            if (!islocalfscompatible(static_cast<unsigned char>(c), false, fileSystemType))
             {
                 std::string incompatibleChar = name->substr(i, 3);
                 name->replace(i, 3, &c, 1);
