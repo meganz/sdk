@@ -1063,7 +1063,7 @@ void MegaClient::init()
     pendingsc.reset();
     pendingscUserAlerts.reset();
     stopsc = false;
-    mScStoppedDueToBlock = false;
+    mBlocked = false;
 
     btcs.reset();
     btsc.reset();
@@ -1777,6 +1777,11 @@ void MegaClient::exec()
                                     e = API_EINTERNAL;
                                 }
 
+                                if (e == API_EBLOCKED && sid.size())
+                                {
+                                    block();
+                                }
+
                                 app->request_error(e);
                                 delete pendingcs;
                                 pendingcs = NULL;
@@ -2014,7 +2019,7 @@ void MegaClient::exec()
                     else if (e == API_EBLOCKED)
                     {
                         app->request_error(API_EBLOCKED);
-                        block();
+                        block(true);
                     }
                     else
                     {
@@ -2088,12 +2093,12 @@ void MegaClient::exec()
         }
         syncactivity = false;
 
-        if (stopsc || scpaused || !statecurrent || !syncsup)
+        if (stopsc || mBlocked || scpaused || !statecurrent || !syncsup)
         {
             LOG_verbose << " Megaclient exec is pending resolutions."
                         << " scpaused=" << scpaused
                         << " stopsc=" << stopsc
-                        << " mScStoppedDueToBlock=" << mScStoppedDueToBlock
+                        << " mBlocked=" << mBlocked
                         << " jsonsc.pos=" << jsonsc.pos
                         << " syncsup=" << syncsup
                         << " statecurrent=" << statecurrent
@@ -2129,7 +2134,7 @@ void MegaClient::exec()
 #endif
         }
 
-        if (!pendingsc && !pendingscUserAlerts && *scsn && btsc.armed() && !stopsc)
+        if (!pendingsc && !pendingscUserAlerts && *scsn && btsc.armed() && !stopsc && !mBlocked)
         {
             if (useralerts.begincatchup)
             {
@@ -2253,7 +2258,8 @@ void MegaClient::exec()
 
         slotit = tslots.begin();
 
-        // handle active unpaused transfers
+
+        if (!mBlocked) // handle active unpaused transfers
         {
             DBTableTransactionCommitter committer(tctable);
 
@@ -2268,6 +2274,10 @@ void MegaClient::exec()
                     (*it)->doio(this, committer);
                 }
             }
+        }
+        else
+        {
+            LOG_debug << "skipping slots doio while blocked";
         }
 
 #ifdef ENABLE_SYNC
@@ -2961,7 +2971,7 @@ int MegaClient::preparewait()
         }
 
         // retry failed server-client requests
-        if (!pendingsc && !pendingscUserAlerts && *scsn && !stopsc)
+        if (!pendingsc && !pendingscUserAlerts && *scsn && !stopsc && !mBlocked)
         {
             btsc.update(&nds);
         }
@@ -3954,7 +3964,7 @@ void MegaClient::locallogout(bool removecaches)
     delete pendingcs;
     pendingcs = NULL;
     stopsc = false;
-    mScStoppedDueToBlock = false;
+    mBlocked = false;
 
     for (putfa_list::iterator it = queuedfa.begin(); it != queuedfa.end(); it++)
     {
@@ -4972,7 +4982,7 @@ void MegaClient::putfa(handle th, fatype t, SymmCipher* key, std::unique_ptr<str
 // has the limit of concurrent transfer tslots been reached?
 bool MegaClient::slotavail() const
 {
-    return tslots.size() < MAXTOTALTRANSFERS;
+    return !mBlocked && tslots.size() < MAXTOTALTRANSFERS;
 }
 
 bool MegaClient::setstoragestatus(storagestatus_t status)
@@ -10545,22 +10555,18 @@ void MegaClient::whyamiblocked()
     reqs.add(new CommandWhyAmIblocked(this));
 }
 
-void MegaClient::block()
+void MegaClient::block(bool fromServerClientResponse)
 {
-    if (!stopsc)
-    {
-        stopsc = true; // stop consuming action packets
-        mScStoppedDueToBlock = true;
-    }
+    LOG_verbose << "Blocking MegaClient, fromServerClientResponse: " << fromServerClientResponse;
+
+    mBlocked = true;
 }
 
 void MegaClient::unblock()
 {
-    if (stopsc && mScStoppedDueToBlock)
-    {
-        stopsc = false; // will resume querying for action packets
-    }
-    mScStoppedDueToBlock = false;
+    LOG_verbose << "Unblocking MegaClient";
+
+    mBlocked = false;
 }
 
 error MegaClient::changepw(const char* password, const char *pin)
