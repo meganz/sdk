@@ -9607,9 +9607,9 @@ void MegaApiImpl::fireOnFtpStreamingStart(MegaTransferPrivate *transfer)
 
 void MegaApiImpl::fireOnFtpStreamingTemporaryError(MegaTransferPrivate *transfer, const MegaErrorPrivate& e)
 {
-    MegaErrorPrivate err = e;
+    std::unique_ptr<MegaErrorPrivate>err(new MegaErrorPrivate(e));
     for(set<MegaTransferListener *>::iterator it = ftpServerListeners.begin(); it != ftpServerListeners.end() ; it++)
-        (*it)->onTransferTemporaryError(api, transfer, &err);
+        (*it)->onTransferTemporaryError(api, transfer, err.get());
 }
 
 void MegaApiImpl::fireOnFtpStreamingFinish(MegaTransferPrivate *transfer, const MegaErrorPrivate &e)
@@ -9623,9 +9623,9 @@ void MegaApiImpl::fireOnFtpStreamingFinish(MegaTransferPrivate *transfer, const 
         LOG_info << "Streaming request finished";
     }
 
-    MegaErrorPrivate err = e;
+    std::unique_ptr<MegaErrorPrivate>err(new MegaErrorPrivate(e));
     for(set<MegaTransferListener *>::iterator it = ftpServerListeners.begin(); it != ftpServerListeners.end() ; it++)
-        (*it)->onTransferFinish(api, transfer, &err);
+        (*it)->onTransferFinish(api, transfer, err.get());
 
     delete transfer;
 }
