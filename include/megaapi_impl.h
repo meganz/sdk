@@ -2597,9 +2597,9 @@ class MegaApiImpl : public MegaApp
         void getCountryCallingCodes(MegaRequestListener *listener = NULL);
 
         void fireOnTransferStart(MegaTransferPrivate *transfer);
-        void fireOnTransferFinish(MegaTransferPrivate *transfer, const MegaErrorPrivate& e, DBTableTransactionCommitter& committer);
+        void fireOnTransferFinish(MegaTransferPrivate *transfer, MegaErrorPrivate *e, DBTableTransactionCommitter& committer);
         void fireOnTransferUpdate(MegaTransferPrivate *transfer);
-        void fireOnTransferTemporaryError(MegaTransferPrivate *transfer, const MegaErrorPrivate& e);
+        void fireOnTransferTemporaryError(MegaTransferPrivate *transfer, MegaErrorPrivate* e);
         map<int, MegaTransferPrivate *> transferMap;
 
         MegaClient *getMegaClient();
@@ -2613,9 +2613,9 @@ class MegaApiImpl : public MegaApp
         error processAbortBackupRequest(MegaRequestPrivate *request, error e);
         void fireOnBackupStateChanged(MegaBackupController *backup);
         void fireOnBackupStart(MegaBackupController *backup);
-        void fireOnBackupFinish(MegaBackupController *backup, const MegaErrorPrivate& e);
+        void fireOnBackupFinish(MegaBackupController *backup, MegaErrorPrivate* e);
         void fireOnBackupUpdate(MegaBackupController *backup);
-        void fireOnBackupTemporaryError(MegaBackupController *backup, const MegaErrorPrivate& e);
+        void fireOnBackupTemporaryError(MegaBackupController *backup, MegaErrorPrivate* e);
 
         void yield();
         void lockMutex();
@@ -2633,9 +2633,9 @@ protected:
         MegaTransferPrivate* getMegaTransferPrivate(int tag);
 
         void fireOnRequestStart(MegaRequestPrivate *request);
-        void fireOnRequestFinish(MegaRequestPrivate *request, const MegaErrorPrivate& e);
+        void fireOnRequestFinish(MegaRequestPrivate *request, MegaErrorPrivate* e);
         void fireOnRequestUpdate(MegaRequestPrivate *request);
-        void fireOnRequestTemporaryError(MegaRequestPrivate *request, const MegaErrorPrivate& e);
+        void fireOnRequestTemporaryError(MegaRequestPrivate *request, MegaErrorPrivate* e);
         bool fireOnTransferData(MegaTransferPrivate *transfer);
         void fireOnUsersUpdate(MegaUserList *users);
         void fireOnUserAlertsUpdate(MegaUserAlertList *alerts);
