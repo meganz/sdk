@@ -5441,8 +5441,9 @@ public:
          */
         static const char *getErrorString(int errorCode, ErrorContexts context);
 
-protected:
         MegaError(int e);
+
+protected:
         //< 0 = API error code, > 0 = http error, 0 = No error
         int errorCode;
 };
@@ -13593,7 +13594,7 @@ class MegaApi
          * - MegaError::API_ENOENT - The node doesn't exist in the account
          * - MegaError::API_EARGS - Invalid parameters
          */
-        MegaError* checkAccess(MegaNode* node, int level);
+        MegaError checkAccess(MegaNode* node, int level);
 
         /**
          * @brief Check if a node can be moved to a target node
@@ -13610,7 +13611,7 @@ class MegaApi
          * - MegaError::API_ENOENT - The node or the target doesn't exist in the account
          * - MegaError::API_EARGS - Invalid parameters
          */
-        MegaError* checkMove(MegaNode* node, MegaNode* target);
+        MegaError checkMove(MegaNode* node, MegaNode* target);
 
         /**
          * @brief Check if the MEGA filesystem is available in the local computer

@@ -3847,12 +3847,12 @@ MegaUserList *MegaApi::getCurrentUsers()
     return pImpl->getCurrentUsers();
 }
 
-MegaError* MegaApi::checkAccess(MegaNode* megaNode, int level)
+MegaError MegaApi::checkAccess(MegaNode* megaNode, int level)
 {
     return pImpl->checkAccess(megaNode, level);
 }
 
-MegaError* MegaApi::checkMove(MegaNode* megaNode, MegaNode* targetNode)
+MegaError MegaApi::checkMove(MegaNode* megaNode, MegaNode* targetNode)
 {
     return pImpl->checkMove(megaNode, targetNode);
 }
