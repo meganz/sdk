@@ -52,7 +52,7 @@ typedef NS_ENUM(NSInteger, MEGAErrorType) {
     MEGAErrorTypeApiEMFARequired = -26,            // Multi-factor authentication required
     MEGAErrorTypeApiEMasterOnly = -27,             ///< Access denied for sub-users (only for business accounts)
     MEGAErrorTypeApiEBusinessPastDue = -28,        ///< Business account expired
-    MEGAErrorTypeApiEPAYWALL = -29                ///< Over Disk Quota Paywall
+    MEGAErrorTypeApiEPaywall = -29                 ///< Over Disk Quota Paywall
 };
 
 

@@ -5404,28 +5404,28 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
 /**
  * @brief Returns the deadline to remedy the storage overquota situation
  *
- * This value is valid only when MegaApi::getUserData has been called after
- * receiving a callback MegaListener/MegaGlobalListener::onEvent of type
- * MegaEvent::EVENT_STORAGE, reporting STORAGE_STATE_PAYWALL.
+ * This value is valid only when [MegaSdk getUserData] has been called after
+ * receiving a callback [MegaDelegate/MegaGlobalDelegate onEvent:event] of type
+ * EventStorage, reporting StorageStatePaywall.
  * The value will become invalid once the state of storage changes.
  *
- * @return Timestamp representing the deadline to remedy the overquota
+ * @return `NSDate` instance representing the deadline to remedy the overquota
 */
-- (uint64_t)getOverquotaDeadlineTs;
+- (nonnull NSDate *)overquotaDeadline;
 
 /**
  * @brief Returns when the user was warned about overquota state
  *
- * This value is valid only when MegaApi::getUserData has been called after
- * receiving a callback MegaListener/MegaGlobalListener::onEvent of type
- * MegaEvent::EVENT_STORAGE, reporting STORAGE_STATE_PAYWALL.
+ * This value is valid only when [MegaSdk getUserData] has been called after
+ * receiving a callback [MegaDelegate/MegaGlobalDelegate onEvent:event] of type
+ * EventStorage, reporting StorageStatePaywall.
  * The value will become invalid once the state of storage changes.
  *
  * You take the ownership of the returned value.
  *
- * @return An array of `NSNumber` with the timestamp corresponding to each warning
+ * @return An array of `NSDate` with the timestamp corresponding to each warning
 */
--(nonnull NSArray<NSNumber *> *)getOverquotaWarningsTs;
+-(nonnull NSArray<NSDate *> *)overquotaWarningTimes;
 
 #pragma mark - Transfers
 

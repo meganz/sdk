@@ -1497,24 +1497,25 @@ using namespace mega;
     self.megaApi->killSession(sessionHandle);
 }
 
-- (uint64_t)getOverquotaDeadlineTs {
-    return self.megaApi->getOverquotaDeadlineTs();
+- (nonnull NSDate *)overquotaDeadline {
+    return [[NSDate alloc] initWithTimeIntervalSince1970:self.megaApi->getOverquotaDeadlineTs()];
 }
 
-- (nonnull NSArray<NSNumber *> *)getOverquotaWarningsTs {
-    MegaIntegerList *warningTimestampList = self.megaApi->getOverquotaWarningsTs();
+- (nonnull NSArray<NSDate *> *)overquotaWarningTimes {
+    MegaIntegerList *warningTimeIntervalList = self.megaApi->getOverquotaWarningsTs();
 
-    int sizeOfWarningTimestamps = warningTimestampList->size();
+    int sizeOfWarningTimestamps = warningTimeIntervalList->size();
     if (sizeOfWarningTimestamps == 0) {
         return [[NSMutableArray alloc] initWithCapacity:0];
     }
 
-    NSMutableArray *warningTimestampArray = [[NSMutableArray alloc] initWithCapacity:sizeOfWarningTimestamps];
-    for(int i = 0; i < sizeOfWarningTimestamps; i ++) {
-        NSNumber *timestampObject = [[NSNumber alloc] initWithLongLong:warningTimestampList->get(i)];
-        [warningTimestampArray addObject:timestampObject];
+    NSMutableArray *warningDateList = [[NSMutableArray alloc] initWithCapacity:sizeOfWarningTimestamps];
+    for(int i = 0; i < sizeOfWarningTimestamps; i++) {
+        NSDate *warningDate = [[NSDate alloc] initWithTimeIntervalSince1970:warningTimeIntervalList->get(i)];
+        [warningDateList addObject:warningDate];
     }
-    return warningTimestampArray;
+
+    return [warningDateList copy];
 }
 
 #pragma mark - Transfer
