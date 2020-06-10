@@ -2122,6 +2122,63 @@ void NodeCounter::operator -= (const NodeCounter& o)
     versions -= o.versions;
 }
 
+
+CacheableStatus::CacheableStatus(int64_t type, int64_t value)
+    : mType{type}, mValue{value}
+{ }
+
+
+// This should be a const-method but can't be due to the broken Cacheable interface.
+// Do not mutate members in this function! Hence, we forward to a private const-method.
+bool CacheableStatus::serialize(std::string* data)
+{
+    return const_cast<const CacheableStatus*>(this)->serialize(*data);
+}
+
+std::shared_ptr<CacheableStatus> CacheableStatus::unserialize(class MegaClient *client, const std::string& data)
+{
+    int64_t type;
+    int64_t value;
+
+    CacheableReader reader{data};
+    if (!reader.unserializei64(type))
+    {
+        return {};
+    }
+    if (!reader.unserializei64(value))
+    {
+        return {};
+    }
+
+    auto cacheableStatus = std::make_shared<CacheableStatus>(type, value);
+
+    client->loadCacheableStatus(cacheableStatus);
+    return cacheableStatus;
+}
+
+bool CacheableStatus::serialize(std::string& data) const
+{
+    CacheableWriter writer{data};
+    writer.serializei64(mType);
+    writer.serializei64(mValue);
+    return true;
+}
+
+int64_t CacheableStatus::value() const
+{
+    return mValue;
+}
+
+int64_t CacheableStatus::type() const
+{
+    return mType;
+}
+
+void CacheableStatus::setValue(const int64_t &value)
+{
+    mValue = value;
+}
+
 SyncConfig::SyncConfig(int tag,
                        std::string localPath,
                        const handle remoteNode,
@@ -2168,6 +2225,11 @@ void SyncConfig::setEnabled(bool enabled)
 bool SyncConfig::isResumable() const
 {
     return mEnabled && !isMegaSyncErrorPermanent(mError);
+}
+
+bool SyncConfig::isResumableAtStartup() const
+{
+    return mEnabled && (!mError || mError == FOREIGN_TARGET_OVERSTORAGE); //temporary errors that don't have an asociated restore functionality
 }
 
 const std::string& SyncConfig::getLocalPath() const
@@ -2315,7 +2377,7 @@ std::unique_ptr<SyncConfig> SyncConfig::unserialize(const std::string& data)
     {
         return {};
     }
-    auto syncConfig = std::unique_ptr<SyncConfig>{new SyncConfig{static_cast<int>(tag), std::move(localPath), //TODO: use int64 for tag without casting
+    auto syncConfig = std::unique_ptr<SyncConfig>{new SyncConfig{static_cast<int>(tag), std::move(localPath),
                     remoteNode, fingerprint, std::move(regExps), enabled,
                     static_cast<Type>(syncType), syncDeletions,
                     forceOverwrite, static_cast<int>(error)}};

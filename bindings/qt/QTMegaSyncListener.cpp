@@ -40,7 +40,7 @@ void QTMegaSyncListener::onSyncAdded(MegaApi *api, MegaSync *sync, int additionS
 {
     QTMegaEvent *event = new QTMegaEvent(api, (QEvent::Type)QTMegaEvent::OnSyncAdded);
     event->setSync(sync->copy());
-    event->setNewState(additionState); //TODO: doc this?
+    event->setNewState(additionState);
     QCoreApplication::postEvent(this, event, INT_MIN);
 }
 

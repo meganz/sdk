@@ -2266,7 +2266,7 @@ void MegaClient::exec()
         sync_list::iterator it;
         for (it = syncs.begin(); it != syncs.end(); it++)
         {
-            if ((*it)->fsfp)
+            if ((*it)->state != SYNC_FAILED && (*it)->fsfp)
             {
                 fsfp_t current = (*it)->dirnotify->fsfingerprint();
                 if ((*it)->fsfp != current)
@@ -3799,7 +3799,6 @@ bool MegaClient::isFetchingNodesPendingCS()
 #ifdef ENABLE_SYNC
 void MegaClient::resumeResumableSyncs()
 {
-
     if (!syncConfigs || !allowAutoResumeSyncs)
     {
         return;
@@ -3808,7 +3807,7 @@ void MegaClient::resumeResumableSyncs()
     {
         syncerror_t syncError = static_cast<syncerror_t>(config.getError());
 
-        if (config.isResumable())
+        if (config.isResumableAtStartup())
         {
             app->sync_about_to_be_resumed(config);
             LOG_debug << "Resuming cached sync: " << config.getTag() << " " << config.getLocalPath() << " fsfp= " << config.getLocalFingerprint() << " error = " << syncError ;
@@ -3817,10 +3816,7 @@ void MegaClient::resumeResumableSyncs()
             if (e)
             {
                 // update config entry with the error, if any. otherwise addsync would have updated it
-                saveAndUpdateSyncConfig(&config, SYNC_FAILED, static_cast<syncerror_t>(syncError) );
-                // TODO: what if the error is temporary? probably we don't want to try and resume those at startup ...
-                // otherwise we might break the logic pertaining restoring syncs
-                // If we do want to resume them, and decide not to set it to failed, and not persist this, onSyncAdded will need the error somehow
+                saveAndUpdateSyncConfig(&config, isMegaSyncErrorPermanent(syncError) ? SYNC_FAILED : SYNC_DISABLED, static_cast<syncerror_t>(syncError) );
             }
         }
 
@@ -5021,6 +5017,30 @@ bool MegaClient::setstoragestatus(storagestatus_t status)
         storagestatus_t previousStatus = ststatus;
         ststatus = status;
 
+        using CS = CacheableStatus;
+        using CType = CacheableStatus::Type;
+        auto status = mCachedStatus[CType::STATUS_STORAGE];
+        if (!status)
+        {
+            status = mCachedStatus[CType::STATUS_STORAGE] = std::make_shared<CS>(CType::STATUS_STORAGE, ststatus);
+        }
+        else
+        {
+            mCachedStatus[CacheableStatus::Type::STATUS_STORAGE]->setValue(ststatus);
+        }
+
+        //persist change:
+        if (tctable)
+        {
+            LOG_verbose << "Adding/updating status to database: "
+                        << status->type() << " = " << status->value();
+            if (!(sctable->put(CACHEDSTATUS, status.get(), &key)))
+            {
+                LOG_err << "Failed to add/update status to db: "
+                            << status->type() << " = " << status->value();
+            }
+        }
+
         app->notify_storage(ststatus);
 
 #ifdef ENABLE_SYNC
@@ -5153,6 +5173,28 @@ void MegaClient::sc_updatenode()
                     return;
                 }
         }
+    }
+}
+
+void MegaClient::loadCacheableStatus(const std::shared_ptr<CacheableStatus> &status)
+{
+    mCachedStatus[status->type()] = status;
+
+    LOG_verbose << "Loaded status from cache: "
+                << status->type() << " = " << status->value();
+
+    switch(status->type())
+    {
+    case CacheableStatus::Type::STATUS_STORAGE:
+    {
+        ststatus = static_cast<storagestatus_t>(status->value());
+        break;
+    }
+    case CacheableStatus::Type::STATUS_BUSINESS:
+    {
+        mBizStatus = static_cast<BizStatus>(status->value());
+        break;
+    }
     }
 }
 
@@ -6600,6 +6642,29 @@ void MegaClient::setBusinessStatus(BizStatus newBizStatus)
 
     if (prevBizStatus != mBizStatus) //has changed
     {
+        using CS = CacheableStatus;
+        using CType = CacheableStatus::Type;
+        auto status = mCachedStatus[CType::STATUS_BUSINESS];
+        if (!status)
+        {
+            status = mCachedStatus[CType::STATUS_BUSINESS] = std::make_shared<CS>(CType::STATUS_BUSINESS, mBizStatus);
+        }
+        else
+        {
+            mCachedStatus[CacheableStatus::Type::STATUS_BUSINESS]->setValue(mBizStatus);
+        }
+
+        //persist change:
+        if (tctable)
+        {
+            LOG_verbose << "Adding/updating status to database: "
+                        << status->type() << " = " << status->value();
+            if (!(sctable->put(CACHEDSTATUS, status.get(), &key)))
+            {
+                LOG_err << "Failed to add/update status to db: "
+                            << status->type() << " = " << status->value();
+            }
+        }
 #ifdef ENABLE_SYNC
         if (mBizStatus == BIZ_STATUS_EXPIRED) //transitioning to expired
         {
@@ -6612,7 +6677,7 @@ void MegaClient::setBusinessStatus(BizStatus newBizStatus)
 #endif
     }
 
-    app->notify_business_status(mBizStatus);
+    app->notify_business_status(mBizStatus); //TODO: review notifications when cached vs prior
 
 }
 
@@ -10925,6 +10990,21 @@ bool MegaClient::fetchsc(DbTable* sctable)
                 }
 #endif
                 break;
+            case CACHEDSTATUS:
+            {
+                auto status = CacheableStatus::unserialize(this, data);
+                if (status)
+                {
+                    status->dbid = id;
+                }
+                else
+                {
+                    LOG_err << "Failed - user record read error";
+                    return false;
+                }
+                break;
+            }
+
         }
         hasNext = sctable->next(&id, &data, &key);
     }
@@ -12414,7 +12494,19 @@ error MegaClient::addsync(SyncConfig syncConfig, const char* debris, string* loc
                 return API_EFAILED;
             }
 
+            auto prevFingerprint = syncConfig.getLocalFingerprint();
+
             Sync* sync = new Sync(this, syncConfig, debris, localdebris, remotenode, inshare, tag, appData);
+
+            if (prevFingerprint && prevFingerprint != syncConfig.getLocalFingerprint())
+            {
+                LOG_err << "New sync local fingerprint mismatch. Previous: " << prevFingerprint
+                        << "  Current: " << syncConfig.getLocalFingerprint();
+                sync->changestate(SYNC_FAILED, LOCAL_FINGERPRINT_MISMATCH); //note, this only causes fireOnSyncXXX if there's a MegaSync object in the map already
+                syncError = LOCAL_FINGERPRINT_MISMATCH;
+                delete sync;
+                return API_EFAILED;
+            }
 
             sync->isnetwork = isnetwork;
 
@@ -14029,6 +14121,26 @@ void MegaClient::disableSync(Sync* sync, syncerror_t syncError)
     syncactivity = true;
 }
 
+bool MegaClient::disableSyncContainingNode(mega::handle nodeHandle, syncerror_t syncError)
+{
+    while(nodeHandle != UNDEF )
+    {
+        for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
+        {
+            Sync *sync = (*it);
+            if ( sync->localroot && sync->localroot->node && sync->localroot->node->nodehandle == nodeHandle)
+            {
+                disableSync(sync, syncError);
+                return true;
+            }
+        }
+
+        Node *n = nodebyhandle(nodeHandle);
+        nodeHandle = n ? n->parenthandle : UNDEF;
+    }
+    return false;
+}
+
 void MegaClient::failSyncs(syncerror_t syncError)
 {
     for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
@@ -14055,14 +14167,17 @@ void MegaClient::disableSyncs(syncerror_t syncError)
     syncactivity = true;
 }
 
-error MegaClient::enableSync(const SyncConfig *syncConfig, syncerror_t &syncError)
+error MegaClient::enableSync(const SyncConfig *syncConfig, syncerror_t &syncError, bool resetFingerprint)
 {
     syncError = NO_ERROR;
 
     auto newConfig = *syncConfig;
+    if (resetFingerprint)
+    {
+        newConfig.setLocalFingerprint(0); //This will cause the local filesystem fingerprint to be recalculated
+    }
 
-    const auto e = addsync(newConfig, DEBRISFOLDER, nullptr, syncError, true);
-    //NOTICE: addsync reuses fingreprint. It only gets updated for new syncs (config->fingerprint is unset)
+    const auto e = addsync(newConfig, DEBRISFOLDER, nullptr, syncError, resetFingerprint);
 
     syncstate_t newstate = isMegaSyncErrorPermanent(syncError)?SYNC_FAILED:SYNC_DISABLED;
 
@@ -14072,7 +14187,7 @@ error MegaClient::enableSync(const SyncConfig *syncConfig, syncerror_t &syncErro
         newstate = s->state;
     }
 
-    // change, so that cache is updatedd & the app gets noticed
+    // change, so that cache is updated & the app gets noticed
     // we don't fire onDisable in this case (it was not enabled in the first place).
     auto change_error = changeSyncState(&newConfig, newstate, static_cast<syncerror_t>(syncError), false);
 
@@ -14084,7 +14199,7 @@ error MegaClient::enableSync(const SyncConfig *syncConfig, syncerror_t &syncErro
     return e;
 }
 
-error MegaClient::enableSync(int tag, syncerror_t &syncError)
+error MegaClient::enableSync(int tag, syncerror_t &syncError, bool resetFingerprint)
 {
     if (!syncConfigs)
     {
@@ -14098,7 +14213,7 @@ error MegaClient::enableSync(int tag, syncerror_t &syncError)
         return API_ENOENT;
     }
 
-    return enableSync(syncConfig, syncError);
+    return enableSync(syncConfig, syncError, resetFingerprint);
 }
 
 void MegaClient::restoreSyncs()
@@ -14115,7 +14230,7 @@ void MegaClient::restoreSyncs()
         else
         {
             LOG_verbose << "Skipping restoring sync: " << config.getLocalPath()
-                        << " enabled=" << config.getEnabled() << " error=" << syncError;;
+                        << " enabled=" << config.getEnabled() << " error=" << syncError;
         }
     }
 

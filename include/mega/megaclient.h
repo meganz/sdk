@@ -553,6 +553,7 @@ public:
      * @brief add sync. Will fill syncError in case there is one.
      * It will persist the sync configuration if everything goes fine.
      * @param syncError filled with syncerror_t with the sync error that prevented the addition
+     * @param delayInitialScan delay the initial scan
      * @return API_OK if added. (regular) error otherwise.
      */
     error addsync(SyncConfig, const char*, string*, syncerror_t &syncError, bool delayInitialScan = false, void* = NULL);
@@ -573,6 +574,7 @@ public:
     // disable synchronization. (transition to disable_state)
     // If no error passed, it entails a manual disable: won't be resumed automatically anymore, but it will be kept in cache
     void disableSync(Sync*, syncerror_t syncError =  NO_ERROR);
+    bool disableSyncContainingNode(mega::handle nodeHandle, syncerror_t syncError);
 
     // fail all active syncs
     void failSyncs(syncerror_t syncError =  NO_ERROR);
@@ -585,8 +587,9 @@ public:
     void restoreSyncs();
 
     // attempts to enable a sync. will fill syncError with the syncerror_t error (if any)
-    error enableSync(int tag, syncerror_t &syncError);
-    error enableSync(const SyncConfig *syncConfig, syncerror_t &syncError);
+    // if resetFingeprint is true, it will assign a new Filesystem Fingerprint.
+    error enableSync(int tag, syncerror_t &syncError, bool resetFingerprint = false);
+    error enableSync(const SyncConfig *syncConfig, syncerror_t &syncError, bool resetFingerprint = false);
 
     /**
      * @brief updates the state of a synchronization. it will persist the changes and call app syncupdate_state handler
@@ -829,6 +832,9 @@ public:
 
     // storage status
     storagestatus_t ststatus;
+
+    // cacheable status
+    std::map<int64_t, std::shared_ptr<CacheableStatus>> mCachedStatus;
 
     // minimum bytes per second for streaming (0 == no limit, -1 == use default)
     int minstreamingrate;
@@ -1079,7 +1085,7 @@ public:
     pendinghttp_map pendinghttp;
 
     // record type indicator for sctable
-    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE, CACHEDCHAT } sctablerectype;
+    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE, CACHEDCHAT, CACHEDSTATUS } sctablerectype;
 
     // open/create state cache database table
     void opensctable();
@@ -1698,6 +1704,9 @@ public:
 #ifdef ENABLE_SYNC
     void resetSyncConfigs();
 #endif
+
+    void loadCacheableStatus(const std::shared_ptr<CacheableStatus> &status);
+
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
     ~MegaClient();

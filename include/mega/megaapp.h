@@ -331,7 +331,7 @@ struct MEGA_API MegaApp
     // after an attempt to auto-resume a cache sync
     virtual void sync_auto_resume_result(const SyncConfig &, syncerror_t error) { }
 
-    //TODO: doc
+    // after a sync has been removed
     virtual void sync_removed(int tag) { }
 
     // suggest reload due to possible race condition with other clients

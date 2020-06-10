@@ -443,12 +443,9 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
             File *f = (*it++);
 
 #ifdef ENABLE_SYNC
-            if (!alreadyDisabled)
+            if (f->syncxfer)
             {
-                //TODO: note for reviewer: this was done by megasync. But perhaps we want to disable only the affected sync?
-                // plus: there's not getting out of this situation: only restarting would try re-enabling it
-                client->disableSyncs(FOREIGN_TARGET_OVERSTORAGE);
-                alreadyDisabled = true;
+                client->disableSyncContainingNode(f->h, FOREIGN_TARGET_OVERSTORAGE);
             }
 #endif
             removeTransferFile(API_EOVERQUOTA, f, &committer);

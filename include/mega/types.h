@@ -301,7 +301,7 @@ typedef enum {
     STORAGE_OVERQUOTA = 9, //Account reached storage overquota
     BUSINESS_EXPIRED = 10, //Business account expired
     FOREIGN_TARGET_OVERSTORAGE = 11, //Sync transfer fails (upload into an inshare whose account is overquota)
-    REMOTE_PATH_HAS_CHANGED = 12, //TODO: this might be removed: not an error? TODO: review
+    REMOTE_PATH_HAS_CHANGED = 12, // Remote path has changed (currently unused: not an error)
     REMOTE_PATH_DELETED = 13, //Remote path has been deleted
     SHARE_NON_FULL_ACCESS = 14, //Existing inbound share sync or part thereof lost full access
     LOCAL_FINGERPRINT_MISMATCH = 15, //Filesystem fingerprint does not match the one stored for the synchronization
@@ -710,6 +710,39 @@ namespace CodeCounter
     };
 }
 
+
+// Hold the status of a status variable
+class CacheableStatus : public Cacheable
+{
+public:
+    enum Type
+    {
+        STATUS_UNKNOWN = 0,
+        STATUS_STORAGE = 1,
+        STATUS_BUSINESS = 2,
+    };
+
+    CacheableStatus(int64_t type, int64_t value);
+
+    // serializes the object to a string
+    bool serialize(string* data) override;
+
+    // deserializes the string to a SyncConfig object. Returns null in case of failure
+    static std::shared_ptr<CacheableStatus> unserialize(MegaClient *client, const std::string& data);
+    int64_t type() const;
+    int64_t value() const;
+
+    void setValue(const int64_t &value);
+
+private:
+
+    // need this to ensure serialization doesn't mutate state (Cacheable::serialize is non-const)
+    bool serialize(std::string& data) const;
+
+    int64_t mType = STATUS_UNKNOWN;
+    int64_t mValue = 0;
+
+};
 // Holds the config of a sync. Can be extended with future config options
 class SyncConfig : public Cacheable
 {
@@ -735,13 +768,16 @@ public:
             );
 
     // returns unique identifier
-    int getTag() const; //TODO: add tag & other new fields to std::tuple
+    int getTag() const;
 
     // returns unique identifier
     void setTag(int tag);
 
-    // whether this sync should be resumed at startup
+    // whether this sync can be resumed
     bool isResumable() const;
+
+    // whether this sync should be resumed at startup
+    bool isResumableAtStartup() const;
 
     // returns the local path of the sync
     const std::string& getLocalPath() const;
@@ -820,29 +856,33 @@ private:
     bool mForceOverwrite;
 
     // failure cause (disable/failure cause).
-    int mError; //TODO: add to std::tuple
+    int mError;
 
     // need this to ensure serialization doesn't mutate state (Cacheable::serialize is non-const)
     bool serialize(std::string& data) const;
 
     // this is very handy for defining comparison operators
-    std::tuple<const bool&,
+    std::tuple<const int&,
+               const bool&,
                const std::string&,
                const handle&,
                const fsfp_t&,
                const std::vector<std::string>&,
                const Type&,
                const bool&,
-               const bool&> tie() const
+               const bool&,
+               const int&> tie() const
     {
-        return std::tie(mEnabled,
+        return std::tie(mTag,
+                        mEnabled,
                         mLocalPath,
                         mRemoteNode,
                         mLocalFingerprint,
                         mRegExps,
                         mSyncType,
                         mSyncDeletions,
-                        mForceOverwrite);
+                        mForceOverwrite,
+                        mError);
     }
 };
 

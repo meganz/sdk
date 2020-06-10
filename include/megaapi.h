@@ -3321,6 +3321,7 @@ class MegaRequest
          * - MegaApi::moveTransferBefore - Returns the tag of the transfer to move
          * - MegaApi::moveTransferBeforeByTag - Returns the tag of the transfer to move
          * - MegaApi::setBackup - Returns the tag asociated with the backup
+         * - MegaApi::syncFolder - Returns the tag asociated with the sync
          *
          * @return Tag of a transfer related to the request
          */
@@ -4952,7 +4953,7 @@ public:
         STORAGE_OVERQUOTA = 9, //Account reached storage overquota
         BUSINESS_EXPIRED = 10, //Business account expired
         FOREIGN_TARGET_OVERSTORAGE = 11, //Sync transfer fails (upload into an inshare whose account is overquota)
-        REMOTE_PATH_HAS_CHANGED = 12, //TODO: this might be removed: not an error? TODO: review
+        REMOTE_PATH_HAS_CHANGED = 12, // Remote path has changed (currently unused: not an error)
         REMOTE_PATH_DELETED = 13, //Remote path has been deleted
         SHARE_NON_FULL_ACCESS = 14, //Existing inbound share sync or part thereof lost full access
         LOCAL_FINGERPRINT_MISMATCH = 15, //Filesystem fingerprint does not match the one stored for the synchronization
@@ -12554,6 +12555,7 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getNumber - Fingerprint of the local folder
          * - MegaRequest::getNumDetails - Returns the sync error (MegaSync::Error) in case of failure
+         * - MegaRequest::getTransferTag - Returns the sync tag
          *
          * @param localFolder Local folder
          * @param megaFolder MEGA folder

@@ -4053,11 +4053,9 @@ void CommandGetUserData::procresult()
                     std::string err = "GetUserData: invalid business status / account mode";
                     LOG_err << err;
                     client->sendevent(99450, err.c_str());
-
-                    client->mBizStatus = BIZ_STATUS_EXPIRED;
                     client->mBizMode = BIZ_MODE_SUBUSER;
                     client->mBizExpirationTs = client->mBizGracePeriodTs = 0;
-                    client->app->notify_business_status(client->mBizStatus);
+                    client->setBusinessStatus(BIZ_STATUS_EXPIRED);
                 }
                 else
                 {
@@ -4084,11 +4082,7 @@ void CommandGetUserData::procresult()
                     assert(m != BIZ_MODE_SUBUSER || !masters.empty());
                     client->mBizMasters = masters;
 
-                    if (client->mBizStatus != s)
-                    {
-                        client->mBizStatus = s;
-                        client->app->notify_business_status(s);
-                    }
+                    client->setBusinessStatus(s);
 
                     // if current business status will expire sooner than the scheduled `ug`, update the
                     // backoff to a shorter one in order to refresh the business status asap

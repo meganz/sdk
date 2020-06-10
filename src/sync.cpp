@@ -699,8 +699,6 @@ Sync::Sync(MegaClient* cclient, SyncConfig &config, const char* cdebris,
 
     // set specified fsfp or get from fs if none
     const auto cfsfp = config.getLocalFingerprint();
-    //TODO: when resuming ... this might have changed, it shall be checked afterwards and produce (LOCAL_FINGERPRINT_MISMATCH)... TODO: test
-
     if (cfsfp)
     {
         fsfp = cfsfp;

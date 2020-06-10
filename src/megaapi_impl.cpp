@@ -12988,9 +12988,9 @@ void MegaApiImpl::sync_auto_resume_result(const SyncConfig &config, syncerror_t 
         sync->setRegExp(re.get());
     }
 
-    bool resumed = config.isResumable() && !error;//the sync was actually resumed
+    bool resumed = config.isResumableAtStartup() && !error;//the sync was actually resumed
     bool wasEnabled = config.getEnabled();
-    bool failedToResume = config.isResumable() && error;//the sync could not be resumed
+    bool failedToResume = config.isResumableAtStartup() && error;//the sync could not be resumed
     if (resumed)
     {
         Sync *s = client->syncs.back();
@@ -13005,7 +13005,7 @@ void MegaApiImpl::sync_auto_resume_result(const SyncConfig &config, syncerror_t 
 
     syncMap[config.getTag()] = sync;
 
-    if (!wasEnabled && config.isResumable())
+    if (!wasEnabled && config.isResumableAtStartup())
     {
         fireOnSyncAdded(sync, failedToResume ? MegaSync::REENABLED_FAILED : MegaSync::FROM_CACHE_REENABLED);
     }
@@ -21052,6 +21052,7 @@ void MegaApiImpl::sendPendingRequests()
                 sync->setLocalFingerprint(fsfp);
                 sync->setMegaFolderYielding(getNodePathByNodeHandle(node->nodehandle));
                 request->setNumber(fsfp);
+                request->setTransferTag(nextSyncTag);
                 syncMap[nextSyncTag] = sync;
 
                 fireOnSyncAdded(sync, MegaSync::NEW);
@@ -21074,7 +21075,7 @@ void MegaApiImpl::sendPendingRequests()
 
             syncerror_t syncError = NO_ERROR;
 
-            e = client->enableSync(tag, syncError);
+            e = client->enableSync(tag, syncError, true);
             //TODO: note to reviewer: in case this fails with a non temporary error, this sets the sync
             // to FAILED (which oddly entails: isEnabled = true: from the user perspective it has been enabled)
             // Alternatively, we could keep/enforce a SYNC_DISABLED+NO_ERROR (i.e. manually disabled) and
