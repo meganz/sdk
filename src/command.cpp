@@ -64,6 +64,11 @@ bool Command::checkError(Error& errorDetails, JSON& json)
             ptr++;
         }
 
+        if (strlen(ptr) < 6)
+        {
+            return false;
+        }
+
         std::string errJson(ptr, 6);
 
         if (errJson == "\"err\":")
