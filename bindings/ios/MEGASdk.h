@@ -5411,7 +5411,7 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  *
  * @return `NSDate` instance representing the deadline to remedy the overquota
 */
-- (nonnull NSDate *)overquotaDeadline;
+- (nonnull NSDate *)overquotaDeadlineDate;
 
 /**
  * @brief Returns when the user was warned about overquota state

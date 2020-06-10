@@ -1497,7 +1497,7 @@ using namespace mega;
     self.megaApi->killSession(sessionHandle);
 }
 
-- (nonnull NSDate *)overquotaDeadline {
+- (nonnull NSDate *)overquotaDeadlineDate {
     return [[NSDate alloc] initWithTimeIntervalSince1970:self.megaApi->getOverquotaDeadlineTs()];
 }
 
@@ -1510,12 +1510,11 @@ using namespace mega;
     }
 
     NSMutableArray *warningDateList = [[NSMutableArray alloc] initWithCapacity:sizeOfWarningTimestamps];
-    for(int i = 0; i < sizeOfWarningTimestamps; i++) {
+    for (int i = 0; i < sizeOfWarningTimestamps; i++) {
         NSDate *warningDate = [[NSDate alloc] initWithTimeIntervalSince1970:warningTimeIntervalList->get(i)];
         [warningDateList addObject:warningDate];
     }
-
-    return [warningDateList copy];
+    return warningDateList;
 }
 
 #pragma mark - Transfer
