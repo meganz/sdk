@@ -36,6 +36,7 @@
 #endif
 
 #include "types.h"
+#include "utils.h"
 #include "waiter.h"
 
 #if defined (__linux__) && !defined (__ANDROID__)
@@ -239,6 +240,28 @@ struct MEGA_API DirAccess
     virtual ~DirAccess() { }
 };
 
+struct Notification
+{
+    dstime timestamp;
+    string path;
+    LocalNode* localnode;
+};
+
+struct NotificationDeque : ThreadSafeDeque<Notification> 
+{
+    void replaceLocalNodePointers(LocalNode* check, LocalNode* newvalue)
+    {
+        std::lock_guard<std::mutex> g(m); 
+        for (auto& n : mNotifications)
+        {
+            if (n.localnode == check)
+            {
+                n.localnode = newvalue;
+            }
+        }
+    }
+};
+
 // generic filesystem change notification
 struct MEGA_API DirNotify
 {
@@ -247,17 +270,27 @@ struct MEGA_API DirNotify
     // notifyq[EXTRA] is like DIREVENTS, but delays its processing (for network filesystems)
     // notifyq[DIREVENTS] is fed with filesystem changes
     // notifyq[RETRY] receives transient errors that need to be retried
-    notify_deque notifyq[NUMQUEUES];
+    // Thread safe so that a separate thread can listen for filesystem notifications (for windows for now, maybe more platforms later)
+    NotificationDeque notifyq[NUMQUEUES];
+
+private:
+    // these next few fields may be updated by notification-reading threads
+    std::mutex mMutex;
 
     // set if no notification available on this platform or a permanent failure
     // occurred
-    int failed;
+    int mFailed;
 
     // reason of the permanent failure of filesystem notifications
-    string failreason;
+    string mFailReason;
 
-    // set if a temporary error occurred
-    int error;
+public:
+    // set if a temporary error occurred.  May be set from a thread.
+    std::atomic<int> mErrorCount;
+
+    // thread safe setter/getters
+    void setFailed(int errCode, const string& reason);
+    int  getFailed(string& reason);
 
     // base path
     string localbasepath;
@@ -307,7 +340,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     // instantiate DirNotify object (default to periodic scanning handler if no
     // notification configured) with given root path
-    virtual DirNotify* newdirnotify(string*, string*);
+    virtual DirNotify* newdirnotify(string*, string*, Waiter*);
 
     // check if character is lowercase hex ASCII
     bool islchex(char) const;

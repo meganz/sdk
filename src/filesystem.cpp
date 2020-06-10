@@ -149,15 +149,15 @@ FileSystemType FileSystemAccess::getlocalfstype(const string *dstPath) const
     }
 #elif defined(_WIN32) || defined(_WIN64) || defined(WINDOWS_PHONE)
     // Filesystem detection for Windows
-    TCHAR volumeName[MAX_PATH + 1] = { 0 };
-    TCHAR fileSystemName[MAX_PATH + 1] = { 0 };
+    CHAR volumeName[MAX_PATH + 1] = { 0 };
+    CHAR fileSystemName[MAX_PATH + 1] = { 0 };
     DWORD serialNumber = 0;
     DWORD maxComponentLen = 0;
     DWORD fileSystemFlags = 0;
 
     if (GetVolumeInformationA(dstPath->c_str(), volumeName, sizeof(volumeName),
                              &serialNumber, &maxComponentLen, &fileSystemFlags,
-                             fileSystemName, sizeof(fileSystemName)) == true)
+                             fileSystemName, sizeof(fileSystemName)))
     {
         if (!strcmp(fileSystemName, "NTFS"))
         {
@@ -414,11 +414,29 @@ DirNotify::DirNotify(string* clocalbasepath, string* cignore)
     localbasepath = *clocalbasepath;
     ignore = *cignore;
 
-    failed = 1;
-    failreason = "Not initialized";
-    error = 0;
+    mFailed = 1;
+    mFailReason = "Not initialized";
+    mErrorCount = 0;
     sync = NULL;
 }
+
+
+void DirNotify::setFailed(int errCode, const string& reason)
+{
+    std::lock_guard<std::mutex> g(mMutex);
+    mFailed = errCode;
+    mFailReason = reason;
+}
+
+int DirNotify::getFailed(string& reason)
+{
+    if (mFailed) 
+    {
+        reason = mFailReason;
+    }
+    return mFailed;
+}
+
 
 // notify base LocalNode + relative path/filename
 void DirNotify::notify(notifyqueue q, LocalNode* l, const char* localpath, size_t len, bool immediate)
@@ -426,64 +444,22 @@ void DirNotify::notify(notifyqueue q, LocalNode* l, const char* localpath, size_
     string path;
     path.assign(localpath, len);
 
+    // We may be executing on a thread here so we can't access the LocalNode data structures.  Queue everything, and   
+    // filter when the notifications are processed.  Also, queueing it here is faster than logging the decision anyway.
+
+    Notification n;
+    n.timestamp = immediate ? 0 : Waiter::ds;
+    n.localnode = l;
+    n.path = std::move(path);
+    notifyq[q].pushBack(std::move(n));
+
 #ifdef ENABLE_SYNC
-    if ((q == DirNotify::DIREVENTS || q == DirNotify::EXTRA)
-            && notifyq[q].size()
-            && notifyq[q].back().localnode == l
-            && notifyq[q].back().path == path)
-    {
-        if (notifyq[q].back().timestamp)
-        {
-            notifyq[q].back().timestamp = immediate ? 0 : Waiter::ds;
-        }
-        LOG_debug << "Repeated notification skipped";
-        return;
-    }
-
-    if (!immediate && sync && !sync->initializing && q == DirNotify::DIREVENTS)
-    {
-        string tmppath;
-        if (l)
-        {
-            l->getlocalpath(&tmppath);
-        }
-
-        if (localpath)
-        {
-            if (tmppath.size())
-            {
-                tmppath.append(sync->client->fsaccess->localseparator);
-            }
-
-            tmppath.append(path);
-        }
-        attr_map::iterator ait;
-        auto fa = sync->client->fsaccess->newfileaccess(false);
-        bool success = fa->fopen(&tmppath, false, false);
-        LocalNode *ll = sync->localnodebypath(l, &path);
-        if ((!ll && !success && !fa->retry) // deleted file
-            || (ll && success && ll->node && ll->node->localnode == ll
-                && (ll->type != FILENODE || (*(FileFingerprint *)ll) == (*(FileFingerprint *)ll->node))
-                && (ait = ll->node->attrs.map.find('n')) != ll->node->attrs.map.end()
-                && ait->second == ll->name
-                && fa->fsidvalid && fa->fsid == ll->fsid && fa->type == ll->type
-                && (ll->type != FILENODE || (ll->mtime == fa->mtime && ll->size == fa->size))))
-        {
-            LOG_debug << "Self filesystem notification skipped";
-            return;
-        }
-    }
-
     if (q == DirNotify::DIREVENTS || q == DirNotify::EXTRA)
     {
         sync->client->syncactivity = true;
     }
 #endif
 
-    notifyq[q].resize(notifyq[q].size() + 1);
-    notifyq[q].back().timestamp = immediate ? 0 : Waiter::ds;
-    notifyq[q].back().localnode = l;
-    notifyq[q].back().path = path;
 }
 
 // default: no fingerprint
@@ -497,7 +473,7 @@ bool DirNotify::fsstableids() const
     return true;
 }
 
-DirNotify* FileSystemAccess::newdirnotify(string* localpath, string* ignore)
+DirNotify* FileSystemAccess::newdirnotify(string* localpath, string* ignore, Waiter*)
 {
     return new DirNotify(localpath, ignore);
 }
