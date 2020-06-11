@@ -5453,11 +5453,15 @@ public:
          */
         static const char *getErrorString(int errorCode, ErrorContexts context);
 
-        MegaError(int e);
 
 protected:
+        MegaError(int e);
+
         //< 0 = API error code, > 0 = http error, 0 = No error
         int errorCode;
+
+        friend class MegaTransfer;
+        friend class MegaApiImpl;
 };
 
 /**
