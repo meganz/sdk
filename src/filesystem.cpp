@@ -68,6 +68,8 @@ const char *FileSystemAccess::fstypetostring(FileSystemType type) const
             return "FUSE";
         case FS_SDCARDFS:
             return "SDCARDFS";
+        case FS_F2FS:
+            return "F2FS";
         case FS_UNKNOWN:    // fall through
             return "UNKNOWN FS";
     }
@@ -121,6 +123,8 @@ FileSystemType FileSystemAccess::getlocalfstype(const string *dstPath) const
             case FUSEBLK_SUPER_MAGIC:
             case FUSECTL_SUPER_MAGIC:
                 return FS_FUSE;
+            case F2FS_SUPER_MAGIC:
+                return FS_F2FS;
             default:
                 return FS_UNKNOWN;
         }
@@ -190,8 +194,9 @@ bool FileSystemAccess::islocalfscompatible(unsigned char c, bool isEscape, FileS
         case FS_HFS:
             // APFS, HFS, HFS+ restricted characters => : /
             return c != '\x3A' && c != '\x2F';
+        case FS_F2FS:
         case FS_EXT:
-            // ext2/ext3/ext4 restricted characters =>  / NULL
+            // f2fs and ext2/ext3/ext4 restricted characters =>  / NULL
             return c != '\x00' && c != '\x2F';
         case FS_FAT32:
             // Control characters will be escaped but not unescaped

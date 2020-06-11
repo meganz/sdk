@@ -62,13 +62,17 @@
 #ifndef FUSECTL_SUPER_MAGIC
 #define FUSECTL_SUPER_MAGIC  0x65735543
 #endif
+
+#ifndef F2FS_SUPER_MAGIC
+#define F2FS_SUPER_MAGIC 0xF2F52010
+#endif
 #endif
 
 namespace mega {
 
 // Enumeration for filesystem families
 enum FileSystemType {FS_UNKNOWN = -1, FS_APFS = 0, FS_HFS = 1, FS_EXT = 2, FS_FAT32 = 3,
-                     FS_EXFAT = 4, FS_NTFS = 5, FS_FUSE = 6, FS_SDCARDFS = 7};
+                     FS_EXFAT = 4, FS_NTFS = 5, FS_FUSE = 6, FS_SDCARDFS = 7, FS_F2FS = 8};
 
 // generic host filesystem node ID interface
 struct MEGA_API FsNodeId
