@@ -11043,8 +11043,28 @@ class MegaApi
          *
          * @param nodehandle MegaHandle of the node to be used as secondary target folder
          * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated Use MegaApi::setCameraUploadsFolders instead
          */
         void setCameraUploadsFolderSecondary(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Set Camera Uploads for both primary and secondary target folder.
+         *
+         * If only one of the target folders wants to be set, simply pass a INVALID_HANDLE to
+         * as the other target folder and it will remain untouched.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
+         * - MegaRequest::getNodehandle - Returns the provided node handle for primary folder
+         * - MegaRequest::getParentHandle - Returns the provided node handle for secondary folder
+         *
+         * @param primaryFolder MegaHandle of the node to be used as primary target folder
+         * @param secondaryFolder MegaHandle of the node to be used as secondary target folder
+         * @param listener MegaRequestListener to track this request
+         */
+        void setCameraUploadsFolders(MegaHandle primaryFolder, MegaHandle secondaryFolder, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Gets Camera Uploads primary target folder.
@@ -13446,18 +13466,6 @@ class MegaApi
         bool hasChildren(MegaNode *parent);
 
         /**
-         * @brief Get the current index of the node in the parent folder for a specific sorting order
-         *
-         * If the node doesn't exist or it doesn't have a parent node (because it's a root node)
-         * this function returns -1
-         *
-         * @param node Node to check
-         * @param order Sorting order to use
-         * @return Index of the node in its parent folder
-         */
-        int getIndex(MegaNode* node, int order = 1);
-
-        /**
          * @brief Get the child node with the provided name
          *
          * If the node doesn't exist, this function returns NULL
@@ -15166,7 +15174,7 @@ class MegaApi
         /**
          * @brief Make a name suitable for a file name in the local filesystem
          *
-         * This function escapes (%xx) forbidden characters in the local filesystem if needed.
+         * This function escapes (%xx) the characters contained in the following list: \/:?\"<>|*
          * You can revert this operation using MegaApi::unescapeFsIncompatible
          *
          * The input string must be UTF8 encoded. The returned value will be UTF8 too.
@@ -15175,20 +15183,61 @@ class MegaApi
          *
          * @param filename Name to convert (UTF8)
          * @return Converted name (UTF8)
+         * @deprecated There is a new prototype that includes path for filesystem detection
          */
         char* escapeFsIncompatible(const char *filename);
 
         /**
-         * @brief Unescape a file name escaped with MegaApi::escapeFsIncompatible
+         * @brief Make a name suitable for a file name in the local filesystem
+         *
+         * This function escapes (%xx) forbidden characters in the local filesystem if needed.
+         * You can revert this operation using MegaApi::unescapeFsIncompatible
+         *
+         * If no dstPath is provided or filesystem type it's not supported this method will
+         * escape characters contained in the following list: \/:?\"<>|*
+         * Otherwise it will check forbidden characters for local filesystem type
          *
          * The input string must be UTF8 encoded. The returned value will be UTF8 too.
          *
          * You take the ownership of the returned value
          *
-         * @param name Escaped name to convert (UTF8)
+         * @param filename Name to convert (UTF8)
+         * @param destination path
          * @return Converted name (UTF8)
          */
+        char* escapeFsIncompatible(const char *filename, const char *dstPath);
+
+        /**
+         * @brief Unescape a file name escaped with MegaApi::escapeFsIncompatible
+         *
+         * This method will unescape those sequences that once has been unescaped results
+         * in any character of the following list: \/:?\"<>|*
+         *
+         * The input string must be UTF8 encoded. The returned value will be UTF8 too.
+         * You take the ownership of the returned value
+         *
+         * @param name Escaped name to convert (UTF8)
+         * @return Converted name (UTF8)
+         * @deprecated There is a new prototype that includes path for filesystem detection
+         */
         char* unescapeFsIncompatible(const char* name);
+
+        /**
+         * @brief Unescape a file name escaped with MegaApi::escapeFsIncompatible
+         *
+         * If no localPath is provided or filesystem type it's not supported, this method will
+         * unescape those sequences that once has been unescaped results in any character
+         * of the following list: \/:?\"<>|*
+         * Otherwise it will unescape those characters forbidden in local filesystem type
+         *
+         * The input string must be UTF8 encoded. The returned value will be UTF8 too.
+         * You take the ownership of the returned value
+         *
+         * @param name Escaped name to convert (UTF8)
+         * @param localPath local path
+         * @return Converted name (UTF8)
+         */
+        char* unescapeFsIncompatible(const char *name, const char *localPath);
 
 
         /**

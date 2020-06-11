@@ -175,6 +175,14 @@ typedef NS_ENUM(NSUInteger, MEGANodeChangeType) {
 @property (readonly, nonatomic) NSDate *modificationTime;
 
 /**
+ * @brief Public link creation time of the file to MEGA (in seconds since the epoch).
+ *
+ * The value is only valid for nodes of type MEGANodeTypeFile.
+ *
+ */
+@property (readonly, nonatomic, nullable) NSDate *publicLinkCreationTime;
+
+/**
  * @brief Handle to identify this MEGANode.
  *
  * You can use [MEGASdk nodeForHandle:] to recover the node later.

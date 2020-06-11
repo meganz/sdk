@@ -22,10 +22,39 @@
 #ifndef MEGA_FILESYSTEM_H
 #define MEGA_FILESYSTEM_H 1
 
+#if defined (__linux__) && !defined (__ANDROID__)
+#include <linux/magic.h>
+#endif
+
+#if defined (__linux__) || defined (__ANDROID__) // __ANDROID__ is always included in __linux__
+#include <sys/vfs.h>
+#elif defined  (__APPLE__) || defined (USE_IOS)
+#include <sys/mount.h>
+#include <sys/param.h>
+#elif defined(_WIN32) || defined(_WIN64) || defined(WINDOWS_PHONE)
+#include <Windows.h>
+#endif
+
 #include "types.h"
+#include "utils.h"
 #include "waiter.h"
 
+// Define magic constants in case they are not defined in headers
+#if defined (__linux__) && !defined (__ANDROID__)
+#ifndef HFS_SUPER_MAGIC
+#define HFS_SUPER_MAGIC 0x4244
+#endif
+
+#ifndef NTFS_SB_MAGIC
+#define NTFS_SB_MAGIC   0x5346544e
+#endif
+#endif
+
 namespace mega {
+
+// Enumeration for filesystem families
+enum FileSystemType {FS_UNKNOWN = -1, FS_APFS = 0, FS_HFS = 1, FS_EXT = 2, FS_FAT32 = 3, FS_EXFAT = 4, FS_NTFS = 5};
+
 // generic host filesystem node ID interface
 struct MEGA_API FsNodeId
 {
@@ -196,6 +225,28 @@ struct MEGA_API DirAccess
     virtual ~DirAccess() { }
 };
 
+struct Notification
+{
+    dstime timestamp;
+    string path;
+    LocalNode* localnode;
+};
+
+struct NotificationDeque : ThreadSafeDeque<Notification> 
+{
+    void replaceLocalNodePointers(LocalNode* check, LocalNode* newvalue)
+    {
+        std::lock_guard<std::mutex> g(m); 
+        for (auto& n : mNotifications)
+        {
+            if (n.localnode == check)
+            {
+                n.localnode = newvalue;
+            }
+        }
+    }
+};
+
 // generic filesystem change notification
 struct MEGA_API DirNotify
 {
@@ -204,17 +255,27 @@ struct MEGA_API DirNotify
     // notifyq[EXTRA] is like DIREVENTS, but delays its processing (for network filesystems)
     // notifyq[DIREVENTS] is fed with filesystem changes
     // notifyq[RETRY] receives transient errors that need to be retried
-    notify_deque notifyq[NUMQUEUES];
+    // Thread safe so that a separate thread can listen for filesystem notifications (for windows for now, maybe more platforms later)
+    NotificationDeque notifyq[NUMQUEUES];
+
+private:
+    // these next few fields may be updated by notification-reading threads
+    std::mutex mMutex;
 
     // set if no notification available on this platform or a permanent failure
     // occurred
-    int failed;
+    int mFailed;
 
     // reason of the permanent failure of filesystem notifications
-    string failreason;
+    string mFailReason;
 
-    // set if a temporary error occurred
-    int error;
+public:
+    // set if a temporary error occurred.  May be set from a thread.
+    std::atomic<int> mErrorCount;
+
+    // thread safe setter/getters
+    void setFailed(int errCode, const string& reason);
+    int  getFailed(string& reason);
 
     // base path
     string localbasepath;
@@ -264,13 +325,19 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     // instantiate DirNotify object (default to periodic scanning handler if no
     // notification configured) with given root path
-    virtual DirNotify* newdirnotify(string*, string*);
+    virtual DirNotify* newdirnotify(string*, string*, Waiter*);
 
     // check if character is lowercase hex ASCII
     bool islchex(char) const;
-    bool islocalfscompatible(unsigned char) const;
-    void escapefsincompatible(string*) const;
-    void unescapefsincompatible(string*) const;
+    bool islocalfscompatible(unsigned char, FileSystemType = FS_UNKNOWN) const;
+    void escapefsincompatible(string*, const std::string *dstPath = nullptr) const;
+
+    // Obtain a valid path by removing filename or debris directory from originalPath
+    // returns true if tempPath is modified, otherwise returns false
+    bool getValidPath(const string *originalPath, std::string &tempPath) const;
+    const char *fstypetostring(FileSystemType type) const;
+    FileSystemType getlocalfstype(const std::string *dstPath) const;
+    void unescapefsincompatible(string*, const std::string *) const;
 
     // convert MEGA path (UTF-8) to local format
     virtual void path2local(string*, string*) const = 0;
@@ -278,10 +345,13 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     // convert MEGA-formatted filename (UTF-8) to local filesystem name; escape
     // forbidden characters using urlencode
-    void local2name(string*) const;
+    void local2name(string*, const std::string *localPath = nullptr) const;
 
     // convert local path to MEGA format (UTF-8) with unescaping
-    void name2local(string*) const;
+    void name2local(string*, const std::string *dstPath = nullptr) const;
+
+    // returns a const char pointer that contains the separator character for the target system
+    static const char *getPathSeparator();
 
     //Normalize UTF-8 string
     void normalize(string *) const;

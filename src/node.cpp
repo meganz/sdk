@@ -114,7 +114,10 @@ Node::~Node()
     client->preadabort(this);
 
     // remove node's fingerprint from hash
-    client->mFingerprints.remove(this);
+    if (!client->mOptimizePurgeNodes)
+    {
+        client->mFingerprints.remove(this);
+    }
 
 #ifdef ENABLE_SYNC
     // remove from todebris node_set
@@ -151,29 +154,32 @@ Node::~Node()
     }
 
 
-    // remove from parent's children
-    if (parent)
+    if (!client->mOptimizePurgeNodes)
     {
-        parent->children.erase(child_it);
-    }
+        // remove from parent's children
+        if (parent)
+        {
+            parent->children.erase(child_it);
+        }
 
-    Node* fa = firstancestor();
-    handle ancestor = fa->nodehandle;
-    if (ancestor == client->rootnodes[0] || ancestor == client->rootnodes[1] || ancestor == client->rootnodes[2] || fa->inshare)
-    {
-        client->mNodeCounters[firstancestor()->nodehandle] -= subnodeCounts();
-    }
+        Node* fa = firstancestor();
+        handle ancestor = fa->nodehandle;
+        if (ancestor == client->rootnodes[0] || ancestor == client->rootnodes[1] || ancestor == client->rootnodes[2] || fa->inshare)
+        {
+            client->mNodeCounters[firstancestor()->nodehandle] -= subnodeCounts();
+        }
 
-    if (inshare)
-    {
-        client->mNodeCounters.erase(nodehandle);
-    }
+        if (inshare)
+        {
+            client->mNodeCounters.erase(nodehandle);
+        }
 
-    // delete child-parent associations (normally not used, as nodes are
-    // deleted bottom-up)
-    for (node_list::iterator it = children.begin(); it != children.end(); it++)
-    {
-        (*it)->parent = NULL;
+        // delete child-parent associations (normally not used, as nodes are
+        // deleted bottom-up)
+        for (node_list::iterator it = children.begin(); it != children.end(); it++)
+        {
+            (*it)->parent = NULL;
+        }
     }
 
     if (plink)
@@ -1191,7 +1197,7 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath, std::u
             localname.assign(newlocalpath->data() + p, newlocalpath->size() - p);
 
             name = localname;
-            sync->client->fsaccess->local2name(&name);
+            sync->client->fsaccess->local2name(&name, newlocalpath);
 
             if (node)
             {
@@ -1562,13 +1568,7 @@ LocalNode::~LocalNode()
         // deactivate corresponding notifyq records
         for (int q = DirNotify::RETRY; q >= DirNotify::EXTRA; q--)
         {
-            for (notify_deque::iterator it = sync->dirnotify->notifyq[q].begin(); it != sync->dirnotify->notifyq[q].end(); it++)
-            {
-                if ((*it).localnode == this)
-                {
-                    (*it).localnode = (LocalNode*)~0;
-                }
-            }
+            sync->dirnotify->notifyq[q].replaceLocalNodePointers(this, (LocalNode*)~0);
         }
     }
     
@@ -1838,7 +1838,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     l->slocalname.reset(shortname.empty() ? nullptr : new string(std::move(shortname)));
     l->slocalname_in_db = 0 != expansionflags[0];
     l->name = l->localname;
-    sync->client->fsaccess->local2name(&l->name);
+    sync->client->fsaccess->local2name(&l->name, &sync->localdebris);
 
     memcpy(l->crc.data(), crc, sizeof crc);
     l->mtime = mtime;

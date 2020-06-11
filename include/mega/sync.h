@@ -121,6 +121,9 @@ public:
     // change state, signal to application
     void changestate(syncstate_t, syncerror_t newSyncError = NO_ERROR);
 
+    // skip duplicates and self-caused
+    bool checkValidNotification(int q, Notification& notification);
+
     // process and remove one directory notification queue item from *notify
     dstime procscanq(int);
 

@@ -52,7 +52,7 @@ class MEGA_API WinFileSystemAccess : public FileSystemAccess
 public:
     std::unique_ptr<FileAccess> newfileaccess(bool followSymLinks = true) override;
     DirAccess* newdiraccess() override;
-    DirNotify* newdirnotify(string*, string*) override;
+    DirNotify* newdirnotify(string*, string*, Waiter*) override;
 
     bool issyncsupported(string*, bool* = NULL, syncerror_t* = nullptr) override;
 
@@ -94,6 +94,7 @@ public:
 
 struct MEGA_API WinDirNotify : public DirNotify
 {
+private:
     WinFileSystemAccess* fsaccess;
 
 #ifdef ENABLE_SYNC
@@ -102,24 +103,35 @@ struct MEGA_API WinDirNotify : public DirNotify
 
     HANDLE hDirectory;
 
-    bool enabled;
-    bool exit;
-    int active;
-    string notifybuf[2];
+    std::atomic<bool> mOverlappedExit;
+    std::atomic<bool> mOverlappedEnabled;
 
+    Waiter* clientWaiter;
+
+    string notifybuf;
     DWORD dwBytes;
     OVERLAPPED overlapped;
-
-    void addnotify(LocalNode*, string*) override;
 
     static VOID CALLBACK completion(DWORD dwErrorCode, DWORD dwBytes, LPOVERLAPPED lpOverlapped);
     void process(DWORD wNumberOfBytesTransfered);
     void readchanges();
 
+    static std::atomic<unsigned> smNotifierCount;
+    static std::mutex smNotifyMutex;
+    static HANDLE smEventHandle;
+    static std::deque<std::function<void()>> smQueue;
+    static std::unique_ptr<std::thread> smNotifierThread;
+
+    static void notifierThreadFunction();
+
+public:
+
+    void addnotify(LocalNode*, string*) override;
+
     fsfp_t fsfingerprint() const override;
     bool fsstableids() const override;
-
-    WinDirNotify(string*, string*);
+    
+    WinDirNotify(string*, string*, WinFileSystemAccess* owner, Waiter* waiter);
     ~WinDirNotify();
 };
 

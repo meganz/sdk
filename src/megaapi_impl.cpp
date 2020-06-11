@@ -2808,9 +2808,9 @@ void MegaTransferPrivate::setPath(const char* path)
     this->path = MegaApi::strdup(path);
     if(!this->path) return;
 
-    for(int i = int(strlen(path)-1); i>=0; i--)
+    for (int i = int(strlen(path) - 1); i >= 0; i--)
     {
-        if((path[i]=='\\') || (path[i]=='/'))
+        if (strchr(::mega::FileSystemAccess::getPathSeparator(), path[i]))
         {
             setFileName(&(path[i+1]));
             char *parentPath = MegaApi::strdup(path);
@@ -4726,7 +4726,7 @@ MegaFileGet::MegaFileGet(MegaClient *client, Node *n, string dstPath) : MegaFile
     *(FileFingerprint*)this = *n;
 
     string securename = n->displayname();
-    client->fsaccess->name2local(&securename);
+    client->fsaccess->name2local(&securename, &dstPath);
     client->fsaccess->local2path(&securename, &name);
 
     string finalPath;
@@ -7712,7 +7712,7 @@ MegaTransfer *MegaApiImpl::getFirstTransfer(int type)
 
     MegaTransfer* transfer = NULL;
     sdkMutex.lock();
-    transfer_list::iterator it = client->transferlist.begin((direction_t)type);
+    auto it = client->transferlist.begin((direction_t)type);
     if (it != client->transferlist.end((direction_t)type))
     {
          Transfer *t = (*it);
@@ -7755,8 +7755,8 @@ MegaTransferList *MegaApiImpl::getTransfers()
     vector<MegaTransfer *> transfers;
     for (int d = GET; d == GET || d == PUT; d += PUT - GET)
     {
-        transfer_list::iterator end = client->transferlist.end((direction_t)d);
-        for (transfer_list::iterator it = client->transferlist.begin((direction_t)d); it != end; it++)
+        auto end = client->transferlist.end((direction_t)d);
+        for (auto it = client->transferlist.begin((direction_t)d); it != end; it++)
         {
             Transfer *t = (*it);
             for (file_list::iterator it2 = t->files.begin(); it2 != t->files.end(); it2++)
@@ -7815,8 +7815,8 @@ MegaTransferList *MegaApiImpl::getTransfers(int type)
 
     sdkMutex.lock();
     vector<MegaTransfer *> transfers;
-    transfer_list::iterator end = client->transferlist.end((direction_t)type);
-    for (transfer_list::iterator it = client->transferlist.begin((direction_t)type); it != end; it++)
+    auto end = client->transferlist.end((direction_t)type);
+    for (auto it = client->transferlist.begin((direction_t)type); it != end; it++)
     {
         Transfer *t = (*it);
         for (file_list::iterator it2 = t->files.begin(); it2 != t->files.end(); it2++)
@@ -7903,7 +7903,7 @@ MegaStringList *MegaApiImpl::getBackupFolders(int backuptag)
     MegaNode * parentNode = getNodeByHandle(mbc->getMegaHandle());
     if (parentNode)
     {
-        MegaNodeList* children = getChildren(parentNode);
+        MegaNodeList* children = getChildren(parentNode, MegaApi::ORDER_NONE);
         if (children)
         {
             for (int i = 0; i < children->size(); i++)
@@ -8024,9 +8024,18 @@ void MegaApiImpl::startUpload(bool startFirst, const char *localPath, MegaNode *
 
     transfer->setBackupTransfer(isBackup);
 
-    if(fileName)
+    if (fileName || transfer->getFileName())
     {
-        transfer->setFileName(fileName);
+       std::string auxName = fileName
+               ? fileName
+               : transfer->getFileName();
+
+       std::string path = localPath
+               ? localPath
+               : "";
+
+       client->fsaccess->unescapefsincompatible(&auxName, &path);
+       transfer->setFileName(auxName.c_str());
     }
 
     transfer->setTime(mtime);
@@ -8073,8 +8082,14 @@ void MegaApiImpl::startDownload(bool startFirst, MegaNode *node, const char* loc
 #endif
 
         int c = localPath[strlen(localPath)-1];
-        if((c=='/') || (c == '\\')) transfer->setParentPath(localPath);
-        else transfer->setPath(localPath);
+        if (strchr(::mega::FileSystemAccess::getPathSeparator(), c))
+        {
+            transfer->setParentPath(localPath);
+        }
+        else
+        {
+            transfer->setPath(localPath);
+        }
     }
 
     if (node)
@@ -8299,7 +8314,7 @@ int MegaApiImpl::syncPathState(string* path)
             {
                 size_t index = fsAccess->lastpartlocal(path);
                 string name = path->substr(index);
-                fsAccess->local2name(&name);
+                fsAccess->local2name(&name, path);
                 if (is_syncable(sync, name.c_str(), path))
                 {
                     auto fa = fsAccess->newfileaccess();
@@ -8647,7 +8662,7 @@ bool MegaApiImpl::isSyncable(const char *path, long long size)
 
             size_t index = fsAccess->lastpartlocal(&localpath);
             name = localpath.substr(index);
-            fsAccess->local2name(&name);
+            fsAccess->local2name(&name, &localpath);
             result = is_syncable(sync, name.c_str(), &localpath);
             break;
         }
@@ -8807,25 +8822,27 @@ bool MegaApiImpl::userComparatorDefaultASC (User *i, User *j)
     return 0;
 }
 
-char *MegaApiImpl::escapeFsIncompatible(const char *filename)
+char *MegaApiImpl::escapeFsIncompatible(const char *filename, const char *dstPath)
 {
     if(!filename)
     {
         return NULL;
     }
     string name = filename;
-    client->fsaccess->escapefsincompatible(&name);
+    string path = dstPath ? dstPath : "";
+    client->fsaccess->escapefsincompatible(&name, &path);
     return MegaApi::strdup(name.c_str());
 }
 
-char *MegaApiImpl::unescapeFsIncompatible(const char *name)
+char *MegaApiImpl::unescapeFsIncompatible(const char *name, const char *path)
 {
     if(!name)
     {
         return NULL;
     }
     string filename = name;
-    client->fsaccess->unescapefsincompatible(&filename);
+    string localpath = path ? path : "";
+    client->fsaccess->unescapefsincompatible(&filename, &localpath);
     return MegaApi::strdup(filename.c_str());
 }
 
@@ -10066,6 +10083,27 @@ void MegaApiImpl::setCameraUploadsFolder(MegaHandle nodehandle, bool secondary, 
     waiter->notify();
 }
 
+void MegaApiImpl::setCameraUploadsFolders(MegaHandle primaryFolder, MegaHandle secondaryFolder, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
+
+    MegaStringMapPrivate stringMap;
+    if (!ISUNDEF(primaryFolder))
+    {
+        stringMap.set("h", Base64Str<MegaClient::NODEHANDLE>(primaryFolder));
+    }
+    if (!ISUNDEF(secondaryFolder))
+    {
+        stringMap.set("sh", Base64Str<MegaClient::NODEHANDLE>(secondaryFolder));
+    }
+    request->setMegaStringMap(&stringMap);
+    request->setParamType(MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER);
+    request->setNodeHandle(primaryFolder);
+    request->setParentHandle(secondaryFolder);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::getMyChatFilesFolder(MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
@@ -10885,7 +10923,7 @@ void MegaApiImpl::authorizeMegaNodePrivate(MegaNodePrivate *node)
     }
     else
     {
-        MegaNodeList *children = getChildren(node);
+        MegaNodeList *children = getChildren(node, MegaApi::ORDER_NONE);
         node->setChildren(children);
         for (int i = 0; i < children->size(); i++)
         {
@@ -17285,42 +17323,24 @@ MegaNodeList *MegaApiImpl::getChildren(MegaNode* p, int order)
         return new MegaNodeListPrivate();
     }
 
-    sdkMutex.lock();
-    Node *parent = client->nodebyhandle(p->getHandle());
-    if (!parent || parent->type == FILENODE)
-    {
-        sdkMutex.unlock();
-        return new MegaNodeListPrivate();
-    }
-
     node_vector childrenNodes;
 
-    if (std::function<bool(Node*, Node*)> comparatorFunction = getComparatorFunction(order, *client))
+    SdkMutexGuard guard(sdkMutex);
+
+    Node *parent = client->nodebyhandle(p->getHandle());
+    if (parent && parent->type != FILENODE)
     {
+        childrenNodes.reserve(parent->children.size());
         for (node_list::iterator it = parent->children.begin(); it != parent->children.end(); )
         {
-            Node *n = *it++;
-            const node_vector::iterator i = std::lower_bound(childrenNodes.begin(), childrenNodes.end(), n, comparatorFunction);
-            childrenNodes.insert(i, n);
+            childrenNodes.push_back(*it++);
+        }
+        if (std::function<bool(Node*, Node*)> comparatorFunction = getComparatorFunction(order, *client))
+        {
+            std::sort(childrenNodes.begin(), childrenNodes.end(), comparatorFunction);
         }
     }
-    else
-    {
-        for (node_list::iterator it = parent->children.begin(); it != parent->children.end(); )
-            childrenNodes.push_back(*it++);
-    }
-
-    MegaNodeListPrivate *result = NULL;
-    if (childrenNodes.size())
-    {
-        result = new MegaNodeListPrivate(childrenNodes.data(), int(childrenNodes.size()));
-    }
-    else
-    {
-        result = new MegaNodeListPrivate();
-    }
-    sdkMutex.unlock();
-    return result;
+    return new MegaNodeListPrivate(childrenNodes.data(), int(childrenNodes.size()));
 }
 
 MegaNodeList *MegaApiImpl::getVersions(MegaNode *node)
@@ -17422,72 +17442,38 @@ MegaChildrenLists *MegaApiImpl::getFileFolderChildren(MegaNode *p, int order)
         return new MegaChildrenListsPrivate();
     }
 
-    sdkMutex.lock();
+    SdkMutexGuard guard(sdkMutex);
+
     Node *parent = client->nodebyhandle(p->getHandle());
     if (!parent || parent->type == FILENODE)
     {
-        sdkMutex.unlock();
         return new MegaChildrenListsPrivate();
     }
 
     node_vector files;
     node_vector folders;
 
+    for (node_list::iterator it = parent->children.begin(); it != parent->children.end(); )
+    {
+        Node *n = *it++;
+        if (n->type == FILENODE)
+        {
+            files.push_back(n);
+        }
+        else // if (n->type == FOLDERNODE)
+        {
+            folders.push_back(n);
+        }
+    }
     if (std::function<bool(Node*, Node*)> comparatorFunction = getComparatorFunction(order, *client))
     {
-        for (node_list::iterator it = parent->children.begin(); it != parent->children.end(); )
-        {
-            Node *n = *it++;
-            if (n->type == FILENODE)
-            {
-                const node_vector::iterator i = std::lower_bound(files.begin(), files.end(), n, comparatorFunction);
-                files.insert(i, n);
-            }
-            else // if (n->type == FOLDERNODE)
-            {
-                const node_vector::iterator i = std::lower_bound(folders.begin(), folders.end(), n, comparatorFunction);
-                folders.insert(i, n);
-            }
-        }
-    }
-    else
-    {
-        for (node_list::iterator it = parent->children.begin(); it != parent->children.end(); )
-        {
-            Node *n = *it++;
-            if (n->type == FILENODE)
-            {
-                files.push_back(n);
-            }
-            else // if (n->type == FOLDERNODE)
-            {
-                folders.push_back(n);
-            }
-        }
+        std::sort(files.begin(), files.end(), comparatorFunction);
+        std::sort(folders.begin(), folders.end(), comparatorFunction);
     }
 
-    MegaNodeListPrivate *fileList;
-    if (files.size())
-    {
-        fileList = new MegaNodeListPrivate(files.data(), int(files.size()));
-    }
-    else
-    {
-        fileList = new MegaNodeListPrivate();
-    }
-
-    MegaNodeListPrivate *folderList;
-    if (folders.size())
-    {
-        folderList = new MegaNodeListPrivate(folders.data(), int(folders.size()));
-    }
-    else
-    {
-        folderList = new MegaNodeListPrivate();
-    }
-
-    sdkMutex.unlock();
-    return new MegaChildrenListsPrivate(folderList, fileList);
+    auto fileList = make_unique<MegaNodeListPrivate>(files.data(), int(files.size()));
+    auto folderList = make_unique<MegaNodeListPrivate>(folders.data(), int(folders.size()));
+    return new MegaChildrenListsPrivate(move(folderList), move(fileList));
 }
 
 bool MegaApiImpl::hasChildren(MegaNode *parent)
@@ -17509,46 +17495,6 @@ bool MegaApiImpl::hasChildren(MegaNode *parent)
     sdkMutex.unlock();
 
     return ret;
-}
-
-int MegaApiImpl::getIndex(MegaNode *n, int order)
-{
-    if(!n)
-    {
-        return -1;
-    }
-
-    SdkMutexGuard g(sdkMutex);
-    Node *node = client->nodebyhandle(n->getHandle());
-    if(!node)
-    {
-        return -1;
-    }
-
-    Node *parent = node->parent;
-    if (!parent)
-    {
-        return -1;
-    }
-
-    if (std::function<bool(Node*, Node*)> comparatorFunction = getComparatorFunction(order, *client))
-    {
-        node_vector childrenNodes;
-        for (node_list::iterator it = parent->children.begin(); it != parent->children.end(); )
-        {
-            Node *temp = *it++;
-            const node_vector::iterator i = std::lower_bound(childrenNodes.begin(), childrenNodes.end(), temp, comparatorFunction);
-            childrenNodes.insert(i, temp);
-        }
-
-        const node_vector::iterator i = std::lower_bound(childrenNodes.begin(), childrenNodes.end(), node, comparatorFunction);
-
-        return int(i - childrenNodes.begin());
-    }
-    else
-    {
-        return 0;
-    }
 }
 
 MegaNode *MegaApiImpl::getChildNode(MegaNode *parent, const char* name)
@@ -18300,8 +18246,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                         {
                             name = fileName;
                         }
-
-                        client->fsaccess->name2local(&name);
+                        client->fsaccess->name2local(&name, &path);
                         client->fsaccess->local2path(&name, &securename);
                         path += securename;
                     }
@@ -18316,7 +18261,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                             name = transfer->getFileName();
                         }
 
-                        client->fsaccess->name2local(&name);
+                        client->fsaccess->name2local(&name, &path);
                         client->fsaccess->local2path(&name, &securename);
                         path += securename;
                     }
@@ -20319,7 +20264,7 @@ void MegaApiImpl::sendPendingRequests()
                             }
                             else    // not-logged-in / ephemeral account / partially confirmed
                             {
-                                client->confirmsignuplink2((const byte*)code.data(), code.size());
+                                client->confirmsignuplink2((const byte*)code.data(), unsigned(code.size()));
                             }
                         }
                         else
@@ -20329,7 +20274,7 @@ void MegaApiImpl::sendPendingRequests()
                     }
                     else
                     {
-                        client->querysignuplink((const byte*)code.data(), code.size());
+                        client->querysignuplink((const byte*)code.data(), unsigned(code.size()));
                     }
                 }
                 else
@@ -20414,7 +20359,7 @@ void MegaApiImpl::sendPendingRequests()
                         }
                         else    // not-logged-in / ephemeral account / partially confirmed
                         {
-                            client->confirmsignuplink2((const byte*)code.data(), code.size());
+                            client->confirmsignuplink2((const byte*)code.data(), unsigned(code.size()));
                         }
                     }
                     else
@@ -20428,7 +20373,7 @@ void MegaApiImpl::sendPendingRequests()
                 }
                 else
                 {
-                    client->querysignuplink((const byte*)code.data(), code.size());
+                    client->querysignuplink((const byte*)code.data(), unsigned(code.size()));
                 }
             }
             else
@@ -24176,7 +24121,7 @@ void MegaFolderUploadController::onFolderAvailable(MegaHandle handle)
             localPath.append(localname);
 
             string name = localname;
-            client->fsaccess->local2name(&name);
+            client->fsaccess->local2name(&name, &localPath);
             if (dirEntryType == FILENODE)
             {
                 pendingTransfers++;
@@ -24506,7 +24451,7 @@ void MegaBackupController::removeexceeding(bool currentoneOK)
 
     if (parentNode)
     {
-        MegaNodeList* children = megaApi->getChildren(parentNode);
+        MegaNodeList* children = megaApi->getChildren(parentNode, MegaApi::ORDER_NONE);
         if (children)
         {
             for (int i = 0; i < children->size(); i++)
@@ -24585,7 +24530,7 @@ int64_t MegaBackupController::getLastBackupTime()
     MegaNode * parentNode = megaApi->getNodeByHandle(parenthandle);
     if (parentNode)
     {
-        MegaNodeList* children = megaApi->getChildren(parentNode);
+        MegaNodeList* children = megaApi->getChildren(parentNode, MegaApi::ORDER_NONE);
         if (children)
         {
             for (int i = 0; i < children->size(); i++)
@@ -24968,7 +24913,7 @@ void MegaBackupController::onFolderAvailable(MegaHandle handle)
                 if(fa->fopen(&localPath, true, false))
                 {
                     string name = localname;
-                    client->fsaccess->local2name(&name);
+                    client->fsaccess->local2name(&name, &localPath);
                     if(fa->type == FILENODE)
                     {
                         pendingTransfers++;
@@ -25444,7 +25389,7 @@ void MegaFolderDownloadController::start(MegaNode *node)
         name = fileName;
     }
 
-    client->fsaccess->name2local(&name);
+    client->fsaccess->name2local(&name, &path);
     client->fsaccess->local2path(&name, &securename);
     path += securename;
 
@@ -25523,7 +25468,7 @@ void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, string *pa
     }
     else
     {
-        children = megaApi->getChildren(node);
+        children = megaApi->getChildren(node, MegaApi::ORDER_NONE);  // no order is much faster for a very large folder (or nested folders with large subfolders)
         deleteChildren = true;
     }
 
@@ -25543,7 +25488,7 @@ void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, string *pa
         size_t l = localpath.size();
 
         string name = child->getName();
-        client->fsaccess->name2local(&name);
+        client->fsaccess->name2local(&name, &localpath);
         localpath.append(name);
 
         string utf8path;
@@ -27199,7 +27144,7 @@ string MegaHTTPServer::getWebDavPropFindResponseForNode(string baseURL, string s
     web << getWebDavProfFindNodeContents(node, subbaseURL, httpserver->isOfflineAttributeEnabled());
     if (node->isFolder() && (httpctx->depth != 0))
     {
-        MegaNodeList *children = httpctx->megaApi->getChildren(node);
+        MegaNodeList *children = httpctx->megaApi->getChildren(node, MegaApi::ORDER_NONE);
         for (int i = 0; i < children->size(); i++)
         {
             MegaNode *child = children->get(i);
@@ -27226,7 +27171,7 @@ string MegaHTTPServer::getWebDavPropFindResponseForNode(string baseURL, string s
 string MegaHTTPServer::getResponseForNode(MegaNode *node, MegaHTTPContext* httpctx)
 {
     MegaNode *parent = httpctx->megaApi->getParentNode(node);
-    MegaNodeList *children = httpctx->megaApi->getChildren(node);
+    MegaNodeList *children = httpctx->megaApi->getChildren(node, MegaApi::ORDER_NONE);
     std::ostringstream response;
     std::ostringstream web;
 
@@ -29999,7 +29944,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             {
                 if (node->isFolder())
                 {
-                    MegaNodeList *children = ftpctx->megaApi->getChildren(node);
+                    MegaNodeList *children = ftpctx->megaApi->getChildren(node, MegaApi::ORDER_NONE);
                     assert(!ftpctx->ftpDataServer->resultmsj.size());
 
                     if (ftpctx->command == FTP_CMD_LIST)
@@ -31581,7 +31526,7 @@ MegaTransferDataPrivate::MegaTransferDataPrivate(TransferList *transferList, lon
     numDownloads = int(transferList->transfers[GET].size());
     downloadTags.reserve(numDownloads);
     downloadPriorities.reserve(numDownloads);
-    for (transfer_list::iterator it = transferList->begin(GET); it != transferList->end(GET); it++)
+    for (auto it = transferList->begin(GET); it != transferList->end(GET); it++)
     {
         Transfer *transfer = (*it);
         for (file_list::iterator fit = transfer->files.begin(); fit != transfer->files.end(); fit++)
@@ -31596,7 +31541,7 @@ MegaTransferDataPrivate::MegaTransferDataPrivate(TransferList *transferList, lon
     numUploads = int(transferList->transfers[PUT].size());
     uploadTags.reserve(numUploads);
     uploadPriorities.reserve(numUploads);
-    for (transfer_list::iterator it = transferList->begin(PUT); it != transferList->end(PUT); it++)
+    for (auto it = transferList->begin(PUT); it != transferList->end(PUT); it++)
     {
         Transfer *transfer = (*it);
         for (file_list::iterator fit = transfer->files.begin(); fit != transfer->files.end(); fit++)
@@ -31821,21 +31766,15 @@ void MegaHandleListPrivate::addMegaHandle(MegaHandle h)
 }
 
 MegaChildrenListsPrivate::MegaChildrenListsPrivate(MegaChildrenLists *list)
+    : files(list->getFileList()->copy())
+    , folders(list->getFolderList()->copy())
 {
-    files = list->getFileList()->copy();
-    folders = list->getFolderList()->copy();
 }
 
-MegaChildrenListsPrivate::MegaChildrenListsPrivate(MegaNodeListPrivate *folderList, MegaNodeListPrivate *fileList)
+MegaChildrenListsPrivate::MegaChildrenListsPrivate(unique_ptr<MegaNodeListPrivate> folderList, unique_ptr<MegaNodeListPrivate> fileList)
+    : folders(move(folderList))
+    , files(move(fileList))
 {
-    folders = folderList;
-    files = fileList;
-}
-
-MegaChildrenListsPrivate::~MegaChildrenListsPrivate()
-{
-    delete files;
-    delete folders;
 }
 
 MegaChildrenLists *MegaChildrenListsPrivate::copy()
@@ -31845,18 +31784,18 @@ MegaChildrenLists *MegaChildrenListsPrivate::copy()
 
 MegaNodeList *MegaChildrenListsPrivate::getFileList()
 {
-    return files;
+    return files.get();
 }
 
 MegaNodeList *MegaChildrenListsPrivate::getFolderList()
 {
-    return folders;
+    return folders.get();
 }
 
 MegaChildrenListsPrivate::MegaChildrenListsPrivate()
+    :  files(new MegaNodeListPrivate())
+    , folders(new MegaNodeListPrivate())
 {
-    files = new MegaNodeListPrivate();
-    folders = new MegaNodeListPrivate();
 }
 
 MegaAchievementsDetails *MegaAchievementsDetailsPrivate::fromAchievementsDetails(AchievementsDetails *details)

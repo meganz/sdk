@@ -1,7 +1,7 @@
-APP_PLATFORM=android-14
+APP_PLATFORM=android-16
 NDK_TOOLCHAIN_VERSION=clang
 APP_STL := c++_static
-APP_ABI := armeabi-v7a x86 arm64-v8a
+APP_ABI := armeabi-v7a x86 arm64-v8a x86_64
 APP_OPTIM := release
 APP_PIE := false
 
