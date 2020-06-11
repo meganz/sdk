@@ -4112,11 +4112,12 @@ void CommandGetUserData::procresult()
             {
                 BizStatus oldStatus = client->mBizStatus;
                 client->mBizStatus = BIZ_STATUS_INACTIVE;
+                client->mBizStatusLoadedFromCache = false;
                 client->mBizMode = BIZ_MODE_UNKNOWN;
                 client->mBizMasters.clear();
                 client->mBizExpirationTs = client->mBizGracePeriodTs = 0;
 
-                if (client->mBizStatus != oldStatus)
+                if (client->mBizStatusLoadedFromCache || client->mBizStatus != oldStatus)
                 {
                     client->app->notify_business_status(client->mBizStatus);
                 }

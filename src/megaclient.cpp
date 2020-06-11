@@ -1157,6 +1157,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     mBizExpirationTs = 0;
     mBizMode = BIZ_MODE_UNKNOWN;
     mBizStatus = BIZ_STATUS_UNKNOWN;
+    mBizStatusLoadedFromCache = false;
 
     ststatus = STORAGE_UNKNOWN;
     looprequested = false;
@@ -3806,23 +3807,26 @@ void MegaClient::resumeResumableSyncs()
     for (const auto& config : syncConfigs->all())
     {
         syncerror_t syncError = static_cast<syncerror_t>(config.getError());
-
+        syncstate_t newstate = isAnError(syncError) ? SYNC_FAILED : SYNC_DISABLED;
         if (config.isResumableAtStartup())
         {
             app->sync_about_to_be_resumed(config);
             LOG_debug << "Resuming cached sync: " << config.getTag() << " " << config.getLocalPath() << " fsfp= " << config.getLocalFingerprint() << " error = " << syncError ;
             const auto e = addsync(config, DEBRISFOLDER, nullptr, syncError);
 
-            if (e)
+            newstate = isMegaSyncErrorPermanent(syncError) ? SYNC_FAILED : SYNC_DISABLED;
+            if (!e) //enabled fine
             {
+                Sync *s = syncs.back();
+                newstate = s->state; //override state with the actual one from the sync
+
                 // update config entry with the error, if any. otherwise addsync would have updated it
                 saveAndUpdateSyncConfig(&config, isMegaSyncErrorPermanent(syncError) ? SYNC_FAILED : SYNC_DISABLED, static_cast<syncerror_t>(syncError) );
             }
         }
 
         LOG_debug << "Sync autoresumed: " << config.getTag() << " " << config.getLocalPath() << " fsfp= " << config.getLocalFingerprint() << " error = " << syncError ;
-        app->sync_auto_resume_result(config, syncError);
-
+        app->sync_auto_resume_result(config, newstate, syncError);
 
         mSyncTag = std::max(mSyncTag, config.getTag());
     }
@@ -4026,6 +4030,7 @@ void MegaClient::locallogout(bool removecaches)
     mBizExpirationTs = 0;
     mBizMode = BIZ_MODE_UNKNOWN;
     mBizStatus = BIZ_STATUS_UNKNOWN;
+    mBizStatusLoadedFromCache = false;
     mBizMasters.clear();
     mPublicLinks.clear();
     scpaused = false;
@@ -5193,6 +5198,7 @@ void MegaClient::loadCacheableStatus(const std::shared_ptr<CacheableStatus> &sta
     case CacheableStatus::Type::STATUS_BUSINESS:
     {
         mBizStatus = static_cast<BizStatus>(status->value());
+        mBizStatusLoadedFromCache = true;
         break;
     }
     }
@@ -6639,6 +6645,7 @@ void MegaClient::setBusinessStatus(BizStatus newBizStatus)
     BizStatus prevBizStatus = mBizStatus;
 
     mBizStatus = newBizStatus;
+    mBizStatusLoadedFromCache = false;
 
     if (prevBizStatus != mBizStatus) //has changed
     {
@@ -6665,6 +6672,7 @@ void MegaClient::setBusinessStatus(BizStatus newBizStatus)
                             << status->type() << " = " << status->value();
             }
         }
+
 #ifdef ENABLE_SYNC
         if (mBizStatus == BIZ_STATUS_EXPIRED) //transitioning to expired
         {
@@ -6677,7 +6685,10 @@ void MegaClient::setBusinessStatus(BizStatus newBizStatus)
 #endif
     }
 
-    app->notify_business_status(mBizStatus); //TODO: review notifications when cached vs prior
+    if (mBizStatusLoadedFromCache || prevBizStatus != mBizStatus) //has changed)
+    {
+        app->notify_business_status(mBizStatus);
+    }
 
 }
 
@@ -11293,9 +11304,9 @@ void MegaClient::fetchnodes(bool nocache)
         for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
         {
             (*it)->changestate(SYNC_CANCELED);
-            //TODO: should this cause a eraseSync from SyncMap?
-            // should the state be propagated? sync cache removed?
-            // why is this even called?
+            //TODO: this would cause a eraseSync from SyncMap.
+            // should the state chage be propagated to the apps? sync cache removed?
+            // why is this even called here?
         }
 #endif
 
@@ -12420,11 +12431,10 @@ error MegaClient::isLocalPathSyncable(string newPath, int newSyncTag, syncerror_
 
         fsaccess->expanselocalpath(&otherLocallyEncodedPath, &otherLocallyEncodedAbsolutePath);
 
-        if (config.getError() == NO_ERROR &&
+        if (config.getEnabled() && !isAnError(config.getError()) &&
                 ( fsaccess->contains(&newLocallyEncodedAbsolutePath, &otherLocallyEncodedAbsolutePath)
                 || fsaccess->contains(&otherLocallyEncodedAbsolutePath, &newLocallyEncodedAbsolutePath)
                 ) )
-
         {
 
             if (syncError) *syncError = LOCAL_PATH_SYNC_COLLISION;
@@ -12483,9 +12493,11 @@ error MegaClient::addsync(SyncConfig syncConfig, const char* debris, string* loc
             LOG_debug << "Adding sync: " << syncConfig.getLocalPath();
             int tag = syncConfig.getTag();
 
-            // TODO: note localpath is stored as utf8 in syncconfig!!!! Note: we probably want to have it expansed to store the full canonical path!
-            // so that the app does not need to carry that burden. Although it might not be required given the following test does expands the configured
-            // paths to use canonical paths:
+            // Note localpath is stored as utf8 in syncconfig as passed from the apps!
+            // Note: we might want to have it expansed to store the full canonical path.
+            // so that the app does not need to carry that burden.
+            // Although it might not be required given the following test does expands the configured
+            // paths to use canonical paths when checking for path collisions:
             e = isLocalPathSyncable(syncConfig.getLocalPath(), tag, &syncError);
             if (e)
             {
@@ -14013,7 +14025,6 @@ error MegaClient::removeSyncConfigByNodeHandle(mega::handle nodeHandle)
         return API_ENOENT;
     }
 
-
     auto config = syncConfigs?syncConfigs->get(nodeHandle):nullptr;
     if (config)
     {
@@ -14025,20 +14036,20 @@ error MegaClient::removeSyncConfigByNodeHandle(mega::handle nodeHandle)
     return API_ENOENT;
 }
 
-error MegaClient::saveAndUpdateSyncConfig(const SyncConfig *config, syncstate_t newstate, syncerror_t syncerror)
+error MegaClient::saveAndUpdateSyncConfig(const SyncConfig *config, syncstate_t newstate, syncerror_t newSyncError)
 {
     if (syncConfigs)
     {
         assert(config);
         auto newConfig = *config;
 
-        auto isEnabled = [](syncstate_t state, syncerror_t error) -> bool
+        auto isEnabled = [](syncstate_t state, syncerror_t syncError) -> bool
         {
-            return state != SYNC_CANCELED && (state != SYNC_DISABLED || error != NO_ERROR );
+            return state != SYNC_CANCELED && (state != SYNC_DISABLED || syncError != NO_ERROR );
         };
 
-        newConfig.setEnabled(isEnabled(newstate, syncerror));
-        newConfig.setError(syncerror);
+        newConfig.setEnabled(isEnabled(newstate, newSyncError));
+        newConfig.setError(newSyncError);
 
         syncConfigs->insert(newConfig);
         return API_OK;
@@ -14052,9 +14063,9 @@ error MegaClient::changeSyncState(const SyncConfig *config, syncstate_t newstate
     assert(config);
     if (config)
     {
-        auto isEnabled = [](syncstate_t state, syncerror_t error) -> bool
+        auto isEnabled = [](syncstate_t state, syncerror_t syncError) -> bool
         {
-            return state != SYNC_CANCELED && (state != SYNC_DISABLED || error != NO_ERROR );
+            return state != SYNC_CANCELED && (state != SYNC_DISABLED || syncError != NO_ERROR );
         };
 
         if ( (config->getError() != newSyncError) || (config->getEnabled() != isEnabled(newstate, newSyncError)) ) //has changed
@@ -14179,12 +14190,11 @@ error MegaClient::enableSync(const SyncConfig *syncConfig, syncerror_t &syncErro
 
     const auto e = addsync(newConfig, DEBRISFOLDER, nullptr, syncError, resetFingerprint);
 
-    syncstate_t newstate = isMegaSyncErrorPermanent(syncError)?SYNC_FAILED:SYNC_DISABLED;
-
+    syncstate_t newstate = isMegaSyncErrorPermanent(syncError) ? SYNC_FAILED : SYNC_DISABLED;
     if (!e) //enabled fine
     {
         Sync *s = syncs.back();
-        newstate = s->state;
+        newstate = s->state; //override state with the actual one from the sync
     }
 
     // change, so that cache is updated & the app gets noticed

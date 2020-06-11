@@ -12688,8 +12688,8 @@ void MegaApiImpl::syncupdate_state(int tag, syncstate_t newstate, syncerror_t sy
 
     if (fireDisableEvent && ( (wasActive && !megaSync->isActive()) || (wasTemporaryDisabled && !megaSync->isEnabled()) ) )
     {
-        // TODO: note for reviewer: Spcecial case: when a temporarily disabled (inactive) transitions to failed (inactive).
-        // Consider passing a DisablingState (with some special case for TEMPORARY_DISABLED_TO_FAILED_TRANSITION)
+        // Special case: when a temporarily disabled (inactive) transitions to failed (inactive).
+        // TODO: note for reviewer: Consider passing a disablingState (with value TEMPORARY_DISABLED_TO_FAILED_TRANSITION)
         // or simpler: a flag failed_to_reenable, or a separate callback: onReenableFailed
         fireOnSyncDisabled(megaSync);
     }
@@ -12970,15 +12970,13 @@ void MegaApiImpl::sync_removed(int tag)
     eraseSync(tag);
 }
 
-
-void MegaApiImpl::sync_auto_resume_result(const SyncConfig &config, syncerror_t error)
+void MegaApiImpl::sync_auto_resume_result(const SyncConfig &config, const syncstate_t &state, const syncerror_t &syncError)
 {
     MegaSyncPrivate *sync = new MegaSyncPrivate(config.getLocalPath().c_str(), config.getRemoteNode(), config.getTag());
+
     sync->setLocalFingerprint(static_cast<long long>(config.getLocalFingerprint()));
-
     sync->setMegaFolderYielding(getNodePathByNodeHandle(config.getRemoteNode()));
-
-    if (!config.getRegExps().empty()) //TODO: add this code to MegaSyncPrivate constructor?
+    if (!config.getRegExps().empty())
     {
         auto re = make_unique<MegaRegExp>();
         for (const auto& v : config.getRegExps())
@@ -12988,28 +12986,19 @@ void MegaApiImpl::sync_auto_resume_result(const SyncConfig &config, syncerror_t 
         sync->setRegExp(re.get());
     }
 
-    bool resumed = config.isResumableAtStartup() && !error;//the sync was actually resumed
+    sync->setState(state);
+    sync->setError(syncError);
+
+    bool failedToResume = config.isResumableAtStartup() && !sync->isActive(); //the sync could not be resumed
     bool wasEnabled = config.getEnabled();
-    bool failedToResume = config.isResumableAtStartup() && error;//the sync could not be resumed
-    if (resumed)
-    {
-        Sync *s = client->syncs.back();
-        s->appData = sync;
-        sync->setState(s->state);
-    }
-    else
-    {
-        sync->setError(error);
-        sync->setState(error? SYNC_FAILED : SYNC_DISABLED);
-    }
 
     syncMap[config.getTag()] = sync;
 
-    if (!wasEnabled && config.isResumableAtStartup())
+    if (!wasEnabled && config.isResumableAtStartup()) //attempted to re-enable
     {
         fireOnSyncAdded(sync, failedToResume ? MegaSync::REENABLED_FAILED : MegaSync::FROM_CACHE_REENABLED);
     }
-    else
+    else //resumed as was
     {
         fireOnSyncAdded(sync, failedToResume ? MegaSync::FROM_CACHE_FAILED_TO_RESUME : MegaSync::FROM_CACHE);
     }
@@ -13069,10 +13058,10 @@ void MegaApiImpl::syncs_restored()
     fireOnEvent(event);
 }
 
-void MegaApiImpl::syncs_disabled(syncerror_t reason)
+void MegaApiImpl::syncs_disabled(syncerror_t syncError)
 {
     MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_SYNC_DISABLED);
-    event->setNumber(reason);
+    event->setNumber(syncError);
     fireOnEvent(event);
 }
 

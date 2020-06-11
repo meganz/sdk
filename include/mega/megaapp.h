@@ -329,7 +329,7 @@ struct MEGA_API MegaApp
     virtual void sync_about_to_be_resumed(const SyncConfig &) { }
 
     // after an attempt to auto-resume a cache sync
-    virtual void sync_auto_resume_result(const SyncConfig &, syncerror_t error) { }
+    virtual void sync_auto_resume_result(const SyncConfig &,  const syncstate_t &state, const syncerror_t &error) { }
 
     // after a sync has been removed
     virtual void sync_removed(int tag) { }

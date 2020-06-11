@@ -61,6 +61,7 @@ namespace mega {
 using byte = CryptoPP::byte;
 #elif __RPCNDR_H_VERSION__ != 500
 typedef unsigned char byte;
+
 #endif
 }
 
@@ -312,6 +313,8 @@ typedef enum {
     REMOTE_NODE_INSIDE_RUBBISH = 20, // Attempted to be added in rubbish
     VBOXSHAREDFOLDER_UNSUPPORTED = 21, // Found unsupported VBoxSharedFolderFS
     LOCAL_PATH_SYNC_COLLISION = 22, //Local path includes a synced path or is included within one
+    LOCAL_IS_FAT = 23, // Found FAT (not a failure per se)
+    LOCAL_IS_HGFS= 24, // Found HGFS (not a failure per se)
 } syncerror_t;
 
 static bool isMegaSyncErrorPermanent(int e)
@@ -322,6 +325,21 @@ static bool isMegaSyncErrorPermanent(int e)
     case STORAGE_OVERQUOTA:
     case BUSINESS_EXPIRED:
     case FOREIGN_TARGET_OVERSTORAGE:
+    case LOCAL_IS_FAT:
+    case LOCAL_IS_HGFS:
+        return false;
+    default:
+        return true;
+    }
+}
+
+static bool isAnError(int e)
+{
+    switch (e)
+    {
+    case NO_ERROR:
+    case LOCAL_IS_FAT:
+    case LOCAL_IS_HGFS:
         return false;
     default:
         return true;
@@ -743,6 +761,8 @@ private:
     int64_t mValue = 0;
 
 };
+
+
 // Holds the config of a sync. Can be extended with future config options
 class SyncConfig : public Cacheable
 {
@@ -815,13 +835,16 @@ public:
     // deserializes the string to a SyncConfig object. Returns null in case of failure
     static std::unique_ptr<SyncConfig> unserialize(const std::string& data);
 
-    // TODO: docs
+    // get error code (errors can be temporary/fatal/mere warnings)
     int getError() const;
 
+    // sets the error
     void setError(int value);
 
+    // enabled by the user
     bool getEnabled() const;
 
+    // sets if enabled by the user
     void setEnabled(bool enabled);
 
 private:
