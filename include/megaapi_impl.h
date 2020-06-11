@@ -134,7 +134,7 @@ public:
     MegaErrorPrivate(int errorCode, long long value);
     MegaErrorPrivate(const Error &err);
     MegaErrorPrivate(const MegaError &megaError);
-    virtual ~MegaErrorPrivate();
+    ~MegaErrorPrivate() override;
     MegaError* copy() const override;
     int getErrorCode() const override;
     long long getValue() const override;
@@ -147,7 +147,7 @@ public:
     const char* __toString() const override;
 
 private:
-    long long mValue;
+    long long mValue = 0;
     bool mExtraInfo = false;
     long long mUserStatus = 0;
     long long mLinkStatus = 0;
@@ -718,7 +718,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         bool isBackupTransfer() const override;
         bool isForeignOverquota() const override;
         char *getLastBytes() const override;
-        const MegaError *getLastError() const override;
+        MegaError getLastError() const override;
         bool isFolderTransfer() const override;
         int getFolderTransferTag() const override;
         virtual void setAppData(const char *data);

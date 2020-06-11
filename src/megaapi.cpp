@@ -1186,9 +1186,9 @@ char *MegaTransfer::getLastBytes() const
     return NULL;
 }
 
-const MegaError *MegaTransfer::getLastError() const
+MegaError MegaTransfer::getLastError() const
 {
-    return nullptr;
+    return API_OK;
 }
 
 bool MegaTransfer::isFolderTransfer() const

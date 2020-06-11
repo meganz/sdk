@@ -2425,9 +2425,9 @@ char * MegaTransferPrivate::getLastBytes() const
     return lastBytes;
 }
 
-const MegaError* MegaTransferPrivate::getLastError() const
+MegaError MegaTransferPrivate::getLastError() const
 {
-    return lastError;
+    return *lastError;
 }
 
 bool MegaTransferPrivate::isFolderTransfer() const
@@ -22401,33 +22401,30 @@ bool MegaAccountDetailsPrivate::isTemporalBandwidthValid()
 MegaErrorPrivate::MegaErrorPrivate(int errorCode)
     : MegaError(errorCode)
 {
-    this->mValue = 0;
 }
 
 MegaErrorPrivate::MegaErrorPrivate(int errorCode, long long value)
     : MegaError(errorCode)
+    , mValue(value)
 {
-    mValue = value;
 }
 
 MegaErrorPrivate::MegaErrorPrivate(const Error& err)
     : MegaError(err)
+    , mValue(0)
+    , mExtraInfo(err.hasExtraInfo())
+    , mLinkStatus(err.getLinkStatus())
+    , mUserStatus(err.getUserStatus())
 {
-    mValue = 0;
-    mExtraInfo = err.hasExtraInfo();
-    mLinkStatus = err.getLinkStatus();
-    mUserStatus = err.getUserStatus();
 }
 
 MegaErrorPrivate::MegaErrorPrivate(const MegaError &megaError)
     : MegaError(megaError.getErrorCode())
+    , mValue(megaError.getValue())
+    , mExtraInfo(megaError.hasExtraInfo())
+    , mLinkStatus(megaError.getLinkStatus())
+    , mUserStatus(megaError.getUserStatus())
 {
-    errorCode = megaError.getErrorCode();
-    mValue = megaError.getValue();
-
-    mExtraInfo = megaError.hasExtraInfo();
-    mUserStatus = megaError.getUserStatus();
-    mLinkStatus = megaError.getLinkStatus();
 }
 
 MegaErrorPrivate::~MegaErrorPrivate()

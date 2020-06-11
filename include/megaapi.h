@@ -3869,11 +3869,9 @@ class MegaTransfer
         /**
          * @brief Returns the last error related to the transfer
          *
-         * The ownship of returned value is kept by MegaTransfer
-         *
          * @return Last error related to the transfer
          */
-        virtual const MegaError* getLastError() const;
+        virtual MegaError getLastError() const;
 
         /**
          * @brief Returns true if the transfer is a folder transfer
@@ -13585,8 +13583,6 @@ class MegaApi
          * - MegaShare::ACCESS_READWRITE
          * - MegaShare::ACCESS_READ
          *
-         * You take ownership of the returned value
-         *
          * @return MegaError object with the result.
          * Valid values for the error code are:
          * - MegaError::API_OK - The node has the required access level
@@ -13598,8 +13594,6 @@ class MegaApi
 
         /**
          * @brief Check if a node can be moved to a target node
-         *
-         * You take ownership of the returned value
          *
          * @param node Node to check
          * @param target Target for the move operation
