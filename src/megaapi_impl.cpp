@@ -2427,7 +2427,7 @@ char * MegaTransferPrivate::getLastBytes() const
 
 MegaError MegaTransferPrivate::getLastError() const
 {
-    return *lastError;
+    return lastError ? *lastError : API_OK;
 }
 
 const MegaError *MegaTransferPrivate::getLastErrorExtended() const
@@ -11921,9 +11921,9 @@ dstime MegaApiImpl::pread_failure(const Error &e, int retry, void* param, dstime
     if (retry <= transfer->getMaxRetries() && e != API_EINCOMPLETE && !(e == API_ETOOMANY && e.hasExtraInfo()))
     {	
         MegaErrorPrivate *megaError = new MegaErrorPrivate(e, timeLeft / 10);
-        transfer->setLastError(megaError);
+        transfer->setLastError(megaError);  // doesn't acquire ownership of `megaError`
         transfer->setState(MegaTransfer::STATE_RETRYING);
-        fireOnTransferTemporaryError(transfer, megaError);
+        fireOnTransferTemporaryError(transfer, megaError);  // takes ownership of `megaError`
         LOG_debug << "Streaming temporarily failed " << retry;
         if (retry <= 1)
         {
@@ -15493,18 +15493,18 @@ void MegaApiImpl::checkfile_result(handle h, const Error &e)
             if (transfer->getNodeHandle() == h)
             {
                 MegaErrorPrivate *megaError = new MegaErrorPrivate(e);
-                transfer->setLastError(megaError);
+                transfer->setLastError(megaError);  // doesn't acquire ownership of `megaError`
 
                 if (e == API_ETOOMANY && e.hasExtraInfo())
                 {
                     DBTableTransactionCommitter committer(client->tctable);
                     transfer->setState(MegaTransfer::STATE_FAILED);
-                    fireOnTransferFinish(transfer, megaError, committer);
+                    fireOnTransferFinish(transfer, megaError, committer);  // takes ownership of `megaError`
                 }
                 else
                 {
                     transfer->setState(MegaTransfer::STATE_RETRYING);
-                    fireOnTransferTemporaryError(transfer, megaError);
+                    fireOnTransferTemporaryError(transfer, megaError);  // takes ownership of `megaError`
                 }
             }
         }
@@ -15521,9 +15521,9 @@ void MegaApiImpl::checkfile_result(handle h, error e, byte*, m_off_t, m_time_t, 
             if (transfer->getNodeHandle() == h)
             {
                 MegaErrorPrivate *megaError = new MegaErrorPrivate(e);
-                transfer->setLastError(megaError);
+                transfer->setLastError(megaError);  // doesn't acquire ownership of `megaError`
                 transfer->setState(MegaTransfer::STATE_RETRYING);
-                fireOnTransferTemporaryError(transfer, megaError);
+                fireOnTransferTemporaryError(transfer, megaError);  // takes ownership of `megaError`
             }
         }
     }
@@ -16358,14 +16358,14 @@ void MegaApiImpl::processTransferFailed(Transfer *tr, MegaTransferPrivate *trans
     transfer->setDeltaSize(0);
     transfer->setSpeed(0);
     transfer->setMeanSpeed(0);
-    transfer->setLastError(megaError);
+    transfer->setLastError(megaError);  // doesn't acquire ownership of `megaError`
     transfer->setPriority(tr->priority);
     if (e == API_ETOOMANY && e.hasExtraInfo())
     {
         DBTableTransactionCommitter committer(client->tctable);
         transfer->setState(MegaTransfer::STATE_FAILED);
         transfer->setForeignOverquota(false);
-        fireOnTransferFinish(transfer, megaError, committer);
+        fireOnTransferFinish(transfer, megaError, committer);  // takes ownership of `megaError`
     }
     else
     {
