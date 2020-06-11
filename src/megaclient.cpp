@@ -931,8 +931,8 @@ void MegaClient::activateoverquota(dstime timeleft, bool isPaywall)
     else if (setstoragestatus(isPaywall ? STORAGE_PAYWALL : STORAGE_RED))
     {
         LOG_warn << "Storage overquota";
-        int end = (isPaywall) ? PUT : GET;  // in Paywall state, none DLs/UPs can progress
-        for (int d = GET; d <= end; d += PUT - GET)
+        int start = (isPaywall) ? GET : PUT;  // in Paywall state, none DLs/UPs can progress
+        for (int d = start; d <= PUT; d += PUT - GET)
         {
             for (transfer_map::iterator it = transfers[d].begin(); it != transfers[d].end(); it++)
             {
