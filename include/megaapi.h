@@ -3869,9 +3869,23 @@ class MegaTransfer
         /**
          * @brief Returns the last error related to the transfer
          *
+         * @note This method returns a MegaError with the error code, but
+         * the extra info is not valid. If you need to use MegaError::getUserStatus, in
+         * example, you need to use MegaTransfer::getLastErrorExtended.
+         *
          * @return Last error related to the transfer
          */
         virtual MegaError getLastError() const;
+
+        /**
+         * @brief Returns the last error related to the transfer with extra info
+         *
+         * The MegaTransfer object retains the ownership of the returned pointer. It will
+         * be valid until the deletion of the MegaTransfer object.
+         *
+         * @return Last error related to the transfer, with extended info
+         */
+        virtual const MegaError* getLastErrorExtended() const;
 
         /**
          * @brief Returns true if the transfer is a folder transfer

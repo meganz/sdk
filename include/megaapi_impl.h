@@ -719,6 +719,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         bool isForeignOverquota() const override;
         char *getLastBytes() const override;
         MegaError getLastError() const override;
+        const MegaError *getLastErrorExtended() const override;
         bool isFolderTransfer() const override;
         int getFolderTransferTag() const override;
         virtual void setAppData(const char *data);

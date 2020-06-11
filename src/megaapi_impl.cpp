@@ -2430,6 +2430,11 @@ MegaError MegaTransferPrivate::getLastError() const
     return *lastError;
 }
 
+const MegaError *MegaTransferPrivate::getLastErrorExtended() const
+{
+    return lastError;
+}
+
 bool MegaTransferPrivate::isFolderTransfer() const
 {
     return folderTransferTag < 0;

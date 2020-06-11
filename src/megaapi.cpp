@@ -1191,6 +1191,11 @@ MegaError MegaTransfer::getLastError() const
     return API_OK;
 }
 
+const MegaError *MegaTransfer::getLastErrorExtended() const
+{
+    return nullptr;
+}
+
 bool MegaTransfer::isFolderTransfer() const
 {
     return false;
