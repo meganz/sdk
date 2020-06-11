@@ -131,11 +131,11 @@ class MegaErrorPrivate : public MegaError
 {
 public:
     MegaErrorPrivate(int errorCode = MegaError::API_OK);
-    MegaErrorPrivate(int errorCode, long long mValue);
+    MegaErrorPrivate(int errorCode, long long value);
     MegaErrorPrivate(const Error &err);
     MegaErrorPrivate(const MegaError &megaError);
     virtual ~MegaErrorPrivate();
-    MegaError* copy() const;
+    MegaError* copy() const override;
     int getErrorCode() const override;
     long long getValue() const override;
     bool hasExtraInfo() const override;

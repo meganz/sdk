@@ -20414,7 +20414,8 @@ void MegaApiImpl::sendPendingRequests()
                     }
                 #endif
 
-                megaTransfer->setLastError(new MegaErrorPrivate(API_EINCOMPLETE));
+                MegaErrorPrivate megaError(API_EINCOMPLETE);
+                megaTransfer->setLastError(&megaError);
 
                 bool found = false;
                 file_list files = transfer->files;
