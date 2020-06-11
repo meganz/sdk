@@ -3245,11 +3245,11 @@ bool MegaClient::abortbackoff(bool includexfers)
                     }
                 }
             }
-        }
 
-        for (handledrn_map::iterator it = hdrns.begin(); it != hdrns.end();)
-        {
-            (it++)->second->retry(API_OK);
+            for (handledrn_map::iterator it = hdrns.begin(); it != hdrns.end();)
+            {
+                (it++)->second->retry(API_OK);
+            }
         }
     }
 
