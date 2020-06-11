@@ -23692,7 +23692,7 @@ void MegaFolderUploadController::onRequestFinish(MegaApi *, MegaRequest *request
         else
         {
             pendingFolders.pop_front();
-            mLastError = e->getErrorCode();
+            mLastError = *e;
             mIncompleteTransfers++;
             checkCompletion();
         }
@@ -23738,7 +23738,7 @@ void MegaFolderUploadController::onTransferFinish(MegaApi *, MegaTransfer *t, Me
         megaApi->fireOnTransferUpdate(transfer);
         if (e->getErrorCode() != API_OK)
         {
-            mLastError = e->getErrorCode();
+            mLastError = *e;
             mIncompleteTransfers++;
         }
         checkCompletion();
@@ -25077,7 +25077,7 @@ void MegaFolderDownloadController::onTransferFinish(MegaApi *, MegaTransfer *t, 
         megaApi->fireOnTransferUpdate(transfer);
         if (e->getErrorCode())
         {
-            mLastError = e->getErrorCode();
+            mLastError = *e;
             mIncompleteTransfers++;
         }
         checkCompletion();
