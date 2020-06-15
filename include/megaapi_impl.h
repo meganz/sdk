@@ -2596,9 +2596,9 @@ class MegaApiImpl : public MegaApp
         void getCountryCallingCodes(MegaRequestListener *listener = NULL);
 
         void fireOnTransferStart(MegaTransferPrivate *transfer);
-        void fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr<MegaError> e, DBTableTransactionCommitter& committer);
+        void fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e, DBTableTransactionCommitter& committer);
         void fireOnTransferUpdate(MegaTransferPrivate *transfer);
-        void fireOnTransferTemporaryError(MegaTransferPrivate *transfer, unique_ptr<MegaError> e);
+        void fireOnTransferTemporaryError(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e);
         map<int, MegaTransferPrivate *> transferMap;
 
         MegaClient *getMegaClient();
@@ -2612,9 +2612,9 @@ class MegaApiImpl : public MegaApp
         error processAbortBackupRequest(MegaRequestPrivate *request, error e);
         void fireOnBackupStateChanged(MegaBackupController *backup);
         void fireOnBackupStart(MegaBackupController *backup);
-        void fireOnBackupFinish(MegaBackupController *backup, unique_ptr<MegaError> e);
+        void fireOnBackupFinish(MegaBackupController *backup, unique_ptr<MegaErrorPrivate> e);
         void fireOnBackupUpdate(MegaBackupController *backup);
-        void fireOnBackupTemporaryError(MegaBackupController *backup, unique_ptr<MegaError> e);
+        void fireOnBackupTemporaryError(MegaBackupController *backup, unique_ptr<MegaErrorPrivate> e);
 
         void yield();
         void lockMutex();

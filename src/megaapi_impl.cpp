@@ -15841,7 +15841,7 @@ void MegaApiImpl::fireOnTransferStart(MegaTransferPrivate *transfer)
     activeTransfer = NULL;
 }
 
-void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr<MegaError> e, DBTableTransactionCommitter& committer)
+void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e, DBTableTransactionCommitter& committer)
 {
     activeTransfer = transfer;
     activeError = e.get();
@@ -15887,7 +15887,7 @@ void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr
     delete transfer;  // committer needs to be present for this one, db updated
 }
 
-void MegaApiImpl::fireOnTransferTemporaryError(MegaTransferPrivate *transfer, unique_ptr<MegaError> e)
+void MegaApiImpl::fireOnTransferTemporaryError(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e)
 {
     activeTransfer = transfer;
     activeError = e.get();
@@ -16182,7 +16182,7 @@ void MegaApiImpl::fireOnBackupStart(MegaBackupController *backup)
 
 }
 
-void MegaApiImpl::fireOnBackupFinish(MegaBackupController *backup, unique_ptr<MegaError> e)
+void MegaApiImpl::fireOnBackupFinish(MegaBackupController *backup, unique_ptr<MegaErrorPrivate> e)
 {
     for(set<MegaBackupListener *>::iterator it = backupListeners.begin(); it != backupListeners.end() ;)
     {
@@ -16201,7 +16201,7 @@ void MegaApiImpl::fireOnBackupFinish(MegaBackupController *backup, unique_ptr<Me
     }
 }
 
-void MegaApiImpl::fireOnBackupTemporaryError(MegaBackupController *backup, unique_ptr<MegaError> e)
+void MegaApiImpl::fireOnBackupTemporaryError(MegaBackupController *backup, unique_ptr<MegaErrorPrivate> e)
 {
     for(set<MegaBackupListener *>::iterator it = backupListeners.begin(); it != backupListeners.end() ;)
     {
@@ -24630,7 +24630,18 @@ void MegaBackupController::onTransferUpdate(MegaApi *, MegaTransfer *t)
 void MegaBackupController::onTransferTemporaryError(MegaApi *, MegaTransfer *t, MegaError *e)
 {
     LOG_verbose << " at MegaBackupController::onTransferTemporaryError";
-    megaApi->fireOnBackupTemporaryError(this, unique_ptr<MegaError>(e->copy()));  // we received a non-owning pointer but we need to pass ownership to fireOnBackupTemporaryError
+
+    unique_ptr<MegaErrorPrivate> errorPrivate;
+    if (dynamic_cast<MegaErrorPrivate *>(e))
+    {
+        errorPrivate = unique_ptr<MegaErrorPrivate>(dynamic_cast<MegaErrorPrivate *>(e->copy()));
+    }
+    else
+    {
+         errorPrivate = make_unique<MegaErrorPrivate>(e->getErrorCode());
+    }
+
+    megaApi->fireOnBackupTemporaryError(this, std::move(errorPrivate));  // we received a non-owning pointer but we need to pass ownership to fireOnBackupTemporaryError
 }
 
 void MegaBackupController::onTransferFinish(MegaApi *, MegaTransfer *t, MegaError *e)
