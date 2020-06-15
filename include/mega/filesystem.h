@@ -32,6 +32,7 @@
 #include <sys/mount.h>
 #include <sys/param.h>
 #elif defined(_WIN32) || defined(_WIN64) || defined(WINDOWS_PHONE)
+#include <winsock2.h>
 #include <Windows.h>
 #endif
 

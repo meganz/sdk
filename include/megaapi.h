@@ -4941,7 +4941,7 @@ public:
 
     enum Error
     {
-        NO_ERROR = 0,
+        NO_SYNC_ERROR = 0,
         UNKNOWN_ERROR = 1,
         UNSUPPORTED_FILE_SYSTEM = 2, //File system type is not supported
         INVALID_REMOTE_TYPE = 3, //Remote type is not a folder that can be synced
@@ -5059,7 +5059,7 @@ public:
      * @brief Get the error of a synchronization
      *
      * Possible values are:
-     *  - NO_ERROR = 0: No error
+     *  - NO_SYNC_ERROR = 0: No error
      *  - UNKNOWN_ERROR = 1: Undefined error
      *  - UNSUPPORTED_FILE_SYSTEM = 2: File system type is not supported
      *  - INVALID_REMOTE_TYPE = 3: Remote type is not a folder that can be synced

@@ -579,15 +579,15 @@ public:
 
     // disable synchronization. (transition to disable_state)
     // If no error passed, it entails a manual disable: won't be resumed automatically anymore, but it will be kept in cache
-    void disableSync(Sync*, syncerror_t syncError =  NO_ERROR);
+    void disableSync(Sync*, syncerror_t syncError =  NO_SYNC_ERROR);
     bool disableSyncContainingNode(mega::handle nodeHandle, syncerror_t syncError);
 
     // fail all active syncs
-    void failSyncs(syncerror_t syncError =  NO_ERROR);
+    void failSyncs(syncerror_t syncError =  NO_SYNC_ERROR);
 
     //disable all active syncs
     // If no error passed, it entails a manual disable: won't be resumed automatically anymore, but it will be kept in cache
-    void disableSyncs(syncerror_t syncError =  NO_ERROR);
+    void disableSyncs(syncerror_t syncError =  NO_SYNC_ERROR);
 
     // restore all configured syncs that were in a temporary error state (not manually disabled)
     void restoreSyncs();

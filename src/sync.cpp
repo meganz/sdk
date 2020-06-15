@@ -532,7 +532,10 @@ SyncConfigBag::SyncConfigBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, Prn
         if (!syncConfig)
         {
             LOG_err << "Unable to unserialize sync config at id: " << tableId;
-            assert(false);
+            assert(false); //TODO: note for reviewer apparently old version is already writtting stuff in _syncconfigs_ files
+            // which makes this assertion fail, since this was not envisioned to need backwards compatibility.
+            // In any case, transition to the new cache works fine. Some registers in the old _syncconfigs_ db will
+            // fail once. To prevent that, we might want to change dbname to "syncconfigsv2_".
             continue;
         }
         syncConfig->dbid = tableId;
@@ -657,7 +660,7 @@ Sync::Sync(MegaClient* cclient, SyncConfig &config, const char* cdebris,
     tag = ctag;
     inshare = cinshare;
     appData = cappdata;
-    errorCode = NO_ERROR;
+    errorCode = NO_SYNC_ERROR;
     tmpfa = NULL;
     initializing = true;
     updatedfilesize = ~0;

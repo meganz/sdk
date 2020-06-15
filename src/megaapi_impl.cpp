@@ -20974,7 +20974,7 @@ void MegaApiImpl::sendPendingRequests()
                                   static_cast<fsfp_t>(request->getNumber()), 
                                   regExpToVector(request->getRegExp())};
 
-            syncerror_t syncError = NO_ERROR;
+            syncerror_t syncError = NO_SYNC_ERROR;
             e = client->addsync(syncConfig, DEBRISFOLDER, NULL, syncError, true, sync);
             request->setNumDetails(syncError);
             if (!e)
@@ -21007,12 +21007,12 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            syncerror_t syncError = NO_ERROR;
+            syncerror_t syncError = NO_SYNC_ERROR;
 
             e = client->enableSync(tag, syncError, true);
             //TODO: note to reviewer: in case this fails with a non temporary error, this sets the sync
             // to FAILED (which oddly entails: isEnabled = true: from the user perspective it has been enabled)
-            // Alternatively, we could keep/enforce a SYNC_DISABLED+NO_ERROR (i.e. manually disabled) and
+            // Alternatively, we could keep/enforce a SYNC_DISABLED+NO_SYNC_ERROR (i.e. manually disabled) and
             //  asume the failure in the req finish is enough for the app and that we do not want to update the sync configuration
 
             request->setNumDetails(syncError);
@@ -21158,12 +21158,12 @@ void MegaApiImpl::sendPendingRequests()
             {
                 if (!tag) //no tag provided, look for handle
                 {
-                    e = client->changeSyncStateByNodeHandle(nodehandle, SYNC_DISABLED, NO_ERROR, false);
+                    e = client->changeSyncStateByNodeHandle(nodehandle, SYNC_DISABLED, NO_SYNC_ERROR, false);
 
                 }
                 else
                 {
-                    e = client->changeSyncState(tag, SYNC_DISABLED, NO_ERROR, false);
+                    e = client->changeSyncState(tag, SYNC_DISABLED, NO_SYNC_ERROR, false);
                 }
             }
 
@@ -23585,7 +23585,7 @@ void MegaSyncPrivate::disable(int error)
 
 bool MegaSyncPrivate::isEnabled() const
 {
-    return state != SYNC_CANCELED && (state != SYNC_DISABLED || mError != NO_ERROR );
+    return state != SYNC_CANCELED && (state != SYNC_DISABLED || mError != NO_SYNC_ERROR );
 }
 
 bool MegaSyncPrivate::isActive() const
@@ -23595,7 +23595,7 @@ bool MegaSyncPrivate::isActive() const
 
 bool MegaSyncPrivate::isTemporaryDisabled() const
 {
-    return state == SYNC_DISABLED && mError != NO_ERROR;
+    return state == SYNC_DISABLED && mError != NO_SYNC_ERROR;
 }
 
 

@@ -5476,7 +5476,7 @@ int MegaSync::getState() const
 
 int MegaSync::getError() const
 {
-    return MegaSync::Error::NO_ERROR;
+    return MegaSync::Error::NO_SYNC_ERROR;
 }
 
 bool MegaSync::isEnabled() const
@@ -5503,7 +5503,7 @@ const char* MegaSync::getMegaSyncErrorCode(int errorCode)
 {
     switch(errorCode)
     {
-    case MegaSync::Error::NO_ERROR:
+    case MegaSync::Error::NO_SYNC_ERROR:
         return "No error";
     case MegaSync::Error::UNKNOWN_ERROR:
         return "Unknown error";

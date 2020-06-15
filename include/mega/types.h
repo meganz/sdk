@@ -290,7 +290,7 @@ typedef enum {
 
 //TODO: can we use named enum? otherwise, use names that should cause less collisions
 typedef enum {
-    NO_ERROR = 0,
+    NO_SYNC_ERROR = 0,
     UNKNOWN_ERROR = 1,
     UNSUPPORTED_FILE_SYSTEM = 2, //File system type is not supported
     INVALID_REMOTE_TYPE = 3, //Remote type is not a folder that can be synced
@@ -322,7 +322,7 @@ static bool isMegaSyncErrorPermanent(int e)
 {
     switch (e)
     {
-    case NO_ERROR:
+    case NO_SYNC_ERROR:
     case STORAGE_OVERQUOTA:
     case BUSINESS_EXPIRED:
     case FOREIGN_TARGET_OVERSTORAGE:
@@ -339,7 +339,7 @@ static bool isAnError(int e)
 {
     switch (e)
     {
-    case NO_ERROR:
+    case NO_SYNC_ERROR:
     case LOCAL_IS_FAT:
     case LOCAL_IS_HGFS:
         return false;
@@ -819,7 +819,7 @@ public:
                const Type syncType = TYPE_TWOWAY,
                const bool syncDeletions = false,
                const bool forceOverwrite = false,
-                const int error = NO_ERROR
+                const int error = NO_SYNC_ERROR
             );
 
     // returns unique identifier

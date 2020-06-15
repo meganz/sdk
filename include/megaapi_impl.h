@@ -1025,7 +1025,7 @@ public:
     virtual int getError() const;
     void setError(int error);
 
-    void disable(int error = NO_ERROR); //disable. NO_ERROR = user disable
+    void disable(int error = NO_SYNC_ERROR); //disable. NO_SYNC_ERROR = user disable
 
     virtual bool isEnabled() const; //enabled by user
     virtual bool isActive() const; //not disabled by user nor failed (nor being removed)
@@ -1044,7 +1044,7 @@ protected:
     //holds error cause
     int mError;
 
-    // if temporarily disabled. No need to store this: state == SYNC_DISABLED with mError != NO_ERROR
+    // if temporarily disabled. No need to store this: state == SYNC_DISABLED with mError != NO_SYNC_ERROR
 //    bool mTemporaryDisabled;
 
     // if sync is enabled. No need to store this: state != SYNC_DISABLED (or state == SYNC_DISABLED but due to a transient error)

@@ -2329,7 +2329,7 @@ void MegaClient::exec()
                             //syncsup = false; These syncs should not delay action packets
                             sync->initializing = false;
                             LOG_debug << "Initial delayed scan finished. New / modified files: " << sync->dirnotify->notifyq[DirNotify::DIREVENTS].size();
-                            saveAndUpdateSyncConfig(&sync->getConfig(), sync->state, NO_ERROR );
+                            saveAndUpdateSyncConfig(&sync->getConfig(), sync->state, NO_SYNC_ERROR );
                         }
                         else
                         {
@@ -12503,7 +12503,7 @@ error MegaClient::isLocalPathSyncable(string newPath, int newSyncTag, syncerror_
 error MegaClient::addsync(SyncConfig syncConfig, const char* debris, string* localdebris, syncerror_t &syncError, bool delayInitialScan, void *appData)
 {
 #ifdef ENABLE_SYNC
-    syncError = NO_ERROR;
+    syncError = NO_SYNC_ERROR;
     Node* remotenode = nodebyhandle(syncConfig.getRemoteNode());
     bool inshare = false;
     if (!remotenode)
@@ -14101,7 +14101,7 @@ error MegaClient::saveAndUpdateSyncConfig(const SyncConfig *config, syncstate_t 
 
         auto isEnabled = [](syncstate_t state, syncerror_t syncError) -> bool
         {
-            return state != SYNC_CANCELED && (state != SYNC_DISABLED || syncError != NO_ERROR );
+            return state != SYNC_CANCELED && (state != SYNC_DISABLED || syncError != NO_SYNC_ERROR );
         };
 
         newConfig.setEnabled(isEnabled(newstate, newSyncError));
@@ -14121,7 +14121,7 @@ error MegaClient::changeSyncState(const SyncConfig *config, syncstate_t newstate
     {
         auto isEnabled = [](syncstate_t state, syncerror_t syncError) -> bool
         {
-            return state != SYNC_CANCELED && (state != SYNC_DISABLED || syncError != NO_ERROR );
+            return state != SYNC_CANCELED && (state != SYNC_DISABLED || syncError != NO_SYNC_ERROR );
         };
 
         if ( (config->getError() != newSyncError) || (config->getEnabled() != isEnabled(newstate, newSyncError)) ) //has changed
@@ -14135,6 +14135,7 @@ error MegaClient::changeSyncState(const SyncConfig *config, syncstate_t newstate
     }
 
     app->syncupdate_state(config->getTag(), newstate, newSyncError, fireDisableEvent);
+    return e;
 }
 
 error MegaClient::changeSyncState(int tag, syncstate_t newstate, syncerror_t newSyncError, bool fireDisableEvent)
@@ -14236,7 +14237,7 @@ void MegaClient::disableSyncs(syncerror_t syncError)
 
 error MegaClient::enableSync(const SyncConfig *syncConfig, syncerror_t &syncError, bool resetFingerprint)
 {
-    syncError = NO_ERROR;
+    syncError = NO_SYNC_ERROR;
 
     auto newConfig = *syncConfig;
     if (resetFingerprint)
