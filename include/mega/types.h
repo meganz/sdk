@@ -214,7 +214,6 @@ class Error
 public:
     Error(error err = API_EINTERNAL)
         : mError(err)
-        , mExtraErrorInfo(false)
     { }
 
     void setErrorCode(error err)
@@ -222,18 +221,17 @@ public:
         mError = err;
     }
 
-    void setUserStatus(int64_t u) { mUserStatus = u; mExtraErrorInfo = true; }
-    void setLinkStatus(int64_t l) { mLinkStatus = l; mExtraErrorInfo = true; }
-    bool hasExtraInfo() const { return mExtraErrorInfo; }
+    void setUserStatus(int64_t u) { mUserStatus = u; }
+    void setLinkStatus(int64_t l) { mLinkStatus = l; }
+    bool hasExtraInfo() const { return mUserStatus != -1 || mLinkStatus != -1; }
     int64_t getUserStatus() const { return mUserStatus; }
     int64_t getLinkStatus() const { return mLinkStatus; }
     operator error() const { return mError; }
 
 private:
     error mError = API_EINTERNAL;
-    bool  mExtraErrorInfo = false;
-    int64_t mUserStatus = 0; // user status
-    int64_t mLinkStatus = 0; // link status
+    int64_t mUserStatus = -1; // user status
+    int64_t mLinkStatus = -1; // link status
 };
 
 // returned by loggedin()
