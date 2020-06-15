@@ -319,6 +319,14 @@ public:
 
     void procresult();
 };
+
+class MEGA_API CommandSendDevCommand : public Command
+{
+public:
+    void procresult();
+
+    CommandSendDevCommand(MegaClient*, const char* command, const char* email = NULL);
+};
 #endif
 
 class MEGA_API CommandGetUserEmail : public Command

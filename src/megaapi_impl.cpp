@@ -3860,6 +3860,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_MISC_FLAGS: return "GET_MISC_FLAGS";
         case TYPE_RESEND_VERIFICATION_EMAIL: return "RESEND_VERIFICATION_EMAIL";
         case TYPE_SUPPORT_TICKET: return "SUPPORT_TICKET";
+        case TYPE_SEND_DEV_COMMAND: return "SEND_DEV_COMMAND";
     }
     return "UNKNOWN";
 }
@@ -5872,6 +5873,15 @@ void MegaApiImpl::getUserData(const char *user, MegaRequestListener *listener)
 void MegaApiImpl::getMiscFlags(MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_MISC_FLAGS, listener);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::sendDevCommand(const char *command, const char *email, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SEND_DEV_COMMAND, listener);
+    request->setName(command);
+    request->setEmail(email);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -14924,6 +14934,19 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
 void MegaApiImpl::delua_result(error)
 {
 }
+
+void MegaApiImpl::senddevcommand_result(int value)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_SEND_DEV_COMMAND)) return;
+
+    MegaError e = (value <= 0) ? value : API_OK;
+    if (value > 0)
+        request->setNumber(value);
+
+    fireOnRequestFinish(request, e);
+}
 #endif
 
 void MegaApiImpl::getuseremail_result(string *email, error e)
@@ -20971,6 +20994,22 @@ void MegaApiImpl::sendPendingRequests()
                 client->getpubkey(email);
             }
 
+            break;
+        }
+        case MegaRequest::TYPE_SEND_DEV_COMMAND:
+        {
+            const char *email = request->getEmail();
+            const char *command = request->getName();
+            if (!command)
+            {
+                e = API_EARGS;
+                break;
+            }
+#ifdef DEBUG
+            client->senddevcommand(command, email);
+#else
+            e = API_EACCESS;
+#endif
             break;
         }
         case MegaRequest::TYPE_KILL_SESSION:

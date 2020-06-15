@@ -3415,6 +3415,32 @@ void CommandDelUA::procresult()
     }
 }
 
+CommandSendDevCommand::CommandSendDevCommand(MegaClient *client, const char *command, const char *email)
+{
+    cmd("dev");
+
+    arg("aa", command);
+    if (email)
+    {
+        arg("t", email);
+    }
+
+    tag = client->reqtag;
+}
+
+void CommandSendDevCommand::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->senddevcommand_result(static_cast<int>(client->json.getint()));
+    }
+    else
+    {
+        client->app->senddevcommand_result(API_EINTERNAL);
+    }
+
+}
+
 #endif  // #ifdef DEBUG
 
 CommandGetUserEmail::CommandGetUserEmail(MegaClient *client, const char *uid)
