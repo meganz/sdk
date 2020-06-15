@@ -24630,7 +24630,18 @@ void MegaBackupController::onTransferUpdate(MegaApi *, MegaTransfer *t)
 void MegaBackupController::onTransferTemporaryError(MegaApi *, MegaTransfer *t, MegaError *e)
 {
     LOG_verbose << " at MegaBackupController::onTransferTemporaryError";
-    megaApi->fireOnBackupTemporaryError(this, unique_ptr<MegaErrorPrivate>(dynamic_cast<MegaErrorPrivate *>(e->copy())));  // we received a non-owning pointer but we need to pass ownership to fireOnBackupTemporaryError
+
+    unique_ptr<MegaErrorPrivate> errorPrivate;
+    if (dynamic_cast<MegaErrorPrivate *>(e))
+    {
+        errorPrivate = unique_ptr<MegaErrorPrivate>(dynamic_cast<MegaErrorPrivate *>(e->copy()));
+    }
+    else
+    {
+         errorPrivate = make_unique<MegaErrorPrivate>(e->getErrorCode());
+    }
+
+    megaApi->fireOnBackupTemporaryError(this, std::move(errorPrivate));  // we received a non-owning pointer but we need to pass ownership to fireOnBackupTemporaryError
 }
 
 void MegaBackupController::onTransferFinish(MegaApi *, MegaTransfer *t, MegaError *e)
