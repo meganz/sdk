@@ -4966,6 +4966,7 @@ public:
         LOCAL_PATH_SYNC_COLLISION = 22, //Local path includes a synced path or is included within one
         LOCAL_IS_FAT = 23, // Found FAT (not a failure per se)
         LOCAL_IS_HGFS= 24, // Found HGFS (not a failure per se)
+        ACCOUNT_BLOCKED= 25, // Account blocked
     };
 
     enum SyncAdded
@@ -5081,8 +5082,9 @@ public:
      *  - REMOTE_NODE_INSIDE_RUBBISH = 20: Attempted to be added in rubbish
      *  - VBOXSHAREDFOLDER_UNSUPPORTED = 21: Found unsupported VBoxSharedFolderFS
      *  - LOCAL_PATH_SYNC_COLLISION = 22: Local path includes a synced path or is included within one
-     *  - LOCAL_IS_FAT = 24: Found FAT (not a failure per se)
-     *  - LOCAL_IS_HGFS= 25: Found HGFS (not a failure per se)
+     *  - LOCAL_IS_FAT = 23: Found FAT (not a failure per se)
+     *  - LOCAL_IS_HGFS = 24: Found HGFS (not a failure per se)
+     *  - ACCOUNT_BLOCKED = 25: Account blocked
      *
      * @return Error of a synchronization
      */

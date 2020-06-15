@@ -5549,6 +5549,12 @@ const char* MegaSync::getMegaSyncErrorCode(int errorCode)
         return "Unsupported VBoxSharedFolderFS filesystem";
     case MegaSync::Error::LOCAL_PATH_SYNC_COLLISION:
         return "Local path collides with an existing sync";
+    case MegaSync::Error::LOCAL_IS_FAT:
+        return "Local filesystem is FAT";
+    case MegaSync::Error::LOCAL_IS_HGFS:
+        return "Local filesystem is HGFS";
+    case MegaSync::Error::ACCOUNT_BLOCKED:
+        return "Your account is blocked";
     default:
         return "Undefined error";
     }

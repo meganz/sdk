@@ -315,6 +315,7 @@ typedef enum {
     LOCAL_PATH_SYNC_COLLISION = 22, //Local path includes a synced path or is included within one
     LOCAL_IS_FAT = 23, // Found FAT (not a failure per se)
     LOCAL_IS_HGFS= 24, // Found HGFS (not a failure per se)
+    ACCOUNT_BLOCKED= 25, // Account blocked
 } syncerror_t;
 
 static bool isMegaSyncErrorPermanent(int e)
@@ -325,6 +326,7 @@ static bool isMegaSyncErrorPermanent(int e)
     case STORAGE_OVERQUOTA:
     case BUSINESS_EXPIRED:
     case FOREIGN_TARGET_OVERSTORAGE:
+    case ACCOUNT_BLOCKED:
     case LOCAL_IS_FAT:
     case LOCAL_IS_HGFS:
         return false;
