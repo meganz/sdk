@@ -1238,12 +1238,12 @@ MegaError::~MegaError()
 
 MegaError* MegaError::copy() const
 {
-    return nullptr;
+    return new MegaError(*this);
 }
 
 int MegaError::getErrorCode() const 
 { 
-    return 0;
+    return errorCode;
 }
 
 long long MegaError::getValue() const
@@ -1268,7 +1268,7 @@ long long MegaError::getLinkStatus() const
 
 const char* MegaError::getErrorString() const
 {
-    return NULL;
+    return MegaError::getErrorString(errorCode);
 }
 
 const char* MegaError::getErrorString(int errorCode)
@@ -1377,17 +1377,17 @@ const char* MegaError::getErrorString(int errorCode, ErrorContexts context)
 
 const char* MegaError::toString() const 
 { 
-    return nullptr;
+    return getErrorString();
 }
 
 const char* MegaError::__str__() const 
 { 
-    return nullptr;
+    return getErrorString();
 }
 
 const char *MegaError::__toString() const
 {
-    return nullptr;
+    return getErrorString();
 }
 
 MegaContactRequest::~MegaContactRequest()
