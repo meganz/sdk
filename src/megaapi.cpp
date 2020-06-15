@@ -2043,6 +2043,11 @@ void MegaApi::getMiscFlags(MegaRequestListener *listener)
     pImpl->getMiscFlags(listener);
 }
 
+void MegaApi::sendDevCommand(const char *command, const char *email, MegaRequestListener *listener)
+{
+    pImpl->sendDevCommand(command, email, listener);
+}
+
 void MegaApi::login(const char *login, const char *password, MegaRequestListener *listener)
 {
     pImpl->login(login, password, listener);
