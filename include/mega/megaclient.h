@@ -511,6 +511,9 @@ public:
 #ifdef DEBUG
     // queue a user attribute removal
     void delua(const char* an);
+
+    // send dev command for testing
+    void senddevcommand(const char *command, const char *email);
 #endif
 
     // delete or block an existing contact

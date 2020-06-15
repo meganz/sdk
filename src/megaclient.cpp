@@ -9415,6 +9415,11 @@ void MegaClient::delua(const char *an)
         reqs.add(new CommandDelUA(this, an));
     }
 }
+
+void MegaClient::senddevcommand(const char *command, const char *email)
+{
+    reqs.add(new CommandSendDevCommand(this, command, email));
+}
 #endif
 
 // queue node for notification
