@@ -1126,6 +1126,48 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
 - (void)loginToFolderLink:(NSString *)folderLink;
 
 /**
+ * @brief Trigger special account state changes for own accounts, for testing
+ *
+ * Because the dev API command allows a wide variety of state changes including suspension and unsuspension,
+ * it has restrictions on which accounts you can target, and where it can be called from.
+ *
+ * Your client must be on a company VPN IP address.
+ *
+ * The target account must be an @mega email address. The target account must either be the calling account,
+ * OR a related account via a prefix and + character. For example if the calling account is name1+test@mega.co.nz
+ * then it can perform a dev command on itself or on name1@mega.co.nz, name1+bob@mega.co.nz etc, but NOT on
+ * name2@mega.co.nz or name2+test@meg.co.nz.
+ *
+ * The associated request type with this request is MEGARequestTypeSendDevCommand.
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest name] - Returns the first parameter
+ * - [MEGARequest email] - Returns the second parameter
+ *
+ * Possible errors are:
+ *  - MEGAErrorTypeApiEAccess if the calling account is not allowed to perform this method (not a mega email account, not the right IP, etc).
+ *  - MEGAErrorTypeApiEArgs if the subcommand is not present or is invalid
+ *  - MEGAErrorTypeApiEBlocked if the target account is not allowed (this could also happen if the target account does not exist)
+ *
+ * Possible commands:
+ *  - "aodq" - Advance ODQ Warning State
+ *      If called, this will advance your ODQ warning state until the final warning state,
+ *      at which point it will turn on the ODQ paywall for your account. It requires an account lock on the target account.
+ *      This subcommand will return the 'step' of the warning flow you have advanced to - 1, 2, 3 or 4
+ *      (the paywall is turned on at step 4)
+ *
+ *      Valid data in the MEGARequest object received in onRequestFinish when the error code is MEGAErrorTypeApiOk:
+ *       + [MEGARequest number] - Returns the number of warnings (1, 2, 3 or 4).
+ *
+ *      Possible errors in addition to the standard dev ones are:
+ *       + MEGAErrorTypeApiEFailed - your account is not in the RED stoplight state
+ *
+ * @param command The subcommand for the specific operation
+ * @param email Optional email of the target email's account. If nil, it will use the logged-in account
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)sendDevCommand:(NSString *)command email:(NSString *)email delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
  * @brief Returns the current session key.
  *
  * You have to be logged in to get a valid session key. Otherwise,

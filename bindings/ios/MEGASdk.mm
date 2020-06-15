@@ -513,6 +513,10 @@ using namespace mega;
     self.megaApi->login((email != nil) ? [email UTF8String] : NULL, (password != nil) ? [password UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
+- (void)sendDevCommand:(NSString *)command email:(NSString *)email delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->sendDevCommand(command.UTF8String, email.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
 - (NSString *)dumpSession {
     const char *val = self.megaApi->dumpSession();
     if (!val) return nil;
