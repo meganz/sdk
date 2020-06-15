@@ -2245,6 +2245,86 @@ public class MegaApiJava {
     }
 
     /**
+     * Returns the credentials of the currently open account
+     *
+     * If the MegaApi object isn't logged in or there's no signing key available,
+     * this function returns NULL
+     *
+     * You take the ownership of the returned value.
+     * Use delete [] to free it.
+     *
+     * @return Fingerprint of the signing key of the current account
+     */
+    public String getMyCredentials() {
+        return megaApi.getMyCredentials();
+    }
+
+    /**
+     * Returns the credentials of a given user
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns MegaApi::USER_ATTR_ED25519_PUBLIC_KEY
+     * - MegaRequest::getFlag - Returns true
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getPassword - Returns the credentials in hexadecimal format
+     *
+     * @param user MegaUser of the contact (see MegaApi::getContact) to get the fingerprint
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getUserCredentials(MegaUser user, MegaRequestListenerInterface listener) {
+        megaApi.getUserCredentials(user, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Checks if credentials are verified for the given user
+     *
+     * @param user MegaUser of the contact whose credentiasl want to be checked
+     * @return true if verified, false otherwise
+     */
+    public boolean areCredentialsVerified(MegaUser user){
+        return megaApi.areCredentialsVerified(user);
+    }
+
+    /**
+     * Verify credentials of a given user
+     *
+     * This function allow to tag credentials of a user as verified. It should be called when the
+     * logged in user compares the fingerprint of the user (provided by an independent and secure
+     * method) with the fingerprint shown by the app (@see MegaApi::getUserCredentials).
+     *
+     * The associated request type with this request is MegaRequest::TYPE_VERIFY_CREDENTIALS
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns userhandle
+     *
+     * @param user MegaUser of the contact whose credentials want to be verified
+     * @param listener MegaRequestListener to track this request
+     */
+    public void verifyCredentials(MegaUser user, MegaRequestListenerInterface listener){
+        megaApi.verifyCredentials(user, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Reset credentials of a given user
+     *
+     * Call this function to forget the existing authentication of keys and signatures for a given
+     * user. A full reload of the account will start the authentication process again.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_VERIFY_CREDENTIALS
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns userhandle
+     * - MegaRequest::getFlag - Returns true
+     *
+     * @param user MegaUser of the contact whose credentials want to be reset
+     * @param listener MegaRequestListener to track this request
+     */
+    public void resetCredentials(MegaUser user, MegaRequestListenerInterface listener) {
+        megaApi.resetCredentials(user, createDelegateRequestListener(listener));
+    }
+
+    /**
      * Set the active log level.
      * <p>
      * This function sets the log level of the logging system. If you set a log listener using
