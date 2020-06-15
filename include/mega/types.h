@@ -212,6 +212,14 @@ typedef enum ErrorCodes
 class Error
 {
 public:
+    typedef enum  { USER_ETD_SUSPENSION = 7, // represents an ETD/ToS 'severe' suspension level
+                  } UserErrorCode;
+
+    typedef enum  { LINK_UNDELETED = 0,  // Link is undeleted
+                    LINK_DELETED_DOWN = 1, // Link is deleted or down
+                    LINK_DOWN_ETD = 2,  // Link is down due to an ETD specifically
+                  } LinkErrorCode;
+
     Error(error err = API_EINTERNAL)
         : mError(err)
     { }

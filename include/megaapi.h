@@ -5307,6 +5307,24 @@ public:
         API_EC_UPLOAD = 3,        ///< Upload transfer context.
     };
 
+    /**
+     * @brief User custom error details
+     */
+    enum UserErrorCode
+    {
+        USER_ETD_SUSPENSION = 7, ///< Account suspend by an ETD/ToS 'severe'
+    };
+
+    /**
+     * @brief Link custom error details
+     */
+    enum LinkErrorCode
+    {
+        LINK_UNDELETED = 0,  ///< Link is undeleted
+        LINK_DELETED_DOWN = 1, ///< Link is deleted or down
+        LINK_DOWN_ETD = 2,  ///< Link is down due to an ETD specifically
+    };
+
         virtual ~MegaError();
 
         /**
@@ -5361,7 +5379,7 @@ public:
          *
          * This method only returns a valid value when hasExtraInfo is true
          * Possible values:
-         *  7 -> represents an ETD/ToS 'severe' suspension level
+         *  MegaError::UserErrorCode::USER_ETD_SUSPENSION
          *
          * @return user status
          */
@@ -5372,9 +5390,9 @@ public:
          *
          * This method only returns a valid value when hasExtraInfo is true
          * Possible values:
-         *  0 -> is undeleted
-         *  1 -> is deleted/down
-         *  2 -> down due to an ETD specifically
+         *  MegaError::LinkErrorCode::LINK_UNDELETED
+         *  MegaError::LinkErrorCode::LINK_DELETED_DOWN
+         *  MegaError::LinkErrorCode::LINK_DOWN_ETD
          *
          * @return link status
          */
