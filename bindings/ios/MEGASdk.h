@@ -5404,8 +5404,8 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
 /**
  * @brief Returns the deadline to remedy the storage overquota situation
  *
- * This value is valid only when [MegaSdk getUserData] has been called after
- * receiving a callback [MegaDelegate/MegaGlobalDelegate onEvent:event] of type
+ * This value is valid only when [MEGASdk getUserData] has been called after
+ * receiving a callback [MEGAGlobalDelegate onEvent:event] of type
  * EventStorage, reporting StorageStatePaywall.
  * The value will become invalid once the state of storage changes.
  *
@@ -5416,8 +5416,8 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
 /**
  * @brief Returns when the user was warned about overquota state
  *
- * This value is valid only when [MegaSdk getUserData] has been called after
- * receiving a callback [MegaDelegate/MegaGlobalDelegate onEvent:event] of type
+ * This value is valid only when [MEGASdk getUserData] has been called after
+ * receiving a callback [MEGAGlobalDelegate onEvent:event] of type
  * EventStorage, reporting StorageStatePaywall.
  * The value will become invalid once the state of storage changes.
  *

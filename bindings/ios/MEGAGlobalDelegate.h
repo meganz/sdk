@@ -167,7 +167,7 @@ NS_ASSUME_NONNULL_BEGIN
  *
  *     - StorageStatePaywall = 4
  *     The account has been full for a long time. Now most of actions are disallowed.
- *     You will need to call [MegaSdk getUserData] before retrieving the overquota deadline/warnings
+ *     You will need to call [MEGASdk getUserData] before retrieving the overquota deadline/warnings
  *     timestamps.
  *
  * - EventNodesCurrent: when all external changes have been received

@@ -1503,18 +1503,14 @@ using namespace mega;
 
 - (nonnull NSArray<NSDate *> *)overquotaWarningDateList {
     MegaIntegerList *warningTimeIntervalList = self.megaApi->getOverquotaWarningsTs();
-
     int sizeOfWarningTimestamps = warningTimeIntervalList->size();
-    if (sizeOfWarningTimestamps == 0) {
-        return [[NSMutableArray alloc] initWithCapacity:0];
-    }
-
     NSMutableArray *warningDateList = [[NSMutableArray alloc] initWithCapacity:sizeOfWarningTimestamps];
+
     for (int i = 0; i < sizeOfWarningTimestamps; i++) {
         NSDate *warningDate = [[NSDate alloc] initWithTimeIntervalSince1970:warningTimeIntervalList->get(i)];
         [warningDateList addObject:warningDate];
     }
-    return warningDateList;
+    return [warningDateList copy];
 }
 
 #pragma mark - Transfer
