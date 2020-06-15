@@ -2254,7 +2254,7 @@ MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
     this->setStartFirst(transfer->shouldStartFirst());
     this->setBackupTransfer(transfer->isBackupTransfer());
     this->setForeignOverquota(transfer->isForeignOverquota());
-    this->setLastError(transfer->lastError);
+    this->setLastError(transfer->lastError.get());
     this->setFolderTransferTag(transfer->getFolderTransferTag());
     this->setAppData(transfer->getAppData());
     this->setNotificationNumber(transfer->getNotificationNumber());
@@ -2427,12 +2427,12 @@ char * MegaTransferPrivate::getLastBytes() const
 
 MegaError MegaTransferPrivate::getLastError() const
 {
-    return lastError ? *lastError : API_OK;
+    return lastError ? *lastError.get() : MegaTransfer::getLastError();
 }
 
 const MegaError *MegaTransferPrivate::getLastErrorExtended() const
 {
-    return lastError;
+    return lastError.get();
 }
 
 bool MegaTransferPrivate::isFolderTransfer() const
@@ -2780,10 +2780,7 @@ void MegaTransferPrivate::setLastBytes(char *lastBytes)
 
 void MegaTransferPrivate::setLastError(const MegaError *e)
 {
-    if (lastError)
-        delete lastError;
-
-    lastError = e ? static_cast<MegaErrorPrivate*>(e->copy()) : nullptr;
+   lastError.reset(e ? e->copy() : nullptr);
 }
 
 void MegaTransferPrivate::setFolderTransferTag(int tag)
@@ -2907,7 +2904,6 @@ MegaTransferPrivate::~MegaTransferPrivate()
     delete [] fileName;
     delete [] appData;
     delete publicNode;
-    delete lastError;
 }
 
 const char * MegaTransferPrivate::toString() const

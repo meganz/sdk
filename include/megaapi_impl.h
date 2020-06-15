@@ -774,7 +774,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
 
         MegaTransferListener *listener;
         Transfer *transfer;
-        MegaErrorPrivate *lastError = nullptr;
+        std::unique_ptr<MegaError> lastError;
         int folderTransferTag;
         const char* appData;
         unique_ptr<MegaRecursiveOperation> recursiveOperation;
