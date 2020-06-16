@@ -3857,9 +3857,19 @@ MegaError MegaApi::checkAccess(MegaNode* megaNode, int level)
     return pImpl->checkAccess(megaNode, level);
 }
 
+MegaError *MegaApi::checkAccessErrorExtended(MegaNode *node, int level)
+{
+    return pImpl->checkAccessErrorExtended(node, level);
+}
+
 MegaError MegaApi::checkMove(MegaNode* megaNode, MegaNode* targetNode)
 {
     return pImpl->checkMove(megaNode, targetNode);
+}
+
+MegaError *MegaApi::checkMoveErrorExtended(MegaNode *node, MegaNode *target)
+{
+    return pImpl->checkMoveErrorExtended(node, target);
 }
 
 bool MegaApi::isFilesystemAvailable()

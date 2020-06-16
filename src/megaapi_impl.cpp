@@ -16400,16 +16400,22 @@ void MegaApiImpl::processTransferRemoved(Transfer *tr, MegaTransferPrivate *tran
 
 MegaError MegaApiImpl::checkAccess(MegaNode* megaNode, int level)
 {
+    std::unique_ptr<MegaError>megaError = std::unique_ptr<MegaError>(checkAccessErrorExtended(megaNode, level));
+    return megaError->getErrorCode();
+}
+
+MegaError *MegaApiImpl::checkAccessErrorExtended(MegaNode *megaNode, int level)
+{
     if(!megaNode || level < MegaShare::ACCESS_UNKNOWN || level > MegaShare::ACCESS_OWNER)
     {
-        return API_EARGS;
+        return new MegaErrorPrivate(API_EARGS);
     }
 
     SdkMutexGuard g(sdkMutex);
     Node *node = client->nodebyhandle(megaNode->getHandle());
     if(!node)
     {
-        return API_ENOENT;
+        return new MegaErrorPrivate(API_ENOENT);
     }
 
     accesslevel_t a = OWNER;
@@ -16430,22 +16436,28 @@ MegaError MegaApiImpl::checkAccess(MegaNode* megaNode, int level)
             break;
     }
 
-    return client->checkaccess(node, a) ? API_OK : API_EACCESS;
+    return client->checkaccess(node, a) ? new MegaErrorPrivate(API_OK) : new MegaErrorPrivate(API_EACCESS);
 }
 
 MegaError MegaApiImpl::checkMove(MegaNode* megaNode, MegaNode* targetNode)
 {
-    if(!megaNode || !targetNode) return API_EARGS;
+    std::unique_ptr<MegaError>megaError = std::unique_ptr<MegaError>(checkMoveErrorExtended(megaNode, targetNode));
+    return megaError->getErrorCode();
+}
+
+MegaError *MegaApiImpl::checkMoveErrorExtended(MegaNode *megaNode, MegaNode *targetNode)
+{
+    if(!megaNode || !targetNode) return new MegaErrorPrivate(API_EARGS);
 
     SdkMutexGuard g(sdkMutex);
     Node *node = client->nodebyhandle(megaNode->getHandle());
     Node *target = client->nodebyhandle(targetNode->getHandle());
     if(!node || !target)
     {
-        return API_ENOENT;
+        return new MegaErrorPrivate(API_ENOENT);
     }
 
-    return client->checkmove(node,target);
+    return new MegaErrorPrivate(client->checkmove(node,target));
 }
 
 bool MegaApiImpl::isFilesystemAvailable()

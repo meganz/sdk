@@ -13629,6 +13629,28 @@ class MegaApi
         MegaError checkAccess(MegaNode* node, int level);
 
         /**
+         * @brief Check if a node has an access level
+         *
+         * You take the ownership of the returned value
+         *
+         * @param node Node to check
+         * @param level Access level to check
+         * Valid values for this parameter are:
+         * - MegaShare::ACCESS_OWNER
+         * - MegaShare::ACCESS_FULL
+         * - MegaShare::ACCESS_READWRITE
+         * - MegaShare::ACCESS_READ
+         *
+         * @return Pointer to MegaError with the result.
+         * Valid values for the error code are:
+         * - MegaError::API_OK - The node has the required access level
+         * - MegaError::API_EACCESS - The node doesn't have the required access level
+         * - MegaError::API_ENOENT - The node doesn't exist in the account
+         * - MegaError::API_EARGS - Invalid parameters
+         */
+        MegaError* checkAccessErrorExtended(MegaNode* node, int level);
+
+        /**
          * @brief Check if a node can be moved to a target node
          *
          * @param node Node to check
@@ -13642,6 +13664,23 @@ class MegaApi
          * - MegaError::API_EARGS - Invalid parameters
          */
         MegaError checkMove(MegaNode* node, MegaNode* target);
+
+        /**
+         * @brief Check if a node can be moved to a target node
+         *
+         * You take the ownership of the returned value
+         *
+         * @param node Node to check
+         * @param target Target for the move operation
+         * @return MegaError object with the result:
+         * Valid values for the error code are:
+         * - MegaError::API_OK - The node can be moved to the target
+         * - MegaError::API_EACCESS - The node can't be moved because of permissions problems
+         * - MegaError::API_ECIRCULAR - The node can't be moved because that would create a circular linkage
+         * - MegaError::API_ENOENT - The node or the target doesn't exist in the account
+         * - MegaError::API_EARGS - Invalid parameters
+         */
+        MegaError* checkMoveErrorExtended(MegaNode* node, MegaNode* target);
 
         /**
          * @brief Check if the MEGA filesystem is available in the local computer

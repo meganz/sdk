@@ -2355,7 +2355,9 @@ class MegaApiImpl : public MegaApp
 
         //Permissions
         MegaError checkAccess(MegaNode* node, int level);
+        MegaError* checkAccessErrorExtended(MegaNode* node, int level);
         MegaError checkMove(MegaNode* node, MegaNode* target);
+        MegaError* checkMoveErrorExtended(MegaNode* node, MegaNode* target);
 
         bool isFilesystemAvailable();
         MegaNode *getRootNode();
