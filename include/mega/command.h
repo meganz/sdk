@@ -1205,6 +1205,32 @@ public:
     CommandFolderLinkInfo(MegaClient*, handle);
 };
 
+class MEGA_API CommandSyncPut : public Command
+{
+public:
+    void procresult();
+
+    CommandSyncPut(MegaClient* client, SyncType type, handle nodeHandle, const string& localFolder, handle deviceId, const string& syncName, int state, int subState, const string& extraData);
+
+    CommandSyncPut(MegaClient* client, handle syncId, handle nodeHandle, const char* localFolder, handle deviceId, const char* syncName, int state, int subState, const char* extraData);
+};
+
+class MEGA_API CommandSyncRemove : public Command
+{
+public:
+    void procresult();
+
+    CommandSyncRemove(MegaClient* client, handle syncId);
+};
+
+class MEGA_API CommandSyncPutHeartBeat : public Command
+{
+public:
+    void procresult();
+
+    CommandSyncPutHeartBeat(MegaClient* client, handle syncId, uint8_t status, uint8_t progress, uint32_t uploads, uint32_t downloads, uint32_t ts, handle lastNode);
+};
+
 } // namespace
 
 #endif

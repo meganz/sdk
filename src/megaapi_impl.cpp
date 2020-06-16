@@ -12939,6 +12939,20 @@ void MegaApiImpl::syncupdate_local_lockretry(bool waiting)
 }
 #endif
 
+void MegaApiImpl::syncput_result(error, handle)
+{
+
+}
+
+void MegaApiImpl::syncputheartbeat_result(error)
+{
+
+}
+
+void MegaApiImpl::syncremove_result(error, handle)
+{
+
+}
 
 // user addition/update (users never get deleted)
 void MegaApiImpl::users_updated(User** u, int count)

@@ -8182,4 +8182,123 @@ void CommandFolderLinkInfo::procresult()
     }
 }
 
+CommandSyncPut::CommandSyncPut(MegaClient *client, SyncType type, handle nodeHandle, const string& localFolder, handle deviceId, const string& syncName, int state, int subState, const string& extraData)
+{
+    cmd("sp");
+
+    arg("t", type);
+    arg("h", (byte*)&nodeHandle, MegaClient::NODEHANDLE);
+    arg("l", localFolder.c_str());
+    arg("d", (byte*)&deviceId, MegaClient::NODEHANDLE);
+    arg("n", syncName.c_str());
+    arg("s", state);
+    arg("ss", subState);
+    arg("e", extraData.c_str());
+
+    tag = client->reqtag;
+}
+
+CommandSyncPut::CommandSyncPut(MegaClient* client, handle syncId, handle nodeHandle, const char* localFolder, handle deviceId, const char* syncName, int state, int subState, const char* extraData)
+{
+    cmd("sp");
+
+    arg("id", syncId);
+
+    if (nodeHandle != UNDEF)
+    {
+        arg("h", (byte*)&nodeHandle, MegaClient::NODEHANDLE);
+    }
+
+    if (localFolder)
+    {
+        arg("l", localFolder);
+    }
+
+    if (deviceId != UNDEF)
+    {
+        arg("d", (byte*)&deviceId, MegaClient::NODEHANDLE);
+    }
+
+    if (syncName)
+    {
+        arg("n", syncName);
+    }
+
+    if (state > 0)
+    {
+        arg("s", state);
+    }
+
+    if (subState > 0)
+    {
+        arg("ss", subState);
+    }
+
+    if (extraData)
+    {
+        arg("e", extraData);
+    }
+
+    tag = client->reqtag;
+}
+
+void CommandSyncPut::procresult()
+{
+    Error e;
+    if (checkError(e, client->json))
+    {
+        return client->app->syncput_result(e, UNDEF);
+    }
+
+    handle h = client->json.gethandle(MegaClient::NODEHANDLE); // [sync id]
+    client->app->syncput_result(API_OK, h);
+}
+
+CommandSyncPutHeartBeat::CommandSyncPutHeartBeat(MegaClient* client, handle syncId, uint8_t status, uint8_t progress, uint32_t uploads, uint32_t downloads, uint32_t ts, handle lastNode)
+{
+    cmd("sphb");
+
+    arg("id", syncId);
+    arg("s", status);
+    arg("p", progress);
+    arg("qu", uploads);
+    arg("qd", downloads);
+    arg("lts", ts);
+    arg("lh", (byte*)&lastNode, MegaClient::NODEHANDLE);
+
+    tag = client->reqtag;
+}
+
+void CommandSyncPutHeartBeat::procresult()
+{
+    Error e;
+    if (checkError(e, client->json))
+    {
+        return client->app->syncputheartbeat_result(e);
+    }
+
+    client->json.storeobject();
+    return client->app->syncputheartbeat_result(API_EINTERNAL);
+}
+
+CommandSyncRemove::CommandSyncRemove(MegaClient *client, handle syncId)
+{
+    cmd("sr");
+    arg("id", syncId);
+
+    tag = client->reqtag;
+}
+
+void CommandSyncRemove::procresult()
+{
+    Error e;
+    if (checkError(e, client->json))
+    {
+        return client->app->syncputheartbeat_result(e);
+    }
+
+    client->json.storeobject();
+    return client->app->syncputheartbeat_result(API_EINTERNAL);
+}
+
 } // namespace
