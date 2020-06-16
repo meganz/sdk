@@ -1501,11 +1501,11 @@ using namespace mega;
     self.megaApi->killSession(sessionHandle);
 }
 
-- (nonnull NSDate *)overquotaDeadlineDate {
+- (NSDate *)overquotaDeadlineDate {
     return [[NSDate alloc] initWithTimeIntervalSince1970:self.megaApi->getOverquotaDeadlineTs()];
 }
 
-- (nonnull NSArray<NSDate *> *)overquotaWarningDateList {
+- (NSArray<NSDate *> *)overquotaWarningDateList {
     MegaIntegerList *warningTimeIntervalList = self.megaApi->getOverquotaWarningsTs();
     int sizeOfWarningTimestamps = warningTimeIntervalList->size();
     NSMutableArray *warningDateList = [[NSMutableArray alloc] initWithCapacity:sizeOfWarningTimestamps];
