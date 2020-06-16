@@ -64,6 +64,7 @@ struct MEGA_API NewNode : public NodeCore
     std::unique_ptr<string> fileattributes;
 
     bool added = false;
+    handle addedHandle= UNDEF;
 };
 
 struct MEGA_API PublicLink

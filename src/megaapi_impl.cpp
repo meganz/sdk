@@ -13239,10 +13239,8 @@ void MegaApiImpl::putnodes_result(error e, targettype_t t, NewNode* nn)
 
     if (!e && t != USER_HANDLE)
     {
-        if (client->nodenotify.size())
-        {
-            n = client->nodenotify.back();
-        }
+        assert(nn
+        n = client->nodebyhandle.back();
 
         if(n)
         {
@@ -13515,7 +13513,7 @@ int MegaApiImpl::fa_failed(handle, fatype, int retries, error e)
     return (retries >= 2);
 }
 
-void MegaApiImpl::putfa_result(handle, fatype, error e)
+void MegaApiImpl::putfa_result(handle h, fatype, error e)
 {
     MegaError megaError(e);
     if(requestMap.find(client->restag) == requestMap.end()) return;
@@ -13523,21 +13521,11 @@ void MegaApiImpl::putfa_result(handle, fatype, error e)
     if(!request || request->getType() != MegaRequest::TYPE_SET_ATTR_FILE)
         return;
 
-    fireOnRequestFinish(request, megaError);
-}
-
-void MegaApiImpl::putfa_result(handle h, fatype, const char *)
-{
-    MegaError megaError(API_OK);
-    if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || request->getType() != MegaRequest::TYPE_SET_ATTR_FILE)
-        return;
-
-    if (request->getMegaBackgroundMediaUploadPtr())
+    if (e == API_OK && request->getMegaBackgroundMediaUploadPtr())
     {
         request->setNodeHandle(h);
     }
+
     fireOnRequestFinish(request, megaError);
 }
 

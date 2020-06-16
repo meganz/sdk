@@ -27,6 +27,8 @@
 
 namespace mega {
 
+class CommandPutNodes;
+
 
 // API request
 class MEGA_API Request
@@ -58,6 +60,8 @@ public:
 	
     // if contains only one command and that command is FetchNodes
     bool isFetchNodes() const;
+
+    Command* getCurrentCommand();
 };
 
 
@@ -87,6 +91,8 @@ public:
     bool cmdspending() const;
     bool cmdsInflight() const;
 
+    Command* getCurrentCommand(bool currSeqtagSeen);
+
     /**
      * @brief get the set of commands to be sent to the server (could be a retry)
      * @param suppressSID
@@ -100,7 +106,7 @@ public:
 
     void servererror(error, MegaClient*);
 
-    void process_ap(MegaClient* client);
+    void continueProcessing(MegaClient* client);
 
     void clear();
 

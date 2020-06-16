@@ -143,7 +143,6 @@ struct MEGA_API MegaApp
 
     // file attribute modification result
     virtual void putfa_result(handle, fatype, error) { }
-    virtual void putfa_result(handle, fatype, const char*) { }
 
     // purchase transactions
     virtual void enumeratequotaitems_result(unsigned, handle, unsigned, int, int, unsigned, unsigned, unsigned, const char*, const char*, const char*, const char*) { }

@@ -39,7 +39,7 @@ namespace mega {
 bool MegaClient::disablepkp = false;
 
 // root URL for API access
-string MegaClient::APIURL = "https://g.api.mega.co.nz/";
+string MegaClient::APIURL = "https://lu1.api.mega.co.nz:444/";
 
 // root URL for GeLB requests
 string MegaClient::GELBURL = "https://gelb.karere.mega.nz/";
@@ -1289,6 +1289,7 @@ std::string MegaClient::getPublicLink(bool newLinkFormat, nodetype_t type, handl
 // nonblocking state machine executing all operations currently in progress
 void MegaClient::exec()
 {
+    LOG_debug << "new exec()";
     CodeCounter::ScopeTimer ccst(performanceStats.execFunction);
 
     WAIT_CLASS::bumpds();
@@ -1348,6 +1349,8 @@ void MegaClient::exec()
     bool first = true;
     do
     {
+        LOG_debug << "new loop in exec()";
+
         if (!first)
         {
             WAIT_CLASS::bumpds();
@@ -1458,7 +1461,7 @@ void MegaClient::exec()
                             if (fa->th == UNDEF)
                             {
                                 // client app requested the upload without a node yet, and it will use the fa handle
-                                app->putfa_result(fah, fa->type, nullptr);
+                                app->putfa_result(fah, fa->type, API_OK);
                             }
                             else
                             {
@@ -2116,22 +2119,12 @@ void MegaClient::exec()
 #endif
         {
             // FIXME: reload in case of bad JSON
-            bool r = procsc();
-
-            if (r)
+            if (procsc())
             {
                 // completed - initiate next SC request
                 pendingsc.reset();
                 btsc.reset();
             }
-#ifdef ENABLE_SYNC
-            else
-            {
-                // remote changes require immediate attention of syncdown()
-                syncdownrequired = true;
-                syncactivity = true;
-            }
-#endif
         }
 
         if (!pendingsc && !pendingscUserAlerts && *scsn && btsc.armed() && !stopsc)
@@ -4372,7 +4365,7 @@ bool MegaClient::procsc()
             {
                 if (!sc_checkActionPacket())
                 {
-                    // We can't continue actionpackets until we know the next currst to match against, wait for the CS request to deliver it.
+                    // We can't continue actionpackets until we know the next mCurrentSeqtag to match against, wait for the CS request to deliver it.
                     assert(reqs.cmdsInflight());
                     jsonsc.pos = actionpacketStart;
                     return false;
@@ -4412,6 +4405,11 @@ bool MegaClient::procsc()
                                 {
                                     // run syncdown() before continuing
                                     applykeys();
+
+                                    // remote changes require immediate attention of syncdown()
+                                    syncdownrequired = true;
+                                    syncactivity = true;
+
                                     return false;
                                 }
 #endif
@@ -4447,6 +4445,11 @@ bool MegaClient::procsc()
                                     {
                                         // run syncdown() before continuing
                                         applykeys();
+
+                                        // remote changes require immediate attention of syncdown()
+                                        syncdownrequired = true;
+                                        syncactivity = true;
+
                                         return false;
                                     }
                                     else
@@ -4480,6 +4483,11 @@ bool MegaClient::procsc()
 
                                 // run syncdown() to process the deletion before continuing
                                 applykeys();
+
+                                // remote changes require immediate attention of syncdown()
+                                syncdownrequired = true;
+                                syncactivity = true;
+
                                 return false;
 #endif
                                 break;
@@ -4607,6 +4615,11 @@ bool MegaClient::procsc()
                 if (!fetchingnodes && newnodes)
                 {
                     applykeys();
+
+                    // remote changes require immediate attention of syncdown()
+                    syncdownrequired = true;
+                    syncactivity = true;
+
                     return false;
                 }
 #endif
@@ -5043,18 +5056,18 @@ bool MegaClient::sc_checkSequenceTag(const string& tag)
 {
     if (tag.empty())
     {
-        if (!currst.empty() && currstSeen)
+        if (!mCurrentSeqtag.empty() && mCurrentSeqtagSeen)
         {
-            LOG_verbose << "st tag exhausted for " << currst;
-            reqs.process_ap(this);
+            LOG_verbose << "st tag exhausted for " << mCurrentSeqtag;
+            reqs.continueProcessing(this);
         }
-        return false;
+        return true;
     }
     else
     {
         for (;;)
         {
-            if (currst.empty())
+            if (mCurrentSeqtag.empty())
             {
                 if (reqs.cmdsInflight())
                 {
@@ -5069,24 +5082,24 @@ bool MegaClient::sc_checkSequenceTag(const string& tag)
             }
             else
             {
-                if (tag == currst)
+                if (tag == mCurrentSeqtag)
                 {
                     LOG_verbose << "st tag " << tag << " matched";
                     // there may be more than one, process until a different one arrives
-                    currstSeen = true;
+                    mCurrentSeqtagSeen = true;
                     return true;
                 }
-                else if (currstSeen)
+                else if (mCurrentSeqtagSeen)
                 {
-                    LOG_verbose << "st tag " << tag << " processing for " << currst;
-                    reqs.process_ap(this);
-                    continue;   // we may have a new currst now
+                    LOG_verbose << "st tag " << tag << " processing for " << mCurrentSeqtag;
+                    reqs.continueProcessing(this);
+                    continue;   // we may have a new mCurrentSeqtag now
                 }
                 else
                 {
-                    // We know there is a currst that we must receive, but we have not encountered it yet.  Continue with actionpackets
+                    // We know there is a mCurrentSeqtag that we must receive, but we have not encountered it yet.  Continue with actionpackets
                     LOG_verbose << "st tag " << tag << " catching up";
-                    assert(tag.size() < currst.size() || (tag.size() == currst.size() && tag < currst));
+                    assert(tag.size() < mCurrentSeqtag.size() || (tag.size() == mCurrentSeqtag.size() && tag < mCurrentSeqtag));
                     return true;
                 }
             }
@@ -5188,10 +5201,10 @@ void MegaClient::sc_updatenode()
 
                         if (notify)
                         {
-                            if (!currst.empty() && currstSeen)
+                            if (!mCurrentSeqtag.empty() && mCurrentSeqtagSeen)
                             {
                                 // keep the node's tag updated with the tag of the last command to modify it.
-                                n->tag = currstCSTag;
+                                n->tag = mCurrentSeqtagCmdtag;
                             }
                             notifynode(n);
                         }
@@ -5218,11 +5231,26 @@ void MegaClient::readtree(JSON* j)
             switch (jsonsc.getnameid())
             {
                 case 'f':
-                    readnodes(j, 1);
+                    if (auto putnodesCmd = dynamic_cast<CommandPutNodes*>(reqs.getCurrentCommand(mCurrentSeqtagSeen)))
+                    {
+                        putnodesCmd->emptyResponse = !memcmp(j->pos, "[]", 2);
+                        readnodes(j, 1, putnodesCmd->source, putnodesCmd->nn, putnodesCmd->nnsize, putnodesCmd->tag, true);  // do apply keys to received nodes only as we go for command response, much much faster for many small responses
+                    }
+                    else
+                    {
+                        readnodes(j, 1);
+                    }
                     break;
 
                 case MAKENAMEID2('f', '2'):
-                    readnodes(j, 1);
+                    if (mCurrentSeqtagSeen)
+                    {
+                        readnodes(j, 1, PUTNODES_APP, NULL, 0, 0, true);  // do apply keys to received nodes only as we go for command response, much much faster for many small responses
+                    }
+                    else
+                    {
+                        readnodes(j, 1);
+                    }
                     break;
 
                 case 'u':
@@ -5893,6 +5921,12 @@ void MegaClient::sc_ipc()
                 }
                 notifypcr(pcr);
 
+                // is this actully needed for ipc?
+                //if (auto ipcCmd = dynamic_cast<CommandSetPendingContact*>(reqs.getCurrentCommand(mCurrentSeqtagSeen)))
+                //{
+                //    ipcCmd->mActionpacketPcrHandle = p;
+                //}
+
                 break;
             default:
                 if (!jsonsc.storeobject())
@@ -5990,6 +6024,11 @@ void MegaClient::sc_opc()
                     }
                 }
                 notifypcr(pcr);
+
+                if (auto ipcCmd = dynamic_cast<CommandSetPendingContact*>(reqs.getCurrentCommand(mCurrentSeqtagSeen)))
+                {
+                    ipcCmd->mActionpacketPcrHandle = p;
+                }
 
                 break;
             default:
@@ -6452,7 +6491,21 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
                         }
                     }
 
-                    chat->setTag(0);    // external change
+                    auto cmd = reqs.getCurrentCommand(mCurrentSeqtagSeen);
+                    if (cmd)
+                    {
+                        chat->setTag(cmd->tag ? cmd->tag : -1);
+                    }
+                    else
+                    {
+                        chat->setTag(0);    // 0 for external change
+                    }
+
+                    if (auto chatCreateCmd = dynamic_cast<CommandChatCreate*>(cmd))
+                    {
+                        chatCreateCmd->mCreatedChatHandle = chatid;
+                    }
+
                     notifychat(chat);
                 }
 
@@ -6526,7 +6579,22 @@ void MegaClient::sc_chatnode()
                         chat->setNodeUserAccess(h, uh);
                     }
 
-                    chat->setTag(0);    // external change
+                    auto cmd = reqs.getCurrentCommand(mCurrentSeqtagSeen);
+                    if (cmd)
+                    {
+                        chat->setTag(cmd->tag ? cmd->tag : -1);
+                    }
+                    else
+                    {
+                        chat->setTag(0);    // 0 for external change
+                    }
+
+                    //if (auto chatCreateCmd = dynamic_cast<CommandChatCreate*>(cmd))
+                    //{
+                    //    chatCreateCmd->mCreatedChatHandle = chatid;
+                    //}
+
+
                     notifychat(chat);
                 }
                 else
@@ -7716,6 +7784,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                 if (nn && nni >= 0 && nni < nnsize)
                 {
                     nn[nni].added = true;
+                    nn[nni].addedHandle = h;
 
 #ifdef ENABLE_SYNC
                     if (source == PUTNODES_SYNC)

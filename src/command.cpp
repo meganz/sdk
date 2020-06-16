@@ -24,7 +24,9 @@
 #include "mega/megaclient.h"
 
 namespace mega {
-Command::Command(bool isV3)
+Command::Command(bool isV3, bool stringIsNotSeqtag)
+    : mV3(isV3)
+    , mStringIsNotSeqtag(stringIsNotSeqtag)
 {
     persistent = false;
     level = -1;
@@ -33,7 +35,6 @@ Command::Command(bool isV3)
     client = NULL;
     tag = 0;
     batchSeparately = false;
-    mV3 = isV3;
     suppressSID = false;
 }
 
@@ -265,7 +266,28 @@ void Command::procresult()
 
 void Command::procresultV3()
 {
-    assert(false);  // if v3 was turned on, we should have overridden this callback.
+    // With v3 was turned on, and we might get a seqtag respsonse (ie, actinpacket generated)
+    // then we should have overridden this callback.
+    // So, for commands that don't have actionpacket side effects, no need to override this function.
+    assert(false);  
+}
+
+
+error Command::numericErrorJsonOrDiscard()
+{
+    // this is a common case for commands upgraded to the v3 api
+    if (client->json.isnumeric())
+    {
+        return (error)client->json.getint();
+    }
+    else
+    {
+        // It wasn't the numeric result expected, but thanks
+        string discard;
+        client->json.storeobject(&discard);
+        LOG_err << "Expected a numeric cs response but got: " << discard;
+        return API_EINTERNAL;
+    }
 }
 
 } // namespace

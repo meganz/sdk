@@ -243,9 +243,10 @@ void CommandGetFA::procresult()
 }
 
 CommandAttachFA::CommandAttachFA(MegaClient *client, handle nh, fatype t, handle ah, int ctag)
+    : Command(true)
 {
     cmd("pfa");
-    notself(client);
+    //notself(client);
 
     arg("n", (byte*)&nh, MegaClient::NODEHANDLE);
 
@@ -261,9 +262,10 @@ CommandAttachFA::CommandAttachFA(MegaClient *client, handle nh, fatype t, handle
 }
 
 CommandAttachFA::CommandAttachFA(MegaClient *client, handle nh, fatype t, const std::string& encryptedAttributes, int ctag)
+    : Command(true)
 {
     cmd("pfa");
-    notself(client);
+    //notself(client);
 
     arg("n", (byte*)&nh, MegaClient::NODEHANDLE);
 
@@ -276,32 +278,12 @@ CommandAttachFA::CommandAttachFA(MegaClient *client, handle nh, fatype t, const 
 
 void CommandAttachFA::procresult()
 {
-    error e;
+    client->app->putfa_result(h, type, numericErrorJsonOrDiscard());
+}
 
-    if (client->json.isnumeric())
-    {
-         e = (error)client->json.getint();
-    }
-    else
-    {
-         string fa;
-
-         if (client->json.storeobject(&fa))
-         {
-             Node* n = client->nodebyhandle(h);
-             if (n)
-             {
-                n->fileattrstring = fa;
-                n->changed.fileattrstring = true;
-                client->notifynode(n);
-             }
-             return client->app->putfa_result(h, type, fa.c_str());
-         }
-
-         e = API_EINTERNAL;
-    }
-
-    client->app->putfa_result(h, type, e);
+void CommandAttachFA::procresultV3()
+{
+    client->app->putfa_result(h, type, API_OK);
 }
 
 // request upload target URL
@@ -1026,6 +1008,7 @@ void CommandSetAttr::procresultV3()
 CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
                                  const char* userhandle, NewNode* newnodes,
                                  int numnodes, int ctag, putsource_t csource, const char *cauth)
+    : Command(true)
 {
     byte key[FILENODEKEYLENGTH];
     int i;
@@ -1036,7 +1019,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
     source = csource;
 
     cmd("p");
-    notself(client);
+    //notself(client);
 
     if (userhandle)
     {
@@ -1160,10 +1143,8 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
 }
 
 // add new nodes and handle->node handle mapping
-void CommandPutNodes::procresult()
+void CommandPutNodes::removePendingDBRecordsAndTempFiles()
 {
-    error e;
-
     pendingdbid_map::iterator it = client->pendingtcids.find(tag);
     if (it != client->pendingtcids.end())
     {
@@ -1191,105 +1172,82 @@ void CommandPutNodes::procresult()
         }
         client->pendingfiles.erase(pit);
     }
+}
 
+void CommandPutNodes::procresult()
+{
+    removePendingDBRecordsAndTempFiles();
+
+    error e;
     if (client->json.isnumeric())
     {
         e = (error)client->json.getint();
-        LOG_debug << "Putnodes error " << e;
-        if (e == API_EOVERQUOTA)
+    }
+    else
+    {
+        client->json.storeobject();
+        e = API_EINTERNAL;
+    }
+
+    LOG_debug << "Putnodes error " << e;
+    if (e == API_EOVERQUOTA)
+    {
+        client->activateoverquota(0);
+    }
+#ifdef ENABLE_SYNC
+    if (source == PUTNODES_SYNC)
+    {
+        if (e == API_EACCESS)
         {
-            client->activateoverquota(0);
+            int creqtag = client->reqtag;
+            client->reqtag = 0;
+            client->sendevent(99402, "API_EACCESS putting node in sync transfer");
+            client->reqtag = creqtag;
+        }
+
+        client->app->putnodes_result(e, type, NULL);
+
+        for (int i=0; i < nnsize; i++)
+        {
+            nn[i].localnode.reset();
+        }
+
+        return client->putnodes_sync_result(e, nn, nnsize);
+    }
+    else
+    {
+#endif
+        if (source == PUTNODES_APP)
+        {
+            return client->app->putnodes_result(e, type, nn);
         }
 #ifdef ENABLE_SYNC
-        if (source == PUTNODES_SYNC)
-        {
-            if (e == API_EACCESS)
-            {
-                int creqtag = client->reqtag;
-                client->reqtag = 0;
-                client->sendevent(99402, "API_EACCESS putting node in sync transfer");
-                client->reqtag = creqtag;
-            }
-
-            client->app->putnodes_result(e, type, NULL);
-
-            for (int i=0; i < nnsize; i++)
-            {
-                nn[i].localnode.reset();
-            }
-
-            return client->putnodes_sync_result(e, nn, nnsize);
-        }
         else
         {
-#endif
-            if (source == PUTNODES_APP)
-            {
-                return client->app->putnodes_result(e, type, nn);
-            }
-#ifdef ENABLE_SYNC
-            else
-            {
-                return client->putnodes_syncdebris_result(e, nn);
-            }
-        }
-#endif
-    }
-
-    e = API_EINTERNAL;
-
-    bool noexit = true;
-    bool empty = false;
-    while (noexit)
-    {
-        switch (client->json.getnameid())
-        {
-            case 'f':
-                empty = !memcmp(client->json.pos, "[]", 2);
-                if (client->readnodes(&client->json, 1, source, nn, nnsize, tag, true))  // do apply keys to received nodes only as we go for command response, much much faster for many small responses
-                {
-                    e = API_OK;
-                }
-                else
-                {
-                    LOG_err << "Parse error (readnodes)";
-                    e = API_EINTERNAL;
-                    noexit = false;
-                }
-                break;
-
-            case MAKENAMEID2('f', '2'):
-                if (!client->readnodes(&client->json, 1, PUTNODES_APP, NULL, 0, 0, true))  // do apply keys to received nodes only as we go for command response, much much faster for many small responses
-                {
-                    LOG_err << "Parse error (readversions)";
-                    e = API_EINTERNAL;
-                    noexit = false;
-                }
-                break;
-
-            default:
-                if (client->json.storeobject())
-                {
-                    continue;
-                }
-
-                e = API_EINTERNAL;
-                LOG_err << "Parse error (PutNodes)";
-
-                // fall through
-            case EOO:
-                noexit = false;
-                break;
+            return client->putnodes_syncdebris_result(e, nn);
         }
     }
+#endif
+}
+
+void CommandPutNodes::procresultV3()
+{
+    removePendingDBRecordsAndTempFiles();
 
     client->sendkeyrewrites();
+
+    // putnodes v3 returns an associative container of array index positions and error codes, in the case of partial success with some nodes not accepted
+    string errorMap;
+    client->json.storeobject(&errorMap);   // eg. {"12":-9} part of [["ksbz<",{"12":-9}]] 
+    
+    // todo: process the errorMap and provide some feedback to the caller
+    // at the moment though, we do have the 'added' flag in each NewNode that will be false if that one failed.
 
 #ifdef ENABLE_SYNC
     if (source == PUTNODES_SYNC)
     {
-        client->app->putnodes_result(e, type, NULL);
-        client->putnodes_sync_result(e, nn, nnsize);
+        client->app->putnodes_result(API_OK, type, NULL);
+        client->putnodes_sync_result(API_OK, nn, nnsize);
     }
     else
 #endif
@@ -1308,17 +1266,19 @@ void CommandPutNodes::procresult()
             }
         }
 #endif
-        client->app->putnodes_result((!e && empty) ? API_ENOENT : e, type, nn);
+        assert(!emptyResponse);  // todo: can this emptyResponse case occur now that we use actionpackets?
+        client->app->putnodes_result(emptyResponse ? API_ENOENT : API_OK, type, nn);  
     }
 #ifdef ENABLE_SYNC
     else
     {
-        client->putnodes_syncdebris_result(e, nn);
+        client->putnodes_syncdebris_result(API_OK, nn);
     }
 #endif
 }
 
 CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t csyncdel, handle prevparent)
+    : Command(true)
 {
     h = n->nodehandle;
     syncdel = csyncdel;
@@ -1327,7 +1287,7 @@ CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t
     syncop = pp != UNDEF;
 
     cmd("m");
-    notself(client);
+    //notself(client);
     arg("n", (byte*)&h, MegaClient::NODEHANDLE);
     arg("t", (byte*)&t->nodehandle, MegaClient::NODEHANDLE);
 
@@ -1357,46 +1317,46 @@ void CommandMoveNode::procresult()
             {
                 if (e == API_OK)
                 {
-                    Node* n;
+                    //Node* n;
 
-                    // update all todebris records in the subtree
-                    for (node_set::iterator it = client->todebris.begin(); it != client->todebris.end(); it++)
-                    {
-                        n = *it;
+                    //// update all todebris records in the subtree
+                    //for (node_set::iterator it = client->todebris.begin(); it != client->todebris.end(); it++)
+                    //{
+                    //    n = *it;
 
-                        do {
-                            if (n == syncn)
-                            {
-                                if (syncop)
-                                {
-                                    Sync* sync = NULL;
-                                    for (sync_list::iterator its = client->syncs.begin(); its != client->syncs.end(); its++)
-                                    {
-                                        if ((*its)->tag == tag)
-                                        {
-                                            sync = (*its);
-                                            break;
-                                        }
-                                    }
+                    //    do {
+                    //        if (n == syncn)
+                    //        {
+                    //            if (syncop)
+                    //            {
+                    //                Sync* sync = NULL;
+                    //                for (sync_list::iterator its = client->syncs.begin(); its != client->syncs.end(); its++)
+                    //                {
+                    //                    if ((*its)->tag == tag)
+                    //                    {
+                    //                        sync = (*its);
+                    //                        break;
+                    //                    }
+                    //                }
 
-                                    if (sync)
-                                    {
-                                        if ((*it)->type == FOLDERNODE)
-                                        {
-                                            sync->client->app->syncupdate_remote_folder_deletion(sync, (*it));
-                                        }
-                                        else
-                                        {
-                                            sync->client->app->syncupdate_remote_file_deletion(sync, (*it));
-                                        }
-                                    }
-                                }
+                    //                if (sync)
+                    //                {
+                    //                    if ((*it)->type == FOLDERNODE)
+                    //                    {
+                    //                        sync->client->app->syncupdate_remote_folder_deletion(sync, (*it));
+                    //                    }
+                    //                    else
+                    //                    {
+                    //                        sync->client->app->syncupdate_remote_file_deletion(sync, (*it));
+                    //                    }
+                    //                }
+                    //            }
 
-                                (*it)->syncdeleted = syncdel;
-                                break;
-                            }
-                        } while ((n = n->parent));
-                    }
+                    //            (*it)->syncdeleted = syncdel;
+                    //            break;
+                    //        }
+                    //    } while ((n = n->parent));
+                    //}
                 }
                 else
                 {
@@ -1437,6 +1397,7 @@ void CommandMoveNode::procresult()
 
                 if(sync)
                 {
+                    // todo: is this already done by the actionpackets.  And should we have checked the error code
                     client->app->syncupdate_remote_move(sync, n, client->nodebyhandle(pp));
                 }
             }
@@ -1445,44 +1406,46 @@ void CommandMoveNode::procresult()
         // Movement of shares and pending shares into Rubbish should remove them
         if (!e)
         {
-            Node *n = client->nodebyhandle(h);
-            if (n && (n->pendingshares || n->outshares))
-            {
-                Node *rootnode = client->nodebyhandle(np);
-                while (rootnode)
-                {
-                    if (!rootnode->parent)
-                    {
-                        break;
-                    }
-                    rootnode = rootnode->parent;
-                }
-                if (rootnode && rootnode->type == RUBBISHNODE)
-                {
-                    share_map::iterator it;
-                    if (n->pendingshares)
-                    {
-                        for (it = n->pendingshares->begin(); it != n->pendingshares->end(); it++)
-                        {
-                            client->newshares.push_back(new NewShare(
-                                                            n->nodehandle, 1, n->owner, ACCESS_UNKNOWN,
-                                                            0, NULL, NULL, it->first, false));
-                        }
-                    }
+            // todo: is this really done by the actinpacket code
 
-                    if (n->outshares)
-                    {
-                        for (it = n->outshares->begin(); it != n->outshares->end(); it++)
-                        {
-                            client->newshares.push_back(new NewShare(
-                                                            n->nodehandle, 1, it->first, ACCESS_UNKNOWN,
-                                                            0, NULL, NULL, UNDEF, false));
-                        }
-                    }
+            //Node *n = client->nodebyhandle(h);
+            //if (n && (n->pendingshares || n->outshares))
+            //{
+            //    Node *rootnode = client->nodebyhandle(np);
+            //    while (rootnode)
+            //    {
+            //        if (!rootnode->parent)
+            //        {
+            //            break;
+            //        }
+            //        rootnode = rootnode->parent;
+            //    }
+            //    if (rootnode && rootnode->type == RUBBISHNODE)
+            //    {
+            //        share_map::iterator it;
+            //        if (n->pendingshares)
+            //        {
+            //            for (it = n->pendingshares->begin(); it != n->pendingshares->end(); it++)
+            //            {
+            //                client->newshares.push_back(new NewShare(
+            //                                                n->nodehandle, 1, n->owner, ACCESS_UNKNOWN,
+            //                                                0, NULL, NULL, it->first, false));
+            //            }
+            //        }
 
-                    client->mergenewshares(1);
-                }
-            }
+            //        if (n->outshares)
+            //        {
+            //            for (it = n->outshares->begin(); it != n->outshares->end(); it++)
+            //            {
+            //                client->newshares.push_back(new NewShare(
+            //                                                n->nodehandle, 1, it->first, ACCESS_UNKNOWN,
+            //                                                0, NULL, NULL, UNDEF, false));
+            //            }
+            //        }
+
+            //        client->mergenewshares(1);
+            //    }
+            //}
         }
         else if (syncdel == SYNCDEL_NONE)
         {
@@ -1501,10 +1464,17 @@ void CommandMoveNode::procresult()
     }
 }
 
+void CommandMoveNode::procresultV3()
+{
+    client->app->rename_result(h, API_OK);
+}
+
+
 CommandDelNode::CommandDelNode(MegaClient* client, handle th, bool keepversions)
+    : Command(true)
 {
     cmd("d");
-    notself(client);
+    //notself(client);
 
     arg("n", (byte*)&th, MegaClient::NODEHANDLE);
 
@@ -1557,7 +1527,13 @@ void CommandDelNode::procresult()
     }
 }
 
+void CommandDelNode::procresultV3()
+{
+    client->app->unlink_result(h, API_OK);
+}
+
 CommandDelVersions::CommandDelVersions(MegaClient* client)
+    : Command(true)
 {
     cmd("dv");
     tag = client->reqtag;
@@ -1571,6 +1547,11 @@ void CommandDelVersions::procresult()
         e = (error)client->json.getint();
     }
     client->app->unlinkversions_result(e);
+}
+
+void CommandDelVersions::procresultV3()
+{
+    client->app->unlinkversions_result(API_OK);
 }
 
 CommandKillSessions::CommandKillSessions(MegaClient* client)
@@ -2203,6 +2184,7 @@ void CommandSetShare::procresult()
 
 
 CommandSetPendingContact::CommandSetPendingContact(MegaClient* client, const char* temail, opcactions_t action, const char* msg, const char* oemail, handle contactLink)
+    : Command(true)
 {
     cmd("upc");
 
@@ -2234,10 +2216,10 @@ CommandSetPendingContact::CommandSetPendingContact(MegaClient* client, const cha
         arg("msg", msg);
     }
 
-    if (action != OPCA_REMIND)  // for reminders, need the actionpacket to update `uts`
-    {
-        notself(client);
-    }
+    //if (action != OPCA_REMIND)  // for reminders, need the actionpacket to update `uts`
+    //{
+    //    notself(client);
+    //}
 
     tag = client->reqtag;
     this->action = action;
@@ -2246,116 +2228,119 @@ CommandSetPendingContact::CommandSetPendingContact(MegaClient* client, const cha
 
 void CommandSetPendingContact::procresult()
 {
-    if (client->json.isnumeric())
+    error e = numericErrorJsonOrDiscard();
+
+    handle pcrhandle = UNDEF;
+    if (!e) // response for delete & remind actions is always numeric
     {
-        error e = (error)client->json.getint();
-
-        handle pcrhandle = UNDEF;
-        if (!e) // response for delete & remind actions is always numeric
+        // find the PCR by email
+        PendingContactRequest *pcr = NULL;
+        for (handlepcr_map::iterator it = client->pcrindex.begin();
+                it != client->pcrindex.end(); it++)
         {
-            // find the PCR by email
-            PendingContactRequest *pcr = NULL;
-            for (handlepcr_map::iterator it = client->pcrindex.begin();
-                 it != client->pcrindex.end(); it++)
+            if (it->second->targetemail == temail)
             {
-                if (it->second->targetemail == temail)
-                {
-                    pcr = it->second;
-                    pcrhandle = pcr->id;
-                    break;
-                }
-            }
-
-            if (!pcr)
-            {
-                LOG_err << "Reminded/deleted PCR not found";
-            }
-            else if (action == OPCA_DELETE)
-            {
-                pcr->changed.deleted = true;
-                client->notifypcr(pcr);
-
-                // remove pending shares related to the deleted PCR
-                Node *n;
-                for (node_map::iterator it = client->nodes.begin(); it != client->nodes.end(); it++)
-                {
-                    n = it->second;
-                    if (n->pendingshares && n->pendingshares->find(pcr->id) != n->pendingshares->end())
-                    {
-                        client->newshares.push_back(
-                                    new NewShare(n->nodehandle, 1, n->owner, ACCESS_UNKNOWN,
-                                                 0, NULL, NULL, pcr->id, false));
-                    }
-                }
-
-                client->mergenewshares(1);
+                pcr = it->second;
+                pcrhandle = pcr->id;
+                break;
             }
         }
 
-        return client->app->setpcr_result(pcrhandle, e, this->action);
-    }
-
-    // if the PCR has been added, the response contains full details
-    handle p = UNDEF;    
-    m_time_t ts = 0;
-    m_time_t uts = 0;
-    const char *e = NULL;
-    const char *m = NULL;
-    const char *msg = NULL;
-    PendingContactRequest *pcr = NULL;
-    for (;;)
-    {
-        switch (client->json.getnameid())
+        if (!pcr)
         {
-            case 'p':
-                p = client->json.gethandle(MegaClient::PCRHANDLE);  
-                break;
-            case 'm':
-                m = client->json.getvalue();
-                break;
-            case 'e':
-                e = client->json.getvalue();
-                break;
-            case MAKENAMEID3('m', 's', 'g'):
-                msg = client->json.getvalue();
-                break;
-            case MAKENAMEID2('t', 's'):
-                ts = client->json.getint();
-                break;
-            case MAKENAMEID3('u', 't', 's'):
-                uts = client->json.getint();
-                break;
-            case EOO:
-                if (ISUNDEF(p))
+            LOG_err << "Reminded/deleted PCR not found";
+        }
+        else if (action == OPCA_DELETE)
+        {
+            pcr->changed.deleted = true;
+            client->notifypcr(pcr);
+
+            // remove pending shares related to the deleted PCR
+            Node *n;
+            for (node_map::iterator it = client->nodes.begin(); it != client->nodes.end(); it++)
+            {
+                n = it->second;
+                if (n->pendingshares && n->pendingshares->find(pcr->id) != n->pendingshares->end())
                 {
-                    LOG_err << "Error in CommandSetPendingContact. Undefined handle";
-                    client->app->setpcr_result(UNDEF, API_EINTERNAL, this->action);                    
-                    return;
+                    client->newshares.push_back(
+                                new NewShare(n->nodehandle, 1, n->owner, ACCESS_UNKNOWN,
+                                                0, NULL, NULL, pcr->id, false));
                 }
+            }
 
-                if (action != OPCA_ADD || !e || !m || ts == 0 || uts == 0)
-                {
-                    LOG_err << "Error in CommandSetPendingContact. Wrong parameters";
-                    client->app->setpcr_result(UNDEF, API_EINTERNAL, this->action);
-                    return;
-                }
-
-                pcr = new PendingContactRequest(p, e, m, ts, uts, msg, true);
-                client->mappcr(p, pcr);
-
-                client->notifypcr(pcr);
-                client->app->setpcr_result(p, API_OK, this->action);
-                return;
-
-            default:
-                if (!client->json.storeobject())
-                {
-                    LOG_err << "Error in CommandSetPendingContact. Parse error";
-                    client->app->setpcr_result(UNDEF, API_EINTERNAL, this->action);
-                    return;
-                }
+            client->mergenewshares(1);
         }
     }
+
+    return client->app->setpcr_result(pcrhandle, e, this->action);
+
+    //// if the PCR has been added, the response contains full details
+    //handle p = UNDEF;    
+    //m_time_t ts = 0;
+    //m_time_t uts = 0;
+    //const char *e = NULL;
+    //const char *m = NULL;
+    //const char *msg = NULL;
+    //PendingContactRequest *pcr = NULL;
+    //for (;;)
+    //{
+    //    switch (client->json.getnameid())
+    //    {
+    //        case 'p':
+    //            p = client->json.gethandle(MegaClient::PCRHANDLE);  
+    //            break;
+    //        case 'm':
+    //            m = client->json.getvalue();
+    //            break;
+    //        case 'e':
+    //            e = client->json.getvalue();
+    //            break;
+    //        case MAKENAMEID3('m', 's', 'g'):
+    //            msg = client->json.getvalue();
+    //            break;
+    //        case MAKENAMEID2('t', 's'):
+    //            ts = client->json.getint();
+    //            break;
+    //        case MAKENAMEID3('u', 't', 's'):
+    //            uts = client->json.getint();
+    //            break;
+    //        case EOO:
+    //            if (ISUNDEF(p))
+    //            {
+    //                LOG_err << "Error in CommandSetPendingContact. Undefined handle";
+    //                client->app->setpcr_result(UNDEF, API_EINTERNAL, this->action);                    
+    //                return;
+    //            }
+
+    //            if (action != OPCA_ADD || !e || !m || ts == 0 || uts == 0)
+    //            {
+    //                LOG_err << "Error in CommandSetPendingContact. Wrong parameters";
+    //                client->app->setpcr_result(UNDEF, API_EINTERNAL, this->action);
+    //                return;
+    //            }
+
+    //            pcr = new PendingContactRequest(p, e, m, ts, uts, msg, true);
+    //            client->mappcr(p, pcr);
+
+    //            client->notifypcr(pcr);
+    //            client->app->setpcr_result(p, API_OK, this->action);
+    //            return;
+
+    //        default:
+    //            if (!client->json.storeobject())
+    //            {
+    //                LOG_err << "Error in CommandSetPendingContact. Parse error";
+    //                client->app->setpcr_result(UNDEF, API_EINTERNAL, this->action);
+    //                return;
+    //            }
+    //    }
+    //}
+}
+
+void CommandSetPendingContact::procresultV3()
+{
+    assert(mActionpacketPcrHandle != UNDEF);
+    client->app->setpcr_result(mActionpacketPcrHandle, API_OK, this->action);
 }
 
 CommandUpdatePendingContact::CommandUpdatePendingContact(MegaClient* client, handle p, ipcactions_t action)
@@ -5144,25 +5129,24 @@ CommandConfirmSignupLink::CommandConfirmSignupLink(MegaClient* client,
                                                    const byte* code,
                                                    unsigned len,
                                                    uint64_t emailhash)
+    : Command(true)
 {
     cmd("up");
     arg("c", code, len);
     arg("uh", (byte*)&emailhash, sizeof emailhash);
 
-    notself(client);
+    //notself(client);
 
     tag = client->reqtag;
 }
 
 void CommandConfirmSignupLink::procresult()
 {
-    if (client->json.isnumeric())
-    {
-        return client->app->confirmsignuplink_result((error)client->json.getint());
-    }
+    client->app->confirmsignuplink_result(numericErrorJsonOrDiscard());
+}
 
-    client->json.storeobject();
-
+void CommandConfirmSignupLink::procresultV3()
+{
     client->ephemeralSession = false;
     client->app->confirmsignuplink_result(API_OK);
 }
@@ -5927,6 +5911,7 @@ void CommandValidatePassword::procresult()
 }
 
 CommandGetEmailLink::CommandGetEmailLink(MegaClient *client, const char *email, int add, const char *pin)
+    : Command(true)
 {
     cmd("se");
 
@@ -5944,25 +5929,23 @@ CommandGetEmailLink::CommandGetEmailLink(MegaClient *client, const char *email, 
         arg("mfa", pin);
     }
 
-    notself(client);
+    //notself(client);
 
     tag = client->reqtag;
 }
 
 void CommandGetEmailLink::procresult()
 {
-    if (client->json.isnumeric())
-    {
-        return client->app->getemaillink_result((error)client->json.getint());
-    }
-    else    // error
-    {
-        client->json.storeobject();
-        return client->app->getemaillink_result((error)API_EINTERNAL);
-    }
+    client->app->getemaillink_result(numericErrorJsonOrDiscard());
+}
+
+void CommandGetEmailLink::procresultV3()
+{   
+    client->app->getemaillink_result(API_OK);
 }
 
 CommandConfirmEmailLink::CommandConfirmEmailLink(MegaClient *client, const char *code, const char *email, const byte *newLoginHash, bool replace)
+    : Command(true)
 {
     this->email = email;
     this->replace = replace;
@@ -5979,39 +5962,36 @@ CommandConfirmEmailLink::CommandConfirmEmailLink(MegaClient *client, const char 
     {
         arg("r", 1);    // replace the current email address by this one
     }
-    notself(client);
+    //notself(client);
 
     tag = client->reqtag;
 }
 
 void CommandConfirmEmailLink::procresult()
 {
-    if (client->json.isnumeric())
-    {
-        error e = (error)client->json.getint();
+    error e = numericErrorJsonOrDiscard();
 
-        if (!e)
+    if (!e)
+    {
+        User *u = client->finduser(client->me);
+
+        if (replace)
         {
-            User *u = client->finduser(client->me);
+            LOG_debug << "Email changed from `" << u->email << "` to `" << email << "`";
 
-            if (replace)
-            {
-                LOG_debug << "Email changed from `" << u->email << "` to `" << email << "`";
-
-                client->mapuser(u->userhandle, email.c_str()); // update email used as index for user's map
-                u->changed.email = true;
-                client->notifyuser(u);
-            }
-            // TODO: once we manage multiple emails, add the new email to the list of emails
+            client->mapuser(u->userhandle, email.c_str()); // update email used as index for user's map
+            u->changed.email = true;
+            client->notifyuser(u);
         }
+        // TODO: once we manage multiple emails, add the new email to the list of emails
+    }
 
-        return client->app->confirmemaillink_result(e);
-    }
-    else   // error
-    {
-        client->json.storeobject();
-        return client->app->confirmemaillink_result((error)API_EINTERNAL);
-    }
+    return client->app->confirmemaillink_result(e);
+}
+
+void CommandConfirmEmailLink::procresultV3()
+{
+    client->app->confirmemaillink_result(API_OK);
 }
 
 CommandGetVersion::CommandGetVersion(MegaClient *client, const char *appKey)
@@ -6123,9 +6103,10 @@ void CommandGetLocalSSLCertificate::procresult()
 
 #ifdef ENABLE_CHAT
 CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, bool publicchat, const userpriv_vector *upl, const string_map *ukm, const char *title)
+    : Command(true)
 {
     this->client = client;
-    this->chatPeers = new userpriv_vector(*upl);
+    this->chatPeers.reset(new userpriv_vector(*upl));
     this->mPublicChat = publicchat;
     this->mTitle = title ? string(title) : "";
     this->mUnifiedKey = "";
@@ -6185,95 +6166,107 @@ CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, bool public
     endarray();
 
     arg("v", 1);
-    notself(client);
+    //notself(client);
 
     tag = client->reqtag;
 }
 
 void CommandChatCreate::procresult()
 {
-    if (client->json.isnumeric())
+    client->app->chatcreate_result(NULL, numericErrorJsonOrDiscard());
+
+    //else
+    //{
+    //    handle chatid = UNDEF;
+    //    int shard = -1;
+    //    bool group = false;
+    //    m_time_t ts = -1;
+
+    //    for (;;)
+    //    {
+    //        switch (client->json.getnameid())
+    //        {
+    //            case MAKENAMEID2('i','d'):
+    //                chatid = client->json.gethandle(MegaClient::CHATHANDLE);
+    //                break;
+
+    //            case MAKENAMEID2('c','s'):
+    //                shard = int(client->json.getint());
+    //                break;
+
+    //            case 'g':
+    //                group = client->json.getint();
+    //                break;
+
+    //            case MAKENAMEID2('t', 's'):  // actual creation timestamp
+    //                ts = client->json.getint();
+    //                break;
+
+    //            case EOO:
+    //                if (chatid != UNDEF && shard != -1)
+    //                {
+    //                    if (client->chats.find(chatid) == client->chats.end())
+    //                    {
+    //                        client->chats[chatid] = new TextChat();
+    //                    }
+
+    //                    TextChat *chat = client->chats[chatid];
+    //                    chat->id = chatid;
+    //                    chat->priv = PRIV_MODERATOR;
+    //                    chat->shard = shard;
+    //                    delete chat->userpriv;  // discard any existing `userpriv`
+    //                    chat->userpriv = this->chatPeers;
+    //                    chat->group = group;
+    //                    chat->ts = (ts != -1) ? ts : 0;
+    //                    chat->publicchat = mPublicChat;
+    //                    chat->setTag(tag ? tag : -1);
+    //                    if (chat->group && !mTitle.empty())
+    //                    {
+    //                        chat->title = mTitle;
+    //                    }
+    //                    if (mPublicChat)
+    //                    {
+    //                        chat->unifiedKey = mUnifiedKey;
+    //                    }
+
+    //                    client->notifychat(chat);
+    //                    client->app->chatcreate_result(chat, API_OK);
+    //                }
+    //                else
+    //                {
+    //                    client->app->chatcreate_result(NULL, API_EINTERNAL);
+    //                    delete chatPeers;   // unused, but might be set at creation
+    //                }
+    //                return;
+
+    //            default:
+    //                if (!client->json.storeobject())
+    //                {
+    //                    client->app->chatcreate_result(NULL, API_EINTERNAL);
+    //                    delete chatPeers;   // unused, but might be set at creation
+    //                    return;
+    //                }
+    //        }
+    //    }
+    //}
+}
+
+void CommandChatCreate::procresultV3()
+{
+    assert(mCreatedChatHandle != UNDEF);
+    auto it = client->chats.find(mCreatedChatHandle);
+    if (it == client->chats.end())
     {
-        client->app->chatcreate_result(NULL, (error)client->json.getint());
-        delete chatPeers;
+        client->app->chatcreate_result(NULL, API_EINTERNAL);
     }
     else
     {
-        handle chatid = UNDEF;
-        int shard = -1;
-        bool group = false;
-        m_time_t ts = -1;
-
-        for (;;)
-        {
-            switch (client->json.getnameid())
-            {
-                case MAKENAMEID2('i','d'):
-                    chatid = client->json.gethandle(MegaClient::CHATHANDLE);
-                    break;
-
-                case MAKENAMEID2('c','s'):
-                    shard = int(client->json.getint());
-                    break;
-
-                case 'g':
-                    group = client->json.getint();
-                    break;
-
-                case MAKENAMEID2('t', 's'):  // actual creation timestamp
-                    ts = client->json.getint();
-                    break;
-
-                case EOO:
-                    if (chatid != UNDEF && shard != -1)
-                    {
-                        if (client->chats.find(chatid) == client->chats.end())
-                        {
-                            client->chats[chatid] = new TextChat();
-                        }
-
-                        TextChat *chat = client->chats[chatid];
-                        chat->id = chatid;
-                        chat->priv = PRIV_MODERATOR;
-                        chat->shard = shard;
-                        delete chat->userpriv;  // discard any existing `userpriv`
-                        chat->userpriv = this->chatPeers;
-                        chat->group = group;
-                        chat->ts = (ts != -1) ? ts : 0;
-                        chat->publicchat = mPublicChat;
-                        chat->setTag(tag ? tag : -1);
-                        if (chat->group && !mTitle.empty())
-                        {
-                            chat->title = mTitle;
-                        }
-                        if (mPublicChat)
-                        {
-                            chat->unifiedKey = mUnifiedKey;
-                        }
-
-                        client->notifychat(chat);
-                        client->app->chatcreate_result(chat, API_OK);
-                    }
-                    else
-                    {
-                        client->app->chatcreate_result(NULL, API_EINTERNAL);
-                        delete chatPeers;   // unused, but might be set at creation
-                    }
-                    return;
-
-                default:
-                    if (!client->json.storeobject())
-                    {
-                        client->app->chatcreate_result(NULL, API_EINTERNAL);
-                        delete chatPeers;   // unused, but might be set at creation
-                        return;
-                    }
-            }
-        }
+        client->app->chatcreate_result(it->second, API_OK);
     }
 }
 
 CommandChatInvite::CommandChatInvite(MegaClient *client, handle chatid, handle uh, privilege_t priv, const char *unifiedkey, const char* title)
+    : Command(true)
 {
     this->client = client;
     this->chatid = chatid;
@@ -6298,52 +6291,27 @@ CommandChatInvite::CommandChatInvite(MegaClient *client, handle chatid, handle u
         arg("ck", unifiedkey);
     }
 
-    notself(client);
+    //notself(client);
 
     tag = client->reqtag;
 }
 
 void CommandChatInvite::procresult()
 {
-    if (client->json.isnumeric())
-    {        
-        error e = (error) client->json.getint();
-        if (e == API_OK)
-        {
-            if (client->chats.find(chatid) == client->chats.end())
-            {
-                // the invitation succeed for a non-existing chatroom
-                client->app->chatinvite_result(API_EINTERNAL);
-                return;
-            }
-
-            TextChat *chat = client->chats[chatid];
-            if (!chat->userpriv)
-            {
-                chat->userpriv = new userpriv_vector();
-            }
-
-            chat->userpriv->push_back(userpriv_pair(uh, priv));
-
-            if (!title.empty())  // only if title was set for this chatroom, update it
-            {
-                chat->title = title;
-            }
-
-            chat->setTag(tag ? tag : -1);
-            client->notifychat(chat);
-        }
-
-        client->app->chatinvite_result(e);
-    }
-    else
-    {
-        client->json.storeobject();
-        client->app->chatinvite_result(API_EINTERNAL);
-    }
+    client->app->chatinvite_result(numericErrorJsonOrDiscard());
 }
 
+void CommandChatInvite::procresultV3()
+{
+    assert(client->chats.find(chatid) != client->chats.end()
+        && client->chats[chatid]->tag == (tag ? tag : -1));
+
+    client->app->chatinvite_result(API_OK);
+}
+
+
 CommandChatRemove::CommandChatRemove(MegaClient *client, handle chatid, handle uh)
+    : Command(true)
 {
     this->client = client;
     this->chatid = chatid;
@@ -6358,76 +6326,26 @@ CommandChatRemove::CommandChatRemove(MegaClient *client, handle chatid, handle u
         arg("u", (byte *)&uh, MegaClient::USERHANDLE);
     }
     arg("v", 1);
-    notself(client);
+    //notself(client);
 
     tag = client->reqtag;
 }
 
 void CommandChatRemove::procresult()
 {
-    if (client->json.isnumeric())
-    {
-        error e = (error) client->json.getint();
-        if (e == API_OK)
-        {
-            if (client->chats.find(chatid) == client->chats.end())
-            {
-                // the invitation succeed for a non-existing chatroom
-                client->app->chatremove_result(API_EINTERNAL);
-                return;
-            }
+    client->app->chatinvite_result(numericErrorJsonOrDiscard());
+}
 
-            TextChat *chat = client->chats[chatid];
-            if (chat->userpriv)
-            {
-                userpriv_vector::iterator upvit;
-                for (upvit = chat->userpriv->begin(); upvit != chat->userpriv->end(); upvit++)
-                {
-                    if (upvit->first == uh)
-                    {
-                        chat->userpriv->erase(upvit);
-                        if (chat->userpriv->empty())
-                        {
-                            delete chat->userpriv;
-                            chat->userpriv = NULL;
-                        }
-                        break;
-                    }
-                }
-            }
-            else
-            {
-                if (uh != client->me)
-                {
-                    // the removal succeed, but the list of peers is empty
-                    client->app->chatremove_result(API_EINTERNAL);
-                    return;
-                }
-            }
+void CommandChatRemove::procresultV3()
+{
+    assert(client->chats.find(chatid) != client->chats.end()
+        && client->chats[chatid]->tag == (tag ? tag : -1));
 
-            if (uh == client->me)
-            {
-                chat->priv = PRIV_RM;
-
-                // clear the list of peers (if re-invited, peers will be re-added)
-                delete chat->userpriv;
-                chat->userpriv = NULL;
-            }
-
-            chat->setTag(tag ? tag : -1);
-            client->notifychat(chat);
-        }
-
-        client->app->chatremove_result(e);
-    }
-    else
-    {
-        client->json.storeobject();
-        client->app->chatremove_result(API_EINTERNAL);
-    }
+    client->app->chatinvite_result(API_OK);
 }
 
 CommandChatURL::CommandChatURL(MegaClient *client, handle chatid)
+    : Command(true, true)
 {
     this->client = client;
 
@@ -6435,7 +6353,7 @@ CommandChatURL::CommandChatURL(MegaClient *client, handle chatid)
 
     arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
     arg("v", 1);
-    notself(client);
+    //notself(client);
 
     tag = client->reqtag;
 }
@@ -6461,6 +6379,7 @@ void CommandChatURL::procresult()
 }
 
 CommandChatGrantAccess::CommandChatGrantAccess(MegaClient *client, handle chatid, handle h, const char *uid)
+    : Command(true)
 {
     this->client = client;
     this->chatid = chatid;
@@ -6473,42 +6392,26 @@ CommandChatGrantAccess::CommandChatGrantAccess(MegaClient *client, handle chatid
     arg("n", (byte*)&h, MegaClient::NODEHANDLE);
     arg("u", uid);
     arg("v", 1);
-    notself(client);
+    //notself(client);
 
     tag = client->reqtag;
 }
 
 void CommandChatGrantAccess::procresult()
 {
-    if (client->json.isnumeric())
-    {
-        error e = error(client->json.getint());
-        if (e == API_OK)
-        {
-            if (client->chats.find(chatid) == client->chats.end())
-            {
-                // the action succeed for a non-existing chatroom??
-                client->app->chatgrantaccess_result(API_EINTERNAL);
-                return;
-            }
+    client->app->chatgrantaccess_result(numericErrorJsonOrDiscard());
+}
 
-            TextChat *chat = client->chats[chatid];
-            chat->setNodeUserAccess(h, uh);
+void CommandChatGrantAccess::procresultV3()
+{
+    assert(client->chats.find(chatid) != client->chats.end()
+        && client->chats[chatid]->tag == (tag ? tag : -1));
 
-            chat->setTag(tag ? tag : -1);
-            client->notifychat(chat);
-        }
-
-        client->app->chatgrantaccess_result(e);
-    }
-    else
-    {
-        client->json.storeobject();
-        client->app->chatgrantaccess_result(API_EINTERNAL);
-    }
+    client->app->chatgrantaccess_result(API_OK);
 }
 
 CommandChatRemoveAccess::CommandChatRemoveAccess(MegaClient *client, handle chatid, handle h, const char *uid)
+    : Command(true)
 {
     this->client = client;
     this->chatid = chatid;
@@ -6521,40 +6424,24 @@ CommandChatRemoveAccess::CommandChatRemoveAccess(MegaClient *client, handle chat
     arg("n", (byte*)&h, MegaClient::NODEHANDLE);
     arg("u", uid);
     arg("v", 1);
-    notself(client);
+    //notself(client);
 
     tag = client->reqtag;
 }
 
 void CommandChatRemoveAccess::procresult()
 {
-    if (client->json.isnumeric())
-    {
-        error e = (error) client->json.getint();
-        if (e == API_OK)
-        {
-            if (client->chats.find(chatid) == client->chats.end())
-            {
-                // the action succeed for a non-existing chatroom??
-                client->app->chatremoveaccess_result(API_EINTERNAL);
-                return;
-            }
-
-            TextChat *chat = client->chats[chatid];
-            chat->setNodeUserAccess(h, uh, true);
-
-            chat->setTag(tag ? tag : -1);
-            client->notifychat(chat);
-        }
-
-        client->app->chatremoveaccess_result(e);
-    }
-    else
-    {
-        client->json.storeobject();
-        client->app->chatremoveaccess_result(API_EINTERNAL);
-    }
+    client->app->chatremoveaccess_result(numericErrorJsonOrDiscard());
 }
+
+void CommandChatRemoveAccess::procresultV3()
+{
+    assert(client->chats.find(chatid) != client->chats.end()
+        && client->chats[chatid]->tag == (tag ? tag : -1));
+
+    client->app->chatremoveaccess_result(API_OK);
+}
+
 
 CommandChatUpdatePermissions::CommandChatUpdatePermissions(MegaClient *client, handle chatid, handle uh, privilege_t priv)
 {
@@ -6569,75 +6456,27 @@ CommandChatUpdatePermissions::CommandChatUpdatePermissions(MegaClient *client, h
     arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
     arg("u", (byte *)&uh, MegaClient::USERHANDLE);
     arg("p", priv);
-    notself(client);
+    //notself(client);
 
     tag = client->reqtag;
 }
 
 void CommandChatUpdatePermissions::procresult()
 {
-    if (client->json.isnumeric())
-    {
-        error e = (error) client->json.getint();
-        if (e == API_OK)
-        {
-            if (client->chats.find(chatid) == client->chats.end())
-            {
-                // the invitation succeed for a non-existing chatroom
-                client->app->chatupdatepermissions_result(API_EINTERNAL);
-                return;
-            }
+    client->app->chatupdatepermissions_result(numericErrorJsonOrDiscard());
+}
 
-            TextChat *chat = client->chats[chatid];
-            if (uh != client->me)
-            {
-                if (!chat->userpriv)
-                {
-                    // the update succeed, but that peer is not included in the chatroom
-                    client->app->chatupdatepermissions_result(API_EINTERNAL);
-                    return;
-                }
+void CommandChatUpdatePermissions::procresultV3()
+{
+    assert(client->chats.find(chatid) != client->chats.end()
+        && client->chats[chatid]->tag == (tag ? tag : -1));
 
-                bool found = false;
-                userpriv_vector::iterator upvit;
-                for (upvit = chat->userpriv->begin(); upvit != chat->userpriv->end(); upvit++)
-                {
-                    if (upvit->first == uh)
-                    {
-                        chat->userpriv->erase(upvit);
-                        chat->userpriv->push_back(userpriv_pair(uh, priv));
-                        found = true;
-                        break;
-                    }
-                }
-
-                if (!found)
-                {
-                    // the update succeed, but that peer is not included in the chatroom
-                    client->app->chatupdatepermissions_result(API_EINTERNAL);
-                    return;
-                }
-            }
-            else
-            {
-                chat->priv = priv;
-            }
-
-            chat->setTag(tag ? tag : -1);
-            client->notifychat(chat);
-        }
-
-        client->app->chatupdatepermissions_result(e);
-    }
-    else
-    {
-        client->json.storeobject();
-        client->app->chatupdatepermissions_result(API_EINTERNAL);
-    }
+    client->app->chatupdatepermissions_result(API_OK);
 }
 
 
 CommandChatTruncate::CommandChatTruncate(MegaClient *client, handle chatid, handle messageid)
+    : Command(true)
 {
     this->client = client;
     this->chatid = chatid;
@@ -6647,40 +6486,26 @@ CommandChatTruncate::CommandChatTruncate(MegaClient *client, handle chatid, hand
 
     arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
     arg("m", (byte*)&messageid, MegaClient::CHATHANDLE);
-    notself(client);
+    //notself(client);
 
     tag = client->reqtag;
 }
 
 void CommandChatTruncate::procresult()
 {
-    if (client->json.isnumeric())
-    {
-        error e = (error) client->json.getint();
-        if (e == API_OK)
-        {
-            if (client->chats.find(chatid) == client->chats.end())
-            {
-                // the truncation succeed for a non-existing chatroom
-                client->app->chattruncate_result(API_EINTERNAL);
-                return;
-            }
+    client->app->chattruncate_result(numericErrorJsonOrDiscard());
+}
 
-            TextChat *chat = client->chats[chatid];
-            chat->setTag(tag ? tag : -1);
-            client->notifychat(chat);
-        }
-
-        client->app->chattruncate_result(e);
-    }
-    else
-    {
-        client->json.storeobject();
-        client->app->chattruncate_result(API_EINTERNAL);
-    }
+void CommandChatTruncate::procresultV3()
+{
+    assert(client->chats.find(chatid) != client->chats.end()
+        && client->chats[chatid]->tag == (tag ? tag : -1));
+    
+    client->app->chattruncate_result(API_OK);
 }
 
 CommandChatSetTitle::CommandChatSetTitle(MegaClient *client, handle chatid, const char *title)
+    : Command(true)
 {
     this->client = client;
     this->chatid = chatid;
@@ -6691,46 +6516,30 @@ CommandChatSetTitle::CommandChatSetTitle(MegaClient *client, handle chatid, cons
 
     arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
     arg("ct", title);
-    notself(client);
+    //notself(client);
 
     tag = client->reqtag;
 }
 
 void CommandChatSetTitle::procresult()
 {
-    if (client->json.isnumeric())
-    {
-        error e = (error) client->json.getint();
-        if (e == API_OK)
-        {
-            if (client->chats.find(chatid) == client->chats.end())
-            {
-                // the invitation succeed for a non-existing chatroom
-                client->app->chatsettitle_result(API_EINTERNAL);
-                return;
-            }
+    client->app->chatsettitle_result(numericErrorJsonOrDiscard());
+}
 
-            TextChat *chat = client->chats[chatid];
-            chat->title = title;
+void CommandChatSetTitle::procresultV3()
+{
+    assert(client->chats.find(chatid) != client->chats.end()
+        && client->chats[chatid]->tag == (tag ? tag : -1));
 
-            chat->setTag(tag ? tag : -1);
-            client->notifychat(chat);
-        }
-
-        client->app->chatsettitle_result(e);
-    }
-    else
-    {
-        client->json.storeobject();
-        client->app->chatsettitle_result(API_EINTERNAL);
-    }
+    client->app->chatsettitle_result(API_OK);
 }
 
 CommandChatPresenceURL::CommandChatPresenceURL(MegaClient *client)
+    : Command(true, true)
 {
     this->client = client;
     cmd("pu");
-    notself(client);
+    //notself(client);
     tag = client->reqtag;
 }
 
@@ -6755,6 +6564,7 @@ void CommandChatPresenceURL::procresult()
 }
 
 CommandRegisterPushNotification::CommandRegisterPushNotification(MegaClient *client, int deviceType, const char *token)
+    : Command(true)
 {
     this->client = client;
     cmd("spt");
@@ -6778,6 +6588,7 @@ void CommandRegisterPushNotification::procresult()
 }
 
 CommandArchiveChat::CommandArchiveChat(MegaClient *client, handle chatid, bool archive)
+    : Command(true)
 {
     this->mChatid = chatid;
     this->mArchive = archive;
@@ -6788,40 +6599,22 @@ CommandArchiveChat::CommandArchiveChat(MegaClient *client, handle chatid, bool a
     arg("m", 1);
     arg("f", archive);
 
-    notself(client);
+    //notself(client);
 
     tag = client->reqtag;
 }
 
 void CommandArchiveChat::procresult()
 {
-    if (client->json.isnumeric())
-    {
-        error e = (error) client->json.getint();
-        if (e == API_OK)
-        {
-            textchat_map::iterator it = client->chats.find(mChatid);
-            if (it == client->chats.end())
-            {
-                LOG_err << "Archive chat succeeded for a non-existing chatroom";
-                client->app->archivechat_result(API_ENOENT);
-                return;
-            }
+    client->app->archivechat_result(numericErrorJsonOrDiscard());
+}
 
-            TextChat *chat = it->second;
-            chat->setFlag(mArchive, TextChat::FLAG_OFFSET_ARCHIVE);
+void CommandArchiveChat::procresultV3()
+{
+    assert(client->chats.find(mChatid) != client->chats.end()
+        && client->chats[mChatid]->tag == (tag ? tag : -1));
 
-            chat->setTag(tag ? tag : -1);
-            client->notifychat(chat);
-        }
-
-        client->app->archivechat_result(e);
-    }
-    else
-    {
-        client->json.storeobject();
-        client->app->archivechat_result(API_EINTERNAL);
-    }
+    client->app->archivechat_result(API_OK);
 }
 
 CommandRichLink::CommandRichLink(MegaClient *client, const char *url)
@@ -6902,6 +6695,7 @@ void CommandRichLink::procresult()
 }
 
 CommandChatLink::CommandChatLink(MegaClient *client, handle chatid, bool del, bool createifmissing)
+    : Command(true)
 {
     mDelete = del;
 
@@ -6918,7 +6712,7 @@ CommandChatLink::CommandChatLink(MegaClient *client, handle chatid, bool del, bo
         arg("cim", (m_off_t)0);
     }
 
-    notself(client);
+    //notself(client);
     tag = client->reqtag;
 }
 
@@ -6951,11 +6745,12 @@ void CommandChatLink::procresult()
 }
 
 CommandChatLinkURL::CommandChatLinkURL(MegaClient *client, handle publichandle)
+    : Command(true)
 {
     cmd("mcphurl");
     arg("ph", (byte*)&publichandle, MegaClient::CHATLINKHANDLE);
 
-    notself(client);
+    //notself(client);
     tag = client->reqtag;
 }
 
@@ -7025,6 +6820,7 @@ void CommandChatLinkURL::procresult()
 }
 
 CommandChatLinkClose::CommandChatLinkClose(MegaClient *client, handle chatid, const char *title)
+    : Command(true)
 {
     mChatid = chatid;
     mTitle = title ? string(title) : "";
@@ -7037,7 +6833,7 @@ CommandChatLinkClose::CommandChatLinkClose(MegaClient *client, handle chatid, co
         arg("ct", title);
     }
 
-    notself(client);
+    //notself(client);
     tag = client->reqtag;
 }
 
@@ -7046,26 +6842,27 @@ void CommandChatLinkClose::procresult()
     if (client->json.isnumeric())
     {
         error e = (error) client->json.getint();
-        if (e == API_OK)
-        {
-            textchat_map::iterator it = client->chats.find(mChatid);
-            if (it == client->chats.end())
-            {
-                LOG_err << "Chat link close succeeded for a non-existing chatroom";
-                client->app->chatlinkclose_result(API_ENOENT);
-                return;
-            }
+        assert(e != API_OK);
+        //if (e == API_OK)
+        //{
+        //    textchat_map::iterator it = client->chats.find(mChatid);
+        //    if (it == client->chats.end())
+        //    {
+        //        LOG_err << "Chat link close succeeded for a non-existing chatroom";
+        //        client->app->chatlinkclose_result(API_ENOENT);
+        //        return;
+        //    }
 
-            TextChat *chat = it->second;
-            chat->setMode(false);
-            if (!mTitle.empty())
-            {
-                chat->title = mTitle;
-            }
+        //    TextChat *chat = it->second;
+        //    chat->setMode(false);
+        //    if (!mTitle.empty())
+        //    {
+        //        chat->title = mTitle;
+        //    }
 
-            chat->setTag(tag ? tag : -1);
-            client->notifychat(chat);
-        }
+        //    chat->setTag(tag ? tag : -1);
+        //    client->notifychat(chat);
+        //}
 
         client->app->chatlinkclose_result(e);
     }
@@ -7076,7 +6873,13 @@ void CommandChatLinkClose::procresult()
     }
 }
 
+void CommandChatLinkClose::procresultV3()
+{
+    client->app->chatlinkclose_result(API_OK);
+}
+
 CommandChatLinkJoin::CommandChatLinkJoin(MegaClient *client, handle publichandle, const char *unifiedkey)
+    : Command(true)
 {
     cmd("mciph");
     arg("ph", (byte*)&publichandle, MegaClient::CHATLINKHANDLE);
@@ -7739,9 +7542,10 @@ void CommandFetchTimeZone::procresult()
 }
 
 CommandSetLastAcknowledged::CommandSetLastAcknowledged(MegaClient* client)
+    : Command(true)
 {
     cmd("sla");
-    notself(client);
+    //notself(client);
     tag = client->reqtag;
 }
 

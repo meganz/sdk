@@ -1038,9 +1038,9 @@ public:
     JSON json;
 
     // actionpacket sequence tags
-    string currst;  
-    bool currstSeen = false;
-    int currstCSTag = 0;
+    string mCurrentSeqtag;  
+    bool mCurrentSeqtagSeen = false;
+    int mCurrentSeqtagCmdtag = 0;
 
     // Server-MegaClient request JSON and processing state flag ("processing a element")
     JSON jsonsc;

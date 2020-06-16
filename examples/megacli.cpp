@@ -1292,10 +1292,6 @@ void DemoApp::putfa_result(handle, fatype, error e)
     }
 }
 
-void DemoApp::putfa_result(handle, fatype, const char*)
-{
-}
-
 void DemoApp::removecontact_result(error e)
 {
     if (e)

@@ -172,7 +172,6 @@ struct DemoApp : public MegaApp
     int fa_failed(handle, fatype, int, error) override;
 
     void putfa_result(handle, fatype, error) override;
-    void putfa_result(handle, fatype, const char*) override;
 
     void removecontact_result(error) override;
     void putua_result(error) override;

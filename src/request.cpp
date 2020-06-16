@@ -71,6 +71,8 @@ void Request::process(MegaClient* client)
 
         cmd->client = client;
 
+        bool putnodesSpecial = dynamic_cast<CommandPutNodes*>(cmd) && client->json.pos && !memcmp(client->json.pos, "[\"", 2);
+
         if (client->json.enterobject())
         {
             cmd->procresult();
@@ -80,7 +82,7 @@ void Request::process(MegaClient* client)
                 LOG_err << "Invalid object";
             }
         }
-        else if (client->json.enterarray())
+        else if (!putnodesSpecial && client->json.enterarray())
         {
             cmd->procresult();
 
@@ -91,24 +93,27 @@ void Request::process(MegaClient* client)
         }
         else
         {
-            if (mV3 && client->json.pos && *client->json.pos == '"')
+            bool stringResult = client->json.pos && *client->json.pos == '"';
+            if (mV3 && (stringResult || putnodesSpecial))
             {
                 json = client->json;
                 string st;
+                if (putnodesSpecial) client->json.enterarray();
                 client->json.storeobject(&st);
                 
-                if (client->currst == st)
+                if (client->mCurrentSeqtag == st)
                 {
-                    client->currst.clear();
-                    client->currstSeen = false;
+                    client->mCurrentSeqtag.clear();
+                    client->mCurrentSeqtagSeen = false;
                     cmd->procresultV3();  // call for success case, and carry on
+                    if (putnodesSpecial) client->json.leavearray();
                 }
                 else
                 {
-                    // result processing paused until we encounter and process actionpackets matching client->currst
-                    client->currst = st;
-                    client->currstSeen = false;
-                    client->currstCSTag = cmd->tag;
+                    // result processing paused until we encounter and process actionpackets matching client->mCurrentSeqtag
+                    client->mCurrentSeqtag = st;
+                    client->mCurrentSeqtagSeen = false;
+                    client->mCurrentSeqtagCmdtag = cmd->tag;
                     client->json.pos = nullptr;
                     return;  
                 }
@@ -125,6 +130,12 @@ void Request::process(MegaClient* client)
     {
         clear();
     }
+}
+
+Command* Request::getCurrentCommand()
+{
+    assert(processindex < cmds.size());
+    return cmds[processindex];
 }
 
 void Request::serverresponse(std::string&& movestring, MegaClient* client)
@@ -246,6 +257,11 @@ bool RequestDispatcher::cmdsInflight() const
     return !inflightreq.empty();
 }
 
+Command* RequestDispatcher::getCurrentCommand(bool currSeqtagSeen)
+{
+    return currSeqtagSeen ? inflightreq.getCurrentCommand() : nullptr;
+}
+
 void RequestDispatcher::serverrequest(string *out, bool& suppressSID, bool &includesFetchingNodes, bool& v3)
 {
     assert(inflightreq.empty());
@@ -310,7 +326,7 @@ void RequestDispatcher::servererror(error e, MegaClient *client)
     }
 }
 
-void RequestDispatcher::process_ap(MegaClient* client)
+void RequestDispatcher::continueProcessing(MegaClient* client)
 {
     assert(!inflightreq.empty());
     processing = true;

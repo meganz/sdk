@@ -2822,7 +2822,6 @@ protected:
 
         // file attribute modification result
         void putfa_result(handle, fatype, error) override;
-        void putfa_result(handle, fatype, const char*) override;
 
         // purchase transactions
         void enumeratequotaitems_result(unsigned type, handle product, unsigned prolevel, int gbstorage, int gbtransfer,
