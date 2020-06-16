@@ -13611,6 +13611,8 @@ class MegaApi
         /**
          * @brief Check if a node has an access level
          *
+         * @deprecated Use checkAccessErrorExtended
+         *
          * @param node Node to check
          * @param level Access level to check
          * Valid values for this parameter are:
@@ -13652,6 +13654,8 @@ class MegaApi
 
         /**
          * @brief Check if a node can be moved to a target node
+         *
+         * @deprecated Use checkMoveErrorExtended
          *
          * @param node Node to check
          * @param target Target for the move operation
