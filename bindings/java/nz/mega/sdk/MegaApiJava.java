@@ -8435,28 +8435,44 @@ public class MegaApiJava {
     }
 
     /**
-     * Make a name suitable for a file name in the local filesystem.
-     * <p>
+     * Make a name suitable for a file name in the local filesystem
+     *
      * This function escapes (%xx) forbidden characters in the local filesystem if needed.
-     * You can revert this operation using MegaApiJava.unescapeFsIncompatible().
-     * 
-     * @param name
-     *            Name to convert.
-     * @return Converted name.
+     * You can revert this operation using MegaApi::unescapeFsIncompatible
+     *
+     * If no dstPath is provided or filesystem type it's not supported this method will
+     * escape characters contained in the following list: \/:?\"<>|*
+     * Otherwise it will check forbidden characters for local filesystem type
+     *
+     * The input string must be UTF8 encoded. The returned value will be UTF8 too.
+     *
+     * You take the ownership of the returned value
+     *
+     * @param filename Name to convert (UTF8)
+     * @param dstPath Destination path
+     * @return Converted name (UTF8)
      */
-    public String escapeFsIncompatible(String name) {
-        return megaApi.escapeFsIncompatible(name);
+    public String escapeFsIncompatible(String filename, String dstPath) {
+        return megaApi.escapeFsIncompatible(filename, dstPath);
     }
 
     /**
-     * Unescape a file name escaped with MegaApiJava.escapeFsIncompatible().
-     * 
-     * @param localName
-     *            Escaped name to convert.
-     * @return Converted name.
+     * Unescape a file name escaped with MegaApi::escapeFsIncompatible
+     *
+     * If no localPath is provided or filesystem type it's not supported, this method will
+     * unescape those sequences that once has been unescaped results in any character
+     * of the following list: \/:?\"<>|*
+     * Otherwise it will unescape those characters forbidden in local filesystem type
+     *
+     * The input string must be UTF8 encoded. The returned value will be UTF8 too.
+     * You take the ownership of the returned value
+     *
+     * @param name Escaped name to convert (UTF8)
+     * @param localPath Local path
+     * @return Converted name (UTF8)
      */
-    public String unescapeFsIncompatible(String localName) {
-        return megaApi.unescapeFsIncompatible(localName);
+    String unescapeFsIncompatible(String name, String localPath) {
+        return megaApi.unescapeFsIncompatible(name, localPath);
     }
 
     /**
