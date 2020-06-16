@@ -14081,7 +14081,7 @@ error MegaClient::removeSyncConfigByNodeHandle(mega::handle nodeHandle)
         return API_ENOENT;
     }
 
-    auto config = syncConfigs?syncConfigs->get(nodeHandle):nullptr;
+    auto config = syncConfigs?syncConfigs->getByNodeHandle(nodeHandle):nullptr;
     if (config)
     {
         tag = config->getTag();
@@ -14165,7 +14165,7 @@ error MegaClient::changeSyncStateByNodeHandle(mega::handle nodeHandle, syncstate
         e = API_ENOENT;
     }
 
-    auto config = syncConfigs?syncConfigs->get(nodeHandle):nullptr;
+    auto config = syncConfigs?syncConfigs->getByNodeHandle(nodeHandle):nullptr;
     assert(config);
     e = changeSyncState(config, newstate, newSyncError, fireDisableEvent);
 

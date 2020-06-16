@@ -4932,7 +4932,7 @@ class MegaSync
 public:
     enum
     {
-        SYNC_DISABLED = -3, //disabled by the user.
+        SYNC_DISABLED = -3, //user disabled (if no syncError, otherwise automatically disabled . i.e SYNC_TEMPORARY_DISABLED)
         SYNC_FAILED = -2,
         SYNC_CANCELED = -1, //removed
         SYNC_INITIALSCAN = 0,
@@ -5020,8 +5020,8 @@ public:
     virtual const char* getMegaFolder() const;
 
     /**
-     * @brief Gets an unique identifier of the local folder that is being synced
-     * @return Unique identifier of the local folder that is being synced
+     * @brief Gets an unique identifier of the local filesystem that is being synced
+     * @return Unique identifier of the local file system that is being synced
      */
     virtual long long getLocalFingerprint() const;
 
@@ -5038,11 +5038,14 @@ public:
      * @brief Get the state of the synchronization
      *
      * Possible values are:
+     * - SYNC_DISABLED
+     * The synchronization has been disabled by the user or temporarily disabled for a transient reason
+     *
      * - SYNC_FAILED = -2
      * The synchronization has failed and has been disabled
      *
      * - SYNC_CANCELED = -1,
-     * The synchronization has failed and has been disabled
+     * The synchronization is being removed
      *
      * - SYNC_INITIALSCAN = 0,
      * The synchronization is doing the initial scan
@@ -5106,7 +5109,7 @@ public:
      *
      * This means that the sync is expected to be working.
      *
-     * It will be false if not disabled by user nor failed (nor being removed)
+     * It will be false if not disabled nor failed (nor being removed)
      *
      * @return If the sync is active
      */

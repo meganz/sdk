@@ -4714,12 +4714,14 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
         return sync->getLocalFingerprint();
     };
 
-    auto syncFolder = [this, &megaNode](const fs::path& p)
+    auto syncFolder = [this, &megaNode](const fs::path& p) -> int
     {
         RequestTracker syncTracker(megaApi[0].get());
         auto node = megaNode(p.filename().u8string());
         megaApi[0]->syncFolder(p.u8string().c_str(), node.get(), &syncTracker);
-        ASSERT_EQ(API_OK, syncTracker.waitForResult());
+        EXPECT_EQ(API_OK, syncTracker.waitForResult());
+
+        return syncTracker.request->getTransferTag();
     };
 
     auto disableSync = [this, &megaNode](const fs::path& p)
@@ -4730,21 +4732,17 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
         ASSERT_EQ(API_OK, syncTracker.waitForResult());
     };
 
-    //TODO: prepare this!
-//    auto enableSync = [this, &megaNode](const fs::path& p, const long long localfp)
-//    {
-//        RequestTracker syncTracker;
-//        auto node = megaNode(p.filename().u8string());
-//        megaApi[0]->enableSync(node->getHandle(), localfp, &syncTracker); //TODO: should this use case exist? or with localpath?
-//        ASSERT_EQ(API_OK, syncTracker.waitForResult());
-//    };
-
-
-    auto resumeSync = [this, &megaNode](const fs::path& p, const long long localfp)
+    auto disableSyncByTag = [this](int tag)
     {
         RequestTracker syncTracker(megaApi[0].get());
-        auto node = megaNode(p.filename().u8string());
-        megaApi[0]->resumeSync(p.u8string().c_str(), node.get(), localfp, &syncTracker);
+        megaApi[0]->disableSync(tag, &syncTracker);
+        ASSERT_EQ(API_OK, syncTracker.waitForResult());
+    };
+
+    auto resumeSync = [this](int tag)
+    {
+        RequestTracker syncTracker(megaApi[0].get());
+        megaApi[0]->enableSync(tag, &syncTracker);
         ASSERT_EQ(API_OK, syncTracker.waitForResult());
     };
 
@@ -4781,28 +4779,32 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
         loginBySessionId(0, session);
     };
 
-    syncFolder(sync1Path);
-    syncFolder(sync2Path);
-    syncFolder(sync3Path);
-    syncFolder(sync4Path);
+    LOG_verbose << " SyncResumptionAfterFetchNodes : syncying folders";
+
+    int tag1 = syncFolder(sync1Path);
+    int tag2 = syncFolder(sync2Path);
+    int tag3 = syncFolder(sync3Path);
+    int tag4 = syncFolder(sync4Path);
 
     ASSERT_TRUE(checkSyncOK(sync1Path));
     ASSERT_TRUE(checkSyncOK(sync2Path));
     ASSERT_TRUE(checkSyncOK(sync3Path));
     ASSERT_TRUE(checkSyncOK(sync4Path));
-    const auto sync2LocalFp = localFp(sync2Path); // need this for manual resume
 
-    disableSync(sync2Path); //This no longer removes the sync: ASSERT_FALSE(checkSyncOK(sync2Path)); will fail
+    LOG_verbose << " SyncResumptionAfterFetchNodes : disabling sync by path";
+    disableSync(sync2Path);
+    LOG_verbose << " SyncResumptionAfterFetchNodes : disabling sync by tag";
+    disableSyncByTag(tag4);
+    LOG_verbose << " SyncResumptionAfterFetchNodes : removing sync";
     removeSync(sync3Path);
 
     // wait for the sync removals to actually take place
     std::this_thread::sleep_for(std::chrono::seconds{20});
 
     ASSERT_TRUE(checkSyncOK(sync1Path));
-    //ASSERT_FALSE(checkSyncOK(sync2Path));
     ASSERT_TRUE(checkSyncDisabled(sync2Path));
     ASSERT_FALSE(checkSyncOK(sync3Path));
-    ASSERT_TRUE(checkSyncOK(sync4Path));
+    ASSERT_TRUE(checkSyncDisabled(sync4Path));
 
     reloginViaSession();
 
@@ -4817,11 +4819,13 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     ASSERT_FALSE(checkSyncOK(sync2Path));
     ASSERT_TRUE(checkSyncDisabled(sync2Path));
     ASSERT_FALSE(checkSyncOK(sync3Path));
-    ASSERT_TRUE(checkSyncOK(sync4Path));
+    ASSERT_FALSE(checkSyncOK(sync4Path));
+    ASSERT_TRUE(checkSyncDisabled(sync4Path));
 
     // check if we can still resume manually
-    removeSync(sync2Path);
-    resumeSync(sync2Path, sync2LocalFp); //TODO: this won't resume if already exists (although disabled)! we want enableSync, not resume!
+    LOG_verbose << " SyncResumptionAfterFetchNodes : resuming syncs";
+    resumeSync(tag2);
+    resumeSync(tag4);
 
     ASSERT_TRUE(checkSyncOK(sync1Path));
     ASSERT_TRUE(checkSyncOK(sync2Path));
@@ -4843,6 +4847,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     ASSERT_FALSE(checkSyncOK(sync3Path));
     ASSERT_TRUE(checkSyncOK(sync4Path));
 
+    LOG_verbose << " SyncResumptionAfterFetchNodes : removing syncs";
     removeSync(sync1Path);
     removeSync(sync2Path);
     removeSync(sync4Path);

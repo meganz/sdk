@@ -629,6 +629,18 @@ const SyncConfig* SyncConfigBag::get(const int tag) const
     return nullptr;
 }
 
+
+const SyncConfig* SyncConfigBag::getByNodeHandle(handle nodeHandle) const
+{
+    std::vector<SyncConfig> syncConfigs;
+    for (const auto& syncConfigPair : mSyncConfigs)
+    {
+        if (syncConfigPair.second.getRemoteNode() == nodeHandle)
+            return &syncConfigPair.second;
+    }
+    return nullptr;
+}
+
 void SyncConfigBag::clear()
 {
     if (mTable)

@@ -55,8 +55,12 @@ public:
     // Removes a sync config with a given tag
     bool removeByTag(const int tag);
 
-    // Returns the sync config at the tag
+    // Returns the sync config with a given tag
     const SyncConfig* get(const int tag) const;
+
+    // Returns the first sync config found with a remote handle
+    const SyncConfig* getByNodeHandle(handle nodeHandle) const;
+
 
     // Removes all sync configs
     void clear();

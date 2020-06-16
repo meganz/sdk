@@ -214,7 +214,7 @@ struct DemoApp : public MegaApp
 
 #ifdef ENABLE_SYNC
     void syncupdate_state(int tag, syncstate_t, syncerror_t, bool fireDisableEvent = true) override;
-    void sync_auto_resume_result(const SyncConfig &config, syncerror_t error) override;
+    void sync_auto_resume_result(const SyncConfig &config, const syncstate_t &state, const syncerror_t &error) override;
     void sync_removed(int tag) override;
 
     void syncupdate_scanning(bool) override;

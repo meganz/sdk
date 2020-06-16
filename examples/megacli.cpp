@@ -480,9 +480,10 @@ void DemoApp::syncupdate_state(int tag, syncstate_t newstate, syncerror_t syncEr
     }
 }
 
-void DemoApp::sync_auto_resume_result(const SyncConfig &config, syncerror_t error)
+void DemoApp::sync_auto_resume_result(const SyncConfig &config, const syncstate_t &state, const syncerror_t &error)
 {
-    cout << "Sync - auresumed " <<config.getTag() << " " << config.getLocalPath()  << " enabled: " << config.getEnabled()  << " syncError: " << error << endl;
+    cout << "Sync - auresumed " <<config.getTag() << " " << config.getLocalPath()  << " enabled: "
+         << config.getEnabled()  << " state: " << state << " syncError: " << error << endl;
 }
 
 void DemoApp::sync_removed(int tag)
