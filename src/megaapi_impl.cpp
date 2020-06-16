@@ -16400,7 +16400,7 @@ void MegaApiImpl::processTransferRemoved(Transfer *tr, MegaTransferPrivate *tran
 
 MegaError MegaApiImpl::checkAccess(MegaNode* megaNode, int level)
 {
-    std::unique_ptr<MegaError>megaError = std::unique_ptr<MegaError>(checkAccessErrorExtended(megaNode, level));
+    std::unique_ptr<MegaError> megaError(checkAccessErrorExtended(megaNode, level));
     return megaError->getErrorCode();
 }
 
@@ -16441,7 +16441,7 @@ MegaError *MegaApiImpl::checkAccessErrorExtended(MegaNode *megaNode, int level)
 
 MegaError MegaApiImpl::checkMove(MegaNode* megaNode, MegaNode* targetNode)
 {
-    std::unique_ptr<MegaError>megaError = std::unique_ptr<MegaError>(checkMoveErrorExtended(megaNode, targetNode));
+    std::unique_ptr<MegaError> megaError(checkMoveErrorExtended(megaNode, targetNode));
     return megaError->getErrorCode();
 }
 
