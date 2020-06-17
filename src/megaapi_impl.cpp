@@ -22411,18 +22411,16 @@ MegaErrorPrivate::MegaErrorPrivate(int errorCode, long long value)
 MegaErrorPrivate::MegaErrorPrivate(const Error& err)
     : MegaError(err)
     , mValue(0)
-    , mExtraInfo(err.hasExtraInfo())
-    , mLinkStatus(err.getLinkStatus())
     , mUserStatus(err.getUserStatus())
+    , mLinkStatus(err.getLinkStatus())
 {
 }
 
 MegaErrorPrivate::MegaErrorPrivate(const MegaError &megaError)
     : MegaError(megaError.getErrorCode())
     , mValue(megaError.getValue())
-    , mExtraInfo(megaError.hasExtraInfo())
-    , mLinkStatus(megaError.getLinkStatus())
     , mUserStatus(megaError.getUserStatus())
+    , mLinkStatus(megaError.getLinkStatus())
 {
 }
 
@@ -22448,7 +22446,8 @@ long long MegaErrorPrivate::getValue() const
 
 bool MegaErrorPrivate::hasExtraInfo() const
 {
-    return mExtraInfo;
+    return mUserStatus != MegaError::UserErrorCode::USER_ETD_UNKNOWN
+            || mLinkStatus != MegaError::LinkErrorCode::LINK_UNKNOWN;
 }
 
 long long MegaErrorPrivate::getUserStatus() const

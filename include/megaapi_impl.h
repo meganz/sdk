@@ -148,9 +148,8 @@ public:
 
 private:
     long long mValue = 0;
-    bool mExtraInfo = false;
-    long long mUserStatus = 0;
-    long long mLinkStatus = 0;
+    long long mUserStatus = MegaError::UserErrorCode::USER_ETD_UNKNOWN;
+    long long mLinkStatus = MegaError::LinkErrorCode::LINK_UNKNOWN;
 };
 
 class ExternalLogger : public Logger
