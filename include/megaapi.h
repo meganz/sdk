@@ -5304,7 +5304,7 @@ public:
         API_EC_DEFAULT = 0,         ///< Default error code context
         API_EC_DOWNLOAD = 1,        ///< Download transfer context.
         API_EC_IMPORT = 2,          ///< Import context.
-        API_EC_UPLOAD = 3,        ///< Upload transfer context.
+        API_EC_UPLOAD = 3,          ///< Upload transfer context.
     };
 
     /**
@@ -5312,7 +5312,8 @@ public:
      */
     enum UserErrorCode
     {
-        USER_ETD_SUSPENSION = 7, ///< Account suspend by an ETD/ToS 'severe'
+        USER_ETD_UNKNOWN = -1,      ///< Unknown state
+        USER_ETD_SUSPENSION = 7,    ///< Account suspend by an ETD/ToS 'severe'
     };
 
     /**
@@ -5320,9 +5321,10 @@ public:
      */
     enum LinkErrorCode
     {
-        LINK_UNDELETED = 0,  ///< Link is undeleted
-        LINK_DELETED_DOWN = 1, ///< Link is deleted or down
-        LINK_DOWN_ETD = 2,  ///< Link is down due to an ETD specifically
+        LINK_UNKNOWN = -1,      ///< Unknown state
+        LINK_UNDELETED = 0,     ///< Link is undeleted
+        LINK_DELETED_DOWN = 1,  ///< Link is deleted or down
+        LINK_DOWN_ETD = 2,      ///< Link is down due to an ETD specifically
     };
 
         virtual ~MegaError();
@@ -5381,6 +5383,8 @@ public:
          * Possible values:
          *  MegaError::UserErrorCode::USER_ETD_SUSPENSION
          *
+         * Otherwise, it returns MegaError::UserErrorCode::USER_ETD_UNKNOWN
+         *
          * @return user status
          */
         virtual long long getUserStatus() const;
@@ -5393,6 +5397,8 @@ public:
          *  MegaError::LinkErrorCode::LINK_UNDELETED
          *  MegaError::LinkErrorCode::LINK_DELETED_DOWN
          *  MegaError::LinkErrorCode::LINK_DOWN_ETD
+         *
+         * Otherwise, it returns MegaError::LinkErrorCode::LINK_UNKNOWN
          *
          * @return link status
          */

@@ -212,13 +212,19 @@ typedef enum ErrorCodes
 class Error
 {
 public:
-    typedef enum  { USER_ETD_SUSPENSION = 7, // represents an ETD/ToS 'severe' suspension level
-                  } UserErrorCode;
+    typedef enum
+    {
+        USER_ETD_UNKNOWN = -1,
+        USER_ETD_SUSPENSION = 7, // represents an ETD/ToS 'severe' suspension level
+    } UserErrorCode;
 
-    typedef enum  { LINK_UNDELETED = 0,  // Link is undeleted
-                    LINK_DELETED_DOWN = 1, // Link is deleted or down
-                    LINK_DOWN_ETD = 2,  // Link is down due to an ETD specifically
-                  } LinkErrorCode;
+    typedef enum
+    {
+        LINK_UNKNOWN = -1,
+        LINK_UNDELETED = 0,  // Link is undeleted
+        LINK_DELETED_DOWN = 1, // Link is deleted or down
+        LINK_DOWN_ETD = 2,  // Link is down due to an ETD specifically
+    } LinkErrorCode;
 
     Error(error err = API_EINTERNAL)
         : mError(err)
@@ -231,15 +237,15 @@ public:
 
     void setUserStatus(int64_t u) { mUserStatus = u; }
     void setLinkStatus(int64_t l) { mLinkStatus = l; }
-    bool hasExtraInfo() const { return mUserStatus != -1 || mLinkStatus != -1; }
+    bool hasExtraInfo() const { return mUserStatus != USER_ETD_UNKNOWN || mLinkStatus != LINK_UNKNOWN; }
     int64_t getUserStatus() const { return mUserStatus; }
     int64_t getLinkStatus() const { return mLinkStatus; }
     operator error() const { return mError; }
 
 private:
     error mError = API_EINTERNAL;
-    int64_t mUserStatus = -1; // user status
-    int64_t mLinkStatus = -1; // link status
+    int64_t mUserStatus = USER_ETD_UNKNOWN;
+    int64_t mLinkStatus = LINK_UNKNOWN;
 };
 
 // returned by loggedin()
