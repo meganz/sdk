@@ -5355,6 +5355,43 @@ public class MegaApiJava {
     }
 
     /**
+     * Get push notification settings
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_PUSH_SETTINGS
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaPushNotificationSettings - Returns settings for push notifications
+     *
+     * @see MegaPushNotificationSettings class for more details.
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getPushNotificationSettings(MegaRequestListenerInterface listener) {
+        megaApi.getPushNotificationSettings(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Set push notification settings
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_PUSH_SETTINGS
+     * - MegaRequest::getMegaPushNotificationSettings - Returns settings for push notifications
+     *
+     * @see MegaPushNotificationSettings class for more details. You can prepare a new object by
+     * calling MegaPushNotificationSettings::createInstance.
+     *
+     * @param settings MegaPushNotificationSettings with the new settings
+     * @param listener MegaRequestListener to track this request
+     */
+    public void setPushNotificationSettings(MegaPushNotificationSettings settings, MegaRequestListenerInterface listener) {
+        megaApi.setPushNotificationSettings(settings, createDelegateRequestListener(listener));
+    }
+
+    /**
      * Get the number of days for rubbish-bin cleaning scheduler
      *
      * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
