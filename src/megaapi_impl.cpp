@@ -2205,7 +2205,6 @@ MegaTransferPrivate::MegaTransferPrivate(int type, MegaTransferListener *listene
     this->startFirst = false;
     this->backupTransfer = false;
     this->foreignOverquota = false;
-    this->lastError = nullptr;
     this->folderTransferTag = 0;
     this->appData = NULL;
     this->state = STATE_NONE;
