@@ -955,7 +955,7 @@ std::string MegaClient::getDeviceid() const
         fsaccess->statsid(&id);
         if (id.size())
         {
-            MegaClient::statsid = make_unique<std::string>(id);
+            MegaClient::statsid = ::mega::make_unique<std::string>(id);
         }
     }
 
