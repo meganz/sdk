@@ -1943,19 +1943,20 @@ void MegaClient::exec()
 
                 // fall through
             case REQ_FAILURE:
-                if (pendingscUserAlerts->httpstatus == 200)
-                {
-                    error e = (error)atoi(pendingscUserAlerts->in.c_str());  
-                    if (e == API_EAGAIN || e == API_ERATELIMIT)
-                    {
-                        btsc.backoff();
-                        pendingscUserAlerts.reset();
-                        LOG_warn << "Backing off before retrying useralerts request: " << btsc.retryin();
-                        break;
-                    }
-                    LOG_err << "Unexpected sc response: " << pendingscUserAlerts->in;
-                }
-                LOG_err << "Useralerts request failed, continuing without them";
+//TODO: uncomment this
+                //if (pendingscUserAlerts->httpstatus == 200)
+                //{
+                //    error e = (error)atoi(pendingscUserAlerts->in.c_str());  
+                //    if (e == API_EAGAIN || e == API_ERATELIMIT)
+                //    {
+                //        btsc.backoff();
+                //        pendingscUserAlerts.reset();
+                //        LOG_warn << "Backing off before retrying useralerts request: " << btsc.retryin();
+                //        break;
+                //    }
+                //    LOG_err << "Unexpected sc response: " << pendingscUserAlerts->in;
+                //}
+                LOG_warn << "Useralerts request failed, continuing without them";
                 if (useralerts.begincatchup)
                 {
                     useralerts.begincatchup = false;
@@ -5234,7 +5235,7 @@ void MegaClient::readtree(JSON* j)
                     if (auto putnodesCmd = dynamic_cast<CommandPutNodes*>(reqs.getCurrentCommand(mCurrentSeqtagSeen)))
                     {
                         putnodesCmd->emptyResponse = !memcmp(j->pos, "[]", 2);
-                        readnodes(j, 1, putnodesCmd->source, putnodesCmd->nn, putnodesCmd->nnsize, putnodesCmd->tag, true);  // do apply keys to received nodes only as we go for command response, much much faster for many small responses
+                        readnodes(j, 1, putnodesCmd->source, &putnodesCmd->nn, putnodesCmd->tag, true);  // do apply keys to received nodes only as we go for command response, much much faster for many small responses
                     }
                     else
                     {
@@ -5245,7 +5246,7 @@ void MegaClient::readtree(JSON* j)
                 case MAKENAMEID2('f', '2'):
                     if (mCurrentSeqtagSeen)
                     {
-                        readnodes(j, 1, PUTNODES_APP, NULL, 0, 0, true);  // do apply keys to received nodes only as we go for command response, much much faster for many small responses
+                        readnodes(j, 1, PUTNODES_APP, NULL, 0, true);  // do apply keys to received nodes only as we go for command response, much much faster for many small responses
                     }
                     else
                     {
@@ -6028,6 +6029,7 @@ void MegaClient::sc_opc()
                 if (auto ipcCmd = dynamic_cast<CommandSetPendingContact*>(reqs.getCurrentCommand(mCurrentSeqtagSeen)))
                 {
                     ipcCmd->mActionpacketPcrHandle = p;
+                    pcr->msg = ipcCmd->messageForActionpacket;
                 }
 
                 break;
@@ -6501,10 +6503,10 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
                         chat->setTag(0);    // 0 for external change
                     }
 
-                    if (auto chatCreateCmd = dynamic_cast<CommandChatCreate*>(cmd))
-                    {
-                        chatCreateCmd->mCreatedChatHandle = chatid;
-                    }
+                    //if (auto chatCreateCmd = dynamic_cast<CommandChatCreate*>(cmd))
+                    //{
+                    //    chatCreateCmd->mCreatedChatHandle = chatid;
+                    //}
 
                     notifychat(chat);
                 }
@@ -6831,7 +6833,8 @@ void MegaClient::notifypurge(void)
             Node* n = nodenotify[i];
             if (n->attrstring)
             {
-                LOG_err << "NO_KEY node: " << n->type << " " << n->size << " " << n->nodehandle << " " << n->nodekeyUnchecked().size();
+//TODO: put this back to error
+                LOG_warn << "NO_KEY node: " << n->type << " " << n->size << " " << n->nodehandle << " " << n->nodekeyUnchecked().size();
 #ifdef ENABLE_SYNC
                 if (n->localnode)
                 {
@@ -7117,13 +7120,13 @@ void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldern
 }
 
 // send new nodes to API for processing
-void MegaClient::putnodes(handle h, NewNode* newnodes, int numnodes, const char *cauth)
+void MegaClient::putnodes(handle h, vector<NewNode>&& newnodes, const char *cauth)
 {
-    reqs.add(new CommandPutNodes(this, h, NULL, newnodes, numnodes, reqtag, PUTNODES_APP, cauth));
+    reqs.add(new CommandPutNodes(this, h, NULL, move(newnodes), reqtag, PUTNODES_APP, cauth));
 }
 
 // drop nodes into a user's inbox (must have RSA keypair)
-void MegaClient::putnodes(const char* user, NewNode* newnodes, int numnodes)
+void MegaClient::putnodes(const char* user, vector<NewNode>&& newnodes)
 {
     User* u;
 
@@ -7134,7 +7137,7 @@ void MegaClient::putnodes(const char* user, NewNode* newnodes, int numnodes)
         return app->putnodes_result(API_EARGS, USER_HANDLE, newnodes);
     }
 
-    queuepubkeyreq(user, ::mega::make_unique<PubKeyActionPutNodes>(newnodes, numnodes, reqtag));
+    queuepubkeyreq(user, ::mega::make_unique<PubKeyActionPutNodes>(move(newnodes), reqtag));
 }
 
 // returns 1 if node has accesslevel a or better, 0 otherwise
@@ -7528,7 +7531,7 @@ uint64_t MegaClient::stringhash64(string* s, SymmCipher* c)
 }
 
 // read and add/verify node array
-int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, int nnsize, int tag, bool applykeys)
+int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNode>* nn, int tag, bool applykeys)
 {
     if (!j->enterarray())
     {
@@ -7781,30 +7784,31 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                     useralerts.noteSharedNode(u, t, ts, n);
                 }
 
-                if (nn && nni >= 0 && nni < nnsize)
+                if (nn && nni >= 0 && nni < nn->size())
                 {
-                    nn[nni].added = true;
-                    nn[nni].addedHandle = h;
+                    auto& nn_nni = (*nn)[nni];
+                    nn_nni.added = true;
+                    nn_nni.addedHandle = h;
 
 #ifdef ENABLE_SYNC
                     if (source == PUTNODES_SYNC)
                     {
-                        if (nn[nni].localnode)
+                        if (nn_nni.localnode)
                         {
                             // overwrites/updates: associate LocalNode with newly created Node
-                            nn[nni].localnode->setnode(n);
-                            nn[nni].localnode->treestate(TREESTATE_SYNCED);
+                            nn_nni.localnode->setnode(n);
+                            nn_nni.localnode->treestate(TREESTATE_SYNCED);
 
                             // updates cache with the new node associated
-                            nn[nni].localnode->sync->statecacheadd(nn[nni].localnode);
-                            nn[nni].localnode->newnode.reset(); // localnode ptr now null also
+                            nn_nni.localnode->sync->statecacheadd(nn_nni.localnode);
+                            nn_nni.localnode->newnode.reset(); // localnode ptr now null also
                         }
                     }
 #endif
 
-                    if (nn[nni].source == NEW_UPLOAD)
+                    if (nn_nni.source == NEW_UPLOAD)
                     {
-                        handle uh = nn[nni].uploadhandle;
+                        handle uh = nn_nni.uploadhandle;
 
                         // do we have pending file attributes for this upload? set them.
                         for (fa_map::iterator it = pendingfa.lower_bound(pair<handle, fatype>(uh, fatype(0)));
@@ -13430,8 +13434,6 @@ void MegaClient::syncupdate()
     string tattrstring;
     AttrMap tattrs;
     Node* n;
-    NewNode* nn;
-    NewNode* nnp;
     LocalNode* l;
 
     for (start = 0; start < synccreate.size(); start = end)
@@ -13447,7 +13449,8 @@ void MegaClient::syncupdate()
 
         // add nodes that can be created immediately: folders & existing files;
         // start uploads of new files
-        nn = nnp = new NewNode[end - start];
+        vector<NewNode> nn;
+        nn.reserve(end - start);
 
         DBTableTransactionCommitter committer(tctable);
         for (i = start; i < end; i++)
@@ -13462,6 +13465,9 @@ void MegaClient::syncupdate()
 
             if (l->type == FOLDERNODE || (n = nodebyfingerprint(l)))
             {
+                nn.resize(nn.size() + 1);
+                auto nnp = &nn.back();
+
                 // create remote folder or copy file if it already exists
                 nnp->source = NEW_NODE;
                 nnp->type = l->type;
@@ -13517,7 +13523,6 @@ void MegaClient::syncupdate()
                 makeattr(&tkey, nnp->attrstring, tattrstring.c_str());
 
                 l->treestate(TREESTATE_SYNCING);
-                nnp++;
             }
             else if (l->type == FILENODE)
             {
@@ -13535,11 +13540,7 @@ void MegaClient::syncupdate()
             }
         }
 
-        if (nnp == nn)
-        {
-            delete[] nn;
-        }
-        else
+        if (!nn.empty())
         {
             // add nodes unless parent node has been deleted
             LocalNode *localNode = synccreate[start];
@@ -13552,7 +13553,7 @@ void MegaClient::syncupdate()
                        || localNode->h == localNode->parent->node->nodehandle); // if it's a file, it should match
                 reqs.add(new CommandPutNodes(this,
                                                 localNode->parent->node->nodehandle,
-                                                NULL, nn, int(nnp - nn),
+                                                NULL, move(nn),
                                                 localNode->sync->tag,
                                                 PUTNODES_SYNC));
 
@@ -13564,10 +13565,11 @@ void MegaClient::syncupdate()
     synccreate.clear();
 }
 
-void MegaClient::putnodes_sync_result(error e, NewNode* nn, int nni)
+void MegaClient::putnodes_sync_result(error e, vector<NewNode>& nn)
 {
     // check for file nodes that failed to copy and remove them from fingerprints
     // FIXME: retrigger sync decision upload them immediately
+    auto nni = nn.size();
     while (nni--)
     {
         Node* n;
@@ -13596,8 +13598,6 @@ void MegaClient::putnodes_sync_result(error e, NewNode* nn, int nni)
             nn[nni].localnode->sync->changestate(SYNC_FAILED);
         }
     }
-
-    delete[] nn;
 
     syncadding--;
     syncactivity = true;
@@ -13835,17 +13835,16 @@ void MegaClient::execmovetosyncdebris()
         LOG_debug << "Creating daily SyncDebris folder: " << buf << " Target: " << target;
 
         // create missing component(s) of the sync debris folder of the day
-        NewNode* nn;
+        vector<NewNode> nnVec;
         SymmCipher tkey;
         string tattrstring;
         AttrMap tattrs;
-        int i = (target == SYNCDEL_DEBRIS) ? 1 : 2;
 
-        nn = new NewNode[i] + i;
+        nnVec.resize((target == SYNCDEL_DEBRIS) ? 1 : 2);
 
-        while (i--)
+        for (size_t i = nnVec.size(); i--; )
         {
-            nn--;
+            auto nn = &nnVec[i];
 
             nn->source = NEW_NODE;
             nn->type = FOLDERNODE;
@@ -13863,8 +13862,8 @@ void MegaClient::execmovetosyncdebris()
             makeattr(&tkey, nn->attrstring, tattrstring.c_str());
         }
 
-        reqs.add(new CommandPutNodes(this, tn->nodehandle, NULL, nn,
-                                        (target == SYNCDEL_DEBRIS) ? 1 : 2, -reqtag,
+        reqs.add(new CommandPutNodes(this, tn->nodehandle, NULL, move(nnVec),
+                                        -reqtag,
                                         PUTNODES_SYNCDEBRIS));
     }
 }
@@ -13887,10 +13886,8 @@ void MegaClient::delsync(Sync* sync, bool deletecache)
     syncactivity = true;
 }
 
-void MegaClient::putnodes_syncdebris_result(error, NewNode* nn)
+void MegaClient::putnodes_syncdebris_result(error, vector<NewNode>& nn)
 {
-    delete[] nn;
-
     syncdebrisadding = false;
 }
 #endif

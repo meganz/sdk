@@ -1006,15 +1006,14 @@ void CommandSetAttr::procresultV3()
 // (the result is not processed directly - we rely on the server-client
 // response)
 CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
-                                 const char* userhandle, NewNode* newnodes,
-                                 int numnodes, int ctag, putsource_t csource, const char *cauth)
+                                 const char* userhandle, vector<NewNode>&& newnodes, int ctag, putsource_t csource, const char *cauth)
     : Command(true)
 {
     byte key[FILENODEKEYLENGTH];
     int i;
 
-    nn = newnodes;
-    nnsize = numnodes;
+    assert(newnodes.size() > 0);
+    nn = std::move(newnodes);
     type = userhandle ? USER_HANDLE : NODE_HANDLE;
     source = csource;
 
@@ -1041,7 +1040,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
 
     beginarray("n");
 
-    for (i = 0; i < numnodes; i++)
+    for (i = 0; i < nn.size(); i++)
     {
         beginobject();
 
@@ -1057,7 +1056,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
                 break;
 
             case NEW_UPLOAD:
-                arg("h", nni->uploadtoken, sizeof nn->uploadtoken);
+                arg("h", nni->uploadtoken, sizeof nn[0].uploadtoken);
 
                 // include pending file attributes for this upload
                 string s;
@@ -1120,7 +1119,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
         {
             ShareNodeKeys snk;
 
-            for (i = 0; i < numnodes; i++)
+            for (i = 0; i < nn.size(); i++)
             {
                 switch (nn[i].source)
                 {
@@ -1130,7 +1129,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
                         break;
 
                     case NEW_UPLOAD:
-                        snk.add(nn[i].nodekey, nn[i].nodehandle, tn, 0, nn[i].uploadtoken, (int)sizeof nn->uploadtoken);
+                        snk.add(nn[i].nodekey, nn[i].nodehandle, tn, 0, nn[i].uploadtoken, (int)sizeof nn[i].uploadtoken);
                         break;
                 }
             }
@@ -1205,14 +1204,14 @@ void CommandPutNodes::procresult()
             client->reqtag = creqtag;
         }
 
-        client->app->putnodes_result(e, type, NULL);
+        client->app->putnodes_result(e, type, nn);
 
-        for (int i=0; i < nnsize; i++)
+        for (int i=0; i < nn.size(); i++)
         {
             nn[i].localnode.reset();
         }
 
-        return client->putnodes_sync_result(e, nn, nnsize);
+        return client->putnodes_sync_result(e, nn);
     }
     else
     {
@@ -1246,8 +1245,8 @@ void CommandPutNodes::procresultV3()
 #ifdef ENABLE_SYNC
     if (source == PUTNODES_SYNC)
     {
-        client->app->putnodes_result(API_OK, type, NULL);
-        client->putnodes_sync_result(API_OK, nn, nnsize);
+        client->app->putnodes_result(API_OK, type, nn);
+        client->putnodes_sync_result(API_OK, nn);
     }
     else
 #endif
@@ -2214,6 +2213,7 @@ CommandSetPendingContact::CommandSetPendingContact(MegaClient* client, const cha
     if (msg != NULL)
     {
         arg("msg", msg);
+        messageForActionpacket = msg;
     }
 
     //if (action != OPCA_REMIND)  // for reminders, need the actionpacket to update `uts`
@@ -2228,113 +2228,126 @@ CommandSetPendingContact::CommandSetPendingContact(MegaClient* client, const cha
 
 void CommandSetPendingContact::procresult()
 {
-    error e = numericErrorJsonOrDiscard();
-
-    handle pcrhandle = UNDEF;
-    if (!e) // response for delete & remind actions is always numeric
+    if (client->json.isnumeric())
     {
-        // find the PCR by email
-        PendingContactRequest *pcr = NULL;
-        for (handlepcr_map::iterator it = client->pcrindex.begin();
-                it != client->pcrindex.end(); it++)
-        {
-            if (it->second->targetemail == temail)
-            {
-                pcr = it->second;
-                pcrhandle = pcr->id;
-                break;
-            }
-        }
+        error e = (error)client->json.getint();
 
-        if (!pcr)
+        handle pcrhandle = UNDEF;
+        if (!e) // response for delete & remind actions is always numeric
         {
-            LOG_err << "Reminded/deleted PCR not found";
-        }
-        else if (action == OPCA_DELETE)
-        {
-            pcr->changed.deleted = true;
-            client->notifypcr(pcr);
-
-            // remove pending shares related to the deleted PCR
-            Node *n;
-            for (node_map::iterator it = client->nodes.begin(); it != client->nodes.end(); it++)
+            // find the PCR by email
+            PendingContactRequest *pcr = NULL;
+            for (handlepcr_map::iterator it = client->pcrindex.begin();
+                 it != client->pcrindex.end(); it++)
             {
-                n = it->second;
-                if (n->pendingshares && n->pendingshares->find(pcr->id) != n->pendingshares->end())
+                if (it->second->targetemail == temail)
                 {
-                    client->newshares.push_back(
-                                new NewShare(n->nodehandle, 1, n->owner, ACCESS_UNKNOWN,
-                                                0, NULL, NULL, pcr->id, false));
+                    pcr = it->second;
+                    pcrhandle = pcr->id;
+                    break;
                 }
             }
 
-            client->mergenewshares(1);
+            if (!pcr)
+            {
+                LOG_err << "Reminded/deleted PCR not found";
+            }
+            else if (action == OPCA_DELETE)
+            {
+                pcr->changed.deleted = true;
+                client->notifypcr(pcr);
+
+                // remove pending shares related to the deleted PCR
+                Node *n;
+                for (node_map::iterator it = client->nodes.begin(); it != client->nodes.end(); it++)
+                {
+                    n = it->second;
+                    if (n->pendingshares && n->pendingshares->find(pcr->id) != n->pendingshares->end())
+                    {
+                        client->newshares.push_back(
+                                    new NewShare(n->nodehandle, 1, n->owner, ACCESS_UNKNOWN,
+                                                 0, NULL, NULL, pcr->id, false));
+                    }
+                }
+
+                client->mergenewshares(1);
+            }
         }
+
+        return client->app->setpcr_result(pcrhandle, e, this->action);
     }
 
-    return client->app->setpcr_result(pcrhandle, e, this->action);
-
-    //// if the PCR has been added, the response contains full details
-    //handle p = UNDEF;    
-    //m_time_t ts = 0;
-    //m_time_t uts = 0;
-    //const char *e = NULL;
-    //const char *m = NULL;
-    //const char *msg = NULL;
+    // if the PCR has been added, the response contains full details
+    handle p = UNDEF;    
+    m_time_t ts = 0;
+    m_time_t uts = 0;
+    const char *e = NULL;
+    const char *m = NULL;
+    const char *msg = NULL;
     //PendingContactRequest *pcr = NULL;
-    //for (;;)
-    //{
-    //    switch (client->json.getnameid())
-    //    {
-    //        case 'p':
-    //            p = client->json.gethandle(MegaClient::PCRHANDLE);  
-    //            break;
-    //        case 'm':
-    //            m = client->json.getvalue();
-    //            break;
-    //        case 'e':
-    //            e = client->json.getvalue();
-    //            break;
-    //        case MAKENAMEID3('m', 's', 'g'):
-    //            msg = client->json.getvalue();
-    //            break;
-    //        case MAKENAMEID2('t', 's'):
-    //            ts = client->json.getint();
-    //            break;
-    //        case MAKENAMEID3('u', 't', 's'):
-    //            uts = client->json.getint();
-    //            break;
-    //        case EOO:
-    //            if (ISUNDEF(p))
-    //            {
-    //                LOG_err << "Error in CommandSetPendingContact. Undefined handle";
-    //                client->app->setpcr_result(UNDEF, API_EINTERNAL, this->action);                    
-    //                return;
-    //            }
+    for (;;)
+    {
+        switch (client->json.getnameid())
+        {
+            case 'p':
+                p = client->json.gethandle(MegaClient::PCRHANDLE);  
+                break;
+            case 'm':
+                m = client->json.getvalue();
+                break;
+            case 'e':
+                e = client->json.getvalue();
+                break;
+            case MAKENAMEID3('m', 's', 'g'):
+                msg = client->json.getvalue();
+                break;
+            case MAKENAMEID2('t', 's'):
+                ts = client->json.getint();
+                break;
+            case MAKENAMEID3('u', 't', 's'):
+                uts = client->json.getint();
+                break;
+            case EOO:
+                if (ISUNDEF(p))
+                {
+                    LOG_err << "Error in CommandSetPendingContact. Undefined handle";
+                    client->app->setpcr_result(UNDEF, API_EINTERNAL, this->action);                    
+                    return;
+                }
 
-    //            if (action != OPCA_ADD || !e || !m || ts == 0 || uts == 0)
-    //            {
-    //                LOG_err << "Error in CommandSetPendingContact. Wrong parameters";
-    //                client->app->setpcr_result(UNDEF, API_EINTERNAL, this->action);
-    //                return;
-    //            }
+                if (action != OPCA_ADD || !e || !m || ts == 0 || uts == 0)
+                {
+                    LOG_err << "Error in CommandSetPendingContact. Wrong parameters";
+                    client->app->setpcr_result(UNDEF, API_EINTERNAL, this->action);
+                    return;
+                }
 
-    //            pcr = new PendingContactRequest(p, e, m, ts, uts, msg, true);
-    //            client->mappcr(p, pcr);
+                //pcr = new PendingContactRequest(p, e, m, ts, uts, msg, true);
+                //client->mappcr(p, pcr);
+                //client->notifypcr(pcr);
 
-    //            client->notifypcr(pcr);
-    //            client->app->setpcr_result(p, API_OK, this->action);
-    //            return;
+                // If we didn't get an actionpacket, then we get this JSON object returned.  The pcr should match what we already have in the data structure, double check:
+                assert(client->pcrindex.find(p) != client->pcrindex.end());
+                assert(client->pcrindex[p]->originatoremail == e);
+                assert(client->pcrindex[p]->targetemail == m);
+                assert(client->pcrindex[p]->ts == ts);
+                assert(client->pcrindex[p]->uts== uts);
+                assert(client->pcrindex[p]->msg == msg);
+                assert(client->pcrindex[p]->isoutgoing);
 
-    //        default:
-    //            if (!client->json.storeobject())
-    //            {
-    //                LOG_err << "Error in CommandSetPendingContact. Parse error";
-    //                client->app->setpcr_result(UNDEF, API_EINTERNAL, this->action);
-    //                return;
-    //            }
-    //    }
-    //}
+                client->app->setpcr_result(p, API_OK, this->action);
+                return;
+
+            default:
+                if (!client->json.storeobject())
+                {
+                    LOG_err << "Error in CommandSetPendingContact. Parse error";
+                    client->app->setpcr_result(UNDEF, API_EINTERNAL, this->action);
+                    return;
+                }
+			
+		}
+	}
 }
 
 void CommandSetPendingContact::procresultV3()
@@ -6103,10 +6116,9 @@ void CommandGetLocalSSLCertificate::procresult()
 
 #ifdef ENABLE_CHAT
 CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, bool publicchat, const userpriv_vector *upl, const string_map *ukm, const char *title)
-    : Command(true)
 {
     this->client = client;
-    this->chatPeers.reset(new userpriv_vector(*upl));
+    this->chatPeers = new userpriv_vector(*upl);
     this->mPublicChat = publicchat;
     this->mTitle = title ? string(title) : "";
     this->mUnifiedKey = "";
@@ -6166,102 +6178,91 @@ CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, bool public
     endarray();
 
     arg("v", 1);
-    //notself(client);
+    notself(client);
 
     tag = client->reqtag;
 }
 
 void CommandChatCreate::procresult()
 {
-    client->app->chatcreate_result(NULL, numericErrorJsonOrDiscard());
-
-    //else
-    //{
-    //    handle chatid = UNDEF;
-    //    int shard = -1;
-    //    bool group = false;
-    //    m_time_t ts = -1;
-
-    //    for (;;)
-    //    {
-    //        switch (client->json.getnameid())
-    //        {
-    //            case MAKENAMEID2('i','d'):
-    //                chatid = client->json.gethandle(MegaClient::CHATHANDLE);
-    //                break;
-
-    //            case MAKENAMEID2('c','s'):
-    //                shard = int(client->json.getint());
-    //                break;
-
-    //            case 'g':
-    //                group = client->json.getint();
-    //                break;
-
-    //            case MAKENAMEID2('t', 's'):  // actual creation timestamp
-    //                ts = client->json.getint();
-    //                break;
-
-    //            case EOO:
-    //                if (chatid != UNDEF && shard != -1)
-    //                {
-    //                    if (client->chats.find(chatid) == client->chats.end())
-    //                    {
-    //                        client->chats[chatid] = new TextChat();
-    //                    }
-
-    //                    TextChat *chat = client->chats[chatid];
-    //                    chat->id = chatid;
-    //                    chat->priv = PRIV_MODERATOR;
-    //                    chat->shard = shard;
-    //                    delete chat->userpriv;  // discard any existing `userpriv`
-    //                    chat->userpriv = this->chatPeers;
-    //                    chat->group = group;
-    //                    chat->ts = (ts != -1) ? ts : 0;
-    //                    chat->publicchat = mPublicChat;
-    //                    chat->setTag(tag ? tag : -1);
-    //                    if (chat->group && !mTitle.empty())
-    //                    {
-    //                        chat->title = mTitle;
-    //                    }
-    //                    if (mPublicChat)
-    //                    {
-    //                        chat->unifiedKey = mUnifiedKey;
-    //                    }
-
-    //                    client->notifychat(chat);
-    //                    client->app->chatcreate_result(chat, API_OK);
-    //                }
-    //                else
-    //                {
-    //                    client->app->chatcreate_result(NULL, API_EINTERNAL);
-    //                    delete chatPeers;   // unused, but might be set at creation
-    //                }
-    //                return;
-
-    //            default:
-    //                if (!client->json.storeobject())
-    //                {
-    //                    client->app->chatcreate_result(NULL, API_EINTERNAL);
-    //                    delete chatPeers;   // unused, but might be set at creation
-    //                    return;
-    //                }
-    //        }
-    //    }
-    //}
-}
-
-void CommandChatCreate::procresultV3()
-{
-    assert(mCreatedChatHandle != UNDEF);
-    auto it = client->chats.find(mCreatedChatHandle);
-    if (it == client->chats.end())
+    if (client->json.isnumeric())
     {
-        client->app->chatcreate_result(NULL, API_EINTERNAL);
+        client->app->chatcreate_result(NULL, (error)client->json.getint());
+        delete chatPeers;
     }
     else
     {
-        client->app->chatcreate_result(it->second, API_OK);
+        handle chatid = UNDEF;
+        int shard = -1;
+        bool group = false;
+        m_time_t ts = -1;
+
+        for (;;)
+        {
+            switch (client->json.getnameid())
+            {
+                case MAKENAMEID2('i','d'):
+                    chatid = client->json.gethandle(MegaClient::CHATHANDLE);
+                    break;
+
+                case MAKENAMEID2('c','s'):
+                    shard = int(client->json.getint());
+                    break;
+
+                case 'g':
+                    group = client->json.getint();
+                    break;
+
+                case MAKENAMEID2('t', 's'):  // actual creation timestamp
+                    ts = client->json.getint();
+                    break;
+
+                case EOO:
+                    if (chatid != UNDEF && shard != -1)
+                    {
+                        if (client->chats.find(chatid) == client->chats.end())
+                        {
+                            client->chats[chatid] = new TextChat();
+                        }
+
+                        TextChat *chat = client->chats[chatid];
+                        chat->id = chatid;
+                        chat->priv = PRIV_MODERATOR;
+                        chat->shard = shard;
+                        delete chat->userpriv;  // discard any existing `userpriv`
+                        chat->userpriv = this->chatPeers;
+                        chat->group = group;
+                        chat->ts = (ts != -1) ? ts : 0;
+                        chat->publicchat = mPublicChat;
+                        chat->setTag(tag ? tag : -1);
+                        if (chat->group && !mTitle.empty())
+                        {
+                            chat->title = mTitle;
+                        }
+                        if (mPublicChat)
+                        {
+                            chat->unifiedKey = mUnifiedKey;
+                        }
+
+                        client->notifychat(chat);
+                        client->app->chatcreate_result(chat, API_OK);
+                    }
+                    else
+                    {
+                        client->app->chatcreate_result(NULL, API_EINTERNAL);
+                        delete chatPeers;   // unused, but might be set at creation
+                    }
+                    return;
+
+                default:
+                    if (!client->json.storeobject())
+                    {
+                        client->app->chatcreate_result(NULL, API_EINTERNAL);
+                        delete chatPeers;   // unused, but might be set at creation
+                        return;
+                    }
+            }
+        }
     }
 }
 

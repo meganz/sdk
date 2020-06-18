@@ -13232,15 +13232,15 @@ void MegaApiImpl::fetchnodes_result(error e)
     }
 }
 
-void MegaApiImpl::putnodes_result(error e, targettype_t t, NewNode* nn)
+void MegaApiImpl::putnodes_result(error e, targettype_t t, vector<NewNode>& nn)
 {
     handle h = UNDEF;
     Node *n = NULL;
 
     if (!e && t != USER_HANDLE)
     {
-        assert(nn
-        n = client->nodebyhandle.back();
+        assert(!nn.empty() && nn.back().added && nn.back().addedHandle != UNDEF);
+        n = client->nodebyhandle(nn.back().addedHandle);
 
         if(n)
         {
@@ -13290,7 +13290,6 @@ void MegaApiImpl::putnodes_result(error e, targettype_t t, NewNode* nn)
 
         DBTableTransactionCommitter committer(client->tctable);
         fireOnTransferFinish(transfer, megaError, committer);
-        delete [] nn;
         return;
     }
 
@@ -13307,8 +13306,6 @@ void MegaApiImpl::putnodes_result(error e, targettype_t t, NewNode* nn)
 #ifdef ENABLE_SYNC
     client->syncdownrequired = true;
 #endif
-
-    delete [] nn;
 
     if (request->getType() == MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD)
     {
@@ -14376,7 +14373,8 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
             }
         }
 
-        NewNode* newnode = new NewNode[1];
+        vector<NewNode> newnodes(1);
+        auto newnode = &newnodes[0];
 
         // set up new node as folder node
         newnode->source = NEW_PUBLIC;
@@ -14393,7 +14391,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
         request->setTag(nextTag);
         requestMap[nextTag]=request;
 
-        client->putnodes(parenthandle, newnode, 1);
+        client->putnodes(parenthandle, move(newnodes));
     }
     else
     {
@@ -17752,13 +17750,11 @@ unsigned MegaApiImpl::sendPendingTransfers()
                             transfer->setUpdateTime(Waiter::ds);
                             fireOnTransferStart(transfer);
 
-                            unsigned nc;
                             TreeProcCopy tc;
                             client->proctree(samenode, &tc, false, true);
                             tc.allocnodes();
-                            nc = tc.nc;
                             client->proctree(samenode, &tc, false, true);
-                            tc.nn->parenthandle = UNDEF;
+                            tc.nn[0].parenthandle = UNDEF;
 
                             SymmCipher key;
                             AttrMap attrs;
@@ -17770,18 +17766,18 @@ unsigned MegaApiImpl::sendPendingTransfers()
                             attrs.map['n'] = sname;
                             attrs.getjson(&attrstring);
                             client->makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
-                            if (tc.nn->type == FILENODE && !client->versions_disabled)
+                            if (tc.nn[0].type == FILENODE && !client->versions_disabled)
                             {
-                                tc.nn->ovhandle = client->getovhandle(parent, &sname);
+                                tc.nn[0].ovhandle = client->getovhandle(parent, &sname);
                             }
 
                             if (uploadToInbox)
                             {
-                                client->putnodes(inboxTarget, tc.nn, nc);
+                                client->putnodes(inboxTarget, move(tc.nn));
                             }
                             else
                             {
-                                client->putnodes(parent->nodehandle, tc.nn, nc);
+                                client->putnodes(parent->nodehandle, move(tc.nn));
                             }
 
                             transfer->setDeltaSize(size);
@@ -18455,7 +18451,8 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            NewNode *newnode = new NewNode[1];
+            vector<NewNode> newnodes(1);
+            NewNode *newnode = &newnodes[0];
             SymmCipher key;
             string attrstring;
             byte buf[FOLDERNODEKEYLENGTH];
@@ -18483,7 +18480,7 @@ void MegaApiImpl::sendPendingRequests()
             client->makeattr(&key, newnode->attrstring, attrstring.c_str());
 
             // add the newly generated folder node
-            client->putnodes(parent->nodehandle,newnode,1);
+            client->putnodes(parent->nodehandle, move(newnodes));
             break;
         }
         case MegaRequest::TYPE_MOVE:
@@ -18587,7 +18584,8 @@ void MegaApiImpl::sendPendingRequests()
                                 e = API_OK; // there is already an identical node in the target folder
                                 // continue to complete the copy-delete
                                 client->restag = request->getTag();
-                                putnodes_result(API_OK, NODE_HANDLE, NULL);
+                                vector<NewNode> emptyVec;
+                                putnodes_result(API_OK, NODE_HANDLE, emptyVec);
                                 break;
                             }
 
@@ -18612,8 +18610,8 @@ void MegaApiImpl::sendPendingRequests()
                     break;
                 }
 
-                tc.nn->parenthandle = UNDEF;
-                tc.nn->ovhandle = ovhandle;
+                tc.nn[0].parenthandle = UNDEF;
+                tc.nn[0].ovhandle = ovhandle;
 
                 if (name)   // move and rename
                 {
@@ -18627,11 +18625,11 @@ void MegaApiImpl::sendPendingRequests()
                     attrs.getjson(&attrstring);
 
                     SymmCipher key;
-                    key.setkey((const byte*)tc.nn->nodekey.data(), node->type);
-                    client->makeattr(&key, tc.nn->attrstring, attrstring.c_str());
+                    key.setkey((const byte*)tc.nn[0].nodekey.data(), node->type);
+                    client->makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
                 }
 
-                client->putnodes(newParent->nodehandle, tc.nn, nc);
+                client->putnodes(newParent->nodehandle, move(tc.nn));
                 e = API_OK;
                 break;
             }
@@ -18647,7 +18645,6 @@ void MegaApiImpl::sendPendingRequests()
             MegaNode *megaNode = request->getPublicNode();
             const char *newName = request->getName();
             handle ovhandle = UNDEF;
-            unsigned nc = 0;
 
             if (!megaNode || (!target && !email)
                     || (newName && !(*newName))
@@ -18721,26 +18718,24 @@ void MegaApiImpl::sendPendingRequests()
 
                 processMegaTree(megaNode, &tc);
                 tc.allocnodes();
-                nc = tc.nc;
 
                 // build new nodes array
                 processMegaTree(megaNode, &tc);
 
-                tc.nn->parenthandle = UNDEF;
-                tc.nn->ovhandle = ovhandle;
+                tc.nn[0].parenthandle = UNDEF;
+                tc.nn[0].ovhandle = ovhandle;
 
                 if (target)
                 {
-                    client->putnodes(target->nodehandle, tc.nn, nc, megaNode->getChatAuth());
+                    client->putnodes(target->nodehandle, std::move(tc.nn), megaNode->getChatAuth());
                 }
                 else
                 {
-                    client->putnodes(email, tc.nn, nc);
+                    client->putnodes(email, move(tc.nn));
                 }
             }
             else
             {
-                unsigned nc;
                 TreeProcCopy tc;
 
                 if (!node->nodekey().size())
@@ -18797,12 +18792,11 @@ void MegaApiImpl::sendPendingRequests()
                 // determine number of nodes to be copied
                 client->proctree(node, &tc, false, ovhandle != UNDEF);
                 tc.allocnodes();
-                nc = tc.nc;
 
                 // build new nodes array
                 client->proctree(node, &tc, false, ovhandle != UNDEF);
-                tc.nn->parenthandle = UNDEF;
-                tc.nn->ovhandle = ovhandle;
+                tc.nn[0].parenthandle = UNDEF;
+                tc.nn[0].ovhandle = ovhandle;
 
                 if (newName)
                 {
@@ -18810,22 +18804,22 @@ void MegaApiImpl::sendPendingRequests()
                     AttrMap attrs;
                     string attrstring;
 
-                    key.setkey((const byte*)tc.nn->nodekey.data(), node->type);
+                    key.setkey((const byte*)tc.nn[0].nodekey.data(), node->type);
                     attrs = node->attrs;
 
                     attrs.map['n'] = sname;
 
                     attrs.getjson(&attrstring);
-                    client->makeattr(&key, tc.nn->attrstring, attrstring.c_str());
+                    client->makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
                 }
 
                 if (target)
                 {
-                    client->putnodes(target->nodehandle, tc.nn, nc);
+                    client->putnodes(target->nodehandle, move(tc.nn));
                 }
                 else
                 {
-                    client->putnodes(email, tc.nn, nc);
+                    client->putnodes(email, move(tc.nn));
                 }
             }
             break;
@@ -18857,7 +18851,8 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            NewNode* newnode = new NewNode[1];
+            vector<NewNode> newnodes(1);
+            NewNode* newnode = &newnodes[0];
             string attrstring;
             SymmCipher key;
 
@@ -18875,7 +18870,7 @@ void MegaApiImpl::sendPendingRequests()
                 client->makeattr(&key, newnode->attrstring, attrstring.c_str());
             }
 
-            client->putnodes(current->parent->nodehandle, newnode, 1);
+            client->putnodes(current->parent->nodehandle, move(newnodes));
             break;
         }
         case MegaRequest::TYPE_RENAME:
@@ -21671,7 +21666,8 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            NewNode* newnode = new NewNode[1];
+            vector<NewNode> newnodes(1);
+            NewNode* newnode = &newnodes[0];
             newnode->source = NEW_UPLOAD;
             newnode->type = FILENODE;
             memcpy(newnode->uploadtoken, binaryUploadToken.data(), binaryUploadToken.size());
@@ -21721,7 +21717,7 @@ void MegaApiImpl::sendPendingRequests()
                 newnode->ovhandle = client->getovhandle(parentNode, &name);
             }
 
-            client->reqs.add(new CommandPutNodes(client, parentHandle, NULL, newnode, 1, request->getTag(), PUTNODES_APP));
+            client->reqs.add(new CommandPutNodes(client, parentHandle, NULL, move(newnodes), request->getTag(), PUTNODES_APP));
             break;
         }
         case MegaRequest::TYPE_VERIFY_CREDENTIALS:
@@ -21930,31 +21926,20 @@ bool MegaApiImpl::tryLockMutexFor(long long time)
     }
 }
 
-TreeProcCopy::TreeProcCopy()
-{
-    nn = NULL;
-    nc = 0;
-}
-
 void TreeProcCopy::allocnodes()
 {
-    if(nc) nn = new NewNode[nc];
-}
-
-TreeProcCopy::~TreeProcCopy()
-{
-    //Will be deleted in putnodes_result
-    //delete[] nn;
+    nn.resize(nc);
+    allocated = true;
 }
 
 // determine node tree size (nn = NULL) or write node tree to new nodes array
 void TreeProcCopy::proc(MegaClient* client, Node* n)
 {
-    if (nn)
+    if (allocated)
     {
         string attrstring;
         SymmCipher key;
-        NewNode* t = nn+--nc;
+        NewNode* t = &nn[--nc];
 
         // copy node
         t->source = NEW_NODE;
@@ -23386,23 +23371,19 @@ bool ExternalInputStream::read(byte *buffer, unsigned size)
 
 MegaTreeProcCopy::MegaTreeProcCopy(MegaClient *client)
 {
-    nn = NULL;
-    nc = 0;
     this->client = client;
 }
 
 void MegaTreeProcCopy::allocnodes()
 {
-    if (nc)
-    {
-        nn = new NewNode[nc];
-    }
+    nn.resize(nc);
+    allocated = true;
 }
 bool MegaTreeProcCopy::processMegaNode(MegaNode *n)
 {
-    if (nn)
+    if (allocated)
     {
-        NewNode* t = nn+--nc;
+        NewNode* t = &nn[--nc];
 
         // copy key (if file) or generate new key (if folder)
         if (n->getType() == FILENODE)

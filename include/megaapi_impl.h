@@ -153,8 +153,9 @@ class MegaTransferPrivate;
 class MegaTreeProcCopy : public MegaTreeProcessor
 {
 public:
-    NewNode* nn;
-    unsigned nc;
+    vector<NewNode> nn;
+    unsigned nc = 0;
+    bool allocated = false;
 
     MegaTreeProcCopy(MegaClient *client);
     bool processMegaNode(MegaNode* node) override;
@@ -2806,7 +2807,7 @@ protected:
         void key_modified(handle, attr_t) override;
 
         void fetchnodes_result(error) override;
-        void putnodes_result(error, targettype_t, NewNode*) override;
+        void putnodes_result(error, targettype_t, vector<NewNode>&) override;
 
         // share update result
         void share_result(error) override;

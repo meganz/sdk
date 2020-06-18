@@ -1982,34 +1982,25 @@ class TreeProcCopy_mcli : public TreeProc
     // However some products are built with the megaapi_impl intermediate layer and some without so
     // we can avoid duplicated symbols in some products this way
 public:
-    NewNode * nn;
-    unsigned nc;
+    vector<NewNode> nn;
+    unsigned nc = 0;
+    bool populated = false;
 
-
-    TreeProcCopy_mcli()
-    {
-        nn = NULL;
-        nc = 0;
-    }
 
     void allocnodes()
     {
-        nn = new NewNode[nc];
-    }
-
-    ~TreeProcCopy_mcli()
-    {
-        delete[] nn;
+        nn.resize(nc);
+        populated = true;
     }
 
     // determine node tree size (nn = NULL) or write node tree to new nodes array
     void proc(MegaClient* mc, Node* n)
     {
-        if (nn)
+        if (populated)
         {
             string attrstring;
             SymmCipher key;
-            NewNode* t = nn + --nc;
+            NewNode* t = &nn[--nc];
 
             // copy node
             t->source = NEW_NODE;

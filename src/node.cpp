@@ -461,7 +461,7 @@ bool Node::serialize(string* d)
 
         if (attrstring)
         {
-            LOG_err << "Skipping undecryptable node";
+            LOG_warn << "Skipping undecryptable node";
             return false;
         }
     }

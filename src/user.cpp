@@ -99,7 +99,7 @@ bool User::serialize(string* d)
     char bizMode = 0;
     if (mBizMode != BIZ_MODE_UNKNOWN) // convert number to ascii
     {
-        bizMode = '0' + mBizMode;
+        bizMode = static_cast<char>('0' + mBizMode);
     }
 
     d->append((char*)&bizMode, 1);

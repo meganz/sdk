@@ -711,9 +711,9 @@ struct StandardClient : public MegaApp
                 resultproc.prepresult(PUTNODES, [this, &pb](error e) {
                     ensureTestBaseFolder(false, pb);
                 });
-                auto nn = new NewNode[1]; // freed by putnodes_result
+                vector<NewNode> nn(1);
                 nn[0] = makeSubfolder("mega_test_sync");
-                client.putnodes(root->nodehandle, nn, 1);
+                client.putnodes(root->nodehandle, move(nn));
                 return;
             }
         }
@@ -765,13 +765,13 @@ struct StandardClient : public MegaApp
                     cout << "putnodes result: " << e << endl;
                 }
             });
-            auto nodearray = new NewNode[nodes.size()]; // freed by putnodes_result
+            auto nodearray = vector<NewNode>(nodes.size());
             size_t i = 0;
             for (auto n = nodes.begin(); n != nodes.end(); ++n, ++i)
             {
                 nodearray[i] = std::move(*n);
             }
-            client.putnodes(atnode->nodehandle, nodearray, (int)nodes.size());
+            client.putnodes(atnode->nodehandle, move(nodearray));
         }
     }
 
@@ -1194,12 +1194,11 @@ struct StandardClient : public MegaApp
         resultproc.processresult(UNLINK, e);
     }
 
-    void putnodes_result(error e, targettype_t tt, NewNode* nn) override
+    void putnodes_result(error e, targettype_t tt, vector<NewNode>& nn) override
     {
-        if (nn)  // ignore sync based putnodes
+        if (!nn.empty())  // ignore sync based putnodes
         {
             resultproc.processresult(PUTNODES, e);
-            delete[] nn;
         }
     }
 
@@ -2705,7 +2704,7 @@ GTEST_TEST(Sync, PutnodesForMultipleFolders)
     StandardClient standardclient(localtestroot, "PutnodesForMultipleFolders");
     ASSERT_TRUE(standardclient.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD", true));
 
-    NewNode* newnodes = new NewNode[4];
+    vector<NewNode> newnodes(4);
     
     standardclient.client.putnodes_prepareOneFolder(&newnodes[0], "folder1");
     standardclient.client.putnodes_prepareOneFolder(&newnodes[1], "folder2");
@@ -2721,7 +2720,7 @@ GTEST_TEST(Sync, PutnodesForMultipleFolders)
         putnodesDone = true;
     });
 
-    standardclient.client.putnodes(targethandle, newnodes, 4, nullptr);
+    standardclient.client.putnodes(targethandle, move(newnodes), nullptr);
     
     while (!putnodesDone)
     {

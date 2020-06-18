@@ -511,8 +511,7 @@ public:
 class MEGA_API CommandPutNodes : public Command
 {
     friend class MegaClient;
-    NewNode* nn;
-    int nnsize;
+    vector<NewNode> nn;
     targettype_t type;
     putsource_t source;
     bool emptyResponse = false;
@@ -524,7 +523,7 @@ public:
     void procresult() override;
     void procresultV3() override;
 
-    CommandPutNodes(MegaClient*, handle, const char*, NewNode*, int, int, putsource_t = PUTNODES_APP, const char *cauth = NULL);
+    CommandPutNodes(MegaClient*, handle, const char*, vector<NewNode>&&, int, putsource_t = PUTNODES_APP, const char *cauth = NULL);
 };
 
 class MEGA_API CommandSetAttr : public Command
@@ -582,6 +581,7 @@ class MEGA_API CommandSetPendingContact : public Command
 
 public:
     handle mActionpacketPcrHandle = UNDEF;
+    string messageForActionpacket;
 
     void procresult() override;
     void procresultV3() override;
@@ -891,16 +891,12 @@ public:
 #ifdef ENABLE_CHAT
 class MEGA_API CommandChatCreate : public Command
 {
-    unique_ptr<userpriv_vector> chatPeers;
+    userpriv_vector *chatPeers;
     bool mPublicChat;
     string mTitle;
     string mUnifiedKey;
 public:
-
-    handle mCreatedChatHandle = UNDEF;
-
-    void procresult() override;
-    void procresultV3() override;
+    void procresult();
 
     CommandChatCreate(MegaClient*, bool group, bool publicchat, const userpriv_vector*, const string_map *ukm = NULL, const char *title = NULL);
 };

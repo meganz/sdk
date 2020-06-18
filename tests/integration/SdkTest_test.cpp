@@ -277,7 +277,7 @@ void SdkTest::TearDown()
         for (int i = 0; i < crl->size(); i++)
         {
             MegaContactRequest *cr = crl->get(i);
-            megaApi[0]->inviteContact(cr->getTargetEmail(), "Removing you", MegaContactRequest::INVITE_ACTION_DELETE);
+            inviteContact(0, cr->getTargetEmail(), "Removing you", MegaContactRequest::INVITE_ACTION_DELETE);
         }
 
         releaseMegaApi(0);
@@ -844,9 +844,8 @@ void SdkTest::releaseMegaApi(unsigned int apiIndex)
     }
 }
 
-void SdkTest::inviteContact(string email, string message, int action)
+void SdkTest::inviteContact(unsigned apiIndex, string email, string message, int action)
 {
-    int apiIndex = 0;
     ASSERT_EQ(MegaError::API_OK, synchronousInviteContact(apiIndex, email.data(), message.data(), action)) << "Contact invitation failed";
 }
 
@@ -1635,7 +1634,7 @@ TEST_F(SdkTest, SdkTestContacts)
     string message = "Hi contact. This is a testing message";
 
     mApi[0].contactRequestUpdated = mApi[1].contactRequestUpdated = false;
-    ASSERT_NO_FATAL_FAILURE( inviteContact(mApi[1].email, message, MegaContactRequest::INVITE_ACTION_ADD) );
+    ASSERT_NO_FATAL_FAILURE( inviteContact(0, mApi[1].email, message, MegaContactRequest::INVITE_ACTION_ADD) );
     // if there were too many invitations within a short period of time, the invitation can be rejected by
     // the API with `API_EOVERQUOTA = -17` as counter spamming meassure (+500 invites in the last 50 days)
 
@@ -1698,7 +1697,7 @@ TEST_F(SdkTest, SdkTestContacts)
     message = "I don't wanna be your contact anymore";
 
     mApi[0].contactRequestUpdated = false;
-    ASSERT_NO_FATAL_FAILURE( inviteContact(mApi[1].email, message, MegaContactRequest::INVITE_ACTION_DELETE) );
+    ASSERT_NO_FATAL_FAILURE( inviteContact(0, mApi[1].email, message, MegaContactRequest::INVITE_ACTION_DELETE) );
     ASSERT_TRUE( waitForResponse(&mApi[0].contactRequestUpdated) )   // at the target side (auxiliar account), where the deletion is checked
             << "Contact request update not received after " << maxTimeout << " seconds";
 
@@ -1718,7 +1717,7 @@ TEST_F(SdkTest, SdkTestContacts)
     // --- Invite a new contact (again) ---
 
     mApi[1].contactRequestUpdated = false;
-    ASSERT_NO_FATAL_FAILURE( inviteContact(mApi[1].email, message, MegaContactRequest::INVITE_ACTION_ADD) );
+    ASSERT_NO_FATAL_FAILURE( inviteContact(0, mApi[1].email, message, MegaContactRequest::INVITE_ACTION_ADD) );
     ASSERT_TRUE( waitForResponse(&mApi[1].contactRequestUpdated) )   // at the target side (auxiliar account)
             << "Contact request creation not received after " << maxTimeout << " seconds";
 
@@ -1746,7 +1745,7 @@ TEST_F(SdkTest, SdkTestContacts)
     // --- Invite a new contact (again) ---
 
     mApi[1].contactRequestUpdated = false;
-    ASSERT_NO_FATAL_FAILURE( inviteContact(mApi[1].email, message, MegaContactRequest::INVITE_ACTION_ADD) );
+    ASSERT_NO_FATAL_FAILURE( inviteContact(0, mApi[1].email, message, MegaContactRequest::INVITE_ACTION_ADD) );
     ASSERT_TRUE( waitForResponse(&mApi[1].contactRequestUpdated) )   // at the target side (auxiliar account)
             << "Contact request creation not received after " << maxTimeout << " seconds";
 
@@ -2041,7 +2040,7 @@ TEST_F(SdkTest, SdkTestShares)
     string message = "Hi contact. Let's share some stuff";
 
     mApi[1].contactRequestUpdated = false;
-    ASSERT_NO_FATAL_FAILURE( inviteContact(mApi[1].email, message, MegaContactRequest::INVITE_ACTION_ADD) );
+    ASSERT_NO_FATAL_FAILURE( inviteContact(0, mApi[1].email, message, MegaContactRequest::INVITE_ACTION_ADD) );
     ASSERT_TRUE( waitForResponse(&mApi[1].contactRequestUpdated) )   // at the target side (auxiliar account)
             << "Contact request creation not received after " << maxTimeout << " seconds";
 
@@ -3300,7 +3299,7 @@ TEST_F(SdkTest, SdkTestChat)
     string message = "Hi contact. This is a testing message";
 
     mApi[1].contactRequestUpdated = false;
-    ASSERT_NO_FATAL_FAILURE( inviteContact(mApi[1].email, message, MegaContactRequest::INVITE_ACTION_ADD) );
+    ASSERT_NO_FATAL_FAILURE( inviteContact(0, mApi[1].email, message, MegaContactRequest::INVITE_ACTION_ADD) );
     ASSERT_TRUE( waitForResponse(&mApi[1].contactRequestUpdated) )   // at the target side (auxiliar account)
             << "Contact request update not received after " << maxTimeout << " seconds";    
     // if there were too many invitations within a short period of time, the invitation can be rejected by
@@ -3656,8 +3655,11 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
 
     MegaNode *nimported = megaApi[0]->getNodeByHandle(imported_file_handle);
 
-
+#ifdef WIN32
+    string filename = ".\cloudraid_downloaded_file.sdktest";
+    #else
     string filename = "./cloudraid_downloaded_file.sdktest";
+#endif
     deleteFile(filename.c_str());
 
     // plain cloudraid download
@@ -4506,7 +4508,6 @@ TEST_F(SdkTest, invalidFileNames)
         }
 
         char escapedName[4];
-        unsigned char c = i;
         sprintf(escapedName, "f%cf", i);
         const char *escapedFileName = megaApi[0]->escapeFsIncompatible(escapedName, uploadPath.u8string().c_str());
         if (escapedFileName && !strcmp(escapedName, escapedFileName))

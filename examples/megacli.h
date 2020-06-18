@@ -160,7 +160,7 @@ struct DemoApp : public MegaApp
 
     void fetchnodes_result(error) override;
 
-    void putnodes_result(error, targettype_t, NewNode*) override;
+    void putnodes_result(error, targettype_t, vector<NewNode>&) override;
 
     void share_result(error) override;
     void share_result(int, error) override;

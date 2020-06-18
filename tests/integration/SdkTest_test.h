@@ -259,7 +259,7 @@ public:
     void getMegaApiAux(unsigned index = 1);
     void releaseMegaApi(unsigned int apiIndex);
 
-    void inviteContact(string email, string message, int action);
+    void inviteContact(unsigned apiIndex, string email, string message, int action);
     void replyContact(MegaContactRequest *cr, int action);
     void removeContact(string email, int timeout = maxTimeout);
     void setUserAttribute(int type, string value, int timeout = maxTimeout);
