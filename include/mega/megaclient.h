@@ -786,7 +786,7 @@ public:
     string blockedfile;
 
     // stats id
-    static char* statsid;
+    static std::unique_ptr<std::string> statsid;
 
     // number of ongoing asynchronous fopen
     int asyncfopens;
@@ -1633,6 +1633,8 @@ public:
         CodeCounter::DurationSum transfersActiveTime;
         std::string report(bool reset, HttpIO* httpio, Waiter* waiter, const RequestDispatcher& reqs);
     } performanceStats;
+
+    std::string getDeviceid() const;
 
 #ifdef ENABLE_SYNC
     void resetSyncConfigs();
