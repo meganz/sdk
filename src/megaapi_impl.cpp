@@ -5698,7 +5698,7 @@ void MegaApiImpl::setStatsID(const char *id)
         return;
     }
 
-    MegaClient::statsid = MegaApi::strdup(id);
+    MegaClient::statsid = make_unique<std::string>(id);
 }
 
 bool MegaApiImpl::serverSideRubbishBinAutopurgeEnabled()

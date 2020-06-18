@@ -1704,22 +1704,7 @@ CommandLogin::CommandLogin(MegaClient* client, const char* email, const byte *em
         arg("sn", (byte*)&client->cachedscsn, sizeof client->cachedscsn);
     }
 
-    string id;
-    if (!MegaClient::statsid)
-    {
-        client->fsaccess->statsid(&id);
-        if (id.size())
-        {
-            size_t len = id.size() + 1;
-            char *buff = new char[len];
-            memcpy(buff, id.c_str(), len);
-            MegaClient::statsid = buff;
-        }
-    }
-    else
-    {
-        id = MegaClient::statsid;
-    }
+    string id = client->getDeviceid();
 
     if (id.size())
     {
