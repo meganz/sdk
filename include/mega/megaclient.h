@@ -180,6 +180,7 @@ public:
     dstime timeToTransfersResumed;
 };
 
+
 class MEGA_API MegaClient
 {
 public:
@@ -234,6 +235,8 @@ public:
 	
     // pseudo-random number generator
     PrnGen rng;
+
+    bool ephemeralSession = false;
 
     static string getPublicLink(bool newLinkFormat, nodetype_t type, handle ph, const char *key);
 
@@ -1190,6 +1193,10 @@ public:
 
     Node* nodebyhandle(handle);
     Node* nodebyfingerprint(FileFingerprint*);
+#ifdef ENABLE_SYNC
+    Node* nodebyfingerprint(LocalNode*);
+#endif /* ENABLE_SYNC */
+
     node_vector *nodesbyfingerprint(FileFingerprint* fingerprint);
     void nodesbyoriginalfingerprint(const char* fingerprint, Node* parent, node_vector *nv);
 
@@ -1383,7 +1390,7 @@ public:
     vector<Node*> childnodesbyname(Node*, const char*, bool = false);
 
     // purge account state and abort server-client connection
-    void purgenodesusersabortsc();
+    void purgenodesusersabortsc(bool keepOwnUser);
 
     static const int USERHANDLE = 8;
     static const int PCRHANDLE = 8;
@@ -1412,6 +1419,7 @@ public:
 
     // account access (full account): RSA private key
     AsymmCipher asymkey;
+    string mPrivKey;    // serialized version for apps
 
     // RSA public key
     AsymmCipher pubk;
@@ -1600,6 +1608,8 @@ public:
     // whether the destructor has started running yet
     bool destructorRunning = false;
   
+    MegaClientAsyncQueue mAsyncQueue;
+
     // Keep track of high level operation counts and times, for performance analysis
     struct PerformanceStats
     {
@@ -1626,7 +1636,7 @@ public:
     void resetSyncConfigs();
 #endif
 
-    MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
+    MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
     ~MegaClient();
 };
 } // namespace

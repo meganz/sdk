@@ -1769,6 +1769,10 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     {
         changed |= MegaUser::CHANGE_TYPE_ALIAS;
     }
+    if (user->changed.unshareablekey)
+    {
+        changed |= MegaUser::CHANGE_TYPE_UNSHAREABLE_KEY;
+    }
 }
 
 MegaUserPrivate::MegaUserPrivate(MegaUser *user) : MegaUser()
@@ -5030,22 +5034,22 @@ MegaTransferPrivate *MegaApiImpl::getMegaTransferPrivate(int tag)
 
 ExternalLogger MegaApiImpl::externalLogger;
 
-MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent)
+MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, unsigned workerThreadCount)
 {
-    init(api, appKey, processor, basePath, userAgent);
+    init(api, appKey, processor, basePath, userAgent, -1, workerThreadCount);
 }
 
-MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, const char *basePath, const char *userAgent)
+MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, const char *basePath, const char *userAgent, unsigned workerThreadCount)
 {
-    init(api, appKey, NULL, basePath, userAgent);
+    init(api, appKey, NULL, basePath, userAgent, -1, workerThreadCount);
 }
 
-MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, const char *basePath, const char *userAgent, int fseventsfd)
+MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, const char *basePath, const char *userAgent, int fseventsfd, unsigned workerThreadCount)
 {
-    init(api, appKey, NULL, basePath, userAgent, fseventsfd);
+    init(api, appKey, NULL, basePath, userAgent, fseventsfd, workerThreadCount);
 }
 
-void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, int fseventsfd)
+void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, int fseventsfd, unsigned clientWorkerThreadCount)
 {
     this->api = api;
 
@@ -5139,7 +5143,7 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     {
         this->appKey = appKey;
     }
-    client = new MegaClient(this, waiter, httpio, fsAccess, dbAccess, gfxAccess, appKey, userAgent);
+    client = new MegaClient(this, waiter, httpio, fsAccess, dbAccess, gfxAccess, appKey, userAgent, clientWorkerThreadCount);
 
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
     httpio->unlock();
@@ -5406,6 +5410,17 @@ void MegaApiImpl::resetCredentials(MegaUser *user, MegaRequestListener *listener
 
     requestQueue.push(request);
     waiter->notify();
+}
+
+char *MegaApiImpl::getMyRSAPrivateKey()
+{
+    SdkMutexGuard g(sdkMutex);
+    if (ISUNDEF(client->me) || client->mPrivKey.empty())
+    {
+        return nullptr;
+    }
+
+    return MegaApi::strdup(client->mPrivKey.c_str());
 }
 
 void MegaApiImpl::setLogLevel(int logLevel)
@@ -9946,7 +9961,7 @@ bool MegaApiImpl::isChatNotifiable(MegaHandle chatid)
             return true;
         }
 
-        return (!mPushSettings->isChatDndEnabled(chatid) && isGlobalNotifiable() && mPushSettings->isChatsEnabled());
+        return (!mPushSettings->isChatDndEnabled(chatid) && isGlobalNotifiable() && !mPushSettings->isGlobalChatsDndEnabled());
     }
 
     return true;
@@ -19788,6 +19803,12 @@ void MegaApiImpl::sendPendingRequests()
             const char *email = request->getEmail();
             User *u = client->finduser(email);
             if(!u || u->show == HIDDEN || u->userhandle == client->me) { e = API_EARGS; break; }
+            if (client->mBizMode == BIZ_MODE_SUBUSER && u->mBizMode != BIZ_MODE_UNKNOWN)
+            {
+                e = API_EMASTERONLY;
+                break;
+            }
+
             e = client->removecontact(email, HIDDEN);
             break;
         }
@@ -21311,7 +21332,8 @@ void MegaApiImpl::sendPendingRequests()
 
             if ((deviceType != MegaApi::PUSH_NOTIFICATION_ANDROID &&
                  deviceType != MegaApi::PUSH_NOTIFICATION_IOS_VOIP &&
-                 deviceType != MegaApi::PUSH_NOTIFICATION_IOS_STD)
+                 deviceType != MegaApi::PUSH_NOTIFICATION_IOS_STD &&
+                 deviceType != MegaApi::PUSH_NOTIFICATION_ANDROID_HUAWEI)
                     || token == NULL)
             {
                 e = API_EARGS;
@@ -23362,46 +23384,6 @@ bool ExternalInputStream::read(byte *buffer, unsigned size)
     return inputStream->read((char *)buffer, size);
 }
 
-
-FileInputStream::FileInputStream(FileAccess *fileAccess)
-{
-    this->fileAccess = fileAccess;
-    this->offset = 0;
-}
-
-m_off_t FileInputStream::size()
-{
-    return fileAccess->size;
-}
-
-bool FileInputStream::read(byte *buffer, unsigned size)
-{
-    if (!buffer)
-    {
-        if ((offset + size) <= fileAccess->size)
-        {
-            offset += size;
-            return true;
-        }
-
-        LOG_warn << "Invalid seek on FileInputStream";
-        return false;
-    }
-
-    if (fileAccess->frawread(buffer, size, offset, true))
-    {
-        offset += size;
-        return true;
-    }
-
-    LOG_warn << "Invalid read on FileInputStream";
-    return false;
-}
-
-FileInputStream::~FileInputStream()
-{
-
-}
 
 MegaTreeProcCopy::MegaTreeProcCopy(MegaClient *client)
 {
@@ -31948,7 +31930,7 @@ string MegaPushNotificationSettingsPrivate::generateJson() const
         json.append(",");
     }
 
-    if (mGlobalChatsDND > -1)
+    if (isGlobalChatsDndEnabled())
     {
         json.append("\"CHAT\":{\"dnd\":").append(std::to_string(mGlobalChatsDND)).append("}");
         json.append(",");
@@ -32003,7 +31985,7 @@ MegaPushNotificationSettingsPrivate::~MegaPushNotificationSettingsPrivate()
 
 bool MegaPushNotificationSettingsPrivate::isGlobalEnabled() const
 {
-    return (mGlobalDND == -1 || (mGlobalDND > 0 && mGlobalDND < m_time(NULL)));
+    return !isGlobalDndEnabled();
 }
 
 bool MegaPushNotificationSettingsPrivate::isGlobalDndEnabled() const
@@ -32011,9 +31993,24 @@ bool MegaPushNotificationSettingsPrivate::isGlobalDndEnabled() const
     return (mGlobalDND == 0 || mGlobalDND > m_time(NULL));
 }
 
+bool MegaPushNotificationSettingsPrivate::isChatsEnabled() const
+{
+    return !isGlobalChatsDndEnabled();
+}
+
+bool MegaPushNotificationSettingsPrivate::isGlobalChatsDndEnabled() const
+{
+    return (mGlobalChatsDND == 0 || mGlobalChatsDND > m_time(NULL));
+}
+
 int64_t MegaPushNotificationSettingsPrivate::getGlobalDnd() const
 {
     return mGlobalDND;
+}
+
+int64_t MegaPushNotificationSettingsPrivate::getGlobalChatsDnd() const
+{
+    return mGlobalChatsDND;
 }
 
 bool MegaPushNotificationSettingsPrivate::isGlobalScheduleEnabled() const
@@ -32038,9 +32035,7 @@ const char *mega::MegaPushNotificationSettingsPrivate::getGlobalScheduleTimezone
 
 bool MegaPushNotificationSettingsPrivate::isChatEnabled(MegaHandle chatid) const
 {
-    std::map<uint64_t, m_time_t>::const_iterator it = mChatDND.find(chatid);
-    m_time_t chatDND = (it != mChatDND.end()) ? it->second : -1;
-    return (chatDND == -1 || (chatDND > 0 && chatDND < m_time(NULL)));
+    return !isChatDndEnabled(chatid);
 }
 
 bool MegaPushNotificationSettingsPrivate::isChatDndEnabled(MegaHandle chatid) const
@@ -32077,11 +32072,6 @@ bool MegaPushNotificationSettingsPrivate::isSharesEnabled() const
     return (mSharesDND == -1 || (mSharesDND > 0 && mSharesDND < m_time(NULL)));
 }
 
-bool MegaPushNotificationSettingsPrivate::isChatsEnabled() const
-{
-    return (mGlobalChatsDND == -1 || (mGlobalChatsDND > 0 && mGlobalChatsDND < m_time(NULL)));
-}
-
 MegaPushNotificationSettings *MegaPushNotificationSettingsPrivate::copy() const
 {
     return new MegaPushNotificationSettingsPrivate(this);
@@ -32089,7 +32079,7 @@ MegaPushNotificationSettings *MegaPushNotificationSettingsPrivate::copy() const
 
 void MegaPushNotificationSettingsPrivate::enableGlobal(bool enable)
 {
-    if (isGlobalEnabled() == enable)
+    if (!isGlobalDndEnabled() == enable)
     {
         return;
     }
@@ -32100,16 +32090,17 @@ void MegaPushNotificationSettingsPrivate::enableGlobal(bool enable)
 void MegaPushNotificationSettingsPrivate::setGlobalDnd(int64_t timestamp)
 {
     assert(timestamp > 0);
-    if (!isGlobalEnabled())
+    if (isGlobalDndEnabled())
     {
-        LOG_warn << "setGlobalDnd(): global notifications were disabled. Now are enabled";
+        LOG_warn << "setGlobalDnd(): global notifications are currently disabled."
+                    " Setting a new time period for DND mode";
     }
     mGlobalDND = timestamp;
 }
 
 void MegaPushNotificationSettingsPrivate::disableGlobalDnd()
 {
-    if (!isGlobalEnabled())
+    if (isGlobalDndEnabled())
     {
         LOG_warn << "disableGlobalDnd(): global notifications were disabled. Now are enabled";
     }
@@ -32140,7 +32131,7 @@ void MegaPushNotificationSettingsPrivate::disableGlobalSchedule()
 void MegaPushNotificationSettingsPrivate::enableChat(MegaHandle chatid, bool enable)
 {
     assert(!ISUNDEF(chatid));
-    if (isChatEnabled(chatid) == enable)
+    if (!isChatDndEnabled(chatid) == enable)
     {
         return;
     }
@@ -32173,14 +32164,25 @@ void MegaPushNotificationSettingsPrivate::setChatDnd(MegaHandle chatid, int64_t 
     mChatDND[chatid] = timestamp;
 }
 
+void MegaPushNotificationSettingsPrivate::setGlobalChatsDnd(int64_t timestamp)
+{
+    assert(timestamp > 0);
+    if (isGlobalChatsDndEnabled())
+    {
+        LOG_warn << "setChatsDnd(): global chats notifications are currently disabled."
+                    " Setting a new time period for chats DND mode";
+    }
+    mGlobalChatsDND = timestamp;
+}
+
 void MegaPushNotificationSettingsPrivate::enableChatAlwaysNotify(MegaHandle chatid, bool enable)
 {
     assert(!ISUNDEF(chatid));
     if (enable)
     {
-        if (!isChatEnabled(chatid) || isChatDndEnabled(chatid))
+        if (isChatDndEnabled(chatid))
         {
-            LOG_warn << "enableChatAlwaysNotify(): notifications are now enabled, DND mode is disabled";
+            LOG_warn << "enableChatAlwaysNotify(): notifications are now disabled, DND mode is enabled";
             enableChat(chatid, true);
         }
 

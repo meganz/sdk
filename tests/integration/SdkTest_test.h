@@ -116,6 +116,7 @@ public:
         string email;
         string pwd;
         int lastError;
+        int lastTransferError;
         
         // flags to monitor the completion of requests/transfers
         bool requestFlags[MegaRequest::TOTAL_OF_REQUEST_TYPES];
@@ -151,6 +152,7 @@ public:
 
     m_off_t onTransferUpdate_progress;
     m_off_t onTransferUpdate_filesize;
+    unsigned onTranferFinishedCount = 0;
 
     std::mutex lastEventMutex;
     std::unique_ptr<MegaEvent> lastEvent;
@@ -205,6 +207,7 @@ public:
 
     // convenience functions - template args just make it easy to code, no need to copy all the exact argument types with listener defaults etc. To add a new one, just copy a line and change the flag and the function called.
     template<typename ... Args> int synchronousStartUpload(unsigned apiIndex, Args... args) { synchronousTransfer(apiIndex, MegaTransfer::TYPE_UPLOAD, [this, apiIndex, args...]() { megaApi[apiIndex]->startUpload(args...); }); return mApi[apiIndex].lastError; }
+    template<typename ... Args> int synchronousStartDownload(unsigned apiIndex, Args... args) { synchronousTransfer(apiIndex, MegaTransfer::TYPE_DOWNLOAD, [this, apiIndex, args...]() { megaApi[apiIndex]->startDownload(args...); }); return mApi[apiIndex].lastTransferError; }
     template<typename ... Args> int synchronousCatchup(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_CATCHUP, [this, apiIndex, args...]() { megaApi[apiIndex]->catchup(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousCreateAccount(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_CREATE_ACCOUNT, [this, apiIndex, args...]() { megaApi[apiIndex]->createAccount(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousResumeCreateAccount(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_CREATE_ACCOUNT, [this, apiIndex, args...]() { megaApi[apiIndex]->resumeCreateAccount(args...); }); return mApi[apiIndex].lastError; }

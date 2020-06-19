@@ -23,6 +23,7 @@
 #include "mega/mediafileattribute.h"
 #include <cctype>
 #include <algorithm>
+#include <future>
 
 #undef min // avoid issues with std::min and std::max
 #undef max
@@ -33,6 +34,7 @@ namespace mega {
 // FIXME: support invite links (including responding to sharekey requests)
 // FIXME: instead of copying nodes, move if the source is in the rubbish to reduce node creation load on the servers
 // FIXME: prevent synced folder from being moved into another synced folder
+
 
 bool MegaClient::disablepkp = false;
 
@@ -1080,11 +1082,12 @@ void MegaClient::init()
     mNodeCounters = NodeCounterMap();
 }
 
-MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, DbAccess* d, GfxProc* g, const char* k, const char* u)
+MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, DbAccess* d, GfxProc* g, const char* k, const char* u, unsigned workerThreadCount)
     : useralerts(*this), btugexpiration(rng), btcs(rng), btbadhost(rng), btworkinglock(rng), btsc(rng), btpfa(rng)
 #ifdef ENABLE_SYNC
     ,syncfslockretrybt(rng), syncdownbt(rng), syncnaglebt(rng), syncextrabt(rng), syncscanbt(rng)
 #endif
+    , mAsyncQueue(*w, workerThreadCount)
 {
     sctable = NULL;
     pendingsccommit = false;
@@ -1114,6 +1117,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     loggedout = false;
     cachedug = false;
     minstreamingrate = -1;
+    ephemeralSession = false;
 
 #ifndef EMSCRIPTEN
     autodownport = true;
@@ -1363,7 +1367,7 @@ void MegaClient::exec()
             while (it != pendinghttp.end())
             {
                 GenericHttpReq *req = it->second;
-                switch (req->status)
+                switch (static_cast<reqstatus_t>(req->status))
                 {
                 case REQ_FAILURE:
                     if (!req->httpstatus && (!req->maxretries || (req->numretry + 1) < req->maxretries))
@@ -1438,7 +1442,7 @@ void MegaClient::exec()
                     fa->progressreported = p;
                 }
 
-                switch (fa->status)
+                switch (static_cast<reqstatus_t>(fa->status))
                 {
                     case REQ_SUCCESS:
                         if (fa->in.size() == sizeof(handle))
@@ -1574,7 +1578,7 @@ void MegaClient::exec()
                 fc = cit->second;
 
                 // is this request currently in flight?
-                switch (fc->req.status)
+                switch (static_cast<reqstatus_t>(fc->req.status))
                 {
                     case REQ_SUCCESS:
                         if (fc->req.contenttype.find("text/html") != string::npos
@@ -1680,7 +1684,7 @@ void MegaClient::exec()
                     performanceStats.csRequestWaitTime.stop();
                 }
 
-                switch (pendingcs->status)
+                switch (static_cast<reqstatus_t>(pendingcs->status))
                 {
                     case REQ_READY:
                         break;
@@ -1915,7 +1919,7 @@ void MegaClient::exec()
         // handle the request for the last 50 UserAlerts
         if (pendingscUserAlerts)
         {
-            switch (pendingscUserAlerts->status)
+            switch (static_cast<reqstatus_t>(pendingscUserAlerts->status))
             {
             case REQ_SUCCESS:
                 if (*pendingscUserAlerts->in.c_str() == '{')
@@ -1963,7 +1967,7 @@ void MegaClient::exec()
         // handle API server-client requests
         if (!jsonsc.pos && !pendingscUserAlerts && pendingsc && !loggingout)
         {
-            switch (pendingsc->status)
+            switch (static_cast<reqstatus_t>(pendingsc->status))
             {
             case REQ_SUCCESS:
                 pendingscTimedOut = false;
@@ -3412,7 +3416,7 @@ void MegaClient::dispatchTransfers()
                     // generate fresh random encryption key/CTR IV for this file
                     byte keyctriv[SymmCipher::KEYLENGTH + sizeof(int64_t)];
                     rng.genblock(keyctriv, sizeof keyctriv);
-                    memcpy(nexttransfer->transferkey, keyctriv, SymmCipher::KEYLENGTH);
+                    memcpy(nexttransfer->transferkey.data(), keyctriv, SymmCipher::KEYLENGTH);
                     nexttransfer->ctriv = MemAccess::get<uint64_t>((const char*)keyctriv + SymmCipher::KEYLENGTH);
                 }
                 else
@@ -3446,8 +3450,8 @@ void MegaClient::dispatchTransfers()
 
                         if (k)
                         {
-                            memcpy(nexttransfer->transferkey, k, SymmCipher::KEYLENGTH);
-                            SymmCipher::xorblock(k + SymmCipher::KEYLENGTH, nexttransfer->transferkey);
+                            memcpy(nexttransfer->transferkey.data(), k, SymmCipher::KEYLENGTH);
+                            SymmCipher::xorblock(k + SymmCipher::KEYLENGTH, nexttransfer->transferkey.data());
                             nexttransfer->ctriv = MemAccess::get<int64_t>((const char*)k + SymmCipher::KEYLENGTH);
                             nexttransfer->metamac = MemAccess::get<int64_t>((const char*)k + SymmCipher::KEYLENGTH + sizeof(int64_t));
                             break;
@@ -3902,6 +3906,8 @@ void MegaClient::logout()
 
 void MegaClient::locallogout(bool removecaches)
 {
+    mAsyncQueue.clearDiscardable();
+
     if (removecaches)
     {
         removeCaches();
@@ -3932,6 +3938,7 @@ void MegaClient::locallogout(bool removecaches)
     loggedout = false;
     cachedug = false;
     minstreamingrate = -1;
+    ephemeralSession = false;
 #ifdef USE_MEDIAINFO
     mediaFileInfo = MediaFileInfo();
 #endif
@@ -3942,7 +3949,7 @@ void MegaClient::locallogout(bool removecaches)
     disconnect();
     closetc();
 
-    purgenodesusersabortsc();
+    purgenodesusersabortsc(false);
 
     reqs.clear();
 
@@ -4010,7 +4017,11 @@ void MegaClient::locallogout(bool removecaches)
     resetKeyring();
 
     key.setkey(SymmCipher::zeroiv);
+    tckey.setkey(SymmCipher::zeroiv);
     asymkey.resetkey();
+    mPrivKey.clear();
+    pubk.resetkey();
+    resetKeyring();
     memset((char*)auth.c_str(), 0, auth.size());
     auth.clear();
     sessionkey.clear();
@@ -8145,6 +8156,7 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
         m_time_t ts = 0;
         const char* m = NULL;
         nameid name;
+        BizMode bizMode = BIZ_MODE_UNKNOWN;
 
         while ((name = j->getnameid()) != EOO)
         {
@@ -8165,6 +8177,31 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
                 case MAKENAMEID2('t', 's'):
                     ts = j->getint();
                     break;
+
+                case 'b':
+                {
+                    if (j->enterobject())
+                    {
+                        nameid businessName;
+                        while ((businessName = j->getnameid()) != EOO)
+                        {
+                            switch (businessName)
+                            {
+                                case 'm':
+                                    bizMode = static_cast<BizMode>(j->getint());
+                                    break;
+                                default:
+                                    if (!j->storeobject())
+                                        return false;
+                                    break;
+                            }
+                        }
+
+                        j->leaveobject();
+                    }
+
+                    break;
+                }
 
                 default:
                     if (!j->storeobject())
@@ -8198,6 +8235,8 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
             {
                 const string oldEmail = u->email;
                 mapuser(uh, m);
+
+                u->mBizMode = bizMode;
 
                 if (v != VISIBILITY_UNKNOWN)
                 {
@@ -10484,9 +10523,7 @@ sessiontype_t MegaClient::loggedin()
         return NOTLOGGEDIN;
     }
 
-    User* u = finduser(me);
-
-    if (u && !u->email.size())
+    if (ephemeralSession)
     {
         return EPHEMERALACCOUNT;
     }
@@ -10587,6 +10624,7 @@ error MegaClient::changepw(const char* password, const char *pin)
 // create ephemeral session
 void MegaClient::createephemeral()
 {
+    ephemeralSession = true;
     byte keybuf[SymmCipher::KEYLENGTH];
     byte pwbuf[SymmCipher::KEYLENGTH];
     byte sscbuf[2 * SymmCipher::KEYLENGTH];
@@ -10606,6 +10644,7 @@ void MegaClient::createephemeral()
 
 void MegaClient::resumeephemeral(handle uh, const byte* pw, int ctag)
 {
+    ephemeralSession = true;
     reqs.add(new CommandResumeEphemeralSession(this, uh, pw, ctag ? ctag : reqtag));
 }
 
@@ -10842,6 +10881,7 @@ void MegaClient::closetc(bool remove)
 
     for (int d = GET; d == GET || d == PUT; d += PUT - GET)
     {
+        DBTableTransactionCommitter committer(tctable);
         while (cachedtransfers[d].size())
         {
             transfer_map::iterator it = cachedtransfers[d].begin();
@@ -11053,41 +11093,6 @@ void MegaClient::fetchnodes(bool nocache)
 #endif
         app->fetchnodes_result(API_OK);
 
-        // if don't know fileversioning is enabled or disabled...
-        // (it can happen after AP invalidates the attribute, but app is closed before current value is retrieved and cached)
-        User *ownUser = finduser(me);
-        const string *av = ownUser->getattr(ATTR_DISABLE_VERSIONS);
-        if (av)
-        {
-            if (ownUser->isattrvalid((ATTR_DISABLE_VERSIONS)))
-            {
-                versions_disabled = !strcmp(av->c_str(), "1");
-                if (versions_disabled)
-                {
-                    LOG_info << "File versioning is disabled";
-                }
-                else
-                {
-                    LOG_info << "File versioning is enabled";
-                }
-            }
-            else
-            {
-                getua(ownUser, ATTR_DISABLE_VERSIONS, 0);
-                LOG_info << "File versioning option exist but is unknown. Fetching...";
-            }
-        }
-        else    // attribute does not exists
-        {
-            LOG_info << "File versioning is enabled";
-            versions_disabled = false;
-        }
-
-        av = ownUser->getattr(ATTR_PUSH_SETTINGS);
-        if (av && !ownUser->isattrvalid(ATTR_PUSH_SETTINGS))
-        {
-            getua(ownUser, ATTR_PUSH_SETTINGS);
-        }
         loadAuthrings();
 
         WAIT_CLASS::bumpds();
@@ -11121,20 +11126,15 @@ void MegaClient::fetchnodes(bool nocache)
 
         if (!loggedinfolderlink())
         {
+            getuserdata();
+
             if (loggedin() == FULLACCOUNT)
             {
                 fetchkeys();
                 loadAuthrings();
             }
-            if (!k.size())
-            {
-                getuserdata();
-            }
-
-            reqs.add(new CommandGetUA(this, uid.c_str(), ATTR_DISABLE_VERSIONS, NULL, 0));
 
             fetchtimezone();
-            reqs.add(new CommandGetUA(this, uid.c_str(), ATTR_PUSH_SETTINGS, NULL, 0));
         }
 
         reqs.add(new CommandFetchNodes(this, nocache));
@@ -11149,10 +11149,7 @@ void MegaClient::fetchkeys()
     discarduser(me);
     User *u = finduser(me, 1);
 
-    int creqtag = reqtag;
-    reqtag = 0;
-    reqs.add(new CommandPubKeyRequest(this, u));    // public RSA
-    reqtag = creqtag;
+    // RSA public key is retrieved by getuserdata
 
     getua(u, ATTR_KEYRING, 0);        // private Cu25519 & private Ed25519
     getua(u, ATTR_ED25519_PUBK, 0);
@@ -11833,7 +11830,7 @@ bool MegaClient::areCredentialsVerified(handle uh)
     return false;
 }
 
-void MegaClient::purgenodesusersabortsc()
+void MegaClient::purgenodesusersabortsc(bool keepOwnUser)
 {
     app->clearing();
 
@@ -11884,7 +11881,6 @@ void MegaClient::purgenodesusersabortsc()
     }
 
     newshares.clear();
-
     nodenotify.clear();
     usernotify.clear();
     pcrnotify.clear();
@@ -11902,7 +11898,7 @@ void MegaClient::purgenodesusersabortsc()
     for (user_map::iterator it = users.begin(); it != users.end(); )
     {
         User *u = &(it->second);
-        if (u->userhandle != me || u->userhandle == UNDEF)
+        if ((!keepOwnUser || u->userhandle != me) || u->userhandle == UNDEF)
         {
             umindex.erase(u->email);
             uhindex.erase(u->userhandle);
@@ -11910,8 +11906,13 @@ void MegaClient::purgenodesusersabortsc()
         }
         else
         {
+            // if there are changes to notify, restore the notification in the queue
+            if (u->notified)
+            {
+                usernotify.push_back(u);
+            }
+
             u->dbid = 0;
-            u->notified = false;
             it++;
         }
     }
@@ -14011,6 +14012,64 @@ Node* MegaClient::nodebyfingerprint(FileFingerprint* fingerprint)
 {
     return mFingerprints.nodebyfingerprint(fingerprint);
 }
+
+#ifdef ENABLE_SYNC
+Node* MegaClient::nodebyfingerprint(LocalNode* localNode)
+{
+    std::unique_ptr<const node_vector>
+      remoteNodes(mFingerprints.nodesbyfingerprint(localNode));
+
+    if (remoteNodes->empty())
+        return nullptr;
+
+    std::string localName = localNode->localname;
+    fsaccess->local2name(&localName);
+    
+    // Only compare metamac if the node doesn't already exist.
+    node_vector::const_iterator remoteNode =
+      std::find_if(remoteNodes->begin(),
+                   remoteNodes->end(),
+                   [&](const Node *remoteNode) -> bool
+                   {
+                       return localName == remoteNode->displayname();
+                   });
+
+    if (remoteNode != remoteNodes->end())
+        return *remoteNode;
+
+    remoteNode = remoteNodes->begin();
+
+    // Compare the local file's metamac against a random candidate.
+    // 
+    // If we're unable to generate the metamac, fail in such a way that
+    // guarantees safe behavior.
+    // 
+    // That is, treat both nodes as distinct until we're absolutely certain
+    // they are identical.
+    auto ifAccess = fsaccess->newfileaccess();
+    std::string localPath;
+
+    localNode->getlocalpath(&localPath);
+
+    if (!ifAccess->fopen(&localPath, true, false))
+        return nullptr;
+
+    std::string remoteKey = (*remoteNode)->nodekey();
+    const char *iva = &remoteKey[SymmCipher::KEYLENGTH];
+
+    SymmCipher cipher;
+    cipher.setkey((byte*)&remoteKey[0], (*remoteNode)->type);
+
+    int64_t remoteIv = MemAccess::get<int64_t>(iva);
+    int64_t remoteMac = MemAccess::get<int64_t>(iva + sizeof(int64_t));
+
+    auto result = generateMetaMac(cipher, *ifAccess, remoteIv);
+    if (!result.first || result.second != remoteMac)
+        return nullptr;
+
+    return *remoteNode;
+}
+#endif /* ENABLE_SYNC */
 
 node_vector *MegaClient::nodesbyfingerprint(FileFingerprint* fingerprint)
 {
