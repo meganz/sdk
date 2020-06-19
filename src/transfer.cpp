@@ -107,11 +107,15 @@ Transfer::~Transfer()
         (*it)->terminated();
     }
 
-    if (transfers_it != client->transfers[type].end())
+    if (!mOptimizedDelete)
     {
-        client->transfers[type].erase(transfers_it);
+        if (transfers_it != client->transfers[type].end())
+        {
+            client->transfers[type].erase(transfers_it);
+        }
+
+        client->transferlist.removetransfer(this);
     }
-    client->transferlist.removetransfer(this);
 
     if (slot)
     {
@@ -375,7 +379,7 @@ void Transfer::removeTransferFile(error e, File* f, DBTableTransactionCommitter*
 
 // transfer attempt failed, notify all related files, collect request on
 // whether to abort the transfer, kill transfer if unanimous
-void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime timeleft)
+void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, dstime timeleft)
 {
     bool defer = false;
 
@@ -416,7 +420,7 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
             }
         }
     }
-    else if (e == API_EARGS || (e == API_EBLOCKED && type == GET))
+    else if (e == API_EARGS || (e == API_EBLOCKED && type == GET) || (e == API_ETOOMANY && type == GET && e.hasExtraInfo()))
     {
         client->app->transfer_failed(this, e);
     }
@@ -446,7 +450,7 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
          * the actionpacket will eventually remove the target and the sync-engine will force to
          * disable the synchronization of the folder. For non-sync-transfers, remove the file directly.
          */
-        if (e == API_EARGS || (e == API_EBLOCKED && type == GET))
+        if (e == API_EARGS || (e == API_EBLOCKED && type == GET) || (e == API_ETOOMANY && type == GET && e.hasExtraInfo()))
         {
              File *f = (*it++);
              if (f->syncxfer && e == API_EARGS)
@@ -1158,7 +1162,7 @@ void DirectReadNode::dispatch()
 }
 
 // abort all active reads, remove pending reads and reschedule with app-supplied backoff
-void DirectReadNode::retry(error e, dstime timeleft)
+void DirectReadNode::retry(const Error& e, dstime timeleft)
 {
     if (reads.empty())
     {
@@ -1186,7 +1190,7 @@ void DirectReadNode::retry(error e, dstime timeleft)
         {
             dstime retryds = client->app->pread_failure(e, retries, (*it)->appdata, timeleft);
 
-            if (retryds < minretryds)
+            if (retryds < minretryds && !(e == API_ETOOMANY && e.hasExtraInfo()))
             {
                 minretryds = retryds;
             }
@@ -1226,7 +1230,7 @@ void DirectReadNode::retry(error e, dstime timeleft)
     }
 }
 
-void DirectReadNode::cmdresult(error e, dstime timeleft)
+void DirectReadNode::cmdresult(const Error &e, dstime timeleft)
 {
     pendingcmd = NULL;
 
@@ -1590,9 +1594,9 @@ DirectReadSlot::~DirectReadSlot()
     }
 }
 
-bool priority_comparator(Transfer* i, Transfer *j)
+bool priority_comparator(const LazyEraseTransferPtr& i, const LazyEraseTransferPtr& j)
 {
-    return (i->priority < j->priority);
+    return (i.transfer ? i.transfer->priority : i.preErasurePriority) < (j.transfer ? j.transfer->priority : j.preErasurePriority);
 }
 
 TransferList::TransferList()
@@ -1612,7 +1616,7 @@ void TransferList::addtransfer(Transfer *transfer, DBTableTransactionCommitter& 
         if (startFirst && transfers[transfer->type].size())
         {
             transfer_list::iterator dstit = transfers[transfer->type].begin();
-            transfer->priority = (*dstit)->priority - PRIORITY_STEP;
+            transfer->priority = dstit->transfer->priority - PRIORITY_STEP;
             prepareIncreasePriority(transfer, transfers[transfer->type].end(), dstit, committer);
             transfers[transfer->type].push_front(transfer);
         }
@@ -1628,16 +1632,16 @@ void TransferList::addtransfer(Transfer *transfer, DBTableTransactionCommitter& 
     }
     else
     {
-        transfer_list::iterator it = std::lower_bound(transfers[transfer->type].begin(), transfers[transfer->type].end(), transfer, priority_comparator);
-        assert(it == transfers[transfer->type].end() || (*it)->priority != transfer->priority);
+        transfer_list::iterator it = std::lower_bound(transfers[transfer->type].begin(), transfers[transfer->type].end(), LazyEraseTransferPtr(transfer), priority_comparator);
+        assert(it == transfers[transfer->type].end() || it->transfer->priority != transfer->priority);
         transfers[transfer->type].insert(it, transfer);
     }
 }
 
 void TransferList::removetransfer(Transfer *transfer)
 {
-    transfer_list::iterator it = iterator(transfer);
-    if (it != transfers[transfer->type].end())
+    transfer_list::iterator it;
+    if (getIterator(transfer, it, true))
     {
         transfers[transfer->type].erase(it);
     }
@@ -1645,22 +1649,15 @@ void TransferList::removetransfer(Transfer *transfer)
 
 void TransferList::movetransfer(Transfer *transfer, Transfer *prevTransfer, DBTableTransactionCommitter& committer)
 {
-    transfer_list::iterator dstit = iterator(prevTransfer);
-    if (dstit == transfers[prevTransfer->type].end())
+    transfer_list::iterator dstit;
+    if (getIterator(prevTransfer, dstit))
     {
-        return;
+        movetransfer(transfer, dstit, committer);
     }
-    movetransfer(transfer, dstit, committer);
 }
 
 void TransferList::movetransfer(Transfer *transfer, unsigned int position, DBTableTransactionCommitter& committer)
 {
-    transfer_list::iterator it = iterator(transfer);
-    if (it == transfers[transfer->type].end())
-    {
-        return;
-    }
-
     transfer_list::iterator dstit;
     if (position >= transfers[transfer->type].size())
     {
@@ -1671,17 +1668,20 @@ void TransferList::movetransfer(Transfer *transfer, unsigned int position, DBTab
         dstit = transfers[transfer->type].begin() + position;
     }
 
-    movetransfer(it, dstit, committer);
+    transfer_list::iterator it;
+    if (getIterator(transfer, it))
+    {
+        movetransfer(it, dstit, committer);
+    }
 }
 
 void TransferList::movetransfer(Transfer *transfer, transfer_list::iterator dstit, DBTableTransactionCommitter& committer)
 {
-    transfer_list::iterator it = iterator(transfer);
-    if (it == transfers[transfer->type].end())
+    transfer_list::iterator it;
+    if (getIterator(transfer, it))
     {
-        return;
+        movetransfer(it, dstit, committer);
     }
-    movetransfer(it, dstit, committer);
 }
 
 void TransferList::movetransfer(transfer_list::iterator it, transfer_list::iterator dstit, DBTableTransactionCommitter& committer)
@@ -1721,11 +1721,11 @@ void TransferList::movetransfer(transfer_list::iterator it, transfer_list::itera
     uint64_t prevpriority = 0;
     uint64_t nextpriority = 0;
 
-    nextpriority = (*dstit)->priority;
+    nextpriority = dstit->transfer->priority;
     if (dstit != transfers[transfer->type].begin())
     {
         transfer_list::iterator previt = dstit - 1;
-        prevpriority = (*previt)->priority;
+        prevpriority = previt->transfer->priority;
     }
     else
     {
@@ -1765,7 +1765,7 @@ void TransferList::movetransfer(transfer_list::iterator it, transfer_list::itera
 
     transfers[transfer->type].erase(it);
     transfer_list::iterator fit = transfers[transfer->type].begin() + dstindex;
-    assert(fit == transfers[transfer->type].end() || (*fit)->priority != transfer->priority);
+    assert(fit == transfers[transfer->type].end() || fit->transfer->priority != transfer->priority);
     transfers[transfer->type].insert(fit, transfer);
     client->transfercacheadd(transfer, &committer);
     client->app->transfer_update(transfer);
@@ -1795,18 +1795,21 @@ void TransferList::movetolast(transfer_list::iterator it, DBTableTransactionComm
 
 void TransferList::moveup(Transfer *transfer, DBTableTransactionCommitter& committer)
 {
-    transfer_list::iterator it = iterator(transfer);
-    if (it == transfers[transfer->type].begin())
+    transfer_list::iterator it;
+    if (getIterator(transfer, it))
     {
-        return;
+        if (it == transfers[transfer->type].begin())
+        {
+            return;
+        }
+        transfer_list::iterator dstit = it - 1;
+        movetransfer(it, dstit, committer);
     }
-    transfer_list::iterator dstit = it - 1;
-    movetransfer(it, dstit, committer);
 }
 
 void TransferList::moveup(transfer_list::iterator it, DBTableTransactionCommitter& committer)
 {
-    if (it == transfers[(*it)->type].begin())
+    if (it == transfers[it->transfer->type].begin())
     {
         return;
     }
@@ -1817,25 +1820,24 @@ void TransferList::moveup(transfer_list::iterator it, DBTableTransactionCommitte
 
 void TransferList::movedown(Transfer *transfer, DBTableTransactionCommitter& committer)
 {
-    transfer_list::iterator it = iterator(transfer);
-    if (it == transfers[transfer->type].end())
+    transfer_list::iterator it;
+    if (getIterator(transfer, it))
     {
-        return;
-    }
 
-    transfer_list::iterator dstit = it + 1;
-    if (dstit == transfers[transfer->type].end())
-    {
-        return;
-    }
+        transfer_list::iterator dstit = it + 1;
+        if (dstit == transfers[transfer->type].end())
+        {
+            return;
+        }
 
-    dstit++;
-    movetransfer(it, dstit, committer);
+        dstit++;
+        movetransfer(it, dstit, committer);
+    }
 }
 
 void TransferList::movedown(transfer_list::iterator it, DBTableTransactionCommitter& committer)
 {
-    if (it == transfers[(*it)->type].end())
+    if (it == transfers[it->transfer->type].end())
     {
         return;
     }
@@ -1859,9 +1861,14 @@ error TransferList::pause(Transfer *transfer, bool enable, DBTableTransactionCom
 
     if (!enable)
     {
-        transfer_list::iterator it = iterator(transfer);
         transfer->state = TRANSFERSTATE_QUEUED;
-        prepareIncreasePriority(transfer, it, it, committer);
+
+        transfer_list::iterator it;
+        if (getIterator(transfer, it))
+        {
+            prepareIncreasePriority(transfer, it, it, committer);
+        }
+
         client->transfercacheadd(transfer, &committer);
         client->app->transfer_update(transfer);
         return API_OK;
@@ -1889,31 +1896,31 @@ error TransferList::pause(Transfer *transfer, bool enable, DBTableTransactionCom
     return API_EFAILED;
 }
 
-transfer_list::iterator TransferList::begin(direction_t direction)
+auto TransferList::begin(direction_t direction) -> transfer_list::iterator
 {
     return transfers[direction].begin();
 }
 
-transfer_list::iterator TransferList::end(direction_t direction)
+auto TransferList::end(direction_t direction) -> transfer_list::iterator 
 {
     return transfers[direction].end();
 }
 
-transfer_list::iterator TransferList::iterator(Transfer *transfer)
+bool TransferList::getIterator(Transfer *transfer, transfer_list::iterator& it, bool canHandleErasedElements) 
 {
     if (!transfer)
     {
         LOG_err << "Getting iterator of a NULL transfer";
-        return transfer_list::iterator();
+        return false;
     }
 
-    transfer_list::iterator it = std::lower_bound(transfers[transfer->type].begin(), transfers[transfer->type].end(), transfer, priority_comparator);
-    if (it != transfers[transfer->type].end() && (*it) == transfer)
+    it = std::lower_bound(transfers[transfer->type].begin(canHandleErasedElements), transfers[transfer->type].end(canHandleErasedElements), LazyEraseTransferPtr(transfer), priority_comparator);
+    if (it != transfers[transfer->type].end(canHandleErasedElements) && it->transfer == transfer)
     {
-        return it;
+        return true;
     }
     LOG_debug << "Transfer not found";
-    return transfers[transfer->type].end();
+    return false;
 }
 
 std::array<vector<Transfer*>, 6> TransferList::nexttransfers(std::function<bool(Transfer*)>& continuefunction)
@@ -2014,7 +2021,7 @@ void TransferList::prepareDecreasePriority(Transfer *transfer, transfer_list::it
         transfer_list::iterator cit = it + 1;
         while (cit != transfers[transfer->type].end())
         {
-            if (!(*cit)->slot && isReady(*cit))
+            if (!cit->transfer->slot && isReady(*cit))
             {
                 if (transfer->client->ststatus != STORAGE_RED || transfer->type == GET)
                 {

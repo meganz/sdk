@@ -25,6 +25,7 @@
 #include <type_traits>
 #include <condition_variable>
 #include <thread>
+#include <mutex>
 
 #include "types.h"
 #include "mega/logging.h"
@@ -354,6 +355,13 @@ public:
     static bool utf8toUnicode(const uint8_t *src, unsigned srclen, string *result);
 
     /**
+     * @brief Determines size in bytes of a valid UTF-8 sequence.
+     * @param c first character of UTF-8 sequence
+     * @return the size of UTF-8 sequence if its valid, otherwise returns 0
+     */
+    static size_t utf8SequenceSize(unsigned char c);
+
+    /**
      * @brief This function is analogous to a32_to_str in js version.
      * Converts a vector of <T> elements into a std::string
      *
@@ -508,8 +516,8 @@ std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &
 // immediately executed synchronously on the caller's thread
 struct MegaClientAsyncQueue
 {
-    void push(std::function<void(SymmCipher&)> f);
-    void clearQueue();
+    void push(std::function<void(SymmCipher&)> f, bool discardable);
+    void clearDiscardable();
 
     MegaClientAsyncQueue(Waiter& w, unsigned threadCount);
     ~MegaClientAsyncQueue();
@@ -518,12 +526,86 @@ private:
     Waiter& mWaiter;
     std::mutex mMutex;
     std::condition_variable mConditionVariable;
-    std::deque<std::function<void(SymmCipher&)>> mQueue;
+    
+    struct Entry
+    {
+        bool discardable = false;
+        std::function<void(SymmCipher&)> f;
+        Entry(bool disc, std::function<void(SymmCipher&)>&& func)
+             : discardable(disc), f(func)
+        {}
+    };
+
+    std::deque<Entry> mQueue;
     std::vector<std::thread> mThreads;
     SymmCipher mZeroThreadsCipher;
 
     void asyncThreadLoop();
 };
+
+
+template<class T>
+struct ThreadSafeDeque
+{
+    // Just like a deque, but thread safe so that a separate thread can receive filesystem notifications as soon as they are available.
+    // When we try to do that on the same thread, the processing of queued notifications is too slow so more notifications bulid up than
+    // have been processed, so each time we get the outstanding ones from the buffer we gave to the OS, we need to give it an even 
+    // larger buffer to write into, otherwise it runs out of space before this thread is idle and can get the next batch from the buffer.
+protected:
+    std::deque<T> mNotifications;
+    std::mutex m;
+
+public:
+
+    bool peekFront(T& t) 
+    { 
+        std::lock_guard<std::mutex> g(m);
+        if (!mNotifications.empty())
+        {
+            t = mNotifications.front();
+            return true; 
+        }
+        return false;
+    }
+
+    bool popFront(T& t) 
+    { 
+        std::lock_guard<std::mutex> g(m);
+        if (!mNotifications.empty())
+        {
+            t = std::move(mNotifications.front());
+            mNotifications.pop_front(); 
+            return true; 
+        }
+        return false;
+    }
+
+    void unpopFront(const T& t) 
+    { 
+        std::lock_guard<std::mutex> g(m);
+        mNotifications.push_front(t); 
+    }
+
+    void pushBack(T&& t) 
+    { 
+        std::lock_guard<std::mutex> g(m);
+        mNotifications.push_back(t); 
+    }
+
+    bool empty() 
+    { 
+        std::lock_guard<std::mutex> g(m);
+        return mNotifications.empty(); 
+    }
+
+    bool size() 
+    { 
+        std::lock_guard<std::mutex> g(m);
+        return mNotifications.size(); 
+    }
+
+};
+
 
 } // namespace
 

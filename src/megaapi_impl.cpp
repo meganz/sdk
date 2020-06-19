@@ -2205,7 +2205,6 @@ MegaTransferPrivate::MegaTransferPrivate(int type, MegaTransferListener *listene
     this->startFirst = false;
     this->backupTransfer = false;
     this->foreignOverquota = false;
-    this->lastError = API_OK;
     this->folderTransferTag = 0;
     this->appData = NULL;
     this->state = STATE_NONE;
@@ -2254,7 +2253,7 @@ MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
     this->setStartFirst(transfer->shouldStartFirst());
     this->setBackupTransfer(transfer->isBackupTransfer());
     this->setForeignOverquota(transfer->isForeignOverquota());
-    this->setLastError(transfer->getLastError());
+    this->setLastError(transfer->lastError.get());
     this->setFolderTransferTag(transfer->getFolderTransferTag());
     this->setAppData(transfer->getAppData());
     this->setNotificationNumber(transfer->getNotificationNumber());
@@ -2427,7 +2426,12 @@ char * MegaTransferPrivate::getLastBytes() const
 
 MegaError MegaTransferPrivate::getLastError() const
 {
-    return this->lastError;
+    return lastError ? *lastError.get() : MegaTransfer::getLastError();
+}
+
+const MegaError *MegaTransferPrivate::getLastErrorExtended() const
+{
+    return lastError.get();
 }
 
 bool MegaTransferPrivate::isFolderTransfer() const
@@ -2773,9 +2777,9 @@ void MegaTransferPrivate::setLastBytes(char *lastBytes)
     this->lastBytes = lastBytes;
 }
 
-void MegaTransferPrivate::setLastError(MegaError e)
+void MegaTransferPrivate::setLastError(const MegaError *e)
 {
-    this->lastError = e;
+   lastError.reset(e ? e->copy() : nullptr);
 }
 
 void MegaTransferPrivate::setFolderTransferTag(int tag)
@@ -2806,9 +2810,9 @@ void MegaTransferPrivate::setPath(const char* path)
     this->path = MegaApi::strdup(path);
     if(!this->path) return;
 
-    for(int i = int(strlen(path)-1); i>=0; i--)
+    for (int i = int(strlen(path) - 1); i >= 0; i--)
     {
-        if((path[i]=='\\') || (path[i]=='/'))
+        if (strchr(::mega::FileSystemAccess::getPathSeparator(), path[i]))
         {
             setFileName(&(path[i+1]));
             char *parentPath = MegaApi::strdup(path);
@@ -4721,7 +4725,7 @@ MegaFileGet::MegaFileGet(MegaClient *client, Node *n, string dstPath) : MegaFile
     *(FileFingerprint*)this = *n;
 
     string securename = n->displayname();
-    client->fsaccess->name2local(&securename);
+    client->fsaccess->name2local(&securename, &dstPath);
     client->fsaccess->local2path(&securename, &name);
 
     string finalPath;
@@ -5176,7 +5180,7 @@ MegaApiImpl::~MegaApiImpl()
     delete httpio;
 #endif
 
-    fireOnRequestFinish(request, MegaError(API_OK));
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
 }
 
 MegaApiImpl* MegaApiImpl::ImplOf(MegaApi* api)
@@ -7377,7 +7381,7 @@ void MegaApiImpl::abortPendingActions(error preverror)
         {
             continue; // this request is finished at MegaApiImpl dtor
         }
-        fireOnRequestFinish(request, preverror);
+        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(preverror));
     }
     requestMap.clear();
 
@@ -7389,7 +7393,7 @@ void MegaApiImpl::abortPendingActions(error preverror)
             auto transfer = transferMap.begin()->second;
             transfer->setState(MegaTransfer::STATE_FAILED);
             // this call can be recursive and remove multiple, eg with MegaFolderUploadController
-            fireOnTransferFinish(transfer, preverror, committer);
+            fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(preverror), committer);
         }
         assert(transferMap.empty());
         transferMap.clear();
@@ -7400,7 +7404,7 @@ void MegaApiImpl::abortPendingActions(error preverror)
         {
             fireOnTransferStart(transfer);
             transfer->setState(MegaTransfer::STATE_FAILED);
-            fireOnTransferFinish(transfer, preverror, committer);
+            fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(preverror), committer);
         }
     }
 
@@ -7745,7 +7749,7 @@ MegaTransfer *MegaApiImpl::getFirstTransfer(int type)
 
     MegaTransfer* transfer = NULL;
     sdkMutex.lock();
-    transfer_list::iterator it = client->transferlist.begin((direction_t)type);
+    auto it = client->transferlist.begin((direction_t)type);
     if (it != client->transferlist.end((direction_t)type))
     {
          Transfer *t = (*it);
@@ -7788,8 +7792,8 @@ MegaTransferList *MegaApiImpl::getTransfers()
     vector<MegaTransfer *> transfers;
     for (int d = GET; d == GET || d == PUT; d += PUT - GET)
     {
-        transfer_list::iterator end = client->transferlist.end((direction_t)d);
-        for (transfer_list::iterator it = client->transferlist.begin((direction_t)d); it != end; it++)
+        auto end = client->transferlist.end((direction_t)d);
+        for (auto it = client->transferlist.begin((direction_t)d); it != end; it++)
         {
             Transfer *t = (*it);
             for (file_list::iterator it2 = t->files.begin(); it2 != t->files.end(); it2++)
@@ -7848,8 +7852,8 @@ MegaTransferList *MegaApiImpl::getTransfers(int type)
 
     sdkMutex.lock();
     vector<MegaTransfer *> transfers;
-    transfer_list::iterator end = client->transferlist.end((direction_t)type);
-    for (transfer_list::iterator it = client->transferlist.begin((direction_t)type); it != end; it++)
+    auto end = client->transferlist.end((direction_t)type);
+    for (auto it = client->transferlist.begin((direction_t)type); it != end; it++)
     {
         Transfer *t = (*it);
         for (file_list::iterator it2 = t->files.begin(); it2 != t->files.end(); it2++)
@@ -7936,7 +7940,7 @@ MegaStringList *MegaApiImpl::getBackupFolders(int backuptag)
     MegaNode * parentNode = getNodeByHandle(mbc->getMegaHandle());
     if (parentNode)
     {
-        MegaNodeList* children = getChildren(parentNode);
+        MegaNodeList* children = getChildren(parentNode, MegaApi::ORDER_NONE);
         if (children)
         {
             for (int i = 0; i < children->size(); i++)
@@ -8057,9 +8061,18 @@ void MegaApiImpl::startUpload(bool startFirst, const char *localPath, MegaNode *
 
     transfer->setBackupTransfer(isBackup);
 
-    if(fileName)
+    if (fileName || transfer->getFileName())
     {
-        transfer->setFileName(fileName);
+       std::string auxName = fileName
+               ? fileName
+               : transfer->getFileName();
+
+       std::string path = localPath
+               ? localPath
+               : "";
+
+       client->fsaccess->unescapefsincompatible(&auxName, &path);
+       transfer->setFileName(auxName.c_str());
     }
 
     transfer->setTime(mtime);
@@ -8106,8 +8119,14 @@ void MegaApiImpl::startDownload(bool startFirst, MegaNode *node, const char* loc
 #endif
 
         int c = localPath[strlen(localPath)-1];
-        if((c=='/') || (c == '\\')) transfer->setParentPath(localPath);
-        else transfer->setPath(localPath);
+        if (strchr(::mega::FileSystemAccess::getPathSeparator(), c))
+        {
+            transfer->setParentPath(localPath);
+        }
+        else
+        {
+            transfer->setPath(localPath);
+        }
     }
 
     if (node)
@@ -8332,7 +8351,7 @@ int MegaApiImpl::syncPathState(string* path)
             {
                 size_t index = fsAccess->lastpartlocal(path);
                 string name = path->substr(index);
-                fsAccess->local2name(&name);
+                fsAccess->local2name(&name, path);
                 if (is_syncable(sync, name.c_str(), path))
                 {
                     auto fa = fsAccess->newfileaccess();
@@ -8609,7 +8628,7 @@ bool MegaApiImpl::isSyncable(const char *path, long long size)
 
             size_t index = fsAccess->lastpartlocal(&localpath);
             name = localpath.substr(index);
-            fsAccess->local2name(&name);
+            fsAccess->local2name(&name, &localpath);
             result = is_syncable(sync, name.c_str(), &localpath);
             break;
         }
@@ -8769,25 +8788,27 @@ bool MegaApiImpl::userComparatorDefaultASC (User *i, User *j)
     return 0;
 }
 
-char *MegaApiImpl::escapeFsIncompatible(const char *filename)
+char *MegaApiImpl::escapeFsIncompatible(const char *filename, const char *dstPath)
 {
     if(!filename)
     {
         return NULL;
     }
     string name = filename;
-    client->fsaccess->escapefsincompatible(&name);
+    string path = dstPath ? dstPath : "";
+    client->fsaccess->escapefsincompatible(&name, &path);
     return MegaApi::strdup(name.c_str());
 }
 
-char *MegaApiImpl::unescapeFsIncompatible(const char *name)
+char *MegaApiImpl::unescapeFsIncompatible(const char *name, const char *path)
 {
     if(!name)
     {
         return NULL;
     }
     string filename = name;
-    client->fsaccess->unescapefsincompatible(&filename);
+    string localpath = path ? path : "";
+    client->fsaccess->unescapefsincompatible(&filename, &localpath);
     return MegaApi::strdup(filename.c_str());
 }
 
@@ -9308,17 +9329,17 @@ void MegaApiImpl::fireOnStreamingStart(MegaTransferPrivate *transfer)
         (*it)->onTransferStart(api, transfer);
 }
 
-void MegaApiImpl::fireOnStreamingTemporaryError(MegaTransferPrivate *transfer, MegaError e)
+void MegaApiImpl::fireOnStreamingTemporaryError(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e)
 {
     for(set<MegaTransferListener *>::iterator it = httpServerListeners.begin(); it != httpServerListeners.end() ; it++)
-        (*it)->onTransferTemporaryError(api, transfer, &e);
+        (*it)->onTransferTemporaryError(api, transfer, e.get());
 }
 
-void MegaApiImpl::fireOnStreamingFinish(MegaTransferPrivate *transfer, MegaError e)
+void MegaApiImpl::fireOnStreamingFinish(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e)
 {
-    if(e.getErrorCode())
+    if(e->getErrorCode())
     {
-        LOG_warn << "Streaming request finished with error: " << e.getErrorString();
+        LOG_warn << "Streaming request finished with error: " << e->getErrorString();
     }
     else
     {
@@ -9326,7 +9347,7 @@ void MegaApiImpl::fireOnStreamingFinish(MegaTransferPrivate *transfer, MegaError
     }
 
     for(set<MegaTransferListener *>::iterator it = httpServerListeners.begin(); it != httpServerListeners.end() ; it++)
-        (*it)->onTransferFinish(api, transfer, &e);
+        (*it)->onTransferFinish(api, transfer, e.get());
 
     delete transfer;
 }
@@ -9623,17 +9644,17 @@ void MegaApiImpl::fireOnFtpStreamingStart(MegaTransferPrivate *transfer)
         (*it)->onTransferStart(api, transfer);
 }
 
-void MegaApiImpl::fireOnFtpStreamingTemporaryError(MegaTransferPrivate *transfer, MegaError e)
+void MegaApiImpl::fireOnFtpStreamingTemporaryError(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e)
 {
     for(set<MegaTransferListener *>::iterator it = ftpServerListeners.begin(); it != ftpServerListeners.end() ; it++)
-        (*it)->onTransferTemporaryError(api, transfer, &e);
+        (*it)->onTransferTemporaryError(api, transfer, e.get());
 }
 
-void MegaApiImpl::fireOnFtpStreamingFinish(MegaTransferPrivate *transfer, MegaError e)
+void MegaApiImpl::fireOnFtpStreamingFinish(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e)
 {
-    if(e.getErrorCode())
+    if(e->getErrorCode())
     {
-        LOG_warn << "Streaming request finished with error: " << e.getErrorString();
+        LOG_warn << "Streaming request finished with error: " << e->getErrorString();
     }
     else
     {
@@ -9641,7 +9662,7 @@ void MegaApiImpl::fireOnFtpStreamingFinish(MegaTransferPrivate *transfer, MegaEr
     }
 
     for(set<MegaTransferListener *>::iterator it = ftpServerListeners.begin(); it != ftpServerListeners.end() ; it++)
-        (*it)->onTransferFinish(api, transfer, &e);
+        (*it)->onTransferFinish(api, transfer, e.get());
 
     delete transfer;
 }
@@ -10024,6 +10045,27 @@ void MegaApiImpl::setCameraUploadsFolder(MegaHandle nodehandle, bool secondary, 
     request->setParamType(MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER);
     request->setFlag(secondary);
     request->setNodeHandle(nodehandle);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::setCameraUploadsFolders(MegaHandle primaryFolder, MegaHandle secondaryFolder, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
+
+    MegaStringMapPrivate stringMap;
+    if (!ISUNDEF(primaryFolder))
+    {
+        stringMap.set("h", Base64Str<MegaClient::NODEHANDLE>(primaryFolder));
+    }
+    if (!ISUNDEF(secondaryFolder))
+    {
+        stringMap.set("sh", Base64Str<MegaClient::NODEHANDLE>(secondaryFolder));
+    }
+    request->setMegaStringMap(&stringMap);
+    request->setParamType(MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER);
+    request->setNodeHandle(primaryFolder);
+    request->setParentHandle(secondaryFolder);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -10474,9 +10516,14 @@ MegaNodeList *MegaApiImpl::getPublicLinks(int order)
 {
     sdkMutex.lock();
 
-    PublicLinkProcessor linkProcessor;
-    processTree(client->nodebyhandle(client->rootnodes[0]), &linkProcessor, true);
-    node_vector nodes = linkProcessor.getNodes();
+    Node *n;
+    node_vector nodes;
+    for (const auto& item : client->mPublicLinks)
+    {
+        n = client->nodebyhandle(item.first);
+        assert(n);
+        nodes.emplace_back(n);
+    }
     sortByComparatorFunction(nodes, order, *client);
     MegaNodeList *nodeList = new MegaNodeListPrivate(nodes.data(), int(nodes.size()));
 
@@ -10656,6 +10703,67 @@ bool MegaApiImpl::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, boo
     return result;
 }
 
+MegaNodeList* MegaApiImpl::searchInAllShares(const char *searchString, MegaCancelToken *cancelToken, int order, int target)
+{
+    if (!searchString)
+    {
+        return new MegaNodeListPrivate();
+    }
+
+    if (cancelToken && cancelToken->isCancelled())
+    {
+        return new MegaNodeListPrivate();
+    }
+
+    if (target < TARGET_INSHARE || target > TARGET_PUBLICLINK)
+    {
+        return new MegaNodeListPrivate();
+    }
+
+    SdkMutexGuard g(sdkMutex);
+
+    if (cancelToken && cancelToken->isCancelled())
+    {
+        return new MegaNodeListPrivate();
+    }
+
+    node_vector result;
+    Node *node;
+    if (target == TARGET_INSHARE || target == TARGET_OUTSHARE)
+    {
+        // Search in inShares or outShares
+        ::mega::unique_ptr<MegaShareList> shares (target == TARGET_INSHARE
+                                                  ? getInSharesList(MegaApi::ORDER_NONE)
+                                                  : getOutShares(MegaApi::ORDER_NONE));
+
+        for (int i = 0; i < shares->size() && !(cancelToken && cancelToken->isCancelled()); i++)
+        {
+           node = client->nodebyhandle(shares->get(i)->getNodeHandle());
+           SearchTreeProcessor searchProcessor(searchString);
+           processTree(node, &searchProcessor, true, cancelToken);
+           vector<Node *>& vNodes  = searchProcessor.getResults();
+           result.insert(result.end(), vNodes.begin(), vNodes.end());
+        }
+    }
+    else
+    {
+        // Search in public links
+        for (auto it = client->mPublicLinks.begin(); it != client->mPublicLinks.end()
+             && !(cancelToken && cancelToken->isCancelled()); it++)
+        {
+            node = client->nodebyhandle(it->first);
+            SearchTreeProcessor searchProcessor(searchString);
+            processTree(node, &searchProcessor, true, cancelToken);
+            vector<Node *>& vNodes  = searchProcessor.getResults();
+            result.insert(result.end(), vNodes.begin(), vNodes.end());
+        }
+    }
+
+    sortByComparatorFunction(result, order, *client);
+    MegaNodeList *nodeList = new MegaNodeListPrivate(result.data(), int(result.size()));
+    return nodeList;
+}
+
 MegaNodeList *MegaApiImpl::search(const char *searchString, MegaCancelToken *cancelToken, int order)
 {
     if(!searchString)
@@ -10781,7 +10889,7 @@ void MegaApiImpl::authorizeMegaNodePrivate(MegaNodePrivate *node)
     }
     else
     {
-        MegaNodeList *children = getChildren(node);
+        MegaNodeList *children = getChildren(node, MegaApi::ORDER_NONE);
         node->setChildren(children);
         for (int i = 0; i < children->size(); i++)
         {
@@ -11310,7 +11418,7 @@ char *MegaApiImpl::getFingerprint(MegaNode *n)
     return MegaApi::strdup(n->getFingerprint());
 }
 
-void MegaApiImpl::transfer_failed(Transfer* t, error e, dstime timeleft)
+void MegaApiImpl::transfer_failed(Transfer* t, const Error& e, dstime timeleft)
 {
     for (file_list::iterator it = t->files.begin(); it != t->files.end(); it++)
     {
@@ -11698,7 +11806,7 @@ void MegaApiImpl::file_added(File *f)
     fireOnTransferStart(transfer);
 }
 
-void MegaApiImpl::file_removed(File *f, error e)
+void MegaApiImpl::file_removed(File *f, const Error &e)
 {
     MegaTransferPrivate* transfer = getMegaTransferPrivate(f->tag);
     if (transfer)
@@ -11826,7 +11934,7 @@ File *MegaApiImpl::file_resume(string *d, direction_t *type)
     return file;
 }
 
-dstime MegaApiImpl::pread_failure(error e, int retry, void* param, dstime timeLeft)
+dstime MegaApiImpl::pread_failure(const Error &e, int retry, void* param, dstime timeLeft)
 {
     MegaTransferPrivate *transfer = (MegaTransferPrivate *)param;
     transfer->setUpdateTime(Waiter::ds);
@@ -11834,11 +11942,12 @@ dstime MegaApiImpl::pread_failure(error e, int retry, void* param, dstime timeLe
     transfer->setSpeed(0);
     transfer->setMeanSpeed(0);
     transfer->setLastBytes(NULL);
-    if (retry <= transfer->getMaxRetries() && e != API_EINCOMPLETE)
+    if (retry <= transfer->getMaxRetries() && e != API_EINCOMPLETE && !(e == API_ETOOMANY && e.hasExtraInfo()))
     {	
-        transfer->setLastError(MegaError(e));
+        auto megaError = make_unique<MegaErrorPrivate>(e, timeLeft / 10);
+        transfer->setLastError(megaError.get());
         transfer->setState(MegaTransfer::STATE_RETRYING);
-        fireOnTransferTemporaryError(transfer, MegaError(e, timeLeft / 10));
+        fireOnTransferTemporaryError(transfer, std::move(megaError));
         LOG_debug << "Streaming temporarily failed " << retry;
         if (retry <= 1)
         {
@@ -11849,7 +11958,7 @@ dstime MegaApiImpl::pread_failure(error e, int retry, void* param, dstime timeLe
     }
     else
     {
-        if (e && e != API_EINCOMPLETE)
+        if (e && (e != API_EINCOMPLETE || (e == API_ETOOMANY && e.hasExtraInfo())))
         {
             transfer->setState(MegaTransfer::STATE_FAILED);
         }
@@ -11858,7 +11967,7 @@ dstime MegaApiImpl::pread_failure(error e, int retry, void* param, dstime timeLe
             transfer->setState(MegaTransfer::STATE_COMPLETED);
         }
         DBTableTransactionCommitter committer(client->tctable);
-        fireOnTransferFinish(transfer, MegaError(e), committer);
+        fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(e), committer);
         return NEVER;
     }
 }
@@ -11882,7 +11991,7 @@ bool MegaApiImpl::pread_data(byte *buffer, m_off_t len, m_off_t, m_off_t speed, 
     {
         transfer->setState(end ? MegaTransfer::STATE_COMPLETED : MegaTransfer::STATE_CANCELLED);
         DBTableTransactionCommitter committer(client->tctable);
-        fireOnTransferFinish(transfer, end ? MegaError(API_OK) : MegaError(API_EINCOMPLETE), committer);
+        fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(end ? API_OK : API_EINCOMPLETE), committer);
         return end;
     }
     return true;
@@ -11890,59 +11999,50 @@ bool MegaApiImpl::pread_data(byte *buffer, m_off_t len, m_off_t, m_off_t speed, 
 
 void MegaApiImpl::reportevent_result(error e)
 {
-    MegaError megaError(e);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_REPORT_EVENT)) return;
 
-    fireOnRequestFinish(request, megaError);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::sessions_killed(handle, error e)
 {
-    MegaError megaError(e);
-
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_KILL_SESSION)) return;
 
-    fireOnRequestFinish(request, megaError);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::cleanrubbishbin_result(error e)
 {
-    MegaError megaError(e);
-
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_CLEAN_RUBBISH_BIN)) return;
 
-    fireOnRequestFinish(request, megaError);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::getrecoverylink_result(error e)
 {
-    MegaError megaError(e);
-
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || ((request->getType() != MegaRequest::TYPE_GET_RECOVERY_LINK) &&
                     (request->getType() != MegaRequest::TYPE_GET_CANCEL_LINK))) return;
 
-    fireOnRequestFinish(request, megaError);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::queryrecoverylink_result(error e)
 {
-    MegaError megaError(e);
-
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || ((request->getType() != MegaRequest::TYPE_QUERY_RECOVERY_LINK) &&
                     (request->getType() != MegaRequest::TYPE_CONFIRM_RECOVERY_LINK) &&
                     (request->getType() != MegaRequest::TYPE_CONFIRM_CHANGE_EMAIL_LINK))) return;
 
-    fireOnRequestFinish(request, megaError);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::queryrecoverylink_result(int type, const char *email, const char *ip, time_t, handle uh, const vector<string> *)
@@ -11962,7 +12062,7 @@ void MegaApiImpl::queryrecoverylink_result(int type, const char *email, const ch
 
     if (reqType == MegaRequest::TYPE_QUERY_RECOVERY_LINK)
     {
-        fireOnRequestFinish(request, MegaError());
+        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>());
         return;
     }
     else if (reqType == MegaRequest::TYPE_CONFIRM_RECOVERY_LINK)
@@ -11979,7 +12079,7 @@ void MegaApiImpl::queryrecoverylink_result(int type, const char *email, const ch
         {
             LOG_debug << "Unknown type of change email link";
 
-            fireOnRequestFinish(request, MegaError(API_EARGS));
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_EARGS));
             return;
         }
                 
@@ -11990,7 +12090,7 @@ void MegaApiImpl::queryrecoverylink_result(int type, const char *email, const ch
 
             if (!checkPassword(request->getPassword()))
             {
-                fireOnRequestFinish(request, MegaError(API_ENOENT));
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_ENOENT));
                 return;
             }
 
@@ -12009,13 +12109,13 @@ void MegaApiImpl::queryrecoverylink_result(int type, const char *email, const ch
             else
             {
                 LOG_warn << "Version of account not supported";
-                fireOnRequestFinish(request, MegaError(API_EINTERNAL));
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_EINTERNAL));
             }
             client->reqtag = creqtag;
         }
         else
         {
-            fireOnRequestFinish(request, MegaError(API_EARGS));
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_EARGS));
         }
     }
 }
@@ -12028,7 +12128,7 @@ void MegaApiImpl::getprivatekey_result(error e, const byte *privk, const size_t 
 
     if (e)
     {
-        fireOnRequestFinish(request, MegaError(e));
+        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
         return;
     }
 
@@ -12040,7 +12140,7 @@ void MegaApiImpl::getprivatekey_result(error e, const byte *privk, const size_t 
     }
     else
     {
-        fireOnRequestFinish(request, MegaError(API_EARGS));
+        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_EARGS));
         return;
     }
 
@@ -12058,7 +12158,7 @@ void MegaApiImpl::getprivatekey_result(error e, const byte *privk, const size_t 
     AsymmCipher uk;
     if (!uk.setkey(AsymmCipher::PRIVKEY, privkbuf, int(len_privk)))
     {
-        fireOnRequestFinish(request, MegaError(API_EKEY));
+        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_EKEY));
         return;
     }
 
@@ -12074,7 +12174,7 @@ void MegaApiImpl::confirmrecoverylink_result(error e)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_CONFIRM_RECOVERY_LINK)) return;
 
-    fireOnRequestFinish(request, MegaError(e));
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::confirmcancellink_result(error e)
@@ -12083,7 +12183,7 @@ void MegaApiImpl::confirmcancellink_result(error e)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_CONFIRM_CANCEL_LINK)) return;
 
-    fireOnRequestFinish(request, MegaError(e));
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::getemaillink_result(error e)
@@ -12092,7 +12192,7 @@ void MegaApiImpl::getemaillink_result(error e)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_GET_CHANGE_EMAIL_LINK)) return;
 
-    fireOnRequestFinish(request, MegaError(e));
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::resendverificationemail_result(error e)
@@ -12102,7 +12202,7 @@ void MegaApiImpl::resendverificationemail_result(error e)
     MegaRequestPrivate *request = it->second;
     if (!request || ((request->getType() != MegaRequest::TYPE_RESEND_VERIFICATION_EMAIL))) return;
 
-    fireOnRequestFinish(request, MegaError(e));
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::confirmemaillink_result(error e)
@@ -12111,7 +12211,7 @@ void MegaApiImpl::confirmemaillink_result(error e)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_CONFIRM_CHANGE_EMAIL_LINK)) return;
 
-    fireOnRequestFinish(request, MegaError(e));
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::getversion_result(int versionCode, const char *versionString, error e)
@@ -12126,12 +12226,11 @@ void MegaApiImpl::getversion_result(int versionCode, const char *versionString, 
         request->setName(versionString);
     }
 
-    fireOnRequestFinish(request, MegaError(e));
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::getlocalsslcertificate_result(m_time_t ts, string *certdata, error e)
 {
-    MegaError megaError(e);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_GET_LOCAL_SSL_CERT)) return;
@@ -12153,7 +12252,7 @@ void MegaApiImpl::getlocalsslcertificate_result(m_time_t ts, string *certdata, e
                 if (!i)
                 {
                     delete datamap;
-                    fireOnRequestFinish(request, MegaError(API_EINTERNAL));
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_EINTERNAL));
                     return;
                 }
                 end = enddata;
@@ -12198,17 +12297,16 @@ void MegaApiImpl::getlocalsslcertificate_result(m_time_t ts, string *certdata, e
         request->setMegaStringMap(datamap);
         delete datamap;
     }
-    fireOnRequestFinish(request, megaError);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::getmegaachievements_result(AchievementsDetails *details, error e)
 {
-    MegaError megaError(e);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_GET_ACHIEVEMENTS)) return;
 
-    fireOnRequestFinish(request, megaError);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::getwelcomepdf_result(handle ph, string *key, error e)
@@ -12226,7 +12324,7 @@ void MegaApiImpl::getwelcomepdf_result(handle ph, string *key, error e)
     }
     else
     {
-        return fireOnRequestFinish(request, MegaError(API_OK));    // if import fails, notify account was successfuly created anyway
+        return fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));    // if import fails, notify account was successfuly created anyway
     }
 }
 
@@ -12242,7 +12340,7 @@ void MegaApiImpl::backgrounduploadurl_result(error e, string* url)
         mu->url = *url;
     }
 
-    fireOnRequestFinish(request, MegaError(e));
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::mediadetection_ready()
@@ -12270,14 +12368,13 @@ void MegaApiImpl::getmiscflags_result(error e)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if (!request || (request->getType() != MegaRequest::TYPE_GET_MISC_FLAGS)) return;
 
-    fireOnRequestFinish(request, e);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 #ifdef ENABLE_CHAT
 
 void MegaApiImpl::chatcreate_result(TextChat *chat, error e)
 {
-    MegaError megaError(e);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_CHAT_CREATE)) return;
@@ -12292,32 +12389,29 @@ void MegaApiImpl::chatcreate_result(TextChat *chat, error e)
         request->setMegaTextChatList(megaChatList.get());
     }
 
-    fireOnRequestFinish(request, megaError);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::chatinvite_result(error e)
 {
-    MegaError megaError(e);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_CHAT_INVITE)) return;
 
-    fireOnRequestFinish(request, megaError);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::chatremove_result(error e)
 {
-    MegaError megaError(e);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_CHAT_REMOVE)) return;
 
-    fireOnRequestFinish(request, megaError);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::chaturl_result(string *url, error e)
 {
-    MegaError megaError(e);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_CHAT_URL)) return;
@@ -12327,27 +12421,25 @@ void MegaApiImpl::chaturl_result(string *url, error e)
         request->setLink(url->c_str());
     }
 
-    fireOnRequestFinish(request, megaError);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::chatgrantaccess_result(error e)
 {
-    MegaError megaError(e);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_CHAT_GRANT_ACCESS)) return;
 
-    fireOnRequestFinish(request, megaError);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::chatremoveaccess_result(error e)
 {
-    MegaError megaError(e);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_CHAT_REMOVE_ACCESS)) return;
 
-    fireOnRequestFinish(request, megaError);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::chatupdatepermissions_result(error e)
@@ -12356,8 +12448,7 @@ void MegaApiImpl::chatupdatepermissions_result(error e)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_CHAT_UPDATE_PERMISSIONS)) return;
 
-    MegaError megaError(e);
-    fireOnRequestFinish(request, megaError);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::chattruncate_result(error e)
@@ -12366,8 +12457,7 @@ void MegaApiImpl::chattruncate_result(error e)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_CHAT_TRUNCATE)) return;
 
-    MegaError megaError(e);
-    fireOnRequestFinish(request, megaError);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::chatsettitle_result(error e)
@@ -12376,13 +12466,11 @@ void MegaApiImpl::chatsettitle_result(error e)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_CHAT_SET_TITLE)) return;
 
-    MegaError megaError(e);
-    fireOnRequestFinish(request, megaError);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::chatpresenceurl_result(string *url, error e)
 {
-    MegaError megaError(e);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_CHAT_PRESENCE_URL)) return;
@@ -12392,7 +12480,7 @@ void MegaApiImpl::chatpresenceurl_result(string *url, error e)
         request->setLink(url->c_str());
     }
 
-    fireOnRequestFinish(request, megaError);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::registerpushnotification_result(error e)
@@ -12401,8 +12489,7 @@ void MegaApiImpl::registerpushnotification_result(error e)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_REGISTER_PUSH_NOTIFICATION)) return;
 
-    MegaError megaError(e);
-    fireOnRequestFinish(request, megaError);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::archivechat_result(error e)
@@ -12411,8 +12498,7 @@ void MegaApiImpl::archivechat_result(error e)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_CHAT_ARCHIVE)) return;
 
-    MegaError megaError(e);
-    fireOnRequestFinish(request, megaError);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::chats_updated(textchat_map *chats, int count)
@@ -12439,8 +12525,7 @@ void MegaApiImpl::richlinkrequest_result(string *richLink, error e)
     {
         request->setText(richLink->c_str());
     }
-    MegaError megaError(e);
-    fireOnRequestFinish(request, megaError);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::chatlink_result(handle h, error e)
@@ -12452,9 +12537,9 @@ void MegaApiImpl::chatlink_result(handle h, error e)
     if (!e && !request->getFlag())
     {
         request->setParentHandle(h);
-    }    
-    MegaError megaError(e);
-    fireOnRequestFinish(request, megaError);
+    }
+
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::chatlinkurl_result(handle chatid, int shard, string *link, string *ct, int numPeers, m_time_t ts, error e)
@@ -12472,8 +12557,8 @@ void MegaApiImpl::chatlinkurl_result(handle chatid, int shard, string *link, str
         request->setNumDetails(numPeers);
         request->setNumber(ts);
     }
-    MegaError megaError(e);
-    fireOnRequestFinish(request, megaError);
+
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::chatlinkclose_result(error e)
@@ -12482,8 +12567,7 @@ void MegaApiImpl::chatlinkclose_result(error e)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_SET_PRIVATE_MODE)) return;
     
-    MegaError megaError(e);
-    fireOnRequestFinish(request, megaError);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::chatlinkjoin_result(error e)
@@ -12492,8 +12576,7 @@ void MegaApiImpl::chatlinkjoin_result(error e)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_AUTOJOIN_PUBLIC_CHAT)) return;
     
-    MegaError megaError(e);
-    fireOnRequestFinish(request, megaError);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 #endif
@@ -12557,7 +12640,7 @@ void MegaApiImpl::folderlinkinfo_result(error e, handle owner, handle /*ph*/, st
         }
     }
 
-    fireOnRequestFinish(request, MegaError(e));
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 #ifdef ENABLE_SYNC
@@ -12581,7 +12664,7 @@ void MegaApiImpl::syncupdate_state(Sync *sync, syncstate_t newstate)
         int nextTag = client->nextreqtag();
         request->setTag(nextTag);
         requestMap[nextTag]=request;
-        fireOnRequestFinish(request, MegaError(sync->errorcode));
+        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(sync->errorcode));
     }
 
     fireOnSyncStateChanged(megaSync);
@@ -12949,7 +13032,6 @@ void MegaApiImpl::pcrs_updated(PendingContactRequest **r, int count)
 
 void MegaApiImpl::setattr_result(handle h, error e)
 {
-    MegaError megaError(e);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if (!request || ((request->getType() != MegaRequest::TYPE_RENAME)
@@ -12959,12 +13041,11 @@ void MegaApiImpl::setattr_result(handle h, error e)
     }
 
     request->setNodeHandle(h);
-    fireOnRequestFinish(request, megaError);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::rename_result(handle h, error e)
 {
-    MegaError megaError(e);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_MOVE)) return;
@@ -12974,12 +13055,11 @@ void MegaApiImpl::rename_result(handle h, error e)
 #endif
 
     request->setNodeHandle(h);
-    fireOnRequestFinish(request, megaError);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::unlink_result(handle h, error e)
 {
-    MegaError megaError(e);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || ((request->getType() != MegaRequest::TYPE_REMOVE) &&
@@ -12997,7 +13077,7 @@ void MegaApiImpl::unlink_result(handle h, error e)
         request->setNodeHandle(h);
     }
 
-    fireOnRequestFinish(request, megaError);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::unlinkversions_result(error e)
@@ -13013,12 +13093,11 @@ void MegaApiImpl::unlinkversions_result(error e)
         return;
     }
 
-    fireOnRequestFinish(request, MegaError(e));
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
-void MegaApiImpl::fetchnodes_result(error e)
+void MegaApiImpl::fetchnodes_result(const Error &e)
 {    
-    MegaError megaError(e);
     MegaRequestPrivate* request = NULL;
     if (!client->restag)
     {
@@ -13056,7 +13135,7 @@ void MegaApiImpl::fetchnodes_result(error e)
             client->isNewSession = false;
         }
 
-        fireOnRequestFinish(request, megaError);
+        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
         return;
     }
 
@@ -13094,13 +13173,13 @@ void MegaApiImpl::fetchnodes_result(error e)
             client->isNewSession = false;
         }
 
-        fireOnRequestFinish(request, megaError);
+        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
     }
     else    // TYPE_CREATE_ACCOUNT
     {
         if (e != API_OK || request->getParamType() == 1)   // resuming ephemeral session
         {
-            fireOnRequestFinish(request, megaError);
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
             return;
         }
         else    // new account has been created
@@ -13183,7 +13262,6 @@ void MegaApiImpl::putnodes_result(error e, targettype_t t, NewNode* nn)
         }
     }
 
-    MegaError megaError(e);
     MegaTransferPrivate* transfer = getMegaTransferPrivate(client->restag);
     if (transfer)
     {
@@ -13222,7 +13300,7 @@ void MegaApiImpl::putnodes_result(error e, targettype_t t, NewNode* nn)
         }
 
         DBTableTransactionCommitter committer(client->tctable);
-        fireOnTransferFinish(transfer, megaError, committer);
+        fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(e), committer);
         delete [] nn;
         return;
     }
@@ -13246,7 +13324,7 @@ void MegaApiImpl::putnodes_result(error e, targettype_t t, NewNode* nn)
     if (request->getType() == MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD)
     {
         request->setNodeHandle(h);
-        fireOnRequestFinish(request, megaError);
+        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
         return;
     }
 
@@ -13269,10 +13347,10 @@ void MegaApiImpl::putnodes_result(error e, targettype_t t, NewNode* nn)
         request->setNodeHandle(h);    
         if (request->getType() == MegaRequest::TYPE_CREATE_ACCOUNT)
         {
-            fireOnRequestFinish(request, MegaError(API_OK));    // even if import fails, notify account was successfuly created anyway
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));    // even if import fails, notify account was successfuly created anyway
             return;
         }
-        fireOnRequestFinish(request, megaError);
+        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
     }
     else
     {
@@ -13295,15 +13373,13 @@ void MegaApiImpl::putnodes_result(error e, targettype_t t, NewNode* nn)
 
         if (e)
         {
-            fireOnRequestFinish(request, MegaError(e));
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
         }
     }
 }
 
 void MegaApiImpl::share_result(error e)
 {
-    MegaError megaError(e);
-
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || ((request->getType() != MegaRequest::TYPE_EXPORT) &&
@@ -13315,13 +13391,13 @@ void MegaApiImpl::share_result(error e)
         Node* node = client->nodebyhandle(request->getNodeHandle());
         if (!node)
         {
-            fireOnRequestFinish(request, API_ENOENT);
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_ENOENT));
             return;
         }
 
         if (!request->getAccess())
         {
-            fireOnRequestFinish(request, API_EINTERNAL);
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_EINTERNAL));
             return;
         }
 
@@ -13333,7 +13409,7 @@ void MegaApiImpl::share_result(error e)
         return;
     }
 
-    fireOnRequestFinish(request, megaError);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::share_result(int, error)
@@ -13343,14 +13419,13 @@ void MegaApiImpl::share_result(int, error)
 
 void MegaApiImpl::setpcr_result(handle h, error e, opcactions_t action)
 {
-    MegaError megaError(e);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || request->getType() != MegaRequest::TYPE_INVITE_CONTACT) return;
 
     if (e)
     {
-        LOG_debug << "Outgoing pending contact request failed (" << megaError.getErrorString() << ")";
+        LOG_debug << "Outgoing pending contact request failed (" << MegaError::getErrorString(e) << ")";
     }
     else
     {
@@ -13372,19 +13447,18 @@ void MegaApiImpl::setpcr_result(handle h, error e, opcactions_t action)
 
     request->setNodeHandle(h);
     request->setNumber(action);
-    fireOnRequestFinish(request, megaError);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::updatepcr_result(error e, ipcactions_t action)
 {
-    MegaError megaError(e);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || request->getType() != MegaRequest::TYPE_REPLY_CONTACT_REQUEST) return;
 
     if (e)
     {
-        LOG_debug << "Incoming pending contact request update failed (" << megaError.getErrorString() << ")";
+        LOG_debug << "Incoming pending contact request update failed (" << MegaError::getErrorString(e) << ")";
     }
     else
     {
@@ -13393,7 +13467,7 @@ void MegaApiImpl::updatepcr_result(error e, ipcactions_t action)
     }
 
     request->setNumber(action);
-    fireOnRequestFinish(request, megaError);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::fa_complete(handle, fatype, const char* data, uint32_t len)
@@ -13418,7 +13492,7 @@ void MegaApiImpl::fa_complete(handle, fatype, const char* data, uint32_t len)
 
         f.reset();
 
-        fireOnRequestFinish(request, MegaError(success ? API_OK : API_EWRITE));
+        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(success ? API_OK : API_EWRITE));
     }
 }
 
@@ -13435,11 +13509,11 @@ int MegaApiImpl::fa_failed(handle, fatype, int retries, error e)
         tag = int(request->getNumber());
         if(retries >= 2)
         {
-            fireOnRequestFinish(request, MegaError(e));
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
         }
         else
         {
-            fireOnRequestTemporaryError(request, MegaError(e));
+            fireOnRequestTemporaryError(request, make_unique<MegaErrorPrivate>(e));
         }
     }
 
@@ -13448,18 +13522,16 @@ int MegaApiImpl::fa_failed(handle, fatype, int retries, error e)
 
 void MegaApiImpl::putfa_result(handle, fatype, error e)
 {
-    MegaError megaError(e);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || request->getType() != MegaRequest::TYPE_SET_ATTR_FILE)
         return;
 
-    fireOnRequestFinish(request, megaError);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::putfa_result(handle h, fatype, const char *)
 {
-    MegaError megaError(API_OK);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || request->getType() != MegaRequest::TYPE_SET_ATTR_FILE)
@@ -13469,7 +13541,7 @@ void MegaApiImpl::putfa_result(handle h, fatype, const char *)
     {
         request->setNodeHandle(h);
     }
-    fireOnRequestFinish(request, megaError);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
 }
 
 void MegaApiImpl::enumeratequotaitems_result(unsigned type, handle product, unsigned prolevel, int gbstorage, int gbtransfer, unsigned months, unsigned amount, unsigned amountMonth, const char* currency, const char* description, const char* iosid, const char* androidid)
@@ -13499,7 +13571,7 @@ void MegaApiImpl::enumeratequotaitems_result(error e)
 
     if(request->getType() == MegaRequest::TYPE_GET_PRICING)
     {
-        fireOnRequestFinish(request, MegaError(e));
+        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
     }
     else
     {
@@ -13524,7 +13596,7 @@ void MegaApiImpl::enumeratequotaitems_result(error e)
 
         if (i == pricing->getNumProducts())
         {
-            fireOnRequestFinish(request, MegaError(API_ENOENT));
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_ENOENT));
         }
         delete pricing;
     }
@@ -13540,7 +13612,7 @@ void MegaApiImpl::additem_result(error e)
     if(e != API_OK)
     {
         client->purchase_begin();
-        fireOnRequestFinish(request, MegaError(e));
+        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
         return;
     }
 
@@ -13550,7 +13622,7 @@ void MegaApiImpl::additem_result(error e)
         Base64::btoa((byte *)&client->purchase_basket.back(), 8, saleid);
         request->setLink(saleid);
         client->purchase_begin();
-        fireOnRequestFinish(request, MegaError(API_OK));
+        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
         return;
     }
 
@@ -13571,17 +13643,17 @@ void MegaApiImpl::checkout_result(const char *errortype, error e)
 
     if(!errortype)
     {
-        fireOnRequestFinish(request, MegaError(e));
+        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
         return;
     }
 
     if(!strcmp(errortype, "FP"))
     {
-        fireOnRequestFinish(request, MegaError(e - 100));
+        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e - 100));
         return;
     }
 
-    fireOnRequestFinish(request, MegaError(MegaError::PAYMENT_EGENERIC));
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(MegaError::PAYMENT_EGENERIC));
     return;
 }
 
@@ -13591,7 +13663,7 @@ void MegaApiImpl::submitpurchasereceipt_result(error e)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT)) return;
 
-    fireOnRequestFinish(request, MegaError(e));
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::creditcardquerysubscriptions_result(int number, error e)
@@ -13601,7 +13673,7 @@ void MegaApiImpl::creditcardquerysubscriptions_result(int number, error e)
     if(!request || (request->getType() != MegaRequest::TYPE_CREDIT_CARD_QUERY_SUBSCRIPTIONS)) return;
 
     request->setNumber(number);
-    fireOnRequestFinish(request, MegaError(e));
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::creditcardcancelsubscriptions_result(error e)
@@ -13610,7 +13682,7 @@ void MegaApiImpl::creditcardcancelsubscriptions_result(error e)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS)) return;
 
-    fireOnRequestFinish(request, MegaError(e));
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 void MegaApiImpl::getpaymentmethods_result(int methods, error e)
 {
@@ -13619,7 +13691,7 @@ void MegaApiImpl::getpaymentmethods_result(int methods, error e)
     if(!request || (request->getType() != MegaRequest::TYPE_GET_PAYMENT_METHODS)) return;
 
     request->setNumber(methods);
-    fireOnRequestFinish(request, MegaError(e));
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::userfeedbackstore_result(error e)
@@ -13628,7 +13700,7 @@ void MegaApiImpl::userfeedbackstore_result(error e)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_SUBMIT_FEEDBACK)) return;
 
-    fireOnRequestFinish(request, MegaError(e));
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::sendevent_result(error e)
@@ -13637,7 +13709,7 @@ void MegaApiImpl::sendevent_result(error e)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_SEND_EVENT)) return;
 
-    fireOnRequestFinish(request, MegaError(e));
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::supportticket_result(error e)
@@ -13646,7 +13718,7 @@ void MegaApiImpl::supportticket_result(error e)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_SUPPORT_TICKET)) return;
 
-    fireOnRequestFinish(request, MegaError(e));
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::creditcardstore_result(error e)
@@ -13655,7 +13727,7 @@ void MegaApiImpl::creditcardstore_result(error e)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_CREDIT_CARD_STORE)) return;
 
-    fireOnRequestFinish(request, MegaError(e));
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::copysession_result(string *session, error e)
@@ -13687,7 +13759,7 @@ void MegaApiImpl::copysession_result(string *session, error e)
     request->setLink(data->c_str());
     delete data;
 
-    fireOnRequestFinish(request, MegaError(e));
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::clearing()
@@ -13722,7 +13794,7 @@ void MegaApiImpl::notify_retry(dstime dsdelta, retryreason_t reason)
     if (dsdelta && requestMap.size() == 1)
     {
         MegaRequestPrivate *request = requestMap.begin()->second;
-        fireOnRequestTemporaryError(request, MegaError(API_EAGAIN, reason));
+        fireOnRequestTemporaryError(request, make_unique<MegaErrorPrivate>(API_EAGAIN, reason));
     }
 }
 
@@ -13816,7 +13888,7 @@ void MegaApiImpl::http_result(error e, int httpCode, byte *data, int size)
             }
         }
     }
-    fireOnRequestFinish(request, MegaError(e));
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 
@@ -13833,7 +13905,7 @@ void MegaApiImpl::timer_result(error e)
         return;
     }
 
-    fireOnRequestFinish(request, MegaError(e));
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 // callback for non-EAGAIN request-level errors
@@ -13897,7 +13969,7 @@ void MegaApiImpl::prelogin_result(int version, string* email, string *salt, erro
 
     if (e)
     {
-        fireOnRequestFinish(request, MegaError(e));
+        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
         return;
     }
 
@@ -13936,7 +14008,7 @@ void MegaApiImpl::prelogin_result(int version, string* email, string *salt, erro
                 byte pwkey[SymmCipher::KEYLENGTH];
                 if ((err = client->pw_key(password, pwkey)))
                 {
-                    fireOnRequestFinish(request, MegaError(err));
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(err));
                     return;
                 }
 
@@ -13970,7 +14042,7 @@ void MegaApiImpl::prelogin_result(int version, string* email, string *salt, erro
         }
         else
         {
-            fireOnRequestFinish(request, MegaError(API_EINTERNAL));
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_EINTERNAL));
         }
     }
     else if (request->getType() == MegaRequest::TYPE_CONFIRM_RECOVERY_LINK)
@@ -13986,7 +14058,7 @@ void MegaApiImpl::prelogin_result(int version, string* email, string *salt, erro
         }
         else
         {
-            fireOnRequestFinish(request, MegaError(API_EARGS));
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_EARGS));
             return;
         }
 
@@ -13998,7 +14070,7 @@ void MegaApiImpl::prelogin_result(int version, string* email, string *salt, erro
                 mk64 = request->getPrivateKey();
                 if (!mk64)
                 {
-                    fireOnRequestFinish(request, MegaError(API_EARGS));
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_EARGS));
                     return;
                 }
 
@@ -14020,7 +14092,7 @@ void MegaApiImpl::prelogin_result(int version, string* email, string *salt, erro
         default:
             LOG_debug << "Unknown type of recovery link";
 
-            fireOnRequestFinish(request, MegaError(API_EARGS));
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_EARGS));
             return;
         }
     }
@@ -14029,7 +14101,6 @@ void MegaApiImpl::prelogin_result(int version, string* email, string *salt, erro
 // login result
 void MegaApiImpl::login_result(error result)
 {
-    MegaError megaError(result);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_LOGIN)) return;
@@ -14042,7 +14113,7 @@ void MegaApiImpl::login_result(error result)
         client->tsLogin = m_time();
     }
 
-    fireOnRequestFinish(request, megaError);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(result));
 }
 
 void MegaApiImpl::logout_result(error e)
@@ -14073,7 +14144,7 @@ void MegaApiImpl::logout_result(error e)
         delete mTimezones;
         mTimezones = NULL;
     }
-    fireOnRequestFinish(request,MegaError(e));
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::userdata_result(string *name, string* pubk, string* privk, error result)
@@ -14086,7 +14157,6 @@ void MegaApiImpl::userdata_result(string *name, string* pubk, string* privk, err
         fireOnEvent(event);
     }
 
-    MegaError megaError(result);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_GET_USER_DATA)) return;
@@ -14097,7 +14167,7 @@ void MegaApiImpl::userdata_result(string *name, string* pubk, string* privk, err
         request->setPrivateKey(privk->c_str());
         request->setName(name->c_str());
     }
-    fireOnRequestFinish(request, megaError);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(result));
 }
 
 void MegaApiImpl::pubkey_result(User *u)
@@ -14108,13 +14178,13 @@ void MegaApiImpl::pubkey_result(User *u)
 
     if(!u)
     {
-        fireOnRequestFinish(request, MegaError(API_ENOENT));
+        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_ENOENT));
         return;
     }
 
     if(!u->pubk.isvalid())
     {
-        fireOnRequestFinish(request, MegaError(API_EACCESS));
+        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_EACCESS));
         return;
     }
 
@@ -14133,29 +14203,27 @@ void MegaApiImpl::pubkey_result(User *u)
         request->setEmail(u->email.c_str());
     }
 
-    fireOnRequestFinish(request, MegaError(API_OK));
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
 }
 
 // password change result
 void MegaApiImpl::changepw_result(error result)
 {
-    MegaError megaError(result);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || request->getType() != MegaRequest::TYPE_CHANGE_PW) return;
 
-    fireOnRequestFinish(request, megaError);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(result));
 }
 
 // node export failed
 void MegaApiImpl::exportnode_result(error result)
 {
-    MegaError megaError(result);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || request->getType() != MegaRequest::TYPE_EXPORT) return;
 
-    fireOnRequestFinish(request, megaError);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(result));
 }
 
 void MegaApiImpl::exportnode_result(handle h, handle ph)
@@ -14187,25 +14255,24 @@ void MegaApiImpl::exportnode_result(handle h, handle ph)
         }
         else
         {
-            fireOnRequestFinish(request, MegaError(MegaError::API_EKEY));
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(MegaError::API_EKEY));
             return;
         }
 
         string link = client->getPublicLink(client->mNewLinkFormat, n->type, ph, key);
         request->setLink(link.c_str());
-        fireOnRequestFinish(request, MegaError(MegaError::API_OK));
+        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(MegaError::API_OK));
     }
     else
     {
         request->setNodeHandle(UNDEF);
-        fireOnRequestFinish(request, MegaError(MegaError::API_ENOENT));
+        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(MegaError::API_ENOENT));
     }
 }
 
 // the requested link could not be opened
-void MegaApiImpl::openfilelink_result(error result)
+void MegaApiImpl::openfilelink_result(const Error& result)
 {
-    MegaError megaError(result);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || ((request->getType() != MegaRequest::TYPE_IMPORT_LINK) &&
@@ -14214,10 +14281,10 @@ void MegaApiImpl::openfilelink_result(error result)
 
     if (request->getType() == MegaRequest::TYPE_CREATE_ACCOUNT)
     {
-        return fireOnRequestFinish(request, MegaError(API_OK));    // if import fails, notify account was successfuly created anyway
+        return fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));    // if import fails, notify account was successfuly created anyway
     }
 
-    fireOnRequestFinish(request, megaError);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(result));
 }
 
 // the requested link was opened successfully
@@ -14233,14 +14300,14 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
 
     if (!client->loggedin() && (request->getType() == MegaRequest::TYPE_IMPORT_LINK))
     {
-        fireOnRequestFinish(request, MegaError(MegaError::API_EACCESS));
+        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(MegaError::API_EACCESS));
         return;
     }
 
     // no key provided --> check only that the nodehandle is valid
     if (!key && (request->getType() == MegaRequest::TYPE_GET_PUBLIC_NODE))
     {
-        fireOnRequestFinish(request, MegaError(MegaError::API_EINCOMPLETE));
+        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(MegaError::API_EINCOMPLETE));
         return;
     }
 
@@ -14299,7 +14366,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
         Node *target = client->nodebyhandle(parenthandle);
         if (!target)
         {
-            fireOnRequestFinish(request, MegaError(MegaError::API_EARGS));
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(MegaError::API_EARGS));
             return;
         }
 
@@ -14309,7 +14376,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
             if (ffp.isvalid && ovn->isvalid && ffp == *(FileFingerprint*)ovn)
             {
                 request->setNodeHandle(ovn->nodehandle);
-                fireOnRequestFinish(request, MegaError(API_OK));
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
                 return;
             }
 
@@ -14345,7 +14412,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
                                                            originalfingerprint.size() ? originalfingerprint.c_str() : NULL, INVALID_HANDLE);
         request->setPublicNode(megaNodePrivate);
         delete megaNodePrivate;
-        fireOnRequestFinish(request, MegaError(MegaError::API_OK));
+        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(MegaError::API_OK));
     }
 }
 
@@ -14392,20 +14459,19 @@ void MegaApiImpl::account_details(AccountDetails*, bool, bool, bool, bool, bool,
     {
         bool storage_requested = request->getNumDetails() & 0x01;
         if (storage_requested && !request->getAccountDetails()->storage_max)
-            fireOnRequestFinish(request, MegaError(MegaError::API_EACCESS));
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(MegaError::API_EACCESS));
         else
-            fireOnRequestFinish(request, MegaError(MegaError::API_OK));
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(MegaError::API_OK));
     }
 }
 
 void MegaApiImpl::account_details(AccountDetails*, error e)
 {
-    MegaError megaError(e);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_ACCOUNT_DETAILS)) return;
 
-    fireOnRequestFinish(request, megaError);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::querytransferquota_result(int code)
@@ -14417,22 +14483,20 @@ void MegaApiImpl::querytransferquota_result(int code)
     // pre-warn about a possible overquota for codes 2 and 3, like in the webclient
     request->setFlag((code == 2 || code == 3) ? true : false);
 
-    fireOnRequestFinish(request, MegaError(API_OK));
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
 }
 
 void MegaApiImpl::removecontact_result(error e)
 {
-    MegaError megaError(e);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_REMOVE_CONTACT)) return;
 
-    fireOnRequestFinish(request, megaError);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::putua_result(error e)
 {
-    MegaError megaError(e);
     MegaRequestPrivate* request = NULL;
     auto it = requestMap.find(client->restag);
     if (it == requestMap.end() || !(request = it->second)
@@ -14454,12 +14518,11 @@ void MegaApiImpl::putua_result(error e)
         setLanguage(request->getText());
     }
 
-    fireOnRequestFinish(request, megaError);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::getua_result(error e)
 {
-    MegaError megaError(e);
     MegaRequestPrivate* request = NULL;
     auto it = requestMap.find(client->restag);
     if (it == requestMap.end() || !(request = it->second)
@@ -14525,7 +14588,7 @@ void MegaApiImpl::getua_result(error e)
         }
     }
 
-    fireOnRequestFinish(request, megaError);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
@@ -14580,7 +14643,7 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
             else
             {
                 LOG_debug << "Password-reminder data not changed, already up to date";
-                fireOnRequestFinish(request, MegaError(API_OK));
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             }
         }
         delete pushSettings;
@@ -14608,13 +14671,13 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
 
                 if (!success)
                 {
-                    fireOnRequestFinish(request, MegaError(API_EWRITE));
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_EWRITE));
                     return;
                 }
             }
             else    // no data for the avatar
             {
-                fireOnRequestFinish(request, MegaError(API_ENOENT));
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_ENOENT));
                 return;
             }
 
@@ -14714,7 +14777,7 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
     }
 
     delete pushSettings;
-    fireOnRequestFinish(request, MegaError(e));
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
@@ -14742,7 +14805,7 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
             else
             {
                 LOG_debug << "Attribute " << User::attr2string(type) << " not changed, already up to date";
-                fireOnRequestFinish(request, MegaError(e));
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
             }
 
             return;
@@ -14838,7 +14901,7 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
         }
     }
 
-    fireOnRequestFinish(request, MegaError(e));
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 #ifdef DEBUG
@@ -14864,7 +14927,7 @@ void MegaApiImpl::getuseremail_result(string *email, error e)
         request->setEmail(email->c_str());
     }
 
-    fireOnRequestFinish(request, e);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
     return;
 }
 
@@ -14886,7 +14949,7 @@ void MegaApiImpl::catchup_result()
     if (!request || (request->getType() != MegaRequest::TYPE_CATCHUP) || !request->getTag()) return;
     request = scRequestQueue.pop();
 
-    fireOnRequestFinish(request, API_OK);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
 
     // if there are more sc requests in the queue, send the next one
     if (scRequestQueue.front())
@@ -14925,12 +14988,11 @@ void MegaApiImpl::key_modified(handle userhandle, attr_t attribute)
 
 void MegaApiImpl::ephemeral_result(error e)
 {
-    MegaError megaError(e);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || ((request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT))) return;
 
-    fireOnRequestFinish(request, megaError);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::ephemeral_result(handle uh, const byte* pw)
@@ -14963,7 +15025,7 @@ void MegaApiImpl::cancelsignup_result(error e)
     MegaRequestPrivate *request = it->second;
     if (!request || ((request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT))) return;
 
-    fireOnRequestFinish(request, MegaError(e));
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::whyamiblocked_result(int code)
@@ -14980,8 +15042,7 @@ void MegaApiImpl::whyamiblocked_result(int code)
 
     if (code <= 0)
     {
-        MegaError megaError(code);
-        fireOnRequestFinish(request, megaError);
+        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(code));
     }
     else    // code > 0
     {
@@ -15020,7 +15081,7 @@ void MegaApiImpl::whyamiblocked_result(int code)
         bool logoutAllowed = request->getFlag();
         request->setNumber(code);
         request->setText(reason.c_str());
-        fireOnRequestFinish(request, API_OK);
+        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
 
         MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_ACCOUNT_BLOCKED);
         event->setNumber(code);
@@ -15059,7 +15120,7 @@ void MegaApiImpl::contactlinkcreate_result(error e, handle h)
     {
         request->setNodeHandle(h);
     }
-    fireOnRequestFinish(request, e);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::contactlinkquery_result(error e, handle h, string *email, string *firstname, string *lastname, string *avatar)
@@ -15082,7 +15143,7 @@ void MegaApiImpl::contactlinkquery_result(error e, handle h, string *email, stri
         request->setText(Base64::atob(*lastname).c_str());
         request->setFile(avatar->c_str());
     }
-    fireOnRequestFinish(request, e);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::contactlinkdelete_result(error e)
@@ -15096,7 +15157,7 @@ void MegaApiImpl::contactlinkdelete_result(error e)
     {
         return;
     }
-    fireOnRequestFinish(request, e);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::keepmealive_result(error e)
@@ -15111,7 +15172,7 @@ void MegaApiImpl::keepmealive_result(error e)
     {
         return;
     }
-    fireOnRequestFinish(request, e);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::getpsa_result(error e, int id, string *title, string *text, string *image, string *buttontext, string *buttonlink)
@@ -15137,7 +15198,7 @@ void MegaApiImpl::getpsa_result(error e, int id, string *title, string *text, st
         request->setLink(buttonlink->c_str());
     }
 
-    fireOnRequestFinish(request, e);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::multifactorauthsetup_result(string *code, error e)
@@ -15157,13 +15218,13 @@ void MegaApiImpl::multifactorauthsetup_result(string *code, error e)
     {
         if (!code)
         {
-            fireOnRequestFinish(request, MegaError(API_EINTERNAL));
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_EINTERNAL));
             return;
         }
         request->setText(code->c_str());
     }
 
-    fireOnRequestFinish(request, MegaError(e));
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::multifactorauthcheck_result(int enabled)
@@ -15180,12 +15241,12 @@ void MegaApiImpl::multifactorauthcheck_result(int enabled)
 
     if (enabled < 0)
     {
-        fireOnRequestFinish(request, MegaError(enabled));
+        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(enabled));
         return;
     }
 
     request->setFlag(enabled);
-    fireOnRequestFinish(request, MegaError(API_OK));
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
 }
 
 void MegaApiImpl::multifactorauthdisable_result(error e)
@@ -15200,7 +15261,7 @@ void MegaApiImpl::multifactorauthdisable_result(error e)
         return;
     }
 
-    fireOnRequestFinish(request, MegaError(e));
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::fetchtimezone_result(error e, vector<std::string> *timezones, vector<int> *timezoneoffsets, int defaulttz)
@@ -15226,7 +15287,7 @@ void MegaApiImpl::fetchtimezone_result(error e, vector<std::string> *timezones, 
     }
 
     request->setTimeZoneDetails(tzDetails.get());
-    fireOnRequestFinish(request, MegaError(e));
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::acknowledgeuseralerts_result(error e)
@@ -15237,7 +15298,7 @@ void MegaApiImpl::acknowledgeuseralerts_result(error e)
         MegaRequestPrivate* request = it->second;
         if (request && ((request->getType() == MegaRequest::TYPE_USERALERT_ACKNOWLEDGE)))
         {
-            fireOnRequestFinish(request, e);
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
         }
     }
 }
@@ -15250,7 +15311,7 @@ void MegaApiImpl::smsverificationsend_result(error e)
         MegaRequestPrivate* request = it->second;
         if (request && ((request->getType() == MegaRequest::TYPE_SEND_SMS_VERIFICATIONCODE)))
         {
-            fireOnRequestFinish(request, e);
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
         }
     }
 }
@@ -15267,7 +15328,7 @@ void MegaApiImpl::smsverificationcheck_result(error e, string* phoneNumber)
             {
                 request->setName(phoneNumber->c_str());
             }
-            fireOnRequestFinish(request, e);
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
         }
     }
 }
@@ -15294,7 +15355,7 @@ void MegaApiImpl::getregisteredcontacts_result(error e, vector<tuple<string, str
                 }
                 request->setMegaStringTable(stringTable.get());
             }
-            fireOnRequestFinish(request, e);
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
         }
     }
 }
@@ -15322,14 +15383,13 @@ void MegaApiImpl::getcountrycallingcodes_result(error e, map<string, vector<stri
                 }
                 request->setMegaStringListMap(stringListMap.get());
             }
-            fireOnRequestFinish(request, e);
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
         }
     }
 }
 
 void MegaApiImpl::sendsignuplink_result(error e)
 {
-    MegaError megaError(e);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || ((request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT) &&
@@ -15345,18 +15405,17 @@ void MegaApiImpl::sendsignuplink_result(error e)
         return;
     }
 
-    fireOnRequestFinish(request, megaError);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::querysignuplink_result(error e)
 {
-    MegaError megaError(e);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || ((request->getType() != MegaRequest::TYPE_QUERY_SIGNUP_LINK) &&
                     (request->getType() != MegaRequest::TYPE_CONFIRM_ACCOUNT))) return;
 
-    fireOnRequestFinish(request, megaError);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::querysignuplink_result(handle uh, const char* email, const char* name, const byte* pwc, const byte*, const byte* c, size_t len)
@@ -15377,7 +15436,7 @@ void MegaApiImpl::querysignuplink_result(handle uh, const char* email, const cha
     
     if(request->getType() == MegaRequest::TYPE_QUERY_SIGNUP_LINK || e)
     {
-        fireOnRequestFinish(request, MegaError(e));
+        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
         return;
     }
 
@@ -15403,7 +15462,7 @@ void MegaApiImpl::querysignuplink_result(handle uh, const char* email, const cha
 
     if (*(uint64_t*)(signuppwchallenge+4))
     {
-        fireOnRequestFinish(request, MegaError(API_EKEY));
+        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_EKEY));
     }
     else
     {
@@ -15418,17 +15477,15 @@ void MegaApiImpl::querysignuplink_result(handle uh, const char* email, const cha
 
 void MegaApiImpl::confirmsignuplink_result(error e)
 {
-    MegaError megaError(e);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_CONFIRM_ACCOUNT)) return;
 
-    fireOnRequestFinish(request, megaError);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::confirmsignuplink2_result(handle, const char *name, const char *email, error e)
 {
-    MegaError megaError(e);
     if (requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if (!request || ((request->getType() != MegaRequest::TYPE_CONFIRM_ACCOUNT) &&
@@ -15442,7 +15499,7 @@ void MegaApiImpl::confirmsignuplink2_result(handle, const char *name, const char
         request->setEmail(email);
         request->setFlag(true);
     }
-    fireOnRequestFinish(request, megaError);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::setkeypair_result(error)
@@ -15450,7 +15507,7 @@ void MegaApiImpl::setkeypair_result(error)
 
 }
 
-void MegaApiImpl::checkfile_result(handle h, error e)
+void MegaApiImpl::checkfile_result(handle h, const Error &e)
 {
     if(e)
     {
@@ -15459,9 +15516,20 @@ void MegaApiImpl::checkfile_result(handle h, error e)
             MegaTransferPrivate *transfer = iter->second;
             if (transfer->getNodeHandle() == h)
             {
-                transfer->setLastError(MegaError(e));
-                transfer->setState(MegaTransfer::STATE_RETRYING);
-                fireOnTransferTemporaryError(transfer, MegaError(e));
+                auto megaError = make_unique<MegaErrorPrivate>(e);
+                transfer->setLastError(megaError.get());
+
+                if (e == API_ETOOMANY && e.hasExtraInfo())
+                {
+                    DBTableTransactionCommitter committer(client->tctable);
+                    transfer->setState(MegaTransfer::STATE_FAILED);
+                    fireOnTransferFinish(transfer, std::move(megaError), committer);
+                }
+                else
+                {
+                    transfer->setState(MegaTransfer::STATE_RETRYING);
+                    fireOnTransferTemporaryError(transfer, std::move(megaError));
+                }
             }
         }
     }
@@ -15476,9 +15544,10 @@ void MegaApiImpl::checkfile_result(handle h, error e, byte*, m_off_t, m_time_t, 
             MegaTransferPrivate *transfer = iter->second;
             if (transfer->getNodeHandle() == h)
             {
-                transfer->setLastError(MegaError(e));
+                auto megaError = make_unique<MegaErrorPrivate>(e);
+                transfer->setLastError(megaError.get());
                 transfer->setState(MegaTransfer::STATE_RETRYING);
-                fireOnTransferTemporaryError(transfer, MegaError(e));
+                fireOnTransferTemporaryError(transfer, std::move(megaError));
             }
         }
     }
@@ -15690,15 +15759,14 @@ void MegaApiImpl::fireOnRequestStart(MegaRequestPrivate *request)
 }
 
 
-void MegaApiImpl::fireOnRequestFinish(MegaRequestPrivate *request, MegaError e)
+void MegaApiImpl::fireOnRequestFinish(MegaRequestPrivate *request, unique_ptr<MegaErrorPrivate> e)
 {
-    MegaError *megaError = new MegaError(e);
     activeRequest = request;
-    activeError = megaError;
+    activeError = e.get();
 
-    if(e.getErrorCode())
+    if(e->getErrorCode())
     {
-        LOG_warn << "Request (" << request->getRequestString() << ") finished with error: " << e.getErrorString();
+        LOG_warn << "Request (" << request->getRequestString() << ") finished with error: " << e->getErrorString();
     }
     else
     {
@@ -15707,18 +15775,18 @@ void MegaApiImpl::fireOnRequestFinish(MegaRequestPrivate *request, MegaError e)
 
     for(set<MegaRequestListener *>::iterator it = requestListeners.begin(); it != requestListeners.end() ;)
     {
-        (*it++)->onRequestFinish(api, request, megaError);
+        (*it++)->onRequestFinish(api, request, e.get());
     }
 
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
-        (*it++)->onRequestFinish(api, request, megaError);
+        (*it++)->onRequestFinish(api, request, e.get());
     }
 
     MegaRequestListener* listener = request->getListener();
     if(listener)
     {
-        listener->onRequestFinish(api, request, megaError);
+        listener->onRequestFinish(api, request, e.get());
     }
 
     requestMap.erase(request->getTag());
@@ -15726,7 +15794,6 @@ void MegaApiImpl::fireOnRequestFinish(MegaRequestPrivate *request, MegaError e)
     activeRequest = NULL;
     activeError = NULL;
     delete request;
-    delete megaError;
 }
 
 void MegaApiImpl::fireOnRequestUpdate(MegaRequestPrivate *request)
@@ -15752,33 +15819,31 @@ void MegaApiImpl::fireOnRequestUpdate(MegaRequestPrivate *request)
     activeRequest = NULL;
 }
 
-void MegaApiImpl::fireOnRequestTemporaryError(MegaRequestPrivate *request, MegaError e)
+void MegaApiImpl::fireOnRequestTemporaryError(MegaRequestPrivate *request, unique_ptr<MegaErrorPrivate> e)
 {
-    MegaError *megaError = new MegaError(e);
     activeRequest = request;
-    activeError = megaError;
+    activeError = e.get();
 
     request->setNumRetry(request->getNumRetry() + 1);
 
     for(set<MegaRequestListener *>::iterator it = requestListeners.begin(); it != requestListeners.end() ;)
     {
-        (*it++)->onRequestTemporaryError(api, request, megaError);
+        (*it++)->onRequestTemporaryError(api, request, e.get());
     }
 
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
-        (*it++)->onRequestTemporaryError(api, request, megaError);
+        (*it++)->onRequestTemporaryError(api, request, e.get());
     }
 
     MegaRequestListener* listener = request->getListener();
     if(listener)
     {
-        listener->onRequestTemporaryError(api, request, megaError);
+        listener->onRequestTemporaryError(api, request, e.get());
     }
 
     activeRequest = NULL;
     activeError = NULL;
-    delete megaError;
 }
 
 void MegaApiImpl::fireOnTransferStart(MegaTransferPrivate *transfer)
@@ -15806,19 +15871,23 @@ void MegaApiImpl::fireOnTransferStart(MegaTransferPrivate *transfer)
     activeTransfer = NULL;
 }
 
-void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, MegaError e, DBTableTransactionCommitter& committer)
+void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e, DBTableTransactionCommitter& committer)
 {
-    MegaError *megaError = new MegaError(e);
     activeTransfer = transfer;
-    activeError = megaError;
+    activeError = e.get();
     notificationNumber++;
     transfer->setNotificationNumber(notificationNumber);
-    transfer->setLastError(e);
+    transfer->setLastError(e.get());
 
-    if(e.getErrorCode())
+    if(e->getErrorCode())
     {
-        LOG_warn << "Transfer (" << transfer->getTransferString() << ") finished with error: " << e.getErrorString()
+        LOG_warn << "Transfer (" << transfer->getTransferString() << ") finished with error: " << e->getErrorString()
                     << " File: " << transfer->getFileName();
+
+        if (e->hasExtraInfo() && e->getErrorCode() == API_ETOOMANY)
+        {
+            LOG_warn << "ETD affected: user status: " << e->getUserStatus() << "  link status: " << e->getLinkStatus();
+        }
     }
     else
     {
@@ -15827,18 +15896,18 @@ void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, MegaError 
 
     for(set<MegaTransferListener *>::iterator it = transferListeners.begin(); it != transferListeners.end() ;)
     {
-        (*it++)->onTransferFinish(api, transfer, megaError);
+        (*it++)->onTransferFinish(api, transfer, e.get());
     }
 
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
-        (*it++)->onTransferFinish(api, transfer, megaError);
+        (*it++)->onTransferFinish(api, transfer, e.get());
     }
 
     MegaTransferListener* listener = transfer->getListener();
     if(listener)
     {
-        listener->onTransferFinish(api, transfer, megaError);
+        listener->onTransferFinish(api, transfer, e.get());
     }
 
     transferMap.erase(transfer->getTag());
@@ -15846,14 +15915,12 @@ void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, MegaError 
     activeTransfer = NULL;
     activeError = NULL;
     delete transfer;  // committer needs to be present for this one, db updated
-    delete megaError;
 }
 
-void MegaApiImpl::fireOnTransferTemporaryError(MegaTransferPrivate *transfer, MegaError e)
+void MegaApiImpl::fireOnTransferTemporaryError(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e)
 {
-    MegaError *megaError = new MegaError(e);
     activeTransfer = transfer;
-    activeError = megaError;
+    activeError = e.get();
     notificationNumber++;
     transfer->setNotificationNumber(notificationNumber);
 
@@ -15861,23 +15928,22 @@ void MegaApiImpl::fireOnTransferTemporaryError(MegaTransferPrivate *transfer, Me
 
     for(set<MegaTransferListener *>::iterator it = transferListeners.begin(); it != transferListeners.end() ;)
     {
-        (*it++)->onTransferTemporaryError(api, transfer, megaError);
+        (*it++)->onTransferTemporaryError(api, transfer, e.get());
     }
 
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
-        (*it++)->onTransferTemporaryError(api, transfer, megaError);
+        (*it++)->onTransferTemporaryError(api, transfer, e.get());
     }
 
     MegaTransferListener* listener = transfer->getListener();
     if(listener)
     {
-        listener->onTransferTemporaryError(api, transfer, megaError);
+        listener->onTransferTemporaryError(api, transfer, e.get());
     }
 
     activeTransfer = NULL;
     activeError = NULL;
-    delete megaError;
 }
 
 MegaClient *MegaApiImpl::getMegaClient()
@@ -16146,50 +16212,42 @@ void MegaApiImpl::fireOnBackupStart(MegaBackupController *backup)
 
 }
 
-void MegaApiImpl::fireOnBackupFinish(MegaBackupController *backup, MegaError e)
+void MegaApiImpl::fireOnBackupFinish(MegaBackupController *backup, unique_ptr<MegaErrorPrivate> e)
 {
-    MegaError *megaError = new MegaError(e);
-
     for(set<MegaBackupListener *>::iterator it = backupListeners.begin(); it != backupListeners.end() ;)
     {
-        (*it++)->onBackupFinish(api, backup, megaError);
+        (*it++)->onBackupFinish(api, backup, e.get());
     }
 
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
-        (*it++)->onBackupFinish(api, backup, megaError);
+        (*it++)->onBackupFinish(api, backup, e.get());
     }
 
     MegaBackupListener* listener = backup->getBackupListener();
     if(listener)
     {
-        listener->onBackupFinish(api, backup, megaError);
+        listener->onBackupFinish(api, backup, e.get());
     }
-
-    delete megaError;
 }
 
-void MegaApiImpl::fireOnBackupTemporaryError(MegaBackupController *backup, MegaError e)
+void MegaApiImpl::fireOnBackupTemporaryError(MegaBackupController *backup, unique_ptr<MegaErrorPrivate> e)
 {
-    MegaError *megaError = new MegaError(e);
-
     for(set<MegaBackupListener *>::iterator it = backupListeners.begin(); it != backupListeners.end() ;)
     {
-        (*it++)->onBackupTemporaryError(api, backup, megaError);
+        (*it++)->onBackupTemporaryError(api, backup, e.get());
     }
 
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
-        (*it++)->onBackupTemporaryError(api, backup, megaError);
+        (*it++)->onBackupTemporaryError(api, backup, e.get());
     }
 
     MegaBackupListener* listener = backup->getBackupListener();
     if(listener)
     {
-        listener->onBackupTemporaryError(api, backup, megaError);
+        listener->onBackupTemporaryError(api, backup, e.get());
     }
-
-    delete megaError;
 }
 
 void MegaApiImpl::fireOnBackupUpdate(MegaBackupController *backup)
@@ -16296,7 +16354,7 @@ void MegaApiImpl::processTransferComplete(Transfer *tr, MegaTransferPrivate *tra
 
         transfer->setState(MegaTransfer::STATE_COMPLETED);
         DBTableTransactionCommitter committer(client->tctable);
-        fireOnTransferFinish(transfer, MegaError(API_OK), committer);
+        fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(API_OK), committer);
     }
     else
     {
@@ -16308,22 +16366,33 @@ void MegaApiImpl::processTransferComplete(Transfer *tr, MegaTransferPrivate *tra
     }
 }
 
-void MegaApiImpl::processTransferFailed(Transfer *tr, MegaTransferPrivate *transfer, error e, dstime timeleft)
+void MegaApiImpl::processTransferFailed(Transfer *tr, MegaTransferPrivate *transfer, const Error& e, dstime timeleft)
 {
-    MegaError megaError(e, timeleft / 10);
+    auto megaError = make_unique<MegaErrorPrivate>(e, timeleft / 10);
     transfer->setStartTime(Waiter::ds);
     transfer->setUpdateTime(Waiter::ds);
     transfer->setDeltaSize(0);
     transfer->setSpeed(0);
     transfer->setMeanSpeed(0);
-    transfer->setLastError(megaError);
+    transfer->setLastError(megaError.get());
     transfer->setPriority(tr->priority);
-    transfer->setState(MegaTransfer::STATE_RETRYING);
-    transfer->setForeignOverquota(e == API_EOVERQUOTA && client->isForeignNode(transfer->getParentHandle()));
-    fireOnTransferTemporaryError(transfer, megaError);
+    if (e == API_ETOOMANY && e.hasExtraInfo())
+    {
+        DBTableTransactionCommitter committer(client->tctable);
+        transfer->setState(MegaTransfer::STATE_FAILED);
+        transfer->setForeignOverquota(false);
+        fireOnTransferFinish(transfer, std::move(megaError), committer);
+    }
+    else
+    {
+        transfer->setState(MegaTransfer::STATE_RETRYING);
+        transfer->setForeignOverquota(e == API_EOVERQUOTA && client->isForeignNode(transfer->getParentHandle()));
+        fireOnTransferTemporaryError(transfer, make_unique<MegaErrorPrivate>(e));
+    }
+
 }
 
-void MegaApiImpl::processTransferRemoved(Transfer *tr, MegaTransferPrivate *transfer, error e)
+void MegaApiImpl::processTransferRemoved(Transfer *tr, MegaTransferPrivate *transfer, const Error& e)
 {
     m_off_t deltaSize = tr->size - transfer->getTransferredBytes();
     if (tr->type == GET)
@@ -16360,22 +16429,27 @@ void MegaApiImpl::processTransferRemoved(Transfer *tr, MegaTransferPrivate *tran
     transfer->setState(e == API_EINCOMPLETE ? MegaTransfer::STATE_CANCELLED : MegaTransfer::STATE_FAILED);
     transfer->setPriority(tr->priority);
     DBTableTransactionCommitter committer(client->tctable);
-    fireOnTransferFinish(transfer, e, committer);
+    fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(e), committer);
 }
 
 MegaError MegaApiImpl::checkAccess(MegaNode* megaNode, int level)
 {
+    std::unique_ptr<MegaError> megaError(checkAccessErrorExtended(megaNode, level));
+    return megaError->getErrorCode();
+}
+
+MegaError *MegaApiImpl::checkAccessErrorExtended(MegaNode *megaNode, int level)
+{
     if(!megaNode || level < MegaShare::ACCESS_UNKNOWN || level > MegaShare::ACCESS_OWNER)
     {
-        return MegaError(API_EARGS);
+        return new MegaErrorPrivate(API_EARGS);
     }
 
-    sdkMutex.lock();
+    SdkMutexGuard g(sdkMutex);
     Node *node = client->nodebyhandle(megaNode->getHandle());
     if(!node)
     {
-        sdkMutex.unlock();
-        return MegaError(API_ENOENT);
+        return new MegaErrorPrivate(API_ENOENT);
     }
 
     accesslevel_t a = OWNER;
@@ -16396,29 +16470,28 @@ MegaError MegaApiImpl::checkAccess(MegaNode* megaNode, int level)
             break;
     }
 
-    MegaError e(client->checkaccess(node, a) ? API_OK : API_EACCESS);
-    sdkMutex.unlock();
-
-    return e;
+    return client->checkaccess(node, a) ? new MegaErrorPrivate(API_OK) : new MegaErrorPrivate(API_EACCESS);
 }
 
 MegaError MegaApiImpl::checkMove(MegaNode* megaNode, MegaNode* targetNode)
 {
-    if(!megaNode || !targetNode) return MegaError(API_EARGS);
+    std::unique_ptr<MegaError> megaError(checkMoveErrorExtended(megaNode, targetNode));
+    return megaError->getErrorCode();
+}
 
-    sdkMutex.lock();
+MegaError *MegaApiImpl::checkMoveErrorExtended(MegaNode *megaNode, MegaNode *targetNode)
+{
+    if(!megaNode || !targetNode) return new MegaErrorPrivate(API_EARGS);
+
+    SdkMutexGuard g(sdkMutex);
     Node *node = client->nodebyhandle(megaNode->getHandle());
     Node *target = client->nodebyhandle(targetNode->getHandle());
     if(!node || !target)
     {
-        sdkMutex.unlock();
-        return MegaError(API_ENOENT);
+        return new MegaErrorPrivate(API_ENOENT);
     }
 
-    MegaError e(client->checkmove(node,target));
-    sdkMutex.unlock();
-
-    return e;
+    return new MegaErrorPrivate(client->checkmove(node,target));
 }
 
 bool MegaApiImpl::isFilesystemAvailable()
@@ -16973,42 +17046,24 @@ MegaNodeList *MegaApiImpl::getChildren(MegaNode* p, int order)
         return new MegaNodeListPrivate();
     }
 
-    sdkMutex.lock();
-    Node *parent = client->nodebyhandle(p->getHandle());
-    if (!parent || parent->type == FILENODE)
-    {
-        sdkMutex.unlock();
-        return new MegaNodeListPrivate();
-    }
-
     node_vector childrenNodes;
 
-    if (std::function<bool(Node*, Node*)> comparatorFunction = getComparatorFunction(order, *client))
+    SdkMutexGuard guard(sdkMutex);
+
+    Node *parent = client->nodebyhandle(p->getHandle());
+    if (parent && parent->type != FILENODE)
     {
+        childrenNodes.reserve(parent->children.size());
         for (node_list::iterator it = parent->children.begin(); it != parent->children.end(); )
         {
-            Node *n = *it++;
-            const node_vector::iterator i = std::lower_bound(childrenNodes.begin(), childrenNodes.end(), n, comparatorFunction);
-            childrenNodes.insert(i, n);
+            childrenNodes.push_back(*it++);
+        }
+        if (std::function<bool(Node*, Node*)> comparatorFunction = getComparatorFunction(order, *client))
+        {
+            std::sort(childrenNodes.begin(), childrenNodes.end(), comparatorFunction);
         }
     }
-    else
-    {
-        for (node_list::iterator it = parent->children.begin(); it != parent->children.end(); )
-            childrenNodes.push_back(*it++);
-    }
-
-    MegaNodeListPrivate *result = NULL;
-    if (childrenNodes.size())
-    {
-        result = new MegaNodeListPrivate(childrenNodes.data(), int(childrenNodes.size()));
-    }
-    else
-    {
-        result = new MegaNodeListPrivate();
-    }
-    sdkMutex.unlock();
-    return result;
+    return new MegaNodeListPrivate(childrenNodes.data(), int(childrenNodes.size()));
 }
 
 MegaNodeList *MegaApiImpl::getVersions(MegaNode *node)
@@ -17110,72 +17165,38 @@ MegaChildrenLists *MegaApiImpl::getFileFolderChildren(MegaNode *p, int order)
         return new MegaChildrenListsPrivate();
     }
 
-    sdkMutex.lock();
+    SdkMutexGuard guard(sdkMutex);
+
     Node *parent = client->nodebyhandle(p->getHandle());
     if (!parent || parent->type == FILENODE)
     {
-        sdkMutex.unlock();
         return new MegaChildrenListsPrivate();
     }
 
     node_vector files;
     node_vector folders;
 
+    for (node_list::iterator it = parent->children.begin(); it != parent->children.end(); )
+    {
+        Node *n = *it++;
+        if (n->type == FILENODE)
+        {
+            files.push_back(n);
+        }
+        else // if (n->type == FOLDERNODE)
+        {
+            folders.push_back(n);
+        }
+    }
     if (std::function<bool(Node*, Node*)> comparatorFunction = getComparatorFunction(order, *client))
     {
-        for (node_list::iterator it = parent->children.begin(); it != parent->children.end(); )
-        {
-            Node *n = *it++;
-            if (n->type == FILENODE)
-            {
-                const node_vector::iterator i = std::lower_bound(files.begin(), files.end(), n, comparatorFunction);
-                files.insert(i, n);
-            }
-            else // if (n->type == FOLDERNODE)
-            {
-                const node_vector::iterator i = std::lower_bound(folders.begin(), folders.end(), n, comparatorFunction);
-                folders.insert(i, n);
-            }
-        }
-    }
-    else
-    {
-        for (node_list::iterator it = parent->children.begin(); it != parent->children.end(); )
-        {
-            Node *n = *it++;
-            if (n->type == FILENODE)
-            {
-                files.push_back(n);
-            }
-            else // if (n->type == FOLDERNODE)
-            {
-                folders.push_back(n);
-            }
-        }
+        std::sort(files.begin(), files.end(), comparatorFunction);
+        std::sort(folders.begin(), folders.end(), comparatorFunction);
     }
 
-    MegaNodeListPrivate *fileList;
-    if (files.size())
-    {
-        fileList = new MegaNodeListPrivate(files.data(), int(files.size()));
-    }
-    else
-    {
-        fileList = new MegaNodeListPrivate();
-    }
-
-    MegaNodeListPrivate *folderList;
-    if (folders.size())
-    {
-        folderList = new MegaNodeListPrivate(folders.data(), int(folders.size()));
-    }
-    else
-    {
-        folderList = new MegaNodeListPrivate();
-    }
-
-    sdkMutex.unlock();
-    return new MegaChildrenListsPrivate(folderList, fileList);
+    auto fileList = make_unique<MegaNodeListPrivate>(files.data(), int(files.size()));
+    auto folderList = make_unique<MegaNodeListPrivate>(folders.data(), int(folders.size()));
+    return new MegaChildrenListsPrivate(move(folderList), move(fileList));
 }
 
 bool MegaApiImpl::hasChildren(MegaNode *parent)
@@ -17197,46 +17218,6 @@ bool MegaApiImpl::hasChildren(MegaNode *parent)
     sdkMutex.unlock();
 
     return ret;
-}
-
-int MegaApiImpl::getIndex(MegaNode *n, int order)
-{
-    if(!n)
-    {
-        return -1;
-    }
-
-    SdkMutexGuard g(sdkMutex);
-    Node *node = client->nodebyhandle(n->getHandle());
-    if(!node)
-    {
-        return -1;
-    }
-
-    Node *parent = node->parent;
-    if (!parent)
-    {
-        return -1;
-    }
-
-    if (std::function<bool(Node*, Node*)> comparatorFunction = getComparatorFunction(order, *client))
-    {
-        node_vector childrenNodes;
-        for (node_list::iterator it = parent->children.begin(); it != parent->children.end(); )
-        {
-            Node *temp = *it++;
-            const node_vector::iterator i = std::lower_bound(childrenNodes.begin(), childrenNodes.end(), temp, comparatorFunction);
-            childrenNodes.insert(i, temp);
-        }
-
-        const node_vector::iterator i = std::lower_bound(childrenNodes.begin(), childrenNodes.end(), node, comparatorFunction);
-
-        return int(i - childrenNodes.begin());
-    }
-    else
-    {
-        return 0;
-    }
 }
 
 MegaNode *MegaApiImpl::getChildNode(MegaNode *parent, const char* name)
@@ -17765,7 +17746,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                                 transfer->setMeanSpeed(0);
                                 transfer->setState(MegaTransfer::STATE_COMPLETED);
                                 pendingUploads--;
-                                fireOnTransferFinish(transfer, MegaError(API_OK), committer);
+                                fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(API_OK), committer);
                                 break;
                             }
                         }
@@ -17847,7 +17828,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                             transfer->setStartTime(Waiter::ds);
                             transfer->setUpdateTime(Waiter::ds);
                             transfer->setState(MegaTransfer::STATE_FAILED);
-                            fireOnTransferFinish(transfer, MegaError(API_EREAD), committer);
+                            fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(API_EREAD), committer);
                         }
                         else
                         {
@@ -17882,7 +17863,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                             transfer->setStartTime(Waiter::ds);
                             transfer->setUpdateTime(Waiter::ds);
                             transfer->setState(MegaTransfer::STATE_CANCELLED);
-                            fireOnTransferFinish(transfer, MegaError(API_EEXIST), committer);
+                            fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(API_EEXIST), committer);
                         }
                     }
                     currentTransfer = NULL;
@@ -17972,8 +17953,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                         {
                             name = fileName;
                         }
-
-                        client->fsaccess->name2local(&name);
+                        client->fsaccess->name2local(&name, &path);
                         client->fsaccess->local2path(&name, &securename);
                         path += securename;
                     }
@@ -17988,7 +17968,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                             name = transfer->getFileName();
                         }
 
-                        client->fsaccess->name2local(&name);
+                        client->fsaccess->name2local(&name, &path);
                         client->fsaccess->local2path(&name, &securename);
                         path += securename;
                     }
@@ -18051,7 +18031,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                             transfer->setSpeed(0);
                             transfer->setMeanSpeed(0);
                             transfer->setState(MegaTransfer::STATE_COMPLETED);
-                            fireOnTransferFinish(transfer, MegaError(API_OK), committer);
+                            fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(API_OK), committer);
                             break;
                         }
                     }
@@ -18082,13 +18062,13 @@ unsigned MegaApiImpl::sendPendingTransfers()
                         long long overquotaDelay = getBandwidthOverquotaDelay();
                         if (overquotaDelay)
                         {
-                            fireOnTransferTemporaryError(transfer, MegaError(API_EOVERQUOTA, overquotaDelay));
+                            fireOnTransferTemporaryError(transfer, make_unique<MegaErrorPrivate>(API_EOVERQUOTA, overquotaDelay));
                         }
 
                         transfer->setStartTime(Waiter::ds);
                         transfer->setUpdateTime(Waiter::ds);
                         transfer->setState(MegaTransfer::STATE_CANCELLED);
-                        fireOnTransferFinish(transfer, MegaError(API_EEXIST), committer);
+                        fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(API_EEXIST), committer);
                     }
                 }
                 else
@@ -18162,7 +18142,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
             transfer->setStartTime(Waiter::ds);
             transfer->setUpdateTime(Waiter::ds);
             transfer->setState(MegaTransfer::STATE_FAILED);
-            fireOnTransferFinish(transfer, MegaError(e), committer);
+            fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(e), committer);
         }
 
         if (++count > 100 || std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count() > 100)
@@ -18221,13 +18201,13 @@ error MegaApiImpl::processAbortBackupRequest(MegaRequestPrivate *request, error 
             else
             {
                 LOG_debug << "Abort failed: no ongoing backup";
-                fireOnRequestFinish(request, MegaError(API_ENOENT));
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_ENOENT));
             }
         }
         else
         {
             backup->abortCurrent(); //TODO: THIS MAY CAUSE NEW REQUESTS, should we consider them before fireOnRequestFinish?!!!
-            fireOnRequestFinish(request, MegaError(API_OK));
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
         }
 
     }
@@ -18428,7 +18408,7 @@ void MegaApiImpl::sendPendingRequests()
                 e = client->folderaccess(megaFolderLink);
                 if(e == API_OK)
                 {
-                    fireOnRequestFinish(request, MegaError(e));
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
                 }
             }
 
@@ -18487,7 +18467,7 @@ void MegaApiImpl::sendPendingRequests()
             {
                 e = API_OK;
                 request->setNodeHandle(folder->nodehandle);
-                fireOnRequestFinish(request, MegaError(e));
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
                 break;
             }
 
@@ -18535,7 +18515,7 @@ void MegaApiImpl::sendPendingRequests()
 
             if (node->parent == newParent)
             {
-                fireOnRequestFinish(request, MegaError(API_OK));
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
                 break;
             }
 
@@ -18738,7 +18718,7 @@ void MegaApiImpl::sendPendingRequests()
                             if (fp->isvalid && ovn->isvalid && *fp == *(FileFingerprint*)ovn)
                             {
                                 request->setNodeHandle(ovn->nodehandle);
-                                fireOnRequestFinish(request, MegaError(API_OK));
+                                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
                                 delete fp;
                                 break;
                             }
@@ -18819,7 +18799,7 @@ void MegaApiImpl::sendPendingRequests()
                         if (node->isvalid && ovn->isvalid && *(FileFingerprint*)node == *(FileFingerprint*)ovn)
                         {
                             request->setNodeHandle(ovn->nodehandle);
-                            fireOnRequestFinish(request, MegaError(API_OK));
+                            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
                             break;
                         }
 
@@ -19048,7 +19028,7 @@ void MegaApiImpl::sendPendingRequests()
             if (!e)
             {
                 request->setText(result.c_str());
-                fireOnRequestFinish(request, e);
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
             }
             break;
         }
@@ -19096,7 +19076,7 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             request->setNumber(client->mFingerprints.getSumSizes());
-            fireOnRequestFinish(request, API_OK);
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             break;
         }
         case MegaRequest::TYPE_ACCOUNT_DETAILS:
@@ -19389,7 +19369,7 @@ void MegaApiImpl::sendPendingRequests()
                 {
                     // no changes, current value equal to new value
                     LOG_debug << "Attribute " << User::attr2string(type) << " not changed, already up to date";
-                    fireOnRequestFinish(request, MegaError(API_OK));
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
                 }
                 break;
             }
@@ -19708,10 +19688,10 @@ void MegaApiImpl::sendPendingRequests()
                         r->getParamType() == request->getParamType() &&
                         r->getNodeHandle() == request->getNodeHandle())
                     {
-                        fireOnRequestFinish(r, MegaError(API_EINCOMPLETE));
+                        fireOnRequestFinish(r, make_unique<MegaErrorPrivate>(API_EINCOMPLETE));
                     }
                 }
-                fireOnRequestFinish(request, MegaError(e));
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
             }
             break;
         }
@@ -19788,7 +19768,7 @@ void MegaApiImpl::sendPendingRequests()
 #endif
             }
 
-            fireOnRequestFinish(request, MegaError(API_OK));
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             break;
         }
         case MegaRequest::TYPE_INVITE_CONTACT:
@@ -19997,7 +19977,7 @@ void MegaApiImpl::sendPendingRequests()
                             }
                             else    // not-logged-in / ephemeral account / partially confirmed
                             {
-                                client->confirmsignuplink2((const byte*)code.data(), code.size());
+                                client->confirmsignuplink2((const byte*)code.data(), unsigned(code.size()));
                             }
                         }
                         else
@@ -20007,7 +19987,7 @@ void MegaApiImpl::sendPendingRequests()
                     }
                     else
                     {
-                        client->querysignuplink((const byte*)code.data(), code.size());
+                        client->querysignuplink((const byte*)code.data(), unsigned(code.size()));
                     }
                 }
                 else
@@ -20043,7 +20023,7 @@ void MegaApiImpl::sendPendingRequests()
                         request->setEmail((const char *)email);
                         delete[] c;
 
-                        fireOnRequestFinish(request, MegaError(API_OK));
+                        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
                         break;
                     }
                 }
@@ -20092,7 +20072,7 @@ void MegaApiImpl::sendPendingRequests()
                         }
                         else    // not-logged-in / ephemeral account / partially confirmed
                         {
-                            client->confirmsignuplink2((const byte*)code.data(), code.size());
+                            client->confirmsignuplink2((const byte*)code.data(), unsigned(code.size()));
                         }
                     }
                     else
@@ -20106,7 +20086,7 @@ void MegaApiImpl::sendPendingRequests()
                 }
                 else
                 {
-                    client->querysignuplink((const byte*)code.data(), code.size());
+                    client->querysignuplink((const byte*)code.data(), unsigned(code.size()));
                 }
             }
             else
@@ -20293,7 +20273,7 @@ void MegaApiImpl::sendPendingRequests()
                 client->pausexfers(PUT, pause, false, committer);
             }
 
-            fireOnRequestFinish(request, MegaError(API_OK));
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             break;
         }
         case MegaRequest::TYPE_PAUSE_TRANSFER:
@@ -20310,7 +20290,7 @@ void MegaApiImpl::sendPendingRequests()
             e = client->transferlist.pause(megaTransfer->getTransfer(), pause, committer);
             if (!e)
             {
-                fireOnRequestFinish(request, MegaError(API_OK));
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             }
             break;
         }
@@ -20390,7 +20370,7 @@ void MegaApiImpl::sendPendingRequests()
 
             if (!e)
             {
-                fireOnRequestFinish(request, MegaError(API_OK));
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             }
             break;
         }
@@ -20428,7 +20408,7 @@ void MegaApiImpl::sendPendingRequests()
                 client->setmaxconnections(PUT, connections);
             }
 
-            fireOnRequestFinish(request, MegaError(API_OK));
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             break;
         }
         case MegaRequest::TYPE_CANCEL_TRANSFER:
@@ -20467,7 +20447,8 @@ void MegaApiImpl::sendPendingRequests()
                     }
                 #endif
 
-                megaTransfer->setLastError(MegaError(API_EINCOMPLETE));
+                MegaErrorPrivate megaError(API_EINCOMPLETE);
+                megaTransfer->setLastError(&megaError);
 
                 bool found = false;
                 file_list files = transfer->files;
@@ -20482,11 +20463,11 @@ void MegaApiImpl::sendPendingRequests()
                         if (!file->syncxfer)
                         {
                             client->stopxfer(file, &committer);
-                            fireOnRequestFinish(request, MegaError(API_OK));
+                            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
                         }
                         else
                         {
-                            fireOnRequestFinish(request, MegaError(API_EACCESS));
+                            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_EACCESS));
                         }
                         break;
                     }
@@ -20494,7 +20475,7 @@ void MegaApiImpl::sendPendingRequests()
 
                 if (!found)
                 {
-                    fireOnRequestFinish(request, MegaError(API_ENOENT));
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_ENOENT));
                 }
             }
             else
@@ -20516,7 +20497,7 @@ void MegaApiImpl::sendPendingRequests()
                         client->preadabort(node, startPos, totalBytes);
                     }
                 }
-                fireOnRequestFinish(request, MegaError(API_OK));
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             }
             break;
         }
@@ -20549,7 +20530,7 @@ void MegaApiImpl::sendPendingRequests()
             }
             else
             {
-                fireOnRequestFinish(request, MegaError(API_OK));
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             }
             break;
         }
@@ -20617,7 +20598,7 @@ void MegaApiImpl::sendPendingRequests()
                 }
             }
 
-            fireOnRequestFinish(request, MegaError(API_OK));
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
 
             break;
         }
@@ -20650,7 +20631,7 @@ void MegaApiImpl::sendPendingRequests()
                     if (e)
                     {
                         LOG_err << "Failed to abort backup upon remove request";
-                        fireOnRequestFinish(requestabort, MegaError(API_OK));
+                        fireOnRequestFinish(requestabort, make_unique<MegaErrorPrivate>(API_OK));
                     }
                     else
                     {
@@ -20662,7 +20643,7 @@ void MegaApiImpl::sendPendingRequests()
                 {
                     MegaBackupController * todelete = itr->second;
                     backupsMap.erase(backuptag);
-                    fireOnRequestFinish(request, MegaError(API_OK));
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
                     delete todelete;
                 }
             }
@@ -20714,7 +20695,7 @@ void MegaApiImpl::sendPendingRequests()
                 sync->setLocalFingerprint(fsfp);
                 request->setNumber(fsfp);
                 syncMap[-nextTag] = sync;
-                fireOnRequestFinish(request, MegaError(API_OK));
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             }
             else
             {
@@ -20741,7 +20722,7 @@ void MegaApiImpl::sendPendingRequests()
                     delete megaSync;
                 }
             }
-            fireOnRequestFinish(request, MegaError(API_OK));
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             break;
         }
         case MegaRequest::TYPE_REMOVE_SYNC:
@@ -20780,7 +20761,7 @@ void MegaApiImpl::sendPendingRequests()
 
             if (found)
             {
-                fireOnRequestFinish(request, MegaError(API_OK));
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             }
             else
             {
@@ -21034,7 +21015,7 @@ void MegaApiImpl::sendPendingRequests()
                     }
                 }
             }
-            fireOnRequestFinish(request, MegaError(API_OK));
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             break;
         }
         case MegaRequest::TYPE_SET_PROXY:
@@ -21042,7 +21023,7 @@ void MegaApiImpl::sendPendingRequests()
             Proxy *proxy = request->getProxy();
             httpio->setproxy(proxy);
             delete proxy;
-            fireOnRequestFinish(request, MegaError(API_OK));
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             break;
         }
         case MegaRequest::TYPE_APP_VERSION:
@@ -21619,7 +21600,7 @@ void MegaApiImpl::sendPendingRequests()
             request->setMegaFolderInfo(folderInfo);
             delete folderInfo;
 
-            fireOnRequestFinish(request, MegaError(API_OK));
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             break;
         }
         case MegaRequest::TYPE_GET_ACHIEVEMENTS:
@@ -21840,7 +21821,7 @@ void MegaApiImpl::sendPendingRequests()
         if(e)
         {
             LOG_err << "Error starting request: " << e;
-            fireOnRequestFinish(request, MegaError(e));
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
         }
     }
 }
@@ -22448,6 +22429,89 @@ long long MegaAccountDetailsPrivate::getTemporalBandwidth()
 bool MegaAccountDetailsPrivate::isTemporalBandwidthValid()
 {
     return details.transfer_hist_valid;
+}
+
+MegaErrorPrivate::MegaErrorPrivate(int errorCode)
+    : MegaError(errorCode)
+{
+}
+
+MegaErrorPrivate::MegaErrorPrivate(int errorCode, long long value)
+    : MegaError(errorCode)
+    , mValue(value)
+{
+}
+
+MegaErrorPrivate::MegaErrorPrivate(const Error& err)
+    : MegaError(err)
+    , mValue(0)
+    , mUserStatus(err.getUserStatus())
+    , mLinkStatus(err.getLinkStatus())
+{
+}
+
+MegaErrorPrivate::MegaErrorPrivate(const MegaError &megaError)
+    : MegaError(megaError.getErrorCode())
+    , mValue(megaError.getValue())
+    , mUserStatus(megaError.getUserStatus())
+    , mLinkStatus(megaError.getLinkStatus())
+{
+}
+
+MegaErrorPrivate::~MegaErrorPrivate()
+{
+
+}
+
+MegaError* MegaErrorPrivate::copy() const
+{
+    return new MegaErrorPrivate(*this);
+}
+
+int MegaErrorPrivate::getErrorCode() const
+{
+    return errorCode;
+}
+
+long long MegaErrorPrivate::getValue() const
+{
+    return mValue;
+}
+
+bool MegaErrorPrivate::hasExtraInfo() const
+{
+    return mUserStatus != MegaError::UserErrorCode::USER_ETD_UNKNOWN
+            || mLinkStatus != MegaError::LinkErrorCode::LINK_UNKNOWN;
+}
+
+long long MegaErrorPrivate::getUserStatus() const
+{
+    return mUserStatus;
+}
+
+long long MegaErrorPrivate::getLinkStatus() const
+{
+    return mLinkStatus;
+}
+
+const char* MegaErrorPrivate::getErrorString() const
+{
+    return MegaError::getErrorString(errorCode);
+}
+
+const char* MegaErrorPrivate::toString() const
+{
+    return getErrorString();
+}
+
+const char* MegaErrorPrivate::__str__() const
+{
+    return getErrorString();
+}
+
+const char *MegaErrorPrivate::__toString() const
+{
+    return getErrorString();
 }
 
 ExternalLogger::ExternalLogger()
@@ -23530,7 +23594,7 @@ void MegaFolderUploadController::start(MegaNode*)
     {
         transfer->setState(MegaTransfer::STATE_FAILED);
         DBTableTransactionCommitter committer(client->tctable);
-        megaApi->fireOnTransferFinish(transfer, MegaError(API_EARGS), committer);
+        megaApi->fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(API_EARGS), committer);
     }
     else
     {
@@ -23565,7 +23629,7 @@ void MegaFolderUploadController::cancel()
         auto subTransfer = *subTransfers.begin();
         subTransfer->setState(MegaTransfer::STATE_COMPLETED);
         DBTableTransactionCommitter committer(client->tctable);
-        megaApi->fireOnTransferFinish(subTransfer, MegaError(API_EINCOMPLETE), committer);
+        megaApi->fireOnTransferFinish(subTransfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), committer);
     }
 }
 
@@ -23595,7 +23659,7 @@ void MegaFolderUploadController::onFolderAvailable(MegaHandle handle)
             localPath.append(localname);
 
             string name = localname;
-            client->fsaccess->local2name(&name);
+            client->fsaccess->local2name(&name, &localPath);
             if (dirEntryType == FILENODE)
             {
                 pendingTransfers++;
@@ -23635,9 +23699,9 @@ void MegaFolderUploadController::checkCompletion()
     {
         LOG_debug << "Folder transfer finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
         transfer->setState(MegaTransfer::STATE_COMPLETED);
-        transfer->setLastError(mLastError);
+        transfer->setLastError(&mLastError);
         DBTableTransactionCommitter committer(client->tctable);
-        megaApi->fireOnTransferFinish(transfer, !mIncompleteTransfers ? MegaError(API_OK) : MegaError(API_EINCOMPLETE), committer);
+        megaApi->fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(!mIncompleteTransfers ? API_OK : API_EINCOMPLETE), committer);
     }
 }
 
@@ -23655,7 +23719,7 @@ void MegaFolderUploadController::onRequestFinish(MegaApi *, MegaRequest *request
         else
         {
             pendingFolders.pop_front();
-            mLastError = e->getErrorCode();
+            mLastError = *e;
             mIncompleteTransfers++;
             checkCompletion();
         }
@@ -23701,7 +23765,7 @@ void MegaFolderUploadController::onTransferFinish(MegaApi *, MegaTransfer *t, Me
         megaApi->fireOnTransferUpdate(transfer);
         if (e->getErrorCode() != API_OK)
         {
-            mLastError = e->getErrorCode();
+            mLastError = *e;
             mIncompleteTransfers++;
         }
         checkCompletion();
@@ -23925,7 +23989,7 @@ void MegaBackupController::removeexceeding(bool currentoneOK)
 
     if (parentNode)
     {
-        MegaNodeList* children = megaApi->getChildren(parentNode);
+        MegaNodeList* children = megaApi->getChildren(parentNode, MegaApi::ORDER_NONE);
         if (children)
         {
             for (int i = 0; i < children->size(); i++)
@@ -24004,7 +24068,7 @@ int64_t MegaBackupController::getLastBackupTime()
     MegaNode * parentNode = megaApi->getNodeByHandle(parenthandle);
     if (parentNode)
     {
-        MegaNodeList* children = megaApi->getChildren(parentNode);
+        MegaNodeList* children = megaApi->getChildren(parentNode, MegaApi::ORDER_NONE);
         if (children)
         {
             for (int i = 0; i < children->size(); i++)
@@ -24299,7 +24363,7 @@ void MegaBackupController::start(bool skip)
     if(!parent)
     {
         LOG_err << "Could not start backup: "<< name << ". Parent node not found";
-        megaApi->fireOnBackupFinish(this, MegaError(API_ENOENT));
+        megaApi->fireOnBackupFinish(this, make_unique<MegaErrorPrivate>(API_ENOENT));
 
     }
     else
@@ -24328,7 +24392,7 @@ void MegaBackupController::start(bool skip)
         else
         {
             LOG_err << "Could not start backup: "<< backupname << ". Backup already exists";
-            megaApi->fireOnBackupFinish(this, MegaError(API_EEXIST));
+            megaApi->fireOnBackupFinish(this, make_unique<MegaErrorPrivate>(API_EEXIST));
             state = BACKUP_ACTIVE;
 
         }
@@ -24387,7 +24451,7 @@ void MegaBackupController::onFolderAvailable(MegaHandle handle)
                 if(fa->fopen(&localPath, true, false))
                 {
                     string name = localname;
-                    client->fsaccess->local2name(&name);
+                    client->fsaccess->local2name(&name, &localPath);
                     if(fa->type == FILENODE)
                     {
                         pendingTransfers++;
@@ -24468,7 +24532,7 @@ bool MegaBackupController::checkCompletion()
         }
 
         state = BACKUP_ACTIVE;
-        megaApi->fireOnBackupFinish(this, MegaError(e));
+        megaApi->fireOnBackupFinish(this, make_unique<MegaErrorPrivate>(e));
         megaApi->fireOnBackupStateChanged(this);
 
         removeexceeding(e == API_OK);
@@ -24504,7 +24568,7 @@ void MegaBackupController::abortCurrent()
 
     if (state == BACKUP_ONGOING || state == BACKUP_SKIPPING)
     {
-        megaApi->fireOnBackupFinish(this, MegaError(API_EINCOMPLETE));
+        megaApi->fireOnBackupFinish(this, make_unique<MegaErrorPrivate>(API_EINCOMPLETE));
     }
 
     state = BACKUP_ACTIVE;
@@ -24607,7 +24671,18 @@ void MegaBackupController::onTransferUpdate(MegaApi *, MegaTransfer *t)
 void MegaBackupController::onTransferTemporaryError(MegaApi *, MegaTransfer *t, MegaError *e)
 {
     LOG_verbose << " at MegaBackupController::onTransferTemporaryError";
-    megaApi->fireOnBackupTemporaryError(this, e->getErrorCode());
+
+    unique_ptr<MegaErrorPrivate> errorPrivate;
+    if (dynamic_cast<MegaErrorPrivate *>(e))
+    {
+        errorPrivate = unique_ptr<MegaErrorPrivate>(dynamic_cast<MegaErrorPrivate *>(e->copy()));
+    }
+    else
+    {
+         errorPrivate = make_unique<MegaErrorPrivate>(e->getErrorCode());
+    }
+
+    megaApi->fireOnBackupTemporaryError(this, std::move(errorPrivate));  // we received a non-owning pointer but we need to pass ownership to fireOnBackupTemporaryError
 }
 
 void MegaBackupController::onTransferFinish(MegaApi *, MegaTransfer *t, MegaError *e)
@@ -24832,7 +24907,7 @@ void MegaFolderDownloadController::start(MegaNode *node)
         {
             LOG_debug << "Folder download failed. Node not found";
             DBTableTransactionCommitter committer(client->tctable);
-            megaApi->fireOnTransferFinish(transfer, MegaError(API_ENOENT), committer);
+            megaApi->fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(API_ENOENT), committer);
             return;
         }
         deleteNode = true;
@@ -24863,7 +24938,7 @@ void MegaFolderDownloadController::start(MegaNode *node)
         name = fileName;
     }
 
-    client->fsaccess->name2local(&name);
+    client->fsaccess->name2local(&name, &path);
     client->fsaccess->local2path(&name, &securename);
     path += securename;
 
@@ -24890,7 +24965,7 @@ void MegaFolderDownloadController::cancel()
         auto subTransfer = *subTransfers.begin();
         subTransfer->setState(MegaTransfer::STATE_COMPLETED);
         DBTableTransactionCommitter committer(client->tctable);
-        megaApi->fireOnTransferFinish(subTransfer, MegaError(API_EINCOMPLETE), committer);
+        megaApi->fireOnTransferFinish(subTransfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), committer);
     }
 }
 
@@ -24942,7 +25017,7 @@ void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, string *pa
     }
     else
     {
-        children = megaApi->getChildren(node);
+        children = megaApi->getChildren(node, MegaApi::ORDER_NONE);  // no order is much faster for a very large folder (or nested folders with large subfolders)
         deleteChildren = true;
     }
 
@@ -24962,7 +25037,7 @@ void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, string *pa
         size_t l = localpath.size();
 
         string name = child->getName();
-        client->fsaccess->name2local(&name);
+        client->fsaccess->name2local(&name, &localpath);
         localpath.append(name);
 
         string utf8path;
@@ -24995,9 +25070,9 @@ void MegaFolderDownloadController::checkCompletion()
     {
         LOG_debug << "Folder download finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
         transfer->setState(MegaTransfer::STATE_COMPLETED);
-        transfer->setLastError(mLastError);
+        transfer->setLastError(&mLastError);
         DBTableTransactionCommitter committer(client->tctable);
-        megaApi->fireOnTransferFinish(transfer, !mIncompleteTransfers ? MegaError(API_OK) : MegaError(API_EINCOMPLETE), committer);
+        megaApi->fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(!mIncompleteTransfers ? API_OK : API_EINCOMPLETE), committer);
     }
 }
 
@@ -25040,7 +25115,7 @@ void MegaFolderDownloadController::onTransferFinish(MegaApi *, MegaTransfer *t, 
         megaApi->fireOnTransferUpdate(transfer);
         if (e->getErrorCode())
         {
-            mLastError = e->getErrorCode();
+            mLastError = *e;
             mIncompleteTransfers++;
         }
         checkCompletion();
@@ -26239,7 +26314,7 @@ void MegaHTTPServer::processOnAsyncEventClose(MegaTCPContext* tcpctx)
     if (httpctx->transfer)
     {
         httpctx->megaApi->cancelTransfer(httpctx->transfer.get());
-        httpctx->megaApi->fireOnStreamingFinish(httpctx->transfer.release(), MegaError(httpctx->resultCode)); // transfer will be deleted in fireOnStreamingFinish
+        httpctx->megaApi->fireOnStreamingFinish(httpctx->transfer.release(), make_unique<MegaErrorPrivate>(httpctx->resultCode)); // transfer will be deleted in fireOnStreamingFinish
     }
 
     delete httpctx->node;
@@ -26618,7 +26693,7 @@ string MegaHTTPServer::getWebDavPropFindResponseForNode(string baseURL, string s
     web << getWebDavProfFindNodeContents(node, subbaseURL, httpserver->isOfflineAttributeEnabled());
     if (node->isFolder() && (httpctx->depth != 0))
     {
-        MegaNodeList *children = httpctx->megaApi->getChildren(node);
+        MegaNodeList *children = httpctx->megaApi->getChildren(node, MegaApi::ORDER_NONE);
         for (int i = 0; i < children->size(); i++)
         {
             MegaNode *child = children->get(i);
@@ -26645,7 +26720,7 @@ string MegaHTTPServer::getWebDavPropFindResponseForNode(string baseURL, string s
 string MegaHTTPServer::getResponseForNode(MegaNode *node, MegaHTTPContext* httpctx)
 {
     MegaNode *parent = httpctx->megaApi->getParentNode(node);
-    MegaNodeList *children = httpctx->megaApi->getChildren(node);
+    MegaNodeList *children = httpctx->megaApi->getChildren(node, MegaApi::ORDER_NONE);
     std::ostringstream response;
     std::ostringstream web;
 
@@ -29418,7 +29493,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             {
                 if (node->isFolder())
                 {
-                    MegaNodeList *children = ftpctx->megaApi->getChildren(node);
+                    MegaNodeList *children = ftpctx->megaApi->getChildren(node, MegaApi::ORDER_NONE);
                     assert(!ftpctx->ftpDataServer->resultmsj.size());
 
                     if (ftpctx->command == FTP_CMD_LIST)
@@ -30468,7 +30543,7 @@ void MegaFTPDataServer::processAsyncEvent(MegaTCPContext *tcpctx)
             else
             {
                 LOG_debug << "Skipping startStreaming call since empty file";
-                ftpdatactx->megaApi->fireOnFtpStreamingFinish(ftpdatactx->transfer, MegaError(API_OK));
+                ftpdatactx->megaApi->fireOnFtpStreamingFinish(ftpdatactx->transfer, make_unique<MegaErrorPrivate>(API_OK));
                 ftpdatactx->transfer = NULL; // this has been deleted in fireOnStreamingFinish
                 fds->processWriteFinished(ftpdatactx, 0);
             }
@@ -30500,7 +30575,7 @@ void MegaFTPDataServer::processOnAsyncEventClose(MegaTCPContext* tcpctx)
     if (ftpdatactx->transfer)
     {
         ftpdatactx->megaApi->cancelTransfer(ftpdatactx->transfer);
-        ftpdatactx->megaApi->fireOnFtpStreamingFinish(ftpdatactx->transfer, MegaError(ftpdatactx->ecode));
+        ftpdatactx->megaApi->fireOnFtpStreamingFinish(ftpdatactx->transfer, make_unique<MegaErrorPrivate>(ftpdatactx->ecode));
         ftpdatactx->transfer = NULL; // this has been deleted in fireOnStreamingFinish
     }
 
@@ -30995,35 +31070,12 @@ MegaTextChatListPrivate::MegaTextChatListPrivate(textchat_map *list)
 }
 #endif
 
-
-PublicLinkProcessor::PublicLinkProcessor()
-{
-
-}
-
-bool PublicLinkProcessor::processNode(Node *node)
-{
-    if(node->plink)
-    {
-        nodes.push_back(node);
-    }
-
-    return true;
-}
-
-PublicLinkProcessor::~PublicLinkProcessor() {}
-
-vector<Node *> &PublicLinkProcessor::getNodes()
-{
-    return nodes;
-}
-
 MegaTransferDataPrivate::MegaTransferDataPrivate(TransferList *transferList, long long notificationNumber)
 {
     numDownloads = int(transferList->transfers[GET].size());
     downloadTags.reserve(numDownloads);
     downloadPriorities.reserve(numDownloads);
-    for (transfer_list::iterator it = transferList->begin(GET); it != transferList->end(GET); it++)
+    for (auto it = transferList->begin(GET); it != transferList->end(GET); it++)
     {
         Transfer *transfer = (*it);
         for (file_list::iterator fit = transfer->files.begin(); fit != transfer->files.end(); fit++)
@@ -31038,7 +31090,7 @@ MegaTransferDataPrivate::MegaTransferDataPrivate(TransferList *transferList, lon
     numUploads = int(transferList->transfers[PUT].size());
     uploadTags.reserve(numUploads);
     uploadPriorities.reserve(numUploads);
-    for (transfer_list::iterator it = transferList->begin(PUT); it != transferList->end(PUT); it++)
+    for (auto it = transferList->begin(PUT); it != transferList->end(PUT); it++)
     {
         Transfer *transfer = (*it);
         for (file_list::iterator fit = transfer->files.begin(); fit != transfer->files.end(); fit++)
@@ -31263,21 +31315,15 @@ void MegaHandleListPrivate::addMegaHandle(MegaHandle h)
 }
 
 MegaChildrenListsPrivate::MegaChildrenListsPrivate(MegaChildrenLists *list)
+    : files(list->getFileList()->copy())
+    , folders(list->getFolderList()->copy())
 {
-    files = list->getFileList()->copy();
-    folders = list->getFolderList()->copy();
 }
 
-MegaChildrenListsPrivate::MegaChildrenListsPrivate(MegaNodeListPrivate *folderList, MegaNodeListPrivate *fileList)
+MegaChildrenListsPrivate::MegaChildrenListsPrivate(unique_ptr<MegaNodeListPrivate> folderList, unique_ptr<MegaNodeListPrivate> fileList)
+    : folders(move(folderList))
+    , files(move(fileList))
 {
-    folders = folderList;
-    files = fileList;
-}
-
-MegaChildrenListsPrivate::~MegaChildrenListsPrivate()
-{
-    delete files;
-    delete folders;
 }
 
 MegaChildrenLists *MegaChildrenListsPrivate::copy()
@@ -31287,18 +31333,18 @@ MegaChildrenLists *MegaChildrenListsPrivate::copy()
 
 MegaNodeList *MegaChildrenListsPrivate::getFileList()
 {
-    return files;
+    return files.get();
 }
 
 MegaNodeList *MegaChildrenListsPrivate::getFolderList()
 {
-    return folders;
+    return folders.get();
 }
 
 MegaChildrenListsPrivate::MegaChildrenListsPrivate()
+    :  files(new MegaNodeListPrivate())
+    , folders(new MegaNodeListPrivate())
 {
-    files = new MegaNodeListPrivate();
-    folders = new MegaNodeListPrivate();
 }
 
 MegaAchievementsDetails *MegaAchievementsDetailsPrivate::fromAchievementsDetails(AchievementsDetails *details)

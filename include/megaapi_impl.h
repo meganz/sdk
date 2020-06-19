@@ -127,6 +127,31 @@ class MegaDbAccess : public SqliteDbAccess
 		MegaDbAccess(string *basePath = NULL) : SqliteDbAccess(basePath){}
 };
 
+class MegaErrorPrivate : public MegaError
+{
+public:
+    MegaErrorPrivate(int errorCode = MegaError::API_OK);
+    MegaErrorPrivate(int errorCode, long long value);
+    MegaErrorPrivate(const Error &err);
+    MegaErrorPrivate(const MegaError &megaError);
+    ~MegaErrorPrivate() override;
+    MegaError* copy() const override;
+    int getErrorCode() const override;
+    long long getValue() const override;
+    bool hasExtraInfo() const override;
+    long long getUserStatus() const override;
+    long long getLinkStatus() const override;
+    const char* getErrorString() const override;
+    const char* toString() const override;
+    const char* __str__() const override;
+    const char* __toString() const override;
+
+private:
+    long long mValue = 0;
+    long long mUserStatus = MegaError::UserErrorCode::USER_ETD_UNKNOWN;
+    long long mLinkStatus = MegaError::LinkErrorCode::LINK_UNKNOWN;
+};
+
 class ExternalLogger : public Logger
 {
 public:
@@ -193,7 +218,7 @@ protected:
     int pendingTransfers;
     std::set<MegaTransferPrivate*> subTransfers;
     int mIncompleteTransfers = { 0 };
-    int mLastError = { API_OK };
+    MegaErrorPrivate mLastError = { API_OK };
 };
 
 class MegaFolderUploadController : public MegaRequestListener, public MegaTransferListener, public MegaRecursiveOperation
@@ -653,7 +678,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         void setForeignOverquota(bool backupTransfer);
         void setStreamingTransfer(bool streamingTransfer);
         void setLastBytes(char *lastBytes);
-        void setLastError(MegaError e);
+        void setLastError(const MegaError *e);
         void setFolderTransferTag(int tag);
         void setNotificationNumber(long long notificationNumber);
         void setListener(MegaTransferListener *listener);
@@ -693,6 +718,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         bool isForeignOverquota() const override;
         char *getLastBytes() const override;
         MegaError getLastError() const override;
+        const MegaError *getLastErrorExtended() const override;
         bool isFolderTransfer() const override;
         int getFolderTransferTag() const override;
         virtual void setAppData(const char *data);
@@ -747,7 +773,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
 
         MegaTransferListener *listener;
         Transfer *transfer;
-        MegaError lastError;
+        std::unique_ptr<MegaError> lastError;
         int folderTransferTag;
         const char* appData;
         unique_ptr<MegaRecursiveOperation> recursiveOperation;
@@ -1597,15 +1623,14 @@ class MegaChildrenListsPrivate : public MegaChildrenLists
     public:
         MegaChildrenListsPrivate();
         MegaChildrenListsPrivate(MegaChildrenLists*);
-        MegaChildrenListsPrivate(MegaNodeListPrivate *folderList, MegaNodeListPrivate *fileList);
-        virtual ~MegaChildrenListsPrivate();
+        MegaChildrenListsPrivate(unique_ptr<MegaNodeListPrivate> folderList, unique_ptr<MegaNodeListPrivate> fileList);
         virtual MegaChildrenLists *copy();
         virtual MegaNodeList* getFolderList();
         virtual MegaNodeList* getFileList();
 
     protected:
-        MegaNodeList *folders;
-        MegaNodeList *files;
+        unique_ptr<MegaNodeList> folders;
+        unique_ptr<MegaNodeList> files;
 };
 
 class MegaUserListPrivate : public MegaUserList
@@ -1874,18 +1899,6 @@ class PendingOutShareProcessor : public TreeProcessor
         vector<handle> handles;
 };
 
-class PublicLinkProcessor : public TreeProcessor
-{
-    public:
-        PublicLinkProcessor();
-        virtual bool processNode(Node* node);
-        virtual ~PublicLinkProcessor();
-        vector<Node *> &getNodes();
-
-    protected:
-        vector<Node *> nodes;
-};
-
 class SizeProcessor : public TreeProcessor
 {
     protected:
@@ -1958,6 +1971,8 @@ class MegaApiImpl : public MegaApp
         virtual ~MegaApiImpl();
 
         static MegaApiImpl* ImplOf(MegaApi*);
+
+        enum { TARGET_INSHARE = 0, TARGET_OUTSHARE, TARGET_PUBLICLINK, };
 
         //Multiple listener management.
         void addListener(MegaListener* listener);
@@ -2288,14 +2303,13 @@ class MegaApiImpl : public MegaApp
 		int getNumChildren(MegaNode* parent);
 		int getNumChildFiles(MegaNode* parent);
 		int getNumChildFolders(MegaNode* parent);
-        MegaNodeList* getChildren(MegaNode *parent, int order=1);
+        MegaNodeList* getChildren(MegaNode *parent, int order);
         MegaNodeList* getVersions(MegaNode *node);
         int getNumVersions(MegaNode *node);
         bool hasVersions(MegaNode *node);
         void getFolderInfo(MegaNode *node, MegaRequestListener *listener);
         MegaChildrenLists* getFileFolderChildren(MegaNode *parent, int order=1);
         bool hasChildren(MegaNode *parent);
-        int getIndex(MegaNode* node, int order=1);
         MegaNode *getChildNode(MegaNode *parent, const char* name);
         MegaNode *getParentNode(MegaNode *node);
         char *getNodePath(MegaNode *node);
@@ -2342,7 +2356,9 @@ class MegaApiImpl : public MegaApp
 
         //Permissions
         MegaError checkAccess(MegaNode* node, int level);
+        MegaError* checkAccessErrorExtended(MegaNode* node, int level);
         MegaError checkMove(MegaNode* node, MegaNode* target);
+        MegaError* checkMoveErrorExtended(MegaNode* node, MegaNode* target);
 
         bool isFilesystemAvailable();
         MegaNode *getRootNode();
@@ -2363,6 +2379,8 @@ class MegaApiImpl : public MegaApp
         MegaNodeList* search(MegaNode* node, const char* searchString, MegaCancelToken *cancelToken, bool recursive = 1, int order = MegaApi::ORDER_NONE);
         bool processMegaTree(MegaNode* node, MegaTreeProcessor* processor, bool recursive = 1);
         MegaNodeList* search(const char* searchString, MegaCancelToken *cancelToken, int order = MegaApi::ORDER_NONE);
+
+        MegaNodeList* searchInAllShares(const char *searchString, MegaCancelToken *cancelToken, int order, int target);
 
         MegaNode *createForeignFileNode(MegaHandle handle, const char *key, const char *name, m_off_t size, m_off_t mtime,
                                        MegaHandle parentHandle, const char *privateauth, const char *publicauth, const char *chatauth);
@@ -2435,8 +2453,8 @@ class MegaApiImpl : public MegaApp
         static int typeComparator(Node *i, Node *j);
         static bool userComparatorDefaultASC (User *i, User *j);
 
-        char* escapeFsIncompatible(const char *filename);
-        char* unescapeFsIncompatible(const char* name);
+        char* escapeFsIncompatible(const char *filename, const char *dstPath);
+        char* unescapeFsIncompatible(const char* name, const char *path);
 
         bool createThumbnail(const char* imagePath, const char *dstPath);
         bool createPreview(const char* imagePath, const char *dstPath);
@@ -2486,8 +2504,8 @@ class MegaApiImpl : public MegaApp
         void httpServerRemoveListener(MegaTransferListener *listener);
 
         void fireOnStreamingStart(MegaTransferPrivate *transfer);
-        void fireOnStreamingTemporaryError(MegaTransferPrivate *transfer, MegaError e);
-        void fireOnStreamingFinish(MegaTransferPrivate *transfer, MegaError e);
+        void fireOnStreamingTemporaryError(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e);
+        void fireOnStreamingFinish(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e);
 
         //FTP
         bool ftpServerStart(bool localOnly = true, int port = 4990, int dataportBegin = 1500, int dataPortEnd = 1600, bool useTLS = false, const char *certificatepath = NULL, const char *keypath = NULL);
@@ -2514,8 +2532,8 @@ class MegaApiImpl : public MegaApp
         void ftpServerRemoveListener(MegaTransferListener *listener);
 
         void fireOnFtpStreamingStart(MegaTransferPrivate *transfer);
-        void fireOnFtpStreamingTemporaryError(MegaTransferPrivate *transfer, MegaError e);
-        void fireOnFtpStreamingFinish(MegaTransferPrivate *transfer, MegaError e);
+        void fireOnFtpStreamingTemporaryError(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e);
+        void fireOnFtpStreamingFinish(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e);
 
 #endif
 
@@ -2556,6 +2574,7 @@ class MegaApiImpl : public MegaApp
         void setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
         void getMyChatFilesFolder(MegaRequestListener *listener = NULL);
         void setCameraUploadsFolder(MegaHandle nodehandle, bool secondary, MegaRequestListener *listener = NULL);
+        void setCameraUploadsFolders(MegaHandle primaryFolder, MegaHandle secondaryFolder, MegaRequestListener *listener);
         void getCameraUploadsFolder(bool secondary, MegaRequestListener *listener = NULL);
         void getUserAlias(MegaHandle uh, MegaRequestListener *listener = NULL);
         void setUserAlias(MegaHandle uh, const char *alias, MegaRequestListener *listener = NULL);
@@ -2580,9 +2599,9 @@ class MegaApiImpl : public MegaApp
         void getCountryCallingCodes(MegaRequestListener *listener = NULL);
 
         void fireOnTransferStart(MegaTransferPrivate *transfer);
-        void fireOnTransferFinish(MegaTransferPrivate *transfer, MegaError e, DBTableTransactionCommitter& committer);
+        void fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e, DBTableTransactionCommitter& committer);
         void fireOnTransferUpdate(MegaTransferPrivate *transfer);
-        void fireOnTransferTemporaryError(MegaTransferPrivate *transfer, MegaError e);
+        void fireOnTransferTemporaryError(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e);
         map<int, MegaTransferPrivate *> transferMap;
 
         MegaClient *getMegaClient();
@@ -2596,9 +2615,9 @@ class MegaApiImpl : public MegaApp
         error processAbortBackupRequest(MegaRequestPrivate *request, error e);
         void fireOnBackupStateChanged(MegaBackupController *backup);
         void fireOnBackupStart(MegaBackupController *backup);
-        void fireOnBackupFinish(MegaBackupController *backup, MegaError e);
+        void fireOnBackupFinish(MegaBackupController *backup, unique_ptr<MegaErrorPrivate> e);
         void fireOnBackupUpdate(MegaBackupController *backup);
-        void fireOnBackupTemporaryError(MegaBackupController *backup, MegaError e);
+        void fireOnBackupTemporaryError(MegaBackupController *backup, unique_ptr<MegaErrorPrivate> e);
 
         void yield();
         void lockMutex();
@@ -2616,9 +2635,9 @@ protected:
         MegaTransferPrivate* getMegaTransferPrivate(int tag);
 
         void fireOnRequestStart(MegaRequestPrivate *request);
-        void fireOnRequestFinish(MegaRequestPrivate *request, MegaError e);
+        void fireOnRequestFinish(MegaRequestPrivate *request, unique_ptr<MegaErrorPrivate> e);
         void fireOnRequestUpdate(MegaRequestPrivate *request);
-        void fireOnRequestTemporaryError(MegaRequestPrivate *request, MegaError e);
+        void fireOnRequestTemporaryError(MegaRequestPrivate *request, unique_ptr<MegaErrorPrivate> e);
         bool fireOnTransferData(MegaTransferPrivate *transfer);
         void fireOnUsersUpdate(MegaUserList *users);
         void fireOnUserAlertsUpdate(MegaUserAlertList *alerts);
@@ -2642,8 +2661,8 @@ protected:
         void processTransferPrepare(Transfer *t, MegaTransferPrivate *transfer);
         void processTransferUpdate(Transfer *tr, MegaTransferPrivate *transfer);
         void processTransferComplete(Transfer *tr, MegaTransferPrivate *transfer);
-        void processTransferFailed(Transfer *tr, MegaTransferPrivate *transfer, error error, dstime timeleft);
-        void processTransferRemoved(Transfer *tr, MegaTransferPrivate *transfer, error e);
+        void processTransferFailed(Transfer *tr, MegaTransferPrivate *transfer, const Error &e, dstime timeleft);
+        void processTransferRemoved(Transfer *tr, MegaTransferPrivate *transfer, const Error &e);
 
         MegaApi *api;
         MegaThread thread;
@@ -2816,7 +2835,7 @@ protected:
         void catchup_result() override;
         void key_modified(handle, attr_t) override;
 
-        void fetchnodes_result(error) override;
+        void fetchnodes_result(const Error&) override;
         void putnodes_result(error, targettype_t, NewNode*) override;
 
         // share update result
@@ -2852,7 +2871,7 @@ protected:
         void sendevent_result(error) override;
         void supportticket_result(error) override;
 
-        void checkfile_result(handle h, error e) override;
+        void checkfile_result(handle h, const Error& e) override;
         void checkfile_result(handle h, error e, byte* filekey, m_off_t size, m_time_t ts, m_time_t tm, string* filename, string* fingerprint, string* fileattrstring) override;
 
         // user invites/attributes
@@ -2872,7 +2891,7 @@ protected:
         void exportnode_result(handle, handle) override;
 
         // exported link access result
-        void openfilelink_result(error) override;
+        void openfilelink_result(const Error&) override;
         void openfilelink_result(handle, const byte*, m_off_t, string*, string*, int) override;
 
         // retrieval of public link information
@@ -2880,15 +2899,15 @@ protected:
 
         // global transfer queue updates (separate signaling towards the queued objects)
         void file_added(File*) override;
-        void file_removed(File*, error e) override;
+        void file_removed(File*, const Error& e) override;
         void file_complete(File*) override;
         File* file_resume(string*, direction_t *type) override;
 
         void transfer_prepare(Transfer*) override;
-        void transfer_failed(Transfer*, error error, dstime timeleft) override;
+        void transfer_failed(Transfer*, const Error& error, dstime timeleft) override;
         void transfer_update(Transfer*) override;
 
-        dstime pread_failure(error, int, void*, dstime) override;
+        dstime pread_failure(const Error&, int, void*, dstime) override;
         bool pread_data(byte*, m_off_t, m_off_t, m_off_t, m_off_t, void*) override;
 
         void reportevent_result(error) override;

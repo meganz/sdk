@@ -4,44 +4,60 @@ set -e
 ##################################################
 ### SET THE PATH TO YOUR ANDROID NDK DIRECTORY ###
 ##################################################
-NDK_ROOT=${HOME}/android-ndk
+if [ -z "$NDK_ROOT32" ]; then
+    NDK_ROOT32=${HOME}/android-ndk32
+fi
+if [ -z "$NDK_ROOT64" ]; then
+    NDK_ROOT64=${HOME}/android-ndk64
+fi
 ##################################################
-# AND THE PATH OF THE MEGA SDK RELATIVE TO jni/mega/sdk OR ABSOLUTE
+# PATH OF THE MEGA SDK RELATIVE TO jni/mega/sdk OR ABSOLUTE
 MEGASDK_ROOT=../../../../../../../../..
 ##################################################
+##################################################
+# LIST OF ARCHS TO BE BUILT.
+if [ -z "${BUILD_ARCHS}" ]; then
+    # If no environment variable is defined, use all archs.
+    BUILD_ARCHS="x86 armeabi-v7a x86_64 arm64-v8a"
+fi
+##################################################
 
-NDK_BUILD=${NDK_ROOT}/ndk-build
+NDK_BUILD32=${NDK_ROOT32}/ndk-build
+NDK_BUILD64=${NDK_ROOT64}/ndk-build
 JNI_PATH=`pwd`
-CC=`${NDK_ROOT}/ndk-which gcc`
+CC32=`${NDK_ROOT32}/ndk-which gcc`
+CC64=`${NDK_ROOT64}/ndk-which gcc`
 LIBDIR=${JNI_PATH}/../obj/local/armeabi
 JAVA_OUTPUT_PATH=${JNI_PATH}/../java
-APP_PLATFORM=`grep APP_PLATFORM Application.mk | cut -d '=' -f 2`
+#APP_PLATFORM=`grep APP_PLATFORM Application.mk | cut -d '=' -f 2`
+APP_PLATFORM_32=16
+APP_PLATFORM_64=21
 LOG_FILE=/dev/null
 
 CRYPTOPP=cryptopp
-CRYPTOPP_VERSION=800
+CRYPTOPP_VERSION=820
 CRYPTOPP_SOURCE_FILE=cryptopp${CRYPTOPP_VERSION}.zip
 CRYPTOPP_SOURCE_FOLDER=${CRYPTOPP}/${CRYPTOPP}
 CRYPTOPP_DOWNLOAD_URL=http://www.cryptopp.com/${CRYPTOPP_SOURCE_FILE}
-CRYPTOPP_SHA1="dd0dc0586c0a3e0696cd323efc6fa2e2945ad920"
+CRYPTOPP_SHA1="b042d2f0c93410abdec7c12bcd92787d019f8da1"
 
 SQLITE=sqlite
-SQLITE_VERSION=3120200
-SQLITE_YEAR=2016
+SQLITE_VERSION=3300100
+SQLITE_YEAR=2019
 SQLITE_BASE_NAME=sqlite-amalgamation-${SQLITE_VERSION}
 SQLITE_SOURCE_FILE=${SQLITE_BASE_NAME}.zip
 SQLITE_SOURCE_FOLDER=${SQLITE}/${SQLITE}
 SQLITE_DOWNLOAD_URL=http://www.sqlite.org/${SQLITE_YEAR}/${SQLITE_SOURCE_FILE}
-SQLITE_SHA1="22632bf0cfacedbeddde9f92695f71cab8d8c0a5"
+SQLITE_SHA1="ff9b4e140fe0764bc7bc802facf5ac164443f517"
 
 CURL=curl
-CURL_VERSION=7.48.0
+CURL_VERSION=7.67.0
 C_ARES_VERSION=1.15.0
 CURL_EXTRA="--disable-smb --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-proxy --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi"
 CURL_SOURCE_FILE=curl-${CURL_VERSION}.tar.gz
 CURL_SOURCE_FOLDER=curl-${CURL_VERSION}
 CURL_DOWNLOAD_URL=http://curl.haxx.se/download/${CURL_SOURCE_FILE}
-CURL_SHA1="eac95625b849408362cf6edb0bc9489da317ba30"
+CURL_SHA1="a91652f1eaa810866dce55b2d177c5b20f4aa7a7"
 
 ARES_SOURCE_FILE=c-ares-${C_ARES_VERSION}.tar.gz
 ARES_SOURCE_FOLDER=c-ares-${C_ARES_VERSION}
@@ -50,19 +66,19 @@ ARES_DOWNLOAD_URL=http://c-ares.haxx.se/download/${ARES_SOURCE_FILE}
 ARES_SHA1="74a50c02b7f051c4fb66c0f60f187350f196d908"
 
 OPENSSL=openssl
-OPENSSL_VERSION=1.0.2h
+OPENSSL_VERSION=1.1.1d
 OPENSSL_SOURCE_FILE=openssl-${OPENSSL_VERSION}.tar.gz
 OPENSSL_SOURCE_FOLDER=${OPENSSL}-${OPENSSL_VERSION}
 OPENSSL_DOWNLOAD_URL=https://www.openssl.org/source/old/${OPENSSL_VERSION%?}/${OPENSSL_SOURCE_FILE}
 OPENSSL_PREFIX=${JNI_PATH}/${OPENSSL}/${OPENSSL_SOURCE_FOLDER}
-OPENSSL_SHA1="577585f5f5d299c44dd3c993d3c0ac7a219e4949"
+OPENSSL_SHA1="056057782325134b76d1931c48f2c7e6595d7ef4"
 
 SODIUM=sodium
 SODIUM_VERSION=1.0.18
-SODIUM_SOURCE_FILE=${SODIUM_VERSION}.tar.gz
+SODIUM_SOURCE_FILE=libsodium-${SODIUM_VERSION}.tar.gz
 SODIUM_SOURCE_FOLDER=libsodium-${SODIUM_VERSION}
-SODIUM_DOWNLOAD_URL=https://github.com/jedisct1/libsodium/archive/${SODIUM_SOURCE_FILE}
-SODIUM_SHA1="cd8a76b79aeb077e8d3eea478ea6241972593dfd"
+SODIUM_DOWNLOAD_URL=https://download.libsodium.org/libsodium/releases/${SODIUM_SOURCE_FILE}
+SODIUM_SHA1="795b73e3f92a362fabee238a71735579bf46bb97"
 
 LIBUV=libuv
 LIBUV_VERSION=1.8.0
@@ -141,18 +157,14 @@ function createMEGABindings
     swig -c++ -Imega/sdk/include -java -package nz.mega.sdk -outdir ${JAVA_OUTPUT_PATH}/nz/mega/sdk -o bindings/megasdk.cpp -DHAVE_LIBUV -DENABLE_CHAT mega/sdk/bindings/megaapi.i &>> ${LOG_FILE}
 }
 
-function createMEGAchatBindings
-{
-    echo "* Creating MEGAchat Java bindings"
-    mkdir -p ../java/nz/mega/sdk
-    swig -c++ -Imega/sdk/include -Imegachat/sdk/src/ -java -package nz.mega.sdk -outdir ${JAVA_OUTPUT_PATH}/nz/mega/sdk/ -o bindings/megachat.cpp megachat/megachatapi.i &>> ${LOG_FILE}
-    pushd megachat/sdk/src &>> ${LOG_FILE}
-    cmake -P genDbSchema.cmake
-    popd &>> ${LOG_FILE}
-}
 
-if [ ! -d "${NDK_ROOT}" ]; then
-    echo "* NDK_ROOT not set. Please edit this file to configure it correctly and try again."    
+if [ ! -d "${NDK_ROOT32}" ]; then
+    echo "* NDK_ROOT for 32 bits not set. Please download ndk 14 and create a link at ${HOME}/android-ndk32 and try again."
+    exit 1
+fi
+
+if [ ! -d "${NDK_ROOT64}" ]; then
+    echo "* NDK_ROOT for 64 bits not set. Please download ndk 16 and create a link at ${HOME}/android-ndk64 and try again."
     exit 1
 fi
 
@@ -162,7 +174,6 @@ if (( $# != 1 )); then
 fi
 
 if [ "$1" == "bindings" ]; then
-    createMEGAchatBindings
     createMEGABindings
     echo "* Bindings ready!"
     echo "* Running ndk-build"
@@ -176,6 +187,11 @@ if [ "$1" == "clean_mega" ]; then
     echo "* Deleting Java bindings"
     make -C mega -f MakefileBindings clean JAVA_BASE_OUTPUT_PATH=${JAVA_OUTPUT_PATH} &>> ${LOG_FILE}
     rm -rf megachat/megachat.cpp megachat/megachat.h
+    echo "* Deleting tarballs"
+    rm -rf ../obj/local/armeabi
+    rm -rf ../obj/local/x86
+    rm -rf ../obj/local/arm64-v8a
+    rm -rf ../obj/local/x86_64
     echo "* Task finished OK"
     exit 0
 fi
@@ -202,7 +218,6 @@ if [ "$1" == "clean" ]; then
     rm -rf ${MEDIAINFO}/${ZENLIB}
     rm -rf ${MEDIAINFO}/${MEDIAINFO_SOURCE_FOLDER}
     rm -rf ${MEDIAINFO}/${MEDIAINFO}
-    rm -rf megachat/sdk
 
     echo "* Deleting tarballs"
     rm -rf ${CRYPTOPP}/${CRYPTOPP_SOURCE_FILE}
@@ -222,14 +237,19 @@ if [ "$1" == "clean" ]; then
     rm -rf ${MEDIAINFO}/${ZENLIB_SOURCE_FILE}.ready
     rm -rf ${MEDIAINFO}/${MEDIAINFO_SOURCE_FILE}
     rm -rf ${MEDIAINFO}/${MEDIAINFO_SOURCE_FILE}.ready
-    rm -rf ../obj/local/armeabi-v7a/
-    rm -rf ../obj/local/armeabi/
-    rm -rf ../obj/local/x86
+
+    echo "* Deleting object files"
+    rm -rf ../obj/local/armeabi-v7a
     rm -rf ../obj/local/arm64-v8a
-    rm -f ../libs/armeabi-v7a/libmega.so
-    rm -f ../libs/armeabi/libmega.so
-    rm -f ../libs/x86/libmega.so
-    rm -f ../libs/arm64-v8a/libmega.so
+    rm -rf ../obj/local/x86
+    rm -rf ../obj/local/x86_64
+
+    echo "* Deleting libraries"
+    rm -rf ../libs/armeabi-v7a
+    rm -rf ../libs/arm64-v8a
+    rm -rf ../libs/x86
+    rm -rf ../libs/x86_64
+
     echo "* Task finished OK"
     exit 0
 fi
@@ -238,6 +258,8 @@ if [ "$1" != "all" ]; then
     echo "Usage: $0 <all | bindings | clean | clean_mega>";
     exit 1
 fi
+
+echo "* Building ${BUILD_ARCHS} arch(s)"
 
 echo "* Setting up MEGA"
 createMEGABindings
@@ -248,20 +270,35 @@ if [ ! -f ${SODIUM}/${SODIUM_SOURCE_FILE}.ready ]; then
     downloadCheckAndUnpack ${SODIUM_DOWNLOAD_URL} ${SODIUM}/${SODIUM_SOURCE_FILE} ${SODIUM_SHA1} ${SODIUM}
     ln -sf ${SODIUM_SOURCE_FOLDER} ${SODIUM}/${SODIUM}
     pushd ${SODIUM}/${SODIUM} &>> ${LOG_FILE}
-    export ANDROID_NDK_HOME=${NDK_ROOT}
+    export ANDROID_NDK_HOME=${NDK_ROOT64}
     ./autogen.sh &>> ${LOG_FILE}
     echo "#include <limits.h>" >>  src/libsodium/include/sodium/export.h
     sed -i 's/enable-minimal/enable-minimal --disable-pie/g' dist-build/android-build.sh
-    echo "* Prebuilding libsodium for ARMv7"
-    dist-build/android-armv7-a.sh &>> ${LOG_FILE}
-    echo "* Prebuilding libsodium for x86"
-    dist-build/android-x86.sh &>> ${LOG_FILE}
-    echo "* Prebuilding libsodium for ARM64"
-    dist-build/android-armv8-a.sh &>> ${LOG_FILE}
-    ln -sf libsodium-android-armv7-a libsodium-android-armeabi-v7
-    ln -sf libsodium-android-armv7-a libsodium-android-armeabi-v7a
-    ln -sf libsodium-android-armv8-a libsodium-android-arm64-v8a
-    ln -sf libsodium-android-i686 libsodium-android-x86
+
+    if [ -n "`echo ${BUILD_ARCHS} | grep -w armeabi-v7a`" ]; then
+        echo "* Prebuilding libsodium for ARMv7"
+        dist-build/android-armv7-a.sh &>> ${LOG_FILE}
+        ln -sf libsodium-android-armv7-a libsodium-android-armeabi-v7a
+    fi
+
+    if [ -n "`echo ${BUILD_ARCHS} | grep -w arm64-v8a`" ]; then
+        echo "* Prebuilding libsodium for ARMv8"
+        dist-build/android-armv8-a.sh &>> ${LOG_FILE}
+        ln -sf libsodium-android-armv8-a libsodium-android-arm64-v8a
+    fi
+
+    if [ -n "`echo ${BUILD_ARCHS} | grep -w x86`" ]; then
+        echo "* Prebuilding libsodium for x86"
+        dist-build/android-x86.sh &>> ${LOG_FILE}
+        ln -sf libsodium-android-i686 libsodium-android-x86
+    fi
+
+    if [ -n "`echo ${BUILD_ARCHS} | grep -w x86_64`" ]; then
+        echo "* Prebuilding libsodium for x86_64"
+        dist-build/android-x86_64.sh &>> ${LOG_FILE}
+        ln -sf libsodium-android-westmere libsodium-android-x86_64
+    fi
+
     popd &>> ${LOG_FILE}
     touch ${SODIUM}/${SODIUM_SOURCE_FILE}.ready
 fi
@@ -271,7 +308,7 @@ echo "* Setting up Crypto++"
 if [ ! -f ${CRYPTOPP}/${CRYPTOPP_SOURCE_FILE}.ready ]; then
     mkdir -p ${CRYPTOPP}/${CRYPTOPP}
     downloadCheckAndUnpack ${CRYPTOPP_DOWNLOAD_URL} ${CRYPTOPP}/${CRYPTOPP_SOURCE_FILE} ${CRYPTOPP_SHA1} ${CRYPTOPP}/${CRYPTOPP}
-    cp ${NDK_ROOT}/sources/android/cpufeatures/cpu-features.h ${CRYPTOPP}/${CRYPTOPP}/
+    cp ${NDK_ROOT64}/sources/android/cpufeatures/cpu-features.h ${CRYPTOPP}/${CRYPTOPP}/
     touch ${CRYPTOPP}/${CRYPTOPP_SOURCE_FILE}.ready
 fi
 echo "* Crypto++ is ready"
@@ -313,10 +350,55 @@ echo "* Setting up OpenSSL"
 if [ ! -f ${OPENSSL}/${OPENSSL_SOURCE_FILE}.ready ]; then
     downloadCheckAndUnpack ${OPENSSL_DOWNLOAD_URL} ${OPENSSL}/${OPENSSL_SOURCE_FILE} ${OPENSSL_SHA1} ${OPENSSL}
     ln -sf ${OPENSSL_SOURCE_FOLDER} ${OPENSSL}/${OPENSSL}
-    ln -sf ${LIBDIR} ${OPENSSL}/${OPENSSL_SOURCE_FOLDER}/lib
     pushd ${OPENSSL}/${OPENSSL} &>> ${LOG_FILE}
-    ./Configure android &>> ${LOG_FILE}
+    ORIG_PATH=$PATH
+
+    if [ -n "`echo ${BUILD_ARCHS} | grep -w x86`" ]; then
+        echo "* Prebuilding OpenSSL for x86"
+        export ANDROID_NDK_HOME=${NDK_ROOT64}
+        PATH=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/:$ORIG_PATH
+        mkdir openssl-android-x86/
+        ./Configure android-x86 -D__ANDROID_API__=${APP_PLATFORM_32} --openssldir=${PWD}/openssl-android-x86/ --prefix=${PWD}/openssl-android-x86/ &>> ${LOG_FILE}
+        make -j8 &>> ${LOG_FILE}
+        make install &>> ${LOG_FILE}
+        make clean &>> ${LOG_FILE}
+    fi
+
+    if [ -n "`echo ${BUILD_ARCHS} | grep -w armeabi-v7a`" ]; then
+        echo "* Prebuilding OpenSSL for ARMv7"
+        export ANDROID_NDK_HOME=${NDK_ROOT64}
+        PATH=$ANDROID_NDK_HOME/toolchains/arm-linux-androideabi-4.9/prebuilt/linux-x86_64/bin:$ORIG_PATH
+        mkdir openssl-android-armeabi-v7a
+        ./Configure android-arm -D__ANDROID_API__=${APP_PLATFORM_32} --openssldir=${PWD}/openssl-android-armeabi-v7a/ --prefix=${PWD}/openssl-android-armeabi-v7a/ &>> ${LOG_FILE}
+        make -j8 &>> ${LOG_FILE}
+        make install &>> ${LOG_FILE}
+        make clean &>> ${LOG_FILE}
+    fi
+
+    if [ -n "`echo ${BUILD_ARCHS} | grep -w x86_64`" ]; then
+        echo "* Prebuilding OpenSSL for x86_64"
+        export ANDROID_NDK_HOME=${NDK_ROOT64}
+        PATH=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/:$ORIG_PATH
+        mkdir openssl-android-x86_64/
+        ./Configure android-x86_64 -D__ANDROID_API__=${APP_PLATFORM_64} --openssldir=${PWD}/openssl-android-x86_64/ --prefix=${PWD}/openssl-android-x86_64/ &>> ${LOG_FILE}
+        make -j8 &>> ${LOG_FILE}
+        make install &>> ${LOG_FILE}
+        make clean &>> ${LOG_FILE}
+    fi
+
+    if [ -n "`echo ${BUILD_ARCHS} | grep -w arm64-v8a`" ]; then
+        echo "* Prebuilding OpenSSL for ARMv8"
+        export ANDROID_NDK_HOME=${NDK_ROOT64}
+        PATH=$ANDROID_NDK_HOME/toolchains/aarch64-linux-android-4.9/prebuilt/linux-x86_64/bin/:$ORIG_PATH
+        mkdir -p openssl-android-arm64-v8a
+        ./Configure android-arm64 -D__ANDROID_API__=${APP_PLATFORM_64} --openssldir=${PWD}/openssl-android-arm64-v8a/ --prefix=${PWD}/openssl-android-arm64-v8a/ &>> ${LOG_FILE}
+        make -j8 &>> ${LOG_FILE}
+        make install &>> ${LOG_FILE}
+        make clean &>> ${LOG_FILE}
+    fi
+
     popd &>> ${LOG_FILE}
+    PATH=$ORIG_PATH
     touch ${OPENSSL}/${OPENSSL_SOURCE_FILE}.ready
 fi
 echo "* OpenSSL is ready"
@@ -326,7 +408,6 @@ if [ ! -f ${CURL}/${CURL_SOURCE_FILE}.ready ]; then
     echo "* Setting up cURL"
     downloadCheckAndUnpack ${CURL_DOWNLOAD_URL} ${CURL}/${CURL_SOURCE_FILE} ${CURL_SHA1} ${CURL}
     ln -sf ${CURL_SOURCE_FOLDER} ${CURL}/${CURL}
-    sed -i 's/defined(__ILP32__) ||//' ${CURL}/${CURL}/include/curl/curlbuild.h
     echo "* cURL is ready"
 
     echo "* Setting up c-ares"
@@ -339,8 +420,38 @@ fi
 echo "* cURL with c-ares is ready"
 
 echo "* All dependencies are prepared!"
-echo "* Running ndk-build"
-${NDK_BUILD} -j8
-echo "* ndk-build finished"
-echo "* Task finished OK"
 
+echo "* Building SDK"
+rm -rf ../tmpLibs
+mkdir ../tmpLibs
+if [ -n "`echo ${BUILD_ARCHS} | grep -w x86`" ]; then
+    echo "* Running ndk-build x86"
+    ${NDK_BUILD32} V=1 -j8 APP_ABI=x86 &>> ${LOG_FILE}
+    mv ../libs/x86 ../tmpLibs/
+    echo "* ndk-build finished for x86"
+fi
+
+if [ -n "`echo ${BUILD_ARCHS} | grep -w armeabi-v7a`" ]; then
+    echo "* Running ndk-build arm 32bits (armeabi-v7a)"
+    ${NDK_BUILD32} V=1 -j8 APP_ABI=armeabi-v7a &>> ${LOG_FILE}
+    mv ../libs/armeabi-v7a ../tmpLibs/
+    echo "* ndk-build finished for arm 32bits (armeabi-v7a)"
+fi
+
+if [ -n "`echo ${BUILD_ARCHS} | grep -w x86_64`" ]; then
+    echo "* Running ndk-build x86_64"
+    ${NDK_BUILD64} V=1 -j8 APP_ABI=x86_64 &>> ${LOG_FILE}
+    mv ../libs/x86_64 ../tmpLibs/
+    echo "* ndk-build finished for x86_64"
+fi
+
+if [ -n "`echo ${BUILD_ARCHS} | grep -w arm64-v8a`" ]; then
+    echo "* Running ndk-build arm 64bits (arm64-v8a)"
+    ${NDK_BUILD64} V=1 -j8 APP_ABI=arm64-v8a &>> ${LOG_FILE}
+    mv ../libs/arm64-v8a ../tmpLibs/
+    echo "* ndk-build finished for arm 64bits (arm64-v8a)"
+fi
+mv ../tmpLibs/* ../libs/
+rmdir ../tmpLibs/
+
+echo "* Task finished OK"

@@ -2245,6 +2245,86 @@ public class MegaApiJava {
     }
 
     /**
+     * Returns the credentials of the currently open account
+     *
+     * If the MegaApi object isn't logged in or there's no signing key available,
+     * this function returns NULL
+     *
+     * You take the ownership of the returned value.
+     * Use delete [] to free it.
+     *
+     * @return Fingerprint of the signing key of the current account
+     */
+    public String getMyCredentials() {
+        return megaApi.getMyCredentials();
+    }
+
+    /**
+     * Returns the credentials of a given user
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns MegaApi::USER_ATTR_ED25519_PUBLIC_KEY
+     * - MegaRequest::getFlag - Returns true
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getPassword - Returns the credentials in hexadecimal format
+     *
+     * @param user MegaUser of the contact (see MegaApi::getContact) to get the fingerprint
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getUserCredentials(MegaUser user, MegaRequestListenerInterface listener) {
+        megaApi.getUserCredentials(user, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Checks if credentials are verified for the given user
+     *
+     * @param user MegaUser of the contact whose credentiasl want to be checked
+     * @return true if verified, false otherwise
+     */
+    public boolean areCredentialsVerified(MegaUser user){
+        return megaApi.areCredentialsVerified(user);
+    }
+
+    /**
+     * Verify credentials of a given user
+     *
+     * This function allow to tag credentials of a user as verified. It should be called when the
+     * logged in user compares the fingerprint of the user (provided by an independent and secure
+     * method) with the fingerprint shown by the app (@see MegaApi::getUserCredentials).
+     *
+     * The associated request type with this request is MegaRequest::TYPE_VERIFY_CREDENTIALS
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns userhandle
+     *
+     * @param user MegaUser of the contact whose credentials want to be verified
+     * @param listener MegaRequestListener to track this request
+     */
+    public void verifyCredentials(MegaUser user, MegaRequestListenerInterface listener){
+        megaApi.verifyCredentials(user, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Reset credentials of a given user
+     *
+     * Call this function to forget the existing authentication of keys and signatures for a given
+     * user. A full reload of the account will start the authentication process again.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_VERIFY_CREDENTIALS
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns userhandle
+     * - MegaRequest::getFlag - Returns true
+     *
+     * @param user MegaUser of the contact whose credentials want to be reset
+     * @param listener MegaRequestListener to track this request
+     */
+    public void resetCredentials(MegaUser user, MegaRequestListenerInterface listener) {
+        megaApi.resetCredentials(user, createDelegateRequestListener(listener));
+    }
+
+    /**
      * Set the active log level.
      * <p>
      * This function sets the log level of the logging system. If you set a log listener using
@@ -5177,6 +5257,26 @@ public class MegaApiJava {
     }
 
     /**
+     * Set Camera Uploads for both primary and secondary target folder.
+     *
+     * If only one of the target folders wants to be set, simply pass a INVALID_HANDLE to
+     * as the other target folder and it will remain untouched.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
+     * - MegaRequest::getNodehandle - Returns the provided node handle for primary folder
+     * - MegaRequest::getParentHandle - Returns the provided node handle for secondary folder
+     *
+     * @param primaryFolder MegaHandle of the node to be used as primary target folder
+     * @param secondaryFolder MegaHandle of the node to be used as secondary target folder
+     * @param listener MegaRequestListener to track this request
+     */
+    public void setCameraUploadsFolders(long primaryFolder, long secondaryFolder, MegaRequestListenerInterface listener) {
+        megaApi.setCameraUploadsFolders(primaryFolder, secondaryFolder, createDelegateRequestListener(listener));
+    }
+
+    /**
      * Gets Camera Uploads primary target folder.
      *
      * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
@@ -5252,6 +5352,43 @@ public class MegaApiJava {
      */
     public void setUserAlias(long uh, String alias, MegaRequestListenerInterface listener) {
         megaApi.setUserAlias(uh, alias, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Get push notification settings
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_PUSH_SETTINGS
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaPushNotificationSettings - Returns settings for push notifications
+     *
+     * @see MegaPushNotificationSettings class for more details.
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getPushNotificationSettings(MegaRequestListenerInterface listener) {
+        megaApi.getPushNotificationSettings(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Set push notification settings
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_PUSH_SETTINGS
+     * - MegaRequest::getMegaPushNotificationSettings - Returns settings for push notifications
+     *
+     * @see MegaPushNotificationSettings class for more details. You can prepare a new object by
+     * calling MegaPushNotificationSettings::createInstance.
+     *
+     * @param settings MegaPushNotificationSettings with the new settings
+     * @param listener MegaRequestListener to track this request
+     */
+    public void setPushNotificationSettings(MegaPushNotificationSettings settings, MegaRequestListenerInterface listener) {
+        megaApi.setPushNotificationSettings(settings, createDelegateRequestListener(listener));
     }
 
     /**
@@ -6975,37 +7112,6 @@ public class MegaApiJava {
     }
 
     /**
-     * Get the current index of the node in the parent folder for a specific sorting order.
-     * <p>
-     * If the node does not exist or it does not have a parent node (because it's a root node)
-     * this function returns -1.
-     * 
-     * @param node
-     *            Node to check.
-     * @param order
-     *            Sorting order to use.
-     * @return Index of the node in its parent folder.
-     */
-    public int getIndex(MegaNode node, int order) {
-        return megaApi.getIndex(node, order);
-    }
-
-    /**
-     * Get the current index of the node in the parent folder.
-     * <p>
-     * If the node does not exist or it does not have a parent node (because it's a root node)
-     * this function returns -1.
-     * 
-     * @param node
-     *            Node to check.
-     * 
-     * @return Index of the node in its parent folder.
-     */
-    public int getIndex(MegaNode node) {
-        return megaApi.getIndex(node);
-    }
-
-    /**
      * Get the child node with the provided name.
      * <p>
      * If the node does not exist, this function returns null.
@@ -8366,28 +8472,44 @@ public class MegaApiJava {
     }
 
     /**
-     * Make a name suitable for a file name in the local filesystem.
-     * <p>
+     * Make a name suitable for a file name in the local filesystem
+     *
      * This function escapes (%xx) forbidden characters in the local filesystem if needed.
-     * You can revert this operation using MegaApiJava.unescapeFsIncompatible().
-     * 
-     * @param name
-     *            Name to convert.
-     * @return Converted name.
+     * You can revert this operation using MegaApi::unescapeFsIncompatible
+     *
+     * If no dstPath is provided or filesystem type it's not supported this method will
+     * escape characters contained in the following list: \/:?\"<>|*
+     * Otherwise it will check forbidden characters for local filesystem type
+     *
+     * The input string must be UTF8 encoded. The returned value will be UTF8 too.
+     *
+     * You take the ownership of the returned value
+     *
+     * @param filename Name to convert (UTF8)
+     * @param dstPath Destination path
+     * @return Converted name (UTF8)
      */
-    public String escapeFsIncompatible(String name) {
-        return megaApi.escapeFsIncompatible(name);
+    public String escapeFsIncompatible(String filename, String dstPath) {
+        return megaApi.escapeFsIncompatible(filename, dstPath);
     }
 
     /**
-     * Unescape a file name escaped with MegaApiJava.escapeFsIncompatible().
-     * 
-     * @param localName
-     *            Escaped name to convert.
-     * @return Converted name.
+     * Unescape a file name escaped with MegaApi::escapeFsIncompatible
+     *
+     * If no localPath is provided or filesystem type it's not supported, this method will
+     * unescape those sequences that once has been unescaped results in any character
+     * of the following list: \/:?\"<>|*
+     * Otherwise it will unescape those characters forbidden in local filesystem type
+     *
+     * The input string must be UTF8 encoded. The returned value will be UTF8 too.
+     * You take the ownership of the returned value
+     *
+     * @param name Escaped name to convert (UTF8)
+     * @param localPath Local path
+     * @return Converted name (UTF8)
      */
-    public String unescapeFsIncompatible(String localName) {
-        return megaApi.unescapeFsIncompatible(localName);
+    String unescapeFsIncompatible(String name, String localPath) {
+        return megaApi.unescapeFsIncompatible(name, localPath);
     }
 
     /**

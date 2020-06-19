@@ -66,6 +66,7 @@
 
 /* to disable TLS-SRP authentication */
 /* #undef CURL_DISABLE_TLS_SRP */
+#define CURL_DISABLE_TLS_SRP 1
 
 /* to disable verbose strings */
 /* #undef CURL_DISABLE_VERBOSE_STRINGS */
@@ -524,7 +525,7 @@
 #define HAVE_PWD_H 1
 
 /* Define to 1 if you have the `RAND_egd' function. */
-#define HAVE_RAND_EGD 1
+/* #undef HAVE_RAND_EGD */
 
 /* Define to 1 if you have the `RAND_screen' function. */
 /* #undef HAVE_RAND_SCREEN */
@@ -898,6 +899,9 @@
 /* The size of `off_t', as computed by sizeof. */
 #define SIZEOF_OFF_T 4
 
+/* The size of `curl_off_t`, as computed by sizeof */
+#define SIZEOF_CURL_OFF_T 8
+
 /* The size of `short', as computed by sizeof. */
 #define SIZEOF_SHORT 2
 
@@ -977,7 +981,7 @@
 /* #undef USE_THREADS_POSIX */
 
 /* Use TLS-SRP authentication */
-#define USE_TLS_SRP 1
+// #define USE_TLS_SRP 1
 
 /* Use Unix domain sockets */
 #define USE_UNIX_SOCKETS 1

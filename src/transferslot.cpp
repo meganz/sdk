@@ -184,6 +184,7 @@ TransferSlot::~TransferSlot()
                         LOG_verbose << "Async write failed";
                         transferbuf.bufferWriteCompleted(i, false);
                     }
+                    reqs[i]->status = REQ_READY;
                 }
                 delete asyncIO[i];
                 asyncIO[i] = NULL;
@@ -199,14 +200,30 @@ TransferSlot::~TransferSlot()
 
         for (int i = 0; i < connections; i++)
         {
-            HttpReqDL *downloadRequest = static_cast<HttpReqDL*>(reqs[i].get());
-            if (fa && downloadRequest && downloadRequest->status == REQ_INFLIGHT
-                    && downloadRequest->contentlength == downloadRequest->size   
-                    && downloadRequest->bufpos >= SymmCipher::BLOCKSIZE)
+            if (HttpReqDL *downloadRequest = static_cast<HttpReqDL*>(reqs[i].get()))
             {
-                HttpReq::http_buf_t* buf = downloadRequest->release_buf();
-                buf->end -= buf->datalen() % RAIDSECTOR;
-                transferbuf.submitBuffer(i, new TransferBufferManager::FilePiece(downloadRequest->dlpos, buf)); // resets size & bufpos of downloadrequest.
+                switch (static_cast<reqstatus_t>(downloadRequest->status))
+                {
+                    case REQ_INFLIGHT:
+                        if (fa && downloadRequest && downloadRequest->status == REQ_INFLIGHT
+                            && downloadRequest->contentlength == downloadRequest->size
+                            && downloadRequest->bufpos >= SymmCipher::BLOCKSIZE)
+                        {
+                            HttpReq::http_buf_t* buf = downloadRequest->release_buf();
+                            buf->end -= buf->datalen() % RAIDSECTOR;
+                            transferbuf.submitBuffer(i, new TransferBufferManager::FilePiece(downloadRequest->dlpos, buf)); // resets size & bufpos of downloadrequest.
+                        }
+                        break;
+
+                    case REQ_DECRYPTING:
+                        LOG_info << "Waiting for block decryption";
+                        std::mutex finalizedMutex; 
+                        std::unique_lock<std::mutex> guard(finalizedMutex);
+                        auto outputPiece = transferbuf.getAsyncOutputBufferPointer(i);
+                        outputPiece->finalizedCV.wait(guard, [&](){ return outputPiece->finalized; });
+                        downloadRequest->status = REQ_DECRYPTED;
+                        break;
+                }
             }
         }
 
@@ -221,6 +238,11 @@ TransferSlot::~TransferSlot()
                 auto outputPiece = transferbuf.getAsyncOutputBufferPointer(i);
                 if (outputPiece)
                 {
+                    if (!outputPiece->finalized)
+                    {
+                        transfer->client->tmptransfercipher.setkey(transfer->transferkey.data());
+                        outputPiece->finalize(true, transfer->size, transfer->ctriv, &transfer->client->tmptransfercipher, &transfer->chunkmacs);
+                    }
                     anyData = true;
                     if (fa && fa->fwrite(outputPiece->buf.datastart(), static_cast<unsigned>(outputPiece->buf.datalen()), outputPiece->pos))
                     {
@@ -639,7 +661,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                                         sc.setkey(transferkey.data());
                                         outputPiece->finalize(true, filesize, ctriv, &sc, nullptr);
                                         req->status = REQ_DECRYPTED;
-                                    });
+                                    }, false);  // not discardable:  if we downloaded the data, don't waste it - decrypt and write as much as we can to file
                                 }
                                 else
                                 {
@@ -766,7 +788,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                                         sc.setkey(transferkey.data());
                                         req->prepare(finaltempurl.c_str(), &sc, ctriv, pos, npos); 
                                         req->status = REQ_PREPARED;
-                                    });
+                                    }, true);   // discardable - if the transfer or client are being destroyed, we won't be sending that data.
                             }
                             else
                             {
