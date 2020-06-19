@@ -2877,7 +2877,13 @@ void CommandPutUAVer::procresult()
 {
     if (client->json.isnumeric())
     {
-        client->app->putua_result((error)client->json.getint());
+        error e = (error)client->json.getint();
+        client->app->putua_result(e);
+        if (e == API_EEXPIRED)
+        {
+            User *u = client->ownuser();
+            u->invalidateattr(at);
+        }
     }
     else
     {
