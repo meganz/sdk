@@ -320,10 +320,10 @@ public:
     // check the reason of being blocked
     void whyamiblocked();
 
-    // stops querying for action packets due to the account being blocked (-16 on sc channel)
-    void block();
+    // sets block state: stops querying for action packets, pauses transfer & removes transfer slot availability
+    void block(bool fromServerClientResponse = false);
 
-    // resumes querying for action packets when the account is unblocked (if it was previously stopped due to being blocked)
+    // unsets block state
     void unblock();
 
     // dump current session
@@ -814,8 +814,12 @@ private:
     std::unique_ptr<HttpReq> pendingsc;
     std::unique_ptr<HttpReq> pendingscUserAlerts;
     BackoffTimer btsc;
+
+    // sc inconsistence: stop querying for action packets
     bool stopsc = false;
-    bool mScStoppedDueToBlock = false;
+
+    // account is blocked: stops querying for action packets, pauses transfer & removes transfer slot availability
+    bool mBlocked = false;
 
     bool pendingscTimedOut = false;
 

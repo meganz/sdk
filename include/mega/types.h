@@ -343,7 +343,7 @@ public:
     }
 
     size_t size()                                        { applyErase(); return mDeque.size(); }
-    size_t empty()                                        { applyErase(); return mDeque.empty(); }
+    size_t empty()                                       { applyErase(); return mDeque.empty(); }
     iterator begin(bool canHandleErasedElements = false) { if (!canHandleErasedElements) applyErase(); return mDeque.begin(); }
     iterator end(bool canHandleErasedElements = false)   { if (!canHandleErasedElements) applyErase(); return mDeque.end(); }
     void push_front(T t)                                 { applyErase(); mDeque.push_front(E(t)); }
@@ -439,14 +439,6 @@ typedef enum { TRANSFERSTATE_NONE = 0, TRANSFERSTATE_QUEUED, TRANSFERSTATE_ACTIV
                TRANSFERSTATE_RETRYING, TRANSFERSTATE_COMPLETING, TRANSFERSTATE_COMPLETED,
                TRANSFERSTATE_CANCELLED, TRANSFERSTATE_FAILED } transferstate_t;
 
-struct Notification
-{
-    dstime timestamp;
-    string path;
-    LocalNode* localnode;
-};
-
-typedef deque<Notification> notify_deque;
 
 // FIXME: use forward_list instad (C++11)
 typedef list<HttpReqCommandPutFA*> putfa_list;

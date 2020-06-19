@@ -4448,7 +4448,7 @@ TEST_F(SdkTest, invalidFileNames)
     if (fileSystemAccess.getlocalfstype(&aux) == FS_NTFS)
     {
         // Escape set of characters and check if it's the expected one
-        const char *name = megaApi[0]->escapeFsIncompatible("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~", fs::current_path().c_str());
+        const char *name = megaApi[0]->escapeFsIncompatible("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~", fs::current_path().u8string().c_str());
         ASSERT_TRUE (!strcmp(name, "!%22#$%&'()%2a+,-.%2f%3a;%3c=%3e%3f@[%5c]^_`{%7c}~"));
         delete [] name;
 
@@ -4457,7 +4457,7 @@ TEST_F(SdkTest, invalidFileNames)
                                                             "%2e%2f%30%31%32%33%34%35%36%37"
                                                             "%38%39%3a%3b%3c%3d%3e%3f%40%5b"
                                                             "%5c%5d%5e%5f%60%7b%7c%7d%7e",
-                                                            fs::current_path().c_str());
+                                                            fs::current_path().u8string().c_str());
 
         ASSERT_TRUE(!strcmp(name, "%21\"%23%24%25%26%27%28%29*%2b%2c%2d"
                                   "%2e/%30%31%32%33%34%35%36%37"
@@ -4492,7 +4492,7 @@ TEST_F(SdkTest, invalidFileNames)
         sprintf(unescapedName, "f%%%02xf", i);
         if (createLocalFile(uploadPath, unescapedName))
         {
-            const char *unescapedFileName = megaApi[0]->unescapeFsIncompatible(unescapedName, uploadPath.c_str());
+            const char *unescapedFileName = megaApi[0]->unescapeFsIncompatible(unescapedName, uploadPath.u8string().c_str());
             fileNamesStringMap->set(unescapedName, unescapedFileName);
             delete [] unescapedFileName;
         }
@@ -4506,16 +4506,15 @@ TEST_F(SdkTest, invalidFileNames)
         }
 
         char escapedName[4];
-        unsigned char c = i;
         sprintf(escapedName, "f%cf", i);
-        const char *escapedFileName = megaApi[0]->escapeFsIncompatible(escapedName, uploadPath.c_str());
+        const char *escapedFileName = megaApi[0]->escapeFsIncompatible(escapedName, uploadPath.u8string().c_str());
         if (escapedFileName && !strcmp(escapedName, escapedFileName))
         {
             // Only create those files with supported characters, those ones that need unescaping
             // has been created above
             if (createLocalFile(uploadPath, escapedName))
             {
-                const char * unescapedFileName = megaApi[0]->unescapeFsIncompatible(escapedName, uploadPath.c_str());
+                const char * unescapedFileName = megaApi[0]->unescapeFsIncompatible(escapedName, uploadPath.u8string().c_str());
                 fileNamesStringMap->set(escapedName, unescapedFileName);
                 delete [] unescapedFileName;
             }
@@ -4523,7 +4522,7 @@ TEST_F(SdkTest, invalidFileNames)
         delete [] escapedFileName;
     }
 
-    TransferTracker uploadListener;
+    TransferTracker uploadListener(megaApi[0].get());
     megaApi[0]->startUpload(uploadPath.u8string().c_str(), std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get(), &uploadListener);
     ASSERT_EQ(API_OK, uploadListener.waitForResult());
 
@@ -4538,7 +4537,7 @@ TEST_F(SdkTest, invalidFileNames)
     {
         MegaNode *child = children->get(i);
         const char *uploadedName = child->getName();
-        const char *uploadedNameEscaped = megaApi[0]->escapeFsIncompatible(child->getName(), uploadPath.c_str());
+        const char *uploadedNameEscaped = megaApi[0]->escapeFsIncompatible(child->getName(), uploadPath.u8string().c_str());
         const char *expectedName = fileNamesStringMap->get(uploadedNameEscaped);
         delete [] uploadedNameEscaped;
 
@@ -4555,7 +4554,7 @@ TEST_F(SdkTest, invalidFileNames)
         fs::remove_all(downloadPath);
     }
     fs::create_directories(downloadPath);
-    TransferTracker downloadListener;
+    TransferTracker downloadListener(megaApi[0].get());
     megaApi[0]->startDownload(authNode.get(), downloadPath.u8string().c_str(), &downloadListener);
     ASSERT_EQ(API_OK, downloadListener.waitForResult());
 
@@ -4589,7 +4588,7 @@ TEST_F(SdkTest, RecursiveUploadWithLogout)
     ASSERT_TRUE(buildLocalFolders(p.u8string().c_str(), "newkid", 3, 2, 10));
 
     // start uploading
-    TransferTracker uploadListener;
+    TransferTracker uploadListener(megaApi[0].get());
     megaApi[0]->startUpload(p.u8string().c_str(), std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get(), &uploadListener);
     WaitMillisec(500);
 
@@ -4620,11 +4619,12 @@ TEST_F(SdkTest, DISABLED_RecursiveDownloadWithLogout)
     ASSERT_TRUE(buildLocalFolders(uploadpath.u8string().c_str(), "newkid", 3, 2, 10));
 
     // upload all of those
-    TransferTracker uploadListener, downloadListener;
+    TransferTracker uploadListener(megaApi[0].get());
     megaApi[0]->startUpload(uploadpath.u8string().c_str(), std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get(), &uploadListener);
     ASSERT_EQ(API_OK, uploadListener.waitForResult());
 
     // ok now try the download
+    TransferTracker downloadListener(megaApi[0].get());
     megaApi[0]->startDownload(megaApi[0]->getNodeByPath("/uploadme_mega_auto_test_sdk"), downloadpath.u8string().c_str(), &downloadListener);
     WaitMillisec(1000);
     ASSERT_TRUE(downloadListener.started);
@@ -4669,7 +4669,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
         std::unique_ptr<MegaNode> baseNode{megaApi[0]->getNodeByPath(("/" + basePath.u8string()).c_str())};
         if (baseNode)
         {
-            RequestTracker removeTracker;
+            RequestTracker removeTracker(megaApi[0].get());
             megaApi[0]->remove(baseNode.get(), &removeTracker);
             ASSERT_EQ(API_OK, removeTracker.waitForResult());
         }
@@ -4689,7 +4689,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     }
 
     // transfer the folder and its subfolders
-    TransferTracker uploadListener;
+    TransferTracker uploadListener(megaApi[0].get());
     megaApi[0]->startUpload(basePath.u8string().c_str(), megaApi[0]->getRootNode(), &uploadListener);
     ASSERT_EQ(API_OK, uploadListener.waitForResult());
 
@@ -4722,7 +4722,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
 
     auto syncFolder = [this, &megaNode](const fs::path& p)
     {
-        RequestTracker syncTracker;
+        RequestTracker syncTracker(megaApi[0].get());
         auto node = megaNode(p.filename().u8string());
         megaApi[0]->syncFolder(p.u8string().c_str(), node.get(), &syncTracker);
         ASSERT_EQ(API_OK, syncTracker.waitForResult());
@@ -4730,7 +4730,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
 
     auto disableSync = [this, &megaNode](const fs::path& p)
     {
-        RequestTracker syncTracker;
+        RequestTracker syncTracker(megaApi[0].get());
         auto node = megaNode(p.filename().u8string());
         megaApi[0]->disableSync(node.get(), &syncTracker);
         ASSERT_EQ(API_OK, syncTracker.waitForResult());
@@ -4738,7 +4738,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
 
     auto resumeSync = [this, &megaNode](const fs::path& p, const long long localfp)
     {
-        RequestTracker syncTracker;
+        RequestTracker syncTracker(megaApi[0].get());
         auto node = megaNode(p.filename().u8string());
         megaApi[0]->resumeSync(p.u8string().c_str(), node.get(), localfp, &syncTracker);
         ASSERT_EQ(API_OK, syncTracker.waitForResult());
@@ -4746,7 +4746,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
 
     auto removeSync = [this, &megaNode](const fs::path& p)
     {
-        RequestTracker syncTracker;
+        RequestTracker syncTracker(megaApi[0].get());
         auto node = megaNode(p.filename().u8string());
         megaApi[0]->removeSync(node.get(), &syncTracker);
         ASSERT_EQ(API_OK, syncTracker.waitForResult());
