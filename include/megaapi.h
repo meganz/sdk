@@ -3868,9 +3868,26 @@ class MegaTransfer
 
         /**
          * @brief Returns the last error related to the transfer
+         *
+         * @note This method returns a MegaError with the error code, but
+         * the extra info is not valid. If you need to use MegaError::getUserStatus, in
+         * example, you need to use MegaTransfer::getLastErrorExtended.
+         *
+         * @deprecated User use MegaTransfer::getLastErrorExtended.
+         *
          * @return Last error related to the transfer
          */
         virtual MegaError getLastError() const;
+
+        /**
+         * @brief Returns the last error related to the transfer with extra info
+         *
+         * The MegaTransfer object retains the ownership of the returned pointer. It will
+         * be valid until the deletion of the MegaTransfer object.
+         *
+         * @return Last error related to the transfer, with extended info
+         */
+        virtual const MegaError* getLastErrorExtended() const;
 
         /**
          * @brief Returns true if the transfer is a folder transfer
@@ -5289,28 +5306,30 @@ public:
         API_EC_DEFAULT = 0,         ///< Default error code context
         API_EC_DOWNLOAD = 1,        ///< Download transfer context.
         API_EC_IMPORT = 2,          ///< Import context.
-        API_EC_UPLOAD = 3,        ///< Upload transfer context.
+        API_EC_UPLOAD = 3,          ///< Upload transfer context.
     };
 
     /**
-     * @brief Creates a new MegaError object
-     * @param errorCode Error code for this error
+     * @brief User custom error details
      */
-    MegaError(int errorCode = MegaError::API_OK);
+    enum UserErrorCode
+    {
+        USER_ETD_UNKNOWN = -1,      ///< Unknown state
+        USER_ETD_SUSPENSION = 7,    ///< Account suspend by an ETD/ToS 'severe'
+    };
 
     /**
-     * @brief Creates a new MegaError object
-     * @param errorCode Error code for this error
-     * @param value Value associated to the error
+     * @brief Link custom error details
      */
-    MegaError(int errorCode, long long value);
+    enum LinkErrorCode
+    {
+        LINK_UNKNOWN = -1,      ///< Unknown state
+        LINK_UNDELETED = 0,     ///< Link is undeleted
+        LINK_DELETED_DOWN = 1,  ///< Link is deleted or down
+        LINK_DOWN_ETD = 2,      ///< Link is down due to an ETD specifically
+    };
 
-    /**
-     * @brief Creates a new MegaError object copying another one
-     * @param megaError MegaError object to be copied
-     */
-    MegaError(const MegaError &megaError);
-    virtual ~MegaError();
+        virtual ~MegaError();
 
         /**
          * @brief Creates a copy of this MegaError object
@@ -5323,13 +5342,15 @@ public:
          *
          * @return Copy of the MegaError object
          */
-        MegaError* copy();
+        virtual MegaError* copy() const;
+
 
 		/**
 		 * @brief Returns the error code associated with this MegaError
+         *
 		 * @return Error code associated with this MegaError
 		 */
-		int getErrorCode() const;
+        virtual int getErrorCode() const;
 
         /**
          * @brief Returns a value associated with the error
@@ -5342,7 +5363,48 @@ public:
          *
          * @return Value associated with the error
          */
-        long long getValue() const;
+        virtual long long getValue() const;
+
+        /**
+         * @brief Returns true if error has extra info
+         *
+         * @note This method can return true for:
+         *   - MegaRequest::TYPE_FETCH_NODES with error ENOENT
+         *   - MegaRequest::TYPE_GET_PUBLIC_NODE with error ETOOMANY
+         *   - MegaRequest::TYPE_IMPORT_LINK with error ETOOMANY
+         *   - MegaTransferListener::onTransferFinish with error ETOOMANY
+         *
+         * @return True if error has extra info
+         */
+        virtual bool hasExtraInfo() const;
+
+        /**
+         * @brief Returns the user status
+         *
+         * This method only returns a valid value when hasExtraInfo is true
+         * Possible values:
+         *  MegaError::UserErrorCode::USER_ETD_SUSPENSION
+         *
+         * Otherwise, it returns MegaError::UserErrorCode::USER_ETD_UNKNOWN
+         *
+         * @return user status
+         */
+        virtual long long getUserStatus() const;
+
+        /**
+         * @brief Returns the link status
+         *
+         * This method only returns a valid value when hasExtraInfo is true
+         * Possible values:
+         *  MegaError::LinkErrorCode::LINK_UNDELETED
+         *  MegaError::LinkErrorCode::LINK_DELETED_DOWN
+         *  MegaError::LinkErrorCode::LINK_DOWN_ETD
+         *
+         * Otherwise, it returns MegaError::LinkErrorCode::LINK_UNKNOWN
+         *
+         * @return link status
+         */
+        virtual long long getLinkStatus() const;
 
 		/**
 		 * @brief Returns a readable description of the error
@@ -5352,7 +5414,7 @@ public:
 		 *
 		 * @return Readable description of the error
 		 */
-		const char* getErrorString() const;
+        virtual const char* getErrorString() const;
 
 		/**
 		 * @brief Returns a readable description of the error
@@ -5365,7 +5427,7 @@ public:
 		 *
 		 * @return Readable description of the error
 		 */
-        const char* toString() const;
+        virtual const char* toString() const;
 
 		/**
 		 * @brief Returns a readable description of the error
@@ -5378,7 +5440,7 @@ public:
 		 *
 		 * @return Readable description of the error
 		 */
-		const char* __str__() const;
+        virtual const char* __str__() const;
 
 		/**
 		 * @brief Returns a readable description of the error
@@ -5391,7 +5453,7 @@ public:
 		 *
 		 * @return Readable description of the error
 		 */
-		const char* __toString() const;
+        virtual const char* __toString() const;
 
 		/**
 		 * @brief Provides the error description associated with an error code
@@ -5418,10 +5480,14 @@ public:
         static const char *getErrorString(int errorCode, ErrorContexts context);
 
 
-    private:
+protected:
+        MegaError(int e);
+
         //< 0 = API error code, > 0 = http error, 0 = No error
-		int errorCode;
-        long long value;
+        int errorCode;
+
+        friend class MegaTransfer;
+        friend class MegaApiImpl;
 };
 
 /**
@@ -13553,6 +13619,8 @@ class MegaApi
         /**
          * @brief Check if a node has an access level
          *
+         * @deprecated Use checkAccessErrorExtended
+         *
          * @param node Node to check
          * @param level Access level to check
          * Valid values for this parameter are:
@@ -13571,7 +13639,32 @@ class MegaApi
         MegaError checkAccess(MegaNode* node, int level);
 
         /**
+         * @brief Check if a node has an access level
+         *
+         * You take the ownership of the returned value
+         *
+         * @param node Node to check
+         * @param level Access level to check
+         * Valid values for this parameter are:
+         * - MegaShare::ACCESS_OWNER
+         * - MegaShare::ACCESS_FULL
+         * - MegaShare::ACCESS_READWRITE
+         * - MegaShare::ACCESS_READ
+         *
+         * @return Pointer to MegaError with the result.
+         * Valid values for the error code are:
+         * - MegaError::API_OK - The node has the required access level
+         * - MegaError::API_EACCESS - The node doesn't have the required access level
+         * - MegaError::API_ENOENT - The node doesn't exist in the account
+         * - MegaError::API_EARGS - Invalid parameters
+         */
+        MegaError* checkAccessErrorExtended(MegaNode* node, int level);
+
+        /**
          * @brief Check if a node can be moved to a target node
+         *
+         * @deprecated Use checkMoveErrorExtended
+         *
          * @param node Node to check
          * @param target Target for the move operation
          * @return MegaError object with the result:
@@ -13583,6 +13676,23 @@ class MegaApi
          * - MegaError::API_EARGS - Invalid parameters
          */
         MegaError checkMove(MegaNode* node, MegaNode* target);
+
+        /**
+         * @brief Check if a node can be moved to a target node
+         *
+         * You take the ownership of the returned value
+         *
+         * @param node Node to check
+         * @param target Target for the move operation
+         * @return MegaError object with the result:
+         * Valid values for the error code are:
+         * - MegaError::API_OK - The node can be moved to the target
+         * - MegaError::API_EACCESS - The node can't be moved because of permissions problems
+         * - MegaError::API_ECIRCULAR - The node can't be moved because that would create a circular linkage
+         * - MegaError::API_ENOENT - The node or the target doesn't exist in the account
+         * - MegaError::API_EARGS - Invalid parameters
+         */
+        MegaError* checkMoveErrorExtended(MegaNode* node, MegaNode* target);
 
         /**
          * @brief Check if the MEGA filesystem is available in the local computer
