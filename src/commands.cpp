@@ -8184,6 +8184,8 @@ void CommandFolderLinkInfo::procresult()
 
 CommandSyncPut::CommandSyncPut(MegaClient *client, SyncType type, handle nodeHandle, const string& localFolder, handle deviceId, const string& syncName, int state, int subState, const string& extraData)
 {
+    assert(type != SyncType::INVALID);
+
     cmd("sp");
 
     arg("t", type);
@@ -8198,11 +8200,16 @@ CommandSyncPut::CommandSyncPut(MegaClient *client, SyncType type, handle nodeHan
     tag = client->reqtag;
 }
 
-CommandSyncPut::CommandSyncPut(MegaClient* client, handle syncId, handle nodeHandle, const char* localFolder, handle deviceId, const char* syncName, int state, int subState, const char* extraData)
+CommandSyncPut::CommandSyncPut(MegaClient* client, handle syncId, SyncType type, handle nodeHandle, const char* localFolder, handle deviceId, const char* syncName, int state, int subState, const char* extraData)
 {
     cmd("sp");
 
     arg("id", syncId);
+
+    if (type != SyncType::INVALID)
+    {
+        arg("t", type);
+    }
 
     if (nodeHandle != UNDEF)
     {
