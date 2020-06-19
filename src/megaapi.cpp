@@ -1188,7 +1188,12 @@ char *MegaTransfer::getLastBytes() const
 
 MegaError MegaTransfer::getLastError() const
 {
-    return MegaError(API_OK);
+    return API_OK;
+}
+
+const MegaError *MegaTransfer::getLastErrorExtended() const
+{
+    return nullptr;
 }
 
 bool MegaTransfer::isFolderTransfer() const
@@ -1221,22 +1226,9 @@ long long MegaTransfer::getNotificationNumber() const
     return 0;
 }
 
-MegaError::MegaError(int errorCode)
+MegaError::MegaError(int e)
 {
-    this->errorCode = errorCode;
-    this->value = 0;
-}
-
-MegaError::MegaError(int errorCode, long long value)
-{
-    this->errorCode = errorCode;
-    this->value = value;
-}
-
-MegaError::MegaError(const MegaError &megaError)
-{
-	errorCode = megaError.getErrorCode();
-    value = megaError.getValue();
+    errorCode = e;
 }
 
 MegaError::~MegaError()
@@ -1244,9 +1236,9 @@ MegaError::~MegaError()
 
 }
 
-MegaError* MegaError::copy()
+MegaError* MegaError::copy() const
 {
-	return new MegaError(*this);
+    return new MegaError(*this);
 }
 
 int MegaError::getErrorCode() const 
@@ -1256,7 +1248,22 @@ int MegaError::getErrorCode() const
 
 long long MegaError::getValue() const
 {
-    return value;
+    return 0;
+}
+
+bool MegaError::hasExtraInfo() const
+{
+    return false;
+}
+
+long long MegaError::getUserStatus() const
+{
+    return 0;
+}
+
+long long MegaError::getLinkStatus() const
+{
+    return 0;
 }
 
 const char* MegaError::getErrorString() const
@@ -1372,17 +1379,17 @@ const char* MegaError::getErrorString(int errorCode, ErrorContexts context)
 
 const char* MegaError::toString() const 
 { 
-	return getErrorString(); 
+    return getErrorString();
 }
 
 const char* MegaError::__str__() const 
 { 
-	return getErrorString();
+    return getErrorString();
 }
 
 const char *MegaError::__toString() const
 {
-	return getErrorString();
+    return getErrorString();
 }
 
 MegaContactRequest::~MegaContactRequest()
@@ -3867,9 +3874,19 @@ MegaError MegaApi::checkAccess(MegaNode* megaNode, int level)
     return pImpl->checkAccess(megaNode, level);
 }
 
+MegaError *MegaApi::checkAccessErrorExtended(MegaNode *node, int level)
+{
+    return pImpl->checkAccessErrorExtended(node, level);
+}
+
 MegaError MegaApi::checkMove(MegaNode* megaNode, MegaNode* targetNode)
 {
     return pImpl->checkMove(megaNode, targetNode);
+}
+
+MegaError *MegaApi::checkMoveErrorExtended(MegaNode *node, MegaNode *target)
+{
+    return pImpl->checkMoveErrorExtended(node, target);
 }
 
 bool MegaApi::isFilesystemAvailable()

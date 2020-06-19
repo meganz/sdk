@@ -416,10 +416,17 @@ void DemoApp::transfer_update(Transfer* /*t*/)
     // (this is handled in the prompt logic)
 }
 
-void DemoApp::transfer_failed(Transfer* t, error e, dstime)
+void DemoApp::transfer_failed(Transfer* t, const Error& e, dstime)
 {
     displaytransferdetails(t, "failed (");
-    cout << errorstring(e) << ")" << endl;
+    if (e == API_ETOOMANY && e.hasExtraInfo())
+    {
+         cout << getExtraInfoErrorString(e) << ")" << endl;
+    }
+    else
+    {
+        cout << errorstring(e) << ")" << endl;
+    }
 }
 
 void DemoApp::transfer_complete(Transfer* t)
@@ -1120,11 +1127,18 @@ void DemoApp::unlink_result(handle, error e)
     }
 }
 
-void DemoApp::fetchnodes_result(error e)
+void DemoApp::fetchnodes_result(const Error& e)
 {
     if (e)
     {
-        cout << "File/folder retrieval failed (" << errorstring(e) << ")" << endl;
+        if (e == API_ENOENT && e.hasExtraInfo())
+        {
+            cout << "File/folder retrieval failed: " << getExtraInfoErrorString(e) << endl;
+        }
+        else
+        {
+            cout << "File/folder retrieval failed (" << errorstring(e) << ")" << endl;
+        }
         pdf_to_import = false;
     }
     else
@@ -1434,6 +1448,35 @@ void DemoApp::notify_retry(dstime dsdelta, retryreason_t)
     {
         cout << "Retried API request completed" << endl;
     }
+}
+
+string DemoApp::getExtraInfoErrorString(const Error& e)
+{
+    string textError;
+
+    if (e.getUserStatus() == 7)
+    {
+        textError.append("User status is suspended due to ETD. ");
+    }
+
+    textError.append("Link status is: ");
+    switch (e.getLinkStatus())
+    {
+        case 0:
+            textError.append("Undeleted");
+            break;
+        case 1:
+            textError.append("Deleted/down");
+            break;
+        case 2:
+            textError.append("Down due to an ETD specifically");
+            break;
+        default:
+            textError.append("Unknown link status");
+            break;
+    }
+
+    return textError;
 }
 
 static void store_line(char*);
@@ -6993,7 +7036,7 @@ void DemoApp::exportnode_result(handle h, handle ph)
 }
 
 // the requested link could not be opened
-void DemoApp::openfilelink_result(error e)
+void DemoApp::openfilelink_result(const Error& e)
 {
     if (e)
     {
@@ -7003,7 +7046,15 @@ void DemoApp::openfilelink_result(error e)
         }
         else
         {
-            cout << "Failed to open link: " << errorstring(e) << endl;
+            if (e == API_ETOOMANY && e.hasExtraInfo())
+            {
+                cout << "Failed to open link: " << getExtraInfoErrorString(e) << endl;
+            }
+            else
+            {
+                cout << "Failed to open link: " << errorstring(e) << endl;
+            }
+
         }
     }
     pdf_to_import = false;
@@ -7187,9 +7238,16 @@ void DemoApp::folderlinkinfo_result(error e, handle owner, handle /*ph*/, string
     publiclink.clear();
 }
 
-void DemoApp::checkfile_result(handle /*h*/, error e)
+void DemoApp::checkfile_result(handle /*h*/, const Error& e)
 {
-    cout << "Link check failed: " << errorstring(e) << endl;
+    if (e == API_ETOOMANY && e.hasExtraInfo())
+    {
+         cout << "Link check failed: " << getExtraInfoErrorString(e) << endl;
+    }
+    else
+    {
+        cout << "Link check failed: " << errorstring(e) << endl;
+    }
 }
 
 void DemoApp::checkfile_result(handle h, error e, byte* filekey, m_off_t size, m_time_t /*ts*/, m_time_t tm, string* filename,
@@ -7246,9 +7304,9 @@ bool DemoApp::pread_data(byte* data, m_off_t len, m_off_t pos, m_off_t, m_off_t,
     return true;
 }
 
-dstime DemoApp::pread_failure(error e, int retry, void* /*appdata*/, dstime)
+dstime DemoApp::pread_failure(const Error &e, int retry, void* /*appdata*/, dstime)
 {
-    if (retry < 5)
+    if (retry < 5 && !(e == API_ETOOMANY && e.hasExtraInfo()))
     {
         cout << "Retrying read (" << errorstring(e) << ", attempt #" << retry << ")" << endl;
         return (dstime)(retry*10);
@@ -7934,11 +7992,19 @@ void DemoAppFolder::login_result(error e)
     }
 }
 
-void DemoAppFolder::fetchnodes_result(error e)
+void DemoAppFolder::fetchnodes_result(const Error& e)
 {
     if (e)
     {
-        cout << "File/folder retrieval failed (" << errorstring(e) << ")" << endl;
+        if (e == API_ENOENT && e.hasExtraInfo())
+        {
+            cout << "File/folder retrieval failed: " << getExtraInfoErrorString(e) << endl;
+        }
+        else
+        {
+            cout << "File/folder retrieval failed (" << errorstring(e) << ")" << endl;
+        }
+
         pdf_to_import = false;
     }
     else

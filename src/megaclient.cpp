@@ -1906,8 +1906,12 @@ void MegaClient::exec()
                         pendingcs->posturl.append(auth);
                     }
                     pendingcs->posturl.append(appkey);
+
+                    string version = "v=2";
+                    pendingcs->posturl.append("&" + version);
                     if (lang.size())
                     {
+                        pendingcs->posturl.append("&");
                         pendingcs->posturl.append(lang);
                     }
                     pendingcs->type = REQ_JSON;
