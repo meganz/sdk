@@ -3873,6 +3873,8 @@ class MegaTransfer
          * the extra info is not valid. If you need to use MegaError::getUserStatus, in
          * example, you need to use MegaTransfer::getLastErrorExtended.
          *
+         * @deprecated User use MegaTransfer::getLastErrorExtended.
+         *
          * @return Last error related to the transfer
          */
         virtual MegaError getLastError() const;
