@@ -14860,7 +14860,7 @@ class MegaApi
          * You take the ownership of the returned value
          *
          * @param filename Name to convert (UTF8)
-         * @param destination path
+         * @param dstPath Destination path
          * @return Converted name (UTF8)
          */
         char* escapeFsIncompatible(const char *filename, const char *dstPath);
@@ -14892,7 +14892,7 @@ class MegaApi
          * You take the ownership of the returned value
          *
          * @param name Escaped name to convert (UTF8)
-         * @param localPath local path
+         * @param localPath Local path
          * @return Converted name (UTF8)
          */
         char* unescapeFsIncompatible(const char *name, const char *localPath);

@@ -2857,6 +2857,12 @@ void CommandPutUAVer::procresult()
     Error e;
     if (checkError(e, client->json))
     {
+        if (e == API_EEXPIRED)
+        {
+            User *u = client->ownuser();
+            u->invalidateattr(at);
+        }
+
         client->app->putua_result(e);
     }
     else
