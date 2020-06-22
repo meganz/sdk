@@ -16352,7 +16352,7 @@ void MegaApiImpl::processTransferFailed(Transfer *tr, MegaTransferPrivate *trans
     {
         transfer->setState(MegaTransfer::STATE_RETRYING);
         transfer->setForeignOverquota(e == API_EOVERQUOTA && client->isForeignNode(transfer->getParentHandle()));
-        fireOnTransferTemporaryError(transfer, make_unique<MegaErrorPrivate>(e));
+        fireOnTransferTemporaryError(transfer, std::move(megaError));
     }
 
 }
