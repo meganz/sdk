@@ -213,7 +213,7 @@ public:
     std::array<vector<Transfer*>, 6> nexttransfers(std::function<bool(Transfer*)>& continuefunction);
     Transfer *transferat(direction_t direction, unsigned int position);
 
-    transfer_list transfers[2];
+    std::array<transfer_list, 2> transfers;
     MegaClient *client;
     uint64_t currentpriority;
 

@@ -222,6 +222,13 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     type = MemAccess::get<direction_t>(ptr);
     ptr += sizeof(direction_t);
 
+    if (type != GET && type != PUT)
+    {
+        assert(false);
+        LOG_err << "Transfer unserialization failed - neither get nor put";
+        return NULL;
+    }
+
     ll = MemAccess::get<unsigned short>(ptr);
     ptr += sizeof(ll);
 
@@ -1611,6 +1618,8 @@ void TransferList::addtransfer(Transfer *transfer, DBTableTransactionCommitter& 
         transfer->state = TRANSFERSTATE_QUEUED;
     }
 
+    assert(transfer->type == PUT || transfer->type == GET);
+
     if (!transfer->priority)
     {
         if (startFirst && transfers[transfer->type].size())
@@ -1699,6 +1708,7 @@ void TransferList::movetransfer(transfer_list::iterator it, transfer_list::itera
     }
 
     Transfer *transfer = (*it);
+    assert(transfer->type == PUT || transfer->type == GET);
     if (dstit == transfers[transfer->type].end())
     {
         LOG_debug << "Moving transfer to the last position";
@@ -1908,9 +1918,17 @@ auto TransferList::end(direction_t direction) -> transfer_list::iterator
 
 bool TransferList::getIterator(Transfer *transfer, transfer_list::iterator& it, bool canHandleErasedElements) 
 {
+    assert(transfer);
     if (!transfer)
     {
         LOG_err << "Getting iterator of a NULL transfer";
+        return false;
+    }
+
+    assert(transfer->type == GET || transfer->type == PUT);
+    if (transfer->type != GET && transfer->type != PUT)
+    {
+        LOG_err << "Getting iterator of wrong transfer type " << transfer->type;
         return false;
     }
 
@@ -1979,6 +1997,7 @@ Transfer *TransferList::transferat(direction_t direction, unsigned int position)
 
 void TransferList::prepareIncreasePriority(Transfer *transfer, transfer_list::iterator /*srcit*/, transfer_list::iterator dstit, DBTableTransactionCommitter& committer)
 {
+    assert(transfer->type == PUT || transfer->type == GET);
     if (dstit == transfers[transfer->type].end())
     {
         return;
@@ -2016,6 +2035,7 @@ void TransferList::prepareIncreasePriority(Transfer *transfer, transfer_list::it
 
 void TransferList::prepareDecreasePriority(Transfer *transfer, transfer_list::iterator it, transfer_list::iterator dstit)
 {
+    assert(transfer->type == PUT || transfer->type == GET);
     if (transfer->slot && transfer->state == TRANSFERSTATE_ACTIVE)
     {
         transfer_list::iterator cit = it + 1;
