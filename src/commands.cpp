@@ -71,10 +71,6 @@ void HttpReqCommandPutFA::procresult()
         {
             status = REQ_FAILURE;
         }
-        else if (e == API_EPAYWALL)
-        {
-            client->activateoverquota(0, true);
-        }
         else
         {
             if (e == API_EACCESS)
@@ -173,12 +169,6 @@ void CommandGetFA::procresult()
     Error e;
     if (checkError(e, client->json))
     {
-        error e = static_cast<error>(client->json.getint());
-        if (e == API_EPAYWALL)
-        {
-            client->activateoverquota(0, true);
-        }
-
         if (it != client->fafcs.end())
         {            
             faf_map::iterator fafsit;
@@ -286,14 +276,7 @@ CommandAttachFA::CommandAttachFA(MegaClient *client, handle nh, fatype t, const 
 void CommandAttachFA::procresult()
 {
     Error e;
-    if (checkError(e, client->json))
-    {
-        if (e == API_EPAYWALL)
-        {
-            client->activateoverquota(0, true);
-        }
-    }
-    else
+    if (!checkError(e, client->json))
     {
          string fa;
          if (client->json.storeobject(&fa))
@@ -397,12 +380,6 @@ void CommandPutFile::procresult()
     Error e;
     if (checkError(e, client->json))
     {
-        error e = static_cast<error>(client->json.getint());
-        if (e == API_EPAYWALL)
-        {
-            client->activateoverquota(0, true);
-        }
-
         if (!canceled)
         {
             tslot->transfer->failed(e, *client->mTctableRequestCommitter);
@@ -469,11 +446,6 @@ void CommandPutFileBackgroundURL::procresult()
     Error e;
     if (checkError(e, client->json))
     {
-        if (e == API_EPAYWALL)
-        {
-            client->activateoverquota(0, true);
-        }
-
         if (!canceled)
         {
             client->app->backgrounduploadurl_result(e, NULL);
@@ -555,12 +527,6 @@ void CommandDirectRead::procresult()
     Error e;
     if (checkError(e, client->json))
     {
-        error e = static_cast<error>(client->json.getint());
-        if (e == API_EPAYWALL)
-        {
-            client->activateoverquota(0, true);
-        }
-
         if (!canceled && drn)
         {
             return drn->cmdresult(e);
@@ -711,11 +677,6 @@ void CommandGetFile::procresult()
     Error e;
     if (checkError(e, client->json))
     {
-        if (e == API_EPAYWALL)
-        {
-            client->activateoverquota(0, true);
-        }
-
         if (canceled)
         {
             return;
@@ -1012,11 +973,6 @@ void CommandSetAttr::procresult()
     Error e;
     if (checkError(e, client->json))
     {
-        if (e == API_EPAYWALL)
-        {
-            client->activateoverquota(0, true);
-        }
-
 #ifdef ENABLE_SYNC
         if(!e && syncop)
         {
@@ -1222,9 +1178,9 @@ void CommandPutNodes::procresult()
     if (checkError(e, client->json))
     {
         LOG_debug << "Putnodes error " << e;
-        if (e == API_EOVERQUOTA || e == API_EPAYWALL)
+        if (e == API_EOVERQUOTA)
         {
-            client->activateoverquota(0, (e == API_EPAYWALL));
+            client->activateoverquota(0, false);
         }
 #ifdef ENABLE_SYNC
         if (source == PUTNODES_SYNC)
@@ -1367,9 +1323,9 @@ void CommandMoveNode::procresult()
     Error e;
     if (checkError(e, client->json))
     {
-        if (e == API_EOVERQUOTA || e == API_EPAYWALL)
+        if (e == API_EOVERQUOTA)
         {
-            client->activateoverquota(0, (e == API_EPAYWALL));
+            client->activateoverquota(0, false);
         }
 
 #ifdef ENABLE_SYNC
@@ -1546,11 +1502,6 @@ void CommandDelNode::procresult()
     Error e;
     if (checkError(e, client->json))
     {
-        if (e == API_EPAYWALL)
-        {
-            client->activateoverquota(0, true);
-        }
-
         client->app->unlink_result(h, e);
     }
     else
@@ -1596,10 +1547,6 @@ void CommandDelVersions::procresult()
 {    
     Error e;
     checkError(e, client->json);
-    if (e == API_EPAYWALL)
-    {
-        client->activateoverquota(0, true);
-    }
     client->app->unlinkversions_result(e);
 }
 
@@ -2149,11 +2096,6 @@ void CommandSetShare::procresult()
     Error e;
     if (checkError(e, client->json))
     {
-        if (e == API_EPAYWALL)
-        {
-            client->activateoverquota(0, true);
-        }
-
         return client->app->share_result(e);
     }
 
@@ -2280,11 +2222,6 @@ void CommandSetPendingContact::procresult()
     Error e;
     if (checkError(e, client->json))
     {
-        if (e == API_EPAYWALL)
-        {
-            client->activateoverquota(0, true);
-        }
-
         handle pcrhandle = UNDEF;
         if (e == API_OK) // response for delete & remind actions is always numeric
         {
@@ -2421,11 +2358,6 @@ void CommandUpdatePendingContact::procresult()
     Error e;
     if (checkError(e, client->json))
     {
-        if (e == API_EPAYWALL)
-        {
-            client->activateoverquota(0, true);
-        }
-
         return client->app->updatepcr_result(e, this->action);
     }
    
@@ -2737,14 +2669,7 @@ CommandRemoveContact::CommandRemoveContact(MegaClient* client, const char* m, vi
 void CommandRemoveContact::procresult()
 {
     Error e;
-    if (checkError(e, client->json))
-    {
-        if (e == API_EPAYWALL)
-        {
-            client->activateoverquota(0, true);
-        }
-    }
-    else
+    if (!checkError(e, client->json))
     {
         client->json.storeobject();
         e = API_OK;
@@ -4865,11 +4790,6 @@ void CommandSetPH::procresult()
     Error e;
     if (checkError(e, client->json))
     {
-        if (e == API_EPAYWALL)
-        {
-            client->activateoverquota(0, true);
-        }
-
         return client->app->exportnode_result(e);
     }
 
@@ -4911,11 +4831,6 @@ void CommandGetPH::procresult()
     Error e;
     if (checkError(e, client->json))
     {
-        if (e == API_EPAYWALL)
-        {
-            client->activateoverquota(0, true);
-        }
-
         return client->app->openfilelink_result(e);
     }
 
@@ -5878,11 +5793,6 @@ void CommandCleanRubbishBin::procresult()
     Error e;
     if (checkError(e, client->json))
     {
-        if (e == API_EPAYWALL)
-        {
-            client->activateoverquota(0, true);
-        }
-
         client->app->cleanrubbishbin_result(e);
     }
     else
@@ -6175,11 +6085,6 @@ void CommandGetEmailLink::procresult()
     Error e;
     if (checkError(e, client->json))
     {
-        if (e == API_EPAYWALL)
-        {
-            client->activateoverquota(0, true);
-        }
-
         return client->app->getemaillink_result(e);
     }
     else    // error
@@ -6216,11 +6121,6 @@ void CommandConfirmEmailLink::procresult()
     Error e;
     if (checkError(e, client->json))
     {
-        if (e == API_EPAYWALL)
-        {
-            client->activateoverquota(0, true);
-        }
-
         if (!e)
         {
             User *u = client->finduser(client->me);
@@ -8049,11 +7949,6 @@ void CommandSMSVerificationSend::procresult()
     Error e;
     if (checkError(e, client->json))
     {
-        if (e == API_EPAYWALL)
-        {
-            client->activateoverquota(0, true);
-        }
-
         client->app->smsverificationsend_result(e);
     }
     else
@@ -8093,11 +7988,6 @@ void CommandSMSVerificationCheck::procresult()
     Error e;
     if (checkError(e, client->json))
     {
-        if (e == API_EPAYWALL)
-        {
-            client->activateoverquota(0, true);
-        }
-
         return client->app->smsverificationcheck_result(e, nullptr);
     }
 
@@ -8139,11 +8029,6 @@ void CommandGetRegisteredContacts::processResult(MegaApp& app, JSON& json)
     Error e;
     if (checkError(e, json))
     {
-        if (e == API_EPAYWALL)
-        {
-            app.client->activateoverquota(0, true);
-        }
-
         app.getregisteredcontacts_result(e, nullptr);
         return;
     }
