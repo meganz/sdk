@@ -3355,6 +3355,7 @@ void MegaClient::dispatchTransfers()
     // We prepare data for put/get in index 0..1, and the put/get/big/small combinations in index 2..5
     for (TransferSlot* ts : tslots)
     {
+        assert(ts->transfer->type == PUT || ts->transfer->type == GET);
         TransferCategory tc(ts->transfer);
         counters[tc.index()].addexisting(ts->transfer->size, ts->progressreported);
         counters[tc.directionIndex()].addexisting(ts->transfer->size,  ts->progressreported);
