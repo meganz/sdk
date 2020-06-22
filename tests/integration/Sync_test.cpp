@@ -441,12 +441,12 @@ struct StandardClient : public MegaApp
 
     
     std::atomic<unsigned> transfersAdded{0}, transfersRemoved{0}, transfersPrepared{0}, transfersFailed{0}, transfersUpdated{0}, transfersComplete{0};
-    void transfer_added(Transfer*) { ++transfersAdded; }
-    void transfer_removed(Transfer*) { ++transfersRemoved; }
-    void transfer_prepare(Transfer*) { ++transfersPrepared; }
-    void transfer_failed(Transfer*, error, dstime = 0) { ++transfersFailed; }
-    void transfer_update(Transfer*) { ++transfersUpdated; }
-    void transfer_complete(Transfer*) { ++transfersComplete; }
+    void transfer_added(Transfer*) override { ++transfersAdded; }
+    void transfer_removed(Transfer*) override { ++transfersRemoved; }
+    void transfer_prepare(Transfer*) override { ++transfersPrepared; }
+    void transfer_failed(Transfer*,  const Error&, dstime = 0) override { ++transfersFailed; }
+    void transfer_update(Transfer*) override { ++transfersUpdated; }
+    void transfer_complete(Transfer*) override { ++transfersComplete; }
 
 
     void threadloop()
