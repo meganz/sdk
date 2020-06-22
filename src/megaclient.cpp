@@ -3777,6 +3777,8 @@ void MegaClient::freeq(direction_t d)
         delete transferPtr.second;
     }
     transfers[d].clear();
+    transferlist.transfers[GET].clear();
+    transferlist.transfers[PUT].clear();
 }
 
 bool MegaClient::isFetchingNodesPendingCS()
