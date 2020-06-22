@@ -8021,18 +8021,18 @@ CommandGetRegisteredContacts::CommandGetRegisteredContacts(MegaClient* client, c
 
 void CommandGetRegisteredContacts::procresult()
 {
+    Error e;
+    if (checkError(e, client->json))
+    {
+        client->app->getregisteredcontacts_result(e, nullptr);
+        return;
+    }
+
     processResult(*client->app, client->json);
 }
 
 void CommandGetRegisteredContacts::processResult(MegaApp& app, JSON& json)
 {
-    Error e;
-    if (checkError(e, json))
-    {
-        app.getregisteredcontacts_result(e, nullptr);
-        return;
-    }
-
     vector<tuple<string, string, string>> registeredContacts;
 
     string entryUserDetail;
@@ -8110,18 +8110,18 @@ CommandGetCountryCallingCodes::CommandGetCountryCallingCodes(MegaClient* client)
 
 void CommandGetCountryCallingCodes::procresult()
 {
+    Error e;
+    if (checkError(e, client->json))
+    {
+        client->app->getcountrycallingcodes_result(e, nullptr);
+        return;
+    }
+
     processResult(*client->app, client->json);
 }
 
 void CommandGetCountryCallingCodes::processResult(MegaApp& app, JSON& json)
 {
-    Error e;
-    if (checkError(e, json))
-    {
-        app.getcountrycallingcodes_result(e, nullptr);
-        return;
-    }
-
     map<string, vector<string>> countryCallingCodes;
 
     string countryCode;
