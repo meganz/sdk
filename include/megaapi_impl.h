@@ -2022,6 +2022,7 @@ class MegaApiImpl : public MegaApp
         bool newLinkFormatEnabled();
         int smsAllowedState();
         char* smsVerifiedPhoneNumber();
+        void resetSmsVerifiedPhoneNumber(MegaRequestListener *listener);
 
         bool multiFactorAuthAvailable();
         void multiFactorAuthCheck(const char *email, MegaRequestListener *listener = NULL);
@@ -2921,6 +2922,7 @@ protected:
         void confirmcancellink_result(error) override;
         void getemaillink_result(error) override;
         void resendverificationemail_result(error) override;
+        void resetSmsVerifiedPhoneNumber_result(error) override;
         void confirmemaillink_result(error) override;
         void getversion_result(int, const char*, error) override;
         void getlocalsslcertificate_result(m_time_t, string *certdata, error) override;

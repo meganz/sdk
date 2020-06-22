@@ -8565,6 +8565,11 @@ void MegaClient::resendverificationemail()
     reqs.add(new CommandResendVerificationEmail(this));
 }
 
+void MegaClient::resetSmsVerifiedPhoneNumber()
+{
+    reqs.add(new CommandResetSmsVerifiedPhoneNumber(this));
+}
+
 void MegaClient::copysession()
 {
     reqs.add(new CommandCopySession(this));

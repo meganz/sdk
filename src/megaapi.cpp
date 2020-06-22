@@ -1951,6 +1951,11 @@ char* MegaApi::smsVerifiedPhoneNumber()
     return pImpl->smsVerifiedPhoneNumber();
 }
 
+void MegaApi::resetSmsVerifiedPhoneNumber(MegaRequestListener *listener)
+{
+    pImpl->resetSmsVerifiedPhoneNumber(listener);
+}
+
 bool MegaApi::multiFactorAuthAvailable()
 {
     return pImpl->multiFactorAuthAvailable();

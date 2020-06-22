@@ -5943,6 +5943,26 @@ void CommandResendVerificationEmail::procresult()
     }
 }
 
+CommandResetSmsVerifiedPhoneNumber::CommandResetSmsVerifiedPhoneNumber(MegaClient *client)
+{
+    cmd("smsr");
+    tag = client->reqtag;
+}
+
+void CommandResetSmsVerifiedPhoneNumber::procresult()
+{
+    Error e;
+    if (checkError(e, client->json))
+    {
+        client->app->resetSmsVerifiedPhoneNumber_result(e);
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->resetSmsVerifiedPhoneNumber_result((error)API_EINTERNAL);
+    }
+}
+
 CommandValidatePassword::CommandValidatePassword(MegaClient *client, const char *email, uint64_t emailhash)
 {
     cmd("us");
