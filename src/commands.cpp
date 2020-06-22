@@ -3582,6 +3582,8 @@ void CommandGetUserData::procresult()
     string email;
     string unshareableKey;
     string versionUnshareableKey;
+    string deviceNames;
+    string versionDeviceNames;
 
     bool b = false;
     BizMode m = BIZ_MODE_UNKNOWN;
@@ -3700,6 +3702,11 @@ void CommandGetUserData::procresult()
         case MAKENAMEID5('*', '~', 'u', 's', 'k'):
             parseUserAttribute(unshareableKey, versionUnshareableKey, false);
             break;
+
+        case MAKENAMEID5('*', '!', '>', 'd', 'n'):
+            parseUserAttribute(deviceNames, versionDeviceNames);
+            break;
+
 
         case 'b':   // business account's info
             assert(!b);
@@ -3996,6 +4003,21 @@ void CommandGetUserData::procresult()
                 else
                 {
                     LOG_err << "Unshareable key wrong length";
+                }
+
+                if (deviceNames.size())
+                {
+                    unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&deviceNames, &client->key));
+                    if (tlvRecords)
+                    {
+                        // store the value for private user attributes (decrypted version of serialized TLV)
+                        unique_ptr<string> tlvString(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
+                        changes += u->updateattr(ATTR_DEVICE_NAMES, tlvString.get(), &versionDeviceNames);
+                    }
+                    else
+                    {
+                        LOG_err << "Cannot extract TLV records for ATTR_DEVICE_NAMES";
+                    }
                 }
 
                 if (changes > 0)
