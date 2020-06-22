@@ -384,6 +384,7 @@ public:
 
     size_t size()                                        { applyErase(); return mDeque.size(); }
     size_t empty()                                       { applyErase(); return mDeque.empty(); }
+    void clear()                                         { mDeque.clear(); }
     iterator begin(bool canHandleErasedElements = false) { if (!canHandleErasedElements) applyErase(); return mDeque.begin(); }
     iterator end(bool canHandleErasedElements = false)   { if (!canHandleErasedElements) applyErase(); return mDeque.end(); }
     void push_front(T t)                                 { applyErase(); mDeque.push_front(E(t)); }
