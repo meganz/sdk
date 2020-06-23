@@ -81,7 +81,6 @@ bool Command::checkError(Error& errorDetails, JSON& json)
                        errorDetails.setLinkStatus(json.getint());
                         break;
                     case EOO:
-                        json.leaveobject();
                         return true;
                     default:
                         json.storeobject();
