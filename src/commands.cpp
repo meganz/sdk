@@ -3703,7 +3703,7 @@ void CommandGetUserData::procresult()
             parseUserAttribute(unshareableKey, versionUnshareableKey, false);
             break;
 
-        case MAKENAMEID5('*', '!', '>', 'd', 'n'):
+        case MAKENAMEID4('*', '!', 'd', 'n'):
             parseUserAttribute(deviceNames, versionDeviceNames);
             break;
 
