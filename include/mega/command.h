@@ -1210,8 +1210,20 @@ class MEGA_API CommandSyncPut : public Command
 public:
     void procresult();
 
+    // Register a new Sync
     CommandSyncPut(MegaClient* client, SyncType type, handle nodeHandle, const string& localFolder, handle deviceId, const string& syncName, int state, int subState, const string& extraData);
 
+    // Update a Sync
+    // Params that keep the same value are passed with invalid value to avoid to send to the server
+    // Invalid values:
+    // - type: SyncType::INVALID
+    // - nodeHandle: UNDEF
+    // - localFolder: nullptr
+    // - deviceId: UNDEF
+    // - SyncName: nullptr
+    // - state: -1
+    // - subState: -1
+    // - extraData: nullptr
     CommandSyncPut(MegaClient* client, handle syncId, SyncType type, handle nodeHandle, const char* localFolder, handle deviceId, const char* syncName, int state, int subState, const char* extraData);
 };
 
