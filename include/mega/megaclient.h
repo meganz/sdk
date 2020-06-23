@@ -789,7 +789,7 @@ public:
     string blockedfile;
 
     // stats id
-    static std::unique_ptr<std::string> statsid;
+    static std::string statsid;
 
     // number of ongoing asynchronous fopen
     int asyncfopens;
