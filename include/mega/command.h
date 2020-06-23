@@ -1211,7 +1211,7 @@ public:
     void procresult();
 
     // Register a new Sync
-    CommandSyncPut(MegaClient* client, SyncType type, handle nodeHandle, const string& localFolder, handle deviceId, const string& syncName, int state, int subState, const string& extraData);
+    CommandSyncPut(MegaClient* client, SyncType type, handle nodeHandle, const std::string& localFolder, const std::string& deviceId, const std::string& syncName, int state, int subState, const std::string& extraData);
 
     // Update a Sync
     // Params that keep the same value are passed with invalid value to avoid to send to the server
@@ -1219,12 +1219,12 @@ public:
     // - type: SyncType::INVALID
     // - nodeHandle: UNDEF
     // - localFolder: nullptr
-    // - deviceId: UNDEF
+    // - deviceId: nullptr
     // - SyncName: nullptr
     // - state: -1
     // - subState: -1
     // - extraData: nullptr
-    CommandSyncPut(MegaClient* client, handle syncId, SyncType type, handle nodeHandle, const char* localFolder, handle deviceId, const char* syncName, int state, int subState, const char* extraData);
+    CommandSyncPut(MegaClient* client, handle syncId, SyncType type, handle nodeHandle, const char* localFolder, const char* deviceId, const char* syncName, int state, int subState, const char* extraData);
 };
 
 class MEGA_API CommandSyncRemove : public Command

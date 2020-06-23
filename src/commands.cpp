@@ -8182,7 +8182,7 @@ void CommandFolderLinkInfo::procresult()
     }
 }
 
-CommandSyncPut::CommandSyncPut(MegaClient *client, SyncType type, handle nodeHandle, const string& localFolder, handle deviceId, const string& syncName, int state, int subState, const string& extraData)
+CommandSyncPut::CommandSyncPut(MegaClient *client, SyncType type, handle nodeHandle, const string& localFolder, const std::string &deviceId, const string& syncName, int state, int subState, const string& extraData)
 {
     assert(type != SyncType::INVALID);
 
@@ -8191,7 +8191,7 @@ CommandSyncPut::CommandSyncPut(MegaClient *client, SyncType type, handle nodeHan
     arg("t", type);
     arg("h", (byte*)&nodeHandle, MegaClient::NODEHANDLE);
     arg("l", localFolder.c_str());
-    arg("d", (byte*)&deviceId, MegaClient::NODEHANDLE);
+    arg("d", deviceId.c_str());
     arg("n", syncName.c_str());
     arg("s", state);
     arg("ss", subState);
@@ -8200,7 +8200,7 @@ CommandSyncPut::CommandSyncPut(MegaClient *client, SyncType type, handle nodeHan
     tag = client->reqtag;
 }
 
-CommandSyncPut::CommandSyncPut(MegaClient* client, handle syncId, SyncType type, handle nodeHandle, const char* localFolder, handle deviceId, const char* syncName, int state, int subState, const char* extraData)
+CommandSyncPut::CommandSyncPut(MegaClient* client, handle syncId, SyncType type, handle nodeHandle, const char* localFolder, const char *deviceId, const char* syncName, int state, int subState, const char* extraData)
 {
     cmd("sp");
 
@@ -8221,9 +8221,9 @@ CommandSyncPut::CommandSyncPut(MegaClient* client, handle syncId, SyncType type,
         arg("l", localFolder);
     }
 
-    if (deviceId != UNDEF)
+    if (deviceId)
     {
-        arg("d", (byte*)&deviceId, MegaClient::NODEHANDLE);
+        arg("d", deviceId);
     }
 
     if (syncName)
