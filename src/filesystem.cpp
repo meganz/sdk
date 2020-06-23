@@ -214,6 +214,7 @@ bool FileSystemAccess::islocalfscompatible(unsigned char c, bool isEscape, FileS
         case FS_FUSE:
         case FS_SDCARDFS:
         case FS_UNKNOWN:
+        default:
             // FUSE and SDCARDFS are Android filesystem wrappers used to mount traditional filesystems
             // as ext4, Fat32, extFAT...
             // So we will consider that restricted characters for these wrappers are the same
