@@ -1532,7 +1532,11 @@ TEST_F(SdkTest, SdkTestTransfers)
 
     // --- Download a file ---
 
+#ifdef WIN32
+    string filename2 = ".\\" + DOWNFILE;
+#else
     string filename2 = "./" + DOWNFILE;
+#endif
 
     mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
     megaApi[0]->startDownload(n2, filename2.c_str());
@@ -1564,7 +1568,12 @@ TEST_F(SdkTest, SdkTestTransfers)
 
     // --- Download a 0-byte file ---
 
+#ifdef WIN32
+    filename3 = ".\\" + EMPTYFILE;
+#else
     filename3 = "./" + EMPTYFILE;
+#endif
+
     mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
     megaApi[0]->startDownload(n4, filename3.c_str());
     ASSERT_TRUE( waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], 600) )
@@ -3656,7 +3665,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
     MegaNode *nimported = megaApi[0]->getNodeByHandle(imported_file_handle);
 
 #ifdef WIN32
-    string filename = ".\cloudraid_downloaded_file.sdktest";
+    string filename = ".\\cloudraid_downloaded_file.sdktest";
     #else
     string filename = "./cloudraid_downloaded_file.sdktest";
 #endif
@@ -3796,7 +3805,11 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
     std::unique_ptr<MegaNode> nimported{megaApi[0]->getNodeByHandle(imported_file_handle)};
 
 
+#ifdef WIN32
+    string filename = ".\cloudraid_downloaded_file.sdktest";
+#else
     string filename = "./cloudraid_downloaded_file.sdktest";
+#endif
     deleteFile(filename.c_str());
 
     // set up for 404 and 403 errors
@@ -3850,7 +3863,12 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
     std::unique_ptr<MegaNode> nimported{megaApi[0]->getNodeByHandle(imported_file_handle)};
 
 
+#ifdef WIN32
+    string filename = ".\cloudraid_downloaded_file.sdktest";
+#else
     string filename = "./cloudraid_downloaded_file.sdktest";
+#endif
+
     deleteFile(filename.c_str());
 
     // set up for 404 and 403 errors
@@ -3915,7 +3933,12 @@ TEST_F(SdkTest, SdkTestOverquotaNonCloudraid)
     #endif
 
     // download - we should see a 30 second pause for 509 processing in the middle
+#ifdef WIN32
+    string filename2 = ".\\" + DOWNFILE;
+#else
     string filename2 = "./" + DOWNFILE;
+#endif
+
     deleteFile(filename2);
     mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
     megaApi[0]->startDownload(n1.get(), filename2.c_str());
@@ -3980,7 +4003,11 @@ TEST_F(SdkTest, SdkTestOverquotaCloudraid)
     #endif
 
     // download - we should see a 30 second pause for 509 processing in the middle
+#ifdef WIN32
+    string filename2 = ".\\" + DOWNFILE;
+#else
     string filename2 = "./" + DOWNFILE;
+#endif
     deleteFile(filename2);
     mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
     megaApi[0]->startDownload(nimported, filename2.c_str());
@@ -4139,7 +4166,12 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
     MegaNode *rootnode = megaApi[0]->getRootNode();
 
     // get the file, and upload as non-raid
+#ifdef WIN32
+    string filename2 = ".\\" + DOWNFILE;
+#else
     string filename2 = "./" + DOWNFILE;
+#endif
+
     deleteFile(filename2);
 
     mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
@@ -4178,7 +4210,7 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
     compareDecryptedFile.read((char*)compareDecryptedData.data(), filesize);
 
     m_time_t starttime = m_time();
-    int seconds_to_test_for = gRunningInCI ? 60 : 60 * 10;
+    int seconds_to_test_for = gRunningInCI ? 60 : 60 /* * 10 */;
 
     // ok loop for 10 minutes  (one munite under jenkins)
     srand(unsigned(starttime));

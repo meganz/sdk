@@ -50,6 +50,8 @@ public:
     void servererror(error e, MegaClient* client);
 	
     void process(MegaClient* client);
+    bool processCmdJSON(Command* cmd);
+    bool processSeqTag(Command* cmd, bool withJSON, bool& parsedOk);
 
     void clear();
     bool empty() const; 

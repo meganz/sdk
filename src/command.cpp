@@ -264,12 +264,13 @@ void Command::procresult()
     }
 }
 
-void Command::procresultV3()
+bool Command::procresultV3(Result)
 {
     // With v3 was turned on, and we might get a seqtag respsonse (ie, actinpacket generated)
     // then we should have overridden this callback.
     // So, for commands that don't have actionpacket side effects, no need to override this function.
     assert(false);  
+    return false;
 }
 
 

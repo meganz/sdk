@@ -39,7 +39,7 @@ namespace mega {
 bool MegaClient::disablepkp = false;
 
 // root URL for API access
-string MegaClient::APIURL = "https://lu1.api.mega.co.nz:444/";
+string MegaClient::APIURL = "https://g.api.mega.co.nz/";
 
 // root URL for GeLB requests
 string MegaClient::GELBURL = "https://gelb.karere.mega.nz/";
@@ -1289,7 +1289,6 @@ std::string MegaClient::getPublicLink(bool newLinkFormat, nodetype_t type, handl
 // nonblocking state machine executing all operations currently in progress
 void MegaClient::exec()
 {
-    LOG_debug << "new exec()";
     CodeCounter::ScopeTimer ccst(performanceStats.execFunction);
 
     WAIT_CLASS::bumpds();
@@ -1349,8 +1348,6 @@ void MegaClient::exec()
     bool first = true;
     do
     {
-        LOG_debug << "new loop in exec()";
-
         if (!first)
         {
             WAIT_CLASS::bumpds();
@@ -7325,7 +7322,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent,
 }
 
 // delete node tree
-error MegaClient::unlink(Node* n, bool keepversions)
+error MegaClient::unlink(Node* n, bool keepversions, int tag, std::function<void(handle, error)> resultFunction)
 {
     if (!n->inshare && !checkaccess(n, FULL))
     {
@@ -7341,25 +7338,25 @@ error MegaClient::unlink(Node* n, bool keepversions)
     }
 
     bool kv = (keepversions && n->type == FILENODE);
-    reqs.add(new CommandDelNode(this, n->nodehandle, kv));
+    reqs.add(new CommandDelNode(this, n->nodehandle, kv, tag, resultFunction));
 
-    mergenewshares(1);
+    //mergenewshares(1);
 
-    if (kv)
-    {
-        Node *newerversion = n->parent;
-        if (n->children.size())
-        {
-            Node *olderversion = n->children.back();
-            olderversion->setparent(newerversion);
-            olderversion->changed.parent = true;
-            olderversion->tag = reqtag;
-            notifynode(olderversion);
-        }
-    }
+    //if (kv)
+    //{
+    //    Node *newerversion = n->parent;
+    //    if (n->children.size())
+    //    {
+    //        Node *olderversion = n->children.back();
+    //        olderversion->setparent(newerversion);
+    //        olderversion->changed.parent = true;
+    //        olderversion->tag = reqtag;
+    //        notifynode(olderversion);
+    //    }
+    //}
 
-    TreeProcDel td;
-    proctree(n, &td);
+    //TreeProcDel td;
+    //proctree(n, &td);
 
     return API_OK;
 }
@@ -7788,7 +7785,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                 {
                     auto& nn_nni = (*nn)[nni];
                     nn_nni.added = true;
-                    nn_nni.addedHandle = h;
+                    nn_nni.mAddedHandle = h;
 
 #ifdef ENABLE_SYNC
                     if (source == PUTNODES_SYNC)
@@ -13712,10 +13709,7 @@ void MegaClient::execsyncunlink()
 
         if (!n)
         {
-            int creqtag = reqtag;
-            reqtag = tn->tag;
-            unlink(tn);
-            reqtag = creqtag;
+            unlink(tn, false, tn->tag);
         }
 
         tn->tounlink_it = tounlink.end();

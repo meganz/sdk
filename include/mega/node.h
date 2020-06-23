@@ -63,8 +63,9 @@ struct MEGA_API NewNode : public NodeCore
 #endif
     std::unique_ptr<string> fileattributes;
 
-    bool added = false;
-    handle addedHandle= UNDEF;
+    bool added = false;           // set true when the actionpacket arrives
+    handle mAddedHandle = UNDEF;  // updated as actionpacket arrives
+    error mError = API_OK;        // per-node error (updated in cs response)
 };
 
 struct MEGA_API PublicLink

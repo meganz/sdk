@@ -13239,8 +13239,8 @@ void MegaApiImpl::putnodes_result(error e, targettype_t t, vector<NewNode>& nn)
 
     if (!e && t != USER_HANDLE)
     {
-        assert(!nn.empty() && nn.back().added && nn.back().addedHandle != UNDEF);
-        n = client->nodebyhandle(nn.back().addedHandle);
+        assert(!nn.empty() && nn.back().added && nn.back().mAddedHandle != UNDEF);
+        n = client->nodebyhandle(nn.back().mAddedHandle);
 
         if(n)
         {
@@ -13350,10 +13350,7 @@ void MegaApiImpl::putnodes_result(error e, targettype_t t, vector<NewNode>& nn)
             else
             {
                 request->setNodeHandle(h);
-                int creqtag = client->reqtag;
-                client->reqtag = request->getTag();
-                e = client->unlink(node);
-                client->reqtag = creqtag;
+                e = client->unlink(node, false, request->getTag());
             }
         }
 
@@ -18912,7 +18909,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            e = client->unlink(node, keepversions);
+            e = client->unlink(node, keepversions, request->getTag());
             break;
         }
         case MegaRequest::TYPE_REMOVE_VERSIONS:

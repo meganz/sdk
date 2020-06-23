@@ -1145,12 +1145,10 @@ void DemoApp::fetchnodes_result(error e)
     }
 }
 
-void DemoApp::putnodes_result(error e, targettype_t t, NewNode* nn)
+void DemoApp::putnodes_result(error e, targettype_t t, vector<NewNode>& nn)
 {
     if (t == USER_HANDLE)
     {
-        delete[] nn;
-
         if (!e)
         {
             cout << "Success." << endl;
@@ -3632,25 +3630,22 @@ void exec_cp(autocomplete::ACState& s)
                 attrs.map = n->attrs.map;
                 attrs.map['n'] = sname;
 
-                key.setkey((const byte*)tc.nn->nodekey.data(), tc.nn->type);
+                key.setkey((const byte*)tc.nn[0].nodekey.data(), tc.nn[0].type);
 
                 // JSON-encode object and encrypt attribute string
                 attrs.getjson(&attrstring);
-                tc.nn->attrstring.reset(new string);
-                client->makeattr(&key, tc.nn->attrstring, attrstring.c_str());
+                tc.nn[0].attrstring.reset(new string);
+                client->makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
             }
 
             // tree root: no parent
-            tc.nn->parenthandle = UNDEF;
-            tc.nn->ovhandle = ovhandle;
+            tc.nn[0].parenthandle = UNDEF;
+            tc.nn[0].ovhandle = ovhandle;
 
             if (tn)
             {
                 // add the new nodes
-                client->putnodes(tn->nodehandle, tc.nn, nc);
-
-                // free in putnodes_result()
-                tc.nn = NULL;
+                client->putnodes(tn->nodehandle, move(tc.nn));
             }
             else
             {
@@ -3658,10 +3653,7 @@ void exec_cp(autocomplete::ACState& s)
                 {
                     cout << "Attempting to drop into user " << targetuser << "'s inbox..." << endl;
 
-                    client->putnodes(targetuser.c_str(), tc.nn, nc);
-
-                    // free in putnodes_result()
-                    tc.nn = NULL;
+                    client->putnodes(targetuser.c_str(), move(tc.nn));
                 }
                 else
                 {
@@ -3895,15 +3887,15 @@ void uploadLocalPath(nodetype_t type, std::string name, std::string localname, N
         }
         else
         {
-            auto nn = new NewNode[1];
-            client->putnodes_prepareOneFolder(nn, name);
+            vector<NewNode> nn(1);
+            client->putnodes_prepareOneFolder(&nn[0], name);
 
             gOnPutNodeTag[gNextClientTag] = [localname](Node* parent) {
                 uploadLocalFolderContent(localname, parent);
             };
 
             client->reqtag = gNextClientTag++;
-            client->putnodes(parent->nodehandle, nn, 1);
+            client->putnodes(parent->nodehandle, move(nn));
             client->reqtag = 0;
         }
     }
@@ -4635,9 +4627,9 @@ void exec_mkdir(autocomplete::ACState& s)
 
             if (newname.size())
             {
-                auto nn = new NewNode[1];
-                client->putnodes_prepareOneFolder(nn, newname);
-                client->putnodes(n->nodehandle, nn, 1);
+                vector<NewNode> nn(1);
+                client->putnodes_prepareOneFolder(&nn[0], newname);
+                client->putnodes(n->nodehandle, move(nn));
             }
             else if (allowDuplicate && n->parent && n->parent->nodehandle != UNDEF)
             {
@@ -4645,9 +4637,9 @@ void exec_mkdir(autocomplete::ACState& s)
                 auto leafname = s.words[1].s;
                 auto pos = leafname.find_last_of("/");
                 if (pos != string::npos) leafname.erase(0, pos + 1);
-                auto nn = new NewNode[1];
-                client->putnodes_prepareOneFolder(nn, leafname);
-                client->putnodes(n->parent->nodehandle, nn, 1);
+                vector<NewNode> nn(1);
+                client->putnodes_prepareOneFolder(&nn[0], leafname);
+                client->putnodes(n->parent->nodehandle, move(nn));
             }
             else
             {
@@ -7019,7 +7011,8 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
         nameid name;
         string* t;
         json.begin((char*)buf + 5);
-        NewNode* newnode = new NewNode[1];
+        vector<NewNode> nn(1);
+        NewNode* newnode = &nn[0];
 
         // set up new node as folder node
         newnode->source = NEW_PUBLIC;
@@ -7066,7 +7059,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
             }
         }
 
-        client->putnodes(n->nodehandle, newnode, 1);
+        client->putnodes(n->nodehandle, move(nn));
     }
     else
     {
