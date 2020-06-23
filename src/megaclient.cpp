@@ -83,7 +83,7 @@ dstime MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS = 3600;
 dstime MegaClient::USER_DATA_EXPIRATION_BACKOFF_SECS = 86400; // 1 day
 
 // stats id
-std::unique_ptr<std::string> MegaClient::statsid;
+std::string MegaClient::statsid;
 
 // decrypt key (symmetric or asymmetric), rewrite asymmetric to symmetric key
 bool MegaClient::decryptkey(const char* sk, byte* tk, int tl, SymmCipher* sc, int type, handle node)
@@ -949,17 +949,12 @@ void MegaClient::activateoverquota(dstime timeleft)
 
 std::string MegaClient::getDeviceid() const
 {
-    if (!MegaClient::statsid)
+    if (MegaClient::statsid.empty())
     {
-        std::string id;
-        fsaccess->statsid(&id);
-        if (id.size())
-        {
-            MegaClient::statsid = ::mega::make_unique<std::string>(id);
-        }
+        fsaccess->statsid(&MegaClient::statsid);
     }
 
-    return MegaClient::statsid ? *MegaClient::statsid : "";
+    return MegaClient::statsid;
 }
 
 // set warn level

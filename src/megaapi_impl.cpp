@@ -5698,12 +5698,12 @@ char MegaApiImpl::userAttributeToScope(int type)
 
 void MegaApiImpl::setStatsID(const char *id)
 {
-    if (!id || !*id || MegaClient::statsid)
+    if (!id || !*id || MegaClient::statsid.size())
     {
         return;
     }
 
-    MegaClient::statsid = ::mega::make_unique<std::string>(id);
+    MegaClient::statsid = id;
 }
 
 bool MegaApiImpl::serverSideRubbishBinAutopurgeEnabled()
@@ -6647,7 +6647,7 @@ void MegaApiImpl::setDeviceName(const char *deviceName, MegaRequestListener *lis
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
     MegaStringMapPrivate stringMap;
-    string buf = deviceName ? deviceName : "";    // alias is null to remove it
+    string buf = deviceName ? deviceName : "";
     stringMap.set(client->getDeviceid().c_str(), Base64::btoa(buf).c_str());
     request->setMegaStringMap(&stringMap);
     request->setText(deviceName);
