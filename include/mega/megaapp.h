@@ -389,9 +389,9 @@ struct MEGA_API MegaApp
 
     virtual void getmiscflags_result(error) { }
 
-    virtual void syncput_result(error, handle) { }
+    virtual void syncput_result(error, handle /*sync id*/) { }
     virtual void syncputheartbeat_result(error) { }
-    virtual void syncremove_result(error, handle) { }
+    virtual void syncremove_result(error, handle /*sync id*/) { }
 
     virtual ~MegaApp() { }
 };
