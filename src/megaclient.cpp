@@ -6929,6 +6929,11 @@ void MegaClient::makeattr(SymmCipher* key, const std::unique_ptr<string>& attrst
 // (with speculative instant completion)
 error MegaClient::setattr(Node* n, const char *prevattr)
 {
+    if (ststatus == STORAGE_PAYWALL)
+    {
+        return API_EPAYWALL;
+    }
+
     if (!checkaccess(n, FULL))
     {
         return API_EACCESS;
@@ -7029,9 +7034,15 @@ int MegaClient::checkaccess(Node* n, accesslevel_t a)
 }
 
 // returns API_OK if a move operation is permitted, API_EACCESS or
-// API_ECIRCULAR otherwise
+// API_ECIRCULAR otherwise. Also returns API_EPAYWALL if in PAYWALL.
 error MegaClient::checkmove(Node* fn, Node* tn)
 {
+    // precondition #0: not in paywall
+    if (ststatus == STORAGE_PAYWALL)
+    {
+        return API_EPAYWALL;
+    }
+
     // condition #1: cannot move top-level node, must have full access to fn's
     // parent
     if (!fn->parent || !checkaccess(fn->parent, FULL))
@@ -7197,6 +7208,11 @@ error MegaClient::unlink(Node* n, bool keepversions)
     {
         // business subusers cannot leave inshares from master biz users
         return API_EMASTERONLY;
+    }
+
+    if (ststatus == STORAGE_PAYWALL)
+    {
+        return API_EPAYWALL;
     }
 
     bool kv = (keepversions && n->type == FILENODE);

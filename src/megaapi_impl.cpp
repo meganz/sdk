@@ -18893,6 +18893,12 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_RENAME:
         {
+            if (client->ststatus == STORAGE_PAYWALL)
+            {
+                e = API_EPAYWALL;
+                break;
+            }
+
             Node* node = client->nodebyhandle(request->getNodeHandle());
             const char* newName = request->getName();
             if(!node || !newName || !(*newName)) { e = API_EARGS; break; }
