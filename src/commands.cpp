@@ -8204,7 +8204,7 @@ CommandSyncPut::CommandSyncPut(MegaClient* client, handle syncId, SyncType type,
 {
     cmd("sp");
 
-    arg("id", syncId);
+    arg("id", (byte*)&syncId, MegaClient::USERHANDLE);
 
     if (type != SyncType::INVALID)
     {
@@ -8257,15 +8257,15 @@ void CommandSyncPut::procresult()
         return client->app->syncput_result(e, UNDEF);
     }
 
-    handle h = client->json.gethandle(MegaClient::NODEHANDLE); // [sync id]
-    client->app->syncput_result(API_OK, h);
+    handle syncId = client->json.gethandle(MegaClient::USERHANDLE);
+    client->app->syncput_result(API_OK, syncId);
 }
 
 CommandSyncPutHeartBeat::CommandSyncPutHeartBeat(MegaClient* client, handle syncId, uint8_t status, uint8_t progress, uint32_t uploads, uint32_t downloads, uint32_t ts, handle lastNode)
 {
     cmd("sphb");
 
-    arg("id", syncId);
+    arg("id", (byte*)&syncId, MegaClient::USERHANDLE);
     arg("s", status);
     arg("p", progress);
     arg("qu", uploads);
@@ -8291,7 +8291,7 @@ void CommandSyncPutHeartBeat::procresult()
 CommandSyncRemove::CommandSyncRemove(MegaClient *client, handle syncId)
 {
     cmd("sr");
-    arg("id", syncId);
+    arg("id", (byte*)&syncId, MegaClient::USERHANDLE);
 
     tag = client->reqtag;
 }
