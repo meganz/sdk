@@ -2268,8 +2268,8 @@ class MegaApiImpl : public MegaApp
         void syncFolder(const char *localFolder, MegaHandle megaHandle, MegaRegExp *regExp = NULL, long long localfp = 0, MegaRequestListener* listener = NULL);
         void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp = NULL, long long localfp = 0, MegaRequestListener* listener = NULL);
         void copySyncDataToCache(const char *localFolder, MegaHandle megaHandle,
-                                          long long localfp, bool enabled, MegaRequestListener *listener = NULL);
-
+                                          long long localfp, bool enabled, bool tempoaryDisabled, MegaRequestListener *listener = NULL);
+        void copyCachedStatus(int storageStatus, int blockStatus, int businessStatus, MegaRequestListener *listener = NULL);
         void removeSync(handle nodehandle, MegaRequestListener *listener=NULL);
         void removeSync(int syncTag, MegaRequestListener *listener=NULL);
         void disableSync(handle nodehandle, MegaRequestListener *listener=NULL);

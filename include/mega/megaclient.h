@@ -447,6 +447,9 @@ public:
     // updates business status
     void setBusinessStatus(BizStatus newBizStatus);
 
+    // updates block boolean
+    void setBlocked(bool value);
+
     // enqueue/abort direct read
     void pread(Node*, m_off_t, m_off_t, void*);
     void pread(handle, SymmCipher* key, int64_t, m_off_t, m_off_t, void*, bool = false,  const char* = NULL, const char* = NULL, const char* = NULL);
@@ -892,6 +895,7 @@ private:
 
     // account is blocked: stops querying for action packets, pauses transfer & removes transfer slot availability
     bool mBlocked = false;
+    bool mBlockedSet = false; //value set in current execution
 
     bool pendingscTimedOut = false;
 

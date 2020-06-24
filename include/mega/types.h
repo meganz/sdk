@@ -316,6 +316,8 @@ typedef enum {
     LOCAL_IS_FAT = 23, // Found FAT (not a failure per se)
     LOCAL_IS_HGFS= 24, // Found HGFS (not a failure per se)
     ACCOUNT_BLOCKED= 25, // Account blocked
+    UNKNOWN_TEMPORARY_ERROR = 26, // unknown temporary error
+
 } syncerror_t;
 
 static bool isMegaSyncErrorPermanent(int e)
@@ -323,6 +325,7 @@ static bool isMegaSyncErrorPermanent(int e)
     switch (e)
     {
     case NO_SYNC_ERROR:
+    case UNKNOWN_TEMPORARY_ERROR:
     case STORAGE_OVERQUOTA:
     case BUSINESS_EXPIRED:
     case FOREIGN_TARGET_OVERSTORAGE:
@@ -773,6 +776,7 @@ public:
         STATUS_UNKNOWN = 0,
         STATUS_STORAGE = 1,
         STATUS_BUSINESS = 2,
+        STATUS_BLOCKED = 3,
     };
 
     CacheableStatus(int64_t type, int64_t value);

@@ -3767,6 +3767,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_ENABLE_SYNC: return "ENABLE_SYNC";
         case TYPE_DISABLE_SYNC: return "DISABLE_SYNC";
         case TYPE_COPY_SYNC_CONFIG: return "TYPE_COPY_SYNC_CONFIG";
+        case TYPE_COPY_CACHED_STATUS: return "TYPE_COPY_CACHED_STATUS";
         case TYPE_REMOVE_SYNC: return "REMOVE_SYNC";
         case TYPE_REMOVE_SYNCS: return "REMOVE_SYNCS";
         case TYPE_PAUSE_TRANSFERS: return "PAUSE_TRANSFERS";
@@ -8387,7 +8388,7 @@ void MegaApiImpl::syncFolder(const char *localFolder, MegaNode *megaFolder, Mega
 }
 
 void MegaApiImpl::copySyncDataToCache(const char *localFolder, MegaHandle megaHandle,
-                                      long long localfp, bool enabled, MegaRequestListener *listener)
+                                      long long localfp, bool enabled, bool tempoaryDisabled, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_COPY_SYNC_CONFIG);
 
@@ -8403,8 +8404,21 @@ void MegaApiImpl::copySyncDataToCache(const char *localFolder, MegaHandle megaHa
     }
 
     request->setFlag(enabled);
+    request->setNumDetails(tempoaryDisabled);
     request->setListener(listener);
     request->setNumber(localfp);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::copyCachedStatus(int storageStatus, int blockStatus, int businessStatus, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_COPY_CACHED_STATUS);
+
+    if (blockStatus < 0) blockStatus = 999;
+    if (storageStatus < 0) storageStatus = 999;
+    if (businessStatus < 0) businessStatus = 999;
+    request->setNumber(storageStatus+1000*blockStatus+1000000*businessStatus);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -21036,9 +21050,49 @@ void MegaApiImpl::sendPendingRequests()
 
             auto nextSyncTag = client->nextSyncTag(10000);//We artificially start giving syncs number from 10k, to avoid clashing
             //when mixed syncConfig vs app configs (i.e. new -> old -> new version)
+
+            using CType = CacheableStatus::Type;
+            bool overStorage = client->mCachedStatus[CType::STATUS_STORAGE] ? (client->mCachedStatus[CType::STATUS_STORAGE]->value() >= MegaApi::STORAGE_STATE_RED) : false;
+            bool businessExpired = client->mCachedStatus[CType::STATUS_BUSINESS] ? (client->mCachedStatus[CType::STATUS_BUSINESS]->value() == BIZ_STATUS_EXPIRED) : false;
+            bool blocked = client->mCachedStatus[CType::STATUS_BLOCKED] ? (client->mCachedStatus[CType::STATUS_BLOCKED]->value()) : false;
+
+            auto syncError = NO_SYNC_ERROR;
+            // the order is important here: an user needs to resolve blocked in order to resolve storage
+            if (overStorage)
+            {
+                syncError = STORAGE_OVERQUOTA;
+            }
+            else if (businessExpired)
+            {
+                syncError = BUSINESS_EXPIRED;
+            }
+            else if (blocked)
+            {
+                syncError = ACCOUNT_BLOCKED;
+            }
+
+            bool enabled = request->getFlag();
+            bool temporaryDisabled = request->getNumDetails();
+
+            if (!enabled && temporaryDisabled)
+            {
+                if (!syncError) syncError = UNKNOWN_TEMPORARY_ERROR;
+                enabled = true; //we consider enabled when it is temporary disabled
+            }
+
             SyncConfig syncConfig{nextSyncTag, localPath, request->getNodeHandle(),
                                   static_cast<fsfp_t>(request->getNumber()),
-                                  regExpToVector(request->getRegExp()), request->getFlag()};
+                                  regExpToVector(request->getRegExp()), enabled};
+
+            if (temporaryDisabled)
+            {
+                if (!syncError)
+                {
+
+                }
+                syncConfig.setError(syncError);
+            }
+
             if (client->syncConfigs)
             {
                 client->syncConfigs->insert(syncConfig);
@@ -21051,6 +21105,54 @@ void MegaApiImpl::sendPendingRequests()
             if (!e)
             {
                 request->setNumber(nextSyncTag);
+                fireOnRequestFinish(request, MegaError(API_OK));
+            }
+            break;
+        }
+        case MegaRequest::TYPE_COPY_CACHED_STATUS:
+        {
+            auto number = request->getNumber();
+            int businessStatusValue = static_cast<int>(number / 1000000);
+            number = number % 1000000;
+            int blockedStatusValue =  static_cast<int>(number / 1000);
+            int storageStatusValue = number % 1000;
+
+
+            using CS = CacheableStatus;
+            using CType = CacheableStatus::Type;
+
+            auto loadAndPersist = [this](CType type, int value) -> bool
+            {
+                if (value == 999)
+                {
+                    return false;
+                }
+                auto status = client->mCachedStatus[type];
+                if (status)
+                {
+                    return false;
+                }
+                status = std::make_shared<CS>(type, value);
+
+                client->loadCacheableStatus(status);
+
+                if (client->sctable)
+                {
+                    LOG_verbose << "Adding/updating migrated status to database: " << status->type() << " = " << status->value();
+                    if (!(client->sctable->put(MegaClient::CACHEDSTATUS, status.get(), &client->key)))
+                    {
+                        LOG_err << "Failed to add/update migrated status to db: "
+                                    << status->type() << " = " << status->value();
+                    }
+                }
+            };
+
+            loadAndPersist(CType::STATUS_STORAGE, storageStatusValue);
+            loadAndPersist(CType::STATUS_BUSINESS, businessStatusValue);
+            loadAndPersist(CType::STATUS_BLOCKED, blockedStatusValue);
+
+            if (!e)
+            {
                 fireOnRequestFinish(request, MegaError(API_OK));
             }
             break;

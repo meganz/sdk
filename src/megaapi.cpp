@@ -3116,11 +3116,15 @@ void MegaApi::syncFolder(const char *localFolder, MegaHandle megaHandle, MegaReq
 }
 
 void MegaApi::copySyncDataToCache(const char *localFolder, MegaHandle megaHandle,
-                                  long long localfp, bool enabled, MegaRequestListener *listener)
+                                  long long localfp, bool enabled, bool temporaryDisabled, MegaRequestListener *listener)
 {
-    pImpl->copySyncDataToCache(localFolder, megaHandle, localfp, enabled, listener);
+    pImpl->copySyncDataToCache(localFolder, megaHandle, localfp, enabled, temporaryDisabled, listener);
 }
 
+void MegaApi::copyCachedStatus(int storageStatus, int blockStatus, int businessStatus, MegaRequestListener *listener)
+{
+    pImpl->copyCachedStatus(storageStatus, blockStatus, businessStatus, listener);
+}
 #ifdef USE_PCRE
 void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
 {

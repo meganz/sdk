@@ -2739,7 +2739,7 @@ class MegaRequest
             TYPE_REMOVE_CONTACT, TYPE_CREATE_ACCOUNT,
             TYPE_CONFIRM_ACCOUNT,
             TYPE_QUERY_SIGNUP_LINK, TYPE_ADD_SYNC, TYPE_REMOVE_SYNC, TYPE_DISABLE_SYNC, TYPE_ENABLE_SYNC,
-            TYPE_COPY_SYNC_CONFIG,
+            TYPE_COPY_SYNC_CONFIG, TYPE_COPY_CACHED_STATUS,
             TYPE_REMOVE_SYNCS, TYPE_PAUSE_TRANSFERS,
             TYPE_CANCEL_TRANSFER, TYPE_CANCEL_TRANSFERS,
             TYPE_DELETE, TYPE_REPORT_EVENT, TYPE_CANCEL_ATTR_FILE,
@@ -4967,6 +4967,7 @@ public:
         LOCAL_IS_FAT = 23, // Found FAT (not a failure per se)
         LOCAL_IS_HGFS= 24, // Found HGFS (not a failure per se)
         ACCOUNT_BLOCKED= 25, // Account blocked
+        UNKNOWN_TEMPORARY_ERROR = 26, // unknown temporary error
     };
 
     enum SyncAdded
@@ -5088,6 +5089,7 @@ public:
      *  - LOCAL_IS_FAT = 23: Found FAT (not a failure per se)
      *  - LOCAL_IS_HGFS = 24: Found HGFS (not a failure per se)
      *  - ACCOUNT_BLOCKED = 25: Account blocked
+     * - UNKNOWN_TEMPORARY_ERROR = 26: Unknown temporary error
      *
      * @return Error of a synchronization
      */
@@ -12622,7 +12624,8 @@ class MegaApi
          * @brief Copy sync data to SDK cache.
          *
          * This function is destined to allow transition from Sync management based on Apps cache into SDK
-         * based cache.
+         * based cache. You will need to call copyCachedStatus prior to this one, so that disable sync reasons are properly
+         * adjusted.
          *
          * The associated request type with this request is MegaRequest::TYPE_COPY_SYNC_CONFIG
          * Valid data in the MegaRequest object received on callbacks:
@@ -12638,10 +12641,25 @@ class MegaApi
          * @param megaHandle MEGA folder
          * @param localfp Filesystem fingerprint
          * @param enabled If the sync is enabled by the user
+         * @param temporaryDisabled If the sync is temporarily disabled
          * @param listener MegaRequestListener to track this request
          */
         void copySyncDataToCache(const char *localFolder, MegaHandle megaHandle,
-                                 long long localfp, bool enabled, MegaRequestListener *listener = NULL);
+                                 long long localfp, bool enabled, bool temporaryDisabled, MegaRequestListener *listener = NULL);
+        /**
+         * @brief Copy sync data to SDK cache.
+         *
+         * This function is destined to allow transition from some account status cached in Apps into SDK cached values.
+         * This should be called before fetching nodes and copySyncDataToCache.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_COPY_CACHED_STATUS
+
+         * @param storageStatus storage status. Pass 999 if not valid
+         * @param blockStatus block status (0 = blocked, != 0 otherwise). Pass 999 if not valid
+         * @param businessStatus business status. Pass 999 if not valid
+         * @param listener MegaRequestListener to track this request
+         */
+        void copyCachedStatus(int storageStatus, int blockStatus, int businessStatus, MegaRequestListener *listener = NULL);
 
 #ifdef USE_PCRE
         /**

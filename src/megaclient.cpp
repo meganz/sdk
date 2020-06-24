@@ -1070,6 +1070,7 @@ void MegaClient::init()
     pendingscUserAlerts.reset();
     stopsc = false;
     mBlocked = false;
+    mBlockedSet = false;
 
     btcs.reset();
     btsc.reset();
@@ -4028,6 +4029,7 @@ void MegaClient::locallogout(bool removecaches)
     pendingcs = NULL;
     stopsc = false;
     mBlocked = false;
+    mBlockedSet = false;
 
     for (putfa_list::iterator it = queuedfa.begin(); it != queuedfa.end(); it++)
     {
@@ -4334,6 +4336,15 @@ bool MegaClient::procsc()
                             fetchingnodes = false;
                             restag = fetchnodestag;
                             fetchnodestag = 0;
+
+                            using CType = CacheableStatus::Type;
+                            auto cachedBlockedState = mCachedStatus[CType::STATUS_BLOCKED];
+                            if (!mBlockedSet && cachedBlockedState && cachedBlockedState->value()) //block state not received in this execution, and cached says we were blocked last time
+                            {
+                                LOG_debug << "cached blocked states reports blocked, and no block state has been received before, issuing whyamiblocked";
+                                whyamiblocked();// lets query again, to trigger transition and restoreSyncs
+                            }
+
 #ifdef ENABLE_SYNC
                             resumeResumableSyncs();
 #endif
@@ -5069,7 +5080,7 @@ bool MegaClient::setstoragestatus(storagestatus_t status)
         }
 
         //persist change:
-        if (tctable)
+        if (sctable)
         {
             LOG_verbose << "Adding/updating status to database: "
                         << status->type() << " = " << status->value();
@@ -6696,7 +6707,7 @@ void MegaClient::setBusinessStatus(BizStatus newBizStatus)
         }
 
         //persist change:
-        if (tctable)
+        if (sctable)
         {
             LOG_verbose << "Adding/updating status to database: "
                         << status->type() << " = " << status->value();
@@ -10761,18 +10772,49 @@ void MegaClient::whyamiblocked()
     reqs.add(new CommandWhyAmIblocked(this));
 }
 
+void MegaClient::setBlocked(bool value)
+{
+    mBlocked = value;
+    mBlockedSet = true;
+
+    using CS = CacheableStatus;
+    using CType = CacheableStatus::Type;
+    auto status = mCachedStatus[CType::STATUS_BLOCKED];
+    if (!status)
+    {
+        status = mCachedStatus[CType::STATUS_BLOCKED] = std::make_shared<CS>(CType::STATUS_BLOCKED, mBlocked);
+    }
+    else
+    {
+        mCachedStatus[CacheableStatus::Type::STATUS_BLOCKED]->setValue(mBlocked);
+    }
+
+    //persist change:
+    if (sctable)
+    {
+        LOG_verbose << "Adding/updating status to database: "
+                    << status->type() << " = " << status->value();
+        if (!(sctable->put(CACHEDSTATUS, status.get(), &key)))
+        {
+            LOG_err << "Failed to add/update status to db: "
+                        << status->type() << " = " << status->value();
+        }
+    }
+}
+
 void MegaClient::block(bool fromServerClientResponse)
 {
     LOG_verbose << "Blocking MegaClient, fromServerClientResponse: " << fromServerClientResponse;
+    setBlocked(true);
 
-    mBlocked = true;
+
     disableSyncs(ACCOUNT_BLOCKED);
 }
 
 void MegaClient::unblock()
 {
     LOG_verbose << "Unblocking MegaClient";
-    mBlocked = false;
+    setBlocked(false);
     restoreSyncs();
 }
 

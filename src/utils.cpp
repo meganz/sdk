@@ -2243,7 +2243,9 @@ bool SyncConfig::isResumable() const
 
 bool SyncConfig::isResumableAtStartup() const
 {
-    return mEnabled && (!isAnError(mError) || mError == FOREIGN_TARGET_OVERSTORAGE); //temporary errors that don't have an asociated restore functionality
+    return mEnabled && (!isAnError(mError)
+                        || mError == UNKNOWN_TEMPORARY_ERROR
+                        || mError == FOREIGN_TARGET_OVERSTORAGE); //temporary errors that don't have an asociated restore functionality
 }
 
 const std::string& SyncConfig::getLocalPath() const
