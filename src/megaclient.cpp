@@ -1843,6 +1843,7 @@ void MegaClient::exec()
                         abortlockrequest();
                         if (pendingcs->sslcheckfailed)
                         {
+                            sendevent(99453, "Invalid public key");
                             sslfakeissuer = pendingcs->sslfakeissuer;
                             app->request_error(API_ESSL);
                             sslfakeissuer.clear();
@@ -2051,6 +2052,7 @@ void MegaClient::exec()
 
                     if (pendingsc->sslcheckfailed)
                     {
+                        sendevent(99453, "Invalid public key");
                         sslfakeissuer = pendingsc->sslfakeissuer;
                         app->request_error(API_ESSL);
                         sslfakeissuer.clear();
