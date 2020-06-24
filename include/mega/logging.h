@@ -357,6 +357,11 @@ class SimpleLogger
         copyToBuffer(value.begin(), static_cast<DiffType>(value.size()));
     }
 
+    void logValue(const mega::Error& value)
+    {
+        logValue(error(value));
+    }
+
 #endif
 
 public:
