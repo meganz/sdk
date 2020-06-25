@@ -209,6 +209,45 @@ typedef enum ErrorCodes
     API_EBUSINESSPASTDUE = -28      ///< Business account expired
 } error;
 
+class Error
+{
+public:
+    typedef enum
+    {
+        USER_ETD_UNKNOWN = -1,
+        USER_ETD_SUSPENSION = 7, // represents an ETD/ToS 'severe' suspension level
+    } UserErrorCode;
+
+    typedef enum
+    {
+        LINK_UNKNOWN = -1,
+        LINK_UNDELETED = 0,  // Link is undeleted
+        LINK_DELETED_DOWN = 1, // Link is deleted or down
+        LINK_DOWN_ETD = 2,  // Link is down due to an ETD specifically
+    } LinkErrorCode;
+
+    Error(error err = API_EINTERNAL)
+        : mError(err)
+    { }
+
+    void setErrorCode(error err)
+    {
+        mError = err;
+    }
+
+    void setUserStatus(int64_t u) { mUserStatus = u; }
+    void setLinkStatus(int64_t l) { mLinkStatus = l; }
+    bool hasExtraInfo() const { return mUserStatus != USER_ETD_UNKNOWN || mLinkStatus != LINK_UNKNOWN; }
+    int64_t getUserStatus() const { return mUserStatus; }
+    int64_t getLinkStatus() const { return mLinkStatus; }
+    operator error() const { return mError; }
+
+private:
+    error mError = API_EINTERNAL;
+    int64_t mUserStatus = USER_ETD_UNKNOWN;
+    int64_t mLinkStatus = LINK_UNKNOWN;
+};
+
 // returned by loggedin()
 typedef enum { NOTLOGGEDIN, EPHEMERALACCOUNT, CONFIRMEDACCOUNT, FULLACCOUNT } sessiontype_t;
 
@@ -345,6 +384,7 @@ public:
 
     size_t size()                                        { applyErase(); return mDeque.size(); }
     size_t empty()                                       { applyErase(); return mDeque.empty(); }
+    void clear()                                         { mDeque.clear(); }
     iterator begin(bool canHandleErasedElements = false) { if (!canHandleErasedElements) applyErase(); return mDeque.begin(); }
     iterator end(bool canHandleErasedElements = false)   { if (!canHandleErasedElements) applyErase(); return mDeque.end(); }
     void push_front(T t)                                 { applyErase(); mDeque.push_front(E(t)); }
