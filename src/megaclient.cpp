@@ -1770,16 +1770,17 @@ void MegaClient::exec()
                             else
                             {
                                 // request failed
-                                Error e = API_EINTERNAL;
-                                if (strncmp(pendingcs->in.c_str(), "{\"err\":", 7) == 0)
+                                error e = API_EINTERNAL;
+                                std::string err;
+                                if (strncmp(pendingcs->in.c_str(), "{\"err\":", 7) == 0 && pendingcs->in.find("}") != std::string::npos)
                                 {
-                                    JSON json;
-                                    json.pos = pendingcs->in.c_str() + 1;
-                                    Command::checkError(e, json);
+                                    err = pendingcs->in.substr(0, pendingcs->in.find("}") + 1);
+                                    e = (error)atoi(pendingcs->in.c_str() + 7);
                                 }
                                 else
                                 {
                                     e = (error)atoi(pendingcs->in.c_str());
+                                    err = std::to_string(e);
                                 }
 
                                 if (!e)
@@ -1797,7 +1798,7 @@ void MegaClient::exec()
                                 pendingcs = NULL;
                                 csretrying = false;
 
-                                reqs.servererror(e, this);
+                                reqs.servererror(err, this);
                                 break;
                             }
 
@@ -1863,7 +1864,7 @@ void MegaClient::exec()
                                 pendingcs = NULL;
                                 csretrying = false;
 
-                                reqs.servererror(API_ESSL, this);
+                                reqs.servererror("-23", this);
                                 break;
                             }
                         }
