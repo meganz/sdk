@@ -6650,7 +6650,7 @@ void MegaApiImpl::setDeviceName(const char *deviceName, MegaRequestListener *lis
     string buf = deviceName ? deviceName : "";
     stringMap.set(client->getDeviceid().c_str(), Base64::btoa(buf).c_str());
     request->setMegaStringMap(&stringMap);
-    request->setText(deviceName);
+    request->setName(deviceName);
     request->setParamType(MegaApi::USER_ATTR_DEVICE_NAMES);
     requestQueue.push(request);
     waiter->notify();
