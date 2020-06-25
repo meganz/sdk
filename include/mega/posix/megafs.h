@@ -87,7 +87,7 @@ public:
     DirAccess* newdiraccess() override;
     DirNotify* newdirnotify(string*, string*, Waiter*) override;
 
-    void tmpnamelocal(string*) const override;
+    void tmpnamelocal(string*, FileSystemType) const override;
 
     void local2path(string*, string*) const override;
     void path2local(string*, string*) const override;
