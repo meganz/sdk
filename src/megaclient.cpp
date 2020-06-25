@@ -3951,11 +3951,11 @@ void MegaClient::locallogout(bool removecaches)
     mediaFileInfo = MediaFileInfo();
 #endif
 
-    freeq(GET);
-    freeq(PUT);
-
     disconnect();
     closetc();
+
+    freeq(GET);  // freeq after closetc due to optimizations
+    freeq(PUT);
 
     purgenodesusersabortsc(false);
 
@@ -12331,7 +12331,7 @@ void MegaClient::stopxfers(LocalNode* l, DBTableTransactionCommitter& committer)
 // of identical names to avoid flapping)
 // apply standard unescaping, if necessary (use *strings as ephemeral storage
 // space)
-void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, list<string>* strings, const string *localPath) const
+void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, list<string>* strings, const string *localPath, FileSystemType fsType) const
 {
     Node** npp;
 
@@ -12342,7 +12342,7 @@ void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, list
         // perform one round of unescaping to ensure that the resulting local
         // filename matches
         fsaccess->path2local(name, &tmplocalname);
-        fsaccess->local2name(&tmplocalname, localPath);
+        fsaccess->local2name(&tmplocalname, fsType);
 
         strings->push_back(tmplocalname);
         name = &strings->back();
@@ -12401,12 +12401,12 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
         {
             size_t t = localpath->size();
             string localname = ait->second;
-            fsaccess->name2local(&localname, localpath);
+            fsaccess->name2local(&localname, l->sync->mFilesystemType);
             localpath->append(fsaccess->localseparator);
             localpath->append(localname);
             if (app->sync_syncable(l->sync, ait->second.c_str(), localpath, *it))
             {
-                addchild(&nchildren, &ait->second, *it, &strings, &l->sync->localdebris);
+                addchild(&nchildren, &ait->second, *it, &strings, &l->sync->localdebris, l->sync->mFilesystemType);
             }
             else
             {
@@ -12576,7 +12576,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 
         localname = rit->second->attrs.map.find('n')->second;
 
-        fsaccess->name2local(&localname, localpath);
+        fsaccess->name2local(&localname, l->sync->mFilesystemType);
         localpath->append(fsaccess->localseparator);
         localpath->append(localname);
 
@@ -12635,38 +12635,41 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
             // missing node is not associated with an existing LocalNode
             if (rit->second->type == FILENODE)
             {
-                bool download = true;
-                auto f = fsaccess->newfileaccess(false);
-                if (rit->second->localnode != (LocalNode*)~0
-                        && (f->fopen(localpath) || f->type == FOLDERNODE))
+                if (!rit->second->syncget)
                 {
-                    if (f->mIsSymLink && l->sync->movetolocaldebris(localpath))
+                    bool download = true;
+                    auto f = fsaccess->newfileaccess(false);
+                    if (rit->second->localnode != (LocalNode*)~0
+                            && (f->fopen(localpath) || f->type == FOLDERNODE))
                     {
-                        LOG_debug << "Found a link in localpath " << localpath;
+                        if (f->mIsSymLink && l->sync->movetolocaldebris(localpath))
+                        {
+                            LOG_debug << "Found a link in localpath " << localpath;
+                        }
+                        else
+                        {
+                            LOG_debug << "Skipping download over an unscanned file/folder, or the file/folder is not to be synced (special attributes)";
+                            download = false;
+                        }
                     }
-                    else
+                    f.reset();
+                    rit->second->localnode = NULL;
+
+                    // start fetching this node, unless fetch is already in progress
+                    // FIXME: to cover renames that occur during the
+                    // download, reconstruct localname in complete()
+                    if (download)
                     {
-                        LOG_debug << "Skipping download over an unscanned file/folder, or the file/folder is not to be synced (special attributes)";
-                        download = false;
+                        LOG_debug << "Start fetching file node";
+                        fsaccess->local2path(localpath, &localname);
+                        app->syncupdate_get(l->sync, rit->second, localname.c_str());
+
+                        rit->second->syncget = new SyncFileGet(l->sync, rit->second, localpath);
+                        nextreqtag();
+                        DBTableTransactionCommitter committer(tctable); // TODO: use one committer for all files in the loop, without calling syncdown() recursively
+                        startxfer(GET, rit->second->syncget, committer);
+                        syncactivity = true;
                     }
-                }
-                f.reset();
-                rit->second->localnode = NULL;
-
-                // start fetching this node, unless fetch is already in progress
-                // FIXME: to cover renames that occur during the
-                // download, reconstruct localname in complete()
-                if (download && !rit->second->syncget)
-                {
-                    LOG_debug << "Start fetching file node";
-                    fsaccess->local2path(localpath, &localname);
-                    app->syncupdate_get(l->sync, rit->second, localname.c_str());
-
-                    rit->second->syncget = new SyncFileGet(l->sync, rit->second, localpath);
-                    nextreqtag();
-                    DBTableTransactionCommitter committer(tctable); // TODO: use one committer for all files in the loop, without calling syncdown() recursively
-                    startxfer(GET, rit->second->syncget, committer);
-                    syncactivity = true;
                 }
             }
             else
@@ -12793,7 +12796,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                     continue;
                 }
 
-                addchild(&nchildren, &ait->second, *it, &strings, &l->sync->localdebris);
+                addchild(&nchildren, &ait->second, *it, &strings, &l->sync->localdebris, l->sync->mFilesystemType);
             }
         }
     }
@@ -12811,7 +12814,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
         }
 
         localname = *lit->first;
-        fsaccess->local2name(&localname, &l->sync->localdebris);
+        fsaccess->local2name(&localname, l->sync->mFilesystemType);
         if (!localname.size() || !ll->name.size())
         {
             if (!ll->reported)
@@ -14040,7 +14043,7 @@ Node* MegaClient::nodebyfingerprint(LocalNode* localNode)
         return nullptr;
 
     std::string localName = localNode->localname;
-    fsaccess->local2name(&localName);
+    fsaccess->local2name(&localName, localNode->sync->mFilesystemType);
     
     // Only compare metamac if the node doesn't already exist.
     node_vector::const_iterator remoteNode =
