@@ -75,7 +75,7 @@ TEST(File, serialize_unserialize)
     file.chatauth = new char[4]{'b', 'a', 'r', '\0'}; // owned by file
     std::fill(file.filekey, file.filekey + mega::FILENODEKEYLENGTH, 'X');
     file.targetuser = "targetuser";
-    file.transfer = new mega::Transfer{client.get(), mega::NONE}; // owned by client
+    file.transfer = new mega::Transfer{client.get(), mega::GET}; // owned by client
     file.transfer->files.push_back(&file);
     file.file_it = file.transfer->files.begin();
 
@@ -104,7 +104,7 @@ TEST(File, unserialize_32bit)
     file.chatauth = new char[4]{'b', 'a', 'r', '\0'}; // owned by file
     std::fill(file.filekey, file.filekey + mega::FILENODEKEYLENGTH, 'X');
     file.targetuser = "targetuser";
-    file.transfer = new mega::Transfer{client.get(), mega::NONE}; // owned by client
+    file.transfer = new mega::Transfer{client.get(), mega::GET}; // owned by client
     file.transfer->files.push_back(&file);
     file.file_it = file.transfer->files.begin();
 

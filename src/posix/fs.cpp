@@ -1759,11 +1759,11 @@ void PosixFileSystemAccess::statsid(string *id) const
 PosixDirNotify::PosixDirNotify(string* localbasepath, string* ignore) : DirNotify(localbasepath, ignore)
 {
 #ifdef USE_INOTIFY
-    failed = 0;
+    setFailed(0, "");
 #endif
 
 #ifdef __MACH__
-    failed = 0;
+    setFailed(0, "");
 #endif
 
     fsaccess = NULL;
@@ -1845,7 +1845,7 @@ DirAccess* PosixFileSystemAccess::newdiraccess()
     return new PosixDirAccess();
 }
 
-DirNotify* PosixFileSystemAccess::newdirnotify(string* localpath, string* ignore)
+DirNotify* PosixFileSystemAccess::newdirnotify(string* localpath, string* ignore, Waiter*)
 {
     PosixDirNotify* dirnotify = new PosixDirNotify(localpath, ignore);
 

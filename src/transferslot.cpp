@@ -851,7 +851,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                     break;
 
                 case REQ_FAILURE:
-                    LOG_warn << "Failed chunk. HTTP status: " << reqs[i]->httpstatus;
+                    LOG_warn << "Failed chunk. HTTP status: " << reqs[i]->httpstatus << " on channel " << i;
                     if (reqs[i]->httpstatus && reqs[i]->contenttype.find("text/html") != string::npos
                             && !memcmp(reqs[i]->posturl.c_str(), "http:", 5))
                     {
@@ -884,8 +884,23 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
 
                         return transfer->failed(API_EOVERQUOTA, committer, backoff);
                     }
-                    else if (reqs[i]->httpstatus == 403 || reqs[i]->httpstatus == 404)
+                    else if (reqs[i]->httpstatus == 429)  
                     {
+                        // too many requests - back off a bit (may be added serverside at some point.  Added here 202020623)
+                        backoff = 5;
+                        reqs[i]->status = REQ_PREPARED;
+                    }
+                    else if (reqs[i]->httpstatus == 503 && !transferbuf.isRaid())
+                    {
+                        // for non-raid, if a file gets a 503 then back off as it may become available shortly
+                        backoff = 50;
+                        reqs[i]->status = REQ_PREPARED;
+                    }
+                    else if (reqs[i]->httpstatus == 403 || reqs[i]->httpstatus == 404 || (reqs[i]->httpstatus == 503 && transferbuf.isRaid()))
+                    {
+                        // - 404 means "malformed or expired URL" - can be immediately fixed by getting a fresh one from the API
+                        // - 503 means "the API gave you good information, but I don't have the file" - cannot be fixed (at least not immediately) by getting a fresh URL
+                        // for raid parts and 503, it's appropriate to try another raid source
                         if (!tryRaidRecoveryFromHttpGetError(i))
                         {
                             return transfer->failed(API_EAGAIN, committer);
@@ -1064,7 +1079,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                 }
             }
 
-            if (reqs[i] && (reqs[i]->status == REQ_PREPARED))
+            if (reqs[i] && (reqs[i]->status == REQ_PREPARED) && !backoff)
             {
                 reqs[i]->minspeed = true;
                 reqs[i]->post(client);
