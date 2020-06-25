@@ -351,14 +351,15 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     bool islchex(char) const;
     bool isControlChar(unsigned char c) const;
     bool islocalfscompatible(unsigned char, bool isEscape, FileSystemType = FS_UNKNOWN) const;
-    void escapefsincompatible(string*, const std::string *dstPath = nullptr) const;
+    void escapefsincompatible(string*, FileSystemType fileSystemType) const;
 
     // Obtain a valid path by removing filename or debris directory from originalPath
     // returns true if tempPath is modified, otherwise returns false
     bool getValidPath(const string *originalPath, std::string &tempPath) const;
+    FileSystemType getFilesystemType(const string* dstPath) const;
     const char *fstypetostring(FileSystemType type) const;
     FileSystemType getlocalfstype(const std::string *dstPath) const;
-    void unescapefsincompatible(string*, const std::string *) const;
+    void unescapefsincompatible(string*,FileSystemType) const;
 
     // convert MEGA path (UTF-8) to local format
     virtual void path2local(string*, string*) const = 0;
@@ -366,10 +367,10 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     // convert MEGA-formatted filename (UTF-8) to local filesystem name; escape
     // forbidden characters using urlencode
-    void local2name(string*, const std::string *localPath = nullptr) const;
+    void local2name(string*, FileSystemType) const;
 
     // convert local path to MEGA format (UTF-8) with unescaping
-    void name2local(string*, const std::string *dstPath = nullptr) const;
+    void name2local(string*, FileSystemType) const;
 
     // returns a const char pointer that contains the separator character for the target system
     static const char *getPathSeparator();
