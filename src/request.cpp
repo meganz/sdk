@@ -116,13 +116,27 @@ void Request::serverresponse(std::string&& movestring, MegaClient* client)
     }
 }
 
-void Request::servererror(error e, MegaClient* client)
+void Request::servererror(const Error& e, MegaClient* client)
 {
     ostringstream s;
+
+    ostringstream err;
+    if (e.hasExtraInfo())
+    {
+        err << "{\"err\":" << e << "\"l\":" << e.getLinkStatus() <<  "\"u\":" << e.getUserStatus() << "}";
+    }
+
     s << "[";
     for (size_t i = cmds.size(); i--; )
     {
-        s << e << (i ? "," : "");
+        if (e.hasExtraInfo())
+        {
+            s << err.str() << (i ? "," : "");
+        }
+        else
+        {
+            s << e << (i ? "," : "");
+        }
     }
     s << "]";
     serverresponse(s.str(), client);
@@ -256,7 +270,7 @@ void RequestDispatcher::serverresponse(std::string&& movestring, MegaClient *cli
     }
 }
 
-void RequestDispatcher::servererror(error e, MegaClient *client)
+void RequestDispatcher::servererror(const Error& e, MegaClient *client)
 {
     // notify all the commands in the batch of the failure
     // so that they can deallocate memory, take corrective action etc.

@@ -1770,7 +1770,17 @@ void MegaClient::exec()
                             else
                             {
                                 // request failed
-                                error e = (error)atoi(pendingcs->in.c_str());
+                                Error e = API_EINTERNAL;
+                                if (strncmp(pendingcs->in.c_str(), "{\"err\":", 7) == 0)
+                                {
+                                    JSON json;
+                                    json.pos = pendingcs->in.c_str() + 1;
+                                    Command::checkError(e, json);
+                                }
+                                else
+                                {
+                                    e = (error)atoi(pendingcs->in.c_str());
+                                }
 
                                 if (!e)
                                 {
