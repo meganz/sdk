@@ -123,14 +123,14 @@ void Request::process(MegaClient* client)
         auto cmdJSON = client->json;
         bool parsedOk = true;
 
-        if (client->json.isnumeric())
+        Error e;
+        if (cmd->checkError(e, client->json))
         {
-            error e = API_OK;
-            if (cmd->mV3)
+            if (!cmd->mV3)
             {
-                e = error(client->json.getint());
+                client->json = cmdJSON;
             }
-            parsedOk = cmd->callProcResult(Command::CmdNumeric, e);
+            parsedOk = cmd->callProcResult(Command::CmdError, e);
         }
         else
         {
@@ -145,7 +145,7 @@ void Request::process(MegaClient* client)
                 {
                     if (error e = error(client->json.getint()))
                     {
-                        cmd->callProcResult(Command::CmdNumeric, e);
+                        cmd->callProcResult(Command::CmdError, e);
                         parsedOk = false; // skip any extra json delivered in the array
                     }
                     else

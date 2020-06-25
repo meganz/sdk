@@ -3806,7 +3806,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
 
 
 #ifdef WIN32
-    string filename = ".\cloudraid_downloaded_file.sdktest";
+    string filename = ".\\cloudraid_downloaded_file.sdktest";
 #else
     string filename = "./cloudraid_downloaded_file.sdktest";
 #endif
@@ -3864,7 +3864,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
 
 
 #ifdef WIN32
-    string filename = ".\cloudraid_downloaded_file.sdktest";
+    string filename = ".\\cloudraid_downloaded_file.sdktest";
 #else
     string filename = "./cloudraid_downloaded_file.sdktest";
 #endif

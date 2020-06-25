@@ -1896,18 +1896,17 @@ void MegaClient::exec()
 
                     pendingcs->posturl.append("cs?id=");
                     pendingcs->posturl.append(reqid, sizeof reqid);
-                    if (v3)
-                    {
-                        pendingcs->posturl.append("&v=3");
-                    }
                     if (!suppressSID)
                     {
                         pendingcs->posturl.append(auth);
                     }
                     pendingcs->posturl.append(appkey);
 
-                    string version = "v=2";
-                    pendingcs->posturl.append("&" + version);
+                    if (v3)
+                    {
+                        pendingcs->posturl.append(v3 ? "&v=3" : "&v=2");
+                    }
+
                     if (lang.size())
                     {
                         pendingcs->posturl.append("&");

@@ -320,21 +320,4 @@ bool Command::procresultV3(Result)
 }
 
 
-error Command::numericErrorJsonOrDiscard()
-{
-    // this is a common case for commands upgraded to the v3 api
-    if (client->json.isnumeric())
-    {
-        return (error)client->json.getint();
-    }
-    else
-    {
-        // It wasn't the numeric result expected, but thanks
-        string discard;
-        client->json.storeobject(&discard);
-        LOG_err << "Expected a numeric cs response but got: " << discard;
-        return API_EINTERNAL;
-    }
-}
-
 } // namespace

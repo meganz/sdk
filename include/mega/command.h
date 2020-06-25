@@ -89,7 +89,7 @@ public:
     void closeobject();
     int elements();
 
-    enum Outcome {  CmdNumeric,          // The reply was just a single number, already extracted from the JSON.  mError contains the number
+    enum Outcome {  CmdError,            // The reply was an error, already extracted from the JSON.  The error code may have been 0 (API_OK)
                     CmdActionpacket,     // The reply was a cmdseq string, and we have processed the corresponding actionpackets
                     CmdArray,            // The reply was an array, and we have already entered it
                     CmdObject,           // the reply was an object, and we have already entered it
@@ -97,46 +97,46 @@ public:
 
     struct Result
     {
-        Outcome mOutcome = CmdNumeric;
-        error mError = API_OK;
-        Result(Outcome o, error e = API_OK) : mOutcome(o), mError(e) {}
+        Outcome mOutcome = CmdError;
+        Error mError = API_OK;
+        Result(Outcome o, Error e = API_OK) : mOutcome(o), mError(e) {}
 
-        error errorGeneral()
+        bool succeeded()
         {
-            // for the general case- command could result in an error, actionpacket, or JSON to process
-            return mOutcome == CmdNumeric ? mError : API_OK;
+            return mOutcome != CmdError || error(mError) != API_OK;
         }
 
-        bool processJSON()
+        Error errorGeneral()
         {
-            // true if there is JSON to process (ie, not an error or actionpacket (except putnodes))
+            // for the general case- command could result in an error, actionpacket, or JSON to process
+            return mOutcome == CmdError ? mError : API_OK;
+        }
+
+        bool hasResultJSON()
+        {
+            // true if there is JSON to process (ie, not an error or actionpacket (except for a few commands that respond with cmdseq plus JSON))
             return mOutcome == CmdArray || mOutcome == CmdObject || mOutcome == CmdItem;
         }
 
-        // convenience function for commands that should only return numeric or actionpacket:
-        error errorNumericOrActionpacket()
+        // convenience function for commands that should only return numeric or actionpacket, consider anything else EINTERNAL
+        Error errorResultOrActionpacket()
         {
-            return mOutcome == CmdNumeric ? mError : (mOutcome == CmdActionpacket ? API_OK : API_EINTERNAL);
+            return mOutcome == CmdError ? mError : (mOutcome == CmdActionpacket ? API_OK : API_EINTERNAL);
         }
 
-        error errorNumeric()
+        Error errorOnly()
         {
-            return mOutcome == CmdNumeric ? mError : API_EINTERNAL;
+            return mOutcome == CmdError ? mError : API_EINTERNAL;
         }
 
-        bool wasNumericOrActionpacket()
+        bool wasErrorOrActionpacket()
         {
-            return mOutcome == CmdNumeric || mOutcome == CmdActionpacket;
+            return mOutcome == CmdError || mOutcome == CmdActionpacket;
         }
 
-        bool wasNumeric()
+        bool wasError()
         {
-            return mOutcome == CmdNumeric;
-        }
-
-        bool wasActionpacket()
-        {
-            return mOutcome == CmdActionpacket;
+            return mOutcome == CmdError;
         }
 
     };
@@ -164,9 +164,6 @@ public:
         }
     }
     
-    // Helper function for processing non-success cases in v3
-    error numericErrorJsonOrDiscard();
-
     const char* getstring() const;
 
     Command(bool isV3 = false, bool stringIsNotSeqtag = false);
