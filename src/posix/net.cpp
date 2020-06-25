@@ -2690,7 +2690,8 @@ int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)
         return 1;
     }
 
-    if ((evp = X509_PUBKEY_get(X509_get_X509_PUBKEY(X509_STORE_CTX_get0_cert(ctx)))))
+    if (EVP_PKEY_id(evp) == EVP_PKEY_RSA
+            && (evp = X509_PUBKEY_get(X509_get_X509_PUBKEY(X509_STORE_CTX_get0_cert(ctx)))))
     {
         if (BN_num_bytes(RSA_get0_n(EVP_PKEY_get0_RSA(evp))) == sizeof APISSLMODULUS1 - 1
                 && BN_num_bytes(RSA_get0_e(EVP_PKEY_get0_RSA(evp))) == sizeof APISSLEXPONENT - 1)
