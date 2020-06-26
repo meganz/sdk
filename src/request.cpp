@@ -61,7 +61,7 @@ bool Request::processCmdJSON(Command* cmd)
 {
     if (cmd->client->json.enterobject())
     {
-        if (!cmd->callProcResult(Command::CmdObject) || !cmd->client->json.leaveobject())
+        if (!cmd->procresult(Command::CmdObject) || !cmd->client->json.leaveobject())
         {
             LOG_err << "Invalid object";
             return false;
@@ -69,7 +69,7 @@ bool Request::processCmdJSON(Command* cmd)
     }
     else if (cmd->client->json.enterarray())
     {
-        if (!cmd->callProcResult(Command::CmdArray) || !cmd->client->json.leavearray())
+        if (!cmd->procresult(Command::CmdArray) || !cmd->client->json.leavearray())
         {
             LOG_err << "Invalid array";
             return false;
@@ -77,7 +77,7 @@ bool Request::processCmdJSON(Command* cmd)
     }
     else
     {
-        return cmd->callProcResult(Command::CmdItem);
+        return cmd->procresult(Command::CmdItem);
     }
     return true;
 }
@@ -92,7 +92,7 @@ bool Request::processSeqTag(Command* cmd, bool withJSON, bool& parsedOk)
         cmd->client->mCurrentSeqtag.clear();
         cmd->client->mCurrentSeqtagSeen = false;
         parsedOk = withJSON ? processCmdJSON(cmd)
-                            : cmd->callProcResult(Command::CmdActionpacket);
+                            : cmd->procresult(Command::CmdActionpacket);
         return true;
     }
     else
@@ -126,11 +126,7 @@ void Request::process(MegaClient* client)
         Error e;
         if (cmd->checkError(e, client->json))
         {
-            if (!cmd->mV3)
-            {
-                client->json = cmdJSON;
-            }
-            parsedOk = cmd->callProcResult(Command::CmdError, e);
+            parsedOk = cmd->procresult(Command::Result(Command::CmdError, e));
         }
         else
         {
@@ -145,7 +141,7 @@ void Request::process(MegaClient* client)
                 {
                     if (error e = error(client->json.getint()))
                     {
-                        cmd->callProcResult(Command::CmdError, e);
+                        cmd->procresult(Command::Result(Command::CmdError, e));
                         parsedOk = false; // skip any extra json delivered in the array
                     }
                     else
@@ -195,7 +191,10 @@ void Request::process(MegaClient* client)
 #ifdef DEBUG
             // double check the command consumed the right amount of JSON
             cmdJSON.storeobject();
-            assert(client->json.pos == cmdJSON.pos);
+            if (client->json.pos != cmdJSON.pos)
+            {
+                assert(client->json.pos == cmdJSON.pos);
+            }
 #endif
         }
     }

@@ -27,9 +27,6 @@
 
 namespace mega {
 
-class CommandPutNodes;
-
-
 // API request
 class MEGA_API Request
 {

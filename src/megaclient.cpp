@@ -1976,7 +1976,8 @@ void MegaClient::exec()
         }
 
         // handle API server-client requests
-        if (!jsonsc.pos && !pendingscUserAlerts && pendingsc && !loggingout)
+        // we must continue handling these even if the loggingout flag is set, so we can match up cs requests in progress
+        if (!jsonsc.pos && !pendingscUserAlerts && pendingsc)
         {
             switch (static_cast<reqstatus_t>(pendingsc->status))
             {

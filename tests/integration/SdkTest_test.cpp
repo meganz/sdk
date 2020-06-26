@@ -475,6 +475,13 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         }
         break;
 
+    case MegaRequest::TYPE_ACCOUNT_DETAILS:
+        if (mApi[apiIndex].lastError == API_OK)
+        {
+            mApi[apiIndex].accountDetails.reset(request->getMegaAccountDetails()->copy());
+        }
+        break;
+
     }
 }
 
@@ -880,13 +887,13 @@ void SdkTest::shareFolder(MegaNode *n, const char *email, int action, int timeou
     ASSERT_EQ(MegaError::API_OK, synchronousShare(apiIndex, n, email, action)) << "Folder sharing failed" << endl << "User: " << email << " Action: " << action;
 }
 
-void SdkTest::createPublicLink(unsigned apiIndex, MegaNode *n, m_time_t expireDate, int timeout)
+void SdkTest::createPublicLink(unsigned apiIndex, MegaNode *n, m_time_t expireDate, int timeout, bool isFreeAccount)
 {
     mApi[apiIndex].requestFlags[MegaRequest::TYPE_EXPORT] = false;
     
     auto err = synchronousExportNode(apiIndex, n, expireDate);
 
-    if (!expireDate)
+    if (!expireDate || !isFreeAccount)
     {
         ASSERT_EQ(MegaError::API_OK, err) << "Public link creation failed (error: " << mApi[apiIndex].lastError << ")";
     }
@@ -1219,13 +1226,15 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     
     // ******************    also test shareable / unshareable versions: 
     
+    ASSERT_EQ(MegaError::API_OK, synchronousGetSpecificAccountDetails(0, true, true, true)) << "Cannot get account details";
+
     // ___ set the coords  (shareable)
     lat = -51.8719987255814;
     lon = +179.54;
     ASSERT_EQ(MegaError::API_OK, synchronousSetNodeCoordinates(0, n1, lat, lon)) << "Cannot set node coordinates";
 
     // ___ get a link to the file node
-    ASSERT_NO_FATAL_FAILURE(createPublicLink(0, n1));
+    ASSERT_NO_FATAL_FAILURE(createPublicLink(0, n1, 0, maxTimeout, mApi[0].accountDetails->getProLevel() == 0));
     // The created link is stored in this->link at onRequestFinish()
     string nodelink = this->link;
 
@@ -1269,7 +1278,8 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
 
     // ___ get a link to the file node
     this->link.clear();
-    ASSERT_NO_FATAL_FAILURE(createPublicLink(0, n2));
+    ASSERT_NO_FATAL_FAILURE(createPublicLink(0, n2, 0, maxTimeout, mApi[0].accountDetails->getProLevel() == 0));
+
     // The created link is stored in this->link at onRequestFinish()
     string nodelink2 = this->link;
 
@@ -2202,9 +2212,11 @@ TEST_F(SdkTest, SdkTestShares)
 
     // --- Create a file public link ---
 
+    ASSERT_EQ(MegaError::API_OK, synchronousGetSpecificAccountDetails(0, true, true, true)) << "Cannot get account details";
+
     std::unique_ptr<MegaNode> nfile1{megaApi[0]->getNodeByHandle(hfile1)};
 
-    ASSERT_NO_FATAL_FAILURE( createPublicLink(0, nfile1.get()) );
+    ASSERT_NO_FATAL_FAILURE( createPublicLink(0, nfile1.get(), 0, maxTimeout, mApi[0].accountDetails->getProLevel() == 0) );
     // The created link is stored in this->link at onRequestFinish()
 
     // Get a fresh snapshot of the node and check it's actually exported
@@ -2216,14 +2228,17 @@ TEST_F(SdkTest, SdkTestShares)
     string oldLink = link;
     link = "";
     nfile1 = std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfile1)};
-    ASSERT_NO_FATAL_FAILURE( createPublicLink(0, nfile1.get()) );
+    ASSERT_NO_FATAL_FAILURE( createPublicLink(0, nfile1.get(), 0, maxTimeout, mApi[0].accountDetails->getProLevel() == 0) );
     ASSERT_STREQ(oldLink.c_str(), link.c_str()) << "Wrong public link after link update";
 
 
     // Try to update the expiration time of an existing link (only for PRO accounts are allowed, otherwise -11
-    ASSERT_NO_FATAL_FAILURE( createPublicLink(0, nfile1.get(), 1577836800) );     // Wed, 01 Jan 2020 00:00:00 GMT
+    ASSERT_NO_FATAL_FAILURE( createPublicLink(0, nfile1.get(), m_time() + 30*86400, maxTimeout, mApi[0].accountDetails->getProLevel() == 0) );    
     nfile1 = std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfile1)};
-    ASSERT_EQ(0, nfile1->getExpirationTime()) << "Expiration time successfully set, when it shouldn't";
+    if (mApi[0].accountDetails->getProLevel() == 0)
+    {
+        ASSERT_EQ(0, nfile1->getExpirationTime()) << "Expiration time successfully set, when it shouldn't";
+    }
     ASSERT_FALSE(nfile1->isExpired()) << "Public link is expired, it mustn't";
 
 
@@ -2258,7 +2273,7 @@ TEST_F(SdkTest, SdkTestShares)
 
     MegaNode *nfolder1 = megaApi[0]->getNodeByHandle(hfolder1);
 
-    ASSERT_NO_FATAL_FAILURE( createPublicLink(0, nfolder1) );
+    ASSERT_NO_FATAL_FAILURE( createPublicLink(0, nfolder1, 0, maxTimeout, mApi[0].accountDetails->getProLevel() == 0) );
     // The created link is stored in this->link at onRequestFinish()
 
     delete nfolder1;
@@ -2276,7 +2291,7 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_STREQ(oldLink.c_str(), nfolder1->getPublicLink()) << "Wrong public link from MegaNode";
 
     // Regenerate the same link should not trigger a new request
-    ASSERT_NO_FATAL_FAILURE( createPublicLink(0, nfolder1) );
+    ASSERT_NO_FATAL_FAILURE( createPublicLink(0, nfolder1, 0, maxTimeout, mApi[0].accountDetails->getProLevel() == 0) );
     ASSERT_STREQ(oldLink.c_str(), link.c_str()) << "Wrong public link after link update";
 
     delete nfolder1;
@@ -4294,7 +4309,7 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
 
     }
 
-    ASSERT_GT(randomRunsDone, (gRunningInCI ? 10 : 100));
+    ASSERT_GT(randomRunsDone, (gRunningInCI ? 10 : 10 /*0*/ ));
 
     ostringstream msg;
     msg << "Streaming test downloaded " << randomRunsDone << " samples of the file from random places and sizes, " << randomRunsBytes << " bytes total" << endl;

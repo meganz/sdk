@@ -139,6 +139,7 @@ public:
         string pwd;
         int lastError;
         int lastTransferError;
+        unique_ptr<MegaAccountDetails> accountDetails;
         
         // flags to monitor the completion of requests/transfers
         bool requestFlags[MegaRequest::TOTAL_OF_REQUEST_TYPES];
@@ -247,6 +248,7 @@ public:
     template<typename ... Args> int synchronousGetUserAttribute(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_GET_ATTR_USER, [this, apiIndex, args...]() { megaApi[apiIndex]->getUserAttribute(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousSetNodeDuration(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_SET_ATTR_NODE, [this, apiIndex, args...]() { megaApi[apiIndex]->setNodeDuration(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousSetNodeCoordinates(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_SET_ATTR_NODE, [this, apiIndex, args...]() { megaApi[apiIndex]->setNodeCoordinates(args...); }); return mApi[apiIndex].lastError; }
+    template<typename ... Args> int synchronousGetSpecificAccountDetails(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_ACCOUNT_DETAILS, [this, apiIndex, args...]() { megaApi[apiIndex]->getSpecificAccountDetails(args...); }); return mApi[apiIndex].lastError; }
 
 
     // convenience functions - make a request and wait for the result via listener, return the result code.  To add new functions to call, just copy the line
@@ -267,7 +269,7 @@ public:
 
     void shareFolder(MegaNode *n, const char *email, int action, int timeout = maxTimeout);
 
-    void createPublicLink(unsigned apiIndex, MegaNode *n, m_time_t expireDate = 0, int timeout = maxTimeout);
+    void createPublicLink(unsigned apiIndex, MegaNode *n, m_time_t expireDate, int timeout, bool isFreeAccount);
     void importPublicLink(unsigned apiIndex, string link, MegaNode *parent, int timeout = maxTimeout);
     void getPublicNode(unsigned apiIndex, string link, int timeout = maxTimeout);
     void removePublicLink(unsigned apiIndex, MegaNode *n, int timeout = maxTimeout);

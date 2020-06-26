@@ -1159,7 +1159,7 @@ void DemoApp::fetchnodes_result(const Error& e)
     }
 }
 
-void DemoApp::putnodes_result(error e, targettype_t t, vector<NewNode>& nn)
+void DemoApp::putnodes_result(const Error& e, targettype_t t, vector<NewNode>& nn)
 {
     if (t == USER_HANDLE)
     {
@@ -2323,13 +2323,9 @@ public:
     }
 
     // process file credentials
-    void procresult() override
+    bool procresult(Result r) override
     {
-        if (client->json.isnumeric())
-        {
-            client->json.getint();
-        }
-        else
+        if (!r.wasError())
         {
             std::vector<string> tempurls;
             bool done = false;
@@ -2390,6 +2386,7 @@ public:
                 cout << s << endl;
             }
         }
+        return true;
     }
 
 private:
@@ -3402,7 +3399,7 @@ void exec_rm(autocomplete::ACState& s)
         {
             if (client->checkaccess(d, FULL))
             {
-                error e = client->unlink(d);
+                error e = client->unlink(d, false, 0);
 
                 if (e)
                 {
@@ -3501,7 +3498,7 @@ void exec_mv(autocomplete::ACState& s)
                             if (n != tn)
                             {
                                 // ...delete target...
-                                e = client->unlink(tn);
+                                e = client->unlink(tn, false, 0);
 
                                 if (e)
                                 {
@@ -3582,7 +3579,7 @@ void exec_cp(autocomplete::ACState& s)
                         }
 
                         // ...delete target...
-                        e = client->unlink(tn);
+                        e = client->unlink(tn, false, 0);
 
                         if (e)
                         {

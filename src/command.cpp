@@ -55,6 +55,7 @@ bool Command::checkError(Error& errorDetails, JSON& json)
     error e;
     if (json.isNumericError(e))
     {
+        // isNumericError already moved the pointer past the integer (name could imply this?)
         errorDetails.setErrorCode(e);
         return true;
     }
@@ -66,7 +67,7 @@ bool Command::checkError(Error& errorDetails, JSON& json)
             ptr++;
         }
 
-        if (strncmp(ptr, "\"err\":", 6) == 0)
+        if (strncmp(ptr, "{\"err\":", 7) == 0)
         {
             json.enterobject();
             for (;;)
@@ -285,39 +286,6 @@ int Command::elements()
     return 1;
 }
 
-// default command result handler: ignore & skip
-void Command::procresult()
-{
-    if (client->json.isnumeric())
-    {
-        client->json.getint();
-        return;
-    }
-
-    for (;;)
-    {
-        switch (client->json.getnameid())
-        {
-            case EOO:
-                return;
-
-            default:
-                if (!client->json.storeobject())
-                {
-                    return;
-                }
-        }
-    }
-}
-
-bool Command::procresultV3(Result)
-{
-    // With v3 was turned on, and we might get a seqtag respsonse (ie, actinpacket generated)
-    // then we should have overridden this callback.
-    // So, for commands that don't have actionpacket side effects, no need to override this function.
-    assert(false);  
-    return false;
-}
 
 
 } // namespace
