@@ -76,6 +76,9 @@ struct MEGA_API JSON
     inline int      getint32()  { return int(getint()); }
     inline unsigned getuint32() { return unsigned(getint()); }
     inline bool     getbool()   { return bool(getint()); }
+
+    // Only advance the pointer if it's an error (0, -1, -2, -3, ...)
+    bool isNumericError(error& e);
 };
 
 } // namespace

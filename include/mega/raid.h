@@ -46,6 +46,9 @@ namespace mega {
             m_off_t pos;
             HttpReq::http_buf_t buf;  // owned here
             chunkmac_map chunkmacs;
+            
+            std::condition_variable finalizedCV;
+            bool finalized = false;
 
             FilePiece();
             FilePiece(m_off_t p, size_t len);    // makes a buffer of the specified size (with extra space for SymmCipher::ctr_crypt padding)

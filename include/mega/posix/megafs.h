@@ -85,7 +85,7 @@ public:
 
     std::unique_ptr<FileAccess> newfileaccess(bool followSymLinks = true) override;
     DirAccess* newdiraccess() override;
-    DirNotify* newdirnotify(string*, string*) override;
+    DirNotify* newdirnotify(string*, string*, Waiter*) override;
 
     void tmpnamelocal(string*) const override;
 

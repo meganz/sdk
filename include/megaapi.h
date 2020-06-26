@@ -3868,9 +3868,26 @@ class MegaTransfer
 
         /**
          * @brief Returns the last error related to the transfer
+         *
+         * @note This method returns a MegaError with the error code, but
+         * the extra info is not valid. If you need to use MegaError::getUserStatus, in
+         * example, you need to use MegaTransfer::getLastErrorExtended.
+         *
+         * @deprecated User use MegaTransfer::getLastErrorExtended.
+         *
          * @return Last error related to the transfer
          */
         virtual MegaError getLastError() const;
+
+        /**
+         * @brief Returns the last error related to the transfer with extra info
+         *
+         * The MegaTransfer object retains the ownership of the returned pointer. It will
+         * be valid until the deletion of the MegaTransfer object.
+         *
+         * @return Last error related to the transfer, with extended info
+         */
+        virtual const MegaError* getLastErrorExtended() const;
 
         /**
          * @brief Returns true if the transfer is a folder transfer
@@ -5289,28 +5306,30 @@ public:
         API_EC_DEFAULT = 0,         ///< Default error code context
         API_EC_DOWNLOAD = 1,        ///< Download transfer context.
         API_EC_IMPORT = 2,          ///< Import context.
-        API_EC_UPLOAD = 3,        ///< Upload transfer context.
+        API_EC_UPLOAD = 3,          ///< Upload transfer context.
     };
 
     /**
-     * @brief Creates a new MegaError object
-     * @param errorCode Error code for this error
+     * @brief User custom error details
      */
-    MegaError(int errorCode = MegaError::API_OK);
+    enum UserErrorCode
+    {
+        USER_ETD_UNKNOWN = -1,      ///< Unknown state
+        USER_ETD_SUSPENSION = 7,    ///< Account suspend by an ETD/ToS 'severe'
+    };
 
     /**
-     * @brief Creates a new MegaError object
-     * @param errorCode Error code for this error
-     * @param value Value associated to the error
+     * @brief Link custom error details
      */
-    MegaError(int errorCode, long long value);
+    enum LinkErrorCode
+    {
+        LINK_UNKNOWN = -1,      ///< Unknown state
+        LINK_UNDELETED = 0,     ///< Link is undeleted
+        LINK_DELETED_DOWN = 1,  ///< Link is deleted or down
+        LINK_DOWN_ETD = 2,      ///< Link is down due to an ETD specifically
+    };
 
-    /**
-     * @brief Creates a new MegaError object copying another one
-     * @param megaError MegaError object to be copied
-     */
-    MegaError(const MegaError &megaError);
-    virtual ~MegaError();
+        virtual ~MegaError();
 
         /**
          * @brief Creates a copy of this MegaError object
@@ -5323,13 +5342,15 @@ public:
          *
          * @return Copy of the MegaError object
          */
-        MegaError* copy();
+        virtual MegaError* copy() const;
+
 
 		/**
 		 * @brief Returns the error code associated with this MegaError
+         *
 		 * @return Error code associated with this MegaError
 		 */
-		int getErrorCode() const;
+        virtual int getErrorCode() const;
 
         /**
          * @brief Returns a value associated with the error
@@ -5342,7 +5363,48 @@ public:
          *
          * @return Value associated with the error
          */
-        long long getValue() const;
+        virtual long long getValue() const;
+
+        /**
+         * @brief Returns true if error has extra info
+         *
+         * @note This method can return true for:
+         *   - MegaRequest::TYPE_FETCH_NODES with error ENOENT
+         *   - MegaRequest::TYPE_GET_PUBLIC_NODE with error ETOOMANY
+         *   - MegaRequest::TYPE_IMPORT_LINK with error ETOOMANY
+         *   - MegaTransferListener::onTransferFinish with error ETOOMANY
+         *
+         * @return True if error has extra info
+         */
+        virtual bool hasExtraInfo() const;
+
+        /**
+         * @brief Returns the user status
+         *
+         * This method only returns a valid value when hasExtraInfo is true
+         * Possible values:
+         *  MegaError::UserErrorCode::USER_ETD_SUSPENSION
+         *
+         * Otherwise, it returns MegaError::UserErrorCode::USER_ETD_UNKNOWN
+         *
+         * @return user status
+         */
+        virtual long long getUserStatus() const;
+
+        /**
+         * @brief Returns the link status
+         *
+         * This method only returns a valid value when hasExtraInfo is true
+         * Possible values:
+         *  MegaError::LinkErrorCode::LINK_UNDELETED
+         *  MegaError::LinkErrorCode::LINK_DELETED_DOWN
+         *  MegaError::LinkErrorCode::LINK_DOWN_ETD
+         *
+         * Otherwise, it returns MegaError::LinkErrorCode::LINK_UNKNOWN
+         *
+         * @return link status
+         */
+        virtual long long getLinkStatus() const;
 
 		/**
 		 * @brief Returns a readable description of the error
@@ -5352,7 +5414,7 @@ public:
 		 *
 		 * @return Readable description of the error
 		 */
-		const char* getErrorString() const;
+        virtual const char* getErrorString() const;
 
 		/**
 		 * @brief Returns a readable description of the error
@@ -5365,7 +5427,7 @@ public:
 		 *
 		 * @return Readable description of the error
 		 */
-        const char* toString() const;
+        virtual const char* toString() const;
 
 		/**
 		 * @brief Returns a readable description of the error
@@ -5378,7 +5440,7 @@ public:
 		 *
 		 * @return Readable description of the error
 		 */
-		const char* __str__() const;
+        virtual const char* __str__() const;
 
 		/**
 		 * @brief Returns a readable description of the error
@@ -5391,7 +5453,7 @@ public:
 		 *
 		 * @return Readable description of the error
 		 */
-		const char* __toString() const;
+        virtual const char* __toString() const;
 
 		/**
 		 * @brief Provides the error description associated with an error code
@@ -5418,10 +5480,14 @@ public:
         static const char *getErrorString(int errorCode, ErrorContexts context);
 
 
-    private:
+protected:
+        MegaError(int e);
+
         //< 0 = API error code, > 0 = http error, 0 = No error
-		int errorCode;
-        long long value;
+        int errorCode;
+
+        friend class MegaTransfer;
+        friend class MegaApiImpl;
 };
 
 /**
@@ -10688,8 +10754,28 @@ class MegaApi
          *
          * @param nodehandle MegaHandle of the node to be used as secondary target folder
          * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated Use MegaApi::setCameraUploadsFolders instead
          */
         void setCameraUploadsFolderSecondary(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Set Camera Uploads for both primary and secondary target folder.
+         *
+         * If only one of the target folders wants to be set, simply pass a INVALID_HANDLE to
+         * as the other target folder and it will remain untouched.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
+         * - MegaRequest::getNodehandle - Returns the provided node handle for primary folder
+         * - MegaRequest::getParentHandle - Returns the provided node handle for secondary folder
+         *
+         * @param primaryFolder MegaHandle of the node to be used as primary target folder
+         * @param secondaryFolder MegaHandle of the node to be used as secondary target folder
+         * @param listener MegaRequestListener to track this request
+         */
+        void setCameraUploadsFolders(MegaHandle primaryFolder, MegaHandle secondaryFolder, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Gets Camera Uploads primary target folder.
@@ -13010,18 +13096,6 @@ class MegaApi
         bool hasChildren(MegaNode *parent);
 
         /**
-         * @brief Get the current index of the node in the parent folder for a specific sorting order
-         *
-         * If the node doesn't exist or it doesn't have a parent node (because it's a root node)
-         * this function returns -1
-         *
-         * @param node Node to check
-         * @param order Sorting order to use
-         * @return Index of the node in its parent folder
-         */
-        int getIndex(MegaNode* node, int order = 1);
-
-        /**
          * @brief Get the child node with the provided name
          *
          * If the node doesn't exist, this function returns NULL
@@ -13545,6 +13619,8 @@ class MegaApi
         /**
          * @brief Check if a node has an access level
          *
+         * @deprecated Use checkAccessErrorExtended
+         *
          * @param node Node to check
          * @param level Access level to check
          * Valid values for this parameter are:
@@ -13563,7 +13639,32 @@ class MegaApi
         MegaError checkAccess(MegaNode* node, int level);
 
         /**
+         * @brief Check if a node has an access level
+         *
+         * You take the ownership of the returned value
+         *
+         * @param node Node to check
+         * @param level Access level to check
+         * Valid values for this parameter are:
+         * - MegaShare::ACCESS_OWNER
+         * - MegaShare::ACCESS_FULL
+         * - MegaShare::ACCESS_READWRITE
+         * - MegaShare::ACCESS_READ
+         *
+         * @return Pointer to MegaError with the result.
+         * Valid values for the error code are:
+         * - MegaError::API_OK - The node has the required access level
+         * - MegaError::API_EACCESS - The node doesn't have the required access level
+         * - MegaError::API_ENOENT - The node doesn't exist in the account
+         * - MegaError::API_EARGS - Invalid parameters
+         */
+        MegaError* checkAccessErrorExtended(MegaNode* node, int level);
+
+        /**
          * @brief Check if a node can be moved to a target node
+         *
+         * @deprecated Use checkMoveErrorExtended
+         *
          * @param node Node to check
          * @param target Target for the move operation
          * @return MegaError object with the result:
@@ -13575,6 +13676,23 @@ class MegaApi
          * - MegaError::API_EARGS - Invalid parameters
          */
         MegaError checkMove(MegaNode* node, MegaNode* target);
+
+        /**
+         * @brief Check if a node can be moved to a target node
+         *
+         * You take the ownership of the returned value
+         *
+         * @param node Node to check
+         * @param target Target for the move operation
+         * @return MegaError object with the result:
+         * Valid values for the error code are:
+         * - MegaError::API_OK - The node can be moved to the target
+         * - MegaError::API_EACCESS - The node can't be moved because of permissions problems
+         * - MegaError::API_ECIRCULAR - The node can't be moved because that would create a circular linkage
+         * - MegaError::API_ENOENT - The node or the target doesn't exist in the account
+         * - MegaError::API_EARGS - Invalid parameters
+         */
+        MegaError* checkMoveErrorExtended(MegaNode* node, MegaNode* target);
 
         /**
          * @brief Check if the MEGA filesystem is available in the local computer
@@ -14007,6 +14125,216 @@ class MegaApi
          * @return List of nodes that contain the desired string in their name
          */
         MegaNodeList* search(const char* searchString, MegaCancelToken *cancelToken, int order = ORDER_NONE);
+
+        /**
+         * @brief Search nodes on incoming shares containing a search string in their name
+         *
+         * The search is case-insensitive.
+         *
+         * The method will search exclusively on incoming shares
+         *
+         * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
+         * to MegaCancelToken::setCancelFlag(true). If a valid object is passed, it must be kept alive until
+         * this method returns.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param searchString Search string. The search is case-insensitive
+         * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
+         * @param order Order for the returned list
+         * Valid values for this parameter are:
+         * - MegaApi::ORDER_NONE = 0
+         * Undefined order
+         *
+         * - MegaApi::ORDER_DEFAULT_ASC = 1
+         * Folders first in alphabetical order, then files in the same order
+         *
+         * - MegaApi::ORDER_DEFAULT_DESC = 2
+         * Files first in reverse alphabetical order, then folders in the same order
+         *
+         * - MegaApi::ORDER_SIZE_ASC = 3
+         * Sort by size, ascending
+         *
+         * - MegaApi::ORDER_SIZE_DESC = 4
+         * Sort by size, descending
+         *
+         * - MegaApi::ORDER_CREATION_ASC = 5
+         * Sort by creation time in MEGA, ascending
+         *
+         * - MegaApi::ORDER_CREATION_DESC = 6
+         * Sort by creation time in MEGA, descending
+         *
+         * - MegaApi::ORDER_MODIFICATION_ASC = 7
+         * Sort by modification time of the original file, ascending
+         *
+         * - MegaApi::ORDER_MODIFICATION_DESC = 8
+         * Sort by modification time of the original file, descending
+         *
+         * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+         * Same behavior than MegaApi::ORDER_DEFAULT_ASC
+         *
+         * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+         * Same behavior than MegaApi::ORDER_DEFAULT_DESC
+         *
+         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
+         * They will be eventually removed.
+         *
+         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * Sort with photos first, then by date ascending
+         *
+         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * Sort with photos first, then by date descending
+         *
+         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * Sort with videos first, then by date ascending
+         *
+         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * Sort with videos first, then by date descending
+         *
+         * @return List of nodes that contain the desired string in their name
+         */
+        MegaNodeList* searchOnInShares(const char *searchString, MegaCancelToken *cancelToken, int order = ORDER_NONE);
+
+        /**
+         * @brief Search nodes on outbound shares containing a search string in their name
+         *
+         * The search is case-insensitive.
+         *
+         * The method will search exclusively on outbound shares
+         *
+         * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
+         * to MegaCancelToken::setCancelFlag(true). If a valid object is passed, it must be kept alive until
+         * this method returns.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param searchString Search string. The search is case-insensitive
+         * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
+         * @param order Order for the returned list
+         * Valid values for this parameter are:
+         * - MegaApi::ORDER_NONE = 0
+         * Undefined order
+         *
+         * - MegaApi::ORDER_DEFAULT_ASC = 1
+         * Folders first in alphabetical order, then files in the same order
+         *
+         * - MegaApi::ORDER_DEFAULT_DESC = 2
+         * Files first in reverse alphabetical order, then folders in the same order
+         *
+         * - MegaApi::ORDER_SIZE_ASC = 3
+         * Sort by size, ascending
+         *
+         * - MegaApi::ORDER_SIZE_DESC = 4
+         * Sort by size, descending
+         *
+         * - MegaApi::ORDER_CREATION_ASC = 5
+         * Sort by creation time in MEGA, ascending
+         *
+         * - MegaApi::ORDER_CREATION_DESC = 6
+         * Sort by creation time in MEGA, descending
+         *
+         * - MegaApi::ORDER_MODIFICATION_ASC = 7
+         * Sort by modification time of the original file, ascending
+         *
+         * - MegaApi::ORDER_MODIFICATION_DESC = 8
+         * Sort by modification time of the original file, descending
+         *
+         * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+         * Same behavior than MegaApi::ORDER_DEFAULT_ASC
+         *
+         * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+         * Same behavior than MegaApi::ORDER_DEFAULT_DESC
+         *
+         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
+         * They will be eventually removed.
+         *
+         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * Sort with photos first, then by date ascending
+         *
+         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * Sort with photos first, then by date descending
+         *
+         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * Sort with videos first, then by date ascending
+         *
+         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * Sort with videos first, then by date descending
+         *
+         * @return List of nodes that contain the desired string in their name
+         */
+        MegaNodeList* searchOnOutShares(const char *searchString, MegaCancelToken *cancelToken, int order = ORDER_NONE);
+
+        /**
+         * @brief Search nodes on public links containing a search string in their name
+         *
+         * The search is case-insensitive.
+         *
+         * The method will search exclusively on public links
+         *
+         * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
+         * to MegaCancelToken::setCancelFlag(true). If a valid object is passed, it must be kept alive until
+         * this method returns.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param searchString Search string. The search is case-insensitive
+         * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
+         * @param order Order for the returned list
+         * Valid values for this parameter are:
+         * - MegaApi::ORDER_NONE = 0
+         * Undefined order
+         *
+         * - MegaApi::ORDER_DEFAULT_ASC = 1
+         * Folders first in alphabetical order, then files in the same order
+         *
+         * - MegaApi::ORDER_DEFAULT_DESC = 2
+         * Files first in reverse alphabetical order, then folders in the same order
+         *
+         * - MegaApi::ORDER_SIZE_ASC = 3
+         * Sort by size, ascending
+         *
+         * - MegaApi::ORDER_SIZE_DESC = 4
+         * Sort by size, descending
+         *
+         * - MegaApi::ORDER_CREATION_ASC = 5
+         * Sort by creation time in MEGA, ascending
+         *
+         * - MegaApi::ORDER_CREATION_DESC = 6
+         * Sort by creation time in MEGA, descending
+         *
+         * - MegaApi::ORDER_MODIFICATION_ASC = 7
+         * Sort by modification time of the original file, ascending
+         *
+         * - MegaApi::ORDER_MODIFICATION_DESC = 8
+         * Sort by modification time of the original file, descending
+         *
+         * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+         * Same behavior than MegaApi::ORDER_DEFAULT_ASC
+         *
+         * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+         * Same behavior than MegaApi::ORDER_DEFAULT_DESC
+         *
+         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
+         * They will be eventually removed.
+         *
+         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * Sort with photos first, then by date ascending
+         *
+         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * Sort with photos first, then by date descending
+         *
+         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * Sort with videos first, then by date ascending
+         *
+         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * Sort with videos first, then by date descending
+         *
+         * @return List of nodes that contain the desired string in their name
+         */
+        MegaNodeList* searchOnPublicLinks(const char *searchString, MegaCancelToken *cancelToken, int order = ORDER_NONE);
 
         /**
          * @brief Return a list of buckets, each bucket containing a list of recently added/modified nodes
@@ -14506,7 +14834,7 @@ class MegaApi
         /**
          * @brief Make a name suitable for a file name in the local filesystem
          *
-         * This function escapes (%xx) forbidden characters in the local filesystem if needed.
+         * This function escapes (%xx) the characters contained in the following list: \/:?\"<>|*
          * You can revert this operation using MegaApi::unescapeFsIncompatible
          *
          * The input string must be UTF8 encoded. The returned value will be UTF8 too.
@@ -14515,20 +14843,61 @@ class MegaApi
          *
          * @param filename Name to convert (UTF8)
          * @return Converted name (UTF8)
+         * @deprecated There is a new prototype that includes path for filesystem detection
          */
         char* escapeFsIncompatible(const char *filename);
 
         /**
-         * @brief Unescape a file name escaped with MegaApi::escapeFsIncompatible
+         * @brief Make a name suitable for a file name in the local filesystem
+         *
+         * This function escapes (%xx) forbidden characters in the local filesystem if needed.
+         * You can revert this operation using MegaApi::unescapeFsIncompatible
+         *
+         * If no dstPath is provided or filesystem type it's not supported this method will
+         * escape characters contained in the following list: \/:?\"<>|*
+         * Otherwise it will check forbidden characters for local filesystem type
          *
          * The input string must be UTF8 encoded. The returned value will be UTF8 too.
          *
          * You take the ownership of the returned value
          *
-         * @param name Escaped name to convert (UTF8)
+         * @param filename Name to convert (UTF8)
+         * @param dstPath Destination path
          * @return Converted name (UTF8)
          */
+        char* escapeFsIncompatible(const char *filename, const char *dstPath);
+
+        /**
+         * @brief Unescape a file name escaped with MegaApi::escapeFsIncompatible
+         *
+         * This method will unescape those sequences that once has been unescaped results
+         * in any character of the following list: \/:?\"<>|*
+         *
+         * The input string must be UTF8 encoded. The returned value will be UTF8 too.
+         * You take the ownership of the returned value
+         *
+         * @param name Escaped name to convert (UTF8)
+         * @return Converted name (UTF8)
+         * @deprecated There is a new prototype that includes path for filesystem detection
+         */
         char* unescapeFsIncompatible(const char* name);
+
+        /**
+         * @brief Unescape a file name escaped with MegaApi::escapeFsIncompatible
+         *
+         * If no localPath is provided or filesystem type it's not supported, this method will
+         * unescape those sequences that once has been unescaped results in any character
+         * of the following list: \/:?\"<>|*
+         * Otherwise it will unescape those characters forbidden in local filesystem type
+         *
+         * The input string must be UTF8 encoded. The returned value will be UTF8 too.
+         * You take the ownership of the returned value
+         *
+         * @param name Escaped name to convert (UTF8)
+         * @param localPath Local path
+         * @return Converted name (UTF8)
+         */
+        char* unescapeFsIncompatible(const char *name, const char *localPath);
 
 
         /**

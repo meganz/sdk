@@ -31,7 +31,6 @@ namespace mega {
 
 struct JSON;
 struct MegaApp;
-
 // request command component
 class MEGA_API Command
 {
@@ -91,6 +90,8 @@ public:
 
     Command();
     virtual ~Command() = default;
+
+    static bool checkError(Error &errorDetails, JSON &json);
 
     MEGA_DEFAULT_COPY_MOVE(Command)
 };

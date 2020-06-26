@@ -1188,7 +1188,12 @@ char *MegaTransfer::getLastBytes() const
 
 MegaError MegaTransfer::getLastError() const
 {
-    return MegaError(API_OK);
+    return API_OK;
+}
+
+const MegaError *MegaTransfer::getLastErrorExtended() const
+{
+    return nullptr;
 }
 
 bool MegaTransfer::isFolderTransfer() const
@@ -1221,22 +1226,9 @@ long long MegaTransfer::getNotificationNumber() const
     return 0;
 }
 
-MegaError::MegaError(int errorCode)
+MegaError::MegaError(int e)
 {
-    this->errorCode = errorCode;
-    this->value = 0;
-}
-
-MegaError::MegaError(int errorCode, long long value)
-{
-    this->errorCode = errorCode;
-    this->value = value;
-}
-
-MegaError::MegaError(const MegaError &megaError)
-{
-	errorCode = megaError.getErrorCode();
-    value = megaError.getValue();
+    errorCode = e;
 }
 
 MegaError::~MegaError()
@@ -1244,9 +1236,9 @@ MegaError::~MegaError()
 
 }
 
-MegaError* MegaError::copy()
+MegaError* MegaError::copy() const
 {
-	return new MegaError(*this);
+    return new MegaError(*this);
 }
 
 int MegaError::getErrorCode() const 
@@ -1256,7 +1248,22 @@ int MegaError::getErrorCode() const
 
 long long MegaError::getValue() const
 {
-    return value;
+    return 0;
+}
+
+bool MegaError::hasExtraInfo() const
+{
+    return false;
+}
+
+long long MegaError::getUserStatus() const
+{
+    return 0;
+}
+
+long long MegaError::getLinkStatus() const
+{
+    return 0;
 }
 
 const char* MegaError::getErrorString() const
@@ -1370,17 +1377,17 @@ const char* MegaError::getErrorString(int errorCode, ErrorContexts context)
 
 const char* MegaError::toString() const 
 { 
-	return getErrorString(); 
+    return getErrorString();
 }
 
 const char* MegaError::__str__() const 
 { 
-	return getErrorString();
+    return getErrorString();
 }
 
 const char *MegaError::__toString() const
 {
-	return getErrorString();
+    return getErrorString();
 }
 
 MegaContactRequest::~MegaContactRequest()
@@ -2643,6 +2650,11 @@ void MegaApi::setCameraUploadsFolderSecondary(MegaHandle nodehandle, MegaRequest
     pImpl->setCameraUploadsFolder(nodehandle, true, listener);
 }
 
+void MegaApi::setCameraUploadsFolders(MegaHandle primaryFolder, MegaHandle secondaryFolder, MegaRequestListener *listener)
+{
+    pImpl->setCameraUploadsFolders(primaryFolder, secondaryFolder, listener);
+}
+
 void MegaApi::getCameraUploadsFolder(MegaRequestListener *listener)
 {
     pImpl->getCameraUploadsFolder(false, listener);
@@ -3668,6 +3680,21 @@ MegaNodeList *MegaApi::search(const char *searchString, MegaCancelToken *cancelT
     return pImpl->search(searchString, cancelToken, order);
 }
 
+MegaNodeList* MegaApi::searchOnInShares(const char *searchString, MegaCancelToken *cancelToken, int order)
+{
+    return pImpl->searchInAllShares(searchString, cancelToken, order, MegaApiImpl::TARGET_INSHARE);
+}
+
+MegaNodeList* MegaApi::searchOnOutShares(const char *searchString, MegaCancelToken *cancelToken, int order)
+{
+    return pImpl->searchInAllShares(searchString, cancelToken, order, MegaApiImpl::TARGET_OUTSHARE);
+}
+
+MegaNodeList* MegaApi::searchOnPublicLinks(const char *searchString, MegaCancelToken *cancelToken, int order)
+{
+    return pImpl->searchInAllShares(searchString, cancelToken, order, MegaApiImpl::TARGET_PUBLICLINK);
+}
+
 long long MegaApi::getSize(MegaNode *n)
 {
     return pImpl->getSize(n);
@@ -3830,9 +3857,19 @@ MegaError MegaApi::checkAccess(MegaNode* megaNode, int level)
     return pImpl->checkAccess(megaNode, level);
 }
 
+MegaError *MegaApi::checkAccessErrorExtended(MegaNode *node, int level)
+{
+    return pImpl->checkAccessErrorExtended(node, level);
+}
+
 MegaError MegaApi::checkMove(MegaNode* megaNode, MegaNode* targetNode)
 {
     return pImpl->checkMove(megaNode, targetNode);
+}
+
+MegaError *MegaApi::checkMoveErrorExtended(MegaNode *node, MegaNode *target)
+{
+    return pImpl->checkMoveErrorExtended(node, target);
 }
 
 bool MegaApi::isFilesystemAvailable()
@@ -3888,11 +3925,6 @@ MegaChildrenLists *MegaApi::getFileFolderChildren(MegaNode *p, int order)
 bool MegaApi::hasChildren(MegaNode *parent)
 {
     return pImpl->hasChildren(parent);
-}
-
-int MegaApi::getIndex(MegaNode *node, int order)
-{
-    return pImpl->getIndex(node, order);
 }
 
 MegaNode *MegaApi::getChildNode(MegaNode *parent, const char* name)
@@ -5047,12 +5079,22 @@ void MegaApi::utf8ToUtf16(const char* utf8data, string* utf16string)
 
 char *MegaApi::escapeFsIncompatible(const char *filename)
 {
-    return pImpl->escapeFsIncompatible(filename);
+    return pImpl->escapeFsIncompatible(filename, NULL);
+}
+
+char *MegaApi::escapeFsIncompatible(const char *filename, const char *dstPath)
+{
+    return pImpl->escapeFsIncompatible(filename, dstPath);
 }
 
 char *MegaApi::unescapeFsIncompatible(const char *name)
 {
-    return pImpl->unescapeFsIncompatible(name);
+    return pImpl->unescapeFsIncompatible(name, NULL);
+}
+
+char *MegaApi::unescapeFsIncompatible(const char *name, const char *localPath)
+{
+    return pImpl->unescapeFsIncompatible(name, localPath);
 }
 
 bool MegaApi::createThumbnail(const char *imagePath, const char *dstPath)

@@ -48,14 +48,205 @@ bool FileSystemAccess::islchex(char c) const
     return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
 }
 
-// is c allowed in local fs names?
-bool FileSystemAccess::islocalfscompatible(unsigned char c) const
+const char *FileSystemAccess::fstypetostring(FileSystemType type) const
 {
-    return c >= ' ' && !strchr("\\/:?\"<>|*", c);
+    switch (type)
+    {
+        case FS_NTFS:
+            return "NTFS";
+        case FS_EXFAT:
+            return "EXFAT";
+        case FS_FAT32:
+            return "FAT32";
+        case FS_EXT:
+            return "EXT";
+        case FS_HFS:
+            return "HFS";
+        case FS_APFS:
+            return "APFS";
+        case FS_FUSE:
+            return "FUSE";
+        case FS_SDCARDFS:
+            return "SDCARDFS";
+        case FS_F2FS:
+            return "F2FS";
+        case FS_UNKNOWN:    // fall through
+            return "UNKNOWN FS";
+    }
+
+    return "UNKNOWN FS";
+}
+
+FileSystemType FileSystemAccess::getlocalfstype(const string *dstPath) const
+{
+    if (!dstPath || dstPath->empty())
+    {
+        return FS_UNKNOWN;
+    }
+
+#if defined (__linux__) && !defined (__ANDROID__)
+    // Filesystem detection for Linux
+    struct statfs fileStat;
+    if (!statfs(dstPath->c_str(), &fileStat))
+    {
+        switch (fileStat.f_type)
+        {
+            case EXT2_SUPER_MAGIC:
+                return FS_EXT;
+            case MSDOS_SUPER_MAGIC:
+                return FS_FAT32;
+            case HFS_SUPER_MAGIC:
+                return FS_HFS;
+            case NTFS_SB_MAGIC:
+                return FS_NTFS;
+            default:
+                return FS_UNKNOWN;
+        }
+    }
+#elif defined (__ANDROID__)
+    // Filesystem detection for Android
+    struct statfs fileStat;
+    if (!statfs(dstPath->c_str(), &fileStat))
+    {
+        switch (fileStat.f_type)
+        {
+            case EXT2_SUPER_MAGIC:
+                return FS_EXT;
+            case MSDOS_SUPER_MAGIC:
+                return FS_FAT32;
+            case HFS_SUPER_MAGIC:
+                return FS_HFS;
+            case NTFS_SB_MAGIC:
+                return FS_NTFS;
+            case SDCARDFS_SUPER_MAGIC:
+                return FS_SDCARDFS;
+            case FUSEBLK_SUPER_MAGIC:
+            case FUSECTL_SUPER_MAGIC:
+                return FS_FUSE;
+            case F2FS_SUPER_MAGIC:
+                return FS_F2FS;
+            default:
+                return FS_UNKNOWN;
+        }
+    }
+#elif defined  (__APPLE__) || defined (USE_IOS)
+    // Filesystem detection for Apple and iOS
+    struct statfs fileStat;
+    if (!statfs(dstPath->c_str(), &fileStat))
+    {
+        if (!strcmp(fileStat.f_fstypename, "apfs"))
+        {
+            return FS_APFS;
+        }
+        if (!strcmp(fileStat.f_fstypename, "hfs"))
+        {
+            return FS_HFS;
+        }
+        if (!strcmp(fileStat.f_fstypename, "ntfs"))
+        {
+            return FS_NTFS;
+        }
+        if (!strcmp(fileStat.f_fstypename, "msdos"))
+        {
+            return FS_FAT32;
+        }
+    }
+#elif defined(_WIN32) || defined(_WIN64) || defined(WINDOWS_PHONE)
+    // Filesystem detection for Windows
+    CHAR volumeName[MAX_PATH + 1] = { 0 };
+    CHAR fileSystemName[MAX_PATH + 1] = { 0 };
+    DWORD serialNumber = 0;
+    DWORD maxComponentLen = 0;
+    DWORD fileSystemFlags = 0;
+
+    if (GetVolumeInformationA(dstPath->c_str(), volumeName, sizeof(volumeName),
+                             &serialNumber, &maxComponentLen, &fileSystemFlags,
+                             fileSystemName, sizeof(fileSystemName)))
+    {
+        if (!strcmp(fileSystemName, "NTFS"))
+        {
+            return FS_NTFS;
+        }
+        if (!strcmp(fileSystemName, "exFAT"))
+        {
+            return FS_EXFAT;
+        }
+        if (!strcmp(fileSystemName, "FAT32"))
+        {
+            return FS_FAT32;
+        }
+    }
+#endif
+    return FS_UNKNOWN;
+}
+
+bool FileSystemAccess::isControlChar(unsigned char c) const
+{
+    return (c <= '\x1F' || c == '\x7F');
+}
+
+// Group different filesystems types in families, according to its restricted charsets
+bool FileSystemAccess::islocalfscompatible(unsigned char c, bool isEscape, FileSystemType fileSystemType) const
+{
+    switch (fileSystemType)
+    {
+        case FS_APFS:
+        case FS_HFS:
+            // APFS, HFS, HFS+ restricted characters => : /
+            return c != '\x3A' && c != '\x2F';
+        case FS_F2FS:
+        case FS_EXT:
+            // f2fs and ext2/ext3/ext4 restricted characters =>  / NULL
+            return c != '\x00' && c != '\x2F';
+        case FS_FAT32:
+            // Control characters will be escaped but not unescaped
+            // FAT32 restricted characters => " * / : < > ? \ | + , ; = [ ]
+            return (isControlChar(c) && isEscape)
+                        ? false
+                        : !strchr("\\/:?\"<>|*+,;=[]", c);
+        case FS_EXFAT:
+        case FS_NTFS:
+            // Control characters will be escaped but not unescaped
+            // ExFAT, NTFS restricted characters => " * / : < > ? \ |
+            return (isControlChar(c) && isEscape)
+                        ? false
+                        : !strchr("\\/:?\"<>|*", c);
+        case FS_FUSE:
+        case FS_SDCARDFS:
+        case FS_UNKNOWN:
+        default:
+            // FUSE and SDCARDFS are Android filesystem wrappers used to mount traditional filesystems
+            // as ext4, Fat32, extFAT...
+            // So we will consider that restricted characters for these wrappers are the same
+            // as for Android => " * / : < > ? \ |
+
+            // If filesystem couldn't be detected we'll use a restrictive charset to avoid issues.
+            return !strchr("\\/:?\"<>|*", c);
+    }
+}
+
+bool FileSystemAccess::getValidPath(const string *originalPath, string &tempPath) const
+{
+    if (!originalPath || originalPath->empty())
+    {
+        return false;
+    }
+
+    string separator = getPathSeparator();
+    for (size_t i = 0; i < separator.size(); i++)
+    {
+        size_t pos = originalPath->rfind(separator[i]);
+        if (pos != std::string::npos && pos != originalPath->size() - 1)
+        {
+            tempPath = originalPath->substr(0, pos + 1);
+            return true;
+        }
+    }
+    return false;
 }
 
 // replace characters that are not allowed in local fs names with a %xx escape sequence
-void FileSystemAccess::escapefsincompatible(string* name) const
+void FileSystemAccess::escapefsincompatible(string* name, const string *dstPath) const
 {
     if (!name->compare(".."))
     {
@@ -68,23 +259,38 @@ void FileSystemAccess::escapefsincompatible(string* name) const
         return;
     }
 
-    char buf[4];
-    unsigned char c;
-
-    // replace all occurrences of a badchar with %xx
-    for (size_t i = name->size(); i--; )
+    string tempPath;
+    const string *validPath = &tempPath;
+    if (!getValidPath(dstPath, tempPath) && dstPath)
     {
-        c = (unsigned char)(*name)[i];
+        // if getValidPath returns false and dstPath is not null, dstPath is valid
+        validPath = dstPath;
+    }
 
-        if (!islocalfscompatible(c))
+    char buf[4];
+    FileSystemType fileSystemType = getlocalfstype(validPath);
+    size_t utf8seqsize = 0;
+    size_t i = 0;
+    unsigned char c = '0';
+    while (i < name->size())
+    {
+        c = static_cast<unsigned char>((*name)[i]);
+        utf8seqsize = Utils::utf8SequenceSize(c);
+        assert (utf8seqsize);
+        if (utf8seqsize == 1 && !islocalfscompatible(c, true, fileSystemType))
         {
+            const char incompatibleChar = name->at(i);
             sprintf(buf, "%%%02x", c);
             name->replace(i, 1, buf);
+            LOG_debug << "Escape incompatible character for filesystem type "
+                      << fstypetostring(fileSystemType)
+                      << ", replace '" << std::string(&incompatibleChar, 1) << "' by '" << buf << "'\n";
         }
+        i += utf8seqsize;
     }
 }
 
-void FileSystemAccess::unescapefsincompatible(string* name) const
+void FileSystemAccess::unescapefsincompatible(string *name, const string *localPath) const
 {
     if (!name->compare("%2e%2e"))
     {
@@ -96,25 +302,54 @@ void FileSystemAccess::unescapefsincompatible(string* name) const
         name->replace(0, 3, ".");
         return;
     }
+
+    string tempPath;
+    const string *validPath = &tempPath;
+    if (!getValidPath(localPath, tempPath) && localPath)
+    {
+        // if getValidPath returns false and localPath is not null, localPath is valid
+        validPath = localPath;
+    }
+
+    FileSystemType fileSystemType = getlocalfstype(validPath);
     for (int i = int(name->size()) - 2; i-- > 0; )
     {
-        // conditions for unescaping: %xx must be well-formed and encode an incompatible character
+        // conditions for unescaping: %xx must be well-formed
         if ((*name)[i] == '%' && islchex((*name)[i + 1]) && islchex((*name)[i + 2]))
         {
             char c = static_cast<char>((MegaClient::hexval((*name)[i + 1]) << 4) + MegaClient::hexval((*name)[i + 2]));
 
-            if (!islocalfscompatible((unsigned char)c))
+            if (!islocalfscompatible(static_cast<unsigned char>(c), false, fileSystemType))
             {
+                std::string incompatibleChar = name->substr(i, 3);
                 name->replace(i, 3, &c, 1);
+                LOG_debug << "Unescape incompatible character for filesystem type "
+                          << fstypetostring(fileSystemType)
+                          << ", replace '" << incompatibleChar << "' by '" << name->substr(i, 1) << "'\n";
             }
         }
     }
 }
 
-// escape forbidden characters, then convert to local encoding
-void FileSystemAccess::name2local(string* filename) const
+const char *FileSystemAccess::getPathSeparator()
 {
-    escapefsincompatible(filename);
+#if defined (__linux__) || defined (__ANDROID__) || defined  (__APPLE__) || defined (USE_IOS)
+return "/";
+#elif defined(_WIN32) || defined(_WIN64) || defined(WINDOWS_PHONE)
+return "\\";
+#elif
+// Default case
+LOG_warn << "No path separator found";
+return "\\/";
+#endif
+}
+
+// escape forbidden characters, then convert to local encoding
+void FileSystemAccess::name2local(string* filename, const string *dstPath) const
+{
+    assert(filename);
+
+    escapefsincompatible(filename, dstPath);
 
     string t = *filename;
 
@@ -158,13 +393,15 @@ void FileSystemAccess::normalize(string* filename) const
 }
 
 // convert from local encoding, then unescape escaped forbidden characters
-void FileSystemAccess::local2name(string* filename) const
+void FileSystemAccess::local2name(string *filename, const string *localPath) const
 {
+    assert(filename);
+
     string t = *filename;
 
     local2path(&t, filename);
 
-    unescapefsincompatible(filename);
+    unescapefsincompatible(filename, localPath);
 }
 
 std::unique_ptr<string> FileSystemAccess::fsShortname(string& localname)
@@ -183,11 +420,29 @@ DirNotify::DirNotify(string* clocalbasepath, string* cignore)
     localbasepath = *clocalbasepath;
     ignore = *cignore;
 
-    failed = 1;
-    failreason = "Not initialized";
-    error = 0;
+    mFailed = 1;
+    mFailReason = "Not initialized";
+    mErrorCount = 0;
     sync = NULL;
 }
+
+
+void DirNotify::setFailed(int errCode, const string& reason)
+{
+    std::lock_guard<std::mutex> g(mMutex);
+    mFailed = errCode;
+    mFailReason = reason;
+}
+
+int DirNotify::getFailed(string& reason)
+{
+    if (mFailed) 
+    {
+        reason = mFailReason;
+    }
+    return mFailed;
+}
+
 
 // notify base LocalNode + relative path/filename
 void DirNotify::notify(notifyqueue q, LocalNode* l, const char* localpath, size_t len, bool immediate)
@@ -195,64 +450,22 @@ void DirNotify::notify(notifyqueue q, LocalNode* l, const char* localpath, size_
     string path;
     path.assign(localpath, len);
 
+    // We may be executing on a thread here so we can't access the LocalNode data structures.  Queue everything, and   
+    // filter when the notifications are processed.  Also, queueing it here is faster than logging the decision anyway.
+
+    Notification n;
+    n.timestamp = immediate ? 0 : Waiter::ds;
+    n.localnode = l;
+    n.path = std::move(path);
+    notifyq[q].pushBack(std::move(n));
+
 #ifdef ENABLE_SYNC
-    if ((q == DirNotify::DIREVENTS || q == DirNotify::EXTRA)
-            && notifyq[q].size()
-            && notifyq[q].back().localnode == l
-            && notifyq[q].back().path == path)
-    {
-        if (notifyq[q].back().timestamp)
-        {
-            notifyq[q].back().timestamp = immediate ? 0 : Waiter::ds;
-        }
-        LOG_debug << "Repeated notification skipped";
-        return;
-    }
-
-    if (!immediate && sync && !sync->initializing && q == DirNotify::DIREVENTS)
-    {
-        string tmppath;
-        if (l)
-        {
-            l->getlocalpath(&tmppath);
-        }
-
-        if (localpath)
-        {
-            if (tmppath.size())
-            {
-                tmppath.append(sync->client->fsaccess->localseparator);
-            }
-
-            tmppath.append(path);
-        }
-        attr_map::iterator ait;
-        auto fa = sync->client->fsaccess->newfileaccess(false);
-        bool success = fa->fopen(&tmppath, false, false);
-        LocalNode *ll = sync->localnodebypath(l, &path);
-        if ((!ll && !success && !fa->retry) // deleted file
-            || (ll && success && ll->node && ll->node->localnode == ll
-                && (ll->type != FILENODE || (*(FileFingerprint *)ll) == (*(FileFingerprint *)ll->node))
-                && (ait = ll->node->attrs.map.find('n')) != ll->node->attrs.map.end()
-                && ait->second == ll->name
-                && fa->fsidvalid && fa->fsid == ll->fsid && fa->type == ll->type
-                && (ll->type != FILENODE || (ll->mtime == fa->mtime && ll->size == fa->size))))
-        {
-            LOG_debug << "Self filesystem notification skipped";
-            return;
-        }
-    }
-
     if (q == DirNotify::DIREVENTS || q == DirNotify::EXTRA)
     {
         sync->client->syncactivity = true;
     }
 #endif
 
-    notifyq[q].resize(notifyq[q].size() + 1);
-    notifyq[q].back().timestamp = immediate ? 0 : Waiter::ds;
-    notifyq[q].back().localnode = l;
-    notifyq[q].back().path = path;
 }
 
 // default: no fingerprint
@@ -266,7 +479,7 @@ bool DirNotify::fsstableids() const
     return true;
 }
 
-DirNotify* FileSystemAccess::newdirnotify(string* localpath, string* ignore)
+DirNotify* FileSystemAccess::newdirnotify(string* localpath, string* ignore, Waiter*)
 {
     return new DirNotify(localpath, ignore);
 }
