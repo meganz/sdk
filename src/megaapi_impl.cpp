@@ -12482,8 +12482,7 @@ void MegaApiImpl::setchatretentiontime_result(error e)
     MegaRequestPrivate *request = requestMap.at(client->restag);
     if (!request || (request->getType() != MegaRequest::TYPE_SET_RETENTION_TIME)) return;
 
-    MegaError megaError(e);
-    fireOnRequestFinish(request, megaError);
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::chats_updated(textchat_map *chats, int count)
