@@ -514,6 +514,9 @@ public:
 #ifdef DEBUG
     // queue a user attribute removal
     void delua(const char* an);
+
+    // send dev command for testing
+    void senddevcommand(const char *command, const char *email);
 #endif
 
     // delete or block an existing contact
@@ -764,14 +767,14 @@ public:
     // timestamp until the bandwidth is overquota in deciseconds, related to Waiter::ds
     m_time_t overquotauntil;
 
-    // timestamp when a business account will enter into Grace Period
-    m_time_t mBizGracePeriodTs;
-
-    // timestamp when a business account will finally expire
-    m_time_t mBizExpirationTs;
-
     // storage status
     storagestatus_t ststatus;
+
+    // warning timestamps related to storage overquota in paywall mode
+    vector<m_time_t> mOverquotaWarningTs;
+
+    // deadline timestamp related to storage overquota in paywall mode
+    m_time_t mOverquotaDeadlineTs;
 
     // minimum bytes per second for streaming (0 == no limit, -1 == use default)
     int minstreamingrate;
@@ -1591,7 +1594,7 @@ public:
     void acknowledgeuseralerts();
 
     // manage overquota errors
-    void activateoverquota(dstime timeleft);
+    void activateoverquota(dstime timeleft, bool isPaywall);
 
     // achievements enabled for the account
     bool achievements_enabled;
@@ -1619,6 +1622,12 @@ public:
 
     // list of handles of the Master business account/s
     std::set<handle> mBizMasters;
+
+    // timestamp when a business account will enter into Grace Period
+    m_time_t mBizGracePeriodTs;
+
+    // timestamp when a business account will finally expire
+    m_time_t mBizExpirationTs;
 
     // whether the destructor has started running yet
     bool destructorRunning = false;

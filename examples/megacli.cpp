@@ -306,7 +306,13 @@ const char* errorstring(error e)
         case API_EGOINGOVERQUOTA:
             return "Not enough quota";
         case API_EMFAREQUIRED:
-            return "Required 2FA pin";
+            return "Multi-factor authentication required";
+        case API_EMASTERONLY:
+            return "Access denied for users";
+        case API_EBUSINESSPASTDUE:
+            return "Business account has expired";
+        case API_EPAYWALL:
+            return "Over Disk Quota Paywall";
         default:
             return "Unknown error";
     }
@@ -1412,6 +1418,22 @@ void DemoApp::delua_result(error e)
     {
         cout << "Success." << endl;
     }
+}
+
+void DemoApp::senddevcommand_result(int value)
+{
+    cout << "Dev subcommand finished with code: " << value << endl;
+}
+
+void exec_devcommand(autocomplete::ACState& s)
+{
+    const char *email = nullptr;
+    if (s.words.size() == 3)
+    {
+        email = s.words[2].s.c_str();
+    }
+    const char *subcommand = s.words[1].s.c_str();
+    client->senddevcommand(subcommand, email);
 }
 #endif
 
@@ -2737,6 +2759,11 @@ void exec_getuserquota(autocomplete::ACState& s)
     client->getaccountdetails(new AccountDetails, storage, transfer, pro, false, false, false, -1);
 }
 
+void exec_getuserdata(autocomplete::ACState& s)
+{
+    client->getuserdata();
+}
+
 void exec_querytransferquota(autocomplete::ACState& ac)
 {
     client->querytransferquota(atoll(ac.words[1].s.c_str()));
@@ -2961,6 +2988,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_putua, sequence(text("putua"), param("attrname"), opt(either(text("del"), sequence(text("set"), param("string")), sequence(text("load"), localFSFile())))));
 #ifdef DEBUG
     p->Add(exec_delua, sequence(text("delua"), param("attrname")));
+    p->Add(exec_devcommand, sequence(text("devcommand"), param("subcommand"), opt(param("email"))));
 #endif
     p->Add(exec_alerts, sequence(text("alerts"), opt(either(text("new"), text("old"), wholenumber(10), text("notify"), text("seen")))));
     p->Add(exec_recentactions, sequence(text("recentactions"), param("hours"), param("maxcount")));
@@ -3046,6 +3074,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_querytransferquota, sequence(text("querytransferquota"), param("filesize")));
     p->Add(exec_getcloudstorageused, sequence(text("getcloudstorageused")));
     p->Add(exec_getuserquota, sequence(text("getuserquota"), repeat(either(flag("-storage"), flag("-transfer"), flag("-pro")))));
+    p->Add(exec_getuserdata, text("getuserdata"));
 
     p->Add(exec_showattributes, sequence(text("showattributes"), remoteFSPath(client, &cwd)));
 

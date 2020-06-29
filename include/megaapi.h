@@ -1690,6 +1690,29 @@ public:
     virtual void addMegaHandle(MegaHandle megaHandle);
 };
 
+class MegaIntegerList
+{
+public:
+    virtual ~MegaIntegerList();
+    virtual MegaIntegerList *copy() const;
+
+    /**
+     * @brief Returns the integer at the position i in the MegaIntegerList
+     *
+     * If the index is >= the size of the list, this function returns -1.
+     *
+     * @param i Position of the integer that we want to get for the list
+     * @return Integer at the position i in the list
+     */
+    virtual int64_t get(int i) const;
+
+    /**
+     * @brief Returns the number of integer values in the list
+     * @return Number of integer values in the list
+     */
+    virtual int size() const;
+};
+
 /**
  * @brief Represents the outbound sharing of a folder with a user in MEGA
  *
@@ -2773,6 +2796,7 @@ class MegaRequest
             TYPE_GET_REGISTERED_CONTACTS, TYPE_GET_COUNTRY_CALLING_CODES,
             TYPE_VERIFY_CREDENTIALS, TYPE_GET_MISC_FLAGS, TYPE_RESEND_VERIFICATION_EMAIL,
             TYPE_SUPPORT_TICKET, TYPE_SET_RETENTION_TIME, TYPE_RESET_SMS_VERIFIED_NUMBER,
+            TYPE_SEND_DEV_COMMAND,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -5288,6 +5312,7 @@ public:
         API_EMFAREQUIRED = -26,         ///< Multi-factor authentication required
         API_EMASTERONLY = -27,          ///< Access denied for sub-users (only for business accounts)
         API_EBUSINESSPASTDUE = -28,     ///< Business account expired
+        API_EPAYWALL = -29,             ///< Over Disk Quota Paywall
 
         PAYMENT_ECARD = -101,
         PAYMENT_EBILLING = -102,
@@ -6095,6 +6120,11 @@ class MegaGlobalListener
          *     After calling it, this callback will be called again with the corresponding
          *     state if there is really a change.
          *
+         *     - MegaApi::STORAGE_STATE_PAYWALL = 4
+         *     The account has been full for a long time. Now most of actions are disallowed.
+         *     It's needed to call MegaApi::getUserData in order to retrieve the deadline/warnings
+         *     timestamps. @see MegaApi::getOverquotaDeadlineTs and MegaApi::getOverquotaWarningsTs.
+         *
          * - MegaEvent::EVENT_NODES_CURRENT: when all external changes have been received
          *
          * - MegaEvent::EVENT_MEDIA_INFO_READY: when codec-mappings have been received
@@ -6599,6 +6629,11 @@ class MegaListener
          *     After calling it, this callback will be called again with the corresponding
          *     state if there is really a change.
          *
+         *     - MegaApi::STORAGE_STATE_PAYWALL = 4
+         *     The account has been full for a long time. Now most of actions are disallowed.
+         *     It's needed to call MegaApi::getUserData in order to retrieve the deadline/warnings
+         *     timestamps. @see MegaApi::getOverquotaDeadlineTs and MegaApi::getOverquotaWarningsTs.
+         *
          * - MegaEvent::EVENT_NODES_CURRENT: when all external changes have been received
          *
          * - MegaEvent::EVENT_MEDIA_INFO_READY: when codec-mappings have been received
@@ -6999,7 +7034,8 @@ class MegaApi
             STORAGE_STATE_GREEN = 0,
             STORAGE_STATE_ORANGE = 1,
             STORAGE_STATE_RED = 2,
-            STORAGE_STATE_CHANGE = 3
+            STORAGE_STATE_CHANGE = 3,
+            STORAGE_STATE_PAYWALL = 4,
         };
 
         enum {
@@ -7888,6 +7924,48 @@ class MegaApi
         void getMiscFlags(MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Trigger special account state changes for own accounts, for testing
+         *
+         * Because the dev API command allows a wide variety of state changes including suspension and unsuspension,
+         * it has restrictions on which accounts you can target, and where it can be called from.
+         *
+         * Your client must be on a company VPN IP address.
+         *
+         * The target account must be an @mega email address. The target account must either be the calling account,
+         * OR a related account via a prefix and + character. For example if the calling account is name1+test@mega.co.nz
+         * then it can perform a dev command on itself or on name1@mega.co.nz, name1+bob@mega.co.nz etc, but NOT on
+         * name2@mega.co.nz or name2+test@meg.co.nz.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SEND_DEV_COMMAND.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getName - Returns the first parameter
+         * - MegaRequest::getEmail - Returns the second parameter
+         *
+         * Possible errors are:
+         *  - EACCESS if the calling account is not allowed to perform this method (not a mega email account, not the right IP, etc).
+         *  - EARGS if the subcommand is not present or is invalid
+         *  - EBLOCKED if the target account is not allowed (this could also happen if the target account does not exist)
+         *
+         * Possible commands:
+         *  - "aodq" - Advance ODQ Warning State
+         *      If called, this will advance your ODQ warning state until the final warning state,
+         *      at which point it will turn on the ODQ paywall for your account. It requires an account lock on the target account.
+         *      This subcommand will return the 'step' of the warning flow you have advanced to - 1, 2, 3 or 4
+         *      (the paywall is turned on at step 4)
+         *
+         *      Valid data in the MegaRequest object received in onRequestFinish when the error code is MegaError::API_OK:
+         *       + MegaRequest::getNumber - Returns the number of warnings (1, 2, 3 or 4).
+         *
+         *      Possible errors in addition to the standard dev ones are:
+         *       + EFAILED - your account is not in the RED stoplight state
+         *
+         * @param command The subcommand for the specific operation
+         * @param email Optional email of the target email's account. If null, it will use the logged-in account
+         * @param listener MegaRequestListener to track this request
+         */
+        void sendDevCommand(const char *command, const char *email = nullptr, MegaRequestListener *listener = nullptr);
+
+        /**
          * @brief Returns the current session key
          *
          * You have to be logged in to get a valid session key. Otherwise,
@@ -8693,6 +8771,32 @@ class MegaApi
          *      MegaApi::BUSINESS_STATUS_GRACE_PERIOD = 2
          */
         int getBusinessStatus();
+
+        /**
+         * @brief Returns the deadline to remedy the storage overquota situation
+         *
+         * This value is valid only when MegaApi::getUserData has been called after
+         * receiving a callback MegaListener/MegaGlobalListener::onEvent of type
+         * MegaEvent::EVENT_STORAGE, reporting STORAGE_STATE_PAYWALL.
+         * The value will become invalid once the state of storage changes.
+         *
+         * @return Timestamp representing the deadline to remedy the overquota
+         */
+        int64_t getOverquotaDeadlineTs();
+
+        /**
+         * @brief Returns when the user was warned about overquota state
+         *
+         * This value is valid only when MegaApi::getUserData has been called after
+         * receiving a callback MegaListener/MegaGlobalListener::onEvent of type
+         * MegaEvent::EVENT_STORAGE, reporting STORAGE_STATE_PAYWALL.
+         * The value will become invalid once the state of storage changes.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @return MegaIntegerList with the timestamp corresponding to each warning
+         */
+        MegaIntegerList *getOverquotaWarningsTs();
 
         /**
          * @brief Check if the password is correct for the current account

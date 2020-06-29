@@ -617,6 +617,20 @@ private:
     std::vector<MegaHandle> mList;
 };
 
+class MegaIntegerListPrivate : public MegaIntegerList
+{
+public:
+    MegaIntegerListPrivate(const vector<int64_t> &integers);
+    virtual ~MegaIntegerListPrivate();
+
+    MegaIntegerList *copy() const override;
+    int64_t get(int i) const override;
+    int size() const override;
+
+private:
+    vector<int64_t> mIntegers;
+};
+
 class MegaSharePrivate : public MegaShare
 {
 	public:
@@ -2050,6 +2064,7 @@ class MegaApiImpl : public MegaApp
         void getUserData(MegaUser *user, MegaRequestListener *listener = NULL);
         void getUserData(const char *user, MegaRequestListener *listener = NULL);
         void getMiscFlags(MegaRequestListener *listener = NULL);
+        void sendDevCommand(const char *command, const char *email, MegaRequestListener *listener = NULL);
         void getCloudStorageUsed(MegaRequestListener *listener = NULL); 
         void getAccountDetails(bool storage, bool transfer, bool pro, bool sessions, bool purchases, bool transactions, int source = -1, MegaRequestListener *listener = NULL);
         void queryTransferQuota(long long size, MegaRequestListener *listener = NULL);
@@ -2082,6 +2097,8 @@ class MegaApiImpl : public MegaApp
         bool isMasterBusinessAccount();
         bool isBusinessAccountActive();
         int getBusinessStatus();
+        int64_t getOverquotaDeadlineTs();
+        MegaIntegerList *getOverquotaWarningsTs();
         bool checkPassword(const char *password);
         char* getMyCredentials();
         void getUserCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
@@ -2884,6 +2901,7 @@ protected:
         void getua_result(TLVstore *, attr_t) override;
 #ifdef DEBUG
         void delua_result(error) override;
+        void senddevcommand_result(int) override;
 #endif
 
         void getuseremail_result(string *, error) override;

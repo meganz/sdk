@@ -159,6 +159,7 @@ public class MegaApiJava {
     public final static int STORAGE_STATE_ORANGE = MegaApi.STORAGE_STATE_ORANGE;
     public final static int STORAGE_STATE_RED = MegaApi.STORAGE_STATE_RED;
     public final static int STORAGE_STATE_CHANGE = MegaApi.STORAGE_STATE_CHANGE;
+    public final static int STORAGE_STATE_PAYWALL = MegaApi.STORAGE_STATE_PAYWALL;
 
     public final static int BUSINESS_STATUS_EXPIRED = MegaApi.BUSINESS_STATUS_EXPIRED;
     public final static int BUSINESS_STATUS_INACTIVE = MegaApi.BUSINESS_STATUS_INACTIVE;
@@ -1263,6 +1264,50 @@ public class MegaApiJava {
     }
 
     /**
+     * Trigger special account state changes for own accounts, for testing
+     *
+     * Because the dev API command allows a wide variety of state changes including suspension and unsuspension,
+     * it has restrictions on which accounts you can target, and where it can be called from.
+     *
+     * Your client must be on a company VPN IP address.
+     *
+     * The target account must be an @mega email address. The target account must either be the calling account,
+     * OR a related account via a prefix and + character. For example if the calling account is name1+test@mega.co.nz
+     * then it can perform a dev command on itself or on name1@mega.co.nz, name1+bob@mega.co.nz etc, but NOT on
+     * name2@mega.co.nz or name2+test@meg.co.nz.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SEND_DEV_COMMAND.
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getName - Returns the first parameter
+     * - MegaRequest::getEmail - Returns the second parameter
+     *
+     * Possible errors are:
+     *  - EACCESS if the calling account is not allowed to perform this method (not a mega email account, not the right IP, etc).
+     *  - EARGS if the subcommand is not present or is invalid
+     *  - EBLOCKED if the target account is not allowed (this could also happen if the target account does not exist)
+     *
+     * Possible commands:
+     *  - "aodq" - Advance ODQ Warning State
+     *      If called, this will advance your ODQ warning state until the final warning state,
+     *      at which point it will turn on the ODQ paywall for your account. It requires an account lock on the target account.
+     *      This subcommand will return the 'step' of the warning flow you have advanced to - 1, 2, 3 or 4
+     *      (the paywall is turned on at step 4)
+     *
+     *      Valid data in the MegaRequest object received in onRequestFinish when the error code is MegaError::API_OK:
+     *       + MegaRequest::getNumber - Returns the number of warnings (1, 2, 3 or 4).
+     *
+     *      Possible errors in addition to the standard dev ones are:
+     *       + EFAILED - your account is not in the RED stoplight state
+     *
+     * @param command The subcommand for the specific operation
+     * @param email Optional email of the target email's account. If null, it will use the logged-in account
+     * @param listener MegaRequestListener to track this request
+     */
+    public void sendDevCommand(String command, String email, MegaRequestListenerInterface listener) {
+        megaApi.sendDevCommand(command, email, createDelegateRequestListener(listener));
+    }
+
+    /**
      * Returns the current session key.
      * <p>
      * You have to be logged in to get a valid session key. Otherwise,
@@ -2257,6 +2302,36 @@ public class MegaApiJava {
      */
     public int getBusinessStatus() {
         return megaApi.getBusinessStatus();
+    }
+
+    /**
+     * Returns the deadline to remedy the storage overquota situation
+     *
+     * This value is valid only when MegaApi::getUserData has been called after
+     * receiving a callback MegaListener/MegaGlobalListener::onEvent of type
+     * MegaEvent::EVENT_STORAGE, reporting STORAGE_STATE_PAYWALL.
+     * The value will become invalid once the state of storage changes.
+     *
+     * @return Timestamp representing the deadline to remedy the overquota
+     */
+    public long getOverquotaDeadlineTs() {
+        return megaApi.getOverquotaDeadlineTs();
+    }
+
+    /**
+     * Returns when the user was warned about overquota state
+     *
+     * This value is valid only when MegaApi::getUserData has been called after
+     * receiving a callback MegaListener/MegaGlobalListener::onEvent of type
+     * MegaEvent::EVENT_STORAGE, reporting STORAGE_STATE_PAYWALL.
+     * The value will become invalid once the state of storage changes.
+     *
+     * You take the ownership of the returned value.
+     *
+     * @return MegaIntegerList with the timestamp corresponding to each warning
+     */
+    public MegaIntegerList getOverquotaWarningsTs() {
+        return megaApi.getOverquotaWarningsTs();
     }
 
     /**
@@ -6940,6 +7015,14 @@ public class MegaApiJava {
     }
 
     /**
+     * Get the total number of nodes in the account
+     * @return Total number of nodes in the account
+     */
+    public long getNumNodes() {
+        return megaApi.getNumNodes();
+    }
+
+    /**
      * Starts an unbuffered download of a node (file) from the user's MEGA account.
      *
      * @param node The MEGA node to download.
@@ -9653,6 +9736,8 @@ public class MegaApiJava {
                 return app.getString(R.string.api_emasteronly);
             case API_EBUSINESSPASTDUE:
                 return app.getString(R.string.api_ebusinesspastdue);
+            case API_EPAYWALL:
+                return app.getString(R.string.api_epaywall);
             case PAYMENT_ECARD:
                 return app.getString(R.string.payment_ecard);
             case PAYMENT_EBILLING:

@@ -3866,6 +3866,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_SUPPORT_TICKET: return "SUPPORT_TICKET";
         case TYPE_SET_RETENTION_TIME: return "SET_RETENTION_TIME";
         case TYPE_RESET_SMS_VERIFIED_NUMBER: return "RESET_SMS_VERIFIED_NUMBER";
+        case TYPE_SEND_DEV_COMMAND: return "SEND_DEV_COMMAND";
     }
     return "UNKNOWN";
 }
@@ -5303,6 +5304,16 @@ int MegaApiImpl::getBusinessStatus()
             : client->mBizStatus;
 }
 
+int64_t MegaApiImpl::getOverquotaDeadlineTs()
+{
+    return client->mOverquotaDeadlineTs;
+}
+
+MegaIntegerList *MegaApiImpl::getOverquotaWarningsTs()
+{
+    return new MegaIntegerListPrivate(client->mOverquotaWarningTs);
+}
+
 bool MegaApiImpl::checkPassword(const char *password)
 {
     sdkMutex.lock();
@@ -5876,6 +5887,15 @@ void MegaApiImpl::getUserData(const char *user, MegaRequestListener *listener)
 void MegaApiImpl::getMiscFlags(MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_MISC_FLAGS, listener);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::sendDevCommand(const char *command, const char *email, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SEND_DEV_COMMAND, listener);
+    request->setName(command);
+    request->setEmail(email);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -14945,6 +14965,18 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
 void MegaApiImpl::delua_result(error)
 {
 }
+
+void MegaApiImpl::senddevcommand_result(int value)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_SEND_DEV_COMMAND)) return;
+
+    if (value > 0)
+        request->setNumber(value);
+
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>((value <= 0) ? value : API_OK));
+}
 #endif
 
 void MegaApiImpl::getuseremail_result(string *email, error e)
@@ -18933,6 +18965,12 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_RENAME:
         {
+            if (client->ststatus == STORAGE_PAYWALL)
+            {
+                e = API_EPAYWALL;
+                break;
+            }
+
             Node* node = client->nodebyhandle(request->getNodeHandle());
             const char* newName = request->getName();
             if(!node || !newName || !(*newName)) { e = API_EARGS; break; }
@@ -21003,6 +21041,22 @@ void MegaApiImpl::sendPendingRequests()
                 client->getpubkey(email);
             }
 
+            break;
+        }
+        case MegaRequest::TYPE_SEND_DEV_COMMAND:
+        {
+            const char *email = request->getEmail();
+            const char *command = request->getName();
+            if (!command)
+            {
+                e = API_EARGS;
+                break;
+            }
+#ifdef DEBUG
+            client->senddevcommand(command, email);
+#else
+            e = API_EACCESS;
+#endif
             break;
         }
         case MegaRequest::TYPE_KILL_SESSION:
@@ -31381,6 +31435,37 @@ unsigned int MegaHandleListPrivate::size() const
 void MegaHandleListPrivate::addMegaHandle(MegaHandle h)
 {
     mList.push_back(h);
+}
+
+MegaIntegerListPrivate::MegaIntegerListPrivate(const vector<int64_t> &integers)
+    : mIntegers(integers)
+{
+
+}
+
+MegaIntegerListPrivate::~MegaIntegerListPrivate()
+{
+
+}
+
+MegaIntegerList* MegaIntegerListPrivate::copy() const
+{
+    return new MegaIntegerListPrivate(mIntegers);
+}
+
+int64_t MegaIntegerListPrivate::get(int i) const
+{
+    if (i >= static_cast<int>(mIntegers.size()))
+        {
+                return -1;
+        }
+
+    return mIntegers.at(i);
+}
+
+int MegaIntegerListPrivate::size() const
+{
+    return static_cast<int>(mIntegers.size());
 }
 
 MegaChildrenListsPrivate::MegaChildrenListsPrivate(MegaChildrenLists *list)

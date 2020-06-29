@@ -181,6 +181,7 @@ struct DemoApp : public MegaApp
     void getua_result(TLVstore *, attr_t) override;
 #ifdef DEBUG
     void delua_result(error) override;
+    void senddevcommand_result(int) override;
 #endif
 
     void querytransferquota_result(int) override;

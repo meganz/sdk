@@ -170,6 +170,9 @@ struct MEGA_API MegaApp
     virtual void getua_result(TLVstore *, attr_t) { }
 #ifdef DEBUG
     virtual void delua_result(error) { }
+
+    // result of send dev subcommand's command
+    virtual void senddevcommand_result(int) { }
 #endif
 
     virtual void getuseremail_result(string *, error) { }

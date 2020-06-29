@@ -279,7 +279,6 @@ void CommandAttachFA::procresult()
     if (!checkError(e, client->json))
     {
          string fa;
-
          if (client->json.storeobject(&fa))
          {
              Node* n = client->nodebyhandle(h);
@@ -1181,7 +1180,7 @@ void CommandPutNodes::procresult()
         LOG_debug << "Putnodes error " << e;
         if (e == API_EOVERQUOTA)
         {
-            client->activateoverquota(0);
+            client->activateoverquota(0, false);
         }
 #ifdef ENABLE_SYNC
         if (source == PUTNODES_SYNC)
@@ -1326,7 +1325,7 @@ void CommandMoveNode::procresult()
     {
         if (e == API_EOVERQUOTA)
         {
-            client->activateoverquota(0);
+            client->activateoverquota(0, false);
         }
 
 #ifdef ENABLE_SYNC
@@ -3328,6 +3327,32 @@ void CommandDelUA::procresult()
     }
 }
 
+CommandSendDevCommand::CommandSendDevCommand(MegaClient *client, const char *command, const char *email)
+{
+    cmd("dev");
+
+    arg("aa", command);
+    if (email)
+    {
+        arg("t", email);
+    }
+
+    tag = client->reqtag;
+}
+
+void CommandSendDevCommand::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->senddevcommand_result(static_cast<int>(client->json.getint()));
+    }
+    else
+    {
+        client->app->senddevcommand_result(API_EINTERNAL);
+    }
+
+}
+
 #endif  // #ifdef DEBUG
 
 CommandGetUserEmail::CommandGetUserEmail(MegaClient *client, const char *uid)
@@ -3604,6 +3629,10 @@ void CommandGetUserData::procresult()
     string unshareableKey;
     string versionUnshareableKey;
 
+    bool uspw = false;
+    vector<m_time_t> warningTs;
+    m_time_t deadlineTs = -1;
+
     bool b = false;
     BizMode m = BIZ_MODE_UNKNOWN;
     BizStatus s = BIZ_STATUS_UNKNOWN;
@@ -3827,6 +3856,52 @@ void CommandGetUserData::procresult()
                 assert(false);
             }
             break;
+
+        case MAKENAMEID4('u', 's', 'p', 'w'):   // user paywall data
+        {
+            uspw = true;
+
+            if (client->json.enterobject())
+            {
+                bool endobject = false;
+                while (!endobject)
+                {
+                    switch (client->json.getnameid())
+                    {
+                        case MAKENAMEID2('d', 'l'): // deadline timestamp
+                            deadlineTs = client->json.getint();
+                            break;
+
+                        case MAKENAMEID3('w', 't', 's'):    // warning timestamps
+                            // ie. "wts":[1591803600,1591813600,1591823600
+
+                            if (client->json.enterarray())
+                            {
+                                m_time_t ts;
+                                while (client->json.isnumeric() && (ts = client->json.getint()) != -1)
+                                {
+                                    warningTs.push_back(ts);
+                                }
+
+                                client->json.leavearray();
+                            }
+                            break;
+
+                        case EOO:
+                            endobject = true;
+                            break;
+
+                        default:
+                            if (!client->json.storeobject())
+                            {
+                                return client->app->userdata_result(NULL, NULL, NULL, API_EINTERNAL);
+                            }
+                    }
+                }
+                client->json.leaveobject();
+            }
+            break;
+        }
 
         case EOO:
         {
@@ -4108,6 +4183,21 @@ void CommandGetUserData::procresult()
                 {
                     client->app->notify_business_status(client->mBizStatus);
                 }
+            }
+
+            if (uspw)
+            {
+                if (deadlineTs == -1 || warningTs.empty())
+                {
+                    LOG_err << "uspw received with missing timestamps";
+                }
+                else
+                {
+                    client->mOverquotaWarningTs = std::move(warningTs);
+                    client->mOverquotaDeadlineTs = deadlineTs;
+                    client->activateoverquota(0, true);
+                }
+
             }
 
             client->app->userdata_result(&name, &pubk, &privk, API_OK);
@@ -4507,7 +4597,8 @@ void CommandGetUserQuota::procresult()
                     if (details->storage_used >= details->storage_max)
                     {
                         LOG_debug << "Account full";
-                        client->activateoverquota(0);
+                        bool isPaywall = (client->ststatus == STORAGE_PAYWALL);
+                        client->activateoverquota(0, isPaywall);
                     }
                     else if (details->storage_used >= (details->storage_max / 10000 * uslw))
                     {
@@ -7974,18 +8065,18 @@ CommandGetRegisteredContacts::CommandGetRegisteredContacts(MegaClient* client, c
 
 void CommandGetRegisteredContacts::procresult()
 {
+    Error e;
+    if (checkError(e, client->json))
+    {
+        client->app->getregisteredcontacts_result(e, nullptr);
+        return;
+    }
+
     processResult(*client->app, client->json);
 }
 
 void CommandGetRegisteredContacts::processResult(MegaApp& app, JSON& json)
 {
-    Error e;
-    if (checkError(e, json))
-    {
-        app.getregisteredcontacts_result(e, nullptr);
-        return;
-    }
-
     vector<tuple<string, string, string>> registeredContacts;
 
     string entryUserDetail;
@@ -8063,18 +8154,18 @@ CommandGetCountryCallingCodes::CommandGetCountryCallingCodes(MegaClient* client)
 
 void CommandGetCountryCallingCodes::procresult()
 {
+    Error e;
+    if (checkError(e, client->json))
+    {
+        client->app->getcountrycallingcodes_result(e, nullptr);
+        return;
+    }
+
     processResult(*client->app, client->json);
 }
 
 void CommandGetCountryCallingCodes::processResult(MegaApp& app, JSON& json)
 {
-    Error e;
-    if (checkError(e, json))
-    {
-        app.getcountrycallingcodes_result(e, nullptr);
-        return;
-    }
-
     map<string, vector<string>> countryCallingCodes;
 
     string countryCode;

@@ -1357,6 +1357,8 @@ const char* MegaError::getErrorString(int errorCode, ErrorContexts context)
             return "Access denied for users";
         case API_EBUSINESSPASTDUE:
             return "Business account has expired";
+        case API_EPAYWALL:
+            return "Over Disk Quota Paywall";
         case PAYMENT_ECARD:
             return "Credit card rejected";
         case PAYMENT_EBILLING:
@@ -2053,6 +2055,11 @@ void MegaApi::getMiscFlags(MegaRequestListener *listener)
     pImpl->getMiscFlags(listener);
 }
 
+void MegaApi::sendDevCommand(const char *command, const char *email, MegaRequestListener *listener)
+{
+    pImpl->sendDevCommand(command, email, listener);
+}
+
 void MegaApi::login(const char *login, const char *password, MegaRequestListener *listener)
 {
     pImpl->login(login, password, listener);
@@ -2506,6 +2513,16 @@ void MegaApi::getExtendedAccountDetails(bool sessions, bool purchases, bool tran
 void MegaApi::queryTransferQuota(long long size, MegaRequestListener *listener)
 {
     pImpl->queryTransferQuota(size, listener);
+}
+
+int64_t MegaApi::getOverquotaDeadlineTs()
+{
+    return pImpl->getOverquotaDeadlineTs();
+}
+
+MegaIntegerList* MegaApi::getOverquotaWarningsTs()
+{
+    return pImpl->getOverquotaWarningsTs();
 }
 
 void MegaApi::getPricing(MegaRequestListener *listener)
@@ -6598,6 +6615,26 @@ void MegaCancelToken::cancel(bool)
 bool MegaCancelToken::isCancelled() const
 {
     return false;
+}
+
+MegaIntegerList::~MegaIntegerList()
+{
+
+}
+
+MegaIntegerList *MegaIntegerList::copy() const
+{
+    return nullptr;
+}
+
+int64_t MegaIntegerList::get(int /*i*/) const
+{
+    return -1;
+}
+
+int MegaIntegerList::size() const
+{
+    return 0;
 }
 
 }
