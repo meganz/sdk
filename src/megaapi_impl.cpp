@@ -14948,11 +14948,7 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
                     e = API_ENOENT;
                     break;
                 }
-                else
-                {
-                    request->setName(Base64::atob(buf).c_str());
-                }
-
+                request->setName(Base64::atob(buf).c_str());
                 break;
             }
 
