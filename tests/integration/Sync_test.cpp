@@ -444,7 +444,7 @@ struct StandardClient : public MegaApp
     void transfer_added(Transfer*) override { ++transfersAdded; }
     void transfer_removed(Transfer*) override { ++transfersRemoved; }
     void transfer_prepare(Transfer*) override { ++transfersPrepared; }
-    void transfer_failed(Transfer*,  const Error&, dstime = 0) override { ++transfersFailed; }
+    void transfer_failed(Transfer*, error, dstime = 0) override { ++transfersFailed; }
     void transfer_update(Transfer*) override { ++transfersUpdated; }
     void transfer_complete(Transfer*) override { ++transfersComplete; }
 
@@ -953,7 +953,7 @@ struct StandardClient : public MegaApp
 
         string localpath;
         n->getlocalpath(&localpath, false);
-        FileSystemType fileSystemType = client.fsaccess->getFilesystemType(&localpath);
+        ::mega::FileSystemType fileSystemType = client.fsaccess->getFilesystemType(&localpath);
         client.fsaccess->local2name(&localpath, fileSystemType);
         string n_localname = n->localname;
         client.fsaccess->local2name(&n_localname, fileSystemType);
