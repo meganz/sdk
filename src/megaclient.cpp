@@ -1770,22 +1770,32 @@ void MegaClient::exec()
                             else
                             {
                                 // request failed
-                                error e = API_EINTERNAL;
-                                std::string err;
-                                if (strncmp(pendingcs->in.c_str(), "{\"err\":", 7) == 0 && pendingcs->in.find("}") != std::string::npos)
+                                JSON json;
+                                json.pos = pendingcs->in.c_str();
+                                std::string requestError;
+                                error e;
+                                bool valid = json.storeobject(&requestError);
+                                if (valid)
                                 {
-                                    err = pendingcs->in.substr(0, pendingcs->in.find("}") + 1);
-                                    e = (error)atoi(pendingcs->in.c_str() + 7);
+                                    if (strncmp(requestError.c_str(), "{\"err\":", 7) == 0)
+                                    {
+                                        e = (error)atoi(requestError.c_str() + 7);
+                                    }
+                                    else
+                                    {
+                                        e = (error)atoi(requestError.c_str());
+                                    }
                                 }
                                 else
                                 {
-                                    e = (error)atoi(pendingcs->in.c_str());
-                                    err = std::to_string(e);
+                                    e = API_EINTERNAL;
+                                    requestError = std::to_string(e);
                                 }
 
                                 if (!e)
                                 {
                                     e = API_EINTERNAL;
+                                    requestError = std::to_string(e);
                                 }
 
                                 if (e == API_EBLOCKED && sid.size())
@@ -1798,7 +1808,7 @@ void MegaClient::exec()
                                 pendingcs = NULL;
                                 csretrying = false;
 
-                                reqs.servererror(err, this);
+                                reqs.servererror(requestError, this);
                                 break;
                             }
 
