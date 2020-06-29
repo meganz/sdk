@@ -31387,7 +31387,9 @@ MegaIntegerList* MegaIntegerListPrivate::copy() const
 int64_t MegaIntegerListPrivate::get(int i) const
 {
     if (i >= static_cast<int>(mIntegers.size()))
-        return -1;
+        {
+                return -1;
+        }
 
     return mIntegers.at(i);
 }
