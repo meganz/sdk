@@ -1864,7 +1864,7 @@ void MegaClient::exec()
                                 pendingcs = NULL;
                                 csretrying = false;
 
-                                reqs.servererror("-23", this);
+                                reqs.servererror(std::to_string(API_ESSL), this);
                                 break;
                             }
                         }
