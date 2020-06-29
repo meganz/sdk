@@ -1704,7 +1704,22 @@ CommandLogin::CommandLogin(MegaClient* client, const char* email, const byte *em
         arg("sn", (byte*)&client->cachedscsn, sizeof client->cachedscsn);
     }
 
-    string id = client->getDeviceid();
+    string id;
+    if (!MegaClient::statsid)
+    {
+        client->fsaccess->statsid(&id);
+        if (id.size())
+        {
+            size_t len = id.size() + 1;
+            char *buff = new char[len];
+            memcpy(buff, id.c_str(), len);
+            MegaClient::statsid = buff;
+        }
+    }
+    else
+    {
+        id = MegaClient::statsid;
+    }
 
     if (id.size())
     {
@@ -3582,8 +3597,6 @@ void CommandGetUserData::procresult()
     string email;
     string unshareableKey;
     string versionUnshareableKey;
-    string deviceNames;
-    string versionDeviceNames;
 
     bool b = false;
     BizMode m = BIZ_MODE_UNKNOWN;
@@ -3702,11 +3715,6 @@ void CommandGetUserData::procresult()
         case MAKENAMEID5('*', '~', 'u', 's', 'k'):
             parseUserAttribute(unshareableKey, versionUnshareableKey, false);
             break;
-
-        case MAKENAMEID4('*', '!', 'd', 'n'):
-            parseUserAttribute(deviceNames, versionDeviceNames);
-            break;
-
 
         case 'b':   // business account's info
             assert(!b);
@@ -4003,21 +4011,6 @@ void CommandGetUserData::procresult()
                 else
                 {
                     LOG_err << "Unshareable key wrong length";
-                }
-
-                if (deviceNames.size())
-                {
-                    unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&deviceNames, &client->key));
-                    if (tlvRecords)
-                    {
-                        // store the value for private user attributes (decrypted version of serialized TLV)
-                        unique_ptr<string> tlvString(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
-                        changes += u->updateattr(ATTR_DEVICE_NAMES, tlvString.get(), &versionDeviceNames);
-                    }
-                    else
-                    {
-                        LOG_err << "Cannot extract TLV records for ATTR_DEVICE_NAMES";
-                    }
                 }
 
                 if (changes > 0)
