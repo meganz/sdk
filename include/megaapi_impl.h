@@ -2558,6 +2558,7 @@ class MegaApiImpl : public MegaApp
         bool hasAccessToAttachment(MegaHandle chatid, MegaHandle h, MegaHandle uh);
         const char* getFileAttribute(MegaHandle h);
         void archiveChat(MegaHandle chatid, int archive, MegaRequestListener *listener = NULL);
+        void setChatRetentionTime(MegaHandle chatid, int period, MegaRequestListener *listener = NULL);
         void requestRichPreview(const char *url, MegaRequestListener *listener = NULL);
         void chatLinkHandle(MegaHandle chatid, bool del, bool createifmissing, MegaRequestListener *listener = NULL);
         void getChatLinkURL(MegaHandle publichandle, MegaRequestListener *listener = NULL);
@@ -2949,6 +2950,7 @@ protected:
         void chatpresenceurl_result(string*, error) override;
         void registerpushnotification_result(error) override;
         void archivechat_result(error) override;
+        void setchatretentiontime_result(error) override;
 
         void chats_updated(textchat_map *, int) override;
         void richlinkrequest_result(string*, error) override;

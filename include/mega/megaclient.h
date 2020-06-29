@@ -707,6 +707,9 @@ public:
     // get welcome pdf
     void getwelcomepdf();
 
+    // set retention time for a chatroom in seconds, after which older messages in the chat are automatically deleted
+    void setchatretentiontime(handle chatid, int period);
+
     // toggle global debug flag
     bool toggledebug();
 
