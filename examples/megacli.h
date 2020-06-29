@@ -158,7 +158,7 @@ struct DemoApp : public MegaApp
     void rename_result(handle, error) override;
     void unlink_result(handle, error) override;
 
-    void fetchnodes_result(error) override;
+    void fetchnodes_result(const Error&) override;
 
     void putnodes_result(error, targettype_t, NewNode*) override;
 
@@ -181,6 +181,7 @@ struct DemoApp : public MegaApp
     void getua_result(TLVstore *, attr_t) override;
 #ifdef DEBUG
     void delua_result(error) override;
+    void senddevcommand_result(int) override;
 #endif
 
     void querytransferquota_result(int) override;
@@ -194,21 +195,21 @@ struct DemoApp : public MegaApp
     void exportnode_result(error) override;
     void exportnode_result(handle, handle) override;
 
-    void openfilelink_result(error) override;
+    void openfilelink_result(const Error&) override;
     void openfilelink_result(handle, const byte*, m_off_t, string*, string*, int) override;
 
     void folderlinkinfo_result(error, handle, handle, string *, string*, m_off_t, uint32_t, uint32_t, m_off_t, uint32_t) override;
 
-    void checkfile_result(handle, error) override;
+    void checkfile_result(handle, const Error&) override;
     void checkfile_result(handle, error, byte*, m_off_t, m_time_t, m_time_t, string*, string*, string*) override;
 
-    dstime pread_failure(error, int, void*, dstime) override;
+    dstime pread_failure(const Error&, int, void*, dstime) override;
     bool pread_data(byte*, m_off_t, m_off_t, m_off_t, m_off_t, void*) override;
 
     void transfer_added(Transfer*) override;
     void transfer_removed(Transfer*) override;
     void transfer_prepare(Transfer*) override;
-    void transfer_failed(Transfer*, error, dstime) override;
+    void transfer_failed(Transfer*, const Error&, dstime) override;
     void transfer_update(Transfer*) override;
     void transfer_complete(Transfer*) override;
 
@@ -240,6 +241,7 @@ struct DemoApp : public MegaApp
     void changepw_result(error) override;
 
     void userattr_update(User*, int, const char*) override;
+    void resetSmsVerifiedPhoneNumber_result(error e) override;
 
     void enumeratequotaitems_result(unsigned, handle, unsigned, int, int, unsigned, unsigned, unsigned, const char*, const char*, const char*, const char*) override;
     void enumeratequotaitems_result(error) override;
@@ -260,12 +262,14 @@ struct DemoApp : public MegaApp
     void clearing() override;
 
     void notify_retry(dstime, retryreason_t) override;
+
+    string getExtraInfoErrorString(const Error&);
 };
 
 struct DemoAppFolder : public DemoApp
 {
     void login_result(error);
-    void fetchnodes_result(error);
+    void fetchnodes_result(const Error&);
 
     void nodes_updated(Node **, int);
     void users_updated(User**, int) {}
@@ -377,4 +381,4 @@ void exec_treecompare(autocomplete::ACState& s);
 void exec_querytransferquota(autocomplete::ACState& s);
 #endif
 void exec_metamac(autocomplete::ACState& s);
-
+void exec_resetverifiedphonenumber(autocomplete::ACState& s);

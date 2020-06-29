@@ -31,7 +31,6 @@ namespace mega {
 
 struct JSON;
 struct MegaApp;
-
 // request command component
 class MEGA_API Command
 {
@@ -91,6 +90,8 @@ public:
 
     Command();
     virtual ~Command() = default;
+
+    bool checkError(Error &errorDetails, JSON &json);
 
     MEGA_DEFAULT_COPY_MOVE(Command)
 };
@@ -318,6 +319,14 @@ public:
     CommandDelUA(MegaClient*, const char*);
 
     void procresult();
+};
+
+class MEGA_API CommandSendDevCommand : public Command
+{
+public:
+    void procresult();
+
+    CommandSendDevCommand(MegaClient*, const char* command, const char* email = NULL);
 };
 #endif
 
@@ -818,6 +827,14 @@ public:
     CommandResendVerificationEmail(MegaClient *);
 };
 
+class MEGA_API CommandResetSmsVerifiedPhoneNumber : public Command
+{
+public:
+    void procresult();
+
+    CommandResetSmsVerifiedPhoneNumber(MegaClient *);
+};
+
 class MEGA_API CommandValidatePassword : public Command
 {
 public:
@@ -989,6 +1006,17 @@ public:
 protected:
     handle mChatid;
     bool mArchive;
+};
+
+class MEGA_API CommandSetChatRetentionTime : public Command
+{
+public:
+    void procresult();
+
+    CommandSetChatRetentionTime(MegaClient*, handle , int);
+
+protected:
+    handle mChatid;
 };
 
 class MEGA_API CommandRichLink : public Command

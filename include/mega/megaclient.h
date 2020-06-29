@@ -335,6 +335,9 @@ public:
     // resend the verification email to the same email address as it was previously sent to
     void resendverificationemail();
 
+    // reset the verified phone number
+    void resetSmsVerifiedPhoneNumber();
+
     // get the data for a session transfer
     // the caller takes the ownership of the returned value
     // if the second parameter isn't NULL, it's used as session id instead of the current one
@@ -511,6 +514,9 @@ public:
 #ifdef DEBUG
     // queue a user attribute removal
     void delua(const char* an);
+
+    // send dev command for testing
+    void senddevcommand(const char *command, const char *email);
 #endif
 
     // delete or block an existing contact
@@ -704,6 +710,9 @@ public:
     // get welcome pdf
     void getwelcomepdf();
 
+    // set retention time for a chatroom in seconds, after which older messages in the chat are automatically deleted
+    void setchatretentiontime(handle chatid, int period);
+
     // toggle global debug flag
     bool toggledebug();
 
@@ -758,14 +767,14 @@ public:
     // timestamp until the bandwidth is overquota in deciseconds, related to Waiter::ds
     m_time_t overquotauntil;
 
-    // timestamp when a business account will enter into Grace Period
-    m_time_t mBizGracePeriodTs;
-
-    // timestamp when a business account will finally expire
-    m_time_t mBizExpirationTs;
-
     // storage status
     storagestatus_t ststatus;
+
+    // warning timestamps related to storage overquota in paywall mode
+    vector<m_time_t> mOverquotaWarningTs;
+
+    // deadline timestamp related to storage overquota in paywall mode
+    m_time_t mOverquotaDeadlineTs;
 
     // minimum bytes per second for streaming (0 == no limit, -1 == use default)
     int minstreamingrate;
@@ -887,6 +896,9 @@ private:
     // fetch state serialize from local cache
     bool fetchsc(DbTable*);
 
+    // remove old (2 days or more) transfers from cache, if they were not resumed
+    void purgeOrphanTransfers(bool remove = false);
+
     // close the local transfer cache
     void closetc(bool remove = false);
 
@@ -924,7 +936,7 @@ private:
     unsigned addnode(node_vector*, Node*) const;
 
     // add child for consideration in syncup()/syncdown()
-    void addchild(remotenode_map*, string*, Node*, list<string>*, const string *localPath) const;
+    void addchild(remotenode_map*, string*, Node*, list<string>*, const string *localPath, FileSystemType fsType) const;
 
     // crypto request response
     void cr_response(node_vector*, node_vector*, JSON*);
@@ -1582,7 +1594,7 @@ public:
     void acknowledgeuseralerts();
 
     // manage overquota errors
-    void activateoverquota(dstime timeleft);
+    void activateoverquota(dstime timeleft, bool isPaywall);
 
     // achievements enabled for the account
     bool achievements_enabled;
@@ -1610,6 +1622,12 @@ public:
 
     // list of handles of the Master business account/s
     std::set<handle> mBizMasters;
+
+    // timestamp when a business account will enter into Grace Period
+    m_time_t mBizGracePeriodTs;
+
+    // timestamp when a business account will finally expire
+    m_time_t mBizExpirationTs;
 
     // whether the destructor has started running yet
     bool destructorRunning = false;
