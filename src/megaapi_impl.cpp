@@ -1773,6 +1773,10 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     {
         changed |= MegaUser::CHANGE_TYPE_UNSHAREABLE_KEY;
     }
+    if (user->changed.devicenames)
+    {
+        changed |= MegaUser::CHANGE_TYPE_DEVICE_NAMES;
+    }
 }
 
 MegaUserPrivate::MegaUserPrivate(MegaUser *user) : MegaUser()
@@ -5668,6 +5672,7 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER:
         case MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER:
         case MegaApi::USER_ATTR_ALIAS:
+        case MegaApi::USER_ATTR_DEVICE_NAMES:
             scope = '*';
             break;
 
@@ -5693,12 +5698,12 @@ char MegaApiImpl::userAttributeToScope(int type)
 
 void MegaApiImpl::setStatsID(const char *id)
 {
-    if (!id || !*id || MegaClient::statsid)
+    if (!id || !*id || MegaClient::statsid.size())
     {
         return;
     }
 
-    MegaClient::statsid = MegaApi::strdup(id);
+    MegaClient::statsid = id;
 }
 
 bool MegaApiImpl::serverSideRubbishBinAutopurgeEnabled()
@@ -6626,6 +6631,27 @@ void MegaApiImpl::setRubbishBinAutopurgePeriod(int days, MegaRequestListener *li
     request->setText(value.data());
     request->setParamType(MegaApi::USER_ATTR_RUBBISH_TIME);
     request->setNumber(days);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::getDeviceName(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_DEVICE_NAMES);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::setDeviceName(const char *deviceName, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
+    MegaStringMapPrivate stringMap;
+    string buf = deviceName ? deviceName : "";
+    stringMap.set(client->getDeviceid().c_str(), Base64::btoa(buf).c_str());
+    request->setMegaStringMap(&stringMap);
+    request->setName(deviceName);
+    request->setParamType(MegaApi::USER_ATTR_DEVICE_NAMES);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -14551,7 +14577,8 @@ void MegaApiImpl::getua_result(error e)
             }
         }
         else if ((request->getParamType() == MegaApi::USER_ATTR_ALIAS
-                  || request->getParamType() == MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER)
+                  || request->getParamType() == MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
+                  || request->getParamType() == MegaApi::USER_ATTR_DEVICE_NAMES)
                     && request->getType() == MegaRequest::TYPE_SET_ATTR_USER)
         {
             // The attribute doesn't exists so we have to create it
@@ -14878,6 +14905,17 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
                         request->setName(Base64::atob(buf).c_str());
                     }
                 }
+                break;
+            }
+            case MegaApi::USER_ATTR_DEVICE_NAMES:
+            {
+                const char *buf = stringMap->get(client->getDeviceid().c_str());
+                if (!buf)
+                {
+                    e = API_ENOENT;
+                    break;
+                }
+                request->setName(Base64::atob(buf).c_str());
                 break;
             }
 
@@ -19313,7 +19351,7 @@ void MegaApiImpl::sendPendingRequests()
 
                 std::unique_ptr<TLVstore> tlv;
                 User *ownUser = client->finduser(client->me);
-                if (type == ATTR_ALIAS || type == ATTR_CAMERA_UPLOADS_FOLDER)
+                if (type == ATTR_ALIAS || type == ATTR_CAMERA_UPLOADS_FOLDER || type == ATTR_DEVICE_NAMES)
                 {
                     if (!ownUser->isattrvalid(type)) // not fetched yet or outdated
                     {

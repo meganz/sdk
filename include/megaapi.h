@@ -1216,6 +1216,7 @@ class MegaUser
             CHANGE_TYPE_PUSH_SETTINGS               = 0x800000,
             CHANGE_TYPE_ALIAS                       = 0x1000000,
             CHANGE_TYPE_UNSHAREABLE_KEY             = 0x2000000,
+            CHANGE_TYPE_DEVICE_NAMES                = 0x4000000,
         };
 
         /**
@@ -1300,6 +1301,9 @@ class MegaUser
          * - MegaUser::CHANGE_TYPE_UNSHAREABLE_KEY = 0x2000000
          * (internal) The unshareable key has been created
          *
+         * - MegaUser::CHANGE_TYPE_DEVICE_NAMES = 0x4000000
+         * Check if device names have changed
+         *
          * @return true if this user has an specific change
          */
         virtual bool hasChanged(int changeType);
@@ -1383,6 +1387,9 @@ class MegaUser
          *
          * - MegaUser::CHANGE_TYPE_UNSHAREABLE_KEY = 0x2000000
          * (internal) The unshareable key has been created
+         *
+         * - MegaUser::CHANGE_TYPE_DEVICE_NAMES = 0x4000000
+         * Check if device names have changed
          *
          */
         virtual int getChanges();
@@ -6928,6 +6935,7 @@ class MegaApi
             USER_ATTR_PUSH_SETTINGS = 25,        // private - char array
             // ATTR_UNSHAREABLE_KEY = 26         // it's internal for SDK, not exposed to apps
             USER_ATTR_ALIAS = 27,                // private - byte array
+            USER_ATTR_DEVICE_NAMES = 30,          // private - byte array
         };
 
         enum {
@@ -9462,6 +9470,9 @@ class MegaApi
          * Get the target folder for My chat files (private)
          * MegaApi::ATTR_ALIAS = 27
          * Get the list of the users's aliases (private)
+         * MegaApi::ATTR_DEVICE_NAMES = 30
+         * Get the list of device names (private)
+         *
          * @param listener MegaRequestListener to track this request
          */
         void getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener = NULL);
@@ -9886,6 +9897,8 @@ class MegaApi
          * Set whether the user can send geolocation messages (private)
          * MegaApi::ATTR_ALIAS = 27
          * Set the list of users's aliases (private)
+         * MegaApi::ATTR_DEVICE_NAMES = 30
+         * Set the list of device names (private)
          *
          * @param value New attribute value
          * @param listener MegaRequestListener to track this request
@@ -10904,6 +10917,34 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void setRubbishBinAutopurgePeriod(int days, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Returns the name set for this device
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_DEVICE_NAMES
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getName - Returns device name.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getDeviceName(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Sets device name
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_DEVICE_NAMES
+         * - MegaRequest::getName - Returns device name.
+         *
+         * @param deviceName String with device name
+         * @param listener MegaRequestListener to track this request
+         */
+        void setDeviceName(const char* deviceName, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Change the password of the MEGA account
