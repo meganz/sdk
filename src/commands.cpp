@@ -8182,9 +8182,9 @@ void CommandFolderLinkInfo::procresult()
     }
 }
 
-CommandSyncPut::CommandSyncPut(MegaClient *client, SyncType type, handle nodeHandle, const string& localFolder, const std::string &deviceId, const string& syncName, int state, int subState, const string& extraData)
+CommandBackupPut::CommandBackupPut(MegaClient *client, BackupType type, handle nodeHandle, const string& localFolder, const std::string &deviceId, const string& backupName, int state, int subState, const string& extraData)
 {
-    assert(type != SyncType::INVALID);
+    assert(type != BackupType::INVALID);
 
     cmd("sp");
 
@@ -8192,7 +8192,7 @@ CommandSyncPut::CommandSyncPut(MegaClient *client, SyncType type, handle nodeHan
     arg("h", (byte*)&nodeHandle, MegaClient::NODEHANDLE);
     arg("l", localFolder.c_str());
     arg("d", deviceId.c_str());
-    arg("n", syncName.c_str());
+    arg("n", backupName.c_str());
     arg("s", state);
     arg("ss", subState);
     arg("e", extraData.c_str());
@@ -8200,13 +8200,13 @@ CommandSyncPut::CommandSyncPut(MegaClient *client, SyncType type, handle nodeHan
     tag = client->reqtag;
 }
 
-CommandSyncPut::CommandSyncPut(MegaClient* client, handle syncId, SyncType type, handle nodeHandle, const char* localFolder, const char *deviceId, const char* syncName, int state, int subState, const char* extraData)
+CommandBackupPut::CommandBackupPut(MegaClient* client, handle backupId, BackupType type, handle nodeHandle, const char* localFolder, const char *deviceId, const char* backupName, int state, int subState, const char* extraData)
 {
     cmd("sp");
 
-    arg("id", (byte*)&syncId, MegaClient::USERHANDLE);
+    arg("id", (byte*)&backupId, MegaClient::USERHANDLE);
 
-    if (type != SyncType::INVALID)
+    if (type != BackupType::INVALID)
     {
         arg("t", type);
     }
@@ -8226,9 +8226,9 @@ CommandSyncPut::CommandSyncPut(MegaClient* client, handle syncId, SyncType type,
         arg("d", deviceId);
     }
 
-    if (syncName)
+    if (backupName)
     {
-        arg("n", syncName);
+        arg("n", backupName);
     }
 
     if (state > 0)
@@ -8249,23 +8249,23 @@ CommandSyncPut::CommandSyncPut(MegaClient* client, handle syncId, SyncType type,
     tag = client->reqtag;
 }
 
-void CommandSyncPut::procresult()
+void CommandBackupPut::procresult()
 {
     Error e;
     if (checkError(e, client->json))
     {
-        return client->app->syncput_result(e, UNDEF);
+        return client->app->backupput_result(e, UNDEF);
     }
 
-    handle syncId = client->json.gethandle(MegaClient::USERHANDLE);
-    client->app->syncput_result(API_OK, syncId);
+    handle backupId = client->json.gethandle(MegaClient::USERHANDLE);
+    client->app->backupput_result(API_OK, backupId);
 }
 
-CommandSyncPutHeartBeat::CommandSyncPutHeartBeat(MegaClient* client, handle syncId, uint8_t status, uint8_t progress, uint32_t uploads, uint32_t downloads, uint32_t ts, handle lastNode)
+CommandBackupPutHeartBeat::CommandBackupPutHeartBeat(MegaClient* client, handle backupId, uint8_t status, uint8_t progress, uint32_t uploads, uint32_t downloads, uint32_t ts, handle lastNode)
 {
     cmd("sphb");
 
-    arg("id", (byte*)&syncId, MegaClient::USERHANDLE);
+    arg("id", (byte*)&backupId, MegaClient::USERHANDLE);
     arg("s", status);
     arg("p", progress);
     arg("qu", uploads);
@@ -8276,36 +8276,36 @@ CommandSyncPutHeartBeat::CommandSyncPutHeartBeat(MegaClient* client, handle sync
     tag = client->reqtag;
 }
 
-void CommandSyncPutHeartBeat::procresult()
+void CommandBackupPutHeartBeat::procresult()
 {
     Error e;
     if (checkError(e, client->json))
     {
-        return client->app->syncputheartbeat_result(e);
+        return client->app->backupputheartbeat_result(e);
     }
 
     client->json.storeobject();
-    return client->app->syncputheartbeat_result(API_EINTERNAL);
+    return client->app->backupputheartbeat_result(API_EINTERNAL);
 }
 
-CommandSyncRemove::CommandSyncRemove(MegaClient *client, handle syncId)
+CommandBackupRemove::CommandBackupRemove(MegaClient *client, handle backupId)
 {
     cmd("sr");
-    arg("id", (byte*)&syncId, MegaClient::USERHANDLE);
+    arg("id", (byte*)&backupId, MegaClient::USERHANDLE);
 
     tag = client->reqtag;
 }
 
-void CommandSyncRemove::procresult()
+void CommandBackupRemove::procresult()
 {
     Error e;
     if (checkError(e, client->json))
     {
-        return client->app->syncputheartbeat_result(e);
+        return client->app->backupputheartbeat_result(e);
     }
 
     client->json.storeobject();
-    return client->app->syncputheartbeat_result(API_EINTERNAL);
+    return client->app->backupputheartbeat_result(API_EINTERNAL);
 }
 
 } // namespace

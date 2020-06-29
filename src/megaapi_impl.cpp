@@ -12939,17 +12939,17 @@ void MegaApiImpl::syncupdate_local_lockretry(bool waiting)
 }
 #endif
 
-void MegaApiImpl::syncput_result(error, handle)
+void MegaApiImpl::backupput_result(error, handle /*backupId*/)
 {
 
 }
 
-void MegaApiImpl::syncputheartbeat_result(error)
+void MegaApiImpl::backupputheartbeat_result(error)
 {
 
 }
 
-void MegaApiImpl::syncremove_result(error, handle)
+void MegaApiImpl::backupremove_result(error, handle /*backupId*/)
 {
 
 }

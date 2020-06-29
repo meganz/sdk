@@ -1205,42 +1205,42 @@ public:
     CommandFolderLinkInfo(MegaClient*, handle);
 };
 
-class MEGA_API CommandSyncPut : public Command
+class MEGA_API CommandBackupPut : public Command
 {
 public:
     void procresult();
 
     // Register a new Sync
-    CommandSyncPut(MegaClient* client, SyncType type, handle nodeHandle, const std::string& localFolder, const std::string& deviceId, const std::string& syncName, int state, int subState, const std::string& extraData);
+    CommandBackupPut(MegaClient* client, BackupType type, handle nodeHandle, const std::string& localFolder, const std::string& deviceId, const std::string& backupName, int state, int subState, const std::string& extraData);
 
-    // Update a Sync
+    // Update a Backup
     // Params that keep the same value are passed with invalid value to avoid to send to the server
     // Invalid values:
-    // - type: SyncType::INVALID
+    // - type: BackupType::INVALID
     // - nodeHandle: UNDEF
     // - localFolder: nullptr
     // - deviceId: nullptr
-    // - SyncName: nullptr
+    // - backupName: nullptr
     // - state: -1
     // - subState: -1
     // - extraData: nullptr
-    CommandSyncPut(MegaClient* client, handle syncId, SyncType type, handle nodeHandle, const char* localFolder, const char* deviceId, const char* syncName, int state, int subState, const char* extraData);
+    CommandBackupPut(MegaClient* client, handle backupId, BackupType type, handle nodeHandle, const char* localFolder, const char* deviceId, const char* backupName, int state, int subState, const char* extraData);
 };
 
-class MEGA_API CommandSyncRemove : public Command
+class MEGA_API CommandBackupRemove : public Command
 {
 public:
     void procresult();
 
-    CommandSyncRemove(MegaClient* client, handle syncId);
+    CommandBackupRemove(MegaClient* client, handle backupId);
 };
 
-class MEGA_API CommandSyncPutHeartBeat : public Command
+class MEGA_API CommandBackupPutHeartBeat : public Command
 {
 public:
     void procresult();
 
-    CommandSyncPutHeartBeat(MegaClient* client, handle syncId, uint8_t status, uint8_t progress, uint32_t uploads, uint32_t downloads, uint32_t ts, handle lastNode);
+    CommandBackupPutHeartBeat(MegaClient* client, handle backupId, uint8_t status, uint8_t progress, uint32_t uploads, uint32_t downloads, uint32_t ts, handle lastNode);
 };
 
 } // namespace
