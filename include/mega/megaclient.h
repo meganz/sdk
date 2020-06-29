@@ -335,6 +335,9 @@ public:
     // resend the verification email to the same email address as it was previously sent to
     void resendverificationemail();
 
+    // reset the verified phone number
+    void resetSmsVerifiedPhoneNumber();
+
     // get the data for a session transfer
     // the caller takes the ownership of the returned value
     // if the second parameter isn't NULL, it's used as session id instead of the current one

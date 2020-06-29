@@ -3864,6 +3864,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_MISC_FLAGS: return "GET_MISC_FLAGS";
         case TYPE_RESEND_VERIFICATION_EMAIL: return "RESEND_VERIFICATION_EMAIL";
         case TYPE_SUPPORT_TICKET: return "SUPPORT_TICKET";
+        case TYPE_RESET_SMS_VERIFIED_NUMBER: return "RESET_SMS_VERIFIED_NUMBER";
     }
     return "UNKNOWN";
 }
@@ -5724,6 +5725,14 @@ char* MegaApiImpl::smsVerifiedPhoneNumber()
 {
     SdkMutexGuard g(sdkMutex);
     return client->mSmsVerifiedPhone.empty() ? NULL : MegaApi::strdup(client->mSmsVerifiedPhone.c_str());
+}
+
+void MegaApiImpl::resetSmsVerifiedPhoneNumber(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_RESET_SMS_VERIFIED_NUMBER, listener);
+    request->setListener(listener);
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 bool MegaApiImpl::multiFactorAuthAvailable()
@@ -12201,6 +12210,15 @@ void MegaApiImpl::resendverificationemail_result(error e)
     if (it == requestMap.end()) return;
     MegaRequestPrivate *request = it->second;
     if (!request || ((request->getType() != MegaRequest::TYPE_RESEND_VERIFICATION_EMAIL))) return;
+
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+}
+
+void MegaApiImpl::resetSmsVerifiedPhoneNumber_result(error e)
+{
+    if (requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate *request = requestMap.at(client->restag);
+    if (!request || (request->getType() != MegaRequest::TYPE_RESET_SMS_VERIFIED_NUMBER)) return;
 
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
@@ -20989,6 +21007,11 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_RESEND_VERIFICATION_EMAIL:
         {
             client->resendverificationemail();
+            break;
+        }
+        case MegaRequest::TYPE_RESET_SMS_VERIFIED_NUMBER:
+        {
+            client->resetSmsVerifiedPhoneNumber();
             break;
         }
         case MegaRequest::TYPE_CLEAN_RUBBISH_BIN:

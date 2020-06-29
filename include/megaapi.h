@@ -2772,7 +2772,7 @@ class MegaRequest
             TYPE_SEND_SMS_VERIFICATIONCODE, TYPE_CHECK_SMS_VERIFICATIONCODE,
             TYPE_GET_REGISTERED_CONTACTS, TYPE_GET_COUNTRY_CALLING_CODES,
             TYPE_VERIFY_CREDENTIALS, TYPE_GET_MISC_FLAGS, TYPE_RESEND_VERIFICATION_EMAIL,
-            TYPE_SUPPORT_TICKET,
+            TYPE_SUPPORT_TICKET, TYPE_RESET_SMS_VERIFIED_NUMBER,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -7578,6 +7578,17 @@ class MegaApi
          * @return True if multi-factor authentication can be enabled for the current account, otherwise false.
          */
         bool multiFactorAuthAvailable();
+
+        /**
+         * @brief Reset the verified phone number for the account logged in.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_RESET_SMS_VERIFIED_NUMBER
+         * If there's no verified phone number associated for the account logged in, the error code
+         * provided in onRequestFinish is MegaError::API_ENOENT.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void resetSmsVerifiedPhoneNumber(MegaRequestListener *listener = NULL);
 
         /**
          * @brief Check if multi-factor authentication is enabled for an account

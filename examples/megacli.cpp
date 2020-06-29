@@ -2938,6 +2938,7 @@ autocomplete::ACN autocompleteSyntax()
 #endif
     p->Add(exec_smsverify, sequence(text("smsverify"), either(sequence(text("send"), param("phonenumber"), opt(param("reverifywhitelisted"))), sequence(text("code"), param("verificationcode")))));
     p->Add(exec_verifiedphonenumber, sequence(text("verifiedphone")));
+    p->Add(exec_resetverifiedphonenumber, sequence(text("resetverifiedphone")));
     p->Add(exec_mkdir, sequence(text("mkdir"), opt(flag("-allowduplicate")), opt(flag("-exactleafname")), remoteFSFolder(client, &cwd)));
     p->Add(exec_rm, sequence(text("rm"), remoteFSPath(client, &cwd), opt(sequence(flag("-regexchild"), param("regex")))));
     p->Add(exec_mv, sequence(text("mv"), remoteFSPath(client, &cwd, "src"), remoteFSPath(client, &cwd, "dst")));
@@ -7668,6 +7669,18 @@ void DemoApp::userattr_update(User* u, int priv, const char* n)
           << n << " added or updated" << endl;
 }
 
+void DemoApp::resetSmsVerifiedPhoneNumber_result(error e)
+{
+    if (e)
+    {
+        cout << "Reset verified phone number failed: " << e << endl;
+    }
+    else
+    {
+        cout << "Reset verified phone number succeeded" << endl;
+    }
+}
+
 #ifndef NO_READLINE
 char* longestCommonPrefix(ac::CompletionState& acs)
 {
@@ -8100,3 +8113,7 @@ void exec_metamac(autocomplete::ACState& s)
     }
 }
 
+void exec_resetverifiedphonenumber(autocomplete::ACState& s)
+{
+    client->resetSmsVerifiedPhoneNumber();
+}
