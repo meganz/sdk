@@ -908,22 +908,20 @@ void MegaClient::activateoverquota(dstime timeleft)
     {
         LOG_warn << "Bandwidth overquota";
         overquotauntil = Waiter::ds + timeleft;
-        for (int d = GET; d == GET || d == PUT; d += PUT - GET)
+
+        for (transfer_map::iterator it = transfers[GET].begin(); it != transfers[GET].end(); it++)
         {
-            for (transfer_map::iterator it = transfers[d].begin(); it != transfers[d].end(); it++)
+            Transfer *t = it->second;
+            t->bt.backoff(timeleft);
+            if (t->slot && (t->state != TRANSFERSTATE_RETRYING
+                            || !t->slot->retrying
+                            || t->slot->retrybt.nextset() != overquotauntil))
             {
-                Transfer *t = it->second;
-                t->bt.backoff(timeleft);
-                if (t->slot && (t->state != TRANSFERSTATE_RETRYING
-                                || !t->slot->retrying
-                                || t->slot->retrybt.nextset() != overquotauntil))
-                {
-                    t->state = TRANSFERSTATE_RETRYING;
-                    t->slot->retrybt.backoff(timeleft);
-                    t->slot->retrying = true;
-                    app->transfer_failed(t, API_EOVERQUOTA, timeleft);
-                    ++performanceStats.transferTempErrors;
-                }
+                t->state = TRANSFERSTATE_RETRYING;
+                t->slot->retrybt.backoff(timeleft);
+                t->slot->retrying = true;
+                app->transfer_failed(t, API_EOVERQUOTA, timeleft);
+                ++performanceStats.transferTempErrors;
             }
         }
     }
@@ -13831,7 +13829,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
                 transferlist.movetofirst(t, committer);
             }
 
-            if (overquotauntil && overquotauntil > Waiter::ds)
+            if (overquotauntil && overquotauntil > Waiter::ds && d != PUT)
             {
                 dstime timeleft = dstime(overquotauntil - Waiter::ds);
                 t->failed(API_EOVERQUOTA, committer, timeleft);
@@ -13940,7 +13938,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
             app->file_added(f);
             looprequested = true;
 
-            if (overquotauntil && overquotauntil > Waiter::ds)
+            if (overquotauntil && overquotauntil > Waiter::ds && d != PUT)
             {
                 dstime timeleft = dstime(overquotauntil - Waiter::ds);
                 t->failed(API_EOVERQUOTA, committer, timeleft);
