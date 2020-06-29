@@ -2370,6 +2370,16 @@ char *MegaApi::getUserAvatarColor(const char *userhandle)
     return MegaApiImpl::getUserAvatarColor(userhandle);
 }
 
+char *MegaApi::getUserAvatarSecondaryColor(MegaUser *user)
+{
+    return MegaApiImpl::getUserAvatarSecondaryColor(user);
+}
+
+char *MegaApi::getUserAvatarSecondaryColor(const char *userhandle)
+{
+    return MegaApiImpl::getUserAvatarSecondaryColor(userhandle);
+}
+
 void MegaApi::setAvatar(const char *dstFilePath, MegaRequestListener *listener)
 {
     pImpl->setAvatar(dstFilePath, listener);
@@ -3006,6 +3016,11 @@ void MegaApi::startUpload(const char* localPath, MegaNode* parent, const char* f
 void MegaApi::startUpload(const char *localPath, MegaNode *parent, const char *fileName, int64_t mtime, MegaTransferListener *listener)
 {
     pImpl->startUpload(false, localPath, parent, fileName, mtime, 0, false, NULL, false, false, listener);
+}
+
+void MegaApi::startUpload(const char *localPath, MegaNode *parent, const char *appData, const char *fileName, int64_t mtime, MegaTransferListener *listener)
+{
+    pImpl->startUpload(false, localPath, parent, fileName, mtime, 0, false, appData, false, false, listener);
 }
 
 void MegaApi::startUploadForChat(const char *localPath, MegaNode *parent, const char *appData, bool isSourceTemporary, MegaTransferListener *listener)

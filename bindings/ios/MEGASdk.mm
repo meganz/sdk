@@ -1133,6 +1133,26 @@ using namespace mega;
     return ret;
 }
 
++ (NSString *)avatarSecondaryColorForUser:(MEGAUser *)user {
+    const char *val = MegaApi::getUserAvatarSecondaryColor((user != nil) ? [user getCPtr] : NULL);
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete [] val;
+    return ret;
+}
+
++ (NSString *)avatarSecondaryColorForBase64UserHandle:(NSString *)base64UserHandle {
+    const char *val = MegaApi::getUserAvatarSecondaryColor((base64UserHandle != nil) ? [base64UserHandle UTF8String] : NULL);
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete [] val;
+    return ret;
+}
+
 - (void)setAvatarUserWithSourceFilePath:(NSString *)sourceFilePath delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->setAvatar((sourceFilePath != nil) ? [sourceFilePath UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }

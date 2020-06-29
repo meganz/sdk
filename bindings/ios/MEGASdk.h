@@ -3648,6 +3648,32 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
 + (nullable NSString *)avatarColorForBase64UserHandle:(nullable NSString *)base64UserHandle;
 
 /**
+ * @brief Get the secondary color for the avatar.
+ *
+ * This color should be used only when the user doesn't have an avatar, making a
+ * gradient in combination with the color returned from avatarColorForUser.
+ *
+ * @param user MEGAUser to get the color of the avatar. If this parameter is set to nil, the color
+ * is obtained for the active account.
+ * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
+ * If the user is not found, this function always returns the same color.
+ */
++ (nullable NSString *)avatarSecondaryColorForUser:(nullable MEGAUser *)user;
+
+/**
+ * @brief Get the secondary color for the avatar.
+ *
+ * This color should be used only when the user doesn't have an avatar, making a
+ * gradient in combination with the color returned from avatarColorForBase64UserHandle.
+ *
+ * @param base64UserHandle User handle (Base64 encoded) to get the avatar. If this parameter is
+ * set to nil, the avatar is obtained for the active account.
+ * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
+ * If the user is not found, this function always returns the same color.
+ */
++ (nullable NSString *)avatarSecondaryColorForBase64UserHandle:(nullable NSString *)base64UserHandle;
+
+/**
  * @brief Set the avatar of the MEGA account.
  *
  * The associated request type with this request is MEGARequestTypeSetAttrFile.

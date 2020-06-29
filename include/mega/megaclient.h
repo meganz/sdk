@@ -890,6 +890,9 @@ private:
     // fetch state serialize from local cache
     bool fetchsc(DbTable*);
 
+    // remove old (2 days or more) transfers from cache, if they were not resumed
+    void purgeOrphanTransfers(bool remove = false);
+
     // close the local transfer cache
     void closetc(bool remove = false);
 
@@ -927,7 +930,7 @@ private:
     unsigned addnode(node_vector*, Node*) const;
 
     // add child for consideration in syncup()/syncdown()
-    void addchild(remotenode_map*, string*, Node*, list<string>*, const string *localPath) const;
+    void addchild(remotenode_map*, string*, Node*, list<string>*, const string *localPath, FileSystemType fsType) const;
 
     // crypto request response
     void cr_response(node_vector*, node_vector*, JSON*);
