@@ -1225,6 +1225,9 @@ public:
     // - subState: -1
     // - extraData: nullptr
     CommandBackupPut(MegaClient* client, handle backupId, BackupType type, handle nodeHandle, const char* localFolder, const char* deviceId, const char* backupName, int state, int subState, const char* extraData);
+
+private:
+    bool mUpdate = false;
 };
 
 class MEGA_API CommandBackupRemove : public Command

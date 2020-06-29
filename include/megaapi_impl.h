@@ -2984,6 +2984,7 @@ protected:
 #endif
 
         void backupput_result(error, handle) override;
+        void backupupdate_result(error, handle) override;
         void backupputheartbeat_result(error) override;
         void backupremove_result(error, handle) override;
 

@@ -8198,6 +8198,7 @@ CommandBackupPut::CommandBackupPut(MegaClient *client, BackupType type, handle n
     arg("e", extraData.c_str());
 
     tag = client->reqtag;
+    mUpdate = false;
 }
 
 CommandBackupPut::CommandBackupPut(MegaClient* client, handle backupId, BackupType type, handle nodeHandle, const char* localFolder, const char *deviceId, const char* backupName, int state, int subState, const char* extraData)
@@ -8247,6 +8248,7 @@ CommandBackupPut::CommandBackupPut(MegaClient* client, handle backupId, BackupTy
     }
 
     tag = client->reqtag;
+    mUpdate = true;
 }
 
 void CommandBackupPut::procresult()
@@ -8254,10 +8256,20 @@ void CommandBackupPut::procresult()
     Error e;
     if (checkError(e, client->json))
     {
+        if (mUpdate)
+        {
+            return client->app->backupupdate_result(e, UNDEF);
+        }
+
         return client->app->backupput_result(e, UNDEF);
     }
 
     handle backupId = client->json.gethandle(MegaClient::USERHANDLE);
+    if (mUpdate)
+    {
+        return client->app->backupupdate_result(API_OK, backupId);
+    }
+
     client->app->backupput_result(API_OK, backupId);
 }
 

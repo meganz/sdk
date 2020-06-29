@@ -12944,6 +12944,11 @@ void MegaApiImpl::backupput_result(error, handle /*backupId*/)
 
 }
 
+void MegaApiImpl::backupupdate_result(error, handle /*backupId*/)
+{
+
+}
+
 void MegaApiImpl::backupputheartbeat_result(error)
 {
 
