@@ -227,6 +227,9 @@ struct MEGA_API MegaApp
     // resend verification email
     virtual void resendverificationemail_result(error) {};
 
+    // reset the verified phone number
+    virtual void resetSmsVerifiedPhoneNumber_result(error) {};
+
     // confirm change email link result
     virtual void confirmemaillink_result(error) {}
 
@@ -250,6 +253,7 @@ struct MEGA_API MegaApp
     virtual void chatpresenceurl_result(string*, error) { }
     virtual void registerpushnotification_result(error) { }
     virtual void archivechat_result(error) { }
+    virtual void setchatretentiontime_result(error){ }
 
     virtual void chats_updated(textchat_map *, int) { }
     virtual void richlinkrequest_result(string*, error) { }

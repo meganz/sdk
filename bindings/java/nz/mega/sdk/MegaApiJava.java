@@ -623,6 +623,30 @@ public class MegaApiJava {
     }
 
     /**
+     * Reset the verified phone number for the account logged in.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_RESET_SMS_VERIFIED_NUMBER
+     * If there's no verified phone number associated for the account logged in, the error code
+     * provided in onRequestFinish is MegaError::API_ENOENT.
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void resetSmsVerifiedPhoneNumber(MegaRequestListenerInterface listener) {
+        megaApi.resetSmsVerifiedPhoneNumber(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Reset the verified phone number for the account logged in.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_RESET_SMS_VERIFIED_NUMBER
+     * If there's no verified phone number associated for the account logged in, the error code
+     * provided in onRequestFinish is MegaError::API_ENOENT.
+     */
+    public void resetSmsVerifiedPhoneNumber() {
+        megaApi.resetSmsVerifiedPhoneNumber();
+    }
+
+    /**
      * Check if multi-factor authentication is enabled for an account
      *
      * The associated request type with this request is MegaRequest::TYPE_MULTI_FACTOR_AUTH_CHECK

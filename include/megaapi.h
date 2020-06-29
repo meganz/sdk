@@ -2795,7 +2795,8 @@ class MegaRequest
             TYPE_SEND_SMS_VERIFICATIONCODE, TYPE_CHECK_SMS_VERIFICATIONCODE,
             TYPE_GET_REGISTERED_CONTACTS, TYPE_GET_COUNTRY_CALLING_CODES,
             TYPE_VERIFY_CREDENTIALS, TYPE_GET_MISC_FLAGS, TYPE_RESEND_VERIFICATION_EMAIL,
-            TYPE_SUPPORT_TICKET, TYPE_SEND_DEV_COMMAND,
+            TYPE_SUPPORT_TICKET, TYPE_SET_RETENTION_TIME, TYPE_RESET_SMS_VERIFIED_NUMBER,
+            TYPE_SEND_DEV_COMMAND,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -7613,6 +7614,17 @@ class MegaApi
          * @return True if multi-factor authentication can be enabled for the current account, otherwise false.
          */
         bool multiFactorAuthAvailable();
+
+        /**
+         * @brief Reset the verified phone number for the account logged in.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_RESET_SMS_VERIFIED_NUMBER
+         * If there's no verified phone number associated for the account logged in, the error code
+         * provided in onRequestFinish is MegaError::API_ENOENT.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void resetSmsVerifiedPhoneNumber(MegaRequestListener *listener = NULL);
 
         /**
          * @brief Check if multi-factor authentication is enabled for an account
@@ -16344,6 +16356,28 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void archiveChat(MegaHandle chatid, int archive, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Set a retention timeframe after which older messages in the chat are automatically deleted.
+         *
+         * Allows a logged in operator/moderator to specify a message retention timeframe in seconds,
+         * after which older messages in the chat are automatically deleted.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_RETENTION_TIME
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the chat identifier
+         * - MegaRequest::getNumdetails - Returns the retention timeframe
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EARGS - If the chatid is invalid
+         * - MegaError::API_ENOENT - If there isn't any chat with the specified chatid.
+         * - MegaError::API_EACCESS - If the logged in user doesn't have operator privileges
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @param period retention timeframe in seconds, after which older messages in the chat are automatically deleted
+         * @param listener MegaRequestListener to track this request
+         */
+        void setChatRetentionTime(MegaHandle chatid, int period, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Request rich preview information for specified URL

@@ -1953,6 +1953,11 @@ char* MegaApi::smsVerifiedPhoneNumber()
     return pImpl->smsVerifiedPhoneNumber();
 }
 
+void MegaApi::resetSmsVerifiedPhoneNumber(MegaRequestListener *listener)
+{
+    pImpl->resetSmsVerifiedPhoneNumber(listener);
+}
+
 bool MegaApi::multiFactorAuthAvailable()
 {
     return pImpl->multiFactorAuthAvailable();
@@ -4991,6 +4996,11 @@ const char* MegaApi::getFileAttribute(MegaHandle h)
 void MegaApi::archiveChat(MegaHandle chatid, int archive, MegaRequestListener *listener)
 {
     pImpl->archiveChat(chatid, archive, listener);
+}
+
+void MegaApi::setChatRetentionTime(MegaHandle chatid, int period, MegaRequestListener *listener)
+{
+    pImpl->setChatRetentionTime(chatid, period, listener);
 }
 
 void MegaApi::requestRichPreview(const char *url, MegaRequestListener *listener)

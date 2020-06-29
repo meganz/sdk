@@ -3864,6 +3864,8 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_MISC_FLAGS: return "GET_MISC_FLAGS";
         case TYPE_RESEND_VERIFICATION_EMAIL: return "RESEND_VERIFICATION_EMAIL";
         case TYPE_SUPPORT_TICKET: return "SUPPORT_TICKET";
+        case TYPE_SET_RETENTION_TIME: return "SET_RETENTION_TIME";
+        case TYPE_RESET_SMS_VERIFIED_NUMBER: return "RESET_SMS_VERIFIED_NUMBER";
         case TYPE_SEND_DEV_COMMAND: return "SEND_DEV_COMMAND";
     }
     return "UNKNOWN";
@@ -5735,6 +5737,14 @@ char* MegaApiImpl::smsVerifiedPhoneNumber()
 {
     SdkMutexGuard g(sdkMutex);
     return client->mSmsVerifiedPhone.empty() ? NULL : MegaApi::strdup(client->mSmsVerifiedPhone.c_str());
+}
+
+void MegaApiImpl::resetSmsVerifiedPhoneNumber(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_RESET_SMS_VERIFIED_NUMBER, listener);
+    request->setListener(listener);
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 bool MegaApiImpl::multiFactorAuthAvailable()
@@ -9925,6 +9935,15 @@ void MegaApiImpl::archiveChat(MegaHandle chatid, int archive, MegaRequestListene
     waiter->notify();
 }
 
+void MegaApiImpl::setChatRetentionTime(MegaHandle chatid, int period, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_RETENTION_TIME, listener);
+    request->setNodeHandle(chatid);
+    request->setNumDetails(period);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::requestRichPreview(const char *url, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_RICH_LINK, listener);
@@ -12225,6 +12244,15 @@ void MegaApiImpl::resendverificationemail_result(error e)
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
+void MegaApiImpl::resetSmsVerifiedPhoneNumber_result(error e)
+{
+    if (requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate *request = requestMap.at(client->restag);
+    if (!request || (request->getType() != MegaRequest::TYPE_RESET_SMS_VERIFIED_NUMBER)) return;
+
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+}
+
 void MegaApiImpl::confirmemaillink_result(error e)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
@@ -12517,6 +12545,15 @@ void MegaApiImpl::archivechat_result(error e)
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_CHAT_ARCHIVE)) return;
+
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+}
+
+void MegaApiImpl::setchatretentiontime_result(error e)
+{
+    if (requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate *request = requestMap.at(client->restag);
+    if (!request || (request->getType() != MegaRequest::TYPE_SET_RETENTION_TIME)) return;
 
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
@@ -21045,6 +21082,11 @@ void MegaApiImpl::sendPendingRequests()
             client->resendverificationemail();
             break;
         }
+        case MegaRequest::TYPE_RESET_SMS_VERIFIED_NUMBER:
+        {
+            client->resetSmsVerifiedPhoneNumber();
+            break;
+        }
         case MegaRequest::TYPE_CLEAN_RUBBISH_BIN:
         {
             client->cleanrubbishbin();
@@ -21424,6 +21466,33 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             client->archiveChat(chatid, archive);
+            break;
+        }
+        case MegaRequest::TYPE_SET_RETENTION_TIME:
+        {
+            MegaHandle chatid = request->getNodeHandle();
+            int period = request->getNumDetails();
+
+            if (chatid == INVALID_HANDLE)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            textchat_map::iterator it = client->chats.find(chatid);
+            if (it == client->chats.end())
+            {
+                e = API_ENOENT;
+                break;
+            }
+            TextChat *chat = it->second;
+            if (chat->priv != PRIV_MODERATOR)
+            {
+                e = API_EACCESS;
+                break;
+            }
+
+            client->setchatretentiontime(chatid, period);
             break;
         }
         case MegaRequest::TYPE_CHAT_STATS:

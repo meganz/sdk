@@ -6034,6 +6034,26 @@ void CommandResendVerificationEmail::procresult()
     }
 }
 
+CommandResetSmsVerifiedPhoneNumber::CommandResetSmsVerifiedPhoneNumber(MegaClient *client)
+{
+    cmd("smsr");
+    tag = client->reqtag;
+}
+
+void CommandResetSmsVerifiedPhoneNumber::procresult()
+{
+    Error e;
+    if (checkError(e, client->json))
+    {
+        client->app->resetSmsVerifiedPhoneNumber_result(e);
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->resetSmsVerifiedPhoneNumber_result((error)API_EINTERNAL);
+    }
+}
+
 CommandValidatePassword::CommandValidatePassword(MegaClient *client, const char *email, uint64_t emailhash)
 {
     cmd("us");
@@ -6958,6 +6978,30 @@ void CommandArchiveChat::procresult()
     {
         client->json.storeobject();
         client->app->archivechat_result(API_EINTERNAL);
+    }
+}
+
+CommandSetChatRetentionTime::CommandSetChatRetentionTime(MegaClient *client, handle chatid, int period)
+{
+    mChatid = chatid;
+
+    cmd("mcsr");
+    arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
+    arg("d", period);
+    arg("ds", 1);
+    tag = client->reqtag;
+}
+
+void CommandSetChatRetentionTime::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->setchatretentiontime_result(static_cast<error>(client->json.getint()));
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->setchatretentiontime_result(API_EINTERNAL);
     }
 }
 

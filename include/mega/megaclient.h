@@ -335,6 +335,9 @@ public:
     // resend the verification email to the same email address as it was previously sent to
     void resendverificationemail();
 
+    // reset the verified phone number
+    void resetSmsVerifiedPhoneNumber();
+
     // get the data for a session transfer
     // the caller takes the ownership of the returned value
     // if the second parameter isn't NULL, it's used as session id instead of the current one
@@ -706,6 +709,9 @@ public:
 
     // get welcome pdf
     void getwelcomepdf();
+
+    // set retention time for a chatroom in seconds, after which older messages in the chat are automatically deleted
+    void setchatretentiontime(handle chatid, int period);
 
     // toggle global debug flag
     bool toggledebug();

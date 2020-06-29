@@ -8613,6 +8613,11 @@ void MegaClient::resendverificationemail()
     reqs.add(new CommandResendVerificationEmail(this));
 }
 
+void MegaClient::resetSmsVerifiedPhoneNumber()
+{
+    reqs.add(new CommandResetSmsVerifiedPhoneNumber(this));
+}
+
 void MegaClient::copysession()
 {
     reqs.add(new CommandCopySession(this));
@@ -14685,6 +14690,11 @@ void MegaClient::getmegaachievements(AchievementsDetails *details)
 void MegaClient::getwelcomepdf()
 {
     reqs.add(new CommandGetWelcomePDF(this));
+}
+
+void MegaClient::setchatretentiontime(handle chatid, int period)
+{
+    reqs.add(new CommandSetChatRetentionTime(this, chatid, period));
 }
 
 #ifdef MEGA_MEASURE_CODE

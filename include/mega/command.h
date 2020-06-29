@@ -827,6 +827,14 @@ public:
     CommandResendVerificationEmail(MegaClient *);
 };
 
+class MEGA_API CommandResetSmsVerifiedPhoneNumber : public Command
+{
+public:
+    void procresult();
+
+    CommandResetSmsVerifiedPhoneNumber(MegaClient *);
+};
+
 class MEGA_API CommandValidatePassword : public Command
 {
 public:
@@ -998,6 +1006,17 @@ public:
 protected:
     handle mChatid;
     bool mArchive;
+};
+
+class MEGA_API CommandSetChatRetentionTime : public Command
+{
+public:
+    void procresult();
+
+    CommandSetChatRetentionTime(MegaClient*, handle , int);
+
+protected:
+    handle mChatid;
 };
 
 class MEGA_API CommandRichLink : public Command
