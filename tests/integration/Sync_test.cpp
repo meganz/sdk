@@ -54,6 +54,8 @@ using namespace ::std;
 
 namespace {
 
+std::atomic<int> nextUniqueTag{1};
+
 bool suppressfiles = false;
 
 typedef ::mega::byte byte;
@@ -533,7 +535,7 @@ struct StandardClient : public MegaApp
 
         ASSERT_FALSE(user.empty());
 
-        resultproc.prepresult(PRELOGIN, [&pb](error e) { pb.set_value(!e); });
+        client.reqtag = resultproc.prepresult(PRELOGIN, [&pb](error e) { pb.set_value(!e); });
         client.prelogin(user.c_str());
     }
 
@@ -547,7 +549,7 @@ struct StandardClient : public MegaApp
 
         byte pwkey[SymmCipher::KEYLENGTH];
 
-        resultproc.prepresult(LOGIN, [&pb](error e) { pb.set_value(!e); });
+        client.reqtag = resultproc.prepresult(LOGIN, [&pb](error e) { pb.set_value(!e); });
         if (client.accountversion == 1)
         {
             if (error e = client.pw_key(pwd.c_str(), pwkey))
@@ -571,7 +573,7 @@ struct StandardClient : public MegaApp
 
     void loginFromSession(const string& session, promise<bool>& pb)
     {
-        resultproc.prepresult(LOGIN, [&pb](error e) { pb.set_value(!e); });
+        client.reqtag = resultproc.prepresult(LOGIN, [&pb](error e) { pb.set_value(!e); });
         client.login((byte*)session.data(), (int)session.size());
     }
 
@@ -591,7 +593,7 @@ struct StandardClient : public MegaApp
 
     void fetchnodes(promise<bool>& pb)
     {
-        resultproc.prepresult(FETCHNODES, [this, &pb](error e) 
+        client.reqtag = resultproc.prepresult(FETCHNODES, [this, &pb](error e) 
         { 
             if (e)
             {
@@ -629,39 +631,36 @@ struct StandardClient : public MegaApp
         struct id_callback
         {
             handle h = UNDEF;
+            int tag = 0;
             std::function<void(error)> f;
-            id_callback(std::function<void(error)> cf, handle ch = UNDEF) : h(ch), f(cf) {}
+            id_callback(std::function<void(error)> cf, int t, handle ch = UNDEF) : h(ch), tag(t), f(cf) {}
         };
 
         map<resultprocenum, deque<id_callback>> m;
 
-        void prepresult(resultprocenum rpe, std::function<void(error)>&& f, handle h = UNDEF)
+        int prepresult(resultprocenum rpe, std::function<void(error)>&& f, handle h = UNDEF)
         {
             auto& entry = m[rpe];
-            entry.emplace_back(move(f), h);
+            int tag = ++nextUniqueTag;
+            entry.emplace_back(move(f), tag, h);
+            return tag;
         }
 
-        void processresult(resultprocenum rpe, error e, handle h = UNDEF)
+        void processresult(resultprocenum rpe, error e, handle h, int tag)
         {
-            //cout << "procenum " << rpe << " result " << e << endl;
             auto& entry = m[rpe];
-            if (rpe == MOVENODE)
-            {
-                // rename_result is called back for our app requests but also for sync objects as well, so we need to skip those... todo: should we change that?
-                if (entry.empty() || entry.front().h != h)
-                {
-                    cout << "received unsolicited rename_result call" << endl;
-                    return;
-                }
-            }
-            if (!entry.empty())
+            if (!entry.empty() && entry.front().tag == tag)
             {
                 entry.front().f(e);
                 entry.pop_front();
             }
+            else if (entry.empty())
+            {
+                LOG_debug << "Test ignoring callback for tag " << tag << " of type " << rpe;
+            }
             else
             {
-                assert(!entry.empty());
+                LOG_debug << "Test ignoring callback for tag " << tag << " of type " << rpe << " as next expected tag that we sent is " << entry.front().tag;
             }
         }
     } resultproc;
@@ -674,7 +673,7 @@ struct StandardClient : public MegaApp
             {
                 if (mayneeddeleting)
                 {
-                    resultproc.prepresult(UNLINK, [this, &pb, tag](error e) {
+                    client.reqtag = resultproc.prepresult(UNLINK, [this, &pb, tag](error e) {
                         if (e)
                         {
                             cout << "delete of test base folder reply reports: " << e << endl;
@@ -682,7 +681,7 @@ struct StandardClient : public MegaApp
                         deleteTestBaseFolder(false, pb, tag);
                     });
                     //cout << "old test base folder found, deleting" << endl;
-                    client.unlink(basenode, false, tag);
+                    client.unlink(basenode, false, client.reqtag);
                     return;
                 }
                 cout << "base folder found, but not expected, failing" << endl;
@@ -717,7 +716,7 @@ struct StandardClient : public MegaApp
             }
             else if (mayneedmaking)
             {
-                resultproc.prepresult(PUTNODES, [this, &pb](error e) {
+                client.reqtag = resultproc.prepresult(PUTNODES, [this, &pb](error e) {
                     ensureTestBaseFolder(false, pb);
                 });
                 vector<NewNode> nn(1);
@@ -767,7 +766,7 @@ struct StandardClient : public MegaApp
         }
         else
         {
-            resultproc.prepresult(PUTNODES, [&pb](error e) {
+            client.reqtag = resultproc.prepresult(PUTNODES, [&pb](error e) {
                 pb.set_value(!e);
                 if (e) 
                 {
@@ -1214,37 +1213,34 @@ struct StandardClient : public MegaApp
         {
             this->salt = *salt;
         }
-        resultproc.processresult(PRELOGIN, e);
+        resultproc.processresult(PRELOGIN, e, UNDEF, client.restag);
     }
 
     void login_result(error e) override
     {
         cout << clientname << " Login: " << e << endl;
-        resultproc.processresult(LOGIN, e);
+        resultproc.processresult(LOGIN, e, UNDEF, client.restag);
     }
 
     void fetchnodes_result(const Error& e) override
     {
         cout << clientname << " Fetchnodes: " << e << endl;
-        resultproc.processresult(FETCHNODES, e);
+        resultproc.processresult(FETCHNODES, e, UNDEF, client.restag);
     }
 
     void unlink_result(handle, error e) override
     { 
-        resultproc.processresult(UNLINK, e);
+        resultproc.processresult(UNLINK, e, UNDEF, client.restag);
     }
 
     void putnodes_result(const Error& e, targettype_t tt, vector<NewNode>& nn) override
     {
-        if (!nn.empty())  // ignore sync based putnodes
-        {
-            resultproc.processresult(PUTNODES, e);
-        }
+        resultproc.processresult(PUTNODES, e, UNDEF, client.restag);
     }
 
     void rename_result(handle h, error e)  override
     { 
-        resultproc.processresult(MOVENODE, e, h);
+        resultproc.processresult(MOVENODE, e, h, client.restag);
     }
 
     void deleteremote(string path, promise<bool>& pb, int tag)
@@ -1253,7 +1249,7 @@ struct StandardClient : public MegaApp
         {
             //resultproc.prepresult(UNLINK, [ &pb](error e) { pb.set_value(!e); });
             auto f = [&pb](handle h, error e){ pb.set_value(!e); }; // todo: probably need better lifetime management for the promise, so multiple things can be tracked at once
-            client.unlink(n, false, tag, f);
+            client.unlink(n, false, 0, f);
         }
         else
         {
@@ -1271,8 +1267,8 @@ struct StandardClient : public MegaApp
         {
             for (size_t i = ns.size(); i--; )
             {
-                resultproc.prepresult(UNLINK, [&pb, i](error e) { if (!i) pb.set_value(!e); });
-                client.unlink(ns[i], false, tag);
+                client.reqtag = resultproc.prepresult(UNLINK, [&pb, i](error e) { if (!i) pb.set_value(!e); });
+                client.unlink(ns[i], false, client.reqtag);
             }
         }
     }
@@ -1283,7 +1279,7 @@ struct StandardClient : public MegaApp
         Node* p = drillchildnodebyname(gettestbasenode(), path);
         if (n && p)
         {
-            resultproc.prepresult(MOVENODE, [&pb](error e) { pb.set_value(!e); }, n->nodehandle);
+            client.reqtag = resultproc.prepresult(MOVENODE, [&pb](error e) { pb.set_value(!e); }, n->nodehandle);
             client.rename(n, p);
             return;
         }
@@ -1297,7 +1293,7 @@ struct StandardClient : public MegaApp
         Node* p = client.nodebyhandle(h2);
         if (n && p)
         {
-        resultproc.prepresult(MOVENODE, [&pb](error e) { pb.set_value(!e); }, n->nodehandle);
+            client.reqtag = resultproc.prepresult(MOVENODE, [&pb](error e) { pb.set_value(!e); }, n->nodehandle);
             client.rename(n, p);
             return;
         }
@@ -1311,7 +1307,7 @@ struct StandardClient : public MegaApp
         Node* p = getcloudrubbishnode();
         if (n && p && n->parent)
         {
-            resultproc.prepresult(MOVENODE, [&pb](error e) { pb.set_value(!e); }, n->nodehandle);
+            client.reqtag = resultproc.prepresult(MOVENODE, [&pb](error e) { pb.set_value(!e); }, n->nodehandle);
             client.rename(n, p, SYNCDEL_NONE, n->parent->nodehandle);
             return;
         }
@@ -1389,7 +1385,7 @@ struct StandardClient : public MegaApp
             cout << "fetchnodes failed" << endl;
             return false;
         }
-        p1 = thread_do([](StandardClient& sc, promise<bool>& pb) { sc.deleteTestBaseFolder(true, pb, 0); });  // todo: do we need to wait for server response now
+        p1 = thread_do([](StandardClient& sc, promise<bool>& pb) { sc.deleteTestBaseFolder(true, pb, ++nextUniqueTag); });  // todo: do we need to wait for server response now
         if (!waitonresults(&p1)) {
             cout << "deleteTestBaseFolder failed" << endl;
             return false;
@@ -2840,7 +2836,7 @@ GTEST_TEST(Sync, PutnodesForMultipleFolders)
     handle targethandle = standardclient.client.rootnodes[0];
 
     std::atomic<bool> putnodesDone{false};
-    standardclient.resultproc.prepresult(StandardClient::PUTNODES, [&putnodesDone](error e) {
+    standardclient.client.reqtag = standardclient.resultproc.prepresult(StandardClient::PUTNODES, [&putnodesDone](error e) {
         putnodesDone = true;
     });
 

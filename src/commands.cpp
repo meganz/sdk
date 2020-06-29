@@ -1461,10 +1461,7 @@ bool CommandMoveNode::procresult(Result r)
         }
         else if (syncdel == SYNCDEL_NONE)
         {
-            int creqtag = client->reqtag;
-            client->reqtag = 0;
-            client->sendevent(99439, "Unexpected move error");
-            client->reqtag = creqtag;
+            client->sendevent(99439, "Unexpected move error", 0);
         }
     }
 
