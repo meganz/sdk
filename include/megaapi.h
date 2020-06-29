@@ -9410,6 +9410,32 @@ class MegaApi
          * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
          */
         static char *getUserAvatarColor(const char *userhandle);
+    
+        /**
+         * @brief Get the secondary color for the avatar.
+         *
+         * This color should be used only when the user doesn't have an avatar, making a
+         * gradient in combination with the color returned from getUserAvatarColor.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param user MegaUser to get the color of the avatar.
+         * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
+         */
+        static char *getUserAvatarSecondaryColor(MegaUser *user);
+
+        /**
+         * @brief Get the secondary color for the avatar.
+         *
+         * This color should be used only when the user doesn't have an avatar, making a
+         * gradient in combination with the color returned from getUserAvatarColor.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param userhandle User handle (Base64 encoded) to get the avatar.
+         * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
+         */
+        static char *getUserAvatarSecondaryColor(const char *userhandle);
 
         /**
          * @brief Get an attribute of a MegaUser.
