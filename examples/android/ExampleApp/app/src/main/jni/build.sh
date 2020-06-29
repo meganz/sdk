@@ -19,6 +19,11 @@ if [ -z "${BUILD_ARCHS}" ]; then
 fi
 ##################################################
 
+if [ ! -d "${NDK_ROOT}" ]; then
+    echo "* NDK_ROOT not set. Please download ndk r16b and export NDK_ROOT variable or create a link at ${HOME}/android-ndk and try again."
+    exit 1
+fi
+
 NDK_BUILD=${NDK_ROOT}/ndk-build
 JNI_PATH=`pwd`
 CC=`${NDK_ROOT}/ndk-which gcc`
@@ -151,11 +156,6 @@ function createMEGABindings
     swig -c++ -Imega/sdk/include -java -package nz.mega.sdk -outdir ${JAVA_OUTPUT_PATH}/nz/mega/sdk -o bindings/megasdk.cpp -DHAVE_LIBUV -DENABLE_CHAT mega/sdk/bindings/megaapi.i &>> ${LOG_FILE}
 }
 
-
-if [ ! -d "${NDK_ROOT}" ]; then
-    echo "* NDK_ROOT not set. Please download ndk r16b and export NDK_ROOT variable or create a link at ${HOME}/android-ndk and try again."
-    exit 1
-fi
 
 if (( $# != 1 )); then
     echo "Usage: $0 <all | bindings | clean | clean_mega>";
