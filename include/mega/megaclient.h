@@ -887,6 +887,9 @@ private:
     // fetch state serialize from local cache
     bool fetchsc(DbTable*);
 
+    // remove old (2 days or more) transfers from cache, if they were not resumed
+    void purgeOrphanTransfers(bool remove = false);
+
     // close the local transfer cache
     void closetc(bool remove = false);
 
