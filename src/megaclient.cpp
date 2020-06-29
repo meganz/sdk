@@ -3958,6 +3958,15 @@ void MegaClient::locallogout(bool removecaches)
     mediaFileInfo = MediaFileInfo();
 #endif
 
+    // remove any cached transfers older than two days that have not been resumed (updates transfer list)
+    purgeOrphanTransfers();
+
+    // delete all remaining transfers (optimized not to remove from transfer list one by one) 
+    // transfer destructors update the transfer in the cache database
+    freeq(GET);
+    freeq(PUT);
+
+    // close the transfer cache database.
     disconnect();
     closetc();
 
@@ -10871,7 +10880,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
     return true;
 }
 
-void MegaClient::closetc(bool remove)
+void MegaClient::purgeOrphanTransfers(bool remove)
 {
     bool purgeOrphanTransfers = statecurrent;
 
@@ -10913,7 +10922,10 @@ void MegaClient::closetc(bool remove)
             cachedtransfers[d].erase(it);
         }
     }
+}
 
+void MegaClient::closetc(bool remove)
+{
     pendingtcids.clear();
     cachedfiles.clear();
     cachedfilesdbids.clear();
@@ -11032,6 +11044,7 @@ void MegaClient::disabletransferresumption(const char *loggedoutid)
     {
         return;
     }
+    purgeOrphanTransfers(true);
     closetc(true);
 
     string dbname;
@@ -11058,6 +11071,7 @@ void MegaClient::disabletransferresumption(const char *loggedoutid)
         return;
     }
 
+    purgeOrphanTransfers(true);
     closetc(true);
 }
 

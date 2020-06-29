@@ -953,7 +953,7 @@ struct StandardClient : public MegaApp
 
         string localpath;
         n->getlocalpath(&localpath, false);
-        FileSystemType fileSystemType = client.fsaccess->getFilesystemType(&localpath);
+        ::mega::FileSystemType fileSystemType = client.fsaccess->getFilesystemType(&localpath);
         client.fsaccess->local2name(&localpath, fileSystemType);
         string n_localname = n->localname;
         client.fsaccess->local2name(&n_localname, fileSystemType);
