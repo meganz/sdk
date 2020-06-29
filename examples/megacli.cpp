@@ -368,7 +368,7 @@ AppFilePut::~AppFilePut()
 void AppFilePut::displayname(string* dname)
 {
     *dname = localname;
-    transfer->client->fsaccess->local2name(dname);
+    transfer->client->fsaccess->local2name(dname, client->fsaccess->getFilesystemType(dname));
 }
 
 // transfer progress callback
@@ -658,7 +658,7 @@ AppFileGet::AppFileGet(Node* n, handle ch, byte* cfilekey, m_off_t csize, m_time
     }
 
     localname = name;
-    client->fsaccess->name2local(&localname);
+    client->fsaccess->name2local(&localname, client->fsaccess->getFilesystemType(&localname));
     if (!targetfolder.empty())
     {
         string ltf, tf = targetfolder;
@@ -683,8 +683,9 @@ AppFilePut::AppFilePut(string* clocalname, handle ch, const char* ctargetuser)
 
     // erase path component
     name = *clocalname;
-    client->fsaccess->local2name(&name);
-    client->fsaccess->local2name(&separator);
+    FileSystemType fileSystemType = client->fsaccess->getFilesystemType(clocalname);
+    client->fsaccess->local2name(&name, fileSystemType);
+    client->fsaccess->local2name(&separator,fileSystemType);
 
     name.erase(0, name.find_last_of(*separator.c_str()) + 1);
 }
@@ -2539,18 +2540,20 @@ bool recursiveCompare(Node* mn, fs::path p)
         return true;
     }
 
+    std::string path = p.u8string();
+    FileSystemType fileSystemType = client->fsaccess->getFilesystemType(&path);
     multimap<string, Node*> ms;
     multimap<string, fs::path> ps;
     for (auto& m : mn->children)
     {
         string leafname = m->displayname();
-        client->fsaccess->escapefsincompatible(&leafname);
+        client->fsaccess->escapefsincompatible(&leafname, fileSystemType);
         ms.emplace(leafname, m);
     }
     for (fs::directory_iterator pi(p); pi != fs::directory_iterator(); ++pi)
     {
         auto leafname = pi->path().filename().u8string();
-        client->fsaccess->escapefsincompatible(&leafname);
+        client->fsaccess->escapefsincompatible(&leafname, fileSystemType);
         ps.emplace(leafname, pi->path());
     }
 
