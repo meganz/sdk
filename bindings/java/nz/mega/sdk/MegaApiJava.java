@@ -622,6 +622,30 @@ public class MegaApiJava {
     }
 
     /**
+     * Reset the verified phone number for the account logged in.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_RESET_SMS_VERIFIED_NUMBER
+     * If there's no verified phone number associated for the account logged in, the error code
+     * provided in onRequestFinish is MegaError::API_ENOENT.
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void resetSmsVerifiedPhoneNumber(MegaRequestListenerInterface listener) {
+        megaApi.resetSmsVerifiedPhoneNumber(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Reset the verified phone number for the account logged in.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_RESET_SMS_VERIFIED_NUMBER
+     * If there's no verified phone number associated for the account logged in, the error code
+     * provided in onRequestFinish is MegaError::API_ENOENT.
+     */
+    public void resetSmsVerifiedPhoneNumber() {
+        megaApi.resetSmsVerifiedPhoneNumber();
+    }
+
+    /**
      * Check if multi-factor authentication is enabled for an account
      *
      * The associated request type with this request is MegaRequest::TYPE_MULTI_FACTOR_AUTH_CHECK
@@ -5890,6 +5914,59 @@ public class MegaApiJava {
      */
     public void startUpload(String localPath, MegaNode parent, String fileName, long mtime, MegaTransferListenerInterface listener) {
         megaApi.startUpload(localPath, parent, fileName, mtime, createDelegateTransferListener(listener));
+    }
+
+    /**
+     * Upload a file or a folder with a custom name and a custom modification time
+     *
+     *If the status of the business account is expired, onTransferFinish will be called with the error
+     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+     * "Your business account is overdue, please contact your administrator."
+     *
+     * @param localPath Local path of the file
+     * @param parent Parent node for the file in the MEGA account
+     * @param appData Custom app data to save in the MegaTransfer object
+     * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+     * related to the transfer. If a transfer is started with exactly the same data
+     * (local path and target parent) as another one in the transfer queue, the new transfer
+     * fails with the error API_EEXISTS and the appData of the new transfer is appended to
+     * the appData of the old transfer, using a '!' separator if the old transfer had already
+     * appData.
+     * @param fileName Custom file name for the file in MEGA
+     * @param mtime Custom modification time for the file in MEGA (in seconds since the epoch)
+     * @param listener MegaTransferListener to track this transfer
+     *
+     * The custom modification time will be only applied for file transfers. If a folder
+     * is transferred using this function, the custom modification time won't have any effect
+     */
+    public void startUpload(String localPath, MegaNode parent, String appData, String fileName, long mtime, MegaTransferListenerInterface listener) {
+        megaApi.startUpload(localPath, parent, appData, fileName, mtime, createDelegateTransferListener(listener));
+    }
+
+    /**
+     * Upload a file or a folder with a custom name and a custom modification time
+     *
+     *If the status of the business account is expired, onTransferFinish will be called with the error
+     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+     * "Your business account is overdue, please contact your administrator."
+     *
+     * @param localPath Local path of the file
+     * @param parent Parent node for the file in the MEGA account
+     * @param appData Custom app data to save in the MegaTransfer object
+     * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+     * related to the transfer. If a transfer is started with exactly the same data
+     * (local path and target parent) as another one in the transfer queue, the new transfer
+     * fails with the error API_EEXISTS and the appData of the new transfer is appended to
+     * the appData of the old transfer, using a '!' separator if the old transfer had already
+     * appData.
+     * @param fileName Custom file name for the file in MEGA
+     * @param mtime Custom modification time for the file in MEGA (in seconds since the epoch)
+     *
+     * The custom modification time will be only applied for file transfers. If a folder
+     * is transferred using this function, the custom modification time won't have any effect
+     */
+    public void startUpload(String localPath, MegaNode parent, String appData, String fileName, long mtime) {
+        megaApi.startUpload(localPath, parent, appData, fileName, mtime);
     }
 
     /**

@@ -368,7 +368,7 @@ AppFilePut::~AppFilePut()
 void AppFilePut::displayname(string* dname)
 {
     *dname = localname;
-    transfer->client->fsaccess->local2name(dname);
+    transfer->client->fsaccess->local2name(dname, client->fsaccess->getFilesystemType(dname));
 }
 
 // transfer progress callback
@@ -658,7 +658,7 @@ AppFileGet::AppFileGet(Node* n, handle ch, byte* cfilekey, m_off_t csize, m_time
     }
 
     localname = name;
-    client->fsaccess->name2local(&localname);
+    client->fsaccess->name2local(&localname, client->fsaccess->getFilesystemType(&localname));
     if (!targetfolder.empty())
     {
         string ltf, tf = targetfolder;
@@ -683,8 +683,9 @@ AppFilePut::AppFilePut(string* clocalname, handle ch, const char* ctargetuser)
 
     // erase path component
     name = *clocalname;
-    client->fsaccess->local2name(&name);
-    client->fsaccess->local2name(&separator);
+    FileSystemType fileSystemType = client->fsaccess->getFilesystemType(clocalname);
+    client->fsaccess->local2name(&name, fileSystemType);
+    client->fsaccess->local2name(&separator,fileSystemType);
 
     name.erase(0, name.find_last_of(*separator.c_str()) + 1);
 }
@@ -2539,18 +2540,20 @@ bool recursiveCompare(Node* mn, fs::path p)
         return true;
     }
 
+    std::string path = p.u8string();
+    FileSystemType fileSystemType = client->fsaccess->getFilesystemType(&path);
     multimap<string, Node*> ms;
     multimap<string, fs::path> ps;
     for (auto& m : mn->children)
     {
         string leafname = m->displayname();
-        client->fsaccess->escapefsincompatible(&leafname);
+        client->fsaccess->escapefsincompatible(&leafname, fileSystemType);
         ms.emplace(leafname, m);
     }
     for (fs::directory_iterator pi(p); pi != fs::directory_iterator(); ++pi)
     {
         auto leafname = pi->path().filename().u8string();
-        client->fsaccess->escapefsincompatible(&leafname);
+        client->fsaccess->escapefsincompatible(&leafname, fileSystemType);
         ps.emplace(leafname, pi->path());
     }
 
@@ -2935,6 +2938,7 @@ autocomplete::ACN autocompleteSyntax()
 #endif
     p->Add(exec_smsverify, sequence(text("smsverify"), either(sequence(text("send"), param("phonenumber"), opt(param("reverifywhitelisted"))), sequence(text("code"), param("verificationcode")))));
     p->Add(exec_verifiedphonenumber, sequence(text("verifiedphone")));
+    p->Add(exec_resetverifiedphonenumber, sequence(text("resetverifiedphone")));
     p->Add(exec_mkdir, sequence(text("mkdir"), opt(flag("-allowduplicate")), opt(flag("-exactleafname")), remoteFSFolder(client, &cwd)));
     p->Add(exec_rm, sequence(text("rm"), remoteFSPath(client, &cwd), opt(sequence(flag("-regexchild"), param("regex")))));
     p->Add(exec_mv, sequence(text("mv"), remoteFSPath(client, &cwd, "src"), remoteFSPath(client, &cwd, "dst")));
@@ -7665,6 +7669,18 @@ void DemoApp::userattr_update(User* u, int priv, const char* n)
           << n << " added or updated" << endl;
 }
 
+void DemoApp::resetSmsVerifiedPhoneNumber_result(error e)
+{
+    if (e)
+    {
+        cout << "Reset verified phone number failed: " << e << endl;
+    }
+    else
+    {
+        cout << "Reset verified phone number succeeded" << endl;
+    }
+}
+
 #ifndef NO_READLINE
 char* longestCommonPrefix(ac::CompletionState& acs)
 {
@@ -8097,3 +8113,7 @@ void exec_metamac(autocomplete::ACState& s)
     }
 }
 
+void exec_resetverifiedphonenumber(autocomplete::ACState& s)
+{
+    client->resetSmsVerifiedPhoneNumber();
+}

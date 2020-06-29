@@ -2022,6 +2022,7 @@ class MegaApiImpl : public MegaApp
         bool newLinkFormatEnabled();
         int smsAllowedState();
         char* smsVerifiedPhoneNumber();
+        void resetSmsVerifiedPhoneNumber(MegaRequestListener *listener);
 
         bool multiFactorAuthAvailable();
         void multiFactorAuthCheck(const char *email, MegaRequestListener *listener = NULL);
@@ -2133,6 +2134,8 @@ class MegaApiImpl : public MegaApp
         void getUserAvatar(const char *email_or_handle, const char *dstFilePath, MegaRequestListener *listener = NULL);
         static char* getUserAvatarColor(MegaUser *user);
         static char *getUserAvatarColor(const char *userhandle);
+        static char* getUserAvatarSecondaryColor(MegaUser *user);
+        static char *getUserAvatarSecondaryColor(const char *userhandle);
         bool testAllocation(unsigned allocCount, size_t allocSize);
         void getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener = NULL);
         void getUserAttribute(const char* email_or_handle, int type, MegaRequestListener *listener = NULL);
@@ -2922,6 +2925,7 @@ protected:
         void confirmcancellink_result(error) override;
         void getemaillink_result(error) override;
         void resendverificationemail_result(error) override;
+        void resetSmsVerifiedPhoneNumber_result(error) override;
         void confirmemaillink_result(error) override;
         void getversion_result(int, const char*, error) override;
         void getlocalsslcertificate_result(m_time_t, string *certdata, error) override;
@@ -3037,6 +3041,7 @@ protected:
         void putNodeAttribute(MegaBackgroundMediaUpload* bu, int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void setUserAttr(int type, const char *value, MegaRequestListener *listener = NULL);
         static char *getAvatarColor(handle userhandle);
+        static char *getAvatarSecondaryColor(handle userhandle);
         bool isGlobalNotifiable();
 
         // return false if there's a schedule and it currently does not apply. Otherwise, true

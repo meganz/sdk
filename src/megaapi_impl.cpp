@@ -3865,6 +3865,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_RESEND_VERIFICATION_EMAIL: return "RESEND_VERIFICATION_EMAIL";
         case TYPE_SUPPORT_TICKET: return "SUPPORT_TICKET";
         case TYPE_SET_RETENTION_TIME: return "SET_RETENTION_TIME";
+        case TYPE_RESET_SMS_VERIFIED_NUMBER: return "RESET_SMS_VERIFIED_NUMBER";
     }
     return "UNKNOWN";
 }
@@ -4726,7 +4727,7 @@ MegaFileGet::MegaFileGet(MegaClient *client, Node *n, string dstPath) : MegaFile
     *(FileFingerprint*)this = *n;
 
     string securename = n->displayname();
-    client->fsaccess->name2local(&securename, &dstPath);
+    client->fsaccess->name2local(&securename, client->fsaccess->getFilesystemType(&dstPath));
     client->fsaccess->local2path(&securename, &name);
 
     string finalPath;
@@ -5727,6 +5728,14 @@ char* MegaApiImpl::smsVerifiedPhoneNumber()
     return client->mSmsVerifiedPhone.empty() ? NULL : MegaApi::strdup(client->mSmsVerifiedPhone.c_str());
 }
 
+void MegaApiImpl::resetSmsVerifiedPhoneNumber(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_RESET_SMS_VERIFIED_NUMBER, listener);
+    request->setListener(listener);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 bool MegaApiImpl::multiFactorAuthAvailable()
 {
     return client->gmfa_enabled;
@@ -6546,6 +6555,16 @@ char *MegaApiImpl::getUserAvatarColor(const char *userhandle)
     return userhandle ? MegaApiImpl::getAvatarColor(MegaApiImpl::base64ToUserHandle(userhandle)) : NULL;
 }
 
+char *MegaApiImpl::getUserAvatarSecondaryColor(MegaUser *user)
+{
+    return user ? MegaApiImpl::getAvatarSecondaryColor((handle) user->getHandle()) : NULL;
+}
+
+char *MegaApiImpl::getUserAvatarSecondaryColor(const char *userhandle)
+{
+    return userhandle ? MegaApiImpl::getAvatarSecondaryColor(MegaApiImpl::base64ToUserHandle(userhandle)) : NULL;
+}
+
 void MegaApiImpl::setAvatar(const char *dstFilePath, MegaRequestListener *listener)
 {
     setUserAttr(MegaApi::USER_ATTR_AVATAR, dstFilePath, listener);
@@ -7233,8 +7252,8 @@ void MegaApiImpl::setUserAttr(int type, const char *value, MegaRequestListener *
 char *MegaApiImpl::getAvatarColor(handle userhandle)
 {
     string colors[] = {        
-        "#69F0AE",
-        "#13E03C",
+        "#4ADC95",
+        "#10CC37",
         "#31B500",
         "#00897B",
         "#00ACC1",
@@ -7243,11 +7262,36 @@ char *MegaApiImpl::getAvatarColor(handle userhandle)
         "#FFD300",
         "#FFA500",
         "#FF6F00",
-        "#E65100",
+        "#D84D02",
         "#FF5252",
-        "#FF1A53",
+        "#FF333A",
         "#C51162",
         "#880E4F"
+    };
+
+    int index = userhandle % (handle)(sizeof(colors)/sizeof(colors[0]));
+
+    return MegaApi::strdup(colors[index].c_str());
+}
+
+char *MegaApiImpl::getAvatarSecondaryColor(handle userhandle)
+{
+    string colors[] = {
+        "#64FFB3",
+        "#13F241",
+        "#5FDB00",
+        "#00BDB2",
+        "#00D5E2",
+        "#9AEAFF",
+        "#55D2F0",
+        "#FFEB00",
+        "#FFD200",
+        "#FFA700",
+        "#FF8700",
+        "#FF8989",
+        "#FF626C",
+        "#E4269B",
+        "#BC2086"
     };
 
     int index = userhandle % (handle)(sizeof(colors)/sizeof(colors[0]));
@@ -8037,7 +8081,7 @@ void MegaApiImpl::startUpload(bool startFirst, const char *localPath, MegaNode *
                ? localPath
                : "";
 
-       client->fsaccess->unescapefsincompatible(&auxName, &path);
+       client->fsaccess->unescapefsincompatible(&auxName, client->fsaccess->getFilesystemType(&path));
        transfer->setFileName(auxName.c_str());
     }
 
@@ -8317,7 +8361,7 @@ int MegaApiImpl::syncPathState(string* path)
             {
                 size_t index = fsAccess->lastpartlocal(path);
                 string name = path->substr(index);
-                fsAccess->local2name(&name, path);
+                fsAccess->local2name(&name, sync->mFilesystemType);
                 if (is_syncable(sync, name.c_str(), path))
                 {
                     auto fa = fsAccess->newfileaccess();
@@ -8594,7 +8638,7 @@ bool MegaApiImpl::isSyncable(const char *path, long long size)
 
             size_t index = fsAccess->lastpartlocal(&localpath);
             name = localpath.substr(index);
-            fsAccess->local2name(&name, &localpath);
+            fsAccess->local2name(&name, sync->mFilesystemType);
             result = is_syncable(sync, name.c_str(), &localpath);
             break;
         }
@@ -8762,7 +8806,7 @@ char *MegaApiImpl::escapeFsIncompatible(const char *filename, const char *dstPat
     }
     string name = filename;
     string path = dstPath ? dstPath : "";
-    client->fsaccess->escapefsincompatible(&name, &path);
+    client->fsaccess->escapefsincompatible(&name, client->fsaccess->getFilesystemType(&path));
     return MegaApi::strdup(name.c_str());
 }
 
@@ -8774,7 +8818,7 @@ char *MegaApiImpl::unescapeFsIncompatible(const char *name, const char *path)
     }
     string filename = name;
     string localpath = path ? path : "";
-    client->fsaccess->unescapefsincompatible(&filename, &localpath);
+    client->fsaccess->unescapefsincompatible(&filename, client->fsaccess->getFilesystemType(&localpath));
     return MegaApi::strdup(filename.c_str());
 }
 
@@ -12176,6 +12220,15 @@ void MegaApiImpl::resendverificationemail_result(error e)
     if (it == requestMap.end()) return;
     MegaRequestPrivate *request = it->second;
     if (!request || ((request->getType() != MegaRequest::TYPE_RESEND_VERIFICATION_EMAIL))) return;
+
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+}
+
+void MegaApiImpl::resetSmsVerifiedPhoneNumber_result(error e)
+{
+    if (requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate *request = requestMap.at(client->restag);
+    if (!request || (request->getType() != MegaRequest::TYPE_RESET_SMS_VERIFIED_NUMBER)) return;
 
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
@@ -17937,7 +17990,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                         {
                             name = fileName;
                         }
-                        client->fsaccess->name2local(&name, &path);
+                        client->fsaccess->name2local(&name, client->fsaccess->getFilesystemType(&path));
                         client->fsaccess->local2path(&name, &securename);
                         path += securename;
                     }
@@ -17952,7 +18005,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                             name = transfer->getFileName();
                         }
 
-                        client->fsaccess->name2local(&name, &path);
+                        client->fsaccess->name2local(&name, client->fsaccess->getFilesystemType(&path));
                         client->fsaccess->local2path(&name, &securename);
                         path += securename;
                     }
@@ -20975,6 +21028,11 @@ void MegaApiImpl::sendPendingRequests()
             client->resendverificationemail();
             break;
         }
+        case MegaRequest::TYPE_RESET_SMS_VERIFIED_NUMBER:
+        {
+            client->resetSmsVerifiedPhoneNumber();
+            break;
+        }
         case MegaRequest::TYPE_CLEAN_RUBBISH_BIN:
         {
             client->cleanrubbishbin();
@@ -23670,7 +23728,7 @@ void MegaFolderUploadController::onFolderAvailable(MegaHandle handle)
             localPath.append(localname);
 
             string name = localname;
-            client->fsaccess->local2name(&name, &localPath);
+            client->fsaccess->local2name(&name, client->fsaccess->getFilesystemType(&localPath));
             if (dirEntryType == FILENODE)
             {
                 pendingTransfers++;
@@ -24462,7 +24520,7 @@ void MegaBackupController::onFolderAvailable(MegaHandle handle)
                 if(fa->fopen(&localPath, true, false))
                 {
                     string name = localname;
-                    client->fsaccess->local2name(&name, &localPath);
+                    client->fsaccess->local2name(&name, client->fsaccess->getFilesystemType(&localPath));
                     if(fa->type == FILENODE)
                     {
                         pendingTransfers++;
@@ -24949,7 +25007,7 @@ void MegaFolderDownloadController::start(MegaNode *node)
         name = fileName;
     }
 
-    client->fsaccess->name2local(&name, &path);
+    client->fsaccess->name2local(&name, client->fsaccess->getFilesystemType(&path));
     client->fsaccess->local2path(&name, &securename);
     path += securename;
 
@@ -25048,7 +25106,7 @@ void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, string *pa
         size_t l = localpath.size();
 
         string name = child->getName();
-        client->fsaccess->name2local(&name, &localpath);
+        client->fsaccess->name2local(&name, client->fsaccess->getFilesystemType(&localpath));
         localpath.append(name);
 
         string utf8path;

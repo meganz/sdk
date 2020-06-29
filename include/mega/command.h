@@ -819,6 +819,14 @@ public:
     CommandResendVerificationEmail(MegaClient *);
 };
 
+class MEGA_API CommandResetSmsVerifiedPhoneNumber : public Command
+{
+public:
+    void procresult();
+
+    CommandResetSmsVerifiedPhoneNumber(MegaClient *);
+};
+
 class MEGA_API CommandValidatePassword : public Command
 {
 public:

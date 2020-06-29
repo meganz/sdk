@@ -2772,7 +2772,7 @@ class MegaRequest
             TYPE_SEND_SMS_VERIFICATIONCODE, TYPE_CHECK_SMS_VERIFICATIONCODE,
             TYPE_GET_REGISTERED_CONTACTS, TYPE_GET_COUNTRY_CALLING_CODES,
             TYPE_VERIFY_CREDENTIALS, TYPE_GET_MISC_FLAGS, TYPE_RESEND_VERIFICATION_EMAIL,
-            TYPE_SUPPORT_TICKET, TYPE_SET_RETENTION_TIME,
+            TYPE_SUPPORT_TICKET, TYPE_SET_RETENTION_TIME, TYPE_RESET_SMS_VERIFIED_NUMBER,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -7580,6 +7580,17 @@ class MegaApi
         bool multiFactorAuthAvailable();
 
         /**
+         * @brief Reset the verified phone number for the account logged in.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_RESET_SMS_VERIFIED_NUMBER
+         * If there's no verified phone number associated for the account logged in, the error code
+         * provided in onRequestFinish is MegaError::API_ENOENT.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void resetSmsVerifiedPhoneNumber(MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Check if multi-factor authentication is enabled for an account
          *
          * The associated request type with this request is MegaRequest::TYPE_MULTI_FACTOR_AUTH_CHECK
@@ -9410,6 +9421,32 @@ class MegaApi
          * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
          */
         static char *getUserAvatarColor(const char *userhandle);
+    
+        /**
+         * @brief Get the secondary color for the avatar.
+         *
+         * This color should be used only when the user doesn't have an avatar, making a
+         * gradient in combination with the color returned from getUserAvatarColor.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param user MegaUser to get the color of the avatar.
+         * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
+         */
+        static char *getUserAvatarSecondaryColor(MegaUser *user);
+
+        /**
+         * @brief Get the secondary color for the avatar.
+         *
+         * This color should be used only when the user doesn't have an avatar, making a
+         * gradient in combination with the color returned from getUserAvatarColor.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param userhandle User handle (Base64 encoded) to get the avatar.
+         * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
+         */
+        static char *getUserAvatarSecondaryColor(const char *userhandle);
 
         /**
          * @brief Get an attribute of a MegaUser.
@@ -11334,6 +11371,31 @@ class MegaApi
          * is transferred using this function, the custom modification time won't have any effect
          */
         void startUpload(const char* localPath, MegaNode* parent, const char* fileName, int64_t mtime, MegaTransferListener *listener = NULL);
+
+        /**
+         * @brief Upload a file or a folder with a custom name and a custom modification time
+         *
+         *If the status of the business account is expired, onTransferFinish will be called with the error
+         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+         * "Your business account is overdue, please contact your administrator."
+         *
+         * @param localPath Local path of the file
+         * @param parent Parent node for the file in the MEGA account
+         * @param appData Custom app data to save in the MegaTransfer object
+         * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+         * related to the transfer. If a transfer is started with exactly the same data
+         * (local path and target parent) as another one in the transfer queue, the new transfer
+         * fails with the error API_EEXISTS and the appData of the new transfer is appended to
+         * the appData of the old transfer, using a '!' separator if the old transfer had already
+         * appData.
+         * @param fileName Custom file name for the file in MEGA
+         * @param mtime Custom modification time for the file in MEGA (in seconds since the epoch)
+         * @param listener MegaTransferListener to track this transfer
+         *
+         * The custom modification time will be only applied for file transfers. If a folder
+         * is transferred using this function, the custom modification time won't have any effect
+         */
+        void startUpload(const char* localPath, MegaNode* parent, const char* appData, const char* fileName, int64_t mtime, MegaTransferListener *listener = NULL);
 
         /**
          * @brief Upload a file or a folder
