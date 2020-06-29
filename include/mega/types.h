@@ -518,7 +518,6 @@ typedef enum {
     ATTR_ALIAS = 27,                        // private - byte array - versioned
     ATTR_AUTHRSA = 28,                      // private - byte array
     ATTR_AUTHCU255 = 29,                    // private - byte array
-    ATTR_DEVICE_NAMES = 30,                 // private - byte array - versioned
 
 } attr_t;
 typedef map<attr_t, string> userattr_map;
