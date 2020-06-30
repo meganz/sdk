@@ -8297,7 +8297,7 @@ void CommandBackupPutHeartBeat::procresult()
     }
 
     client->json.storeobject();
-    return client->app->backupputheartbeat_result(API_EINTERNAL);
+    client->app->backupputheartbeat_result(API_EINTERNAL);
 }
 
 CommandBackupRemove::CommandBackupRemove(MegaClient *client, handle backupId)
