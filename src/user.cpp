@@ -542,6 +542,10 @@ string User::attr2string(attr_t type)
             attrname =  "*!>alias";
             break;
 
+        case ATTR_DEVICE_NAMES:
+            attrname =  "*!dn";
+            break;
+
         case ATTR_UNKNOWN:  // empty string
             break;
     }
@@ -678,6 +682,10 @@ string User::attr2longname(attr_t type)
     case ATTR_ALIAS:
         longname = "ALIAS";
         break;
+
+    case ATTR_DEVICE_NAMES:
+        longname = "DEVICE_NAMES";
+        break;
     }
 
     return longname;
@@ -806,6 +814,10 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_ALIAS;
     }
+    else if (!strcmp(name, "*!dn"))
+    {
+        return ATTR_DEVICE_NAMES;
+    }
     else
     {
         return ATTR_UNKNOWN;   // attribute not recognized
@@ -847,6 +859,7 @@ int User::needversioning(attr_t at)
         case ATTR_ALIAS:
         case ATTR_CAMERA_UPLOADS_FOLDER:
         case ATTR_UNSHAREABLE_KEY:
+        case ATTR_DEVICE_NAMES:
             return 1;
 
         case ATTR_STORAGE_STATE: //putua is forbidden for this attribute
@@ -870,6 +883,7 @@ char User::scope(attr_t at)
         case ATTR_MY_CHAT_FILES_FOLDER:
         case ATTR_UNSHAREABLE_KEY:
         case ATTR_ALIAS:
+        case ATTR_DEVICE_NAMES:
             return '*';
 
         case ATTR_AVATAR:
@@ -1295,6 +1309,11 @@ bool User::setChanged(attr_t at)
         case ATTR_UNSHAREABLE_KEY:
             changed.unshareablekey = true;
             break;
+
+        case ATTR_DEVICE_NAMES:
+            changed.devicenames = true;
+            break;
+
 
         default:
             return false;

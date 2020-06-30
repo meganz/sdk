@@ -2727,6 +2727,16 @@ void MegaApi::setRubbishBinAutopurgePeriod(int days, MegaRequestListener *listen
     pImpl->setRubbishBinAutopurgePeriod(days, listener);
 }
 
+void MegaApi::getDeviceName(MegaRequestListener *listener)
+{
+    pImpl->getDeviceName(listener);
+}
+
+void MegaApi::setDeviceName(const char *deviceName, MegaRequestListener *listener)
+{
+    pImpl->setDeviceName(deviceName, listener);
+}
+
 void MegaApi::changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener)
 {
     pImpl->changePassword(oldPassword, newPassword, listener);

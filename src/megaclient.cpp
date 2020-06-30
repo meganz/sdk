@@ -83,7 +83,7 @@ dstime MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS = 3600;
 dstime MegaClient::USER_DATA_EXPIRATION_BACKOFF_SECS = 86400; // 1 day
 
 // stats id
-char* MegaClient::statsid = NULL;
+std::string MegaClient::statsid;
 
 // decrypt key (symmetric or asymmetric), rewrite asymmetric to symmetric key
 bool MegaClient::decryptkey(const char* sk, byte* tk, int tl, SymmCipher* sc, int type, handle node)
@@ -948,6 +948,16 @@ void MegaClient::activateoverquota(dstime timeleft, bool isPaywall)
         }
     }
     looprequested = true;
+}
+
+std::string MegaClient::getDeviceid() const
+{
+    if (MegaClient::statsid.empty())
+    {
+        fsaccess->statsid(&MegaClient::statsid);
+    }
+
+    return MegaClient::statsid;
 }
 
 // set warn level
