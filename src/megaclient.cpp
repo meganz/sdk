@@ -6632,6 +6632,12 @@ void MegaClient::sc_ub()
                 mBizStatus = status;
                 mBizMode = mode;
 
+                if (mBizMode != BIZ_MODE_UNKNOWN)
+                {
+                    LOG_info << "Disable achievements for business account type";
+                    achievements_enabled = false;
+                }
+
                 // FIXME: if API decides to include the expiration ts, remove the block below
                 if (mBizStatus == BIZ_STATUS_ACTIVE)
                 {
