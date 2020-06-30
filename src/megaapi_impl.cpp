@@ -24911,7 +24911,7 @@ void MegaBackupController::setPeriod(const int64_t &value)
     period = value;
     if (value != -1)
     {
-        this->offsetds=std::time(NULL)*10 - Waiter::ds;
+        this->offsetds=m_time(NULL)*10 - Waiter::ds;
         this->startTime = lastbackuptime?(lastbackuptime+period-offsetds):Waiter::ds;
         if (this->startTime < Waiter::ds)
             this->startTime = Waiter::ds;
@@ -24934,7 +24934,7 @@ void MegaBackupController::setPeriodstring(const string &value)
             return;
         }
 
-        this->offsetds=std::time(NULL)*10 - Waiter::ds;
+        this->offsetds=m_time(NULL)*10 - Waiter::ds;
 
         if (!lastbackuptime)
         {
