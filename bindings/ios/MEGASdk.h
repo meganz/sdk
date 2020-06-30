@@ -8114,6 +8114,27 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  */
 - (void)getRegisteredContacts:(NSArray<NSDictionary *> *)contacts delegate:(id<MEGARequestDelegate>)delegate;
 
+/**
+ * @brief Reset the verified phone number for the account logged in.
+ *
+ * The associated request type with this request is MegaRequest::TYPE_RESET_SMS_VERIFIED_NUMBER
+ * If there's no verified phone number associated for the account logged in, the error code
+ * provided in onRequestFinish is MegaError::API_ENOENT.
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)resetSmsVerifiedPhoneNumberWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Reset the verified phone number for the account logged in.
+ *
+ * The associated request type with this request is MegaRequest::TYPE_RESET_SMS_VERIFIED_NUMBER
+ * If there's no verified phone number associated for the account logged in, the error code
+ * provided in onRequestFinish is MegaError::API_ENOENT.
+ *
+ */
+- (void)resetSmsVerifiedPhoneNumber;
+
 #pragma mark - Push Notification Settings
 
 /**
