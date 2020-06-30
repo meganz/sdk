@@ -6052,6 +6052,10 @@ void CommandResetSmsVerifiedPhoneNumber::procresult()
     Error e;
     if (checkError(e, client->json))
     {
+        if (e == API_OK)
+        {
+            client->mSmsVerifiedPhone.clear();
+        }
         client->app->resetSmsVerifiedPhoneNumber_result(e);
     }
     else
