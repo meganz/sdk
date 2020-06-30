@@ -1784,11 +1784,32 @@ void MegaClient::exec()
                             else
                             {
                                 // request failed
-                                error e = (error)atoi(pendingcs->in.c_str());
+                                JSON json;
+                                json.pos = pendingcs->in.c_str();
+                                std::string requestError;
+                                error e;
+                                bool valid = json.storeobject(&requestError);
+                                if (valid)
+                                {
+                                    if (strncmp(requestError.c_str(), "{\"err\":", 7) == 0)
+                                    {
+                                        e = (error)atoi(requestError.c_str() + 7);
+                                    }
+                                    else
+                                    {
+                                        e = (error)atoi(requestError.c_str());
+                                    }
+                                }
+                                else
+                                {
+                                    e = API_EINTERNAL;
+                                    requestError = std::to_string(e);
+                                }
 
                                 if (!e)
                                 {
                                     e = API_EINTERNAL;
+                                    requestError = std::to_string(e);
                                 }
 
                                 if (e == API_EBLOCKED && sid.size())
@@ -1801,7 +1822,7 @@ void MegaClient::exec()
                                 pendingcs = NULL;
                                 csretrying = false;
 
-                                reqs.servererror(e, this);
+                                reqs.servererror(requestError, this);
                                 break;
                             }
 
@@ -1868,7 +1889,7 @@ void MegaClient::exec()
                                 pendingcs = NULL;
                                 csretrying = false;
 
-                                reqs.servererror(API_ESSL, this);
+                                reqs.servererror(std::to_string(API_ESSL), this);
                                 break;
                             }
                         }
