@@ -1386,41 +1386,37 @@ bool MegaApiImpl::isSyncing()
 
 MegaSync *MegaApiImpl::getSyncByTag(int tag)
 {
-    sdkMutex.lock();
+    SdkMutexGuard g(sdkMutex);
+
     if (syncMap.find(tag) == syncMap.end())
     {
-        sdkMutex.unlock();
-        return NULL;
+        return nullptr;
     }
-    MegaSync *result = syncMap.at(tag)->copy();
-    sdkMutex.unlock();
-    return result;
+
+    return syncMap.at(tag)->copy();
 }
 
 MegaSync *MegaApiImpl::getSyncByNode(MegaNode *node)
 {
     if (!node)
     {
-        return NULL;
+        return nullptr;
     }
 
-    MegaSync *result = NULL;
+    SdkMutexGuard g(sdkMutex);
     MegaHandle nodeHandle = node->getHandle();
-    sdkMutex.lock();
     std::map<int, MegaSyncPrivate*>::iterator it = syncMap.begin();
     while(it != syncMap.end())
     {
         MegaSyncPrivate* sync = it->second;
         if (sync->getMegaHandle() == nodeHandle)
         {
-            result = sync->copy();
-            break;
+            return sync->copy();
         }
         it++;
     }
 
-    sdkMutex.unlock();
-    return result;
+    return nullptr;
 }
 
 MegaSync *MegaApiImpl::getSyncByPath(const char *localPath)
@@ -16446,26 +16442,18 @@ void MegaApiImpl::fireOnFileSyncStateChanged(MegaSyncPrivate *sync, string *loca
 
 void MegaApiImpl::eraseSync(int tag)
 {
-    eraseSyncByIterator(syncMap.find(tag));
-}
-
-map<int, MegaSyncPrivate *>::iterator MegaApiImpl::eraseSyncByIterator(map<int, MegaSyncPrivate *>::iterator it)
-{
-    if (it == syncMap.end())
+    unique_ptr<MegaSyncPrivate> sync;
+    auto it = syncMap.find(tag);
+    if (it != syncMap.end())
     {
-        return it;
+        sync.reset(it->second);
+        if (client->syncConfigs)
+        {
+            client->syncConfigs->removeByTag(sync->getTag());
+        }
+        syncMap.erase(it);
+        fireonSyncDeleted(sync.get());
     }
-
-    MegaSyncPrivate *sync = it->second;
-    if (client->syncConfigs)
-    {
-        client->syncConfigs->removeByTag(sync->getTag());
-    }
-    auto toret = syncMap.erase(it);
-    fireonSyncDeleted(sync);
-    delete sync;
-
-    return toret;
 }
 
 #endif
@@ -17690,36 +17678,26 @@ MegaNode* MegaApiImpl::getParentNode(MegaNode* n)
 
 char* MegaApiImpl::getNodePath(MegaNode *node)
 {
-    if(!node) return NULL;
+    if(!node) return nullptr;
 
-    sdkMutex.lock();
+    SdkMutexGuard guard(sdkMutex);
     Node *n = client->nodebyhandle(node->getHandle());
     if(!n)
     {
-        sdkMutex.unlock();
-        return NULL;
+        return nullptr;
     }
-
-    string path = n->displaypath();
-    sdkMutex.unlock();
-
-    return stringToArray(path);
+    return MegaApi::strdup(n->displaypath().c_str());
 }
 
 char* MegaApiImpl::getNodePathByNodeHandle(MegaHandle handle)
 {
-    sdkMutex.lock();
+    SdkMutexGuard guard(sdkMutex);
     Node *n = client->nodebyhandle(handle);
     if(!n)
     {
-        sdkMutex.unlock();
-        return NULL;
+        return nullptr;
     }
-
-    string path = n->displaypath();
-    sdkMutex.unlock();
-
-    return stringToArray(path);
+    return MegaApi::strdup(n->displaypath().c_str());
 }
 
 MegaNode* MegaApiImpl::getNodeByPath(const char *path, MegaNode* node)
@@ -21057,7 +21035,7 @@ void MegaApiImpl::sendPendingRequests()
             bool blocked = client->mCachedStatus[CType::STATUS_BLOCKED] ? (client->mCachedStatus[CType::STATUS_BLOCKED]->value()) : false;
 
             auto syncError = NO_SYNC_ERROR;
-            // the order is important here: an user needs to resolve blocked in order to resolve storage
+            // the order is important here: a user needs to resolve blocked in order to resolve storage
             if (overStorage)
             {
                 syncError = STORAGE_OVERQUOTA;
@@ -21076,7 +21054,10 @@ void MegaApiImpl::sendPendingRequests()
 
             if (!enabled && temporaryDisabled)
             {
-                if (!syncError) syncError = UNKNOWN_TEMPORARY_ERROR;
+                if (!syncError)
+                {
+                    syncError = UNKNOWN_TEMPORARY_ERROR;
+                }
                 enabled = true; //we consider enabled when it is temporary disabled
             }
 
@@ -22332,14 +22313,6 @@ void MegaApiImpl::sendPendingRequests()
             fireOnRequestFinish(request, MegaError(e));
         }
     }
-}
-
-char* MegaApiImpl::stringToArray(string &buffer)
-{
-    char *newbuffer = new char[buffer.size()+1];
-    memcpy(newbuffer, buffer.data(), buffer.size());
-    newbuffer[buffer.size()]='\0';
-    return newbuffer;
 }
 
 void MegaApiImpl::updateStats()

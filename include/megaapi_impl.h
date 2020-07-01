@@ -2731,7 +2731,7 @@ protected:
         RequestQueue scRequestQueue;
 
 #ifdef ENABLE_SYNC
-        map<int, MegaSyncPrivate *> syncMap;
+        map<int, MegaSyncPrivate *> syncMap;    // maps tag to MegaSync objects
         bool mFirstSyncResumed = false;
 
         // removes a sync from syncmap and from cache
@@ -3089,7 +3089,6 @@ protected:
         void sendPendingRequests();
         unsigned sendPendingTransfers();
         void updateBackups();
-        char *stringToArray(string &buffer);
 
         //Internal
         Node* getNodeByFingerprintInternal(const char *fingerprint);
