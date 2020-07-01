@@ -407,7 +407,7 @@ public:
     void querytransferquota(m_off_t size);
 
     // update node attributes
-    error setattr(Node*, const char* prevattr = NULL);
+    error setattr(Node*, attr_map&& updates);
 
     // prefix and encrypt attribute json
     void makeattr(SymmCipher*, string*, const char*, int = -1) const;
@@ -892,11 +892,11 @@ private:
 
     // server-client command processing
     bool sc_checkSequenceTag(const string& tag);
-    bool sc_checkActionPacket();
+    bool sc_checkActionPacket(Node* lastAPDeletedNode);
 
     void sc_updatenode();
     Node* sc_deltree();
-    handle sc_newnodes();
+    handle sc_newnodes(Node* priorActionpacketDeletedNode, bool& firstHandleMismatchedDelete);
     void sc_contacts();
     void sc_keys();
     void sc_fileattr();
@@ -933,7 +933,7 @@ private:
     void cr_response(node_vector*, node_vector*, JSON*);
 
     // read node tree from JSON object
-    void readtree(JSON*);
+    void readtree(JSON*, Node* priorActionpacketDeletedNode, bool& firstHandleMatchedDelete);
 
     // used by wait() to handle event timing
     void checkevent(dstime, dstime*, dstime*);
@@ -1307,7 +1307,7 @@ public:
     void putnodes_sync_result(error, vector<NewNode>&);
 
     // start downloading/copy missing files, create missing directories
-    bool syncdown(LocalNode*, string*, bool);
+    bool syncdown(LocalNode*, string*);
 
     // move nodes to //bin/SyncDebris/yyyy-mm-dd/ or unlink directly
     void movetosyncdebris(Node*, bool);
@@ -1366,7 +1366,7 @@ public:
     dstime lastDispatchTransfersDs = 0;
 
     // process object arrays by the API server
-    int readnodes(JSON*, int, putsource_t = PUTNODES_APP, vector<NewNode>* = nullptr, int = 0, bool applykeys = false);
+    int readnodes(JSON*, int, putsource_t, vector<NewNode>*, int, bool applykeys, Node* priorActionpacketDeletedNode, bool* firstHandleMismatchedDelete);
 
     void readok(JSON*);
     void readokelement(JSON*);

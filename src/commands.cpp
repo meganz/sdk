@@ -84,11 +84,10 @@ bool HttpReqCommandPutFA::procresult(Result r)
                         (n->attrs.map.find('f') == n->attrs.map.end() || n->attrs.map['f'] != me64) )
                 {
                     LOG_debug << "Restoration of file attributes is not allowed for current user (" << me64 << ").";
-                    n->attrs.map['f'] = me64;
 
                     int creqtag = client->reqtag;
                     client->reqtag = 0;
-                    client->setattr(n);
+                    client->setattr(n, attr_map('f', me64));
                     client->reqtag = creqtag;
                 }
             }
@@ -954,33 +953,74 @@ bool CommandGetFile::procresult(Result r)
     }
 }
 
-CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n, SymmCipher* cipher, const char* prevattr)
-    : Command(true)
+CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n, attr_map&& attrMapUpdates)
+    : Command(true), mAttrMapUpdates(attrMapUpdates)
 {
+    tag = client->reqtag;
+    h = n->nodehandle;
+    generationError = API_OK;
+
+    addToNodePendingCommands(n);
+}
+
+const char* CommandSetAttr::getJSON(MegaClient* client)
+{
+    // We generate the command just before sending, so it's up to date for any external changes that occured in the meantime
+    // And we can also take into account any changes we have sent for this node that have not yet been applied by actionpackets
+    json.clear();
+    generationError = API_OK;
+
     cmd("a");
-    //notself(client);
 
     string at;
+    if (Node* n = client->nodebyhandle(h))
+    {
+        AttrMap m = n->attrs;
 
-    n->attrs.getjson(&at);
-    client->makeattr(cipher, &at, at.c_str(), int(at.size()));
+        // apply these changes for sending, but also any earlier changes that are ahead in the queue
+        assert(!n->mPendingChanges.empty());
+        if (n->mPendingChanges.chain)
+        {
+            for (auto& cmd : *n->mPendingChanges.chain)
+            {
+                if (cmd == this) break;
+                if (auto attrCmd = dynamic_cast<CommandSetAttr*>(cmd))
+                {
+                    m.map.applyUpdates(attrCmd->mAttrMapUpdates);
+                }
+            }
+        }
+        
+        m.map.applyUpdates(mAttrMapUpdates);
 
-    arg("n", (byte*)&n->nodehandle, MegaClient::NODEHANDLE);
+        if (SymmCipher* cipher = n->nodecipher())
+        {
+            n->attrs.getjson(&at);
+            client->makeattr(cipher, &at, at.c_str(), int(at.size()));
+        }
+        else
+        {
+            h = UNDEF;  // dummy command to generate an error, with no effect
+            generationError = API_EKEY;
+        }
+    }
+    else
+    {
+        h = UNDEF;  // dummy command to generate an error, with no effect
+        generationError = API_ENOENT;
+    }
+
+    arg("n", (byte*)&h, MegaClient::NODEHANDLE);
     arg("at", (byte*)at.c_str(), int(at.size()));
 
-    h = n->nodehandle;
-    tag = client->reqtag;
-    syncop = prevattr;
-
-    if(prevattr)
-    {
-        pa = prevattr;
-    }
+    return json.c_str();
 }
+
 
 bool CommandSetAttr::procresult(Result r)
 {
-    client->app->setattr_result(h, r.errorResultOrActionpacket());
+    removeFromNodePendingCommands(h, client);
+    client->app->setattr_result(h, generationError ? generationError : r.errorResultOrActionpacket());
     return r.wasErrorOrActionpacket();
 }
 
@@ -1298,7 +1338,12 @@ CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t
     syncop = pp != UNDEF;
 
     cmd("m");
-    //notself(client);
+    
+    // Special case for Move, we do set the 'i' field.
+    // This is needed for backward compatibility, old versions used memcmp to determine if a 't' actionpacket follwed 'd' and we need to satisfy those
+    // Additionally the servers can't deliver `st` in that packet for the same reason.  And of course we will not ignore this `t` packet, despite setting 'i'.
+    notself(client);
+
     arg("n", (byte*)&h, MegaClient::NODEHANDLE);
     arg("t", (byte*)&t->nodehandle, MegaClient::NODEHANDLE);
 
@@ -1307,13 +1352,17 @@ CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t
     tpsk.get(this);
 
     tag = client->reqtag;
+
+    addToNodePendingCommands(n);
 }
 
 bool CommandMoveNode::procresult(Result r)
 {
+    removeFromNodePendingCommands(h, client);
+
     error e = r.errorResultOrActionpacket();
 
-    if (r.wasError())
+    if (r.wasErrorOrActionpacket())
     {
         if (e == API_EOVERQUOTA)
         {
@@ -1327,48 +1376,48 @@ bool CommandMoveNode::procresult(Result r)
 
             if (syncn)
             {
-                if (r.wasError(API_OK))
+                if (r.succeeded())
                 {
-                    //Node* n;
+                    Node* n;
 
-                    //// update all todebris records in the subtree
-                    //for (node_set::iterator it = client->todebris.begin(); it != client->todebris.end(); it++)
-                    //{
-                    //    n = *it;
+                    // update all todebris records in the subtree
+                    for (node_set::iterator it = client->todebris.begin(); it != client->todebris.end(); it++)
+                    {
+                        n = *it;
 
-                    //    do {
-                    //        if (n == syncn)
-                    //        {
-                    //            if (syncop)
-                    //            {
-                    //                Sync* sync = NULL;
-                    //                for (sync_list::iterator its = client->syncs.begin(); its != client->syncs.end(); its++)
-                    //                {
-                    //                    if ((*its)->tag == tag)
-                    //                    {
-                    //                        sync = (*its);
-                    //                        break;
-                    //                    }
-                    //                }
+                        do {
+                            if (n == syncn)
+                            {
+                                //if (syncop)
+                                //{
+                                //    Sync* sync = NULL;
+                                //    for (sync_list::iterator its = client->syncs.begin(); its != client->syncs.end(); its++)
+                                //    {
+                                //        if ((*its)->tag == tag)
+                                //        {
+                                //            sync = (*its);
+                                //            break;
+                                //        }
+                                //    }
 
-                    //                if (sync)
-                    //                {
-                    //                    if ((*it)->type == FOLDERNODE)
-                    //                    {
-                    //                        sync->client->app->syncupdate_remote_folder_deletion(sync, (*it));
-                    //                    }
-                    //                    else
-                    //                    {
-                    //                        sync->client->app->syncupdate_remote_file_deletion(sync, (*it));
-                    //                    }
-                    //                }
-                    //            }
+                                //    if (sync)
+                                //    {
+                                //        if ((*it)->type == FOLDERNODE)
+                                //        {
+                                //            sync->client->app->syncupdate_remote_folder_deletion(sync, (*it));
+                                //        }
+                                //        else
+                                //        {
+                                //            sync->client->app->syncupdate_remote_file_deletion(sync, (*it));
+                                //        }
+                                //    }
+                                //}
 
-                    //            (*it)->syncdeleted = syncdel;
-                    //            break;
-                    //        }
-                    //    } while ((n = n->parent));
-                    //}
+                                (*it)->syncdeleted = syncdel;
+                                break;
+                            }
+                        } while ((n = n->parent));
+                    }
                 }
                 else
                 {
@@ -1465,6 +1514,11 @@ bool CommandMoveNode::procresult(Result r)
         }
     }
 
+    if (Node* n = client->nodebyhandle(h))
+    {
+        client->rewriteforeignkeys(n);
+    }
+
     client->app->rename_result(h, e);
     return r.wasErrorOrActionpacket();
 }
@@ -1493,7 +1547,8 @@ bool CommandDelNode::procresult(Result r)
 
     if (r.wasErrorOrActionpacket())
     {
-        client->app->unlink_result(h, e);
+        if (mResultFunction)    mResultFunction(h, e);
+        else         client->app->unlink_result(h, e);
         return true;
     }
     else
@@ -1580,6 +1635,18 @@ CommandLogout::CommandLogout(MegaClient *client)
     batchSeparately = true;
 
     tag = client->reqtag;
+}
+
+const char* CommandLogout::getJSON(MegaClient* client)
+{
+    if (!incrementedCount)
+    {
+        // only set this once we are about to send the command, in case there are others ahead of it in the queue
+        client->loggingout++;
+        // only set it once in case of retries.
+        incrementedCount = true;
+    }
+    return json.c_str();
 }
 
 bool CommandLogout::procresult(Result r)
@@ -5297,7 +5364,7 @@ bool CommandFetchNodes::procresult(Result r)
         {
             case 'f':
                 // nodes
-                if (!client->readnodes(&client->json, 0))
+                if (!client->readnodes(&client->json, 0, PUTNODES_APP, nullptr, 0, false, nullptr, nullptr))
                 {
                     client->fetchingnodes = false;
                     client->app->fetchnodes_result(API_EINTERNAL);
@@ -5307,7 +5374,7 @@ bool CommandFetchNodes::procresult(Result r)
 
             case MAKENAMEID2('f', '2'):
                 // old versions
-                if (!client->readnodes(&client->json, 0))
+                if (!client->readnodes(&client->json, 0, PUTNODES_APP, nullptr, 0, false, nullptr, nullptr))
                 {
                     client->fetchingnodes = false;
                     client->app->fetchnodes_result(API_EINTERNAL);

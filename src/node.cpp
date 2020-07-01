@@ -1023,6 +1023,7 @@ bool Node::setparent(Node* p)
 
     if (parent)
     {
+        //LOG_info << "moving " << Base64Str<MegaClient::NODEHANDLE>(nodehandle) << " " << attrs.map['n'] << " into " << Base64Str<MegaClient::NODEHANDLE>(parent->nodehandle) << " " << parent->attrs.map['n'];
         child_it = parent->children.insert(parent->children.end(), this);
     }
 
@@ -1216,9 +1217,8 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath, std::u
                     int creqtag = sync->client->reqtag;
 
                     // set new name
-                    node->attrs.map['n'] = name;
                     sync->client->reqtag = sync->tag;
-                    sync->client->setattr(node, prevname.c_str());
+                    sync->client->setattr(node, attr_map('n', name));
                     sync->client->reqtag = creqtag;
                 }
             }

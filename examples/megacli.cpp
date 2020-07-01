@@ -3458,9 +3458,9 @@ void exec_mv(autocomplete::ACState& s)
 
                             // rename
                             client->fsaccess->normalize(&newname);
-                            n->attrs.map['n'] = newname;
+                            //n->attrs.map['n'] = newname;
 
-                            if ((e = client->setattr(n)))
+                            if ((e = client->setattr(n, attr_map('n', newname))))
                             {
                                 cout << "Cannot rename file (" << errorstring(e) << ")" << endl;
                             }
@@ -3487,8 +3487,8 @@ void exec_mv(autocomplete::ACState& s)
                             }
 
                             // overwrite existing target file: rename source...
-                            n->attrs.map['n'] = tn->attrs.map['n'];
-                            e = client->setattr(n);
+                            //n->attrs.map['n'] = tn->attrs.map['n'];
+                            e = client->setattr(n, attr_map('n', tn->attrs.map['n']));
 
                             if (e)
                             {

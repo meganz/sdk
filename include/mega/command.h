@@ -149,12 +149,18 @@ public:
 
     virtual bool procresult(Result) = 0;
     
-    const char* getstring() const;
+    // json for the command is usually pre-generated but can be calculated just before sending, by overriding this function
+    virtual const char* getJSON(MegaClient* client);
 
     Command(bool isV3 = false, bool stringIsNotSeqtag = false);
     virtual ~Command() = default;
 
     static bool checkError(Error &errorDetails, JSON &json);
+
+    void addToNodePendingCommands(handle h, MegaClient* client);
+    void addToNodePendingCommands(Node* n);
+    void removeFromNodePendingCommands(handle h, MegaClient* client);
+    void removeFromNodePendingCommands(Node* n);
 
     MEGA_DEFAULT_COPY_MOVE(Command)
 };
@@ -480,6 +486,9 @@ public:
 
 class MEGA_API CommandLogout : public Command
 {
+    bool incrementedCount = false;
+    const char* getJSON(MegaClient* client) override;
+
 public:
     bool procresult(Result r) override;
 
@@ -582,13 +591,18 @@ public:
 class MEGA_API CommandSetAttr : public Command
 {
     handle h;
-    string pa;
-    bool syncop;
+    //string pa;
+    //bool syncop;
+
+    attr_map mAttrMapUpdates;
+    error generationError;
+
+    const char* getJSON(MegaClient* client) override;
 
 public:
     bool procresult(Result) override;
 
-    CommandSetAttr(MegaClient*, Node*, SymmCipher*, const char* = NULL);
+    CommandSetAttr(MegaClient*, Node*, attr_map&& attrMapUpdates);
 };
 
 class MEGA_API CommandSetShare : public Command

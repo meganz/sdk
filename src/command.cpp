@@ -43,9 +43,36 @@ void Command::cancel()
     canceled = true;
 }
 
-// returns completed command JSON string
-const char* Command::getstring() const
+
+void Command::addToNodePendingCommands(handle h, MegaClient* client)
 {
+    if (auto node = client->nodebyhandle(h))
+    {
+        addToNodePendingCommands(node);
+    }
+}
+
+void Command::addToNodePendingCommands(Node* node)
+{
+    node->mPendingChanges.push_back(this);
+}
+
+void Command::removeFromNodePendingCommands(handle h, MegaClient* client)
+{
+    if (auto node = client->nodebyhandle(h))
+    {
+        removeFromNodePendingCommands(node);
+    }
+}
+
+void Command::removeFromNodePendingCommands(Node* node)
+{
+    node->mPendingChanges.erase(this);
+}
+
+const char* Command::getJSON(MegaClient*)
+{
+    // the case where JSON is generated on command construction
     return json.c_str();
 }
 

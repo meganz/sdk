@@ -1890,7 +1890,7 @@ void MegaClient::exec()
 
                     bool suppressSID = true;
                     bool v3 = false;
-                    reqs.serverrequest(pendingcs->out, suppressSID, pendingcs->includesFetchingNodes, v3);
+                    reqs.serverrequest(pendingcs->out, suppressSID, pendingcs->includesFetchingNodes, v3, this);
 
                     pendingcs->posturl = APIURL;
 
@@ -1976,8 +1976,7 @@ void MegaClient::exec()
         }
 
         // handle API server-client requests
-        // we must continue handling these even if the loggingout flag is set, so we can match up cs requests in progress
-        if (!jsonsc.pos && !pendingscUserAlerts && pendingsc)
+        if (!jsonsc.pos && !pendingscUserAlerts && pendingsc && !loggingout)
         {
             switch (static_cast<reqstatus_t>(pendingsc->status))
             {
@@ -2780,7 +2779,7 @@ void MegaClient::exec()
                             if ((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN)
                             {
                                 LOG_debug << "Running syncdown on demand";
-                                if (!syncdown((*it)->localroot.get(), &localpath, true))
+                                if (!syncdown((*it)->localroot.get(), &localpath))
                                 {
                                     // a local filesystem item was locked - schedule periodic retry
                                     // and force a full rescan afterwards as the local item may
@@ -3911,7 +3910,6 @@ void MegaClient::logout()
         return;
     }
 
-    loggingout++;
     reqs.add(new CommandLogout(this));
 }
 
@@ -4206,12 +4204,11 @@ bool MegaClient::procsc()
     nameid name;
 
 #ifdef ENABLE_SYNC
-    char test[] = "},{\"a\":\"t\",\"i\":\"";
-    char test2[32] = "\",\"t\":{\"f\":[{\"h\":\"";
-    bool stop = false;
+//    char test[] = "},{\"a\":\"t\",\"i\":\"";
+//    char test2[32] = "\",\"t\":{\"f\":[{\"h\":\"";
     bool newnodes = false;
 #endif
-    Node* dn = NULL;
+    Node* lastAPDeletedNode = nullptr;
 
     for (;;)
     {
@@ -4382,7 +4379,7 @@ bool MegaClient::procsc()
             auto actionpacketStart = jsonsc.pos;
             if (jsonsc.enterobject())
             {
-                if (!sc_checkActionPacket())
+                if (!sc_checkActionPacket(lastAPDeletedNode))
                 {
                     // We can't continue actionpackets until we know the next mCurrentSeqtag to match against, wait for the CS request to deliver it.
                     assert(reqs.cmdsInflight());
@@ -4404,12 +4401,34 @@ bool MegaClient::procsc()
 
                     name = jsonsc.getnameid();
 
+                    if (lastAPDeletedNode) 
+                    {
+                        // The last actionpacket was a delete that may be part of a move.  
+                        // If it's not a move, we break out of this loop to process syncdown
+                        // If is is a move (because the next actionpacket is newnodes with a root of that deleted node)
+                        // then exit this loop to process syncdown after the newnodes are processed.
+
+                        if (name != 't')
+                        {
+                            // run syncdown() to process the deletion before continuing
+                            applykeys();
+
+                            // remote changes require immediate attention of syncdown()
+                            syncdownrequired = true;
+                            syncactivity = true;
+
+                            jsonsc.pos = actionpacketStart;
+                            return false;
+                        }
+                    }
+
                     // only process server-client request if not marked as
                     // self-originating ("i" marker element guaranteed to be following
                     // "a" element if present)
                     if (fetchingnodes || memcmp(jsonsc.pos, "\"i\":\"", 5)
                      || memcmp(jsonsc.pos + 5, sessionid, sizeof sessionid)
-                     || jsonsc.pos[5 + sizeof sessionid] != '"')
+                     || jsonsc.pos[5 + sizeof sessionid] != '"'
+                     || name == 'd' || name == 't')  // we stil set 'i' on move commands to produce backward compatible actionpackets, so don't skip those here
                     {
 #ifdef ENABLE_CHAT
                         bool readingPublicChat = false;
@@ -4434,9 +4453,11 @@ bool MegaClient::procsc()
 #endif
                                 break;
 
-                            case 't':
+                            case 't': 
+                            {
 #ifdef ENABLE_SYNC
-                                if (!fetchingnodes && !stop)
+                                bool stop = false;
+                                if (!fetchingnodes)
                                 {
                                     for (int i=4; jsonsc.pos[i] && jsonsc.pos[i] != ']'; i++)
                                     {
@@ -4448,18 +4469,22 @@ bool MegaClient::procsc()
                                     }
                                 }
 #endif
-
+                                bool isNotMoveOfLastAPDelete = false;
                                 // node addition
                                 {
                                     useralerts.beginNotingSharedNodes();
-                                    handle originatingUser = sc_newnodes();
+                                    handle originatingUser = sc_newnodes(fetchingnodes ? nullptr : lastAPDeletedNode, isNotMoveOfLastAPDelete);
                                     mergenewshares(1);
                                     useralerts.convertNotedSharedNodes(true, originatingUser);
                                 }
-
 #ifdef ENABLE_SYNC
                                 if (!fetchingnodes)
                                 {
+                                    if (lastAPDeletedNode && isNotMoveOfLastAPDelete)
+                                    {
+                                        stop = true;
+                                    }
+
                                     if (stop)
                                     {
                                         // run syncdown() before continuing
@@ -4477,38 +4502,13 @@ bool MegaClient::procsc()
                                     }
                                 }
 #endif
-                                break;
+                                lastAPDeletedNode = nullptr;
+                            } 
+                            break;
 
                             case 'd':
                                 // node deletion
-                                dn = sc_deltree();
-
-#ifdef ENABLE_SYNC
-                                if (fetchingnodes)
-                                {
-                                    break;
-                                }
-
-                                if (dn && !memcmp(jsonsc.pos, test, 16))
-                                {
-                                    Base64::btoa((byte *)&dn->nodehandle, sizeof(dn->nodehandle), &test2[18]);
-                                    if (!memcmp(&jsonsc.pos[26], test2, 26))
-                                    {
-                                        // it's a move operation, stop parsing after completing it
-                                        stop = true;
-                                        break;
-                                    }
-                                }
-
-                                // run syncdown() to process the deletion before continuing
-                                applykeys();
-
-                                // remote changes require immediate attention of syncdown()
-                                syncdownrequired = true;
-                                syncactivity = true;
-
-                                return false;
-#endif
+                                lastAPDeletedNode = sc_deltree();
                                 break;
 
                             case 's':
@@ -4620,6 +4620,10 @@ bool MegaClient::procsc()
                                 sc_ub();
                                 break;
                         }
+                    }
+                    else
+                    {
+                        lastAPDeletedNode = nullptr;
                     }
                 }
 
@@ -5127,15 +5131,19 @@ bool MegaClient::sc_checkSequenceTag(const string& tag)
     }
 }
 
-bool MegaClient::sc_checkActionPacket()
+bool MegaClient::sc_checkActionPacket(Node* lastAPDeletedNode)
 {
     string tag;
+    nameid cmd = 0;
 
     for (;;)
     {
         switch (jsonsc.getnameid())
         {
-        case 'a': 
+        case 'a':
+            cmd = jsonsc.getnameid();
+            break; 
+
         case 'i':
             jsonsc.storeobject();
             break;
@@ -5146,7 +5154,18 @@ bool MegaClient::sc_checkActionPacket()
 
         default:
             // if we reach any other tag, then 'st' is not present.
-            return sc_checkSequenceTag(tag);
+
+            if (cmd == 't' && lastAPDeletedNode && dynamic_cast<CommandMoveNode*>(reqs.getCurrentCommand(mCurrentSeqtagSeen)))
+            {
+                // special case for actionpackets from the move command - the d t sequence has the tag on d but not t.
+                // However we must process the t as part of the move, and only call the command completion after.
+                LOG_verbose << "st tag implicity not changing for moves";
+                return true;
+            }
+            else
+            {
+                return sc_checkSequenceTag(tag);
+            }
         }
 
     }
@@ -5241,7 +5260,7 @@ void MegaClient::sc_updatenode()
 }
 
 // read tree object (nodes and users)
-void MegaClient::readtree(JSON* j)
+void MegaClient::readtree(JSON* j, Node* priorActionpacketDeletedNode, bool& firstHandleMatchedDelete)
 {
     if (j->enterobject())
     {
@@ -5253,22 +5272,23 @@ void MegaClient::readtree(JSON* j)
                     if (auto putnodesCmd = dynamic_cast<CommandPutNodes*>(reqs.getCurrentCommand(mCurrentSeqtagSeen)))
                     {
                         putnodesCmd->emptyResponse = !memcmp(j->pos, "[]", 2);
-                        readnodes(j, 1, putnodesCmd->source, &putnodesCmd->nn, putnodesCmd->tag, true);  // do apply keys to received nodes only as we go for command response, much much faster for many small responses
+                        readnodes(j, 1, putnodesCmd->source, &putnodesCmd->nn, putnodesCmd->tag, true, priorActionpacketDeletedNode, &firstHandleMatchedDelete);  // do apply keys to received nodes only as we go for command response, much much faster for many small responses
+                        if (firstHandleMatchedDelete) return;
                     }
                     else
                     {
-                        readnodes(j, 1);
+                        readnodes(j, 1, PUTNODES_APP, nullptr, 0, false, nullptr, nullptr);
                     }
                     break;
 
                 case MAKENAMEID2('f', '2'):
                     if (mCurrentSeqtagSeen)
                     {
-                        readnodes(j, 1, PUTNODES_APP, NULL, 0, true);  // do apply keys to received nodes only as we go for command response, much much faster for many small responses
+                        readnodes(j, 1, PUTNODES_APP, NULL, 0, true, nullptr, nullptr);  // do apply keys to received nodes only as we go for command response, much much faster for many small responses
                     }
                     else
                     {
-                        readnodes(j, 1);
+                        readnodes(j, 1, PUTNODES_APP, nullptr, 0, false, nullptr, nullptr);
                     }
                     break;
 
@@ -5291,7 +5311,7 @@ void MegaClient::readtree(JSON* j)
 }
 
 // server-client newnodes processing
-handle MegaClient::sc_newnodes()
+handle MegaClient::sc_newnodes(Node* priorActionpacketDeletedNode, bool& firstHandleMismatchedDelete)
 {
     handle originatingUser = UNDEF;
     for (;;)
@@ -5299,7 +5319,8 @@ handle MegaClient::sc_newnodes()
         switch (jsonsc.getnameid())
         {
             case 't':
-                readtree(&jsonsc);
+                readtree(&jsonsc, priorActionpacketDeletedNode, firstHandleMismatchedDelete);
+                if (priorActionpacketDeletedNode && firstHandleMismatchedDelete) return originatingUser;
                 break;
 
             case 'u':
@@ -7082,18 +7103,11 @@ void MegaClient::makeattr(SymmCipher* key, const std::unique_ptr<string>& attrst
 
 // update node attributes
 // (with speculative instant completion)
-error MegaClient::setattr(Node* n, const char *prevattr)
+error MegaClient::setattr(Node* n, attr_map&& updates)
 {
     if (!checkaccess(n, FULL))
     {
         return API_EACCESS;
-    }
-
-    SymmCipher* cipher;
-
-    if (!(cipher = n->nodecipher()))
-    {
-        return API_EKEY;
     }
 
     // only call back once the actionpackets are processed
@@ -7104,7 +7118,7 @@ error MegaClient::setattr(Node* n, const char *prevattr)
     //n->tag = reqtag;
     //notifynode(n);
 
-    reqs.add(new CommandSetAttr(this, n, cipher, prevattr));
+    reqs.add(new CommandSetAttr(this, n, std::move(updates)));
 
     return API_OK;
 }
@@ -7280,9 +7294,11 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent,
         prevParent = n->parent;
     }
 
-    if (n->setparent(p))
-    {
-        bool updateNodeAttributes = false;
+    attr_map attrUpdates;
+
+    //if (n->setparent(p))
+    //{
+    //    bool updateNodeAttributes = false;
         if (prevParent)
         {
             Node *prevRoot = getrootnode(prevParent);
@@ -7299,8 +7315,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent,
                 if (strcmp(base64Handle, n->attrs.map[rrname].c_str()))
                 {
                     LOG_debug << "Adding rr attribute";
-                    n->attrs.map[rrname] = base64Handle;
-                    updateNodeAttributes = true;
+                    attrUpdates[rrname] = base64Handle;
                 }
             }
             else if (prevRoot->nodehandle == rubbishHandle
@@ -7311,33 +7326,30 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent,
                 if (it != n->attrs.map.end())
                 {
                     LOG_debug << "Removing rr attribute";
-                    n->attrs.map.erase(it);
-                    updateNodeAttributes = true;
+                    attrUpdates[rrname] = "";
                 }
             }
         }
 
-        if (newName)
-        {
-            string name(newName);
-            fsaccess->normalize(&name);
-            n->attrs.map['n'] = name;
-            updateNodeAttributes = true;
-        }
+        //n->changed.parent = true;
+        //n->tag = reqtag;
+        //notifynode(n);
 
-        n->changed.parent = true;
-        n->tag = reqtag;
-        notifynode(n);
-
-        // rewrite keys of foreign nodes that are moved out of an outbound share
-        rewriteforeignkeys(n);
+        //// rewrite keys of foreign nodes that are moved out of an outbound share
+        //rewriteforeignkeys(n);
 
         reqs.add(new CommandMoveNode(this, n, p, syncdel, prevparent));
-        if (updateNodeAttributes)
+
+        if (newName)
         {
-            setattr(n);
+            attrUpdates['n'] = newName;
         }
-    }
+
+        if (!attrUpdates.empty())
+        {
+            setattr(n, std::move(attrUpdates));
+        }
+//    }
 
     return API_OK;
 }
@@ -7549,7 +7561,7 @@ uint64_t MegaClient::stringhash64(string* s, SymmCipher* c)
 }
 
 // read and add/verify node array
-int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNode>* nn, int tag, bool applykeys)
+int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNode>* nn, int tag, bool applykeys, Node* priorActionpacketDeletedNode, bool* firstHandleMismatchedDelete)
 {
     if (!j->enterarray())
     {
@@ -7580,6 +7592,12 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
             {
                 case 'h':   // new node: handle
                     h = j->gethandle();
+                    if (priorActionpacketDeletedNode && firstHandleMismatchedDelete)
+                    {
+                        *firstHandleMismatchedDelete = h == priorActionpacketDeletedNode->nodehandle;
+                        if (*firstHandleMismatchedDelete) return 0;
+                        priorActionpacketDeletedNode = nullptr;
+                    }
                     break;
 
                 case 'p':   // parent node
@@ -12556,7 +12574,7 @@ void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, list
 // * attempt to execute renames, moves and deletions (deletions require the
 // rubbish flag to be set)
 // returns false if any local fs op failed transiently
-bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
+bool MegaClient::syncdown(LocalNode* l, string* localpath)
 {
     // only use for LocalNodes with a corresponding and properly linked Node
     if (l->type != FOLDERNODE || !l->node || (l->parent && l->node->parent->localnode != l->parent))
@@ -12697,7 +12715,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                 }
 
                 // recurse into directories of equal name
-                if (!syncdown(ll, localpath, rubbish) && success)
+                if (!syncdown(ll, localpath) && success)
                 {
                     success = false;
                 }
@@ -12707,7 +12725,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 
             lit++;
         }
-        else if (rubbish && ll->deleted)    // no corresponding remote node: delete local item
+        else if (ll->deleted)    // no corresponding remote node: delete local item
         {
             if (ll->type == FILENODE)
             {
@@ -12760,6 +12778,12 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
     // missing local files
     for (rit = nchildren.begin(); rit != nchildren.end(); rit++)
     {
+        if (!rit->second->mPendingChanges.empty())
+        {
+            // if we already decided on an action for this node, wait until that is finished before considering more changes.
+            continue;
+        }
+
         size_t t = localpath->size();
 
         localname = rit->second->attrs.map.find('n')->second;
@@ -12877,7 +12901,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                         ll->setnode(rit->second);
                         ll->sync->statecacheadd(ll);
 
-                        if (!syncdown(ll, localpath, rubbish) && success)
+                        if (!syncdown(ll, localpath) && success)
                         {
                             LOG_debug << "Syncdown not finished";
                             success = false;
@@ -13403,7 +13427,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                 LOG_err << "LocalNode created and reported " << ll->name;
             }
         }
-        else
+        else if (!ll->node) // todo: was going to check mPendingChanges, but if it has a node already then we shouldn't be creating it?  Anyway we should be checking if it's in synccreate already - TBD
         {
             ll->created = true;
 

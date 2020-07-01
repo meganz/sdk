@@ -41,7 +41,7 @@ size_t Request::size() const
     return cmds.size();
 }
 
-void Request::get(string* req, bool& suppressSID) const
+void Request::get(string* req, bool& suppressSID, MegaClient* client) const
 {
     // concatenate all command objects, resulting in an API request
     *req = "[";
@@ -49,7 +49,7 @@ void Request::get(string* req, bool& suppressSID) const
     for (int i = 0; i < (int)cmds.size(); i++)
     {
         req->append(i ? ",{" : "{");
-        req->append(cmds[i]->getstring());
+        req->append(cmds[i]->getJSON(client));
         req->append("}");
         suppressSID = suppressSID && cmds[i]->suppressSID;
     }
@@ -337,7 +337,7 @@ Command* RequestDispatcher::getCurrentCommand(bool currSeqtagSeen)
     return currSeqtagSeen ? inflightreq.getCurrentCommand() : nullptr;
 }
 
-void RequestDispatcher::serverrequest(string *out, bool& suppressSID, bool &includesFetchingNodes, bool& v3)
+void RequestDispatcher::serverrequest(string *out, bool& suppressSID, bool &includesFetchingNodes, bool& v3, MegaClient* client)
 {
     assert(inflightreq.empty());
     inflightreq.swap(nextreqs.front());
@@ -346,7 +346,7 @@ void RequestDispatcher::serverrequest(string *out, bool& suppressSID, bool &incl
     {
         nextreqs.push_back(Request());
     }
-    inflightreq.get(out, suppressSID);
+    inflightreq.get(out, suppressSID, client);
     includesFetchingNodes = inflightreq.isFetchNodes();
     v3 = inflightreq.mV3;
 #ifdef MEGA_MEASURE_CODE

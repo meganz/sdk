@@ -58,6 +58,7 @@ struct TransferTracker : public ::mega::MegaTransferListener
     std::atomic<int> result = { INT_MAX };
     std::promise<int> promiseResult;
     MegaApi *mApi;
+    std::shared_ptr<TransferTracker> selfDeleteOnFinalCallback;
 
     TransferTracker(MegaApi *api): mApi(api)
     {
@@ -72,6 +73,13 @@ struct TransferTracker : public ::mega::MegaTransferListener
         result = error->getErrorCode();
         finished = true;
         promiseResult.set_value(result);
+        if (selfDeleteOnFinalCallback)
+        {
+            // sometimes in tests we need to abandon the listener, because we need to time out (which a normal app would not do)
+            // another case is when we deliberately destroy MegaApi or other objects to exercise shutdown cases
+            // allowing the listener to destroy on final callback simplifies test object lifetime management
+            selfDeleteOnFinalCallback.reset();
+        }
     }
     int waitForResult(int seconds = maxTimeout, bool unregisterListenerOnTimeout = true)
     {

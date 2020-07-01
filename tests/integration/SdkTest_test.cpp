@@ -206,9 +206,23 @@ namespace
     }
 }
 
+std::string logTime()
+{
+    // why do the tests take so long to run?  Log some info about what is slow.
+    auto t = std::time(NULL);
+    char ts[50];
+    struct tm dt;
+    ::mega::m_gmtime(t, &dt);
+    if (!std::strftime(ts, sizeof(ts), "%H:%M:%S ", &dt))
+    {
+        ts[0] = '\0';
+    }
+    return ts;
+}
 
 void SdkTest::SetUp()
 {
+    cout << logTime() << "Test setting up" << endl;
     // do some initialization
     if (megaApi.size() < 2)
     {
@@ -238,12 +252,15 @@ void SdkTest::SetUp()
         LOG_info << "___ Initializing test (SetUp()) ___";
 
         ASSERT_NO_FATAL_FAILURE( login(0) );
+        cout << logTime() << "Test logged in, fetching nodes" << endl;
         ASSERT_NO_FATAL_FAILURE( fetchnodes(0) );
+        cout << logTime() << "Test setup done, test starts" << endl;
     }
 }
 
 void SdkTest::TearDown()
 {
+    cout << logTime() << "Test done, teardown starts" << endl;
     // do some cleanup
 
     gTestingInvalidArgs = false;
@@ -282,6 +299,7 @@ void SdkTest::TearDown()
 
         releaseMegaApi(0);
     }
+    cout << logTime() << "Teardown done, test exiting" << endl;
 }
 
 int SdkTest::getApiIndex(MegaApi* api)
@@ -4637,13 +4655,16 @@ TEST_F(SdkTest, RecursiveUploadWithLogout)
     ASSERT_TRUE(buildLocalFolders(p.u8string().c_str(), "newkid", 3, 2, 10));
 
     // start uploading
-    TransferTracker uploadListener(megaApi[0].get());
-    megaApi[0]->startUpload(p.u8string().c_str(), std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get(), &uploadListener);
+    // uploadListener may have to live after this function exits if the logout test below fails
+    auto uploadListener = std::make_shared<TransferTracker>(megaApi[0].get());
+    uploadListener->selfDeleteOnFinalCallback = uploadListener;
+
+    megaApi[0]->startUpload(p.u8string().c_str(), std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get(), uploadListener.get());
     WaitMillisec(500);
 
     // logout while the upload (which consists of many transfers) is ongoing
     ASSERT_EQ(API_OK, doRequestLogout(0));
-    int result = uploadListener.waitForResult();
+    int result = uploadListener->waitForResult();
     ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
 }
 

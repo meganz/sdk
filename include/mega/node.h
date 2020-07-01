@@ -102,6 +102,43 @@ private:
     m_off_t mSumSizes = 0;
 };
 
+struct CommandChain
+{   
+    // most nodes don't have commands in progress so keep representation super small
+    std::unique_ptr<std::list<Command*>> chain;
+
+    // convenience functions, hides the unique_ptr aspect, removes it when empty
+    bool empty() 
+    {
+        return !chain || chain->empty();
+    }
+
+    void push_back(Command* c)
+    {
+        if (!chain) chain.reset(new std::list<Command*>);
+        chain->push_back(c);
+    }
+
+    void erase(Command* c)
+    {
+        if (chain)
+        {
+            for (auto i = chain->begin(); i != chain->end(); ++i)
+            {
+                if (*i == c)
+                {
+                    chain->erase(i);
+                    if (chain->empty())
+                    {
+                        chain.reset();
+                    }
+                    return;
+                }
+            }
+        }
+    }
+};
+
 
 // filesystem node
 struct MEGA_API Node : public NodeCore, FileFingerprint
@@ -143,6 +180,9 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     // node attributes
     AttrMap attrs;
+
+    // track upcoming attribute changes for this node, so we can reason about current vs future state
+    CommandChain mPendingChanges;
 
     // owner
     handle owner = mega::UNDEF;

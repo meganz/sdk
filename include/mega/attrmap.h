@@ -27,7 +27,24 @@
 namespace mega {
 
 // maps attribute names to attribute values
-typedef map<nameid, string> attr_map;
+struct attr_map : map<nameid, string> 
+{
+    attr_map() {}
+    
+    attr_map(nameid key, string value)
+    {
+        (*this)[key] = value;
+    }
+
+    void applyUpdates(const attr_map& updates)
+    {
+        for (auto& u : updates)
+        {
+            if (u.second.empty()) erase(u.first);
+            else operator[](u.first) = u.second;
+        }
+    }
+};
 
 struct MEGA_API AttrMap
 {

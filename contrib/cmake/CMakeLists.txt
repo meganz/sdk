@@ -429,10 +429,10 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             IF(USE_WEBRTC)
                 include_directories( "${WebRtcDir}/webrtc/src/third_party/boringssl/src/include" )
             ELSE()
-                #ImportStdVcpkgLibrary(ssl         ssleay32 ssleay32 libssl libssl) # prior openssl 1.1.0
-                ImportStdVcpkgLibrary(ssl         libssl libssl libssl libssl)
-                #ImportStdVcpkgLibrary(crypto      libeay32 libeay32 libcrypto libcrypto) # prior openssl 1.1.0
-                ImportStdVcpkgLibrary(crypto      libcrypto libcrypto libcrypto libcrypto)
+                ImportStdVcpkgLibrary(ssl         ssleay32 ssleay32 libssl libssl) # prior openssl 1.1.0
+                #ImportStdVcpkgLibrary(ssl         libssl libssl libssl libssl)
+                ImportStdVcpkgLibrary(crypto      libeay32 libeay32 libcrypto libcrypto) # prior openssl 1.1.0
+                #ImportStdVcpkgLibrary(crypto      libcrypto libcrypto libcrypto libcrypto)
 
             ENDIF()
         ENDIF()

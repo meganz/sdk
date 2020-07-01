@@ -63,7 +63,18 @@ typedef ::mega::byte byte;
 void WaitMillisec(unsigned n)
 {
 #ifdef _WIN32
-    Sleep(n);
+    if (n > 1000)
+    {
+        for (int i = 0; i < 10; ++i)
+        {
+            // better for debugging, with breakpoints, pauses, etc
+            Sleep(n/10);
+        }
+    }
+    else
+    {
+        Sleep(n);
+    }
 #else
     usleep(n * 1000);
 #endif
@@ -1480,6 +1491,7 @@ struct StandardClient : public MegaApp
 
 void waitonsyncs(chrono::seconds d = std::chrono::seconds(4), StandardClient* c1 = nullptr, StandardClient* c2 = nullptr, StandardClient* c3 = nullptr, StandardClient* c4 = nullptr)
 {
+    auto totalTimeoutStart = chrono::steady_clock::now();
     auto start = chrono::steady_clock::now();
     std::vector<StandardClient*> v{ c1, c2, c3, c4 };
     bool onelastsyncdown = true;
@@ -1539,6 +1551,12 @@ void waitonsyncs(chrono::seconds d = std::chrono::seconds(4), StandardClient* c1
         }
 
         WaitMillisec(400);
+
+        if ((chrono::steady_clock::now() - totalTimeoutStart) > std::chrono::minutes(5))
+        {
+            cout << "Waiting for syncing to stop timed out at 5 minutes" << endl;
+            return;
+        }
     }
 
 }
