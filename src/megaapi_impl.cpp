@@ -23890,11 +23890,14 @@ void MegaFolderUploadController::onRequestFinish(MegaApi *, MegaRequest *request
 void MegaFolderUploadController::onTransferStart(MegaApi *, MegaTransfer *t)
 {
     subTransfers.insert(static_cast<MegaTransferPrivate*>(t));
-    transfer->setState(t->getState());
-    transfer->setPriority(t->getPriority());
-    transfer->setTotalBytes(transfer->getTotalBytes() + t->getTotalBytes());
-    transfer->setUpdateTime(Waiter::ds);
-    megaApi->fireOnTransferUpdate(transfer);
+    if (transfer)
+    {
+        transfer->setState(t->getState());
+        transfer->setPriority(t->getPriority());
+        transfer->setTotalBytes(transfer->getTotalBytes() + t->getTotalBytes());
+        transfer->setUpdateTime(Waiter::ds);
+        megaApi->fireOnTransferUpdate(transfer);
+    }
 }
 
 void MegaFolderUploadController::onTransferUpdate(MegaApi *, MegaTransfer *t)
@@ -25240,11 +25243,14 @@ void MegaFolderDownloadController::checkCompletion()
 void MegaFolderDownloadController::onTransferStart(MegaApi *, MegaTransfer *t)
 {
     subTransfers.insert(static_cast<MegaTransferPrivate*>(t));
-    transfer->setState(t->getState());
-    transfer->setPriority(t->getPriority());
-    transfer->setTotalBytes(transfer->getTotalBytes() + t->getTotalBytes());
-    transfer->setUpdateTime(Waiter::ds);
-    megaApi->fireOnTransferUpdate(transfer);
+    if (transfer)
+    {
+        transfer->setState(t->getState());
+        transfer->setPriority(t->getPriority());
+        transfer->setTotalBytes(transfer->getTotalBytes() + t->getTotalBytes());
+        transfer->setUpdateTime(Waiter::ds);
+        megaApi->fireOnTransferUpdate(transfer);
+    }
 }
 
 void MegaFolderDownloadController::onTransferUpdate(MegaApi *, MegaTransfer *t)
