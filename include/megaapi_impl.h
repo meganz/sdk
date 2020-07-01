@@ -216,6 +216,7 @@ protected:
     int recursive;
     int tag;
     int pendingTransfers;
+    bool cancelled = false;
     std::set<MegaTransferPrivate*> subTransfers;
     int mIncompleteTransfers = { 0 };
     MegaErrorPrivate mLastError = { API_OK };
@@ -394,6 +395,9 @@ public:
 protected:
     void downloadFolderNode(MegaNode *node, string *path);
     void checkCompletion();
+
+private:
+    bool cancelled = false;
 
 public:
     void onTransferStart(MegaApi *, MegaTransfer *t) override;
@@ -1973,6 +1977,8 @@ class TransferQueue
         void push(MegaTransferPrivate *transfer);
         void push_front(MegaTransferPrivate *transfer);
         MegaTransferPrivate * pop();
+
+        void removeWithFolderTag(int folderTag, std::function<void(MegaTransferPrivate *)> callback);
         void removeListener(MegaTransferListener *listener);
 };
 
@@ -2003,6 +2009,9 @@ class MegaApiImpl : public MegaApp
         void removeTransferListener(MegaTransferListener* listener);
         void removeBackupListener(MegaBackupListener* listener);
         void removeGlobalListener(MegaGlobalListener* listener);
+
+        void cancelPendingTransfersByFolderTag(int folderTag);
+
 
         MegaRequest *getCurrentRequest();
         MegaTransfer *getCurrentTransfer();

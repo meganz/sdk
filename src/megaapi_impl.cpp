@@ -7444,6 +7444,17 @@ void MegaApiImpl::abortPendingActions(error preverror)
     // -- Transfers in progress --
     {
         DBTableTransactionCommitter committer(client->tctable);
+
+        // -- Transfers in the queue --
+        // clear queued transfers, not yet started (and not added to cache)
+        while (MegaTransferPrivate *transfer = transferQueue.pop())
+        {
+            fireOnTransferStart(transfer);
+            transfer->setState(MegaTransfer::STATE_FAILED);
+            fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(preverror), committer);
+        }
+
+        // clear existing transfers
         while (!transferMap.empty())
         {
             auto transfer = transferMap.begin()->second;
@@ -7454,14 +7465,6 @@ void MegaApiImpl::abortPendingActions(error preverror)
         assert(transferMap.empty());
         transferMap.clear();
 
-        // -- Transfers in the queue --
-        // clear also the queued transfers, not yet started (and not added to cache)
-        while (MegaTransferPrivate *transfer = transferQueue.pop())
-        {
-            fireOnTransferStart(transfer);
-            transfer->setState(MegaTransfer::STATE_FAILED);
-            fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(preverror), committer);
-        }
     }
 
     resetTotalDownloads();
@@ -15818,6 +15821,18 @@ void MegaApiImpl::removeGlobalListener(MegaGlobalListener* listener)
     sdkMutex.unlock();
 }
 
+void MegaApiImpl::cancelPendingTransfersByFolderTag(int folderTag)
+{
+    DBTableTransactionCommitter committer(client->tctable);
+
+    transferQueue.removeWithFolderTag(folderTag, [this, &committer](MegaTransferPrivate *transfer)
+    {
+        fireOnTransferStart(transfer);
+        transfer->setState(MegaTransfer::STATE_CANCELLED);
+        fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), committer);
+    });
+}
+
 MegaRequest *MegaApiImpl::getCurrentRequest()
 {
     return activeRequest;
@@ -20543,9 +20558,11 @@ void MegaApiImpl::sendPendingRequests()
             if (!megaTransfer->isStreamingTransfer())
             {
                 Transfer *transfer = megaTransfer->getTransfer();
-                if (!transfer)
+                if (!transfer) //folder transfer
                 {
-                    e = API_ENOENT;
+                    megaTransfer->setState(MegaTransfer::STATE_CANCELLED);
+                    fireOnTransferFinish(megaTransfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), committer);
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
                     break;
                 }
 
@@ -22203,6 +22220,25 @@ MegaTransferPrivate *TransferQueue::pop()
     return transfer;
 }
 
+void TransferQueue::removeWithFolderTag(int folderTag, std::function<void(MegaTransferPrivate *)> callback)
+{
+    for (auto it = transfers.begin(); it != transfers.end();)
+    {
+        if ((*it)->getFolderTransferTag() == folderTag)
+        {
+            if (callback)
+            {
+                callback(*it);
+            }
+            it = transfers.erase(it);
+        }
+        else
+        {
+            it++;
+        }
+    }
+}
+
 void TransferQueue::removeListener(MegaTransferListener *listener)
 {
     mutex.lock();
@@ -23783,7 +23819,10 @@ void MegaFolderUploadController::start(MegaNode*)
 
 void MegaFolderUploadController::cancel()
 {
-    transfer = nullptr;  // no final callback for this one since it is being destroyed now
+    cancelled = true; //we dont want to further checkcompletion, and produce multile fireOnTransferFinish -> multiple deletions
+
+    //remove subtransfers from pending transferQueue
+    megaApi->cancelPendingTransfersByFolderTag(tag);
 
     while (!subTransfers.empty())
     {
@@ -23792,6 +23831,8 @@ void MegaFolderUploadController::cancel()
         DBTableTransactionCommitter committer(client->tctable);
         megaApi->fireOnTransferFinish(subTransfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), committer);
     }
+
+    transfer = nullptr;  // no final callback for this one since it is being destroyed now
 }
 
 void MegaFolderUploadController::onFolderAvailable(MegaHandle handle)
@@ -23856,7 +23897,7 @@ void MegaFolderUploadController::onFolderAvailable(MegaHandle handle)
 
 void MegaFolderUploadController::checkCompletion()
 {
-    if (!recursive && !pendingFolders.size() && !pendingTransfers)
+    if (!cancelled && !recursive && !pendingFolders.size() && !pendingTransfers)
     {
         LOG_debug << "Folder transfer finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
         transfer->setState(MegaTransfer::STATE_COMPLETED);
@@ -25122,7 +25163,10 @@ void MegaFolderDownloadController::start(MegaNode *node)
 
 void MegaFolderDownloadController::cancel()
 {
-    transfer = nullptr;  // no final callback for this one since it is being destroyed now
+    cancelled = true; //we dont want to further checkcompletion, and produce multile fireOnTransferFinish -> multiple deletions
+
+    //remove subtransfers from pending transferQueue
+    megaApi->cancelPendingTransfersByFolderTag(tag);
 
     while (!subTransfers.empty())
     {
@@ -25131,6 +25175,8 @@ void MegaFolderDownloadController::cancel()
         DBTableTransactionCommitter committer(client->tctable);
         megaApi->fireOnTransferFinish(subTransfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), committer);
     }
+
+    transfer = nullptr;  // no final callback for this one since it is being destroyed now
 }
 
 
@@ -25230,7 +25276,7 @@ void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, string *pa
 
 void MegaFolderDownloadController::checkCompletion()
 {
-    if (!recursive && !pendingTransfers)
+    if (!cancelled && !recursive && !pendingTransfers)
     {
         LOG_debug << "Folder download finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
         transfer->setState(MegaTransfer::STATE_COMPLETED);
