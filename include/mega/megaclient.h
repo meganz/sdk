@@ -699,6 +699,9 @@ public:
 
     // auto-join publicchat
     void chatlinkjoin(handle publichandle, const char *unifiedkey);
+
+    // set retention time for a chatroom in seconds, after which older messages in the chat are automatically deleted
+    void setchatretentiontime(handle chatid, int period);
 #endif
 
     // get mega achievements
@@ -709,9 +712,6 @@ public:
 
     // get welcome pdf
     void getwelcomepdf();
-
-    // set retention time for a chatroom in seconds, after which older messages in the chat are automatically deleted
-    void setchatretentiontime(handle chatid, int period);
 
     // toggle global debug flag
     bool toggledebug();
