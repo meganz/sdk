@@ -23936,6 +23936,7 @@ void MegaFolderUploadController::onRequestFinish(MegaApi *, MegaRequest *request
 void MegaFolderUploadController::onTransferStart(MegaApi *, MegaTransfer *t)
 {
     subTransfers.insert(static_cast<MegaTransferPrivate*>(t));
+    assert(transfer);
     if (transfer)
     {
         transfer->setState(t->getState());
@@ -23948,6 +23949,7 @@ void MegaFolderUploadController::onTransferStart(MegaApi *, MegaTransfer *t)
 
 void MegaFolderUploadController::onTransferUpdate(MegaApi *, MegaTransfer *t)
 {
+    assert(transfer);
     if (transfer)
     {
         transfer->setState(t->getState());
@@ -23964,6 +23966,7 @@ void MegaFolderUploadController::onTransferFinish(MegaApi *, MegaTransfer *t, Me
 {
     subTransfers.erase(static_cast<MegaTransferPrivate*>(t));
     pendingTransfers--;
+    assert(transfer);
     if (transfer)
     {
         transfer->setState(MegaTransfer::STATE_ACTIVE);
@@ -23987,7 +23990,7 @@ MegaFolderUploadController::~MegaFolderUploadController()
     //we dettach this as request listener: could be pending create folder req finish
     megaApi->removeRequestListener(this);
 
-    //we shouldn't need to dettach as transfer listener: we all listened transfer should have been cancelled/completed
+    //we shouldn't need to dettach as transfer listener: all listened transfer should have been cancelled/completed
 }
 
 MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, int folderTransferTag, handle parenthandle, const char* filename, bool attendPastBackups, const char *speriod, int64_t period, int maxBackups)
@@ -25302,6 +25305,7 @@ void MegaFolderDownloadController::checkCompletion()
 void MegaFolderDownloadController::onTransferStart(MegaApi *, MegaTransfer *t)
 {
     subTransfers.insert(static_cast<MegaTransferPrivate*>(t));
+    assert(transfer);
     if (transfer)
     {
         transfer->setState(t->getState());
@@ -25314,6 +25318,7 @@ void MegaFolderDownloadController::onTransferStart(MegaApi *, MegaTransfer *t)
 
 void MegaFolderDownloadController::onTransferUpdate(MegaApi *, MegaTransfer *t)
 {
+    assert(transfer);
     if (transfer)
     {
         transfer->setState(t->getState());
@@ -25330,6 +25335,7 @@ void MegaFolderDownloadController::onTransferFinish(MegaApi *, MegaTransfer *t, 
 {
     subTransfers.erase(static_cast<MegaTransferPrivate*>(t));
     pendingTransfers--;
+    assert(transfer);
     if (transfer)
     {
         transfer->setState(MegaTransfer::STATE_ACTIVE);
