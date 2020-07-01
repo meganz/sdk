@@ -240,6 +240,7 @@ public:
     void onTransferStart(MegaApi *api, MegaTransfer *transfer) override;
     void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) override;
     void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e) override;
+    ~MegaFolderUploadController();
 };
 
 
@@ -395,9 +396,6 @@ public:
 protected:
     void downloadFolderNode(MegaNode *node, string *path);
     void checkCompletion();
-
-private:
-    bool cancelled = false;
 
 public:
     void onTransferStart(MegaApi *, MegaTransfer *t) override;

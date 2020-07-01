@@ -20555,17 +20555,22 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
+            if (megaTransfer->isFolderTransfer())
+            {
+                megaTransfer->setState(MegaTransfer::STATE_CANCELLED);
+                fireOnTransferFinish(megaTransfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), committer);
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
+                break;
+            }
+
             if (!megaTransfer->isStreamingTransfer())
             {
                 Transfer *transfer = megaTransfer->getTransfer();
-                if (!transfer) //folder transfer
+                if (!transfer)
                 {
-                    megaTransfer->setState(MegaTransfer::STATE_CANCELLED);
-                    fireOnTransferFinish(megaTransfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), committer);
-                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
+                    e = API_ENOENT;
                     break;
                 }
-
                 #ifdef _WIN32
                     if (transfer->type == GET)
                     {
@@ -23975,6 +23980,14 @@ void MegaFolderUploadController::onTransferFinish(MegaApi *, MegaTransfer *t, Me
         }
         checkCompletion();
     }
+}
+
+MegaFolderUploadController::~MegaFolderUploadController()
+{
+    //we dettach this as request listener: could be pending create folder req finish
+    megaApi->removeRequestListener(this);
+
+    //we shouldn't need to dettach as transfer listener: we all listened transfer should have been cancelled/completed
 }
 
 MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, int folderTransferTag, handle parenthandle, const char* filename, bool attendPastBackups, const char *speriod, int64_t period, int maxBackups)
