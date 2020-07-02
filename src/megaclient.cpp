@@ -14160,12 +14160,7 @@ error MegaClient::saveAndUpdateSyncConfig(const SyncConfig *config, syncstate_t 
         assert(config);
         auto newConfig = *config;
 
-        auto isEnabled = [](syncstate_t state, syncerror_t syncError) -> bool
-        {
-            return state != SYNC_CANCELED && (state != SYNC_DISABLED || syncError != NO_SYNC_ERROR );
-        };
-
-        newConfig.setEnabled(isEnabled(newstate, newSyncError));
+        newConfig.setEnabled(SyncConfig::isEnabled(newstate, newSyncError));
         newConfig.setError(newSyncError);
 
         syncConfigs->insert(newConfig);
@@ -14180,12 +14175,7 @@ error MegaClient::changeSyncState(const SyncConfig *config, syncstate_t newstate
     assert(config);
     if (config)
     {
-        auto isEnabled = [](syncstate_t state, syncerror_t syncError) -> bool
-        {
-            return state != SYNC_CANCELED && (state != SYNC_DISABLED || syncError != NO_SYNC_ERROR );
-        };
-
-        if ( (config->getError() != newSyncError) || (config->getEnabled() != isEnabled(newstate, newSyncError)) ) //has changed
+        if ( (config->getError() != newSyncError) || (config->getEnabled() != SyncConfig::isEnabled(newstate, newSyncError)) ) //has changed
         {
             e = saveAndUpdateSyncConfig(config, newstate, newSyncError);
         }

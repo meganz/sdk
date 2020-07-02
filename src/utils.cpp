@@ -2236,6 +2236,11 @@ void SyncConfig::setEnabled(bool enabled)
     mEnabled = enabled;
 }
 
+bool SyncConfig::isEnabled(syncstate_t state, syncerror_t syncError)
+{
+    return state != SYNC_CANCELED && (state != SYNC_DISABLED || syncError != NO_SYNC_ERROR);
+}
+
 bool SyncConfig::isResumable() const
 {
     return mEnabled && !isMegaSyncErrorPermanent(mError);

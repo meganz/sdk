@@ -886,6 +886,8 @@ public:
     // sets if enabled by the user
     void setEnabled(bool enabled);
 
+    static bool isEnabled(syncstate_t state, syncerror_t syncError);
+
 private:
     friend bool operator==(const SyncConfig& lhs, const SyncConfig& rhs);
 
