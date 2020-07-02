@@ -4889,7 +4889,7 @@ public:
      * - The user tries to disable a sync that was active
      *
      * - The sdk tries to resume a sync that had been temporarily disabled and a failure happens
-     * This does not imply a transition from active to inactive, but the callback is necesary to inform the user
+     * This does not imply a transition from active to inactive, but the callback is necessary to inform the user
      * that the sync is no longer in a temporary error, but in a fatal one.
      *
      * @param api MegaApi object that is synchronizing files
@@ -5122,7 +5122,7 @@ public:
      *
      * @return If the sync is temporary disabled (transient error/circumstance).
      */
-    virtual bool isTemporaryDisabled() const; //disabled automatically for a transient reason
+    virtual bool isTemporaryDisabled() const;
 
 
     /**
@@ -6677,7 +6677,7 @@ class MegaListener
      * - The user tries to disable a sync that was active
      *
      * - The sdk tries to resume a sync that had been temporarily disabled and a failure happens
-     * This does not imply a transition from active to inactive, but the callback is necesary to inform the user
+     * This does not imply a transition from active to inactive, but the callback is necessary to inform the user
      * that the sync is no longer in a temporary error, but in a fatal one.
      *
      * @param api MegaApi object that is synchronizing files
@@ -12830,7 +12830,7 @@ class MegaApi
         * Valid data in the MegaRequest object received on callbacks:
         * - MegaRequest::getNumDetails - Returns the sync error (MegaSync::Error) in case of failure
         *
-         * @param syncTag tag identifying the Sync
+        * @param syncTag tag identifying the Sync
         * @param listener MegaRequestListener to track this request
         */
         void enableSync(int tag, MegaRequestListener *listener = NULL);
@@ -13532,7 +13532,7 @@ class MegaApi
          * @brief Get the path of a Node given its MegaHandle
          *
          * If the node doesn't exist, this function returns NULL.
-         * You can recoved the node later using MegaApi::getNodeByPath
+         * You can recover the node later using MegaApi::getNodeByPath
          * except if the path contains names with '/', '\' or ':' characters.
          *
          * You take the ownership of the returned value

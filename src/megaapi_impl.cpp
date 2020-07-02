@@ -8360,7 +8360,7 @@ MegaNode *MegaApiImpl::getSyncedNode(string *path)
 void MegaApiImpl::syncFolder(const char *localFolder, MegaHandle megaHandle, MegaRegExp *regExp, long long localfp, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC);
-    if (megaHandle != INVALID_HANDLE) request->setNodeHandle(megaHandle);
+    request->setNodeHandle(megaHandle);
     if(localFolder)
     {
         string path(localFolder);
@@ -8380,13 +8380,13 @@ void MegaApiImpl::syncFolder(const char *localFolder, MegaHandle megaHandle, Meg
 
 void MegaApiImpl::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp, long long localfp, MegaRequestListener *listener)
 {
-    syncFolder(localFolder, megaFolder?megaFolder->getHandle():INVALID_HANDLE, regExp, localfp, listener);
+    syncFolder(localFolder, megaFolder ? megaFolder->getHandle() : INVALID_HANDLE, regExp, localfp, listener);
 }
 
 void MegaApiImpl::copySyncDataToCache(const char *localFolder, MegaHandle megaHandle,
                                       long long localfp, bool enabled, bool tempoaryDisabled, MegaRequestListener *listener)
 {
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_COPY_SYNC_CONFIG);
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_COPY_SYNC_CONFIG, listener);
 
     request->setNodeHandle(megaHandle);
     if(localFolder)
@@ -8401,7 +8401,6 @@ void MegaApiImpl::copySyncDataToCache(const char *localFolder, MegaHandle megaHa
 
     request->setFlag(enabled);
     request->setNumDetails(tempoaryDisabled);
-    request->setListener(listener);
     request->setNumber(localfp);
     requestQueue.push(request);
     waiter->notify();
@@ -12719,6 +12718,7 @@ void MegaApiImpl::syncupdate_state(int tag, syncstate_t newstate, syncerror_t sy
     if( syncpair == syncMap.end())
     {
         LOG_err << " updating state for missing sync: tag = " << tag << " newstate = " << newstate << " err = " << syncerror;
+        assert(false);
         return;
     }
     MegaSyncPrivate* megaSync = syncpair->second;
