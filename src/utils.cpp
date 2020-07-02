@@ -2188,7 +2188,7 @@ int64_t CacheableStatus::type() const
     return mType;
 }
 
-void CacheableStatus::setValue(const int64_t &value)
+void CacheableStatus::setValue(const int64_t value)
 {
     mValue = value;
 }

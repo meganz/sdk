@@ -789,7 +789,7 @@ public:
     int64_t type() const;
     int64_t value() const;
 
-    void setValue(const int64_t &value);
+    void setValue(const int64_t value);
 
 private:
 
@@ -814,16 +814,16 @@ public:
         TYPE_TWOWAY = TYPE_UP | TYPE_DOWN, // Two-way sync
     };
 
-    SyncConfig( int tag,
-                std::string localPath,
+    SyncConfig(int tag,
+               std::string localPath,
                const handle remoteNode,
                const fsfp_t localFingerprint,
                std::vector<std::string> regExps = {},
-                const bool enabled = true,
+               const bool enabled = true,
                const Type syncType = TYPE_TWOWAY,
                const bool syncDeletions = false,
                const bool forceOverwrite = false,
-                const int error = NO_SYNC_ERROR
+               const int error = NO_SYNC_ERROR
             );
 
     // returns unique identifier
@@ -886,6 +886,7 @@ public:
     // sets if enabled by the user
     void setEnabled(bool enabled);
 
+    // check if a sync would be enabled according to the sync state and error
     static bool isEnabled(syncstate_t state, syncerror_t syncError);
 
 private:

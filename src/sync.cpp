@@ -632,7 +632,6 @@ const SyncConfig* SyncConfigBag::get(const int tag) const
 
 const SyncConfig* SyncConfigBag::getByNodeHandle(handle nodeHandle) const
 {
-    std::vector<SyncConfig> syncConfigs;
     for (const auto& syncConfigPair : mSyncConfigs)
     {
         if (syncConfigPair.second.getRemoteNode() == nodeHandle)

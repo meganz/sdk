@@ -14198,7 +14198,7 @@ error MegaClient::changeSyncState(int tag, syncstate_t newstate, syncerror_t new
         LOG_err << "no SyncConfig upon changeSyncState";
         e = API_ENOENT;
     }
-    auto config = syncConfigs?syncConfigs->get(tag):nullptr;
+    auto config = syncConfigs ? syncConfigs->get(tag) : nullptr;
     assert(config);
     e = changeSyncState(config, newstate, newSyncError, fireDisableEvent);
     return e;
@@ -14207,8 +14207,6 @@ error MegaClient::changeSyncState(int tag, syncstate_t newstate, syncerror_t new
 error MegaClient::changeSyncStateByNodeHandle(mega::handle nodeHandle, syncstate_t newstate, syncerror_t newSyncError, bool fireDisableEvent)
 {
     error e = API_OK;
-
-    auto tag = 0;
 
     if (!syncConfigs)
     {
@@ -14242,15 +14240,15 @@ void MegaClient::disableSync(Sync* sync, syncerror_t syncError)
 
 bool MegaClient::disableSyncContainingNode(mega::handle nodeHandle, syncerror_t syncError)
 {
-    while(nodeHandle != UNDEF )
+    while(!ISUNDEF(nodeHandle))
     {
         for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
         {
             Sync *sync = (*it);
-            if ( sync->localroot && sync->localroot->node && sync->localroot->node->nodehandle == nodeHandle)
+            if (sync->localroot && sync->localroot->node && sync->localroot->node->nodehandle == nodeHandle)
             {
                 disableSync(sync, syncError);
-                return true;
+                return true;    // no nested synched folders is allowed, so if found, there's no more syncs to disable
             }
         }
 
