@@ -12939,22 +12939,22 @@ void MegaApiImpl::syncupdate_local_lockretry(bool waiting)
 }
 #endif
 
-void MegaApiImpl::backupput_result(error, handle /*backupId*/)
+void MegaApiImpl::backupput_result(const Error&, handle /*backupId*/)
 {
 
 }
 
-void MegaApiImpl::backupupdate_result(error, handle /*backupId*/)
+void MegaApiImpl::backupupdate_result(const Error&, handle /*backupId*/)
 {
 
 }
 
-void MegaApiImpl::backupputheartbeat_result(error)
+void MegaApiImpl::backupputheartbeat_result(const Error&)
 {
 
 }
 
-void MegaApiImpl::backupremove_result(error, handle /*backupId*/)
+void MegaApiImpl::backupremove_result(const Error&, handle /*backupId*/)
 {
 
 }

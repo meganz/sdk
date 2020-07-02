@@ -389,10 +389,10 @@ struct MEGA_API MegaApp
 
     virtual void getmiscflags_result(error) { }
 
-    virtual void backupput_result(error, handle /*backup id*/) { }
-    virtual void backupupdate_result(error, handle /*backup id*/) { }
-    virtual void backupputheartbeat_result(error) { }
-    virtual void backupremove_result(error, handle /*backup id*/) { }
+    virtual void backupput_result(const Error&, handle /*backup id*/) { }
+    virtual void backupupdate_result(const Error&, handle /*backup id*/) { }
+    virtual void backupputheartbeat_result(const Error&) { }
+    virtual void backupremove_result(const Error&, handle /*backup id*/) { }
 
     virtual ~MegaApp() { }
 };

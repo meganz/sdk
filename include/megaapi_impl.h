@@ -2983,10 +2983,10 @@ protected:
         std::mutex mSyncable_fa_mutex;
 #endif
 
-        void backupput_result(error, handle) override;
-        void backupupdate_result(error, handle) override;
-        void backupputheartbeat_result(error) override;
-        void backupremove_result(error, handle) override;
+        void backupput_result(const Error&, handle) override;
+        void backupupdate_result(const Error&, handle) override;
+        void backupputheartbeat_result(const Error&) override;
+        void backupremove_result(const Error&, handle) override;
 
 protected:
         // suggest reload due to possible race condition with other clients
