@@ -468,9 +468,6 @@ public:
 
     // A collection of sync configs backed by a database table
     std::unique_ptr<SyncConfigBag> syncConfigs;
-
-    // whether we allow the automatic resumption of syncs
-    bool allowAutoResumeSyncs = true;
 #endif
 
     // if set, symlinks will be followed except in recursive deletions
@@ -1727,7 +1724,7 @@ public:
     void resetSyncConfigs();
 #endif
 
-    void loadCacheableStatus(const std::shared_ptr<CacheableStatus> &status);
+    void loadCacheableStatus(std::shared_ptr<CacheableStatus> status);
 
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);

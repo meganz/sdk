@@ -2302,7 +2302,7 @@ void MegaClient::exec()
                 {
                     LOG_err << "Local fingerprint mismatch. Previous: " << (*it)->fsfp
                             << "  Current: " << current;
-                    (*it)->changestate(SYNC_FAILED, current?LOCAL_FINGERPRINT_MISMATCH:LOCAL_PATH_UNAVAILABLE);
+                    (*it)->changestate(SYNC_FAILED, current ? LOCAL_FINGERPRINT_MISMATCH : LOCAL_PATH_UNAVAILABLE);
                 }
             }
         }
@@ -2330,7 +2330,7 @@ void MegaClient::exec()
                             //syncsup = false; These syncs should not delay action packets
                             sync->initializing = false;
                             LOG_debug << "Initial delayed scan finished. New / modified files: " << sync->dirnotify->notifyq[DirNotify::DIREVENTS].size();
-                            saveAndUpdateSyncConfig(&sync->getConfig(), sync->state, NO_SYNC_ERROR );
+                            saveAndUpdateSyncConfig(&sync->getConfig(), sync->state, NO_SYNC_ERROR);
                         }
                         else
                         {
@@ -3834,7 +3834,7 @@ bool MegaClient::isFetchingNodesPendingCS()
 #ifdef ENABLE_SYNC
 void MegaClient::resumeResumableSyncs()
 {
-    if (!syncConfigs || !allowAutoResumeSyncs)
+    if (!syncConfigs)
     {
         return;
     }
@@ -3846,7 +3846,7 @@ void MegaClient::resumeResumableSyncs()
         {
             app->sync_about_to_be_resumed(config);
             LOG_debug << "Resuming cached sync: " << config.getTag() << " " << config.getLocalPath() << " fsfp= " << config.getLocalFingerprint() << " error = " << syncError ;
-            const auto e = addsync(config, DEBRISFOLDER, nullptr, syncError);
+            error e = addsync(config, DEBRISFOLDER, nullptr, syncError);
 
             newstate = isMegaSyncErrorPermanent(syncError) ? SYNC_FAILED : SYNC_DISABLED;
             if (!e) //enabled fine
@@ -5226,26 +5226,25 @@ void MegaClient::sc_updatenode()
     }
 }
 
-void MegaClient::loadCacheableStatus(const std::shared_ptr<CacheableStatus> &status)
+void MegaClient::loadCacheableStatus(std::shared_ptr<CacheableStatus> status)
 {
     mCachedStatus[status->type()] = status;
 
-    LOG_verbose << "Loaded status from cache: "
-                << status->type() << " = " << status->value();
+    LOG_verbose << "Loaded status from cache: " << status->type() << " = " << status->value();
 
     switch(status->type())
     {
-    case CacheableStatus::Type::STATUS_STORAGE:
-    {
-        ststatus = static_cast<storagestatus_t>(status->value());
-        break;
-    }
-    case CacheableStatus::Type::STATUS_BUSINESS:
-    {
-        mBizStatus = static_cast<BizStatus>(status->value());
-        mBizStatusLoadedFromCache = true;
-        break;
-    }
+        case CacheableStatus::Type::STATUS_STORAGE:
+        {
+            ststatus = static_cast<storagestatus_t>(status->value());
+            break;
+        }
+        case CacheableStatus::Type::STATUS_BUSINESS:
+        {
+            mBizStatus = static_cast<BizStatus>(status->value());
+            mBizStatusLoadedFromCache = true;
+            break;
+        }
     }
 }
 
@@ -10806,8 +10805,6 @@ void MegaClient::block(bool fromServerClientResponse)
 {
     LOG_verbose << "Blocking MegaClient, fromServerClientResponse: " << fromServerClientResponse;
     setBlocked(true);
-
-
     disableSyncs(ACCOUNT_BLOCKED);
 }
 
@@ -11101,7 +11098,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
                 }
                 else
                 {
-                    LOG_err << "Failed - user record read error";
+                    LOG_err << "Failed - status record read error";
                     return false;
                 }
                 break;
@@ -12398,7 +12395,10 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, syncerror_t 
     // cannot sync files, rubbish bins or inboxes
     if (remotenode->type != FOLDERNODE && remotenode->type != ROOTNODE)
     {
-        if(syncError) *syncError = INVALID_REMOTE_TYPE;
+        if(syncError)
+        {
+            *syncError = INVALID_REMOTE_TYPE;
+        }
         return API_EACCESS;
     }
 
@@ -12434,7 +12434,10 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, syncerror_t 
             if (((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN)
              && n == (*it)->localroot->node)
             {
-                if(syncError) *syncError = ACTIVE_SYNC_BELOW_PATH;
+                if(syncError)
+                {
+                    *syncError = ACTIVE_SYNC_BELOW_PATH;
+                }
                 return API_EEXIST;
             }
         }
@@ -12445,7 +12448,10 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, syncerror_t 
             // FIXME: allow downsyncing from RDONLY and limited syncing to RDWR shares
             if (n->inshare->access != FULL)
             {
-                if(syncError) *syncError = SHARE_NON_FULL_ACCESS;
+                if(syncError)
+                {
+                    *syncError = SHARE_NON_FULL_ACCESS;
+                }
                 return API_EACCESS;
             }
 
@@ -12454,7 +12460,10 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, syncerror_t 
 
         if (n->nodehandle == rubbishHandle)
         {
-            if(syncError) *syncError = REMOTE_NODE_INSIDE_RUBBISH;
+            if(syncError)
+            {
+                *syncError = REMOTE_NODE_INSIDE_RUBBISH;
+            }
             return API_EACCESS;
         }
     } while ((n = n->parent));
@@ -12476,7 +12485,10 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, syncerror_t 
                         do {
                             if (n == remotenode)
                             {
-                                if(syncError) *syncError = SHARE_NON_FULL_ACCESS;
+                                if(syncError)
+                                {
+                                    *syncError = SHARE_NON_FULL_ACCESS;
+                                }
                                 return API_EACCESS;
                             }
                         } while ((n = n->parent));
@@ -12500,7 +12512,10 @@ error MegaClient::isLocalPathSyncable(string newPath, int newSyncTag, syncerror_
 {
     if (!newPath.size())
     {
-        if (syncError) *syncError = INVALID_LOCAL_TYPE;
+        if (syncError)
+        {
+            *syncError = INVALID_LOCAL_TYPE;
+        }
         return API_EARGS;
     }
 
@@ -12531,7 +12546,10 @@ error MegaClient::isLocalPathSyncable(string newPath, int newSyncTag, syncerror_
                 ) )
         {
 
-            if (syncError) *syncError = LOCAL_PATH_SYNC_COLLISION;
+            if (syncError)
+            {
+                *syncError = LOCAL_PATH_SYNC_COLLISION;
+            }
             return API_EARGS;
         }
     }
@@ -12575,7 +12593,10 @@ error MegaClient::addsync(SyncConfig syncConfig, const char* debris, string* loc
     if (!fsaccess->issyncsupported(&rootpath, &isnetwork, &syncError))
     {
         LOG_warn << "Unsupported filesystem";
-        if (!syncError) syncError = UNSUPPORTED_FILE_SYSTEM;
+        if (!syncError)
+        {
+            syncError = UNSUPPORTED_FILE_SYSTEM;
+        }
         return API_EFAILED;
     }
 
@@ -12596,7 +12617,10 @@ error MegaClient::addsync(SyncConfig syncConfig, const char* debris, string* loc
             if (e)
             {
                 LOG_warn << "Local path already synchronized: ";
-                if (!syncError) syncError = UNSUPPORTED_FILE_SYSTEM;
+                if (!syncError)
+                {
+                    syncError = UNSUPPORTED_FILE_SYSTEM;
+                }
                 return API_EFAILED;
             }
 
@@ -14093,9 +14117,7 @@ void MegaClient::delsync(Sync* sync)
     }
 
     removeSyncConfig(sync->tag);
-
     sync->appData = nullptr;
-
     syncactivity = true;
 }
 
@@ -14115,18 +14137,15 @@ error MegaClient::removeSyncConfig(int tag)
 
 error MegaClient::removeSyncConfigByNodeHandle(mega::handle nodeHandle)
 {
-    auto tag = 0;
-
     if (!syncConfigs)
     {
         LOG_err << "no SyncConfig upon removeSyncConfigByNodeHandle";
         return API_ENOENT;
     }
 
-    auto config = syncConfigs?syncConfigs->getByNodeHandle(nodeHandle):nullptr;
+    auto config = syncConfigs ? syncConfigs->getByNodeHandle(nodeHandle) : nullptr;
     if (config)
     {
-        tag = config->getTag();
         return removeSyncConfig(config->getTag());
     }
 

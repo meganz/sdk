@@ -21096,7 +21096,7 @@ void MegaApiImpl::sendPendingRequests()
             int businessStatusValue = static_cast<int>(number / 1000000);
             number = number % 1000000;
             int blockedStatusValue =  static_cast<int>(number / 1000);
-            int storageStatusValue = number % 1000;
+            int storageStatusValue = static_cast<int>(number % 1000);
 
 
             using CS = CacheableStatus;
@@ -21144,7 +21144,6 @@ void MegaApiImpl::sendPendingRequests()
             while (it != client->syncs.end())
             {
                 Sync *sync = (*it);
-                int tag = sync->tag;
                 it++;
 
                 client->delsync(sync);
