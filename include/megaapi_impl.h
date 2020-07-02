@@ -148,9 +148,8 @@ public:
 
 private:
     long long mValue = 0;
-    bool mExtraInfo = false;
-    long long mUserStatus = 0;
-    long long mLinkStatus = 0;
+    long long mUserStatus = MegaError::UserErrorCode::USER_ETD_UNKNOWN;
+    long long mLinkStatus = MegaError::LinkErrorCode::LINK_UNKNOWN;
 };
 
 class ExternalLogger : public Logger
@@ -217,6 +216,7 @@ protected:
     int recursive;
     int tag;
     int pendingTransfers;
+    bool cancelled = false;
     std::set<MegaTransferPrivate*> subTransfers;
     int mIncompleteTransfers = { 0 };
     MegaErrorPrivate mLastError = { API_OK };
@@ -240,6 +240,7 @@ public:
     void onTransferStart(MegaApi *api, MegaTransfer *transfer) override;
     void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) override;
     void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e) override;
+    ~MegaFolderUploadController();
 };
 
 
@@ -616,6 +617,20 @@ public:
 
 private:
     std::vector<MegaHandle> mList;
+};
+
+class MegaIntegerListPrivate : public MegaIntegerList
+{
+public:
+    MegaIntegerListPrivate(const vector<int64_t> &integers);
+    virtual ~MegaIntegerListPrivate();
+
+    MegaIntegerList *copy() const override;
+    int64_t get(int i) const override;
+    int size() const override;
+
+private:
+    vector<int64_t> mIntegers;
 };
 
 class MegaSharePrivate : public MegaShare
@@ -1960,6 +1975,8 @@ class TransferQueue
         void push(MegaTransferPrivate *transfer);
         void push_front(MegaTransferPrivate *transfer);
         MegaTransferPrivate * pop();
+
+        void removeWithFolderTag(int folderTag, std::function<void(MegaTransferPrivate *)> callback);
         void removeListener(MegaTransferListener *listener);
 };
 
@@ -1990,6 +2007,9 @@ class MegaApiImpl : public MegaApp
         void removeTransferListener(MegaTransferListener* listener);
         void removeBackupListener(MegaBackupListener* listener);
         void removeGlobalListener(MegaGlobalListener* listener);
+
+        void cancelPendingTransfersByFolderTag(int folderTag);
+
 
         MegaRequest *getCurrentRequest();
         MegaTransfer *getCurrentTransfer();
@@ -2023,6 +2043,7 @@ class MegaApiImpl : public MegaApp
         bool newLinkFormatEnabled();
         int smsAllowedState();
         char* smsVerifiedPhoneNumber();
+        void resetSmsVerifiedPhoneNumber(MegaRequestListener *listener);
 
         bool multiFactorAuthAvailable();
         void multiFactorAuthCheck(const char *email, MegaRequestListener *listener = NULL);
@@ -2050,6 +2071,7 @@ class MegaApiImpl : public MegaApp
         void getUserData(MegaUser *user, MegaRequestListener *listener = NULL);
         void getUserData(const char *user, MegaRequestListener *listener = NULL);
         void getMiscFlags(MegaRequestListener *listener = NULL);
+        void sendDevCommand(const char *command, const char *email, MegaRequestListener *listener = NULL);
         void getCloudStorageUsed(MegaRequestListener *listener = NULL); 
         void getAccountDetails(bool storage, bool transfer, bool pro, bool sessions, bool purchases, bool transactions, int source = -1, MegaRequestListener *listener = NULL);
         void queryTransferQuota(long long size, MegaRequestListener *listener = NULL);
@@ -2082,6 +2104,8 @@ class MegaApiImpl : public MegaApp
         bool isMasterBusinessAccount();
         bool isBusinessAccountActive();
         int getBusinessStatus();
+        int64_t getOverquotaDeadlineTs();
+        MegaIntegerList *getOverquotaWarningsTs();
         bool checkPassword(const char *password);
         char* getMyCredentials();
         void getUserCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
@@ -2134,6 +2158,8 @@ class MegaApiImpl : public MegaApp
         void getUserAvatar(const char *email_or_handle, const char *dstFilePath, MegaRequestListener *listener = NULL);
         static char* getUserAvatarColor(MegaUser *user);
         static char *getUserAvatarColor(const char *userhandle);
+        static char* getUserAvatarSecondaryColor(MegaUser *user);
+        static char *getUserAvatarSecondaryColor(const char *userhandle);
         bool testAllocation(unsigned allocCount, size_t allocSize);
         void getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener = NULL);
         void getUserAttribute(const char* email_or_handle, int type, MegaRequestListener *listener = NULL);
@@ -2144,6 +2170,8 @@ class MegaApiImpl : public MegaApp
         void setUserAttribute(int type, const MegaStringMap* value, MegaRequestListener *listener = NULL);
         void getRubbishBinAutopurgePeriod(MegaRequestListener *listener = NULL);
         void setRubbishBinAutopurgePeriod(int days, MegaRequestListener *listener = NULL);
+        void getDeviceName(MegaRequestListener *listener = NULL);
+        void setDeviceName(const char* deviceName, MegaRequestListener *listener = NULL);
         void getUserEmail(MegaHandle handle, MegaRequestListener *listener = NULL);
         void setCustomNodeAttribute(MegaNode *node, const char *attrName, const char *value, MegaRequestListener *listener = NULL);
         void setNodeDuration(MegaNode *node, int secs, MegaRequestListener *listener = NULL);
@@ -2355,7 +2383,9 @@ class MegaApiImpl : public MegaApp
 
         //Permissions
         MegaError checkAccess(MegaNode* node, int level);
+        MegaError* checkAccessErrorExtended(MegaNode* node, int level);
         MegaError checkMove(MegaNode* node, MegaNode* target);
+        MegaError* checkMoveErrorExtended(MegaNode* node, MegaNode* target);
 
         bool isFilesystemAvailable();
         MegaNode *getRootNode();
@@ -2554,6 +2584,7 @@ class MegaApiImpl : public MegaApp
         bool hasAccessToAttachment(MegaHandle chatid, MegaHandle h, MegaHandle uh);
         const char* getFileAttribute(MegaHandle h);
         void archiveChat(MegaHandle chatid, int archive, MegaRequestListener *listener = NULL);
+        void setChatRetentionTime(MegaHandle chatid, int period, MegaRequestListener *listener = NULL);
         void requestRichPreview(const char *url, MegaRequestListener *listener = NULL);
         void chatLinkHandle(MegaHandle chatid, bool del, bool createifmissing, MegaRequestListener *listener = NULL);
         void getChatLinkURL(MegaHandle publichandle, MegaRequestListener *listener = NULL);
@@ -2879,6 +2910,7 @@ protected:
         void getua_result(TLVstore *, attr_t) override;
 #ifdef DEBUG
         void delua_result(error) override;
+        void senddevcommand_result(int) override;
 #endif
 
         void getuseremail_result(string *, error) override;
@@ -2920,6 +2952,7 @@ protected:
         void confirmcancellink_result(error) override;
         void getemaillink_result(error) override;
         void resendverificationemail_result(error) override;
+        void resetSmsVerifiedPhoneNumber_result(error) override;
         void confirmemaillink_result(error) override;
         void getversion_result(int, const char*, error) override;
         void getlocalsslcertificate_result(m_time_t, string *certdata, error) override;
@@ -2944,6 +2977,7 @@ protected:
         void chatpresenceurl_result(string*, error) override;
         void registerpushnotification_result(error) override;
         void archivechat_result(error) override;
+        void setchatretentiontime_result(error) override;
 
         void chats_updated(textchat_map *, int) override;
         void richlinkrequest_result(string*, error) override;
@@ -3039,6 +3073,7 @@ protected:
         void putNodeAttribute(MegaBackgroundMediaUpload* bu, int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void setUserAttr(int type, const char *value, MegaRequestListener *listener = NULL);
         static char *getAvatarColor(handle userhandle);
+        static char *getAvatarSecondaryColor(handle userhandle);
         bool isGlobalNotifiable();
 
         // return false if there's a schedule and it currently does not apply. Otherwise, true

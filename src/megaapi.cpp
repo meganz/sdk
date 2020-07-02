@@ -1357,6 +1357,8 @@ const char* MegaError::getErrorString(int errorCode, ErrorContexts context)
             return "Access denied for users";
         case API_EBUSINESSPASTDUE:
             return "Business account has expired";
+        case API_EPAYWALL:
+            return "Over Disk Quota Paywall";
         case PAYMENT_ECARD:
             return "Credit card rejected";
         case PAYMENT_EBILLING:
@@ -1951,6 +1953,11 @@ char* MegaApi::smsVerifiedPhoneNumber()
     return pImpl->smsVerifiedPhoneNumber();
 }
 
+void MegaApi::resetSmsVerifiedPhoneNumber(MegaRequestListener *listener)
+{
+    pImpl->resetSmsVerifiedPhoneNumber(listener);
+}
+
 bool MegaApi::multiFactorAuthAvailable()
 {
     return pImpl->multiFactorAuthAvailable();
@@ -2046,6 +2053,11 @@ void MegaApi::getUserData(const char *user, MegaRequestListener *listener)
 void MegaApi::getMiscFlags(MegaRequestListener *listener)
 {
     pImpl->getMiscFlags(listener);
+}
+
+void MegaApi::sendDevCommand(const char *command, const char *email, MegaRequestListener *listener)
+{
+    pImpl->sendDevCommand(command, email, listener);
 }
 
 void MegaApi::login(const char *login, const char *password, MegaRequestListener *listener)
@@ -2363,6 +2375,16 @@ char *MegaApi::getUserAvatarColor(const char *userhandle)
     return MegaApiImpl::getUserAvatarColor(userhandle);
 }
 
+char *MegaApi::getUserAvatarSecondaryColor(MegaUser *user)
+{
+    return MegaApiImpl::getUserAvatarSecondaryColor(user);
+}
+
+char *MegaApi::getUserAvatarSecondaryColor(const char *userhandle)
+{
+    return MegaApiImpl::getUserAvatarSecondaryColor(userhandle);
+}
+
 void MegaApi::setAvatar(const char *dstFilePath, MegaRequestListener *listener)
 {
     pImpl->setAvatar(dstFilePath, listener);
@@ -2491,6 +2513,16 @@ void MegaApi::getExtendedAccountDetails(bool sessions, bool purchases, bool tran
 void MegaApi::queryTransferQuota(long long size, MegaRequestListener *listener)
 {
     pImpl->queryTransferQuota(size, listener);
+}
+
+int64_t MegaApi::getOverquotaDeadlineTs()
+{
+    return pImpl->getOverquotaDeadlineTs();
+}
+
+MegaIntegerList* MegaApi::getOverquotaWarningsTs()
+{
+    return pImpl->getOverquotaWarningsTs();
 }
 
 void MegaApi::getPricing(MegaRequestListener *listener)
@@ -2693,6 +2725,16 @@ void MegaApi::getRubbishBinAutopurgePeriod(MegaRequestListener *listener)
 void MegaApi::setRubbishBinAutopurgePeriod(int days, MegaRequestListener *listener)
 {
     pImpl->setRubbishBinAutopurgePeriod(days, listener);
+}
+
+void MegaApi::getDeviceName(MegaRequestListener *listener)
+{
+    pImpl->getDeviceName(listener);
+}
+
+void MegaApi::setDeviceName(const char *deviceName, MegaRequestListener *listener)
+{
+    pImpl->setDeviceName(deviceName, listener);
 }
 
 void MegaApi::changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener)
@@ -2989,6 +3031,11 @@ void MegaApi::startUpload(const char* localPath, MegaNode* parent, const char* f
 void MegaApi::startUpload(const char *localPath, MegaNode *parent, const char *fileName, int64_t mtime, MegaTransferListener *listener)
 {
     pImpl->startUpload(false, localPath, parent, fileName, mtime, 0, false, NULL, false, false, listener);
+}
+
+void MegaApi::startUpload(const char *localPath, MegaNode *parent, const char *appData, const char *fileName, int64_t mtime, MegaTransferListener *listener)
+{
+    pImpl->startUpload(false, localPath, parent, fileName, mtime, 0, false, appData, false, false, listener);
 }
 
 void MegaApi::startUploadForChat(const char *localPath, MegaNode *parent, const char *appData, bool isSourceTemporary, MegaTransferListener *listener)
@@ -3857,9 +3904,19 @@ MegaError MegaApi::checkAccess(MegaNode* megaNode, int level)
     return pImpl->checkAccess(megaNode, level);
 }
 
+MegaError *MegaApi::checkAccessErrorExtended(MegaNode *node, int level)
+{
+    return pImpl->checkAccessErrorExtended(node, level);
+}
+
 MegaError MegaApi::checkMove(MegaNode* megaNode, MegaNode* targetNode)
 {
     return pImpl->checkMove(megaNode, targetNode);
+}
+
+MegaError *MegaApi::checkMoveErrorExtended(MegaNode *node, MegaNode *target)
+{
+    return pImpl->checkMoveErrorExtended(node, target);
 }
 
 bool MegaApi::isFilesystemAvailable()
@@ -4949,6 +5006,11 @@ const char* MegaApi::getFileAttribute(MegaHandle h)
 void MegaApi::archiveChat(MegaHandle chatid, int archive, MegaRequestListener *listener)
 {
     pImpl->archiveChat(chatid, archive, listener);
+}
+
+void MegaApi::setChatRetentionTime(MegaHandle chatid, int period, MegaRequestListener *listener)
+{
+    pImpl->setChatRetentionTime(chatid, period, listener);
 }
 
 void MegaApi::requestRichPreview(const char *url, MegaRequestListener *listener)
@@ -6563,6 +6625,26 @@ void MegaCancelToken::cancel(bool)
 bool MegaCancelToken::isCancelled() const
 {
     return false;
+}
+
+MegaIntegerList::~MegaIntegerList()
+{
+
+}
+
+MegaIntegerList *MegaIntegerList::copy() const
+{
+    return nullptr;
+}
+
+int64_t MegaIntegerList::get(int /*i*/) const
+{
+    return -1;
+}
+
+int MegaIntegerList::size() const
+{
+    return 0;
 }
 
 }

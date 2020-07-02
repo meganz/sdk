@@ -197,28 +197,33 @@ typedef enum ErrorCodes
     API_EOVERQUOTA = -17,           ///< Quota exceeded.
     API_ETEMPUNAVAIL = -18,         ///< Resource temporarily not available.
     API_ETOOMANYCONNECTIONS = -19,  ///< Too many connections on this resource.
-    API_EWRITE = -20,               /**< File could not be written to (or failed
-                                         post-write integrity check). */
-    API_EREAD = -21,                /**< File could not be read from (or changed
-                                         unexpectedly during reading). */
+    API_EWRITE = -20,               ///< File could not be written to (or failed post-write integrity check)
+    API_EREAD = -21,                ///< File could not be read from (or changed unexpectedly during reading)
     API_EAPPKEY = -22,              ///< Invalid or missing application key.
     API_ESSL = -23,                 ///< SSL verification failed
     API_EGOINGOVERQUOTA = -24,      ///< Not enough quota
     API_EMFAREQUIRED = -26,         ///< Multi-factor authentication required
     API_EMASTERONLY = -27,          ///< Access denied for sub-users (only for business accounts)
-    API_EBUSINESSPASTDUE = -28      ///< Business account expired
+    API_EBUSINESSPASTDUE = -28,     ///< Business account expired
+    API_EPAYWALL = -29,             ///< Over Disk Quota Paywall
 } error;
 
 class Error
 {
 public:
-    typedef enum  { USER_ETD_SUSPENSION = 7, // represents an ETD/ToS 'severe' suspension level
-                  } UserErrorCode;
+    typedef enum
+    {
+        USER_ETD_UNKNOWN = -1,
+        USER_ETD_SUSPENSION = 7, // represents an ETD/ToS 'severe' suspension level
+    } UserErrorCode;
 
-    typedef enum  { LINK_UNDELETED = 0,  // Link is undeleted
-                    LINK_DELETED_DOWN = 1, // Link is deleted or down
-                    LINK_DOWN_ETD = 2,  // Link is down due to an ETD specifically
-                  } LinkErrorCode;
+    typedef enum
+    {
+        LINK_UNKNOWN = -1,
+        LINK_UNDELETED = 0,  // Link is undeleted
+        LINK_DELETED_DOWN = 1, // Link is deleted or down
+        LINK_DOWN_ETD = 2,  // Link is down due to an ETD specifically
+    } LinkErrorCode;
 
     Error(error err = API_EINTERNAL)
         : mError(err)
@@ -231,15 +236,15 @@ public:
 
     void setUserStatus(int64_t u) { mUserStatus = u; }
     void setLinkStatus(int64_t l) { mLinkStatus = l; }
-    bool hasExtraInfo() const { return mUserStatus != -1 || mLinkStatus != -1; }
+    bool hasExtraInfo() const { return mUserStatus != USER_ETD_UNKNOWN || mLinkStatus != LINK_UNKNOWN; }
     int64_t getUserStatus() const { return mUserStatus; }
     int64_t getLinkStatus() const { return mLinkStatus; }
     operator error() const { return mError; }
 
 private:
     error mError = API_EINTERNAL;
-    int64_t mUserStatus = -1; // user status
-    int64_t mLinkStatus = -1; // link status
+    int64_t mUserStatus = USER_ETD_UNKNOWN;
+    int64_t mLinkStatus = LINK_UNKNOWN;
 };
 
 // returned by loggedin()
@@ -378,6 +383,7 @@ public:
 
     size_t size()                                        { applyErase(); return mDeque.size(); }
     size_t empty()                                       { applyErase(); return mDeque.empty(); }
+    void clear()                                         { mDeque.clear(); }
     iterator begin(bool canHandleErasedElements = false) { if (!canHandleErasedElements) applyErase(); return mDeque.begin(); }
     iterator end(bool canHandleErasedElements = false)   { if (!canHandleErasedElements) applyErase(); return mDeque.end(); }
     void push_front(T t)                                 { applyErase(); mDeque.push_front(E(t)); }
@@ -518,6 +524,7 @@ typedef enum {
     ATTR_ALIAS = 27,                        // private - byte array - versioned
     ATTR_AUTHRSA = 28,                      // private - byte array
     ATTR_AUTHCU255 = 29,                    // private - byte array
+    ATTR_DEVICE_NAMES = 30,                 // private - byte array - versioned
 
 } attr_t;
 typedef map<attr_t, string> userattr_map;
@@ -600,7 +607,14 @@ typedef enum { EMAIL_REMOVED = 0, EMAIL_PENDING_REMOVED = 1, EMAIL_PENDING_ADDED
 
 typedef enum { RETRY_NONE = 0, RETRY_CONNECTIVITY = 1, RETRY_SERVERS_BUSY = 2, RETRY_API_LOCK = 3, RETRY_RATE_LIMIT = 4, RETRY_LOCAL_LOCK = 5, RETRY_UNKNOWN = 6} retryreason_t;
 
-typedef enum { STORAGE_UNKNOWN = -9, STORAGE_GREEN = 0, STORAGE_ORANGE = 1, STORAGE_RED = 2, STORAGE_CHANGE = 3 } storagestatus_t;
+typedef enum {
+    STORAGE_UNKNOWN = -9,
+    STORAGE_GREEN = 0,      // there is storage is available
+    STORAGE_ORANGE = 1,     // storage is almost full
+    STORAGE_RED = 2,        // storage is full
+    STORAGE_CHANGE = 3,     // the status of the storage might have changed
+    STORAGE_PAYWALL = 4,    // storage is full and user didn't remedy despite of warnings
+} storagestatus_t;
 
 
 enum SmsVerificationState {

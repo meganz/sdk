@@ -279,7 +279,6 @@ void CommandAttachFA::procresult()
     if (!checkError(e, client->json))
     {
          string fa;
-
          if (client->json.storeobject(&fa))
          {
              Node* n = client->nodebyhandle(h);
@@ -1181,7 +1180,7 @@ void CommandPutNodes::procresult()
         LOG_debug << "Putnodes error " << e;
         if (e == API_EOVERQUOTA)
         {
-            client->activateoverquota(0);
+            client->activateoverquota(0, false);
         }
 #ifdef ENABLE_SYNC
         if (source == PUTNODES_SYNC)
@@ -1326,7 +1325,7 @@ void CommandMoveNode::procresult()
     {
         if (e == API_EOVERQUOTA)
         {
-            client->activateoverquota(0);
+            client->activateoverquota(0, false);
         }
 
 #ifdef ENABLE_SYNC
@@ -1704,22 +1703,7 @@ CommandLogin::CommandLogin(MegaClient* client, const char* email, const byte *em
         arg("sn", (byte*)&client->cachedscsn, sizeof client->cachedscsn);
     }
 
-    string id;
-    if (!MegaClient::statsid)
-    {
-        client->fsaccess->statsid(&id);
-        if (id.size())
-        {
-            size_t len = id.size() + 1;
-            char *buff = new char[len];
-            memcpy(buff, id.c_str(), len);
-            MegaClient::statsid = buff;
-        }
-    }
-    else
-    {
-        id = MegaClient::statsid;
-    }
+    string id = client->getDeviceid();
 
     if (id.size())
     {
@@ -2857,6 +2841,12 @@ void CommandPutUAVer::procresult()
     Error e;
     if (checkError(e, client->json))
     {
+        if (e == API_EEXPIRED)
+        {
+            User *u = client->ownuser();
+            u->invalidateattr(at);
+        }
+
         client->app->putua_result(e);
     }
     else
@@ -3322,6 +3312,32 @@ void CommandDelUA::procresult()
     }
 }
 
+CommandSendDevCommand::CommandSendDevCommand(MegaClient *client, const char *command, const char *email)
+{
+    cmd("dev");
+
+    arg("aa", command);
+    if (email)
+    {
+        arg("t", email);
+    }
+
+    tag = client->reqtag;
+}
+
+void CommandSendDevCommand::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->senddevcommand_result(static_cast<int>(client->json.getint()));
+    }
+    else
+    {
+        client->app->senddevcommand_result(API_EINTERNAL);
+    }
+
+}
+
 #endif  // #ifdef DEBUG
 
 CommandGetUserEmail::CommandGetUserEmail(MegaClient *client, const char *uid)
@@ -3597,6 +3613,12 @@ void CommandGetUserData::procresult()
     string email;
     string unshareableKey;
     string versionUnshareableKey;
+    string deviceNames;
+    string versionDeviceNames;
+
+    bool uspw = false;
+    vector<m_time_t> warningTs;
+    m_time_t deadlineTs = -1;
 
     bool b = false;
     BizMode m = BIZ_MODE_UNKNOWN;
@@ -3716,6 +3738,11 @@ void CommandGetUserData::procresult()
             parseUserAttribute(unshareableKey, versionUnshareableKey, false);
             break;
 
+        case MAKENAMEID4('*', '!', 'd', 'n'):
+            parseUserAttribute(deviceNames, versionDeviceNames);
+            break;
+
+
         case 'b':   // business account's info
             assert(!b);
             b = true;
@@ -3821,6 +3848,52 @@ void CommandGetUserData::procresult()
                 assert(false);
             }
             break;
+
+        case MAKENAMEID4('u', 's', 'p', 'w'):   // user paywall data
+        {
+            uspw = true;
+
+            if (client->json.enterobject())
+            {
+                bool endobject = false;
+                while (!endobject)
+                {
+                    switch (client->json.getnameid())
+                    {
+                        case MAKENAMEID2('d', 'l'): // deadline timestamp
+                            deadlineTs = client->json.getint();
+                            break;
+
+                        case MAKENAMEID3('w', 't', 's'):    // warning timestamps
+                            // ie. "wts":[1591803600,1591813600,1591823600
+
+                            if (client->json.enterarray())
+                            {
+                                m_time_t ts;
+                                while (client->json.isnumeric() && (ts = client->json.getint()) != -1)
+                                {
+                                    warningTs.push_back(ts);
+                                }
+
+                                client->json.leavearray();
+                            }
+                            break;
+
+                        case EOO:
+                            endobject = true;
+                            break;
+
+                        default:
+                            if (!client->json.storeobject())
+                            {
+                                return client->app->userdata_result(NULL, NULL, NULL, API_EINTERNAL);
+                            }
+                    }
+                }
+                client->json.leaveobject();
+            }
+            break;
+        }
 
         case EOO:
         {
@@ -4013,6 +4086,21 @@ void CommandGetUserData::procresult()
                     LOG_err << "Unshareable key wrong length";
                 }
 
+                if (deviceNames.size())
+                {
+                    unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&deviceNames, &client->key));
+                    if (tlvRecords)
+                    {
+                        // store the value for private user attributes (decrypted version of serialized TLV)
+                        unique_ptr<string> tlvString(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
+                        changes += u->updateattr(ATTR_DEVICE_NAMES, tlvString.get(), &versionDeviceNames);
+                    }
+                    else
+                    {
+                        LOG_err << "Cannot extract TLV records for ATTR_DEVICE_NAMES";
+                    }
+                }
+
                 if (changes > 0)
                 {
                     u->setTag(tag ? tag : -1);
@@ -4102,6 +4190,21 @@ void CommandGetUserData::procresult()
                 {
                     client->app->notify_business_status(client->mBizStatus);
                 }
+            }
+
+            if (uspw)
+            {
+                if (deadlineTs == -1 || warningTs.empty())
+                {
+                    LOG_err << "uspw received with missing timestamps";
+                }
+                else
+                {
+                    client->mOverquotaWarningTs = std::move(warningTs);
+                    client->mOverquotaDeadlineTs = deadlineTs;
+                    client->activateoverquota(0, true);
+                }
+
             }
 
             client->app->userdata_result(&name, &pubk, &privk, API_OK);
@@ -4501,7 +4604,8 @@ void CommandGetUserQuota::procresult()
                     if (details->storage_used >= details->storage_max)
                     {
                         LOG_debug << "Account full";
-                        client->activateoverquota(0);
+                        bool isPaywall = (client->ststatus == STORAGE_PAYWALL);
+                        client->activateoverquota(0, isPaywall);
                     }
                     else if (details->storage_used >= (details->storage_max / 10000 * uslw))
                     {
@@ -5937,6 +6041,30 @@ void CommandResendVerificationEmail::procresult()
     }
 }
 
+CommandResetSmsVerifiedPhoneNumber::CommandResetSmsVerifiedPhoneNumber(MegaClient *client)
+{
+    cmd("smsr");
+    tag = client->reqtag;
+}
+
+void CommandResetSmsVerifiedPhoneNumber::procresult()
+{
+    Error e;
+    if (checkError(e, client->json))
+    {
+        if (e == API_OK)
+        {
+            client->mSmsVerifiedPhone.clear();
+        }
+        client->app->resetSmsVerifiedPhoneNumber_result(e);
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->resetSmsVerifiedPhoneNumber_result((error)API_EINTERNAL);
+    }
+}
+
 CommandValidatePassword::CommandValidatePassword(MegaClient *client, const char *email, uint64_t emailhash)
 {
     cmd("us");
@@ -6861,6 +6989,30 @@ void CommandArchiveChat::procresult()
     {
         client->json.storeobject();
         client->app->archivechat_result(API_EINTERNAL);
+    }
+}
+
+CommandSetChatRetentionTime::CommandSetChatRetentionTime(MegaClient *client, handle chatid, int period)
+{
+    mChatid = chatid;
+
+    cmd("mcsr");
+    arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
+    arg("d", period);
+    arg("ds", 1);
+    tag = client->reqtag;
+}
+
+void CommandSetChatRetentionTime::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->setchatretentiontime_result(static_cast<error>(client->json.getint()));
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->setchatretentiontime_result(API_EINTERNAL);
     }
 }
 
@@ -7924,18 +8076,18 @@ CommandGetRegisteredContacts::CommandGetRegisteredContacts(MegaClient* client, c
 
 void CommandGetRegisteredContacts::procresult()
 {
+    Error e;
+    if (checkError(e, client->json))
+    {
+        client->app->getregisteredcontacts_result(e, nullptr);
+        return;
+    }
+
     processResult(*client->app, client->json);
 }
 
 void CommandGetRegisteredContacts::processResult(MegaApp& app, JSON& json)
 {
-    Error e;
-    if (checkError(e, json))
-    {
-        app.getregisteredcontacts_result(e, nullptr);
-        return;
-    }
-
     vector<tuple<string, string, string>> registeredContacts;
 
     string entryUserDetail;
@@ -8013,18 +8165,18 @@ CommandGetCountryCallingCodes::CommandGetCountryCallingCodes(MegaClient* client)
 
 void CommandGetCountryCallingCodes::procresult()
 {
+    Error e;
+    if (checkError(e, client->json))
+    {
+        client->app->getcountrycallingcodes_result(e, nullptr);
+        return;
+    }
+
     processResult(*client->app, client->json);
 }
 
 void CommandGetCountryCallingCodes::processResult(MegaApp& app, JSON& json)
 {
-    Error e;
-    if (checkError(e, json))
-    {
-        app.getcountrycallingcodes_result(e, nullptr);
-        return;
-    }
-
     map<string, vector<string>> countryCallingCodes;
 
     string countryCode;

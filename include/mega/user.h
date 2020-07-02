@@ -80,6 +80,7 @@ struct MEGA_API User : public Cacheable
         bool pushSettings : 1;  // push notification settings
         bool alias : 1; // user's aliases
         bool unshareablekey : 1;    // key to encrypt unshareable node attributes
+        bool devicenames : 1; // device names
     } changed;
 
     // user's public key
