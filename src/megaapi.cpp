@@ -3115,10 +3115,10 @@ void MegaApi::syncFolder(const char *localFolder, MegaHandle megaHandle, MegaReq
     pImpl->syncFolder(localFolder, megaHandle, NULL, 0, listener);
 }
 
-void MegaApi::copySyncDataToCache(const char *localFolder, MegaHandle megaHandle,
+void MegaApi::copySyncDataToCache(const char *localFolder, MegaHandle megaHandle, const char *remotePath,
                                   long long localfp, bool enabled, bool temporaryDisabled, MegaRequestListener *listener)
 {
-    pImpl->copySyncDataToCache(localFolder, megaHandle, localfp, enabled, temporaryDisabled, listener);
+    pImpl->copySyncDataToCache(localFolder, megaHandle, remotePath, localfp, enabled, temporaryDisabled, listener);
 }
 
 void MegaApi::copyCachedStatus(int storageStatus, int blockStatus, int businessStatus, MegaRequestListener *listener)

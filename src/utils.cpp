@@ -2196,6 +2196,7 @@ void CacheableStatus::setValue(const int64_t &value)
 SyncConfig::SyncConfig(int tag,
                        std::string localPath,
                        const handle remoteNode,
+                       const std::string &remotePath,
                        const fsfp_t localFingerprint,
                        std::vector<std::string> regExps,
                        const bool enabled,
@@ -2207,6 +2208,7 @@ SyncConfig::SyncConfig(int tag,
     , mEnabled{enabled}
     , mLocalPath{std::move(localPath)}
     , mRemoteNode{remoteNode}
+    , mRemotePath{remotePath}
     , mLocalFingerprint{localFingerprint}
     , mRegExps{std::move(regExps)}
     , mSyncType{syncType}
@@ -2256,6 +2258,21 @@ const std::string& SyncConfig::getLocalPath() const
 handle SyncConfig::getRemoteNode() const
 {
     return mRemoteNode;
+}
+
+void SyncConfig::setRemoteNode(const handle &remoteNode)
+{
+    mRemoteNode = remoteNode;
+}
+
+const std::string& SyncConfig::getRemotePath() const
+{
+    return mRemotePath;
+}
+
+void SyncConfig::setRemotePath(const std::string &remotePath)
+{
+    mRemotePath = remotePath;
 }
 
 handle SyncConfig::getLocalFingerprint() const
@@ -2335,6 +2352,7 @@ std::unique_ptr<SyncConfig> SyncConfig::unserialize(const std::string& data)
     bool enabled;
     std::string localPath;
     handle remoteNode;
+    std::string remotePath;
     fsfp_t fingerprint;
     uint32_t regExpCount;
     std::vector<std::string> regExps;
@@ -2357,6 +2375,10 @@ std::unique_ptr<SyncConfig> SyncConfig::unserialize(const std::string& data)
         return {};
     }
     if (!reader.unserializehandle(remoteNode))
+    {
+        return {};
+    }
+    if (!reader.unserializestring(remotePath))
     {
         return {};
     }
@@ -2394,7 +2416,7 @@ std::unique_ptr<SyncConfig> SyncConfig::unserialize(const std::string& data)
         return {};
     }
     auto syncConfig = std::unique_ptr<SyncConfig>{new SyncConfig{static_cast<int>(tag), std::move(localPath),
-                    remoteNode, fingerprint, std::move(regExps), enabled,
+                    remoteNode, remotePath, fingerprint, std::move(regExps), enabled,
                     static_cast<Type>(syncType), syncDeletions,
                     forceOverwrite, static_cast<int>(error)}};
     return syncConfig;
@@ -2407,6 +2429,7 @@ bool SyncConfig::serialize(std::string& data) const
     writer.serializebool(mEnabled);
     writer.serializestring(mLocalPath);
     writer.serializehandle(mRemoteNode);
+    writer.serializestring(mRemotePath);
     writer.serializefsfp(mLocalFingerprint);
     writer.serializeu32(static_cast<uint32_t>(mRegExps.size()));
     for (const auto& regExp : mRegExps)

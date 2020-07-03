@@ -2887,6 +2887,7 @@ class MegaRequest
          * - MegaApi::loginToFolder - Returns the link to the folder
          * - MegaApi::importFileLink - Returns the link to the file to import
          * - MegaApi::getPublicNode - Returns the link to the file
+         * - MegaApi::copySyncDataToCache - Returns the path of the remote folder
          *
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -12631,6 +12632,7 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
          * - MegaRequest::getFile - Returns the path of the local folder
+         * - MegaRequest::getLink - Returns the path of the remote folder
          * - MegaRequest::getFlag - if sync is enabled
 
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
@@ -12639,12 +12641,13 @@ class MegaApi
          *
          * @param localFolder Local folder
          * @param megaHandle MEGA folder
+         * @param remotePath MEGA folder path
          * @param localfp Filesystem fingerprint
          * @param enabled If the sync is enabled by the user
          * @param temporaryDisabled If the sync is temporarily disabled
          * @param listener MegaRequestListener to track this request
          */
-        void copySyncDataToCache(const char *localFolder, MegaHandle megaHandle,
+        void copySyncDataToCache(const char *localFolder, MegaHandle megaHandle, const char *remotePath,
                                  long long localfp, bool enabled, bool temporaryDisabled, MegaRequestListener *listener = NULL);
         /**
          * @brief Copy sync data to SDK cache.

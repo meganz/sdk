@@ -575,7 +575,12 @@ public:
     // remove sync configuration. It will remove sync configuration cache & call app's callback sync_removed
     error removeSyncConfig(int tag);
     error removeSyncConfigByNodeHandle(handle nodeHandle);
+
+    //// sync config updating & persisting ////
+    // updates in state & error
     error saveAndUpdateSyncConfig(const SyncConfig *config, syncstate_t newstate, syncerror_t syncerror);
+    // updates in remote path/node & calls app's syncupdate_remote_root_changed. passing n=null will remove remote handle and keep last known path
+    bool updateSyncRemoteLocation(const SyncConfig *config, Node *n); //returns if changed
 
     // transition the cache to failed
     void failSync(Sync* sync, syncerror_t syncerror);
@@ -597,8 +602,10 @@ public:
 
     // attempts to enable a sync. will fill syncError with the syncerror_t error (if any)
     // if resetFingeprint is true, it will assign a new Filesystem Fingerprint.
-    error enableSync(int tag, syncerror_t &syncError, bool resetFingerprint = false);
-    error enableSync(const SyncConfig *syncConfig, syncerror_t &syncError, bool resetFingerprint = false);
+    // if newRemoteNode is set, it will try to use it to restablish the sync, updating the cached configuration if successful.
+    error enableSync(int tag, syncerror_t &syncError, bool resetFingerprint = false, mega::handle newRemoteNode = UNDEF);
+    error enableSync(const SyncConfig *syncConfig, syncerror_t &syncError,
+                     bool resetFingerprint = false, mega::handle newRemoteNode = UNDEF);
 
     /**
      * @brief updates the state of a synchronization. it will persist the changes and call app syncupdate_state handler

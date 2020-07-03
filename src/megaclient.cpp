@@ -6833,33 +6833,7 @@ void MegaClient::notifypurge(void)
 
     if ((t = int(nodenotify.size())))
     {
-#ifdef ENABLE_SYNC
-        // check for deleted syncs
-        for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
-        {
-            if ((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN)
-            {
-                if ((*it)->localroot->node->changed.removed)
-                {
-                    failSync(*it, REMOTE_PATH_DELETED);
-                }
-                else if((*it)->localroot->node->changed.parent)
-                {
-                    handle rubbishHandle = rootnodes[RUBBISHNODE - ROOTNODE];
-                    auto p = (*it)->localroot->node->parent;
-                    while (p)
-                    {
-                        if (p->nodehandle == rubbishHandle)
-                        {
-                            failSync(*it, REMOTE_NODE_MOVED_TO_RUBBISH);
-                            break;
-                        }
-                        p = p->parent;
-                    }
-                }
-            }
-        }
-#endif
+
         applykeys();
 
         if (!fetchingnodes)
@@ -6867,19 +6841,63 @@ void MegaClient::notifypurge(void)
             app->nodes_updated(&nodenotify[0], t);
         }
 
+#ifdef ENABLE_SYNC
+        //update sync root node location and trigger failing cases
+        handle rubbishHandle = rootnodes[RUBBISHNODE - ROOTNODE];
         // check for renamed/moved sync root folders
         for (const auto& config : syncConfigs->all())
         {
             Node *n = nodebyhandle(config.getRemoteNode());
-            if (n && n->changed.attrs)
+            if (n && (n->changed.attrs || n->changed.parent || n->changed.removed))
             {
-                app->syncupdate_remote_root_attrs_changed(config);
-            }
-            if (n && n->changed.parent)
-            {
-                app->syncupdate_remote_root_moved(config);
+                bool removed = n->changed.removed;
+
+                // update path in sync configuration
+                bool pathChanged = updateSyncRemoteLocation(&config, removed ? nullptr : n);
+
+                // fail active syncs
+                for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
+                {
+                    if ((*it)->tag == config.getTag())
+                    {
+                        assert(n == (*it)->localroot->node);
+                        if(n->changed.parent) //moved
+                        {
+                            assert(pathChanged);
+                            // check if moved to rubbish
+                            auto p = n->parent;
+                            bool alreadyFailed = false;
+                            while (p)
+                            {
+                                if (p->nodehandle == rubbishHandle)
+                                {
+                                    failSync(*it, REMOTE_NODE_MOVED_TO_RUBBISH);
+                                    alreadyFailed = true;
+                                    break;
+                                }
+                                p = p->parent;
+                            }
+
+                            if (!alreadyFailed)
+                            {
+                                failSync(*it, REMOTE_PATH_HAS_CHANGED);
+                            }
+                        }
+                        else if (removed)
+                        {
+                            failSync(*it, REMOTE_PATH_DELETED);
+                        }
+                        else if (pathChanged)
+                        {
+                            failSync(*it, REMOTE_PATH_HAS_CHANGED);
+                        }
+
+                        break;
+                    }
+                }
             }
         }
+#endif
 
         // check all notified nodes for removed status and purge
         for (i = 0; i < t; i++)
@@ -11392,12 +11410,13 @@ void MegaClient::fetchnodes(bool nocache)
         *scsn = 0;
 
 #ifdef ENABLE_SYNC
+        // lets remove the active syncs. There could be some when enforcing fetchnodes(true)
+        // after API_ETOOMANY (too many action packets)
         for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
         {
-            (*it)->changestate(SYNC_CANCELED);
-            //TODO: this would cause a eraseSync from SyncMap.
-            // should the state chage be propagated to the apps? sync cache removed?
-            // why is this even called here?
+            (*it)->changestate(SYNC_CANCELED);//we set it as cancelled. It will be removed from active sync latter on
+            // Note: this does not cause the sync to be removed from syncMap.
+            // However, after processing the new FetchNodes, they will be resumed, overriding the existing ones in the map.
         }
 #endif
 
@@ -14155,6 +14174,56 @@ error MegaClient::saveAndUpdateSyncConfig(const SyncConfig *config, syncstate_t 
     return API_ENOENT;
 }
 
+
+bool MegaClient::updateSyncRemoteLocation(const SyncConfig *config, Node *n)
+{
+    if (!config)
+    {
+        LOG_err << "no config upon updateSyncRemotePath";
+        return API_ENOENT;
+    }
+    assert(syncConfigs);
+
+    bool changed = false;
+    auto newconfig = *config;
+    if (n)
+    {
+        auto newpath = n->displaypath();
+        if (newpath != config->getRemotePath())
+        {
+            newconfig.setRemotePath(newpath);
+            changed = true;
+        }
+
+        if (config->getRemoteNode() != n->nodehandle)
+        {
+            newconfig.setRemoteNode(n->nodehandle);
+            changed = true;
+        }
+    }
+    else //unset remote node: failed!
+    {
+        if (config->getRemoteNode() != UNDEF)
+        {
+            newconfig.setRemoteNode(UNDEF);
+            changed = true;
+        }
+    }
+
+    if (changed)
+    {
+        app->syncupdate_remote_root_changed(newconfig);
+    }
+
+    //persist
+    if (syncConfigs)
+    {
+        syncConfigs->insert(newconfig);
+    }
+
+    return changed;
+}
+
 error MegaClient::changeSyncState(const SyncConfig *config, syncstate_t newstate, syncerror_t newSyncError, bool fireDisableEvent)
 {
     error e = API_OK;
@@ -14277,7 +14346,7 @@ void MegaClient::disableSyncs(syncerror_t syncError)
     syncactivity = true;
 }
 
-error MegaClient::enableSync(const SyncConfig *syncConfig, syncerror_t &syncError, bool resetFingerprint)
+error MegaClient::enableSync(const SyncConfig *syncConfig, syncerror_t &syncError, bool resetFingerprint, handle newRemoteNode)
 {
     syncError = NO_SYNC_ERROR;
 
@@ -14287,6 +14356,13 @@ error MegaClient::enableSync(const SyncConfig *syncConfig, syncerror_t &syncErro
         newConfig.setLocalFingerprint(0); //This will cause the local filesystem fingerprint to be recalculated
     }
 
+    bool remoteNodeUpdated = false;
+    if (newRemoteNode != UNDEF)
+    {
+        newConfig.setRemoteNode(newRemoteNode);
+        remoteNodeUpdated = true;
+    }
+
     const auto e = addsync(newConfig, DEBRISFOLDER, nullptr, syncError, resetFingerprint);
 
     syncstate_t newstate = isMegaSyncErrorPermanent(syncError) ? SYNC_FAILED : SYNC_DISABLED;
@@ -14294,11 +14370,18 @@ error MegaClient::enableSync(const SyncConfig *syncConfig, syncerror_t &syncErro
     {
         Sync *s = syncs.back();
         newstate = s->state; //override state with the actual one from the sync
+
+        // note, we only update the remote node handle if successfully added
+        // thus we avoid pairing to a new node if the sync failed.
+        if (remoteNodeUpdated)
+        {
+            updateSyncRemoteLocation(syncConfig, nodebyhandle(newConfig.getRemoteNode())); //updates cache & notice app of this change
+        }
     }
 
     // change, so that cache is updated & the app gets noticed
     // we don't fire onDisable in this case (it was not enabled in the first place).
-    auto change_error = changeSyncState(&newConfig, newstate, static_cast<syncerror_t>(syncError), false);
+    auto change_error = changeSyncState(syncConfig, newstate, static_cast<syncerror_t>(syncError), false);
 
     if (change_error != API_OK)
     {
@@ -14308,7 +14391,7 @@ error MegaClient::enableSync(const SyncConfig *syncConfig, syncerror_t &syncErro
     return e;
 }
 
-error MegaClient::enableSync(int tag, syncerror_t &syncError, bool resetFingerprint)
+error MegaClient::enableSync(int tag, syncerror_t &syncError, bool resetFingerprint, handle newRemoteNode)
 {
     if (!syncConfigs)
     {
@@ -14322,7 +14405,7 @@ error MegaClient::enableSync(int tag, syncerror_t &syncError, bool resetFingerpr
         return API_ENOENT;
     }
 
-    return enableSync(syncConfig, syncError, resetFingerprint);
+    return enableSync(syncConfig, syncError, resetFingerprint, newRemoteNode);
 }
 
 void MegaClient::restoreSyncs()
