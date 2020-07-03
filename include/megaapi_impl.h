@@ -527,6 +527,8 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         double longitude;
         MegaNodeList *children;
         MegaHandle owner;
+        bool favourite;
+        nodelabel_t label;
 
 #ifdef ENABLE_SYNC
         bool syncdeleted;

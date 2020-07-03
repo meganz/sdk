@@ -128,6 +128,8 @@ MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64
     this->foreign = isForeign;
     this->children = NULL;
     this->owner = owner;
+    this->favourite = false;
+    this->label = LBL_UNKOWN;
 
     if (privateauth)
     {
