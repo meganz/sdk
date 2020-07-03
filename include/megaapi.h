@@ -579,6 +579,20 @@ class MegaNode
         virtual int getVideocodecid();
 
         /**
+         * @brief Get the attribute of the node representing if node is marked as favourite.
+         *
+         * @return True if node is marked as favourite, otherwise return false (attribute is not set).
+         */
+        virtual  bool isFavourite();
+
+        /**
+         * @brief Get the attribute of the node representing its label.
+         *
+         * @return The label of the node, valid values are defined in nodelabel_t.
+         */
+        virtual int getLabel();
+
+        /**
          * @brief Get the attribute of the node representing the latitude.
          *
          * The purpose of this attribute is to store the coordinate where a photo was taken.

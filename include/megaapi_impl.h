@@ -423,6 +423,8 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         const char *getCustomAttr(const char* attrName) override;
         int getDuration() override;
         int getWidth() override;
+        bool isFavourite() override;
+        int getLabel() override;
         int getHeight() override;
         int getShortformat() override;
         int getVideocodecid() override;

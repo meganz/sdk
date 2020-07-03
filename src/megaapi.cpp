@@ -403,6 +403,16 @@ int MegaNode::getDuration()
     return -1;
 }
 
+bool MegaNode::isFavourite()
+{
+    return false;
+}
+
+int MegaNode::getLabel()
+{
+    return 0;
+}
+
 int MegaNode::getWidth()
 {
     return -1;

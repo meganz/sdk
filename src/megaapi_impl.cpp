@@ -698,6 +698,16 @@ int MegaNodePrivate::getDuration()
     return duration;
 }
 
+bool MegaNodePrivate::isFavourite()
+{
+    return favourite;
+}
+
+int MegaNodePrivate::getLabel()
+{
+    return label;
+}
+
 int MegaNodePrivate::getWidth()
 {
     if (width == -1)    // not initialized yet, or not available
