@@ -583,7 +583,7 @@ class MegaNode
          *
          * @return True if node is marked as favourite, otherwise return false (attribute is not set).
          */
-        virtual  bool isFavourite();
+        virtual bool isFavourite();
 
         /**
          * @brief Get the attribute of the node representing its label.
@@ -6998,7 +6998,9 @@ class MegaApi
         enum {
             NODE_ATTR_DURATION = 0,
             NODE_ATTR_COORDINATES = 1,
-            NODE_ATTR_ORIGINALFINGERPRINT = 2
+            NODE_ATTR_ORIGINALFINGERPRINT = 2,
+            NODE_ATTR_LABEL = 3,
+            NODE_ATTR_FAV = 4,
         };
 
         enum {
@@ -10117,6 +10119,52 @@ class MegaApi
          * be removed in a short time.
          */
         void setNodeDuration(MegaNode *node, int duration, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Set node label as a node attribute.
+         * Valid values for label attribute are defined in nodelabel_t:
+         *  - LBL_RED = 1
+         *  - LBL_ORANGE = 2
+         *  - LBL_YELLOW = 3
+         *  - LBL_GREEN = 4
+         *  - LBL_BLUE = 5
+         *  - LBL_PURPLE = 6
+         *  - LBL_GREY = 7
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+         * - MegaRequest::getNumDetails - Returns the label for the node
+         * - MegaRequest::getFlag - Returns true (official attribute)
+         * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_LABEL
+         *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
+         * @param node Node that will receive the information.
+         * @param label Label of the node
+         * @param listener MegaRequestListener to track this request
+         */
+        void setNodeLabel(MegaNode *node, int label, MegaRequestListener *listener =  NULL);
+
+        /**
+         * @brief Set node favourite as a node attribute.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+         * - MegaRequest::getNumDetails - Returns 1 if node is set as favourite, otherwise return 0
+         * - MegaRequest::getFlag - Returns true (official attribute)
+         * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_FAV
+         *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
+         * @param node Node that will receive the information.
+         * @param fav if true set node as favourite, otherwise remove the attribute
+         * @param listener MegaRequestListener to track this request
+         */
+        void setNodeFavourite(MegaNode *node, bool fav, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Set the GPS coordinates of image files as a node attribute.

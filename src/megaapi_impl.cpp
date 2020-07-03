@@ -6759,6 +6759,28 @@ void MegaApiImpl::setNodeDuration(MegaNode *node, int secs, MegaRequestListener 
     waiter->notify();
 }
 
+void MegaApiImpl::setNodeLabel(MegaNode *node, int label, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_NODE, listener);
+    if(node) request->setNodeHandle(node->getHandle());
+    request->setParamType(MegaApi::NODE_ATTR_LABEL);
+    request->setNumDetails(label);
+    request->setFlag(true);     // is official attribute?
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::setNodeFavourite(MegaNode *node, bool fav, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_NODE, listener);
+    if(node) request->setNodeHandle(node->getHandle());
+    request->setParamType(MegaApi::NODE_ATTR_FAV);
+    request->setNumDetails(fav);
+    request->setFlag(true);     // is official attribute?
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 static void encodeCoordinates(double latitude, double longitude, int& lat, int& lon)
 {
     lat = int(latitude);
@@ -19779,6 +19801,29 @@ void MegaApiImpl::sendPendingRequests()
                     else
                     {
                         node->attrs.map[nid] = request->getText();
+                    }
+                }
+                else if (type == MegaApi::NODE_ATTR_LABEL)
+                {
+                    int label = request->getNumDetails();
+                    if (label < LBL_RED || label > LBL_GREY)
+                    {
+                        e = API_EARGS;
+                        break;
+                    }
+                    nameid nid = AttrMap::string2nameid("lbl");
+                    node->attrs.map[nid] = std::to_string(label);
+                }
+                else if (type == MegaApi::NODE_ATTR_FAV)
+                {
+                    nameid nid = AttrMap::string2nameid("fav");
+                    if (!request->getNumDetails())
+                    {
+                        node->attrs.map.erase(nid);
+                    }
+                    else
+                    {
+                        node->attrs.map[nid] = std::to_string(1);
                     }
                 }
                 else

@@ -2179,6 +2179,8 @@ class MegaApiImpl : public MegaApp
         void getUserEmail(MegaHandle handle, MegaRequestListener *listener = NULL);
         void setCustomNodeAttribute(MegaNode *node, const char *attrName, const char *value, MegaRequestListener *listener = NULL);
         void setNodeDuration(MegaNode *node, int secs, MegaRequestListener *listener = NULL);
+        void setNodeLabel(MegaNode *node, int label, MegaRequestListener *listener = NULL);
+        void setNodeFavourite(MegaNode *node, bool fav, MegaRequestListener *listener = NULL);
         void setNodeCoordinates(MegaNode *node, bool unshareable, double latitude, double longitude, MegaRequestListener *listener = NULL);
         void exportNode(MegaNode *node, int64_t expireTime, MegaRequestListener *listener = NULL);
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);

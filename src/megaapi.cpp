@@ -2465,6 +2465,16 @@ void MegaApi::setNodeDuration(MegaNode *node, int secs, MegaRequestListener *lis
     pImpl->setNodeDuration(node, secs, listener);
 }
 
+void MegaApi::setNodeLabel(MegaNode *node, int label, MegaRequestListener *listener)
+{
+    pImpl->setNodeLabel(node, label, listener);
+}
+
+void MegaApi::setNodeFavourite(MegaNode *node, bool fav, MegaRequestListener *listener)
+{
+    pImpl->setNodeFavourite(node, fav, listener);
+}
+
 void MegaApi::setNodeCoordinates(MegaNode *node, double latitude, double longitude, MegaRequestListener *listener)
 {
     pImpl->setNodeCoordinates(node, false, latitude, longitude, listener);
