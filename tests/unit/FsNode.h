@@ -21,6 +21,7 @@
 #include <map>
 #include <memory>
 
+#include <mega.h>
 #include <mega/types.h>
 #include <mega/filefingerprint.h>
 
@@ -80,7 +81,7 @@ public:
         return mType;
     }
 
-    const std::string& getName() const
+    const mega::LocalPath& getName() const
     {
         return mName;
     }
@@ -105,15 +106,16 @@ public:
         return mReadable;
     }
 
-    std::string getPath() const
+    mega::LocalPath getPath() const
     {
-        std::string path = mName;
-        auto parent = mParent;
-        while (parent)
+        mega::FSACCESS_CLASS fsa;
+        mega::LocalPath path = mName;
+
+        for (const FsNode *p = mParent; p; p = p->mParent)
         {
-            path = parent->mName + "/" + path;
-            parent = parent->mParent;
+            path.separatorPrepend(p->mName, fsa.localseparator);
         }
+
         return path;
     }
 
@@ -129,7 +131,7 @@ private:
     public:
         explicit FileAccess(const FsNode& fsNode);
 
-        bool fopen(std::string* path, bool, bool, mega::DirAccess* iteratingDir = nullptr) override;
+        bool fopen(mega::LocalPath& path, bool, bool, mega::DirAccess* iteratingDir = nullptr) override;
 
         bool sysstat(mega::m_time_t* curr_mtime, m_off_t* curr_size) override;
 
@@ -140,7 +142,7 @@ private:
         void sysclose() override;
 
     private:
-        std::string mPath;
+        mega::LocalPath mPath;
         const FsNode& mFsNode;
     };
 
@@ -152,7 +154,7 @@ private:
     std::unique_ptr<mega::FileAccess> mFileAccess = std::unique_ptr<mega::FileAccess>{new FileAccess{*this}};
     const FsNode* mParent = nullptr;
     const mega::nodetype_t mType = mega::TYPE_UNKNOWN;
-    const std::string mName;
+    const mega::LocalPath mName;
     bool mOpenable = true;
     bool mReadable = true;
     std::vector<const FsNode*> mChildren;

@@ -31,11 +31,11 @@ public:
     : mega::FileAccess{nullptr}
     {}
 
-    bool fopen(std::string*, bool, bool, mega::DirAccess* iteratingDir = nullptr) override
+    bool fopen(mega::LocalPath&, bool, bool, mega::DirAccess* iteratingDir = nullptr) override
     {
         throw NotImplemented{__func__};
     }
-    void updatelocalname(std::string*) override
+    void updatelocalname(mega::LocalPath&) override
     {
         throw NotImplemented{__func__};
     }

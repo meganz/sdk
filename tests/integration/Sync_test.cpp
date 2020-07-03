@@ -413,7 +413,7 @@ struct StandardClient : public MegaApp
     static mutex om;
     bool logcb = false;
     chrono::steady_clock::time_point lastcb = std::chrono::steady_clock::now();
-    string lp(LocalNode* ln) { string lp;  ln->getlocalpath(&lp); client.fsaccess->local2name(&lp, client.fsaccess->getFilesystemType(&lp)); return lp; }
+    string lp(LocalNode* ln) { return ln->getLocalPath().toName(*client.fsaccess, FS_UNKNOWN); }
     void syncupdate_state(Sync*, syncstate_t state) override { if (logcb) { lock_guard<mutex> g(om);  cout << clientname << " syncupdate_state() " << state << endl; } }
     void syncupdate_scanning(bool b) override { if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_scanning()" << b << endl; } }
     //void syncupdate_local_folder_addition(Sync* s, LocalNode* ln, const char* cp) override { if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_local_folder_addition() " << lp(ln) << " " << cp << endl; }}
@@ -951,12 +951,8 @@ struct StandardClient : public MegaApp
             return false;
         }
 
-        string localpath;
-        n->getlocalpath(&localpath, false);
-        ::mega::FileSystemType fileSystemType = client.fsaccess->getFilesystemType(&localpath);
-        client.fsaccess->local2name(&localpath, fileSystemType);
-        string n_localname = n->localname;
-        client.fsaccess->local2name(&n_localname, fileSystemType);
+        auto localpath = n->getLocalPath(false).toName(*client.fsaccess, FS_UNKNOWN);
+        string n_localname = n->localname.toName(*client.fsaccess, FS_UNKNOWN);
         if (n_localname.size())
         {
             EXPECT_EQ(n->name, n_localname);
@@ -974,9 +970,7 @@ struct StandardClient : public MegaApp
             EXPECT_EQ(mn->parent->type, Model::ModelNode::folder);
             EXPECT_EQ(n->parent->type, FOLDERNODE);
 
-            string parentpath;
-            n->parent->getlocalpath(&parentpath, false);
-            client.fsaccess->local2name(&parentpath, client.fsaccess->getFilesystemType(&parentpath));
+            string parentpath = n->parent->getLocalPath(false).toName(*client.fsaccess, FS_UNKNOWN);
             EXPECT_EQ(localpath.substr(0, parentpath.size()), parentpath);
         }
         if (n->node && n->parent && n->parent->node)
