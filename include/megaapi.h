@@ -10131,6 +10131,9 @@ class MegaApi
          *  - LBL_PURPLE = 6
          *  - LBL_GREY = 7
          *
+         * To remove this attribute, this method must be called with label set to the
+         * current value of the attribute for the node.
+         *
          * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute

@@ -19812,7 +19812,17 @@ void MegaApiImpl::sendPendingRequests()
                         break;
                     }
                     nameid nid = AttrMap::string2nameid("lbl");
-                    node->attrs.map[nid] = std::to_string(label);
+                    attr_map::iterator it = node->attrs.map.find(nid);
+                    if (it != node->attrs.map.end() && !it->second.empty()
+                            && label == std::atoi(it->second.c_str()))
+                    {
+                        // if current value is the same as the value we want to set, remove the attribute
+                        node->attrs.map.erase(nid);
+                    }
+                    else
+                    {
+                        node->attrs.map[nid] = std::to_string(label);
+                    }
                 }
                 else if (type == MegaApi::NODE_ATTR_FAV)
                 {
