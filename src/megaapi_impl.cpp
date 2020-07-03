@@ -164,6 +164,8 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
         this->height = np->height;
         this->shortformat = np->shortformat;
         this->videocodecid = np->videocodecid;
+        this->favourite = np->favourite;
+        this->label = np->label;
     }
     else
     {
@@ -172,6 +174,8 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
         this->height = node->getHeight();
         this->shortformat = node->getShortformat();
         this->videocodecid = node->getVideocodecid();
+        this->favourite = node->isFavourite();
+        this->label = static_cast<nodelabel_t>(node->getLabel());
     }
 
     this->latitude = node->getLatitude();
@@ -283,6 +287,8 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     this->longitude = INVALID_COORDINATE;
     this->customAttrs = NULL;
     this->restorehandle = UNDEF;
+    this->favourite = false;
+    this->label = LBL_UNKOWN;
 
     char buf[10];
     for (attr_map::iterator it = node->attrs.map.begin(); it != node->attrs.map.end(); it++)
@@ -391,6 +397,22 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
             else if (it->first == AttrMap::string2nameid("c0"))
             {
                 originalfingerprint = MegaApi::strdup(it->second.c_str());
+            }
+            else if (it->first == AttrMap::string2nameid("fav"))
+            {
+                favourite = std::atoi(it->second.c_str());
+            }
+            else if (it->first == AttrMap::string2nameid("lbl"))
+            {
+                int lbl = std::atoi(it->second.c_str());
+                if (lbl < LBL_RED || lbl > LBL_GREY)
+                {
+                    LOG_err << "Invalid value for node attr lbl: " << lbl;
+                }
+                else
+                {
+                    label = static_cast<nodelabel_t>(lbl);
+                }
             }
         }
     }
