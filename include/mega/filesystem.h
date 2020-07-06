@@ -151,7 +151,7 @@ public:
     const std::string* editStringDirect() const;
     bool empty() const;
     void clear() { localpath.clear(); }
-    void erase() { localpath.erase(); }
+    void erase(size_t pos = 0, size_t count = std::string::npos) { localpath.erase(pos, count); }
     void truncate(size_t bytePos) { localpath.resize(bytePos); }
     size_t lastpartlocal(const FileSystemAccess& fsaccess) const;
     void append(const LocalPath& additionalPath);

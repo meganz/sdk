@@ -686,7 +686,7 @@ AppFilePut::AppFilePut(const LocalPath& clocalname, handle ch, const char* ctarg
     auto fileSystemType = client->fsaccess->getFilesystemType(&dummyName);
 
     LocalPath p = clocalname;
-    p.truncate(p.lastpartlocal(*client->fsaccess));
+    p.erase(0, p.lastpartlocal(*client->fsaccess));
     name = p.toName(*client->fsaccess, fileSystemType);
 }
 
@@ -4084,9 +4084,7 @@ void exec_put(autocomplete::ACState& s)
             {
                 cout << "Queueing " << leafNameUtf8 << "..." << endl;
             }
-            auto newpath = localname;
-            newpath.separatorAppend(itemlocalname, true, client->fsaccess->localseparator);
-            uploadLocalPath(type, leafNameUtf8, newpath, n, targetuser, committer, total, recursive);
+            uploadLocalPath(type, leafNameUtf8, itemlocalname, n, targetuser, committer, total, recursive);
         }
     }
 
