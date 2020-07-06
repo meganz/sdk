@@ -20700,7 +20700,7 @@ void MegaApiImpl::sendPendingRequests()
                     }
                 }
 
-                // 3. cancel regular in-transit tranfers
+                // 3. cancel regular in-transit transfers
                 long long cancelledTransit = 0;
                 for (transfer_map::iterator it = client->transfers[direction].begin() ; it != client->transfers[direction].end() ; it++)
                 {

@@ -750,7 +750,10 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
 
         void startRecursiveOperation(unique_ptr<MegaRecursiveOperation>, MegaNode* node); // takes ownership of both
 
-    protected:
+        long long getPlaceInQueue() const;
+        void setPlaceInQueue(long long value);
+
+protected:
         int type;
         int tag;
         int state;
@@ -786,6 +789,8 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         long long endPos;
         int retry;
         int maxRetries;
+
+        long long placeInQueue = 0;
 
         MegaTransferListener *listener;
         Transfer *transfer;
@@ -1969,6 +1974,7 @@ class TransferQueue
     protected:
         std::deque<MegaTransferPrivate *> transfers;
         std::mutex mutex;
+        long long lastPushedTransfer = 0;
 
     public:
         TransferQueue();
@@ -1978,6 +1984,7 @@ class TransferQueue
 
         void removeWithFolderTag(int folderTag, std::function<void(MegaTransferPrivate *)> callback);
         void removeListener(MegaTransferListener *listener);
+        int getLastPushedTag() const;
 };
 
 class MegaApiImpl : public MegaApp
@@ -2631,6 +2638,8 @@ class MegaApiImpl : public MegaApp
         void fireOnTransferUpdate(MegaTransferPrivate *transfer);
         void fireOnTransferTemporaryError(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e);
         map<int, MegaTransferPrivate *> transferMap;
+        map<int, MegaTransferPrivate *> folderTransferMap; //transferMap includes these, added for speedup
+
 
         MegaClient *getMegaClient();
         static FileFingerprint *getFileFingerprintInternal(const char *fingerprint);
