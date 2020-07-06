@@ -245,9 +245,10 @@ void PosixFileAccess::asyncopfinished(sigval sigev_value)
 void PosixFileAccess::asyncsysopen(AsyncIOContext *context)
 {
 #ifdef HAVE_AIO_RT
-    string path;
-    path.assign((char *)context->buffer, context->len);
-    context->failed = !fopen(&path, context->access & AsyncIOContext::ACCESS_READ,
+    auto localName = string((char*)context->buffer, context->len);
+    auto localPath = LocalPath::fromLocalname(localName);
+
+    context->failed = !fopen(localPath, context->access & AsyncIOContext::ACCESS_READ,
                              context->access & AsyncIOContext::ACCESS_WRITE);
     context->retry = retry;
     context->finished = true;
@@ -1217,7 +1218,7 @@ void PosixFileSystemAccess::emptydirlocal(LocalPath& name, dev_t basedev)
                     ScopedLengthRestore restore(name);
                     PosixFileSystemAccess pfsa;
 
-                    name.separatorAppend(LocalPath::fromLocalname(d->d_name), pfsa, true);
+                    name.separatorAppend(LocalPath::fromLocalname(d->d_name), true, pfsa.localseparator);
 
                     if (!lstat(name.editStringDirect()->c_str(), &statbuf))
                     {
@@ -1964,7 +1965,7 @@ bool PosixDirAccess::dnext(LocalPath& path, LocalPath& name, bool followsymlinks
 
         if (*d->d_name != '.' || (d->d_name[1] && (d->d_name[1] != '.' || d->d_name[2])))
         {
-            path.separatorAppend(LocalPath::fromLocalname(d->d_name), pfsa, true);
+            path.separatorAppend(LocalPath::fromLocalname(d->d_name), true, pfsa.localseparator);
 
             bool statOk = !lstat(path.editStringDirect()->c_str(), &statbuf);
             if (followsymlinks && statOk && S_ISLNK(statbuf.st_mode))
