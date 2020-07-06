@@ -121,7 +121,7 @@ bool PosixFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
 #endif
 
     type = TYPE_UNKNOWN;
-    mIsSymLink = (nonblocking_localname.editStringDirect()->c_str(), &statbuf) == 0
+    mIsSymLink = lstat(nonblocking_localname.editStringDirect()->c_str(), &statbuf) == 0
                  && S_ISLNK(statbuf.st_mode);
     if (mIsSymLink && !PosixFileAccess::mFoundASymlink)
     {
