@@ -737,6 +737,8 @@ namespace CodeCounter
     };
 }
 
+typedef enum {INVALID = -1, TWO_WAY = 0, UP_SYNC = 1, DOWN_SYNC = 2, CAMERA_UPLOAD = 3 } BackupType;
+
 // Holds the config of a sync. Can be extended with future config options
 class SyncConfig : public Cacheable
 {

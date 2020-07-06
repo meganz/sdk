@@ -216,6 +216,7 @@ protected:
     int recursive;
     int tag;
     int pendingTransfers;
+    bool cancelled = false;
     std::set<MegaTransferPrivate*> subTransfers;
     int mIncompleteTransfers = { 0 };
     MegaErrorPrivate mLastError = { API_OK };
@@ -239,6 +240,7 @@ public:
     void onTransferStart(MegaApi *api, MegaTransfer *transfer) override;
     void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) override;
     void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e) override;
+    ~MegaFolderUploadController();
 };
 
 
@@ -1973,6 +1975,8 @@ class TransferQueue
         void push(MegaTransferPrivate *transfer);
         void push_front(MegaTransferPrivate *transfer);
         MegaTransferPrivate * pop();
+
+        void removeWithFolderTag(int folderTag, std::function<void(MegaTransferPrivate *)> callback);
         void removeListener(MegaTransferListener *listener);
 };
 
@@ -2003,6 +2007,9 @@ class MegaApiImpl : public MegaApp
         void removeTransferListener(MegaTransferListener* listener);
         void removeBackupListener(MegaBackupListener* listener);
         void removeGlobalListener(MegaGlobalListener* listener);
+
+        void cancelPendingTransfersByFolderTag(int folderTag);
+
 
         MegaRequest *getCurrentRequest();
         MegaTransfer *getCurrentTransfer();
@@ -3009,6 +3016,11 @@ protected:
         unique_ptr<FileAccess> mSyncable_fa;
         std::mutex mSyncable_fa_mutex;
 #endif
+
+        void backupput_result(const Error&, handle) override;
+        void backupupdate_result(const Error&, handle) override;
+        void backupputheartbeat_result(const Error&) override;
+        void backupremove_result(const Error&, handle) override;
 
 protected:
         // suggest reload due to possible race condition with other clients
