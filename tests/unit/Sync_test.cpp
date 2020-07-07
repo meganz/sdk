@@ -1073,7 +1073,7 @@ void test_SyncConfig_serialization(const mega::SyncConfig& config)
 
 TEST(Sync, SyncConfig_defaultOptions)
 {
-    const mega::SyncConfig config{127, "foo", 42, 123};
+    const mega::SyncConfig config{127, "foo", 42, "remote",123};
     ASSERT_TRUE(config.isResumable());
     ASSERT_EQ("foo", config.getLocalPath());
     ASSERT_EQ(42, config.getRemoteNode());
@@ -1089,7 +1089,7 @@ TEST(Sync, SyncConfig_defaultOptions)
 
 TEST(Sync, SyncConfig_defaultOptions_inactive)
 {
-    mega::SyncConfig config{127, "foo", 42, 123};
+    mega::SyncConfig config{127, "foo", 42, "remote",123};
     config.setEnabled(false);
     ASSERT_FALSE(config.isResumable());
     ASSERT_EQ("foo", config.getLocalPath());
@@ -1107,7 +1107,7 @@ TEST(Sync, SyncConfig_defaultOptions_inactive)
 TEST(Sync, SyncConfig_defaultOptions_butWithRegExps)
 {
     const std::vector<std::string> regExps{"aa", "bbb"};
-    const mega::SyncConfig config{127, "foo", 42, 123, regExps};
+    const mega::SyncConfig config{127, "foo", 42, "remote",123, regExps};
     ASSERT_TRUE(config.isResumable());
     ASSERT_EQ(127, config.getTag());
     ASSERT_EQ("foo", config.getLocalPath());
@@ -1125,7 +1125,7 @@ TEST(Sync, SyncConfig_defaultOptions_butWithRegExps)
 TEST(Sync, SyncConfig_upSync_syncDelFalse_overwriteFalse)
 {
     const std::vector<std::string> regExps{"aa", "bbb"};
-    const mega::SyncConfig config{127, "foo", 42, 123, regExps, true, mega::SyncConfig::TYPE_UP};
+    const mega::SyncConfig config{127, "foo", 42, "remote",123, regExps, true, mega::SyncConfig::TYPE_UP};
     ASSERT_TRUE(config.isResumable());
     ASSERT_EQ(127, config.getTag());
     ASSERT_EQ("foo", config.getLocalPath());
@@ -1143,7 +1143,7 @@ TEST(Sync, SyncConfig_upSync_syncDelFalse_overwriteFalse)
 TEST(Sync, SyncConfig_upSync_syncDelTrue_overwriteTrue)
 {
     const std::vector<std::string> regExps{"aa", "bbb"};
-    const mega::SyncConfig config{127, "foo", 42, 123, regExps, true, mega::SyncConfig::TYPE_UP, true, true};
+    const mega::SyncConfig config{127, "foo", 42, "remote",123, regExps, true, mega::SyncConfig::TYPE_UP, true, true};
     ASSERT_TRUE(config.isResumable());
     ASSERT_EQ(127, config.getTag());
     ASSERT_EQ("foo", config.getLocalPath());
@@ -1161,7 +1161,7 @@ TEST(Sync, SyncConfig_upSync_syncDelTrue_overwriteTrue)
 TEST(Sync, SyncConfig_downSync_syncDelFalse_overwriteFalse)
 {
     const std::vector<std::string> regExps{"aa", "bbb"};
-    const mega::SyncConfig config{127, "foo", 42, 123, regExps, true, mega::SyncConfig::TYPE_DOWN};
+    const mega::SyncConfig config{127, "foo", 42, "remote",123, regExps, true, mega::SyncConfig::TYPE_DOWN};
     ASSERT_TRUE(config.isResumable());
     ASSERT_EQ(127, config.getTag());
     ASSERT_EQ("foo", config.getLocalPath());
@@ -1179,7 +1179,7 @@ TEST(Sync, SyncConfig_downSync_syncDelFalse_overwriteFalse)
 TEST(Sync, SyncConfig_downSync_syncDelTrue_overwriteTrue)
 {
     const std::vector<std::string> regExps{"aa", "bbb"};
-    const mega::SyncConfig config{127, "foo", 42, 123, regExps, true, mega::SyncConfig::TYPE_DOWN, true, true};
+    const mega::SyncConfig config{127, "foo", 42, "remote",123, regExps, true, mega::SyncConfig::TYPE_DOWN, true, true};
     ASSERT_TRUE(config.isResumable());
     ASSERT_EQ(127, config.getTag());
     ASSERT_EQ("foo", config.getLocalPath());
@@ -1200,16 +1200,16 @@ namespace
 void test_SyncConfigBag(mega::SyncConfigBag& bag)
 {
     ASSERT_TRUE(bag.all().empty());
-    const mega::SyncConfig config1{127, "foo", 41, 122, {}, true, mega::SyncConfig::Type::TYPE_TWOWAY, false, true, mega::LOCAL_FINGERPRINT_MISMATCH};
+    const mega::SyncConfig config1{127, "foo", 41, "remote", 122, {}, true, mega::SyncConfig::Type::TYPE_TWOWAY, false, true, mega::LOCAL_FINGERPRINT_MISMATCH};
     bag.insert(config1);
-    const mega::SyncConfig config2{128, "bar", 42, 123, {}, false, mega::SyncConfig::Type::TYPE_UP, true, false, mega::NO_SYNC_ERROR};
+    const mega::SyncConfig config2{128, "bar", 42, "remote", 123, {}, false, mega::SyncConfig::Type::TYPE_UP, true, false, mega::NO_SYNC_ERROR};
     bag.insert(config2);
     const std::vector<mega::SyncConfig> expConfigs1{config1, config2};
     ASSERT_EQ(expConfigs1, bag.all());
     bag.removeByTag(config1.getTag());
     const std::vector<mega::SyncConfig> expConfigs2{config2};
     ASSERT_EQ(expConfigs2, bag.all());
-    const mega::SyncConfig config3{128, "bar2", 43, 124};
+    const mega::SyncConfig config3{128, "bar2", 43, "remote", 124};
     bag.insert(config3); // update
     const std::vector<mega::SyncConfig> expConfigs3{config3};
     ASSERT_EQ(expConfigs3, bag.all());
@@ -1303,13 +1303,13 @@ TEST(Sync, SyncConfigBag_withPreviousState)
     mega::PrnGen rng;
 
     mega::SyncConfigBag bag1{dbaccess, fsaccess, rng, "some_id"};
-    const mega::SyncConfig config1{127, "foo", 41, 122, {}, true, mega::SyncConfig::Type::TYPE_TWOWAY, false, true, mega::LOCAL_FINGERPRINT_MISMATCH};
+    const mega::SyncConfig config1{127, "foo", 41, "remote", 122, {}, true, mega::SyncConfig::Type::TYPE_TWOWAY, false, true, mega::LOCAL_FINGERPRINT_MISMATCH};
     bag1.insert(config1);
     ASSERT_EQ(1u, mData.size());
-    const mega::SyncConfig config2{128, "bar", 42, 123, {}, false, mega::SyncConfig::Type::TYPE_UP, true, false, mega::NO_SYNC_ERROR};
+    const mega::SyncConfig config2{128, "bar", 42, "remote", 123, {}, false, mega::SyncConfig::Type::TYPE_UP, true, false, mega::NO_SYNC_ERROR};
     bag1.insert(config2);
     ASSERT_EQ(2u, mData.size());
-    const mega::SyncConfig config3{129, "bar2", 43, 124, {}, false, mega::SyncConfig::Type::TYPE_UP, true, false, mega::NO_SYNC_ERROR};
+    const mega::SyncConfig config3{129, "bar2", 43, "remote", 124, {}, false, mega::SyncConfig::Type::TYPE_UP, true, false, mega::NO_SYNC_ERROR};
     bag1.insert(config3);
     ASSERT_EQ(3u, mData.size());
     bag1.insert(config3); // update
