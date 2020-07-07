@@ -1039,17 +1039,10 @@ protected:
     int tag;
     long long fingerprint;
     MegaSyncListener *listener;
-    int state; //this refers to status (initiascan/active/failed/canceled/disabled)
+    int state; //this refers to status (initialscan/active/failed/canceled/disabled)
 
     //holds error cause
     int mError;
-
-    // if temporarily disabled. No need to store this: state == SYNC_DISABLED with mError != NO_SYNC_ERROR
-//    bool mTemporaryDisabled;
-
-    // if sync is enabled. No need to store this: state != SYNC_DISABLED (or state == SYNC_DISABLED but due to a transient error)
-    //bool mEnabled;
-
 
 };
 
@@ -2732,7 +2725,6 @@ protected:
 
 #ifdef ENABLE_SYNC
         map<int, MegaSyncPrivate *> syncMap;    // maps tag to MegaSync objects
-        bool mFirstSyncResumed = false;
 
         // removes a sync from syncmap and from cache
         void eraseSync(int tag);
@@ -3002,10 +2994,10 @@ protected:
          * @param fireDisableEvent if when the change entails a transition to inactive should call to fireOnSyncDisabled. Should
          * be false when adding a new sync (there was no sync: failure implies no transition)
          */
-        void syncupdate_state(int tag, syncstate_t, syncerror_t, bool fireDisableEvent = true) override;
+        void syncupdate_state(int tag, syncstate_t, SyncError, bool fireDisableEvent = true) override;
 
         // this will fill syncMap with a new MegaSyncPrivate, and fire onSyncAdded indicating the result of that addition
-        void sync_auto_resume_result(const SyncConfig &config, const syncstate_t &state, const syncerror_t &syncError) override;
+        void sync_auto_resume_result(const SyncConfig &config, const syncstate_t &state, const SyncError &syncError) override;
 
         // this will fire onSyncStateChange if remote path of the synced node has changed
         virtual void syncupdate_remote_root_moved(const SyncConfig &) override;
@@ -3017,10 +3009,10 @@ protected:
         virtual void syncs_restored();
 
         // this will call will fire EVENT_SYNCS_DISABLED
-        virtual void syncs_disabled(syncerror_t syncError);
+        virtual void syncs_disabled(SyncError syncError);
 
         // this will call will fire EVENT_FIRST_SYNC_RESUMING before the first sync is resumed
-        virtual void sync_about_to_be_resumed(const SyncConfig &) override;
+        virtual void syncs_about_to_be_resumed() override;
 
         // removes the sync from syncMap and fires onSyncDeleted callback
         void sync_removed(int tag) override;

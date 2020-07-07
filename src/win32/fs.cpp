@@ -1636,7 +1636,7 @@ DirNotify* WinFileSystemAccess::newdirnotify(string* localpath, string* ignore, 
     return new WinDirNotify(localpath, ignore, this, waiter);
 }
 
-bool WinFileSystemAccess::issyncsupported(string *localpath, bool *isnetwork, syncerror_t *syncError)
+bool WinFileSystemAccess::issyncsupported(string *localpath, bool *isnetwork, SyncError *syncError)
 {
     WCHAR VBoxSharedFolderFS[] = L"VBoxSharedFolderFS";
     string path, fsname;
@@ -1659,9 +1659,7 @@ bool WinFileSystemAccess::issyncsupported(string *localpath, bool *isnetwork, sy
             }
             result = false;
         }
-
-        // TODO: have these checks for !windows too
-        if ((!memcmp(fsname.data(), L"FAT", 6) || !memcmp(fsname.data(), L"exFAT", 10)))
+        else if ((!memcmp(fsname.data(), L"FAT", 6) || !memcmp(fsname.data(), L"exFAT", 10))) // TODO: have these checks for !windows too
         {
             LOG_warn << "You are syncing a local folder formatted with a FAT filesystem. "
                         "That filesystem has deficiencies managing big files and modification times "

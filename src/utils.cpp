@@ -2202,7 +2202,7 @@ SyncConfig::SyncConfig(int tag,
                        const Type syncType,
                        const bool syncDeletions,
                        const bool forceOverwrite,
-                       const int error)
+                       const SyncError error)
     : mTag{tag}
     , mEnabled{enabled}
     , mLocalPath{std::move(localPath)}
@@ -2236,14 +2236,14 @@ void SyncConfig::setEnabled(bool enabled)
     mEnabled = enabled;
 }
 
-bool SyncConfig::isEnabled(syncstate_t state, syncerror_t syncError)
+bool SyncConfig::isEnabled(syncstate_t state, SyncError syncError)
 {
     return state != SYNC_CANCELED && (state != SYNC_DISABLED || syncError != NO_SYNC_ERROR);
 }
 
 bool SyncConfig::isResumable() const
 {
-    return mEnabled && !isMegaSyncErrorPermanent(mError);
+    return mEnabled && !isSyncErrorPermanent(mError);
 }
 
 bool SyncConfig::isResumableAtStartup() const
@@ -2317,12 +2317,12 @@ bool SyncConfig::forceOverwrite() const
     return false;
 }
 
-int SyncConfig::getError() const
+SyncError SyncConfig::getError() const
 {
     return mError;
 }
 
-void SyncConfig::setError(int value)
+void SyncConfig::setError(SyncError value)
 {
     mError = value;
 }
@@ -2401,7 +2401,7 @@ std::unique_ptr<SyncConfig> SyncConfig::unserialize(const std::string& data)
     auto syncConfig = std::unique_ptr<SyncConfig>{new SyncConfig{static_cast<int>(tag), std::move(localPath),
                     remoteNode, fingerprint, std::move(regExps), enabled,
                     static_cast<Type>(syncType), syncDeletions,
-                    forceOverwrite, static_cast<int>(error)}};
+                    forceOverwrite, static_cast<SyncError>(error)}};
     return syncConfig;
 }
 

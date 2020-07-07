@@ -8408,7 +8408,7 @@ void MegaApiImpl::copySyncDataToCache(const char *localFolder, MegaHandle megaHa
 
 void MegaApiImpl::copyCachedStatus(int storageStatus, int blockStatus, int businessStatus, MegaRequestListener *listener)
 {
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_COPY_CACHED_STATUS);
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_COPY_CACHED_STATUS, listener);
 
     if (blockStatus < 0) blockStatus = 999;
     if (storageStatus < 0) storageStatus = 999;
@@ -12712,7 +12712,7 @@ void MegaApiImpl::folderlinkinfo_result(error e, handle owner, handle /*ph*/, st
 }
 
 #ifdef ENABLE_SYNC
-void MegaApiImpl::syncupdate_state(int tag, syncstate_t newstate, syncerror_t syncerror, bool fireDisableEvent)
+void MegaApiImpl::syncupdate_state(int tag, syncstate_t newstate, SyncError syncerror, bool fireDisableEvent)
 {
     auto syncpair = syncMap.find(tag);
     if( syncpair == syncMap.end())
@@ -12746,8 +12746,6 @@ void MegaApiImpl::syncupdate_state(int tag, syncstate_t newstate, syncerror_t sy
     {
         fireOnSyncEnabled(megaSync);
     }
-
-    client->abortbackoff(false);
 }
 
 void MegaApiImpl::syncupdate_scanning(bool scanning)
@@ -13018,7 +13016,7 @@ void MegaApiImpl::sync_removed(int tag)
     eraseSync(tag);
 }
 
-void MegaApiImpl::sync_auto_resume_result(const SyncConfig &config, const syncstate_t &state, const syncerror_t &syncError)
+void MegaApiImpl::sync_auto_resume_result(const SyncConfig &config, const syncstate_t &state, const SyncError &syncError)
 {
     MegaSyncPrivate *sync = new MegaSyncPrivate(config.getLocalPath().c_str(), config.getRemoteNode(), config.getTag());
 
@@ -13106,21 +13104,17 @@ void MegaApiImpl::syncs_restored()
     fireOnEvent(event);
 }
 
-void MegaApiImpl::syncs_disabled(syncerror_t syncError)
+void MegaApiImpl::syncs_disabled(SyncError syncError)
 {
     MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_SYNC_DISABLED);
     event->setNumber(syncError);
     fireOnEvent(event);
 }
 
-void MegaApiImpl::sync_about_to_be_resumed(const SyncConfig &config)
+void MegaApiImpl::syncs_about_to_be_resumed()
 {
-    if (!mFirstSyncResumed)
-    {
-        MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_FIRST_SYNC_RESUMING);
-        fireOnEvent(event);
-        mFirstSyncResumed = true;
-    }
+    MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_FIRST_SYNC_RESUMING);
+    fireOnEvent(event);
 }
 
 void MegaApiImpl::syncupdate_local_lockretry(bool waiting)
@@ -14316,8 +14310,6 @@ void MegaApiImpl::logout_result(error e)
         excludedPaths.clear();
         syncLowerSizeLimit = 0;
         syncUpperSizeLimit = 0;
-
-        mFirstSyncResumed = false;
 
         delete mPushSettings;
         mPushSettings = NULL;
@@ -15946,7 +15938,7 @@ void MegaApiImpl::fireOnRequestFinish(MegaRequestPrivate *request, MegaError e)
 #ifdef ENABLE_SYNC
     if (e.getErrorCode() == API_EBUSINESSPASTDUE)
     {
-        //Ideally, this piece of code should be in MegaClient, but that would entail handling it for every request
+        //Ideally, this piece of code should be in MegaClient, but that would entail handling it for every request //TODO move to checkError after merging develop
         client->disableSyncs(BUSINESS_EXPIRED);
     }
 #endif
@@ -20966,7 +20958,7 @@ void MegaApiImpl::sendPendingRequests()
                                   static_cast<fsfp_t>(request->getNumber()), 
                                   regExpToVector(request->getRegExp())};
 
-            syncerror_t syncError = NO_SYNC_ERROR;
+            SyncError syncError = NO_SYNC_ERROR;
             e = client->addsync(syncConfig, DEBRISFOLDER, NULL, syncError, true, sync);
             request->setNumDetails(syncError);
             if (!e)
@@ -20993,13 +20985,16 @@ void MegaApiImpl::sendPendingRequests()
         {
             auto tag = request->getNumDetails();
             auto sync_it = syncMap.find(tag);
-            if ( sync_it == syncMap.end() || !sync_it->second)
+            if (sync_it == syncMap.end())
             {
                 e = API_ENOENT;
                 break;
             }
+            assert(sync_it->second);
 
-            syncerror_t syncError = NO_SYNC_ERROR;
+
+
+            SyncError syncError = NO_SYNC_ERROR;
 
             e = client->enableSync(tag, syncError, true);
             //TODO: note to reviewer: in case this fails with a non temporary error, this sets the sync
@@ -21067,10 +21062,6 @@ void MegaApiImpl::sendPendingRequests()
 
             if (temporaryDisabled)
             {
-                if (!syncError)
-                {
-
-                }
                 syncConfig.setError(syncError);
             }
 
@@ -21085,7 +21076,7 @@ void MegaApiImpl::sendPendingRequests()
 
             if (!e)
             {
-                request->setNumber(nextSyncTag);
+                request->setTransferTag(nextSyncTag);
                 fireOnRequestFinish(request, MegaError(API_OK));
             }
             break;
@@ -21102,16 +21093,16 @@ void MegaApiImpl::sendPendingRequests()
             using CS = CacheableStatus;
             using CType = CacheableStatus::Type;
 
-            auto loadAndPersist = [this](CType type, int value) -> bool
+            auto loadAndPersist = [this](CType type, int value) -> error
             {
                 if (value == 999)
                 {
-                    return false;
+                    return API_ENOENT;
                 }
                 auto status = client->mCachedStatus[type];
                 if (status)
                 {
-                    return false;
+                    return API_EEXIST;
                 }
                 status = std::make_shared<CS>(type, value);
 
@@ -21124,13 +21115,27 @@ void MegaApiImpl::sendPendingRequests()
                     {
                         LOG_err << "Failed to add/update migrated status to db: "
                                     << status->type() << " = " << status->value();
+                        return API_EINTERNAL;
                     }
                 }
+                return API_OK;
             };
 
-            loadAndPersist(CType::STATUS_STORAGE, storageStatusValue);
-            loadAndPersist(CType::STATUS_BUSINESS, businessStatusValue);
-            loadAndPersist(CType::STATUS_BLOCKED, blockedStatusValue);
+            auto subE = loadAndPersist(CType::STATUS_STORAGE, storageStatusValue);
+            if (!e)
+            {
+                e = subE;
+            }
+            subE = loadAndPersist(CType::STATUS_BUSINESS, businessStatusValue);
+            if (!e)
+            {
+                e = subE;
+            }
+            subE = loadAndPersist(CType::STATUS_BLOCKED, blockedStatusValue);
+            if (!e)
+            {
+                e = subE;
+            }
 
             if (!e)
             {

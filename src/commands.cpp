@@ -4110,17 +4110,10 @@ void CommandGetUserData::procresult()
             }
             else
             {
-                BizStatus oldStatus = client->mBizStatus;
-                client->mBizStatus = BIZ_STATUS_INACTIVE;
-                client->mBizStatusLoadedFromCache = false;
                 client->mBizMode = BIZ_MODE_UNKNOWN;
                 client->mBizMasters.clear();
                 client->mBizExpirationTs = client->mBizGracePeriodTs = 0;
-
-                if (client->mBizStatusLoadedFromCache || client->mBizStatus != oldStatus)
-                {
-                    client->app->notify_business_status(client->mBizStatus);
-                }
+                client->setBusinessStatus(BIZ_STATUS_INACTIVE);
             }
 
             client->app->userdata_result(&name, &pubk, &privk, API_OK);

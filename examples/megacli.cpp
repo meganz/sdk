@@ -462,7 +462,7 @@ static void syncstat(Sync* sync)
          << " file(s) and " << sync->localnodes[FOLDERNODE] << " folder(s)" << endl;
 }
 
-void DemoApp::syncupdate_state(int tag, syncstate_t newstate, syncerror_t syncError, bool fireDisableEvent)
+void DemoApp::syncupdate_state(int tag, syncstate_t newstate, SyncError syncError, bool fireDisableEvent)
 {
     cout << "Sync state updated: " << tag << " newstate: " << newstate << " error: " << syncError << endl;
 
@@ -480,7 +480,7 @@ void DemoApp::syncupdate_state(int tag, syncstate_t newstate, syncerror_t syncEr
     }
 }
 
-void DemoApp::sync_auto_resume_result(const SyncConfig &config, const syncstate_t &state, const syncerror_t &error)
+void DemoApp::sync_auto_resume_result(const SyncConfig &config, const syncstate_t &state, const SyncError &error)
 {
     cout << "Sync - auresumed " <<config.getTag() << " " << config.getLocalPath()  << " enabled: "
          << config.getEnabled()  << " state: " << state << " syncError: " << error << endl;
@@ -4243,9 +4243,9 @@ void exec_sync(autocomplete::ACState& s)
             else
             {
                 static int syncTag = 2027;
-                SyncConfig syncConfig{syncTag++, s.words[1].s, n->nodehandle, 0, {}, true, newSyncConfig.type,
+                SyncConfig syncConfig{syncTag++, s.words[1].s, n->nodehandle/*, s.words[2].s*/, 0, {}, true, newSyncConfig.type, //TODO: uncomment this
                             newSyncConfig.syncDeletions, newSyncConfig.forceOverwrite};
-                syncerror_t syncError;
+                SyncError syncError;
                 error e = client->addsync(std::move(syncConfig), DEBRISFOLDER, NULL, syncError);
 
                 if (e)

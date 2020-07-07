@@ -3322,6 +3322,7 @@ class MegaRequest
          * - MegaApi::moveTransferBeforeByTag - Returns the tag of the transfer to move
          * - MegaApi::setBackup - Returns the tag asociated with the backup
          * - MegaApi::syncFolder - Returns the tag asociated with the sync
+         * - MegaApi::copySyncDataToCache - Returns the tag asociated with the sync
          *
          * @return Tag of a transfer related to the request
          */
@@ -4868,7 +4869,7 @@ public:
      *
      *
      * @param sync MegaSync object representing a sync
-     * @param sync MegaSync object representing a sync
+     * @param api MegaApi object that is synchronizing files
      * @param additionState conditions in which the sync is added
      */
     virtual void onSyncAdded(MegaApi *api, MegaSync *sync, int additionState);
@@ -6607,6 +6608,9 @@ class MegaListener
      * - MegaApi::STATE_SYNCING = 3
      * The file is being synced with the MEGA account
      *
+     * The SDK retains the ownership of the sync and localPath parameters.
+     * Don't use them after this functions returns.
+     *
      * @param api MegaApi object that is synchronizing files
      * @param sync MegaSync object manages the file
      * @param localPath Local path of the file or folder
@@ -6619,6 +6623,9 @@ class MegaListener
      *
      * Synchronization events can be local deletions, local additions, remote deletions,
      * remote additions, etc. See MegaSyncEvent to know the full list of event types
+     *
+     * The SDK retains the ownership of the sync and event parameters.
+     * Don't use them after this functions returns.
      *
      * @param api MegaApi object that is synchronizing files
      * @param sync MegaSync object that detects the event
@@ -6634,6 +6641,9 @@ class MegaListener
      *
      * The SDK will call this after loading (and attempt to resume) syncs from cache or whenever a new
      * Synchronization is configured.
+     *
+     * The SDK retains the ownership of the sync parameter.
+     * Don't use it after this functions returns.
      *
      * Notice that adding a sync will not cause onSyncStateChanged to be called.
      *
@@ -6656,7 +6666,7 @@ class MegaListener
      *
      *
      * @param sync MegaSync object representing a sync
-     * @param sync MegaSync object representing a sync
+     * @param api MegaApi object that is synchronizing files
      * @param additionState conditions in which the sync is added
      */
     virtual void onSyncAdded(MegaApi *api, MegaSync *sync, int additionState);
@@ -6680,6 +6690,9 @@ class MegaListener
      * This does not imply a transition from active to inactive, but the callback is necessary to inform the user
      * that the sync is no longer in a temporary error, but in a fatal one.
      *
+     * The SDK retains the ownership of the sync parameter.
+     * Don't use it after this functions returns.
+     *
      * @param api MegaApi object that is synchronizing files
      * @param sync MegaSync object representing a sync
      */
@@ -6694,6 +6707,9 @@ class MegaListener
      *
      * - The sdk tries resumes a sync that had been temporarily disabled
      *
+     * The SDK retains the ownership of the sync parameter.
+     * Don't use it after this functions returns.
+     *
      * @param api MegaApi object that is synchronizing files
      * @param sync MegaSync object representing a sync
      */
@@ -6703,6 +6719,9 @@ class MegaListener
      * @brief This callback will be called when a sync is removed.
      *
      * This entail that the sync is completely removed from cache
+     *
+     * The SDK retains the ownership of the sync parameter.
+     * Don't use it after this functions returns.
      *
      * @param api MegaApi object that is synchronizing files
      * @param sync MegaSync object representing a sync
@@ -6718,6 +6737,9 @@ class MegaListener
      *
      * Notice, for changes that imply other callbacks, expect that the SDK
      * will call onSyncStateChanged first, so that you can update your model only using this one.
+     *
+     * The SDK retains the ownership of the sync parameter.
+     * Don't use it after this functions returns.
      *
      * @param api MegaApi object that is synchronizing files
      * @param sync MegaSync object that has changed its state
@@ -12611,6 +12633,7 @@ class MegaApi
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getNumber - Fingerprint of the local folder
+         * - MegaRequest::getTransferTag - Returns the sync tag
          *
          * @param localFolder Local folder
          * @param megaHandle Handle of MEGA folder
@@ -12631,11 +12654,14 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
          * - MegaRequest::getFile - Returns the path of the local folder
+         * - MegaRequest::getLink - Returns the path of the remote folder
+         * - MegaRequest::getNumber - Returns the local filesystem fingreprint
+         * - MegaRequest::setNumDetails - Returns if sync is temporarily disabled
          * - MegaRequest::getFlag - if sync is enabled
 
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getNumber - tag assigned to the sync (MegaApi::copySyncDataToCache)
+         * - MegaRequest::getTransferTag - tag assigned to the sync (MegaApi::copySyncDataToCache)
          *
          * @param localFolder Local folder
          * @param megaHandle MEGA folder
@@ -12653,7 +12679,9 @@ class MegaApi
          * This should be called before fetching nodes and copySyncDataToCache.
          *
          * The associated request type with this request is MegaRequest::TYPE_COPY_CACHED_STATUS
-
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNumber - Returns storageStatus+1000*blockStatus+1000000*businessStatus
+         *
          * @param storageStatus storage status. Pass 999 if not valid
          * @param blockStatus block status (0 = blocked, != 0 otherwise). Pass 999 if not valid
          * @param businessStatus business status. Pass 999 if not valid
@@ -12678,6 +12706,7 @@ class MegaApi
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getNumber - Fingerprint of the local folder to resume the sync
+         * - MegaRequest::getTransferTag - Returns the sync tag
          *
          * @param localFolder Local folder
          * @param megaFolder MEGA folder
