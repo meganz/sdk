@@ -6729,7 +6729,7 @@ void MegaClient::setBusinessStatus(BizStatus newBizStatus)
 #endif
     }
 
-    if (mBizStatusLoadedFromCache || prevBizStatus != mBizStatus) //has changed)
+    if (prevBizStatus != mBizStatus) //has changed)
     {
         app->notify_business_status(mBizStatus);
     }
