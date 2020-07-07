@@ -414,7 +414,7 @@ struct StandardClient : public MegaApp
     bool logcb = false;
     chrono::steady_clock::time_point lastcb = std::chrono::steady_clock::now();
     string lp(LocalNode* ln) { string lp;  ln->getlocalpath(&lp); client.fsaccess->local2name(&lp); return lp; }
-    void syncupdate_state(int tag, syncstate_t state, syncerror_t syncError, bool fireDisableEvent = true) override{ if (logcb) { lock_guard<mutex> g(om);  cout << clientname << " syncupdate_state() " << state << " error :" << syncError << endl; } }
+    void syncupdate_state(int tag, syncstate_t state, SyncError syncError, bool fireDisableEvent = true) override{ if (logcb) { lock_guard<mutex> g(om);  cout << clientname << " syncupdate_state() " << state << " error :" << syncError << endl; } }
     void syncupdate_scanning(bool b) override { if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_scanning()" << b << endl; } }
     //void syncupdate_local_folder_addition(Sync* s, LocalNode* ln, const char* cp) override { if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_local_folder_addition() " << lp(ln) << " " << cp << endl; }}
     //void syncupdate_local_folder_deletion(Sync*, LocalNode* ln) override { if (logcb) { lock_guard<mutex> g(om);  cout << clientname << " syncupdate_local_folder_deletion() " << lp(ln) << endl; }}
@@ -844,7 +844,7 @@ struct StandardClient : public MegaApp
             {
                 static int syncTag = 1001;
                 SyncConfig syncConfig{syncTag++, localpath.u8string(), m->nodehandle, 0};
-                syncerror_t syncError;
+                SyncError syncError;
                 error e = client.addsync(std::move(syncConfig), DEBRISFOLDER, NULL, syncError);  // use syncid as tag
                 if (!e)
                 {

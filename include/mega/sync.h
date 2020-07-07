@@ -123,7 +123,7 @@ public:
     void cachenodes();
 
     // change state, signal to application
-    void changestate(syncstate_t, syncerror_t newSyncError = NO_SYNC_ERROR);
+    void changestate(syncstate_t, SyncError newSyncError = NO_SYNC_ERROR);
 
     // skip duplicates and self-caused
     bool checkValidNotification(int q, Notification& notification);
@@ -180,7 +180,7 @@ public:
     bool fsstableids = false;
 
     // Error that causes a cancellation
-    syncerror_t errorCode = NO_SYNC_ERROR;
+    SyncError errorCode = NO_SYNC_ERROR;
     error apiErrorCode; //in case a cancellation is caused by a regular error (unused)
 
     // true if the sync hasn't loaded cached LocalNodes yet

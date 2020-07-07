@@ -513,7 +513,7 @@ bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, h
 
 SyncConfigBag::SyncConfigBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, PrnGen& rng, const std::string& id)
 {
-    std::string dbname = "syncconfigs_" + id;
+    std::string dbname = "syncconfigsv2_" + id;
     mTable.reset(dbaccess.open(rng, &fsaccess, &dbname, false, false));
     if (!mTable)
     {
@@ -532,10 +532,7 @@ SyncConfigBag::SyncConfigBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, Prn
         if (!syncConfig)
         {
             LOG_err << "Unable to unserialize sync config at id: " << tableId;
-            assert(false); //TODO: note for reviewer apparently old version is already writtting stuff in _syncconfigs_ files
-            // which makes this assertion fail, since this was not envisioned to need backwards compatibility.
-            // In any case, transition to the new cache works fine. Some registers in the old _syncconfigs_ db will
-            // fail once. To prevent that, we might want to change dbname to "syncconfigsv2_".
+            assert(false);
             continue;
         }
         syncConfig->dbid = tableId;
@@ -632,7 +629,6 @@ const SyncConfig* SyncConfigBag::get(const int tag) const
 
 const SyncConfig* SyncConfigBag::getByNodeHandle(handle nodeHandle) const
 {
-    std::vector<SyncConfig> syncConfigs;
     for (const auto& syncConfigPair : mSyncConfigs)
     {
         if (syncConfigPair.second.getRemoteNode() == nodeHandle)
@@ -1007,7 +1003,7 @@ void Sync::cachenodes()
     }
 }
 
-void Sync::changestate(syncstate_t newstate, syncerror_t newSyncError)
+void Sync::changestate(syncstate_t newstate, SyncError newSyncError)
 {
     if (newstate != state || newSyncError != errorCode)
     {

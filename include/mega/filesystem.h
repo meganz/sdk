@@ -359,7 +359,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     // returns if local path1 contains local path2 (this does not expanse the paths)
     // true if both paths are the same
-    bool contains(string *localPath1, string *localPath2) const;
+    bool contains(const std::string &localPath1, const std::string &localPath2) const;
 
     // generate local temporary file name
     virtual void tmpnamelocal(string*) const = 0;
@@ -398,7 +398,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     virtual bool getextension(string*, char*, size_t) const = 0;
 
     // check if synchronization is supported for a specific path
-    virtual bool issyncsupported(string*, bool* = NULL, syncerror_t* = nullptr) { return true; }
+    virtual bool issyncsupported(string*, bool* = NULL, SyncError* = nullptr) { return true; }
 
     // add notification (has to be called for all directories in tree for full crossplatform support)
     virtual void addnotify(LocalNode*, string*) { }

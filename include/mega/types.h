@@ -288,39 +288,37 @@ typedef enum {
     SYNC_ACTIVE
 } syncstate_t;
 
-//TODO: can we use named enum? otherwise, use names that should cause less collisions
-typedef enum {
+enum SyncError {
     NO_SYNC_ERROR = 0,
     UNKNOWN_ERROR = 1,
-    UNSUPPORTED_FILE_SYSTEM = 2, //File system type is not supported
-    INVALID_REMOTE_TYPE = 3, //Remote type is not a folder that can be synced
-    INVALID_LOCAL_TYPE = 4, //Local path does not refer to a folder
-    INITIAL_SCAN_FAILED = 5, //The initial scan failed
-    LOCAL_PATH_TEMPORARY_UNAVAILABLE = 6, //Local path is temporarily unavailable: this is fatal when adding a sync
-    LOCAL_PATH_UNAVAILABLE = 7, //Local path is not available (can't be open)
-    REMOTE_NODE_NOT_FOUND = 8, //Remote node does no longer exists
-    STORAGE_OVERQUOTA = 9, //Account reached storage overquota
-    BUSINESS_EXPIRED = 10, //Business account expired
-    FOREIGN_TARGET_OVERSTORAGE = 11, //Sync transfer fails (upload into an inshare whose account is overquota)
-    REMOTE_PATH_HAS_CHANGED = 12, // Remote path has changed (currently unused: not an error)
-    REMOTE_PATH_DELETED = 13, //Remote path has been deleted
-    SHARE_NON_FULL_ACCESS = 14, //Existing inbound share sync or part thereof lost full access
-    LOCAL_FINGERPRINT_MISMATCH = 15, //Filesystem fingerprint does not match the one stored for the synchronization
-    PUT_NODES_ERROR = 16, // Error processing put nodes result
-    ACTIVE_SYNC_BELOW_PATH = 17, // There's a synced node below the path to be synced
-    ACTIVE_SYNC_ABOVE_PATH = 18, // There's a synced node above the path to be synced
-    REMOTE_NODE_MOVED_TO_RUBBISH = 19, // Moved to rubbish
-    REMOTE_NODE_INSIDE_RUBBISH = 20, // Attempted to be added in rubbish
-    VBOXSHAREDFOLDER_UNSUPPORTED = 21, // Found unsupported VBoxSharedFolderFS
-    LOCAL_PATH_SYNC_COLLISION = 22, //Local path includes a synced path or is included within one
-    LOCAL_IS_FAT = 23, // Found FAT (not a failure per se)
-    LOCAL_IS_HGFS= 24, // Found HGFS (not a failure per se)
-    ACCOUNT_BLOCKED= 25, // Account blocked
-    UNKNOWN_TEMPORARY_ERROR = 26, // unknown temporary error
+    UNSUPPORTED_FILE_SYSTEM = 2,            // File system type is not supported
+    INVALID_REMOTE_TYPE = 3,                // Remote type is not a folder that can be synced
+    INVALID_LOCAL_TYPE = 4,                 // Local path does not refer to a folder
+    INITIAL_SCAN_FAILED = 5,                // The initial scan failed
+    LOCAL_PATH_TEMPORARY_UNAVAILABLE = 6,   // Local path is temporarily unavailable: this is fatal when adding a sync
+    LOCAL_PATH_UNAVAILABLE = 7,             // Local path is not available (can't be open)
+    REMOTE_NODE_NOT_FOUND = 8,              // Remote node does no longer exists
+    STORAGE_OVERQUOTA = 9,                  // Account reached storage overquota
+    BUSINESS_EXPIRED = 10,                  // Business account expired
+    FOREIGN_TARGET_OVERSTORAGE = 11,        // Sync transfer fails (upload into an inshare whose account is overquota)
+    REMOTE_PATH_HAS_CHANGED = 12,           // Remote path has changed (currently unused: not an error)
+    REMOTE_PATH_DELETED = 13,               // Remote path has been deleted
+    SHARE_NON_FULL_ACCESS = 14,             // Existing inbound share sync or part thereof lost full access
+    LOCAL_FINGERPRINT_MISMATCH = 15,        // Filesystem fingerprint does not match the one stored for the synchronization
+    PUT_NODES_ERROR = 16,                   // Error processing put nodes result
+    ACTIVE_SYNC_BELOW_PATH = 17,            // There's a synced node below the path to be synced
+    ACTIVE_SYNC_ABOVE_PATH = 18,            // There's a synced node above the path to be synced
+    REMOTE_NODE_MOVED_TO_RUBBISH = 19,      // Moved to rubbish
+    REMOTE_NODE_INSIDE_RUBBISH = 20,        // Attempted to be added in rubbish
+    VBOXSHAREDFOLDER_UNSUPPORTED = 21,      // Found unsupported VBoxSharedFolderFS
+    LOCAL_PATH_SYNC_COLLISION = 22,         // Local path includes a synced path or is included within one
+    LOCAL_IS_FAT = 23,                      // Found FAT (not a failure per se)
+    LOCAL_IS_HGFS= 24,                      // Found HGFS (not a failure per se)
+    ACCOUNT_BLOCKED= 25,                    // Account blocked
+    UNKNOWN_TEMPORARY_ERROR = 26,           // Unknown temporary error
+};
 
-} syncerror_t;
-
-static bool isMegaSyncErrorPermanent(int e)
+static bool isSyncErrorPermanent(SyncError e)
 {
     switch (e)
     {
@@ -338,7 +336,7 @@ static bool isMegaSyncErrorPermanent(int e)
     }
 }
 
-static bool isAnError(int e)
+static bool isAnError(SyncError e)
 {
     switch (e)
     {
@@ -789,7 +787,7 @@ public:
     int64_t type() const;
     int64_t value() const;
 
-    void setValue(const int64_t &value);
+    void setValue(const int64_t value);
 
 private:
 
@@ -814,17 +812,17 @@ public:
         TYPE_TWOWAY = TYPE_UP | TYPE_DOWN, // Two-way sync
     };
 
-    SyncConfig( int tag,
-                std::string localPath,
+    SyncConfig(int tag,
+               std::string localPath,
                const handle remoteNode,
                const std::string &remotePath,
                const fsfp_t localFingerprint,
                std::vector<std::string> regExps = {},
-                const bool enabled = true,
+               const bool enabled = true,
                const Type syncType = TYPE_TWOWAY,
                const bool syncDeletions = false,
                const bool forceOverwrite = false,
-                const int error = NO_SYNC_ERROR
+               const SyncError error = NO_SYNC_ERROR
             );
 
     // returns unique identifier
@@ -883,16 +881,19 @@ public:
     void setRemotePath(const std::string &remotePath);
 
     // get error code (errors can be temporary/fatal/mere warnings)
-    int getError() const;
+    SyncError getError() const;
 
     // sets the error
-    void setError(int value);
+    void setError(SyncError value);
 
     // enabled by the user
     bool getEnabled() const;
 
     // sets if enabled by the user
     void setEnabled(bool enabled);
+
+    // check if a sync would be enabled according to the sync state and error
+    static bool isEnabled(syncstate_t state, SyncError syncError);
 
 private:
     friend bool operator==(const SyncConfig& lhs, const SyncConfig& rhs);
@@ -929,7 +930,7 @@ private:
     bool mForceOverwrite;
 
     // failure cause (disable/failure cause).
-    int mError;
+    SyncError mError;
 
     // need this to ensure serialization doesn't mutate state (Cacheable::serialize is non-const)
     bool serialize(std::string& data) const;

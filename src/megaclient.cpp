@@ -1049,6 +1049,7 @@ void MegaClient::init()
     syncnagleretry = false;
     syncextraretry = false;
     syncsup = true;
+    mFirstSyncResumed = false;
     syncdownrequired = false;
     syncuprequired = false;
 
@@ -2302,7 +2303,7 @@ void MegaClient::exec()
                 {
                     LOG_err << "Local fingerprint mismatch. Previous: " << (*it)->fsfp
                             << "  Current: " << current;
-                    (*it)->changestate(SYNC_FAILED, current?LOCAL_FINGERPRINT_MISMATCH:LOCAL_PATH_UNAVAILABLE);
+                    (*it)->changestate(SYNC_FAILED, current ? LOCAL_FINGERPRINT_MISMATCH : LOCAL_PATH_UNAVAILABLE);
                 }
             }
         }
@@ -2330,7 +2331,7 @@ void MegaClient::exec()
                             //syncsup = false; These syncs should not delay action packets
                             sync->initializing = false;
                             LOG_debug << "Initial delayed scan finished. New / modified files: " << sync->dirnotify->notifyq[DirNotify::DIREVENTS].size();
-                            saveAndUpdateSyncConfig(&sync->getConfig(), sync->state, NO_SYNC_ERROR );
+                            saveAndUpdateSyncConfig(&sync->getConfig(), sync->state, NO_SYNC_ERROR);
                         }
                         else
                         {
@@ -3834,28 +3835,32 @@ bool MegaClient::isFetchingNodesPendingCS()
 #ifdef ENABLE_SYNC
 void MegaClient::resumeResumableSyncs()
 {
-    if (!syncConfigs || !allowAutoResumeSyncs)
+    if (!syncConfigs)
     {
         return;
     }
     for (const auto& config : syncConfigs->all())
     {
-        syncerror_t syncError = static_cast<syncerror_t>(config.getError());
+        SyncError syncError = static_cast<SyncError>(config.getError());
         syncstate_t newstate = isAnError(syncError) ? SYNC_FAILED : SYNC_DISABLED;
         if (config.isResumableAtStartup())
         {
-            app->sync_about_to_be_resumed(config);
+            if (!mFirstSyncResumed)
+            {
+                app->syncs_about_to_be_resumed();
+                mFirstSyncResumed = true;
+            }
             LOG_debug << "Resuming cached sync: " << config.getTag() << " " << config.getLocalPath() << " fsfp= " << config.getLocalFingerprint() << " error = " << syncError ;
-            const auto e = addsync(config, DEBRISFOLDER, nullptr, syncError);
+            error e = addsync(config, DEBRISFOLDER, nullptr, syncError);
 
-            newstate = isMegaSyncErrorPermanent(syncError) ? SYNC_FAILED : SYNC_DISABLED;
+            newstate = isSyncErrorPermanent(syncError) ? SYNC_FAILED : SYNC_DISABLED;
             if (!e) //enabled fine
             {
                 Sync *s = syncs.back();
                 newstate = s->state; //override state with the actual one from the sync
 
                 // update config entry with the error, if any. otherwise addsync would have updated it
-                saveAndUpdateSyncConfig(&config, isMegaSyncErrorPermanent(syncError) ? SYNC_FAILED : SYNC_DISABLED, static_cast<syncerror_t>(syncError) );
+                saveAndUpdateSyncConfig(&config, isSyncErrorPermanent(syncError) ? SYNC_FAILED : SYNC_DISABLED, static_cast<SyncError>(syncError) );
             }
         }
 
@@ -5226,26 +5231,25 @@ void MegaClient::sc_updatenode()
     }
 }
 
-void MegaClient::loadCacheableStatus(const std::shared_ptr<CacheableStatus> &status)
+void MegaClient::loadCacheableStatus(std::shared_ptr<CacheableStatus> status)
 {
     mCachedStatus[status->type()] = status;
 
-    LOG_verbose << "Loaded status from cache: "
-                << status->type() << " = " << status->value();
+    LOG_verbose << "Loaded status from cache: " << status->type() << " = " << status->value();
 
     switch(status->type())
     {
-    case CacheableStatus::Type::STATUS_STORAGE:
-    {
-        ststatus = static_cast<storagestatus_t>(status->value());
-        break;
-    }
-    case CacheableStatus::Type::STATUS_BUSINESS:
-    {
-        mBizStatus = static_cast<BizStatus>(status->value());
-        mBizStatusLoadedFromCache = true;
-        break;
-    }
+        case CacheableStatus::Type::STATUS_STORAGE:
+        {
+            ststatus = static_cast<storagestatus_t>(status->value());
+            break;
+        }
+        case CacheableStatus::Type::STATUS_BUSINESS:
+        {
+            mBizStatus = static_cast<BizStatus>(status->value());
+            mBizStatusLoadedFromCache = true;
+            break;
+        }
     }
 }
 
@@ -6689,11 +6693,10 @@ void MegaClient::setBusinessStatus(BizStatus newBizStatus)
 {
     BizStatus prevBizStatus = mBizStatus;
 
-    mBizStatus = newBizStatus;
-    mBizStatusLoadedFromCache = false;
-
-    if (prevBizStatus != mBizStatus) //has changed
+    if (newBizStatus != mBizStatus) //has changed
     {
+        mBizStatus = newBizStatus;
+
         using CS = CacheableStatus;
         using CType = CacheableStatus::Type;
         auto status = mCachedStatus[CType::STATUS_BUSINESS];
@@ -6724,17 +6727,17 @@ void MegaClient::setBusinessStatus(BizStatus newBizStatus)
             disableSyncs(BUSINESS_EXPIRED);
         }
         if (prevBizStatus == BIZ_STATUS_EXPIRED) //taransitioning to not expired
-        {//TODO: note for reviewer: MEGAsync would only restore when transitioning to BIZ_STATUS_ACTIVE. I believe this is more accurate
+        {
             restoreSyncs(); //BUSINESS_EXPIRED
         }
 #endif
     }
 
-    if (mBizStatusLoadedFromCache || prevBizStatus != mBizStatus) //has changed)
+    if (mBizStatusLoadedFromCache || prevBizStatus != mBizStatus) //has changed, or first set
     {
         app->notify_business_status(mBizStatus);
     }
-
+    mBizStatusLoadedFromCache = false;
 }
 
 void MegaClient::sc_ub()
@@ -10824,8 +10827,6 @@ void MegaClient::block(bool fromServerClientResponse)
 {
     LOG_verbose << "Blocking MegaClient, fromServerClientResponse: " << fromServerClientResponse;
     setBlocked(true);
-
-
     disableSyncs(ACCOUNT_BLOCKED);
 }
 
@@ -11119,7 +11120,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
                 }
                 else
                 {
-                    LOG_err << "Failed - user record read error";
+                    LOG_err << "Failed - status record read error";
                     return false;
                 }
                 break;
@@ -11381,6 +11382,7 @@ void MegaClient::fetchnodes(bool nocache)
         LOG_info << "Session loaded from local cache. SCSN: " << scsn;
 
 #ifdef ENABLE_SYNC
+        mFirstSyncResumed = false;
         resumeResumableSyncs();
 #endif
         app->fetchnodes_result(API_OK);
@@ -12411,13 +12413,16 @@ error MegaClient::addtimer(TimerWithBackoff *twb)
 
 #ifdef ENABLE_SYNC
 
-error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, syncerror_t *syncError)
+error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *syncError)
 {
 #ifdef ENABLE_SYNC
     // cannot sync files, rubbish bins or inboxes
     if (remotenode->type != FOLDERNODE && remotenode->type != ROOTNODE)
     {
-        if(syncError) *syncError = INVALID_REMOTE_TYPE;
+        if(syncError)
+        {
+            *syncError = INVALID_REMOTE_TYPE;
+        }
         return API_EACCESS;
     }
 
@@ -12453,7 +12458,10 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, syncerror_t 
             if (((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN)
              && n == (*it)->localroot->node)
             {
-                if(syncError) *syncError = ACTIVE_SYNC_BELOW_PATH;
+                if(syncError)
+                {
+                    *syncError = ACTIVE_SYNC_BELOW_PATH;
+                }
                 return API_EEXIST;
             }
         }
@@ -12464,7 +12472,10 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, syncerror_t 
             // FIXME: allow downsyncing from RDONLY and limited syncing to RDWR shares
             if (n->inshare->access != FULL)
             {
-                if(syncError) *syncError = SHARE_NON_FULL_ACCESS;
+                if(syncError)
+                {
+                    *syncError = SHARE_NON_FULL_ACCESS;
+                }
                 return API_EACCESS;
             }
 
@@ -12473,7 +12484,10 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, syncerror_t 
 
         if (n->nodehandle == rubbishHandle)
         {
-            if(syncError) *syncError = REMOTE_NODE_INSIDE_RUBBISH;
+            if(syncError)
+            {
+                *syncError = REMOTE_NODE_INSIDE_RUBBISH;
+            }
             return API_EACCESS;
         }
     } while ((n = n->parent));
@@ -12495,7 +12509,10 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, syncerror_t 
                         do {
                             if (n == remotenode)
                             {
-                                if(syncError) *syncError = SHARE_NON_FULL_ACCESS;
+                                if(syncError)
+                                {
+                                    *syncError = SHARE_NON_FULL_ACCESS;
+                                }
                                 return API_EACCESS;
                             }
                         } while ((n = n->parent));
@@ -12515,11 +12532,14 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, syncerror_t 
 #endif
 }
 
-error MegaClient::isLocalPathSyncable(string newPath, int newSyncTag, syncerror_t *syncError)
+error MegaClient::isLocalPathSyncable(string newPath, int newSyncTag, SyncError *syncError)
 {
     if (!newPath.size())
     {
-        if (syncError) *syncError = INVALID_LOCAL_TYPE;
+        if (syncError)
+        {
+            *syncError = LOCAL_PATH_UNAVAILABLE;
+        }
         return API_EARGS;
     }
 
@@ -12545,12 +12565,15 @@ error MegaClient::isLocalPathSyncable(string newPath, int newSyncTag, syncerror_
         fsaccess->expanselocalpath(&otherLocallyEncodedPath, &otherLocallyEncodedAbsolutePath);
 
         if (config.getEnabled() && !isAnError(config.getError()) &&
-                ( fsaccess->contains(&newLocallyEncodedAbsolutePath, &otherLocallyEncodedAbsolutePath)
-                || fsaccess->contains(&otherLocallyEncodedAbsolutePath, &newLocallyEncodedAbsolutePath)
+                ( fsaccess->contains(newLocallyEncodedAbsolutePath, otherLocallyEncodedAbsolutePath)
+                || fsaccess->contains(otherLocallyEncodedAbsolutePath, newLocallyEncodedAbsolutePath)
                 ) )
         {
 
-            if (syncError) *syncError = LOCAL_PATH_SYNC_COLLISION;
+            if (syncError)
+            {
+                *syncError = LOCAL_PATH_SYNC_COLLISION;
+            }
             return API_EARGS;
         }
     }
@@ -12561,10 +12584,11 @@ error MegaClient::isLocalPathSyncable(string newPath, int newSyncTag, syncerror_
 // check sync path, add sync if folder
 // disallow nested syncs (there is only one LocalNode pointer per node)
 // (FIXME: perform the same check for local paths!)
-error MegaClient::addsync(SyncConfig syncConfig, const char* debris, string* localdebris, syncerror_t &syncError, bool delayInitialScan, void *appData)
+error MegaClient::addsync(SyncConfig syncConfig, const char* debris, string* localdebris, SyncError &syncError, bool delayInitialScan, void *appData)
 {
 #ifdef ENABLE_SYNC
     syncError = NO_SYNC_ERROR;
+
     Node* remotenode = nodebyhandle(syncConfig.getRemoteNode());
     bool inshare = false;
     if (!remotenode)
@@ -12572,6 +12596,7 @@ error MegaClient::addsync(SyncConfig syncConfig, const char* debris, string* loc
         syncError = REMOTE_NODE_NOT_FOUND;
         return API_ENOENT;
     }
+
     error e = isnodesyncable(remotenode, &inshare, &syncError);
     if (e)
     {
@@ -12594,7 +12619,10 @@ error MegaClient::addsync(SyncConfig syncConfig, const char* debris, string* loc
     if (!fsaccess->issyncsupported(&rootpath, &isnetwork, &syncError))
     {
         LOG_warn << "Unsupported filesystem";
-        if (!syncError) syncError = UNSUPPORTED_FILE_SYSTEM;
+        if (!syncError)
+        {
+            syncError = UNSUPPORTED_FILE_SYSTEM;
+        }
         return API_EFAILED;
     }
 
@@ -12614,8 +12642,11 @@ error MegaClient::addsync(SyncConfig syncConfig, const char* debris, string* loc
             e = isLocalPathSyncable(syncConfig.getLocalPath(), tag, &syncError);
             if (e)
             {
-                LOG_warn << "Local path already synchronized: ";
-                if (!syncError) syncError = UNSUPPORTED_FILE_SYSTEM;
+                LOG_warn << "Local path not syncable: ";
+                if (!syncError)
+                {
+                    syncError = LOCAL_PATH_UNAVAILABLE;
+                }
                 return API_EFAILED;
             }
 
@@ -12650,7 +12681,7 @@ error MegaClient::addsync(SyncConfig syncConfig, const char* debris, string* loc
             if (delayInitialScan)
             {
                 e = API_OK;
-                saveAndUpdateSyncConfig(&syncConfig, sync->state, static_cast<syncerror_t>(syncError) );
+                saveAndUpdateSyncConfig(&syncConfig, sync->state, static_cast<SyncError>(syncError) );
             }
             else
             {
@@ -12664,7 +12695,7 @@ error MegaClient::addsync(SyncConfig syncConfig, const char* debris, string* loc
                     LOG_debug << "Initial scan finished. New / modified files: " << sync->dirnotify->notifyq[DirNotify::DIREVENTS].size();
 
                     // Sync constructor now receives the syncConfig as reference, to be able to write -at least- fingerprints for new syncs
-                    saveAndUpdateSyncConfig(&syncConfig, sync->state, static_cast<syncerror_t>(syncError) );
+                    saveAndUpdateSyncConfig(&syncConfig, sync->state, static_cast<SyncError>(syncError) );
                 }
                 else
                 {
@@ -14112,9 +14143,7 @@ void MegaClient::delsync(Sync* sync)
     }
 
     removeSyncConfig(sync->tag);
-
     sync->appData = nullptr;
-
     syncactivity = true;
 }
 
@@ -14125,7 +14154,7 @@ error MegaClient::removeSyncConfig(int tag)
     if (!syncConfigs || !syncConfigs->removeByTag(tag))
     {
         LOG_err << "Found no config for tag " << tag << " upon sync removal";
-        e = API_ENOENT;
+        return API_ENOENT;
     }
 
     app->sync_removed(tag);
@@ -14134,18 +14163,15 @@ error MegaClient::removeSyncConfig(int tag)
 
 error MegaClient::removeSyncConfigByNodeHandle(mega::handle nodeHandle)
 {
-    auto tag = 0;
-
     if (!syncConfigs)
     {
         LOG_err << "no SyncConfig upon removeSyncConfigByNodeHandle";
         return API_ENOENT;
     }
 
-    auto config = syncConfigs?syncConfigs->getByNodeHandle(nodeHandle):nullptr;
+    auto config = syncConfigs ? syncConfigs->getByNodeHandle(nodeHandle) : nullptr;
     if (config)
     {
-        tag = config->getTag();
         return removeSyncConfig(config->getTag());
     }
 
@@ -14153,19 +14179,14 @@ error MegaClient::removeSyncConfigByNodeHandle(mega::handle nodeHandle)
     return API_ENOENT;
 }
 
-error MegaClient::saveAndUpdateSyncConfig(const SyncConfig *config, syncstate_t newstate, syncerror_t newSyncError)
+error MegaClient::saveAndUpdateSyncConfig(const SyncConfig *config, syncstate_t newstate, SyncError newSyncError)
 {
     if (syncConfigs)
     {
         assert(config);
         auto newConfig = *config;
 
-        auto isEnabled = [](syncstate_t state, syncerror_t syncError) -> bool
-        {
-            return state != SYNC_CANCELED && (state != SYNC_DISABLED || syncError != NO_SYNC_ERROR );
-        };
-
-        newConfig.setEnabled(isEnabled(newstate, newSyncError));
+        newConfig.setEnabled(SyncConfig::isEnabled(newstate, newSyncError));
         newConfig.setError(newSyncError);
 
         syncConfigs->insert(newConfig);
@@ -14224,32 +14245,29 @@ bool MegaClient::updateSyncRemoteLocation(const SyncConfig *config, Node *n)
     return changed;
 }
 
-error MegaClient::changeSyncState(const SyncConfig *config, syncstate_t newstate, syncerror_t newSyncError, bool fireDisableEvent)
+error MegaClient::changeSyncState(const SyncConfig *config, syncstate_t newstate, SyncError newSyncError, bool fireDisableEvent)
 {
     error e = API_OK;
     assert(config);
     if (config)
     {
-        auto isEnabled = [](syncstate_t state, syncerror_t syncError) -> bool
-        {
-            return state != SYNC_CANCELED && (state != SYNC_DISABLED || syncError != NO_SYNC_ERROR );
-        };
-
-        if ( (config->getError() != newSyncError) || (config->getEnabled() != isEnabled(newstate, newSyncError)) ) //has changed
+        if ( (config->getError() != newSyncError) || (config->getEnabled() != SyncConfig::isEnabled(newstate, newSyncError)) ) //has changed
         {
             e = saveAndUpdateSyncConfig(config, newstate, newSyncError);
         }
     }
     else
     {
-        e = API_ENOENT;
+        return API_ENOENT;
     }
 
     app->syncupdate_state(config->getTag(), newstate, newSyncError, fireDisableEvent);
+
+    abortbackoff(false);
     return e;
 }
 
-error MegaClient::changeSyncState(int tag, syncstate_t newstate, syncerror_t newSyncError, bool fireDisableEvent)
+error MegaClient::changeSyncState(int tag, syncstate_t newstate, SyncError newSyncError, bool fireDisableEvent)
 {
     error e = API_OK;
 
@@ -14258,32 +14276,30 @@ error MegaClient::changeSyncState(int tag, syncstate_t newstate, syncerror_t new
         LOG_err << "no SyncConfig upon changeSyncState";
         e = API_ENOENT;
     }
-    auto config = syncConfigs?syncConfigs->get(tag):nullptr;
+    auto config = syncConfigs ? syncConfigs->get(tag) : nullptr;
     assert(config);
     e = changeSyncState(config, newstate, newSyncError, fireDisableEvent);
     return e;
 }
 
-error MegaClient::changeSyncStateByNodeHandle(mega::handle nodeHandle, syncstate_t newstate, syncerror_t newSyncError, bool fireDisableEvent)
+error MegaClient::changeSyncStateByNodeHandle(mega::handle nodeHandle, syncstate_t newstate, SyncError newSyncError, bool fireDisableEvent)
 {
     error e = API_OK;
-
-    auto tag = 0;
 
     if (!syncConfigs)
     {
         LOG_err << "no SyncConfig upon changeSyncStateByNodeHandle";
-        e = API_ENOENT;
+        return API_ENOENT;
     }
 
     auto config = syncConfigs?syncConfigs->getByNodeHandle(nodeHandle):nullptr;
     assert(config);
     e = changeSyncState(config, newstate, newSyncError, fireDisableEvent);
 
-    return API_ENOENT;
+    return e;
 }
 
-void MegaClient::failSync(Sync* sync, syncerror_t syncerror)
+void MegaClient::failSync(Sync* sync, SyncError syncerror)
 {
     LOG_err << "Failing sync: " << sync->getConfig().getLocalPath() << " error = " << syncerror;
 
@@ -14292,7 +14308,7 @@ void MegaClient::failSync(Sync* sync, syncerror_t syncerror)
     syncactivity = true;
 }
 
-void MegaClient::disableSync(Sync* sync, syncerror_t syncError)
+void MegaClient::disableSync(Sync* sync, SyncError syncError)
 {
     sync->errorCode = syncError;
     sync->changestate(SYNC_DISABLED, syncError); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
@@ -14300,27 +14316,37 @@ void MegaClient::disableSync(Sync* sync, syncerror_t syncError)
     syncactivity = true;
 }
 
-bool MegaClient::disableSyncContainingNode(mega::handle nodeHandle, syncerror_t syncError)
+bool MegaClient::disableSyncContainingNode(mega::handle nodeHandle, SyncError syncError)
 {
-    while(nodeHandle != UNDEF )
+    auto sync = getSyncContainigNodeHandle(nodeHandle);
+    if (sync)
+    {
+        disableSync(sync, syncError);
+        return true;
+    }
+    return false;
+}
+
+Sync * MegaClient::getSyncContainigNodeHandle(mega::handle nodeHandle)
+{
+    while(!ISUNDEF(nodeHandle))
     {
         for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
         {
             Sync *sync = (*it);
-            if ( sync->localroot && sync->localroot->node && sync->localroot->node->nodehandle == nodeHandle)
+            if (sync->localroot && sync->localroot->node && sync->localroot->node->nodehandle == nodeHandle)
             {
-                disableSync(sync, syncError);
-                return true;
+                return sync;  // no nested synched folders is allowed, so if found, there's no more active syncssyncs
             }
         }
 
         Node *n = nodebyhandle(nodeHandle);
         nodeHandle = n ? n->parenthandle : UNDEF;
     }
-    return false;
+    return nullptr;
 }
 
-void MegaClient::failSyncs(syncerror_t syncError)
+void MegaClient::failSyncs(SyncError syncError)
 {
     for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
     {
@@ -14329,7 +14355,7 @@ void MegaClient::failSyncs(syncerror_t syncError)
     syncactivity = true;
 }
 
-void MegaClient::disableSyncs(syncerror_t syncError)
+void MegaClient::disableSyncs(SyncError syncError)
 {
     bool anySyncDisabled = false;
     for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++) //Note: we are not disabling inactive syncs!
@@ -14346,7 +14372,7 @@ void MegaClient::disableSyncs(syncerror_t syncError)
     syncactivity = true;
 }
 
-error MegaClient::enableSync(const SyncConfig *syncConfig, syncerror_t &syncError, bool resetFingerprint, handle newRemoteNode)
+error MegaClient::enableSync(const SyncConfig *syncConfig, SyncError &syncError, bool resetFingerprint, handle newRemoteNode)
 {
     syncError = NO_SYNC_ERROR;
 
@@ -14365,7 +14391,7 @@ error MegaClient::enableSync(const SyncConfig *syncConfig, syncerror_t &syncErro
 
     const auto e = addsync(newConfig, DEBRISFOLDER, nullptr, syncError, resetFingerprint);
 
-    syncstate_t newstate = isMegaSyncErrorPermanent(syncError) ? SYNC_FAILED : SYNC_DISABLED;
+    syncstate_t newstate = isSyncErrorPermanent(syncError) ? SYNC_FAILED : SYNC_DISABLED;
     if (!e) //enabled fine
     {
         Sync *s = syncs.back();
@@ -14381,7 +14407,7 @@ error MegaClient::enableSync(const SyncConfig *syncConfig, syncerror_t &syncErro
 
     // change, so that cache is updated & the app gets noticed
     // we don't fire onDisable in this case (it was not enabled in the first place).
-    auto change_error = changeSyncState(syncConfig, newstate, static_cast<syncerror_t>(syncError), false);
+    auto change_error = changeSyncState(syncConfig, newstate, static_cast<SyncError>(syncError), false);
 
     if (change_error != API_OK)
     {
@@ -14391,7 +14417,7 @@ error MegaClient::enableSync(const SyncConfig *syncConfig, syncerror_t &syncErro
     return e;
 }
 
-error MegaClient::enableSync(int tag, syncerror_t &syncError, bool resetFingerprint, handle newRemoteNode)
+error MegaClient::enableSync(int tag, SyncError &syncError, bool resetFingerprint, handle newRemoteNode)
 {
     if (!syncConfigs)
     {
@@ -14412,7 +14438,7 @@ void MegaClient::restoreSyncs()
 {
     for (const auto& config : syncConfigs->all())
     {
-        syncerror_t syncError = static_cast<syncerror_t>(config.getError());
+        SyncError syncError = static_cast<SyncError>(config.getError());
 
         if (config.isResumable())
         {

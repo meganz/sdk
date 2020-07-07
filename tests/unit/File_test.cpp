@@ -130,3 +130,21 @@ TEST(File, unserialize_32bit)
     auto newFile = std::unique_ptr<mega::File>{mega::File::unserialize(&d)};
     checkFiles(file, *newFile);
 }
+
+
+TEST(File, contains)
+{
+    MockFileSystemAccess fsaccess;
+
+    fsaccess.localseparator = "/";
+
+    ASSERT_TRUE(fsaccess.contains("/some/folder","/some/folder/within"));
+    ASSERT_FALSE(fsaccess.contains("/some/folder","/not/in/some/folder"));
+    ASSERT_FALSE(fsaccess.contains("/some/folder","/not/in/some/folder/within"));
+    ASSERT_FALSE(fsaccess.contains("/some/folder/within","/some/folder"));
+
+    fsaccess.localseparator = "\\";
+    ASSERT_TRUE(fsaccess.contains("c:\\some\\folder","c:\\some\\folder\\within"));
+    ASSERT_FALSE(fsaccess.contains("c:\\SOME\\folder","c:\\some\\folder\\within"));
+
+}

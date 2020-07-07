@@ -444,8 +444,10 @@ void SyncApp::fetchnodes_result(error e)
             }
             else
             {
-                SyncConfig syncConfig{1, local_folder, n->nodehandle, 0};
-                syncerror_t syncError;
+                static int syncTag = 2027;
+
+                SyncConfig syncConfig{syncTag++, local_folder, n->nodehandle, remote_folder, 0};
+                SyncError syncError;
                 error err = client->addsync(std::move(syncConfig), DEBRISFOLDER, NULL, syncError);
                 if (err)
                 {

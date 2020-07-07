@@ -469,8 +469,9 @@ public:
     // A collection of sync configs backed by a database table
     std::unique_ptr<SyncConfigBag> syncConfigs;
 
-    // whether we allow the automatic resumption of syncs
-    bool allowAutoResumeSyncs = true;
+    // first sync resumed
+    bool mFirstSyncResumed = false;
+
 #endif
 
     // if set, symlinks will be followed except in recursive deletions
@@ -543,29 +544,29 @@ public:
     /**
      * @brief is node syncable
      * @param isinshare filled with whether the node is within an inshare.
-     * @param syncError filled with syncerror_t with the sync error that makes the node unsyncable
+     * @param syncError filled with SyncError with the sync error that makes the node unsyncable
      * @return API_OK if syncable. (regular) error otherwise
      */
-    error isnodesyncable(Node*, bool * isinshare = NULL, syncerror_t *syncError = nullptr);
+    error isnodesyncable(Node*, bool * isinshare = NULL, SyncError *syncError = nullptr);
 
     /**
      * @brief is local path syncable
      * @param newPath path to check
      * @param syncTag tag to exclude in checking (that of the new sync)
-     * @param syncError filled with syncerror_t with the sync error that makes the node unsyncable
+     * @param syncError filled with SyncError with the sync error that makes the node unsyncable
      * @return API_OK if syncable. (regular) error otherwise
      */
-    error isLocalPathSyncable(std::string newPath, int newSyncTag = 0, syncerror_t *syncError = nullptr);
+    error isLocalPathSyncable(std::string newPath, int newSyncTag = 0, SyncError *syncError = nullptr);
 
 
     /**
      * @brief add sync. Will fill syncError in case there is one.
      * It will persist the sync configuration if everything goes fine.
-     * @param syncError filled with syncerror_t with the sync error that prevented the addition
+     * @param syncError filled with SyncError with the sync error that prevented the addition
      * @param delayInitialScan delay the initial scan
      * @return API_OK if added. (regular) error otherwise.
      */
-    error addsync(SyncConfig, const char*, string*, syncerror_t &syncError, bool delayInitialScan = false, void* = NULL);
+    error addsync(SyncConfig, const char*, string*, SyncError &syncError, bool delayInitialScan = false, void* = NULL);
 
 
     // removes an active sync (transition to pre-removal state).
@@ -578,33 +579,33 @@ public:
 
     //// sync config updating & persisting ////
     // updates in state & error
-    error saveAndUpdateSyncConfig(const SyncConfig *config, syncstate_t newstate, syncerror_t syncerror);
+    error saveAndUpdateSyncConfig(const SyncConfig *config, syncstate_t newstate, SyncError syncerror);
     // updates in remote path/node & calls app's syncupdate_remote_root_changed. passing n=null will remove remote handle and keep last known path
     bool updateSyncRemoteLocation(const SyncConfig *config, Node *n); //returns if changed
 
     // transition the cache to failed
-    void failSync(Sync* sync, syncerror_t syncerror);
+    void failSync(Sync* sync, SyncError syncerror);
 
     // disable synchronization. (transition to disable_state)
     // If no error passed, it entails a manual disable: won't be resumed automatically anymore, but it will be kept in cache
-    void disableSync(Sync*, syncerror_t syncError =  NO_SYNC_ERROR);
-    bool disableSyncContainingNode(mega::handle nodeHandle, syncerror_t syncError);
+    void disableSync(Sync*, SyncError syncError =  NO_SYNC_ERROR);
+    bool disableSyncContainingNode(mega::handle nodeHandle, SyncError syncError);
 
     // fail all active syncs
-    void failSyncs(syncerror_t syncError =  NO_SYNC_ERROR);
+    void failSyncs(SyncError syncError =  NO_SYNC_ERROR);
 
     //disable all active syncs
     // If no error passed, it entails a manual disable: won't be resumed automatically anymore, but it will be kept in cache
-    void disableSyncs(syncerror_t syncError =  NO_SYNC_ERROR);
+    void disableSyncs(SyncError syncError =  NO_SYNC_ERROR);
 
     // restore all configured syncs that were in a temporary error state (not manually disabled)
     void restoreSyncs();
 
-    // attempts to enable a sync. will fill syncError with the syncerror_t error (if any)
+    // attempts to enable a sync. will fill syncError with the SyncError error (if any)
     // if resetFingeprint is true, it will assign a new Filesystem Fingerprint.
     // if newRemoteNode is set, it will try to use it to restablish the sync, updating the cached configuration if successful.
-    error enableSync(int tag, syncerror_t &syncError, bool resetFingerprint = false, mega::handle newRemoteNode = UNDEF);
-    error enableSync(const SyncConfig *syncConfig, syncerror_t &syncError,
+    error enableSync(int tag, SyncError &syncError, bool resetFingerprint = false, mega::handle newRemoteNode = UNDEF);
+    error enableSync(const SyncConfig *syncConfig, SyncError &syncError,
                      bool resetFingerprint = false, mega::handle newRemoteNode = UNDEF);
 
     /**
@@ -613,9 +614,10 @@ public:
      * forwarded to the application listeners
      * @return error if any
      */
-    error changeSyncState(const SyncConfig *config, syncstate_t newstate, syncerror_t newSyncError, bool fireDisableEvent);
-    error changeSyncState(int tag, syncstate_t newstate, syncerror_t newSyncError, bool fireDisableEvent = true);
-    error changeSyncStateByNodeHandle(mega::handle nodeHandle, syncstate_t newstate, syncerror_t newSyncError, bool fireDisableEvent);
+    error changeSyncState(const SyncConfig *config, syncstate_t newstate, SyncError newSyncError, bool fireDisableEvent);
+    error changeSyncState(int tag, syncstate_t newstate, SyncError newSyncError, bool fireDisableEvent = true);
+    error changeSyncStateByNodeHandle(mega::handle nodeHandle, syncstate_t newstate, SyncError newSyncError, bool fireDisableEvent);
+
 
 #endif
 
@@ -962,6 +964,9 @@ private:
 #ifdef ENABLE_SYNC
     // Resumes all resumable syncs
     void resumeResumableSyncs();
+
+    Sync *getSyncContainigNodeHandle(mega::handle nodeHandle);
+
 #endif
 
     // update time at which next deferred transfer retry kicks in
@@ -1734,7 +1739,7 @@ public:
     void resetSyncConfigs();
 #endif
 
-    void loadCacheableStatus(const std::shared_ptr<CacheableStatus> &status);
+    void loadCacheableStatus(std::shared_ptr<CacheableStatus> status);
 
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
