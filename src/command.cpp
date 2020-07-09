@@ -101,6 +101,11 @@ bool Command::checkError(Error& errorDetails, JSON& json)
         client->activateoverquota(0, true);
     }
 
+    if (errorDetected && errorDetails == API_EBUSINESSPASTDUE)
+    {
+        client->disableSyncs(BUSINESS_EXPIRED);
+    }
+
     return errorDetected;
 }
 

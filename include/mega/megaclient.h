@@ -472,9 +472,6 @@ public:
     // A collection of sync configs backed by a database table
     std::unique_ptr<SyncConfigBag> syncConfigs;
 
-    // first sync resumed
-    bool mFirstSyncResumed = false;
-
 #endif
 
     // if set, symlinks will be followed except in recursive deletions
@@ -974,7 +971,7 @@ private:
     // Resumes all resumable syncs
     void resumeResumableSyncs();
 
-    Sync *getSyncContainigNodeHandle(mega::handle nodeHandle);
+    Sync *getSyncContainingNodeHandle(mega::handle nodeHandle);
 
 #endif
 
@@ -1402,7 +1399,7 @@ public:
     bool syncup(LocalNode*, dstime*);
 
     // sync putnodes() completion
-    void putnodes_sync_result(error, NewNode*, int);
+    void putnodes_sync_result(const Error &, NewNode*, int);
 
     // start downloading/copy missing files, create missing directories
     bool syncdown(LocalNode*, string*, bool);

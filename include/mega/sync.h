@@ -61,7 +61,6 @@ public:
     // Returns the first sync config found with a remote handle
     const SyncConfig* getByNodeHandle(handle nodeHandle) const;
 
-
     // Removes all sync configs
     void clear();
 
@@ -183,7 +182,7 @@ public:
 
     // Error that causes a cancellation
     SyncError errorCode = NO_SYNC_ERROR;
-    error apiErrorCode; //in case a cancellation is caused by a regular error (unused)
+    Error apiErrorCode; //in case a cancellation is caused by a regular error (unused)
 
     // true if the sync hasn't loaded cached LocalNodes yet
     bool initializing = true;

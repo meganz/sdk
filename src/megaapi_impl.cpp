@@ -8482,7 +8482,7 @@ void MegaApiImpl::syncFolder(const char *localFolder, MegaNode *megaFolder, Mega
 }
 
 void MegaApiImpl::copySyncDataToCache(const char *localFolder, MegaHandle megaHandle, const char *remotePath,
-                                      long long localfp, bool enabled, bool tempoaryDisabled, MegaRequestListener *listener)
+                                      long long localfp, bool enabled, bool temporaryDisabled, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_COPY_SYNC_CONFIG, listener);
 
@@ -8499,7 +8499,7 @@ void MegaApiImpl::copySyncDataToCache(const char *localFolder, MegaHandle megaHa
 
     request->setLink(remotePath);
     request->setFlag(enabled);
-    request->setNumDetails(tempoaryDisabled);
+    request->setNumDetails(temporaryDisabled);
     request->setNumber(localfp);
     requestQueue.push(request);
     waiter->notify();
@@ -12824,12 +12824,16 @@ void MegaApiImpl::syncupdate_state(int tag, syncstate_t newstate, SyncError sync
     }
     MegaSyncPrivate* megaSync = syncpair->second;
 
+    //get previous state
     auto previousState = megaSync->getState();
     bool wasActive = megaSync->isActive(); // Beware: new sync is active (constructor set state to INITIAL_SCAN)
     bool wasEnabled = megaSync->isEnabled();
     bool wasTemporaryDisabled = megaSync->isTemporaryDisabled();
+
+    //apply state changes in megaSync object
     megaSync->setState(newstate);
     megaSync->setError(syncerror);
+
     LOG_debug << "Sync state change: " << newstate << " syncError: " << syncerror << " Path: " << megaSync->getLocalFolder();
     LOG_verbose << "Sync previous state change: " << previousState << " wasActive: " << wasActive << " wasEnabled: " << wasEnabled << " Path: " << megaSync->getLocalFolder();
 
@@ -16076,15 +16080,6 @@ void MegaApiImpl::fireOnRequestStart(MegaRequestPrivate *request)
 
 void MegaApiImpl::fireOnRequestFinish(MegaRequestPrivate *request, unique_ptr<MegaErrorPrivate> e)
 {
-#ifdef ENABLE_SYNC
-    if (e->getErrorCode() == API_EBUSINESSPASTDUE)
-    {
-        //Ideally, this piece of code should be in MegaClient, but that would entail handling it for every request //TODO move to checkError after merging develop
-        client->disableSyncs(BUSINESS_EXPIRED);
-    }
-#endif
-
-
     activeRequest = request;
     activeError = e.get();
 
@@ -21135,13 +21130,13 @@ void MegaApiImpl::sendPendingRequests()
             {
                 auto newstate = isSyncErrorPermanent(syncError) ? SYNC_FAILED : SYNC_DISABLED;
                 sync->setState(newstate);
-            if (!e)
-            {
-                Sync *s = client->syncs.back();
-                fsfp_t fsfp = s->fsfp;
+                if (!e)
+                {
+                    Sync *s = client->syncs.back();
+                    fsfp_t fsfp = s->fsfp;
                     sync->setState(s->state); //override state with the actual one from the sync
-                sync->setLocalFingerprint(fsfp);
-                    request->setNumber(fsfp); //TODO: doc this only when added ok?
+                    sync->setLocalFingerprint(fsfp);
+                    request->setNumber(fsfp);
                 }
                 sync->setError(syncError);
                 sync->setMegaFolderYielding(remotePath.release());

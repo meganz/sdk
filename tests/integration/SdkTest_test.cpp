@@ -629,7 +629,7 @@ void SdkTest::loginBySessionId(unsigned int apiIndex, const std::string& session
     ASSERT_TRUE(mApi[apiIndex].megaApi->isLoggedIn());
 }
 
-void SdkTest::fetchnodes(unsigned int apiIndex, int timeout, bool resumeSyncs) //TODO: remove resumeSyncs parameter (done by default)
+void SdkTest::fetchnodes(unsigned int apiIndex, int timeout)
 {
     mApi[apiIndex].requestFlags[MegaRequest::TYPE_FETCH_NODES] = false;
 
@@ -4813,7 +4813,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     ASSERT_FALSE(checkSyncOK(sync3Path));
     ASSERT_FALSE(checkSyncOK(sync4Path));
 
-    fetchnodes(0, maxTimeout, true); // auto-resumes two active syncs
+    fetchnodes(0, maxTimeout); // auto-resumes two active syncs
 
     ASSERT_TRUE(checkSyncOK(sync1Path));
     ASSERT_FALSE(checkSyncOK(sync2Path));
@@ -4840,7 +4840,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     ASSERT_FALSE(checkSyncOK(sync3Path));
     ASSERT_FALSE(checkSyncOK(sync4Path));
 
-    fetchnodes(0, maxTimeout, true); // auto-resumes three active syncs
+    fetchnodes(0, maxTimeout); // auto-resumes three active syncs
 
     ASSERT_TRUE(checkSyncOK(sync1Path));
     ASSERT_TRUE(checkSyncOK(sync2Path));
