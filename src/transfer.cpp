@@ -222,6 +222,13 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     type = MemAccess::get<direction_t>(ptr);
     ptr += sizeof(direction_t);
 
+    if (type != GET && type != PUT)
+    {
+        assert(false);
+        LOG_err << "Transfer unserialization failed - neither get nor put";
+        return NULL;
+    }
+
     ll = MemAccess::get<unsigned short>(ptr);
     ptr += sizeof(ll);
 
@@ -379,18 +386,19 @@ void Transfer::removeTransferFile(error e, File* f, DBTableTransactionCommitter*
 
 // transfer attempt failed, notify all related files, collect request on
 // whether to abort the transfer, kill transfer if unanimous
-void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime timeleft)
+void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, dstime timeleft)
 {
     bool defer = false;
 
     LOG_debug << "Transfer failed with error " << e;
 
-    if (e == API_EOVERQUOTA)
+    if (e == API_EOVERQUOTA || e == API_EPAYWALL)
     {
+        assert((type == PUT && !timeleft) || (type == GET && timeleft)); // overstorage only possible for uploads, overbandwidth for downloads
         if (!slot)
         {
             bt.backoff(timeleft ? timeleft : NEVER);
-            client->activateoverquota(timeleft);
+            client->activateoverquota(timeleft, (e == API_EPAYWALL));
             client->app->transfer_failed(this, e, timeleft);
             ++client->performanceStats.transferTempErrors;
         }
@@ -416,11 +424,11 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
             else
             {
                 bt.backoff(timeleft ? timeleft : NEVER);
-                client->activateoverquota(timeleft);
+                client->activateoverquota(timeleft, (e == API_EPAYWALL));
             }
         }
     }
-    else if (e == API_EARGS || (e == API_EBLOCKED && type == GET))
+    else if (e == API_EARGS || (e == API_EBLOCKED && type == GET) || (e == API_ETOOMANY && type == GET && e.hasExtraInfo()))
     {
         client->app->transfer_failed(this, e);
     }
@@ -461,7 +469,7 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
          * the actionpacket will eventually remove the target and the sync-engine will force to
          * disable the synchronization of the folder. For non-sync-transfers, remove the file directly.
          */
-        if (e == API_EARGS || (e == API_EBLOCKED && type == GET))
+        if (e == API_EARGS || (e == API_EBLOCKED && type == GET) || (e == API_ETOOMANY && type == GET && e.hasExtraInfo()))
         {
              File *f = (*it++);
              if (f->syncxfer && e == API_EARGS)
@@ -524,7 +532,8 @@ void Transfer::failed(error e, DBTableTransactionCommitter& committer, dstime ti
 #ifdef ENABLE_SYNC
             if((*it)->syncxfer
                 && e != API_EBUSINESSPASTDUE
-                && e != API_EOVERQUOTA)
+                && e != API_EOVERQUOTA
+                && e != API_EPAYWALL)
             {
                 client->syncdownrequired = true;
             }
@@ -1180,7 +1189,7 @@ void DirectReadNode::dispatch()
 }
 
 // abort all active reads, remove pending reads and reschedule with app-supplied backoff
-void DirectReadNode::retry(error e, dstime timeleft)
+void DirectReadNode::retry(const Error& e, dstime timeleft)
 {
     if (reads.empty())
     {
@@ -1208,7 +1217,7 @@ void DirectReadNode::retry(error e, dstime timeleft)
         {
             dstime retryds = client->app->pread_failure(e, retries, (*it)->appdata, timeleft);
 
-            if (retryds < minretryds)
+            if (retryds < minretryds && !(e == API_ETOOMANY && e.hasExtraInfo()))
             {
                 minretryds = retryds;
             }
@@ -1223,6 +1232,10 @@ void DirectReadNode::retry(error e, dstime timeleft)
         {
             minretryds = timeleft;
         }
+    }
+    else if (e == API_EPAYWALL)
+    {
+        minretryds = NEVER;
     }
 
     tempurls.clear();
@@ -1248,7 +1261,7 @@ void DirectReadNode::retry(error e, dstime timeleft)
     }
 }
 
-void DirectReadNode::cmdresult(error e, dstime timeleft)
+void DirectReadNode::cmdresult(const Error &e, dstime timeleft)
 {
     pendingcmd = NULL;
 
@@ -1629,6 +1642,8 @@ void TransferList::addtransfer(Transfer *transfer, DBTableTransactionCommitter& 
         transfer->state = TRANSFERSTATE_QUEUED;
     }
 
+    assert(transfer->type == PUT || transfer->type == GET);
+
     if (!transfer->priority)
     {
         if (startFirst && transfers[transfer->type].size())
@@ -1717,6 +1732,7 @@ void TransferList::movetransfer(transfer_list::iterator it, transfer_list::itera
     }
 
     Transfer *transfer = (*it);
+    assert(transfer->type == PUT || transfer->type == GET);
     if (dstit == transfers[transfer->type].end())
     {
         LOG_debug << "Moving transfer to the last position";
@@ -1926,9 +1942,17 @@ auto TransferList::end(direction_t direction) -> transfer_list::iterator
 
 bool TransferList::getIterator(Transfer *transfer, transfer_list::iterator& it, bool canHandleErasedElements) 
 {
+    assert(transfer);
     if (!transfer)
     {
         LOG_err << "Getting iterator of a NULL transfer";
+        return false;
+    }
+
+    assert(transfer->type == GET || transfer->type == PUT);
+    if (transfer->type != GET && transfer->type != PUT)
+    {
+        LOG_err << "Getting iterator of wrong transfer type " << transfer->type;
         return false;
     }
 
@@ -1997,6 +2021,7 @@ Transfer *TransferList::transferat(direction_t direction, unsigned int position)
 
 void TransferList::prepareIncreasePriority(Transfer *transfer, transfer_list::iterator /*srcit*/, transfer_list::iterator dstit, DBTableTransactionCommitter& committer)
 {
+    assert(transfer->type == PUT || transfer->type == GET);
     if (dstit == transfers[transfer->type].end())
     {
         return;
@@ -2034,6 +2059,7 @@ void TransferList::prepareIncreasePriority(Transfer *transfer, transfer_list::it
 
 void TransferList::prepareDecreasePriority(Transfer *transfer, transfer_list::iterator it, transfer_list::iterator dstit)
 {
+    assert(transfer->type == PUT || transfer->type == GET);
     if (transfer->slot && transfer->state == TRANSFERSTATE_ACTIVE)
     {
         transfer_list::iterator cit = it + 1;

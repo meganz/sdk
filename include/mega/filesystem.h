@@ -40,8 +40,8 @@
 #include "utils.h"
 #include "waiter.h"
 
-// Define magic constants in case they are not defined in headers
 #if defined (__linux__) && !defined (__ANDROID__)
+// Define magic constants (for linux), in case they are not defined in headers
 #ifndef HFS_SUPER_MAGIC
 #define HFS_SUPER_MAGIC 0x4244
 #endif
@@ -49,12 +49,31 @@
 #ifndef NTFS_SB_MAGIC
 #define NTFS_SB_MAGIC   0x5346544e
 #endif
+
+#elif defined (__ANDROID__)
+// Define magic constants (for Android), in case they are not defined in headers
+#ifndef SDCARDFS_SUPER_MAGIC
+#define SDCARDFS_SUPER_MAGIC 0x5DCA2DF5
+#endif
+
+#ifndef FUSEBLK_SUPER_MAGIC
+#define FUSEBLK_SUPER_MAGIC  0x65735546
+#endif
+
+#ifndef FUSECTL_SUPER_MAGIC
+#define FUSECTL_SUPER_MAGIC  0x65735543
+#endif
+
+#ifndef F2FS_SUPER_MAGIC
+#define F2FS_SUPER_MAGIC 0xF2F52010
+#endif
 #endif
 
 namespace mega {
 
 // Enumeration for filesystem families
-enum FileSystemType {FS_UNKNOWN = -1, FS_APFS = 0, FS_HFS = 1, FS_EXT = 2, FS_FAT32 = 3, FS_EXFAT = 4, FS_NTFS = 5};
+enum FileSystemType {FS_UNKNOWN = -1, FS_APFS = 0, FS_HFS = 1, FS_EXT = 2, FS_FAT32 = 3,
+                     FS_EXFAT = 4, FS_NTFS = 5, FS_FUSE = 6, FS_SDCARDFS = 7, FS_F2FS = 8};
 
 // generic host filesystem node ID interface
 struct MEGA_API FsNodeId
@@ -330,15 +349,17 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     // check if character is lowercase hex ASCII
     bool islchex(char) const;
-    bool islocalfscompatible(unsigned char, FileSystemType = FS_UNKNOWN) const;
-    void escapefsincompatible(string*, const std::string *dstPath = nullptr) const;
+    bool isControlChar(unsigned char c) const;
+    bool islocalfscompatible(unsigned char, bool isEscape, FileSystemType = FS_UNKNOWN) const;
+    void escapefsincompatible(string*, FileSystemType fileSystemType) const;
 
     // Obtain a valid path by removing filename or debris directory from originalPath
     // returns true if tempPath is modified, otherwise returns false
     bool getValidPath(const string *originalPath, std::string &tempPath) const;
+    FileSystemType getFilesystemType(const string* dstPath) const;
     const char *fstypetostring(FileSystemType type) const;
     FileSystemType getlocalfstype(const std::string *dstPath) const;
-    void unescapefsincompatible(string*, const std::string *) const;
+    void unescapefsincompatible(string*,FileSystemType) const;
 
     // convert MEGA path (UTF-8) to local format
     virtual void path2local(string*, string*) const = 0;
@@ -346,10 +367,10 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     // convert MEGA-formatted filename (UTF-8) to local filesystem name; escape
     // forbidden characters using urlencode
-    void local2name(string*, const std::string *localPath = nullptr) const;
+    void local2name(string*, FileSystemType) const;
 
     // convert local path to MEGA format (UTF-8) with unescaping
-    void name2local(string*, const std::string *dstPath = nullptr) const;
+    void name2local(string*, FileSystemType) const;
 
     // returns a const char pointer that contains the separator character for the target system
     static const char *getPathSeparator();

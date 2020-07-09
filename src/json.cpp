@@ -584,6 +584,37 @@ bool JSON::extractstringvalue(const string &json, const string &name, string *va
     return true;
 }
 
+bool JSON::isNumericError(error &e)
+{
+    const char* ptr = pos;
+    if (*ptr == ',')
+    {
+        ptr++;
+    }
+
+    const char* auxPtr = ptr;
+    if (*auxPtr != '-' && *auxPtr != '0')
+    {
+        e = API_OK;
+        return false;
+    }
+
+    if (*auxPtr == '-')
+    {
+        auxPtr++;
+        if (!(*auxPtr >= '1' && *auxPtr <= '9'))
+        {
+            e = API_OK;
+            return false;
+        }
+    }
+
+    e = static_cast<error>(atoll(ptr));
+    storeobject();
+
+    return true;
+}
+
 // position at start of object
 void JSON::begin(const char* json)
 {

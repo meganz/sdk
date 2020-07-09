@@ -413,7 +413,7 @@ struct StandardClient : public MegaApp
     static mutex om;
     bool logcb = false;
     chrono::steady_clock::time_point lastcb = std::chrono::steady_clock::now();
-    string lp(LocalNode* ln) { string lp;  ln->getlocalpath(&lp); client.fsaccess->local2name(&lp); return lp; }
+    string lp(LocalNode* ln) { string lp;  ln->getlocalpath(&lp); client.fsaccess->local2name(&lp, client.fsaccess->getFilesystemType(&lp)); return lp; }
     void syncupdate_state(int tag, syncstate_t state, SyncError syncError, bool fireDisableEvent = true) override{ if (logcb) { lock_guard<mutex> g(om);  cout << clientname << " syncupdate_state() " << state << " error :" << syncError << endl; } }
     void syncupdate_scanning(bool b) override { if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_scanning()" << b << endl; } }
     //void syncupdate_local_folder_addition(Sync* s, LocalNode* ln, const char* cp) override { if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_local_folder_addition() " << lp(ln) << " " << cp << endl; }}
@@ -441,12 +441,12 @@ struct StandardClient : public MegaApp
 
     
     std::atomic<unsigned> transfersAdded{0}, transfersRemoved{0}, transfersPrepared{0}, transfersFailed{0}, transfersUpdated{0}, transfersComplete{0};
-    void transfer_added(Transfer*) { ++transfersAdded; }
-    void transfer_removed(Transfer*) { ++transfersRemoved; }
-    void transfer_prepare(Transfer*) { ++transfersPrepared; }
-    void transfer_failed(Transfer*, error, dstime = 0) { ++transfersFailed; }
-    void transfer_update(Transfer*) { ++transfersUpdated; }
-    void transfer_complete(Transfer*) { ++transfersComplete; }
+    void transfer_added(Transfer*) override { ++transfersAdded; }
+    void transfer_removed(Transfer*) override { ++transfersRemoved; }
+    void transfer_prepare(Transfer*) override { ++transfersPrepared; }
+    void transfer_failed(Transfer*,  const Error&, dstime = 0) override { ++transfersFailed; }
+    void transfer_update(Transfer*) override { ++transfersUpdated; }
+    void transfer_complete(Transfer*) override { ++transfersComplete; }
 
 
     void threadloop()
@@ -955,9 +955,10 @@ struct StandardClient : public MegaApp
 
         string localpath;
         n->getlocalpath(&localpath, false);
-        client.fsaccess->local2name(&localpath);
+        ::mega::FileSystemType fileSystemType = client.fsaccess->getFilesystemType(&localpath);
+        client.fsaccess->local2name(&localpath, fileSystemType);
         string n_localname = n->localname;
-        client.fsaccess->local2name(&n_localname);
+        client.fsaccess->local2name(&n_localname, fileSystemType);
         if (n_localname.size())
         {
             EXPECT_EQ(n->name, n_localname);
@@ -977,7 +978,7 @@ struct StandardClient : public MegaApp
 
             string parentpath;
             n->parent->getlocalpath(&parentpath, false);
-            client.fsaccess->local2name(&parentpath);
+            client.fsaccess->local2name(&parentpath, client.fsaccess->getFilesystemType(&parentpath));
             EXPECT_EQ(localpath.substr(0, parentpath.size()), parentpath);
         }
         if (n->node && n->parent && n->parent->node)
@@ -1225,7 +1226,7 @@ struct StandardClient : public MegaApp
         resultproc.processresult(LOGIN, e);
     }
 
-    void fetchnodes_result(error e) override
+    void fetchnodes_result(const Error& e) override
     {
         cout << clientname << " Fetchnodes: " << e << endl;
         resultproc.processresult(FETCHNODES, e);

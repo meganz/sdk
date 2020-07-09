@@ -116,7 +116,7 @@ set<string> collectAllPathsInFolder(Sync& sync, MegaApp& app, FileSystemAccess& 
     while (da->dnext(&localpath, &localname, false))
     {
         auto name = localname;
-        fsaccess.local2name(&name, &localpath);
+        fsaccess.local2name(&name, sync.mFilesystemType);
 
         if (localpathSize > 0)
         {
@@ -723,6 +723,8 @@ Sync::Sync(MegaClient* cclient, SyncConfig &config, const char* cdebris,
     fsstableids = dirnotify->fsstableids();
     LOG_info << "Filesystem IDs are stable: " << fsstableids;
 
+    mFilesystemType = client->fsaccess->getFilesystemType(&crootpath);
+
     localroot->init(this, FOLDERNODE, NULL, &crootpath, nullptr);  // the root node must have the absolute path.  We don't store shortname, to avoid accidentally using relative paths.
     localroot->setnode(remotenode);
 
@@ -1156,7 +1158,7 @@ bool Sync::scan(string* localpath, FileAccess* fa)
             while (da->dnext(localpath, &localname, client->followsymlinks))
             {
                 name = localname;
-                client->fsaccess->local2name(&name, localpath);
+                client->fsaccess->local2name(&name, mFilesystemType);
 
                 if (t)
                 {
@@ -1281,7 +1283,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
         }
 
         string name = newname.size() ? newname : l->name;
-        client->fsaccess->local2name(&name, localpath);
+        client->fsaccess->local2name(&name, mFilesystemType);
 
         if (!client->app->sync_syncable(this, name.c_str(), &tmppath))
         {

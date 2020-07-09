@@ -103,7 +103,7 @@ struct MEGA_API Transfer : public FileFingerprint
     int tag;
 
     // signal failure.  Either the transfer's slot or the transfer itself (including slot) will be deleted.
-    void failed(error, DBTableTransactionCommitter&, dstime = 0);
+    void failed(const Error&, DBTableTransactionCommitter&, dstime = 0);
 
     // signal completion
     void complete(DBTableTransactionCommitter&);
@@ -213,7 +213,7 @@ public:
     std::array<vector<Transfer*>, 6> nexttransfers(std::function<bool(Transfer*)>& continuefunction);
     Transfer *transferat(direction_t direction, unsigned int position);
 
-    transfer_list transfers[2];
+    std::array<transfer_list, 2> transfers;
     MegaClient *client;
     uint64_t currentpriority;
 
@@ -305,7 +305,7 @@ struct MEGA_API DirectReadNode
     dsdrn_map::iterator dsdrn_it;
 
     // API command result
-    void cmdresult(error, dstime = 0);
+    void cmdresult(const Error&, dstime = 0);
     
     // enqueue new read
     void enqueue(m_off_t, m_off_t, int, void*);
@@ -317,7 +317,7 @@ struct MEGA_API DirectReadNode
     void schedule(dstime);
 
     // report failure to app and abort or retry all reads
-    void retry(error, dstime = 0);
+    void retry(const Error &, dstime = 0);
 
     DirectReadNode(MegaClient*, handle, bool, SymmCipher*, int64_t, const char*, const char*, const char*);
     ~DirectReadNode();

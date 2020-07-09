@@ -84,7 +84,7 @@ class SyncApp : public MegaApp, public Logger
 
     void login_result(error e);
 
-    void fetchnodes_result(error e);
+    void fetchnodes_result(const Error& e);
 
     void request_error(error e);
 
@@ -413,7 +413,7 @@ void SyncApp::login_result(error e)
     client->fetchnodes();
 }
 
-void SyncApp::fetchnodes_result(error e)
+void SyncApp::fetchnodes_result(const Error &e)
 {
     if (e != API_OK)
     {

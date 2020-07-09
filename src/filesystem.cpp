@@ -64,6 +64,12 @@ const char *FileSystemAccess::fstypetostring(FileSystemType type) const
             return "HFS";
         case FS_APFS:
             return "APFS";
+        case FS_FUSE:
+            return "FUSE";
+        case FS_SDCARDFS:
+            return "SDCARDFS";
+        case FS_F2FS:
+            return "F2FS";
         case FS_UNKNOWN:    // fall through
             return "UNKNOWN FS";
     }
@@ -78,7 +84,8 @@ FileSystemType FileSystemAccess::getlocalfstype(const string *dstPath) const
         return FS_UNKNOWN;
     }
 
-#if defined (__linux__) || defined (__ANDROID__)
+#if defined (__linux__) && !defined (__ANDROID__)
+    // Filesystem detection for Linux
     struct statfs fileStat;
     if (!statfs(dstPath->c_str(), &fileStat))
     {
@@ -96,7 +103,34 @@ FileSystemType FileSystemAccess::getlocalfstype(const string *dstPath) const
                 return FS_UNKNOWN;
         }
     }
+#elif defined (__ANDROID__)
+    // Filesystem detection for Android
+    struct statfs fileStat;
+    if (!statfs(dstPath->c_str(), &fileStat))
+    {
+        switch (fileStat.f_type)
+        {
+            case EXT2_SUPER_MAGIC:
+                return FS_EXT;
+            case MSDOS_SUPER_MAGIC:
+                return FS_FAT32;
+            case HFS_SUPER_MAGIC:
+                return FS_HFS;
+            case NTFS_SB_MAGIC:
+                return FS_NTFS;
+            case SDCARDFS_SUPER_MAGIC:
+                return FS_SDCARDFS;
+            case FUSEBLK_SUPER_MAGIC:
+            case FUSECTL_SUPER_MAGIC:
+                return FS_FUSE;
+            case F2FS_SUPER_MAGIC:
+                return FS_F2FS;
+            default:
+                return FS_UNKNOWN;
+        }
+    }
 #elif defined  (__APPLE__) || defined (USE_IOS)
+    // Filesystem detection for Apple and iOS
     struct statfs fileStat;
     if (!statfs(dstPath->c_str(), &fileStat))
     {
@@ -118,6 +152,7 @@ FileSystemType FileSystemAccess::getlocalfstype(const string *dstPath) const
         }
     }
 #elif defined(_WIN32) || defined(_WIN64) || defined(WINDOWS_PHONE)
+    // Filesystem detection for Windows
     CHAR volumeName[MAX_PATH + 1] = { 0 };
     CHAR fileSystemName[MAX_PATH + 1] = { 0 };
     DWORD serialNumber = 0;
@@ -145,26 +180,46 @@ FileSystemType FileSystemAccess::getlocalfstype(const string *dstPath) const
     return FS_UNKNOWN;
 }
 
+bool FileSystemAccess::isControlChar(unsigned char c) const
+{
+    return (c <= '\x1F' || c == '\x7F');
+}
+
 // Group different filesystems types in families, according to its restricted charsets
-bool FileSystemAccess::islocalfscompatible(unsigned char c, FileSystemType fileSystemType) const
+bool FileSystemAccess::islocalfscompatible(unsigned char c, bool isEscape, FileSystemType fileSystemType) const
 {
     switch (fileSystemType)
     {
         case FS_APFS:
         case FS_HFS:
-            // APFS, HFS, HFS+ restricted characters => :
-            return c != '\x3A';
+            // APFS, HFS, HFS+ restricted characters => : /
+            return c != '\x3A' && c != '\x2F';
+        case FS_F2FS:
         case FS_EXT:
-            // ext2/ext3/ext4 restricted characters =>  / NULL
+            // f2fs and ext2/ext3/ext4 restricted characters =>  / NULL
             return c != '\x00' && c != '\x2F';
         case FS_FAT32:
+            // Control characters will be escaped but not unescaped
             // FAT32 restricted characters => " * / : < > ? \ | + , ; = [ ]
-            return !strchr("\\/:?\"<>|*+,;=[]", c);
+            return (isControlChar(c) && isEscape)
+                        ? false
+                        : !strchr("\\/:?\"<>|*+,;=[]", c);
         case FS_EXFAT:
         case FS_NTFS:
+            // Control characters will be escaped but not unescaped
+            // ExFAT, NTFS restricted characters => " * / : < > ? \ |
+            return (isControlChar(c) && isEscape)
+                        ? false
+                        : !strchr("\\/:?\"<>|*", c);
+        case FS_FUSE:
+        case FS_SDCARDFS:
         case FS_UNKNOWN:
         default:
-            // ExFAT, NTFS restricted characters => " * / : < > ? \ |
+            // FUSE and SDCARDFS are Android filesystem wrappers used to mount traditional filesystems
+            // as ext4, Fat32, extFAT...
+            // So we will consider that restricted characters for these wrappers are the same
+            // as for Android => " * / : < > ? \ |
+
             // If filesystem couldn't be detected we'll use a restrictive charset to avoid issues.
             return !strchr("\\/:?\"<>|*", c);
     }
@@ -190,8 +245,20 @@ bool FileSystemAccess::getValidPath(const string *originalPath, string &tempPath
     return false;
 }
 
+FileSystemType FileSystemAccess::getFilesystemType(const string* dstPath) const
+{
+    string tempPath;
+    const string *validPath = &tempPath;
+    if (!getValidPath(dstPath, tempPath) && dstPath)
+    {
+        // if getValidPath returns false and dstPath is not null, dstPath is valid
+        validPath = dstPath;
+    }
+    return getlocalfstype(validPath);
+}
+
 // replace characters that are not allowed in local fs names with a %xx escape sequence
-void FileSystemAccess::escapefsincompatible(string* name, const string *dstPath) const
+void FileSystemAccess::escapefsincompatible(string* name, FileSystemType fileSystemType) const
 {
     if (!name->compare(".."))
     {
@@ -204,16 +271,7 @@ void FileSystemAccess::escapefsincompatible(string* name, const string *dstPath)
         return;
     }
 
-    string tempPath;
-    const string *validPath = &tempPath;
-    if (!getValidPath(dstPath, tempPath) && dstPath)
-    {
-        // if getValidPath returns false and dstPath is not null, dstPath is valid
-        validPath = dstPath;
-    }
-
     char buf[4];
-    FileSystemType fileSystemType = getlocalfstype(validPath);
     size_t utf8seqsize = 0;
     size_t i = 0;
     unsigned char c = '0';
@@ -222,7 +280,7 @@ void FileSystemAccess::escapefsincompatible(string* name, const string *dstPath)
         c = static_cast<unsigned char>((*name)[i]);
         utf8seqsize = Utils::utf8SequenceSize(c);
         assert (utf8seqsize);
-        if (utf8seqsize == 1 && !islocalfscompatible(c, fileSystemType))
+        if (utf8seqsize == 1 && !islocalfscompatible(c, true, fileSystemType))
         {
             const char incompatibleChar = name->at(i);
             sprintf(buf, "%%%02x", c);
@@ -235,7 +293,7 @@ void FileSystemAccess::escapefsincompatible(string* name, const string *dstPath)
     }
 }
 
-void FileSystemAccess::unescapefsincompatible(string *name, const string *localPath) const
+void FileSystemAccess::unescapefsincompatible(string *name, FileSystemType fileSystemType) const
 {
     if (!name->compare("%2e%2e"))
     {
@@ -248,15 +306,6 @@ void FileSystemAccess::unescapefsincompatible(string *name, const string *localP
         return;
     }
 
-    string tempPath;
-    const string *validPath = &tempPath;
-    if (!getValidPath(localPath, tempPath) && localPath)
-    {
-        // if getValidPath returns false and localPath is not null, localPath is valid
-        validPath = localPath;
-    }
-
-    FileSystemType fileSystemType = getlocalfstype(validPath);
     for (int i = int(name->size()) - 2; i-- > 0; )
     {
         // conditions for unescaping: %xx must be well-formed
@@ -264,7 +313,7 @@ void FileSystemAccess::unescapefsincompatible(string *name, const string *localP
         {
             char c = static_cast<char>((MegaClient::hexval((*name)[i + 1]) << 4) + MegaClient::hexval((*name)[i + 2]));
 
-            if (!islocalfscompatible(static_cast<unsigned char>(c), fileSystemType))
+            if (!islocalfscompatible(static_cast<unsigned char>(c), false, fileSystemType))
             {
                 std::string incompatibleChar = name->substr(i, 3);
                 name->replace(i, 3, &c, 1);
@@ -290,11 +339,11 @@ return "\\/";
 }
 
 // escape forbidden characters, then convert to local encoding
-void FileSystemAccess::name2local(string* filename, const string *dstPath) const
+void FileSystemAccess::name2local(string* filename, FileSystemType fsType) const
 {
     assert(filename);
 
-    escapefsincompatible(filename, dstPath);
+    escapefsincompatible(filename, fsType);
 
     string t = *filename;
 
@@ -368,7 +417,7 @@ void FileSystemAccess::normalize(string* filename) const
 }
 
 // convert from local encoding, then unescape escaped forbidden characters
-void FileSystemAccess::local2name(string *filename, const string *localPath) const
+void FileSystemAccess::local2name(string *filename, FileSystemType fsType) const
 {
     assert(filename);
 
@@ -376,7 +425,7 @@ void FileSystemAccess::local2name(string *filename, const string *localPath) con
 
     local2path(&t, filename);
 
-    unescapefsincompatible(filename, localPath);
+    unescapefsincompatible(filename, fsType);
 }
 
 std::unique_ptr<string> FileSystemAccess::fsShortname(string& localname)

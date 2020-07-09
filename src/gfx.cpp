@@ -125,9 +125,9 @@ void GfxProc::loop()
                     int w = dimensions[job->imagetypes[i]][0];
                     int h = dimensions[job->imagetypes[i]][1];
 
-                    if (job->imagetypes[i] == PREVIEW && this->w < w && this->h < h )
+                    if (this->w < w && this->h < h)
                     {
-                        LOG_debug << "Skipping upsizing of preview";
+                        LOG_debug << "Skipping upsizing of preview or thumbnail";
                         w = this->w;
                         h = this->h;
                     }
