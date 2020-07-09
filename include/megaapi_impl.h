@@ -2260,7 +2260,7 @@ class MegaApiImpl : public MegaApp
         MegaNode *getSyncedNode(string *path);
         void syncFolder(const char *localFolder, MegaHandle megaHandle, MegaRegExp *regExp = NULL, long long localfp = 0, MegaRequestListener* listener = NULL);
         void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp = NULL, long long localfp = 0, MegaRequestListener* listener = NULL);
-        void copySyncDataToCache(const char *localFolder, MegaHandle megaHandle,
+        void copySyncDataToCache(const char *localFolder, MegaHandle megaHandle, const char *remotePath,
                                           long long localfp, bool enabled, bool tempoaryDisabled, MegaRequestListener *listener = NULL);
         void copyCachedStatus(int storageStatus, int blockStatus, int businessStatus, MegaRequestListener *listener = NULL);
         void removeSync(handle nodehandle, MegaRequestListener *listener=NULL);
@@ -3000,10 +3000,7 @@ protected:
         void sync_auto_resume_result(const SyncConfig &config, const syncstate_t &state, const SyncError &syncError) override;
 
         // this will fire onSyncStateChange if remote path of the synced node has changed
-        virtual void syncupdate_remote_root_moved(const SyncConfig &) override;
-
-        // this will fire onSyncStateChange if remote path of the synced node has changed
-        virtual void syncupdate_remote_root_attrs_changed(const SyncConfig &config) override;
+        virtual void syncupdate_remote_root_changed(const SyncConfig &) override;
 
         // this will call will fire EVENT_SYNCS_RESTORED
         virtual void syncs_restored();

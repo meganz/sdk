@@ -8383,7 +8383,7 @@ void MegaApiImpl::syncFolder(const char *localFolder, MegaNode *megaFolder, Mega
     syncFolder(localFolder, megaFolder ? megaFolder->getHandle() : INVALID_HANDLE, regExp, localfp, listener);
 }
 
-void MegaApiImpl::copySyncDataToCache(const char *localFolder, MegaHandle megaHandle,
+void MegaApiImpl::copySyncDataToCache(const char *localFolder, MegaHandle megaHandle, const char *remotePath,
                                       long long localfp, bool enabled, bool tempoaryDisabled, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_COPY_SYNC_CONFIG, listener);
@@ -8399,6 +8399,7 @@ void MegaApiImpl::copySyncDataToCache(const char *localFolder, MegaHandle megaHa
         request->setFile(path.data());
     }
 
+    request->setLink(remotePath);
     request->setFlag(enabled);
     request->setNumDetails(tempoaryDisabled);
     request->setNumber(localfp);
@@ -13021,7 +13022,7 @@ void MegaApiImpl::sync_auto_resume_result(const SyncConfig &config, const syncst
     MegaSyncPrivate *sync = new MegaSyncPrivate(config.getLocalPath().c_str(), config.getRemoteNode(), config.getTag());
 
     sync->setLocalFingerprint(static_cast<long long>(config.getLocalFingerprint()));
-    sync->setMegaFolderYielding(getNodePathByNodeHandle(config.getRemoteNode()));
+    sync->setMegaFolder(config.getRemotePath().c_str());
     if (!config.getRegExps().empty())
     {
         auto re = make_unique<MegaRegExp>();
@@ -13038,6 +13039,15 @@ void MegaApiImpl::sync_auto_resume_result(const SyncConfig &config, const syncst
     bool failedToResume = config.isResumableAtStartup() && !sync->isActive(); //the sync could not be resumed
     bool wasEnabled = config.getEnabled();
 
+    auto existingpair = syncMap.find(config.getTag());
+    if (existingpair !=  syncMap.end())
+    {
+        MegaSyncPrivate* megaSync = existingpair->second;
+
+        LOG_warn << "overriding existing MegaSync "<< megaSync->getTag() << " old local: " << megaSync->getLocalFolder()
+                 << " newLocal: " << config.getLocalPath();
+        delete megaSync;
+    }
     syncMap[config.getTag()] = sync;
 
     if (!wasEnabled && config.isResumableAtStartup()) //attempted to re-enable
@@ -13050,31 +13060,7 @@ void MegaApiImpl::sync_auto_resume_result(const SyncConfig &config, const syncst
     }
 }
 
-void MegaApiImpl::syncupdate_remote_root_moved(const SyncConfig &config)
-{
-    auto syncpair = syncMap.find(config.getTag());
-    if( syncpair == syncMap.end())
-    {
-        LOG_err << " updating state for moved missing sync: tag = " << config.getTag();
-        return;
-    }
-    MegaSyncPrivate* megaSync = syncpair->second;
-
-    auto oldpath = megaSync->getMegaFolder();
-    char * newpath = getNodePathByNodeHandle(config.getRemoteNode());
-    if ( (!oldpath && newpath) || (!newpath && oldpath) || strcmp(newpath, oldpath))
-    {
-        LOG_verbose << " remote path moved for moved sync: " << config.getTag() << " old: " << oldpath << " new: " << newpath;
-        megaSync->setMegaFolderYielding(newpath);
-        fireOnSyncStateChanged(megaSync);
-    }
-    else
-    {
-        delete newpath;
-    }
-}
-
-void MegaApiImpl::syncupdate_remote_root_attrs_changed(const SyncConfig &config)
+void MegaApiImpl::syncupdate_remote_root_changed(const SyncConfig &config)
 {
     auto syncpair = syncMap.find(config.getTag());
     if( syncpair == syncMap.end())
@@ -13084,18 +13070,32 @@ void MegaApiImpl::syncupdate_remote_root_attrs_changed(const SyncConfig &config)
     }
     MegaSyncPrivate* megaSync = syncpair->second;
 
-    auto oldpath = megaSync->getMegaFolder();
-    char * newpath = getNodePathByNodeHandle(config.getRemoteNode());
-    if ( (!oldpath && newpath) || (!newpath && oldpath) || strcmp(newpath, oldpath))
+    bool changed = false;
+
+    string oldpath = megaSync->getMegaFolder();
+    string newpath = config.getRemotePath();
+    if ( newpath != oldpath)
     {
-        LOG_verbose << " remote path renamed for sync: " << config.getTag() << " old: " << oldpath << " new: " << newpath;
-        megaSync->setMegaFolderYielding(newpath);
+        LOG_verbose << " remote path changed for moved sync: " << config.getTag() << " old: " << oldpath << " new: " << newpath;
+        megaSync->setMegaFolder(newpath.c_str());
+        changed = true;
+    }
+
+    auto oldhandle = megaSync->getMegaHandle();
+    auto newhandle = config.getRemoteNode();
+    if ( newhandle != oldhandle)
+    {
+        LOG_verbose << " remote handle changed for moved sync: " << config.getTag();
+        megaSync->setMegaHandle(newhandle);
+        changed = true;
+    }
+
+
+    if (changed)
+    {
         fireOnSyncStateChanged(megaSync);
     }
-    else
-    {
-        delete newpath;
-    }
+
 }
 
 void MegaApiImpl::syncs_restored()
@@ -20954,11 +20954,21 @@ void MegaApiImpl::sendPendingRequests()
             sync->setListener(request->getSyncListener());
             sync->setRegExp(request->getRegExp());
 
-            SyncConfig syncConfig{nextSyncTag, localPath, request->getNodeHandle(),
+            SyncError syncError = NO_SYNC_ERROR;
+
+            std::unique_ptr< char []> remotePath{getNodePathByNodeHandle(request->getNodeHandle())};
+            if (!remotePath)
+            {
+                e = API_ENOENT;
+                syncError = REMOTE_NODE_NOT_FOUND;
+                request->setNumDetails(syncError);
+                break;
+            }
+
+            SyncConfig syncConfig{nextSyncTag, localPath, request->getNodeHandle(), remotePath.get(),
                                   static_cast<fsfp_t>(request->getNumber()), 
                                   regExpToVector(request->getRegExp())};
 
-            SyncError syncError = NO_SYNC_ERROR;
             e = client->addsync(syncConfig, DEBRISFOLDER, NULL, syncError, true, sync);
             request->setNumDetails(syncError);
             if (!e)
@@ -20968,7 +20978,7 @@ void MegaApiImpl::sendPendingRequests()
                 sync->setError(syncError);
                 sync->setState(s->state);
                 sync->setLocalFingerprint(fsfp);
-                sync->setMegaFolderYielding(getNodePathByNodeHandle(node->nodehandle));
+                sync->setMegaFolderYielding(remotePath.release());
                 request->setNumber(fsfp);
                 request->setTransferTag(nextSyncTag);
                 syncMap[nextSyncTag] = sync;
@@ -20996,11 +21006,22 @@ void MegaApiImpl::sendPendingRequests()
 
             SyncError syncError = NO_SYNC_ERROR;
 
-            e = client->enableSync(tag, syncError, true);
-            //TODO: note to reviewer: in case this fails with a non temporary error, this sets the sync
+            MegaSync *megaSync = sync_it->second;
+            handle newHandle = UNDEF;
+            if (megaSync->getMegaHandle() == UNDEF)
+            {
+                LOG_verbose << "sync config has no remote: figuring a new one from last known remote path: " << megaSync->getMegaFolder();
+                MegaNode *n = getNodeByPath(megaSync->getMegaFolder());
+                if (n)
+                {
+                    newHandle = n->getHandle();
+                    delete n;
+                }
+            }
+
+            e = client->enableSync(tag, syncError, true, newHandle);
+            // Note: in case this fails with a non temporary error, this sets the sync
             // to FAILED (which oddly entails: isEnabled = true: from the user perspective it has been enabled)
-            // Alternatively, we could keep/enforce a SYNC_DISABLED+NO_SYNC_ERROR (i.e. manually disabled) and
-            //  asume the failure in the req finish is enough for the app and that we do not want to update the sync configuration
 
             request->setNumDetails(syncError);
 
@@ -21020,6 +21041,8 @@ void MegaApiImpl::sendPendingRequests()
                 e = API_EARGS;
                 break;
             }
+
+            const char *remotePath = request->getLink();
 
             auto nextSyncTag = client->nextSyncTag(10000);//We artificially start giving syncs number from 10k, to avoid clashing
             //when mixed syncConfig vs app configs (i.e. new -> old -> new version)
@@ -21056,7 +21079,7 @@ void MegaApiImpl::sendPendingRequests()
                 enabled = true; //we consider enabled when it is temporary disabled
             }
 
-            SyncConfig syncConfig{nextSyncTag, localPath, request->getNodeHandle(),
+            SyncConfig syncConfig{nextSyncTag, localPath, request->getNodeHandle(), remotePath,
                                   static_cast<fsfp_t>(request->getNumber()),
                                   regExpToVector(request->getRegExp()), enabled};
 

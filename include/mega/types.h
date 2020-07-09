@@ -815,6 +815,7 @@ public:
     SyncConfig(int tag,
                std::string localPath,
                const handle remoteNode,
+               const std::string &remotePath,
                const fsfp_t localFingerprint,
                std::vector<std::string> regExps = {},
                const bool enabled = true,
@@ -841,6 +842,11 @@ public:
 
     // returns the remote path of the sync
     handle getRemoteNode() const;
+
+    void setRemoteNode(const handle &remoteNode);
+
+    // returns the last valid remote path of the sync
+    const std::string& getRemotePath() const;
 
     // returns the local fingerprint
     fsfp_t getLocalFingerprint() const;
@@ -871,6 +877,8 @@ public:
 
     // deserializes the string to a SyncConfig object. Returns null in case of failure
     static std::unique_ptr<SyncConfig> unserialize(const std::string& data);
+
+    void setRemotePath(const std::string &remotePath);
 
     // get error code (errors can be temporary/fatal/mere warnings)
     SyncError getError() const;
@@ -903,6 +911,9 @@ private:
     // the remote handle of the sync
     handle mRemoteNode;
 
+    // the last valid remote path of the sync
+    std::string mRemotePath;
+
     // the local fingerprint
     fsfp_t mLocalFingerprint;
 
@@ -929,6 +940,7 @@ private:
                const bool&,
                const std::string&,
                const handle&,
+               const std::string&,
                const fsfp_t&,
                const std::vector<std::string>&,
                const Type&,
@@ -940,6 +952,7 @@ private:
                         mEnabled,
                         mLocalPath,
                         mRemoteNode,
+                        mRemotePath,
                         mLocalFingerprint,
                         mRegExps,
                         mSyncType,
