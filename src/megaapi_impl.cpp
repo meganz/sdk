@@ -21131,20 +21131,26 @@ void MegaApiImpl::sendPendingRequests()
 
             e = client->addsync(syncConfig, DEBRISFOLDER, NULL, syncError, true, sync);
             request->setNumDetails(syncError);
+            if (!e || !isSyncErrorPermanent(syncError))
+            {
+                auto newstate = isSyncErrorPermanent(syncError) ? SYNC_FAILED : SYNC_DISABLED;
+                sync->setState(newstate);
             if (!e)
             {
                 Sync *s = client->syncs.back();
                 fsfp_t fsfp = s->fsfp;
-                sync->setError(syncError);
-                sync->setState(s->state);
+                    sync->setState(s->state); //override state with the actual one from the sync
                 sync->setLocalFingerprint(fsfp);
+                    request->setNumber(fsfp); //TODO: doc this only when added ok?
+                }
+                sync->setError(syncError);
                 sync->setMegaFolderYielding(remotePath.release());
-                request->setNumber(fsfp);
                 request->setTransferTag(nextSyncTag);
                 syncMap[nextSyncTag] = sync;
 
-                fireOnSyncAdded(sync, MegaSync::NEW);
-                fireOnRequestFinish(request, MegaError(API_OK));
+                fireOnSyncAdded(sync, e ? MegaSync::NEW_TEMP_DISABLED : MegaSync::NEW);
+                e = API_OK; //we don't consider the addsync returned error as an error on the request: the sync was added (although temporarily disabled)
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
                 break;
             }
 
@@ -21161,8 +21167,6 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
             assert(sync_it->second);
-
-
 
             SyncError syncError = NO_SYNC_ERROR;
 
@@ -21280,12 +21284,14 @@ void MegaApiImpl::sendPendingRequests()
             {
                 if (value == 999)
                 {
-                    return API_ENOENT;
+                    LOG_verbose << "Ignoring not valid status in migration: " << type << " = " << value;
+                    return API_OK; //received invalid value: not to be used
                 }
                 auto status = client->mCachedStatus[type];
-                if (status)
+                if (status) // the sdk already has a cached value
                 {
-                    return API_EEXIST;
+                    LOG_verbose << "Ignoring already present status in migration: " << type << " = " << value << " existing = " << status->value();
+                    return API_OK;
                 }
                 status = std::make_shared<CS>(type, value);
 
@@ -21299,9 +21305,10 @@ void MegaApiImpl::sendPendingRequests()
                         LOG_err << "Failed to add/update migrated status to db: "
                                     << status->type() << " = " << status->value();
                         return API_EINTERNAL;
-                    }
                 }
                 return API_OK;
+                }
+                return API_ENOENT;
             };
 
             auto subE = loadAndPersist(CType::STATUS_STORAGE, storageStatusValue);
@@ -21322,7 +21329,7 @@ void MegaApiImpl::sendPendingRequests()
 
             if (!e)
             {
-                fireOnRequestFinish(request, MegaError(API_OK));
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             }
             break;
         }

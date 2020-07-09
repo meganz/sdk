@@ -4407,7 +4407,12 @@ bool MegaClient::procsc()
                                 whyamiblocked();// lets query again, to trigger transition and restoreSyncs
                             }
 
+
 #ifdef ENABLE_SYNC
+#ifndef __ANDROID__
+                            //TODO: remove android control after android gives green light to this.
+                            enabletransferresumption();
+#endif
                             resumeResumableSyncs();
 #endif
 
@@ -11485,6 +11490,10 @@ void MegaClient::fetchnodes(bool nocache)
 
 #ifdef ENABLE_SYNC
         mFirstSyncResumed = false;
+#ifndef __ANDROID__
+        //TODO: remove android control after android gives green light to this.
+        enabletransferresumption();
+#endif
         resumeResumableSyncs();
 #endif
         app->fetchnodes_result(API_OK);
@@ -12752,8 +12761,36 @@ error MegaClient::addsync(SyncConfig syncConfig, const char* debris, string* loc
                 return API_EFAILED;
             }
 
-            auto prevFingerprint = syncConfig.getLocalFingerprint();
 
+            //check we are not in any blocking situation
+            using CType = CacheableStatus::Type;
+            bool overStorage = mCachedStatus[CType::STATUS_STORAGE] ? (mCachedStatus[CType::STATUS_STORAGE]->value() >= STORAGE_RED) : false;
+            bool businessExpired = mCachedStatus[CType::STATUS_BUSINESS] ? (mCachedStatus[CType::STATUS_BUSINESS]->value() == BIZ_STATUS_EXPIRED) : false;
+            bool blocked = mCachedStatus[CType::STATUS_BLOCKED] ? (mCachedStatus[CType::STATUS_BLOCKED]->value()) : false;
+
+            // the order is important here: a user needs to resolve blocked in order to resolve storage
+            if (overStorage)
+            {
+                syncError = STORAGE_OVERQUOTA;
+            }
+            else if (businessExpired)
+            {
+                syncError = BUSINESS_EXPIRED;
+            }
+            else if (blocked)
+            {
+                syncError = ACCOUNT_BLOCKED;
+            }
+
+            if (syncError)
+            {
+                // save configuration but avoid creating active sync, and set as temporary disabled:
+                saveAndUpdateSyncConfig(&syncConfig, SYNC_DISABLED, static_cast<SyncError>(syncError) );
+                return API_EFAILED;
+            }
+
+
+            auto prevFingerprint = syncConfig.getLocalFingerprint();
             Sync* sync = new Sync(this, syncConfig, debris, localdebris, remotenode, inshare, tag, appData);
 
             if (prevFingerprint && prevFingerprint != syncConfig.getLocalFingerprint())

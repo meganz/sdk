@@ -4901,7 +4901,7 @@ public:
      *
      * As to the additionState can be:
      * - MegaSync::SyncAdded::NEW = 1
-     * Sync added a new
+     * Sync added anew and activated
      *
      * - MegaSync::SyncAdded::FROM_CACHE = 2
      * Sync loaded from cache. If the sync was enabled, it will be enabled.
@@ -4915,6 +4915,9 @@ public:
      *
      * - MegaSync::SyncAdded::REENABLED_FAILED = 5
      * Sync loaded from cache and attempted to be reenabled. The sync will have the error for that
+     *
+     * - MegaSync::SyncAdded::NEW_DISABLED = 6
+     * Sync added anew, but set as temporarily disabled due to a temporary error
      *
      *
      * @param sync MegaSync object representing a sync
@@ -5022,11 +5025,12 @@ public:
 
     enum SyncAdded
     {
-        NEW  = 1,
+        NEW  = 1, //new sync added and activated
         FROM_CACHE = 2, // just restored from cache (keeping its former state: active if it was active)
         FROM_CACHE_FAILED_TO_RESUME = 3, // restored from cache, but activation failed: implies change in state
         FROM_CACHE_REENABLED  = 4, // restored from cache: reenabled after some failure: implies change in state
         REENABLED_FAILED = 5, //attempt to reenable lead to a failure: might not imply change in state, and does not change "active" state
+        NEW_TEMP_DISABLED = 6, // new sync added as temporarily disabled due to a temporary error
     };
 
     virtual ~MegaSync();
@@ -6753,7 +6757,7 @@ class MegaListener
      *
      * As to the additionState can be:
      * - MegaSync::SyncAdded::NEW = 1
-     * Sync added a new
+     * Sync added anew and activated
      *
      * - MegaSync::SyncAdded::FROM_CACHE = 2
      * Sync loaded from cache. If the sync was enabled, it will be enabled.
@@ -6768,6 +6772,8 @@ class MegaListener
      * - MegaSync::SyncAdded::REENABLED_FAILED = 5
      * Sync loaded from cache and attempted to be reenabled. The sync will have the error for that
      *
+     * - MegaSync::SyncAdded::NEW_DISABLED = 6
+     * Sync added anew, but set as temporarily disabled due to a temporary error
      *
      * @param sync MegaSync object representing a sync
      * @param api MegaApi object that is synchronizing files
@@ -12881,7 +12887,8 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getNumber - Fingerprint of the local folder
+         * - MegaRequest::getNumber - Fingerprint of the local folder. Note, fingerprint will only be valid
+         * if the sync was added with no errors
          * - MegaRequest::getTransferTag - Returns the sync tag
          *
          * @param localFolder Local folder
@@ -12906,7 +12913,8 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getNumber - Fingerprint of the local folder
+         * - MegaRequest::getNumber - Fingerprint of the local folder. Note, fingerprint will only be valid
+         * if the sync was added with no errors
          * - MegaRequest::getTransferTag - Returns the sync tag
          *
          * @param localFolder Local folder
@@ -12980,7 +12988,8 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getNumber - Fingerprint of the local folder to resume the sync
+         * - MegaRequest::getNumber - Fingerprint of the local folder. Note, fingerprint will only be valid
+         * if the sync was added with no errors
          * - MegaRequest::getTransferTag - Returns the sync tag
          *
          * @param localFolder Local folder

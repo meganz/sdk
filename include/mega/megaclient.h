@@ -570,7 +570,7 @@ public:
      * It will persist the sync configuration if everything goes fine.
      * @param syncError filled with SyncError with the sync error that prevented the addition
      * @param delayInitialScan delay the initial scan
-     * @return API_OK if added. (regular) error otherwise.
+     * @return API_OK if added to active syncs. (regular) error otherwise.
      */
     error addsync(SyncConfig, const char*, string*, SyncError &syncError, bool delayInitialScan = false, void* = NULL);
 
