@@ -28,6 +28,7 @@ public:
 #if ENABLE_SYNC
         ,
         OnSyncStateChanged,
+        OnSyncEvent,
         OnFileSyncStateChanged,
         OnGlobalSyncStateChanged
 #endif
@@ -54,10 +55,15 @@ public:
     void setEvent(MegaEvent *event);
 
 #ifdef ENABLE_SYNC
+    MegaSyncEvent *getSyncEvent();
+    void setSyncEvent(MegaSyncEvent *event);
+
     MegaSync *getSync();
     void setSync(MegaSync *sync);
+
     std::string *getLocalPath();
     void setLocalPath(std::string *localPath);
+
     int getNewState();
     void setNewState(int newState);
 #endif

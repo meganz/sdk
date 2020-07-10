@@ -687,6 +687,7 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/raid.h
             ${MegaDir}/include/mega/logging.h
             ${MegaDir}/include/mega/file.h
+            ${MegaDir}/include/mega/filter.h
             ${MegaDir}/include/mega/sync.h
             ${MegaDir}/include/mega/utils.h
             ${MegaDir}/include/mega/account.h
@@ -711,6 +712,7 @@ add_library(Mega STATIC
             ${MegaDir}/src/commands.cpp 
             ${MegaDir}/src/db.cpp 
             ${MegaDir}/src/file.cpp 
+            ${MegaDir}/src/filter.cpp 
             ${MegaDir}/src/fileattributefetch.cpp 
             ${MegaDir}/src/filefingerprint.cpp 
             ${MegaDir}/src/filesystem.cpp 

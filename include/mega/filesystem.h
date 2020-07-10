@@ -172,6 +172,9 @@ public:
 
     bool isContainingPathOf(const LocalPath& path, const FileSystemAccess& fsaccess);
 
+    // Return the last part of the local path.
+    LocalPath lastPart(const FileSystemAccess& fsAccess) const;
+
     // Return a utf8 representation of the LocalPath (fsaccess is used to do the conversion)
     // No escaping or unescaping is done.
     std::string toPath(const FileSystemAccess& fsaccess) const;

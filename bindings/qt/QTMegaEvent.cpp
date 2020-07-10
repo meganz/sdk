@@ -113,6 +113,16 @@ void QTMegaEvent::setEvent(MegaEvent* event)
 }
 
 #ifdef ENABLE_SYNC
+MegaSyncEvent *QTMegaEvent::getSyncEvent()
+{
+    return reinterpret_cast<MegaSyncEvent*>(event);
+}
+
+void QTMegaEvent::setSyncEvent(MegaSyncEvent* event)
+{
+    this->event = reinterpret_cast<MegaEvent*>(event);
+}
+
 MegaSync *QTMegaEvent::getSync()
 {
     return sync;

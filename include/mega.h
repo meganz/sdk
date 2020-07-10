@@ -44,6 +44,7 @@
 #include "mega/fileattributefetch.h"
 #include "mega/filefingerprint.h"
 #include "mega/file.h"
+#include "mega/filter.h"
 #include "mega/filesystem.h"
 #include "mega/db.h"
 #include "mega/json.h"

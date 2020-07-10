@@ -32,6 +32,7 @@
 		940BEFBB19ED92C2007E7FA2 /* commands.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEF9C19ED92C2007E7FA2 /* commands.cpp */; };
 		940BEFBC19ED92C2007E7FA2 /* db.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEF9D19ED92C2007E7FA2 /* db.cpp */; };
 		940BEFBD19ED92C2007E7FA2 /* file.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEF9E19ED92C2007E7FA2 /* file.cpp */; };
+		BECAAD977F5F4092A01CCE5D /* filter.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 6D278C4CACCF44D99ACFC056 /* filter.cpp */; };
 		940BEFBE19ED92C2007E7FA2 /* fileattributefetch.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEF9F19ED92C2007E7FA2 /* fileattributefetch.cpp */; };
 		940BEFBF19ED92C2007E7FA2 /* filefingerprint.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEFA019ED92C2007E7FA2 /* filefingerprint.cpp */; };
 		940BEFC019ED92C2007E7FA2 /* filesystem.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEFA119ED92C2007E7FA2 /* filesystem.cpp */; };
@@ -160,6 +161,7 @@
 		940BEF9C19ED92C2007E7FA2 /* commands.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = commands.cpp; path = ../../src/commands.cpp; sourceTree = "<group>"; };
 		940BEF9D19ED92C2007E7FA2 /* db.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = db.cpp; path = ../../src/db.cpp; sourceTree = "<group>"; };
 		940BEF9E19ED92C2007E7FA2 /* file.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = file.cpp; path = ../../src/file.cpp; sourceTree = "<group>"; };
+		6D278C4CACCF44D99ACFC056 /* filter.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = filter.cpp; path = ../../src/filter.cpp; sourceTree = "<group>"; };
 		940BEF9F19ED92C2007E7FA2 /* fileattributefetch.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = fileattributefetch.cpp; path = ../../src/fileattributefetch.cpp; sourceTree = "<group>"; };
 		940BEFA019ED92C2007E7FA2 /* filefingerprint.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = filefingerprint.cpp; path = ../../src/filefingerprint.cpp; sourceTree = "<group>"; };
 		940BEFA119ED92C2007E7FA2 /* filesystem.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = filesystem.cpp; path = ../../src/filesystem.cpp; sourceTree = "<group>"; };
@@ -216,6 +218,7 @@
 		940BF04A19EDBCAD007E7FA2 /* sqlite.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = sqlite.h; sourceTree = "<group>"; };
 		940BF04B19EDBCAD007E7FA2 /* db.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = db.h; sourceTree = "<group>"; };
 		940BF04C19EDBCAD007E7FA2 /* file.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = file.h; sourceTree = "<group>"; };
+		3B45B5D817D0481A848902A4 /* filter.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = filter.h; sourceTree = "<group>"; };
 		940BF04D19EDBCAD007E7FA2 /* fileattributefetch.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = fileattributefetch.h; sourceTree = "<group>"; };
 		940BF04E19EDBCAD007E7FA2 /* filefingerprint.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = filefingerprint.h; sourceTree = "<group>"; };
 		940BF04F19EDBCAD007E7FA2 /* filesystem.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = filesystem.h; sourceTree = "<group>"; };
@@ -356,6 +359,7 @@
 				940BEF9C19ED92C2007E7FA2 /* commands.cpp */,
 				940BEF9D19ED92C2007E7FA2 /* db.cpp */,
 				940BEF9E19ED92C2007E7FA2 /* file.cpp */,
+				6D278C4CACCF44D99ACFC056 /* filter.cpp */,
 				940BEF9F19ED92C2007E7FA2 /* fileattributefetch.cpp */,
 				940BEFA019ED92C2007E7FA2 /* filefingerprint.cpp */,
 				940BEFA119ED92C2007E7FA2 /* filesystem.cpp */,
@@ -541,6 +545,7 @@
 				940BF04819EDBCAD007E7FA2 /* db */,
 				940BF04B19EDBCAD007E7FA2 /* db.h */,
 				940BF04C19EDBCAD007E7FA2 /* file.h */,
+				3B45B5D817D0481A848902A4 /* filter.h */,
 				940BF04D19EDBCAD007E7FA2 /* fileattributefetch.h */,
 				940BF04E19EDBCAD007E7FA2 /* filefingerprint.h */,
 				940BF04F19EDBCAD007E7FA2 /* filesystem.h */,
@@ -800,6 +805,7 @@
 				41B2AED91A0A859C006C40FB /* DelegateMEGAGlobalListener.mm in Sources */,
 				940BF01019ED97B9007E7FA2 /* MEGAError.mm in Sources */,
 				940BEFBD19ED92C2007E7FA2 /* file.cpp in Sources */,
+				BECAAD977F5F4092A01CCE5D /* filter.cpp in Sources */,
 				940BF00E19ED97B9007E7FA2 /* MEGAAccountDetails.mm in Sources */,
 				940BEFF119ED9351007E7FA2 /* console.cpp in Sources */,
 				940BF01719ED97B9007E7FA2 /* MEGATransferList.mm in Sources */,

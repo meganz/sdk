@@ -25,6 +25,7 @@
 
 #include "filefingerprint.h"
 #include "file.h"
+#include "filter.h"
 #include "attrmap.h"
 
 namespace mega {
@@ -262,6 +263,14 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     Node(MegaClient*, vector<Node*>*, handle, handle, nodetype_t, m_off_t, handle, const char*, m_time_t);
     ~Node();
 
+#ifdef ENABLE_SYNC
+    // Is this node an ignore file?
+    bool isIgnoreFile() const;
+
+    // Update our local node's filter state based on our state.
+    void updateFilterState();
+#endif /* ENABLE_SYNC */
+
 private:
     // full folder/file key, symmetrically or asymmetrically encrypted
     // node crypto keys (raw or cooked -
@@ -398,11 +407,203 @@ struct MEGA_API LocalNode : public File
     static LocalNode* unserialize( Sync* sync, const string* sData );
 
     ~LocalNode();
+
+    // Did we or any of our parents fail to load an ignore file?
+    bool anyLoadFailed() const;
+
+    // Do we or any of our parents have a load pending?
+    bool anyLoadPending() const;
+
+    // Detach the node from its remote.
+    void detach(const bool recreate = false);
+
+    // Is name excluded by our or our parent's filter rules?
+    bool excluded(const string& name, const nodetype_t type) const;
+
+    // Are we excluded?
+    bool excluded() const;
+
+    // Let the node know its ignore file is downloading.
+    void ignoreFileDownloading();
+
+    // Our ignore file's path.
+    const LocalPath& ignoreFilePath() const;
+
+    // Is name included by our or our parent's filter rules?
+    bool included(const string& name, const nodetype_t type) const;
+
+    // Are we included?
+    bool included() const;
+
+    // Don't update our parent's filters when we are destroyed.
+    void inhibitFilterUpdate();
+
+    // Are we an ignore file?
+    bool isIgnoreFile() const;
+
+    // Loads filters from mIgnoreFilePath.
+    //
+    // Sets:
+    //   mLoadPending
+    //     If we couldn't perform the load.
+    //   mLoadFailed
+    //     If we couldn't perform the load due to error.
+    //
+    // Clears:
+    //   mDownloading
+    //     If we could successfully load the filter.
+    //
+    // Calls:
+    //   updateFilterState()
+    //     If updating is false.
+    //
+    // Returns true if:
+    //   mLoadFailed or mLoadPending changed state.
+    bool loadFilters(const bool updating = false);
+
+    // Do we have a ignore file load pending?
+    bool loadPending() const;
+
+    // Does any parent need to load their ignore file?
+    bool parentLoadPending() const;
+
+    // Perform pending load.
+    //
+    // Returns:
+    //  < 0 If the load failed.
+    // <= 0 If the load couldn't be performed.
+    //  > 0 If the load was performed.
+    int performPendingLoad();
+
+    // Purges all filter state in this subtree.
+    void purgeFilterState();
+
+    // Restores the filter state of this subtree.
+    // Expected to be called after purgeFilterState().
+    void restoreFilterState();
+
+    // Updates the filter state of this subtree.
+    //
+    // If force is true, we will update all nodes in the subtree regardless
+    // of whether their parent's state changed or not.
+    void updateFilterState(const bool force = false);
+
+private:
+    // Can we perform a pending load?
+    bool canPerformLoad() const;
+
+    // Clear our filters.
+    bool clearFilters();
+
+    // Set mExcluded.
+    // Return true if mExcluded changed.
+    bool excluded(const bool excluded);
+
+    // Does this node contain an ignore file?
+    bool hasIgnoreFile() const;
+
+    // Are we above other?
+    bool isAbove(const LocalNode& other) const;
+
+    // Are we below other?
+    bool isBelow(const LocalNode& other) const;
+
+    // Set mIsIgnoreFile.
+    // Return true if mIsIgnoreFile changed.
+    bool isIgnoreFile(const bool ignoreFile);
+
+    // Is our ignore file still downloading?
+    bool isIgnoreFileDownloading() const;
+
+    // Set mLoadFailed.
+    // Returns true if mLoadFailed changed.
+    bool loadFailed(const bool failed);
+
+    // Sets mLoadPending.
+    // Returns true if mLoadPending changed.
+    bool loadPending(const bool pending);
+
+    // Sets mParentLoadFailed.
+    // Returns true if mParentLoadFailed changed.
+    bool parentLoadFailed(const bool failed);
+    bool parentLoadFailed() const;
+
+    // Sets mParentLoadPending.
+    // Returns true if mParentLoadPending changed.
+    bool parentLoadPending(const bool pending);
+
+    // Purges directory filter state.
+    void purgeDirectoryFilterState();
+
+    // Purges file filter state.
+    void purgeFileFilterState();
+
+    // Purges general filter state.
+    void purgeGeneralFilterState();
+
+    // Restores directory filter state.
+    void restoreDirectoryFilterState();
+
+    // Restores file filter state.
+    void restoreFileFilterState();
+
+    // Restores general filter state.
+    void restoreGeneralFilterState();
+
+    // Updates the filter state of this subtree.
+    // Specialization called from setnameparent(...).
+    void updateFilterState(LocalNode* newParent, LocalPath* newPath);
+
+    // Updates the following based on our parent:
+    //   mExcluded
+    //   mParentLoadPending
+    //   mParentLoadFailed
+    // Returns true if any of the above changed state.
+    bool updateGeneralFilterState();
+
+    // Our filtering rules.
+    FilterChain mFilters;
+
+    // Our position in MegaClient::ignoreFileFailures.
+    // Only meaningful if mLoadFailed is true.
+    localnode_list::iterator mIgnoreFileFailuresIt;
+
+    // Our ignore file's path.
+    LocalPath mIgnoreFilePath;
+
+    // Is our ignore file downloading?
+    bool mDownloading;
+
+    // Are we excluded?
+    bool mExcluded;
+
+    // Should we update our parent's filters when we are destroyed?
+    bool mInhibitFilterUpdate;
+
+    // Are we an ignore file?
+    bool mIsIgnoreFile;
+
+    // Were we unable to load our ignore file?
+    bool mLoadFailed;
+
+    // Do we have a ignore file load pending?
+    bool mLoadPending;
+
+    // Was any parent unable to load their ignore file?
+    bool mParentLoadFailed;
+
+    // Does any parent need to load their ignore file?
+    bool mParentLoadPending;
 };
 
 template <> inline NewNode*& crossref_other_ptr_ref<LocalNode, NewNode>(LocalNode* p) { return p->newnode.ptr; }
 template <> inline LocalNode*& crossref_other_ptr_ref<NewNode, LocalNode>(NewNode* p) { return p->localnode.ptr; }
 
+// returns a list of children in "sync order."
+// i.e. ignore files, subdirectories, files.
+list<pair<const LocalPath*, LocalNode*>> inSyncOrder(const localnode_map& children);
+list<pair<const string*, Node*>> inSyncOrder(const remotenode_map& children);
+ 
 #endif
 
 } // namespace

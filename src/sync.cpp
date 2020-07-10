@@ -33,6 +33,9 @@
 
 namespace mega {
 
+const string Sync::ignoreFileName = ".megaignore";
+
+const int Sync::IGNOREFILE_DELAY_DS = 30;
 const int Sync::SCANNING_DELAY_DS = 5;
 const int Sync::EXTRA_SCANNING_DELAY_DS = 150;
 const int Sync::FILE_UPDATE_DELAY_DS = 30;
@@ -633,6 +636,7 @@ std::vector<SyncConfig> SyncConfigBag::all() const
 Sync::Sync(MegaClient* cclient, SyncConfig config, const char* cdebris,
            string* clocaldebris, Node* remotenode, bool cinshare, int ctag, void *cappdata)
 : localroot(new LocalNode)
+, ignoreFileLocalName(LocalPath::fromPath(ignoreFileName, *cclient->fsaccess))
 {
     isnetwork = false;
     client = cclient;
@@ -1113,12 +1117,10 @@ bool Sync::assignfsids()
 
 // scan localpath, add or update child nodes, call recursively for folder nodes
 // localpath must be prefixed with Sync
-bool Sync::scan(LocalPath* localpath, FileAccess* fa)
+bool Sync::scan(LocalPath* localpath, FileAccess* fa, LocalNode* localnode)
 {
-    if (fa)
-    {
-        assert(fa->type == FOLDERNODE);
-    }
+    assert(!fa || fa->type == FOLDERNODE);
+
     if (!localdebris.isContainingPathOf(*localpath, *client->fsaccess))
     {
         DirAccess* da;
@@ -1136,36 +1138,67 @@ bool Sync::scan(LocalPath* localpath, FileAccess* fa)
         // scan the dir, mark all items with a unique identifier
         if ((success = da->dopen(localpath, fa, false)))
         {
-            while (da->dnext(*localpath, localname, client->followsymlinks))
+            // prioritize handling of ignore files as they dictate how we
+            // should handle this directory's contents.
+            do
             {
-                name = localname.toName(*client->fsaccess);
+                ScopedLengthRestore restoreLen(*localpath);
+
+                localpath->appendWithSeparator(
+                  ignoreFileLocalName,
+                  false,
+                  client->fsaccess->localseparator);
+
+                auto fileaccess = client->fsaccess->newfileaccess(client->followsymlinks);
+                if (!fileaccess->fopen(*localpath))
+                {
+                    break;
+                }
+
+                LocalNode* node = nullptr;
+
+                if (initializing)
+                {
+                    node = checkpath(NULL, localpath, NULL, NULL, false, NULL);
+                }
+
+                if (!node || node == (LocalNode*)~0)
+                {
+                    dirnotify->notify(DirNotify::DIREVENTS, NULL, LocalPath(*localpath));
+                }
+            }
+            while (false);
+
+            nodetype_t type;
+
+            while (da->dnext(*localpath, localname, client->followsymlinks, &type))
+            {
+                // ignore files are processed above.
+                if (type == FILENODE && localname == ignoreFileLocalName)
+                {
+                    continue;
+                }
+
+                name = localname.toName(*client->fsaccess, mFilesystemType);
 
                 ScopedLengthRestore restoreLen(*localpath);
                 localpath->appendWithSeparator(localname, false, client->fsaccess->localseparator);
 
-                // check if this record is to be ignored
-                if (client->app->sync_syncable(this, name.c_str(), *localpath))
+                // skip the sync's debris folder
+                if (!localdebris.isContainingPathOf(*localpath, *client->fsaccess))
                 {
-                    // skip the sync's debris folder
-                    if (!localdebris.isContainingPathOf(*localpath, *client->fsaccess))
+                    LocalNode *l = NULL;
+                    if (initializing)
                     {
-                        LocalNode *l = NULL;
-                        if (initializing)
-                        {
-                            // preload all cached LocalNodes
-                            l = checkpath(NULL, localpath, nullptr, nullptr, false, da);
-                        }
-
-                        if (!l || l == (LocalNode*)~0)
-                        {
-                            // new record: place in notification queue
-                            dirnotify->notify(DirNotify::DIREVENTS, NULL, LocalPath(*localpath));
-                        }
+                        // preload all cached LocalNodes
+                        l = checkpath(NULL, localpath, nullptr, nullptr, false, da);
                     }
-                }
-                else
-                {
-                    LOG_debug << "Excluded: " << name;
+
+                    if (!l || l == (LocalNode*)~0)
+                    {
+                        // new record: place in notification queue
+                        dirnotify->notify(DirNotify::DIREVENTS, NULL, LocalPath(*localpath));
+                    }
                 }
             }
         }
@@ -1174,7 +1207,8 @@ bool Sync::scan(LocalPath* localpath, FileAccess* fa)
 
         return success;
     }
-    else return false;
+
+    return false;
 }
 
 // check local path - if !localname, localpath is relative to l, with l == NULL
@@ -1254,23 +1288,27 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
         string name = newname.size() ? newname : l->name;
         client->fsaccess->local2name(&name, mFilesystemType);
 
-        if (!client->app->sync_syncable(this, name.c_str(), tmppath))
-        {
-            LOG_debug << "Excluded: " << path;
-            return NULL;
-        }
-
         isroot = l == localroot.get() && !newname.size();
     }
 
     LOG_verbose << "Scanning: " << path << " in=" << initializing << " full=" << fullscan << " l=" << l;
     LocalPath* localpathNew = localname ? input_localpath : &tmppath;
 
-    // postpone moving nodes into nonexistent parents
-    if (parent && !parent->node)
+    if (parent)
     {
-        LOG_warn << "Parent doesn't exist yet: " << path;
-        return (LocalNode*)~0;
+        if (parent->loadPending())
+        {
+            parent->performPendingLoad();
+        }
+
+        if (!(parent->anyLoadPending() || parent->excluded()))
+        {
+            if (state != SYNC_INITIALSCAN && !parent->node)
+            {
+                LOG_warn << "Parent doesn't exist yet: " << path;
+                return (LocalNode*)~0;
+            }
+        }
     }
 
     // attempt to open/type this file
@@ -1313,7 +1351,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
 
                     if (l->type == FOLDERNODE)
                     {
-                        scan(localpathNew, fa.get());
+                        scan(localpathNew, fa.get(), l);
                     }
                     else
                     {
@@ -1402,6 +1440,11 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                                     {
                                         LOG_debug << "File move/overwrite detected";
 
+                                        // there's no point updating a parent's filters when its
+                                        // ignore file is being overwitten as that'll happen when
+                                        // setnameparent(...) is called below.
+                                        l->inhibitFilterUpdate();
+
                                         // delete existing LocalNode...
                                         delete l;
 
@@ -1456,6 +1499,11 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                             statecacheadd(l);
 
                             fa.reset();
+
+                            if (l->isIgnoreFile())
+                            {
+                                l->parent->loadFilters();
+                            }
 
                             if (isnetwork && l->type == FILENODE)
                             {
@@ -1640,7 +1688,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                     // immediately scan folder to detect deviations from cached state
                     if (fullscan && fa->type == FOLDERNODE)
                     {
-                        scan(localpathNew, fa.get());
+                        scan(localpathNew, fa.get(), it->second);
                     }
                 }
                 else if (fa->mIsSymLink)
@@ -1672,7 +1720,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
             {
                 if (newnode)
                 {
-                    scan(localpathNew, fa.get());
+                    scan(localpathNew, fa.get(), l);
                     client->app->syncupdate_local_folder_addition(this, l, path.c_str());
 
                     if (!isroot)
@@ -1725,8 +1773,11 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                     else if (changed)
                     {
                         client->app->syncupdate_local_file_change(this, l, path.c_str());
+
                         DBTableTransactionCommitter committer(client->tctable); // TODO:  can we use one committer for all the files in the folder?  Or for the whole recursion?
                         client->stopxfer(l, &committer);
+
+                        l->parent->loadFilters();
                     }
 
                     if (newnode || changed)

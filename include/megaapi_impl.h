@@ -2297,6 +2297,8 @@ class MegaApiImpl : public MegaApp
         int getNumActiveSyncs();
         void stopSyncs(MegaRequestListener *listener=NULL);
         bool isSynced(MegaNode *n);
+        void ignoreFilesEnabled(const bool enabled);
+        bool ignoreFilesEnabled();
         void setExcludedNames(vector<string> *excludedNames);
         void setExcludedPaths(vector<string> *excludedPaths);
         void setExclusionLowerSizeLimit(long long limit);
@@ -3010,6 +3012,7 @@ protected:
 
 #ifdef ENABLE_SYNC
         // sync status updates and events
+        void syncupdate_filter_error(Sync* sync, LocalNode* node) override;
         void syncupdate_state(Sync*, syncstate_t) override;
         void syncupdate_scanning(bool scanning) override;
         void syncupdate_local_folder_addition(Sync* sync, LocalNode *localNode, const char *path) override;

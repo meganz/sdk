@@ -147,7 +147,7 @@ public:
 
     // scan items in specified path and add as children of the specified
     // LocalNode
-    bool scan(LocalPath*, FileAccess*);
+    bool scan(LocalPath* localpath, FileAccess* fa, LocalNode* localnode);
 
     // own position in session sync list
     sync_list::iterator sync_it{};
@@ -195,6 +195,10 @@ public:
     Sync(MegaClient*, SyncConfig, const char*, string*, Node*, bool, int, void*);
     ~Sync();
 
+    const LocalPath ignoreFileLocalName;
+    static const string ignoreFileName;
+
+    static const int IGNOREFILE_DELAY_DS;
     static const int SCANNING_DELAY_DS;
     static const int EXTRA_SCANNING_DELAY_DS;
     static const int FILE_UPDATE_DELAY_DS;

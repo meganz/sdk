@@ -1180,6 +1180,11 @@ bool MegaApiImpl::is_syncable(Sync *sync, const char *name, const LocalPath& loc
         return false;
     }
 
+    if (Sync::ignoreFileName == name)
+    {
+        return true;
+    }
+
     if (wildcardMatch(name, excludedNames))
     {
         return false;
@@ -1393,15 +1398,31 @@ MegaSync *MegaApiImpl::getSyncByPath(const char *localPath)
 
 char *MegaApiImpl::getBlockedPath()
 {
-    char *path = NULL;
-    sdkMutex.lock();
+    SdkMutexGuard guard(sdkMutex);
+
+    if (client->ignoreFileFailures.size())
+    {
+        // for convenience.
+        const auto& node =
+          *client->ignoreFileFailures.front();
+
+        const string path =
+          node.ignoreFilePath().toPath(*fsAccess);
+
+        return MegaApi::strdup(path.c_str());
+    }
+
     if (!client->blockedfile.empty())
     {
-        path = MegaApi::strdup(client->blockedfile.toPath(*fsAccess).c_str());
+        const string path =
+          client->blockedfile.toPath(*fsAccess);
+
+        return MegaApi::strdup(path.c_str());
     }
-    sdkMutex.unlock();
-    return path;
+
+    return nullptr;
 }
+
 #endif
 
 MegaBackup *MegaApiImpl::getBackupByTag(int tag)
@@ -8478,76 +8499,111 @@ bool MegaApiImpl::isSynced(MegaNode *n)
     return result;
 }
 
-void MegaApiImpl::setExcludedNames(vector<string> *excludedNames)
+void MegaApiImpl::ignoreFilesEnabled(const bool enabled)
 {
-    sdkMutex.lock();
-    if (!excludedNames)
-    {
-        this->excludedNames.clear();
-        sdkMutex.unlock();
-        return;
-    }
+    SdkMutexGuard guard(sdkMutex);
 
-    this->excludedNames.clear();
-    for (unsigned int i = 0; i < excludedNames->size(); i++)
+    if (client->ignoreFilesEnabled != enabled)
     {
-        string name = excludedNames->at(i);
-        fsAccess->normalize(&name);
-        if (name.size())
+        client->ignoreFilesEnabled = enabled;
+
+        if (enabled)
         {
-            this->excludedNames.push_back(name);
-            LOG_debug << "Excluded name: " << name;
+            client->restoreFilterState();
         }
         else
         {
-            LOG_warn << "Invalid excluded name: " << excludedNames->at(i);
+            client->purgeFilterState();
         }
     }
-    sdkMutex.unlock();
+}
+
+bool MegaApiImpl::ignoreFilesEnabled()
+{
+    SdkMutexGuard guard(sdkMutex);
+
+    return client->ignoreFilesEnabled;
+}
+
+void MegaApiImpl::setExcludedNames(vector<string> *excludedNames)
+{
+    SdkMutexGuard guard(sdkMutex);
+
+    this->excludedNames.clear();
+
+    if (excludedNames)
+    {
+        for (auto& name : *excludedNames)
+        {
+            string temp = name;
+
+            fsAccess->normalize(&temp);
+
+            if (temp.size())
+            {
+                LOG_debug << "Excluded name: " << temp;
+                this->excludedNames.emplace_back(std::move(temp));
+            }
+            else
+            {
+                LOG_warn << "Invalid excluded name: " << name;
+            }
+        }
+    }
+
+    client->updateFilterState();
 }
 
 void MegaApiImpl::setExcludedPaths(vector<string> *excludedPaths)
 {
-    sdkMutex.lock();
-    if (!excludedPaths)
-    {
-        this->excludedPaths.clear();
-        sdkMutex.unlock();
-        return;
-    }
+    SdkMutexGuard guard(sdkMutex);
 
     this->excludedPaths.clear();
-    for (unsigned int i = 0; i < excludedPaths->size(); i++)
+
+    if (excludedPaths)
     {
-        string path = excludedPaths->at(i);
-        fsAccess->normalize(&path);
-        if (path.size())
+        for (auto& path : *excludedPaths)
         {
-    #if defined(_WIN32) && !defined(WINDOWS_PHONE)
-            if(!PathIsRelativeA(path.c_str()) && ((path.size()<2) || path.compare(0, 2, "\\\\")))
+            string temp = path;
+
+            fsAccess->normalize(&temp);
+
+            if (temp.size())
             {
-                path.insert(0, "\\\\?\\");
+            #if defined(_WIN32) && !defined(WINDOWS_PHONE)
+                if (!PathIsRelativeA(temp.c_str())
+                    && (temp.size() < 2 || temp.compare(0, 2, "\\\\")))
+                {
+                    temp.insert(0, "\\\\?\\");
+                }
+            #endif /* _WIN32 && !WINDOWS_PHONE */
+                LOG_debug << "Excluded path: " << temp;
+                this->excludedPaths.emplace_back(std::move(temp));
             }
-    #endif
-            this->excludedPaths.push_back(path);
-            LOG_debug << "Excluded path: " << path;
-        }
-        else
-        {
-            LOG_warn << "Invalid excluded path: " << excludedPaths->at(i);
+            else
+            {
+                LOG_warn << "Invalid excluded path: " << path;
+            }
         }
     }
-    sdkMutex.unlock();
+
+    client->updateFilterState();
 }
 
 void MegaApiImpl::setExclusionLowerSizeLimit(long long limit)
 {
+    SdkMutexGuard guard(sdkMutex);
+
     syncLowerSizeLimit = limit;
+    client->updateFilterState();
 }
 
 void MegaApiImpl::setExclusionUpperSizeLimit(long long limit)
 {
+    SdkMutexGuard guard(sdkMutex);
+
     syncUpperSizeLimit = limit;
+    client->updateFilterState();
 }
 
 void MegaApiImpl::setExcludedRegularExpressions(MegaSync *sync, MegaRegExp *regExp)
@@ -12723,6 +12779,22 @@ void MegaApiImpl::syncupdate_scanning(bool scanning)
         client->syncscanstate = scanning;
     }
     fireOnGlobalSyncStateChanged();
+}
+
+void MegaApiImpl::syncupdate_filter_error(Sync* sync, LocalNode* node)
+{
+    string path = node->ignoreFilePath().toPath(*fsAccess);
+
+    LOG_debug << "Sync - filter error detected: " << path;
+
+    auto syncIt = syncMap.find(sync->tag);
+    if (syncIt != syncMap.end())
+    {
+        auto event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_FILTER_ERROR);
+        event->setPath(path.c_str());
+
+        fireOnSyncEvent(syncIt->second, event);
+    }
 }
 
 void MegaApiImpl::syncupdate_local_folder_addition(Sync *sync, LocalNode *, const char* path)
@@ -22079,6 +22151,17 @@ void MegaApiImpl::update()
 int MegaApiImpl::isWaiting()
 {
 #ifdef ENABLE_SYNC
+    if (client->ignoreFileFailures.size())
+    {
+        const auto& node =
+          *client->ignoreFileFailures.front();
+
+        LOG_debug << "SDK waiting for an ignore file to load: "
+                  << node.ignoreFilePath().editStringDirect();
+
+        return RETRY_IGNORE_FILE;
+    }
+
     if (client->syncfslockretry || client->syncfsopsfailed)
     {
         LOG_debug << "SDK waiting for a blocked file: " << client->blockedfile.toPath(*fsAccess);

@@ -485,6 +485,12 @@ public:
     bool xferpaused[2];
 
 #ifdef ENABLE_SYNC
+    void purgeFilterState();
+
+    void restoreFilterState();
+
+    void updateFilterState();
+
     // active syncs
     sync_list syncs;
 
@@ -496,6 +502,9 @@ public:
 
     // whether we allow the automatic resumption of syncs
     bool allowAutoResumeSyncs = true;
+
+    // whether we load ignore files.
+    bool ignoreFilesEnabled = true;
 #endif
 
     // if set, symlinks will be followed except in recursive deletions
@@ -1260,6 +1269,9 @@ public:
     // sync debris folder name in //bin
     static const char* const SYNCDEBRISFOLDERNAME;
 
+    // tracks which nodes failed to load their ignore file.
+    localnode_list ignoreFileFailures;
+
     // we are adding the //bin/SyncDebris/yyyy-mm-dd subfolder(s)
     bool syncdebrisadding;
 
@@ -1331,7 +1343,8 @@ public:
     void syncupdate();
 
     // create missing folders, copy/start uploading missing files
-    bool syncup(LocalNode*, dstime*);
+    bool syncup(LocalNode* l, dstime* nds, size_t& parentPending);
+    bool syncup(LocalNode* l, dstime* nds);
 
     // sync putnodes() completion
     void putnodes_sync_result(error, NewNode*, int);

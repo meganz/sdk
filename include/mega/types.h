@@ -322,11 +322,13 @@ typedef enum { SYNC_FAILED = -2, SYNC_CANCELED = -1, SYNC_INITIALSCAN = 0, SYNC_
 typedef enum { SYNCDEL_NONE, SYNCDEL_DELETED, SYNCDEL_INFLIGHT, SYNCDEL_BIN,
                SYNCDEL_DEBRIS, SYNCDEL_DEBRISDAY, SYNCDEL_FAILED } syncdel_t;
 
+typedef list<LocalNode*> localnode_list;
+
+typedef set<LocalNode*> localnode_set;
+
 typedef vector<LocalNode*> localnode_vector;
 
 typedef map<handle, LocalNode*> handlelocalnode_map;
-
-typedef set<LocalNode*> localnode_set;
 
 typedef multimap<int32_t, LocalNode*> idlocalnode_map;
 
@@ -480,10 +482,11 @@ typedef list<HttpReqCommandPutFA*> putfa_list;
 typedef map<handle, PendingContactRequest*> handlepcr_map;
 
 // Type-Value (for user attributes)
-typedef vector<string> string_vector;
 typedef map<string, string> string_map;
-typedef string_map TLV_map;
+typedef pair<string, string> string_pair;
+typedef vector<string> string_vector;
 
+typedef string_map TLV_map;
 
 // user attribute types
 typedef enum {
@@ -599,7 +602,16 @@ typedef enum { RECOVER_WITH_MASTERKEY = 9, RECOVER_WITHOUT_MASTERKEY = 10, CANCE
 
 typedef enum { EMAIL_REMOVED = 0, EMAIL_PENDING_REMOVED = 1, EMAIL_PENDING_ADDED = 2, EMAIL_FULLY_ACCEPTED = 3 } emailstatus_t;
 
-typedef enum { RETRY_NONE = 0, RETRY_CONNECTIVITY = 1, RETRY_SERVERS_BUSY = 2, RETRY_API_LOCK = 3, RETRY_RATE_LIMIT = 4, RETRY_LOCAL_LOCK = 5, RETRY_UNKNOWN = 6} retryreason_t;
+typedef enum {
+    RETRY_NONE = 0,
+    RETRY_CONNECTIVITY = 1,
+    RETRY_SERVERS_BUSY = 2,
+    RETRY_API_LOCK = 3,
+    RETRY_RATE_LIMIT = 4,
+    RETRY_LOCAL_LOCK = 5,
+    RETRY_IGNORE_FILE = 6,
+    RETRY_UNKNOWN = 7
+} retryreason_t;
 
 typedef enum {
     STORAGE_UNKNOWN = -9,
@@ -738,6 +750,27 @@ namespace CodeCounter
 }
 
 typedef enum {INVALID = -1, TWO_WAY = 0, UP_SYNC = 1, DOWN_SYNC = 2, CAMERA_UPLOAD = 3 } BackupType;
+
+template<class T>
+class ScopedValue
+{
+public:
+    ScopedValue(T& storage, const T& value)
+      : mStorage(storage)
+      , mOriginalValue(storage)
+    {
+        mStorage = value;
+    }
+
+    ~ScopedValue()
+    {
+        mStorage = mOriginalValue;
+    }
+
+private:
+    T& mStorage;
+    const T mOriginalValue;
+}; /* ScopedValue<T> */
 
 // Holds the config of a sync. Can be extended with future config options
 class SyncConfig : public Cacheable

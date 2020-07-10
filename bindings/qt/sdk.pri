@@ -29,6 +29,7 @@ SOURCES += src/attrmap.cpp \
     src/db.cpp \
     src/gfx.cpp \
     src/file.cpp \
+    src/filter.cpp \
     src/fileattributefetch.cpp \
     src/filefingerprint.cpp \
     src/filesystem.cpp \
@@ -395,6 +396,7 @@ HEADERS  += include/mega.h \
             include/mega/db.h \
             include/mega/gfx.h \
             include/mega/file.h \
+            include/mega/filter.h \
             include/mega/fileattributefetch.h \
             include/mega/filefingerprint.h \
             include/mega/filesystem.h \

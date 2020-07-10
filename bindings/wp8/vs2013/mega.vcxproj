@@ -350,6 +350,7 @@
     <ClInclude Include="..\..\..\include\mega\db.h" />
     <ClInclude Include="..\..\..\include\mega\db\sqlite.h" />
     <ClInclude Include="..\..\..\include\mega\file.h" />
+    <ClInclude Include="..\..\..\include\mega\filter.h" />
     <ClInclude Include="..\..\..\include\mega\fileattributefetch.h" />
     <ClInclude Include="..\..\..\include\mega\filefingerprint.h" />
     <ClInclude Include="..\..\..\include\mega\filesystem.h" />
@@ -441,6 +442,7 @@
     <ClCompile Include="..\..\..\src\db.cpp" />
     <ClCompile Include="..\..\..\src\db\sqlite.cpp" />
     <ClCompile Include="..\..\..\src\file.cpp" />
+    <ClCompile Include="..\..\..\src\filter.cpp" />
     <ClCompile Include="..\..\..\src\fileattributefetch.cpp" />
     <ClCompile Include="..\..\..\src\filefingerprint.cpp" />
     <ClCompile Include="..\..\..\src\filesystem.cpp" />

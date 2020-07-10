@@ -134,7 +134,8 @@ namespace mega
         RETRY_API_LOCK      = 3,
         RETRY_RATE_LIMIT    = 4,
         RETRY_LOCAL_LOCK    = 5,
-        RETRY_UNKNOWN       = 6
+        RETRY_IGNORE_FILE   = 6,
+        RETRY_UNKNOWN       = 7
     };
 
     public enum class MStorageState {
@@ -2833,7 +2834,10 @@ namespace mega
         * - MRetryReason::RETRY_LOCAL_LOCK = 5
         * SDK is waiting for a local locked file
         *
-        * - MRetryReason::RETRY_UNKNOWN = 6
+        * - MRetryReason::RETRY_IGNORE_FILE = 6
+        * SDK is waiting for an ignore file to load.
+        *
+        * - MRetryReason::RETRY_UNKNOWN = 7
         * SDK is waiting for the server to complete a request with unknown reason
         *
         */

@@ -1054,6 +1054,11 @@ bool LocalPath::isContainingPathOf(const LocalPath& path, const FileSystemAccess
            !memcmp(path.localpath.data() + localpath.size() - fsaccess.localseparator.size(), fsaccess.localseparator.data(), fsaccess.localseparator.size())));
 }
 
+LocalPath LocalPath::lastPart(const FileSystemAccess& fsAccess) const
+{
+    return subpathFrom(lastpartlocal(fsAccess));
+}
+
 ScopedLengthRestore::ScopedLengthRestore(LocalPath& p)
     : path(p)
     , length(path.getLength())
