@@ -448,6 +448,7 @@ void SyncApp::fetchnodes_result(const Error &e)
 
                 SyncConfig syncConfig{syncTag++, local_folder, n->nodehandle, remote_folder, 0};
                 SyncError syncError;
+#ifdef ENABLE_SYNC
                 error err = client->addsync(std::move(syncConfig), DEBRISFOLDER, NULL, syncError);
                 if (err)
                 {
@@ -456,6 +457,7 @@ void SyncApp::fetchnodes_result(const Error &e)
                 }
 
                 LOG_info << "Sync started !";
+#endif
             }
         }
         else

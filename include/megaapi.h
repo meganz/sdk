@@ -4854,6 +4854,9 @@ public:
      * - MegaApi::STATE_SYNCING = 3
      * The file is being synced with the MEGA account
      *
+     * The SDK retains the ownership of the sync and localPath parameters.
+     * Don't use them after this functions returns.
+     *
      * @param api MegaApi object that is synchronizing files
      * @param sync MegaSync object related that manages the file
      * @param localPath Local path of the file or folder
@@ -4871,6 +4874,9 @@ public:
      * Notice, for changes that imply other callbacks, expect that the SDK
      * will call onSyncStateChanged first, so that you can update your model only using this one.
      *
+     * The SDK retains the ownership of the sync parameter.
+     * Don't use it after this functions returns.
+     *
      * @param api MegaApi object that is synchronizing files
      * @param sync MegaSync object that has changed its state
      */
@@ -4885,6 +4891,9 @@ public:
      * @param api MegaApi object that is synchronizing files
      * @param sync MegaSync object that detects the event
      * @param event Information about the event
+     *
+     * The SDK retains the ownership of the sync and event parameters.
+     * Don't use them after this functions returns.
      *
      * This parameter will be deleted just after the callback. If you want to save it use
      * MegaSyncEvent::copy
@@ -4919,6 +4928,11 @@ public:
      * - MegaSync::SyncAdded::NEW_DISABLED = 6
      * Sync added anew, but set as temporarily disabled due to a temporary error
      *
+     * The SDK retains the ownership of the sync parameter.
+     * Don't use it after this functions returns.
+     *
+     * The SDK retains the ownership of the sync parameter.
+     * Don't use it after this functions returns.
      *
      * @param sync MegaSync object representing a sync
      * @param api MegaApi object that is synchronizing files
@@ -4945,6 +4959,9 @@ public:
      * This does not imply a transition from active to inactive, but the callback is necessary to inform the user
      * that the sync is no longer in a temporary error, but in a fatal one.
      *
+     * The SDK retains the ownership of the sync parameter.
+     * Don't use it after this functions returns.
+     *
      * @param api MegaApi object that is synchronizing files
      * @param sync MegaSync object representing a sync
      */
@@ -4959,6 +4976,9 @@ public:
      *
      * - The sdk tries resumes a sync that had been temporarily disabled
      *
+     * The SDK retains the ownership of the sync parameter.
+     * Don't use it after this functions returns.
+     *
      * @param api MegaApi object that is synchronizing files
      * @param sync MegaSync object representing a sync
      */
@@ -4968,6 +4988,9 @@ public:
      * @brief This callback will be called when a sync is removed.
      *
      * This entail that the sync is completely removed from cache
+     *
+     * The SDK retains the ownership of the sync parameter.
+     * Don't use it after this functions returns.
      *
      * @param api MegaApi object that is synchronizing files
      * @param sync MegaSync object representing a sync
@@ -6750,9 +6773,6 @@ class MegaListener
      * The SDK will call this after loading (and attempt to resume) syncs from cache or whenever a new
      * Synchronization is configured.
      *
-     * The SDK retains the ownership of the sync parameter.
-     * Don't use it after this functions returns.
-     *
      * Notice that adding a sync will not cause onSyncStateChanged to be called.
      *
      * As to the additionState can be:
@@ -6774,6 +6794,9 @@ class MegaListener
      *
      * - MegaSync::SyncAdded::NEW_DISABLED = 6
      * Sync added anew, but set as temporarily disabled due to a temporary error
+     *
+     * The SDK retains the ownership of the sync parameter.
+     * Don't use it after this functions returns.
      *
      * @param sync MegaSync object representing a sync
      * @param api MegaApi object that is synchronizing files

@@ -10930,14 +10930,18 @@ void MegaClient::block(bool fromServerClientResponse)
 {
     LOG_verbose << "Blocking MegaClient, fromServerClientResponse: " << fromServerClientResponse;
     setBlocked(true);
+#ifdef ENABLE_SYNC
     disableSyncs(ACCOUNT_BLOCKED);
+#endif
 }
 
 void MegaClient::unblock()
 {
     LOG_verbose << "Unblocking MegaClient";
     setBlocked(false);
+#ifdef ENABLE_SYNC
     restoreSyncs();
+#endif
 }
 
 error MegaClient::changepw(const char* password, const char *pin)
