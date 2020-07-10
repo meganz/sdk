@@ -3884,7 +3884,8 @@ void MegaClient::resumeResumableSyncs()
     {
         return;
     }
-    auto firstSyncResumed{false};
+
+    bool firstSyncResumed = false;
     for (const auto& config : syncConfigs->all())
     {
         SyncError syncError = static_cast<SyncError>(config.getError());

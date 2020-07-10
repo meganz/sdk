@@ -8562,8 +8562,7 @@ void MegaApiImpl::enableSync(int syncTag, MegaRequestListener *listener)
 
 MegaSyncList *MegaApiImpl::getSyncs()
 {
-    sdkMutex.lock();
-
+    SdkMutexGuard g(sdkMutex);
     vector<MegaSyncPrivate*> vMegaSyncs;
 
     for (auto it = syncMap.begin(); it != syncMap.end(); it++)
@@ -8572,9 +8571,6 @@ MegaSyncList *MegaApiImpl::getSyncs()
     }
 
     MegaSyncList *syncList = new MegaSyncListPrivate(vMegaSyncs.data(), int(vMegaSyncs.size()));
-
-    sdkMutex.unlock();
-
     return syncList;
 }
 
@@ -21111,7 +21107,7 @@ void MegaApiImpl::sendPendingRequests()
 
             SyncError syncError = NO_SYNC_ERROR;
 
-            std::unique_ptr< char []> remotePath{getNodePathByNodeHandle(request->getNodeHandle())};
+            std::unique_ptr<char []> remotePath{getNodePathByNodeHandle(request->getNodeHandle())};
             if (!remotePath)
             {
                 e = API_ENOENT;
