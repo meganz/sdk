@@ -4931,9 +4931,6 @@ public:
      * The SDK retains the ownership of the sync parameter.
      * Don't use it after this functions returns.
      *
-     * The SDK retains the ownership of the sync parameter.
-     * Don't use it after this functions returns.
-     *
      * @param sync MegaSync object representing a sync
      * @param api MegaApi object that is synchronizing files
      * @param additionState conditions in which the sync is added
