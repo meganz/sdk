@@ -3136,7 +3136,7 @@ bool regexget(const string& expression, Node* n, unsigned& queued)
                 {
                     if (regex_search(string((*it)->displayname()), re))
                     {
-                        auto f = new AppFileGet(n);
+                        auto f = new AppFileGet(*it);
                         f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
                         client->startxfer(GET, f, committer);
                         queued += 1;
