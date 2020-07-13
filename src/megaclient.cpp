@@ -3886,10 +3886,22 @@ void MegaClient::resumeResumableSyncs()
     }
 
     bool firstSyncResumed = false;
-    for (const auto& config : syncConfigs->all())
+    for (auto& config : syncConfigs->all())
     {
         SyncError syncError = static_cast<SyncError>(config.getError());
         syncstate_t newstate = isAnError(syncError) ? SYNC_FAILED : SYNC_DISABLED;
+
+        if (!config.getRemotePath().size()) //should only happen if coming from old cache
+        {
+            auto node = nodebyhandle(config.getRemoteNode());
+            updateSyncRemoteLocation(&config, node); //updates cache & notice app of this change
+            if (node)
+            {
+                auto newpath = node->displaypath();
+                config.setRemotePath(newpath);//update loaded config
+            }
+        }
+
         if (config.isResumableAtStartup())
         {
             if (!firstSyncResumed)
@@ -3897,6 +3909,7 @@ void MegaClient::resumeResumableSyncs()
                 app->syncs_about_to_be_resumed();
                 firstSyncResumed = true;
             }
+
             LOG_debug << "Resuming cached sync: " << config.getTag() << " " << config.getLocalPath() << " fsfp= " << config.getLocalFingerprint() << " error = " << syncError ;
             error e = addsync(config, DEBRISFOLDER, nullptr, syncError);
 
@@ -5140,10 +5153,10 @@ bool MegaClient::setstoragestatus(storagestatus_t status)
 
         using CS = CacheableStatus;
         using CType = CacheableStatus::Type;
-        auto status = mCachedStatus[CType::STATUS_STORAGE];
-        if (!status)
+        auto statusInCache = mCachedStatus[CType::STATUS_STORAGE];
+        if (!statusInCache)
         {
-            status = mCachedStatus[CType::STATUS_STORAGE] = std::make_shared<CS>(CType::STATUS_STORAGE, ststatus);
+            statusInCache = mCachedStatus[CType::STATUS_STORAGE] = std::make_shared<CS>(CType::STATUS_STORAGE, ststatus);
         }
         else
         {
@@ -5154,11 +5167,11 @@ bool MegaClient::setstoragestatus(storagestatus_t status)
         if (sctable)
         {
             LOG_verbose << "Adding/updating status to database: "
-                        << status->type() << " = " << status->value();
-            if (!(sctable->put(CACHEDSTATUS, status.get(), &key)))
+                        << statusInCache->type() << " = " << statusInCache->value();
+            if (!(sctable->put(CACHEDSTATUS, statusInCache.get(), &key)))
             {
                 LOG_err << "Failed to add/update status to db: "
-                            << status->type() << " = " << status->value();
+                            << statusInCache->type() << " = " << statusInCache->value();
             }
         }
 
@@ -5171,7 +5184,7 @@ bool MegaClient::setstoragestatus(storagestatus_t status)
             mOverquotaWarningTs.clear();
         }
         app->notify_storage(ststatus);
-        if (previousStatus == STORAGE_RED || previousStatus == STORAGE_PAYWALL) //transitioning to OQ
+        if (status == STORAGE_RED || status == STORAGE_PAYWALL) //transitioning to OQ
         {
             disableSyncs(STORAGE_OVERQUOTA);
         }

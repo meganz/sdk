@@ -21234,7 +21234,7 @@ void MegaApiImpl::sendPendingRequests()
                 enabled = true; //we consider enabled when it is temporary disabled
             }
 
-            SyncConfig syncConfig{nextSyncTag, localPath, request->getNodeHandle(), remotePath,
+            SyncConfig syncConfig{nextSyncTag, localPath, request->getNodeHandle(), remotePath ? remotePath : "",
                                   static_cast<fsfp_t>(request->getNumber()),
                                   regExpToVector(request->getRegExp()), enabled};
 
