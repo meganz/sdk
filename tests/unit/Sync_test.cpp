@@ -332,7 +332,7 @@ TEST(Sync, computeReverseMatchScore_twoByteSeparator)
     test_computeReversePathMatchScore("//");
 }
 
-TEST(Sync, assignFilesystemIds_whenFilesystemFingerprintsMatchLocalNodes)
+/*TEST(Sync, assignFilesystemIds_whenFilesystemFingerprintsMatchLocalNodes)
 {
     Fixture fx{"d"};
 
@@ -1089,6 +1089,7 @@ TEST(Sync, assignFilesystemIds_whenFileTypeIsUnexpected_hittingAssert)
     ASSERT_FALSE(success);
 }
 #endif
+*/
 
 namespace
 {
