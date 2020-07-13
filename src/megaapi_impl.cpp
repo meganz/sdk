@@ -5262,6 +5262,7 @@ MegaUser *MegaApiImpl::getMyUser()
 
 bool MegaApiImpl::isAchievementsEnabled()
 {
+    assert(!isBusinessAccount() || !client->achievements_enabled);
     return client->achievements_enabled;
 }
 
