@@ -20,36 +20,41 @@ void path2localMac(string* path, string* local)
         *local = "";
         return;
     }
-    // Compatibility with new APFS filesystem
-    // Use the fileSystemRepresentation property of NSString objects when creating and opening
-    // files with lower-level filesystem APIs such as POSIX open(2), or when storing filenames externally from the filesystem`
-    NSString *tempPath = [[NSString alloc] initWithUTF8String:path->c_str()];
-    const char *pathRepresentation = NULL;
-    @try
-    {
-        pathRepresentation = [tempPath fileSystemRepresentation];
-    }
-    @catch (NSException *e)
-    {
-         LOG_err << "Failed getting file system representation (APFS filesystem)";
-         local->clear();
-#if !__has_feature(objc_arc)
-         [tempPath release];
-#endif
-         return;
-    }
 
-    if (pathRepresentation)
-    {
-       *local = pathRepresentation;
+    @autoreleasepool {
+
+        // Compatibility with new APFS filesystem
+        // Use the fileSystemRepresentation property of NSString objects when creating and opening
+        // files with lower-level filesystem APIs such as POSIX open(2), or when storing filenames externally from the filesystem`
+        NSString *tempPath = [[NSString alloc] initWithUTF8String:path->c_str()];
+        const char *pathRepresentation = NULL;
+        @try
+        {
+            pathRepresentation = [tempPath fileSystemRepresentation];
+        }
+        @catch (NSException *e)
+        {
+             LOG_err << "Failed getting file system representation (APFS filesystem)";
+             local->clear();
+    #if !__has_feature(objc_arc)
+             [tempPath release];
+    #endif
+             return;
+        }
+
+        if (pathRepresentation)
+        {
+           *local = pathRepresentation;
+        }
+        else
+        {
+            local->clear();
+        }
+    #if !__has_feature(objc_arc)
+        [tempPath release];
+    #endif
+
     }
-    else
-    {
-        local->clear();
-    }
-#if !__has_feature(objc_arc)
-    [tempPath release];
-#endif
 }
 
 #if defined(__APPLE__) && !(TARGET_OS_IPHONE)
