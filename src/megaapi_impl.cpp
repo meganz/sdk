@@ -23900,7 +23900,7 @@ void MegaFolderUploadController::cancel()
         Transfer *transfer = subTransfer->getTransfer();
         if (!transfer)
         {
-            LOG_warn << " sync subtransfer without attached Transfer for folder transfer: " << subTransfer->getFileName();
+            LOG_warn << "Subtransfer without attached Transfer for folder transfer: " << subTransfer->getFileName();
 
             subTransfer->setState(MegaTransfer::STATE_COMPLETED); //TODO: copmleted?
             megaApi->fireOnTransferFinish(subTransfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), committer);
@@ -23938,7 +23938,8 @@ void MegaFolderUploadController::cancel()
                 }
                 else
                 {
-                    LOG_warn << " sync subtransfer found for folder transfer: " << subTransfer->getFileName();
+                    LOG_err << "Sync subtransfer found for folder transfer: " << subTransfer->getFileName();
+                    assert(false);
                 }
                 break;
             }
@@ -23946,7 +23947,7 @@ void MegaFolderUploadController::cancel()
 
         if (!found)
         {
-            LOG_warn << " no file found for subtransfer: " << subTransfer->getFileName();
+            LOG_warn << "No file found for subtransfer: " << subTransfer->getFileName();
 
             subTransfer->setState(MegaTransfer::STATE_COMPLETED); //TODO: copmleted?
             megaApi->fireOnTransferFinish(subTransfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), committer);
@@ -25313,7 +25314,7 @@ void MegaFolderDownloadController::cancel()
         Transfer *transfer = subTransfer->getTransfer();
         if (!transfer)
         {
-            LOG_warn << " sync subtransfer without attached Transfer for folder transfer: " << subTransfer->getFileName();
+            LOG_warn << "Subtransfer without attached Transfer for folder transfer: " << subTransfer->getFileName();
 
             subTransfer->setState(MegaTransfer::STATE_COMPLETED); //TODO: copmleted?
             megaApi->fireOnTransferFinish(subTransfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), committer);
@@ -25351,7 +25352,8 @@ void MegaFolderDownloadController::cancel()
                 }
                 else
                 {
-                    LOG_warn << " sync subtransfer found for folder transfer: " << subTransfer->getFileName();
+                    LOG_err << "Sync subtransfer found for folder transfer: " << subTransfer->getFileName();
+                    assert(false);
                 }
                 break;
             }
@@ -25359,7 +25361,7 @@ void MegaFolderDownloadController::cancel()
 
         if (!found)
         {
-            LOG_warn << " no file found for subtransfer: " << subTransfer->getFileName();
+            LOG_warn << "No file found for subtransfer: " << subTransfer->getFileName();
 
             subTransfer->setState(MegaTransfer::STATE_COMPLETED); //TODO: copmleted?
             megaApi->fireOnTransferFinish(subTransfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), committer);
@@ -25367,7 +25369,7 @@ void MegaFolderDownloadController::cancel()
         cancelledSubTransfers++;
     }
 
-    LOG_verbose << " MegaFolderDownloadController, cancelled subTransfers = " << cancelledSubTransfers;
+    LOG_verbose << "MegaFolderDownloadController, cancelled subTransfers = " << cancelledSubTransfers;
 
     transfer = nullptr;  // no final callback for this one since it is being destroyed now
 }
