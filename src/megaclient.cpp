@@ -1739,7 +1739,7 @@ void MegaClient::exec()
                                 pendingcs = NULL;
 
                                 notifypurge();
-                                if (sctable && pendingsccommit && !reqs.cmdspending())
+                                if (sctable && pendingsccommit && !reqs.cmdsInflight())
                                 {
                                     LOG_debug << "Executing postponed DB commit";
                                     sctable->commit();
@@ -2119,7 +2119,7 @@ void MegaClient::exec()
 
         // do not process the SC result until all preconfigured syncs are up and running
         // except if SC packets are required to complete a fetchnodes
-        if (!scpaused && jsonsc.pos && (syncsup || !statecurrent) && !syncdownrequired && !syncdownretry)
+        if (!scpaused && jsonsc.pos && /*(syncsup || !statecurrent) &&*/ !syncdownrequired && !syncdownretry)
 #else
         if (!scpaused && jsonsc.pos)
 #endif
@@ -4231,7 +4231,7 @@ bool MegaClient::procsc()
                     notifypurge();
                     if (sctable)
                     {
-                        if (!pendingcs && !csretrying && !reqs.cmdspending())
+                        if (!reqs.cmdsInflight())
                         {
                             sctable->commit();
                             sctable->begin();
@@ -4240,7 +4240,7 @@ bool MegaClient::procsc()
                         }
                         else
                         {
-                            LOG_debug << "Postponing DB commit until cs requests finish";
+                            // todo: if we convert user-oriented command results to be processed only by actionpacket also, then we don't need this
                             pendingsccommit = true;
                         }
                     }
@@ -4355,6 +4355,20 @@ bool MegaClient::procsc()
                         sc_checkSequenceTag(string());
                         app->catchup_result();
                     }
+
+                    if (pendingsccommit && sctable && !reqs.cmdsInflight())
+                    {
+                        sctable->commit();
+                        sctable->begin();
+                        app->notify_dbcommit();
+                        pendingsccommit = false;
+                    }
+
+                    if (pendingsccommit)
+                    {
+                        LOG_debug << "Postponing DB commit until cs requests finish";
+                    }
+
                     return true;
 
                 case 'a':
