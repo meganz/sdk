@@ -20,7 +20,8 @@ void path2localMac(string* path, string* local)
         *local = "";
         return;
     }
-
+    // Multiple calls to path2localMac cause a high memory usage on macOS. To avoid it, use autorelease pool to release any temp object at the end of the pool.
+    // At the end of the block, the temporary objects are released, which typically results in their deallocation thereby reducing the program’s memory footprint.
     @autoreleasepool {
 
         // Compatibility with new APFS filesystem
