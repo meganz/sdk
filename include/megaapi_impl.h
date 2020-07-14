@@ -1984,7 +1984,7 @@ class TransferQueue
 
         void removeWithFolderTag(int folderTag, std::function<void(MegaTransferPrivate *)> callback);
         void removeListener(MegaTransferListener *listener);
-        int getLastPushedTag() const;
+        long long getLastPushedTag() const;
 };
 
 class MegaApiImpl : public MegaApp

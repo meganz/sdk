@@ -20688,7 +20688,7 @@ void MegaApiImpl::sendPendingRequests()
                     }
                 }
 
-                // 2. cancel folder-transfers
+                // 2. cancel folder in-transit transfers
                 long long cancelledFolder = 0;
                 for (std::map<int, MegaTransferPrivate *>::iterator it = folderTransferMap.begin(); it != folderTransferMap.end(); it++)
                 {
@@ -20705,7 +20705,6 @@ void MegaApiImpl::sendPendingRequests()
                 for (transfer_map::iterator it = client->transfers[direction].begin() ; it != client->transfers[direction].end() ; it++)
                 {
                     Transfer *t = it->second;
-
                     for (file_list::iterator it2 = t->files.begin(); it2 != t->files.end(); it2++)
                     {
                         if (!(*it2)->syncxfer)
@@ -20715,7 +20714,7 @@ void MegaApiImpl::sendPendingRequests()
                         }
                     }
                 }
-                LOG_verbose << "Cancelled transfers. dir: " << direction << " pending: " << cancelledPending << " folder: " << cancelledFolder << " transit: " << cancelledTransit ;
+                LOG_verbose << "Cancelled transfers. dir: " << direction << " pending: " << cancelledPending << " folder: " << cancelledFolder << " transit: " << cancelledTransit;
                 request->setFlag(true);
                 requestQueue.push(request);
             }
@@ -22249,7 +22248,7 @@ void TreeProcCopy::proc(MegaClient* client, Node* n)
     else nc++;
 }
 
-int TransferQueue::getLastPushedTag() const
+long long TransferQueue::getLastPushedTag() const
 {
     return lastPushedTransfer;
 }
