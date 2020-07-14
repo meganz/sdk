@@ -23892,6 +23892,7 @@ void MegaFolderUploadController::cancel()
 
     //remove ongoing subtransfers
     long long cancelledSubTransfers = 0;
+    DBTableTransactionCommitter committer(client->tctable);
     while (!subTransfers.empty())
     {
         auto subTransfer = *subTransfers.begin();
@@ -23902,7 +23903,6 @@ void MegaFolderUploadController::cancel()
             LOG_warn << " sync subtransfer without attached Transfer for folder transfer: " << subTransfer->getFileName();
 
             subTransfer->setState(MegaTransfer::STATE_COMPLETED); //TODO: copmleted?
-            DBTableTransactionCommitter committer(client->tctable);
             megaApi->fireOnTransferFinish(subTransfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), committer);
 
             continue;
@@ -23949,7 +23949,6 @@ void MegaFolderUploadController::cancel()
             LOG_warn << " no file found for subtransfer: " << subTransfer->getFileName();
 
             subTransfer->setState(MegaTransfer::STATE_COMPLETED); //TODO: copmleted?
-            DBTableTransactionCommitter committer(client->tctable);
             megaApi->fireOnTransferFinish(subTransfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), committer);
         }
         cancelledSubTransfers++;
@@ -25306,6 +25305,7 @@ void MegaFolderDownloadController::cancel()
 
     //remove ongoing subtransfers
     long long cancelledSubTransfers = 0;
+    DBTableTransactionCommitter committer(client->tctable);
     while (!subTransfers.empty())
     {
         auto subTransfer = *subTransfers.begin();
@@ -25316,7 +25316,6 @@ void MegaFolderDownloadController::cancel()
             LOG_warn << " sync subtransfer without attached Transfer for folder transfer: " << subTransfer->getFileName();
 
             subTransfer->setState(MegaTransfer::STATE_COMPLETED); //TODO: copmleted?
-            DBTableTransactionCommitter committer(client->tctable);
             megaApi->fireOnTransferFinish(subTransfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), committer);
 
             continue;
@@ -25363,7 +25362,6 @@ void MegaFolderDownloadController::cancel()
             LOG_warn << " no file found for subtransfer: " << subTransfer->getFileName();
 
             subTransfer->setState(MegaTransfer::STATE_COMPLETED); //TODO: copmleted?
-            DBTableTransactionCommitter committer(client->tctable);
             megaApi->fireOnTransferFinish(subTransfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), committer);
         }
         cancelledSubTransfers++;
