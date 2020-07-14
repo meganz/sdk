@@ -22680,6 +22680,15 @@ MegaErrorPrivate::MegaErrorPrivate(const MegaError &megaError)
 {
 }
 
+MegaErrorPrivate::MegaErrorPrivate(const Error& err, long long value)
+    : MegaError(err)
+    , mValue(value)
+    , mUserStatus(err.getUserStatus())
+    , mLinkStatus(err.getLinkStatus())
+{
+
+}
+
 MegaErrorPrivate::~MegaErrorPrivate()
 {
 

@@ -134,6 +134,7 @@ public:
     MegaErrorPrivate(int errorCode, long long value);
     MegaErrorPrivate(const Error &err);
     MegaErrorPrivate(const MegaError &megaError);
+    MegaErrorPrivate(const Error &err, long long value);
     ~MegaErrorPrivate() override;
     MegaError* copy() const override;
     int getErrorCode() const override;
