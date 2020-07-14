@@ -995,7 +995,7 @@ const char* CommandSetAttr::getJSON(MegaClient* client)
 
         if (SymmCipher* cipher = n->nodecipher())
         {
-            n->attrs.getjson(&at);
+            m.getjson(&at);
             client->makeattr(cipher, &at, at.c_str(), int(at.size()));
         }
         else

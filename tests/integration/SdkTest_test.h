@@ -261,6 +261,7 @@ public:
 
     // convenience functions - make a request and wait for the result via listener, return the result code.  To add new functions to call, just copy the line
     template<typename ... requestArgs> int doRequestLogout(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->logout(args..., &rt); return rt.waitForResult(); }
+    template<typename ... requestArgs> int doSetNodeDuration(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->setNodeDuration(args..., &rt); return rt.waitForResult(); }
 
     void createFile(string filename, bool largeFile = true);
     int64_t getFilesize(string filename);

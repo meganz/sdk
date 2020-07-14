@@ -1110,8 +1110,8 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
 
     ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(0, filename1.data(), rootnode.get())) << "Cannot upload a test file";
 
-    MegaNode *n1 = megaApi[0]->getNodeByHandle(mApi[0].h);
-    bool null_pointer = (n1 == NULL);
+    std::unique_ptr<MegaNode> n1(megaApi[0]->getNodeByHandle(mApi[0].h));
+    bool null_pointer = (n1.get() == NULL);
     ASSERT_FALSE(null_pointer) << "Cannot initialize test scenario (error: " << mApi[0].lastError << ")";
 
 
@@ -1119,44 +1119,60 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
 
     gTestingInvalidArgs = true;
 
-    ASSERT_EQ(MegaError::API_EARGS, synchronousSetNodeDuration(0, n1, -14)) << "Unexpected error setting invalid node duration";
+    ASSERT_EQ(MegaError::API_EARGS, synchronousSetNodeDuration(0, n1.get(), -14)) << "Unexpected error setting invalid node duration";
 
     gTestingInvalidArgs = false;
 
 
     // ___ Set duration of a node ___
 
-    ASSERT_EQ(MegaError::API_OK, synchronousSetNodeDuration(0, n1, 929734)) << "Cannot set node duration";
+    ASSERT_EQ(MegaError::API_OK, synchronousSetNodeDuration(0, n1.get(), 929734)) << "Cannot set node duration";
 
-    delete n1;
-    n1 = megaApi[0]->getNodeByHandle(mApi[0].h);
+    n1.reset(megaApi[0]->getNodeByHandle(mApi[0].h));
     ASSERT_EQ(929734, n1->getDuration()) << "Duration value does not match";
 
 
     // ___ Reset duration of a node ___
 
-    ASSERT_EQ(MegaError::API_OK, synchronousSetNodeDuration(0, n1, -1)) << "Cannot reset node duration";
+    ASSERT_EQ(MegaError::API_OK, synchronousSetNodeDuration(0, n1.get(), -1)) << "Cannot reset node duration";
 
-    delete n1;
-    n1 = megaApi[0]->getNodeByHandle(mApi[0].h);
+    n1.reset(megaApi[0]->getNodeByHandle(mApi[0].h));
     ASSERT_EQ(-1, n1->getDuration()) << "Duration value does not match";
+
+    // set several values that the requests will need to consolidate, some will be in the same batch
+    megaApi[0]->setCustomNodeAttribute(n1.get(), "custom1", "value1");
+    megaApi[0]->setCustomNodeAttribute(n1.get(), "custom1", "value12");
+    megaApi[0]->setCustomNodeAttribute(n1.get(), "custom1", "value13");
+    megaApi[0]->setCustomNodeAttribute(n1.get(), "custom2", "value21");
+    WaitMillisec(100);
+    megaApi[0]->setCustomNodeAttribute(n1.get(), "custom2", "value22");
+    megaApi[0]->setCustomNodeAttribute(n1.get(), "custom2", "value23");
+    megaApi[0]->setCustomNodeAttribute(n1.get(), "custom3", "value31");
+    megaApi[0]->setCustomNodeAttribute(n1.get(), "custom3", "value32");
+    megaApi[0]->setCustomNodeAttribute(n1.get(), "custom3", "value33");
+    ASSERT_EQ(MegaError::API_OK, doSetNodeDuration(0, n1.get(), 929734)) << "Cannot set node duration";
+    n1.reset(megaApi[0]->getNodeByHandle(mApi[0].h));
+
+    ASSERT_STREQ("value13", n1->getCustomAttr("custom1"));
+    ASSERT_STREQ("value23", n1->getCustomAttr("custom2"));
+    ASSERT_STREQ("value33", n1->getCustomAttr("custom3"));
 
 
     // ___ Set invalid coordinates of a node (out of range) ___
 
     gTestingInvalidArgs = true;
 
-    ASSERT_EQ(MegaError::API_EARGS, synchronousSetNodeCoordinates(0, n1, -1523421.8719987255814, +6349.54)) << "Unexpected error setting invalid node coordinates";
+    ASSERT_EQ(MegaError::API_EARGS, synchronousSetNodeCoordinates(0, n1.get(), -1523421.8719987255814, +6349.54)) << "Unexpected error setting invalid node coordinates";
 
 
     // ___ Set invalid coordinates of a node (out of range) ___
 
-    ASSERT_EQ(MegaError::API_EARGS, synchronousSetNodeCoordinates(0, n1, -160.8719987255814, +49.54)) << "Unexpected error setting invalid node coordinates";
+    ASSERT_EQ(MegaError::API_EARGS, synchronousSetNodeCoordinates(0, n1.get(), -160.8719987255814, +49.54)) << "Unexpected error setting invalid node coordinates";
 
 
     // ___ Set invalid coordinates of a node (out of range) ___
 
-    ASSERT_EQ(MegaError::API_EARGS, synchronousSetNodeCoordinates(0, n1, MegaNode::INVALID_COORDINATE, +69.54)) << "Unexpected error trying to reset only one coordinate";
+    ASSERT_EQ(MegaError::API_EARGS, synchronousSetNodeCoordinates(0, n1.get(), MegaNode::INVALID_COORDINATE, +69.54)) << "Unexpected error trying to reset only one coordinate";
 
     gTestingInvalidArgs = false;
 
@@ -1165,10 +1181,9 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     double lat = -51.8719987255814;
     double lon = +179.54;
 
-    ASSERT_EQ(MegaError::API_OK, synchronousSetNodeCoordinates(0, n1, lat, lon)) << "Cannot set node coordinates";
+    ASSERT_EQ(MegaError::API_OK, synchronousSetNodeCoordinates(0, n1.get(), lat, lon)) << "Cannot set node coordinates";
 
-    delete n1;
-    n1 = megaApi[0]->getNodeByHandle(mApi[0].h);
+    n1.reset(megaApi[0]->getNodeByHandle(mApi[0].h));
 
     // do same conversions to lose the same precision
     int buf = int(((lat + 90) / 180) * 0xFFFFFF);
@@ -1187,10 +1202,9 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     lon = 0;
     lat = 0;
 
-    ASSERT_EQ(MegaError::API_OK, synchronousSetNodeCoordinates(0, n1, 0, 0)) << "Cannot set node coordinates";
+    ASSERT_EQ(MegaError::API_OK, synchronousSetNodeCoordinates(0, n1.get(), 0, 0)) << "Cannot set node coordinates";
 
-    delete n1;
-    n1 = megaApi[0]->getNodeByHandle(mApi[0].h);
+    n1.reset(megaApi[0]->getNodeByHandle(mApi[0].h));
 
     // do same conversions to lose the same precision
     buf = int(((lat + 90) / 180) * 0xFFFFFF);
@@ -1205,10 +1219,9 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     lat = 90;
     lon = 180;
 
-    ASSERT_EQ(MegaError::API_OK, synchronousSetNodeCoordinates(0, n1, lat, lon)) << "Cannot set node coordinates";
+    ASSERT_EQ(MegaError::API_OK, synchronousSetNodeCoordinates(0, n1.get(), lat, lon)) << "Cannot set node coordinates";
 
-    delete n1;
-    n1 = megaApi[0]->getNodeByHandle(mApi[0].h);
+    n1.reset(megaApi[0]->getNodeByHandle(mApi[0].h));
 
     ASSERT_EQ(lat, n1->getLatitude()) << "Latitude value does not match";
     bool value_ok = ((n1->getLongitude() == lon) || (n1->getLongitude() == -lon));
@@ -1220,10 +1233,9 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     lat = -90;
     lon = -180;
 
-    ASSERT_EQ(MegaError::API_OK, synchronousSetNodeCoordinates(0, n1, lat, lon)) << "Cannot set node coordinates";
+    ASSERT_EQ(MegaError::API_OK, synchronousSetNodeCoordinates(0, n1.get(), lat, lon)) << "Cannot set node coordinates";
 
-    delete n1;
-    n1 = megaApi[0]->getNodeByHandle(mApi[0].h);
+    n1.reset(megaApi[0]->getNodeByHandle(mApi[0].h));
 
     ASSERT_EQ(lat, n1->getLatitude()) << "Latitude value does not match";
     value_ok = ((n1->getLongitude() == lon) || (n1->getLongitude() == -lon));
@@ -1234,10 +1246,9 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
 
     lat = lon = MegaNode::INVALID_COORDINATE;
 
-    synchronousSetNodeCoordinates(0, n1, lat, lon);
+    synchronousSetNodeCoordinates(0, n1.get(), lat, lon);
 
-    delete n1;
-    n1 = megaApi[0]->getNodeByHandle(mApi[0].h);
+    n1.reset(megaApi[0]->getNodeByHandle(mApi[0].h));
     ASSERT_EQ(lat, n1->getLatitude()) << "Latitude value does not match";
     ASSERT_EQ(lon, n1->getLongitude()) << "Longitude value does not match";
 
@@ -1249,10 +1260,10 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     // ___ set the coords  (shareable)
     lat = -51.8719987255814;
     lon = +179.54;
-    ASSERT_EQ(MegaError::API_OK, synchronousSetNodeCoordinates(0, n1, lat, lon)) << "Cannot set node coordinates";
+    ASSERT_EQ(MegaError::API_OK, synchronousSetNodeCoordinates(0, n1.get(), lat, lon)) << "Cannot set node coordinates";
 
     // ___ get a link to the file node
-    ASSERT_NO_FATAL_FAILURE(createPublicLink(0, n1, 0, maxTimeout, mApi[0].accountDetails->getProLevel() == 0));
+    ASSERT_NO_FATAL_FAILURE(createPublicLink(0, n1.get(), 0, maxTimeout, mApi[0].accountDetails->getProLevel() == 0));
     // The created link is stored in this->link at onRequestFinish()
     string nodelink = this->link;
 
@@ -1310,7 +1321,6 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     lon = nimported->getLongitude();
     ASSERT_EQ(MegaNode::INVALID_COORDINATE, lat) << "Latitude value does not match";
     ASSERT_EQ(MegaNode::INVALID_COORDINATE, lon) << "Longitude value does not match";
-    delete n1;
 }
 
 /**
