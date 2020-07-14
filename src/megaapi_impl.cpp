@@ -1256,7 +1256,7 @@ bool MegaApiImpl::is_syncable(Sync *sync, const char *name, const LocalPath& loc
         }
 
 #ifdef USE_PCRE
-        if (regExp && regExp->match(path))
+        if (regExp && regExp->match(utf8path.c_str()))
         {
             return false;
         }
