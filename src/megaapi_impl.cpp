@@ -12011,7 +12011,7 @@ dstime MegaApiImpl::pread_failure(const Error &e, int retry, void* param, dstime
     transfer->setSpeed(0);
     transfer->setMeanSpeed(0);
     transfer->setLastBytes(NULL);
-    if (retry <= transfer->getMaxRetries() && e != API_EINCOMPLETE && !(e == API_ETOOMANY && e.hasExtraInfo()))
+    if (retry <= transfer->getMaxRetries() && e != API_EINCOMPLETE)
     {	
         auto megaError = make_unique<MegaErrorPrivate>(e, timeLeft / 10);
         transfer->setLastError(megaError.get());
@@ -12027,7 +12027,7 @@ dstime MegaApiImpl::pread_failure(const Error &e, int retry, void* param, dstime
     }
     else
     {
-        if (e && (e != API_EINCOMPLETE || (e == API_ETOOMANY && e.hasExtraInfo())))
+        if (e && e != API_EINCOMPLETE)
         {
             transfer->setState(MegaTransfer::STATE_FAILED);
         }
@@ -15648,18 +15648,8 @@ void MegaApiImpl::checkfile_result(handle h, const Error &e)
             {
                 auto megaError = make_unique<MegaErrorPrivate>(e);
                 transfer->setLastError(megaError.get());
-
-                if (e == API_ETOOMANY && e.hasExtraInfo())
-                {
-                    DBTableTransactionCommitter committer(client->tctable);
-                    transfer->setState(MegaTransfer::STATE_FAILED);
-                    fireOnTransferFinish(transfer, std::move(megaError), committer);
-                }
-                else
-                {
-                    transfer->setState(MegaTransfer::STATE_RETRYING);
-                    fireOnTransferTemporaryError(transfer, std::move(megaError));
-                }
+                transfer->setState(MegaTransfer::STATE_RETRYING);
+                fireOnTransferTemporaryError(transfer, std::move(megaError));
             }
         }
     }
@@ -16518,20 +16508,9 @@ void MegaApiImpl::processTransferFailed(Transfer *tr, MegaTransferPrivate *trans
     transfer->setMeanSpeed(0);
     transfer->setLastError(megaError.get());
     transfer->setPriority(tr->priority);
-    if (e == API_ETOOMANY && e.hasExtraInfo())
-    {
-        DBTableTransactionCommitter committer(client->tctable);
-        transfer->setState(MegaTransfer::STATE_FAILED);
-        transfer->setForeignOverquota(false);
-        fireOnTransferFinish(transfer, std::move(megaError), committer);
-    }
-    else
-    {
-        transfer->setState(MegaTransfer::STATE_RETRYING);
-        transfer->setForeignOverquota(e == API_EOVERQUOTA && client->isForeignNode(transfer->getParentHandle()));
-        fireOnTransferTemporaryError(transfer, std::move(megaError));
-    }
-
+    transfer->setState(MegaTransfer::STATE_RETRYING);
+    transfer->setForeignOverquota(e == API_EOVERQUOTA && client->isForeignNode(transfer->getParentHandle()));
+    fireOnTransferTemporaryError(transfer, std::move(megaError));
 }
 
 void MegaApiImpl::processTransferRemoved(Transfer *tr, MegaTransferPrivate *transfer, const Error& e)
