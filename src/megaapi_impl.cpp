@@ -23911,7 +23911,14 @@ void MegaFolderUploadController::cancel()
 
     //remove ongoing subtransfers
     long long cancelledSubTransfers = 0;
-    DBTableTransactionCommitter committer(client->tctable);
+    std::unique_ptr<DBTableTransactionCommitter> insideCommiter;
+    DBTableTransactionCommitter *committer = client->tctable->getTransactionCommitter();
+        if (!committer)
+    {
+        insideCommiter.reset(new DBTableTransactionCommitter(client->tctable));
+        committer = insideCommiter.get();
+    }
+
     while (!subTransfers.empty())
     {
         auto subTransfer = *subTransfers.begin();
@@ -23922,7 +23929,7 @@ void MegaFolderUploadController::cancel()
             LOG_warn << "Subtransfer without attached Transfer for folder transfer: " << subTransfer->getFileName();
 
             subTransfer->setState(MegaTransfer::STATE_CANCELLED);
-            megaApi->fireOnTransferFinish(subTransfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), committer);
+            megaApi->fireOnTransferFinish(subTransfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), *committer);
 
             continue;
         }
@@ -23953,7 +23960,7 @@ void MegaFolderUploadController::cancel()
                 found = true;
                 if (!file->syncxfer)
                 {
-                    client->stopxfer(file, nullptr); //No commiter, we are here within sendPendingRequest
+                    client->stopxfer(file, committer);
                 }
                 else
                 {
@@ -23969,7 +23976,7 @@ void MegaFolderUploadController::cancel()
             LOG_warn << "No file found for subtransfer: " << subTransfer->getFileName();
 
             subTransfer->setState(MegaTransfer::STATE_CANCELLED);
-            megaApi->fireOnTransferFinish(subTransfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), committer);
+            megaApi->fireOnTransferFinish(subTransfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), *committer);
         }
         cancelledSubTransfers++;
     }
@@ -25325,7 +25332,15 @@ void MegaFolderDownloadController::cancel()
 
     //remove ongoing subtransfers
     long long cancelledSubTransfers = 0;
-    DBTableTransactionCommitter committer(client->tctable);
+
+    std::unique_ptr<DBTableTransactionCommitter> insideCommiter;
+    DBTableTransactionCommitter *committer = client->tctable->getTransactionCommitter();
+        if (!committer)
+    {
+        insideCommiter.reset(new DBTableTransactionCommitter(client->tctable));
+        committer = insideCommiter.get();
+    }
+
     while (!subTransfers.empty())
     {
         auto subTransfer = *subTransfers.begin();
@@ -25336,7 +25351,7 @@ void MegaFolderDownloadController::cancel()
             LOG_warn << "Subtransfer without attached Transfer for folder transfer: " << subTransfer->getFileName();
 
             subTransfer->setState(MegaTransfer::STATE_CANCELLED);
-            megaApi->fireOnTransferFinish(subTransfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), committer);
+            megaApi->fireOnTransferFinish(subTransfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), *committer);
 
             continue;
         }
@@ -25367,7 +25382,7 @@ void MegaFolderDownloadController::cancel()
                 found = true;
                 if (!file->syncxfer)
                 {
-                    client->stopxfer(file, nullptr); //No commiter, we are here within sendPendingRequest
+                    client->stopxfer(file, committer);
                 }
                 else
                 {
@@ -25383,7 +25398,7 @@ void MegaFolderDownloadController::cancel()
             LOG_warn << "No file found for subtransfer: " << subTransfer->getFileName();
 
             subTransfer->setState(MegaTransfer::STATE_CANCELLED);
-            megaApi->fireOnTransferFinish(subTransfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), committer);
+            megaApi->fireOnTransferFinish(subTransfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), *committer);
         }
         cancelledSubTransfers++;
     }
