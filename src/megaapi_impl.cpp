@@ -15036,10 +15036,15 @@ void MegaApiImpl::senddevcommand_result(int value)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_SEND_DEV_COMMAND)) return;
 
-    if (value > 0)
+    error e = static_cast<error>(value);
+    std::string command = request->getName() ? request->getName() :"";
+    if (!command.compare("aodq") && value > 0)
+    {
+        e = API_OK;
         request->setNumber(value);
+    }
 
-    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>((value <= 0) ? value : API_OK));
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 #endif
 
