@@ -2057,7 +2057,27 @@ void MegaApi::getMiscFlags(MegaRequestListener *listener)
 
 void MegaApi::sendDevCommand(const char *command, const char *email, MegaRequestListener *listener)
 {
-    pImpl->sendDevCommand(command, email, listener);
+    pImpl->sendDevCommand(command, email, 0, 0, 0, listener);
+}
+
+void MegaApi::sendOdqDevCommand(const char *email, MegaRequestListener *listener)
+{
+    pImpl->sendDevCommand("aodq", email, 0, 0, 0, listener);
+}
+
+void MegaApi::sendUsedTransferQuotaDevCommand(long long quota, const char *email, MegaRequestListener *listener)
+{
+    pImpl->sendDevCommand("tq", email, quota, 0, 0, listener);
+}
+
+void MegaApi::sendBusinessStatusDevCommand(int businessStatus, const char *email, MegaRequestListener *listener)
+{
+    pImpl->sendDevCommand("bs", email, 0, businessStatus, 0, listener);
+}
+
+void MegaApi::sendUserStatusDevCommand(int userStatus, const char *email, MegaRequestListener *listener)
+{
+    pImpl->sendDevCommand("us", email, 0, 0, userStatus, listener);
 }
 
 void MegaApi::login(const char *login, const char *password, MegaRequestListener *listener)

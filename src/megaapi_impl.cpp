@@ -5897,11 +5897,14 @@ void MegaApiImpl::getMiscFlags(MegaRequestListener *listener)
     waiter->notify();
 }
 
-void MegaApiImpl::sendDevCommand(const char *command, const char *email, MegaRequestListener *listener)
+void MegaApiImpl::sendDevCommand(const char *command, const char *email, long long quota, int businessStatus, int userStatus, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SEND_DEV_COMMAND, listener);
     request->setName(command);
     request->setEmail(email);
+    request->setTotalBytes(quota);
+    request->setAccess(businessStatus);
+    request->setNumDetails(userStatus);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -21132,8 +21135,61 @@ void MegaApiImpl::sendPendingRequests()
                 e = API_EARGS;
                 break;
             }
+
+            long long q = request->getTotalBytes();
+            int bs = request->getAccess();
+            int us = request->getNumDetails();
 #ifdef DEBUG
-            client->senddevcommand(command, email);
+            if (strcmp(command, "aodq")
+                  && strcmp(command, "tq")
+                  && strcmp(command, "bs")
+                  && strcmp(command, "us"))
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            if (!strcmp(command, "tq"))
+            {
+                if (q < 0)
+                {
+                    e = API_EARGS;
+                    break;
+                }
+
+                if (isBusinessAccount() && !isMasterBusinessAccount())
+                {
+                    e = API_EMASTERONLY;
+                    break;
+                }
+            }
+            else if (!strcmp(command, "bs"))
+            {
+                if (bs < -1 || bs > 2)
+                {
+                    e = API_EARGS;
+                    break;
+                }
+                if (!isBusinessAccount())
+                {
+                    e = API_EARGS;
+                    break;
+                }
+            }
+            else if (!strcmp(command, "us"))
+            {
+                if (us == 1 || (us < 0 || us > 9))
+                {
+                    e = API_EARGS;
+                    break;
+                }
+                if (isBusinessAccount() && !isMasterBusinessAccount())
+                {
+                    e = API_EMASTERONLY;
+                    break;
+                }
+            }
+            client->senddevcommand(command, email, q, bs, us);
 #else
             e = API_EACCESS;
 #endif

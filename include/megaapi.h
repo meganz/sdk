@@ -7973,6 +7973,10 @@ class MegaApi
          */
         void sendDevCommand(const char *command, const char *email = nullptr, MegaRequestListener *listener = nullptr);
 
+        void sendOdqDevCommand(const char *email = nullptr, MegaRequestListener *listener = nullptr);
+        void sendUsedTransferQuotaDevCommand(long long quota, const char *email = nullptr, MegaRequestListener *listener = nullptr);
+        void sendBusinessStatusDevCommand(int businessStatus, const char *email = nullptr, MegaRequestListener *listener = nullptr);
+        void sendUserStatusDevCommand(int userStatus, const char *email = nullptr, MegaRequestListener *listener = nullptr);
         /**
          * @brief Returns the current session key
          *
