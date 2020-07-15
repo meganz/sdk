@@ -516,7 +516,7 @@ public:
     void delua(const char* an);
 
     // send dev command for testing
-    void senddevcommand(const char *command, const char *email);
+    void senddevcommand(const char *command, const char *email, long long q = 0, int bs = 0, int us = 0);
 #endif
 
     // delete or block an existing contact
