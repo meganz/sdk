@@ -20673,19 +20673,13 @@ void MegaApiImpl::sendPendingRequests()
                 long long cancelledPending = 0;
                 // 1. cancel queued transfers, not yet started (and not added to cache), up to the last one queued when cancelTransfers was queued
                 auto lastQueuedTransfer = request->getTransferTag();
-                while (MegaTransferPrivate *transfer = transferQueue.pop())
+
+                for (auto transfer : transferQueue.popUpTo(lastQueuedTransfer, direction))
                 {
-                    if (transfer->getPlaceInQueue() > lastQueuedTransfer)
-                    {
-                        break;
-                    }
-                    if (!transfer->isSyncTransfer() && transfer->getType() == direction)
-                    {
-                        fireOnTransferStart(transfer);
-                        transfer->setState(MegaTransfer::STATE_CANCELLED);
-                        fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), committer);
-                        cancelledPending++;
-                    }
+                    fireOnTransferStart(transfer);
+                    transfer->setState(MegaTransfer::STATE_CANCELLED);
+                    fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), committer);
+                    cancelledPending++;
                 }
 
                 // 2. cancel folder in-transit transfers
@@ -22284,6 +22278,31 @@ MegaTransferPrivate *TransferQueue::pop()
     transfers.pop_front();
     mutex.unlock();
     return transfer;
+}
+
+std::vector<MegaTransferPrivate *> TransferQueue::popUpTo(int lastQueuedTransfer, int direction)
+{
+    std::lock_guard<std::mutex> g(mutex);
+    std::vector<MegaTransferPrivate*> toret;
+    for (auto it = transfers.cbegin(); it != transfers.cend();)
+    {
+        MegaTransferPrivate *transfer = *it;
+        if (transfer->getPlaceInQueue() > lastQueuedTransfer)
+        {
+            break;
+        }
+
+        if (!transfer->isSyncTransfer() && transfer->getType() == direction)
+        {
+            toret.push_back(transfer);
+            it = transfers.erase(it);
+        }
+        else
+        {
+            it++;
+        }
+    }
+    return toret;
 }
 
 void TransferQueue::removeWithFolderTag(int folderTag, std::function<void(MegaTransferPrivate *)> callback)
@@ -23902,7 +23921,7 @@ void MegaFolderUploadController::cancel()
         {
             LOG_warn << "Subtransfer without attached Transfer for folder transfer: " << subTransfer->getFileName();
 
-            subTransfer->setState(MegaTransfer::STATE_COMPLETED); //TODO: copmleted?
+            subTransfer->setState(MegaTransfer::STATE_CANCELLED);
             megaApi->fireOnTransferFinish(subTransfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), committer);
 
             continue;
@@ -23949,7 +23968,7 @@ void MegaFolderUploadController::cancel()
         {
             LOG_warn << "No file found for subtransfer: " << subTransfer->getFileName();
 
-            subTransfer->setState(MegaTransfer::STATE_COMPLETED); //TODO: copmleted?
+            subTransfer->setState(MegaTransfer::STATE_CANCELLED);
             megaApi->fireOnTransferFinish(subTransfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), committer);
         }
         cancelledSubTransfers++;
@@ -25316,7 +25335,7 @@ void MegaFolderDownloadController::cancel()
         {
             LOG_warn << "Subtransfer without attached Transfer for folder transfer: " << subTransfer->getFileName();
 
-            subTransfer->setState(MegaTransfer::STATE_COMPLETED); //TODO: copmleted?
+            subTransfer->setState(MegaTransfer::STATE_CANCELLED);
             megaApi->fireOnTransferFinish(subTransfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), committer);
 
             continue;
@@ -25363,7 +25382,7 @@ void MegaFolderDownloadController::cancel()
         {
             LOG_warn << "No file found for subtransfer: " << subTransfer->getFileName();
 
-            subTransfer->setState(MegaTransfer::STATE_COMPLETED); //TODO: copmleted?
+            subTransfer->setState(MegaTransfer::STATE_CANCELLED);
             megaApi->fireOnTransferFinish(subTransfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), committer);
         }
         cancelledSubTransfers++;
