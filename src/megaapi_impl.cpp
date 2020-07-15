@@ -20682,19 +20682,7 @@ void MegaApiImpl::sendPendingRequests()
                     cancelledPending++;
                 }
 
-                // 2. cancel folder in-transit transfers
-                long long cancelledFolder = 0;
-                for (std::map<int, MegaTransferPrivate *>::iterator it = folderTransferMap.begin(); it != folderTransferMap.end(); it++)
-                {
-                    MegaTransferPrivate *transfer = it->second;
-                    if (!transfer->isSyncTransfer() && transfer->getType() == direction)
-                    {
-                        cancelTransferByTag(transfer->getTag());
-                        cancelledFolder++;
-                    }
-                }
-
-                // 3. cancel regular in-transit transfers
+                // 2. cancel regular in-transit transfers
                 long long cancelledTransit = 0;
                 for (transfer_map::iterator it = client->transfers[direction].begin() ; it != client->transfers[direction].end() ; it++)
                 {
@@ -20708,6 +20696,19 @@ void MegaApiImpl::sendPendingRequests()
                         }
                     }
                 }
+
+                // 3. cancel folder in-transit transfers
+                long long cancelledFolder = 0;
+                for (std::map<int, MegaTransferPrivate *>::iterator it = folderTransferMap.begin(); it != folderTransferMap.end(); it++)
+                {
+                    MegaTransferPrivate *transfer = it->second;
+                    if (!transfer->isSyncTransfer() && transfer->getType() == direction)
+                    {
+                        cancelTransferByTag(transfer->getTag());
+                        cancelledFolder++;
+                    }
+                }
+
                 LOG_verbose << "Cancelled transfers. dir: " << direction << " pending: " << cancelledPending << " folder: " << cancelledFolder << " transit: " << cancelledTransit;
                 request->setFlag(true);
                 requestQueue.push(request);
