@@ -145,7 +145,7 @@ class MEGA_API LocalPath
 public:
 
     LocalPath() {}
-    explicit LocalPath(string&& s) : localpath(std::move(s)) {}
+    explicit LocalPath(std::string&& s) : localpath(std::move(s)) {}
 
     std::string* editStringDirect();
     const std::string* editStringDirect() const;
@@ -155,25 +155,39 @@ public:
     void truncate(size_t bytePos) { localpath.resize(bytePos); }
     size_t lastpartlocal(const FileSystemAccess& fsaccess) const;
     void append(const LocalPath& additionalPath);
-    void separatorAppend(const LocalPath& additionalPath, bool separatorAlways, const string& localseparator);
-    void separatorPrepend(const LocalPath& additionalPath, const string& localseparator);
+    void separatorAppend(const LocalPath& additionalPath, bool separatorAlways, const std::string& localseparator);
+    void separatorPrepend(const LocalPath& additionalPath, const std::string& localseparator);
     void trimNonDriveTrailingSeparator(const FileSystemAccess& fsaccess);
     bool findNextSeparator(size_t& separatorBytePos, const FileSystemAccess& fsaccess) const;
     bool findPrevSeparator(size_t& separatorBytePos, const FileSystemAccess& fsaccess) const;
     size_t getLeafnameByteIndex(const FileSystemAccess& fsaccess) const;
-    bool backEqual(size_t bytePos, const string& compareTo) const;
+    bool backEqual(size_t bytePos, const std::string& compareTo) const;
     bool backEqual(size_t bytePos, const LocalPath& compareTo) const;
     LocalPath subpathFrom(size_t bytePos) const;
-    string substrTo(size_t bytePos) const;
+    std::string substrTo(size_t bytePos) const;
 
     bool isContainingPathOf(const LocalPath& path, const FileSystemAccess& fsaccess);
 
+    // Return a utf8 representation of the LocalPath (fsaccess is used to do the conversion)
+    // No escaping or unescaping is done.
+    std::string toPath(const FileSystemAccess& fsaccess) const;
     
-    string toPath(const FileSystemAccess& fsaccess) const;
-    string toName(const FileSystemAccess& fsaccess, FileSystemType fsType = FS_UNKNOWN) const;
-    static LocalPath fromPath(const string& path, const FileSystemAccess& fsaccess);
-    static LocalPath fromName(string path, const FileSystemAccess& fsaccess, FileSystemType fsType);
-    static LocalPath fromLocalname(string localname);
+    // Return a utf8 representation of the LocalPath, taking into account that the LocalPath 
+    // may contain escaped characters that are disallowed for the filesystem.
+    // Those characters are converted back (unescaped).  fsaccess is used to do the conversion.
+    std::string toName(const FileSystemAccess& fsaccess, FileSystemType fsType = FS_UNKNOWN) const;
+
+    // Create a Localpath from a utf8 string where no character conversions or escaping is necessary.
+    static LocalPath fromPath(const std::string& path, const FileSystemAccess& fsaccess);
+
+    // Create a LocalPath from a utf8 string, making any character conversions (escaping) necessary
+    // for characters that are disallowed on that filesystem.  fsaccess is used to do the conversion.
+    static LocalPath fromName(std::string path, const FileSystemAccess& fsaccess, FileSystemType fsType);
+
+    // Create a LocalPath from a string that was already converted to be appropriate for a local file path.
+    static LocalPath fromLocalname(std::string localname);
+
+    // Generates a name for a temporary file
     static LocalPath tmpNameLocal(const FileSystemAccess& fsaccess);
 
     bool operator==(const LocalPath& p) const { return localpath == p.localpath; }
