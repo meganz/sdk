@@ -155,6 +155,14 @@ FileSystemType FileSystemAccess::getlocalfstype(const string *dstPath) const
     // Filesystem detection for Windows
     CHAR volumeName[MAX_PATH + 1] = { 0 };
     CHAR fileSystemName[MAX_PATH + 1] = { 0 };
+    std::wstring wPath(dstpath->begin(), dstpath->end());
+    std::wstring volMountPoint;
+    volMountPoint.resize(MAX_PATH);
+    DWORD mountLen = static_cast<DWORD>(volMountPoint.size());
+    if (!(GetVolumePathNameW(wPath.c_str(), &volMountPoint[0], mountLen)))
+    {
+        return FS_UNKNOWN;
+    }
     DWORD serialNumber = 0;
     DWORD maxComponentLen = 0;
     DWORD fileSystemFlags = 0;
