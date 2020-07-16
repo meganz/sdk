@@ -3161,12 +3161,12 @@ MegaNode *MegaApi::getSyncedNode(string *path)
 
 void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener *listener)
 {
-    pImpl->syncFolder(localFolder, megaFolder, NULL, 0, listener);
+    pImpl->syncFolder(localFolder, megaFolder, NULL, listener);
 }
 
 void MegaApi::syncFolder(const char *localFolder, MegaHandle megaHandle, MegaRequestListener *listener)
 {
-    pImpl->syncFolder(localFolder, megaHandle, NULL, 0, listener);
+    pImpl->syncFolder(localFolder, megaHandle, NULL, listener);
 }
 
 void MegaApi::copySyncDataToCache(const char *localFolder, MegaHandle megaHandle, const char *remotePath,

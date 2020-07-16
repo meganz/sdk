@@ -5264,6 +5264,7 @@ MegaUser *MegaApiImpl::getMyUser()
 
 bool MegaApiImpl::isAchievementsEnabled()
 {
+    assert(!isBusinessAccount() || !client->achievements_enabled);
     return client->achievements_enabled;
 }
 
@@ -8455,7 +8456,7 @@ MegaNode *MegaApiImpl::getSyncedNode(string *path)
     return node;
 }
 
-void MegaApiImpl::syncFolder(const char *localFolder, MegaHandle megaHandle, MegaRegExp *regExp, long long localfp, MegaRequestListener *listener)
+void MegaApiImpl::syncFolder(const char *localFolder, MegaHandle megaHandle, MegaRegExp *regExp, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC);
     request->setNodeHandle(megaHandle);
@@ -8471,14 +8472,13 @@ void MegaApiImpl::syncFolder(const char *localFolder, MegaHandle megaHandle, Meg
 
     request->setListener(listener);
     request->setRegExp(regExp);
-    request->setNumber(localfp);
     requestQueue.push(request);
     waiter->notify();
 }
 
-void MegaApiImpl::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp, long long localfp, MegaRequestListener *listener)
+void MegaApiImpl::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
 {
-    syncFolder(localFolder, megaFolder ? megaFolder->getHandle() : INVALID_HANDLE, regExp, localfp, listener);
+    syncFolder(localFolder, megaFolder ? megaFolder->getHandle() : INVALID_HANDLE, regExp, listener);
 }
 
 void MegaApiImpl::copySyncDataToCache(const char *localFolder, MegaHandle megaHandle, const char *remotePath,
@@ -21117,8 +21117,7 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             SyncConfig syncConfig{nextSyncTag, localPath, request->getNodeHandle(), remotePath.get(),
-                                  static_cast<fsfp_t>(request->getNumber()), 
-                                  regExpToVector(request->getRegExp())};
+                                  0, regExpToVector(request->getRegExp())};
 
             e = client->addsync(syncConfig, DEBRISFOLDER, NULL, syncError, true, sync);
             request->setNumDetails(syncError);
