@@ -1190,6 +1190,7 @@ void PosixFileSystemAccess::emptydirlocal(LocalPath& name, dev_t basedev)
     int removed;
     struct stat statbuf;
     size_t t;
+    PosixFileSystemAccess pfsa;
 
     if (!basedev)
     {
@@ -1217,7 +1218,7 @@ void PosixFileSystemAccess::emptydirlocal(LocalPath& name, dev_t basedev)
                 {
                     ScopedLengthRestore restore(name);
 
-                    name.appendWithSeparator(LocalPath::fromLocalname(d->d_name), true, localseparator);
+                    name.appendWithSeparator(LocalPath::fromLocalname(d->d_name), true, pfsa.localseparator);
 
                     if (!lstat(name.editStringDirect()->c_str(), &statbuf))
                     {
