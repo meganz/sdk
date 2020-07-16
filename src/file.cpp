@@ -481,12 +481,12 @@ void SyncFileGet::prepare()
                 transfer->localfilename = sync->localdebris;
                 sync->client->fsaccess->mkdirlocal(transfer->localfilename, true);
 
-                transfer->localfilename.separatorAppend(tmpname, true, sync->client->fsaccess->localseparator);
+                transfer->localfilename.appendWithSeparator(tmpname, true, sync->client->fsaccess->localseparator);
                 sync->client->fsaccess->mkdirlocal(transfer->localfilename);
 
                 // lock it
                 LocalPath lockname = LocalPath::fromName("lock", *sync->client->fsaccess, sync->mFilesystemType);
-                transfer->localfilename.separatorAppend(lockname, true, sync->client->fsaccess->localseparator);
+                transfer->localfilename.appendWithSeparator(lockname, true, sync->client->fsaccess->localseparator);
 
                 if (sync->tmpfa->fopen(transfer->localfilename, false, true))
                 {
@@ -505,7 +505,7 @@ void SyncFileGet::prepare()
         if (sync->tmpfa)
         {
             transfer->localfilename = sync->localdebris;
-            transfer->localfilename.separatorAppend(tmpname, true, sync->client->fsaccess->localseparator);
+            transfer->localfilename.appendWithSeparator(tmpname, true, sync->client->fsaccess->localseparator);
         }
         else
         {
@@ -514,7 +514,7 @@ void SyncFileGet::prepare()
 
         LocalPath tmpfilename;
         sync->client->fsaccess->tmpnamelocal(tmpfilename);
-        transfer->localfilename.separatorAppend(tmpfilename, true, sync->client->fsaccess->localseparator);
+        transfer->localfilename.appendWithSeparator(tmpfilename, true, sync->client->fsaccess->localseparator);
     }
 
     if (n->parent && n->parent->localnode)
@@ -566,7 +566,7 @@ void SyncFileGet::updatelocalname()
         if (n->parent && n->parent->localnode)
         {
             localname = n->parent->localnode->getLocalPath();
-            localname.separatorAppend(LocalPath::fromName(ait->second, *sync->client->fsaccess, sync->mFilesystemType), true, sync->client->fsaccess->localseparator);
+            localname.appendWithSeparator(LocalPath::fromName(ait->second, *sync->client->fsaccess, sync->mFilesystemType), true, sync->client->fsaccess->localseparator);
         }
     }
 }

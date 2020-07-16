@@ -880,7 +880,7 @@ void LocalPath::append(const LocalPath& additionalPath)
     localpath.append(additionalPath.localpath);
 }
 
-void LocalPath::separatorAppend(const LocalPath& additionalPath, bool separatorAlways, const string& localseparator)
+void LocalPath::appendWithSeparator(const LocalPath& additionalPath, bool separatorAlways, const string& localseparator)
 {
     if (separatorAlways || localpath.size())
     {
@@ -899,7 +899,7 @@ void LocalPath::separatorAppend(const LocalPath& additionalPath, bool separatorA
     localpath.append(additionalPath.localpath);
 }
 
-void LocalPath::separatorPrepend(const LocalPath& additionalPath, const string& localseparator)
+void LocalPath::prependWithSeparator(const LocalPath& additionalPath, const string& localseparator)
 {
     // no additional separator if there is already one after
     if (localpath.size() >= localseparator.size() && memcmp(localpath.data(), localseparator.data(), localseparator.size()))

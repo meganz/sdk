@@ -666,7 +666,7 @@ AppFileGet::AppFileGet(Node* n, handle ch, byte* cfilekey, m_off_t csize, m_time
     if (!targetfolder.empty())
     {
         string s = targetfolder;
-        localname.separatorPrepend(LocalPath::fromPath(s, *client->fsaccess), client->fsaccess->localseparator);
+        localname.prependWithSeparator(LocalPath::fromPath(s, *client->fsaccess), client->fsaccess->localseparator);
     }
 }
 
@@ -4022,7 +4022,7 @@ void uploadLocalFolderContent(LocalPath& localname, Node* cloudFolder)
                 cout << "Queueing " << leafNameUtf8 << "..." << endl;
             }
             auto newpath = localname;
-            newpath.separatorAppend(itemlocalleafname, true, client->fsaccess->localseparator);
+            newpath.appendWithSeparator(itemlocalleafname, true, client->fsaccess->localseparator);
             uploadLocalPath(type, leafNameUtf8, newpath, cloudFolder, "", committer, total, true);
         }
         if (gVerboseMode)

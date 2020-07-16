@@ -12494,7 +12494,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, bool rubbish)
          && (l->parent || l->sync->debris != ait->second))
         {
             ScopedLengthRestore restoreLen(localpath);
-            localpath.separatorAppend(LocalPath::fromName(ait->second, *fsaccess, l->sync->mFilesystemType), true, fsaccess->localseparator);
+            localpath.appendWithSeparator(LocalPath::fromName(ait->second, *fsaccess, l->sync->mFilesystemType), true, fsaccess->localseparator);
 
             if (app->sync_syncable(l->sync, ait->second.c_str(), localpath, *it))
             {
@@ -12519,7 +12519,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, bool rubbish)
         rit = nchildren.find(&ll->name);
 
         ScopedLengthRestore restoreLen(localpath);
-        localpath.separatorAppend(ll->localname, true, fsaccess->localseparator);
+        localpath.appendWithSeparator(ll->localname, true, fsaccess->localseparator);
 
         // do we have a corresponding remote child?
         if (rit != nchildren.end())
@@ -12661,7 +12661,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, bool rubbish)
         localname = rit->second->attrs.map.find('n')->second;
 
         ScopedLengthRestore restoreLen(localpath);
-        localpath.separatorAppend(LocalPath::fromName(localname, *fsaccess, l->sync->mFilesystemType), true, fsaccess->localseparator);
+        localpath.appendWithSeparator(LocalPath::fromName(localname, *fsaccess, l->sync->mFilesystemType), true, fsaccess->localseparator);
 
         LOG_debug << "Unsynced remote node in syncdown: " << localpath.toPath(*fsaccess) << " Nsize: " << rit->second->size
                   << " Nmtime: " << rit->second->mtime << " Nhandle: " << LOG_NODEHANDLE(rit->second->nodehandle);

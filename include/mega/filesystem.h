@@ -155,8 +155,8 @@ public:
     void truncate(size_t bytePos) { localpath.resize(bytePos); }
     size_t lastpartlocal(const FileSystemAccess& fsaccess) const;
     void append(const LocalPath& additionalPath);
-    void separatorAppend(const LocalPath& additionalPath, bool separatorAlways, const std::string& localseparator);
-    void separatorPrepend(const LocalPath& additionalPath, const std::string& localseparator);
+    void appendWithSeparator(const LocalPath& additionalPath, bool separatorAlways, const std::string& localseparator);
+    void prependWithSeparator(const LocalPath& additionalPath, const std::string& localseparator);
     void trimNonDriveTrailingSeparator(const FileSystemAccess& fsaccess);
     bool findNextSeparator(size_t& separatorBytePos, const FileSystemAccess& fsaccess) const;
     bool findPrevSeparator(size_t& separatorBytePos, const FileSystemAccess& fsaccess) const;

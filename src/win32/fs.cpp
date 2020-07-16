@@ -615,7 +615,7 @@ bool WinFileAccess::fopen_impl(LocalPath& namePath, bool read, bool write, bool 
     if (type == FOLDERNODE)
     {
         ScopedLengthRestore undoStar(namePath);
-        namePath.separatorAppend(LocalPath::fromLocalname(std::string((const char*)(const wchar_t*)L"*", 2)), true, gWindowsSeparator);
+        namePath.appendWithSeparator(LocalPath::fromLocalname(std::string((const char*)(const wchar_t*)L"*", 2)), true, gWindowsSeparator);
         string* searchName = namePath.editStringDirect();
         searchName->append("", 1);
 
@@ -977,7 +977,7 @@ void WinFileSystemAccess::emptydirlocal(LocalPath& namePath, dev_t basedev)
                     || ffd.cFileName[2]))))
             {
                 auto childname = LocalPath::fromLocalname(*name);
-                childname.separatorAppend(LocalPath::fromLocalname(std::string((char*)ffd.cFileName, sizeof(wchar_t) * wcslen(ffd.cFileName))), true, gWindowsSeparator);
+                childname.appendWithSeparator(LocalPath::fromLocalname(std::string((char*)ffd.cFileName, sizeof(wchar_t) * wcslen(ffd.cFileName))), true, gWindowsSeparator);
                 if (ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
                 {
                     emptydirlocal(childname, currentdev);

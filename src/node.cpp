@@ -1634,11 +1634,11 @@ void LocalNode::getlocalpath(LocalPath& path, bool sdisable, const std::string* 
         // perhaps faster?) and sdisable not set.  Use localname from the sync root though, as it has the absolute path.
         if (!sdisable && l->slocalname && l->parent)
         {
-            path.separatorPrepend(*l->slocalname, localseparator ? *localseparator : sync->client->fsaccess->localseparator);
+            path.prependWithSeparator(*l->slocalname, localseparator ? *localseparator : sync->client->fsaccess->localseparator);
         }
         else
         {
-            path.separatorPrepend(l->localname, localseparator ? *localseparator : sync->client->fsaccess->localseparator);
+            path.prependWithSeparator(l->localname, localseparator ? *localseparator : sync->client->fsaccess->localseparator);
         }
     }
 }

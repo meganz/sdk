@@ -1216,9 +1216,8 @@ void PosixFileSystemAccess::emptydirlocal(LocalPath& name, dev_t basedev)
                  || (d->d_name[1] && (d->d_name[1] != '.' || d->d_name[2])))
                 {
                     ScopedLengthRestore restore(name);
-                    PosixFileSystemAccess pfsa;
 
-                    name.separatorAppend(LocalPath::fromLocalname(d->d_name), true, pfsa.localseparator);
+                    name.appendWithSeparator(LocalPath::fromLocalname(d->d_name), true, localseparator);
 
                     if (!lstat(name.editStringDirect()->c_str(), &statbuf))
                     {
@@ -1965,7 +1964,7 @@ bool PosixDirAccess::dnext(LocalPath& path, LocalPath& name, bool followsymlinks
 
         if (*d->d_name != '.' || (d->d_name[1] && (d->d_name[1] != '.' || d->d_name[2])))
         {
-            path.separatorAppend(LocalPath::fromLocalname(d->d_name), true, pfsa.localseparator);
+            path.appendWithSeparator(LocalPath::fromLocalname(d->d_name), true, pfsa.localseparator);
 
             bool statOk = !lstat(path.editStringDirect()->c_str(), &statbuf);
             if (followsymlinks && statOk && S_ISLNK(statbuf.st_mode))

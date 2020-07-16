@@ -114,7 +114,7 @@ set<LocalPath> collectAllPathsInFolder(Sync& sync, MegaApp& app, FileSystemAcces
     while (da->dnext(localpath, localname, false))
     {
         ScopedLengthRestore restoreLength(localpath);
-        localpath.separatorAppend(localname, false, fsaccess.localseparator);
+        localpath.appendWithSeparator(localname, false, fsaccess.localseparator);
 
         // check if this record is to be ignored
         if (app.sync_syncable(&sync, localname.toName(fsaccess).c_str(), localpath))
@@ -666,7 +666,7 @@ Sync::Sync(MegaClient* cclient, SyncConfig config, const char* cdebris,
 
         dirnotify.reset(client->fsaccess->newdirnotify(crootpath, localdebris, client->waiter));
 
-        localdebris.separatorPrepend(crootpath, client->fsaccess->localseparator);
+        localdebris.prependWithSeparator(crootpath, client->fsaccess->localseparator);
     }
     else
     {
@@ -803,7 +803,7 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
     {
         ScopedLengthRestore restoreLen(localpath);
         
-        localpath.separatorAppend(it->second->localname, true, client->fsaccess->localseparator);
+        localpath.appendWithSeparator(it->second->localname, true, client->fsaccess->localseparator);
 
         LocalNode* l = it->second;
         Node* node = l->node;
@@ -1141,7 +1141,7 @@ bool Sync::scan(LocalPath* localpath, FileAccess* fa)
                 name = localname.toName(*client->fsaccess);
 
                 ScopedLengthRestore restoreLen(*localpath);
-                localpath->separatorAppend(localname, false, client->fsaccess->localseparator);
+                localpath->appendWithSeparator(localname, false, client->fsaccess->localseparator);
 
                 // check if this record is to be ignored
                 if (client->app->sync_syncable(this, name.c_str(), *localpath))
@@ -1216,7 +1216,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
 
         if (!input_localpath->empty())
         {
-            tmppath.separatorAppend(*input_localpath, false, client->fsaccess->localseparator);
+            tmppath.appendWithSeparator(*input_localpath, false, client->fsaccess->localseparator);
         }
 
         // look up deepest existing LocalNode by path, store remainder (if any)
@@ -1819,7 +1819,7 @@ bool Sync::checkValidNotification(int q, Notification& notification)
 
         if (!notification.path.empty())
         {
-            tmppath.separatorAppend(notification.path, false, client->fsaccess->localseparator);
+            tmppath.appendWithSeparator(notification.path, false, client->fsaccess->localseparator);
         }
 
         attr_map::iterator ait;
@@ -1972,7 +1972,7 @@ bool Sync::movetolocaldebris(LocalPath& localpath)
         }
 
         day = buf;
-        localdebris.separatorAppend(LocalPath::fromPath(day, *client->fsaccess), true, client->fsaccess->localseparator);
+        localdebris.appendWithSeparator(LocalPath::fromPath(day, *client->fsaccess), true, client->fsaccess->localseparator);
 
         if (i > -3)
         {
@@ -1980,7 +1980,7 @@ bool Sync::movetolocaldebris(LocalPath& localpath)
             havedir = client->fsaccess->mkdirlocal(localdebris, false) || client->fsaccess->target_exists;
         }
 
-        localdebris.separatorAppend(localpath.subpathFrom(localpath.lastpartlocal(*client->fsaccess)), true, client->fsaccess->localseparator);
+        localdebris.appendWithSeparator(localpath.subpathFrom(localpath.lastpartlocal(*client->fsaccess)), true, client->fsaccess->localseparator);
 
         client->fsaccess->skip_errorreport = i == -3;  // we expect a problem on the first one when the debris folders or debris day folders don't exist yet
         if (client->fsaccess->renamelocal(localpath, localdebris, false))

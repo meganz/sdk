@@ -8339,8 +8339,6 @@ int MegaApiImpl::syncPathState(string* path)
     }
 #endif
 
-    int state = MegaApi::STATE_NONE;
-
     // Avoid blocking on the mutex for a long time, as we may be blocking windows explorer (or another platform's equivalent) from opening or displaying a window, unrelated to sync folders
     // We try to lock the SDK mutex.  If we can't get it in 10ms then we return a simple default, and subsequent requests try to lock the mutex but don't wait.
     SdkMutexGuard g(sdkMutex, std::defer_lock);
@@ -8353,6 +8351,12 @@ int MegaApiImpl::syncPathState(string* path)
 
     // once we do manage to lock, return to normal operation.
     syncPathStateLockTimeout = false;
+
+    int state = MegaApi::STATE_NONE;
+    if (client->syncs.empty())
+    {
+        return state;
+    }
 
     LocalPath localpath = LocalPath::fromLocalname(*path);
 
@@ -23819,7 +23823,7 @@ void MegaFolderUploadController::onFolderAvailable(MegaHandle handle)
         while (da->dnext(localPath, localname, client->followsymlinks, &dirEntryType))
         {
             ScopedLengthRestore restoreLen(localPath);
-            localPath.separatorAppend(localname, false, client->fsaccess->localseparator);
+            localPath.appendWithSeparator(localname, false, client->fsaccess->localseparator);
 
             string name = localname.toName(*client->fsaccess);
             if (dirEntryType == FILENODE)
@@ -24608,7 +24612,7 @@ void MegaBackupController::onFolderAvailable(MegaHandle handle)
             while (da->dnext(localPath, localname, client->followsymlinks))
             {
                 ScopedLengthRestore restoreLen(localPath);
-                localPath.separatorAppend(localname, false, client->fsaccess->localseparator);
+                localPath.appendWithSeparator(localname, false, client->fsaccess->localseparator);
 
                 //TODO: add exclude filters here
 
@@ -25199,7 +25203,7 @@ void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, string *pa
         MegaNode *child = children->get(i);
         
         ScopedLengthRestore restoreLen(localpath);
-        localpath.separatorAppend(LocalPath::fromName(child->getName(), *client->fsaccess, client->fsaccess->getFilesystemType(path)), true, client->fsaccess->localseparator);
+        localpath.appendWithSeparator(LocalPath::fromName(child->getName(), *client->fsaccess, client->fsaccess->getFilesystemType(path)), true, client->fsaccess->localseparator);
 
         string utf8path = localpath.toPath(*client->fsaccess);
 
