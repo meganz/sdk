@@ -151,7 +151,7 @@ FileSystemType FileSystemAccess::getlocalfstype(const string *dstPath) const
             return FS_FAT32;
         }
     }
-#elif defined(_WIN32) || defined(_WIN64) || defined(WINDOWS_PHONE)
+#elif defined(_WIN32) || defined(WINDOWS_PHONE)
     // Filesystem detection for Windows
     CHAR volumeName[MAX_PATH + 1] = { 0 };
     CHAR fileSystemName[MAX_PATH + 1] = { 0 };
@@ -329,7 +329,7 @@ const char *FileSystemAccess::getPathSeparator()
 {
 #if defined (__linux__) || defined (__ANDROID__) || defined  (__APPLE__) || defined (USE_IOS)
 return "/";
-#elif defined(_WIN32) || defined(_WIN64) || defined(WINDOWS_PHONE)
+#elif defined(_WIN32) || defined(WINDOWS_PHONE)
 return "\\";
 #elif
 // Default case
