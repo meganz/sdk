@@ -213,15 +213,17 @@ bool FileSystemAccess::islocalfscompatible(unsigned char c, bool isEscape, FileS
                         : !strchr("\\/:?\"<>|*", c);
         case FS_FUSE:
         case FS_SDCARDFS:
-        case FS_UNKNOWN:
-        default:
             // FUSE and SDCARDFS are Android filesystem wrappers used to mount traditional filesystems
             // as ext4, Fat32, extFAT...
             // So we will consider that restricted characters for these wrappers are the same
             // as for Android => " * / : < > ? \ |
-
-            // If filesystem couldn't be detected we'll use a restrictive charset to avoid issues.
             return !strchr("\\/:?\"<>|*", c);
+
+        case FS_UNKNOWN:
+            // If filesystem couldn't be detected we'll use the most restrictive charset to avoid issues.
+            return (isControlChar(c) && isEscape)
+                    ? false
+                    : !strchr("\\/:?\"<>|*+,;=[]", c);
     }
 }
 
