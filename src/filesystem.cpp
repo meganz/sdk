@@ -153,8 +153,6 @@ FileSystemType FileSystemAccess::getlocalfstype(const string *dstPath) const
     }
 #elif defined(_WIN32) || defined(_WIN64) || defined(WINDOWS_PHONE)
     // Filesystem detection for Windows
-    CHAR volumeName[MAX_PATH + 1] = { 0 };
-    CHAR fileSystemName[MAX_PATH + 1] = { 0 };
     std::wstring wPath(dstpath->begin(), dstpath->end());
     std::wstring volMountPoint;
     volMountPoint.resize(MAX_PATH);
@@ -163,23 +161,27 @@ FileSystemType FileSystemAccess::getlocalfstype(const string *dstPath) const
     {
         return FS_UNKNOWN;
     }
+
+    LPCWSTR auxMountPoint = volMountPoint.c_str();
+    WCHAR volumeName[MAX_PATH + 1] = { 0 };
+    WCHAR fileSystemName[MAX_PATH + 1] = { 0 };
     DWORD serialNumber = 0;
     DWORD maxComponentLen = 0;
     DWORD fileSystemFlags = 0;
 
-    if (GetVolumeInformationA(dstPath->c_str(), volumeName, sizeof(volumeName),
+    if (GetVolumeInformationW(auxMountPoint, volumeName, sizeof(volumeName),
                              &serialNumber, &maxComponentLen, &fileSystemFlags,
                              fileSystemName, sizeof(fileSystemName)))
     {
-        if (!strcmp(fileSystemName, "NTFS"))
+        if (!wcscmp(fileSystemName, L"NTFS"))
         {
             return FS_NTFS;
         }
-        if (!strcmp(fileSystemName, "exFAT"))
+        if (!wcscmp(fileSystemName, L"exFAT"))
         {
             return FS_EXFAT;
         }
-        if (!strcmp(fileSystemName, "FAT32"))
+        if (!wcscmp(fileSystemName, L"FAT32"))
         {
             return FS_FAT32;
         }
