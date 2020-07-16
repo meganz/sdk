@@ -3910,6 +3910,9 @@ void MegaClient::resumeResumableSyncs()
                 firstSyncResumed = true;
             }
 
+#ifdef __APPLE__
+            config.setLocalFingerprint(0); //for certain MacOS, fsfp seems to vary when restarting. we set it to 0, so that it gets recalculated
+#endif
             LOG_debug << "Resuming cached sync: " << config.getTag() << " " << config.getLocalPath() << " fsfp= " << config.getLocalFingerprint() << " error = " << syncError ;
             error e = addsync(config, DEBRISFOLDER, nullptr, syncError);
 
