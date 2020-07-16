@@ -23933,8 +23933,8 @@ void MegaFolderUploadController::cancel()
     //remove ongoing subtransfers
     long long cancelledSubTransfers = 0;
     std::unique_ptr<DBTableTransactionCommitter> insideCommiter;
-    DBTableTransactionCommitter *committer = client->tctable->getTransactionCommitter();
-        if (!committer)
+    DBTableTransactionCommitter *committer = client->tctable ? client->tctable->getTransactionCommitter() : nullptr;
+    if (!committer)
     {
         insideCommiter.reset(new DBTableTransactionCommitter(client->tctable));
         committer = insideCommiter.get();
@@ -25355,8 +25355,8 @@ void MegaFolderDownloadController::cancel()
     long long cancelledSubTransfers = 0;
 
     std::unique_ptr<DBTableTransactionCommitter> insideCommiter;
-    DBTableTransactionCommitter *committer = client->tctable->getTransactionCommitter();
-        if (!committer)
+    DBTableTransactionCommitter *committer = client->tctable ? client->tctable->getTransactionCommitter() : nullptr;
+    if (!committer)
     {
         insideCommiter.reset(new DBTableTransactionCommitter(client->tctable));
         committer = insideCommiter.get();
