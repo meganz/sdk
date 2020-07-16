@@ -3163,6 +3163,9 @@ void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequ
 
 void MegaApi::resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRequestListener *listener)
 {
+#ifdef __APPLE__
+    localfp = 0; //for certain MacOS, fsfp seems to vary when restarting. we set it to 0, so that it gets recalculated
+#endif
     pImpl->syncFolder(localFolder, megaFolder, NULL, localfp, listener);
 }
 
@@ -3174,6 +3177,9 @@ void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegE
 
 void MegaApi::resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRegExp *regExp, MegaRequestListener *listener)
 {
+#ifdef __APPLE__
+    localfp = 0; //for certain MacOS, fsfp seems to vary when restarting. we set it to 0, so that it gets recalculated
+#endif
     pImpl->syncFolder(localFolder, megaFolder, regExp, localfp, listener);
 }
 #endif

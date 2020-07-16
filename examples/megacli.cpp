@@ -689,7 +689,7 @@ AppFilePut::AppFilePut(string* clocalname, handle ch, const char* ctargetuser)
 
     // erase path component
     name = *clocalname;
-    FileSystemType fileSystemType = client->fsaccess->getFilesystemType(clocalname);
+    mega::FileSystemType fileSystemType = client->fsaccess->getFilesystemType(clocalname);
     client->fsaccess->local2name(&name, fileSystemType);
     client->fsaccess->local2name(&separator,fileSystemType);
 
@@ -2563,7 +2563,7 @@ bool recursiveCompare(Node* mn, fs::path p)
     }
 
     std::string path = p.u8string();
-    FileSystemType fileSystemType = client->fsaccess->getFilesystemType(&path);
+    mega::FileSystemType fileSystemType = client->fsaccess->getFilesystemType(&path);
     multimap<string, Node*> ms;
     multimap<string, fs::path> ps;
     for (auto& m : mn->children)

@@ -8334,4 +8334,142 @@ void CommandFolderLinkInfo::procresult()
     }
 }
 
+CommandBackupPut::CommandBackupPut(MegaClient *client, BackupType type, handle nodeHandle, const string& localFolder, const std::string &deviceId, const string& backupName, int state, int subState, const string& extraData)
+{
+    assert(type != BackupType::INVALID);
+
+    cmd("sp");
+
+    arg("t", type);
+    arg("h", (byte*)&nodeHandle, MegaClient::NODEHANDLE);
+    arg("l", localFolder.c_str());
+    arg("d", deviceId.c_str());
+    arg("n", backupName.c_str());
+    arg("s", state);
+    arg("ss", subState);
+    arg("e", extraData.c_str());
+
+    tag = client->reqtag;
+    mUpdate = false;
+}
+
+CommandBackupPut::CommandBackupPut(MegaClient* client, handle backupId, BackupType type, handle nodeHandle, const char* localFolder, const char *deviceId, const char* backupName, int state, int subState, const char* extraData)
+{
+    cmd("sp");
+
+    arg("id", (byte*)&backupId, MegaClient::USERHANDLE);
+
+    if (type != BackupType::INVALID)
+    {
+        arg("t", type);
+    }
+
+    if (nodeHandle != UNDEF)
+    {
+        arg("h", (byte*)&nodeHandle, MegaClient::NODEHANDLE);
+    }
+
+    if (localFolder)
+    {
+        arg("l", localFolder);
+    }
+
+    if (deviceId)
+    {
+        arg("d", deviceId);
+    }
+
+    if (backupName)
+    {
+        arg("n", backupName);
+    }
+
+    if (state > 0)
+    {
+        arg("s", state);
+    }
+
+    if (subState > 0)
+    {
+        arg("ss", subState);
+    }
+
+    if (extraData)
+    {
+        arg("e", extraData);
+    }
+
+    tag = client->reqtag;
+    mUpdate = true;
+}
+
+void CommandBackupPut::procresult()
+{
+    Error e;
+    if (checkError(e, client->json))
+    {
+        if (mUpdate)
+        {
+            return client->app->backupupdate_result(e, UNDEF);
+        }
+
+        return client->app->backupput_result(e, UNDEF);
+    }
+
+    handle backupId = client->json.gethandle(MegaClient::USERHANDLE);
+    if (mUpdate)
+    {
+        return client->app->backupupdate_result(API_OK, backupId);
+    }
+
+    client->app->backupput_result(API_OK, backupId);
+}
+
+CommandBackupPutHeartBeat::CommandBackupPutHeartBeat(MegaClient* client, handle backupId, uint8_t status, uint8_t progress, uint32_t uploads, uint32_t downloads, uint32_t ts, handle lastNode)
+{
+    cmd("sphb");
+
+    arg("id", (byte*)&backupId, MegaClient::USERHANDLE);
+    arg("s", status);
+    arg("p", progress);
+    arg("qu", uploads);
+    arg("qd", downloads);
+    arg("lts", ts);
+    arg("lh", (byte*)&lastNode, MegaClient::NODEHANDLE);
+
+    tag = client->reqtag;
+}
+
+void CommandBackupPutHeartBeat::procresult()
+{
+    Error e;
+    if (checkError(e, client->json))
+    {
+        return client->app->backupputheartbeat_result(e);
+    }
+
+    client->json.storeobject();
+    client->app->backupputheartbeat_result(API_EINTERNAL);
+}
+
+CommandBackupRemove::CommandBackupRemove(MegaClient *client, handle backupId)
+{
+    cmd("sr");
+    arg("id", (byte*)&backupId, MegaClient::USERHANDLE);
+
+    tag = client->reqtag;
+}
+
+void CommandBackupRemove::procresult()
+{
+    Error e;
+    if (checkError(e, client->json))
+    {
+        return client->app->backupputheartbeat_result(e);
+    }
+
+    client->json.storeobject();
+    return client->app->backupputheartbeat_result(API_EINTERNAL);
+}
+
 } // namespace
