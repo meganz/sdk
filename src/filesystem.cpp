@@ -153,7 +153,7 @@ FileSystemType FileSystemAccess::getlocalfstype(const string *dstPath) const
     }
 #elif defined(_WIN32) || defined(_WIN64) || defined(WINDOWS_PHONE)
     // Filesystem detection for Windows
-    std::wstring wPath(dstpath->begin(), dstpath->end());
+    std::wstring wPath(dstPath->begin(), dstPath->end());
     std::wstring volMountPoint;
     volMountPoint.resize(MAX_PATH);
     DWORD mountLen = static_cast<DWORD>(volMountPoint.size());
