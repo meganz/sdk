@@ -980,7 +980,7 @@ bool LocalPath::backEqual(size_t bytePos, const string& compareTo) const
 bool LocalPath::backEqual(size_t bytePos, const LocalPath& compareTo) const
 {
     auto n = compareTo.localpath.size();
-    return bytePos + n == localpath.size() && memcmp(compareTo.localpath.data(), localpath.data() + bytePos, n);
+    return bytePos + n == localpath.size() && !memcmp(compareTo.localpath.data(), localpath.data() + bytePos, n);
 }
 
 LocalPath LocalPath::subpathFrom(size_t bytePos) const
