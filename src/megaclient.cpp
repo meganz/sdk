@@ -596,12 +596,12 @@ bool SCSN::setScsn(JSON* j)
         return false;
     }
 
-    Base64::btoa((byte*)&t, sizeof t, scsn);
+    setScsn(t);
 
     return true;
 }
 
-void SCSN::set(handle h)
+void SCSN::setScsn(handle h)
 {
     Base64::btoa((byte*)&h, sizeof h, scsn);
 }
@@ -612,20 +612,33 @@ void SCSN::stopScsn()
     stopsc = true;
 }
 
-bool SCSN::ready()
+bool SCSN::ready() const
 {
     return !stopsc && *scsn;
 }
 
-bool SCSN::stopped()
+bool SCSN::stopped() const
 {
     return stopsc;
 }
 
-const char* SCSN::text()
+const char* SCSN::text() const
 {
     assert(ready());
     return scsn;
+}
+
+handle SCSN::getHandle() const
+{
+    if (!ready())
+    {
+        return UNDEF;
+    }
+
+    handle t;
+    Base64::atob(scsn, (byte*)&t, sizeof t);
+
+    return t;
 }
 
 
@@ -4724,8 +4737,7 @@ void MegaClient::initsc()
         sctable->truncate();
 
         // 1. write current scsn
-        handle tscsn;
-        Base64::atob(scsn.text(), (byte*)&tscsn, sizeof tscsn);
+        handle tscsn = scsn.getHandle();
         complete = sctable->put(CACHEDSCSN, (char*)&tscsn, sizeof tscsn);
 
         if (complete)
@@ -4806,8 +4818,7 @@ void MegaClient::updatesc()
         bool complete;
 
         // 1. update associated scsn
-        handle tscsn;
-        Base64::atob(scsn.text(), (byte*)&tscsn, sizeof tscsn);
+        handle tscsn = scsn.getHandle();
         complete = sctable->put(CACHEDSCSN, (char*)&tscsn, sizeof tscsn);
 
         if (complete)
@@ -11241,7 +11252,7 @@ void MegaClient::fetchnodes(bool nocache)
         pendingsccommit = false;
 
         // allow sc requests to start 
-        scsn.set(cachedscsn);
+        scsn.setScsn(cachedscsn);
         LOG_info << "Session loaded from local cache. SCSN: " << scsn.text();
 
 #ifdef ENABLE_SYNC

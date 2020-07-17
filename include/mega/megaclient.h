@@ -180,10 +180,15 @@ public:
     dstime timeToTransfersResumed;
 };
 
-// A helper class that keeps the SN (sequence number) members in sync and well initialized.
+/**
+ * @brief A helper class that keeps the SN (sequence number) members in sync and well initialized.
+ *  The server-client sequence number is updated along with every batch of actionpackets received from API
+ *  It is used to commit the open transaction in DB, so the account's local state is persisted. Upon resumption,
+ *  the scsn is sent to API, which provides the possible updates missing while the client was not running
+ */
 class SCSN
 {
-    // scsn that we are sending in sc requests (ie, where we are up to with the in-memory node data)
+    // scsn that we are sending in sc requests (ie, where we are up to with the persisted node data)
     char scsn[12];
 
     // sc inconsistency: stop querying for action packets
@@ -192,13 +197,14 @@ class SCSN
 public: 
 
     bool setScsn(JSON*);
-    void set(handle);
+    void setScsn(handle);
     void stopScsn();
 
-    bool ready();
-    bool stopped();
+    bool ready() const;
+    bool stopped() const;
 
-    const char* text();
+    const char* text() const;
+    handle getHandle() const;
 
     SCSN();
     void clear();
