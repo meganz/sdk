@@ -161,7 +161,6 @@ public:
     bool findNextSeparator(size_t& separatorBytePos, const FileSystemAccess& fsaccess) const;
     bool findPrevSeparator(size_t& separatorBytePos, const FileSystemAccess& fsaccess) const;
     size_t getLeafnameByteIndex(const FileSystemAccess& fsaccess) const;
-    bool backEqual(size_t bytePos, const std::string& compareTo) const;
     bool backEqual(size_t bytePos, const LocalPath& compareTo) const;
     LocalPath subpathFrom(size_t bytePos) const;
     std::string substrTo(size_t bytePos) const;
