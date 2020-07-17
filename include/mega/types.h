@@ -399,9 +399,6 @@ typedef map<int, vector<uint32_t> > pendingdbid_map;
 // map a request tag with a pending dns request
 typedef map<int, GenericHttpReq*> pendinghttp_map;
 
-// map a request tag with pending paths of temporary files
-typedef map<int, vector<string> > pendingfiles_map;
-
 // map an upload handle to the corresponding transer
 typedef map<handle, Transfer*> handletransfer_map;
 
@@ -470,9 +467,6 @@ typedef multimap<dstime, DirectReadNode*> dsdrn_map;
 typedef list<DirectRead*> dr_list;
 typedef list<DirectReadSlot*> drs_list;
 
-typedef map<const string*, LocalNode*, StringCmp> localnode_map;
-typedef map<const string*, Node*, StringCmp> remotenode_map;
-
 typedef enum { TREESTATE_NONE = 0, TREESTATE_SYNCED, TREESTATE_PENDING, TREESTATE_SYNCING } treestate_t;
 
 typedef enum { TRANSFERSTATE_NONE = 0, TRANSFERSTATE_QUEUED, TRANSFERSTATE_ACTIVE, TRANSFERSTATE_PAUSED,
@@ -524,6 +518,7 @@ typedef enum {
     ATTR_ALIAS = 27,                        // private - byte array - versioned
     ATTR_AUTHRSA = 28,                      // private - byte array
     ATTR_AUTHCU255 = 29,                    // private - byte array
+    ATTR_DEVICE_NAMES = 30,                 // private - byte array - versioned
 
 } attr_t;
 typedef map<attr_t, string> userattr_map;
@@ -741,6 +736,8 @@ namespace CodeCounter
 #endif
     };
 }
+
+typedef enum {INVALID = -1, TWO_WAY = 0, UP_SYNC = 1, DOWN_SYNC = 2, CAMERA_UPLOAD = 3 } BackupType;
 
 // Holds the config of a sync. Can be extended with future config options
 class SyncConfig : public Cacheable

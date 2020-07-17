@@ -2425,6 +2425,14 @@ using namespace mega;
     self.megaApi->checkSMSVerificationCode([verificationCode UTF8String], [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
+- (void)resetSmsVerifiedPhoneNumberWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->resetSmsVerifiedPhoneNumber([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)resetSmsVerifiedPhoneNumberWithDelegate {
+    self.megaApi->resetSmsVerifiedPhoneNumber();
+}
+
 #pragma mark - Push Notification Settings
 
 - (void)getPushNotificationSettingsWithDelegate:(id<MEGARequestDelegate>)delegate {

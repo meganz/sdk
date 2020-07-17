@@ -216,6 +216,7 @@ protected:
     int recursive;
     int tag;
     int pendingTransfers;
+    bool cancelled = false;
     std::set<MegaTransferPrivate*> subTransfers;
     int mIncompleteTransfers = { 0 };
     MegaErrorPrivate mLastError = { API_OK };
@@ -232,13 +233,14 @@ protected:
     void onFolderAvailable(MegaHandle handle);
     void checkCompletion();
 
-    std::list<std::string> pendingFolders;
+    std::list<LocalPath> pendingFolders;
 
 public:
     void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e) override;
     void onTransferStart(MegaApi *api, MegaTransfer *transfer) override;
     void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) override;
     void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e) override;
+    ~MegaFolderUploadController();
 };
 
 
@@ -322,7 +324,7 @@ protected:
     // backup instance related
     handle currentHandle;
     std::string currentName;
-    std::list<std::string> pendingFolders;
+    std::list<LocalPath> pendingFolders;
     std::vector<MegaTransfer *> failedTransfers;
     int recursive;
     int pendingTransfers;
@@ -1851,7 +1853,7 @@ struct MegaFilePut : public MegaFile
 {
     void completed(Transfer* t, LocalNode*) override;
     void terminated() override;
-    MegaFilePut(MegaClient *client, string* clocalname, string *filename, handle ch, const char* ctargetuser, int64_t mtime = -1, bool isSourceTemporary = false);
+    MegaFilePut(MegaClient *client, LocalPath clocalname, string *filename, handle ch, const char* ctargetuser, int64_t mtime = -1, bool isSourceTemporary = false);
     ~MegaFilePut() {}
 
     bool serialize(string*) override;
@@ -1973,6 +1975,8 @@ class TransferQueue
         void push(MegaTransferPrivate *transfer);
         void push_front(MegaTransferPrivate *transfer);
         MegaTransferPrivate * pop();
+
+        void removeWithFolderTag(int folderTag, std::function<void(MegaTransferPrivate *)> callback);
         void removeListener(MegaTransferListener *listener);
 };
 
@@ -2003,6 +2007,9 @@ class MegaApiImpl : public MegaApp
         void removeTransferListener(MegaTransferListener* listener);
         void removeBackupListener(MegaBackupListener* listener);
         void removeGlobalListener(MegaGlobalListener* listener);
+
+        void cancelPendingTransfersByFolderTag(int folderTag);
+
 
         MegaRequest *getCurrentRequest();
         MegaTransfer *getCurrentTransfer();
@@ -2163,6 +2170,8 @@ class MegaApiImpl : public MegaApp
         void setUserAttribute(int type, const MegaStringMap* value, MegaRequestListener *listener = NULL);
         void getRubbishBinAutopurgePeriod(MegaRequestListener *listener = NULL);
         void setRubbishBinAutopurgePeriod(int days, MegaRequestListener *listener = NULL);
+        void getDeviceName(MegaRequestListener *listener = NULL);
+        void setDeviceName(const char* deviceName, MegaRequestListener *listener = NULL);
         void getUserEmail(MegaHandle handle, MegaRequestListener *listener = NULL);
         void setCustomNodeAttribute(MegaNode *node, const char *attrName, const char *value, MegaRequestListener *listener = NULL);
         void setNodeDuration(MegaNode *node, int secs, MegaRequestListener *listener = NULL);
@@ -2266,7 +2275,7 @@ class MegaApiImpl : public MegaApp
 #ifdef ENABLE_SYNC
         //Sync
         int syncPathState(string *path);
-        MegaNode *getSyncedNode(string *path);
+        MegaNode *getSyncedNode(const LocalPath& path);
         void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp = NULL, long long localfp = 0, MegaRequestListener* listener = NULL);
         void removeSync(handle nodehandle, MegaRequestListener *listener=NULL);
         void disableSync(handle nodehandle, MegaRequestListener *listener=NULL);
@@ -2282,7 +2291,7 @@ class MegaApiImpl : public MegaApp
         long long getNumLocalNodes();
         bool isSyncable(const char *path, long long size);
         bool isInsideSync(MegaNode *node);
-        bool is_syncable(Sync*, const char*, string*);
+        bool is_syncable(Sync*, const char*, const LocalPath&);
         bool is_syncable(long long size);
         int isNodeSyncable(MegaNode *megaNode);
         bool isIndexing();
@@ -2998,8 +3007,8 @@ protected:
         void syncupdate_remote_move(Sync *sync, Node *n, Node* prevparent) override;
         void syncupdate_remote_rename(Sync*sync, Node* n, const char* prevname) override;
         void syncupdate_treestate(LocalNode*) override;
-        bool sync_syncable(Sync *, const char*, string *, Node *) override;
-        bool sync_syncable(Sync *, const char*, string *) override;
+        bool sync_syncable(Sync *, const char*, LocalPath&, Node *) override;
+        bool sync_syncable(Sync *, const char*, LocalPath&) override;
         void sync_auto_resumed(const string& localPath, handle remoteNode, long long localFp, const vector<string>& regExp) override;
         void syncupdate_local_lockretry(bool) override;
 
@@ -3007,6 +3016,11 @@ protected:
         unique_ptr<FileAccess> mSyncable_fa;
         std::mutex mSyncable_fa_mutex;
 #endif
+
+        void backupput_result(const Error&, handle) override;
+        void backupupdate_result(const Error&, handle) override;
+        void backupputheartbeat_result(const Error&) override;
+        void backupremove_result(const Error&, handle) override;
 
 protected:
         // suggest reload due to possible race condition with other clients

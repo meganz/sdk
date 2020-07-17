@@ -310,12 +310,12 @@ struct MEGA_API MegaApp
     virtual void syncupdate_treestate(LocalNode*) { }
 
     // sync filename filter
-    virtual bool sync_syncable(Sync*, const char*, string*, Node*)
+    virtual bool sync_syncable(Sync*, const char*, LocalPath&, Node*)
     {
         return true;
     }
 
-    virtual bool sync_syncable(Sync*, const char*, string*)
+    virtual bool sync_syncable(Sync*, const char*, LocalPath&)
     {
         return true;
     }
@@ -395,6 +395,11 @@ struct MEGA_API MegaApp
     virtual void getcountrycallingcodes_result(error, map<string, vector<string>>*) { }
 
     virtual void getmiscflags_result(error) { }
+
+    virtual void backupput_result(const Error&, handle /*backup id*/) { }
+    virtual void backupupdate_result(const Error&, handle /*backup id*/) { }
+    virtual void backupputheartbeat_result(const Error&) { }
+    virtual void backupremove_result(const Error&, handle /*backup id*/) { }
 
     virtual ~MegaApp() { }
 };

@@ -153,6 +153,7 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeResendVerificationEmail,
     MEGARequestTypeSupportTicket,
     MEGARequestTypeSendDevCommand,
+    MEGARequestTypeResetSmsVerifiedNumber,
     TotalOfRequestTypes
 };
 

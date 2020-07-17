@@ -2727,6 +2727,16 @@ void MegaApi::setRubbishBinAutopurgePeriod(int days, MegaRequestListener *listen
     pImpl->setRubbishBinAutopurgePeriod(days, listener);
 }
 
+void MegaApi::getDeviceName(MegaRequestListener *listener)
+{
+    pImpl->getDeviceName(listener);
+}
+
+void MegaApi::setDeviceName(const char *deviceName, MegaRequestListener *listener)
+{
+    pImpl->setDeviceName(deviceName, listener);
+}
+
 void MegaApi::changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener)
 {
     pImpl->changePassword(oldPassword, newPassword, listener);
@@ -3143,7 +3153,7 @@ int MegaApi::syncPathState(string* path)
 
 MegaNode *MegaApi::getSyncedNode(string *path)
 {
-    return pImpl->getSyncedNode(path);
+    return pImpl->getSyncedNode(LocalPath::fromLocalname(*path));
 }
 
 void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener *listener)
@@ -3153,6 +3163,9 @@ void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequ
 
 void MegaApi::resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRequestListener *listener)
 {
+#ifdef __APPLE__
+    localfp = 0; //for certain MacOS, fsfp seems to vary when restarting. we set it to 0, so that it gets recalculated
+#endif
     pImpl->syncFolder(localFolder, megaFolder, NULL, localfp, listener);
 }
 
@@ -3164,6 +3177,9 @@ void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegE
 
 void MegaApi::resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRegExp *regExp, MegaRequestListener *listener)
 {
+#ifdef __APPLE__
+    localfp = 0; //for certain MacOS, fsfp seems to vary when restarting. we set it to 0, so that it gets recalculated
+#endif
     pImpl->syncFolder(localFolder, megaFolder, regExp, localfp, listener);
 }
 #endif

@@ -1166,10 +1166,10 @@ void CommandPutNodes::procresult()
     pendingfiles_map::iterator pit = client->pendingfiles.find(tag);
     if (pit != client->pendingfiles.end())
     {
-        vector<string> &pfs = pit->second;
+        vector<LocalPath> &pfs = pit->second;
         for (unsigned int i = 0; i < pfs.size(); i++)
         {
-            client->fsaccess->unlinklocal(&pfs[i]);
+            client->fsaccess->unlinklocal(pfs[i]);
         }
         client->pendingfiles.erase(pit);
     }
@@ -1703,22 +1703,7 @@ CommandLogin::CommandLogin(MegaClient* client, const char* email, const byte *em
         arg("sn", (byte*)&client->cachedscsn, sizeof client->cachedscsn);
     }
 
-    string id;
-    if (!MegaClient::statsid)
-    {
-        client->fsaccess->statsid(&id);
-        if (id.size())
-        {
-            size_t len = id.size() + 1;
-            char *buff = new char[len];
-            memcpy(buff, id.c_str(), len);
-            MegaClient::statsid = buff;
-        }
-    }
-    else
-    {
-        id = MegaClient::statsid;
-    }
+    string id = client->getDeviceid();
 
     if (id.size())
     {
@@ -3628,6 +3613,8 @@ void CommandGetUserData::procresult()
     string email;
     string unshareableKey;
     string versionUnshareableKey;
+    string deviceNames;
+    string versionDeviceNames;
 
     bool uspw = false;
     vector<m_time_t> warningTs;
@@ -3750,6 +3737,11 @@ void CommandGetUserData::procresult()
         case MAKENAMEID5('*', '~', 'u', 's', 'k'):
             parseUserAttribute(unshareableKey, versionUnshareableKey, false);
             break;
+
+        case MAKENAMEID4('*', '!', 'd', 'n'):
+            parseUserAttribute(deviceNames, versionDeviceNames);
+            break;
+
 
         case 'b':   // business account's info
             assert(!b);
@@ -4092,6 +4084,21 @@ void CommandGetUserData::procresult()
                 else
                 {
                     LOG_err << "Unshareable key wrong length";
+                }
+
+                if (deviceNames.size())
+                {
+                    unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&deviceNames, &client->key));
+                    if (tlvRecords)
+                    {
+                        // store the value for private user attributes (decrypted version of serialized TLV)
+                        unique_ptr<string> tlvString(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
+                        changes += u->updateattr(ATTR_DEVICE_NAMES, tlvString.get(), &versionDeviceNames);
+                    }
+                    else
+                    {
+                        LOG_err << "Cannot extract TLV records for ATTR_DEVICE_NAMES";
+                    }
                 }
 
                 if (changes > 0)
@@ -6045,6 +6052,10 @@ void CommandResetSmsVerifiedPhoneNumber::procresult()
     Error e;
     if (checkError(e, client->json))
     {
+        if (e == API_OK)
+        {
+            client->mSmsVerifiedPhone.clear();
+        }
         client->app->resetSmsVerifiedPhoneNumber_result(e);
     }
     else
@@ -8321,6 +8332,144 @@ void CommandFolderLinkInfo::procresult()
             break;
         }
     }
+}
+
+CommandBackupPut::CommandBackupPut(MegaClient *client, BackupType type, handle nodeHandle, const string& localFolder, const std::string &deviceId, const string& backupName, int state, int subState, const string& extraData)
+{
+    assert(type != BackupType::INVALID);
+
+    cmd("sp");
+
+    arg("t", type);
+    arg("h", (byte*)&nodeHandle, MegaClient::NODEHANDLE);
+    arg("l", localFolder.c_str());
+    arg("d", deviceId.c_str());
+    arg("n", backupName.c_str());
+    arg("s", state);
+    arg("ss", subState);
+    arg("e", extraData.c_str());
+
+    tag = client->reqtag;
+    mUpdate = false;
+}
+
+CommandBackupPut::CommandBackupPut(MegaClient* client, handle backupId, BackupType type, handle nodeHandle, const char* localFolder, const char *deviceId, const char* backupName, int state, int subState, const char* extraData)
+{
+    cmd("sp");
+
+    arg("id", (byte*)&backupId, MegaClient::USERHANDLE);
+
+    if (type != BackupType::INVALID)
+    {
+        arg("t", type);
+    }
+
+    if (nodeHandle != UNDEF)
+    {
+        arg("h", (byte*)&nodeHandle, MegaClient::NODEHANDLE);
+    }
+
+    if (localFolder)
+    {
+        arg("l", localFolder);
+    }
+
+    if (deviceId)
+    {
+        arg("d", deviceId);
+    }
+
+    if (backupName)
+    {
+        arg("n", backupName);
+    }
+
+    if (state > 0)
+    {
+        arg("s", state);
+    }
+
+    if (subState > 0)
+    {
+        arg("ss", subState);
+    }
+
+    if (extraData)
+    {
+        arg("e", extraData);
+    }
+
+    tag = client->reqtag;
+    mUpdate = true;
+}
+
+void CommandBackupPut::procresult()
+{
+    Error e;
+    if (checkError(e, client->json))
+    {
+        if (mUpdate)
+        {
+            return client->app->backupupdate_result(e, UNDEF);
+        }
+
+        return client->app->backupput_result(e, UNDEF);
+    }
+
+    handle backupId = client->json.gethandle(MegaClient::USERHANDLE);
+    if (mUpdate)
+    {
+        return client->app->backupupdate_result(API_OK, backupId);
+    }
+
+    client->app->backupput_result(API_OK, backupId);
+}
+
+CommandBackupPutHeartBeat::CommandBackupPutHeartBeat(MegaClient* client, handle backupId, uint8_t status, uint8_t progress, uint32_t uploads, uint32_t downloads, uint32_t ts, handle lastNode)
+{
+    cmd("sphb");
+
+    arg("id", (byte*)&backupId, MegaClient::USERHANDLE);
+    arg("s", status);
+    arg("p", progress);
+    arg("qu", uploads);
+    arg("qd", downloads);
+    arg("lts", ts);
+    arg("lh", (byte*)&lastNode, MegaClient::NODEHANDLE);
+
+    tag = client->reqtag;
+}
+
+void CommandBackupPutHeartBeat::procresult()
+{
+    Error e;
+    if (checkError(e, client->json))
+    {
+        return client->app->backupputheartbeat_result(e);
+    }
+
+    client->json.storeobject();
+    client->app->backupputheartbeat_result(API_EINTERNAL);
+}
+
+CommandBackupRemove::CommandBackupRemove(MegaClient *client, handle backupId)
+{
+    cmd("sr");
+    arg("id", (byte*)&backupId, MegaClient::USERHANDLE);
+
+    tag = client->reqtag;
+}
+
+void CommandBackupRemove::procresult()
+{
+    Error e;
+    if (checkError(e, client->json))
+    {
+        return client->app->backupputheartbeat_result(e);
+    }
+
+    client->json.storeobject();
+    return client->app->backupputheartbeat_result(API_EINTERNAL);
 }
 
 } // namespace

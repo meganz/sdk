@@ -62,7 +62,7 @@ struct MEGA_API Transfer : public FileFingerprint
     BackoffTimerTracked bt;
 
     // representative local filename for this transfer
-    string localfilename;
+    LocalPath localfilename;
 
     // progress completed
     m_off_t progresscompleted;
@@ -160,7 +160,7 @@ struct MEGA_API Transfer : public FileFingerprint
     static Transfer* unserialize(MegaClient *, string*, transfer_map *);
 
     // examine a file on disk for video/audio attributes to attach to the file, on upload/download
-    void addAnyMissingMediaFileAttributes(Node* node, std::string& localpath);
+    void addAnyMissingMediaFileAttributes(Node* node, LocalPath& localpath);
 
     // whether the Transfer needs to remove itself from the list it's in (for quick shutdown we can skip)
     bool mOptimizedDelete = false;
