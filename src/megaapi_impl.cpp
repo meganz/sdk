@@ -5896,7 +5896,7 @@ char *MegaApiImpl::getSequenceNumber()
 {
     sdkMutex.lock();
 
-    char *scsn = MegaApi::strdup(client->scsn);
+    char *scsn = MegaApi::strdup(client->scsn.text());
 
     sdkMutex.unlock();
 
@@ -13798,7 +13798,7 @@ void MegaApiImpl::notify_retry(dstime dsdelta, retryreason_t reason)
 void MegaApiImpl::notify_dbcommit()
 {
     MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_COMMIT_DB);
-    event->setText(client->scsn);
+    event->setText(client->scsn.text());
     fireOnEvent(event);
 }
 
