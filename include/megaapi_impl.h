@@ -793,7 +793,7 @@ protected:
         long long placeInQueue = 0;
 
         MegaTransferListener *listener;
-        Transfer *transfer;
+        Transfer *transfer = nullptr;
         std::unique_ptr<MegaError> lastError;
         int folderTransferTag;
         const char* appData;
@@ -2947,6 +2947,10 @@ protected:
         void file_added(File*) override;
         void file_removed(File*, const Error& e) override;
         void file_complete(File*) override;
+
+        void transfer_complete(Transfer *) override;
+        void transfer_removed(Transfer *) override;
+
         File* file_resume(string*, direction_t *type) override;
 
         void transfer_prepare(Transfer*) override;

@@ -3815,6 +3815,7 @@ void MegaClient::freeq(direction_t d)
     for (auto transferPtr : transfers[d])
     {
         transferPtr.second->mOptimizedDelete = true;  // so it doesn't remove itself from this list while deleting
+        app->transfer_removed(transferPtr.second);
         delete transferPtr.second;
     }
     transfers[d].clear();
@@ -11004,6 +11005,7 @@ void MegaClient::purgeOrphanTransfers(bool remove)
                 transfer->finished = true;
             }
 
+            app->transfer_removed(transfer);
             delete transfer;
             cachedtransfers[d].erase(it);
         }
