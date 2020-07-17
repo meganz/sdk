@@ -641,6 +641,12 @@ handle SCSN::getHandle() const
     return t;
 }
 
+std::ostream& operator<<(std::ostream &os, const SCSN &scsn)
+{
+    os << scsn.text();
+    return os;
+}
+
 
 int MegaClient::nextreqtag()
 {

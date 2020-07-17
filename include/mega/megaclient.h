@@ -206,6 +206,8 @@ public:
     const char* text() const;
     handle getHandle() const;
 
+    friend std::ostream& operator<<(std::ostream& os, const SCSN& scsn);
+
     SCSN();
     void clear();
 };
