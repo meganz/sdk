@@ -153,11 +153,14 @@ FileSystemType FileSystemAccess::getlocalfstype(const string *dstPath) const
     }
 #elif defined(_WIN32) || defined(WINDOWS_PHONE)
     // Filesystem detection for Windows
-    std::wstring wPath(dstPath->begin(), dstPath->end());
+
+    string utf8path = *dstPath;
+    string localpath;
+    path2local(&utf8path, &localpath);
     std::wstring volMountPoint;
     volMountPoint.resize(MAX_PATH);
     DWORD mountLen = static_cast<DWORD>(volMountPoint.size());
-    if (!(GetVolumePathNameW(wPath.c_str(), &volMountPoint[0], mountLen)))
+    if (!(GetVolumePathNameW((LPCWSTR)localpath.data(), &volMountPoint[0], mountLen)))
     {
         return FS_UNKNOWN;
     }
