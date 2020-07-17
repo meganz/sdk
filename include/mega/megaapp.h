@@ -169,6 +169,9 @@ struct MEGA_API MegaApp
     virtual void getua_result(TLVstore *, attr_t) { }
 #ifdef DEBUG
     virtual void delua_result(error) { }
+
+    // result of send dev subcommand's command
+    virtual void senddevcommand_result(int) { }
 #endif
 
     virtual void getuseremail_result(string *, error) { }
@@ -223,6 +226,9 @@ struct MEGA_API MegaApp
     // resend verification email
     virtual void resendverificationemail_result(error) {};
 
+    // reset the verified phone number
+    virtual void resetSmsVerifiedPhoneNumber_result(error) {};
+
     // confirm change email link result
     virtual void confirmemaillink_result(error) {}
 
@@ -246,6 +252,7 @@ struct MEGA_API MegaApp
     virtual void chatpresenceurl_result(string*, error) { }
     virtual void registerpushnotification_result(error) { }
     virtual void archivechat_result(error) { }
+    virtual void setchatretentiontime_result(error){ }
 
     virtual void chats_updated(textchat_map *, int) { }
     virtual void richlinkrequest_result(string*, error) { }
@@ -302,12 +309,12 @@ struct MEGA_API MegaApp
     virtual void syncupdate_treestate(LocalNode*) { }
 
     // sync filename filter
-    virtual bool sync_syncable(Sync*, const char*, string*, Node*)
+    virtual bool sync_syncable(Sync*, const char*, LocalPath&, Node*)
     {
         return true;
     }
 
-    virtual bool sync_syncable(Sync*, const char*, string*)
+    virtual bool sync_syncable(Sync*, const char*, LocalPath&)
     {
         return true;
     }
@@ -387,6 +394,11 @@ struct MEGA_API MegaApp
     virtual void getcountrycallingcodes_result(error, map<string, vector<string>>*) { }
 
     virtual void getmiscflags_result(error) { }
+
+    virtual void backupput_result(const Error&, handle /*backup id*/) { }
+    virtual void backupupdate_result(const Error&, handle /*backup id*/) { }
+    virtual void backupputheartbeat_result(const Error&) { }
+    virtual void backupremove_result(const Error&, handle /*backup id*/) { }
 
     virtual ~MegaApp() { }
 };

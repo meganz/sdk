@@ -80,11 +80,12 @@ const char* Command::getJSON(MegaClient*)
 bool Command::checkError(Error& errorDetails, JSON& json)
 {
     error e;
+    bool errorDetected = false;
     if (json.isNumericError(e))
     {
         // isNumericError already moved the pointer past the integer (name could imply this?)
         errorDetails.setErrorCode(e);
-        return true;
+        errorDetected = true;
     }
     else
     {
@@ -96,13 +97,15 @@ bool Command::checkError(Error& errorDetails, JSON& json)
 
         if (strncmp(ptr, "{\"err\":", 7) == 0)
         {
+            bool exit = false;
             json.enterobject();
-            for (;;)
+            while (!exit)
             {
                 switch (json.getnameid())
                 {
                     case MAKENAMEID3('e', 'r', 'r'):
                         errorDetails.setErrorCode(static_cast<error>(json.getint()));
+                        errorDetected = true;
                         break;
                     case 'u':
                         errorDetails.setUserStatus(json.getint());
@@ -111,16 +114,24 @@ bool Command::checkError(Error& errorDetails, JSON& json)
                        errorDetails.setLinkStatus(json.getint());
                         break;
                     case EOO:
-                        return true;
+                        exit = true;
+                        break;
                     default:
                         json.storeobject();
                         break;
                 }
             }
         }
-
-        return false;
     }
+
+    // generic handling of errors for all commands below
+
+    if (errorDetected && errorDetails == API_EPAYWALL)
+    {
+        client->activateoverquota(0, true);
+    }
+
+    return errorDetected;
 }
 
 // add opcode

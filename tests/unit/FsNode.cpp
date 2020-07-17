@@ -22,12 +22,15 @@
 
 namespace mt {
 
+using mega::FSACCESS_CLASS;
+using mega::LocalPath;
+
 FsNode::FsNode(FsNode* parent, const mega::nodetype_t type, std::string name)
 : mFsId{mt::nextFsId()}
 , mMTime{nextRandomInt()}
 , mParent{parent}
 , mType{type}
-, mName{std::move(name)}
+, mName{LocalPath::fromLocalname(std::move(name))}
 {
     assert(mType == mega::FILENODE || mType == mega::FOLDERNODE);
 
@@ -47,12 +50,12 @@ FsNode::FsNode(FsNode* parent, const mega::nodetype_t type, std::string name)
         {
             mContent.push_back(nextRandomByte());
         }
-        mFileAccess->fopen(&path, true, false);
+        mFileAccess->fopen(path, true, false);
         mFingerprint.genfingerprint(mFileAccess.get());
     }
     else
     {
-        mFileAccess->fopen(&path, true, false);
+        mFileAccess->fopen(path, true, false);
         mFingerprint.mtime = mMTime;
     }
 }
@@ -61,9 +64,9 @@ FsNode::FileAccess::FileAccess(const FsNode& fsNode)
 : mFsNode{fsNode}
 {}
 
-bool FsNode::FileAccess::fopen(std::string* path, bool, bool, mega::DirAccess* iteratingDir)
+bool FsNode::FileAccess::fopen(LocalPath& path, bool, bool, mega::DirAccess* iteratingDir)
 {
-    mPath = *path;
+    mPath = path;
     return sysopen();
 }
 

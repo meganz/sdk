@@ -44,7 +44,7 @@ public:
     void get(string*, bool& suppressSID, MegaClient* client) const;
 
     void serverresponse(string&& movestring, MegaClient*);
-    void servererror(error e, MegaClient* client);
+    void servererror(const std::string &e, MegaClient* client);
 	
     void process(MegaClient* client);
     bool processCmdJSON(Command* cmd);
@@ -103,7 +103,7 @@ public:
     void requeuerequest();
     void serverresponse(string&& movestring, MegaClient*);
 
-    void servererror(error, MegaClient*);
+    void servererror(const std::string &e, MegaClient*);
 
     void continueProcessing(MegaClient* client);
 

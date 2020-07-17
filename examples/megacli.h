@@ -71,7 +71,7 @@ struct AppFilePut : public AppFile
 
     void displayname(string*);
 
-    AppFilePut(string*, handle, const char*);
+    AppFilePut(const LocalPath&, handle, const char*);
     ~AppFilePut();
 };
 
@@ -180,6 +180,7 @@ struct DemoApp : public MegaApp
     void getua_result(TLVstore *, attr_t) override;
 #ifdef DEBUG
     void delua_result(error) override;
+    void senddevcommand_result(int) override;
 #endif
 
     void querytransferquota_result(int) override;
@@ -232,13 +233,14 @@ struct DemoApp : public MegaApp
     void syncupdate_remote_rename(Sync*, Node*, const char*) override;
     void syncupdate_treestate(LocalNode*) override;
 
-    bool sync_syncable(Sync*, const char*, string*, Node*) override;
-    bool sync_syncable(Sync*, const char*, string*) override;
+    bool sync_syncable(Sync*, const char*, LocalPath&, Node*) override;
+    bool sync_syncable(Sync*, const char*, LocalPath&) override;
 #endif
 
     void changepw_result(error) override;
 
     void userattr_update(User*, int, const char*) override;
+    void resetSmsVerifiedPhoneNumber_result(error e) override;
 
     void enumeratequotaitems_result(unsigned, handle, unsigned, int, int, unsigned, unsigned, unsigned, const char*, const char*, const char*, const char*) override;
     void enumeratequotaitems_result(error) override;
@@ -378,4 +380,4 @@ void exec_treecompare(autocomplete::ACState& s);
 void exec_querytransferquota(autocomplete::ACState& s);
 #endif
 void exec_metamac(autocomplete::ACState& s);
-
+void exec_resetverifiedphonenumber(autocomplete::ACState& s);

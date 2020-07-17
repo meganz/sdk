@@ -1186,10 +1186,10 @@ void CommandPutNodes::removePendingDBRecordsAndTempFiles()
     pendingfiles_map::iterator pit = client->pendingfiles.find(tag);
     if (pit != client->pendingfiles.end())
     {
-        vector<string> &pfs = pit->second;
+        vector<LocalPath> &pfs = pit->second;
         for (unsigned int i = 0; i < pfs.size(); i++)
         {
-            client->fsaccess->unlinklocal(&pfs[i]);
+            client->fsaccess->unlinklocal(pfs[i]);
         }
         client->pendingfiles.erase(pit);
     }
@@ -1287,7 +1287,7 @@ bool CommandPutNodes::procresult(Result r)
         LOG_debug << "Putnodes error " << e;
         if (e == API_EOVERQUOTA)
         {
-            client->activateoverquota(0);
+            client->activateoverquota(0, false);
         }
 #ifdef ENABLE_SYNC
         if (source == PUTNODES_SYNC)
@@ -1366,7 +1366,7 @@ bool CommandMoveNode::procresult(Result r)
     {
         if (e == API_EOVERQUOTA)
         {
-            client->activateoverquota(0);
+            client->activateoverquota(0, false);
         }
 
 #ifdef ENABLE_SYNC
@@ -1773,22 +1773,7 @@ CommandLogin::CommandLogin(MegaClient* client, const char* email, const byte *em
         arg("sn", (byte*)&client->cachedscsn, sizeof client->cachedscsn);
     }
 
-    string id;
-    if (!MegaClient::statsid)
-    {
-        client->fsaccess->statsid(&id);
-        if (id.size())
-        {
-            size_t len = id.size() + 1;
-            char *buff = new char[len];
-            memcpy(buff, id.c_str(), len);
-            MegaClient::statsid = buff;
-        }
-    }
-    else
-    {
-        id = MegaClient::statsid;
-    }
+    string id = client->getDeviceid();
 
     if (id.size())
     {
@@ -3436,6 +3421,25 @@ bool CommandDelUA::procresult(Result r)
     return true;
 }
 
+CommandSendDevCommand::CommandSendDevCommand(MegaClient *client, const char *command, const char *email)
+{
+    cmd("dev");
+
+    arg("aa", command);
+    if (email)
+    {
+        arg("t", email);
+    }
+
+    tag = client->reqtag;
+}
+
+bool CommandSendDevCommand::procresult(Result r)
+{
+    client->app->senddevcommand_result(r.errorResultOrActionpacket());
+    return true;
+}
+
 #endif  // #ifdef DEBUG
 
 CommandGetUserEmail::CommandGetUserEmail(MegaClient *client, const char *uid)
@@ -3712,6 +3716,12 @@ bool CommandGetUserData::procresult(Result r)
     string email;
     string unshareableKey;
     string versionUnshareableKey;
+    string deviceNames;
+    string versionDeviceNames;
+
+    bool uspw = false;
+    vector<m_time_t> warningTs;
+    m_time_t deadlineTs = -1;
 
     bool b = false;
     BizMode m = BIZ_MODE_UNKNOWN;
@@ -3828,6 +3838,11 @@ bool CommandGetUserData::procresult(Result r)
             parseUserAttribute(unshareableKey, versionUnshareableKey, false);
             break;
 
+        case MAKENAMEID4('*', '!', 'd', 'n'):
+            parseUserAttribute(deviceNames, versionDeviceNames);
+            break;
+
+
         case 'b':   // business account's info
             assert(!b);
             b = true;
@@ -3935,6 +3950,53 @@ bool CommandGetUserData::procresult(Result r)
                 assert(false);
             }
             break;
+
+        case MAKENAMEID4('u', 's', 'p', 'w'):   // user paywall data
+        {
+            uspw = true;
+
+            if (client->json.enterobject())
+            {
+                bool endobject = false;
+                while (!endobject)
+                {
+                    switch (client->json.getnameid())
+                    {
+                        case MAKENAMEID2('d', 'l'): // deadline timestamp
+                            deadlineTs = client->json.getint();
+                            break;
+
+                        case MAKENAMEID3('w', 't', 's'):    // warning timestamps
+                            // ie. "wts":[1591803600,1591813600,1591823600
+
+                            if (client->json.enterarray())
+                            {
+                                m_time_t ts;
+                                while (client->json.isnumeric() && (ts = client->json.getint()) != -1)
+                                {
+                                    warningTs.push_back(ts);
+                                }
+
+                                client->json.leavearray();
+                            }
+                            break;
+
+                        case EOO:
+                            endobject = true;
+                            break;
+
+                        default:
+                            if (!client->json.storeobject())
+                            {
+                                client->app->userdata_result(NULL, NULL, NULL, API_EINTERNAL);
+                                return false;
+                            }
+                    }
+                }
+                client->json.leaveobject();
+            }
+            break;
+        }
 
         case EOO:
         {
@@ -4127,6 +4189,21 @@ bool CommandGetUserData::procresult(Result r)
                     LOG_err << "Unshareable key wrong length";
                 }
 
+                if (deviceNames.size())
+                {
+                    unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&deviceNames, &client->key));
+                    if (tlvRecords)
+                    {
+                        // store the value for private user attributes (decrypted version of serialized TLV)
+                        unique_ptr<string> tlvString(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
+                        changes += u->updateattr(ATTR_DEVICE_NAMES, tlvString.get(), &versionDeviceNames);
+                    }
+                    else
+                    {
+                        LOG_err << "Cannot extract TLV records for ATTR_DEVICE_NAMES";
+                    }
+                }
+
                 if (changes > 0)
                 {
                     u->setTag(tag ? tag : -1);
@@ -4216,6 +4293,21 @@ bool CommandGetUserData::procresult(Result r)
                 {
                     client->app->notify_business_status(client->mBizStatus);
                 }
+            }
+
+            if (uspw)
+            {
+                if (deadlineTs == -1 || warningTs.empty())
+                {
+                    LOG_err << "uspw received with missing timestamps";
+                }
+                else
+                {
+                    client->mOverquotaWarningTs = std::move(warningTs);
+                    client->mOverquotaDeadlineTs = deadlineTs;
+                    client->activateoverquota(0, true);
+                }
+
             }
 
             client->app->userdata_result(&name, &pubk, &privk, API_OK);
@@ -4618,7 +4710,8 @@ bool CommandGetUserQuota::procresult(Result r)
                     if (details->storage_used >= details->storage_max)
                     {
                         LOG_debug << "Account full";
-                        client->activateoverquota(0);
+                        bool isPaywall = (client->ststatus == STORAGE_PAYWALL);
+                        client->activateoverquota(0, isPaywall);
                     }
                     else if (details->storage_used >= (details->storage_max / 10000 * uslw))
                     {
@@ -6103,6 +6196,22 @@ bool CommandResendVerificationEmail::procresult(Result r)
     }
 }
 
+CommandResetSmsVerifiedPhoneNumber::CommandResetSmsVerifiedPhoneNumber(MegaClient *client)
+{
+    cmd("smsr");
+    tag = client->reqtag;
+}
+
+bool CommandResetSmsVerifiedPhoneNumber::procresult(Result r)
+{
+    if (r.succeeded())
+    {
+        client->mSmsVerifiedPhone.clear();
+    }
+    client->app->resetSmsVerifiedPhoneNumber_result(r.errorResultOrActionpacket());
+    return true;
+}
+
 CommandValidatePassword::CommandValidatePassword(MegaClient *client, const char *email, uint64_t emailhash)
 {
     cmd("us");
@@ -7042,6 +7151,23 @@ bool CommandArchiveChat::procresult(Result r)
         client->app->archivechat_result(API_EINTERNAL);
         return false;
     }
+}
+
+CommandSetChatRetentionTime::CommandSetChatRetentionTime(MegaClient *client, handle chatid, int period)
+{
+    mChatid = chatid;
+
+    cmd("mcsr");
+    arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
+    arg("d", period);
+    arg("ds", 1);
+    tag = client->reqtag;
+}
+
+bool CommandSetChatRetentionTime::procresult(Result r)
+{
+    client->app->setchatretentiontime_result(r.errorResultOrActionpacket());
+    return true;
 }
 
 CommandRichLink::CommandRichLink(MegaClient *client, const char *url)
@@ -8375,6 +8501,129 @@ bool CommandFolderLinkInfo::procresult(Result r)
             break;
         }
     }
+}
+
+CommandBackupPut::CommandBackupPut(MegaClient *client, BackupType type, handle nodeHandle, const string& localFolder, const std::string &deviceId, const string& backupName, int state, int subState, const string& extraData)
+{
+    assert(type != BackupType::INVALID);
+
+    cmd("sp");
+
+    arg("t", type);
+    arg("h", (byte*)&nodeHandle, MegaClient::NODEHANDLE);
+    arg("l", localFolder.c_str());
+    arg("d", deviceId.c_str());
+    arg("n", backupName.c_str());
+    arg("s", state);
+    arg("ss", subState);
+    arg("e", extraData.c_str());
+
+    tag = client->reqtag;
+    mUpdate = false;
+}
+
+CommandBackupPut::CommandBackupPut(MegaClient* client, handle backupId, BackupType type, handle nodeHandle, const char* localFolder, const char *deviceId, const char* backupName, int state, int subState, const char* extraData)
+{
+    cmd("sp");
+
+    arg("id", (byte*)&backupId, MegaClient::USERHANDLE);
+
+    if (type != BackupType::INVALID)
+    {
+        arg("t", type);
+    }
+
+    if (nodeHandle != UNDEF)
+    {
+        arg("h", (byte*)&nodeHandle, MegaClient::NODEHANDLE);
+    }
+
+    if (localFolder)
+    {
+        arg("l", localFolder);
+    }
+
+    if (deviceId)
+    {
+        arg("d", deviceId);
+    }
+
+    if (backupName)
+    {
+        arg("n", backupName);
+    }
+
+    if (state > 0)
+    {
+        arg("s", state);
+    }
+
+    if (subState > 0)
+    {
+        arg("ss", subState);
+    }
+
+    if (extraData)
+    {
+        arg("e", extraData);
+    }
+
+    tag = client->reqtag;
+    mUpdate = true;
+}
+
+bool CommandBackupPut::procresult(Result r)
+{
+    handle backupId = UNDEF;
+    if (r.hasResultJSON())
+    {
+        backupId = client->json.gethandle(MegaClient::USERHANDLE);
+    }
+    if (mUpdate)
+    {
+        client->app->backupupdate_result(r.errorGeneral(), backupId);
+    }
+    else
+    {
+        client->app->backupput_result(r.errorGeneral(), backupId);
+    }
+    return true;
+}
+
+CommandBackupPutHeartBeat::CommandBackupPutHeartBeat(MegaClient* client, handle backupId, uint8_t status, uint8_t progress, uint32_t uploads, uint32_t downloads, uint32_t ts, handle lastNode)
+{
+    cmd("sphb");
+
+    arg("id", (byte*)&backupId, MegaClient::USERHANDLE);
+    arg("s", status);
+    arg("p", progress);
+    arg("qu", uploads);
+    arg("qd", downloads);
+    arg("lts", ts);
+    arg("lh", (byte*)&lastNode, MegaClient::NODEHANDLE);
+
+    tag = client->reqtag;
+}
+
+bool CommandBackupPutHeartBeat::procresult(Result r)
+{
+    client->app->backupputheartbeat_result(r.errorOnly());
+    return true;
+}
+
+CommandBackupRemove::CommandBackupRemove(MegaClient *client, handle backupId)
+    : id(backupId)
+{
+    cmd("sr");
+    arg("id", (byte*)&backupId, MegaClient::USERHANDLE);
+
+    tag = client->reqtag;
+}
+
+bool CommandBackupRemove::procresult(Result r)
+{
+    client->app->backupremove_result(r.errorOnly(), id);
+    return true;
 }
 
 } // namespace
