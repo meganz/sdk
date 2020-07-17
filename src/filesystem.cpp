@@ -153,13 +153,20 @@ FileSystemType FileSystemAccess::getlocalfstype(const string *dstPath) const
     }
 #elif defined(_WIN32) || defined(WINDOWS_PHONE)
     // Filesystem detection for Windows
+    CHAR volMountPoint [MAX_PATH + 1] = { 0 };
+    DWORD mountPointLen = MAX_PATH +1;
+    if (!(GetVolumePathNameA(dstPath->c_str(), volMountPoint, mountPointLen)))
+    {
+        return FS_UNKNOWN;
+    }
+
     CHAR volumeName[MAX_PATH + 1] = { 0 };
     CHAR fileSystemName[MAX_PATH + 1] = { 0 };
     DWORD serialNumber = 0;
     DWORD maxComponentLen = 0;
     DWORD fileSystemFlags = 0;
 
-    if (GetVolumeInformationA(dstPath->c_str(), volumeName, sizeof(volumeName),
+    if (GetVolumeInformationA(volMountPoint, volumeName, sizeof(volumeName),
                              &serialNumber, &maxComponentLen, &fileSystemFlags,
                              fileSystemName, sizeof(fileSystemName)))
     {
