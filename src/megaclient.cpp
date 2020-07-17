@@ -3889,7 +3889,7 @@ void MegaClient::resumeResumableSyncs()
     for (auto& config : syncConfigs->all())
     {
         SyncError syncError = static_cast<SyncError>(config.getError());
-        syncstate_t newstate = isAnError(syncError) ? SYNC_FAILED : SYNC_DISABLED;
+        syncstate_t newstate = isSyncErrorPermanent(syncError) ? SYNC_FAILED : SYNC_DISABLED;
 
         if (!config.getRemotePath().size()) //should only happen if coming from old cache
         {
