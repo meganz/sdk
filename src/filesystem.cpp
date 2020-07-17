@@ -971,16 +971,10 @@ size_t LocalPath::getLeafnameByteIndex(const FileSystemAccess& fsaccess) const
     return p;
 }
 
-bool LocalPath::backEqual(size_t bytePos, const string& compareTo) const
-{
-    auto n = compareTo.size();
-    return bytePos + n == localpath.size() && memcmp(compareTo.data(), localpath.data() + bytePos, n);
-}
-
 bool LocalPath::backEqual(size_t bytePos, const LocalPath& compareTo) const
 {
     auto n = compareTo.localpath.size();
-    return bytePos + n == localpath.size() && memcmp(compareTo.localpath.data(), localpath.data() + bytePos, n);
+    return bytePos + n == localpath.size() && !memcmp(compareTo.localpath.data(), localpath.data() + bytePos, n);
 }
 
 LocalPath LocalPath::subpathFrom(size_t bytePos) const
