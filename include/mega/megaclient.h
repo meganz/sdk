@@ -180,6 +180,29 @@ public:
     dstime timeToTransfersResumed;
 };
 
+// A helper class that keeps the SN (sequence number) members in sync and well initialized.
+class SCSN
+{
+    // scsn that we are sending in sc requests (ie, where we are up to with the in-memory node data)
+    char scsn[12];
+
+    // sc inconsistency: stop querying for action packets
+    bool stopsc = false;
+
+public: 
+
+    bool setScsn(JSON*);
+    void set(handle);
+    void stopScsn();
+
+    bool ready();
+    bool stopped();
+
+    const char* text();
+
+    SCSN();
+    void clear();
+};
 
 class MEGA_API MegaClient
 {
@@ -821,9 +844,6 @@ private:
     std::unique_ptr<HttpReq> pendingscUserAlerts;
     BackoffTimer btsc;
 
-    // sc inconsistence: stop querying for action packets
-    bool stopsc = false;
-
     // account is blocked: stops querying for action packets, pauses transfer & removes transfer slot availability
     bool mBlocked = false;
 
@@ -1161,9 +1181,7 @@ public:
     long long mAppliedKeyNodeCount = 0;
 
     // server-client request sequence number
-    char scsn[12];
-
-    bool setscsn(JSON*);
+    SCSN scsn;
 
     void purgenodes(node_vector* = NULL);
     void purgeusers(user_vector* = NULL);
