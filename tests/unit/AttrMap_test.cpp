@@ -23,7 +23,7 @@
 TEST(AttrMap, serialize_unserialize)
 {
     mega::AttrMap map;
-    map.map = {
+    map.map = std::map<mega::nameid, std::string>{
         {13, "foo"},
         {42, "blah"},
     };

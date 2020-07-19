@@ -36,6 +36,11 @@ struct attr_map : map<nameid, string>
         (*this)[key] = value;
     }
 
+    attr_map(map<nameid, string>&& m)
+    {
+        m.swap(*this);
+    }
+
     void applyUpdates(const attr_map& updates)
     {
         for (auto& u : updates)

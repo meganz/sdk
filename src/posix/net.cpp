@@ -2681,7 +2681,7 @@ int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)
     HttpReq *request = (HttpReq *)req;
     CurlHttpIO *httpio = (CurlHttpIO *)request->httpio;
     unsigned char buf[sizeof(APISSLMODULUS1) - 1];
-    EVP_PKEY* evp;
+    EVP_PKEY* evp = nullptr;
     int ok = 0;
 
     if (MegaClient::disablepkp)

@@ -694,7 +694,7 @@ TEST(Serialization, Node_forFile_withoutShares_withoutFileAttrString_withoutPlin
     n->size = 12;
     n->owner = 88;
     n->ctime = 44;
-    n->attrs.map = {
+    n->attrs.map = std::map<mega::nameid, std::string>{
         {101, "foo"},
         {102, "bar"},
     };
@@ -714,7 +714,7 @@ TEST(Serialization, Node_forFile_withoutShares_withoutPlink)
     n->size = 12;
     n->owner = 88;
     n->ctime = 44;
-    n->attrs.map = {
+    n->attrs.map = std::map<mega::nameid, std::string>{
         {101, "foo"},
         {102, "bar"},
     };
@@ -735,7 +735,7 @@ TEST(Serialization, Node_forFile_withoutShares)
     n->size = 12;
     n->owner = 88;
     n->ctime = 44;
-    n->attrs.map = {
+    n->attrs.map = std::map<mega::nameid, std::string>{
         {101, "foo"},
         {102, "bar"},
     };
@@ -757,7 +757,7 @@ TEST(Serialization, Node_forFile_withoutShares_32bit)
     n->size = 12;
     n->owner = 88;
     n->ctime = 44;
-    n->attrs.map = {
+    n->attrs.map = std::map<mega::nameid, std::string>{
         {101, "foo"},
         {102, "bar"},
     };
@@ -809,7 +809,7 @@ TEST(Serialization, Node_forFolder_withoutShares_withoutFileAttrString_withoutPl
     n->size = -1;
     n->owner = 88;
     n->ctime = 44;
-    n->attrs.map = {
+    n->attrs.map = std::map<mega::nameid, std::string>{
         {101, "foo"},
         {102, "bar"},
     };
@@ -829,7 +829,7 @@ TEST(Serialization, Node_forFolder_withoutShares_withoutPlink)
     n->size = -1;
     n->owner = 88;
     n->ctime = 44;
-    n->attrs.map = {
+    n->attrs.map = std::map<mega::nameid, std::string>{
         {101, "foo"},
         {102, "bar"},
     };
@@ -850,7 +850,7 @@ TEST(Serialization, Node_forFolder_withoutShares)
     n->size = -1;
     n->owner = 88;
     n->ctime = 44;
-    n->attrs.map = {
+    n->attrs.map = std::map<mega::nameid, std::string>{
         {101, "foo"},
         {102, "bar"},
     };
@@ -873,7 +873,7 @@ TEST(Serialization, Node_forFolder_withoutShares_32bit)
     n->size = -1;
     n->owner = 88;
     n->ctime = 44;
-    n->attrs.map = {
+    n->attrs.map = std::map<mega::nameid, std::string>{
         {101, "foo"},
         {102, "bar"},
     };

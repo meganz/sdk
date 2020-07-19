@@ -124,7 +124,7 @@ public:
             return mOutcome == CmdError ? mError : (mOutcome == CmdActionpacket ? API_OK : API_EINTERNAL);
         }
 
-        Error errorOnly()
+        Error errorOrOK()
         {
             assert(mOutcome == CmdError);
             return mOutcome == CmdError ? mError : API_EINTERNAL;
@@ -135,7 +135,7 @@ public:
             return mOutcome == CmdError || mOutcome == CmdActionpacket;
         }
 
-        bool wasError()
+        bool wasErrorOrOK()
         {
             return mOutcome == CmdError;
         }
