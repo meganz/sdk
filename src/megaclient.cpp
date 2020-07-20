@@ -630,11 +630,7 @@ const char* SCSN::text() const
 
 handle SCSN::getHandle() const
 {
-    if (!ready())
-    {
-        return UNDEF;
-    }
-
+    assert(ready());
     handle t;
     Base64::atob(scsn, (byte*)&t, sizeof t);
 
@@ -4821,6 +4817,12 @@ void MegaClient::updatesc()
             return;
         }
 
+        if (!scsn.ready())
+        {
+            LOG_err << "scsn not known, not updating database";
+            return;
+        }
+
         bool complete;
 
         // 1. update associated scsn
@@ -4925,9 +4927,9 @@ void MegaClient::updatesc()
                 }
             }
         }
-        LOG_debug << "Saving SCSN " << scsn.text() << " with " << nodenotify.size() << " modified nodes, " << usernotify.size() << " users, " << pcrnotify.size() << " pcrs and " << chatnotify.size() << " chats to local cache (" << complete << ")";
+        LOG_debug << "Saving SCSN " << scsn << " with " << nodenotify.size() << " modified nodes, " << usernotify.size() << " users, " << pcrnotify.size() << " pcrs and " << chatnotify.size() << " chats to local cache (" << complete << ")";
 #else
-        LOG_debug << "Saving SCSN " << scsn.text() << " with " << nodenotify.size() << " modified nodes, " << usernotify.size() << " users and " << pcrnotify.size() << " pcrs to local cache (" << complete << ")";
+        LOG_debug << "Saving SCSN " << scsn << " with " << nodenotify.size() << " modified nodes, " << usernotify.size() << " users and " << pcrnotify.size() << " pcrs to local cache (" << complete << ")";
 #endif
         finalizesc(complete);
     }
@@ -4938,7 +4940,7 @@ void MegaClient::finalizesc(bool complete)
 {
     if (complete)
     {
-        Base64::atob(scsn.text(), (byte*)&cachedscsn, sizeof cachedscsn);
+        cachedscsn = scsn.getHandle();
     }
     else
     {
@@ -6754,7 +6756,7 @@ void MegaClient::notifypurge(void)
 
     handle tscsn = cachedscsn;
 
-    if (scsn.ready()) Base64::atob(scsn.text(), (byte*)&tscsn, sizeof tscsn);
+    if (scsn.ready()) tscsn = scsn.getHandle();
 
     if (nodenotify.size() || usernotify.size() || pcrnotify.size()
 #ifdef ENABLE_CHAT
@@ -11259,7 +11261,7 @@ void MegaClient::fetchnodes(bool nocache)
 
         // allow sc requests to start 
         scsn.setScsn(cachedscsn);
-        LOG_info << "Session loaded from local cache. SCSN: " << scsn.text();
+        LOG_info << "Session loaded from local cache. SCSN: " << scsn;
 
 #ifdef ENABLE_SYNC
         resumeResumableSyncs();
