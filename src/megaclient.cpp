@@ -2353,18 +2353,16 @@ void MegaClient::exec()
             if (sync->initializing && sync->state == SYNC_INITIALSCAN)
             {
                 const auto &syncConfig = sync->getConfig();
-                string localPath = sync->getConfig().getLocalPath();
-                string rootpath;
-                fsaccess->path2local(&localPath, &rootpath);
+                LocalPath localPath = LocalPath::fromPath(sync->getConfig().getLocalPath(), *fsaccess);
                 auto fa = fsaccess->newfileaccess();
 
-                if (fa->fopen(&rootpath, true, false))
+                if (fa->fopen(localPath, true, false))
                 {
                     if (fa->type == FOLDERNODE)
                     {
                         LOG_debug << "Initial delayed scan: " << syncConfig.getLocalPath();
 
-                        if (sync->scan(&rootpath, fa.get()))
+                        if (sync->scan(&localPath, fa.get()))
                         {
                             //syncsup = false; These syncs should not delay action packets
                             sync->initializing = false;
@@ -2479,9 +2477,8 @@ void MegaClient::exec()
                             dstime dsmin = Waiter::ds - Sync::EXTRA_SCANNING_DELAY_DS;
                             if (notification.timestamp <= dsmin)
                             {
-                                LOG_debug << "Processing extra fs notification: " << notification.path;
-                                sync->dirnotify->notify(DirNotify::DIREVENTS, notification.localnode,
-                                                        notification.path.data(), notification.path.size());
+                                LOG_debug << "Processing extra fs notification: " << notification.path.toPath(*fsaccess);
+                                sync->dirnotify->notify(DirNotify::DIREVENTS, notification.localnode, std::move(notification.path));
                             }
                             else
                             {
@@ -2611,7 +2608,7 @@ void MegaClient::exec()
                         else if (!syncfslockretry && sync->dirnotify->notifyq[DirNotify::RETRY].peekFront(notification))
                         {
                             syncfslockretrybt.backoff(Sync::SCANNING_DELAY_DS);
-                            fsaccess->local2path(&notification.path, &blockedfile);
+                            blockedfile = notification.path;
                             syncfslockretry = true;
                         }
                     }
@@ -2702,12 +2699,12 @@ void MegaClient::exec()
                         if (localsyncnotseen.size() && !synccreate.size())
                         {
                             // ... execute all pending deletions
-                            string path;
+                            LocalPath path;
                             auto fa = fsaccess->newfileaccess();
                             while (localsyncnotseen.size())
                             {
                                 LocalNode* l = *localsyncnotseen.begin();
-                                unlinkifexists(l, fa.get(), &path);
+                                unlinkifexists(l, fa.get(), path);
                                 delete l;
                             }
                         }
@@ -2867,11 +2864,11 @@ void MegaClient::exec()
                         }
                         else
                         {
-                            string localpath = (*it)->localroot->localname;
+                            LocalPath localpath = (*it)->localroot->localname;
                             if ((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN)
                             {
                                 LOG_debug << "Running syncdown on demand";
-                                if (!syncdown((*it)->localroot.get(), &localpath, true))
+                                if (!syncdown((*it)->localroot.get(), localpath, true))
                                 {
                                     // a local filesystem item was locked - schedule periodic retry
                                     // and force a full rescan afterwards as the local item may
@@ -3509,7 +3506,7 @@ void MegaClient::dispatchTransfers()
                 break;
             }
 
-            if (!nexttransfer->localfilename.size())
+            if (nexttransfer->localfilename.empty())
             {
                 // this is a fresh transfer rather than the resumption of a partly
                 // completed and deferred one
@@ -3576,7 +3573,7 @@ void MegaClient::dispatchTransfers()
                 // set file localnames (ultimate target) and one transfer-wide temp
                 // localname
                 for (file_list::iterator it = nexttransfer->files.begin();
-                    !nexttransfer->localfilename.size() && it != nexttransfer->files.end(); it++)
+                    nexttransfer->localfilename.empty() && it != nexttransfer->files.end(); it++)
                 {
                     (*it)->prepare();
                 }
@@ -3589,7 +3586,7 @@ void MegaClient::dispatchTransfers()
             bool openfinished = false;
 
             // verify that a local path was given and start/resume transfer
-            if (nexttransfer->localfilename.size())
+            if (!nexttransfer->localfilename.empty())
             {
                 TransferSlot *ts = nullptr;
 
@@ -3611,8 +3608,8 @@ void MegaClient::dispatchTransfers()
 
                         // try to open file (PUT transfers: open in nonblocking mode)
                         nexttransfer->asyncopencontext = (nexttransfer->type == PUT)
-                            ? ts->fa->asyncfopen(&nexttransfer->localfilename)
-                            : ts->fa->asyncfopen(&nexttransfer->localfilename, false, true, nexttransfer->size);
+                            ? ts->fa->asyncfopen(nexttransfer->localfilename)
+                            : ts->fa->asyncfopen(nexttransfer->localfilename, false, true, nexttransfer->size);
                         asyncfopens++;
                     }
 
@@ -3641,8 +3638,8 @@ void MegaClient::dispatchTransfers()
                 {
                     // try to open file (PUT transfers: open in nonblocking mode)
                     openok = (nexttransfer->type == PUT)
-                        ? ts->fa->fopen(&nexttransfer->localfilename)
-                        : ts->fa->fopen(&nexttransfer->localfilename, false, true);
+                        ? ts->fa->fopen(nexttransfer->localfilename)
+                        : ts->fa->fopen(nexttransfer->localfilename, false, true);
                     openfinished = true;
                 }
 
@@ -3696,14 +3693,14 @@ void MegaClient::dispatchTransfers()
                         }
 
                         // create thumbnail/preview imagery, if applicable (FIXME: do not re-create upon restart)
-                        if (nexttransfer->localfilename.size() && !nexttransfer->uploadhandle)
+                        if (!nexttransfer->localfilename.empty() && !nexttransfer->uploadhandle)
                         {
                             nexttransfer->uploadhandle = getuploadhandle();
 
-                            if (!gfxdisabled && gfx && gfx->isgfx(&nexttransfer->localfilename))
+                            if (!gfxdisabled && gfx && gfx->isgfx(nexttransfer->localfilename.editStringDirect()))
                             {
                                 // we want all imagery to be safely tucked away before completing the upload, so we bump minfa
-                                nexttransfer->minfa += gfx->gendimensionsputfa(ts->fa, &nexttransfer->localfilename, nexttransfer->uploadhandle, nexttransfer->transfercipher(), -1, false);
+                                nexttransfer->minfa += gfx->gendimensionsputfa(ts->fa, nexttransfer->localfilename.editStringDirect(), nexttransfer->uploadhandle, nexttransfer->transfercipher(), -1, false);
                             }
                         }
                     }
@@ -3756,8 +3753,7 @@ void MegaClient::dispatchTransfers()
                 }
                 else if (openfinished)
                 {
-                    string utf8path;
-                    fsaccess->local2path(&nexttransfer->localfilename, &utf8path);
+                    string utf8path = nexttransfer->localfilename.toPath(*fsaccess);
                     if (nexttransfer->type == GET)
                     {
                         LOG_err << "Error dispatching transfer. Temporary file not writable: " << utf8path;
@@ -9928,7 +9924,7 @@ void MegaClient::filecachedel(File *file, DBTableTransactionCommitter* committer
     if (file->temporaryfile)
     {
         LOG_debug << "Removing temporary file";
-        fsaccess->unlinklocal(&file->localname);
+        fsaccess->unlinklocal(file->localname);
     }
 }
 
@@ -12677,12 +12673,9 @@ error MegaClient::isLocalPathSyncable(string newPath, int newSyncTag, SyncError 
         return API_EARGS;
     }
 
-    string newLocallyEncodedPath;
-    string newLocallyEncodedAbsolutePath;
-
-    fsaccess->path2local(&newPath, &newLocallyEncodedPath);
-
-    fsaccess->expanselocalpath(&newLocallyEncodedPath, &newLocallyEncodedAbsolutePath);
+    LocalPath newLocallyEncodedPath = LocalPath::fromPath(newPath, *fsaccess);
+    LocalPath newLocallyEncodedAbsolutePath;
+    fsaccess->expanselocalpath(newLocallyEncodedPath, newLocallyEncodedAbsolutePath);
 
     for (const auto& config : syncConfigs->all())
     {
@@ -12690,17 +12683,13 @@ error MegaClient::isLocalPathSyncable(string newPath, int newSyncTag, SyncError 
         {
             continue;
         }
-        string otherPath = config.getLocalPath();
-        string otherLocallyEncodedPath;
-        string otherLocallyEncodedAbsolutePath;
-
-        fsaccess->path2local(&otherPath, &otherLocallyEncodedPath);
-
-        fsaccess->expanselocalpath(&otherLocallyEncodedPath, &otherLocallyEncodedAbsolutePath);
+        LocalPath otherLocallyEncodedPath = LocalPath::fromPath(config.getLocalPath(), *fsaccess);
+        LocalPath otherLocallyEncodedAbsolutePath;
+        fsaccess->expanselocalpath(otherLocallyEncodedPath, otherLocallyEncodedAbsolutePath);
 
         if (config.getEnabled() && !isAnError(config.getError()) &&
-                ( fsaccess->contains(newLocallyEncodedAbsolutePath, otherLocallyEncodedAbsolutePath)
-                || fsaccess->contains(otherLocallyEncodedAbsolutePath, newLocallyEncodedAbsolutePath)
+                ( fsaccess->contains(*newLocallyEncodedAbsolutePath.editStringDirect(), *otherLocallyEncodedAbsolutePath.editStringDirect())
+                || fsaccess->contains(*otherLocallyEncodedAbsolutePath.editStringDirect(), *newLocallyEncodedAbsolutePath.editStringDirect())
                 ) )
         {
 
@@ -12738,19 +12727,11 @@ error MegaClient::addsync(SyncConfig syncConfig, const char* debris, string* loc
     }
 
     string localPath = syncConfig.getLocalPath();
-    string rootpath;
-    fsaccess->path2local(&localPath, &rootpath);
-
-    if (rootpath.size() >= fsaccess->localseparator.size()
-     && !memcmp(rootpath.data() + (int(rootpath.size()) & -int(fsaccess->localseparator.size())) - fsaccess->localseparator.size(),
-                fsaccess->localseparator.data(),
-                fsaccess->localseparator.size()))
-    {
-        rootpath.resize((int(rootpath.size()) & -int(fsaccess->localseparator.size())) - fsaccess->localseparator.size());
-    }
+    auto rootpath = LocalPath::fromPath(localPath, *fsaccess);
+    rootpath.trimNonDriveTrailingSeparator(*fsaccess);
     
     bool isnetwork = false;
-    if (!fsaccess->issyncsupported(&rootpath, &isnetwork, &syncError))
+    if (!fsaccess->issyncsupported(rootpath, &isnetwork, &syncError))
     {
         LOG_warn << "Unsupported filesystem";
         if (!syncError)
@@ -12761,11 +12742,11 @@ error MegaClient::addsync(SyncConfig syncConfig, const char* debris, string* loc
     }
 
     auto fa = fsaccess->newfileaccess();
-    if (fa->fopen(&rootpath, true, false))
+    if (fa->fopen(rootpath, true, false))
     {
         if (fa->type == FOLDERNODE)
         {
-            LOG_debug << "Adding sync: " << syncConfig.getLocalPath();
+            LOG_debug << "Adding sync: " << syncConfig.getLocalPath() << " vs " << remotenode->displaypath();;
             int tag = syncConfig.getTag();
 
             // Note localpath is stored as utf8 in syncconfig as passed from the apps!
@@ -12919,7 +12900,7 @@ void MegaClient::stopxfers(LocalNode* l, DBTableTransactionCommitter& committer)
 // of identical names to avoid flapping)
 // apply standard unescaping, if necessary (use *strings as ephemeral storage
 // space)
-void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, list<string>* strings, const string *localPath, FileSystemType fsType) const
+void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, list<string>* strings, FileSystemType fsType) const
 {
     Node** npp;
 
@@ -12956,7 +12937,7 @@ void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, list
 // * attempt to execute renames, moves and deletions (deletions require the
 // rubbish flag to be set)
 // returns false if any local fs op failed transiently
-bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
+bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, bool rubbish)
 {
     // only use for LocalNodes with a corresponding and properly linked Node
     if (l->type != FOLDERNODE || !l->node || (l->parent && l->node->parent->localnode != l->parent))
@@ -12987,20 +12968,17 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
              && ait->second.size())
          && (l->parent || l->sync->debris != ait->second))
         {
-            size_t t = localpath->size();
-            string localname = ait->second;
-            fsaccess->name2local(&localname, l->sync->mFilesystemType);
-            localpath->append(fsaccess->localseparator);
-            localpath->append(localname);
+            ScopedLengthRestore restoreLen(localpath);
+            localpath.appendWithSeparator(LocalPath::fromName(ait->second, *fsaccess, l->sync->mFilesystemType), true, fsaccess->localseparator);
+
             if (app->sync_syncable(l->sync, ait->second.c_str(), localpath, *it))
             {
-                addchild(&nchildren, &ait->second, *it, &strings, &l->sync->localdebris, l->sync->mFilesystemType);
+                addchild(&nchildren, &ait->second, *it, &strings, l->sync->mFilesystemType);
             }
             else
             {
                 LOG_debug << "Node excluded " << LOG_NODEHANDLE((*it)->nodehandle) << "  Name: " << (*it)->displayname();
             }
-            localpath->resize(t);
         }
         else
         {
@@ -13015,10 +12993,8 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 
         rit = nchildren.find(&ll->name);
 
-        size_t t = localpath->size();
-
-        localpath->append(fsaccess->localseparator);
-        localpath->append(ll->localname);
+        ScopedLengthRestore restoreLen(localpath);
+        localpath.appendWithSeparator(ll->localname, true, fsaccess->localseparator);
 
         // do we have a corresponding remote child?
         if (rit != nchildren.end())
@@ -13112,12 +13088,10 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
             if (ll->type == FILENODE)
             {
                 // only delete the file if it is unchanged
-                string tmplocalpath;
-
-                ll->getlocalpath(&tmplocalpath);
+                LocalPath tmplocalpath = ll->getLocalPath();
 
                 auto fa = fsaccess->newfileaccess(false);
-                if (fa->fopen(&tmplocalpath, true, false))
+                if (fa->fopen(tmplocalpath, true, false))
                 {
                     FileFingerprint fp;
                     fp.genfingerprint(fa.get());
@@ -13141,8 +13115,8 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                 }
                 else
                 {
-                    fsaccess->local2path(localpath, &blockedfile);
-                    LOG_warn << "Transient error deleting " << blockedfile;
+                    blockedfile = localpath;
+                    LOG_warn << "Transient error deleting " << blockedfile.toPath(*fsaccess);
                     success = false;
                     lit++;
                 }
@@ -13152,25 +13126,19 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
         {
             lit++;
         }
-
-        localpath->resize(t);
     }
 
     // create/move missing local folders / FolderNodes, initiate downloads of
     // missing local files
     for (rit = nchildren.begin(); rit != nchildren.end(); rit++)
     {
-        size_t t = localpath->size();
 
         localname = rit->second->attrs.map.find('n')->second;
 
-        fsaccess->name2local(&localname, l->sync->mFilesystemType);
-        localpath->append(fsaccess->localseparator);
-        localpath->append(localname);
+        ScopedLengthRestore restoreLen(localpath);
+        localpath.appendWithSeparator(LocalPath::fromName(localname, *fsaccess, l->sync->mFilesystemType), true, fsaccess->localseparator);
 
-        string utf8path;
-        fsaccess->local2path(localpath, &utf8path);
-        LOG_debug << "Unsynced remote node in syncdown: " << utf8path << " Nsize: " << rit->second->size
+        LOG_debug << "Unsynced remote node in syncdown: " << localpath.toPath(*fsaccess) << " Nsize: " << rit->second->size
                   << " Nmtime: " << rit->second->mtime << " Nhandle: " << LOG_NODEHANDLE(rit->second->nodehandle);
 
         // does this node already have a corresponding LocalNode under
@@ -13181,20 +13149,18 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
             if (rit->second->localnode->parent)
             {
                 LOG_debug << "with a previous parent: " << rit->second->localnode->parent->name;
-                string curpath;
-
-                rit->second->localnode->getlocalpath(&curpath);
+                
+                LocalPath curpath = rit->second->localnode->getLocalPath();
                 rit->second->localnode->treestate(TREESTATE_SYNCING);
 
                 LOG_debug << "Renaming/moving from the previous location to the new one";
-                if (fsaccess->renamelocal(&curpath, localpath))
+                if (fsaccess->renamelocal(curpath, localpath))
                 {
-                    fsaccess->local2path(localpath, &localname);
                     app->syncupdate_local_move(rit->second->localnode->sync,
-                                               rit->second->localnode, localname.c_str());
+                                               rit->second->localnode, localpath.toPath(*fsaccess).c_str());
 
                     // update LocalNode tree to reflect the move/rename
-                    rit->second->localnode->setnameparent(l, localpath, fsaccess->fsShortname(*localpath));
+                    rit->second->localnode->setnameparent(l, &localpath, fsaccess->fsShortname(localpath));
 
                     rit->second->localnode->sync->statecacheadd(rit->second->localnode);
 
@@ -13207,8 +13173,8 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                 else if (success && fsaccess->transient_error)
                 {
                     // schedule retry
-                    fsaccess->local2path(&curpath, &blockedfile);
-                    LOG_debug << "Transient error moving localnode " << blockedfile;
+                    blockedfile = curpath;
+                    LOG_debug << "Transient error moving localnode " << blockedfile.toPath(*fsaccess);
                     success = false;
                 }
             }
@@ -13232,7 +13198,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                     {
                         if (f->mIsSymLink && l->sync->movetolocaldebris(localpath))
                         {
-                            LOG_debug << "Found a link in localpath " << localpath;
+                            LOG_debug << "Found a link in localpath " << localpath.toPath(*fsaccess);
                         }
                         else
                         {
@@ -13249,8 +13215,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                     if (download)
                     {
                         LOG_debug << "Start fetching file node";
-                        fsaccess->local2path(localpath, &localname);
-                        app->syncupdate_get(l->sync, rit->second, localname.c_str());
+                        app->syncupdate_get(l->sync, rit->second, localpath.toPath(*fsaccess).c_str());
 
                         rit->second->syncget = new SyncFileGet(l->sync, rit->second, localpath);
                         nextreqtag();
@@ -13271,7 +13236,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                 // create local path, add to LocalNodes and recurse
                 else if (fsaccess->mkdirlocal(localpath))
                 {
-                    LocalNode* ll = l->sync->checkpath(l, localpath, &localname, NULL, true, nullptr);
+                    LocalNode* ll = l->sync->checkpath(l, &localpath, &localname, NULL, true, nullptr);
 
                     if (ll && ll != (LocalNode*)~0)
                     {
@@ -13293,8 +13258,8 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                 }
                 else if (success && fsaccess->transient_error)
                 {
-                    fsaccess->local2path(localpath, &blockedfile);
-                    LOG_debug << "Transient error creating folder " << blockedfile;
+                    blockedfile = localpath;
+                    LOG_debug << "Transient error creating folder " << blockedfile.toPath(*fsaccess);
                     success = false;
                 }
                 else if (!fsaccess->transient_error)
@@ -13303,8 +13268,6 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                 }
             }
         }
-
-        localpath->resize(t);
     }
 
     return success;
@@ -13328,9 +13291,6 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
 
     // build array of sync-relevant (newest alias wins) remote children by name
     attr_map::iterator ait;
-
-    // UTF-8 converted local name
-    string localname;
 
     if (l->node)
     {
@@ -13384,7 +13344,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                     continue;
                 }
 
-                addchild(&nchildren, &ait->second, *it, &strings, &l->sync->localdebris, l->sync->mFilesystemType);
+                addchild(&nchildren, &ait->second, *it, &strings, l->sync->mFilesystemType);
             }
         }
     }
@@ -13401,8 +13361,8 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
             continue;
         }
 
-        localname = *lit->first;
-        fsaccess->local2name(&localname, l->sync->mFilesystemType);
+        // UTF-8 converted local name
+        string localname = ll->localname.toName(*fsaccess, l->sync->mFilesystemType);
         if (!localname.size() || !ll->name.size())
         {
             if (!ll->reported)
@@ -13410,7 +13370,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                 ll->reported = true;
 
                 char report[256];
-                sprintf(report, "%d %d %d %d", (int)lit->first->size(), (int)localname.size(), (int)ll->name.size(), (int)ll->type);
+                sprintf(report, "%d %d %d %d", (int)lit->first->editStringDirect()->size(), (int)localname.size(), (int)ll->name.size(), (int)ll->type);
 
                 // report a "no-name localnode" event
                 reportevent("LN", report, 0);
@@ -13424,11 +13384,10 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
 #ifndef WIN32
         if (PosixFileAccess::mFoundASymlink)
         {
-            string localpath;
             unique_ptr<FileAccess> fa(fsaccess->newfileaccess(false));
+            LocalPath localpath = ll->getLocalPath();
 
-            ll->getlocalpath(&localpath);
-            fa->fopen(&localpath);
+            fa->fopen(localpath);
             isSymLink = fa->mIsSymLink;
         }
 #endif
@@ -13464,7 +13423,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                         // same fingerprint, if available): no action needed
                         if (!ll->checked)
                         {
-                            if (!gfxdisabled && gfx && gfx->isgfx(&ll->localname))
+                            if (!gfxdisabled && gfx && gfx->isgfx(ll->localname.editStringDirect()))
                             {
                                 int missingattr = 0;
 
@@ -13480,17 +13439,16 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                                 }
 
                                 if (missingattr && checkaccess(ll->node, OWNER)
-                                        && !gfx->isvideo(&ll->localname))
+                                        && !gfx->isvideo(ll->localname.editStringDirect()))
                                 {
                                     char me64[12];
                                     Base64::btoa((const byte*)&me, MegaClient::USERHANDLE, me64);
                                     if (ll->node->attrs.map.find('f') == ll->node->attrs.map.end() || ll->node->attrs.map['f'] != me64)
                                     {
                                         LOG_debug << "Restoring missing attributes: " << ll->name;
-                                        string localpath;
-                                        ll->getlocalpath(&localpath);
                                         SymmCipher *symmcipher = ll->node->nodecipher();
-                                        gfx->gendimensionsputfa(NULL, &localpath, ll->node->nodehandle, symmcipher, missingattr);
+                                        auto llpath = ll->getLocalPath();
+                                        gfx->gendimensionsputfa(NULL, llpath.editStringDirect(), ll->node->nodehandle, symmcipher, missingattr);
                                     }
                                 }
                             }
@@ -13553,11 +13511,10 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                     {
                         LOG_debug << "Modification time changed only";
                         auto f = fsaccess->newfileaccess();
-                        string lpath;
-                        ll->getlocalpath(&lpath);
-                        string stream = lpath;
-                        stream.append((const char *)(const wchar_t*)L":$CmdTcID:$DATA", 30);
-                        if (f->fopen(&stream))
+                        auto lpath = ll->getLocalPath(true);
+                        LocalPath stream = lpath;
+                        stream.append(LocalPath::fromLocalname(string((const char *)(const wchar_t*)L":$CmdTcID:$DATA", 30)));
+                        if (f->fopen(stream))
                         {
                             LOG_warn << "COMODO detected";
                             HKEY hKey;
@@ -13571,7 +13528,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                                 DWORD size = sizeof(value);
                                 if (RegQueryValueEx(hKey, L"EnableSourceTracking", NULL, NULL, (LPBYTE)&value, &size) == ERROR_SUCCESS)
                                 {
-                                    if (value == 1 && fsaccess->setmtimelocal(&lpath, ll->node->mtime))
+                                    if (value == 1 && fsaccess->setmtimelocal(lpath, ll->node->mtime))
                                     {
                                         LOG_warn << "Fixed modification time probably changed by COMODO";
                                         ll->mtime = ll->node->mtime;
@@ -13584,8 +13541,8 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                             }
                         }
 
-                        lpath.append((const char *)(const wchar_t*)L":OECustomProperty", 34);
-                        if (f->fopen(&lpath))
+                        lpath.append(LocalPath::fromLocalname(string((const char *)(const wchar_t*)L":OECustomProperty", 34)));
+                        if (f->fopen(lpath))
                         {
                             LOG_warn << "Windows Search detected";
                             continue;
@@ -13714,13 +13671,11 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                     }
                 }
 
-                string localpath;
+                LocalPath localpath = ll->getLocalPath();
                 bool t;
                 auto fa = fsaccess->newfileaccess(false);
 
-                ll->getlocalpath(&localpath);
-
-                if (!(t = fa->fopen(&localpath, true, false))
+                if (!(t = fa->fopen(localpath, true, false))
                  || fa->size != ll->size
                  || fa->mtime != ll->mtime)
                 {
@@ -13945,13 +13900,12 @@ void MegaClient::syncupdate()
                 l->treestate(TREESTATE_PENDING);
 
                 // the overwrite will happen upon PUT completion
-                string tmppath, tmplocalpath;
+                string tmppath;
 
                 nextreqtag();
                 startxfer(PUT, l, committer);
 
-                l->getlocalpath(&tmplocalpath, true);
-                fsaccess->local2path(&tmplocalpath, &tmppath);
+                tmppath = l->getLocalPath(true).toPath(*fsaccess);
                 app->syncupdate_put(l->sync, l, tmppath.c_str());
             }
         }
@@ -14085,14 +14039,13 @@ void MegaClient::proclocaltree(LocalNode* n, LocalTreeProc* tp)
     tp->proc(this, n);
 }
 
-void MegaClient::unlinkifexists(LocalNode *l, FileAccess *fa, std::string *path)
+void MegaClient::unlinkifexists(LocalNode *l, FileAccess *fa, LocalPath& reuseBuffer)
 {
     // sdisable = true for this call.  In the case where we are doing a full scan due to fs notifications failing,
     // and a file was renamed but retains the same shortname, we would check the presence of the wrong file.
     // Also shortnames are slowly being deprecated by Microsoft, so using full names is now the normal case anyway.
-    l->getlocalpath(path, true);
-
-    if (fa->fopen(path) || fa->type == FOLDERNODE)
+    l->getlocalpath(reuseBuffer, true);
+    if (fa->fopen(reuseBuffer) || fa->type == FOLDERNODE)
     {
         LOG_warn << "Deletion of existing file avoided";
         static bool reported99446 = false;
@@ -14647,7 +14600,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
                 // missing FileFingerprint for local file - generate
                 auto fa = fsaccess->newfileaccess();
 
-                if (fa->fopen(&f->localname, d == PUT, d == GET))
+                if (fa->fopen(f->localname, d == PUT, d == GET))
                 {
                     f->genfingerprint(fa.get());
                 }
@@ -14747,7 +14700,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
                 }
 
                 auto fa = fsaccess->newfileaccess();
-                if (!fa->fopen(&t->localfilename))
+                if (!fa->fopen(t->localfilename))
                 {
                     if (d == PUT)
                     {
@@ -14865,7 +14818,7 @@ void MegaClient::stopxfer(File* f, DBTableTransactionCommitter* committer)
         }
         else
         {
-            if (transfer->type == PUT && transfer->localfilename.size())
+            if (transfer->type == PUT && !transfer->localfilename.empty())
             {
                 LOG_debug << "Updating transfer path";
                 transfer->files.front()->prepare();
@@ -14951,8 +14904,7 @@ Node* MegaClient::nodebyfingerprint(LocalNode* localNode)
     if (remoteNodes->empty())
         return nullptr;
 
-    std::string localName = localNode->localname;
-    fsaccess->local2name(&localName, localNode->sync->mFilesystemType);
+    std::string localName = localNode->localname.toName(*fsaccess);
     
     // Only compare metamac if the node doesn't already exist.
     node_vector::const_iterator remoteNode =
@@ -14976,11 +14928,10 @@ Node* MegaClient::nodebyfingerprint(LocalNode* localNode)
     // That is, treat both nodes as distinct until we're absolutely certain
     // they are identical.
     auto ifAccess = fsaccess->newfileaccess();
-    std::string localPath;
 
-    localNode->getlocalpath(&localPath);
+    auto localPath = localNode->getLocalPath(true);
 
-    if (!ifAccess->fopen(&localPath, true, false))
+    if (!ifAccess->fopen(localPath, true, false))
         return nullptr;
 
     std::string remoteKey = (*remoteNode)->nodekey();
@@ -15119,9 +15070,8 @@ namespace action_bucket_compare
 
     bool getExtensionDotted(const Node* n, char ext[12], const MegaClient& mc)
     {
-        string localname, name = n->displayname();
-        mc.fsaccess->path2local(&name, &localname);
-        if (mc.fsaccess->getextension(&localname, ext, 8))  // plenty of buffer space left to append a '.'
+        auto localname = LocalPath::fromPath(n->displayname(), *mc.fsaccess);
+        if (mc.fsaccess->getextension(localname, ext, 8))  // plenty of buffer space left to append a '.'
         {
             strcat(ext, ".");
             return true;

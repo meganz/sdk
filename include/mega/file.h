@@ -57,7 +57,7 @@ struct MEGA_API File: public FileFingerprint
     string name;
 
     // local filename (must be set upon injection for uploads, can be set in start() for downloads)
-    string localname;
+    LocalPath localname;
 
     // source/target node handle
     handle h;
@@ -126,7 +126,7 @@ struct MEGA_API SyncFileGet: public File
 
     void terminated();
 
-    SyncFileGet(Sync*, Node*, string*);
+    SyncFileGet(Sync*, Node*, const LocalPath&);
     ~SyncFileGet();
 };
 

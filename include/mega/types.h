@@ -467,9 +467,6 @@ typedef map<int, vector<uint32_t> > pendingdbid_map;
 // map a request tag with a pending dns request
 typedef map<int, GenericHttpReq*> pendinghttp_map;
 
-// map a request tag with pending paths of temporary files
-typedef map<int, vector<string> > pendingfiles_map;
-
 // map an upload handle to the corresponding transer
 typedef map<handle, Transfer*> handletransfer_map;
 
@@ -537,9 +534,6 @@ typedef map<handle, DirectReadNode*> handledrn_map;
 typedef multimap<dstime, DirectReadNode*> dsdrn_map;
 typedef list<DirectRead*> dr_list;
 typedef list<DirectReadSlot*> drs_list;
-
-typedef map<const string*, LocalNode*, StringCmp> localnode_map;
-typedef map<const string*, Node*, StringCmp> remotenode_map;
 
 typedef enum { TREESTATE_NONE = 0, TREESTATE_SYNCED, TREESTATE_PENDING, TREESTATE_SYNCING } treestate_t;
 

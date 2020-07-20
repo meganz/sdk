@@ -233,7 +233,7 @@ protected:
     void onFolderAvailable(MegaHandle handle);
     void checkCompletion();
 
-    std::list<std::string> pendingFolders;
+    std::list<LocalPath> pendingFolders;
 
 public:
     void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e) override;
@@ -324,7 +324,7 @@ protected:
     // backup instance related
     handle currentHandle;
     std::string currentName;
-    std::list<std::string> pendingFolders;
+    std::list<LocalPath> pendingFolders;
     std::vector<MegaTransfer *> failedTransfers;
     int recursive;
     int pendingTransfers;
@@ -1890,7 +1890,7 @@ struct MegaFilePut : public MegaFile
 {
     void completed(Transfer* t, LocalNode*) override;
     void terminated() override;
-    MegaFilePut(MegaClient *client, string* clocalname, string *filename, handle ch, const char* ctargetuser, int64_t mtime = -1, bool isSourceTemporary = false);
+    MegaFilePut(MegaClient *client, LocalPath clocalname, string *filename, handle ch, const char* ctargetuser, int64_t mtime = -1, bool isSourceTemporary = false);
     ~MegaFilePut() {}
 
     bool serialize(string*) override;
@@ -2312,7 +2312,7 @@ class MegaApiImpl : public MegaApp
 #ifdef ENABLE_SYNC
         //Sync
         int syncPathState(string *path);
-        MegaNode *getSyncedNode(string *path);
+        MegaNode *getSyncedNode(const LocalPath& path);
         void syncFolder(const char *localFolder, MegaHandle megaHandle, MegaRegExp *regExp = NULL, MegaRequestListener* listener = NULL);
         void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp = NULL, MegaRequestListener* listener = NULL);
         void copySyncDataToCache(const char *localFolder, MegaHandle megaHandle, const char *remotePath,
@@ -2337,7 +2337,7 @@ class MegaApiImpl : public MegaApp
         long long getNumLocalNodes();
         bool isSyncable(const char *path, long long size);
         bool isInsideSync(MegaNode *node);
-        bool is_syncable(Sync*, const char*, string*);
+        bool is_syncable(Sync*, const char*, const LocalPath&);
         bool is_syncable(long long size);
         int isNodeSyncable(MegaNode *megaNode);
         bool isIndexing();
@@ -3092,8 +3092,9 @@ protected:
         void syncupdate_remote_move(Sync *sync, Node *n, Node* prevparent) override;
         void syncupdate_remote_rename(Sync*sync, Node* n, const char* prevname) override;
         void syncupdate_treestate(LocalNode*) override;
-        bool sync_syncable(Sync *, const char*, string *, Node *) override;
-        bool sync_syncable(Sync *, const char*, string *) override;
+        bool sync_syncable(Sync *, const char*, LocalPath&, Node *) override;
+        bool sync_syncable(Sync *, const char*, LocalPath&) override;
+
         void syncupdate_local_lockretry(bool) override;
 
         // for the exclusive use of sync_syncable

@@ -876,7 +876,7 @@ public:
     string accountauth;
 
     // file that is blocking the sync engine
-    string blockedfile;
+    LocalPath blockedfile;
 
     // stats id
     static std::string statsid;
@@ -1024,7 +1024,7 @@ private:
     unsigned addnode(node_vector*, Node*) const;
 
     // add child for consideration in syncup()/syncdown()
-    void addchild(remotenode_map*, string*, Node*, list<string>*, const string *localPath, FileSystemType fsType) const;
+    void addchild(remotenode_map*, string*, Node*, list<string>*, FileSystemType fsType) const;
 
     // crypto request response
     void cr_response(node_vector*, node_vector*, JSON*);
@@ -1402,7 +1402,7 @@ public:
     void putnodes_sync_result(const Error &, NewNode*, int);
 
     // start downloading/copy missing files, create missing directories
-    bool syncdown(LocalNode*, string*, bool);
+    bool syncdown(LocalNode*, LocalPath&, bool);
 
     // move nodes to //bin/SyncDebris/yyyy-mm-dd/ or unlink directly
     void movetosyncdebris(Node*, bool);
@@ -1423,7 +1423,7 @@ public:
 
     // unlink the LocalNode from the corresponding node
     // if the associated local file or folder still exists
-    void unlinkifexists(LocalNode*, FileAccess*, string*);
+    void unlinkifexists(LocalNode*, FileAccess*, LocalPath& reuseBuffer);
 #endif
 
     // recursively cancel transfers in a subtree
