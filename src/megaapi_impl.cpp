@@ -13159,13 +13159,13 @@ void MegaApiImpl::syncupdate_remote_root_changed(const SyncConfig &config)
 
 void MegaApiImpl::syncs_restored()
 {
-    MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_SYNC_RESTORED);
+    MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_SYNCS_RESTORED);
     fireOnEvent(event);
 }
 
 void MegaApiImpl::syncs_disabled(SyncError syncError)
 {
-    MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_SYNC_DISABLED);
+    MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_SYNCS_DISABLED);
     event->setNumber(syncError);
     fireOnEvent(event);
 }
