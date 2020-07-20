@@ -426,22 +426,22 @@ bool PosixFileAccess::fopen(LocalPath& f, bool read, bool write, DirAccess* iter
     if (!write)
     {
         char resolved_path[PATH_MAX];
-        if (memcmp(f->c_str(), ".", 2) && memcmp(f->c_str(), "..", 3)
-                && (statok || !lstat(f->c_str(), &statbuf) )
+        if (memcmp(f.editStringDirect()->c_str(), ".", 2) && memcmp(f.editStringDirect()->c_str(), "..", 3)
+                && (statok || !lstat(f.editStringDirect()->c_str(), &statbuf) )
                 && !S_ISLNK(statbuf.st_mode)
-                && realpath(f->c_str(), resolved_path) == resolved_path)
+                && realpath(f.editStringDirect()->c_str(), resolved_path) == resolved_path)
         {
             const char *fname;
             size_t fnamesize;
-            if ((fname = strrchr(f->c_str(), '/')))
+            if ((fname = strrchr(f.editStringDirect()->c_str(), '/')))
             {
                 fname++;
-                fnamesize = f->size() - (fname - f->c_str());
+                fnamesize = f.editStringDirect()->size() - (fname - f.editStringDirect()->c_str());
             }
             else
             {
-                fname =  f->c_str();
-                fnamesize = f->size();
+                fname =  f.editStringDirect()->c_str();
+                fnamesize = f.editStringDirect()->size();
             }
             fnamesize++;
 
@@ -459,7 +459,7 @@ bool PosixFileAccess::fopen(LocalPath& f, bool read, bool write, DirAccess* iter
 
             if (rnamesize == fnamesize && memcmp(fname, rname, fnamesize))
             {
-                LOG_warn << "fopen failed due to invalid case: " << f->c_str();
+                LOG_warn << "fopen failed due to invalid case: " << f.editStringDirect()->c_str();
                 return false;
             }
         }
