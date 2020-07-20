@@ -3515,8 +3515,8 @@ public:
         EVENT_MISC_FLAGS_READY          = 11,
 #ifdef ENABLE_SYNC
         EVENT_FIRST_SYNC_RESUMING       = 12, // when a first sync is about to be resumed
-        EVENT_SYNC_DISABLED             = 13, // after restoring syncs
-        EVENT_SYNC_RESTORED             = 14, // after restoring syncs
+        EVENT_SYNCS_DISABLED            = 13, // after restoring syncs
+        EVENT_SYNCS_RESTORED            = 14, // after restoring syncs
 #endif
     };
 

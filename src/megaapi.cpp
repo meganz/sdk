@@ -5615,9 +5615,9 @@ const char* MegaSync::getMegaSyncErrorCode(int errorCode)
     case MegaSync::Error::ACTIVE_SYNC_ABOVE_PATH:
         return "Active sync above path";
     case MegaSync::Error::REMOTE_PATH_DELETED:
-        return "Remove node has been deleted";
+        return "Remote node has been deleted";
     case MegaSync::Error::REMOTE_NODE_INSIDE_RUBBISH:
-        return "Remove node is inside Rubbish Bin";
+        return "Remote node is inside Rubbish Bin";
     case MegaSync::Error::VBOXSHAREDFOLDER_UNSUPPORTED:
         return "Unsupported VBoxSharedFolderFS filesystem";
     case MegaSync::Error::LOCAL_PATH_SYNC_COLLISION:
@@ -5628,6 +5628,8 @@ const char* MegaSync::getMegaSyncErrorCode(int errorCode)
         return "Local filesystem is HGFS";
     case MegaSync::Error::ACCOUNT_BLOCKED:
         return "Your account is blocked";
+    case MegaSync::Error::UNKNOWN_TEMPORARY_ERROR:
+        return "Unknown temporary error";
     default:
         return "Undefined error";
     }
