@@ -233,6 +233,7 @@ bool FileSystemAccess::islocalfscompatible(unsigned char c, bool isEscape, FileS
             return !strchr("\\/:?\"<>|*", c);
 
         case FS_UNKNOWN:
+        default:
             // If filesystem couldn't be detected we'll use the most restrictive charset to avoid issues.
             return (isControlChar(c) && isEscape)
                     ? false
