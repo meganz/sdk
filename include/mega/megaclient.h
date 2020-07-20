@@ -584,7 +584,7 @@ public:
     // updates in state & error
     error saveAndUpdateSyncConfig(const SyncConfig *config, syncstate_t newstate, SyncError syncerror);
     // updates in remote path/node & calls app's syncupdate_remote_root_changed. passing n=null will remove remote handle and keep last known path
-    bool updateSyncRemoteLocation(const SyncConfig *config, Node *n); //returns if changed
+    bool updateSyncRemoteLocation(const SyncConfig *config, Node *n, bool forceCallback = false); //returns if changed
 
     // transition the cache to failed
     void failSync(Sync* sync, SyncError syncerror);

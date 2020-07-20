@@ -14314,7 +14314,7 @@ error MegaClient::saveAndUpdateSyncConfig(const SyncConfig *config, syncstate_t 
 }
 
 
-bool MegaClient::updateSyncRemoteLocation(const SyncConfig *config, Node *n)
+bool MegaClient::updateSyncRemoteLocation(const SyncConfig *config, Node *n, bool forceCallback)
 {
     if (!config)
     {
@@ -14349,7 +14349,7 @@ bool MegaClient::updateSyncRemoteLocation(const SyncConfig *config, Node *n)
         }
     }
 
-    if (changed)
+    if (changed || forceCallback)
     {
         app->syncupdate_remote_root_changed(newconfig);
     }
@@ -14523,7 +14523,10 @@ error MegaClient::enableSync(const SyncConfig *syncConfig, SyncError &syncError,
         // thus we avoid pairing to a new node if the sync failed.
         if (remoteNodeUpdated)
         {
-            updateSyncRemoteLocation(syncConfig, nodebyhandle(newConfig.getRemoteNode())); //updates cache & notice app of this change
+            updateSyncRemoteLocation(syncConfig, nodebyhandle(newConfig.getRemoteNode()), true);
+            // updates cache & notice app of this change,
+            // we pass true to force calling the callback: since addsync will have already updated
+            // the cache, and updateSyncRemoteLocation will not detect the change
         }
     }
 
