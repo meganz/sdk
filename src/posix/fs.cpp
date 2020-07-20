@@ -110,12 +110,12 @@ bool PosixFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
     retry = false;
 
 #ifdef USE_IOS
-    string nonblocking_localname = this->nonblocking_localname;
+    LocalPath nonblocking_localname(this->nonblocking_localname);
     if (PosixFileSystemAccess::appbasepath)
     {
-        if (nonblocking_localname.size() && nonblocking_localname.at(0) != '/')
+        if (!nonblocking_localname.empty() && nonblocking_localname.editStringDirect()->at(0) != '/')
         {
-            nonblocking_localname.insert(0, PosixFileSystemAccess::appbasepath);
+            nonblocking_localname.editStringDirect()->insert(0, PosixFileSystemAccess::appbasepath);
         }
     }
 #endif
@@ -155,12 +155,12 @@ bool PosixFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
 bool PosixFileAccess::sysopen(bool)
 {
 #ifdef USE_IOS
-    string nonblocking_localname = this->nonblocking_localname;
+    LocalPath nonblocking_localname(this->nonblocking_localname);
     if (PosixFileSystemAccess::appbasepath)
     {
-        if (nonblocking_localname.size() && nonblocking_localname.at(0) != '/')
+        if (!nonblocking_localname.empty() && nonblocking_localname.editStringDirect()->at(0) != '/')
         {
-            nonblocking_localname.insert(0, PosixFileSystemAccess::appbasepath);
+            nonblocking_localname.editStringDirect()->insert(0, PosixFileSystemAccess::appbasepath);
         }
     }
 #endif
@@ -402,11 +402,11 @@ bool PosixFileAccess::fopen(LocalPath& f, bool read, bool write, DirAccess* iter
     string absolutef;
     if (PosixFileSystemAccess::appbasepath)
     {
-        if (f->size() && f->at(0) != '/')
+        if (!f.empty() && f.editStringDirect()->at(0) != '/')
         {
             absolutef = PosixFileSystemAccess::appbasepath;
-            absolutef.append(*f);
-            f = &absolutef;
+            absolutef.append(f.editStringDirect()->c_str());
+            f.editStringDirect()->assign(absolutef);
         }
     }
 #endif
@@ -1026,18 +1026,18 @@ bool PosixFileSystemAccess::renamelocal(LocalPath& oldname, LocalPath& newname, 
     string absolutenewname;
     if (appbasepath)
     {
-        if (oldname->size() && oldname->at(0) != '/')
+        if (!oldname.empty() && oldname.editStringDirect()->at(0) != '/')
         {
             absoluteoldname = appbasepath;
-            absoluteoldname.append(*oldname);
-            oldname = &absoluteoldname;
+            absoluteoldname.append(oldname.editStringDirect()->c_str());
+            oldname.editStringDirect()->assign(absoluteoldname);
         }
 
-        if (newname->size() && newname->at(0) != '/')
+        if (!newname.empty() && newname.editStringDirect()->at(0) != '/')
         {
             absolutenewname = appbasepath;
-            absolutenewname.append(*newname);
-            newname = &absolutenewname;
+            absolutenewname.append(newname.editStringDirect()->c_str());
+            newname.editStringDirect()->assign(absolutenewname);
         }
     }
 #endif
@@ -1069,18 +1069,18 @@ bool PosixFileSystemAccess::copylocal(LocalPath& oldname, LocalPath& newname, m_
     string absolutenewname;
     if (appbasepath)
     {
-        if (oldname->size() && oldname->at(0) != '/')
+        if (!oldname.empty() && oldname.editStringDirect()->at(0) != '/')
         {
             absoluteoldname = appbasepath;
-            absoluteoldname.append(*oldname);
-            oldname = &absoluteoldname;
+            absoluteoldname.append(oldname.editStringDirect()->c_str());
+            oldname.editStringDirect()->assign(absoluteoldname);
         }
 
-        if (newname->size() && newname->at(0) != '/')
+        if (!newname.empty() && newname.editStringDirect()->at(0) != '/')
         {
             absolutenewname = appbasepath;
-            absolutenewname.append(*newname);
-            newname = &absolutenewname;
+            absolutenewname.append(newname.editStringDirect()->c_str());
+            newname.editStringDirect()->assign(absolutenewname);
         }
     }
 #endif
@@ -1149,11 +1149,11 @@ bool PosixFileSystemAccess::unlinklocal(LocalPath& name)
     string absolutename;
     if (appbasepath)
     {
-        if (name->size() && name->at(0) != '/')
+        if (!name.empty() && name.editStringDirect()->at(0) != '/')
         {
             absolutename = appbasepath;
-            absolutename.append(*name);
-            name = &absolutename;
+            absolutename.append(name.editStringDirect()->c_str());
+            name.editStringDirect()->assign(absolutename);
         }
     }
 #endif
@@ -1176,11 +1176,11 @@ void PosixFileSystemAccess::emptydirlocal(LocalPath& name, dev_t basedev)
     string absolutename;
     if (appbasepath)
     {
-        if (name->size() && name->at(0) != '/')
+        if (!name.empty() && name.editStringDirect()->at(0) != '/')
         {
             absolutename = appbasepath;
-            absolutename.append(*name);
-            name = &absolutename;
+            absolutename.append(name.editStringDirect()->c_str());
+            name.editStringDirect()->assign(absolutename);
         }
     }
 #endif
@@ -1273,11 +1273,11 @@ bool PosixFileSystemAccess::rmdirlocal(LocalPath& name)
     string absolutename;
     if (appbasepath)
     {
-        if (name->size() && name->at(0) != '/')
+        if (!name.empty() && name.editStringDirect()->at(0) != '/')
         {
             absolutename = appbasepath;
-            absolutename.append(*name);
-            name = &absolutename;
+            absolutename.append(name.editStringDirect()->c_str());
+            name.editStringDirect()->assign(absolutename);
         }
     }
 #endif
@@ -1300,11 +1300,11 @@ bool PosixFileSystemAccess::mkdirlocal(LocalPath& name, bool)
     string absolutename;
     if (appbasepath)
     {
-        if (name->size() && name->at(0) != '/')
+        if (!name.empty() && name.editStringDirect()->at(0) != '/')
         {
             absolutename = appbasepath;
-            absolutename.append(*name);
-            name = &absolutename;
+            absolutename.append(name.editStringDirect()->c_str());
+            name.editStringDirect()->assign(absolutename);
         }
     }
 #endif
@@ -1336,11 +1336,11 @@ bool PosixFileSystemAccess::setmtimelocal(LocalPath& name, m_time_t mtime)
     string absolutename;
     if (appbasepath)
     {
-        if (name->size() && name->at(0) != '/')
+        if (!name.empty() && name.editStringDirect()->at(0) != '/')
         {
             absolutename = appbasepath;
-            absolutename.append(*name);
-            name = &absolutename;
+            absolutename.append(name.editStringDirect()->c_str());
+            name.editStringDirect()->assign(absolutename);
         }
     }
 #endif
@@ -1363,11 +1363,11 @@ bool PosixFileSystemAccess::chdirlocal(LocalPath& name) const
     string absolutename;
     if (appbasepath)
     {
-        if (name->size() && name->at(0) != '/')
+        if (!name.empty() && name.editStringDirect()->at(0) != '/')
         {
             absolutename = appbasepath;
-            absolutename.append(*name);
-            name = &absolutename;
+            absolutename.append(name.editStringDirect()->c_str());
+            name.editStringDirect()->assign(absolutename);
         }
     }
 #endif
@@ -1877,11 +1877,11 @@ bool PosixDirAccess::dopen(LocalPath* path, FileAccess* f, bool doglob)
     string absolutepath;
     if (PosixFileSystemAccess::appbasepath)
     {
-        if (path->size() && path->at(0) != '/')
+        if (!path->empty() && path->editStringDirect()->at(0) != '/')
         {
             absolutepath = PosixFileSystemAccess::appbasepath;
-            absolutepath.append(*path);
-            path = &absolutepath;
+            absolutepath.append(path->editStringDirect()->c_str());
+            path->editStringDirect()->assign(absolutepath);
         }
     }
 #endif
@@ -1922,11 +1922,11 @@ bool PosixDirAccess::dnext(LocalPath& path, LocalPath& name, bool followsymlinks
     string absolutepath;
     if (PosixFileSystemAccess::appbasepath)
     {
-        if (path->size() && path->at(0) != '/')
+        if (!path.empty() && path.editStringDirect()->at(0) != '/')
         {
             absolutepath = PosixFileSystemAccess::appbasepath;
-            absolutepath.append(*path);
-            path = &absolutepath;
+            absolutepath.append(path.editStringDirect()->c_str());
+            path.editStringDirect()->assign(absolutepath);
         }
     }
 #endif
