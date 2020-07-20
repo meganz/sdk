@@ -5628,6 +5628,10 @@ const char* MegaSync::getMegaSyncErrorCode(int errorCode)
         return "Local filesystem is HGFS";
     case MegaSync::Error::ACCOUNT_BLOCKED:
         return "Your account is blocked";
+    case MegaSync::Error::UNKNOWN_TEMPORARY_ERROR:
+        return "Unknown temporary error";
+    case MegaSync::Error::TOO_MANY_ACTION_PACKETS:
+        return "Too many achanges in account, local state invalid";
     default:
         return "Undefined error";
     }

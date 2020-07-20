@@ -5041,6 +5041,7 @@ public:
         LOCAL_IS_HGFS= 24, // Found HGFS (not a failure per se)
         ACCOUNT_BLOCKED= 25, // Account blocked
         UNKNOWN_TEMPORARY_ERROR = 26, // unknown temporary error
+        TOO_MANY_ACTION_PACKETS = 27, // Too many changes in account, local state discarded
     };
 
     enum SyncAdded
@@ -5164,6 +5165,7 @@ public:
      *  - LOCAL_IS_HGFS = 24: Found HGFS (not a failure per se)
      *  - ACCOUNT_BLOCKED = 25: Account blocked
      *  - UNKNOWN_TEMPORARY_ERROR = 26: Unknown temporary error
+     *  - TOO_MANY_ACTION_PACKETS = 27: Too many changes in account, local state discarded
      *
      * @return Error of a synchronization
      */
