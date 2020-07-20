@@ -137,16 +137,23 @@ TEST(File, unserialize_32bit)
 
 TEST(File, contains)
 {
-    MockFileSystemAccess fsaccess;
+    ::mega::FSACCESS_CLASS fsaccess;
 
+    auto originalSeparator = fsaccess.localseparator;
+#ifdef _WIN32
     fsaccess.localseparator = "/";
+#endif
 
     ASSERT_TRUE(fsaccess.contains("/some/folder","/some/folder/within"));
     ASSERT_FALSE(fsaccess.contains("/some/folder","/not/in/some/folder"));
     ASSERT_FALSE(fsaccess.contains("/some/folder","/not/in/some/folder/within"));
     ASSERT_FALSE(fsaccess.contains("/some/folder/within","/some/folder"));
 
+#ifdef _WIN32
+    fsaccess.localseparator = originalSeparator;
+#else
     fsaccess.localseparator = "\\";
+#endif
     ASSERT_TRUE(fsaccess.contains("c:\\some\\folder","c:\\some\\folder\\within"));
     ASSERT_FALSE(fsaccess.contains("c:\\SOME\\folder","c:\\some\\folder\\within"));
 
