@@ -544,7 +544,7 @@ bool PosixFileAccess::fopen(LocalPath& f, bool read, bool write, DirAccess* iter
                 //If creation time equal to kMagicBusyCreationDate
                 if(statbuf.st_birthtimespec.tv_sec == -2082844800)
                 {
-                    LOG_debug << "File is busy: " << f->c_str();
+                    LOG_debug << "File is busy: " << f.editStringDirect()->c_str();
                     retry = true;
                     return false;
                 }
