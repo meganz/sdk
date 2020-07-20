@@ -11916,25 +11916,19 @@ void MegaApiImpl::file_complete(File *f)
 
 void MegaApiImpl::transfer_complete(Transfer *t)
 {
-    if (t)
+    MegaTransferPrivate* transfer = getMegaTransferPrivate(t->tag);
+    if (transfer)
     {
-        MegaTransferPrivate* transfer = getMegaTransferPrivate(t->tag);
-        if (transfer)
-        {
-            transfer->setTransfer(nullptr);
-        }
+        transfer->setTransfer(nullptr);
     }
 }
 
 void MegaApiImpl::transfer_removed(Transfer *t)
 {
-    if (t)
+    MegaTransferPrivate* transfer = getMegaTransferPrivate(t->tag);
+    if (transfer)
     {
-        MegaTransferPrivate* transfer = getMegaTransferPrivate(t->tag);
-        if (transfer)
-        {
-            transfer->setTransfer(nullptr);
-        }
+        transfer->setTransfer(nullptr);
     }
 }
 void MegaApiImpl::transfer_prepare(Transfer *t)
