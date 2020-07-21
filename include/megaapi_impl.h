@@ -750,7 +750,10 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
 
         void startRecursiveOperation(unique_ptr<MegaRecursiveOperation>, MegaNode* node); // takes ownership of both
 
-    protected:
+        long long getPlaceInQueue() const;
+        void setPlaceInQueue(long long value);
+
+protected:
         int type;
         int tag;
         int state;
@@ -787,8 +790,10 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         int retry;
         int maxRetries;
 
+        long long placeInQueue = 0;
+
         MegaTransferListener *listener;
-        Transfer *transfer;
+        Transfer *transfer = nullptr;
         std::unique_ptr<MegaError> lastError;
         int folderTransferTag;
         const char* appData;
@@ -1969,6 +1974,7 @@ class TransferQueue
     protected:
         std::deque<MegaTransferPrivate *> transfers;
         std::mutex mutex;
+        long long lastPushedTransfer = 0;
 
     public:
         TransferQueue();
@@ -1976,8 +1982,17 @@ class TransferQueue
         void push_front(MegaTransferPrivate *transfer);
         MegaTransferPrivate * pop();
 
+        /**
+         * @brief pops and returns transfer up to the designated one
+         * @param lastQueuedTransfer position of the last transfer to pop
+         * @param direction directio of transfers to pop
+         * @return
+         */
+        std::vector<MegaTransferPrivate *> popUpTo(int lastQueuedTransfer, int direction);
+
         void removeWithFolderTag(int folderTag, std::function<void(MegaTransferPrivate *)> callback);
         void removeListener(MegaTransferListener *listener);
+        long long getLastPushedTag() const;
 };
 
 class MegaApiImpl : public MegaApp
@@ -2631,6 +2646,8 @@ class MegaApiImpl : public MegaApp
         void fireOnTransferUpdate(MegaTransferPrivate *transfer);
         void fireOnTransferTemporaryError(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e);
         map<int, MegaTransferPrivate *> transferMap;
+        map<int, MegaTransferPrivate *> folderTransferMap; //transferMap includes these, added for speedup
+
 
         MegaClient *getMegaClient();
         static FileFingerprint *getFileFingerprintInternal(const char *fingerprint);
@@ -2930,6 +2947,10 @@ protected:
         void file_added(File*) override;
         void file_removed(File*, const Error& e) override;
         void file_complete(File*) override;
+
+        void transfer_complete(Transfer *) override;
+        void transfer_removed(Transfer *) override;
+
         File* file_resume(string*, direction_t *type) override;
 
         void transfer_prepare(Transfer*) override;
