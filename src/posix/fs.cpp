@@ -130,11 +130,18 @@ PosixFileAccess::~PosixFileAccess()
 
 bool PosixFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
 {
+#ifdef USE_IOS
+    const string nameStr = adjustBasePath(nonblocking_localname);
+#else
+    // use the existing string if it's not iOS, no need for a copy
+    const string& nameStr = adjustBasePath(nonblocking_localname);
+#endif
+
     struct stat statbuf;
     retry = false;
 
     type = TYPE_UNKNOWN;
-    mIsSymLink = lstat(adjustBasePath(nonblocking_localname).c_str(), &statbuf) == 0
+    mIsSymLink = lstat(nameStr.c_str(), &statbuf) == 0
                  && S_ISLNK(statbuf.st_mode);
     if (mIsSymLink && !PosixFileAccess::mFoundASymlink)
     {
@@ -142,8 +149,8 @@ bool PosixFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
         PosixFileAccess::mFoundASymlink = true;
     }
 
-    if (!(mFollowSymLinks ? stat(adjustBasePath(nonblocking_localname).c_str(), &statbuf)
-                         : lstat(adjustBasePath(nonblocking_localname).c_str(), &statbuf)))
+    if (!(mFollowSymLinks ? stat(nameStr.c_str(), &statbuf)
+                         : lstat(nameStr.c_str(), &statbuf)))
     {
         errorcode = 0;
         if (S_ISDIR(statbuf.st_mode))
@@ -1137,9 +1144,9 @@ void PosixFileSystemAccess::emptydirlocal(LocalPath& name, dev_t basedev)
     PosixFileSystemAccess pfsa;
 #ifdef USE_IOS
     const string namestr = adjustBasePath(name);
-#else /* USE_IOS */
+#else
     const string& namestr = adjustBasePath(name);
-#endif /* ! USE_IOS */
+#endif
 
     if (!basedev)
     {
@@ -1169,16 +1176,22 @@ void PosixFileSystemAccess::emptydirlocal(LocalPath& name, dev_t basedev)
 
                     name.appendWithSeparator(LocalPath::fromLocalname(d->d_name), true, pfsa.localseparator);
 
-                    if (!lstat(adjustBasePath(name).c_str(), &statbuf))
+#ifdef USE_IOS
+                    const string nameStr = adjustBasePath(name);
+#else
+                    // use the existing string if it's not iOS, no need for a copy
+                    const string& nameStr = adjustBasePath(name);
+#endif
+                    if (!lstat(nameStr.c_str(), &statbuf))
                     {
                         if (!S_ISLNK(statbuf.st_mode) && S_ISDIR(statbuf.st_mode) && statbuf.st_dev == basedev)
                         {
                             emptydirlocal(name, basedev);
-                            removed |= !rmdir(adjustBasePath(name).c_str());
+                            removed |= !rmdir(nameStr.c_str());
                         }
                         else
                         {
-                            removed |= !unlink(adjustBasePath(name).c_str());
+                            removed |= !unlink(nameStr.c_str());
                         }
                     }
                 }
@@ -1232,8 +1245,15 @@ bool PosixFileSystemAccess::rmdirlocal(LocalPath& name)
 
 bool PosixFileSystemAccess::mkdirlocal(LocalPath& name, bool)
 {
+#ifdef USE_IOS
+    const string nameStr = adjustBasePath(name);
+#else
+    // use the existing string if it's not iOS, no need for a copy
+    const string& nameStr = adjustBasePath(name);
+#endif
+
     mode_t mode = umask(0);
-    bool r = !mkdir(adjustBasePath(name).c_str(), defaultfolderpermissions);
+    bool r = !mkdir(nameStr.c_str(), defaultfolderpermissions);
     umask(mode);
 
     if (!r)
@@ -1241,11 +1261,11 @@ bool PosixFileSystemAccess::mkdirlocal(LocalPath& name, bool)
         target_exists = errno == EEXIST;
         if (target_exists)
         {
-            LOG_debug << "Error creating local directory: " << adjustBasePath(name) << " errno: " << errno;
+            LOG_debug << "Error creating local directory: " << nameStr << " errno: " << errno;
         }
         else
         {
-            LOG_err << "Error creating local directory: " << adjustBasePath(name) << " errno: " << errno;
+            LOG_err << "Error creating local directory: " << nameStr << " errno: " << errno;
         }
         transient_error = errno == ETXTBSY || errno == EBUSY;
     }
@@ -1255,12 +1275,19 @@ bool PosixFileSystemAccess::mkdirlocal(LocalPath& name, bool)
 
 bool PosixFileSystemAccess::setmtimelocal(LocalPath& name, m_time_t mtime)
 {
+#ifdef USE_IOS
+    const string nameStr = adjustBasePath(name);
+#else
+    // use the existing string if it's not iOS, no need for a copy
+    const string& nameStr = adjustBasePath(name);
+#endif
+
     struct utimbuf times = { (time_t)mtime, (time_t)mtime };
 
-    bool success = !utime(adjustBasePath(name).c_str(), &times);
+    bool success = !utime(nameStr.c_str(), &times);
     if (!success)
     {
-        LOG_err << "Error setting mtime: " << adjustBasePath(name) <<" mtime: "<< mtime << " errno: " << errno;
+        LOG_err << "Error setting mtime: " << nameStr <<" mtime: "<< mtime << " errno: " << errno;
         transient_error = errno == ETXTBSY || errno == EBUSY;
     }
 
@@ -1838,11 +1865,18 @@ bool PosixDirAccess::dnext(LocalPath& path, LocalPath& name, bool followsymlinks
         {
             path.appendWithSeparator(LocalPath::fromLocalname(d->d_name), true, pfsa.localseparator);
 
-            bool statOk = !lstat(adjustBasePath(path).c_str(), &statbuf);
+#ifdef USE_IOS
+            const string pathStr = adjustBasePath(path);
+#else
+            // use the existing string if it's not iOS, no need for a copy
+            const string& pathStr = adjustBasePath(path);
+#endif
+
+            bool statOk = !lstat(pathStr.c_str(), &statbuf);
             if (followsymlinks && statOk && S_ISLNK(statbuf.st_mode))
             {
                 currentItemFollowedSymlink = true;
-                statOk = !stat(adjustBasePath(path).c_str(), &statbuf);
+                statOk = !stat(pathStr.c_str(), &statbuf);
             }
             else
             {
