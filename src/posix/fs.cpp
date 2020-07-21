@@ -45,8 +45,33 @@ using namespace std;
 bool PosixFileAccess::mFoundASymlink = false;
 
 #ifdef USE_IOS
-    char* PosixFileSystemAccess::appbasepath = NULL;
-#endif
+
+static string iosAdjust(const LocalPath& name)
+{
+    // return a temporary variable that the caller can optionally use c_str on (in that expression)
+    string absolutename;
+    if (appbasepath)
+    {
+        if (!name.empty() && name.editStringDirect()->at(0) != '/')
+        {
+            absolutename = appbasepath;
+            absolutename.append(*name.editStringDirect());
+            return absolutename;
+        }
+    }
+    return *name.editStringDirect();
+}
+
+char* PosixFileSystemAccess::appbasepath = NULL;
+
+#else /* USE_IOS */
+
+static const string& iosAdjust(const LocalPath& name)
+{
+    return *name.editStringDirect();
+}
+
+#endif /* ! USE_IOS */
 
 #ifdef HAVE_AIO_RT
 PosixAsyncIOContext::PosixAsyncIOContext() : AsyncIOContext()
@@ -1078,13 +1103,13 @@ bool PosixFileSystemAccess::copylocal(LocalPath& oldname, LocalPath& newname, m_
         t = !setmtimelocal(newname, mtime);
 #else
         // fails in setmtimelocal are allowed in non sync clients.
-        setmtimelocal(newname), mtime);
+        setmtimelocal(newname, mtime);
 #endif
     }
     else
     {
         int e = errno;
-        LOG_debug << "Unable to copy file: " << oldname_str << " to " << newname_str << ". Error code: " << e;
+        LOG_debug << "Unable to copy file: " << oldnamestr << " to " << newnamestr << ". Error code: " << e;
     }
 
     return !t;
@@ -1102,31 +1127,6 @@ bool PosixFileSystemAccess::unlinklocal(LocalPath& name)
     return false;
 }
 
-
-#ifdef USE_IOS
-const string& PosixFileSystemAccess::iosAdjust(LocalPath& name)
-{
-    // return a temporary variable that the caller can optionally use c_str on (in that expression)
-    string absolutename;
-    if (appbasepath)
-    {
-        if (!name.empty() && name.editStringDirect()->at(0) != '/')
-        {
-            absolutename = appbasepath;
-            absolutename.append(name.editStringDirect()->c_str());
-            return absolutename;
-        }
-    }
-    return name.editStringDirect();
-}
-#else
-const string& PosixFileSystemAccess::iosAdjust(LocalPath& name)
-{
-    // just a reference to the internal string, nice and efficient
-    return name.editStringDirect();
-}
-#endif
-
 // delete all files, folders and symlinks contained in the specified folder
 // (does not recurse into mounted devices)
 void PosixFileSystemAccess::emptydirlocal(LocalPath& name, dev_t basedev)
@@ -1137,10 +1137,15 @@ void PosixFileSystemAccess::emptydirlocal(LocalPath& name, dev_t basedev)
     struct stat statbuf;
     size_t t;
     PosixFileSystemAccess pfsa;
+#ifdef USE_IOS
+    const string namestr = iosAdjust(name);
+#else /* USE_IOS */
+    const string& namestr = iosAdjust(name);
+#endif /* ! USE_IOS */
 
     if (!basedev)
     {
-        if (lstat(name_str, &statbuf)
+        if (lstat(namestr.c_str(), &statbuf)
             || !S_ISDIR(statbuf.st_mode)
             || S_ISLNK(statbuf.st_mode))
         {
@@ -1150,7 +1155,7 @@ void PosixFileSystemAccess::emptydirlocal(LocalPath& name, dev_t basedev)
         basedev = statbuf.st_dev;
     }
 
-    if ((dp = opendir(iosAdjust(name).c_str())))
+    if ((dp = opendir(namestr.c_str())))
     {
         for (;;)
         {
@@ -1215,7 +1220,7 @@ void PosixFileSystemAccess::setdefaultfolderpermissions(int permissions)
 
 bool PosixFileSystemAccess::rmdirlocal(LocalPath& name)
 {
-    emptydirlocal(iosAdjust(name).c_str());
+    emptydirlocal(name);
 
     if (!rmdir(iosAdjust(name).c_str()))
     {

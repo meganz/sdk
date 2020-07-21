@@ -77,9 +77,6 @@ public:
 
 #ifdef USE_IOS
     static char *appbasepath;
-    const string iosAdjust(const LocalPath&);
-#else
-    const string& iosAdjust(const LocalPath&);
 #endif
 
     bool notifyerr;
