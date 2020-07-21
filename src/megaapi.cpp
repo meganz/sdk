@@ -5630,6 +5630,8 @@ const char* MegaSync::getMegaSyncErrorCode(int errorCode)
         return "Your account is blocked";
     case MegaSync::Error::UNKNOWN_TEMPORARY_ERROR:
         return "Unknown temporary error";
+    case MegaSync::Error::TOO_MANY_ACTION_PACKETS:
+        return "Too many changes in account, local state invalid";
     default:
         return "Undefined error";
     }
