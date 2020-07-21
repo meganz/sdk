@@ -50,11 +50,11 @@ static string iosAdjust(const LocalPath& name)
 {
     // return a temporary variable that the caller can optionally use c_str on (in that expression)
     string absolutename;
-    if (PosixFileAccess::appbasepath)
+    if (PosixFileSystemAccess::appbasepath)
     {
         if (!name.empty() && name.editStringDirect()->at(0) != '/')
         {
-            absolutename = PosixFileAccess::appbasepath;
+            absolutename = PosixFileSystemAccess::appbasepath;
             absolutename.append(*name.editStringDirect());
             return absolutename;
         }
