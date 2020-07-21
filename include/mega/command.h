@@ -32,8 +32,18 @@ namespace mega {
 struct JSON;
 struct MegaApp;
 // request command component
+
+class MEGA_API CommandListener
+{
+public:
+    virtual void onCommandToBeDeleted(Command *) = 0;
+};
+
+
 class MEGA_API Command
 {
+    std::vector<std::weak_ptr<CommandListener>> mListeners;
+
     static const int MAXDEPTH = 8;
 
     char levels[MAXDEPTH];
@@ -45,8 +55,12 @@ protected:
 
     string json;
 
+    bool mRead = false;// if json has already been read
+
 public:
     MegaClient* client; // non-owning
+
+    void addListener(const std::shared_ptr<CommandListener> &listener);
 
     int tag;
 
@@ -86,14 +100,16 @@ public:
 
     virtual void procresult();
 
-    const char* getstring() const;
+    const char* getstring();
 
     Command();
-    virtual ~Command() = default;
+    virtual ~Command();
 
     bool checkError(Error &errorDetails, JSON &json);
 
     MEGA_DEFAULT_COPY_MOVE(Command)
+    bool getRead() const; //if already read
+    void replaceWith(Command &command);
 };
 
 // list of new file attributes to write

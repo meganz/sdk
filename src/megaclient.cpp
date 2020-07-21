@@ -1088,6 +1088,8 @@ void MegaClient::init()
     btpfa.reset();
     btbadhost.reset();
 
+    btheartbeat.reset();
+
     abortlockrequest();
 
     jsonsc.pos = NULL;
@@ -1103,7 +1105,7 @@ void MegaClient::init()
 }
 
 MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, DbAccess* d, GfxProc* g, const char* k, const char* u, unsigned workerThreadCount)
-    : useralerts(*this), btugexpiration(rng), btcs(rng), btbadhost(rng), btworkinglock(rng), btsc(rng), btpfa(rng)
+    : useralerts(*this), btugexpiration(rng), btcs(rng), btbadhost(rng), btworkinglock(rng), btsc(rng), btpfa(rng), btheartbeat(rng)
 #ifdef ENABLE_SYNC
     ,syncfslockretrybt(rng), syncdownbt(rng), syncnaglebt(rng), syncextrabt(rng), syncscanbt(rng)
 #endif
@@ -2940,6 +2942,14 @@ void MegaClient::exec()
             workinglockcs->posturl.append("&wlt=1");
             workinglockcs->type = REQ_JSON;
             workinglockcs->post(this);
+        }
+
+        if (btheartbeat.armed())
+        {
+            // heartbeat
+            LOG_debug << "HeartBeat: ";
+            app->heartbeat();
+            btheartbeat.backoff(300); //TODO: use variable for time
         }
 
 

@@ -5147,6 +5147,9 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     httpio->unlock();
 #endif
 
+    mHeartBeatMonitor = ::mega::make_unique<MegaHeartBeatMonitor>(client);
+    listeners.insert(mHeartBeatMonitor.get());
+
     //Start blocking thread
     threadExit = 0;
     thread.start(threadEntryPoint, this);
@@ -13192,9 +13195,9 @@ void MegaApiImpl::syncupdate_local_lockretry(bool waiting)
 }
 #endif
 
-void MegaApiImpl::backupput_result(const Error&, handle /*backupId*/)
+void MegaApiImpl::backupput_result(const Error&, handle backupId)
 {
-
+    mHeartBeatMonitor->setRegisteredId(backupId);
 }
 
 void MegaApiImpl::backupupdate_result(const Error&, handle /*backupId*/)
@@ -13207,9 +13210,22 @@ void MegaApiImpl::backupputheartbeat_result(const Error&)
 
 }
 
-void MegaApiImpl::backupremove_result(const Error&, handle /*backupId*/)
+void MegaApiImpl::backupremove_result(const Error& e, handle backupId)
 {
+    if (e && backupId != UNDEF)
+    {
+//        mHeartBeatMonitor->unregisterId(backupId); //TODO: this might not be required: we might want to do it right away
+        // TODO: note: we probably wan to add retrying logic to this!
+    }
+    else
+    {
+        LOG_warn << "backupremove_result failed: " << MegaError::getErrorString(e);
+    }
+}
 
+void MegaApiImpl::heartbeat()
+{
+    mHeartBeatMonitor->beat();
 }
 
 // user addition/update (users never get deleted)

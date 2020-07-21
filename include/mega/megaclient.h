@@ -898,6 +898,9 @@ private:
     BackoffTimer btbadhost;
     BackoffTimer btworkinglock;
 
+    // backoff for heartbeats
+    BackoffTimer btheartbeat;
+
     vector<TimerWithBackoff *> bttimers;
 
     // server-client command trigger connection

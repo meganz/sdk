@@ -29,6 +29,8 @@
 #include "mega/gfx/external.h"
 #include "megaapi.h"
 
+#include "mega/heartbeats.h"
+
 #define CRON_USE_LOCAL_TIME 1
 #include "mega/mega_ccronexpr.h"
 
@@ -2017,6 +2019,7 @@ class TransferQueue
         void removeListener(MegaTransferListener *listener);
 };
 
+
 class MegaApiImpl : public MegaApp
 {
     public:
@@ -2789,6 +2792,7 @@ protected:
         map<int, MegaSyncPrivate *>::iterator eraseSyncByIterator(map<int, MegaSyncPrivate *>::iterator it);
 
 #endif
+        std::unique_ptr<MegaHeartBeatMonitor> mHeartBeatMonitor;
 
         int pendingUploads;
         int pendingDownloads;
@@ -3102,10 +3106,11 @@ protected:
         std::mutex mSyncable_fa_mutex;
 #endif
 
-        void backupput_result(const Error&, handle) override;
+        void backupput_result(const Error&, handle backupId) override;
         void backupupdate_result(const Error&, handle) override;
         void backupputheartbeat_result(const Error&) override;
         void backupremove_result(const Error&, handle) override;
+        void heartbeat() override;
 
 protected:
         // suggest reload due to possible race condition with other clients

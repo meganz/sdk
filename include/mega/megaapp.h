@@ -417,6 +417,8 @@ struct MEGA_API MegaApp
     virtual void backupputheartbeat_result(const Error&) { }
     virtual void backupremove_result(const Error&, handle /*backup id*/) { }
 
+    virtual void heartbeat() { }
+
     virtual ~MegaApp() { }
 };
 } // namespace

@@ -71,6 +71,7 @@ EXTRA_DIST = src/mega_utf8proc_data.c
 if BUILD_MEGAAPI
 src_libmega_la_SOURCES += src/megaapi_impl.cpp
 src_libmega_la_SOURCES += src/megaapi.cpp
+src_libmega_la_SOURCES += src/heartbeats.cpp
 endif
 
 if USE_FREEIMAGE
