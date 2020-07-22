@@ -3357,7 +3357,7 @@ class MegaRequest
          *
          * @return Tag of a transfer related to the request
          */
-        virtual int getTransferTag() const;
+        virtual long long getTransferTag() const;
 
         /**
          * @brief Returns the number of details related to this request

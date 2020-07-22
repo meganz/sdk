@@ -1106,7 +1106,7 @@ class MegaRequestPrivate : public MegaRequest
         void setText(const char* text);
         void setNumber(long long number);
         void setFlag(bool flag);
-        void setTransferTag(int transfer);
+        void setTransferTag(long long transfer);
         void setListener(MegaRequestListener *listener);
         void setTotalBytes(long long totalBytes);
         void setTransferredBytes(long long transferredBytes);
@@ -1144,7 +1144,7 @@ class MegaRequestPrivate : public MegaRequest
         long long getTotalBytes() const override;
         MegaRequestListener *getListener() const override;
         MegaAccountDetails *getMegaAccountDetails() const override;
-        int getTransferTag() const override;
+        long long getTransferTag() const override;
         int getNumDetails() const override;
         int getTag() const override;
         MegaPricing *getPricing() const override;
@@ -1212,7 +1212,7 @@ protected:
 #endif
         MegaBackupListener *backupListener;
 
-        int transfer;
+        long long transferTag = 0;
         int numDetails;
         MegaNode* publicNode;
         int numRetry;

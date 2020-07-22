@@ -3066,7 +3066,6 @@ MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
 {
     this->type = type;
     this->tag = 0;
-    this->transfer = 0;
     this->listener = listener;
 #ifdef ENABLE_SYNC
     this->syncListener = NULL;
@@ -3673,9 +3672,9 @@ void MegaRequestPrivate::setFlag(bool flag)
     this->flag = flag;
 }
 
-void MegaRequestPrivate::setTransferTag(int transfer)
+void MegaRequestPrivate::setTransferTag(long long transfer)
 {
-    this->transfer = transfer;
+    transferTag = transfer;
 }
 
 void MegaRequestPrivate::setListener(MegaRequestListener *listener)
@@ -3887,9 +3886,9 @@ MegaRequestListener *MegaRequestPrivate::getListener() const
     return listener;
 }
 
-int MegaRequestPrivate::getTransferTag() const
+long long MegaRequestPrivate::getTransferTag() const
 {
-    return transfer;
+    return transferTag;
 }
 
 const char *MegaRequestPrivate::toString() const
