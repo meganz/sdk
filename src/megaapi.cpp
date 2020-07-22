@@ -3198,7 +3198,7 @@ void MegaApi::copyCachedStatus(int storageStatus, int blockStatus, int businessS
 #ifdef USE_PCRE
 void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
 {
-    pImpl->syncFolder(localFolder, megaFolder, regExp, listener);
+    pImpl->syncFolder(localFolder, nullptr, megaFolder, regExp, listener);
 }
 #endif
 
