@@ -34,6 +34,16 @@ class HeartBeatSyncInfo : public CommandListener
         TEMPORARY_DISABLED = 5,
         UNKNOWN = 6,
     };
+
+    class PendingTransferInfo
+    {
+    public:
+        long long totalBytes = 0.;
+        long long transferredBytes = 0.;
+    };
+
+
+
 public:
     HeartBeatSyncInfo(int tag, handle id);
 
@@ -56,24 +66,43 @@ public:
 
     mega::MegaHandle lastSyncedItem() const;
 
+    void updateTransferInfo(MegaTransfer *transfer);
+    void removePendingTransfer(MegaTransfer *transfer);
+
 private:
     handle mHeartBeatId = UNDEF; //sync ID, from registration
     int mSyncTag = 0; //sync tag
+
     Status mStatus = UNKNOWN;
-    double mProgress = 0.;
+
+    long long mTotalBytes = 0;
+    long long mTransferredBytes = 0;
+
     long long mPendingUps;
     long long mPendingDowns;
-    m_time_t mLastAction = 0; //timestamps of the last action
-    m_time_t mLastBeat = 0; //timestamps of the last beat
+
+    std::map<int, std::unique_ptr<PendingTransferInfo>> mPendingTransfers;
+
     mega::MegaHandle mLastSyncedItem; //last synced item
 
+    m_time_t mLastAction = 0; //timestamps of the last action
+    m_time_t mLastBeat = 0; //timestamps of the last beat
+
     Command *mRunningCommand = nullptr;
+
+    void updateLastActionTime();
 
 public:
     void onCommandToBeDeleted(Command *command) override;
     m_time_t lastBeat() const;
     void setLastBeat(const m_time_t &lastBeat);
     void setLastAction(const m_time_t &lastAction); //TODO: call this for all the other setters!
+    void setStatus(const Status &status);
+    void setPendingUps(long long pendingUps);
+    void setPendingDowns(long long pendingDowns);
+    void setLastSyncedItem(const mega::MegaHandle &lastSyncedItem);
+    void setTotalBytes(long long value);
+    void setTransferredBytes(long long value);
 };
 
 
@@ -98,21 +127,26 @@ private:
     BackupType getHBType(MegaSync *sync);
 
     m_time_t mLastBeat = 0;
+    std::shared_ptr<HeartBeatSyncInfo> getSyncTagByTransfer(MegaTransfer *transfer);
 public:
     void reset();
 
     void setRegisteredId(handle id);
 
-    void onTransferFinish(MegaApi *api, MegaTransfer *transfer, MegaError *error) override {}
-    void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) override {}
-    void onSyncFileStateChanged(MegaApi *api, MegaSync *sync, std::string *localPath, int newState) override {}
-    void onSyncEvent(MegaApi *api, MegaSync *sync, MegaSyncEvent *event) override {}
     void onSyncAdded(MegaApi *api, MegaSync *sync, int additionState) override;
-    void onSyncDisabled(MegaApi *api, MegaSync *sync) override {}
-    void onSyncEnabled(MegaApi *api, MegaSync *sync) override {}
     void onSyncDeleted(MegaApi *api, MegaSync *sync) override;
     void onSyncStateChanged(MegaApi *api, MegaSync *sync) override;
+
+    void onTransferStart(MegaApi *api, MegaTransfer *transfer) override;
+    void onTransferFinish(MegaApi *api, MegaTransfer *transfer, MegaError *error) override;
+    void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) override;
+
     void onGlobalSyncStateChanged(MegaApi *api) override {}
+    void onSyncFileStateChanged(MegaApi *api, MegaSync *sync, std::string *localPath, int newState) override {}
+    void onSyncEvent(MegaApi *api, MegaSync *sync, MegaSyncEvent *event) override {}
+    void onSyncDisabled(MegaApi *api, MegaSync *sync) override {}
+    void onSyncEnabled(MegaApi *api, MegaSync *sync) override {}
+
 };
 }
 

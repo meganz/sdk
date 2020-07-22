@@ -41,7 +41,7 @@ HeartBeatSyncInfo::Status HeartBeatSyncInfo::status() const
 
 double HeartBeatSyncInfo::progress() const
 {
-    return mProgress;
+    return std::max(0.,std::min(1., mTransferredBytes * 1. /mTotalBytes));
 }
 
 long long HeartBeatSyncInfo::pendingUps() const
@@ -64,9 +64,95 @@ mega::MegaHandle HeartBeatSyncInfo::lastSyncedItem() const
     return mLastSyncedItem;
 }
 
+void HeartBeatSyncInfo::updateTransferInfo(MegaTransfer *transfer)
+{
+    if (mPendingTransfers.find(transfer->getTag()) == mPendingTransfers.end())
+    {
+        mPendingTransfers.insert(std::make_pair(transfer->getTag(), ::mega::make_unique<PendingTransferInfo>()));
+    }
+
+    const auto &pending = mPendingTransfers[transfer->getTag()];
+
+    auto total = mTotalBytes;
+    auto transferred = mTransferredBytes;
+
+    // reduce globals by the last known data
+    total -= pending->totalBytes;
+    transferred -= pending->transferredBytes;
+
+    // update values with those of the transfer
+    pending->totalBytes = transfer->getTotalBytes();
+    pending->transferredBytes = transfer->getTransferredBytes();
+
+    // reflect those in the globals
+    total += pending->totalBytes;
+    transferred += pending->transferredBytes;
+
+    setTotalBytes(total);
+    setTransferredBytes(transferred);
+}
+
+void HeartBeatSyncInfo::removePendingTransfer(MegaTransfer *transfer)
+{
+    if (mPendingTransfers.find(transfer->getTag()) == mPendingTransfers.end())
+    {
+        assert(false && "removing a non included transfer");
+        return;
+    }
+
+    const auto &pending = mPendingTransfers[transfer->getTag()];
+
+    // reduce globals by the last known data
+    mTotalBytes -= pending->totalBytes;
+    mTransferredBytes -= pending->transferredBytes;
+
+    mPendingTransfers.erase(transfer->getTag());
+
+}
+
+void HeartBeatSyncInfo::setTransferredBytes(long long value)
+{
+    mTransferredBytes = value;
+    updateLastActionTime();
+}
+
+void HeartBeatSyncInfo::setTotalBytes(long long value)
+{
+    mTotalBytes = value;
+    updateLastActionTime();
+}
+
+void HeartBeatSyncInfo::setLastSyncedItem(const mega::MegaHandle &lastSyncedItem)
+{
+    mLastSyncedItem = lastSyncedItem;
+}
+
+void HeartBeatSyncInfo::setPendingDowns(long long pendingDowns)
+{
+    mPendingDowns = pendingDowns;
+    updateLastActionTime();
+}
+
+void HeartBeatSyncInfo::setPendingUps(long long pendingUps)
+{
+    mPendingUps = pendingUps;
+    updateLastActionTime();
+}
+
+void HeartBeatSyncInfo::setStatus(const Status &status)
+{
+    mStatus = status;
+    updateLastActionTime();
+}
+
 void HeartBeatSyncInfo::setLastAction(const m_time_t &lastAction)
 {
     mLastAction = lastAction;
+}
+
+void HeartBeatSyncInfo::updateLastActionTime()
+{
+    setLastAction(m_time(nullptr));
 }
 
 void HeartBeatSyncInfo::setLastBeat(const m_time_t &lastBeat)
@@ -176,6 +262,73 @@ void MegaHeartBeatMonitor::onSyncStateChanged(MegaApi *api, MegaSync *sync)
     updateOrRegisterSync(sync);
 }
 
+std::shared_ptr<HeartBeatSyncInfo> MegaHeartBeatMonitor::getSyncTagByTransfer(MegaTransfer *transfer)
+{
+    if (!transfer->isSyncTransfer())
+    {
+        return nullptr;
+    }
+
+    int tag = 0;
+
+    Node *n = mClient->nodebyhandle(transfer->getType() == MegaTransfer::TYPE_UPLOAD ? transfer->getParentHandle() : transfer->getNodeHandle());
+    if (n && n->localnode && n->localnode->sync)
+    {
+         tag = n->localnode->sync->tag;
+    }
+
+    if (tag)
+    {
+        auto hBPair = mHeartBeatedSyncs.find(tag);
+        return hBPair->second;
+    }
+
+    return nullptr;
+}
+
+void MegaHeartBeatMonitor::onTransferStart(MegaApi *api, MegaTransfer *transfer)
+{
+    auto hbs = getSyncTagByTransfer(transfer);
+    if (hbs)
+    {
+        if (transfer->getType() == MegaTransfer::TYPE_UPLOAD)
+        {
+            hbs->setPendingUps(hbs->pendingUps() + 1);
+        }
+        else
+        {
+            hbs->setPendingUps(hbs->pendingDowns() + 1);
+        }
+        hbs->updateTransferInfo(transfer);
+    }
+}
+
+void MegaHeartBeatMonitor::onTransferUpdate(MegaApi *api, MegaTransfer *transfer)
+{
+    auto hbs = getSyncTagByTransfer(transfer);
+    if (hbs)
+    {
+        hbs->updateTransferInfo(transfer);
+    }
+}
+
+void MegaHeartBeatMonitor::onTransferFinish(MegaApi *api, MegaTransfer *transfer, MegaError *error)
+{
+    auto hbs = getSyncTagByTransfer(transfer);
+    if (hbs)
+    {
+        if (transfer->getType() == MegaTransfer::TYPE_UPLOAD)
+        {
+            hbs->setPendingUps(hbs->pendingUps() - 1);
+        }
+        else
+        {
+            hbs->setPendingUps(hbs->pendingDowns() - 1);
+        }
+        hbs->removePendingTransfer(transfer);
+    }
+}
+
 void MegaHeartBeatMonitor::onSyncDeleted(MegaApi *api, MegaSync *sync)
 {
     auto hBPair = mHeartBeatedSyncs.find(sync->getTag());
@@ -187,7 +340,6 @@ void MegaHeartBeatMonitor::onSyncDeleted(MegaApi *api, MegaSync *sync)
         // and consider retries (perhaps that's already considered)
     }
 }
-
 
 void MegaHeartBeatMonitor::beat()
 {
