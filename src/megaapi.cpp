@@ -3159,20 +3159,36 @@ MegaNode *MegaApi::getSyncedNode(string *path)
     return pImpl->getSyncedNode(LocalPath::fromLocalname(*path));
 }
 
+void MegaApi::syncFolder(const char *localFolder, const char *name, MegaNode *megaFolder, MegaRequestListener *listener)
+{
+    pImpl->syncFolder(localFolder, name, megaFolder, NULL, listener);
+}
+
 void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener *listener)
 {
-    pImpl->syncFolder(localFolder, megaFolder, NULL, listener);
+    pImpl->syncFolder(localFolder, nullptr, megaFolder, NULL, listener);
+}
+
+void MegaApi::syncFolder(const char *localFolder, const char *name, MegaHandle megaHandle, MegaRequestListener *listener)
+{
+    pImpl->syncFolder(localFolder, name, megaHandle, NULL, listener);
 }
 
 void MegaApi::syncFolder(const char *localFolder, MegaHandle megaHandle, MegaRequestListener *listener)
 {
-    pImpl->syncFolder(localFolder, megaHandle, NULL, listener);
+    pImpl->syncFolder(localFolder, nullptr, megaHandle, NULL, listener);
+}
+
+void MegaApi::copySyncDataToCache(const char *localFolder, const char *name, MegaHandle megaHandle, const char *remotePath,
+                                  long long localfp, bool enabled, bool temporaryDisabled, MegaRequestListener *listener)
+{
+    pImpl->copySyncDataToCache(localFolder, name, megaHandle, remotePath, localfp, enabled, temporaryDisabled, listener);
 }
 
 void MegaApi::copySyncDataToCache(const char *localFolder, MegaHandle megaHandle, const char *remotePath,
                                   long long localfp, bool enabled, bool temporaryDisabled, MegaRequestListener *listener)
 {
-    pImpl->copySyncDataToCache(localFolder, megaHandle, remotePath, localfp, enabled, temporaryDisabled, listener);
+    pImpl->copySyncDataToCache(localFolder, nullptr, megaHandle, remotePath, localfp, enabled, temporaryDisabled, listener);
 }
 
 void MegaApi::copyCachedStatus(int storageStatus, int blockStatus, int businessStatus, MegaRequestListener *listener)
@@ -5523,6 +5539,11 @@ MegaHandle MegaSync::getMegaHandle() const
 }
 
 const char *MegaSync::getLocalFolder() const
+{
+    return NULL;
+}
+
+const char *MegaSync::getName() const
 {
     return NULL;
 }
