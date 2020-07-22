@@ -847,7 +847,7 @@ struct StandardClient : public MegaApp
             if (Node* m = drillchildnodebyname(n, subfoldername))
             {
                 static int syncTag = 1001;
-                SyncConfig syncConfig{syncTag++, localpath.u8string(), m->nodehandle, subfoldername, 0};
+                SyncConfig syncConfig{syncTag++, localpath.u8string(), localpath.u8string(), m->nodehandle, subfoldername, 0};
                 SyncError syncError;
                 error e = client.addsync(std::move(syncConfig), DEBRISFOLDER, NULL, syncError);  // use syncid as tag
                 if (!e)
