@@ -52,8 +52,11 @@ public:
     // get specific record by key
     virtual bool get(uint32_t, string*) = 0;
 
+    virtual bool getNodes(std::vector<std::string>& nodes) = 0;
+
     // update or add specific record
     virtual bool put(uint32_t, char*, unsigned) = 0;
+    virtual bool put(Node* node) = 0;
     bool put(uint32_t, string*);
     bool put(uint32_t, Cacheable *, SymmCipher*);
 

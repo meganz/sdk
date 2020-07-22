@@ -121,10 +121,16 @@ DbTable* SqliteDbAccess::open(PrnGen &rng, FileSystemAccess* fsaccess, string* n
     sqlite3_exec(db, "PRAGMA journal_mode=WAL;", NULL, NULL, NULL);
 #endif
 
-    const char *sql = "CREATE TABLE IF NOT EXISTS statecache (id INTEGER PRIMARY KEY ASC NOT NULL, content BLOB NOT NULL)";
+    string sql = "CREATE TABLE IF NOT EXISTS statecache (id INTEGER PRIMARY KEY ASC NOT NULL, content BLOB NOT NULL)";
 
-    rc = sqlite3_exec(db, sql, NULL, NULL, NULL);
+    rc = sqlite3_exec(db, sql.c_str(), NULL, NULL, NULL);
+    if (rc)
+    {
+        return NULL;
+    }
 
+    sql = "CREATE TABLE IF NOT EXISTS nodes (nodehandle int64 PRIMARY KEY NOT NULL, parenthandle int64, name text, fingerprint BLOB, node BLOB NOT NULL)";
+    rc = sqlite3_exec(db, sql.c_str(), NULL, NULL, NULL);
     if (rc)
     {
         return NULL;
@@ -237,6 +243,35 @@ bool SqliteDbTable::get(uint32_t index, string* data)
     return result;
 }
 
+bool SqliteDbTable::getNodes(std::vector<std::string>& nodes)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    checkTransaction();
+
+    sqlite3_stmt *stmt;
+    int result = SQLITE_ERROR;
+    if (sqlite3_prepare(db, "SELECT node FROM nodes", -1, &stmt, NULL) == SQLITE_OK)
+    {
+        while ((result = sqlite3_step(stmt) == SQLITE_ROW))
+        {
+            const void* data = sqlite3_column_blob(stmt, 0);
+            int size = sqlite3_column_bytes(stmt, 0);
+            if (data && size)
+            {
+                std::string node(static_cast<const char*>(data), size);
+                nodes.push_back(node);
+            }
+        }
+    }
+
+    sqlite3_finalize(stmt);
+    return result == SQLITE_DONE ? true : false;
+}
+
 // add/update record by index
 bool SqliteDbTable::put(uint32_t index, char* data, unsigned len)
 {
@@ -268,6 +303,40 @@ bool SqliteDbTable::put(uint32_t index, char* data, unsigned len)
     return result;
 }
 
+bool SqliteDbTable::put(Node *node)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    checkTransaction();
+
+    sqlite3_stmt *stmt;
+    bool result = false;
+
+    int sqlResult = sqlite3_prepare(db, "INSERT OR REPLACE INTO nodes (nodehandle, parenthandle, name, fingerprint, node) VALUES (?, ?, ?, ?, ?)", -1, &stmt, NULL);
+    if (sqlResult == SQLITE_OK)
+    {
+        sqlite3_bind_int64(stmt, 1, node->nodehandle);
+        sqlite3_bind_int64(stmt, 2, node->parenthandle);
+        sqlite3_bind_text(stmt, 3, node->displayname(), strlen(node->displayname()), SQLITE_STATIC);
+        string fp;
+        node->serializefingerprint(&fp);
+        sqlite3_bind_blob(stmt, 4, fp.data(), fp.size(), SQLITE_STATIC);
+        string nodeSerialized;
+        node->serialize(&nodeSerialized);
+        sqlite3_bind_blob(stmt, 5, nodeSerialized.data(), nodeSerialized.size(), SQLITE_STATIC);
+
+        if (sqlite3_step(stmt) == SQLITE_DONE)
+        {
+            result = true;
+        }
+    }
+
+    sqlite3_finalize(stmt);
+    return result;
+}
 // delete record by index
 bool SqliteDbTable::del(uint32_t index)
 {

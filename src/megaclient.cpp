@@ -4758,7 +4758,7 @@ void MegaClient::initsc()
             // 3. write new or modified nodes, purge deleted nodes
             for (node_map::iterator it = nodes.begin(); it != nodes.end(); it++)
             {
-                if (!(complete = sctable->put(CACHEDNODE, it->second, &key)))
+                if (!(complete = sctable->put(it->second)))
                 {
                     break;
                 }
@@ -4876,7 +4876,7 @@ void MegaClient::updatesc()
                 else
                 {
                     LOG_verbose << "Adding node to database: " << (Base64::btoa((byte*)&((*it)->nodehandle),MegaClient::NODEHANDLE,base64) ? base64 : "");
-                    if (!(complete = sctable->put(CACHEDNODE, *it, &key)))
+                    if (!(complete = sctable->put(*it)))
                     {
                         break;
                     }
@@ -10928,10 +10928,17 @@ bool MegaClient::fetchsc(DbTable* sctable)
     User* u;
     PendingContactRequest* pcr;
     node_vector dp;
+    std::vector<std::string> nodes;
 
     LOG_info << "Loading session from local cache";
 
     sctable->rewind();
+
+    sctable->getNodes(nodes);
+    for (const std::string& node : nodes)
+    {
+        n = Node::unserialize(this, &node, &dp);
+    }
 
     bool hasNext = sctable->next(&id, &data, &key);
     WAIT_CLASS::bumpds();
@@ -10944,18 +10951,6 @@ bool MegaClient::fetchsc(DbTable* sctable)
             case CACHEDSCSN:
                 if (data.size() != sizeof cachedscsn)
                 {
-                    return false;
-                }
-                break;
-
-            case CACHEDNODE:
-                if ((n = Node::unserialize(this, &data, &dp)))
-                {
-                    n->dbid = id;
-                }
-                else
-                {
-                    LOG_err << "Failed - node record read error";
                     return false;
                 }
                 break;
