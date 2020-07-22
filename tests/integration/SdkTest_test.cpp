@@ -85,10 +85,9 @@ bool fileexists(const std::string& fn)
 
 void copyFile(std::string& from, std::string& to)
 {
-    std::string f = from, t = to;
-    fileSystemAccess.path2local(&from, &f);
-    fileSystemAccess.path2local(&to, &t);
-    fileSystemAccess.copylocal(&f, &t, m_time());
+    LocalPath f = LocalPath::fromPath(from, fileSystemAccess);
+    LocalPath t = LocalPath::fromPath(to, fileSystemAccess);
+    fileSystemAccess.copylocal(f, t, m_time());
 }
 
 std::string megaApiCacheFolder(int index)
@@ -290,7 +289,7 @@ int SdkTest::getApiIndex(MegaApi* api)
     for (int i = int(megaApi.size()); i--; )  if (megaApi[i].get() == api) apiIndex = i;
     if (apiIndex == -1)
     {
-        LOG_warn << "Instance of MegaApi not recognized";   // does happen during shutdown
+        LOG_warn << "Instance of MegaApi not recognized";  // this can occur during MegaApi deletion due to callbacks on shutdown
     }
     return apiIndex;
 }
@@ -2358,26 +2357,17 @@ TEST_F(SdkTest, SdkTestShareKeys)
     ASSERT_STREQ(bView2->get(1)->getName(), "NO_KEY");
 }
 
-string localpathToUtf8Leaf(const string& itemlocalname, FSACCESS_CLASS& fsa)
+string localpathToUtf8Leaf(const LocalPath& itemlocalname, FSACCESS_CLASS& fsa)
 {
-    string::size_type pos = 0, testpos = 0;
-    while (string::npos != (testpos = itemlocalname.find(fsa.localseparator, pos)))
-    {
-        pos = testpos + fsa.localseparator.size();
-    }
-
-    string leafNameLocal = itemlocalname.substr(pos);
-    string leafNameUtf8;
-    fsa.local2path(&leafNameLocal, &leafNameUtf8);
-    return leafNameUtf8;
+    size_t lastpart = itemlocalname.lastpartlocal(fsa);
+    LocalPath name(itemlocalname.subpathFrom(lastpart));
+    return name.toPath(fsa);
 }
 
-string fspathToLocal(const fs::path& p, FSACCESS_CLASS& fsa)
+LocalPath fspathToLocal(const fs::path& p, FSACCESS_CLASS& fsa)
 {
     string path(p.u8string());
-    string local;
-    fsa.path2local(&path, &local);
-    return local;
+    return LocalPath::fromPath(path, fsa);
 }
     
 
@@ -2482,56 +2472,58 @@ TEST_F(SdkTest, SdkTestFolderIteration)
         std::map<std::string, FileAccessFields > iterate_follow_fopen;
 
         FSACCESS_CLASS fsa;
-        string localdir = fspathToLocal(iteratePath, fsa);
+        auto localdir = fspathToLocal(iteratePath, fsa);
 
         std::unique_ptr<FileAccess> fopen_directory(fsa.newfileaccess(false));  // false = don't follow symlinks
-        ASSERT_TRUE(fopen_directory->fopen(&localdir, true, false));
+        ASSERT_TRUE(fopen_directory->fopen(localdir, true, false));
 
         // now open and iterate the directory, not following symlinks (either by name or fopen'd directory)
         std::unique_ptr<DirAccess> da(fsa.newdiraccess());
         if (da->dopen(openWithNameOrUseFileAccess ? &localdir : NULL, openWithNameOrUseFileAccess ? NULL : fopen_directory.get(), false))
         {
             nodetype_t type;
-            string itemlocalname;
-            while (da->dnext(&localdir, &itemlocalname, false, &type))
+            LocalPath itemlocalname;
+            while (da->dnext(localdir, itemlocalname, false, &type))
             {
                 string leafNameUtf8 = localpathToUtf8Leaf(itemlocalname, fsa);
 
                 std::unique_ptr<FileAccess> plain_fopen_fa(fsa.newfileaccess(false));
                 std::unique_ptr<FileAccess> iterate_fopen_fa(fsa.newfileaccess(false));
 
-                string localpath = fspathToLocal(iteratePath / leafNameUtf8, fsa);
+                LocalPath localpath = localdir;
+                localpath.appendWithSeparator(itemlocalname, true, fsa.localseparator); 
 
-                ASSERT_TRUE(plain_fopen_fa->fopen(&localpath, true, false));
+                ASSERT_TRUE(plain_fopen_fa->fopen(localpath, true, false));
                 plain_fopen[leafNameUtf8] = *plain_fopen_fa;
 
-                ASSERT_TRUE(iterate_fopen_fa->fopen(&localpath, true, false, da.get()));
+                ASSERT_TRUE(iterate_fopen_fa->fopen(localpath, true, false, da.get()));
                 iterate_fopen[leafNameUtf8] = *iterate_fopen_fa;
             }
         }
 
         std::unique_ptr<FileAccess> fopen_directory2(fsa.newfileaccess(true));  // true = follow symlinks
-        ASSERT_TRUE(fopen_directory2->fopen(&localdir, true, false));
+        ASSERT_TRUE(fopen_directory2->fopen(localdir, true, false));
 
         // now open and iterate the directory, following symlinks (either by name or fopen'd directory)
         std::unique_ptr<DirAccess> da_follow(fsa.newdiraccess());
         if (da_follow->dopen(openWithNameOrUseFileAccess ? &localdir : NULL, openWithNameOrUseFileAccess ? NULL : fopen_directory2.get(), false))
         {
             nodetype_t type;
-            string itemlocalname;
-            while (da_follow->dnext(&localdir, &itemlocalname, true, &type))
+            LocalPath itemlocalname;
+            while (da_follow->dnext(localdir, itemlocalname, true, &type))
             {
                 string leafNameUtf8 = localpathToUtf8Leaf(itemlocalname, fsa);
 
                 std::unique_ptr<FileAccess> plain_follow_fopen_fa(fsa.newfileaccess(true));
                 std::unique_ptr<FileAccess> iterate_follow_fopen_fa(fsa.newfileaccess(true));
             
-                string localpath = fspathToLocal(iteratePath / leafNameUtf8, fsa);
+                LocalPath localpath = localdir;
+                localpath.appendWithSeparator(itemlocalname, true, fsa.localseparator); 
 
-                ASSERT_TRUE(plain_follow_fopen_fa->fopen(&localpath, true, false));
+                ASSERT_TRUE(plain_follow_fopen_fa->fopen(localpath, true, false));
                 plain_follow_fopen[leafNameUtf8] = *plain_follow_fopen_fa;
 
-                ASSERT_TRUE(iterate_follow_fopen_fa->fopen(&localpath, true, false, da_follow.get()));
+                ASSERT_TRUE(iterate_follow_fopen_fa->fopen(localpath, true, false, da_follow.get()));
                 iterate_follow_fopen[leafNameUtf8] = *iterate_follow_fopen_fa;
             }
         }
@@ -2602,14 +2594,14 @@ TEST_F(SdkTest, SdkTestFolderIteration)
         ASSERT_TRUE(plain_fopen.find("filelink.txt") == plain_fopen.end());
         
         // check the glob flag
-        string localdirGlob = fspathToLocal(iteratePath / "glob1*", fsa);
+        auto localdirGlob = fspathToLocal(iteratePath / "glob1*", fsa);
         std::unique_ptr<DirAccess> da2(fsa.newdiraccess());
         if (da2->dopen(&localdirGlob, NULL, true))
         {
             nodetype_t type;
-            string itemlocalname;
+            LocalPath itemlocalname;
             set<string> remainingExpected { "glob1folder", "glob1file.txt" };
-            while (da2->dnext(&localdir, &itemlocalname, true, &type))
+            while (da2->dnext(localdir, itemlocalname, true, &type))
             {
                 string leafNameUtf8 = localpathToUtf8Leaf(itemlocalname, fsa);
                 ASSERT_EQ(leafNameUtf8.substr(0, 5), string("glob1"));
@@ -3450,8 +3442,7 @@ TEST_F(SdkTest, SdkTestFingerprint)
 
     FSACCESS_CLASS fsa;
     string name = "testfile";
-    string localname;
-    fsa.path2local(&name, &localname);
+    LocalPath localname = LocalPath::fromPath(name, fsa);
 
     int value = 0x01020304;
     for (int i = sizeof filesizes / sizeof filesizes[0]; i--; )
@@ -3465,14 +3456,14 @@ TEST_F(SdkTest, SdkTestFingerprint)
             ofs.write((char*)&value, filesizes[i] % sizeof(value));
         }
 
-        fsa.setmtimelocal(&localname, 1000000000);
+        fsa.setmtimelocal(localname, 1000000000);
 
         string streamfp, filefp;
         {
             m_time_t mtime = 0;
             {
                 auto nfa = fsa.newfileaccess();
-                nfa->fopen(&localname);
+                nfa->fopen(localname);
                 mtime = nfa->mtime;
             }
 
@@ -4570,6 +4561,16 @@ TEST_F(SdkTest, invalidFileNames)
         // download filename must be found in fileNamesStringMap (original filename found)
         ASSERT_TRUE(fileNamesStringMap->get(downloadedName.c_str()));
     }
+
+#ifdef WIN32
+    // double check a few well known paths
+    ASSERT_EQ(fileSystemAccess.getlocalfstype(::mega::make_unique<string>("c:").get()), FS_NTFS);
+    ASSERT_EQ(fileSystemAccess.getlocalfstype(::mega::make_unique<string>("c:\\").get()), FS_NTFS);
+    ASSERT_EQ(fileSystemAccess.getlocalfstype(::mega::make_unique<string>("C:\\").get()), FS_NTFS);
+    ASSERT_EQ(fileSystemAccess.getlocalfstype(::mega::make_unique<string>("C:\\Program Files").get()), FS_NTFS);
+    ASSERT_EQ(fileSystemAccess.getlocalfstype(::mega::make_unique<string>("c:\\Program Files\\Windows NT").get()), FS_NTFS);
+#endif
+
 }
 
 TEST_F(SdkTest, RecursiveUploadWithLogout)

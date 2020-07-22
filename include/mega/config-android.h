@@ -160,7 +160,9 @@
 #endif
 
 /* Define to 64 for large file support on some hosts */
+#if !(defined(__ANDROID__) && (defined(__arm__) || defined(__i386__)) && __ANDROID_API__ < 24)
 #define _FILE_OFFSET_BITS 64
+#endif
 
 /* use GNU extensions */
 #define _GNU_SOURCE 1

@@ -23,8 +23,6 @@ import android.provider.MediaStore;
 
 import androidx.exifinterface.media.ExifInterface;
 
-import static mega.privacy.android.app.utils.LogUtil.*;
-
 public class AndroidGfxProcessor extends MegaGfxProcessor {
     Rect size;
     int orientation;
@@ -75,7 +73,6 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
                 }
                 retriever.release();
 
-                logDebug("Width: " + width + ", Height: " + height + ", Orientation: " + interchangeOrientation);
                 rect.right = width;
                 rect.bottom = height;
             } catch (Exception e) {

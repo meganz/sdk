@@ -24,13 +24,14 @@
 
 #include "DefaultedFileSystemAccess.h"
 #include "utils.h"
+#include "mega.h"
 
 namespace
 {
 
-class MockFileSystemAccess : public mt::DefaultedFileSystemAccess
-{
-};
+//class MockFileSystemAccess : public mt::DefaultedFileSystemAccess
+//{
+//};
 
 void checkUsers(mega::User& exp, mega::User& act)
 {
@@ -55,7 +56,7 @@ void checkUsers(mega::User& exp, mega::User& act)
 TEST(User, serialize_unserialize)
 {
     mega::MegaApp app;
-    MockFileSystemAccess fsaccess;
+    mega::FSACCESS_CLASS fsaccess;
     auto client = mt::makeClient(app, fsaccess);
 
     const std::string email = "foo@bar.com";
@@ -82,7 +83,7 @@ TEST(User, serialize_unserialize)
 TEST(User, unserialize_32bit)
 {
     mega::MegaApp app;
-    MockFileSystemAccess fsaccess;
+    mega::FSACCESS_CLASS fsaccess;
     auto client = mt::makeClient(app, fsaccess);
     const std::string email = "foo@bar.com";
     mega::User user{email.c_str()};

@@ -1166,10 +1166,10 @@ void CommandPutNodes::procresult()
     pendingfiles_map::iterator pit = client->pendingfiles.find(tag);
     if (pit != client->pendingfiles.end())
     {
-        vector<string> &pfs = pit->second;
+        vector<LocalPath> &pfs = pit->second;
         for (unsigned int i = 0; i < pfs.size(); i++)
         {
-            client->fsaccess->unlinklocal(&pfs[i]);
+            client->fsaccess->unlinklocal(pfs[i]);
         }
         client->pendingfiles.erase(pit);
     }
@@ -5375,7 +5375,7 @@ void CommandFetchNodes::procresult()
 
             case MAKENAMEID2('s', 'n'):
                 // sequence number
-                if (!client->setscsn(&client->json))
+                if (!client->scsn.setScsn(&client->json))
                 {
                     client->fetchingnodes = false;
                     return client->app->fetchnodes_result(API_EINTERNAL);
@@ -5411,7 +5411,7 @@ void CommandFetchNodes::procresult()
 #endif
             case EOO:
             {
-                if (!*client->scsn)
+                if (!client->scsn.ready())
                 {
                     client->fetchingnodes = false;
                     return client->app->fetchnodes_result(API_EINTERNAL);

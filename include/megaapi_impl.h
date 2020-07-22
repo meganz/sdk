@@ -233,7 +233,7 @@ protected:
     void onFolderAvailable(MegaHandle handle);
     void checkCompletion();
 
-    std::list<std::string> pendingFolders;
+    std::list<LocalPath> pendingFolders;
 
 public:
     void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e) override;
@@ -324,7 +324,7 @@ protected:
     // backup instance related
     handle currentHandle;
     std::string currentName;
-    std::list<std::string> pendingFolders;
+    std::list<LocalPath> pendingFolders;
     std::vector<MegaTransfer *> failedTransfers;
     int recursive;
     int pendingTransfers;
@@ -750,7 +750,10 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
 
         void startRecursiveOperation(unique_ptr<MegaRecursiveOperation>, MegaNode* node); // takes ownership of both
 
-    protected:
+        long long getPlaceInQueue() const;
+        void setPlaceInQueue(long long value);
+
+protected:
         int type;
         int tag;
         int state;
@@ -787,8 +790,10 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         int retry;
         int maxRetries;
 
+        long long placeInQueue = 0;
+
         MegaTransferListener *listener;
-        Transfer *transfer;
+        Transfer *transfer = nullptr;
         std::unique_ptr<MegaError> lastError;
         int folderTransferTag;
         const char* appData;
@@ -1853,7 +1858,7 @@ struct MegaFilePut : public MegaFile
 {
     void completed(Transfer* t, LocalNode*) override;
     void terminated() override;
-    MegaFilePut(MegaClient *client, string* clocalname, string *filename, handle ch, const char* ctargetuser, int64_t mtime = -1, bool isSourceTemporary = false);
+    MegaFilePut(MegaClient *client, LocalPath clocalname, string *filename, handle ch, const char* ctargetuser, int64_t mtime = -1, bool isSourceTemporary = false);
     ~MegaFilePut() {}
 
     bool serialize(string*) override;
@@ -1969,6 +1974,7 @@ class TransferQueue
     protected:
         std::deque<MegaTransferPrivate *> transfers;
         std::mutex mutex;
+        long long lastPushedTransfer = 0;
 
     public:
         TransferQueue();
@@ -1976,8 +1982,17 @@ class TransferQueue
         void push_front(MegaTransferPrivate *transfer);
         MegaTransferPrivate * pop();
 
+        /**
+         * @brief pops and returns transfer up to the designated one
+         * @param lastQueuedTransfer position of the last transfer to pop
+         * @param direction directio of transfers to pop
+         * @return
+         */
+        std::vector<MegaTransferPrivate *> popUpTo(int lastQueuedTransfer, int direction);
+
         void removeWithFolderTag(int folderTag, std::function<void(MegaTransferPrivate *)> callback);
         void removeListener(MegaTransferListener *listener);
+        long long getLastPushedTag() const;
 };
 
 class MegaApiImpl : public MegaApp
@@ -2275,7 +2290,7 @@ class MegaApiImpl : public MegaApp
 #ifdef ENABLE_SYNC
         //Sync
         int syncPathState(string *path);
-        MegaNode *getSyncedNode(string *path);
+        MegaNode *getSyncedNode(const LocalPath& path);
         void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp = NULL, long long localfp = 0, MegaRequestListener* listener = NULL);
         void removeSync(handle nodehandle, MegaRequestListener *listener=NULL);
         void disableSync(handle nodehandle, MegaRequestListener *listener=NULL);
@@ -2291,7 +2306,7 @@ class MegaApiImpl : public MegaApp
         long long getNumLocalNodes();
         bool isSyncable(const char *path, long long size);
         bool isInsideSync(MegaNode *node);
-        bool is_syncable(Sync*, const char*, string*);
+        bool is_syncable(Sync*, const char*, const LocalPath&);
         bool is_syncable(long long size);
         int isNodeSyncable(MegaNode *megaNode);
         bool isIndexing();
@@ -2631,6 +2646,8 @@ class MegaApiImpl : public MegaApp
         void fireOnTransferUpdate(MegaTransferPrivate *transfer);
         void fireOnTransferTemporaryError(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e);
         map<int, MegaTransferPrivate *> transferMap;
+        map<int, MegaTransferPrivate *> folderTransferMap; //transferMap includes these, added for speedup
+
 
         MegaClient *getMegaClient();
         static FileFingerprint *getFileFingerprintInternal(const char *fingerprint);
@@ -2930,6 +2947,10 @@ protected:
         void file_added(File*) override;
         void file_removed(File*, const Error& e) override;
         void file_complete(File*) override;
+
+        void transfer_complete(Transfer *) override;
+        void transfer_removed(Transfer *) override;
+
         File* file_resume(string*, direction_t *type) override;
 
         void transfer_prepare(Transfer*) override;
@@ -3007,8 +3028,8 @@ protected:
         void syncupdate_remote_move(Sync *sync, Node *n, Node* prevparent) override;
         void syncupdate_remote_rename(Sync*sync, Node* n, const char* prevname) override;
         void syncupdate_treestate(LocalNode*) override;
-        bool sync_syncable(Sync *, const char*, string *, Node *) override;
-        bool sync_syncable(Sync *, const char*, string *) override;
+        bool sync_syncable(Sync *, const char*, LocalPath&, Node *) override;
+        bool sync_syncable(Sync *, const char*, LocalPath&) override;
         void sync_auto_resumed(const string& localPath, handle remoteNode, long long localFp, const vector<string>& regExp) override;
         void syncupdate_local_lockretry(bool) override;
 
