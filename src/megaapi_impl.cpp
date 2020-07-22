@@ -21161,12 +21161,6 @@ void MegaApiImpl::sendPendingRequests()
                     e = API_EARGS;
                     break;
                 }
-
-                if (isBusinessAccount() && !isMasterBusinessAccount())
-                {
-                    e = API_EMASTERONLY;
-                    break;
-                }
             }
             else if (!strcmp(command, "bs"))
             {
@@ -21186,11 +21180,6 @@ void MegaApiImpl::sendPendingRequests()
                 if (us == 1 || (us < 0 || us > 9))
                 {
                     e = API_EARGS;
-                    break;
-                }
-                if (isBusinessAccount() && !isMasterBusinessAccount())
-                {
-                    e = API_EMASTERONLY;
                     break;
                 }
             }
