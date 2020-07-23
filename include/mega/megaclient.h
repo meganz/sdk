@@ -585,6 +585,8 @@ public:
     error saveAndUpdateSyncConfig(const SyncConfig *config, syncstate_t newstate, SyncError syncerror);
     // updates in remote path/node & calls app's syncupdate_remote_root_changed. passing n=null will remove remote handle and keep last known path
     bool updateSyncRemoteLocation(const SyncConfig *config, Node *n, bool forceCallback = false); //returns if changed
+    // updates heartbeatID
+    error updateSyncHearBeatID(int tag, handle newHearBeatID);
 
     // transition the cache to failed
     void failSync(Sync* sync, SyncError syncerror);
@@ -623,6 +625,14 @@ public:
 
 
 #endif
+
+    /**
+     * @brief creates a tlv with one record and returns it encrypted with master key
+     * @param name name of the record
+     * @param text value of the record
+     * @return encrypted string with the tlv contents
+     */
+    string *cypherTLVTextWithMasterKey(const char *name, const std::string &text);
 
     // close all open HTTP connections
     void disconnect();

@@ -2203,7 +2203,7 @@ SyncConfig::SyncConfig(int tag,
                        const Type syncType,
                        const bool syncDeletions,
                        const bool forceOverwrite,
-                       const SyncError error)
+                       const SyncError error, mega::handle hearBeatID)
     : mTag{tag}
     , mEnabled{enabled}
     , mLocalPath{std::move(localPath)}
@@ -2215,6 +2215,7 @@ SyncConfig::SyncConfig(int tag,
     , mSyncDeletions{syncDeletions}
     , mForceOverwrite{forceOverwrite}
     , mError{error}
+    , mHeartBeatID(hearBeatID)
 {}
 
 
@@ -2344,6 +2345,16 @@ void SyncConfig::setError(SyncError value)
     mError = value;
 }
 
+handle SyncConfig::getHeartBeatID() const
+{
+    return mHeartBeatID;
+}
+
+void SyncConfig::setHeartBeatID(const handle &heartBeatID)
+{
+    mHeartBeatID = heartBeatID;
+}
+
 // This should be a const-method but can't be due to the broken Cacheable interface.
 // Do not mutate members in this function! Hence, we forward to a private const-method.
 bool SyncConfig::serialize(std::string* data)
@@ -2365,6 +2376,7 @@ std::unique_ptr<SyncConfig> SyncConfig::unserialize(const std::string& data)
     bool syncDeletions;
     bool forceOverwrite;
     uint32_t error;
+    handle heartBeatID;
 
     CacheableReader reader{data};
     if (!reader.unserializei64(tag))
@@ -2420,10 +2432,14 @@ std::unique_ptr<SyncConfig> SyncConfig::unserialize(const std::string& data)
     {
         return {};
     }
+    if (!reader.unserializehandle(heartBeatID))
+    {
+        return {};
+    }
     auto syncConfig = std::unique_ptr<SyncConfig>{new SyncConfig{static_cast<int>(tag), std::move(localPath),
                     remoteNode, remotePath, fingerprint, std::move(regExps), enabled,
                     static_cast<Type>(syncType), syncDeletions,
-                    forceOverwrite, static_cast<SyncError>(error)}};
+                    forceOverwrite, static_cast<SyncError>(error), heartBeatID}};
     return syncConfig;
 }
 
@@ -2445,6 +2461,7 @@ bool SyncConfig::serialize(std::string& data) const
     writer.serializebool(mSyncDeletions);
     writer.serializebool(mForceOverwrite);
     writer.serializeu32(static_cast<int>(mError));
+    writer.serializehandle(mHeartBeatID);
     writer.serializeexpansionflags();
     return true;
 }

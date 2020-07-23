@@ -14325,6 +14325,24 @@ error MegaClient::saveAndUpdateSyncConfig(const SyncConfig *config, syncstate_t 
 }
 
 
+error MegaClient::updateSyncHearBeatID(int tag, handle newHearBeatID)
+{
+    if (syncConfigs)
+    {
+        auto syncconfig = syncConfigs->get(tag);
+        if (!syncconfig)
+        {
+            return API_ENOENT;
+        }
+        auto newConfig = *syncconfig;
+
+        newConfig.setHeartBeatID(newHearBeatID);
+        syncConfigs->insert(newConfig);
+        return API_OK;
+    }
+    return API_ENOENT;
+}
+
 bool MegaClient::updateSyncRemoteLocation(const SyncConfig *config, Node *n, bool forceCallback)
 {
     if (!config)
@@ -14429,6 +14447,13 @@ error MegaClient::changeSyncStateByNodeHandle(mega::handle nodeHandle, syncstate
     e = changeSyncState(config, newstate, newSyncError, fireDisableEvent);
 
     return e;
+}
+
+string *MegaClient::cypherTLVTextWithMasterKey(const char *name, const string &text)
+{
+    TLVstore tlv;
+    tlv.set(name, text);
+    return tlv.tlvRecordsToContainer(rng, &key);
 }
 
 void MegaClient::failSync(Sync* sync, SyncError syncerror)

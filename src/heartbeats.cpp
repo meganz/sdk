@@ -275,6 +275,8 @@ void MegaHeartBeatMonitor::setRegisteredId(handle id)
         }
     }
 
+    mClient->updateSyncHearBeatID(syncTag, id);
+
     mPendingBackupPuts.pop_front();
 }
 
@@ -316,11 +318,38 @@ BackupType MegaHeartBeatMonitor::getHBType(MegaSync *sync)
 
 void MegaHeartBeatMonitor::updateOrRegisterSync(MegaSync *sync)
 {
+    if (!sync)
+    {
+        return;
+    }
+    auto config = mClient->syncConfigs->get(sync->getTag());
+
+    handle syncID = UNDEF;
+    if (config)
+    {
+        syncID = config->getHeartBeatID();
+    }
+
+    //TODO: doc this names (lf, de, na)
+    std::unique_ptr<string> localFolderEncrypted(mClient->cypherTLVTextWithMasterKey("lf", sync->getLocalFolder()) );
+    std::unique_ptr<string> deviceIDEncrypted(mClient->cypherTLVTextWithMasterKey("de", mClient->getDeviceid()) );
+    std::unique_ptr<string> nameEncrypted(mClient->cypherTLVTextWithMasterKey("na", sync->getName()) );
+
     string extraData;
-    mClient->reqs.add(new CommandBackupPut(mClient, BackupType::TWO_WAY, sync->getMegaHandle(), sync->getLocalFolder()/*TODO: encrypt this*/,
-                                           mClient->getDeviceid().c_str()/*TODO: encrypt this*/, sync->getName() /*TODO: specs dont say, but it makes sense to encryp this*/,
+    if (syncID == UNDEF) //register
+    {
+        mClient->reqs.add(new CommandBackupPut(mClient, BackupType::TWO_WAY, sync->getMegaHandle(), localFolderEncrypted->c_str(),
+                                           deviceIDEncrypted->c_str(), nameEncrypted->c_str(),
                                            getHBState(sync), getHBSubstatus(sync), getHBExtraData(sync)
                                            ));
+    }
+    else //update
+    {
+        mClient->reqs.add(new CommandBackupPut(mClient, syncID, BackupType::TWO_WAY, sync->getMegaHandle(), localFolderEncrypted->c_str(),
+                                               deviceIDEncrypted->c_str(), nameEncrypted->c_str(),
+                                               getHBState(sync), getHBSubstatus(sync), getHBExtraData(sync).c_str()
+                                               ));
+    }
 
     mPendingBackupPuts.push_back(sync->getTag());
 }

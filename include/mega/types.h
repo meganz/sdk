@@ -864,7 +864,8 @@ public:
                const Type syncType = TYPE_TWOWAY,
                const bool syncDeletions = false,
                const bool forceOverwrite = false,
-               const SyncError error = NO_SYNC_ERROR
+               const SyncError error = NO_SYNC_ERROR,
+               handle hearBeatID = UNDEF
             );
 
     // returns unique identifier
@@ -937,6 +938,9 @@ public:
     // check if a sync would be enabled according to the sync state and error
     static bool isEnabled(syncstate_t state, SyncError syncError);
 
+    handle getHeartBeatID() const;
+    void setHeartBeatID(const handle &heartBeatID);
+
 private:
     friend bool operator==(const SyncConfig& lhs, const SyncConfig& rhs);
 
@@ -974,6 +978,9 @@ private:
     // failure cause (disable/failure cause).
     SyncError mError;
 
+    // id for heartbeating
+    handle mHeartBeatID;
+
     // need this to ensure serialization doesn't mutate state (Cacheable::serialize is non-const)
     bool serialize(std::string& data) const;
 
@@ -988,7 +995,8 @@ private:
                const Type&,
                const bool&,
                const bool&,
-               const int&> tie() const
+               const int&,
+               const handle&> tie() const
     {
         return std::tie(mTag,
                         mEnabled,
@@ -1000,7 +1008,8 @@ private:
                         mSyncType,
                         mSyncDeletions,
                         mForceOverwrite,
-                        mError);
+                        mError,
+                        mHeartBeatID);
     }
 };
 
